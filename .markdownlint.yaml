@@ -1,0 +1,49 @@
+# MarkSpec markdownlint config — formatting rules delegated to dprint.
+# From spec Annex E.
+
+heading-increment: true
+heading-style: { style: atx }
+no-missing-space-atx: true
+no-multiple-space-atx: true
+blanks-around-headings: false # → dprint
+heading-start-left: true
+no-duplicate-heading: { siblings_only: true }
+single-title: true # override to false for SUMMARY.md
+no-trailing-punctuation: true
+first-line-heading: true
+ul-style: { style: dash }
+list-indent: true
+ul-indent: { indent: 2 }
+ol-prefix: { style: ordered }
+list-marker-space: true
+blanks-around-lists: false # → dprint
+no-trailing-spaces: true # safety net
+no-hard-tabs: true
+no-multiple-blanks: false # → dprint
+single-trailing-newline: false # → dprint
+line-length:
+  line_length: 80
+  tables: false
+  code_blocks: false
+  headings: false
+blanks-around-fences: false # → dprint
+fenced-code-language: true
+code-block-style: { style: fenced }
+code-fence-style: { style: backtick }
+no-emphasis-as-heading: false
+no-space-in-emphasis: true
+emphasis-style: { style: underscore } # safety net
+strong-style: { style: asterisk } # safety net
+no-bare-urls: true
+no-space-in-links: true
+no-empty-links: true
+no-alt-text: true
+link-fragments: true
+link-image-reference-definitions: true
+link-image-style: true
+no-inline-html: true
+no-multiple-space-blockquote: true
+no-blanks-blockquote: false
+hr-style: { style: "---" }
+required-headings: false
+proper-names: false
