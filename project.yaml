@@ -1,0 +1,7 @@
+"$schema": https://driftsys.github.io/schemas/project/v1.json
+name: io.driftsys.markspec
+version: 0.0.1
+category: [specification, tool]
+description: Markdown flavor and toolchain for traceable industrial documentation
+license: MIT
+repository: https://github.com/driftsys/markspec
