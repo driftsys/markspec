@@ -63,5 +63,6 @@ jobs:
         with:
           fetch-depth: 0
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | bash || true
+          git-std --version
       - run: git-std check --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
