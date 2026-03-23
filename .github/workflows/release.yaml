@@ -94,6 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +111,6 @@ jobs:
         run: deno run -A scripts/build_npm.ts ${{ github.ref_name }}
 
       - name: Publish
-        run: cd npm && npm publish --access public
+        run: cd npm && npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
