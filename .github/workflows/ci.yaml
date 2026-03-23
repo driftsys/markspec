@@ -54,6 +54,16 @@ jobs:
           deno-version: v2.x
       - run: deno test --allow-read
 
+  tokens:
+    name: Design tokens
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: bash scripts/check_tokens.sh
+
   commits:
     name: Conventional commits
     if: github.event_name == 'pull_request'
