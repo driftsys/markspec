@@ -24,11 +24,16 @@ fmt:
     deno fmt
     dprint fmt
 
+# Regenerate theme files from spec tokens
+tokens:
+    deno run --allow-read --allow-write scripts/gen_theme.ts
+
 # Build spec and guide books (requires mdbook)
-book:
+book: tokens
     mdbook build docs/spec
     mdbook build docs/guide
-    typst compile docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+    typst compile --font-path packages/markspec-typst/fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+    cp -r docs/theme _site/theme
     cp docs/index.html _site/index.html
 
 # Serve a book locally with live reload (default: spec)

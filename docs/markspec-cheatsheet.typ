@@ -336,7 +336,9 @@ Mention the 150ms requirement.
 
 = Deck (presentations)
 
-`---` = slide break. H2 starts each slide.
+`---` = slide break. `==` starts each slide. Powered by Touying.
+
+== Markdown source
 
 #code[```markdown
 # Presentation Title
@@ -357,6 +359,33 @@ More content.
 
 ## Demo Slide
 ```]
+
+== Touying features (in Typst output)
+
+`#pause` · `#speaker-note[...]` · `#uncover("2-")[...]` · `#only("2-")[...]` · `#alternatives[a][b]`
+
+== Typst package usage
+
+#code[```typst
+#import "@preview/touying:0.6.1": *
+#import "@driftsys/markspec:0.1.0": *
+
+#show: markspec-deck.with(
+  aspect-ratio: "16-9",
+)
+
+#markspec-title-slide(
+  title: [My Presentation],
+)
+
+== First Slide
+
+Content with #pause animation.
+
+#speaker-note[Notes here.]
+```]
+
+Slide types: `markspec-title-slide` · `markspec-focus-slide`
 
 = Mustache references
 

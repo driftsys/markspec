@@ -1,0 +1,35 @@
+@startuml components-categorical
+skinparam svgDimensionStyle false
+skinparam shadowing false
+scale 2
+skinparam ranksep 30
+skinparam nodesep 35
+skinparam defaultFontName "IBM Plex Sans"
+skinparam defaultFontSize 12
+skinparam backgroundColor #ffffff
+skinparam ArrowColor #1a1a1a
+skinparam component {
+  BackgroundColor<<req>> #4477AA
+  BackgroundColor<<arch>> #66CCEE
+  BackgroundColor<<test>> #228833
+  BackgroundColor<<ext>> #CCBB44
+  FontColor<<req>> #ffffff
+  FontColor<<arch>> #1a1a1a
+  FontColor<<test>> #ffffff
+  FontColor<<ext>> #1a1a1a
+  BorderColor #1a1a1a
+}
+
+component "STK_BRK_0001\nBrake response" <<req>> as STK
+component "SYS_BRK_0042\nSensor filtering" <<req>> as SYS
+component "SAD_BRK_0001\nSensor pipeline" <<arch>> as SAD
+component "SRS_BRK_0107\nDebounce filter" <<req>> as SRS
+component "SWT_BRK_0107\nDebounce test" <<test>> as SWT
+component "ICD_BRK_0001\nCAN interface" <<ext>> as ICD
+
+STK --> SYS : satisfies
+SYS --> SAD : satisfies
+SYS --> SRS : satisfies
+SRS --> SWT : verified-by
+SYS --> ICD : satisfies
+@enduml
