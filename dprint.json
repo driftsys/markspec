@@ -23,6 +23,7 @@
     "**/target",
     "**/dist",
     "**/build",
+    "_site",
     "CHANGELOG.md"
   ],
   "plugins": [

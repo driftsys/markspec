@@ -7,5 +7,8 @@
   },
   "workspace": [
     "./packages/markspec"
-  ]
+  ],
+  "fmt": {
+    "exclude": ["docs/index.html"]
+  }
 }

@@ -1,0 +1,13 @@
+[book]
+title = "MarkSpec Language Specification"
+authors = ["DriftSys"]
+language = "en"
+src = "."
+
+[build]
+build-dir = "../../_site/spec"
+
+[output.html]
+no-section-label = true
+git-repository-url = "https://github.com/driftsys/markspec"
+edit-url-template = "https://github.com/driftsys/markspec/edit/main/docs/spec/{path}"
