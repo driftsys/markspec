@@ -22,6 +22,9 @@ await build({
   shims: {
     deno: false,
   },
+  typeCheck: false,
+  test: false,
+  importMap: "./packages/markspec/deno.json",
   package: {
     name: "@driftsys/markspec",
     version,
