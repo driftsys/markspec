@@ -4,8 +4,8 @@
  * Usage: deno run --allow-read --allow-write scripts/gen_theme.ts
  */
 
-import { parse } from "jsr:@std/yaml@^1";
-import { dirname, fromFileUrl, join } from "jsr:@std/path@^1";
+import { parse } from "@std/yaml";
+import { dirname, fromFileUrl, join } from "@std/path";
 
 const ROOT = join(dirname(fromFileUrl(import.meta.url)), "..");
 const TOKENS_PATH = join(ROOT, "docs/spec/tokens.yaml");
@@ -13,7 +13,8 @@ const TYPST_DIR = join(ROOT, "packages/markspec-typst");
 const CSS_DIR = join(ROOT, "docs/theme");
 
 const HEADER_TYPST = "// Generated from docs/spec/tokens.yaml — do not edit.\n";
-const HEADER_CSS = "/* Generated from docs/spec/tokens.yaml — do not edit. */\n";
+const HEADER_CSS =
+  "/* Generated from docs/spec/tokens.yaml — do not edit. */\n";
 
 // ── Load tokens ─────────────────────────────────────────────────────────
 
@@ -45,11 +46,6 @@ const FONT_GENERIC: Record<string, string> = {
   mono: "monospace",
   serif: "serif",
 };
-
-function ptToRem(pt: string): string {
-  const val = parseFloat(pt);
-  return (val / 16).toFixed(4).replace(/0+$/, "").replace(/\.$/, "") + "rem";
-}
 
 // ── Generate Typst tokens ───────────────────────────────────────────────
 
@@ -121,7 +117,12 @@ function genTypstTheme(name: string, colors: Record<string, string>): string {
 // ── Generate CSS ────────────────────────────────────────────────────────
 
 function genCss(): string {
-  const lines: string[] = [HEADER_CSS, ":root {"];
+  const lines: string[] = [
+    HEADER_CSS,
+    "/* ── Web fonts ──────────────────────────────────────────── */\n",
+    '@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital@0;1&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400;1,600&display=swap");\n',
+    ":root {",
+  ];
 
   // Fonts
   lines.push("  /* Fonts */");
@@ -143,17 +144,17 @@ function genCss(): string {
     lines.push(`  --space-${key}: ${val};`);
   }
 
-  // Light theme (default)
+  // Light theme (default) — namespaced to avoid collisions with mdBook
   lines.push("\n  /* Light theme (default) */");
   for (const [key, val] of Object.entries(tokens.themes.light)) {
-    lines.push(`  --${key}: ${val};`);
+    lines.push(`  --ms-${key}: ${val};`);
   }
 
   // Alerts
   lines.push("\n  /* Alert colors */");
   for (const [name, props] of Object.entries(tokens.alerts)) {
-    lines.push(`  --alert-${name}-border: ${props.border};`);
-    lines.push(`  --alert-${name}-bg: ${props.bg};`);
+    lines.push(`  --ms-alert-${name}-border: ${props.border};`);
+    lines.push(`  --ms-alert-${name}-bg: ${props.bg};`);
   }
 
   lines.push("}\n");
@@ -161,52 +162,42 @@ function genCss(): string {
   // Dark theme
   lines.push('[data-theme="dark"] {');
   for (const [key, val] of Object.entries(tokens.themes.dark)) {
-    lines.push(`  --${key}: ${val};`);
+    lines.push(`  --ms-${key}: ${val};`);
   }
   lines.push("}\n");
 
-  // mdBook overrides
-  lines.push("/* ── mdBook overrides ───────────────────────────────────── */\n");
+  // mdBook overrides — map mdBook vars to our namespaced tokens
+  lines.push(
+    "/* ── mdBook overrides ───────────────────────────────────── */\n",
+  );
   lines.push(":root {");
   lines.push("  --mono-font: var(--font-mono);");
-  lines.push("  --links: var(--accent);");
   lines.push("}\n");
   lines.push(".light, .rust {");
-  lines.push("  --bg: var(--bg);");
-  lines.push("  --fg: var(--text);");
-  lines.push("  --sidebar-bg: #f5f5f5;");
-  lines.push("  --sidebar-fg: var(--text);");
-  lines.push("  --sidebar-active: var(--accent);");
-  lines.push("  --links: var(--accent);");
-  lines.push("  --inline-code-color: var(--text);");
-  lines.push("  --theme-popup-bg: #ffffff;");
-  lines.push("  --theme-popup-border: var(--border);");
-  lines.push("  --quote-bg: var(--bg-alert);");
-  lines.push("  --quote-border: var(--border);");
-  lines.push("  --table-border-color: var(--border);");
-  lines.push("  --table-header-bg: var(--bg-code);");
+  lines.push("  --sidebar-bg: var(--ms-bg-code);");
+  lines.push("  --sidebar-fg: var(--ms-text);");
+  lines.push("  --sidebar-active: var(--ms-accent);");
+  lines.push("  --links: var(--ms-accent);");
+  lines.push("  --inline-code-color: var(--ms-text);");
+  lines.push("  --theme-popup-bg: var(--ms-bg);");
+  lines.push("  --theme-popup-border: var(--ms-border);");
+  lines.push("  --quote-bg: var(--ms-bg-alert);");
+  lines.push("  --quote-border: var(--ms-border);");
+  lines.push("  --table-border-color: var(--ms-border);");
+  lines.push("  --table-header-bg: var(--ms-bg-code);");
   lines.push("}\n");
   lines.push(".navy, .ayu, .coal {");
-  lines.push("  --links: var(--accent);");
+  lines.push("  --links: var(--ms-accent);");
   lines.push("  --inline-code-color: #e4e4e4;");
   lines.push("}\n");
 
   // Base typography
-  lines.push("/* ── Base typography ────────────────────────────────────── */\n");
+  lines.push(
+    "/* ── Base typography ────────────────────────────────────── */\n",
+  );
   lines.push("body { font-family: var(--font-sans); }");
   lines.push("code, pre > code { font-family: var(--font-mono); }");
-  lines.push(
-    `h1 { font-size: ${ptToRem(tokens.scale.h1.size)}; font-weight: 600; }`,
-  );
-  lines.push(
-    `h2 { font-size: ${ptToRem(tokens.scale.h2.size)}; font-weight: 600; }`,
-  );
-  lines.push(
-    `h3 { font-size: ${ptToRem(tokens.scale.h3.size)}; font-weight: 600; }`,
-  );
-  lines.push(
-    `h4 { font-size: ${ptToRem(tokens.scale.h4.size)}; font-weight: 600; }`,
-  );
+  lines.push("h1, h2, h3, h4 { font-weight: 600; }");
 
   lines.push("");
   return lines.join("\n") + "\n";
@@ -218,8 +209,14 @@ await Deno.mkdir(CSS_DIR, { recursive: true });
 
 const writes: [string, string][] = [
   [join(TYPST_DIR, "tokens.typ"), genTypstTokens()],
-  [join(TYPST_DIR, "themes/light.typ"), genTypstTheme("light", tokens.themes.light)],
-  [join(TYPST_DIR, "themes/dark.typ"), genTypstTheme("dark", tokens.themes.dark)],
+  [
+    join(TYPST_DIR, "themes/light.typ"),
+    genTypstTheme("light", tokens.themes.light),
+  ],
+  [
+    join(TYPST_DIR, "themes/dark.typ"),
+    genTypstTheme("dark", tokens.themes.dark),
+  ],
   [join(CSS_DIR, "markspec.css"), genCss()],
 ];
 

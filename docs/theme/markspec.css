@@ -1,5 +1,9 @@
 /* Generated from docs/spec/tokens.yaml — do not edit. */
 
+/* ── Web fonts ──────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital@0;1&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400;1,600&display=swap");
+
 :root {
   /* Fonts */
   --font-sans: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", "DejaVu Sans", sans-serif;
@@ -25,66 +29,63 @@
   --space-8: 32pt;
 
   /* Light theme (default) */
-  --bg: #ffffff;
-  --text: #1a1a1a;
-  --secondary: #6b6b6b;
-  --muted: #999999;
-  --accent: #0072B2;
-  --accent-dark: #005580;
-  --bg-code: #f5f5f5;
-  --bg-alert: #f0f4f8;
-  --border: #d4d4d4;
+  --ms-bg: #ffffff;
+  --ms-text: #1a1a1a;
+  --ms-secondary: #6b6b6b;
+  --ms-muted: #999999;
+  --ms-accent: #0072B2;
+  --ms-accent-dark: #005580;
+  --ms-bg-code: #f5f5f5;
+  --ms-bg-alert: #f0f4f8;
+  --ms-border: #d4d4d4;
 
   /* Alert colors */
-  --alert-note-border: #4477AA;
-  --alert-note-bg: #f0f4f8;
-  --alert-tip-border: #228833;
-  --alert-tip-bg: #f0f8f2;
-  --alert-important-border: #AA3377;
-  --alert-important-bg: #f8f0f6;
-  --alert-warning-border: #CCBB44;
-  --alert-warning-bg: #f8f6f0;
-  --alert-caution-border: #EE6677;
-  --alert-caution-bg: #f8f0f0;
+  --ms-alert-note-border: #4477AA;
+  --ms-alert-note-bg: #f0f4f8;
+  --ms-alert-tip-border: #228833;
+  --ms-alert-tip-bg: #f0f8f2;
+  --ms-alert-important-border: #AA3377;
+  --ms-alert-important-bg: #f8f0f6;
+  --ms-alert-warning-border: #CCBB44;
+  --ms-alert-warning-bg: #f8f6f0;
+  --ms-alert-caution-border: #EE6677;
+  --ms-alert-caution-bg: #f8f0f0;
 }
 
 [data-theme="dark"] {
-  --bg: #1a1a1a;
-  --text: #e4e4e4;
-  --secondary: #999999;
-  --muted: #666666;
-  --accent: #56b4e9;
-  --accent-dark: #3a8fbf;
-  --bg-code: #2a2a2a;
-  --bg-alert: #242424;
-  --border: #404040;
+  --ms-bg: #1a1a1a;
+  --ms-text: #e4e4e4;
+  --ms-secondary: #999999;
+  --ms-muted: #666666;
+  --ms-accent: #56b4e9;
+  --ms-accent-dark: #3a8fbf;
+  --ms-bg-code: #2a2a2a;
+  --ms-bg-alert: #242424;
+  --ms-border: #404040;
 }
 
 /* ── mdBook overrides ───────────────────────────────────── */
 
 :root {
   --mono-font: var(--font-mono);
-  --links: var(--accent);
 }
 
 .light, .rust {
-  --bg: var(--bg);
-  --fg: var(--text);
-  --sidebar-bg: #f5f5f5;
-  --sidebar-fg: var(--text);
-  --sidebar-active: var(--accent);
-  --links: var(--accent);
-  --inline-code-color: var(--text);
-  --theme-popup-bg: #ffffff;
-  --theme-popup-border: var(--border);
-  --quote-bg: var(--bg-alert);
-  --quote-border: var(--border);
-  --table-border-color: var(--border);
-  --table-header-bg: var(--bg-code);
+  --sidebar-bg: var(--ms-bg-code);
+  --sidebar-fg: var(--ms-text);
+  --sidebar-active: var(--ms-accent);
+  --links: var(--ms-accent);
+  --inline-code-color: var(--ms-text);
+  --theme-popup-bg: var(--ms-bg);
+  --theme-popup-border: var(--ms-border);
+  --quote-bg: var(--ms-bg-alert);
+  --quote-border: var(--ms-border);
+  --table-border-color: var(--ms-border);
+  --table-header-bg: var(--ms-bg-code);
 }
 
 .navy, .ayu, .coal {
-  --links: var(--accent);
+  --links: var(--ms-accent);
   --inline-code-color: #e4e4e4;
 }
 
@@ -92,8 +93,5 @@
 
 body { font-family: var(--font-sans); }
 code, pre > code { font-family: var(--font-mono); }
-h1 { font-size: 1.25rem; font-weight: 600; }
-h2 { font-size: 1.0313rem; font-weight: 600; }
-h3 { font-size: 0.875rem; font-weight: 600; }
-h4 { font-size: 0.75rem; font-weight: 600; }
+h1, h2, h3, h4 { font-weight: 600; }
 
