@@ -28,6 +28,7 @@ fmt:
 book:
     mdbook build docs/spec
     mdbook build docs/guide
+    typst compile docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
     cp docs/index.html _site/index.html
 
 # Serve a book locally with live reload (default: spec)
