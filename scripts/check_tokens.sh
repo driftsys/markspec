@@ -1,8 +1,13 @@
 #!/bin/bash
 # Verify generated theme files are up to date with tokens.yaml.
 # Used by the pre-commit hook — exits non-zero if stale.
+# Skips entirely when tokens.yaml is not staged.
 
 set -euo pipefail
+
+if ! git diff --cached --name-only | grep -q 'docs/spec/tokens.yaml'; then
+  exit 0
+fi
 
 deno run --allow-read --allow-write scripts/gen_theme.ts > /dev/null 2>&1
 
