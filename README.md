@@ -1,6 +1,8 @@
 # MarkSpec
 
 [![CI](https://github.com/driftsys/markspec/actions/workflows/ci.yaml/badge.svg)](https://github.com/driftsys/markspec/actions/workflows/ci.yaml)
+[![JSR](https://jsr.io/badges/@driftsys/markspec)](https://jsr.io/@driftsys/markspec)
+[![Docs](https://img.shields.io/badge/docs-driftsys.github.io%2Fmarkspec-blue)](https://driftsys.github.io/markspec/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A Markdown flavor for traceable industrial documentation, and a CLI toolchain
