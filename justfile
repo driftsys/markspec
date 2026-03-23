@@ -34,6 +34,25 @@ book:
 book-dev book="spec":
     mdbook serve docs/{{book}} --open
 
+# Bump version, update changelog, commit, and tag
+bump:
+    git std bump
+
+# Publish to JSR
+publish: build
+    deno publish
+
+# Compile the CLI binary for the current platform
+compile:
+    deno compile --allow-read --allow-write --allow-run --allow-env \
+        --output markspec \
+        packages/markspec/main.ts
+
+# Bump, push tag, and publish (full local release flow)
+release: bump
+    git push --follow-tags
+    just publish
+
 # Remove build artifacts
 clean:
-    rm -rf node_modules .dprint _site
+    rm -rf node_modules .dprint _site markspec
