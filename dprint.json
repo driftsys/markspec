@@ -24,6 +24,7 @@
     "**/dist",
     "**/build",
     "_site",
+    "npm",
     "CHANGELOG.md"
   ],
   "plugins": [

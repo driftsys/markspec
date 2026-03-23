@@ -38,9 +38,15 @@ book-dev book="spec":
 bump:
     git std bump
 
-# Publish to JSR
+# Build npm package via dnt
+build-npm:
+    deno run -A scripts/build_npm.ts
+
+# Publish to JSR and npm
 publish: build
     deno publish
+    just build-npm
+    cd npm && npm publish --access public
 
 # Compile the CLI binary for the current platform
 compile:
@@ -55,4 +61,4 @@ release: bump
 
 # Remove build artifacts
 clean:
-    rm -rf node_modules .dprint _site markspec
+    rm -rf node_modules .dprint _site npm markspec

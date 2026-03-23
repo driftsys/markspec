@@ -71,7 +71,7 @@ jobs:
             artifacts/*.tar.gz
             artifacts/*.sha256
 
-  publish:
+  publish-jsr:
     name: Publish to JSR
     needs: build
     runs-on: ubuntu-latest
@@ -87,3 +87,30 @@ jobs:
 
       - name: Publish
         run: deno publish --allow-dirty
+
+  publish-npm:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+
+      - name: Build npm package
+        run: deno run -A scripts/build_npm.ts ${{ github.ref_name }}
+
+      - name: Publish
+        run: cd npm && npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
