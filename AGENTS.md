@@ -634,6 +634,8 @@ severity/effort/priority, and review flow.
 - **Commits.** Use Conventional Commits — `feat`, `fix`, `refactor`, `docs`,
   `test`, `chore`. Imperative mood. One commit per PR.
 - **Before PR.** Run `just build` — all checks must pass.
+- **After PR.** Run `/review` on the pull request and post findings as a PR
+  comment.
 
 ## Conventions
 
