@@ -12,6 +12,6 @@
     "./packages/markspec"
   ],
   "fmt": {
-    "exclude": ["docs/index.html"]
+    "exclude": ["docs/index.html", "docs/theme/"]
   }
 }

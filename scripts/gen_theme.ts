@@ -13,7 +13,8 @@ const TYPST_DIR = join(ROOT, "packages/markspec-typst");
 const CSS_DIR = join(ROOT, "docs/theme");
 
 const HEADER_TYPST = "// Generated from docs/spec/tokens.yaml — do not edit.\n";
-const HEADER_CSS = "/* Generated from docs/spec/tokens.yaml — do not edit. */\n";
+const HEADER_CSS =
+  "/* Generated from docs/spec/tokens.yaml — do not edit. */\n";
 
 // ── Load tokens ─────────────────────────────────────────────────────────
 
@@ -171,7 +172,9 @@ function genCss(): string {
   lines.push("}\n");
 
   // mdBook overrides — map mdBook vars to our namespaced tokens
-  lines.push("/* ── mdBook overrides ───────────────────────────────────── */\n");
+  lines.push(
+    "/* ── mdBook overrides ───────────────────────────────────── */\n",
+  );
   lines.push(":root {");
   lines.push("  --mono-font: var(--font-mono);");
   lines.push("}\n");
@@ -194,7 +197,9 @@ function genCss(): string {
   lines.push("}\n");
 
   // Base typography
-  lines.push("/* ── Base typography ────────────────────────────────────── */\n");
+  lines.push(
+    "/* ── Base typography ────────────────────────────────────── */\n",
+  );
   lines.push("body { font-family: var(--font-sans); }");
   lines.push("code, pre > code { font-family: var(--font-mono); }");
   lines.push("h1, h2, h3, h4 { font-weight: 600; }");
@@ -209,8 +214,14 @@ await Deno.mkdir(CSS_DIR, { recursive: true });
 
 const writes: [string, string][] = [
   [join(TYPST_DIR, "tokens.typ"), genTypstTokens()],
-  [join(TYPST_DIR, "themes/light.typ"), genTypstTheme("light", tokens.themes.light)],
-  [join(TYPST_DIR, "themes/dark.typ"), genTypstTheme("dark", tokens.themes.dark)],
+  [
+    join(TYPST_DIR, "themes/light.typ"),
+    genTypstTheme("light", tokens.themes.light),
+  ],
+  [
+    join(TYPST_DIR, "themes/dark.typ"),
+    genTypstTheme("dark", tokens.themes.dark),
+  ],
   [join(CSS_DIR, "markspec.css"), genCss()],
 ];
 

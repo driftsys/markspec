@@ -716,7 +716,7 @@ explicitly in `project.yaml`.
   --ms-text: #1a1a1a;
   --ms-secondary: #6b6b6b;
   --ms-muted: #999999;
-  --ms-accent: #0072B2;
+  --ms-accent: #0072b2;
   --ms-accent-dark: #005580;
   --ms-bg-code: #f5f5f5;
   --ms-bg-alert: #f0f4f8;
