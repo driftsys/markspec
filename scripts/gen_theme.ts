@@ -4,8 +4,8 @@
  * Usage: deno run --allow-read --allow-write scripts/gen_theme.ts
  */
 
-import { parse } from "jsr:@std/yaml@^1";
-import { dirname, fromFileUrl, join } from "jsr:@std/path@^1";
+import { parse } from "@std/yaml";
+import { dirname, fromFileUrl, join } from "@std/path";
 
 const ROOT = join(dirname(fromFileUrl(import.meta.url)), "..");
 const TOKENS_PATH = join(ROOT, "docs/spec/tokens.yaml");
@@ -46,11 +46,6 @@ const FONT_GENERIC: Record<string, string> = {
   mono: "monospace",
   serif: "serif",
 };
-
-function ptToRem(pt: string): string {
-  const val = parseFloat(pt);
-  return (val / 16).toFixed(4).replace(/0+$/, "").replace(/\.$/, "") + "rem";
-}
 
 // ── Generate Typst tokens ───────────────────────────────────────────────
 

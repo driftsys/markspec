@@ -6,7 +6,9 @@
     "fmt": "deno fmt"
   },
   "imports": {
-    "@deno/dnt": "jsr:@deno/dnt@^0.42.3"
+    "@deno/dnt": "jsr:@deno/dnt@^0.42.3",
+    "@std/yaml": "jsr:@std/yaml@^1",
+    "@std/path": "jsr:@std/path@^1"
   },
   "workspace": [
     "./packages/markspec"
