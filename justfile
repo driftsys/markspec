@@ -28,7 +28,7 @@ fmt:
 book:
     mdbook build docs/spec
     mdbook build docs/guide
-    typst compile --font-path fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+    typst compile --font-path packages/markspec-typst/fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
     cp docs/index.html _site/index.html
 
 # Serve a book locally with live reload (default: spec)

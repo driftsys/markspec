@@ -1,0 +1,8 @@
+[package]
+name = "markspec"
+version = "0.1.0"
+entrypoint = "lib.typ"
+authors = ["DriftSys"]
+license = "MIT"
+description = "Typographic theme for MarkSpec — documents, books, and slide decks"
+repository = "https://github.com/driftsys/markspec"

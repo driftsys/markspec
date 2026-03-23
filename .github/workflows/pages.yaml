@@ -41,7 +41,7 @@ jobs:
         uses: typst-community/setup-typst@v4
 
       - name: Build cheat sheet
-        run: typst compile --font-path fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+        run: typst compile --font-path packages/markspec-typst/fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
 
       - name: Copy landing page
         run: cp docs/index.html _site/index.html
