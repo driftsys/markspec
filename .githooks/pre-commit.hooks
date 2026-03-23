@@ -19,8 +19,7 @@
 #   git std hooks enable pre-commit
 #   git std hooks disable pre-commit
 #
-~ deno fmt
-~ dprint fmt
-! deno lint
+! deno fmt --check
 ! dprint check
+! deno lint
 ! deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts

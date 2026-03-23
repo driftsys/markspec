@@ -621,6 +621,9 @@ severity/effort/priority, and review flow.
 
 **Agent-specific rules:**
 
+- **Always work in a worktree.** Create a git worktree for every task. Never
+  commit directly to the main working tree unless the user explicitly says to
+  work in the tree.
 - **Start from the issue.** Read the acceptance criteria and
   `docs/spec/language.md`, propose an approach, and wait for approval before
   implementing.
