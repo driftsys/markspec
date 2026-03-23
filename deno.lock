@@ -1,7 +1,6 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@std/assert@*": "1.0.13",
     "jsr:@std/assert@1": "1.0.13",
     "jsr:@std/internal@^1.0.6": "1.0.7"
   },
@@ -18,7 +17,7 @@
   },
   "workspace": {
     "members": {
-      "packages/core": {
+      "packages/markspec": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]

@@ -6,21 +6,21 @@
 A Markdown flavor for traceable industrial documentation, and a CLI toolchain
 that processes it.
 
-> Early development. The [language specification](docs/specification.md) is
+> Early development. The [language specification](docs/spec/language.md) is
 > stable. Tooling is not yet functional.
 
 ## Tools
 
 ```text
-markspec doc build       # document PDF
-markspec doc export      # JSON export
-markspec doc validate    # check ID graph, gaps
-markspec doc format      # format Markdown, assign ULIDs
-markspec doc insert      # scaffold requirement block
+markspec format          # stamp ULIDs, normalize attributes
+markspec validate        # check broken refs, missing Ids
+markspec compile <paths> # build traceability graph → JSON
+markspec export          # JSON → csv, reqif, yaml
+markspec insert          # scaffold requirement block
 
+markspec doc build       # document PDF
 markspec book build      # PDF + HTML book
 markspec book dev        # live preview
-
 markspec deck build      # presentation PDF
 markspec deck dev        # live preview
 
@@ -28,14 +28,16 @@ markspec lsp             # LSP server
 markspec mcp             # MCP server
 ```
 
-## Packages
+## Modules
 
 ```text
-packages/
-  core/     ← parser, validator, Typst WASM, Mustache, config
-  cli/      ← the markspec binary (subcommands: doc, book, deck)
-  lsp/      ← LSP server
-  mcp/      ← MCP server
+core/      ← parser, validator, compiler, reporter, formatter
+render/    ← Typst WASM, Mustache substitution, captions
+book/      ← multi-file PDF + HTML book builder
+deck/      ← Touying-based slide deck builder
+cli/       ← subcommand handlers
+lsp/       ← LSP server
+mcp/       ← MCP server
 ```
 
 One binary. One install. Three rendering targets (document, book, deck).

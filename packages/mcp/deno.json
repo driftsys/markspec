@@ -1,5 +1,0 @@
-{
-  "name": "@driftsys/markspec-mcp",
-  "version": "0.0.1",
-  "exports": "./mod.ts"
-}

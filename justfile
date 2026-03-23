@@ -1,6 +1,6 @@
 # Type-check all packages
 check:
-    deno check packages/*/mod.ts
+    deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts
 
 # Run tests
 test:
