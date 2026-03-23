@@ -30,9 +30,9 @@ book:
     mdbook build docs/guide
     cp docs/index.html _site/index.html
 
-# Serve books locally with live reload
-book-dev:
-    mdbook serve docs/spec --open
+# Serve a book locally with live reload (default: spec)
+book-dev book="spec":
+    mdbook serve docs/{{book}} --open
 
 # Remove build artifacts
 clean:
