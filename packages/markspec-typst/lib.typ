@@ -1,11 +1,14 @@
 // MarkSpec Typst package — typographic themes for documents and decks.
 //
-// Usage:
-//   #import "@driftsys/markspec:0.1.0": markspec-doc, markspec-deck
-//
+// Document template:
+//   #import "@driftsys/markspec:0.1.0": markspec-doc
 //   #show: markspec-doc.with(title: "My Document")
-//   #show: markspec-deck.with(title: "My Presentation")
+//
+// Slide deck (requires Touying):
+//   #import "@preview/touying:0.6.1": *
+//   #import "@driftsys/markspec:0.1.0": markspec-deck, markspec-title-slide, markspec-focus-slide
+//   #show: markspec-deck.with(aspect-ratio: "16-9")
 
 #import "doc.typ": markspec-doc
-#import "deck.typ": markspec-deck
+#import "deck.typ": markspec-deck, markspec-title-slide, markspec-focus-slide
 #import "tokens.typ"
