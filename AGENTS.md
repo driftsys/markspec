@@ -645,6 +645,10 @@ severity/effort/priority, and review flow.
 - **Naming.** Names must reveal intent. Avoid `temp`, `data`, `flag`, `info`.
   Use `camelCase` for variables and functions, `PascalCase` for types and
   interfaces.
+- **Node.js compatibility.** Production code must run on Node.js, not only Deno.
+  Use `jsr:` imports (resolved by both runtimes), avoid `Deno.*` APIs in library
+  code — use `@std/*` or Web APIs instead. `Deno.*` is allowed in CLI entry
+  points, tests, and scripts.
 - **Error handling.** Use typed errors with descriptive messages. Prefer
   `Result`-style patterns over thrown exceptions where possible.
 - **Comments:** doc comments (`/** */`) on all public API items. Brief inline
