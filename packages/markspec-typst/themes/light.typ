@@ -1,4 +1,6 @@
-// MarkSpec light theme — monochrome + accent.
+// Generated from docs/spec/tokens.yaml — do not edit.
+
+// MarkSpec light theme.
 
 #let bg = rgb("#ffffff")
 #let text = rgb("#1a1a1a")
@@ -16,3 +18,4 @@
 #let alert-important = rgb("#AA3377")
 #let alert-warning = rgb("#CCBB44")
 #let alert-caution = rgb("#EE6677")
+

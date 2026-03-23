@@ -1,0 +1,65 @@
+# Design tokens — canonical source for all theme implementations.
+# See typography.md for rationale and visual examples.
+# Run `just tokens` to regenerate Typst and CSS theme files.
+
+fonts:
+  sans: [IBM Plex Sans, Segoe UI, Helvetica Neue, DejaVu Sans]
+  mono: [IBM Plex Mono, Cascadia Mono, SF Mono, DejaVu Sans Mono]
+  serif: [IBM Plex Serif, Georgia, DejaVu Serif]
+
+scale:
+  h1: { size: 20pt, weight: semibold, leading: 24pt }
+  h2: { size: 16.5pt, weight: semibold, leading: 20pt }
+  h3: { size: 14pt, weight: semibold, leading: 17pt }
+  h4: { size: 12pt, weight: semibold, leading: 15pt }
+  body: { size: 10pt, weight: regular, leading: 14pt }
+  small: { size: 8.5pt, weight: regular, leading: 12pt }
+  code: { size: 9pt, weight: regular, leading: 13pt }
+  footer: { size: 8pt, weight: regular, leading: 10pt }
+
+spacing:
+  1: 4pt
+  2: 8pt
+  3: 12pt
+  4: 16pt
+  6: 24pt
+  8: 32pt
+
+page:
+  size: a4
+  margin: 25mm
+
+slide:
+  width: 1920pt
+  height: 1080pt
+  margin-x: 80pt
+  margin-y: 60pt
+
+themes:
+  light:
+    bg: "#ffffff"
+    text: "#1a1a1a"
+    secondary: "#6b6b6b"
+    muted: "#999999"
+    accent: "#0072B2"
+    accent-dark: "#005580"
+    bg-code: "#f5f5f5"
+    bg-alert: "#f0f4f8"
+    border: "#d4d4d4"
+  dark:
+    bg: "#1a1a1a"
+    text: "#e4e4e4"
+    secondary: "#999999"
+    muted: "#666666"
+    accent: "#56b4e9"
+    accent-dark: "#3a8fbf"
+    bg-code: "#2a2a2a"
+    bg-alert: "#242424"
+    border: "#404040"
+
+alerts:
+  note: { border: "#4477AA", bg: "#f0f4f8" }
+  tip: { border: "#228833", bg: "#f0f8f2" }
+  important: { border: "#AA3377", bg: "#f8f0f6" }
+  warning: { border: "#CCBB44", bg: "#f8f6f0" }
+  caution: { border: "#EE6677", bg: "#f8f0f0" }

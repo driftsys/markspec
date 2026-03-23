@@ -1,3 +1,5 @@
+// Generated from docs/spec/tokens.yaml — do not edit.
+
 // MarkSpec dark theme.
 
 #let bg = rgb("#1a1a1a")
@@ -10,9 +12,10 @@
 #let bg-alert = rgb("#242424")
 #let border = rgb("#404040")
 
-// Alert border colors (Tol palette — same in both themes)
+// Alert border colors (Tol palette)
 #let alert-note = rgb("#4477AA")
 #let alert-tip = rgb("#228833")
 #let alert-important = rgb("#AA3377")
 #let alert-warning = rgb("#CCBB44")
 #let alert-caution = rgb("#EE6677")
+

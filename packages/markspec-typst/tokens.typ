@@ -1,5 +1,4 @@
-// MarkSpec design tokens — fonts, colors, spacing.
-// Source of truth: docs/spec/typography.md
+// Generated from docs/spec/tokens.yaml — do not edit.
 
 // ── Fonts ──────────────────────────────────────────────────────────────
 
@@ -40,3 +39,4 @@
 #let slide-height = 1080pt
 #let slide-margin-x = 80pt
 #let slide-margin-y = 60pt
+

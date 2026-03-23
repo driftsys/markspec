@@ -6,6 +6,7 @@ on:
     paths:
       - "docs/spec/**"
       - "docs/guide/**"
+      - "docs/theme/**"
       - "docs/markspec-cheatsheet.typ"
       - "docs/index.html"
       - ".github/workflows/pages.yaml"
@@ -43,8 +44,10 @@ jobs:
       - name: Build cheat sheet
         run: typst compile --font-path packages/markspec-typst/fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
 
-      - name: Copy landing page
-        run: cp docs/index.html _site/index.html
+      - name: Copy theme and landing page
+        run: |
+          cp -r docs/theme _site/theme
+          cp docs/index.html _site/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

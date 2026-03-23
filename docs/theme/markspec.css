@@ -1,0 +1,99 @@
+/* Generated from docs/spec/tokens.yaml — do not edit. */
+
+:root {
+  /* Fonts */
+  --font-sans: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", "DejaVu Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", "SF Mono", "DejaVu Sans Mono", monospace;
+  --font-serif: "IBM Plex Serif", "Georgia", "DejaVu Serif", serif;
+
+  /* Type scale */
+  --size-h1: 20pt;
+  --size-h2: 16.5pt;
+  --size-h3: 14pt;
+  --size-h4: 12pt;
+  --size-body: 10pt;
+  --size-small: 8.5pt;
+  --size-code: 9pt;
+  --size-footer: 8pt;
+
+  /* Spacing */
+  --space-1: 4pt;
+  --space-2: 8pt;
+  --space-3: 12pt;
+  --space-4: 16pt;
+  --space-6: 24pt;
+  --space-8: 32pt;
+
+  /* Light theme (default) */
+  --bg: #ffffff;
+  --text: #1a1a1a;
+  --secondary: #6b6b6b;
+  --muted: #999999;
+  --accent: #0072B2;
+  --accent-dark: #005580;
+  --bg-code: #f5f5f5;
+  --bg-alert: #f0f4f8;
+  --border: #d4d4d4;
+
+  /* Alert colors */
+  --alert-note-border: #4477AA;
+  --alert-note-bg: #f0f4f8;
+  --alert-tip-border: #228833;
+  --alert-tip-bg: #f0f8f2;
+  --alert-important-border: #AA3377;
+  --alert-important-bg: #f8f0f6;
+  --alert-warning-border: #CCBB44;
+  --alert-warning-bg: #f8f6f0;
+  --alert-caution-border: #EE6677;
+  --alert-caution-bg: #f8f0f0;
+}
+
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --text: #e4e4e4;
+  --secondary: #999999;
+  --muted: #666666;
+  --accent: #56b4e9;
+  --accent-dark: #3a8fbf;
+  --bg-code: #2a2a2a;
+  --bg-alert: #242424;
+  --border: #404040;
+}
+
+/* ── mdBook overrides ───────────────────────────────────── */
+
+:root {
+  --mono-font: var(--font-mono);
+  --links: var(--accent);
+}
+
+.light, .rust {
+  --bg: var(--bg);
+  --fg: var(--text);
+  --sidebar-bg: #f5f5f5;
+  --sidebar-fg: var(--text);
+  --sidebar-active: var(--accent);
+  --links: var(--accent);
+  --inline-code-color: var(--text);
+  --theme-popup-bg: #ffffff;
+  --theme-popup-border: var(--border);
+  --quote-bg: var(--bg-alert);
+  --quote-border: var(--border);
+  --table-border-color: var(--border);
+  --table-header-bg: var(--bg-code);
+}
+
+.navy, .ayu, .coal {
+  --links: var(--accent);
+  --inline-code-color: #e4e4e4;
+}
+
+/* ── Base typography ────────────────────────────────────── */
+
+body { font-family: var(--font-sans); }
+code, pre > code { font-family: var(--font-mono); }
+h1 { font-size: 1.25rem; font-weight: 600; }
+h2 { font-size: 1.0313rem; font-weight: 600; }
+h3 { font-size: 0.875rem; font-weight: 600; }
+h4 { font-size: 0.75rem; font-weight: 600; }
+
