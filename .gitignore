@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 target/
+_site/
 
 # Deno
 .deno/

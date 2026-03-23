@@ -24,6 +24,16 @@ fmt:
     deno fmt
     dprint fmt
 
+# Build spec and guide books (requires mdbook)
+book:
+    mdbook build docs/spec
+    mdbook build docs/guide
+    cp docs/index.html _site/index.html
+
+# Serve books locally with live reload
+book-dev:
+    mdbook serve docs/spec --open
+
 # Remove build artifacts
 clean:
-    rm -rf node_modules .dprint
+    rm -rf node_modules .dprint _site
