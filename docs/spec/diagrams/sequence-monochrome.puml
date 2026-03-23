@@ -1,0 +1,36 @@
+@startuml sequence-monochrome
+skinparam svgDimensionStyle false
+skinparam shadowing false
+scale 2
+skinparam ranksep 30
+skinparam nodesep 35
+skinparam defaultFontName "IBM Plex Sans"
+skinparam defaultFontSize 12
+skinparam backgroundColor #ffffff
+skinparam ArrowColor #1a1a1a
+skinparam BorderColor #1a1a1a
+skinparam ParticipantBackgroundColor #f5f5f5
+skinparam ParticipantBorderColor #d4d4d4
+skinparam NoteBackgroundColor #f5f5f5
+skinparam NoteBorderColor #d4d4d4
+skinparam SequenceLifeLineBorderColor #6b6b6b
+
+participant "Sensor\nDriver" as SD
+participant "Debounce\nFilter" as DF
+participant "Brake\nController" as BC
+
+SD -> DF : raw sample (1 kHz)
+activate DF
+DF -> DF : apply window (5ms)
+DF -> BC : filtered value
+deactivate DF
+activate BC
+BC -> BC : compute brake force
+BC --> SD : ack
+deactivate BC
+
+note right of DF
+  SRS_BRK_0107
+  Satisfies: SYS_BRK_0042
+end note
+@enduml
