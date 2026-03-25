@@ -1,12 +1,5 @@
 import { assertEquals } from "@std/assert";
-import {
-  compile,
-  format,
-  parse,
-  report,
-  validate,
-  VERSION,
-} from "./mod.ts";
+import { compile, format, parse, report, validate, VERSION } from "./mod.ts";
 import type {
   Attribute,
   CompileResult,
