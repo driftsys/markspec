@@ -1,8 +1,19 @@
 import { assertEquals } from "@std/assert";
-import { compile, format, parse, report, validate, VERSION } from "./mod.ts";
+import {
+  compile,
+  ConfigError,
+  DEFAULT_PROJECT_CONFIG,
+  format,
+  parse,
+  REFHUB_URL,
+  report,
+  validate,
+  VERSION,
+} from "./mod.ts";
 import type {
   Attribute,
   CompileResult,
+  ConfigFieldError,
   Diagnostic,
   Entry,
   ExportFormat,
@@ -56,13 +67,39 @@ Deno.test("model types are constructible", () => {
 
   const config: ProjectConfig = {
     name: "test-project",
-    types: ["STK", "SRS", "SAD"],
-    include: ["**/*.md"],
-    exclude: ["node_modules/**"],
-    registries: [],
-    variables: { project: "test" },
+    domain: "BRK",
+    version: "1.0.0",
+    labels: ["ASIL-B"],
+    parents: [],
+    parentFallback: REFHUB_URL,
   };
   assertEquals(config.name, "test-project");
+});
+
+// ---------------------------------------------------------------------------
+// Config exports
+// ---------------------------------------------------------------------------
+
+Deno.test("DEFAULT_PROJECT_CONFIG has expected defaults", () => {
+  assertEquals(DEFAULT_PROJECT_CONFIG.name, "");
+  assertEquals(DEFAULT_PROJECT_CONFIG.domain, "");
+  assertEquals(DEFAULT_PROJECT_CONFIG.version, "0.0.0");
+  assertEquals(DEFAULT_PROJECT_CONFIG.labels, []);
+  assertEquals(DEFAULT_PROJECT_CONFIG.parents, []);
+  assertEquals(DEFAULT_PROJECT_CONFIG.parentFallback, REFHUB_URL);
+});
+
+Deno.test("ConfigError is constructible", () => {
+  const fieldErr: ConfigFieldError = {
+    field: "name",
+    message: "required",
+    line: 1,
+  };
+  const err = new ConfigError("project.yaml", [fieldErr]);
+  assertEquals(err.name, "ConfigError");
+  assertEquals(err.configPath, "project.yaml");
+  assertEquals(err.fieldErrors.length, 1);
+  assertEquals(err.message.includes("name"), true);
 });
 
 // ---------------------------------------------------------------------------

@@ -6,8 +6,10 @@
 
 :root {
   /* Fonts */
-  --font-sans: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", "DejaVu Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Mono", "SF Mono", "DejaVu Sans Mono", monospace;
+  --font-sans:
+    "IBM Plex Sans", "Segoe UI", "Helvetica Neue", "DejaVu Sans", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", "Cascadia Mono", "SF Mono", "DejaVu Sans Mono", monospace;
   --font-serif: "IBM Plex Serif", "Georgia", "DejaVu Serif", serif;
 
   /* Type scale */
@@ -33,22 +35,22 @@
   --ms-text: #1a1a1a;
   --ms-secondary: #6b6b6b;
   --ms-muted: #999999;
-  --ms-accent: #0072B2;
+  --ms-accent: #0072b2;
   --ms-accent-dark: #005580;
   --ms-bg-code: #f5f5f5;
   --ms-bg-alert: #f0f4f8;
   --ms-border: #d4d4d4;
 
   /* Alert colors */
-  --ms-alert-note-border: #4477AA;
+  --ms-alert-note-border: #4477aa;
   --ms-alert-note-bg: #f0f4f8;
   --ms-alert-tip-border: #228833;
   --ms-alert-tip-bg: #f0f8f2;
-  --ms-alert-important-border: #AA3377;
+  --ms-alert-important-border: #aa3377;
   --ms-alert-important-bg: #f8f0f6;
-  --ms-alert-warning-border: #CCBB44;
+  --ms-alert-warning-border: #ccbb44;
   --ms-alert-warning-bg: #f8f6f0;
-  --ms-alert-caution-border: #EE6677;
+  --ms-alert-caution-border: #ee6677;
   --ms-alert-caution-bg: #f8f0f0;
 }
 
@@ -91,7 +93,12 @@
 
 /* ── Base typography ────────────────────────────────────── */
 
-body { font-family: var(--font-sans); }
-code, pre > code { font-family: var(--font-mono); }
-h1, h2, h3, h4 { font-weight: 600; }
-
+body {
+  font-family: var(--font-sans);
+}
+code, pre > code {
+  font-family: var(--font-mono);
+}
+h1, h2, h3, h4 {
+  font-weight: 600;
+}

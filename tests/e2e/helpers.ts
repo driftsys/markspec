@@ -10,14 +10,26 @@ const CLI_ENTRY = new URL(
   import.meta.url,
 ).pathname;
 
+/** Options for the markspec test helper. */
+export interface MarkspecOptions {
+  /** Files to write before running the command. */
+  files?: Record<string, string>;
+  /** Working directory relative to the temp root (e.g., `"a/b/c"`). */
+  cwd?: string;
+}
+
 /** Run the markspec CLI with the given args and optional input files. */
 export async function markspec(
   args: string[],
-  files: Record<string, string> = {},
+  filesOrOptions: Record<string, string> | MarkspecOptions = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
+  const opts: MarkspecOptions = isMarkspecOptions(filesOrOptions)
+    ? filesOrOptions
+    : { files: filesOrOptions };
+
   const dir = await Deno.makeTempDir();
   try {
-    for (const [name, content] of Object.entries(files)) {
+    for (const [name, content] of Object.entries(opts.files ?? {})) {
       const parts = name.split("/");
       if (parts.length > 1) {
         await Deno.mkdir(`${dir}/${parts.slice(0, -1).join("/")}`, {
@@ -26,6 +38,12 @@ export async function markspec(
       }
       await Deno.writeTextFile(`${dir}/${name}`, content);
     }
+
+    const cwd = opts.cwd ? `${dir}/${opts.cwd}` : dir;
+    if (opts.cwd) {
+      await Deno.mkdir(cwd, { recursive: true }).catch(() => {});
+    }
+
     const cmd = new Deno.Command("deno", {
       args: [
         "run",
@@ -34,7 +52,7 @@ export async function markspec(
         CLI_ENTRY,
         ...args,
       ],
-      cwd: dir,
+      cwd,
       stdout: "piped",
       stderr: "piped",
     });
@@ -47,4 +65,10 @@ export async function markspec(
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+}
+
+function isMarkspecOptions(
+  v: Record<string, string> | MarkspecOptions,
+): v is MarkspecOptions {
+  return "files" in v || "cwd" in v;
 }
