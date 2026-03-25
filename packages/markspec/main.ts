@@ -59,7 +59,6 @@ const cli = new Command()
     "Output format (json|text)",
     { default: "text" },
   )
-
   // Core commands
   .command("format")
   .description("Stamp ULIDs, fix indentation, normalize attributes")
@@ -70,65 +69,50 @@ const cli = new Command()
       console.error("0 files formatted");
     }
   })
-
   .command("validate")
   .description("Check broken refs, missing Ids, duplicates")
   .action(notImplemented("validate"))
-
   .command("compile <paths...:string>")
   .description("Parse files, build traceability graph, output JSON")
   .action(notImplemented("compile"))
-
   .command("export")
   .description("Compiled JSON → json, csv, reqif, yaml")
   .action(notImplemented("export"))
-
   .command("insert")
   .description("Insert a requirement block into a file")
   .action(notImplemented("insert"))
-
   .command("create")
   .description("Scaffold a new requirement block")
   .action(notImplemented("create"))
-
   .command("next-id")
   .description("Print the next available display ID for a type")
   .action(notImplemented("next-id"))
-
   .command("show")
   .description("Show details of a single entry by ID")
   .action(notImplemented("show"))
-
   .command("context")
   .description("Print context for an entry (parents, children, links)")
   .action(notImplemented("context"))
-
   .command("dependents")
   .description("List all entries that depend on a given entry")
   .action(notImplemented("dependents"))
-
   .command("report")
   .description("Generate traceability matrix or coverage report")
   .action(notImplemented("report"))
-
   .command("hook")
   .description("Run format + validate as a pre-commit hook")
   .action(notImplemented("hook"))
-
   // Nested commands
   .command("doc", docCmd)
   .command("book", bookCmd)
   .command("deck", deckCmd)
-
   // Server commands
   .command("lsp")
   .description("Start LSP server")
   .action(notImplemented("lsp"))
-
   .command("mcp")
   .description("Start MCP server")
   .action(notImplemented("mcp"))
-
   // Version subcommand (alias for --version)
   .command("version")
   .description("Print version")
