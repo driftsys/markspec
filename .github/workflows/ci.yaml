@@ -52,7 +52,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno test --allow-read
+      - run: deno test --allow-read --allow-write --allow-run
 
   tokens:
     name: Design tokens
