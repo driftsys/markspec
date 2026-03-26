@@ -117,11 +117,43 @@ const cli = new Command()
   })
   .command("compile <paths...:string>")
   .description("Parse files, build traceability graph, output JSON")
-  .action(async () => {
-    const { config } = await requireProjectConfig();
-    void config;
-    console.error("markspec compile: not yet implemented");
-    Deno.exit(1);
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(async (_options: { format?: string }, ...paths: string[]) => {
+    await requireProjectConfig();
+
+    const { parse } = await import("./core/mod.ts");
+    const allEntries: import("./core/mod.ts").Entry[] = [];
+    const allDiagnostics: import("./core/mod.ts").Diagnostic[] = [];
+
+    for (const filePath of paths) {
+      try {
+        const content = await Deno.readTextFile(filePath);
+        const entries = parse(content, { file: filePath });
+        allEntries.push(...entries);
+      } catch (err) {
+        allDiagnostics.push({
+          code: "MSL-E000",
+          severity: "error",
+          message: `Failed to read file: ${filePath}: ${err}`,
+          location: undefined,
+        });
+      }
+    }
+
+    const result = { entries: allEntries, diagnostics: allDiagnostics };
+
+    if (_options.format === "json") {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(
+        `${result.entries.length} entries parsed from ${paths.length} files`,
+      );
+      for (const diag of result.diagnostics) {
+        console.error(`${diag.severity}: ${diag.message}`);
+      }
+    }
   })
   .command("export")
   .description("Compiled JSON → json, csv, reqif, yaml")

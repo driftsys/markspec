@@ -9,6 +9,7 @@
  */
 
 import type { Entry } from "../model/mod.ts";
+import { parseMarkdown } from "./markdown.ts";
 
 /** Options for {@linkcode parse}. */
 export interface ParseOptions {
@@ -24,8 +25,8 @@ export interface ParseOptions {
  * @returns Array of parsed entries
  */
 export function parse(
-  _markdown: string,
-  _options?: ParseOptions,
+  markdown: string,
+  options?: ParseOptions,
 ): Entry[] {
-  return [];
+  return parseMarkdown(markdown, options);
 }

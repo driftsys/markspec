@@ -103,17 +103,22 @@ Deno.test("ConfigError is constructible", () => {
 });
 
 // ---------------------------------------------------------------------------
-// parse() stub
+// parse() — extracts entries from markdown
 // ---------------------------------------------------------------------------
 
-Deno.test("parse returns empty array", () => {
+Deno.test("parse extracts entries from markdown", () => {
   const entries = parse("# Test\n\n- [SRS_BRK_0001] Title\n\n  Body.\n");
-  assertEquals(entries, []);
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_BRK_0001");
 
   // Accepts options
   const opts: ParseOptions = { file: "test.md" };
-  const entries2 = parse("# Test", opts);
-  assertEquals(entries2, []);
+  const entries2 = parse("# Test\n\n- [SRS_BRK_0001] Title\n\n  Body.\n", opts);
+  assertEquals(entries2[0].location.file, "test.md");
+
+  // No entries in plain markdown
+  const entries3 = parse("# Test");
+  assertEquals(entries3, []);
 });
 
 // ---------------------------------------------------------------------------
