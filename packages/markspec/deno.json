@@ -6,6 +6,7 @@
     "./core": "./core/mod.ts"
   },
   "imports": {
+    "@cliffy/command": "jsr:@cliffy/command@^1",
     "@std/assert": "jsr:@std/assert@^1"
   }
 }

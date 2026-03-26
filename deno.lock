@@ -1,19 +1,51 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@cliffy/command@1": "1.0.0",
+    "jsr:@cliffy/flags@1.0.0": "1.0.0",
+    "jsr:@cliffy/internal@1.0.0": "1.0.0",
+    "jsr:@cliffy/table@1.0.0": "1.0.0",
     "jsr:@david/code-block-writer@^13.0.3": "13.0.3",
     "jsr:@deno/dnt@~0.42.3": "0.42.3",
     "jsr:@std/assert@1": "1.0.13",
     "jsr:@std/fmt@1": "1.0.8",
+    "jsr:@std/fmt@^1.0.9": "1.0.9",
     "jsr:@std/fs@1": "1.0.18",
     "jsr:@std/internal@^1.0.6": "1.0.7",
     "jsr:@std/path@1": "1.1.0",
     "jsr:@std/path@^1.1.0": "1.1.0",
+    "jsr:@std/text@^1.0.17": "1.0.17",
     "jsr:@std/yaml@1": "1.0.12",
     "jsr:@ts-morph/bootstrap@0.27": "0.27.0",
     "jsr:@ts-morph/common@0.27": "0.27.0"
   },
   "jsr": {
+    "@cliffy/command@1.0.0": {
+      "integrity": "c52a241ea68857fcdaff4f3173eb404f8017d7bc35553b6f533c592b89dde7d2",
+      "dependencies": [
+        "jsr:@cliffy/flags",
+        "jsr:@cliffy/internal",
+        "jsr:@cliffy/table",
+        "jsr:@std/fmt@^1.0.9",
+        "jsr:@std/text"
+      ]
+    },
+    "@cliffy/flags@1.0.0": {
+      "integrity": "8b57698adc644da8f90422d58976362d41a4ebca39c312ca1c101585d0148feb",
+      "dependencies": [
+        "jsr:@cliffy/internal",
+        "jsr:@std/text"
+      ]
+    },
+    "@cliffy/internal@1.0.0": {
+      "integrity": "1e17ccbcd5420093c0a93e5b3827bbdc9abac5195bacf187edc44665e54bdde6"
+    },
+    "@cliffy/table@1.0.0": {
+      "integrity": "3fdaa9e1ef1ea62022108adabd826932bdea8dd05497079896febcd41322907f",
+      "dependencies": [
+        "jsr:@std/fmt@^1.0.9"
+      ]
+    },
     "@david/code-block-writer@13.0.3": {
       "integrity": "f98c77d320f5957899a61bfb7a9bead7c6d83ad1515daee92dbacc861e13bb7f"
     },
@@ -21,7 +53,7 @@
       "integrity": "62a917a0492f3c8af002dce90605bb0d41f7d29debc06aca40dba72ab65d8ae3",
       "dependencies": [
         "jsr:@david/code-block-writer",
-        "jsr:@std/fmt",
+        "jsr:@std/fmt@1",
         "jsr:@std/fs",
         "jsr:@std/path@1",
         "jsr:@ts-morph/bootstrap"
@@ -36,6 +68,9 @@
     "@std/fmt@1.0.8": {
       "integrity": "71e1fc498787e4434d213647a6e43e794af4fd393ef8f52062246e06f7e372b7"
     },
+    "@std/fmt@1.0.9": {
+      "integrity": "2487343e8899fb2be5d0e3d35013e54477ada198854e52dd05ed0422eddcabe0"
+    },
     "@std/fs@1.0.18": {
       "integrity": "24bcad99eab1af4fde75e05da6e9ed0e0dce5edb71b7e34baacf86ffe3969f3a",
       "dependencies": [
@@ -47,6 +82,9 @@
     },
     "@std/path@1.1.0": {
       "integrity": "ddc94f8e3c275627281cbc23341df6b8bcc874d70374f75fec2533521e3d6886"
+    },
+    "@std/text@1.0.17": {
+      "integrity": "4b2c4ef67ae5b6c1dfd447c81c83a43718f52e3c7e748d8b33f694aba9895f95"
     },
     "@std/yaml@1.0.12": {
       "integrity": "7deabca4545bcedd07c5f69ea53acea71b8b4c67562f224e17b90d75944cb20c"
@@ -68,12 +106,14 @@
   "workspace": {
     "dependencies": [
       "jsr:@deno/dnt@~0.42.3",
+      "jsr:@std/assert@1",
       "jsr:@std/path@1",
       "jsr:@std/yaml@1"
     ],
     "members": {
       "packages/markspec": {
         "dependencies": [
+          "jsr:@cliffy/command@1",
           "jsr:@std/assert@1"
         ]
       }

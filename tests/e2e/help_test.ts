@@ -1,0 +1,45 @@
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { markspec } from "./helpers.ts";
+
+Deno.test("--help prints usage and lists subcommands", async () => {
+  const { code, stdout } = await markspec(["--help"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "markspec");
+  assertStringIncludes(stdout, "format");
+  assertStringIncludes(stdout, "validate");
+  assertStringIncludes(stdout, "compile");
+  assertStringIncludes(stdout, "book");
+  assertStringIncludes(stdout, "deck");
+  assertStringIncludes(stdout, "doc");
+  assertStringIncludes(stdout, "lsp");
+  assertStringIncludes(stdout, "mcp");
+});
+
+Deno.test("version subcommand prints version", async () => {
+  const { code, stdout } = await markspec(["version"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "markspec 0.0.1");
+});
+
+Deno.test("--version flag prints version", async () => {
+  const { code, stdout } = await markspec(["--version"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "0.0.1");
+});
+
+Deno.test("format runs and exits 0", async () => {
+  const { code, stderr } = await markspec(["format"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stderr, "0 files formatted");
+});
+
+Deno.test("book build prints not yet implemented", async () => {
+  const { code, stderr } = await markspec(["book", "build"]);
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "not yet implemented");
+});
+
+Deno.test("unknown subcommand fails with non-zero exit", async () => {
+  const { code } = await markspec(["nonexistent"]);
+  assertEquals(code !== 0, true);
+});

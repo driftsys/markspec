@@ -4,7 +4,7 @@ check:
 
 # Run tests
 test:
-    deno test --allow-read
+    deno test --allow-read --allow-write --allow-run
 
 # Lint (Deno + dprint)
 lint:
