@@ -9,7 +9,8 @@
  */
 
 import { Command } from "@cliffy/command";
-import { VERSION } from "./core/mod.ts";
+import { ConfigError, VERSION } from "./core/mod.ts";
+import type { ReadFile } from "./core/mod.ts";
 
 /** Print "not yet implemented" to stderr and exit 1. */
 function notImplemented(name: string): () => void {
@@ -17,6 +18,43 @@ function notImplemented(name: string): () => void {
     console.error(`markspec ${name}: not yet implemented`);
     Deno.exit(1);
   };
+}
+
+/** Deno-specific file reader for config discovery. */
+const readFile: ReadFile = async (path: string) => {
+  try {
+    return await Deno.readTextFile(path);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Load project config or exit with an error.
+ * Used by commands that require project context.
+ */
+async function requireProjectConfig() {
+  const { loadConfig } = await import("./core/mod.ts");
+  try {
+    const result = await loadConfig(Deno.cwd(), readFile);
+    if (result === undefined) {
+      console.error(
+        "error: no project.yaml found\n" +
+          `  searched from ${Deno.cwd()} to filesystem root\n\n` +
+          "  Create a project.yaml in your project root, or use\n" +
+          "  markspec format <file> / markspec validate <file>\n" +
+          "  which work without project context.",
+      );
+      Deno.exit(1);
+    }
+    return result;
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error(`error: ${err.message}`);
+      Deno.exit(1);
+    }
+    throw err;
+  }
 }
 
 // ── Nested subcommands (composed as separate Command instances) ───────
@@ -71,10 +109,20 @@ const cli = new Command()
   })
   .command("validate")
   .description("Check broken refs, missing Ids, duplicates")
-  .action(notImplemented("validate"))
+  .action(async () => {
+    const { config } = await requireProjectConfig();
+    void config;
+    console.error("markspec validate: not yet implemented");
+    Deno.exit(1);
+  })
   .command("compile <paths...:string>")
   .description("Parse files, build traceability graph, output JSON")
-  .action(notImplemented("compile"))
+  .action(async () => {
+    const { config } = await requireProjectConfig();
+    void config;
+    console.error("markspec compile: not yet implemented");
+    Deno.exit(1);
+  })
   .command("export")
   .description("Compiled JSON → json, csv, reqif, yaml")
   .action(notImplemented("export"))

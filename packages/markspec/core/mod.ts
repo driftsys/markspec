@@ -11,9 +11,15 @@
 export const VERSION = "0.0.1";
 
 // Model types
+export {
+  ConfigError,
+  DEFAULT_PROJECT_CONFIG,
+  REFHUB_URL,
+} from "./model/mod.ts";
 export type {
   Attribute,
   BuiltinType,
+  ConfigFieldError,
   Diagnostic,
   DisplayId,
   Entry,
@@ -24,6 +30,14 @@ export type {
   SourceLocation,
   Ulid,
 } from "./model/mod.ts";
+
+// Config
+export {
+  discoverProjectRoot,
+  loadConfig,
+  parseProjectConfig,
+} from "./config/mod.ts";
+export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 // Parser
 export { parse } from "./parser/mod.ts";

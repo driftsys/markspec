@@ -130,18 +130,67 @@ export interface Diagnostic {
 // Project configuration
 // ---------------------------------------------------------------------------
 
+/** Default RefHub URL used as implicit fallback for parent registries. */
+export const REFHUB_URL = "https://driftsys.github.io/refhub";
+
 /** MarkSpec project configuration from `project.yaml`. */
 export interface ProjectConfig {
-  /** Project name. */
+  /** Project name (e.g., `io.driftsys.markspec`). */
   readonly name: string;
-  /** Entry type prefixes enabled for this project. */
-  readonly types: readonly EntryType[];
-  /** Glob patterns for Markdown source files. */
-  readonly include: readonly string[];
-  /** Glob patterns to exclude. */
-  readonly exclude: readonly string[];
-  /** Upstream registry URLs (searched in order, RefHub is implicit fallback). */
-  readonly registries: readonly string[];
-  /** Mustache template variables. */
-  readonly variables: Readonly<Record<string, string>>;
+  /** 2-6 letter project/domain abbreviation used in display IDs (e.g., `BRK`). */
+  readonly domain: string;
+  /** Project version string. */
+  readonly version: string;
+  /** Allowed label vocabulary (e.g., `["ASIL-A", "ASIL-B"]`). Empty = no constraint. */
+  readonly labels: readonly string[];
+  /** Upstream parent registry URLs, searched in order. */
+  readonly parents: readonly string[];
+  /** Fallback registry URL when parents don't resolve a reference. */
+  readonly parentFallback: string;
+}
+
+/** Default configuration used when no `project.yaml` is found. */
+export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
+  name: "",
+  domain: "",
+  version: "0.0.0",
+  labels: [],
+  parents: [],
+  parentFallback: REFHUB_URL,
+};
+
+// ---------------------------------------------------------------------------
+// Configuration errors
+// ---------------------------------------------------------------------------
+
+/** A single field-level validation error in `project.yaml`. */
+export interface ConfigFieldError {
+  /** The YAML field path (e.g., `domain`, `parents[0]`). */
+  readonly field: string;
+  /** Human-readable error message. */
+  readonly message: string;
+  /** 1-based line number in the YAML file, if determinable. */
+  readonly line: number | undefined;
+}
+
+/** Error thrown when `project.yaml` is invalid. */
+export class ConfigError extends Error {
+  /** Path to the `project.yaml` file. */
+  readonly configPath: string;
+  /** Individual field errors. */
+  readonly fieldErrors: readonly ConfigFieldError[];
+
+  constructor(configPath: string, fieldErrors: readonly ConfigFieldError[]) {
+    const summary = fieldErrors
+      .map((e) =>
+        e.line !== undefined
+          ? `  ${configPath}:${e.line} — ${e.field}: ${e.message}`
+          : `  ${e.field}: ${e.message}`
+      )
+      .join("\n");
+    super(`invalid project.yaml:\n${summary}`);
+    this.name = "ConfigError";
+    this.configPath = configPath;
+    this.fieldErrors = fieldErrors;
+  }
 }
