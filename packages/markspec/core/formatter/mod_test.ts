@@ -168,12 +168,12 @@ Deno.test("format: multiple entries normalized", () => {
   assertEquals(idPositions[1]! < labelPositions[1]!, true);
 });
 
-Deno.test("format: entry without attributes is unchanged", () => {
+Deno.test("format: reference entry without attributes is unchanged", () => {
   const md = `# Test
 
-- [SRS_BRK_0001] Title
+- [ISO-26262-6] ISO 26262 Part 6
 
-  Body text only, no attributes.
+  Road vehicles — Functional safety.
 `;
   const result = format(md);
   assertEquals(result.changed, false);
@@ -212,4 +212,122 @@ Deno.test("format: idempotent on already-formatted input", () => {
   const second = format(first.output);
   assertEquals(second.changed, false);
   assertEquals(second.output, first.output);
+});
+
+// ---------------------------------------------------------------------------
+// ULID assignment (#15)
+// ---------------------------------------------------------------------------
+
+const MOCK_ULID = "01HGW2Q8MNTEST";
+const mockUlid = () => MOCK_ULID;
+
+Deno.test("format: missing Id gets ULID with correct type prefix", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+  Satisfies: SYS_BRK_0042\\
+  Labels: ASIL-B
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertEquals(result.changed, true);
+  assertStringIncludes(result.output, `Id: SRS_${MOCK_ULID}`);
+  // Id should be first attribute
+  const idIdx = result.output.indexOf("Id:");
+  const satIdx = result.output.indexOf("Satisfies:");
+  assertEquals(idIdx < satIdx, true);
+});
+
+Deno.test("format: existing Id unchanged", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+  Id: SRS_01EXISTING123\\
+  Labels: ASIL-B
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertStringIncludes(result.output, "Id: SRS_01EXISTING123");
+  // Mock ULID should NOT appear
+  assertEquals(result.output.includes(MOCK_ULID), false);
+});
+
+Deno.test("format: idempotent after ULID assignment", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+  Labels: ASIL-B
+`;
+  const first = format(md, { generateUlid: mockUlid });
+  assertEquals(first.changed, true);
+  const second = format(first.output, { generateUlid: mockUlid });
+  assertEquals(second.changed, false);
+});
+
+Deno.test("format: reference entries skip ULID", () => {
+  const md = `# Test
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+  Road vehicles — Functional safety.
+
+  Document: ISO 26262-6:2018
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertEquals(result.output.includes("Id:"), false);
+});
+
+Deno.test("format: diagnostic emitted on ULID assignment", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+  Labels: ASIL-B
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].severity, "info");
+  assertStringIncludes(result.diagnostics[0].message, "SRS_BRK_0001");
+  assertStringIncludes(result.diagnostics[0].message, `SRS_${MOCK_ULID}`);
+});
+
+Deno.test("format: entry with no attributes gets new block with Id", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text only, no attributes.
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertEquals(result.changed, true);
+  assertStringIncludes(result.output, `Id: SRS_${MOCK_ULID}`);
+  // Body should still be there
+  assertStringIncludes(result.output, "Body text only, no attributes.");
+});
+
+Deno.test("format: mock generateUlid produces deterministic output", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] First
+
+  Body one.
+
+- [SRS_BRK_0002] Second
+
+  Body two.
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertEquals(result.changed, true);
+  // Both should get the same mock ULID (in real usage they'd differ)
+  const idMatches = [...result.output.matchAll(/Id: SRS_01HGW2Q8MNTEST/g)];
+  assertEquals(idMatches.length, 2);
 });
