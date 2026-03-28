@@ -20,6 +20,9 @@ import {
 export { detectDirectives } from "./directives.ts";
 export type { DetectDirectivesOptions } from "./directives.ts";
 
+export { detectInlineRefs } from "./references.ts";
+export type { DetectInlineRefsOptions } from "./references.ts";
+
 /** Options for {@linkcode parse}. */
 export interface ParseOptions {
   /** File path used in source locations. */

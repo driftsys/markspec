@@ -27,6 +27,7 @@ export type {
   Entry,
   EntrySource,
   EntryType,
+  InlineRef,
   ProjectConfig,
   Severity,
   SourceLocation,
@@ -42,9 +43,15 @@ export {
 export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 // Parser
-export { detectCaptions, detectDirectives, parse } from "./parser/mod.ts";
+export {
+  detectCaptions,
+  detectDirectives,
+  detectInlineRefs,
+  parse,
+} from "./parser/mod.ts";
 export type {
   DetectDirectivesOptions,
+  DetectInlineRefsOptions,
   ParseOptions,
 } from "./parser/mod.ts";
 

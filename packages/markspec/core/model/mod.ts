@@ -223,3 +223,14 @@ export interface Directive {
   readonly payload: string;
   readonly location: SourceLocation;
 }
+
+// ---------------------------------------------------------------------------
+// Inline references
+// ---------------------------------------------------------------------------
+
+/** An inline reference found in prose text via `{{namespace.id}}` syntax. */
+export interface InlineRef {
+  readonly namespace: string;
+  readonly refId: string;
+  readonly location: SourceLocation;
+}
