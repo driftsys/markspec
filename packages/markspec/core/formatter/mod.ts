@@ -175,6 +175,31 @@ export function renderAttributeBlock(
 }
 
 /**
+ * Find the 0-based line index where a list item's content ends.
+ * Scans forward from the entry start, stopping at: a sibling list item
+ * (`- ` at the entry's marker column), a line with less indent, or EOF.
+ */
+function findItemEnd(
+  lines: readonly string[],
+  startIdx: number,
+  indent: number,
+): number {
+  const indentStr = " ".repeat(indent);
+  // The marker column is indent - 2 (e.g., indent 2 → marker at column 0).
+  const markerPrefix = " ".repeat(Math.max(0, indent - 2)) + "- ";
+
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "") continue;
+    // Sibling list item at same level
+    if (line.startsWith(markerPrefix)) return i;
+    // Line with less indent than continuation
+    if (!line.startsWith(indentStr)) return i;
+  }
+  return lines.length;
+}
+
+/**
  * Find the 0-based line range [start, end) of the attribute block
  * for an entry starting at the given line.
  *
@@ -186,26 +211,10 @@ export function findAttributeBlockRange(
   entryStartLine: number,
   indent: number,
 ): { start: number; end: number } | undefined {
-  const startIdx = entryStartLine - 1; // Convert 1-based to 0-based
-  const indentStr = " ".repeat(indent);
+  const startIdx = entryStartLine - 1;
+  const itemEnd = findItemEnd(lines, startIdx, indent);
 
-  // Find the end of this list item's content.
-  // The list item ends when we hit: a line at the entry's indent level starting
-  // with `- `, or a non-blank line with less indent, or end of file.
-  let itemEnd = lines.length;
-  for (let i = startIdx + 1; i < lines.length; i++) {
-    const line = lines[i];
-    // Blank lines within the list item are OK
-    if (line.trim() === "") continue;
-    // If the line doesn't start with the continuation indent, the item is over
-    if (!line.startsWith(indentStr)) {
-      itemEnd = i;
-      break;
-    }
-  }
-
-  // Walk backwards from itemEnd to find the contiguous attribute block.
-  // Skip trailing blank lines first.
+  // Walk backwards from itemEnd, skip trailing blank lines.
   let scanEnd = itemEnd;
   while (scanEnd > startIdx && lines[scanEnd - 1].trim() === "") {
     scanEnd--;
@@ -213,11 +222,11 @@ export function findAttributeBlockRange(
 
   if (scanEnd <= startIdx) return undefined;
 
-  // Now walk backwards collecting attribute lines
+  // Walk backwards collecting attribute lines.
   let attrStart = scanEnd;
   for (let i = scanEnd - 1; i > startIdx; i--) {
     const trimmed = lines[i].trim();
-    if (trimmed === "") break; // blank line = boundary
+    if (trimmed === "") break;
     if (ATTR_LINE_RE.test(trimmed)) {
       attrStart = i;
     } else {
@@ -240,20 +249,8 @@ function findEntryBodyEnd(
   indent: number,
 ): number {
   const startIdx = entry.location.line - 1;
-  const indentStr = " ".repeat(indent);
+  const itemEnd = findItemEnd(lines, startIdx, indent);
 
-  // Find the end of this list item's content.
-  let itemEnd = lines.length;
-  for (let i = startIdx + 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.trim() === "") continue;
-    if (!line.startsWith(indentStr)) {
-      itemEnd = i;
-      break;
-    }
-  }
-
-  // Walk back past trailing blank lines
   let insertAt = itemEnd;
   while (insertAt > startIdx && lines[insertAt - 1].trim() === "") {
     insertAt--;

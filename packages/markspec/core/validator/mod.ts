@@ -29,8 +29,8 @@ const REF_ATTR_KEYS = new Set([
   "Derived-from",
 ]);
 
-/** ULID format: TYPE prefix + underscore + 12-13 alphanumeric chars. */
-const ULID_RE = /^[A-Z]+_[0-9A-Z]{12,13}$/;
+/** ULID format: TYPE prefix + underscore + 12-26 alphanumeric chars. */
+const ULID_RE = /^[A-Z]+_[0-9A-Z]{12,26}$/;
 
 /** Result of a validation pass. */
 export interface ValidateResult {
