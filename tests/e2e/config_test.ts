@@ -18,14 +18,14 @@ Deno.test("validate in nested dir finds project.yaml two levels up", async () =>
 });
 
 Deno.test("format outside project works with defaults", async () => {
-  const { code, stderr } = await markspec(["format"], {
+  const { code, stderr } = await markspec(["format", "req.md"], {
     files: {
       "req.md": "# Test\n",
     },
     // No project.yaml — format should work anyway
   });
   assertEquals(code, 0);
-  assertStringIncludes(stderr, "0 files formatted");
+  assertStringIncludes(stderr, "0 file(s) formatted");
 });
 
 Deno.test("compile without project.yaml produces clear error", async () => {
