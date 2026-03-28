@@ -173,6 +173,18 @@ export interface ConfigFieldError {
   readonly line: number | undefined;
 }
 
+// ---------------------------------------------------------------------------
+// Caption
+// ---------------------------------------------------------------------------
+
+/** A detected table or figure caption in a Markdown document. */
+export interface Caption {
+  readonly kind: "table" | "figure";
+  readonly slug: string;
+  readonly text: string;
+  readonly location: SourceLocation;
+}
+
 /** Error thrown when `project.yaml` is invalid. */
 export class ConfigError extends Error {
   /** Path to the `project.yaml` file. */
