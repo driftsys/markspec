@@ -147,10 +147,12 @@ Deno.test("validate returns valid for empty input", () => {
 // compile() stub
 // ---------------------------------------------------------------------------
 
-Deno.test("compile returns empty result", async () => {
-  const result: CompileResult = await compile(["**/*.md"]);
-  assertEquals(result.entries, []);
-  assertEquals(result.diagnostics, []);
+Deno.test("compile with no matching files returns empty result", async () => {
+  const result: CompileResult = await compile([], {
+    readFile: () => Promise.reject(new Error("not found")),
+  });
+  assertEquals(result.entries.size, 0);
+  assertEquals(result.links.length, 0);
 });
 
 // ---------------------------------------------------------------------------

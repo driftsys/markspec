@@ -234,3 +234,24 @@ export interface InlineRef {
   readonly refId: string;
   readonly location: SourceLocation;
 }
+
+// ---------------------------------------------------------------------------
+// Traceability graph
+// ---------------------------------------------------------------------------
+
+/** Kind of directional link between entries. */
+export type LinkKind =
+  | "satisfies"
+  | "derived-from"
+  | "allocates"
+  | "constrains"
+  | "verifies"
+  | "implements";
+
+/** A directional link between two entries in the traceability graph. */
+export interface Link {
+  readonly from: DisplayId;
+  readonly to: DisplayId;
+  readonly kind: LinkKind;
+  readonly location: SourceLocation;
+}
