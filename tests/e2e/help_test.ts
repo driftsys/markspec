@@ -27,10 +27,10 @@ Deno.test("--version flag prints version", async () => {
   assertStringIncludes(stdout, "0.0.1");
 });
 
-Deno.test("format runs and exits 0", async () => {
+Deno.test("format with no args exits 1", async () => {
   const { code, stderr } = await markspec(["format"]);
-  assertEquals(code, 0);
-  assertStringIncludes(stderr, "0 files formatted");
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "no files specified");
 });
 
 Deno.test("book build prints not yet implemented", async () => {
