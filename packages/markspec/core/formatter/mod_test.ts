@@ -197,6 +197,40 @@ Deno.test("format: unknown attributes preserved before Labels", () => {
   assertEquals(result.output.includes("Document:"), true);
 });
 
+Deno.test("format: all-unknown attributes are not duplicated", () => {
+  const md = `# Test
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+  Road vehicles — Functional safety.
+
+  Document: ISO 26262-6:2018\\
+  URL: https://www.iso.org/standard/68383.html
+`;
+  const result = format(md);
+  // Count occurrences — each should appear exactly once
+  const docCount = [...result.output.matchAll(/Document:/g)].length;
+  const urlCount = [...result.output.matchAll(/URL:/g)].length;
+  assertEquals(docCount, 1, "Document: should appear exactly once");
+  assertEquals(urlCount, 1, "URL: should appear exactly once");
+});
+
+Deno.test("format: duplicate known keys are preserved", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+  Id: SRS_01HGW2Q8MNP3\\
+  Labels: ASIL-B\\
+  Labels: safety-critical
+`;
+  const result = format(md);
+  const labelsCount = [...result.output.matchAll(/Labels:/g)].length;
+  assertEquals(labelsCount, 2, "both Labels entries should be preserved");
+});
+
 Deno.test("format: idempotent on already-formatted input", () => {
   const md = `# Test
 

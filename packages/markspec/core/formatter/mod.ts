@@ -123,13 +123,15 @@ export function format(
  * Unknown keys are placed before Labels, preserving their relative order.
  */
 export function sortAttributes(attributes: Attribute[]): Attribute[] {
-  const known: (Attribute | undefined)[] = new Array(CANONICAL_ORDER.length);
+  const known: (Attribute[] | undefined)[] = new Array(CANONICAL_ORDER.length);
   const unknown: Attribute[] = [];
 
   for (const attr of attributes) {
     const idx = CANONICAL_ORDER.indexOf(attr.key);
     if (idx >= 0) {
-      known[idx] = attr;
+      // Preserve duplicates — keep all occurrences of the same key.
+      if (!known[idx]) known[idx] = [];
+      known[idx]!.push(attr);
     } else {
       unknown.push(attr);
     }
@@ -137,19 +139,20 @@ export function sortAttributes(attributes: Attribute[]): Attribute[] {
 
   const result: Attribute[] = [];
   const labelsIdx = CANONICAL_ORDER.indexOf("Labels");
+  const hasLabels = known[labelsIdx] != null;
 
   for (let i = 0; i < known.length; i++) {
-    // Insert unknown attributes just before Labels
-    if (i === labelsIdx) {
+    // Insert unknown attributes just before Labels (or at end if no Labels).
+    if (i === labelsIdx && hasLabels) {
       result.push(...unknown);
     }
     if (known[i] != null) {
-      result.push(known[i]!);
+      result.push(...known[i]!);
     }
   }
 
-  // If Labels was not present, unknown attrs go at the end
-  if (!known[labelsIdx]) {
+  // If Labels was not present, unknown attrs go at the end.
+  if (!hasLabels) {
     result.push(...unknown);
   }
 
