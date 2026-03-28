@@ -98,13 +98,49 @@ const cli = new Command()
     { default: "text" },
   )
   // Core commands
-  .command("format")
+  .command("format [...files:string]")
   .description("Stamp ULIDs, fix indentation, normalize attributes")
-  .action(async () => {
+  .option("--check", "Check mode: report but don't write (exit 1 if changes needed)")
+  .action(async (options: { check?: boolean }, ...files: string[]) => {
+    if (files.length === 0) {
+      console.error("error: no files specified");
+      console.error("usage: markspec format <file...>");
+      Deno.exit(1);
+    }
+
     const { format } = await import("./core/mod.ts");
-    const result = format("");
-    if (!result.changed) {
-      console.error("0 files formatted");
+
+    let totalFormatted = 0;
+    let totalUnchanged = 0;
+
+    for (const filePath of files) {
+      const content = await Deno.readTextFile(filePath);
+      const result = format(content, { file: filePath });
+
+      for (const d of result.diagnostics) {
+        const loc = d.location
+          ? `${d.location.file}:${d.location.line}`
+          : "";
+        console.error(`${d.severity}: ${loc} ${d.message}`);
+      }
+
+      if (result.changed) {
+        totalFormatted++;
+        if (!options.check) {
+          await Deno.writeTextFile(filePath, result.output);
+        }
+      } else {
+        totalUnchanged++;
+      }
+    }
+
+    const total = totalFormatted + totalUnchanged;
+    console.error(
+      `${totalFormatted} file(s) formatted, ${totalUnchanged} unchanged (${total} total)`,
+    );
+
+    if (options.check && totalFormatted > 0) {
+      Deno.exit(1);
     }
   })
   .command("validate")
