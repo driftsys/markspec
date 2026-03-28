@@ -55,7 +55,8 @@ Some text.
 // ---------------------------------------------------------------------------
 
 Deno.test("detectInlineRefs: detects multiple refs in one paragraph", () => {
-  const md = `This links {{req.SRS_BRK_0001}} and {{arch.SAD_MOD_0042}} together.`;
+  const md =
+    `This links {{req.SRS_BRK_0001}} and {{arch.SAD_MOD_0042}} together.`;
   const refs = detectInlineRefs(md, { file: "test.md" });
   assertEquals(refs.length, 2);
   assertEquals(refs[0].namespace, "req");
