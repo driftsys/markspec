@@ -237,7 +237,7 @@ const cli = new Command()
   .action(async (_options: { format?: string }, ...paths: string[]) => {
     await requireProjectConfig();
 
-    const { compile } = await import("./core/mod.ts");
+    const { compile, serializeCompileResult } = await import("./core/mod.ts");
     const result = await compile(paths);
 
     for (const diag of result.diagnostics) {
@@ -248,18 +248,7 @@ const cli = new Command()
     }
 
     if (_options.format === "json") {
-      // Serialize Maps to plain objects for JSON output.
-      const output = {
-        entries: Object.fromEntries(result.entries),
-        links: result.links,
-        forward: Object.fromEntries(
-          [...result.forward].map(([k, v]) => [k, v]),
-        ),
-        reverse: Object.fromEntries(
-          [...result.reverse].map(([k, v]) => [k, v]),
-        ),
-        diagnostics: result.diagnostics,
-      };
+      const output = serializeCompileResult(result);
       console.log(JSON.stringify(output, null, 2));
     } else {
       console.log(

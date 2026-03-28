@@ -172,6 +172,10 @@ function buildAdjacency(
   return map;
 }
 
+// Re-export serialization helper.
+export { serializeCompileResult } from "./schema.ts";
+export type { SerializedCompileResult } from "./schema.ts";
+
 /** Default file reader. Uses Deno API (CLI entry points only). */
 function defaultReadFile(path: string): Promise<string> {
   return Deno.readTextFile(path);
