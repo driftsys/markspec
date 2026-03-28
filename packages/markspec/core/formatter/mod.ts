@@ -6,7 +6,8 @@
  * and requirement block insertion.
  */
 
-import type { Attribute, Diagnostic } from "../model/mod.ts";
+import { ulid as defaultUlid } from "@std/ulid";
+import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
 /** Canonical attribute ordering. Unknown keys go before Labels. */
@@ -69,19 +70,47 @@ export function format(
   // Process bottom-to-top so line splicing doesn't shift earlier entries.
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
 
+  const genUlid = options?.generateUlid ?? defaultUlid;
+
   for (const entry of sorted) {
-    if (entry.attributes.length === 0) continue;
-
     const indent = (entry.location.column - 1) + 2;
+    let attrs = [...entry.attributes];
+
+    // Assign ULID to typed entries missing Id.
+    if (entry.entryType && !attrs.some((a) => a.key === "Id")) {
+      const newId = `${entry.entryType}_${genUlid()}`;
+      attrs = [{ key: "Id", value: newId }, ...attrs];
+      diagnostics.push({
+        code: "MSL-F001",
+        severity: "info",
+        message: `assigned Id: ${newId} to ${entry.displayId}`,
+        location: entry.location,
+      });
+    }
+
+    if (attrs.length === 0) continue;
+
+    const normalized = sortAttributes(attrs);
     const range = findAttributeBlockRange(lines, entry.location.line, indent);
-    if (!range) continue;
 
-    const normalized = sortAttributes([...entry.attributes]);
-    const newBlock = renderAttributeBlock(normalized, indent);
-    const oldBlock = lines.slice(range.start, range.end).join("\n");
+    if (range) {
+      // Replace existing attribute block.
+      const newBlock = renderAttributeBlock(normalized, indent);
+      const oldBlock = lines.slice(range.start, range.end).join("\n");
 
-    if (newBlock !== oldBlock) {
-      lines.splice(range.start, range.end - range.start, ...newBlock.split("\n"));
+      if (newBlock !== oldBlock) {
+        lines.splice(
+          range.start,
+          range.end - range.start,
+          ...newBlock.split("\n"),
+        );
+        changed = true;
+      }
+    } else {
+      // No attribute block — insert one after the entry body.
+      const insertLine = findEntryBodyEnd(lines, entry, indent);
+      const newBlock = renderAttributeBlock(normalized, indent);
+      lines.splice(insertLine, 0, "", ...newBlock.split("\n"));
       changed = true;
     }
   }
@@ -198,4 +227,36 @@ export function findAttributeBlockRange(
   if (attrStart >= scanEnd) return undefined;
 
   return { start: attrStart, end: scanEnd };
+}
+
+/**
+ * Find the 0-based line index where a new attribute block should be inserted
+ * (after the last non-blank body line of the entry).
+ */
+function findEntryBodyEnd(
+  lines: readonly string[],
+  entry: Entry,
+  indent: number,
+): number {
+  const startIdx = entry.location.line - 1;
+  const indentStr = " ".repeat(indent);
+
+  // Find the end of this list item's content.
+  let itemEnd = lines.length;
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "") continue;
+    if (!line.startsWith(indentStr)) {
+      itemEnd = i;
+      break;
+    }
+  }
+
+  // Walk back past trailing blank lines
+  let insertAt = itemEnd;
+  while (insertAt > startIdx && lines[insertAt - 1].trim() === "") {
+    insertAt--;
+  }
+
+  return insertAt;
 }
