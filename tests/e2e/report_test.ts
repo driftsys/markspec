@@ -108,7 +108,16 @@ Deno.test("report: --scope filters by domain", async () => {
 `,
   };
   const { code, stdout } = await markspec(
-    ["report", "traceability", "--format", "json", "--scope", "BRK", "req.md", "steer.md"],
+    [
+      "report",
+      "traceability",
+      "--format",
+      "json",
+      "--scope",
+      "BRK",
+      "req.md",
+      "steer.md",
+    ],
     { files },
   );
   assertEquals(code, 0);
