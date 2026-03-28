@@ -22,6 +22,7 @@ export type {
   Caption,
   ConfigFieldError,
   Diagnostic,
+  Directive,
   DisplayId,
   Entry,
   EntrySource,
@@ -41,8 +42,11 @@ export {
 export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 // Parser
-export { detectCaptions, parse } from "./parser/mod.ts";
-export type { ParseOptions } from "./parser/mod.ts";
+export { detectCaptions, detectDirectives, parse } from "./parser/mod.ts";
+export type {
+  DetectDirectivesOptions,
+  ParseOptions,
+} from "./parser/mod.ts";
 
 // Formatter
 export { format } from "./formatter/mod.ts";

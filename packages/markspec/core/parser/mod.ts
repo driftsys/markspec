@@ -6,6 +6,7 @@
  * Three sub-modules:
  * - markdown: CommonMark AST walk, entry block detection, attribute extraction
  * - captions: table and figure caption detection
+ * - directives: HTML comment directive extraction
  * - source: doc comment extraction from Rust, Kotlin, C, C++, Java
  */
 
@@ -15,6 +16,9 @@ import {
   detectCaptions as detectCaptionsImpl,
   type DetectCaptionsOptions,
 } from "./captions.ts";
+
+export { detectDirectives } from "./directives.ts";
+export type { DetectDirectivesOptions } from "./directives.ts";
 
 /** Options for {@linkcode parse}. */
 export interface ParseOptions {

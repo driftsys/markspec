@@ -206,3 +206,20 @@ export class ConfigError extends Error {
     this.fieldErrors = fieldErrors;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Directives
+// ---------------------------------------------------------------------------
+
+/**
+ * A MarkSpec directive extracted from an HTML comment.
+ *
+ * Directives use the form `<!-- markspec:<name> <payload> -->` inside
+ * Markdown files to annotate documents with processing hints (e.g.,
+ * `markspec:deck`, `markspec:deprecated`).
+ */
+export interface Directive {
+  readonly name: string;
+  readonly payload: string;
+  readonly location: SourceLocation;
+}
