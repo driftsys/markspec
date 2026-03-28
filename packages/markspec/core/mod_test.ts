@@ -16,7 +16,6 @@ import type {
   ConfigFieldError,
   Diagnostic,
   Entry,
-  ExportFormat,
   FormatResult,
   ParseOptions,
   ProjectConfig,
@@ -156,12 +155,19 @@ Deno.test("compile with no matching files returns empty result", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// report() stub
+// report()
 // ---------------------------------------------------------------------------
 
-Deno.test("report returns empty string", () => {
-  const fmt: ExportFormat = "json";
-  const opts: ReportOptions = { format: fmt };
-  const output = report([], opts);
-  assertEquals(output, "");
+Deno.test("report produces traceability output", () => {
+  const emptyResult: CompileResult = {
+    entries: new Map(),
+    links: [],
+    forward: new Map(),
+    reverse: new Map(),
+    diagnostics: [],
+  };
+  const opts: ReportOptions = { kind: "traceability", format: "md" };
+  const output = report(emptyResult, opts);
+  // Should at least contain the header row
+  assertEquals(output.includes("ID"), true);
 });
