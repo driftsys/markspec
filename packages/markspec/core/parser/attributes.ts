@@ -48,7 +48,7 @@ export function parseAttributes(lines: readonly string[]): Attribute[] {
  * Pattern matching a `Key: Value` line (with or without trailing backslash).
  * Used to detect attribute blocks at the end of entry bodies.
  */
-const ATTR_LINE_RE = /^[A-Z][A-Za-z-]*: .+\\?$/;
+export const ATTR_LINE_RE = /^[A-Z][A-Za-z-]*: .+\\?$/;
 
 /**
  * Split raw entry content into body text and attribute lines.

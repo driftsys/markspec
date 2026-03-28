@@ -8,6 +8,7 @@
 
 import { ulid as defaultUlid } from "@std/ulid";
 import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
+import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
 /** Canonical attribute ordering. Unknown keys go before Labels. */
@@ -22,9 +23,6 @@ const CANONICAL_ORDER: readonly string[] = [
   "Interface",
   "Labels",
 ];
-
-/** Pattern matching a `Key: Value` line with optional trailing backslash. */
-const ATTR_LINE_RE = /^[A-Z][A-Za-z-]*: .+\\?$/;
 
 /** Options for {@linkcode format}. */
 export interface FormatOptions {

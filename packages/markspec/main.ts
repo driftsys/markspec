@@ -113,8 +113,18 @@ const cli = new Command()
     let totalFormatted = 0;
     let totalUnchanged = 0;
 
+    let hasErrors = false;
+
     for (const filePath of files) {
-      const content = await Deno.readTextFile(filePath);
+      let content: string;
+      try {
+        content = await Deno.readTextFile(filePath);
+      } catch {
+        console.error(`error: ${filePath}: file not found`);
+        hasErrors = true;
+        continue;
+      }
+
       const result = format(content, { file: filePath });
 
       for (const d of result.diagnostics) {
@@ -139,6 +149,9 @@ const cli = new Command()
       `${totalFormatted} file(s) formatted, ${totalUnchanged} unchanged (${total} total)`,
     );
 
+    if (hasErrors) {
+      Deno.exit(1);
+    }
     if (options.check && totalFormatted > 0) {
       Deno.exit(1);
     }
