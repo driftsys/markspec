@@ -8,7 +8,7 @@
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
-import type { List, ListItem, Paragraph, Text } from "mdast";
+import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Entry, EntryType } from "../model/mod.ts";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
 
@@ -57,12 +57,22 @@ export function parseMarkdown(
   const tree = processor.parse(markdown);
   const entries: Entry[] = [];
 
+  // Collect link definition identifiers for shortcut reference exclusion.
+  const definitions = new Set(
+    tree.children
+      .filter((n): n is Definition => n.type === "definition")
+      .map((n) => n.identifier),
+  );
+
   for (const node of tree.children) {
     if (node.type !== "list") continue;
     const list = node as List;
 
+    // Ordered lists never contain entry blocks.
+    if (list.ordered) continue;
+
     for (const item of list.children) {
-      const entry = extractEntry(item, markdown, file);
+      const entry = extractEntry(item, markdown, file, definitions);
       if (entry) entries.push(entry);
     }
   }
@@ -78,6 +88,7 @@ function extractEntry(
   item: ListItem,
   markdown: string,
   file: string,
+  definitions: Set<string>,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -92,9 +103,10 @@ function extractEntry(
   const paragraph = firstChild as Paragraph;
   if (!paragraph.children.length) return undefined;
 
-  // The first inline must be a text node (mdast parses `[X]` as linkReference
-  // or text depending on context — check both patterns).
   const firstInline = paragraph.children[0];
+
+  // Inline link: [text](url) — not an entry.
+  if (firstInline.type === "link") return undefined;
 
   let displayId: string | undefined;
   let title: string | undefined;
@@ -112,9 +124,22 @@ function extractEntry(
   if (!displayId && firstInline.type === "linkReference") {
     const ref = firstInline as unknown as {
       type: string;
+      referenceType?: string;
       label?: string;
+      identifier?: string;
       children: Array<{ type: string; value: string }>;
     };
+
+    // Full [text][ref] and collapsed [text][] references are links, not entries.
+    if (ref.referenceType === "full" || ref.referenceType === "collapsed") {
+      return undefined;
+    }
+
+    // Shortcut [text] with a matching definition is a resolved link, not an entry.
+    if (ref.referenceType === "shortcut" && ref.identifier != null) {
+      if (definitions.has(ref.identifier)) return undefined;
+    }
+
     displayId = ref.label ?? ref.children?.[0]?.value;
     // Title comes from subsequent text nodes in the paragraph
     if (displayId && paragraph.children.length > 1) {

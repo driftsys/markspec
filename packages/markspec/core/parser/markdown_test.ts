@@ -251,6 +251,101 @@ Deno.test("parseMarkdown: long type prefix is valid", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Entry exclusion checks (AST spec §1)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: ordered list items are not entries", () => {
+  const md = `# Test
+
+1. [SRS_BRK_0001] Ordered list item
+
+   Body text.
+
+   Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: nested list items are not entries", () => {
+  const md = `# Test
+
+- Parent item
+  - [SRS_BRK_0001] Nested entry
+
+    Body text.
+
+    Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: inline link is not an entry", () => {
+  const md = `# Test
+
+- [See documentation](https://example.com) for details
+
+  This has indented body content.
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: full linkReference is not an entry", () => {
+  const md = `# Test
+
+- [See docs][ref-id] for details
+
+  This has indented body content.
+
+[ref-id]: https://example.com
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: collapsed linkReference is not an entry", () => {
+  const md = `# Test
+
+- [CommonMark][] is the baseline
+
+  This has indented body content.
+
+[CommonMark]: https://commonmark.org
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: shortcut ref with definition is not an entry", () => {
+  const md = `# Test
+
+- [CommonMark] is the baseline grammar
+
+  This has indented body content.
+
+[CommonMark]: https://commonmark.org
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: shortcut ref without definition is still an entry", () => {
+  const md = `# Test
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+  Road vehicles — Functional safety.
+
+  Document: ISO 26262-6:2018
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "ISO-26262-6");
+});
+
+// ---------------------------------------------------------------------------
 // Body indent stripping (#94)
 // ---------------------------------------------------------------------------
 
