@@ -75,4 +75,8 @@ export type {
 
 // Reporter
 export { report } from "./reporter/mod.ts";
-export type { ExportFormat, ReportOptions } from "./reporter/mod.ts";
+export type {
+  ReportFormat,
+  ReportKind,
+  ReportOptions,
+} from "./reporter/mod.ts";
