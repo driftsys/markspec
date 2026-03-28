@@ -157,14 +157,70 @@ const cli = new Command()
       Deno.exit(1);
     }
   })
-  .command("validate")
+  .command("validate [...files:string]")
   .description("Check broken refs, missing Ids, duplicates")
-  .action(async () => {
-    const { config } = await requireProjectConfig();
-    void config;
-    console.error("markspec validate: not yet implemented");
-    Deno.exit(1);
-  })
+  .option("--strict", "Promote warnings to errors")
+  .option(
+    "--format <format:string>",
+    "Output format (json|text)",
+    { default: "text" },
+  )
+  .action(
+    async (
+      options: { strict?: boolean; format?: string },
+      ...files: string[]
+    ) => {
+      if (files.length === 0) {
+        console.error("error: no files specified");
+        console.error("usage: markspec validate <file...>");
+        Deno.exit(1);
+      }
+
+      const { parse, validate } = await import("./core/mod.ts");
+
+      const allEntries = [];
+      for (const filePath of files) {
+        let content: string;
+        try {
+          content = await Deno.readTextFile(filePath);
+        } catch {
+          console.error(`error: ${filePath}: file not found`);
+          Deno.exit(1);
+        }
+        const entries = parse(content, { file: filePath });
+        allEntries.push(...entries);
+      }
+
+      const result = validate(allEntries);
+
+      // Apply --strict: promote warnings to errors.
+      const diagnostics = options.strict
+        ? result.diagnostics.map((d) =>
+          d.severity === "warning" ? { ...d, severity: "error" as const } : d
+        )
+        : result.diagnostics;
+
+      const hasErrors = diagnostics.some((d) => d.severity === "error");
+      const hasWarnings = diagnostics.some((d) => d.severity === "warning");
+
+      if (options.format === "json") {
+        console.log(JSON.stringify(diagnostics, null, 2));
+      } else {
+        for (const d of diagnostics) {
+          const loc = d.location
+            ? `${d.location.file}:${d.location.line}`
+            : "";
+          console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
+        }
+      }
+
+      if (hasErrors) {
+        Deno.exit(1);
+      } else if (hasWarnings) {
+        Deno.exit(2);
+      }
+    },
+  )
   .command("compile <paths...:string>")
   .description("Parse files, build traceability graph, output JSON")
   .option("--format <format:string>", "Output format (json|text)", {
