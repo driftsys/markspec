@@ -15,6 +15,7 @@
     "jsr:@std/path@1": "1.1.0",
     "jsr:@std/path@^1.1.0": "1.1.0",
     "jsr:@std/text@^1.0.17": "1.0.17",
+    "jsr:@std/ulid@1": "1.0.0",
     "jsr:@std/yaml@1": "1.0.12",
     "jsr:@ts-morph/bootstrap@0.27": "0.27.0",
     "jsr:@ts-morph/common@0.27": "0.27.0",
@@ -89,6 +90,9 @@
     },
     "@std/text@1.0.17": {
       "integrity": "4b2c4ef67ae5b6c1dfd447c81c83a43718f52e3c7e748d8b33f694aba9895f95"
+    },
+    "@std/ulid@1.0.0": {
+      "integrity": "d41c3d27a907714413649fee864b7cde8d42ee68437d22b79d5de4f81d808780"
     },
     "@std/yaml@1.0.12": {
       "integrity": "7deabca4545bcedd07c5f69ea53acea71b8b4c67562f224e17b90d75944cb20c"
@@ -620,6 +624,7 @@
       "jsr:@deno/dnt@~0.42.3",
       "jsr:@std/assert@1",
       "jsr:@std/path@1",
+      "jsr:@std/ulid@1",
       "jsr:@std/yaml@1"
     ],
     "members": {
