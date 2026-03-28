@@ -229,36 +229,34 @@ const cli = new Command()
   .action(async (_options: { format?: string }, ...paths: string[]) => {
     await requireProjectConfig();
 
-    const { parse } = await import("./core/mod.ts");
-    const allEntries: import("./core/mod.ts").Entry[] = [];
-    const allDiagnostics: import("./core/mod.ts").Diagnostic[] = [];
+    const { compile } = await import("./core/mod.ts");
+    const result = await compile(paths);
 
-    for (const filePath of paths) {
-      try {
-        const content = await Deno.readTextFile(filePath);
-        const entries = parse(content, { file: filePath });
-        allEntries.push(...entries);
-      } catch (err) {
-        allDiagnostics.push({
-          code: "MSL-E000",
-          severity: "error",
-          message: `Failed to read file: ${filePath}: ${err}`,
-          location: undefined,
-        });
-      }
+    for (const diag of result.diagnostics) {
+      const loc = diag.location
+        ? `${diag.location.file}:${diag.location.line}`
+        : "";
+      console.error(`${diag.severity}[${diag.code}]: ${loc} ${diag.message}`);
     }
 
-    const result = { entries: allEntries, diagnostics: allDiagnostics };
-
     if (_options.format === "json") {
-      console.log(JSON.stringify(result, null, 2));
+      // Serialize Maps to plain objects for JSON output.
+      const output = {
+        entries: Object.fromEntries(result.entries),
+        links: result.links,
+        forward: Object.fromEntries(
+          [...result.forward].map(([k, v]) => [k, v]),
+        ),
+        reverse: Object.fromEntries(
+          [...result.reverse].map(([k, v]) => [k, v]),
+        ),
+        diagnostics: result.diagnostics,
+      };
+      console.log(JSON.stringify(output, null, 2));
     } else {
       console.log(
-        `${result.entries.length} entries parsed from ${paths.length} files`,
+        `${result.entries.size} entries, ${result.links.length} links from ${paths.length} files`,
       );
-      for (const diag of result.diagnostics) {
-        console.error(`${diag.severity}: ${diag.message}`);
-      }
     }
   })
   .command("export")

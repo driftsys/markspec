@@ -28,6 +28,8 @@ export type {
   EntrySource,
   EntryType,
   InlineRef,
+  Link,
+  LinkKind,
   ProjectConfig,
   Severity,
   SourceLocation,
@@ -65,7 +67,7 @@ export type { ValidateResult } from "./validator/mod.ts";
 
 // Compiler
 export { compile } from "./compiler/mod.ts";
-export type { CompileResult } from "./compiler/mod.ts";
+export type { CompileOptions, CompileResult } from "./compiler/mod.ts";
 
 // Reporter
 export { report } from "./reporter/mod.ts";

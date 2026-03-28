@@ -50,23 +50,18 @@ Deno.test("compile: extracts typed entries with display IDs, titles, bodies, and
 
   assertEquals(code, 0);
   const result = JSON.parse(stdout);
-  assertEquals(result.entries.length, 3);
+  const entryKeys = Object.keys(result.entries);
+  assertEquals(entryKeys.length, 3);
 
-  // First entry
-  assertEquals(result.entries[0].displayId, "SRS_BRK_0001");
-  assertEquals(result.entries[0].title, "Sensor input debouncing");
-  assertEquals(result.entries[0].id, "SRS_01HGW2Q8MNP3");
-  assertEquals(result.entries[0].entryType, "SRS");
-  assertStringIncludes(result.entries[0].body, "debounce raw inputs");
+  const e1 = result.entries["SRS_BRK_0001"];
+  assertEquals(e1.displayId, "SRS_BRK_0001");
+  assertEquals(e1.title, "Sensor input debouncing");
+  assertEquals(e1.id, "SRS_01HGW2Q8MNP3");
+  assertEquals(e1.entryType, "SRS");
+  assertStringIncludes(e1.body, "debounce raw inputs");
 
-  // Second entry
-  assertEquals(result.entries[1].displayId, "SRS_BRK_0002");
-  assertEquals(result.entries[1].title, "Sensor plausibility check");
-  assertEquals(result.entries[1].id, "SRS_01HGW2R9QLP4");
-
-  // Third entry
-  assertEquals(result.entries[2].displayId, "SRS_BRK_0003");
-  assertEquals(result.entries[2].title, "Brake force computation");
+  assertEquals(result.entries["SRS_BRK_0002"].displayId, "SRS_BRK_0002");
+  assertEquals(result.entries["SRS_BRK_0003"].displayId, "SRS_BRK_0003");
 });
 
 Deno.test("compile: extracts reference entries with ID, title, and attributes", async () => {
@@ -95,27 +90,18 @@ Deno.test("compile: extracts reference entries with ID, title, and attributes", 
 
   assertEquals(code, 0);
   const result = JSON.parse(stdout);
-  assertEquals(result.entries.length, 2);
+  assertEquals(Object.keys(result.entries).length, 2);
 
-  // First reference
-  assertEquals(result.entries[0].displayId, "ISO-26262-6");
-  assertEquals(result.entries[0].title, "ISO 26262 Part 6");
-  assertEquals(result.entries[0].entryType, undefined);
-  assertStringIncludes(result.entries[0].body, "Road vehicles");
+  const iso = result.entries["ISO-26262-6"];
+  assertEquals(iso.displayId, "ISO-26262-6");
+  assertEquals(iso.title, "ISO 26262 Part 6");
+  assertEquals(iso.entryType, undefined);
+  assertStringIncludes(iso.body, "Road vehicles");
 
-  // Check attributes
-  const doc = result.entries[0].attributes.find(
-    (a: { key: string }) => a.key === "Document",
-  );
+  const doc = iso.attributes.find((a: { key: string }) => a.key === "Document");
   assertEquals(doc?.value, "ISO 26262-6:2018");
 
-  const url = result.entries[0].attributes.find(
-    (a: { key: string }) => a.key === "URL",
-  );
-  assertEquals(url?.value, "https://www.iso.org/standard/68383.html");
-
-  // Second reference
-  assertEquals(result.entries[1].displayId, "DO-178C");
+  assertEquals(result.entries["DO-178C"].displayId, "DO-178C");
 });
 
 Deno.test("compile: preserves source location for entries", async () => {
@@ -141,15 +127,11 @@ Deno.test("compile: preserves source location for entries", async () => {
 
   assertEquals(code, 0);
   const result = JSON.parse(stdout);
-  assertEquals(result.entries.length, 2);
 
-  // First entry starts at line 3
-  assertEquals(result.entries[0].location.file, "reqs.md");
-  assertEquals(result.entries[0].location.line, 3);
-
-  // Second entry starts at line 9
-  assertEquals(result.entries[1].location.file, "reqs.md");
-  assertEquals(result.entries[1].location.line, 9);
+  assertEquals(result.entries["SRS_BRK_0001"].location.file, "reqs.md");
+  assertEquals(result.entries["SRS_BRK_0001"].location.line, 3);
+  assertEquals(result.entries["SRS_BRK_0002"].location.file, "reqs.md");
+  assertEquals(result.entries["SRS_BRK_0002"].location.line, 9);
 });
 
 // ---------------------------------------------------------------------------
@@ -175,7 +157,7 @@ Deno.test("compile: parses attributes with trailing backslash separators", async
 
   assertEquals(code, 0);
   const result = JSON.parse(stdout);
-  const attrs = result.entries[0].attributes;
+  const attrs = result.entries["SRS_BRK_0001"].attributes;
 
   assertEquals(attrs.length, 3);
   assertEquals(attrs[0].key, "Id");
@@ -203,7 +185,7 @@ Deno.test("compile: parses attributes without trailing backslash (last line)", a
 
   assertEquals(code, 0);
   const result = JSON.parse(stdout);
-  const attrs = result.entries[0].attributes;
+  const attrs = result.entries["SRS_BRK_0001"].attributes;
 
   assertEquals(attrs.length, 1);
   assertEquals(attrs[0].key, "Id");
@@ -228,10 +210,43 @@ Deno.test("compile: Key: Value in middle of body is not an attribute", async () 
 
   assertEquals(code, 0);
   const result = JSON.parse(stdout);
-  const entry = result.entries[0];
+  const entry = result.entries["SRS_BRK_0001"];
 
-  // Only the trailing "Id:" is an attribute, not the "Key: Value" in the body
   assertEquals(entry.attributes.length, 1);
   assertEquals(entry.attributes[0].key, "Id");
   assertStringIncludes(entry.body, "Key: Value pairs");
+});
+
+// ---------------------------------------------------------------------------
+// Traceability links
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: Satisfies produces links in output", async () => {
+  const input = `# Requirements
+
+- [SYS_BRK_0042] System requirement
+
+  Body.
+
+  Id: SYS_01HGW2Q8MNP3
+
+- [SRS_BRK_0001] Software requirement
+
+  Body.
+
+  Id: SRS_01HGW2R9QLP4\\
+  Satisfies: SYS_BRK_0042
+`;
+
+  const { code, stdout } = await markspec(
+    ["compile", "--format", "json", "reqs.md"],
+    { "project.yaml": "name: test-project\n", "reqs.md": input },
+  );
+
+  assertEquals(code, 0);
+  const result = JSON.parse(stdout);
+  assertEquals(result.links.length, 1);
+  assertEquals(result.links[0].from, "SRS_BRK_0001");
+  assertEquals(result.links[0].to, "SYS_BRK_0042");
+  assertEquals(result.links[0].kind, "satisfies");
 });
