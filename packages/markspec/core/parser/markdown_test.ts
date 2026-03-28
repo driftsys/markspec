@@ -176,6 +176,110 @@ Deno.test("parseMarkdown: preserves source location", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task list exclusion (#93)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: checked task list item is not an entry", () => {
+  const md = `# Test
+
+- [x] Completed task
+
+  This has indented body content.
+
+  Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseMarkdown: unchecked task list item is not an entry", () => {
+  const md = `# Test
+
+- [ ] Pending task
+
+  This has indented body content too.
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Display ID regex: 3-digit numbers and long domains
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: 3-digit display ID is valid", () => {
+  const md = `# Test
+
+- [SRS_BRK_001] Three-digit entry
+
+  Body text.
+
+  Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_BRK_001");
+});
+
+Deno.test("parseMarkdown: long domain abbreviation is valid", () => {
+  const md = `# Test
+
+- [SRS_LONGDOMAIN_0001] Long domain entry
+
+  Body text.
+
+  Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_LONGDOMAIN_0001");
+});
+
+Deno.test("parseMarkdown: long type prefix is valid", () => {
+  const md = `# Test
+
+- [MULTI_BRK_0001] Long type prefix
+
+  Body text.
+
+  Id: MULTI_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "MULTI_BRK_0001");
+  assertEquals(entries[0].entryType, "MULTI");
+});
+
+// ---------------------------------------------------------------------------
+// Body indent stripping (#94)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: body has no leading whitespace artifacts", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  First line of body.
+
+  Second line of body.
+
+  Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  // Body lines should not have leading spaces from list indentation
+  const bodyLines = entries[0].body.split("\n");
+  for (const line of bodyLines) {
+    if (line.trim() !== "") {
+      assertEquals(
+        line,
+        line.trimStart(),
+        `unexpected leading whitespace: "${line}"`,
+      );
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Non-entry list items ignored
 // ---------------------------------------------------------------------------
 

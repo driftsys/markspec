@@ -19,10 +19,10 @@ export interface ParseMarkdownOptions {
 }
 
 /**
- * Typed entry display ID pattern: `TYPE_XYZ_NNNN`.
- * TYPE = 2-4 uppercase letters, XYZ = 2-6 uppercase letters, NNNN = zero-padded digits.
+ * Typed entry display ID pattern: `TYPE_XYZ_NNN[N]`.
+ * TYPE = uppercase letters, XYZ = 2-12 uppercase letters, NNN[N] = 3 or 4 zero-padded digits.
  */
-const TYPED_ID_RE = /^([A-Z]{2,4})_[A-Z]{2,6}_\d{4}$/;
+const TYPED_ID_RE = /^([A-Z]+)_[A-Z]{2,12}_\d{3,4}$/;
 
 /**
  * Reference entry display ID pattern: letters, digits, hyphens.
@@ -79,6 +79,9 @@ function extractEntry(
   markdown: string,
   file: string,
 ): Entry | undefined {
+  // Task list items (remark-gfm sets checked to true/false) are not entries.
+  if (item.checked != null) return undefined;
+
   // An entry block must have children (body content).
   // The first child must be a paragraph starting with `[DISPLAY_ID]`.
   if (!item.children.length) return undefined;
@@ -187,11 +190,15 @@ function extractBodyContent(item: ListItem, markdown: string): string {
 
   if (!startLine || !endLine) return "";
 
-  // Extract the raw lines and strip the list item indentation (typically 2 spaces)
+  // Compute indent width from the list item's column position.
+  // column is 1-based, plus 2 for the `- ` marker.
+  const indent = (item.position?.start.column ?? 1) - 1 + 2;
+  const indentStr = " ".repeat(indent);
+
+  // Extract the raw lines and strip the list item continuation indent
   const rawLines = lines.slice(startLine - 1, endLine);
   const stripped = rawLines.map((line) => {
-    // Remove up to 2 leading spaces (standard list continuation indent)
-    if (line.startsWith("  ")) return line.slice(2);
+    if (line.startsWith(indentStr)) return line.slice(indent);
     return line;
   });
 
