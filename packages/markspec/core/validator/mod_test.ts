@@ -188,7 +188,10 @@ Deno.test("validate: multiple errors accumulated", () => {
   ];
   const result = validate(entries);
   assertEquals(result.valid, false);
-  assertEquals(result.diagnostics.filter((d) => d.severity === "error").length >= 2, true);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length >= 2,
+    true,
+  );
 });
 
 // ---------------------------------------------------------------------------
