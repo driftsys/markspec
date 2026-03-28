@@ -66,8 +66,12 @@ export { validate } from "./validator/mod.ts";
 export type { ValidateResult } from "./validator/mod.ts";
 
 // Compiler
-export { compile } from "./compiler/mod.ts";
-export type { CompileOptions, CompileResult } from "./compiler/mod.ts";
+export { compile, serializeCompileResult } from "./compiler/mod.ts";
+export type {
+  CompileOptions,
+  CompileResult,
+  SerializedCompileResult,
+} from "./compiler/mod.ts";
 
 // Reporter
 export { report } from "./reporter/mod.ts";

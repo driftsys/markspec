@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markspec.dev/schemas/compile-result.json",
+  "title": "MarkSpec Compile Result",
+  "description": "Serialized output of the MarkSpec compiler — entries, traceability links, adjacency maps, and diagnostics.",
+  "type": "object",
+  "required": ["entries", "links", "forward", "reverse", "diagnostics"],
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "description": "All entries keyed by display ID.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "links": {
+      "description": "All traceability links.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/link"
+      }
+    },
+    "forward": {
+      "description": "Outgoing links per entry (entry → targets), keyed by display ID.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/link"
+        }
+      }
+    },
+    "reverse": {
+      "description": "Incoming links per entry (entry → sources pointing to it), keyed by display ID.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/link"
+        }
+      }
+    },
+    "diagnostics": {
+      "description": "Diagnostics from parsing and validation.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "sourceLocation": {
+      "description": "Points to a span within a source file.",
+      "type": "object",
+      "required": ["file", "line", "column"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Absolute or project-relative file path."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based line number."
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based column number."
+        }
+      }
+    },
+    "attribute": {
+      "description": "A single Key: Value pair from an attribute block.",
+      "type": "object",
+      "required": ["key", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Attribute name (e.g., Id, Satisfies, Labels)."
+        },
+        "value": {
+          "type": "string",
+          "description": "Raw attribute value string."
+        }
+      }
+    },
+    "entry": {
+      "description": "A parsed MarkSpec entry.",
+      "type": "object",
+      "required": [
+        "displayId",
+        "title",
+        "body",
+        "attributes",
+        "location",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "displayId": {
+          "type": "string",
+          "description": "Human-readable display ID from the [...] marker."
+        },
+        "title": {
+          "type": "string",
+          "description": "Entry title — text after the closing ] on the first line."
+        },
+        "body": {
+          "type": "string",
+          "description": "Body content between title and attributes."
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attribute"
+          },
+          "description": "Parsed attribute block."
+        },
+        "id": {
+          "type": ["string", "null"],
+          "description": "ULID from the Id: attribute, if present."
+        },
+        "entryType": {
+          "type": ["string", "null"],
+          "description": "Resolved entry type prefix (e.g., SRS), if this is a typed entry."
+        },
+        "location": {
+          "$ref": "#/$defs/sourceLocation",
+          "description": "Where the entry was found."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["markdown", "doc-comment"],
+          "description": "Whether this came from a Markdown file or a doc comment."
+        }
+      }
+    },
+    "link": {
+      "description": "A directional link between two entries in the traceability graph.",
+      "type": "object",
+      "required": ["from", "to", "kind", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source entry display ID."
+        },
+        "to": {
+          "type": "string",
+          "description": "Target entry display ID."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "satisfies",
+            "derived-from",
+            "allocates",
+            "constrains",
+            "verifies",
+            "implements"
+          ],
+          "description": "Kind of directional link."
+        },
+        "location": {
+          "$ref": "#/$defs/sourceLocation",
+          "description": "Source location of the link declaration."
+        }
+      }
+    },
+    "diagnostic": {
+      "description": "A diagnostic message from parsing or validation.",
+      "type": "object",
+      "required": ["code", "severity", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Unique rule ID (e.g., MSL-E001)."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "description": "Severity level."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message."
+        },
+        "location": {
+          "oneOf": [
+            { "$ref": "#/$defs/sourceLocation" },
+            { "type": "null" }
+          ],
+          "description": "Source location, if applicable."
+        }
+      }
+    }
+  }
+}
