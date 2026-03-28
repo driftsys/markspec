@@ -26,7 +26,11 @@ function makeResult(
   return { entries: entryMap, links, forward, reverse, diagnostics: [] };
 }
 
-function entry(id: string, type?: string, attrs: { key: string; value: string }[] = []): Entry {
+function entry(
+  id: string,
+  type?: string,
+  attrs: { key: string; value: string }[] = [],
+): Entry {
   return {
     displayId: id,
     title: `Title of ${id}`,
@@ -103,8 +107,18 @@ Deno.test("report: coverage with all entries covered", () => {
   const sys = entry("SYS_BRK_0001", "SYS");
   const srs = entry("SRS_BRK_0001", "SRS");
   const links: Link[] = [
-    { from: "SYS_BRK_0001", to: "STK_BRK_0001", kind: "satisfies", location: loc },
-    { from: "SRS_BRK_0001", to: "SYS_BRK_0001", kind: "satisfies", location: loc },
+    {
+      from: "SYS_BRK_0001",
+      to: "STK_BRK_0001",
+      kind: "satisfies",
+      location: loc,
+    },
+    {
+      from: "SRS_BRK_0001",
+      to: "SYS_BRK_0001",
+      kind: "satisfies",
+      location: loc,
+    },
   ];
   const result = makeResult([stk, sys, srs], links);
 

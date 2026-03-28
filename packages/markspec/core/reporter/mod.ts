@@ -144,11 +144,12 @@ function formatTraceability(
   // Markdown table
   const header =
     "| ID | Title | Type | Satisfies | Satisfied-by | Verified-by |";
-  const sep =
-    "| -- | ----- | ---- | --------- | ------------ | ----------- |";
+  const sep = "| -- | ----- | ---- | --------- | ------------ | ----------- |";
   const lines = rows.map(
     (r) =>
-      `| ${r.id} | ${r.title} | ${r.entryType} | ${r.satisfies || "\u2014"} | ${r.satisfiedBy || "\u2014"} | ${r.verifiedBy || "\u2014"} |`,
+      `| ${r.id} | ${r.title} | ${r.entryType} | ${r.satisfies || "\u2014"} | ${
+        r.satisfiedBy || "\u2014"
+      } | ${r.verifiedBy || "\u2014"} |`,
   );
   return [header, sep, ...lines].join("\n");
 }
