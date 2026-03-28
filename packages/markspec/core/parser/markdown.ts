@@ -5,12 +5,10 @@
  * `- [TYPE_XYZ_NNN[N]]` entry blocks and extract structured attributes.
  */
 
-import { unified } from "unified";
-import remarkParse from "remark-parse";
-import remarkGfm from "remark-gfm";
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Entry, EntryType } from "../model/mod.ts";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
+import { processor } from "./remark.ts";
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
@@ -34,9 +32,6 @@ const REF_ID_RE = /^[A-Za-z0-9-]+$/;
  * Captures: [1] = full display ID, [2] = title (rest of line).
  */
 const ENTRY_START_RE = /^\[([^\]]+)\]\s*(.*)$/;
-
-/** Build the remark processor once. */
-const processor = unified().use(remarkParse).use(remarkGfm);
 
 /**
  * Parse a Markdown string and return all MarkSpec entries found.

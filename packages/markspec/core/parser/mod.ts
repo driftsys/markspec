@@ -3,13 +3,18 @@
  *
  * MarkSpec parser — file → Entry[].
  *
- * Two sub-modules:
+ * Three sub-modules:
  * - markdown: CommonMark AST walk, entry block detection, attribute extraction
+ * - captions: table and figure caption detection
  * - source: doc comment extraction from Rust, Kotlin, C, C++, Java
  */
 
-import type { Entry } from "../model/mod.ts";
+import type { Caption, Entry } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
+import {
+  detectCaptions as detectCaptionsImpl,
+  type DetectCaptionsOptions,
+} from "./captions.ts";
 
 /** Options for {@linkcode parse}. */
 export interface ParseOptions {
@@ -29,4 +34,18 @@ export function parse(
   options?: ParseOptions,
 ): Entry[] {
   return parseMarkdown(markdown, options);
+}
+
+/**
+ * Detect table and figure captions in a Markdown string.
+ *
+ * @param markdown - Markdown source text
+ * @param options - Detection options (file path for source locations)
+ * @returns Array of detected captions
+ */
+export function detectCaptions(
+  markdown: string,
+  options?: DetectCaptionsOptions,
+): Caption[] {
+  return detectCaptionsImpl(markdown, options);
 }

@@ -19,6 +19,7 @@ export {
 export type {
   Attribute,
   BuiltinType,
+  Caption,
   ConfigFieldError,
   Diagnostic,
   DisplayId,
@@ -40,7 +41,7 @@ export {
 export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 // Parser
-export { parse } from "./parser/mod.ts";
+export { detectCaptions, parse } from "./parser/mod.ts";
 export type { ParseOptions } from "./parser/mod.ts";
 
 // Formatter
