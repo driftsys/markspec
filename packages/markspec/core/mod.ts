@@ -57,7 +57,7 @@ export type {
 
 // Formatter
 export { format } from "./formatter/mod.ts";
-export type { FormatResult } from "./formatter/mod.ts";
+export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 
 // Validator
 export { validate } from "./validator/mod.ts";
