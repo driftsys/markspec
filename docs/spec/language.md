@@ -1178,7 +1178,7 @@ activate only on `summary` documents.
 | ID         | Severity | Rule                                                                |
 | ---------- | -------- | ------------------------------------------------------------------- |
 | `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body.                   |
-| `MSL-R002` | error    | Typed entry: display ID matches `[A-Z]+_[A-Z]{2,12}_\d{3,4}`.       |
+| `MSL-R002` | error    | Typed entry: display ID matches `[A-Z]{2,}_[A-Z]{2,12}_\d{3,4}`.    |
 | `MSL-R003` | error    | Typed entry: `Id:` required, matches `[A-Z]+_[0-9A-Z]{12,13}`.      |
 | `MSL-R004` | error    | Typed entry: exactly one `Id:` per entry.                           |
 | `MSL-R005` | error    | ULID unique across repository.                                      |

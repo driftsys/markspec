@@ -58,7 +58,7 @@ listItem
   │   paragraph? (single paragraph, no continuation)
   │
   ├─ Bracket content matches typed entry pattern        → msEntry (typed)
-  │   /^[A-Z]+_[A-Z]{2,12}_\d{3,4}$/
+  │   /^[A-Z]{2,}_[A-Z]{2,12}_\d{3,4}$/
   │
   ├─ Bracket content matches reference entry pattern    → msEntry (reference)
   │   /^[A-Za-z0-9-]+$/ AND document type is
