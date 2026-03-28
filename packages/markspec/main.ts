@@ -10,7 +10,7 @@
 
 import { Command } from "@cliffy/command";
 import { ConfigError, VERSION } from "./core/mod.ts";
-import type { ReadFile } from "./core/mod.ts";
+import type { CompileResult, ReadFile } from "./core/mod.ts";
 
 /** Print "not yet implemented" to stderr and exit 1. */
 function notImplemented(name: string): () => void {
@@ -55,6 +55,16 @@ async function requireProjectConfig() {
     }
     throw err;
   }
+}
+
+/**
+ * Compile project files and return the result.
+ * Shared helper for commands that need the compiled graph.
+ */
+async function compileProject(paths: string[]): Promise<CompileResult> {
+  await requireProjectConfig();
+  const { compile } = await import("./core/mod.ts");
+  return await compile(paths);
 }
 
 // ── Nested subcommands (composed as separate Command instances) ───────
@@ -207,9 +217,7 @@ const cli = new Command()
         console.log(JSON.stringify(diagnostics, null, 2));
       } else {
         for (const d of diagnostics) {
-          const loc = d.location
-            ? `${d.location.file}:${d.location.line}`
-            : "";
+          const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
           console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
         }
       }
@@ -271,15 +279,158 @@ const cli = new Command()
   .command("next-id")
   .description("Print the next available display ID for a type")
   .action(notImplemented("next-id"))
-  .command("show")
+  .command("show <id:string> <paths...:string>")
   .description("Show details of a single entry by ID")
-  .action(notImplemented("show"))
-  .command("context")
-  .description("Print context for an entry (parents, children, links)")
-  .action(notImplemented("context"))
-  .command("dependents")
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(
+    async (options: { format?: string }, id: string, ...paths: string[]) => {
+      const result = await compileProject(paths);
+      const entry = result.entries.get(id);
+
+      if (!entry) {
+        console.error(`error: entry not found: ${id}`);
+        Deno.exit(1);
+      }
+
+      const forwardLinks = result.forward.get(id) ?? [];
+      const reverseLinks = result.reverse.get(id) ?? [];
+
+      if (options.format === "json") {
+        const output = {
+          ...entry,
+          forwardLinks,
+          reverseLinks,
+        };
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        console.log(`${entry.displayId}  ${entry.title}`);
+        if (entry.entryType) {
+          console.log(`  Type: ${entry.entryType}`);
+        }
+        for (const attr of entry.attributes) {
+          console.log(`  ${attr.key}: ${attr.value}`);
+        }
+        console.log(
+          `  Source: ${entry.location.file}:${entry.location.line}:${entry.location.column}`,
+        );
+        if (forwardLinks.length > 0) {
+          console.log("  Outgoing links:");
+          for (const link of forwardLinks) {
+            console.log(`    ${link.kind} → ${link.to}`);
+          }
+        }
+        if (reverseLinks.length > 0) {
+          console.log("  Incoming links:");
+          for (const link of reverseLinks) {
+            console.log(`    ${link.kind} ← ${link.from}`);
+          }
+        }
+      }
+    },
+  )
+  .command("context <id:string> <paths...:string>")
+  .description("Walk the Satisfies chain upward from an entry")
+  .option("--depth <depth:number>", "Maximum depth to walk", { default: 10 })
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(
+    async (
+      options: { depth: number; format?: string },
+      id: string,
+      ...paths: string[]
+    ) => {
+      const result = await compileProject(paths);
+      const entry = result.entries.get(id);
+
+      if (!entry) {
+        console.error(`error: entry not found: ${id}`);
+        Deno.exit(1);
+      }
+
+      // Walk the Satisfies chain upward.
+      const chain: Array<{ displayId: string; title: string; depth: number }> =
+        [];
+      const visited = new Set<string>();
+      let currentIds = [id];
+      let depth = 0;
+
+      // Add the starting entry at depth 0.
+      chain.push({ displayId: entry.displayId, title: entry.title, depth: 0 });
+      visited.add(id);
+
+      while (depth < options.depth && currentIds.length > 0) {
+        const nextIds: string[] = [];
+        for (const currentId of currentIds) {
+          const links = result.forward.get(currentId) ?? [];
+          for (const link of links) {
+            if (link.kind === "satisfies" && !visited.has(link.to)) {
+              visited.add(link.to);
+              const target = result.entries.get(link.to);
+              if (target) {
+                chain.push({
+                  displayId: target.displayId,
+                  title: target.title,
+                  depth: depth + 1,
+                });
+                nextIds.push(link.to);
+              }
+            }
+          }
+        }
+        currentIds = nextIds;
+        depth++;
+      }
+
+      if (options.format === "json") {
+        console.log(JSON.stringify(chain, null, 2));
+      } else {
+        for (const item of chain) {
+          const indent = "  ".repeat(item.depth);
+          console.log(`${indent}${item.displayId}  ${item.title}`);
+        }
+      }
+    },
+  )
+  .command("dependents <id:string> <paths...:string>")
   .description("List all entries that depend on a given entry")
-  .action(notImplemented("dependents"))
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(
+    async (options: { format?: string }, id: string, ...paths: string[]) => {
+      const result = await compileProject(paths);
+      const entry = result.entries.get(id);
+
+      if (!entry) {
+        console.error(`error: entry not found: ${id}`);
+        Deno.exit(1);
+      }
+
+      const reverseLinks = result.reverse.get(id) ?? [];
+
+      if (options.format === "json") {
+        const output = reverseLinks.map((link) => ({
+          from: link.from,
+          kind: link.kind,
+          title: result.entries.get(link.from)?.title ?? "",
+        }));
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        if (reverseLinks.length === 0) {
+          console.log(`No dependents for ${id}`);
+        } else {
+          for (const link of reverseLinks) {
+            const source = result.entries.get(link.from);
+            const title = source ? `  ${source.title}` : "";
+            console.log(`${link.from}  ${link.kind}${title}`);
+          }
+        }
+      }
+    },
+  )
   .command("report")
   .description("Generate traceability matrix or coverage report")
   .action(notImplemented("report"))
