@@ -401,15 +401,17 @@ traceability rules.
 
 ### 2.1 Typed entries
 
-An entry whose display ID matches `TYPE_XYZ_NNNN` (uppercase letters,
-underscore, 2–6 uppercase letters, underscore, zero-padded number from `0001`)
-is a typed entry. Typed entries are recognized in any MarkSpec file.
+An entry whose display ID matches `TYPE_XYZ_NNN[N]` (uppercase letters,
+underscore, 2–12 uppercase letters, underscore, zero-padded number of 3 or 4
+digits starting from `001`) is a typed entry. Typed entries are recognized in
+any MarkSpec file.
 
 Typed entries have two identifiers:
 
 - **Display ID** — human-readable, in the `[...]` marker. `TYPE` is the entry
-  type. `XYZ` is a 2–6 letter project or domain abbreviation. `NNNN` is
-  zero-padded from `0001`, unique within the project.
+  type. `XYZ` is a 2–12 letter project or domain abbreviation. `NNN[N]` is
+  zero-padded from `001` (3 digits) or `0001` (4 digits), unique within the
+  project.
 - **ULID** — universally unique, in the `Id:` attribute. Formatted as
   `TYPE_ULID` (e.g., `SRS_01HGW2Q8MNP3`). The ULID ensures global uniqueness
   across projects and survives renumbering. Mandatory. Assigned by tooling,
@@ -1176,7 +1178,7 @@ activate only on `summary` documents.
 | ID         | Severity | Rule                                                                |
 | ---------- | -------- | ------------------------------------------------------------------- |
 | `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body.                   |
-| `MSL-R002` | error    | Typed entry: display ID matches `[A-Z]+_[A-Z]{2,6}_\d{4}`.          |
+| `MSL-R002` | error    | Typed entry: display ID matches `[A-Z]+_[A-Z]{2,12}_\d{3,4}`.       |
 | `MSL-R003` | error    | Typed entry: `Id:` required, matches `[A-Z]+_[0-9A-Z]{12,13}`.      |
 | `MSL-R004` | error    | Typed entry: exactly one `Id:` per entry.                           |
 | `MSL-R005` | error    | ULID unique across repository.                                      |

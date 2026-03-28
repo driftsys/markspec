@@ -33,7 +33,7 @@ export type EntryType = BuiltinType | (string & Record<never, never>);
 /**
  * Human-readable entry identifier.
  *
- * Typed entries match `TYPE_XYZ_NNNN` (e.g., `SRS_BRK_0001`).
+ * Typed entries match `TYPE_XYZ_NNN[N]` (e.g., `SRS_BRK_001`, `SRS_BRK_0001`).
  * Reference entries are slugs: `[A-Za-z0-9-]+` (e.g., `ISO-26262-6`).
  */
 export type DisplayId = string;
