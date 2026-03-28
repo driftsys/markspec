@@ -100,7 +100,10 @@ const cli = new Command()
   // Core commands
   .command("format [...files:string]")
   .description("Stamp ULIDs, fix indentation, normalize attributes")
-  .option("--check", "Check mode: report but don't write (exit 1 if changes needed)")
+  .option(
+    "--check",
+    "Check mode: report but don't write (exit 1 if changes needed)",
+  )
   .action(async (options: { check?: boolean }, ...files: string[]) => {
     if (files.length === 0) {
       console.error("error: no files specified");
@@ -128,9 +131,7 @@ const cli = new Command()
       const result = format(content, { file: filePath });
 
       for (const d of result.diagnostics) {
-        const loc = d.location
-          ? `${d.location.file}:${d.location.line}`
-          : "";
+        const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
         console.error(`${d.severity}: ${loc} ${d.message}`);
       }
 
