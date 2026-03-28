@@ -1,20 +1,21 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
-Deno.test("validate in nested dir finds project.yaml two levels up", async () => {
-  const { code, stderr } = await markspec(["validate"], {
+Deno.test("validate in nested dir finds files", async () => {
+  const { code } = await markspec(["validate", "req.md"], {
     files: {
       "project.yaml": "name: test-project\n",
-      "a/b/req.md": "# Reqs\n",
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Id: SRS_01HGW2Q8MNP3
+`,
     },
-    cwd: "a/b",
   });
-  // validate is still "not yet implemented" but it should find the config
-  // and NOT print "no project.yaml found"
-  assertEquals(stderr.includes("no project.yaml found"), false);
-  // It will print "not yet implemented" since the command logic is stubbed
-  assertStringIncludes(stderr, "not yet implemented");
-  assertEquals(code, 1);
+  assertEquals(code, 0);
 });
 
 Deno.test("format outside project works with defaults", async () => {
@@ -39,10 +40,11 @@ Deno.test("compile without project.yaml produces clear error", async () => {
   assertStringIncludes(stderr, "no project.yaml found");
 });
 
-Deno.test("invalid project.yaml produces actionable error", async () => {
-  const { code, stderr } = await markspec(["validate"], {
+Deno.test("invalid project.yaml produces actionable error on compile", async () => {
+  const { code, stderr } = await markspec(["compile", "**/*.md"], {
     files: {
       "project.yaml": "domain: bad\n",
+      "req.md": "# Test\n",
     },
   });
   assertEquals(code, 1);
