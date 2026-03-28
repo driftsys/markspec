@@ -20,9 +20,9 @@ export interface ParseMarkdownOptions {
 
 /**
  * Typed entry display ID pattern: `TYPE_XYZ_NNN[N]`.
- * TYPE = uppercase letters, XYZ = 2-12 uppercase letters, NNN[N] = 3 or 4 zero-padded digits.
+ * TYPE = 2+ uppercase letters, XYZ = 2-12 uppercase letters, NNN[N] = 3 or 4 zero-padded digits.
  */
-const TYPED_ID_RE = /^([A-Z]+)_[A-Z]{2,12}_\d{3,4}$/;
+const TYPED_ID_RE = /^([A-Z]{2,})_[A-Z]{2,12}_\d{3,4}$/;
 
 /**
  * Reference entry display ID pattern: letters, digits, hyphens.
