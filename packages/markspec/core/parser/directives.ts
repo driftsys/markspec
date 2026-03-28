@@ -46,7 +46,11 @@ export function detectDirectives(
   for (const node of tree.children) {
     if (node.type !== "html") continue;
 
-    const html = node as { type: string; value: string; position?: { start: { line: number; column: number } } };
+    const html = node as {
+      type: string;
+      value: string;
+      position?: { start: { line: number; column: number } };
+    };
     const commentMatch = COMMENT_RE.exec(html.value.trim());
     if (!commentMatch) continue;
 
@@ -59,7 +63,11 @@ export function detectDirectives(
 
     // Track the line offset within the comment for each content line.
     // The first line of the comment body is on the same line as `<!--`.
-    let currentDirective: { name: string; payloadParts: string[]; location: SourceLocation } | undefined;
+    let currentDirective: {
+      name: string;
+      payloadParts: string[];
+      location: SourceLocation;
+    } | undefined;
 
     for (let i = 0; i < commentLines.length; i++) {
       const line = commentLines[i].trim();
