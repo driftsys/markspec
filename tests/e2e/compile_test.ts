@@ -250,3 +250,74 @@ Deno.test("compile: Satisfies produces links in output", async () => {
   assertEquals(result.links[0].to, "SYS_BRK_0042");
   assertEquals(result.links[0].kind, "satisfies");
 });
+
+// ---------------------------------------------------------------------------
+// Source file compilation (Epic #127)
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: extracts entries from Rust source files", async () => {
+  const rustSource = `/// [SRS_BRK_0001] Sensor input debouncing
+///
+/// The sensor driver shall reject transient noise.
+///
+/// Id: SRS_01HGW2Q8MNP3 \\
+/// Satisfies: SYS_BRK_0042 \\
+/// Labels: ASIL-B
+#[test]
+fn swt_brk_0001() {}
+`;
+
+  const { code, stdout } = await markspec(
+    ["compile", "--format", "json", "src/braking_test.rs"],
+    {
+      "project.yaml": "name: test-project\n",
+      "src/braking_test.rs": rustSource,
+    },
+  );
+
+  assertEquals(code, 0);
+  const result = JSON.parse(stdout);
+  const entry = result.entries["SRS_BRK_0001"];
+  assertEquals(entry.displayId, "SRS_BRK_0001");
+  assertEquals(entry.source, "doc-comment");
+  assertEquals(entry.id, "SRS_01HGW2Q8MNP3");
+  assertStringIncludes(entry.body, "reject transient noise");
+});
+
+Deno.test("compile: mixed .md and .rs files in single invocation", async () => {
+  const mdContent = `# System Requirements
+
+- [SYS_BRK_0042] System braking requirement
+
+  The braking system shall stop the vehicle.
+
+  Id: SYS_01HGW2Q8MNP3
+`;
+
+  const rsContent = `/// [SRS_BRK_0001] Sensor debouncing
+///
+/// Body text.
+///
+/// Id: SRS_01HGW2R9QLP4 \\
+/// Satisfies: SYS_BRK_0042
+fn debounce() {}
+`;
+
+  const { code, stdout } = await markspec(
+    ["compile", "--format", "json", "docs/reqs.md", "src/braking.rs"],
+    {
+      "project.yaml": "name: test-project\n",
+      "docs/reqs.md": mdContent,
+      "src/braking.rs": rsContent,
+    },
+  );
+
+  assertEquals(code, 0);
+  const result = JSON.parse(stdout);
+  assertEquals(Object.keys(result.entries).length, 2);
+  assertEquals(result.entries["SYS_BRK_0042"].source, "markdown");
+  assertEquals(result.entries["SRS_BRK_0001"].source, "doc-comment");
+  assertEquals(result.links.length, 1);
+  assertEquals(result.links[0].from, "SRS_BRK_0001");
+  assertEquals(result.links[0].to, "SYS_BRK_0042");
+});
