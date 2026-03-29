@@ -305,3 +305,85 @@ Deno.test("validate: Derived-from unresolved → MSL-T004 warning", () => {
   assertEquals(t004.length, 1);
   assertStringIncludes(t004[0].message, "UNKNOWN-REF");
 });
+
+// ---------------------------------------------------------------------------
+// Allocates and Between (MSL-T008, MSL-T009)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Allocates target missing → MSL-T008", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SAD_BRK_0010",
+      entryType: "SAD",
+      id: "SAD_01HGW3A2EFG3",
+      attributes: [
+        { key: "Id", value: "SAD_01HGW3A2EFG3" },
+        { key: "Allocates", value: "SRS_NONEXISTENT" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, false);
+  const t008 = result.diagnostics.find((d) => d.code === "MSL-T008");
+  assertEquals(t008 != null, true);
+  assertStringIncludes(t008!.message, "SRS_NONEXISTENT");
+});
+
+Deno.test("validate: Allocates target exists → passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_01HGW2Q8MNP3",
+      attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
+    }),
+    typedEntry({
+      displayId: "SAD_BRK_0010",
+      entryType: "SAD",
+      id: "SAD_01HGW3A2EFG3",
+      attributes: [
+        { key: "Id", value: "SAD_01HGW3A2EFG3" },
+        { key: "Allocates", value: "SRS_BRK_0001" },
+      ],
+      location: { file: "arch.md", line: 10, column: 1 },
+    }),
+  ];
+  const result = validate(entries);
+  const t008 = result.diagnostics.filter((d) => d.code === "MSL-T008");
+  assertEquals(t008.length, 0);
+});
+
+Deno.test("validate: Between with 2 parties → passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "ICD_BRK_0001",
+      entryType: "ICD",
+      id: "ICD_01HGW4A1BCD2",
+      attributes: [
+        { key: "Id", value: "ICD_01HGW4A1BCD2" },
+        { key: "Between", value: "braking-ecu, vehicle-dynamics-ecu" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t009 = result.diagnostics.filter((d) => d.code === "MSL-T009");
+  assertEquals(t009.length, 0);
+});
+
+Deno.test("validate: Between with 1 party → MSL-T009", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "ICD_BRK_0001",
+      entryType: "ICD",
+      id: "ICD_01HGW4A1BCD2",
+      attributes: [
+        { key: "Id", value: "ICD_01HGW4A1BCD2" },
+        { key: "Between", value: "braking-ecu" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, false);
+  const t009 = result.diagnostics.find((d) => d.code === "MSL-T009");
+  assertEquals(t009 != null, true);
+  assertStringIncludes(t009!.message, "found 1");
+});

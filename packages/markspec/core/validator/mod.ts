@@ -202,6 +202,41 @@ function checkReferences(
         });
       }
     }
+
+    // MSL-T008: Allocates targets must be SRS entries (resolve against known IDs).
+    const allocates = findAttr(entry.attributes, "Allocates");
+    if (allocates) {
+      const targets = allocates.value.split(",").map((s) => s.trim());
+      for (const target of targets) {
+        if (!target) continue;
+        if (!knownIds.has(target)) {
+          diagnostics.push({
+            code: "MSL-T008",
+            severity: "error",
+            message:
+              `${entry.displayId}: unresolved reference '${target}' in Allocates`,
+            location: entry.location,
+          });
+        }
+      }
+    }
+
+    // MSL-T009: Between must list exactly two parties.
+    const between = findAttr(entry.attributes, "Between");
+    if (between) {
+      const parties = between.value.split(",").map((s) => s.trim()).filter(
+        (s) => s.length > 0,
+      );
+      if (parties.length !== 2) {
+        diagnostics.push({
+          code: "MSL-T009",
+          severity: "error",
+          message:
+            `${entry.displayId}: Between must list exactly 2 parties, found ${parties.length}`,
+          location: entry.location,
+        });
+      }
+    }
   }
 }
 
