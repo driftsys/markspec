@@ -64,7 +64,9 @@ async function requireProjectConfig() {
 async function compileProject(paths: string[]): Promise<CompileResult> {
   await requireProjectConfig();
   const { compile } = await import("./core/mod.ts");
-  const result = await compile(paths, { readFile: (p) => Deno.readTextFile(p) });
+  const result = await compile(paths, {
+    readFile: (p) => Deno.readTextFile(p),
+  });
 
   for (const diag of result.diagnostics) {
     const loc = diag.location

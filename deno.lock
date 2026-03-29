@@ -22,7 +22,8 @@
     "npm:@types/mdast@4": "4.0.4",
     "npm:remark-gfm@4": "4.0.1",
     "npm:remark-parse@11": "11.0.0",
-    "npm:unified@11": "11.0.5"
+    "npm:unified@11": "11.0.5",
+    "npm:web-tree-sitter@0.24": "0.24.7"
   },
   "jsr": {
     "@cliffy/command@1.0.0": {
@@ -615,6 +616,9 @@
         "vfile-message"
       ]
     },
+    "web-tree-sitter@0.24.7": {
+      "integrity": "sha512-CdC/TqVFbXqR+C51v38hv6wOPatKEUGxa39scAeFSm98wIhZxAYonhRQPSMmfZ2w7JDI0zQDdzdmgtNk06/krQ=="
+    },
     "zwitch@2.0.4": {
       "integrity": "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="
     }
@@ -635,7 +639,8 @@
           "npm:@types/mdast@4",
           "npm:remark-gfm@4",
           "npm:remark-parse@11",
-          "npm:unified@11"
+          "npm:unified@11",
+          "npm:web-tree-sitter@0.24"
         ]
       }
     }
