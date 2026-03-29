@@ -13,7 +13,14 @@ import { parseSource } from "./source.ts";
 // Setup: load Rust grammar once for all tests
 // ---------------------------------------------------------------------------
 
-const grammarsDir = join(import.meta.dirname!, "..", "..", "..", "..", "grammars");
+const grammarsDir = join(
+  import.meta.dirname!,
+  "..",
+  "..",
+  "..",
+  "..",
+  "grammars",
+);
 let rustLanguage: Parser.Language;
 
 async function getRustLanguage(): Promise<Parser.Language> {

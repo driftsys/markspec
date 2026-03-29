@@ -52,6 +52,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - run: deno run --allow-net --allow-write --allow-read scripts/fetch_grammars.ts
       - run: deno test --allow-read --allow-write --allow-run
 
   tokens:

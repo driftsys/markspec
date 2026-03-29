@@ -119,7 +119,8 @@ Deno.test("parseAttributes: empty input returns empty array", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("splitBodyAndAttributes: no blank line between body and attributes", () => {
-  const content = "Body text directly adjacent to attributes.\nId: SRS_01HGW2Q8MNP3";
+  const content =
+    "Body text directly adjacent to attributes.\nId: SRS_01HGW2Q8MNP3";
   const [body, attrs] = splitBodyAndAttributes(content);
   assertStringIncludes(body, "Body text directly adjacent");
   assertEquals(attrs.length, 1);

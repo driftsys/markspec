@@ -24,7 +24,14 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
 };
 
 /** Directory containing grammar WASM files. */
-const GRAMMARS_DIR = join(import.meta.dirname!, "..", "..", "..", "..", "grammars");
+const GRAMMARS_DIR = join(
+  import.meta.dirname!,
+  "..",
+  "..",
+  "..",
+  "..",
+  "grammars",
+);
 
 let initialized = false;
 const cache = new Map<string, Parser.Language>();

@@ -17,8 +17,7 @@ const GRAMMARS: Record<string, { pkg: string; version: string }> = {
 const GRAMMARS_DIR = new URL("../grammars", import.meta.url).pathname;
 
 async function fetchGrammar(file: string, pkg: string, version: string) {
-  const url =
-    `https://cdn.jsdelivr.net/npm/${pkg}@${version}/${file}`;
+  const url = `https://cdn.jsdelivr.net/npm/${pkg}@${version}/${file}`;
   console.error(`  fetching ${file} from ${pkg}@${version}...`);
   const response = await fetch(url);
   if (!response.ok) {
