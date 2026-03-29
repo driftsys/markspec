@@ -34,7 +34,7 @@ const GRAMMARS_DIR = join(
 );
 
 let initialized = false;
-const cache = new Map<string, Parser.Language>();
+const cache = new Map<string, Promise<Parser.Language>>();
 
 /** Check whether a file extension has a supported grammar. */
 export function isSupportedExtension(ext: string): boolean {
@@ -46,27 +46,31 @@ export function isSupportedExtension(ext: string): boolean {
  *
  * Initializes the Parser WASM runtime on first call. Grammar languages
  * are cached — repeated calls with the same extension return the
- * same `Parser.Language` instance.
+ * same `Parser.Language` instance. Concurrent-safe: stores the loading
+ * promise so parallel calls await the same load.
  *
  * @param ext - File extension including the dot (e.g., `.rs`, `.java`)
  * @throws If the extension is unsupported or the WASM file cannot be loaded
  */
-export async function loadGrammar(ext: string): Promise<Parser.Language> {
+export function loadGrammar(ext: string): Promise<Parser.Language> {
   const grammarName = EXT_TO_GRAMMAR[ext];
   if (!grammarName) {
     throw new Error(`unsupported file extension: ${ext}`);
   }
 
-  const cached = cache.get(grammarName);
-  if (cached) return cached;
+  let pending = cache.get(grammarName);
+  if (!pending) {
+    pending = doLoad(grammarName);
+    cache.set(grammarName, pending);
+  }
+  return pending;
+}
 
+async function doLoad(grammarName: string): Promise<Parser.Language> {
   if (!initialized) {
     await Parser.init();
     initialized = true;
   }
-
   const wasmPath = join(GRAMMARS_DIR, `${grammarName}.wasm`);
-  const language = await Parser.Language.load(wasmPath);
-  cache.set(grammarName, language);
-  return language;
+  return Parser.Language.load(wasmPath);
 }
