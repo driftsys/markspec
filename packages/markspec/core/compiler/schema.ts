@@ -7,6 +7,7 @@
  */
 
 import type { CompileResult } from "./mod.ts";
+import type { Diagnostic, Entry, Link } from "../model/mod.ts";
 
 /**
  * Serialized form of {@linkcode CompileResult}.
@@ -16,15 +17,15 @@ import type { CompileResult } from "./mod.ts";
  */
 export interface SerializedCompileResult {
   /** Entries keyed by display ID. */
-  readonly entries: Record<string, unknown>;
+  readonly entries: Record<string, Entry>;
   /** All traceability links. */
-  readonly links: readonly unknown[];
+  readonly links: readonly Link[];
   /** Outgoing links per entry (entry -> targets). */
-  readonly forward: Record<string, readonly unknown[]>;
+  readonly forward: Record<string, readonly Link[]>;
   /** Incoming links per entry (entry -> sources pointing to it). */
-  readonly reverse: Record<string, readonly unknown[]>;
+  readonly reverse: Record<string, readonly Link[]>;
   /** Diagnostics from parsing and validation. */
-  readonly diagnostics: readonly unknown[];
+  readonly diagnostics: readonly Diagnostic[];
 }
 
 /**
