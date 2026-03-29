@@ -21,35 +21,60 @@ JSON schemas referenced by the generated API are published in the
 
 ### 1.1 Declaration (`project.yaml`)
 
-Dependencies are declared in the project's `project.yaml`:
+Three fields declare project-level relationships:
+
+- **`process`** -- governance. Process projects define entry types, attributes,
+  constraints, and policies. Multiple processes supported; constraints
+  accumulate (most restrictive wins).
+- **`dependencies`** -- consumption. Projects this project needs. The compiler
+  expects entries to link across the boundary and warns on coverage gaps.
+- **`references`** -- citation. External registries and standards. References
+  are traceability leaves -- the compiler resolves links to them but expects no
+  deeper chain.
 
 ```yaml
-# braking-system/project.yaml
-name: io.driftsys.braking
-domain: BRK
-version: 0.3.0
+# braking-features/project.yaml
+name: io.acme.braking-features
+version: "1.0.0"
+category: specification
+classification: confidential
+labels: [ASIL-D]
+
+process:
+  - url: https://github.com/acme/process-v2
+    version: "2.1"
+    name: ACME Process
 
 dependencies:
-  - name: io.driftsys.vehicle-platform # canonical project ID
-    alias: vehicle # short name for inline refs
-    path: ../vehicle-platform # local path (monorepo)
-  - name: io.driftsys.refhub
-    alias: refhub
-    url: https://driftsys.github.io/refhub # remote (fetches api/*.json)
+  - url: https://github.com/acme/abs-component
+    version: "0.3"
+    name: ABS
+  - url: https://github.com/acme/esc-component
+    version: "0.2"
+    name: ESC
+
+references:
+  - url: https://driftsys.github.io/refhub
+    name: RefHub
 ```
 
-Fields:
+Each entry has the shape `{ url, version?, name? }`:
 
-- **`name`** -- canonical reverse-DNS project ID (from the dependency's own
-  `project.yaml`).
-- **`alias`** -- short name used for inline disambiguation in markdown
-  attributes.
-- **`path`** -- local filesystem path. markspec compiles the dependency from
-  source.
-- **`url`** -- remote URL. markspec fetches the dependency's published
-  `api/*.json` files.
+- **`url`** -- repository or published site URL.
+- **`version`** -- version of the referenced project.
+- **`name`** -- short display name (also used for inline disambiguation).
 
-A dependency declares exactly one of `path` or `url`, never both.
+Dependencies flow down the product tree. Traceability flows up via entry-level
+links:
+
+```text
+Product (depends: Features)
+  Feature (depends: Components, references: RefHub)
+    SYS → Allocates: CMP_ABS (dependency → full chain expected)
+    SYS → Allocates: CMP_SENSOR (reference → leaf, no deeper chain)
+  Component (depends: Libraries)
+    SRS → Satisfies: SYS (traces back to feature)
+```
 
 ### 1.2 Inline Reference Syntax
 
@@ -57,26 +82,35 @@ Authors write entry IDs as usual. Resolution order:
 
 1. Current project.
 2. Each dependency in declared order.
+3. Each reference in declared order.
+4. `markspec:references` directives (per-file additions).
 
 ```markdown
-- [SRS_BRK_0001] Brake sensor debouncing
+<!-- markspec:references io.acme.braking-features -->
 
-  Satisfies: STK_SAFETY_001 Derived-from: ISO-26262-6 S7.4.3 Id:
-  SRS_01HGW2Q8MNP3
+- [SRS_ABS_0001] Wheel speed sampling rate
+
+  Satisfies: SYS_BRK_001\
+  Derived-from: ISO-26262-6 §7.4\
+  Id: SRS_01HGW2Q8MNP3
 ```
 
-`STK_SAFETY_001` is not found in the current project, so it is searched in
-`vehicle` (first declared dependency) and found. `ISO-26262-6` is not found
-locally or in `vehicle`, so it is searched in `refhub` and found.
+`SYS_BRK_001` is not found in the current project, so it is searched in
+dependencies (first declared order) and found in `braking-features`.
+`ISO-26262-6` is not found locally or in dependencies, so it is searched in
+references and found in `refhub`.
 
 When a reference is ambiguous (same ID exists in multiple dependencies), use the
-`alias/ID` form:
+`name/ID` form:
 
 ```markdown
-Satisfies: vehicle/STK_SAFETY_001
+Satisfies: ABS/SYS_BRK_001
 ```
 
 Ambiguous unqualified references produce a warning diagnostic.
+
+`markspec:references` directives add resolution sources per-file, narrowing or
+extending the project-level `references` scope.
 
 ### 1.3 Machine Output (API JSON)
 
@@ -86,27 +120,28 @@ Generated JSON uses PURL for cross-project link targets:
 {
   "links": {
     "satisfies": [{
-      "displayId": "STK_SAFETY_001",
-      "title": "Vehicle shall stop within 3s",
+      "displayId": "SYS_BRK_001",
+      "title": "ABS activation threshold",
       "project": {
-        "name": "io.driftsys.vehicle-platform",
-        "purl": "pkg:spec/io.driftsys/vehicle-platform@1.0",
-        "url": "../vehicle-platform"
+        "name": "io.acme.braking-features",
+        "purl": "pkg:spec/io.acme/braking-features@1.0",
+        "url": "https://github.com/acme/braking-features"
       },
-      "url": "../vehicle-platform/entries/stk/stk_safety_001.html"
+      "url": "../braking-features/entries/sys/sys_brk_001.html"
     }]
   }
 }
 ```
 
-### 1.4 Dependants Discovery
+### 1.4 No Cached Dependency Output
 
-Dependants ("who depends on me") are discovered when a project's published API
-is fetched by downstream consumers. The site shows both directions:
+Cross-project dependency information is not stored as a separate artifact. The
+compiler reads the full chain at build time from each target's `project.yaml`
+and entries. This ensures the traceability graph is always current.
 
-- **Dependencies** -- projects I declare and consume (known at build time).
-- **Dependants** -- projects that reference my entries (known when they build
-  and publish, populated via the dependency's API or a shared registry).
+The traceability matrix and graph schemas already carry all cross-project link
+data via the `project` field in link targets. No dedicated deps schema is
+needed.
 
 ---
 
@@ -128,9 +163,7 @@ _site/
 |   |   +-- index.html                       # Reference listing
 |   |   +-- {display-id}.html                # Reference detail
 |   +-- bom/
-|   |   +-- index.html                       # Product BOM tree (expand/collapse)
-|   +-- deps/
-|       +-- index.html                       # Dependencies & dependants
+|       +-- index.html                       # Product BOM tree (expand/collapse)
 |
 +-- traceability/
 |   +-- index.html                           # Matrix view (table)
@@ -154,9 +187,7 @@ _site/
 |   |   |   +-- index.json                   # Reference index
 |   |   |   +-- {display-id}.json            # Reference detail
 |   |   +-- bom/
-|   |   |   +-- index.json                   # BOM tree
-|   |   +-- deps/
-|   |       +-- index.json                   # Dependencies + dependants + cross-project links
+|   |       +-- index.json                   # BOM tree
 |   +-- traceability/
 |   |   +-- matrix.json                      # Full traceability matrix
 |   |   +-- graph.json                       # Nodes + edges for visualization
@@ -189,546 +220,37 @@ _site/
 
 ## 3. JSON Schemas (v1)
 
-All schemas use JSON Schema draft-07, matching the `driftsys/schemas` repository
-convention. Root objects use `additionalProperties: false`. Schema `$id` URLs
-follow the pattern `https://driftsys.github.io/schemas/markspec-{name}/v1.json`.
+All schemas are published in the
+[driftsys/schemas](https://github.com/driftsys/schemas) repository -- the single
+source of truth for schema contracts. Generated API JSON references these schema
+URLs via `$schema`. This section summarises each schema and its role in the site
+API; see the schemas repository for the full JSON Schema definitions, validation
+tests, and version policy.
 
-Schemas are published in the `driftsys/schemas` repository. Generated API JSON
-references these schema URLs via `$schema`.
+Schemas use JSON Schema draft-07, `additionalProperties: false` on root objects,
+and `$id` URLs following the pattern
+`https://driftsys.github.io/schemas/markspec-{name}/v1.json`.
 
-### 3.1 Link Target (shared definition)
+### 3.1 Schema Reference
 
-The `linkTarget` object is used across multiple schemas to represent a resolved
-link to another entry.
+| Schema                  | `$id` slug                        | Description                                                                                                                                                                 | API paths                                                                                                  |
+| ----------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Link Target**         | `markspec-link-target/v1`         | Resolved reference to another entry, used in link arrays throughout the API. Includes optional cross-project `project` object with name, PURL, and URL.                     | (shared definition, not standalone)                                                                        |
+| **Entry**               | `markspec-entry/v1`               | Single typed entry (STK, SYS, SRS, SAD, ICD, VAL, SIT, SWT, or custom) with body, attributes, labels, source location, and resolved bidirectional traceability links.       | `api/entries/{type}/{id}.json`                                                                             |
+| **Reference**           | `markspec-reference/v1`           | Reference entry for external standards, documents, or norms. Adds `document`, `externalUrl`, `status`, `supersededBy`, and `referencedBy` links.                            | `api/entries/refs/{id}.json`                                                                               |
+| **Index**               | `markspec-index/v1`               | Entry listing with scope, count, project metadata, and summary records.                                                                                                     | `api/index.json`, `api/entries/index.json`, `api/entries/{type}/index.json`, `api/entries/refs/index.json` |
+| **Search**              | `markspec-search/v1`              | Flat array optimized for client-side MiniSearch indexing.                                                                                                                   | `api/search.json`                                                                                          |
+| **Traceability Matrix** | `markspec-traceability-matrix/v1` | One row per entry with all ten link directions (satisfies/satisfiedBy, derivedFrom/derivedTo, allocates/allocatedBy, verifies/verifiedBy, implements/implementedBy).        | `api/traceability/matrix.json`                                                                             |
+| **Traceability Graph**  | `markspec-traceability-graph/v1`  | Nodes and edges for D3 force-directed graph visualization.                                                                                                                  | `api/traceability/graph.json`                                                                              |
+| **Coverage**            | `markspec-coverage/v1`            | Coverage statistics (requirements, tests, traceability percentages) and gap lists (orphans, unsatisfied, unverified).                                                       | `api/coverage/index.json`                                                                                  |
+| **BOM**                 | `markspec-bom/v1`                 | Product architecture as a recursive tree of typed components (HWC, SWC, MEC). Captures `Part-of`, `Deployable-on`, allocated requirements, variants, and per-node coverage. | `api/entries/bom/index.json`                                                                               |
+| **Diagnostics**         | `markspec-diagnostics/v1`         | Build diagnostics (error/warning/info counts and individual records with severity, code, message, and source location).                                                     | `api/diagnostics/index.json`                                                                               |
+| **Lock**                | `markspec-lock/v1`                | Frozen sidecar metadata (`.markspec.lock`). ULID-keyed entries with authoring provenance and external sync metadata. See [Traceability](traceability.md) for lifecycle.     | (project file, not in site API)                                                                            |
 
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-link-target/v1.json",
-  "title": "MarkSpec Link Target",
-  "description": "A resolved reference to another entry, used in link arrays throughout the API.",
-  "type": "object",
-  "required": ["displayId", "title", "url"],
-  "additionalProperties": false,
-  "properties": {
-    "displayId": {
-      "type": "string",
-      "description": "Human-readable display ID of the target entry."
-    },
-    "title": {
-      "type": "string",
-      "description": "Title of the target entry."
-    },
-    "entryType": {
-      "type": "string",
-      "description": "Entry type abbreviation (e.g., STK, SRS). Absent for reference entries."
-    },
-    "url": {
-      "type": "string",
-      "description": "Relative URL to the target entry's HTML page."
-    },
-    "project": {
-      "description": "Present only for cross-project links.",
-      "type": "object",
-      "required": ["name", "purl", "url"],
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Canonical reverse-DNS project ID."
-        },
-        "purl": {
-          "type": "string",
-          "description": "Package URL (PURL) for the external project."
-        },
-        "url": {
-          "type": "string",
-          "description": "Relative or absolute URL to the external project's site root."
-        }
-      }
-    }
-  }
-}
-```
+### 3.2 MiniSearch Field Configuration
 
-### 3.2 Entry (`markspec-entry/v1.json`)
-
-Represents a single typed entry (STK, SYS, SRS, SAD, ICD, VAL, SIT, SWT, or
-custom type) with its resolved traceability links.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-entry/v1.json",
-  "title": "MarkSpec Entry",
-  "description": "A single typed entry with resolved traceability links.",
-  "type": "object",
-  "required": ["displayId", "title", "entryType", "source", "location"],
-  "additionalProperties": false,
-  "properties": {
-    "displayId": {
-      "type": "string",
-      "pattern": "^[A-Z][A-Za-z]*_[A-Z]+_\\d{3,4}$",
-      "description": "Human-readable display ID (e.g., SRS_BRK_0001)."
-    },
-    "title": {
-      "type": "string",
-      "description": "Entry title text."
-    },
-    "body": {
-      "type": "string",
-      "description": "Entry body rendered as Markdown."
-    },
-    "id": {
-      "type": ["string", "null"],
-      "description": "ULID identifier, null if not yet stamped."
-    },
-    "entryType": {
-      "type": "string",
-      "description": "Entry type abbreviation (e.g., STK, SRS, or a custom type like FReq)."
-    },
-    "source": {
-      "type": "string",
-      "enum": ["markdown", "doc-comment"],
-      "description": "Whether the entry was parsed from a Markdown file or a source code doc comment."
-    },
-    "location": {
-      "type": "object",
-      "required": ["file", "line"],
-      "additionalProperties": false,
-      "properties": {
-        "file": {
-          "type": "string",
-          "description": "Relative file path from the project root."
-        },
-        "line": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Line number (1-based)."
-        },
-        "column": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Column number (1-based)."
-        }
-      },
-      "description": "Source location where the entry was defined."
-    },
-    "attributes": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["key", "value"],
-        "additionalProperties": false,
-        "properties": {
-          "key": {
-            "type": "string",
-            "description": "Attribute name."
-          },
-          "value": {
-            "type": "string",
-            "description": "Attribute value."
-          }
-        }
-      },
-      "description": "Custom attributes defined on this entry."
-    },
-    "labels": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Labels attached to this entry (e.g., ASIL-B)."
-    },
-    "component": {
-      "type": ["string", "null"],
-      "description": "Component name, if the entry is scoped to a component."
-    },
-    "links": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "satisfies": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries this entry satisfies (outgoing upward link)."
-        },
-        "satisfiedBy": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries that satisfy this entry (incoming downward link)."
-        },
-        "derivedFrom": {
-          "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json",
-          "description": "Entry or reference this entry is derived from."
-        },
-        "derivedTo": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries derived from this entry."
-        },
-        "allocates": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Components this entry is allocated to."
-        },
-        "allocatedBy": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries allocated to this component."
-        },
-        "verifies": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries this entry verifies."
-        },
-        "verifiedBy": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries that verify this entry."
-        },
-        "implements": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries this entry implements."
-        },
-        "implementedBy": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries that implement this entry."
-        }
-      },
-      "description": "Resolved traceability links, bidirectional."
-    },
-    "url": {
-      "type": "string",
-      "description": "Relative URL to this entry's HTML detail page."
-    }
-  }
-}
-```
-
-### 3.3 Reference (`markspec-reference/v1.json`)
-
-Represents a reference entry (external standards, documents, norms). Same base
-shape as an entry but with different required fields and additional metadata.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-reference/v1.json",
-  "title": "MarkSpec Reference",
-  "description": "A reference entry for external standards, documents, or norms.",
-  "type": "object",
-  "required": ["displayId", "title", "source", "location"],
-  "additionalProperties": false,
-  "properties": {
-    "displayId": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9-]+$",
-      "description": "Human-readable display ID (e.g., ISO-26262-6)."
-    },
-    "title": {
-      "type": "string",
-      "description": "Reference title."
-    },
-    "body": {
-      "type": "string",
-      "description": "Reference body rendered as Markdown."
-    },
-    "id": {
-      "type": ["string", "null"],
-      "description": "ULID identifier, null if not yet stamped."
-    },
-    "document": {
-      "type": ["string", "null"],
-      "description": "Document number or standard identifier."
-    },
-    "externalUrl": {
-      "type": ["string", "null"],
-      "format": "uri",
-      "description": "URL to the external document."
-    },
-    "status": {
-      "type": ["string", "null"],
-      "enum": ["active", "superseded", "withdrawn", null],
-      "description": "Current status of the referenced document."
-    },
-    "supersededBy": {
-      "type": ["string", "null"],
-      "description": "Display ID of the reference that supersedes this one."
-    },
-    "source": {
-      "type": "string",
-      "enum": ["markdown", "doc-comment"],
-      "description": "Whether the reference was parsed from a Markdown file or a source code doc comment."
-    },
-    "location": {
-      "type": "object",
-      "required": ["file", "line"],
-      "additionalProperties": false,
-      "properties": {
-        "file": {
-          "type": "string",
-          "description": "Relative file path from the project root."
-        },
-        "line": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Line number (1-based)."
-        },
-        "column": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Column number (1-based)."
-        }
-      },
-      "description": "Source location where the reference was defined."
-    },
-    "attributes": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["key", "value"],
-        "additionalProperties": false,
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
-      "description": "Custom attributes defined on this reference."
-    },
-    "labels": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Labels attached to this reference."
-    },
-    "links": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "referencedBy": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Entries that reference this document (via Derived-from)."
-        }
-      },
-      "description": "Incoming links from entries that reference this document."
-    },
-    "url": {
-      "type": "string",
-      "description": "Relative URL to this reference's HTML detail page."
-    }
-  }
-}
-```
-
-### 3.4 Index (`markspec-index/v1.json`)
-
-Used for `api/index.json` (global), `api/entries/index.json` (all entries),
-`api/entries/{type}/index.json` (per-type), and `api/entries/refs/index.json`
-(references).
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-index/v1.json",
-  "title": "MarkSpec Index",
-  "description": "Index of entries, scoped globally, by type, or by reference category.",
-  "type": "object",
-  "required": ["scope", "generated", "count", "entries"],
-  "additionalProperties": false,
-  "properties": {
-    "scope": {
-      "type": "string",
-      "description": "Index scope: 'global', a type abbreviation (e.g., 'STK'), or 'refs'."
-    },
-    "generated": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp of when this index was generated."
-    },
-    "count": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Total number of entries in this index."
-    },
-    "project": {
-      "type": "object",
-      "required": ["name", "domain", "version"],
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Canonical reverse-DNS project ID."
-        },
-        "domain": {
-          "type": "string",
-          "description": "Domain abbreviation (e.g., BRK)."
-        },
-        "version": {
-          "type": "string",
-          "description": "Project version string."
-        }
-      },
-      "description": "Project metadata. Present only in the global index (scope = 'global')."
-    },
-    "types": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["abbreviation", "category", "count", "url"],
-        "additionalProperties": false,
-        "properties": {
-          "abbreviation": {
-            "type": "string",
-            "description": "Entry type abbreviation (e.g., STK, SRS)."
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "requirement",
-              "architecture",
-              "verification",
-              "custom",
-              "reference"
-            ],
-            "description": "Entry type category for grouping and display."
-          },
-          "count": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Number of entries of this type."
-          },
-          "url": {
-            "type": "string",
-            "description": "Relative URL to this type's index page."
-          }
-        }
-      },
-      "description": "Type summary with counts. Present in the global index."
-    },
-    "entries": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["displayId", "title", "url"],
-        "additionalProperties": false,
-        "properties": {
-          "displayId": {
-            "type": "string",
-            "description": "Human-readable display ID."
-          },
-          "title": {
-            "type": "string",
-            "description": "Entry title."
-          },
-          "entryType": {
-            "type": "string",
-            "description": "Entry type abbreviation. Absent for reference entries."
-          },
-          "labels": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Labels attached to this entry."
-          },
-          "url": {
-            "type": "string",
-            "description": "Relative URL to the entry's detail page."
-          }
-        }
-      },
-      "description": "Entry summaries in this index."
-    }
-  }
-}
-```
-
-### 3.5 Search (`markspec-search/v1.json`)
-
-Flat array optimized for client-side search with MiniSearch. Each element
-contains the fields needed for indexing and the stored fields returned in search
-results.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-search/v1.json",
-  "title": "MarkSpec Search Index",
-  "description": "Flat array of entry records optimized for MiniSearch indexing.",
-  "type": "array",
-  "items": {
-    "type": "object",
-    "required": ["displayId", "title", "url"],
-    "additionalProperties": false,
-    "properties": {
-      "displayId": {
-        "type": "string",
-        "description": "Human-readable display ID (indexed, stored, boost 5)."
-      },
-      "title": {
-        "type": "string",
-        "description": "Entry title (indexed, stored, boost 3)."
-      },
-      "entryType": {
-        "type": "string",
-        "description": "Entry type abbreviation (indexed, stored)."
-      },
-      "body": {
-        "type": "string",
-        "maxLength": 200,
-        "description": "Truncated body text for indexing (indexed, not stored, boost 1)."
-      },
-      "component": {
-        "type": ["string", "null"],
-        "description": "Component name (indexed, not stored, boost 2)."
-      },
-      "labels": {
-        "type": "array",
-        "items": { "type": "string" },
-        "description": "Labels (indexed, stored, boost 1.5)."
-      },
-      "satisfies": {
-        "type": "array",
-        "items": { "type": "string" },
-        "description": "Display IDs of satisfied entries (indexed, not stored, boost 1.5)."
-      },
-      "url": {
-        "type": "string",
-        "description": "Relative URL to the entry's HTML page (stored, not indexed)."
-      }
-    }
-  }
-}
-```
-
-**MiniSearch field configuration:**
+The search index (`api/search.json`) is consumed by MiniSearch on the client.
+Field configuration:
 
 | Field       | Indexed | Stored | Boost |
 | ----------- | ------- | ------ | ----- |
@@ -741,347 +263,9 @@ results.
 | `entryType` | yes     | yes    | --    |
 | `url`       | no      | yes    | --    |
 
-### 3.6 Traceability Matrix (`markspec-traceability-matrix/v1.json`)
+### 3.3 BOM Component Types
 
-Full traceability matrix with one row per entry, showing all link directions.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-traceability-matrix/v1.json",
-  "title": "MarkSpec Traceability Matrix",
-  "description": "Full traceability matrix with all link directions per entry.",
-  "type": "object",
-  "required": ["generated", "count", "rows"],
-  "additionalProperties": false,
-  "properties": {
-    "generated": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp of when this matrix was generated."
-    },
-    "count": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Total number of rows (entries) in the matrix."
-    },
-    "rows": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["displayId", "title", "entryType", "url"],
-        "additionalProperties": false,
-        "properties": {
-          "displayId": {
-            "type": "string",
-            "description": "Human-readable display ID."
-          },
-          "title": {
-            "type": "string",
-            "description": "Entry title."
-          },
-          "entryType": {
-            "type": "string",
-            "description": "Entry type abbreviation."
-          },
-          "labels": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Labels attached to this entry."
-          },
-          "satisfies": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries this entry satisfies."
-          },
-          "satisfiedBy": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries that satisfy this entry."
-          },
-          "derivedFrom": {
-            "type": ["string", "null"],
-            "description": "Display ID of the entry this is derived from."
-          },
-          "derivedTo": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries derived from this entry."
-          },
-          "allocates": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of components this entry is allocated to."
-          },
-          "allocatedBy": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries allocated to this component."
-          },
-          "verifies": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries this entry verifies."
-          },
-          "verifiedBy": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries that verify this entry."
-          },
-          "implements": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries this entry implements."
-          },
-          "implementedBy": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Display IDs of entries that implement this entry."
-          },
-          "url": {
-            "type": "string",
-            "description": "Relative URL to the entry's HTML detail page."
-          }
-        }
-      },
-      "description": "One row per entry with all traceability links as display ID arrays."
-    }
-  }
-}
-```
-
-### 3.7 Traceability Graph (`markspec-traceability-graph/v1.json`)
-
-Nodes and edges for graph visualization (D3 force-directed layout).
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-traceability-graph/v1.json",
-  "title": "MarkSpec Traceability Graph",
-  "description": "Nodes and edges for traceability graph visualization.",
-  "type": "object",
-  "required": ["nodes", "edges"],
-  "additionalProperties": false,
-  "properties": {
-    "nodes": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "title", "entryType", "category", "url"],
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Display ID used as the node identifier."
-          },
-          "title": {
-            "type": "string",
-            "description": "Entry title for tooltip/label display."
-          },
-          "entryType": {
-            "type": "string",
-            "description": "Entry type abbreviation for styling."
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "requirement",
-              "architecture",
-              "verification",
-              "custom",
-              "reference"
-            ],
-            "description": "Type category for node coloring."
-          },
-          "hasGaps": {
-            "type": "boolean",
-            "description": "Whether this entry has traceability gaps (orphan, unsatisfied, unverified)."
-          },
-          "url": {
-            "type": "string",
-            "description": "Relative URL for click-to-navigate."
-          }
-        }
-      },
-      "description": "Graph nodes, one per entry."
-    },
-    "edges": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["from", "to", "kind"],
-        "additionalProperties": false,
-        "properties": {
-          "from": {
-            "type": "string",
-            "description": "Display ID of the source node."
-          },
-          "to": {
-            "type": "string",
-            "description": "Display ID of the target node."
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "satisfies",
-              "derived-from",
-              "allocates",
-              "verifies",
-              "implements"
-            ],
-            "description": "Link kind, used for edge styling."
-          }
-        }
-      },
-      "description": "Directed edges representing traceability links."
-    }
-  }
-}
-```
-
-### 3.8 Coverage (`markspec-coverage/v1.json`)
-
-Coverage statistics and gap lists for the project.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-coverage/v1.json",
-  "title": "MarkSpec Coverage",
-  "description": "Coverage statistics and gap analysis for the project.",
-  "type": "object",
-  "required": ["generated", "total", "coverage", "gaps"],
-  "additionalProperties": false,
-  "properties": {
-    "generated": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp of when coverage was computed."
-    },
-    "total": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Total number of entries analyzed."
-    },
-    "byType": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "integer",
-        "minimum": 0
-      },
-      "description": "Entry count per type (e.g., { \"STK\": 12, \"SRS\": 34 })."
-    },
-    "coverage": {
-      "type": "object",
-      "required": [
-        "withSatisfies",
-        "withoutSatisfies",
-        "verified",
-        "unverified",
-        "satisfiedParents",
-        "unsatisfiedParents"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "withSatisfies": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of entries that have at least one Satisfies link."
-        },
-        "withoutSatisfies": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of entries that have no Satisfies link (excluding top-level types)."
-        },
-        "verified": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of entries that have at least one verification link."
-        },
-        "unverified": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of entries with no verification link."
-        },
-        "satisfiedParents": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of parent entries that are satisfied by at least one child."
-        },
-        "unsatisfiedParents": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of parent entries with no child satisfying them."
-        }
-      },
-      "description": "Aggregate coverage counters."
-    },
-    "gaps": {
-      "type": "object",
-      "required": ["orphans", "unsatisfied", "unverified"],
-      "additionalProperties": false,
-      "properties": {
-        "orphans": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/gapEntry"
-          },
-          "description": "Entries with no traceability links in any direction."
-        },
-        "unsatisfied": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/gapEntry"
-          },
-          "description": "Parent entries with no child satisfying them."
-        },
-        "unverified": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/gapEntry"
-          },
-          "description": "Entries with no verification link."
-        }
-      },
-      "description": "Lists of entries with traceability gaps."
-    }
-  },
-  "definitions": {
-    "gapEntry": {
-      "type": "object",
-      "required": ["displayId", "title", "entryType", "url"],
-      "additionalProperties": false,
-      "properties": {
-        "displayId": {
-          "type": "string",
-          "description": "Human-readable display ID."
-        },
-        "title": {
-          "type": "string",
-          "description": "Entry title."
-        },
-        "entryType": {
-          "type": "string",
-          "description": "Entry type abbreviation."
-        },
-        "url": {
-          "type": "string",
-          "description": "Relative URL to the entry's HTML detail page."
-        }
-      }
-    }
-  }
-}
-```
-
-### 3.9 BOM (`markspec-bom/v1.json`)
-
-The BOM represents the **product architecture** -- a tree of typed components,
-separate from the requirement traceability tree. Components are entries with the
-`CMP` namespace and typed element types.
-
-**Builtin component types** (from ASPICE):
+Builtin component types (from ASPICE):
 
 | Builtin | Description          | Example                           |
 | ------- | -------------------- | --------------------------------- |
@@ -1097,419 +281,7 @@ SWC(plugin) --deploy-on--> SWC(app) --deploy-on--> SWC(VM) --deploy-on--> SWC(QN
 
 RTC (Runtime Component) is a custom subtype of SWC that process projects can
 define to distinguish infrastructure software (AUTOSAR, hypervisors, container
-runtimes) from application software. The hosting relationship is just
-`Deployable-on` between SWCs -- no special type required.
-
-Custom subtypes map to builtins (same pattern as requirements): ECU maps to HWC,
-RTC maps to SWC, FPGA maps to HWC, etc. Defined via process projects.
-
-**BOM-specific attributes:**
-
-| Attribute     | Description                                                              |
-| ------------- | ------------------------------------------------------------------------ |
-| Part-of       | Parent component (builds the tree).                                      |
-| Element-type  | HWC, SWC, MEC, or a custom subtype.                                      |
-| Deployable-on | Deployment target component.                                             |
-| Variants      | Product variants/configurations (comma-separated, e.g., `LHD, Premium`). |
-
-**BOM entry example:**
-
-```markdown
-- [CMP_BRK_001] Braking System
-
-  Top-level system element for the braking domain.
-
-  Element-type: system Id: CMP_01HGW2Q8MNP3
-
-- [CMP_BRK_ECU_001] Brake ECU
-
-  Element-type: ECU Part-of: CMP_BRK_001 Id: CMP_01HGW2Q8MNP4
-
-- [CMP_BRK_SW_001] Brake Software
-
-  Element-type: SWC Part-of: CMP_BRK_001 Deployable-on: CMP_BRK_ECU_001 Id:
-  CMP_01HGW2Q8MNP5
-```
-
-Requirements link to BOM components via `Allocates`:
-
-```markdown
-- [SRS_BRK_0001] Sensor debouncing
-
-  Allocates: CMP_BRK_ECU_001 Satisfies: STK_SAFETY_001
-```
-
-**Future extension -- Capabilities:** Component capability attributes for
-projections and budget analysis. Examples: HW (memory, architecture, frequency),
-SW (safety level, MCPS). Mechanism TBD -- extended markdown attributes or TOML
-config. Enables views like "total memory budget per ECU" or "ASIL allocation
-across components".
-
-**Schema:**
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-bom/v1.json",
-  "title": "MarkSpec BOM",
-  "description": "Product architecture as a tree of typed components with deployment and allocation links.",
-  "type": "object",
-  "required": ["generated", "project", "version", "totalComponents", "roots"],
-  "additionalProperties": false,
-  "properties": {
-    "generated": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp of when the BOM was generated."
-    },
-    "project": {
-      "type": "string",
-      "description": "Canonical reverse-DNS project ID."
-    },
-    "version": {
-      "type": "string",
-      "description": "Project version string."
-    },
-    "totalComponents": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Total number of CMP entries in the project."
-    },
-    "roots": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/bomNode" },
-      "description": "Top-level components (those with no Part-of attribute)."
-    },
-    "orphans": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/bomNode" },
-      "description": "Components not reachable from any root via Part-of chains."
-    }
-  },
-  "definitions": {
-    "bomNode": {
-      "type": "object",
-      "required": ["displayId", "title", "elementType", "builtinType", "url"],
-      "additionalProperties": false,
-      "properties": {
-        "displayId": {
-          "type": "string",
-          "description": "Human-readable display ID (e.g., CMP_BRK_ECU_001)."
-        },
-        "title": {
-          "type": "string",
-          "description": "Component title."
-        },
-        "elementType": {
-          "type": "string",
-          "description": "Element type as declared (e.g., ECU, SWC, RTC)."
-        },
-        "builtinType": {
-          "type": "string",
-          "enum": ["HWC", "SWC", "MEC"],
-          "description": "Builtin type the element type maps to."
-        },
-        "labels": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Labels attached to this component."
-        },
-        "url": {
-          "type": "string",
-          "description": "Relative URL to this component's HTML detail page."
-        },
-        "children": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/bomNode" },
-          "description": "Child components (those with Part-of pointing to this component)."
-        },
-        "deployedOn": {
-          "oneOf": [
-            {
-              "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-            },
-            { "type": "null" }
-          ],
-          "description": "Deployment target component (from Deployable-on attribute)."
-        },
-        "allocatedReqs": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Requirements allocated to this component (via Allocates attribute)."
-        },
-        "verifiedBy": {
-          "type": "array",
-          "items": {
-            "$ref": "https://driftsys.github.io/schemas/markspec-link-target/v1.json"
-          },
-          "description": "Verification entries for this component."
-        },
-        "coverage": {
-          "type": "object",
-          "required": ["allocated", "verified"],
-          "additionalProperties": false,
-          "properties": {
-            "allocated": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Number of requirements allocated to this component."
-            },
-            "verified": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Number of verification entries for this component."
-            }
-          },
-          "description": "Coverage summary for this component."
-        }
-      }
-    }
-  }
-}
-```
-
-### 3.10 Dependencies (`markspec-deps/v1.json`)
-
-Cross-project dependency and dependant information.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-deps/v1.json",
-  "title": "MarkSpec Dependencies",
-  "description": "Cross-project dependencies and dependants with entry-level detail.",
-  "type": "object",
-  "required": ["generated", "project", "dependencies", "dependants"],
-  "additionalProperties": false,
-  "properties": {
-    "generated": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp of when the dependency data was generated."
-    },
-    "project": {
-      "type": "string",
-      "description": "Canonical reverse-DNS project ID of the current project."
-    },
-    "dependencies": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["name", "alias", "purl", "url", "refs", "entries"],
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Canonical reverse-DNS project ID of the dependency."
-          },
-          "alias": {
-            "type": "string",
-            "description": "Short alias for inline disambiguation."
-          },
-          "purl": {
-            "type": "string",
-            "description": "Package URL (PURL) of the dependency."
-          },
-          "url": {
-            "type": "string",
-            "description": "URL to the dependency's site root."
-          },
-          "refs": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Count of cross-project references to this dependency."
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["displayId", "title", "referencedBy"],
-              "additionalProperties": false,
-              "properties": {
-                "displayId": {
-                  "type": "string",
-                  "description": "Display ID of the dependency entry being referenced."
-                },
-                "title": {
-                  "type": "string",
-                  "description": "Title of the dependency entry."
-                },
-                "referencedBy": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "Display IDs of local entries referencing this dependency entry."
-                }
-              }
-            },
-            "description": "Entry-level detail of which dependency entries are referenced."
-          }
-        }
-      },
-      "description": "Projects this project depends on (declared in project.yaml)."
-    },
-    "dependants": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["name", "purl", "url", "refs", "entries"],
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Canonical reverse-DNS project ID of the dependant."
-          },
-          "purl": {
-            "type": "string",
-            "description": "Package URL (PURL) of the dependant."
-          },
-          "url": {
-            "type": "string",
-            "description": "URL to the dependant's site root."
-          },
-          "refs": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Count of references from the dependant to this project."
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["displayId", "title", "references"],
-              "additionalProperties": false,
-              "properties": {
-                "displayId": {
-                  "type": "string",
-                  "description": "Display ID of the dependant's entry."
-                },
-                "title": {
-                  "type": "string",
-                  "description": "Title of the dependant's entry."
-                },
-                "references": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "Display IDs of this project's entries referenced by the dependant."
-                }
-              }
-            },
-            "description": "Entry-level detail of which of this project's entries are referenced."
-          }
-        }
-      },
-      "description": "Projects that depend on this project."
-    }
-  }
-}
-```
-
-### 3.11 Diagnostics (`markspec-diagnostics/v1.json`)
-
-Build diagnostics (errors, warnings, informational messages) from the
-compilation pipeline.
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://driftsys.github.io/schemas/markspec-diagnostics/v1.json",
-  "title": "MarkSpec Diagnostics",
-  "description": "Build diagnostics from the compilation pipeline.",
-  "type": "object",
-  "required": ["generated", "count", "bySeverity", "diagnostics"],
-  "additionalProperties": false,
-  "properties": {
-    "generated": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp of when diagnostics were collected."
-    },
-    "count": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Total number of diagnostics."
-    },
-    "byCode": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "integer",
-        "minimum": 0
-      },
-      "description": "Diagnostic count per diagnostic code (e.g., { \"MSL-R003\": 2 })."
-    },
-    "bySeverity": {
-      "type": "object",
-      "required": ["error", "warning", "info"],
-      "additionalProperties": false,
-      "properties": {
-        "error": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of error-level diagnostics."
-        },
-        "warning": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of warning-level diagnostics."
-        },
-        "info": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Number of informational diagnostics."
-        }
-      },
-      "description": "Diagnostic count per severity level."
-    },
-    "diagnostics": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["code", "severity", "message"],
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "type": "string",
-            "description": "Diagnostic code (e.g., MSL-R003)."
-          },
-          "severity": {
-            "type": "string",
-            "enum": ["error", "warning", "info"],
-            "description": "Diagnostic severity level."
-          },
-          "message": {
-            "type": "string",
-            "description": "Human-readable diagnostic message."
-          },
-          "location": {
-            "type": "object",
-            "required": ["file", "line"],
-            "additionalProperties": false,
-            "properties": {
-              "file": {
-                "type": "string",
-                "description": "Relative file path from the project root."
-              },
-              "line": {
-                "type": "integer",
-                "minimum": 1,
-                "description": "Line number (1-based)."
-              },
-              "column": {
-                "type": "integer",
-                "minimum": 1,
-                "description": "Column number (1-based)."
-              }
-            },
-            "description": "Source location of the diagnostic, if applicable."
-          }
-        }
-      },
-      "description": "Individual diagnostic records."
-    }
-  }
-}
-```
+runtimes) from application software.
 
 ---
 
@@ -1582,24 +354,13 @@ displays its element type (HWC, SWC, MEC, or custom subtype), `Deployable-on`
 chains, allocated requirements, product variants, and coverage indicators.
 Expand/collapse tree navigation.
 
-### 4.10 Dependencies (`/entries/deps/`)
-
-Two tables:
-
-- **Dependencies table:** alias, canonical name, PURL, reference count, link to
-  the dependency's site. Expandable rows showing which specific entries are
-  referenced and by which local entries.
-- **Dependants table:** canonical name, PURL, reference count, link to the
-  dependant's site. Expandable rows showing which of this project's entries are
-  referenced.
-
-### 4.11 Diagnostics (`/diagnostics/`)
+### 4.10 Diagnostics (`/diagnostics/`)
 
 Error, warning, and info counts displayed prominently. Filterable table of
 diagnostics grouped by severity or by file. Each diagnostic shows code,
 severity, message, and source location.
 
-### 4.12 Navigation
+### 4.11 Navigation
 
 Persistent top bar across all pages:
 
@@ -1607,7 +368,7 @@ Persistent top bar across all pages:
 [Project Name] vX.Y | Entries | Traceability | Coverage | Search
 ```
 
-### 4.13 Search
+### 4.12 Search
 
 Client-side search powered by MiniSearch. The search index (`api/search.json`)
 is lazy-loaded on first keystroke. Field boost configuration:
@@ -1629,13 +390,16 @@ is lazy-loaded on first keystroke. Field boost configuration:
 project.yaml + *.md + *.rs/kt/c/...
         |
         v
-   resolveDeps(config)              <-- resolve dependencies
-        |                              local path -> compile; URL -> fetch api/*.json
-        v
-   compile(paths, opts, deps)       <-- existing compiler + dep context for cross-project refs
+   resolveProcess(config)           <-- read process projects, configure model
         |
         v
-   CompileResult { entries, links, forward, reverse, diagnostics, deps }
+   resolveDeps(config)              <-- resolve dependencies + references
+        |                              read each target's project.yaml + entries
+        v
+   compile(paths, opts, deps)       <-- compiler + dep context for cross-project refs
+        |
+        v
+   CompileResult { entries, links, forward, reverse, diagnostics }
         |
         v
    buildSite(result, config)        <-- site generator entry point
@@ -1645,7 +409,6 @@ project.yaml + *.md + *.rs/kt/c/...
         +-- buildTraceability()     -> api/traceability/{matrix,graph}.json
         +-- buildCoverage()         -> api/coverage/index.json
         +-- buildBom()              -> api/entries/bom/index.json
-        +-- buildDeps()             -> api/entries/deps/index.json
         +-- buildDiagnostics()      -> api/diagnostics/index.json
         +-- buildHtmlPages()        -> *.html (all pages)
         +-- copyAssets()            -> assets/**
@@ -1699,28 +462,67 @@ process AND encode its rules as traceable entries.
 
 ### 6.1 Architecture
 
+Projects declare process conformance via the `process` field in `project.yaml`:
+
+```yaml
+# braking-features/project.yaml
+name: io.acme.braking-features
+category: specification
+
+process:
+  - url: https://github.com/acme/process-v2
+    version: "2.1"
+    name: ACME Process
+  - url: https://github.com/acme/safety-asild
+    version: "1.0"
+    name: Safety ASIL-D
+```
+
 ```text
 +----------------------------------+
-|  Process project                 |  Defines the data model:
-|  (io.acme.process-v2)            |  custom types, attributes,
-|                                  |  traceability rules -- as
-|  docs/process/*.md   <- entries  |  markspec entries
+|  Process project                 |  Defines:
+|  (io.acme.process-v2)            |  - project types
+|                                  |  - entry types, attributes
+|  docs/process/*.md   <- entries  |  - constraints, policies
 |  .markspec.toml      <- tool cfg |
 |  project.yaml        <- identity |
 +----------+-----------------------+
-           | dependency
+           | process (conforms-to)
     +------+------+
     v             v
 +----------+ +----------+
-| braking  | | steering |  Component/feature projects
-| project  | | project  |  inherit the process model,
+| braking  | | steering |  Feature/component projects
+| features | | features |  inherit the process model,
 |          | |          |  can extend locally
 +----------+ +----------+
 ```
 
+Multiple processes are supported. Constraints accumulate (most restrictive
+wins).
+
 ### 6.2 Process Entry Examples
 
-Custom entry types are defined as markspec entries in the process project:
+Process projects define four things as markspec entries:
+
+**Project types** -- what `category` values mean:
+
+```markdown
+# Project Types
+
+- [PTYPE_001] Application
+
+  Deployable end-user application.
+
+  Id: PTYPE_01HGW2Q8MNP1
+
+- [PTYPE_002] Feature Specification
+
+  Requirements and architecture for a product feature.
+
+  Id: PTYPE_01HGW2Q8MNP2
+```
+
+**Entry types** -- custom types mapped to builtins:
 
 ```markdown
 # Entry Types
@@ -1744,7 +546,11 @@ Custom entry types are defined as markspec entries in the process project:
   Custom entry type mapped to the SWT builtin level.
 
   Builtin: SWT Verifies: SRS, SyReq Id: PROC_01HGW2Q8MNP5
+```
 
+**Custom attributes:**
+
+```markdown
 # Custom Attributes
 
 - [ASIL] Automotive Safety Integrity Level
@@ -1760,12 +566,40 @@ Custom entry types are defined as markspec entries in the process project:
   PROC_01HGW2Q8MNP7
 ```
 
+**Policies** -- reusable requirements with applicability to project types:
+
+```markdown
+# Policies
+
+- [STK_PERF_001] Application startup time
+
+  Application shall complete startup within 1 second.
+
+  Applies-to: PTYPE_001\
+  Compliance: mandatory\
+  Id: STK_01HGW2Q8MNP8
+
+- [STK_TRACE_001] Requirement traceability
+
+  Every SRS entry must trace to a SYS or STK entry.
+
+  Applies-to: PTYPE_002\
+  Compliance: mandatory\
+  Id: STK_01HGW2Q8MNP9
+```
+
+The compiler reads process entries from the declared process dependency and uses
+them to configure the entry model and enforce policies for the consuming
+project. Policy conformance is checked at compile time: every mandatory policy
+that applies to the project's `category` must be satisfied by at least one
+entry.
+
 ### 6.3 How It Works
 
 - Process entries use markspec's own syntax -- they have IDs, are traceable, and
   are browsable on the process project's site.
-- markspec reads process entries from dependencies and uses them to configure
-  the entry model for the consuming project.
+- markspec reads process entries from the `process` field in `project.yaml` and
+  uses them to configure the entry model for the consuming project.
 - Custom types map to a **builtin** (`Builtin: SYS`) -- the traceability model
   stays fixed; only display ID patterns, display labels, and constraints change.
 - The site/API structure is unchanged -- a `FReq` entry lives at
@@ -1773,6 +607,10 @@ Custom entry types are defined as markspec entries in the process project:
 - Component projects can **extend** the process model locally (add types or
   attributes) but cannot **weaken** it (remove required attributes or loosen
   constraints).
+- `category` values are informative and may be defined by the process project
+  (as project type entries). The schema does not enforce a fixed enum.
+- Policy entries with `Applies-to` and `Compliance: mandatory` are enforced at
+  compile time. Missing conformance produces a diagnostic error.
 
 ### 6.4 Process Project Layout
 
@@ -1796,9 +634,9 @@ acme-process-v2/
 
 ## 7. Tool Configuration (`.markspec.toml`)
 
-`project.yaml` stays tool-agnostic (project identity, domain, version, labels,
-dependencies). All markspec-specific tool configuration lives in
-`.markspec.toml`.
+`project.yaml` stays tool-agnostic (project identity, version, classification,
+labels, process, dependencies, references). All markspec-specific tool
+configuration lives in `.markspec.toml`.
 
 ```toml
 # .markspec.toml
@@ -1818,7 +656,6 @@ entries = true
 traceability = true
 coverage = true
 bom = true
-deps = true
 diagnostics = true
 
 [site.templates]
@@ -1862,8 +699,6 @@ api/
       {display-id}.md
     bom/
       index.md                         # BOM tree rendered as indented markdown
-    deps/
-      index.md                         # Dependencies + dependants as markdown
   traceability/
     matrix.md                          # Traceability matrix as markdown table
   coverage/
@@ -1929,13 +764,19 @@ Progressive context flow:
 - **Diagnostics in site.** Makes the site a complete build report for CI and
   auditor consumption without needing the CLI.
 
-- **Cross-project: auto-resolve + alias disambiguation.** Authors mostly write
-  bare IDs (auto-resolved across dependencies in order). `alias/ID` syntax for
-  disambiguation when needed. PURL in machine output only, never handwritten.
+- **Three relationship types.** `process` (governance), `dependencies`
+  (consumption, full traceability expected), `references` (citation,
+  traceability leaf). Dependency kind is inferred from entry-level links, never
+  declared at the project level.
 
-- **Local path + URL resolution.** Local dependencies are compiled from source;
-  remote dependencies are fetched from their published `api/` JSON. Works for
-  monorepos and distributed setups.
+- **Cross-project: auto-resolve + name disambiguation.** Authors mostly write
+  bare IDs (auto-resolved across dependencies then references in order).
+  `name/ID` syntax for disambiguation when needed. PURL in machine output only,
+  never handwritten.
+
+- **No cached dependency output.** The compiler reads the full chain at build
+  time. Cross-project links are captured in the traceability matrix and graph
+  schemas via the `project` field in link targets.
 
 - **Schemas published separately.** JSON schemas live in the `driftsys/schemas`
   repository, not in each generated site. API JSON references schema URLs from

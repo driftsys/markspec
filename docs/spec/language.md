@@ -1111,12 +1111,14 @@ and migrations.
 ### 6.5 References
 
 References (standards, regulations, external specifications) are resolved
-through a registry chain. Each project declares its upstream registries with
+through a resolution chain. Projects declare upstream registries in
+`project.yaml` via the `references` field (project-wide) and per-file via
 `markspec:references` directives. Resolution order: local project → declared
-registries (in order) → RefHub (implicit fallback).
+dependencies (in order) → declared references (in order) → per-file
+`markspec:references` directives → RefHub (implicit fallback).
 
 `{{ref.ID}}` inline references and `Derived-from:` attribute values are
-validated against the registry chain at build time.
+validated against the resolution chain at build time.
 
 ### 6.6 Rule activation
 
