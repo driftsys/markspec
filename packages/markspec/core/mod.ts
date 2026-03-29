@@ -52,6 +52,7 @@ export {
   isSupportedExtension,
   loadGrammar,
   parse,
+  parseFile,
   parseSource,
 } from "./parser/mod.ts";
 export type {
