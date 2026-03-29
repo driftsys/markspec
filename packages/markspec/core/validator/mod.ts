@@ -17,6 +17,8 @@ const TYPED_ATTR_KEYS = new Set([
   "Constrains",
   "Between",
   "Interface",
+  "Verifies",
+  "Implements",
   "Labels",
 ]);
 

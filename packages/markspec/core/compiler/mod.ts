@@ -132,16 +132,7 @@ function extractLinksFromAttribute(
     return [];
   }
 
-  if (key === "Satisfies" || key === "Allocates") {
-    // Comma-separated targets.
-    return value
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-      .map((to) => ({ from, to, kind, location }));
-  }
-
-  // Single-value attributes (Constrains).
+  // Comma-separated targets (Satisfies, Allocates, Verifies, Implements).
   return value
     .split(",")
     .map((s) => s.trim())
@@ -158,6 +149,8 @@ const ATTR_TO_LINK_KIND: Record<string, LinkKind | undefined> = {
   "Satisfies": "satisfies",
   "Derived-from": "derived-from",
   "Allocates": "allocates",
+  "Verifies": "verifies",
+  "Implements": "implements",
 };
 
 /** Build an adjacency map from links using a key selector. */
