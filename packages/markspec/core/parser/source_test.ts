@@ -260,6 +260,60 @@ Deno.test("parseSource: fixture — in-code-rust.rs", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Rust: nested mod blocks
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: extracts entries inside mod blocks", async () => {
+  const language = await getRustLanguage();
+  const source = `mod tests {
+    /// [SRS_BRK_0001] Nested entry
+    ///
+    /// Body inside mod.
+    ///
+    /// Id: SRS_01HGW2Q8MNP3
+    #[test]
+    fn test_one() {}
+}
+`;
+
+  const entries = parseSource(source, { file: "test.rs", language });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_BRK_0001");
+  assertStringIncludes(entries[0].body, "inside mod");
+  assertEquals(entries[0].location.line, 2);
+  assertEquals(entries[0].location.column, 5);
+});
+
+Deno.test(
+  "parseSource: extracts entries from both top-level and nested",
+  async () => {
+    const language = await getRustLanguage();
+    const source = `/// [SRS_BRK_0001] Top-level entry
+///
+/// Body one.
+///
+/// Id: SRS_01HGW2Q8MNP3
+fn top() {}
+
+mod tests {
+    /// [SRS_BRK_0002] Nested entry
+    ///
+    /// Body two.
+    ///
+    /// Id: SRS_01HGW2R9QLP4
+    #[test]
+    fn nested() {}
+}
+`;
+
+    const entries = parseSource(source, { file: "test.rs", language });
+    assertEquals(entries.length, 2);
+    assertEquals(entries[0].displayId, "SRS_BRK_0001");
+    assertEquals(entries[1].displayId, "SRS_BRK_0002");
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Default file path
 // ---------------------------------------------------------------------------
 

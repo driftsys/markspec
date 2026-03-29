@@ -49,7 +49,8 @@ export function parseSource(
   parser.setLanguage(options.language);
   const tree = parser.parse(content);
 
-  const blocks = extractDocCommentBlocks(tree.rootNode);
+  const blocks: DocCommentBlock[] = [];
+  walkForDocComments(tree.rootNode, blocks);
   const entries: Entry[] = [];
 
   for (const block of blocks) {
@@ -69,70 +70,30 @@ export function parseSource(
     }
   }
 
+  tree.delete();
   parser.delete();
   return entries;
 }
 
 /**
- * Extract contiguous doc comment blocks from the tree-sitter AST.
+ * Recursively walk the tree-sitter AST and collect doc comment blocks.
  *
- * Rust: consecutive `line_comment` nodes with `outer_doc_comment_marker`.
- * C/C++/Java/Kotlin: `block_comment` nodes starting with `/**`.
+ * At each level, consecutive `line_comment` nodes with
+ * `outer_doc_comment_marker` are grouped into a single block.
+ * `block_comment` nodes starting with `/**` become individual blocks.
+ * Non-comment children are recursed into so that doc comments inside
+ * `mod`, `impl`, and other nested scopes are discovered.
  */
-function extractDocCommentBlocks(root: SyntaxNode): DocCommentBlock[] {
-  const blocks: DocCommentBlock[] = [];
+function walkForDocComments(
+  node: SyntaxNode,
+  blocks: DocCommentBlock[],
+): void {
   let currentLines: string[] = [];
   let currentStartLine = 0;
   let currentStartColumn = 0;
   let lastRow = -2;
 
-  for (let i = 0; i < root.childCount; i++) {
-    const node = root.child(i)!;
-
-    if (node.type === "line_comment" && isOuterDocComment(node)) {
-      const row = node.startPosition.row;
-
-      // Not consecutive — flush previous block
-      if (currentLines.length > 0 && row !== lastRow + 1) {
-        blocks.push({
-          lines: currentLines,
-          startLine: currentStartLine,
-          startColumn: currentStartColumn,
-        });
-        currentLines = [];
-      }
-
-      if (currentLines.length === 0) {
-        currentStartLine = row + 1; // 1-based
-        currentStartColumn = node.startPosition.column + 1; // 1-based
-      }
-
-      currentLines.push(stripLineCommentPrefix(node));
-      lastRow = row;
-      continue;
-    }
-
-    if (node.type === "block_comment" && node.text.startsWith("/**")) {
-      // Flush any pending line comments first
-      if (currentLines.length > 0) {
-        blocks.push({
-          lines: currentLines,
-          startLine: currentStartLine,
-          startColumn: currentStartColumn,
-        });
-        currentLines = [];
-        lastRow = -2;
-      }
-
-      blocks.push({
-        lines: stripBlockCommentPrefix(node.text),
-        startLine: node.startPosition.row + 1,
-        startColumn: node.startPosition.column + 1,
-      });
-      continue;
-    }
-
-    // Non-comment node — flush any pending line comment block
+  function flushLineBlock() {
     if (currentLines.length > 0) {
       blocks.push({
         lines: currentLines,
@@ -144,16 +105,45 @@ function extractDocCommentBlocks(root: SyntaxNode): DocCommentBlock[] {
     }
   }
 
-  // Flush trailing block
-  if (currentLines.length > 0) {
-    blocks.push({
-      lines: currentLines,
-      startLine: currentStartLine,
-      startColumn: currentStartColumn,
-    });
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)!;
+
+    if (child.type === "line_comment" && isOuterDocComment(child)) {
+      const row = child.startPosition.row;
+
+      // Not consecutive — flush previous block
+      if (currentLines.length > 0 && row !== lastRow + 1) {
+        flushLineBlock();
+      }
+
+      if (currentLines.length === 0) {
+        currentStartLine = row + 1; // 1-based
+        currentStartColumn = child.startPosition.column + 1; // 1-based
+      }
+
+      currentLines.push(stripLineCommentPrefix(child));
+      lastRow = row;
+      continue;
+    }
+
+    if (child.type === "block_comment" && child.text.startsWith("/**")) {
+      flushLineBlock();
+      blocks.push({
+        lines: stripBlockCommentPrefix(child.text),
+        startLine: child.startPosition.row + 1,
+        startColumn: child.startPosition.column + 1,
+      });
+      continue;
+    }
+
+    // Non-comment node — flush pending line comments, then recurse
+    flushLineBlock();
+    if (child.childCount > 0) {
+      walkForDocComments(child, blocks);
+    }
   }
 
-  return blocks;
+  flushLineBlock();
 }
 
 /** Check if a line_comment node is a `///` outer doc comment. */
