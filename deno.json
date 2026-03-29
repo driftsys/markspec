@@ -1,6 +1,7 @@
 {
   "tasks": {
     "check": "deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts",
+    "compile": "deno compile --allow-read --allow-write --allow-run --allow-env --include grammars/ --output markspec packages/markspec/main.ts",
     "test": "deno test --allow-read --allow-write --allow-run",
     "lint": "deno lint",
     "fmt": "deno fmt"

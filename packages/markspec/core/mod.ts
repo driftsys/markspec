@@ -49,13 +49,17 @@ export {
   detectCaptions,
   detectDirectives,
   detectInlineRefs,
+  isSupportedExtension,
+  loadGrammar,
   parse,
+  parseSource,
 } from "./parser/mod.ts";
 export type {
   DetectCaptionsOptions,
   DetectDirectivesOptions,
   DetectInlineRefsOptions,
   ParseOptions,
+  ParseSourceOptions,
 } from "./parser/mod.ts";
 
 // Formatter

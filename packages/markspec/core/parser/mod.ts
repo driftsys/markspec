@@ -25,6 +25,11 @@ export type { DetectDirectivesOptions } from "./directives.ts";
 export { detectInlineRefs } from "./references.ts";
 export type { DetectInlineRefsOptions } from "./references.ts";
 
+export { parseSource } from "./source.ts";
+export type { ParseSourceOptions } from "./source.ts";
+
+export { isSupportedExtension, loadGrammar } from "./grammars.ts";
+
 /** Options for {@linkcode parse}. */
 export interface ParseOptions {
   /** File path used in source locations. */

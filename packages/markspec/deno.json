@@ -11,6 +11,7 @@
     "unified": "npm:unified@^11",
     "remark-parse": "npm:remark-parse@^11",
     "remark-gfm": "npm:remark-gfm@^4",
-    "mdast": "npm:@types/mdast@^4"
+    "mdast": "npm:@types/mdast@^4",
+    "web-tree-sitter": "npm:web-tree-sitter@^0.24"
   }
 }
