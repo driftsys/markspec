@@ -18,8 +18,8 @@ import { validate } from "../validator/mod.ts";
 
 /** Options for {@linkcode compile}. */
 export interface CompileOptions {
-  /** Override file reading (for testing). */
-  readonly readFile?: (path: string) => Promise<string>;
+  /** File reader function. Required — no default to avoid Deno dependency in library code. */
+  readonly readFile: (path: string) => Promise<string>;
 }
 
 /** Compiled project output with resolved traceability graph. */
@@ -46,9 +46,9 @@ export interface CompileResult {
  */
 export async function compile(
   paths: readonly string[],
-  options?: CompileOptions,
+  options: CompileOptions,
 ): Promise<CompileResult> {
-  const read = options?.readFile ?? defaultReadFile;
+  const read = options.readFile;
   const allEntries: Entry[] = [];
   const parseDiagnostics: Diagnostic[] = [];
 
@@ -74,9 +74,12 @@ export async function compile(
   const validationResult = validate(allEntries);
 
   // Phase 3: Build traceability graph.
+  // Keep first occurrence of each display ID (validator catches duplicates).
   const entries = new Map<DisplayId, Entry>();
   for (const entry of allEntries) {
-    entries.set(entry.displayId, entry);
+    if (!entries.has(entry.displayId)) {
+      entries.set(entry.displayId, entry);
+    }
   }
 
   const links = extractLinks(allEntries);
@@ -146,12 +149,15 @@ function extractLinksFromAttribute(
     .map((to) => ({ from, to, kind, location }));
 }
 
-/** Attribute keys that produce traceability links. */
+/**
+ * Attribute keys that produce traceability links.
+ * Note: Constrains targets are component names (free text), not entry IDs,
+ * so they are not included here. They would produce dangling links.
+ */
 const ATTR_TO_LINK_KIND: Record<string, LinkKind | undefined> = {
   "Satisfies": "satisfies",
   "Derived-from": "derived-from",
   "Allocates": "allocates",
-  "Constrains": "constrains",
 };
 
 /** Build an adjacency map from links using a key selector. */
@@ -176,7 +182,3 @@ function buildAdjacency(
 export { serializeCompileResult } from "./schema.ts";
 export type { SerializedCompileResult } from "./schema.ts";
 
-/** Default file reader. Uses Deno API (CLI entry points only). */
-function defaultReadFile(path: string): Promise<string> {
-  return Deno.readTextFile(path);
-}

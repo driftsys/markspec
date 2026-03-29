@@ -133,9 +133,9 @@ function formatTraceability(
         r.id,
         csvEscape(r.title),
         r.entryType,
-        r.satisfies,
-        r.satisfiedBy,
-        r.verifiedBy,
+        csvEscape(r.satisfies),
+        csvEscape(r.satisfiedBy),
+        csvEscape(r.verifiedBy),
       ].join(",")
     );
     return [header, ...lines].join("\n");

@@ -4,8 +4,8 @@
  * Unit tests for attribute block parsing.
  */
 
-import { assertEquals } from "@std/assert";
-import { parseAttributes } from "./attributes.ts";
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
 
 // ---------------------------------------------------------------------------
 // Backslash-separated attributes
@@ -117,6 +117,14 @@ Deno.test("parseAttributes: empty input returns empty array", () => {
 // ---------------------------------------------------------------------------
 // Non-attribute lines are not parsed
 // ---------------------------------------------------------------------------
+
+Deno.test("splitBodyAndAttributes: no blank line between body and attributes", () => {
+  const content = "Body text directly adjacent to attributes.\nId: SRS_01HGW2Q8MNP3";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertStringIncludes(body, "Body text directly adjacent");
+  assertEquals(attrs.length, 1);
+  assertEquals(attrs[0], "Id: SRS_01HGW2Q8MNP3");
+});
 
 Deno.test("parseAttributes: lines without Key: Value pattern are skipped", () => {
   const lines = [

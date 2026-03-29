@@ -64,7 +64,7 @@ async function requireProjectConfig() {
 async function compileProject(paths: string[]): Promise<CompileResult> {
   await requireProjectConfig();
   const { compile } = await import("./core/mod.ts");
-  return await compile(paths);
+  return await compile(paths, { readFile: (p) => Deno.readTextFile(p) });
 }
 
 // ── Nested subcommands (composed as separate Command instances) ───────
@@ -238,7 +238,9 @@ const cli = new Command()
     await requireProjectConfig();
 
     const { compile, serializeCompileResult } = await import("./core/mod.ts");
-    const result = await compile(paths);
+    const result = await compile(paths, {
+      readFile: (p) => Deno.readTextFile(p),
+    });
 
     for (const diag of result.diagnostics) {
       const loc = diag.location
