@@ -192,7 +192,7 @@ const cli = new Command()
         Deno.exit(1);
       }
 
-      const { parse, validate } = await import("./core/mod.ts");
+      const { parseFile, validate } = await import("./core/mod.ts");
 
       const allEntries = [];
       for (const filePath of files) {
@@ -203,7 +203,7 @@ const cli = new Command()
           console.error(`error: ${filePath}: file not found`);
           Deno.exit(1);
         }
-        const entries = parse(content, { file: filePath });
+        const entries = await parseFile(content, { file: filePath });
         allEntries.push(...entries);
       }
 

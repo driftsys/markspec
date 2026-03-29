@@ -13,7 +13,7 @@ import type {
   LinkKind,
   SourceLocation,
 } from "../model/mod.ts";
-import { parseMarkdown } from "../parser/markdown.ts";
+import { parseFile } from "../parser/mod.ts";
 import { validate } from "../validator/mod.ts";
 
 /** Options for {@linkcode compile}. */
@@ -66,7 +66,7 @@ export async function compile(
       });
       continue;
     }
-    const entries = parseMarkdown(content, { file: filePath });
+    const entries = await parseFile(content, { file: filePath });
     allEntries.push(...entries);
   }
 
