@@ -39,6 +39,25 @@ Deno.test("book build prints not yet implemented", async () => {
   assertStringIncludes(stderr, "not yet implemented");
 });
 
+Deno.test("help subcommand shows root help", async () => {
+  const { code, stdout } = await markspec(["help"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "markspec");
+  assertStringIncludes(stdout, "format");
+});
+
+Deno.test("help show prints show subcommand help", async () => {
+  const { code, stdout } = await markspec(["help", "show"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "show");
+});
+
+Deno.test("help nonexistent exits with error", async () => {
+  const { code, stderr } = await markspec(["help", "nonexistent"]);
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "unknown command");
+});
+
 Deno.test("unknown subcommand fails with non-zero exit", async () => {
   const { code } = await markspec(["nonexistent"]);
   assertEquals(code !== 0, true);
