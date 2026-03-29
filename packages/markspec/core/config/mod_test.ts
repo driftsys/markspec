@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   ConfigError,
   DEFAULT_PROJECT_CONFIG,
@@ -145,6 +145,16 @@ Deno.test("parseProjectConfig: parent-fallback kebab-case maps to parentFallback
   assertEquals(config.parentFallback, "https://example.com/fallback");
 });
 
+Deno.test("parseProjectConfig: findLineNumber handles regex metacharacters in field names", () => {
+  const yaml = "name: test\nparent-fallback: not-a-url\n";
+  const err = assertThrows(
+    () => parseProjectConfig(yaml, "project.yaml"),
+    ConfigError,
+  );
+  assertEquals(err.fieldErrors[0].field, "parent-fallback");
+  assertEquals(err.fieldErrors[0].line, 2);
+});
+
 Deno.test("parseProjectConfig: ignores unknown fields", () => {
   const yaml =
     "name: test\ncategory: [tool]\ndescription: something\nlicense: MIT\n";
@@ -155,6 +165,20 @@ Deno.test("parseProjectConfig: ignores unknown fields", () => {
 Deno.test("parseProjectConfig: numeric version is coerced to string", () => {
   const config = parseProjectConfig("name: test\nversion: 1.0\n", "p.yaml");
   assertEquals(config.version, "1");
+});
+
+Deno.test("parseProjectConfig: numeric version emits coercion warning", () => {
+  const warnings: string[] = [];
+  const origError = console.error;
+  console.error = (msg: string) => warnings.push(msg);
+  try {
+    parseProjectConfig("name: test\nversion: 1.0\n", "p.yaml");
+  } finally {
+    console.error = origError;
+  }
+  assertEquals(warnings.length, 1);
+  assertStringIncludes(warnings[0], "version");
+  assertStringIncludes(warnings[0], "Quote");
 });
 
 // ---------------------------------------------------------------------------

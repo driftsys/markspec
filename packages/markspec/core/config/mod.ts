@@ -59,12 +59,17 @@ export async function discoverProjectRoot(
 // Parsing and validation
 // ---------------------------------------------------------------------------
 
+/** Escape special regex characters for safe interpolation into RegExp. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** Find the 1-based line number where `^fieldName:` appears in raw YAML. */
 function findLineNumber(
   rawYaml: string,
   fieldName: string,
 ): number | undefined {
-  const pattern = new RegExp(`^${fieldName}\\s*:`, "m");
+  const pattern = new RegExp(`^${escapeRegex(fieldName)}\\s*:`, "m");
   const match = pattern.exec(rawYaml);
   if (!match) return undefined;
   return rawYaml.slice(0, match.index).split("\n").length;
@@ -144,6 +149,13 @@ export function parseProjectConfig(
   // version: optional string
   let version = DEFAULT_PROJECT_CONFIG.version;
   if (obj.version !== undefined && obj.version !== null) {
+    if (typeof obj.version === "number") {
+      console.error(
+        `warning: ${filePath}: version is a number (${obj.version}), ` +
+          `coerced to "${String(obj.version)}". ` +
+          `Quote it in YAML: version: "${obj.version}"`,
+      );
+    }
     version = String(obj.version);
   }
 

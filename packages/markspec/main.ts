@@ -241,21 +241,10 @@ const cli = new Command()
     default: "text",
   })
   .action(async (_options: { format?: string }, ...paths: string[]) => {
-    await requireProjectConfig();
-
-    const { compile, serializeCompileResult } = await import("./core/mod.ts");
-    const result = await compile(paths, {
-      readFile: (p) => Deno.readTextFile(p),
-    });
-
-    for (const diag of result.diagnostics) {
-      const loc = diag.location
-        ? `${diag.location.file}:${diag.location.line}`
-        : "";
-      console.error(`${diag.severity}[${diag.code}]: ${loc} ${diag.message}`);
-    }
+    const result = await compileProject(paths);
 
     if (_options.format === "json") {
+      const { serializeCompileResult } = await import("./core/mod.ts");
       const output = serializeCompileResult(result);
       console.log(JSON.stringify(output, null, 2));
     } else {
@@ -501,6 +490,26 @@ const cli = new Command()
   .description("Print version")
   .action(() => {
     console.log(`markspec ${VERSION}`);
+  })
+  // Help subcommand: enables `markspec help show`, etc. (clig.dev)
+  .command("help [...command:string]")
+  .description("Show help for a command")
+  .action(async (_options: Record<string, unknown>, ...args: string[]) => {
+    // deno-lint-ignore no-explicit-any
+    let target: any = cli;
+    for (const name of args) {
+      const commands = target.getCommands() as Array<{ getName(): string }>;
+      const found = commands.find((c: { getName(): string }) =>
+        c.getName() === name
+      );
+      if (!found) {
+        console.error(`error: unknown command '${name}'`);
+        console.error("Run 'markspec --help' to see available commands.");
+        Deno.exit(1);
+      }
+      target = found;
+    }
+    await target.showHelp();
   });
 
 if (import.meta.main) {
