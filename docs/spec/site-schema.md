@@ -21,35 +21,60 @@ JSON schemas referenced by the generated API are published in the
 
 ### 1.1 Declaration (`project.yaml`)
 
-Dependencies are declared in the project's `project.yaml`:
+Three fields declare project-level relationships:
+
+- **`process`** -- governance. Process projects define entry types, attributes,
+  constraints, and policies. Multiple processes supported; constraints
+  accumulate (most restrictive wins).
+- **`dependencies`** -- consumption. Projects this project needs. The compiler
+  expects entries to link across the boundary and warns on coverage gaps.
+- **`references`** -- citation. External registries and standards. References
+  are traceability leaves -- the compiler resolves links to them but expects no
+  deeper chain.
 
 ```yaml
-# braking-system/project.yaml
-name: io.driftsys.braking
-domain: BRK
-version: 0.3.0
+# braking-features/project.yaml
+name: io.acme.braking-features
+version: "1.0.0"
+category: specification
+classification: confidential
+labels: [ASIL-D]
+
+process:
+  - url: https://github.com/acme/process-v2
+    version: "2.1"
+    name: ACME Process
 
 dependencies:
-  - name: io.driftsys.vehicle-platform # canonical project ID
-    alias: vehicle # short name for inline refs
-    path: ../vehicle-platform # local path (monorepo)
-  - name: io.driftsys.refhub
-    alias: refhub
-    url: https://driftsys.github.io/refhub # remote (fetches api/*.json)
+  - url: https://github.com/acme/abs-component
+    version: "0.3"
+    name: ABS
+  - url: https://github.com/acme/esc-component
+    version: "0.2"
+    name: ESC
+
+references:
+  - url: https://driftsys.github.io/refhub
+    name: RefHub
 ```
 
-Fields:
+Each entry has the shape `{ url, version?, name? }`:
 
-- **`name`** -- canonical reverse-DNS project ID (from the dependency's own
-  `project.yaml`).
-- **`alias`** -- short name used for inline disambiguation in markdown
-  attributes.
-- **`path`** -- local filesystem path. markspec compiles the dependency from
-  source.
-- **`url`** -- remote URL. markspec fetches the dependency's published
-  `api/*.json` files.
+- **`url`** -- repository or published site URL.
+- **`version`** -- version of the referenced project.
+- **`name`** -- short display name (also used for inline disambiguation).
 
-A dependency declares exactly one of `path` or `url`, never both.
+Dependencies flow down the product tree. Traceability flows up via entry-level
+links:
+
+```text
+Product (depends: Features)
+  Feature (depends: Components, references: RefHub)
+    SYS → Allocates: CMP_ABS (dependency → full chain expected)
+    SYS → Allocates: CMP_SENSOR (reference → leaf, no deeper chain)
+  Component (depends: Libraries)
+    SRS → Satisfies: SYS (traces back to feature)
+```
 
 ### 1.2 Inline Reference Syntax
 
@@ -57,26 +82,35 @@ Authors write entry IDs as usual. Resolution order:
 
 1. Current project.
 2. Each dependency in declared order.
+3. Each reference in declared order.
+4. `markspec:references` directives (per-file additions).
 
 ```markdown
-- [SRS_BRK_0001] Brake sensor debouncing
+<!-- markspec:references io.acme.braking-features -->
 
-  Satisfies: STK_SAFETY_001 Derived-from: ISO-26262-6 S7.4.3 Id:
-  SRS_01HGW2Q8MNP3
+- [SRS_ABS_0001] Wheel speed sampling rate
+
+  Satisfies: SYS_BRK_001\
+  Derived-from: ISO-26262-6 §7.4\
+  Id: SRS_01HGW2Q8MNP3
 ```
 
-`STK_SAFETY_001` is not found in the current project, so it is searched in
-`vehicle` (first declared dependency) and found. `ISO-26262-6` is not found
-locally or in `vehicle`, so it is searched in `refhub` and found.
+`SYS_BRK_001` is not found in the current project, so it is searched in
+dependencies (first declared order) and found in `braking-features`.
+`ISO-26262-6` is not found locally or in dependencies, so it is searched in
+references and found in `refhub`.
 
 When a reference is ambiguous (same ID exists in multiple dependencies), use the
-`alias/ID` form:
+`name/ID` form:
 
 ```markdown
-Satisfies: vehicle/STK_SAFETY_001
+Satisfies: ABS/SYS_BRK_001
 ```
 
 Ambiguous unqualified references produce a warning diagnostic.
+
+`markspec:references` directives add resolution sources per-file, narrowing or
+extending the project-level `references` scope.
 
 ### 1.3 Machine Output (API JSON)
 
@@ -86,27 +120,28 @@ Generated JSON uses PURL for cross-project link targets:
 {
   "links": {
     "satisfies": [{
-      "displayId": "STK_SAFETY_001",
-      "title": "Vehicle shall stop within 3s",
+      "displayId": "SYS_BRK_001",
+      "title": "ABS activation threshold",
       "project": {
-        "name": "io.driftsys.vehicle-platform",
-        "purl": "pkg:spec/io.driftsys/vehicle-platform@1.0",
-        "url": "../vehicle-platform"
+        "name": "io.acme.braking-features",
+        "purl": "pkg:spec/io.acme/braking-features@1.0",
+        "url": "https://github.com/acme/braking-features"
       },
-      "url": "../vehicle-platform/entries/stk/stk_safety_001.html"
+      "url": "../braking-features/entries/sys/sys_brk_001.html"
     }]
   }
 }
 ```
 
-### 1.4 Dependants Discovery
+### 1.4 No Cached Dependency Output
 
-Dependants ("who depends on me") are discovered when a project's published API
-is fetched by downstream consumers. The site shows both directions:
+Cross-project dependency information is not stored as a separate artifact. The
+compiler reads the full chain at build time from each target's `project.yaml`
+and entries. This ensures the traceability graph is always current.
 
-- **Dependencies** -- projects I declare and consume (known at build time).
-- **Dependants** -- projects that reference my entries (known when they build
-  and publish, populated via the dependency's API or a shared registry).
+The traceability matrix and graph schemas already carry all cross-project link
+data via the `project` field in link targets. No dedicated deps schema is
+needed.
 
 ---
 
@@ -128,9 +163,7 @@ _site/
 |   |   +-- index.html                       # Reference listing
 |   |   +-- {display-id}.html                # Reference detail
 |   +-- bom/
-|   |   +-- index.html                       # Product BOM tree (expand/collapse)
-|   +-- deps/
-|       +-- index.html                       # Dependencies & dependants
+|       +-- index.html                       # Product BOM tree (expand/collapse)
 |
 +-- traceability/
 |   +-- index.html                           # Matrix view (table)
@@ -154,9 +187,7 @@ _site/
 |   |   |   +-- index.json                   # Reference index
 |   |   |   +-- {display-id}.json            # Reference detail
 |   |   +-- bom/
-|   |   |   +-- index.json                   # BOM tree
-|   |   +-- deps/
-|   |       +-- index.json                   # Dependencies + dependants + cross-project links
+|   |       +-- index.json                   # BOM tree
 |   +-- traceability/
 |   |   +-- matrix.json                      # Full traceability matrix
 |   |   +-- graph.json                       # Nodes + edges for visualization
@@ -213,7 +244,6 @@ and `$id` URLs following the pattern
 | **Traceability Graph**  | `markspec-traceability-graph/v1`  | Nodes and edges for D3 force-directed graph visualization.                                                                                                                  | `api/traceability/graph.json`                                                                              |
 | **Coverage**            | `markspec-coverage/v1`            | Coverage statistics (requirements, tests, traceability percentages) and gap lists (orphans, unsatisfied, unverified).                                                       | `api/coverage/index.json`                                                                                  |
 | **BOM**                 | `markspec-bom/v1`                 | Product architecture as a recursive tree of typed components (HWC, SWC, MEC). Captures `Part-of`, `Deployable-on`, allocated requirements, variants, and per-node coverage. | `api/entries/bom/index.json`                                                                               |
-| **Dependencies**        | `markspec-deps/v1`                | Cross-project dependency and dependant information with per-reference detail.                                                                                               | `api/entries/deps/index.json`                                                                              |
 | **Diagnostics**         | `markspec-diagnostics/v1`         | Build diagnostics (error/warning/info counts and individual records with severity, code, message, and source location).                                                     | `api/diagnostics/index.json`                                                                               |
 | **Lock**                | `markspec-lock/v1`                | Frozen sidecar metadata (`.markspec.lock`). ULID-keyed entries with authoring provenance and external sync metadata. See [Traceability](traceability.md) for lifecycle.     | (project file, not in site API)                                                                            |
 
@@ -324,24 +354,13 @@ displays its element type (HWC, SWC, MEC, or custom subtype), `Deployable-on`
 chains, allocated requirements, product variants, and coverage indicators.
 Expand/collapse tree navigation.
 
-### 4.10 Dependencies (`/entries/deps/`)
-
-Two tables:
-
-- **Dependencies table:** alias, canonical name, PURL, reference count, link to
-  the dependency's site. Expandable rows showing which specific entries are
-  referenced and by which local entries.
-- **Dependants table:** canonical name, PURL, reference count, link to the
-  dependant's site. Expandable rows showing which of this project's entries are
-  referenced.
-
-### 4.11 Diagnostics (`/diagnostics/`)
+### 4.10 Diagnostics (`/diagnostics/`)
 
 Error, warning, and info counts displayed prominently. Filterable table of
 diagnostics grouped by severity or by file. Each diagnostic shows code,
 severity, message, and source location.
 
-### 4.12 Navigation
+### 4.11 Navigation
 
 Persistent top bar across all pages:
 
@@ -349,7 +368,7 @@ Persistent top bar across all pages:
 [Project Name] vX.Y | Entries | Traceability | Coverage | Search
 ```
 
-### 4.13 Search
+### 4.12 Search
 
 Client-side search powered by MiniSearch. The search index (`api/search.json`)
 is lazy-loaded on first keystroke. Field boost configuration:
@@ -371,13 +390,16 @@ is lazy-loaded on first keystroke. Field boost configuration:
 project.yaml + *.md + *.rs/kt/c/...
         |
         v
-   resolveDeps(config)              <-- resolve dependencies
-        |                              local path -> compile; URL -> fetch api/*.json
-        v
-   compile(paths, opts, deps)       <-- existing compiler + dep context for cross-project refs
+   resolveProcess(config)           <-- read process projects, configure model
         |
         v
-   CompileResult { entries, links, forward, reverse, diagnostics, deps }
+   resolveDeps(config)              <-- resolve dependencies + references
+        |                              read each target's project.yaml + entries
+        v
+   compile(paths, opts, deps)       <-- compiler + dep context for cross-project refs
+        |
+        v
+   CompileResult { entries, links, forward, reverse, diagnostics }
         |
         v
    buildSite(result, config)        <-- site generator entry point
@@ -387,7 +409,6 @@ project.yaml + *.md + *.rs/kt/c/...
         +-- buildTraceability()     -> api/traceability/{matrix,graph}.json
         +-- buildCoverage()         -> api/coverage/index.json
         +-- buildBom()              -> api/entries/bom/index.json
-        +-- buildDeps()             -> api/entries/deps/index.json
         +-- buildDiagnostics()      -> api/diagnostics/index.json
         +-- buildHtmlPages()        -> *.html (all pages)
         +-- copyAssets()            -> assets/**
@@ -441,28 +462,67 @@ process AND encode its rules as traceable entries.
 
 ### 6.1 Architecture
 
+Projects declare process conformance via the `process` field in `project.yaml`:
+
+```yaml
+# braking-features/project.yaml
+name: io.acme.braking-features
+category: specification
+
+process:
+  - url: https://github.com/acme/process-v2
+    version: "2.1"
+    name: ACME Process
+  - url: https://github.com/acme/safety-asild
+    version: "1.0"
+    name: Safety ASIL-D
+```
+
 ```text
 +----------------------------------+
-|  Process project                 |  Defines the data model:
-|  (io.acme.process-v2)            |  custom types, attributes,
-|                                  |  traceability rules -- as
-|  docs/process/*.md   <- entries  |  markspec entries
+|  Process project                 |  Defines:
+|  (io.acme.process-v2)            |  - project types
+|                                  |  - entry types, attributes
+|  docs/process/*.md   <- entries  |  - constraints, policies
 |  .markspec.toml      <- tool cfg |
 |  project.yaml        <- identity |
 +----------+-----------------------+
-           | dependency
+           | process (conforms-to)
     +------+------+
     v             v
 +----------+ +----------+
-| braking  | | steering |  Component/feature projects
-| project  | | project  |  inherit the process model,
+| braking  | | steering |  Feature/component projects
+| features | | features |  inherit the process model,
 |          | |          |  can extend locally
 +----------+ +----------+
 ```
 
+Multiple processes are supported. Constraints accumulate (most restrictive
+wins).
+
 ### 6.2 Process Entry Examples
 
-Custom entry types are defined as markspec entries in the process project:
+Process projects define four things as markspec entries:
+
+**Project types** -- what `category` values mean:
+
+```markdown
+# Project Types
+
+- [PTYPE_001] Application
+
+  Deployable end-user application.
+
+  Id: PTYPE_01HGW2Q8MNP1
+
+- [PTYPE_002] Feature Specification
+
+  Requirements and architecture for a product feature.
+
+  Id: PTYPE_01HGW2Q8MNP2
+```
+
+**Entry types** -- custom types mapped to builtins:
 
 ```markdown
 # Entry Types
@@ -486,7 +546,11 @@ Custom entry types are defined as markspec entries in the process project:
   Custom entry type mapped to the SWT builtin level.
 
   Builtin: SWT Verifies: SRS, SyReq Id: PROC_01HGW2Q8MNP5
+```
 
+**Custom attributes:**
+
+```markdown
 # Custom Attributes
 
 - [ASIL] Automotive Safety Integrity Level
@@ -502,12 +566,40 @@ Custom entry types are defined as markspec entries in the process project:
   PROC_01HGW2Q8MNP7
 ```
 
+**Policies** -- reusable requirements with applicability to project types:
+
+```markdown
+# Policies
+
+- [STK_PERF_001] Application startup time
+
+  Application shall complete startup within 1 second.
+
+  Applies-to: PTYPE_001\
+  Compliance: mandatory\
+  Id: STK_01HGW2Q8MNP8
+
+- [STK_TRACE_001] Requirement traceability
+
+  Every SRS entry must trace to a SYS or STK entry.
+
+  Applies-to: PTYPE_002\
+  Compliance: mandatory\
+  Id: STK_01HGW2Q8MNP9
+```
+
+The compiler reads process entries from the declared process dependency and uses
+them to configure the entry model and enforce policies for the consuming
+project. Policy conformance is checked at compile time: every mandatory policy
+that applies to the project's `category` must be satisfied by at least one
+entry.
+
 ### 6.3 How It Works
 
 - Process entries use markspec's own syntax -- they have IDs, are traceable, and
   are browsable on the process project's site.
-- markspec reads process entries from dependencies and uses them to configure
-  the entry model for the consuming project.
+- markspec reads process entries from the `process` field in `project.yaml` and
+  uses them to configure the entry model for the consuming project.
 - Custom types map to a **builtin** (`Builtin: SYS`) -- the traceability model
   stays fixed; only display ID patterns, display labels, and constraints change.
 - The site/API structure is unchanged -- a `FReq` entry lives at
@@ -515,6 +607,10 @@ Custom entry types are defined as markspec entries in the process project:
 - Component projects can **extend** the process model locally (add types or
   attributes) but cannot **weaken** it (remove required attributes or loosen
   constraints).
+- `category` values are informative and may be defined by the process project
+  (as project type entries). The schema does not enforce a fixed enum.
+- Policy entries with `Applies-to` and `Compliance: mandatory` are enforced at
+  compile time. Missing conformance produces a diagnostic error.
 
 ### 6.4 Process Project Layout
 
@@ -538,9 +634,9 @@ acme-process-v2/
 
 ## 7. Tool Configuration (`.markspec.toml`)
 
-`project.yaml` stays tool-agnostic (project identity, domain, version, labels,
-dependencies). All markspec-specific tool configuration lives in
-`.markspec.toml`.
+`project.yaml` stays tool-agnostic (project identity, version, classification,
+labels, process, dependencies, references). All markspec-specific tool
+configuration lives in `.markspec.toml`.
 
 ```toml
 # .markspec.toml
@@ -560,7 +656,6 @@ entries = true
 traceability = true
 coverage = true
 bom = true
-deps = true
 diagnostics = true
 
 [site.templates]
@@ -604,8 +699,6 @@ api/
       {display-id}.md
     bom/
       index.md                         # BOM tree rendered as indented markdown
-    deps/
-      index.md                         # Dependencies + dependants as markdown
   traceability/
     matrix.md                          # Traceability matrix as markdown table
   coverage/
@@ -671,13 +764,19 @@ Progressive context flow:
 - **Diagnostics in site.** Makes the site a complete build report for CI and
   auditor consumption without needing the CLI.
 
-- **Cross-project: auto-resolve + alias disambiguation.** Authors mostly write
-  bare IDs (auto-resolved across dependencies in order). `alias/ID` syntax for
-  disambiguation when needed. PURL in machine output only, never handwritten.
+- **Three relationship types.** `process` (governance), `dependencies`
+  (consumption, full traceability expected), `references` (citation,
+  traceability leaf). Dependency kind is inferred from entry-level links, never
+  declared at the project level.
 
-- **Local path + URL resolution.** Local dependencies are compiled from source;
-  remote dependencies are fetched from their published `api/` JSON. Works for
-  monorepos and distributed setups.
+- **Cross-project: auto-resolve + name disambiguation.** Authors mostly write
+  bare IDs (auto-resolved across dependencies then references in order).
+  `name/ID` syntax for disambiguation when needed. PURL in machine output only,
+  never handwritten.
+
+- **No cached dependency output.** The compiler reads the full chain at build
+  time. Cross-project links are captured in the traceability matrix and graph
+  schemas via the `project` field in link targets.
 
 - **Schemas published separately.** JSON schemas live in the `driftsys/schemas`
   repository, not in each generated site. API JSON references schema URLs from
