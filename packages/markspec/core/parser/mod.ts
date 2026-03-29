@@ -17,6 +17,8 @@ import {
   type DetectCaptionsOptions,
 } from "./captions.ts";
 
+export type { DetectCaptionsOptions } from "./captions.ts";
+
 export { detectDirectives } from "./directives.ts";
 export type { DetectDirectivesOptions } from "./directives.ts";
 

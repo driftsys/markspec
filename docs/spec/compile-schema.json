@@ -121,11 +121,11 @@
           "description": "Parsed attribute block."
         },
         "id": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "ULID from the Id: attribute, if present."
         },
         "entryType": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "Resolved entry type prefix (e.g., SRS), if this is a typed entry."
         },
         "location": {
