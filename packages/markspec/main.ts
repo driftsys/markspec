@@ -64,7 +64,16 @@ async function requireProjectConfig() {
 async function compileProject(paths: string[]): Promise<CompileResult> {
   await requireProjectConfig();
   const { compile } = await import("./core/mod.ts");
-  return await compile(paths, { readFile: (p) => Deno.readTextFile(p) });
+  const result = await compile(paths, { readFile: (p) => Deno.readTextFile(p) });
+
+  for (const diag of result.diagnostics) {
+    const loc = diag.location
+      ? `${diag.location.file}:${diag.location.line}`
+      : "";
+    console.error(`${diag.severity}[${diag.code}]: ${loc} ${diag.message}`);
+  }
+
+  return result;
 }
 
 // ── Nested subcommands (composed as separate Command instances) ───────
@@ -102,11 +111,6 @@ const cli = new Command()
     "Markdown flavor and toolchain for traceable industrial documentation",
   )
   .globalOption("-q, --quiet", "Suppress non-error output")
-  .globalOption(
-    "--output-format <format:string>",
-    "Output format (json|text)",
-    { default: "text" },
-  )
   // Core commands
   .command("format [...files:string]")
   .description("Stamp ULIDs, fix indentation, normalize attributes")

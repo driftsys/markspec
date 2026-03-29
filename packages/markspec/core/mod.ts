@@ -52,6 +52,7 @@ export {
   parse,
 } from "./parser/mod.ts";
 export type {
+  DetectCaptionsOptions,
   DetectDirectivesOptions,
   DetectInlineRefsOptions,
   ParseOptions,

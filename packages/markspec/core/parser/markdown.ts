@@ -25,7 +25,7 @@ const TYPED_ID_RE = /^([A-Z]{2,})_[A-Z]{2,12}_\d{3,4}$/;
 /**
  * Reference entry display ID pattern: letters, digits, hyphens.
  */
-const REF_ID_RE = /^[A-Za-z0-9-]+$/;
+const REF_ID_RE = /^[A-Za-z0-9-]{2,}$/;
 
 /**
  * Match a display ID in `[...]` at the start of a list item paragraph.
