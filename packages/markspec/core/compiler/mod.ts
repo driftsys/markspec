@@ -50,6 +50,7 @@ export async function compile(
 ): Promise<CompileResult> {
   const read = options.readFile;
   const allEntries: Entry[] = [];
+  const annotationLinks: Link[] = [];
   const parseDiagnostics: Diagnostic[] = [];
 
   // Phase 1: Read and parse all files.
@@ -66,8 +67,9 @@ export async function compile(
       });
       continue;
     }
-    const entries = await parseFile(content, { file: filePath });
-    allEntries.push(...entries);
+    const result = await parseFile(content, { file: filePath });
+    allEntries.push(...result.entries);
+    annotationLinks.push(...result.links);
   }
 
   // Phase 2: Validate all entries.
@@ -82,7 +84,7 @@ export async function compile(
     }
   }
 
-  const links = extractLinks(allEntries);
+  const links = [...extractLinks(allEntries), ...annotationLinks];
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 

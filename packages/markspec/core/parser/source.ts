@@ -8,7 +8,7 @@
 
 import type { SyntaxNode } from "web-tree-sitter";
 import Parser from "web-tree-sitter";
-import type { Entry } from "../model/mod.ts";
+import type { Entry, Link, LinkKind } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
 
 /** Options for {@linkcode parseSource}. */
@@ -19,6 +19,14 @@ export interface ParseSourceOptions {
   readonly language: Parser.Language;
 }
 
+/** Result of parsing a source file. */
+export interface ParseSourceResult {
+  /** Entries found in doc comment blocks. */
+  readonly entries: Entry[];
+  /** Standalone annotation links (Verifies/Implements) outside entry blocks. */
+  readonly links: Link[];
+}
+
 /** A contiguous doc comment block extracted from source. */
 interface DocCommentBlock {
   /** Cleaned lines (comment prefix stripped). */
@@ -27,23 +35,32 @@ interface DocCommentBlock {
   readonly startLine: number;
   /** 1-based column of the first comment line. */
   readonly startColumn: number;
+  /** Name of the function/item following this doc comment, if extractable. */
+  readonly followingItem?: string;
 }
 
 /**
- * Parse a source file and return all MarkSpec entries found in doc comments.
+ * Standalone annotation pattern: `Verifies: ID1, ID2` or `Implements: ID1`.
+ * Matches a single line that is NOT inside an entry block.
+ */
+const ANNOTATION_RE = /^(Verifies|Implements):\s+(.+)$/;
+
+/**
+ * Parse a source file and return entries and annotation links from doc comments.
  *
  * Uses tree-sitter to parse the source, walks the AST to find doc comment
  * nodes, strips comment prefixes, and delegates to the markdown parser
- * for entry extraction.
+ * for entry extraction. Doc comments that don't contain entries are scanned
+ * for standalone `Verifies:` / `Implements:` annotations.
  *
  * @param content - Source file text
  * @param options - Parse options (language grammar, file path)
- * @returns Array of parsed entries with `source: "doc-comment"`
+ * @returns Parsed entries and annotation links
  */
 export function parseSource(
   content: string,
   options: ParseSourceOptions,
-): Entry[] {
+): ParseSourceResult {
   const file = options.file ?? "<unknown>";
   const parser = new Parser();
   parser.setLanguage(options.language);
@@ -52,27 +69,54 @@ export function parseSource(
   const blocks: DocCommentBlock[] = [];
   walkForDocComments(tree.rootNode, blocks);
   const entries: Entry[] = [];
+  const links: Link[] = [];
 
   for (const block of blocks) {
     const markdown = wrapAsListItem(block.lines);
     const parsed = parseMarkdown(markdown, { file });
 
-    for (const entry of parsed) {
-      entries.push({
-        ...entry,
-        source: "doc-comment",
-        location: {
-          file,
-          line: block.startLine,
-          column: block.startColumn,
-        },
-      });
+    if (parsed.length > 0) {
+      // Block contains entry blocks — extract entries.
+      for (const entry of parsed) {
+        entries.push({
+          ...entry,
+          source: "doc-comment",
+          location: {
+            file,
+            line: block.startLine,
+            column: block.startColumn,
+          },
+        });
+      }
+    } else {
+      // No entries — scan for standalone annotations.
+      const from = block.followingItem ?? `${file}:${block.startLine}`;
+      for (const line of block.lines) {
+        const match = ANNOTATION_RE.exec(line.trim());
+        if (!match) continue;
+        const kind = match[1].toLowerCase() as LinkKind;
+        const targets = match[2].split(",").map((s) => s.trim()).filter((s) =>
+          s.length > 0
+        );
+        for (const to of targets) {
+          links.push({
+            from,
+            to,
+            kind,
+            location: {
+              file,
+              line: block.startLine,
+              column: block.startColumn,
+            },
+          });
+        }
+      }
     }
   }
 
   tree.delete();
   parser.delete();
-  return entries;
+  return { entries, links };
 }
 
 /**
@@ -93,12 +137,13 @@ function walkForDocComments(
   let currentStartColumn = 0;
   let lastRow = -2;
 
-  function flushLineBlock() {
+  function flushLineBlock(followingItem?: string) {
     if (currentLines.length > 0) {
       blocks.push({
         lines: currentLines,
         startLine: currentStartLine,
         startColumn: currentStartColumn,
+        followingItem,
       });
       currentLines = [];
       lastRow = -2;
@@ -136,8 +181,12 @@ function walkForDocComments(
       continue;
     }
 
-    // Non-comment node — flush pending line comments, then recurse
-    flushLineBlock();
+    // Non-comment node — flush pending line comments (capturing item name),
+    // then recurse.
+    if (currentLines.length > 0) {
+      const itemName = extractItemName(child);
+      flushLineBlock(itemName);
+    }
     if (child.childCount > 0) {
       walkForDocComments(child, blocks);
     }
@@ -152,6 +201,29 @@ function isOuterDocComment(node: SyntaxNode): boolean {
     if (node.child(i)!.type === "outer_doc_comment_marker") return true;
   }
   return false;
+}
+
+/**
+ * Extract the identifier name from a function/item AST node.
+ * Walks through attribute nodes (e.g., `#[test]`) to find the actual
+ * item, then looks for its `name` or `identifier` child.
+ */
+function extractItemName(node: SyntaxNode): string | undefined {
+  // Skip attribute nodes — the item may be a sibling after attributes.
+  let target = node;
+  if (target.type === "attribute_item" || target.type === "annotation") {
+    const next = target.nextSibling;
+    if (next) target = next;
+    else return undefined;
+  }
+  // Look for identifier/name child.
+  for (let i = 0; i < target.childCount; i++) {
+    const child = target.child(i)!;
+    if (child.type === "identifier" || child.type === "name") {
+      return child.text;
+    }
+  }
+  return undefined;
 }
 
 /**
