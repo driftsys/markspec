@@ -59,8 +59,10 @@ export type {
   DetectCaptionsOptions,
   DetectDirectivesOptions,
   DetectInlineRefsOptions,
+  ParseFileResult,
   ParseOptions,
   ParseSourceOptions,
+  ParseSourceResult,
 } from "./parser/mod.ts";
 
 // Formatter

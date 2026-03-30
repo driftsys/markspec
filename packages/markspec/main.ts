@@ -203,8 +203,8 @@ const cli = new Command()
           console.error(`error: ${filePath}: file not found`);
           Deno.exit(1);
         }
-        const entries = await parseFile(content, { file: filePath });
-        allEntries.push(...entries);
+        const result = await parseFile(content, { file: filePath });
+        allEntries.push(...result.entries);
       }
 
       const result = validate(allEntries);
