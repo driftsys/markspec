@@ -17,3 +17,4 @@
 #   git std hooks enable pre-push
 #   git std hooks disable pre-push
 #
+! just check

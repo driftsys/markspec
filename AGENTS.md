@@ -653,3 +653,9 @@ severity/effort/priority, and review flow.
   `Result`-style patterns over thrown exceptions where possible.
 - **Comments:** doc comments (`/** */`) on all public API items. Brief inline
   comments on tricky internals only.
+
+<!-- git-std:bootstrap -->
+
+## Post-clone setup
+
+Run `./bootstrap` after `git clone` or `git worktree add`.
