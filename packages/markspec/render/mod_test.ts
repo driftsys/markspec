@@ -17,7 +17,6 @@ function emptyCompileResult(): CompileResult {
 function testConfig(): ProjectConfig {
   return {
     name: "io.test.project",
-    domain: "TST",
     version: "1.0.0",
     labels: [],
     parents: [],

@@ -8,7 +8,7 @@ check: lint test
 
 # Run tests
 test:
-    deno test --allow-read --allow-write --allow-run
+    deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
 
 # Lint (Deno + dprint)
 lint:
@@ -55,7 +55,8 @@ publish: build
 
 # Compile the CLI binary for the current platform
 compile:
-    deno compile --allow-read --allow-write --allow-run --allow-env \
+    deno compile --allow-read --allow-write --allow-run --allow-env --allow-ffi \
+        --include packages/markspec-typst/ \
         --output dist/markspec \
         packages/markspec/main.ts
 
