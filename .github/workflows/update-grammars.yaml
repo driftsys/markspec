@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: denoland/setup-deno@v2
         with:
@@ -40,13 +42,14 @@ jobs:
         if: steps.check.outputs.up_to_date == 'false'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           commit-message: "chore(auto): update tree-sitter grammar versions"
           branch: chore/update-grammars
           title: "chore(auto): update tree-sitter grammar versions"
           body: |
             Automated update of tree-sitter WASM grammar versions.
 
-            Review the changes to `scripts/fetch_grammars.ts` and `grammars/grammars.lock`.
+            Review the changes to `scripts/fetch_grammars.ts`, `grammars/grammars.lock`,
+            and the updated `.wasm` files.
           labels: dependencies
           delete-branch: true
