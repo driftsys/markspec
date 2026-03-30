@@ -3,22 +3,67 @@
  *
  * Usage: deno run --allow-net --allow-write scripts/fetch_grammars.ts
  *
- * Each grammar npm package (tree-sitter 0.23+) ships a pre-built WASM file.
- * Kotlin is excluded — its npm package does not include WASM yet.
+ * Most grammars are fetched from npm via jsdelivr CDN. Kotlin is fetched
+ * from its GitHub Release (upstream npm package does not include WASM).
  */
 
-const GRAMMARS: Record<string, { pkg: string; version: string }> = {
-  "tree-sitter-rust.wasm": { pkg: "tree-sitter-rust", version: "0.24.0" },
-  "tree-sitter-java.wasm": { pkg: "tree-sitter-java", version: "0.23.5" },
-  "tree-sitter-c.wasm": { pkg: "tree-sitter-c", version: "0.23.5" },
-  "tree-sitter-cpp.wasm": { pkg: "tree-sitter-cpp", version: "0.23.4" },
+interface NpmGrammar {
+  source: "npm";
+  pkg: string;
+  version: string;
+}
+
+interface GithubGrammar {
+  source: "github";
+  repo: string;
+  tag: string;
+}
+
+type Grammar = NpmGrammar | GithubGrammar;
+
+const GRAMMARS: Record<string, Grammar> = {
+  "tree-sitter-rust.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-rust",
+    version: "0.24.0",
+  },
+  "tree-sitter-kotlin.wasm": {
+    source: "github",
+    repo: "fwcd/tree-sitter-kotlin",
+    tag: "0.3.8",
+  },
+  "tree-sitter-java.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-java",
+    version: "0.23.5",
+  },
+  "tree-sitter-c.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-c",
+    version: "0.23.5",
+  },
+  "tree-sitter-cpp.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-cpp",
+    version: "0.23.4",
+  },
 };
 
 const GRAMMARS_DIR = new URL("../grammars", import.meta.url).pathname;
 
-async function fetchGrammar(file: string, pkg: string, version: string) {
-  const url = `https://cdn.jsdelivr.net/npm/${pkg}@${version}/${file}`;
-  console.error(`  fetching ${file} from ${pkg}@${version}...`);
+function grammarUrl(file: string, grammar: Grammar): string {
+  if (grammar.source === "npm") {
+    return `https://cdn.jsdelivr.net/npm/${grammar.pkg}@${grammar.version}/${file}`;
+  }
+  return `https://github.com/${grammar.repo}/releases/download/${grammar.tag}/${file}`;
+}
+
+async function fetchGrammar(file: string, grammar: Grammar) {
+  const url = grammarUrl(file, grammar);
+  const label = grammar.source === "npm"
+    ? `${grammar.pkg}@${grammar.version}`
+    : `${grammar.repo}@${grammar.tag}`;
+  console.error(`  fetching ${file} from ${label}...`);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`failed to fetch ${url}: ${response.status}`);
@@ -30,8 +75,8 @@ async function fetchGrammar(file: string, pkg: string, version: string) {
 
 console.error("Fetching tree-sitter WASM grammars...\n");
 
-for (const [file, { pkg, version }] of Object.entries(GRAMMARS)) {
-  await fetchGrammar(file, pkg, version);
+for (const [file, grammar] of Object.entries(GRAMMARS)) {
+  await fetchGrammar(file, grammar);
 }
 
 console.error("\nDone.");
