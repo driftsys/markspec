@@ -1,10 +1,13 @@
 /**
  * Download pre-built tree-sitter WASM grammar files to grammars/.
  *
- * Usage: deno run --allow-net --allow-write scripts/fetch_grammars.ts
+ * Usage: deno run --allow-net --allow-write --allow-read scripts/fetch_grammars.ts
  *
  * Most grammars are fetched from npm via jsdelivr CDN. Kotlin is fetched
  * from its GitHub Release (upstream npm package does not include WASM).
+ *
+ * After fetching, writes grammars/grammars.lock with SHA-256 hashes
+ * for traceability and CI cache keying.
  */
 
 interface NpmGrammar {
@@ -20,6 +23,14 @@ interface GithubGrammar {
 }
 
 type Grammar = NpmGrammar | GithubGrammar;
+
+interface LockEntry {
+  file: string;
+  source: "npm" | "github";
+  package: string;
+  version: string;
+  sha256: string;
+}
 
 const GRAMMARS: Record<string, Grammar> = {
   "tree-sitter-rust.wasm": {
@@ -58,11 +69,22 @@ function grammarUrl(file: string, grammar: Grammar): string {
   return `https://github.com/${grammar.repo}/releases/download/${grammar.tag}/${file}`;
 }
 
-async function fetchGrammar(file: string, grammar: Grammar) {
+async function sha256(data: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function fetchGrammar(
+  file: string,
+  grammar: Grammar,
+): Promise<LockEntry> {
   const url = grammarUrl(file, grammar);
-  const label = grammar.source === "npm"
-    ? `${grammar.pkg}@${grammar.version}`
-    : `${grammar.repo}@${grammar.tag}`;
+  const pkg = grammar.source === "npm" ? grammar.pkg : grammar.repo;
+  const version = grammar.source === "npm" ? grammar.version : grammar.tag;
+  const label = `${pkg}@${version}`;
+
   console.error(`  fetching ${file} from ${label}...`);
   const response = await fetch(url);
   if (!response.ok) {
@@ -70,13 +92,33 @@ async function fetchGrammar(file: string, grammar: Grammar) {
   }
   const data = new Uint8Array(await response.arrayBuffer());
   await Deno.writeFile(`${GRAMMARS_DIR}/${file}`, data);
-  console.error(`  wrote ${file} (${(data.length / 1024).toFixed(0)} KB)`);
+  const digest = await sha256(data);
+  console.error(
+    `  wrote ${file} (${(data.length / 1024).toFixed(0)} KB) sha256:${
+      digest.slice(0, 12)
+    }...`,
+  );
+
+  return {
+    file,
+    source: grammar.source,
+    package: pkg,
+    version,
+    sha256: digest,
+  };
 }
 
 console.error("Fetching tree-sitter WASM grammars...\n");
 
+const entries: LockEntry[] = [];
 for (const [file, grammar] of Object.entries(GRAMMARS)) {
-  await fetchGrammar(file, grammar);
+  entries.push(await fetchGrammar(file, grammar));
 }
 
-console.error("\nDone.");
+const lock = { generated: new Date().toISOString(), grammars: entries };
+await Deno.writeTextFile(
+  `${GRAMMARS_DIR}/grammars.lock`,
+  JSON.stringify(lock, null, 2) + "\n",
+);
+console.error("\nWrote grammars/grammars.lock");
+console.error("Done.");

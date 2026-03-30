@@ -1,0 +1,52 @@
+name: Update grammars
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Check and update grammars
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check for updates
+        id: check
+        run: |
+          output=$(deno run --allow-net --allow-read --allow-env scripts/update_grammars.ts)
+          echo "$output"
+          up_to_date=$(echo "$output" | jq -r '.up_to_date')
+          echo "up_to_date=$up_to_date" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply updates
+        if: steps.check.outputs.up_to_date == 'false'
+        run: deno run --allow-net --allow-read --allow-write --allow-env --allow-run scripts/update_grammars.ts --apply
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create pull request
+        if: steps.check.outputs.up_to_date == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(auto): update tree-sitter grammar versions"
+          branch: chore/update-grammars
+          title: "chore(auto): update tree-sitter grammar versions"
+          body: |
+            Automated update of tree-sitter WASM grammar versions.
+
+            Review the changes to `scripts/fetch_grammars.ts` and `grammars/grammars.lock`.
+          labels: dependencies
+          delete-branch: true
