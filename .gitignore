@@ -25,6 +25,3 @@ Thumbs.db
 
 # dprint
 .dprint/
-
-# Tree-sitter WASM grammars (fetched by scripts/fetch_grammars.ts)
-grammars/*.wasm

@@ -25,6 +25,8 @@ jobs:
             binary: markspec
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: denoland/setup-deno@v2
         with:
