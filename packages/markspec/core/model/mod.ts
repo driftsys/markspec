@@ -137,8 +137,6 @@ export const REFHUB_URL = "https://driftsys.github.io/refhub";
 export interface ProjectConfig {
   /** Project name (e.g., `io.driftsys.markspec`). */
   readonly name: string;
-  /** 2-6 letter project/domain abbreviation used in display IDs (e.g., `BRK`). */
-  readonly domain: string;
   /** Project version string. */
   readonly version: string;
   /** Allowed label vocabulary (e.g., `["ASIL-A", "ASIL-B"]`). Empty = no constraint. */
@@ -152,7 +150,6 @@ export interface ProjectConfig {
 /** Default configuration used when no `project.yaml` is found. */
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   name: "",
-  domain: "",
   version: "0.0.0",
   labels: [],
   parents: [],

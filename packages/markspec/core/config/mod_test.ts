@@ -13,7 +13,6 @@ import { discoverProjectRoot, loadConfig, parseProjectConfig } from "./mod.ts";
 Deno.test("parseProjectConfig: minimal valid config", () => {
   const config = parseProjectConfig("name: my-project\n", "project.yaml");
   assertEquals(config.name, "my-project");
-  assertEquals(config.domain, "");
   assertEquals(config.version, "0.0.0");
   assertEquals(config.labels, []);
   assertEquals(config.parents, []);
@@ -23,7 +22,6 @@ Deno.test("parseProjectConfig: minimal valid config", () => {
 Deno.test("parseProjectConfig: full config with all fields", () => {
   const yaml = `
 name: io.driftsys.markspec
-domain: BRK
 version: 1.2.3
 labels:
   - ASIL-A
@@ -34,7 +32,6 @@ parent-fallback: https://example.com/refhub
 `;
   const config = parseProjectConfig(yaml, "project.yaml");
   assertEquals(config.name, "io.driftsys.markspec");
-  assertEquals(config.domain, "BRK");
   assertEquals(config.version, "1.2.3");
   assertEquals(config.labels, ["ASIL-A", "ASIL-B"]);
   assertEquals(config.parents, ["https://safety.company.io/registry"]);
@@ -43,7 +40,6 @@ parent-fallback: https://example.com/refhub
 
 Deno.test("parseProjectConfig: missing optional fields use defaults", () => {
   const config = parseProjectConfig("name: test\n", "project.yaml");
-  assertEquals(config.domain, DEFAULT_PROJECT_CONFIG.domain);
   assertEquals(config.version, DEFAULT_PROJECT_CONFIG.version);
   assertEquals(config.labels, DEFAULT_PROJECT_CONFIG.labels);
   assertEquals(config.parents, DEFAULT_PROJECT_CONFIG.parents);
@@ -65,20 +61,6 @@ Deno.test("parseProjectConfig: empty name throws ConfigError", () => {
     ConfigError,
   );
   assertEquals(err.fieldErrors[0].field, "name");
-});
-
-Deno.test("parseProjectConfig: invalid domain format throws ConfigError", () => {
-  const err = assertThrows(
-    () => parseProjectConfig("name: test\ndomain: brk\n", "project.yaml"),
-    ConfigError,
-  );
-  assertEquals(err.fieldErrors[0].field, "domain");
-
-  const err2 = assertThrows(
-    () => parseProjectConfig("name: test\ndomain: TOOLONG7\n", "project.yaml"),
-    ConfigError,
-  );
-  assertEquals(err2.fieldErrors[0].field, "domain");
 });
 
 Deno.test("parseProjectConfig: invalid labels type throws ConfigError", () => {
@@ -131,7 +113,7 @@ Deno.test("parseProjectConfig: non-object YAML throws ConfigError", () => {
 });
 
 Deno.test("parseProjectConfig: error includes line number", () => {
-  const yaml = "name: test\ndomain: bad\n";
+  const yaml = "name: test\nlabels: not-an-array\n";
   const err = assertThrows(
     () => parseProjectConfig(yaml, "project.yaml"),
     ConfigError,
@@ -215,12 +197,11 @@ Deno.test("discoverProjectRoot: returns undefined when not found", async () => {
 
 Deno.test("loadConfig: discovers and returns valid config", async () => {
   const files: Record<string, string> = {
-    "/proj/project.yaml": "name: my-project\ndomain: BRK\n",
+    "/proj/project.yaml": "name: my-project\n",
   };
   const readFile = (path: string) => Promise.resolve(files[path]);
   const result = await loadConfig("/proj/src/deep", readFile);
   assertEquals(result?.config.name, "my-project");
-  assertEquals(result?.config.domain, "BRK");
   assertEquals(result?.projectRoot, "/proj");
 });
 
