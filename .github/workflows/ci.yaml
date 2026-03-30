@@ -57,7 +57,7 @@ jobs:
           path: grammars/
           key: grammars-${{ hashFiles('scripts/fetch_grammars.ts') }}
       - run: deno run --allow-net --allow-write --allow-read scripts/fetch_grammars.ts
-      - run: deno test --allow-read --allow-write --allow-run
+      - run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
 
   tokens:
     name: Design tokens

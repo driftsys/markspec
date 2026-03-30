@@ -16,6 +16,8 @@ export interface MarkspecOptions {
   files?: Record<string, string>;
   /** Working directory relative to the temp root (e.g., `"a/b/c"`). */
   cwd?: string;
+  /** Additional Deno permission flags for the subprocess. */
+  permissions?: string[];
 }
 
 /** Run the markspec CLI with the given args and optional input files. */
@@ -44,11 +46,15 @@ export async function markspec(
       await Deno.mkdir(cwd, { recursive: true }).catch(() => {});
     }
 
+    const permissions = [
+      "--allow-read",
+      "--allow-write",
+      ...(opts.permissions ?? []),
+    ];
     const cmd = new Deno.Command("deno", {
       args: [
         "run",
-        "--allow-read",
-        "--allow-write",
+        ...permissions,
         CLI_ENTRY,
         ...args,
       ],
