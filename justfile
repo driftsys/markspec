@@ -64,6 +64,10 @@ release: bump
     git push --follow-tags
     just publish
 
+# Fetch tree-sitter WASM grammars
+fetch-grammars:
+    deno task fetch-grammars
+
 # Remove build artifacts
 clean:
     rm -rf node_modules .dprint _site npm markspec

@@ -18,3 +18,9 @@ Supported grammars:
 | `tree-sitter-java.wasm`   | Java     |
 | `tree-sitter-c.wasm`      | C        |
 | `tree-sitter-cpp.wasm`    | C++      |
+
+## Lockfile
+
+`grammars.lock` records the source, version, and SHA-256 hash of each fetched
+grammar. It is committed to git for traceability and used as the CI cache key.
+The fetch script regenerates it on every run.

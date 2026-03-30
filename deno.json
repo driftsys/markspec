@@ -4,7 +4,8 @@
     "compile": "deno compile --allow-read --allow-write --allow-run --allow-env --include grammars/ --output markspec packages/markspec/main.ts",
     "test": "deno test --allow-read --allow-write --allow-run",
     "lint": "deno lint",
-    "fmt": "deno fmt"
+    "fmt": "deno fmt",
+    "fetch-grammars": "deno run --allow-net --allow-write --allow-read scripts/fetch_grammars.ts"
   },
   "imports": {
     "@deno/dnt": "jsr:@deno/dnt@^0.42.3",

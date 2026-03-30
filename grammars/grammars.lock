@@ -1,0 +1,40 @@
+{
+  "generated": "2026-03-30T21:08:33.912Z",
+  "grammars": [
+    {
+      "file": "tree-sitter-rust.wasm",
+      "source": "npm",
+      "package": "tree-sitter-rust",
+      "version": "0.24.0",
+      "sha256": "f65f354215611fd94ad34134b3427eb3d58cbb745df7b6509ba722184db73d57"
+    },
+    {
+      "file": "tree-sitter-kotlin.wasm",
+      "source": "github",
+      "package": "fwcd/tree-sitter-kotlin",
+      "version": "0.3.8",
+      "sha256": "c624e7443b371c28adc5d81674e73067564c12555ebe3ed96a6c8db814b7602d"
+    },
+    {
+      "file": "tree-sitter-java.wasm",
+      "source": "npm",
+      "package": "tree-sitter-java",
+      "version": "0.23.5",
+      "sha256": "4fdeac4ca6ca089f06c6f7e562abcac1733cd465728cc7031ebb73c2019122c4"
+    },
+    {
+      "file": "tree-sitter-c.wasm",
+      "source": "npm",
+      "package": "tree-sitter-c",
+      "version": "0.23.5",
+      "sha256": "146f85977800935f18b06940518b16ded13cf4007ef0e3190573b969a98b9adc"
+    },
+    {
+      "file": "tree-sitter-cpp.wasm",
+      "source": "npm",
+      "package": "tree-sitter-cpp",
+      "version": "0.23.4",
+      "sha256": "174eb0deb75b2ec7881bcacda9f995648d8e683956e5c2267e69ab6dc503fcbf"
+    }
+  ]
+}
