@@ -1,5 +1,9 @@
-# Type-check all packages
-check:
+[private]
+default:
+    @just --list
+
+# Type-check, lint, and test all packages
+check: lint test
     deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts
 
 # Run tests
@@ -11,13 +15,8 @@ lint:
     deno lint
     dprint check
 
-# Run all checks (check + test + lint)
-build: check test lint
-
-# Validate commits on branch and build — run before PR
-verify:
-    git std check --range main..HEAD
-    just build
+# Check then compile the CLI binary
+build: check compile
 
 # Format (Deno for TypeScript, dprint for Markdown/JSON/YAML/TOML)
 fmt:
@@ -57,7 +56,7 @@ publish: build
 # Compile the CLI binary for the current platform
 compile:
     deno compile --allow-read --allow-write --allow-run --allow-env \
-        --output markspec \
+        --output dist/markspec \
         packages/markspec/main.ts
 
 # Bump, push tag, and publish (full local release flow)

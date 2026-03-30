@@ -108,3 +108,9 @@ resolved at build time.
 ---
 
 Part of the [DriftSys](https://github.com/driftsys) ecosystem.
+
+<!-- git-std:bootstrap -->
+
+## Post-clone setup
+
+Run `./bootstrap` after `git clone` or `git worktree add`.
