@@ -66,7 +66,6 @@ Deno.test("model types are constructible", () => {
 
   const config: ProjectConfig = {
     name: "test-project",
-    domain: "BRK",
     version: "1.0.0",
     labels: ["ASIL-B"],
     parents: [],
@@ -81,7 +80,6 @@ Deno.test("model types are constructible", () => {
 
 Deno.test("DEFAULT_PROJECT_CONFIG has expected defaults", () => {
   assertEquals(DEFAULT_PROJECT_CONFIG.name, "");
-  assertEquals(DEFAULT_PROJECT_CONFIG.domain, "");
   assertEquals(DEFAULT_PROJECT_CONFIG.version, "0.0.0");
   assertEquals(DEFAULT_PROJECT_CONFIG.labels, []);
   assertEquals(DEFAULT_PROJECT_CONFIG.parents, []);

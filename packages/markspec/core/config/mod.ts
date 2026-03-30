@@ -131,21 +131,7 @@ export function parseProjectConfig(
     });
   }
 
-  // domain: optional, must match ^[A-Z]{2,6}$
-  let domain = DEFAULT_PROJECT_CONFIG.domain;
-  if (obj.domain !== undefined && obj.domain !== null) {
-    if (typeof obj.domain !== "string" || !/^[A-Z]{2,6}$/.test(obj.domain)) {
-      errors.push({
-        field: "domain",
-        message: "must be 2-6 uppercase letters (e.g., BRK), got " +
-          JSON.stringify(obj.domain),
-        line: findLineNumber(yaml, "domain"),
-      });
-    } else {
-      domain = obj.domain;
-    }
-  }
-
+  // version: optional string
   // version: optional string
   let version = DEFAULT_PROJECT_CONFIG.version;
   if (obj.version !== undefined && obj.version !== null) {
@@ -231,12 +217,37 @@ export function parseProjectConfig(
 
   return {
     name: obj.name as string,
-    domain,
     version,
     labels,
     parents,
     parentFallback,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Domain derivation
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a 3-6 letter project domain abbreviation from the project name.
+ */
+export function deriveDomain(projectName: string): string {
+  const lastSegment = projectName.split(".").pop() ?? projectName;
+  const words = lastSegment.split(/[-_]+/).filter((w) => w.length > 0);
+  if (words.length === 0) {
+    return "XXXXX";
+  }
+  const charsPerWord = Math.ceil(6 / words.length);
+  const abbrev = words
+    .map((word) => word.slice(0, charsPerWord).toUpperCase())
+    .join("");
+  if (abbrev.length >= 3 && abbrev.length <= 6) {
+    return abbrev;
+  } else if (abbrev.length > 6) {
+    return abbrev.slice(0, 6);
+  } else {
+    return (abbrev + "XXXXXX").slice(0, 6);
+  }
 }
 
 // ---------------------------------------------------------------------------
