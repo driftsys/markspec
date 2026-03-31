@@ -193,13 +193,20 @@ function renderEntryTypst(entry: Entry): string {
   // Escape body content
   const bodyEscaped = escapeTypstString(entry.body);
 
+  // Always use trailing comma so Typst treats single-element arrays correctly.
+  // Without it, `(expr)` is just parenthesised `expr`, not a 1-element array.
+  const attrsStr = attrs.length > 0 ? `(${attrs.join(", ")},)` : "()";
+  const labelsStr = labelsTypst.length > 0
+    ? `(${labelsTypst.join(", ")},)`
+    : "()";
+
   return `#req-block(
   type: "${category}",
   display-id: "${escapeTypstString(entry.displayId)}",
   title: "${escapeTypstString(entry.title)}",
   body: render("${bodyEscaped}"),
-  attrs: (${attrs.join(", ")}),
-  labels: (${labelsTypst.join(", ")}),
+  attrs: ${attrsStr},
+  labels: ${labelsStr},
   theme: theme,
 )`;
 }

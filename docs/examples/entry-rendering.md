@@ -97,8 +97,7 @@ Entry with many labels — pill group wraps to the next line:
 
   Id: SRS_01HGW6K0MST2\
   Satisfies: SYS_AEB_0012\
-  Labels: ASIL-B, safety-critical, real-time, performance, diagnostics,
-  fault-tolerance
+  Labels: ASIL-B, safety-critical, real-time, performance, diagnostics, fault-tolerance
 
 Entry with multiple cross-references:
 

@@ -39,15 +39,15 @@
 ///
 /// - target (str): display ID of the referenced entry
 /// -> content
-#let cross-ref(target) = {
-  link(label(target))[
-    #underline(
-      stroke: (dash: "dashed", paint: luma(200), thickness: 0.5pt),
-      offset: 2pt,
-      target,
-    )
-  ]
-}
+///
+/// Note: internal link navigation requires entry blocks to emit labeled
+/// anchors — that is a follow-up concern. For now the dashed-underline
+/// style is applied without a live link destination.
+#let cross-ref(target) = underline(
+  stroke: (dash: "dashed", paint: luma(200), thickness: 0.5pt),
+  offset: 2pt,
+  target,
+)
 
 /// Render a full entry block with admonition-style left border.
 ///
