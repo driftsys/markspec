@@ -57,6 +57,11 @@ themes:
     bg-alert: "#242424"
     border: "#404040"
 
+entries:
+  req: { print: "#4477AA", screen: "#0077BB" }
+  spec: { print: "#228833", screen: "#009988" }
+  test: { print: "#EE6677", screen: "#EE7733" }
+
 alerts:
   note: { border: "#4477AA", bg: "#f0f4f8" }
   tip: { border: "#228833", bg: "#f0f8f2" }

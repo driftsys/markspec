@@ -11,6 +11,7 @@
  */
 
 import type { CompileResult, Diagnostic, ProjectConfig } from "../core/mod.ts";
+import { parse } from "../core/mod.ts";
 import { generateTypstDocument } from "./typst/template.ts";
 import type { DocumentMetadata } from "./typst/template.ts";
 import { compileTypst } from "./typst/mod.ts";
@@ -90,7 +91,10 @@ export function renderTypst(
     version: options.config.version,
   };
 
-  return generateTypstDocument(markdown, metadata);
+  // Parse entries from the markdown for structured rendering
+  const entries = parse(markdown);
+
+  return generateTypstDocument(markdown, metadata, entries);
 }
 
 /** Convert a Typst diagnostic to a MarkSpec diagnostic. */

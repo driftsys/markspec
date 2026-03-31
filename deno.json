@@ -18,6 +18,11 @@
     "./packages/markspec"
   ],
   "fmt": {
-    "exclude": ["docs/index.html", "docs/theme/", "docs/spec/diagrams/"]
+    "exclude": [
+      "docs/index.html",
+      "docs/theme/",
+      "docs/spec/diagrams/",
+      "docs/examples/"
+    ]
   }
 }

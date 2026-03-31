@@ -25,7 +25,8 @@
     "**/build",
     "_site",
     "npm",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs/examples/"
   ],
   "plugins": [
     "https://plugins.dprint.dev/markdown-0.20.0.wasm",

@@ -260,6 +260,129 @@ shade from the Tol palette.
 | WARNING   | `#CCBB44` (yellow) | `#f8f6f0`  |
 | CAUTION   | `#EE6677` (red)    | `#f8f0f0`  |
 
+### Entry type colors
+
+Entry blocks are colored **by type** (the nature of the artifact), not by layer.
+The layer is already encoded in the ID prefix and does not need redundant color
+signaling.
+
+Two Paul Tol sub-palettes are used, selected by output target:
+
+| Type | Prefixes           | Print (Tol bright) | Screen (Tol vibrant) |
+| ---- | ------------------ | ------------------ | -------------------- |
+| req  | STK, SYS, SWE, SRS | Blue `#4477AA`     | Blue `#0077BB`       |
+| spec | ARC, SAD, ICD      | Green `#228833`    | Teal `#009988`       |
+| test | TST, VAL, SIT, SWT | Red `#EE6677`      | Orange `#EE7733`     |
+
+- **Print theme** (Tol bright): default for PDF output. Softer tones, designed
+  by Paul Tol for documents.
+- **Screen theme** (Tol vibrant): default for HTML output. More saturated,
+  designed by Tol for data visualization / dashboards.
+
+Both palettes are colorblind-safe by design (tested for protanopia,
+deuteranopia, tritanopia). No red-green confusion at the chosen mappings.
+
+The print palette uses three colors from the Paul Tol **bright** qualitative
+scheme (7 colors). The screen palette uses three colors from the Paul Tol
+**vibrant** qualitative scheme (7 colors). Both are single-scheme picks — no
+cross-scheme mixing.
+
+The type color is applied to:
+
+1. The **2px left border** of the entry block.
+2. The **display ID** text on the title line.
+
+No other element uses the type color. Body text, metadata, and pills use the
+document's standard text/background colors.
+
+## Entry rendering
+
+Entry blocks use **admonition-style** rendering: a 2px colored left border
+provides visual distinction from surrounding prose, with no background tint or
+horizontal rules.
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 140" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <!-- Entry block with left border -->
+  <rect x="20" y="10" width="2" height="120" rx="1" fill="#4477AA"/>
+  <!-- Title line -->
+  <text x="34" y="28" font-family="'IBM Plex Sans', sans-serif" font-size="10" font-weight="500" fill="#4477AA">SWE_BRK_0107</text>
+  <text x="124" y="28" font-family="'IBM Plex Sans', sans-serif" font-size="10" font-weight="500" fill="#1a1a1a">Median filter implementation</text>
+  <!-- Pill -->
+  <rect x="305" y="16" width="52" height="16" rx="8" fill="#f5f5f5"/>
+  <text x="331" y="28" text-anchor="middle" font-family="'IBM Plex Sans', sans-serif" font-size="7.5" font-weight="500" fill="#6b6b6b">ASIL-B</text>
+  <!-- Body -->
+  <text x="34" y="50" font-family="'IBM Plex Sans', sans-serif" font-size="10" fill="#1a1a1a">The braking ECU shall apply a 5-sample median filter to the raw</text>
+  <text x="34" y="64" font-family="'IBM Plex Sans', sans-serif" font-size="10" fill="#1a1a1a">brake pressure sensor input before processing.</text>
+  <!-- Metadata line -->
+  <text x="34" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b">Id: SWE_01HGW2Q8MNP3</text>
+  <text x="170" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" fill="#6b6b6b"> · </text>
+  <text x="184" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b">Satisfies: </text>
+  <text x="233" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b" text-decoration="underline" style="text-decoration-style: dashed">SYS_BRK_0042</text>
+  <!-- Dimension labels -->
+  <line x1="680" y1="10" x2="680" y2="14" stroke="#0072B2" stroke-width="0.5"/>
+  <text x="670" y="21" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">title</text>
+  <line x1="680" y1="36" x2="680" y2="42" stroke="#0072B2" stroke-width="0.5"/>
+  <text x="670" y="52" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">body</text>
+  <line x1="680" y1="72" x2="680" y2="82" stroke="#0072B2" stroke-width="0.5"/>
+  <text x="670" y="90" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">metadata</text>
+</svg>
+
+_Figure: Entry block anatomy — admonition-style rendering_
+
+### Block layout
+
+Each entry block is laid out top-to-bottom:
+
+1. **Title line** — display ID (body size, weight 500, type color) + title text
+   (body size, weight 500, primary text color) + pill group (inline, wraps as
+   block).
+2. **Body** — body size, regular weight, primary text color. Margin-top:
+   `space-1` (4pt) from title line.
+3. **Metadata line** — small size, italic, secondary text color. Margin-top:
+   `space-2` (8pt) from body. Attributes separated by `·` (middle dot with
+   spaces). Attribute order: `Id`, then traceability (`Satisfies` / `Verifies` /
+   `Derived-from`), then any other key-value attributes.
+
+The 2px left border starts flush with the first line of the title — no top
+padding above the title. Inter-block margin is `space-3` (12pt).
+
+### Label pills
+
+Labels (e.g., `ASIL-B`, `performance`, `real-time`) are rendered as pills
+(rounded badges):
+
+- Font size: small (8.5pt), weight 500.
+- Padding: 1pt vertical, 7pt horizontal.
+- Border-radius: 9pt (fully rounded).
+- Background: code background color (neutral — no type color).
+- Text color: secondary text color.
+- Each pill has `white-space: nowrap` (a single label never breaks).
+
+All pills for an entry are wrapped in a **pill group**:
+
+- Inline flex container with `gap: space-1` (4pt) and `flex-wrap: wrap`.
+- The pill group sits on the title line after the title text.
+- If the group fits on the title line, it renders inline.
+- If it doesn't fit, the entire group wraps to the next line as a block.
+- No labels = no pill group rendered.
+
+### Cross-reference links
+
+Attribute values that reference other entries (`Satisfies`, `Verifies`,
+`Derived-from`) are rendered as links:
+
+- **Dashed underline** — underline color is lighter than the text (border
+  secondary or equivalent, ~0.3 alpha).
+- **No link color** — the text stays in the same italic/secondary style as the
+  rest of the metadata line.
+- **Underline offset**: 2pt.
+- In HTML: `cursor: pointer`, link target is the anchor of the referenced entry.
+- In PDF: Typst internal link (`#link(<target>)`), rendered with the same
+  dashed-underline style.
+
+Non-reference values (`Id` value, other key-value pairs) have no underline —
+they are plain italic text.
+
 ## Spacing
 
 A 4pt base unit keeps spacing consistent and proportional. All values are
