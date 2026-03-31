@@ -12,6 +12,11 @@
 #let bg-alert = rgb("#f0f4f8")
 #let border = rgb("#d4d4d4")
 
+// Entry type colors (Tol palette)
+#let entry-req = rgb("#4477AA")
+#let entry-spec = rgb("#228833")
+#let entry-test = rgb("#EE6677")
+
 // Alert border colors (Tol palette)
 #let alert-note = rgb("#4477AA")
 #let alert-tip = rgb("#228833")

@@ -11,5 +11,5 @@
 
 #import "doc.typ": markspec-doc
 #import "deck.typ": markspec-deck, markspec-title-slide, markspec-focus-slide
-#import "entry.typ": markspec-entry
+#import "entry.typ": req-block, pill, cross-ref, entry-category
 #import "tokens.typ"

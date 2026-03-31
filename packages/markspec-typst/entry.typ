@@ -1,54 +1,120 @@
-// Requirement entry styling — visually distinct blocks for
-// requirement entries in rendered documents.
+// MarkSpec entry block rendering — admonition-style requirement blocks.
 
 #import "tokens.typ": *
 
-/// Render a requirement entry with distinct styling.
+/// Resolve the theme color for an entry type.
 ///
-/// - id: Display ID string (e.g., "SRS_BRK_0001")
-/// - title: Entry title
-/// - body: Body content as Typst content
-/// - attrs: Array of (key, value) pairs for the attribute table
-#let markspec-entry(id, title, body, attrs, theme) = {
+/// - type (str): one of "req", "spec", "test"
+/// - theme (module): a theme module with entry-req, entry-spec, entry-test
+/// -> color
+#let entry-color(type, theme) = {
+  if type == "spec" { theme.entry-spec }
+  else if type == "test" { theme.entry-test }
+  else { theme.entry-req }
+}
+
+/// Map an entry type prefix to its color category.
+///
+/// - prefix (str): e.g. "STK", "SYS", "SWE", "SRS", "ARC", "ICD", "TST", etc.
+/// -> str: "req", "spec", or "test"
+#let entry-category(prefix) = {
+  if prefix in ("ARC", "SAD", "ICD") { "spec" }
+  else if prefix in ("TST", "VAL", "SIT", "SWT") { "test" }
+  else { "req" }
+}
+
+/// Render a label pill (rounded badge).
+///
+/// - label (str): label text (e.g. "ASIL-B")
+/// - theme (module): theme module for colors
+/// -> content
+#let pill(label, theme) = box(
+  fill: theme.bg-code,
+  radius: 9pt,
+  inset: (x: 7pt, y: 1pt),
+  text(size: size-small, weight: "medium", fill: theme.secondary, label),
+)
+
+/// Render a cross-reference link with dashed underline.
+///
+/// - target (str): display ID of the referenced entry
+/// -> content
+#let cross-ref(target) = {
+  link(label(target))[
+    #underline(
+      stroke: (dash: "dashed", paint: luma(200), thickness: 0.5pt),
+      offset: 2pt,
+      target,
+    )
+  ]
+}
+
+/// Render a full entry block with admonition-style left border.
+///
+/// - type (str): color category — "req", "spec", or "test"
+/// - display-id (str): human-readable display ID (e.g. "SWE_BRK_0107")
+/// - title (str): entry title
+/// - body (content): body content
+/// - attrs (array): array of (key, value) pairs for the metadata line
+/// - labels (array): array of label strings for pill rendering
+/// - theme (module): theme module for colors
+/// -> content
+#let req-block(
+  type: "req",
+  display-id: "",
+  title: "",
+  body: [],
+  attrs: (),
+  labels: (),
+  theme: none,
+) = {
+  let color = entry-color(type, theme)
+
   block(
+    stroke: (left: 2pt + color),
+    inset: (left: 12pt, top: 0pt, bottom: 4pt, right: 0pt),
     width: 100%,
-    inset: (left: space-3, top: space-2, bottom: space-2, right: space-2),
-    stroke: (left: 2pt + theme.accent),
-    below: space-4,
-    above: space-4,
-  )[
-    // ID line — monospace, accent color, small
-    #text(font: font-mono, size: size-small, fill: theme.accent, id)
-    #h(space-2)
-    // Title — semibold
-    #text(weight: "semibold", title)
+    {
+      // Title line
+      {
+        text(size: size-body, weight: "medium", fill: color, display-id)
+        h(6pt)
+        text(size: size-body, weight: "medium", title)
+        if labels.len() > 0 {
+          h(6pt)
+          box({
+            for (i, label) in labels.enumerate() {
+              if i > 0 { h(4pt) }
+              pill(label, theme)
+            }
+          })
+        }
+      }
 
-    // Body
-    #if body != none and body != [] {
-      v(space-1)
-      body
-    }
+      // Body
+      if body != [] and body != "" {
+        v(space-1)
+        text(size: size-body, body)
+      }
 
-    // Attributes — compact table with light background
-    #if attrs.len() > 0 {
-      v(space-2)
-      block(
-        width: 100%,
-        fill: theme.bg-code,
-        radius: 2pt,
-        inset: space-2,
-      )[
-        #set text(size: size-small)
-        #for (i, attr) in attrs.enumerate() {
-          let (key, value) = attr
-          text(weight: "semibold", key)
-          h(space-1)
-          text(font: font-mono, value)
-          if i < attrs.len() - 1 {
-            linebreak()
+      // Metadata line
+      if attrs.len() > 0 {
+        v(space-2)
+        set text(size: size-small, style: "italic", fill: theme.secondary)
+        let traceability-keys = ("Satisfies", "Verifies", "Derived-from")
+        let parts = ()
+        for (key, value) in attrs {
+          if key in traceability-keys {
+            // Split comma-separated references
+            let refs = value.split(",").map(s => s.trim())
+            let linked = refs.map(r => cross-ref(r))
+            parts.push([#key: #linked.join([, ])])
+          } else {
+            parts.push([#key: #value])
           }
         }
-      ]
-    }
-  ]
+        parts.join[ #sym.dot.c ]
+      }
+    },
+  )
 }

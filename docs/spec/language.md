@@ -277,6 +277,10 @@ inline code are allowed.
 Part 2 defines the two families of entries (typed entries and reference
 entries), their ID formats, and their attributes.
 
+Rendering of entry blocks (admonition-style left border, type coloring, label
+pills, cross-reference links) is specified in the [Typography](typography.md)
+chapter, §"Entry rendering".
+
 #### §2 Attribute blocks
 
 `Key: Value` lines at the end of an entry block. Separated by trailing `\`

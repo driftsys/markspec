@@ -25,6 +25,7 @@ interface Tokens {
   page: Record<string, string>;
   slide: Record<string, string>;
   themes: Record<string, Record<string, string>>;
+  entries: Record<string, { print: string; screen: string }>;
   alerts: Record<string, { border: string; bg: string }>;
 }
 
@@ -104,6 +105,13 @@ function genTypstTheme(name: string, colors: Record<string, string>): string {
     lines.push(`#let ${key} = rgb("${val}")`);
   }
 
+  // Entry type colors (Tol palette)
+  const palette = name === "light" ? "print" : "screen";
+  lines.push("\n// Entry type colors (Tol palette)");
+  for (const [type, props] of Object.entries(tokens.entries)) {
+    lines.push(`#let entry-${type} = rgb("${props[palette]}")`);
+  }
+
   // Alert border colors from the alerts section
   lines.push("\n// Alert border colors (Tol palette)");
   for (const [name, props] of Object.entries(tokens.alerts)) {
@@ -148,6 +156,12 @@ function genCss(): string {
   lines.push("\n  /* Light theme (default) */");
   for (const [key, val] of Object.entries(tokens.themes.light)) {
     lines.push(`  --ms-${key}: ${val};`);
+  }
+
+  // Entry type colors (screen/vibrant palette for HTML)
+  lines.push("\n  /* Entry type colors (Tol vibrant) */");
+  for (const [type, props] of Object.entries(tokens.entries)) {
+    lines.push(`  --ms-entry-${type}: ${props.screen};`);
   }
 
   // Alerts
@@ -198,6 +212,28 @@ function genCss(): string {
   lines.push("body { font-family: var(--font-sans); }");
   lines.push("code, pre > code { font-family: var(--font-mono); }");
   lines.push("h1, h2, h3, h4 { font-weight: 600; }");
+
+  // Entry block styling
+  lines.push(
+    "\n/* ── Entry blocks ──────────────────────────────────────── */\n",
+  );
+  lines.push(`.req-block {
+  border-left: 2px solid var(--ms-entry-req);
+  padding: 0 0 0 14px;
+  margin: 12pt 0;
+}
+.req-block[data-entry-type="spec"] { border-left-color: var(--ms-entry-spec); }
+.req-block[data-entry-type="test"] { border-left-color: var(--ms-entry-test); }
+.req-block .req-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.req-block .req-id { font-size: var(--size-body); font-weight: 500; color: var(--ms-entry-req); }
+.req-block[data-entry-type="spec"] .req-id { color: var(--ms-entry-spec); }
+.req-block[data-entry-type="test"] .req-id { color: var(--ms-entry-test); }
+.req-block .req-name { font-size: var(--size-body); font-weight: 500; }
+.req-block .req-body { margin-top: 4px; line-height: 1.65; }
+.req-block .req-meta { font-size: var(--size-small); font-style: italic; color: var(--ms-secondary); margin-top: 8px; }
+.pill-group { display: inline-flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; }
+.pill { font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 9px; background: var(--ms-bg-code); color: var(--ms-secondary); white-space: nowrap; }
+.cross-ref { text-decoration: underline dashed; text-decoration-color: var(--ms-border); text-underline-offset: 2px; color: inherit; cursor: pointer; }`);
 
   lines.push("");
   return lines.join("\n") + "\n";
