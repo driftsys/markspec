@@ -108,4 +108,13 @@ ensure_git_std() {
 }
 
 ensure_git_std
-exec git std bootstrap
+git std bootstrap
+
+# Fetch tree-sitter WASM grammars if Deno is available.
+if command -v deno >/dev/null 2>&1; then
+  printf '\nFetching tree-sitter WASM grammars...\n'
+  deno task fetch-grammars
+else
+  printf '\nwarning: deno not found — skipping grammar fetch\n' >&2
+  printf 'run "deno task fetch-grammars" after installing deno\n' >&2
+fi

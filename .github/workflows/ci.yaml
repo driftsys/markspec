@@ -49,16 +49,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - uses: actions/cache@v4
-        with:
-          path: grammars/
-          key: grammars-${{ hashFiles('grammars/grammars.lock') }}
-          restore-keys: |
-            grammars-
-      - run: deno run --allow-net --allow-write --allow-read scripts/fetch_grammars.ts
       - run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
 
   tokens:

@@ -3,10 +3,10 @@
 This directory holds pre-built tree-sitter WASM grammar files used by the source
 parser to extract doc comments from code.
 
-WASM files are **not** checked into git. Run the fetch script to download them:
+WASM files are committed via Git LFS. To update them, run:
 
 ```bash
-deno run --allow-net --allow-write scripts/fetch_grammars.ts
+deno task fetch-grammars
 ```
 
 Supported grammars:
@@ -21,6 +21,5 @@ Supported grammars:
 
 ## Lockfile
 
-`grammars.lock` records the source, version, and SHA-256 hash of each fetched
-grammar. It is committed to git for traceability and used as the CI cache key.
+`grammars.lock` records the source, version, and SHA-256 hash of each grammar.
 The fetch script regenerates it on every run.
