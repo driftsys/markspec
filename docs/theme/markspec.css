@@ -44,17 +44,26 @@
   --ms-entry-spec: #009988;
   --ms-entry-test: #EE7733;
 
-  /* Alert colors */
-  --ms-alert-note-border: #4477AA;
-  --ms-alert-note-bg: #f0f4f8;
-  --ms-alert-tip-border: #228833;
-  --ms-alert-tip-bg: #f0f8f2;
-  --ms-alert-important-border: #AA3377;
-  --ms-alert-important-bg: #f8f0f6;
-  --ms-alert-warning-border: #CCBB44;
-  --ms-alert-warning-bg: #f8f6f0;
-  --ms-alert-caution-border: #EE6677;
-  --ms-alert-caution-bg: #f8f0f0;
+  /* Alert colors (Tol vibrant) */
+  --ms-alert-note-border: #0077BB;
+  --ms-alert-note-bg: #eef5fc;
+  --ms-alert-tip-border: #009988;
+  --ms-alert-tip-bg: #eef7f5;
+  --ms-alert-important-border: #EE3377;
+  --ms-alert-important-bg: #fdeef5;
+  --ms-alert-warning-border: #EE7733;
+  --ms-alert-warning-bg: #fdf4ee;
+  --ms-alert-caution-border: #CC3311;
+  --ms-alert-caution-bg: #fdeeed;
+
+  /* Diagram palette (Tol vibrant) */
+  --ms-diagram-blue: #0077BB;
+  --ms-diagram-cyan: #33BBEE;
+  --ms-diagram-teal: #009988;
+  --ms-diagram-orange: #EE7733;
+  --ms-diagram-red: #CC3311;
+  --ms-diagram-purple: #EE3377;
+  --ms-diagram-grey: #BBBBBB;
 }
 
 [data-theme="dark"] {

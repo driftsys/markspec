@@ -26,7 +26,14 @@ interface Tokens {
   slide: Record<string, string>;
   themes: Record<string, Record<string, string>>;
   entries: Record<string, { print: string; screen: string }>;
-  alerts: Record<string, { border: string; bg: string }>;
+  alerts: Record<
+    string,
+    {
+      print: { border: string; bg: string };
+      screen: { border: string; bg: string };
+    }
+  >;
+  diagram: Record<string, { print: string; screen: string }>;
 }
 
 const raw = await Deno.readTextFile(TOKENS_PATH);
@@ -112,10 +119,13 @@ function genTypstTheme(name: string, colors: Record<string, string>): string {
     lines.push(`#let entry-${type} = rgb("${props[palette]}")`);
   }
 
-  // Alert border colors from the alerts section
+  // Alert border colors — print palette for light theme, screen for dark
+  const alertPalette = name === "light" ? "print" : "screen";
   lines.push("\n// Alert border colors (Tol palette)");
-  for (const [name, props] of Object.entries(tokens.alerts)) {
-    lines.push(`#let alert-${name} = rgb("${props.border}")`);
+  for (const [alertName, props] of Object.entries(tokens.alerts)) {
+    lines.push(
+      `#let alert-${alertName} = rgb("${props[alertPalette].border}")`,
+    );
   }
 
   lines.push("");
@@ -164,11 +174,17 @@ function genCss(): string {
     lines.push(`  --ms-entry-${type}: ${props.screen};`);
   }
 
-  // Alerts
-  lines.push("\n  /* Alert colors */");
-  for (const [name, props] of Object.entries(tokens.alerts)) {
-    lines.push(`  --ms-alert-${name}-border: ${props.border};`);
-    lines.push(`  --ms-alert-${name}-bg: ${props.bg};`);
+  // Alert colors (Tol vibrant — screen palette for HTML)
+  lines.push("\n  /* Alert colors (Tol vibrant) */");
+  for (const [alertName, props] of Object.entries(tokens.alerts)) {
+    lines.push(`  --ms-alert-${alertName}-border: ${props.screen.border};`);
+    lines.push(`  --ms-alert-${alertName}-bg: ${props.screen.bg};`);
+  }
+
+  // Diagram palette (Tol vibrant — screen palette for HTML)
+  lines.push("\n  /* Diagram palette (Tol vibrant) */");
+  for (const [colorName, props] of Object.entries(tokens.diagram)) {
+    lines.push(`  --ms-diagram-${colorName}: ${props.screen};`);
   }
 
   lines.push("}\n");

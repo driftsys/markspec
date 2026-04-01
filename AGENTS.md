@@ -46,6 +46,11 @@ markspec/
 │       ├── render/
 │       │   ├── mod.ts
 │       │   ├── typst/               ← Typst WASM embedding, PDF pipeline
+│       │   │   ├── template.ts      ←   Markdown → Typst source. Entry blocks
+│       │   │   │                        are spliced as req-block() calls.
+│       │   │   └── mod.ts           ←   NodeCompiler wrapper
+│       │   ├── styles/              ← Markdown-level entry block transformer
+│       │   │   └── mod.ts               (styleRequirementBlocks)
 │       │   ├── mustache/            ← {{variable}} preprocessing from
 │       │   │                          project.yaml
 │       │   └── captions/            ← figure/table numbering
@@ -64,8 +69,13 @@ markspec/
 │           └── server.ts            ← MCP protocol adapter
 ├── docs/
 │   ├── spec/                        ← language specification (published as book)
+│   │   ├── language.md              ←   grammar, entry format, attributes
+│   │   ├── typography.md            ←   fonts, layout, palettes, entry rendering
+│   │   └── tokens.yaml              ←   canonical design tokens (run `just tokens`)
 │   ├── guide/                       ← user-facing documentation (published as
 │   │                                  book)
+│   ├── examples/                    ← showcase documents (excluded from formatters)
+│   │   └── entry-rendering.md       ←   all entry types, pills, cross-refs
 │   ├── product/                     ← internal engineering (not published)
 │   └── records/                     ← architecture decision records
 └── tests/
@@ -142,6 +152,7 @@ just lint                       # lint (Deno + dprint)
 just build                      # check + test + lint
 just verify                     # validate commits + build
 just fmt                        # format (Deno + dprint)
+just tokens                     # regenerate Typst + CSS from docs/spec/tokens.yaml
 just clean                      # remove build artifacts
 ```
 
@@ -161,6 +172,47 @@ just clean                      # remove build artifacts
 | `markspec deck dev`        | `deck/touying`               | Live slide preview.                                                  |
 | `markspec lsp`             | dispatches to `markspec-lsp` | LSP server for editor integration.                                   |
 | `markspec mcp`             | dispatches to `markspec-mcp` | MCP server for AI agent integration.                                 |
+
+## Entry block rendering pipeline
+
+`markspec doc build` renders entry blocks with admonition-style left borders,
+type-based coloring, label pills, and dashed-underline cross-references.
+
+**How it works:**
+
+1. `render/mod.ts` calls `parse(markdown)` to extract `Entry[]` before
+   rendering.
+2. `render/typst/template.ts` (`generateTypstDocument`) splits the document at
+   entry block boundaries and emits `#req-block(...)` Typst calls for entries;
+   prose segments go through `cmarker`.
+3. `packages/markspec-typst/entry.typ` defines `req-block`, `pill`, `cross-ref`,
+   and `entry-category`. Imported into `lib.typ`.
+
+**Design tokens:**
+
+Entry type colors live in `docs/spec/tokens.yaml` under `entries:`. Two Paul Tol
+palettes are used — bright (print/PDF) and vibrant (screen/HTML):
+
+| Type | Prefixes           | Print     | Screen    |
+| ---- | ------------------ | --------- | --------- |
+| req  | STK, SYS, SWE, SRS | `#4477AA` | `#0077BB` |
+| spec | ARC, SAD, ICD      | `#228833` | `#009988` |
+| test | TST, VAL, SIT, SWT | `#EE6677` | `#EE7733` |
+
+Run `just tokens` after editing `tokens.yaml` to regenerate:
+
+- `packages/markspec-typst/tokens.typ`
+- `packages/markspec-typst/themes/light.typ` and `dark.typ`
+- `docs/theme/markspec.css`
+
+**`docs/examples/` is excluded from both `deno fmt` and `dprint`.** Example
+files contain attribute value lines that exceed 80 chars and must not be
+line-wrapped by formatters.
+
+The `render/styles/mod.ts` module (`styleRequirementBlocks`) is an earlier
+Markdown-level transformer — it produces styled Markdown rather than Typst calls
+and is not yet wired into the pipeline. The Typst splicing approach in
+`template.ts` is the active rendering path.
 
 ## Entry types used in this project
 

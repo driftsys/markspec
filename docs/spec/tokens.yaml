@@ -62,9 +62,35 @@ entries:
   spec: { print: "#228833", screen: "#009988" }
   test: { print: "#EE6677", screen: "#EE7733" }
 
+# print = Tol bright (PDF); screen = Tol vibrant (HTML)
 alerts:
-  note: { border: "#4477AA", bg: "#f0f4f8" }
-  tip: { border: "#228833", bg: "#f0f8f2" }
-  important: { border: "#AA3377", bg: "#f8f0f6" }
-  warning: { border: "#CCBB44", bg: "#f8f6f0" }
-  caution: { border: "#EE6677", bg: "#f8f0f0" }
+  note: {
+    print: { border: "#4477AA", bg: "#f0f4f8" },
+    screen: { border: "#0077BB", bg: "#eef5fc" },
+  }
+  tip: {
+    print: { border: "#228833", bg: "#f0f8f2" },
+    screen: { border: "#009988", bg: "#eef7f5" },
+  }
+  important: {
+    print: { border: "#AA3377", bg: "#f8f0f6" },
+    screen: { border: "#EE3377", bg: "#fdeef5" },
+  }
+  warning: {
+    print: { border: "#CCBB44", bg: "#f8f6f0" },
+    screen: { border: "#EE7733", bg: "#fdf4ee" },
+  }
+  caution: {
+    print: { border: "#EE6677", bg: "#f8f0f0" },
+    screen: { border: "#CC3311", bg: "#fdeeed" },
+  }
+
+# Categorical palette for diagrams — vibrant (screen default), bright (print)
+diagram:
+  blue: { print: "#4477AA", screen: "#0077BB" }
+  cyan: { print: "#66CCEE", screen: "#33BBEE" }
+  teal: { print: "#228833", screen: "#009988" }
+  orange: { print: "#CCBB44", screen: "#EE7733" }
+  red: { print: "#EE6677", screen: "#CC3311" }
+  purple: { print: "#AA3377", screen: "#EE3377" }
+  grey: { print: "#BBBBBB", screen: "#BBBBBB" }
