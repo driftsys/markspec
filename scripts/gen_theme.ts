@@ -1,5 +1,5 @@
 /**
- * Generate Typst and CSS theme files from docs/spec/tokens.yaml.
+ * Generate Typst and CSS theme files from theme/tokens.yaml.
  *
  * Usage: deno run --allow-read --allow-write scripts/gen_theme.ts
  */
@@ -8,13 +8,12 @@ import { parse } from "@std/yaml";
 import { dirname, fromFileUrl, join } from "@std/path";
 
 const ROOT = join(dirname(fromFileUrl(import.meta.url)), "..");
-const TOKENS_PATH = join(ROOT, "docs/spec/tokens.yaml");
+const TOKENS_PATH = join(ROOT, "theme/tokens.yaml");
 const TYPST_DIR = join(ROOT, "packages/markspec-typst");
-const CSS_DIR = join(ROOT, "docs/theme");
+const CSS_DIR = join(ROOT, "theme");
 
-const HEADER_TYPST = "// Generated from docs/spec/tokens.yaml — do not edit.\n";
-const HEADER_CSS =
-  "/* Generated from docs/spec/tokens.yaml — do not edit. */\n";
+const HEADER_TYPST = "// Generated from theme/tokens.yaml — do not edit.\n";
+const HEADER_CSS = "/* Generated from theme/tokens.yaml — do not edit. */\n";
 
 // ── Load tokens ─────────────────────────────────────────────────────────
 

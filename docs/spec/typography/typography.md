@@ -310,7 +310,7 @@ document's standard text/background colors.
 
 ##### Design tokens
 
-The `entries:` section of `docs/spec/tokens.yaml` is the canonical source:
+The `entries:` section of `theme/tokens.yaml` is the canonical source:
 
 ```yaml
 entries:
@@ -325,7 +325,7 @@ Running `just tokens` regenerates all downstream files from this source:
 | -------------------------- | ------------------------------------------------------ |
 | `themes/light.typ` (Typst) | `entry-req`, `entry-spec`, `entry-test`                |
 | `themes/dark.typ` (Typst)  | `entry-req`, `entry-spec`, `entry-test`                |
-| `docs/theme/markspec.css`  | `--ms-entry-req`, `--ms-entry-spec`, `--ms-entry-test` |
+| `theme/markspec.css`       | `--ms-entry-req`, `--ms-entry-spec`, `--ms-entry-test` |
 
 **Palette selection by output target:**
 
@@ -818,22 +818,23 @@ _Figure: PlantUML sequence diagram with monochrome preset_
 @startuml
 skinparam svgDimensionStyle false
 skinparam shadowing false
-skinparam ranksep 20
-skinparam nodesep 25
+scale 2
+skinparam ranksep 30
+skinparam nodesep 35
 skinparam defaultFontName "IBM Plex Sans"
 skinparam defaultFontSize 12
 skinparam backgroundColor #ffffff
 skinparam ArrowColor #1a1a1a
 skinparam BorderColor #1a1a1a
-skinparam ComponentBackgroundColor #f5f5f5
-skinparam ComponentBorderColor #d4d4d4
+skinparam ParticipantBackgroundColor #f5f5f5
+skinparam ParticipantBorderColor #d4d4d4
 skinparam NoteBackgroundColor #f5f5f5
 skinparam NoteBorderColor #d4d4d4
 skinparam SequenceLifeLineBorderColor #6b6b6b
 @enduml
 ```
 
-**Categorical** — Tol palette for multi-category diagrams:
+**Categorical** — Tol vibrant palette for multi-category diagrams:
 
 <img src="diagrams/components-categorical.svg" alt="Component diagram — categorical preset" style="width:100%; border:1px solid #d4d4d4; border-radius:3px; background:#ffffff"/>
 
@@ -843,8 +844,9 @@ _Figure: PlantUML component diagram with Tol categorical preset_
 @startuml
 skinparam svgDimensionStyle false
 skinparam shadowing false
-skinparam ranksep 20
-skinparam nodesep 25
+scale 2
+skinparam ranksep 30
+skinparam nodesep 35
 skinparam defaultFontName "IBM Plex Sans"
 skinparam defaultFontSize 12
 skinparam backgroundColor #ffffff
@@ -859,6 +861,7 @@ skinparam component {
   FontColor<<arch>> #1a1a1a
   FontColor<<test>> #ffffff
   FontColor<<ext>> #ffffff
+  BorderColor #1a1a1a
 }
 @enduml
 ```

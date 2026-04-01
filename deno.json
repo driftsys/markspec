@@ -20,9 +20,9 @@
   "fmt": {
     "exclude": [
       "docs/index.html",
-      "docs/theme/",
-      "docs/spec/diagrams/",
-      "docs/examples/"
+      "docs/spec/typography/diagrams/",
+      "docs/examples/",
+      "theme/"
     ]
   }
 }

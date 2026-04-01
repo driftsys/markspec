@@ -27,16 +27,23 @@ fmt:
 tokens:
     deno run --allow-read --allow-write scripts/gen_theme.ts
 
+# Regenerate PlantUML diagrams and fix aspect ratio (requires plantuml)
+diagrams:
+    find docs -name "*.puml" -exec plantuml -tsvg {} \;
+    find docs -name "*.svg" -exec sed -i '' 's/preserveAspectRatio="none"/preserveAspectRatio="xMidYMid meet"/g' {} \;
+    find docs -name "*.svg" -exec perl -i -0pe 's/\s+width="100%"//g' {} \;
+
 # Build spec and guide books (requires mdbook)
 book: tokens
-    mdbook build docs/spec
+    mdbook build docs/spec/language
+    mdbook build docs/spec/typography
     mdbook build docs/guide
-    typst compile --font-path packages/markspec-typst/fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
-    cp -r docs/theme _site/theme
+    typst compile --font-path packages/markspec-typst/fonts docs/cheatsheet/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+    mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
     cp docs/index.html _site/index.html
 
-# Serve a book locally with live reload (default: spec)
-book-dev book="spec":
+# Serve a book locally with live reload (default: spec/language)
+book-dev book="spec/language":
     mdbook serve docs/{{book}} --open
 
 # Bump version, update changelog, commit, and tag

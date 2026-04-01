@@ -1,22 +1,23 @@
 @startuml components-categorical
 skinparam svgDimensionStyle false
 skinparam shadowing false
-scale 2
-skinparam ranksep 30
-skinparam nodesep 35
+scale 1
+skinparam ranksep 40
+skinparam nodesep 30
 skinparam defaultFontName "IBM Plex Sans"
-skinparam defaultFontSize 12
+skinparam defaultFontSize 14
+skinparam stereotypeFontSize 11
 skinparam backgroundColor #ffffff
 skinparam ArrowColor #1a1a1a
 skinparam component {
-  BackgroundColor<<req>> #4477AA
-  BackgroundColor<<arch>> #66CCEE
-  BackgroundColor<<test>> #228833
-  BackgroundColor<<ext>> #CCBB44
+  BackgroundColor<<req>> #0077BB
+  BackgroundColor<<arch>> #33BBEE
+  BackgroundColor<<test>> #009988
+  BackgroundColor<<ext>> #EE7733
   FontColor<<req>> #ffffff
   FontColor<<arch>> #1a1a1a
   FontColor<<test>> #ffffff
-  FontColor<<ext>> #1a1a1a
+  FontColor<<ext>> #ffffff
   BorderColor #1a1a1a
 }
 

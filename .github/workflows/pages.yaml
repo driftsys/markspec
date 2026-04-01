@@ -6,8 +6,8 @@ on:
     paths:
       - "docs/spec/**"
       - "docs/guide/**"
-      - "docs/theme/**"
-      - "docs/markspec-cheatsheet.typ"
+      - "theme/**"
+      - "docs/cheatsheet/**"
       - "docs/index.html"
       - ".github/workflows/pages.yaml"
 
@@ -32,8 +32,18 @@ jobs:
         with:
           mdbook-version: latest
 
-      - name: Build spec book
-        run: mdbook build docs/spec
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Regenerate tokens
+        run: deno run --allow-read --allow-write scripts/gen_theme.ts
+
+      - name: Build language spec book
+        run: mdbook build docs/spec/language
+
+      - name: Build typography book
+        run: mdbook build docs/spec/typography
 
       - name: Build guide book
         run: mdbook build docs/guide
@@ -42,11 +52,11 @@ jobs:
         uses: typst-community/setup-typst@v4
 
       - name: Build cheat sheet
-        run: typst compile --font-path packages/markspec-typst/fonts docs/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+        run: typst compile --font-path packages/markspec-typst/fonts docs/cheatsheet/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
 
       - name: Copy theme and landing page
         run: |
-          cp -r docs/theme _site/theme
+          mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
           cp docs/index.html _site/index.html
 
       - name: Upload artifact

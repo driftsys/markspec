@@ -5,12 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MarkSpec Documentation</title>
     <link rel="stylesheet" href="theme/markspec.css">
+    <link rel="stylesheet" href="spec/FontAwesome/css/font-awesome.css">
     <style>
       body {
         font-family: var(--font-sans, sans-serif);
         max-width: 600px;
         margin: 80px auto;
         padding: 0 20px;
+        color: var(--ms-text, #333);
+      }
+      .github-link {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        font-size: 1.5rem;
+        color: var(--ms-secondary, #666);
+        text-decoration: none;
+        line-height: 1;
+      }
+      .github-link:hover {
         color: var(--ms-text, #333);
       }
       h1 {
@@ -45,6 +58,9 @@
     </style>
   </head>
   <body>
+    <a href="https://github.com/driftsys/markspec" title="Git repository" aria-label="Git repository" class="github-link">
+      <i class="fa fa-github"></i>
+    </a>
     <h1>MarkSpec</h1>
     <p>Markdown flavor and toolchain for traceable industrial documentation.</p>
     <a href="spec/">
@@ -55,6 +71,10 @@
     <a href="guide/">
       User Guide
       <span>Getting started, configuration, CLI reference, recipes</span>
+    </a>
+    <a href="typography/">
+      Typography
+      <span>Fonts, type scale, color palettes, entry blocks, diagrams, themes</span>
     </a>
     <a href="markspec-cheatsheet.pdf">
       Cheat Sheet (PDF)

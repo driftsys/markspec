@@ -67,11 +67,12 @@ markspec/
 │       │   └── server.ts            ← LSP protocol adapter
 │       └── mcp/
 │           └── server.ts            ← MCP protocol adapter
+├── theme/
+│   └── tokens.yaml                  ← canonical design tokens SSOT (run `just tokens`)
 ├── docs/
 │   ├── spec/                        ← language specification (published as book)
 │   │   ├── language.md              ←   grammar, entry format, attributes
-│   │   ├── typography.md            ←   fonts, layout, palettes, entry rendering
-│   │   └── tokens.yaml              ←   canonical design tokens (run `just tokens`)
+│   │   └── typography.md            ←   fonts, layout, palettes, entry rendering
 │   ├── guide/                       ← user-facing documentation (published as
 │   │                                  book)
 │   ├── examples/                    ← showcase documents (excluded from formatters)
@@ -152,7 +153,7 @@ just lint                       # lint (Deno + dprint)
 just build                      # check + test + lint
 just verify                     # validate commits + build
 just fmt                        # format (Deno + dprint)
-just tokens                     # regenerate Typst + CSS from docs/spec/tokens.yaml
+just tokens                     # regenerate Typst + CSS from theme/tokens.yaml
 just clean                      # remove build artifacts
 ```
 
@@ -190,7 +191,7 @@ type-based coloring, label pills, and dashed-underline cross-references.
 
 **Design tokens:**
 
-Entry type colors live in `docs/spec/tokens.yaml` under `entries:`. Two Paul Tol
+Entry type colors live in `theme/tokens.yaml` under `entries:`. Two Paul Tol
 palettes are used — bright (print/PDF) and vibrant (screen/HTML):
 
 | Type | Prefixes           | Print     | Screen    |
@@ -203,7 +204,7 @@ Run `just tokens` after editing `tokens.yaml` to regenerate:
 
 - `packages/markspec-typst/tokens.typ`
 - `packages/markspec-typst/themes/light.typ` and `dark.typ`
-- `docs/theme/markspec.css`
+- `theme/markspec.css`
 
 **`docs/examples/` is excluded from both `deno fmt` and `dprint`.** Example
 files contain attribute value lines that exceed 80 chars and must not be
