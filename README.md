@@ -35,7 +35,7 @@ markspec mcp             # MCP server
 
 ```text
 core/      ← parser, validator, compiler, reporter, formatter
-render/    ← Typst WASM, Mustache substitution, captions
+render/    ← Typst WASM, entry block rendering, Mustache substitution, captions
 book/      ← multi-file PDF + HTML book builder
 deck/      ← Touying-based slide deck builder
 cli/       ← subcommand handlers
@@ -62,6 +62,13 @@ GitHub and GitLab — no tooling required to read.
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```
+
+In PDF output, entry blocks render as admonition-style blocks: a 2px colored
+left border (blue for requirements, green for architecture/spec, red for tests),
+label pills on the title line, and italic metadata with dashed-underline
+cross-references. See
+[`docs/examples/entry-rendering.md`](docs/examples/entry-rendering.md) for a
+full showcase.
 
 **Table captions** — emphasized paragraph above a pipe table:
 

@@ -6,7 +6,9 @@ This chapter defines the typographic system for MarkSpec rendered output (PDF
 documents, HTML books, slide decks). All values are defaults — authors may
 override them in `project.yaml`.
 
-## Fonts
+## Foundations
+
+### Fonts
 
 IBM Plex is chosen for its technical clarity, broad Unicode coverage, and open
 license. It ships in Sans, Mono, and Serif variants — covering all document
@@ -42,7 +44,7 @@ for tabular figures.
 Only Sans and Mono are required. Serif is available for projects that prefer it
 for body text.
 
-### Font fallback chain
+#### Font fallback chain
 
 IBM Plex is open-source (OFL) and bundled in CI. For contexts where Plex is not
 installed (local preview, SVGs viewed on GitHub), use this fallback chain:
@@ -61,7 +63,7 @@ PlantUML only accepts a single font name — no fallback chain. Use IBM Plex San
 and ensure the font is installed on the build machine. When Plex is not
 available, PlantUML falls back to its built-in SansSerif.
 
-## Type scale
+### Type scale
 
 The minor third ratio (1.2) produces a compact scale that works for technical
 documents where space is at a premium. Larger ratios (e.g., major third 1.25)
@@ -93,7 +95,489 @@ Sizes follow a minor third ratio (1.2) rounded to half-points. The base size is
 | Inline code     | 9pt    | Regular (Mono) | —       |
 | Footer / header | 8pt    | Regular        | 10pt    |
 
-## Page layout
+### Spacing
+
+A 4pt base unit keeps spacing consistent and proportional. All values are
+multiples of 4 — no magic numbers, easy to reason about.
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 190" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <!-- H2 -->
+  <text x="20" y="24" font-family="sans-serif" font-size="16" font-weight="600" fill="#1a1a1a">Sensor noise filtering</text>
+  <!-- space-6 bracket -->
+  <line x1="680" y1="28" x2="680" y2="52" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="44" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-6</text>
+  <!-- H3 -->
+  <text x="20" y="56" font-family="sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Debounce strategy</text>
+  <!-- space-4 bracket -->
+  <line x1="680" y1="60" x2="680" y2="76" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="72" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-4</text>
+  <!-- Paragraph 1 -->
+  <rect x="20" y="80" width="500" height="6" rx="1" fill="#d4d4d4"/>
+  <rect x="20" y="94" width="460" height="6" rx="1" fill="#d4d4d4"/>
+  <rect x="20" y="108" width="380" height="6" rx="1" fill="#d4d4d4"/>
+  <!-- space-3 bracket -->
+  <line x1="680" y1="112" x2="680" y2="124" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="122" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-3</text>
+  <!-- Paragraph 2 -->
+  <rect x="20" y="128" width="480" height="6" rx="1" fill="#d4d4d4"/>
+  <rect x="20" y="142" width="520" height="6" rx="1" fill="#d4d4d4"/>
+  <rect x="20" y="156" width="300" height="6" rx="1" fill="#d4d4d4"/>
+  <!-- space-2 bracket -->
+  <line x1="680" y1="164" x2="680" y2="172" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="172" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-2</text>
+  <!-- List items -->
+  <circle cx="30" cy="175" r="2" fill="#1a1a1a"/>
+  <rect x="40" y="172" width="300" height="5" rx="1" fill="#d4d4d4"/>
+  <circle cx="30" cy="186" r="2" fill="#1a1a1a"/>
+  <rect x="40" y="183" width="280" height="5" rx="1" fill="#d4d4d4"/>
+</svg>
+
+_Figure: Spacing scale applied to document structure_
+
+A 4pt base unit defines the spacing scale. All vertical and horizontal spacing
+derives from multiples of this unit.
+
+| Token     | Value | Usage                               |
+| --------- | ----- | ----------------------------------- |
+| `space-1` | 4pt   | Inline padding, tight gaps          |
+| `space-2` | 8pt   | Between list items, cell padding    |
+| `space-3` | 12pt  | Between paragraphs within a section |
+| `space-4` | 16pt  | Between sections (below headings)   |
+| `space-6` | 24pt  | Between major sections (below H2)   |
+| `space-8` | 32pt  | Page-level separation               |
+
+### Color palette
+
+#### Document palette (default)
+
+Monochrome with one accent ensures B&W printability — critical for auditor
+handoffs and archived compliance documentation.
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 60" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <rect x="10" y="10" width="70" height="40" rx="4" fill="#1a1a1a"/><text x="45" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">text</text>
+  <rect x="90" y="10" width="70" height="40" rx="4" fill="#6b6b6b"/><text x="125" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">secondary</text>
+  <rect x="170" y="10" width="70" height="40" rx="4" fill="#999999"/><text x="205" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">muted</text>
+  <rect x="250" y="10" width="70" height="40" rx="4" fill="#0072B2"/><text x="285" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">accent</text>
+  <rect x="330" y="10" width="70" height="40" rx="4" fill="#005580"/><text x="365" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">accent-dark</text>
+  <rect x="410" y="10" width="70" height="40" rx="4" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/><text x="445" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#1a1a1a">bg-code</text>
+  <rect x="490" y="10" width="70" height="40" rx="4" fill="#f0f4f8" stroke="#d4d4d4" stroke-width="0.5"/><text x="525" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#1a1a1a">bg-alert</text>
+  <rect x="570" y="10" width="70" height="40" rx="4" fill="#d4d4d4"/><text x="605" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#1a1a1a">border</text>
+</svg>
+
+_Figure: Document palette swatches_
+
+The document palette is monochrome with a single accent color. All content
+remains legible in greyscale print and B&W photocopy.
+
+| Token         | Hex       | Usage                                    |
+| ------------- | --------- | ---------------------------------------- |
+| `text`        | `#1a1a1a` | Body text, headings                      |
+| `secondary`   | `#6b6b6b` | Captions, metadata, footer               |
+| `muted`       | `#999999` | Disabled, placeholder                    |
+| `accent`      | `#0072B2` | Links, cross-references, active elements |
+| `accent-dark` | `#005580` | Visited links, hover state               |
+| `bg-code`     | `#f5f5f5` | Code block background                    |
+| `bg-alert`    | `#f0f4f8` | Alert/admonition background              |
+| `border`      | `#d4d4d4` | Table rules, dividers, code block border |
+| `white`       | `#ffffff` | Page background                          |
+
+#### Diagram palette (categorical)
+
+The Paul Tol qualitative palettes are designed for scientific publishing and
+tested under protanopia, deuteranopia, and tritanopia. Two sub-palettes are
+used, selected by output target:
+
+- **Screen / HTML** (default, ~90% of usage) — **Tol vibrant**: more saturated,
+  designed for data visualization on screens.
+- **Print / PDF** — **Tol bright**: softer tones, designed for print documents.
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 130" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <text x="10" y="18" font-family="sans-serif" font-size="9" font-weight="600" fill="#6b6b6b">Screen (Tol vibrant)</text>
+  <rect x="10" y="24" width="80" height="36" rx="4" fill="#0077BB"/><text x="50" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Blue</text>
+  <rect x="100" y="24" width="80" height="36" rx="4" fill="#33BBEE"/><text x="140" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Cyan</text>
+  <rect x="190" y="24" width="80" height="36" rx="4" fill="#009988"/><text x="230" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Teal</text>
+  <rect x="280" y="24" width="80" height="36" rx="4" fill="#EE7733"/><text x="320" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Orange</text>
+  <rect x="370" y="24" width="80" height="36" rx="4" fill="#CC3311"/><text x="410" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Red</text>
+  <rect x="460" y="24" width="80" height="36" rx="4" fill="#EE3377"/><text x="500" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Magenta</text>
+  <rect x="550" y="24" width="80" height="36" rx="4" fill="#BBBBBB"/><text x="590" y="46" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Grey</text>
+  <text x="10" y="82" font-family="sans-serif" font-size="9" font-weight="600" fill="#6b6b6b">Print (Tol bright)</text>
+  <rect x="10" y="88" width="80" height="36" rx="4" fill="#4477AA"/><text x="50" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Blue</text>
+  <rect x="100" y="88" width="80" height="36" rx="4" fill="#66CCEE"/><text x="140" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Cyan</text>
+  <rect x="190" y="88" width="80" height="36" rx="4" fill="#228833"/><text x="230" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Green</text>
+  <rect x="280" y="88" width="80" height="36" rx="4" fill="#CCBB44"/><text x="320" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Yellow</text>
+  <rect x="370" y="88" width="80" height="36" rx="4" fill="#EE6677"/><text x="410" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Red</text>
+  <rect x="460" y="88" width="80" height="36" rx="4" fill="#AA3377"/><text x="500" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Purple</text>
+  <rect x="550" y="88" width="80" height="36" rx="4" fill="#BBBBBB"/><text x="590" y="110" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Grey</text>
+</svg>
+
+_Figure: Paul Tol categorical palettes — vibrant (screen) and bright (print)_
+
+When a diagram requires categorical distinction (e.g., component types, data
+flows, requirement layers), use the appropriate Tol palette. All colors are
+distinguishable under protanopia, deuteranopia, and tritanopia.
+
+| Name    | Screen (Tol vibrant) | Print (Tol bright) |
+| ------- | -------------------- | ------------------ |
+| Blue    | `#0077BB`            | `#4477AA`          |
+| Cyan    | `#33BBEE`            | `#66CCEE`          |
+| Teal    | `#009988`            | `#228833`          |
+| Orange  | `#EE7733`            | `#CCBB44`          |
+| Red     | `#CC3311`            | `#EE6677`          |
+| Magenta | `#EE3377`            | `#AA3377`          |
+| Grey    | `#BBBBBB`            | `#BBBBBB`          |
+
+Note: Tol vibrant has no yellow — orange (`#EE7733`) is the closest equivalent.
+Tol bright has no magenta — purple (`#AA3377`) is used instead.
+
+When categorical distinction is not needed, diagrams use the document palette
+(monochrome + accent).
+
+#### Alert colors
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 390" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <!-- Screen column -->
+  <text x="10" y="16" font-family="sans-serif" font-size="9" font-weight="600" fill="#6b6b6b">Screen (full border + tint background, Tol vibrant)</text>
+  <rect x="10" y="22" width="330" height="26" rx="3" fill="#eef5fc" stroke="#0077BB" stroke-width="1"/>
+  <text x="24" y="39" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Note</text><text x="60" y="39" font-family="sans-serif" font-size="10" fill="#1a1a1a">— informational context for the reader.</text>
+  <rect x="10" y="56" width="330" height="26" rx="3" fill="#eef7f5" stroke="#009988" stroke-width="1"/>
+  <text x="24" y="73" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Tip</text><text x="48" y="73" font-family="sans-serif" font-size="10" fill="#1a1a1a">— helpful suggestion for the reader.</text>
+  <rect x="10" y="90" width="330" height="26" rx="3" fill="#fdeef5" stroke="#EE3377" stroke-width="1"/>
+  <text x="24" y="107" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Important</text><text x="88" y="107" font-family="sans-serif" font-size="10" fill="#1a1a1a">— key information the reader must know.</text>
+  <rect x="10" y="124" width="330" height="26" rx="3" fill="#fdf4ee" stroke="#EE7733" stroke-width="1"/>
+  <text x="24" y="141" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Warning</text><text x="78" y="141" font-family="sans-serif" font-size="10" fill="#1a1a1a">— potential issue the reader should avoid.</text>
+  <rect x="10" y="158" width="330" height="26" rx="3" fill="#fdeeed" stroke="#CC3311" stroke-width="1"/>
+  <text x="24" y="175" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Caution</text><text x="78" y="175" font-family="sans-serif" font-size="10" fill="#1a1a1a">— action may cause data loss or harm.</text>
+  <!-- Print column -->
+  <text x="10" y="210" font-family="sans-serif" font-size="9" font-weight="600" fill="#6b6b6b">Print / PDF (full border, no background tint, Tol bright)</text>
+  <rect x="10" y="218" width="330" height="26" rx="3" fill="none" stroke="#4477AA" stroke-width="1"/>
+  <text x="24" y="235" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Note</text><text x="60" y="235" font-family="sans-serif" font-size="10" fill="#1a1a1a">— informational context for the reader.</text>
+  <rect x="10" y="252" width="330" height="26" rx="3" fill="none" stroke="#228833" stroke-width="1"/>
+  <text x="24" y="269" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Tip</text><text x="48" y="269" font-family="sans-serif" font-size="10" fill="#1a1a1a">— helpful suggestion for the reader.</text>
+  <rect x="10" y="286" width="330" height="26" rx="3" fill="none" stroke="#AA3377" stroke-width="1"/>
+  <text x="24" y="303" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Important</text><text x="88" y="303" font-family="sans-serif" font-size="10" fill="#1a1a1a">— key information the reader must know.</text>
+  <rect x="10" y="320" width="330" height="26" rx="3" fill="none" stroke="#CCBB44" stroke-width="1"/>
+  <text x="24" y="337" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Warning</text><text x="78" y="337" font-family="sans-serif" font-size="10" fill="#1a1a1a">— potential issue the reader should avoid.</text>
+  <rect x="10" y="354" width="330" height="26" rx="3" fill="none" stroke="#EE6677" stroke-width="1"/>
+  <text x="24" y="371" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Caution</text><text x="78" y="371" font-family="sans-serif" font-size="10" fill="#1a1a1a">— action may cause data loss or harm.</text>
+</svg>
+
+_Figure: Alert rendering — screen (full border + tint, Tol vibrant) vs print
+(full border only, Tol bright)_
+
+Alerts use a **full rectangular border** on all sides, distinguishing them from
+entry blocks (which use a left border only). Screen adds a light background
+tint; print uses an outline-only style to remain legible in greyscale and B&W
+photocopy.
+
+| Alert     | Screen border (Tol vibrant) | Screen bg | Print border (Tol bright) |
+| --------- | --------------------------- | --------- | ------------------------- |
+| NOTE      | `#0077BB` (blue)            | `#eef5fc` | `#4477AA` (blue)          |
+| TIP       | `#009988` (teal)            | `#eef7f5` | `#228833` (green)         |
+| IMPORTANT | `#EE3377` (magenta)         | `#fdeef5` | `#AA3377` (purple)        |
+| WARNING   | `#EE7733` (orange)          | `#fdf4ee` | `#CCBB44` (yellow)        |
+| CAUTION   | `#CC3311` (vermillion)      | `#fdeeed` | `#EE6677` (red)           |
+
+#### Entry type colors
+
+Entry blocks are colored **by type** (the nature of the artifact), not by layer.
+The layer is already encoded in the ID prefix and does not need redundant color
+signaling.
+
+Two Paul Tol sub-palettes are used, selected by output target:
+
+| Type | Prefixes           | Print (Tol bright) | Screen (Tol vibrant) |
+| ---- | ------------------ | ------------------ | -------------------- |
+| req  | STK, SYS, SWE, SRS | Blue `#4477AA`     | Blue `#0077BB`       |
+| spec | ARC, SAD, ICD      | Green `#228833`    | Teal `#009988`       |
+| test | TST, VAL, SIT, SWT | Red `#EE6677`      | Orange `#EE7733`     |
+
+- **Print theme** (Tol bright): default for PDF output. Softer tones, designed
+  by Paul Tol for documents.
+- **Screen theme** (Tol vibrant): default for HTML output. More saturated,
+  designed by Tol for data visualization / dashboards.
+
+Both palettes are colorblind-safe by design (tested for protanopia,
+deuteranopia, tritanopia). No red-green confusion at the chosen mappings.
+
+The print palette uses three colors from the Paul Tol **bright** qualitative
+scheme (7 colors). The screen palette uses three colors from the Paul Tol
+**vibrant** qualitative scheme (7 colors). Both are single-scheme picks — no
+cross-scheme mixing.
+
+The type color is applied to:
+
+1. The **2px left border** of the entry block.
+2. The **display ID** text on the title line.
+
+No other element uses the type color. Body text, metadata, and pills use the
+document's standard text/background colors.
+
+##### Design tokens
+
+The `entries:` section of `docs/spec/tokens.yaml` is the canonical source:
+
+```yaml
+entries:
+  req: { print: "#4477AA", screen: "#0077BB" }
+  spec: { print: "#228833", screen: "#009988" }
+  test: { print: "#EE6677", screen: "#EE7733" }
+```
+
+Running `just tokens` regenerates all downstream files from this source:
+
+| Output file                | Token names emitted                                    |
+| -------------------------- | ------------------------------------------------------ |
+| `themes/light.typ` (Typst) | `entry-req`, `entry-spec`, `entry-test`                |
+| `themes/dark.typ` (Typst)  | `entry-req`, `entry-spec`, `entry-test`                |
+| `docs/theme/markspec.css`  | `--ms-entry-req`, `--ms-entry-spec`, `--ms-entry-test` |
+
+**Palette selection by output target:**
+
+- **PDF output** — uses the Typst **light theme** (`themes/light.typ`), which
+  takes the `print` value (Tol bright) for each type.
+- **HTML output** — uses the CSS `--ms-entry-*` custom properties, which always
+  take the `screen` value (Tol vibrant).
+- **Dark PDF theme** (`themes/dark.typ`) takes the `screen` value (Tol vibrant).
+
+The selection is implemented in `scripts/gen_theme.ts` as
+`palette = name === "light" ? "print" : "screen"`. Edit `tokens.yaml` and run
+`just tokens` to change any color — never edit theme files directly.
+
+## Document elements
+
+### Links
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 50" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <text x="20" y="22" font-family="sans-serif" font-size="12" fill="#1a1a1a">This module implements </text>
+  <text x="195" y="22" font-family="sans-serif" font-size="12" fill="#0072B2" text-decoration="underline">SRS_BRK_0107</text>
+  <text x="305" y="22" font-family="sans-serif" font-size="12" fill="#1a1a1a">. See </text>
+  <text x="340" y="22" font-family="sans-serif" font-size="12" fill="#0072B2" text-decoration="underline">ADR-003</text>
+  <text x="405" y="22" font-family="sans-serif" font-size="12" fill="#1a1a1a"> for diagram rules.</text>
+  <text x="20" y="42" font-family="sans-serif" font-size="12" fill="#1a1a1a">Inline code </text>
+  <rect x="103" y="30" width="130" height="16" rx="3" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="110" y="42" font-family="monospace" font-size="11" fill="#1a1a1a">SRS_BRK_0107</text>
+  <text x="240" y="42" font-family="sans-serif" font-size="12" fill="#1a1a1a"> is not clickable.</text>
+</svg>
+
+_Figure: Resolved references vs inline code_
+
+| Context                | Font               | Color    | Underline                   | Clickable |
+| ---------------------- | ------------------ | -------- | --------------------------- | --------- |
+| `[text](url)` in prose | Surrounding (Sans) | `accent` | PDF: always, HTML: on hover | Yes       |
+| `<url>` autolink       | Mono               | `accent` | PDF: always, HTML: on hover | Yes       |
+| `` `code` `` inline    | Mono               | `text`   | None                        | No        |
+| `{{ref.ID}}` resolved  | Sans               | `accent` | PDF: always, HTML: on hover | Yes       |
+| URL inside code fence  | Mono               | `text`   | None                        | No        |
+| Footnote marker        | Sans, superscript  | `accent` | None                        | Yes       |
+
+Mustache references (`{{namespace.id}}`) are resolved by tooling before
+rendering. In the output they appear as regular cross-reference links, not as
+code. URLs and code literals inside fenced code blocks are never linked — code
+blocks are inert.
+
+### Tables
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 120" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <!-- Caption -->
+  <text x="20" y="20" font-family="sans-serif" font-size="10" font-style="italic" fill="#6b6b6b">Table: Sensor thresholds</text>
+  <!-- Header row -->
+  <rect x="20" y="30" width="400" height="24" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="30" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Sensor</text>
+  <text x="170" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Min</text>
+  <text x="270" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Max</text>
+  <text x="370" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Unit</text>
+  <!-- Row 1 -->
+  <rect x="20" y="54" width="400" height="24" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="30" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">Pressure</text>
+  <text x="170" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">0</text>
+  <text x="270" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">1023</text>
+  <text x="370" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">raw</text>
+  <!-- Row 2 -->
+  <rect x="20" y="78" width="400" height="24" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="30" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">Temperature</text>
+  <text x="170" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">-40</text>
+  <text x="270" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">150</text>
+  <text x="370" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">°C</text>
+  <!-- Column lines -->
+  <line x1="160" y1="30" x2="160" y2="102" stroke="#d4d4d4" stroke-width="0.5"/>
+  <line x1="260" y1="30" x2="260" y2="102" stroke="#d4d4d4" stroke-width="0.5"/>
+  <line x1="360" y1="30" x2="360" y2="102" stroke="#d4d4d4" stroke-width="0.5"/>
+</svg>
+
+_Figure: Table rendering with caption, header, and borders_
+
+| Property          | Value                             |
+| ----------------- | --------------------------------- |
+| Header background | `#f5f5f5`                         |
+| Header weight     | SemiBold                          |
+| Cell padding      | 4pt vertical, 8pt horizontal      |
+| Border            | `#d4d4d4`, 0.5pt solid            |
+| Alternating rows  | None (clean default)              |
+| Caption position  | Above table, italic, `text` color |
+
+### Code blocks
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 100" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <rect x="20" y="10" width="660" height="80" rx="3" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="32" y="30" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">fun</text>
+  <text x="60" y="30" font-family="monospace" font-size="11" fill="#1a1a1a">debounce(raw:</text>
+  <text x="176" y="30" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">Int</text>
+  <text x="200" y="30" font-family="monospace" font-size="11" fill="#1a1a1a">):</text>
+  <text x="216" y="30" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">Int</text>
+  <text x="240" y="30" font-family="monospace" font-size="11" fill="#1a1a1a">{</text>
+  <text x="44" y="48" font-family="monospace" font-size="11" fill="#6b6b6b" font-style="italic">// filter noise below threshold</text>
+  <text x="44" y="66" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">return</text>
+  <text x="98" y="66" font-family="monospace" font-size="11" fill="#1a1a1a">filtered</text>
+  <text x="32" y="84" font-family="monospace" font-size="11" fill="#1a1a1a">}</text>
+  <!-- Legend -->
+  <text x="450" y="30" font-family="sans-serif" font-size="9" fill="#1a1a1a"><tspan font-weight="700">bold</tspan> = keywords</text>
+  <text x="450" y="48" font-family="sans-serif" font-size="9" fill="#6b6b6b"><tspan font-style="italic">italic</tspan> = comments</text>
+  <text x="450" y="66" font-family="sans-serif" font-size="9" fill="#1a1a1a">regular = identifiers</text>
+</svg>
+
+_Figure: Monochrome syntax highlighting_
+
+| Property            | Value                                                            |
+| ------------------- | ---------------------------------------------------------------- |
+| Font                | IBM Plex Mono, 9pt                                               |
+| Background          | `#f5f5f5`                                                        |
+| Border              | `#d4d4d4`, 0.5pt solid                                           |
+| Border radius       | 3pt                                                              |
+| Padding             | 12pt                                                             |
+| Line numbers        | Off by default                                                   |
+| Syntax highlighting | Monochrome — keywords bold, strings italic, comments `secondary` |
+
+Syntax highlighting uses weight and style variation rather than color to remain
+legible in B&W.
+
+### Captions
+
+| Property       | Value                                       |
+| -------------- | ------------------------------------------- |
+| Font           | IBM Plex Sans, 8.5pt, italic                |
+| Color          | `secondary` (`#6b6b6b`)                     |
+| Table caption  | Above the table                             |
+| Figure caption | Below the image                             |
+| Spacing        | `space-2` (8pt) between caption and content |
+
+### Entry blocks
+
+Entry blocks use **admonition-style** rendering: a 2px colored left border
+provides visual distinction from surrounding prose, with no background tint or
+horizontal rules.
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 140" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
+  <!-- Entry block with left border -->
+  <rect x="20" y="10" width="2" height="120" rx="1" fill="#4477AA"/>
+  <!-- Title line -->
+  <text x="34" y="28" font-family="'IBM Plex Sans', sans-serif" font-size="10" font-weight="500" fill="#4477AA">SWE_BRK_0107</text>
+  <text x="124" y="28" font-family="'IBM Plex Sans', sans-serif" font-size="10" font-weight="500" fill="#1a1a1a">Median filter implementation</text>
+  <!-- Pill -->
+  <rect x="305" y="16" width="52" height="16" rx="8" fill="#f5f5f5"/>
+  <text x="331" y="28" text-anchor="middle" font-family="'IBM Plex Sans', sans-serif" font-size="7.5" font-weight="500" fill="#6b6b6b">ASIL-B</text>
+  <!-- Body -->
+  <text x="34" y="50" font-family="'IBM Plex Sans', sans-serif" font-size="10" fill="#1a1a1a">The braking ECU shall apply a 5-sample median filter to the raw</text>
+  <text x="34" y="64" font-family="'IBM Plex Sans', sans-serif" font-size="10" fill="#1a1a1a">brake pressure sensor input before processing.</text>
+  <!-- Metadata line -->
+  <text x="34" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b">Id: SWE_01HGW2Q8MNP3</text>
+  <text x="170" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" fill="#6b6b6b"> · </text>
+  <text x="184" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b">Satisfies: </text>
+  <text x="233" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b" text-decoration="underline" style="text-decoration-style: dashed">SYS_BRK_0042</text>
+  <!-- Dimension labels -->
+  <line x1="680" y1="10" x2="680" y2="14" stroke="#0072B2" stroke-width="0.5"/>
+  <text x="670" y="21" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">title</text>
+  <line x1="680" y1="36" x2="680" y2="42" stroke="#0072B2" stroke-width="0.5"/>
+  <text x="670" y="52" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">body</text>
+  <line x1="680" y1="72" x2="680" y2="82" stroke="#0072B2" stroke-width="0.5"/>
+  <text x="670" y="90" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">metadata</text>
+</svg>
+
+_Figure: Entry block anatomy — admonition-style rendering_
+
+#### Block layout
+
+Each entry block is laid out top-to-bottom:
+
+1. **Title line** — display ID (body size, weight 500, type color) + title text
+   (body size, weight 500, primary text color) + pill group (inline, wraps as
+   block).
+2. **Body** — body size, regular weight, primary text color. Margin-top:
+   `space-1` (4pt) from title line.
+3. **Metadata line** — small size, italic, secondary text color. Margin-top:
+   `space-2` (8pt) from body. Attributes separated by `·` (middle dot with
+   spaces). Attribute order: `Id`, then traceability (`Satisfies` / `Verifies` /
+   `Derived-from`), then any other key-value attributes.
+
+The 2px left border starts flush with the first line of the title — no top
+padding above the title. Inter-block margin is `space-3` (12pt).
+
+#### Label pills
+
+Labels (e.g., `ASIL-B`, `performance`, `real-time`) are rendered as pills
+(rounded badges):
+
+- Font size: small (8.5pt), weight 500.
+- Padding: 1pt vertical, 7pt horizontal.
+- Border-radius: 9pt (fully rounded).
+- Background: code background color (neutral — no type color).
+- Text color: secondary text color.
+- Each pill has `white-space: nowrap` (a single label never breaks).
+
+All pills for an entry are wrapped in a **pill group**:
+
+- Inline flex container with `gap: space-1` (4pt) and `flex-wrap: wrap`.
+- The pill group sits on the title line after the title text.
+- If the group fits on the title line, it renders inline.
+- If it doesn't fit, the entire group wraps to the next line as a block.
+- No labels = no pill group rendered.
+
+#### Cross-reference links
+
+Attribute values that reference other entries (`Satisfies`, `Verifies`,
+`Derived-from`) are rendered as links:
+
+- **Dashed underline** — underline color is lighter than the text (border
+  secondary or equivalent, ~0.3 alpha).
+- **No link color** — the text stays in the same italic/secondary style as the
+  rest of the metadata line.
+- **Underline offset**: 2pt.
+- In HTML: `cursor: pointer`, link target is the anchor of the referenced entry.
+- In PDF: dashed-underline style only. Typst internal link navigation
+  (`#link(<target>)`) is deferred until `req-block` emits labeled anchors (see
+  issue #181).
+
+Non-reference values (`Id` value, other key-value pairs) have no underline —
+they are plain italic text.
+
+#### PDF rendering (Typst)
+
+Entry blocks in PDF output are rendered by `req-block()` in
+`packages/markspec-typst/entry.typ`. The block geometry matches the spec above:
+
+- **Border**: `stroke: (left: 2pt + color)` — left side only.
+- **Inset**: `left: 12pt, top: 0pt, bottom: 4pt, right: 0pt`.
+
+The function signature:
+
+```typst
+#req-block(
+  type: "req",         // "req" | "spec" | "test"
+  display-id: "…",
+  title: "…",
+  body: render("…"),   // entry body rendered via cmarker
+  attrs: (("Key", "Value"),),   // (key, value) pairs; trailing comma required
+  labels: ("ASIL-B",),          // label strings; trailing comma required
+  theme: theme,
+)
+```
+
+The trailing comma on single-element arrays is required: `(expr)` is a
+parenthesised expression in Typst, not a 1-element array.
+
+The `body` argument receives already-rendered Typst content: `render("…")` calls
+`cmarker`'s `render` to convert the entry's Markdown body to Typst. The pipeline
+that builds this call lives in `packages/markspec/render/typst/template.ts`
+(`renderEntryTypst`).
+
+## Document layout
+
+### Page layout
 
 A4 with 25 mm margins gives a 160 mm text width — comfortable for 10pt body text
 at roughly 80 characters per line, matching the Markdown source line width.
@@ -160,392 +644,7 @@ Default page size is **A4** (210 × 297 mm), portrait orientation.
 | Paragraph spacing | 6pt after                                     |
 | Paragraph indent  | None (block style)                            |
 
-## Color palette
-
-### Document palette (default)
-
-Monochrome with one accent ensures B&W printability — critical for auditor
-handoffs and archived compliance documentation.
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 60" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <rect x="10" y="10" width="70" height="40" rx="4" fill="#1a1a1a"/><text x="45" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">text</text>
-  <rect x="90" y="10" width="70" height="40" rx="4" fill="#6b6b6b"/><text x="125" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">secondary</text>
-  <rect x="170" y="10" width="70" height="40" rx="4" fill="#999999"/><text x="205" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">muted</text>
-  <rect x="250" y="10" width="70" height="40" rx="4" fill="#0072B2"/><text x="285" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">accent</text>
-  <rect x="330" y="10" width="70" height="40" rx="4" fill="#005580"/><text x="365" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#ffffff">accent-dark</text>
-  <rect x="410" y="10" width="70" height="40" rx="4" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/><text x="445" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#1a1a1a">bg-code</text>
-  <rect x="490" y="10" width="70" height="40" rx="4" fill="#f0f4f8" stroke="#d4d4d4" stroke-width="0.5"/><text x="525" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#1a1a1a">bg-alert</text>
-  <rect x="570" y="10" width="70" height="40" rx="4" fill="#d4d4d4"/><text x="605" y="34" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#1a1a1a">border</text>
-</svg>
-
-_Figure: Document palette swatches_
-
-The document palette is monochrome with a single accent color. All content
-remains legible in greyscale print and B&W photocopy.
-
-| Token         | Hex       | Usage                                    |
-| ------------- | --------- | ---------------------------------------- |
-| `text`        | `#1a1a1a` | Body text, headings                      |
-| `secondary`   | `#6b6b6b` | Captions, metadata, footer               |
-| `muted`       | `#999999` | Disabled, placeholder                    |
-| `accent`      | `#0072B2` | Links, cross-references, active elements |
-| `accent-dark` | `#005580` | Visited links, hover state               |
-| `bg-code`     | `#f5f5f5` | Code block background                    |
-| `bg-alert`    | `#f0f4f8` | Alert/admonition background              |
-| `border`      | `#d4d4d4` | Table rules, dividers, code block border |
-| `white`       | `#ffffff` | Page background                          |
-
-### Diagram palette (categorical)
-
-The Paul Tol qualitative palette is designed for scientific publishing and
-tested under protanopia, deuteranopia, and tritanopia.
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 60" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <rect x="10" y="10" width="80" height="40" rx="4" fill="#4477AA"/><text x="50" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Blue</text>
-  <rect x="100" y="10" width="80" height="40" rx="4" fill="#66CCEE"/><text x="140" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Cyan</text>
-  <rect x="190" y="10" width="80" height="40" rx="4" fill="#228833"/><text x="230" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Green</text>
-  <rect x="280" y="10" width="80" height="40" rx="4" fill="#CCBB44"/><text x="320" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Yellow</text>
-  <rect x="370" y="10" width="80" height="40" rx="4" fill="#EE6677"/><text x="410" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Red</text>
-  <rect x="460" y="10" width="80" height="40" rx="4" fill="#AA3377"/><text x="500" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Purple</text>
-  <rect x="550" y="10" width="60" height="40" rx="4" fill="#BBBBBB"/><text x="580" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1a1a1a">Grey</text>
-  <rect x="620" y="10" width="60" height="40" rx="4" fill="#999999"/><text x="650" y="34" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff">Dark</text>
-</svg>
-
-_Figure: Paul Tol qualitative palette_
-
-When a diagram requires categorical distinction (e.g., component types, data
-flows, requirement layers), use the Paul Tol qualitative palette. These eight
-colors are designed to remain distinguishable under all forms of color
-blindness.
-
-| Name      | Hex       |
-| --------- | --------- |
-| Blue      | `#4477AA` |
-| Cyan      | `#66CCEE` |
-| Green     | `#228833` |
-| Yellow    | `#CCBB44` |
-| Red       | `#EE6677` |
-| Purple    | `#AA3377` |
-| Grey      | `#BBBBBB` |
-| Dark grey | `#999999` |
-
-When categorical distinction is not needed, diagrams use the document palette
-(monochrome + accent).
-
-### Alert colors
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 170" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <rect x="10" y="10" width="330" height="26" rx="3" fill="#f0f4f8"/><rect x="10" y="10" width="4" height="26" rx="2" fill="#4477AA"/>
-  <text x="24" y="27" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Note</text><text x="60" y="27" font-family="sans-serif" font-size="10" fill="#1a1a1a">— informational context for the reader.</text>
-  <rect x="10" y="44" width="330" height="26" rx="3" fill="#f0f8f2"/><rect x="10" y="44" width="4" height="26" rx="2" fill="#228833"/>
-  <text x="24" y="61" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Tip</text><text x="48" y="61" font-family="sans-serif" font-size="10" fill="#1a1a1a">— helpful suggestion for the reader.</text>
-  <rect x="10" y="78" width="330" height="26" rx="3" fill="#f8f0f6"/><rect x="10" y="78" width="4" height="26" rx="2" fill="#AA3377"/>
-  <text x="24" y="95" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Important</text><text x="88" y="95" font-family="sans-serif" font-size="10" fill="#1a1a1a">— key information the reader must know.</text>
-  <rect x="10" y="112" width="330" height="26" rx="3" fill="#f8f6f0"/><rect x="10" y="112" width="4" height="26" rx="2" fill="#CCBB44"/>
-  <text x="24" y="129" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Warning</text><text x="78" y="129" font-family="sans-serif" font-size="10" fill="#1a1a1a">— potential issue the reader should avoid.</text>
-  <rect x="10" y="146" width="330" height="26" rx="3" fill="#f8f0f0"/><rect x="10" y="146" width="4" height="26" rx="2" fill="#EE6677"/>
-  <text x="24" y="163" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Caution</text><text x="78" y="163" font-family="sans-serif" font-size="10" fill="#1a1a1a">— action may cause data loss or harm.</text>
-</svg>
-
-_Figure: Alert rendering with Tol border colors_
-
-Alerts inherit the document palette. The left border uses a severity-appropriate
-shade from the Tol palette.
-
-| Alert     | Border color       | Background |
-| --------- | ------------------ | ---------- |
-| NOTE      | `#4477AA` (blue)   | `#f0f4f8`  |
-| TIP       | `#228833` (green)  | `#f0f8f2`  |
-| IMPORTANT | `#AA3377` (purple) | `#f8f0f6`  |
-| WARNING   | `#CCBB44` (yellow) | `#f8f6f0`  |
-| CAUTION   | `#EE6677` (red)    | `#f8f0f0`  |
-
-### Entry type colors
-
-Entry blocks are colored **by type** (the nature of the artifact), not by layer.
-The layer is already encoded in the ID prefix and does not need redundant color
-signaling.
-
-Two Paul Tol sub-palettes are used, selected by output target:
-
-| Type | Prefixes           | Print (Tol bright) | Screen (Tol vibrant) |
-| ---- | ------------------ | ------------------ | -------------------- |
-| req  | STK, SYS, SWE, SRS | Blue `#4477AA`     | Blue `#0077BB`       |
-| spec | ARC, SAD, ICD      | Green `#228833`    | Teal `#009988`       |
-| test | TST, VAL, SIT, SWT | Red `#EE6677`      | Orange `#EE7733`     |
-
-- **Print theme** (Tol bright): default for PDF output. Softer tones, designed
-  by Paul Tol for documents.
-- **Screen theme** (Tol vibrant): default for HTML output. More saturated,
-  designed by Tol for data visualization / dashboards.
-
-Both palettes are colorblind-safe by design (tested for protanopia,
-deuteranopia, tritanopia). No red-green confusion at the chosen mappings.
-
-The print palette uses three colors from the Paul Tol **bright** qualitative
-scheme (7 colors). The screen palette uses three colors from the Paul Tol
-**vibrant** qualitative scheme (7 colors). Both are single-scheme picks — no
-cross-scheme mixing.
-
-The type color is applied to:
-
-1. The **2px left border** of the entry block.
-2. The **display ID** text on the title line.
-
-No other element uses the type color. Body text, metadata, and pills use the
-document's standard text/background colors.
-
-## Entry rendering
-
-Entry blocks use **admonition-style** rendering: a 2px colored left border
-provides visual distinction from surrounding prose, with no background tint or
-horizontal rules.
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 140" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <!-- Entry block with left border -->
-  <rect x="20" y="10" width="2" height="120" rx="1" fill="#4477AA"/>
-  <!-- Title line -->
-  <text x="34" y="28" font-family="'IBM Plex Sans', sans-serif" font-size="10" font-weight="500" fill="#4477AA">SWE_BRK_0107</text>
-  <text x="124" y="28" font-family="'IBM Plex Sans', sans-serif" font-size="10" font-weight="500" fill="#1a1a1a">Median filter implementation</text>
-  <!-- Pill -->
-  <rect x="305" y="16" width="52" height="16" rx="8" fill="#f5f5f5"/>
-  <text x="331" y="28" text-anchor="middle" font-family="'IBM Plex Sans', sans-serif" font-size="7.5" font-weight="500" fill="#6b6b6b">ASIL-B</text>
-  <!-- Body -->
-  <text x="34" y="50" font-family="'IBM Plex Sans', sans-serif" font-size="10" fill="#1a1a1a">The braking ECU shall apply a 5-sample median filter to the raw</text>
-  <text x="34" y="64" font-family="'IBM Plex Sans', sans-serif" font-size="10" fill="#1a1a1a">brake pressure sensor input before processing.</text>
-  <!-- Metadata line -->
-  <text x="34" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b">Id: SWE_01HGW2Q8MNP3</text>
-  <text x="170" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" fill="#6b6b6b"> · </text>
-  <text x="184" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b">Satisfies: </text>
-  <text x="233" y="88" font-family="'IBM Plex Sans', sans-serif" font-size="8.5" font-style="italic" fill="#6b6b6b" text-decoration="underline" style="text-decoration-style: dashed">SYS_BRK_0042</text>
-  <!-- Dimension labels -->
-  <line x1="680" y1="10" x2="680" y2="14" stroke="#0072B2" stroke-width="0.5"/>
-  <text x="670" y="21" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">title</text>
-  <line x1="680" y1="36" x2="680" y2="42" stroke="#0072B2" stroke-width="0.5"/>
-  <text x="670" y="52" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">body</text>
-  <line x1="680" y1="72" x2="680" y2="82" stroke="#0072B2" stroke-width="0.5"/>
-  <text x="670" y="90" text-anchor="end" font-family="sans-serif" font-size="7" fill="#0072B2">metadata</text>
-</svg>
-
-_Figure: Entry block anatomy — admonition-style rendering_
-
-### Block layout
-
-Each entry block is laid out top-to-bottom:
-
-1. **Title line** — display ID (body size, weight 500, type color) + title text
-   (body size, weight 500, primary text color) + pill group (inline, wraps as
-   block).
-2. **Body** — body size, regular weight, primary text color. Margin-top:
-   `space-1` (4pt) from title line.
-3. **Metadata line** — small size, italic, secondary text color. Margin-top:
-   `space-2` (8pt) from body. Attributes separated by `·` (middle dot with
-   spaces). Attribute order: `Id`, then traceability (`Satisfies` / `Verifies` /
-   `Derived-from`), then any other key-value attributes.
-
-The 2px left border starts flush with the first line of the title — no top
-padding above the title. Inter-block margin is `space-3` (12pt).
-
-### Label pills
-
-Labels (e.g., `ASIL-B`, `performance`, `real-time`) are rendered as pills
-(rounded badges):
-
-- Font size: small (8.5pt), weight 500.
-- Padding: 1pt vertical, 7pt horizontal.
-- Border-radius: 9pt (fully rounded).
-- Background: code background color (neutral — no type color).
-- Text color: secondary text color.
-- Each pill has `white-space: nowrap` (a single label never breaks).
-
-All pills for an entry are wrapped in a **pill group**:
-
-- Inline flex container with `gap: space-1` (4pt) and `flex-wrap: wrap`.
-- The pill group sits on the title line after the title text.
-- If the group fits on the title line, it renders inline.
-- If it doesn't fit, the entire group wraps to the next line as a block.
-- No labels = no pill group rendered.
-
-### Cross-reference links
-
-Attribute values that reference other entries (`Satisfies`, `Verifies`,
-`Derived-from`) are rendered as links:
-
-- **Dashed underline** — underline color is lighter than the text (border
-  secondary or equivalent, ~0.3 alpha).
-- **No link color** — the text stays in the same italic/secondary style as the
-  rest of the metadata line.
-- **Underline offset**: 2pt.
-- In HTML: `cursor: pointer`, link target is the anchor of the referenced entry.
-- In PDF: Typst internal link (`#link(<target>)`), rendered with the same
-  dashed-underline style.
-
-Non-reference values (`Id` value, other key-value pairs) have no underline —
-they are plain italic text.
-
-## Spacing
-
-A 4pt base unit keeps spacing consistent and proportional. All values are
-multiples of 4 — no magic numbers, easy to reason about.
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 190" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <!-- H2 -->
-  <text x="20" y="24" font-family="sans-serif" font-size="16" font-weight="600" fill="#1a1a1a">Sensor noise filtering</text>
-  <!-- space-6 bracket -->
-  <line x1="680" y1="28" x2="680" y2="52" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="44" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-6</text>
-  <!-- H3 -->
-  <text x="20" y="56" font-family="sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Debounce strategy</text>
-  <!-- space-4 bracket -->
-  <line x1="680" y1="60" x2="680" y2="76" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="72" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-4</text>
-  <!-- Paragraph 1 -->
-  <rect x="20" y="80" width="500" height="6" rx="1" fill="#d4d4d4"/>
-  <rect x="20" y="94" width="460" height="6" rx="1" fill="#d4d4d4"/>
-  <rect x="20" y="108" width="380" height="6" rx="1" fill="#d4d4d4"/>
-  <!-- space-3 bracket -->
-  <line x1="680" y1="112" x2="680" y2="124" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="122" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-3</text>
-  <!-- Paragraph 2 -->
-  <rect x="20" y="128" width="480" height="6" rx="1" fill="#d4d4d4"/>
-  <rect x="20" y="142" width="520" height="6" rx="1" fill="#d4d4d4"/>
-  <rect x="20" y="156" width="300" height="6" rx="1" fill="#d4d4d4"/>
-  <!-- space-2 bracket -->
-  <line x1="680" y1="164" x2="680" y2="172" stroke="#0072B2" stroke-width="0.5"/><text x="670" y="172" text-anchor="end" font-family="sans-serif" font-size="8" fill="#0072B2">space-2</text>
-  <!-- List items -->
-  <circle cx="30" cy="175" r="2" fill="#1a1a1a"/>
-  <rect x="40" y="172" width="300" height="5" rx="1" fill="#d4d4d4"/>
-  <circle cx="30" cy="186" r="2" fill="#1a1a1a"/>
-  <rect x="40" y="183" width="280" height="5" rx="1" fill="#d4d4d4"/>
-</svg>
-
-_Figure: Spacing scale applied to document structure_
-
-A 4pt base unit defines the spacing scale. All vertical and horizontal spacing
-derives from multiples of this unit.
-
-| Token     | Value | Usage                               |
-| --------- | ----- | ----------------------------------- |
-| `space-1` | 4pt   | Inline padding, tight gaps          |
-| `space-2` | 8pt   | Between list items, cell padding    |
-| `space-3` | 12pt  | Between paragraphs within a section |
-| `space-4` | 16pt  | Between sections (below headings)   |
-| `space-6` | 24pt  | Between major sections (below H2)   |
-| `space-8` | 32pt  | Page-level separation               |
-
-## Tables
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 120" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <!-- Caption -->
-  <text x="20" y="20" font-family="sans-serif" font-size="10" font-style="italic" fill="#6b6b6b">Table: Sensor thresholds</text>
-  <!-- Header row -->
-  <rect x="20" y="30" width="400" height="24" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="30" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Sensor</text>
-  <text x="170" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Min</text>
-  <text x="270" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Max</text>
-  <text x="370" y="46" font-family="sans-serif" font-size="10" font-weight="600" fill="#1a1a1a">Unit</text>
-  <!-- Row 1 -->
-  <rect x="20" y="54" width="400" height="24" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="30" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">Pressure</text>
-  <text x="170" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">0</text>
-  <text x="270" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">1023</text>
-  <text x="370" y="70" font-family="sans-serif" font-size="10" fill="#1a1a1a">raw</text>
-  <!-- Row 2 -->
-  <rect x="20" y="78" width="400" height="24" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="30" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">Temperature</text>
-  <text x="170" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">-40</text>
-  <text x="270" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">150</text>
-  <text x="370" y="94" font-family="sans-serif" font-size="10" fill="#1a1a1a">°C</text>
-  <!-- Column lines -->
-  <line x1="160" y1="30" x2="160" y2="102" stroke="#d4d4d4" stroke-width="0.5"/>
-  <line x1="260" y1="30" x2="260" y2="102" stroke="#d4d4d4" stroke-width="0.5"/>
-  <line x1="360" y1="30" x2="360" y2="102" stroke="#d4d4d4" stroke-width="0.5"/>
-</svg>
-
-_Figure: Table rendering with caption, header, and borders_
-
-| Property          | Value                             |
-| ----------------- | --------------------------------- |
-| Header background | `#f5f5f5`                         |
-| Header weight     | SemiBold                          |
-| Cell padding      | 4pt vertical, 8pt horizontal      |
-| Border            | `#d4d4d4`, 0.5pt solid            |
-| Alternating rows  | None (clean default)              |
-| Caption position  | Above table, italic, `text` color |
-
-## Code blocks
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 100" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <rect x="20" y="10" width="660" height="80" rx="3" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="32" y="30" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">fun</text>
-  <text x="60" y="30" font-family="monospace" font-size="11" fill="#1a1a1a">debounce(raw:</text>
-  <text x="176" y="30" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">Int</text>
-  <text x="200" y="30" font-family="monospace" font-size="11" fill="#1a1a1a">):</text>
-  <text x="216" y="30" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">Int</text>
-  <text x="240" y="30" font-family="monospace" font-size="11" fill="#1a1a1a">{</text>
-  <text x="44" y="48" font-family="monospace" font-size="11" fill="#6b6b6b" font-style="italic">// filter noise below threshold</text>
-  <text x="44" y="66" font-family="monospace" font-size="11" font-weight="700" fill="#1a1a1a">return</text>
-  <text x="98" y="66" font-family="monospace" font-size="11" fill="#1a1a1a">filtered</text>
-  <text x="32" y="84" font-family="monospace" font-size="11" fill="#1a1a1a">}</text>
-  <!-- Legend -->
-  <text x="450" y="30" font-family="sans-serif" font-size="9" fill="#1a1a1a"><tspan font-weight="700">bold</tspan> = keywords</text>
-  <text x="450" y="48" font-family="sans-serif" font-size="9" fill="#6b6b6b"><tspan font-style="italic">italic</tspan> = comments</text>
-  <text x="450" y="66" font-family="sans-serif" font-size="9" fill="#1a1a1a">regular = identifiers</text>
-</svg>
-
-_Figure: Monochrome syntax highlighting_
-
-| Property            | Value                                                            |
-| ------------------- | ---------------------------------------------------------------- |
-| Font                | IBM Plex Mono, 9pt                                               |
-| Background          | `#f5f5f5`                                                        |
-| Border              | `#d4d4d4`, 0.5pt solid                                           |
-| Border radius       | 3pt                                                              |
-| Padding             | 12pt                                                             |
-| Line numbers        | Off by default                                                   |
-| Syntax highlighting | Monochrome — keywords bold, strings italic, comments `secondary` |
-
-Syntax highlighting uses weight and style variation rather than color to remain
-legible in B&W.
-
-## Links
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 50" style="background:#ffffff; border:1px solid #d4d4d4; border-radius:3px">
-  <text x="20" y="22" font-family="sans-serif" font-size="12" fill="#1a1a1a">This module implements </text>
-  <text x="195" y="22" font-family="sans-serif" font-size="12" fill="#0072B2" text-decoration="underline">SRS_BRK_0107</text>
-  <text x="305" y="22" font-family="sans-serif" font-size="12" fill="#1a1a1a">. See </text>
-  <text x="340" y="22" font-family="sans-serif" font-size="12" fill="#0072B2" text-decoration="underline">ADR-003</text>
-  <text x="405" y="22" font-family="sans-serif" font-size="12" fill="#1a1a1a"> for diagram rules.</text>
-  <text x="20" y="42" font-family="sans-serif" font-size="12" fill="#1a1a1a">Inline code </text>
-  <rect x="103" y="30" width="130" height="16" rx="3" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="110" y="42" font-family="monospace" font-size="11" fill="#1a1a1a">SRS_BRK_0107</text>
-  <text x="240" y="42" font-family="sans-serif" font-size="12" fill="#1a1a1a"> is not clickable.</text>
-</svg>
-
-_Figure: Resolved references vs inline code_
-
-| Context                | Font               | Color    | Underline                   | Clickable |
-| ---------------------- | ------------------ | -------- | --------------------------- | --------- |
-| `[text](url)` in prose | Surrounding (Sans) | `accent` | PDF: always, HTML: on hover | Yes       |
-| `<url>` autolink       | Mono               | `accent` | PDF: always, HTML: on hover | Yes       |
-| `` `code` `` inline    | Mono               | `text`   | None                        | No        |
-| `{{ref.ID}}` resolved  | Sans               | `accent` | PDF: always, HTML: on hover | Yes       |
-| URL inside code fence  | Mono               | `text`   | None                        | No        |
-| Footnote marker        | Sans, superscript  | `accent` | None                        | Yes       |
-
-Mustache references (`{{namespace.id}}`) are resolved by tooling before
-rendering. In the output they appear as regular cross-reference links, not as
-code. URLs and code literals inside fenced code blocks are never linked — code
-blocks are inert.
-
-## Captions
-
-| Property       | Value                                       |
-| -------------- | ------------------------------------------- |
-| Font           | IBM Plex Sans, 8.5pt, italic                |
-| Color          | `secondary` (`#6b6b6b`)                     |
-| Table caption  | Above the table                             |
-| Figure caption | Below the image                             |
-| Spacing        | `space-2` (8pt) between caption and content |
-
-## Cover page
+### Cover page
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" style="background:#e8e8e8; border:1px solid #d4d4d4; border-radius:3px">
   <!-- Page (A4 ratio 1:1.414 → 260×368) -->
@@ -571,9 +670,9 @@ The cover page is generated from `project.yaml` metadata. Layout:
 
 The cover page has no header or footer.
 
-## Diagrams
+### Diagrams
 
-### Format and embedding
+#### Format and embedding
 
 Diagrams are stored as SVG files alongside the documents that reference them.
 Embedded using standard Markdown image syntax with relative paths:
@@ -596,7 +695,7 @@ the Sans fallback chain from the [Fonts section](#font-fallback-chain):
 
 _Figure: SVG component with font fallback chain_
 
-### SVG sizing for documents (A4, ~25 mm margins)
+#### SVG sizing for documents (A4, ~25 mm margins)
 
 | Type              | Ratio | viewBox (w × h) | Use                                   |
 | ----------------- | ----- | --------------- | ------------------------------------- |
@@ -606,16 +705,7 @@ _Figure: SVG component with font fallback chain_
 | Half width        | 4:3   | 340 × 250       | Inline diagrams, small illustrations  |
 | Full page         | 3:4   | 700 × 900       | Complex diagrams needing a full page  |
 
-### SVG sizing for slides (16:9)
-
-| Type         | Ratio | viewBox (w × h) | Use                         |
-| ------------ | ----- | --------------- | --------------------------- |
-| Full slide   | 16:9  | 1600 × 900      | Full bleed diagram          |
-| Content area | 16:9  | 1400 × 780      | With title and margins      |
-| Half slide   | 9:10  | 700 × 780       | Diagram + text side by side |
-| Quarter      | 16:9  | 700 × 390       | Small inline diagram        |
-
-### Visual style
+#### Visual style
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 280" style="border:1px solid #d4d4d4; border-radius:3px; background:#ffffff">
   <!-- Title -->
@@ -698,7 +788,7 @@ Guidelines:
   [Fonts section](#font-fallback-chain).
 - **Whitespace.** Generous padding between elements.
 
-### Tooling
+#### Tooling
 
 Any tool that produces clean SVG (draw.io, Excalidraw, Inkscape, D2, Graphviz).
 The SVG output is what matters, not the authoring tool.
@@ -707,7 +797,7 @@ PlantUML is recommended for sequence and state machine diagrams — textual,
 diffable source that lives in the repository. Source files use `.puml`
 extension, generated SVG uses `.plantuml.svg` suffix.
 
-### PlantUML presets
+#### PlantUML presets
 
 Key sizing settings:
 
@@ -759,19 +849,92 @@ skinparam defaultFontName "IBM Plex Sans"
 skinparam defaultFontSize 12
 skinparam backgroundColor #ffffff
 skinparam ArrowColor #1a1a1a
-' Tol qualitative palette
+' Tol vibrant palette (screen default)
 skinparam component {
-  BackgroundColor<<req>> #4477AA
-  BackgroundColor<<arch>> #66CCEE
-  BackgroundColor<<test>> #228833
-  BackgroundColor<<ext>> #CCBB44
+  BackgroundColor<<req>> #0077BB
+  BackgroundColor<<arch>> #33BBEE
+  BackgroundColor<<test>> #009988
+  BackgroundColor<<ext>> #EE7733
   FontColor<<req>> #ffffff
   FontColor<<arch>> #1a1a1a
   FontColor<<test>> #ffffff
-  FontColor<<ext>> #1a1a1a
+  FontColor<<ext>> #ffffff
 }
 @enduml
 ```
+
+## Slide decks
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #d4d4d4; border-radius:3px">
+  <rect x="10" y="10" width="680" height="90" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="350" y="42" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="600" fill="#1a1a1a">Braking System Review</text>
+  <text x="350" y="62" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b6b6b">Sprint 12 — 2026-03-23</text>
+  <text x="350" y="78" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#0072B2">INTERNAL</text>
+  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#6b6b6b">1</text>
+</svg>
+
+_Figure: Title slide — light theme_
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #d4d4d4; border-radius:3px">
+  <rect x="10" y="10" width="680" height="90" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
+  <text x="25" y="32" font-family="sans-serif" font-size="14" font-weight="600" fill="#1a1a1a">Sensor pipeline</text>
+  <rect x="25" y="40" width="400" height="4" rx="1" fill="#d4d4d4"/>
+  <rect x="25" y="50" width="360" height="4" rx="1" fill="#d4d4d4"/>
+  <rect x="25" y="60" width="380" height="4" rx="1" fill="#d4d4d4"/>
+  <rect x="25" y="72" width="300" height="22" rx="3" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
+  <rect x="33" y="78" width="160" height="3" rx="1" fill="#999999"/>
+  <rect x="33" y="85" width="120" height="3" rx="1" fill="#999999"/>
+  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#6b6b6b">2</text>
+</svg>
+
+_Figure: Content slide — light theme_
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #404040; border-radius:3px">
+  <rect x="10" y="10" width="680" height="90" fill="#1a1a1a" stroke="#404040" stroke-width="0.5"/>
+  <text x="350" y="42" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="600" fill="#e4e4e4">Braking System Review</text>
+  <text x="350" y="62" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#999999">Sprint 12 — 2026-03-23</text>
+  <text x="350" y="78" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#56b4e9">INTERNAL</text>
+  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#999999">1</text>
+</svg>
+
+_Figure: Title slide — dark theme_
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #404040; border-radius:3px">
+  <rect x="10" y="10" width="680" height="90" fill="#1a1a1a" stroke="#404040" stroke-width="0.5"/>
+  <text x="25" y="32" font-family="sans-serif" font-size="14" font-weight="600" fill="#e4e4e4">Sensor pipeline</text>
+  <rect x="25" y="40" width="400" height="4" rx="1" fill="#404040"/>
+  <rect x="25" y="50" width="360" height="4" rx="1" fill="#404040"/>
+  <rect x="25" y="60" width="380" height="4" rx="1" fill="#404040"/>
+  <rect x="25" y="72" width="300" height="22" rx="3" fill="#2a2a2a" stroke="#404040" stroke-width="0.5"/>
+  <rect x="33" y="78" width="160" height="3" rx="1" fill="#666666"/>
+  <rect x="33" y="85" width="120" height="3" rx="1" fill="#666666"/>
+  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#999999">2</text>
+</svg>
+
+_Figure: Content slide — dark theme_
+
+Slide decks use **16:9** aspect ratio (1920 × 1080 logical units), optimized for
+projectors, wide monitors, and video conferencing. Both light and dark themes
+are supported.
+
+| Property           | Value                       |
+| ------------------ | --------------------------- |
+| Aspect ratio       | 16:9 (1920 × 1080)          |
+| Margins            | 60px top/bottom, 80px sides |
+| Title slide font   | 48pt, SemiBold              |
+| Slide heading (H2) | 36pt, SemiBold              |
+| Body text          | 24pt, Regular               |
+| Code blocks        | 20pt, Mono                  |
+| Footer             | Slide number (right), 14pt  |
+
+### SVG sizing for slides (16:9)
+
+| Type         | Ratio | viewBox (w × h) | Use                         |
+| ------------ | ----- | --------------- | --------------------------- |
+| Full slide   | 16:9  | 1600 × 900      | Full bleed diagram          |
+| Content area | 16:9  | 1400 × 780      | With title and margins      |
+| Half slide   | 9:10  | 700 × 780       | Diagram + text side by side |
+| Quarter      | 16:9  | 700 × 390       | Small inline diagram        |
 
 ## Themes
 
@@ -860,70 +1023,6 @@ explicitly in `project.yaml`.
   }
 }
 ```
-
-## Slide decks
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #d4d4d4; border-radius:3px">
-  <rect x="10" y="10" width="680" height="90" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="350" y="42" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="600" fill="#1a1a1a">Braking System Review</text>
-  <text x="350" y="62" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b6b6b">Sprint 12 — 2026-03-23</text>
-  <text x="350" y="78" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#0072B2">INTERNAL</text>
-  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#6b6b6b">1</text>
-</svg>
-
-_Figure: Title slide — light theme_
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #d4d4d4; border-radius:3px">
-  <rect x="10" y="10" width="680" height="90" fill="#ffffff" stroke="#d4d4d4" stroke-width="0.5"/>
-  <text x="25" y="32" font-family="sans-serif" font-size="14" font-weight="600" fill="#1a1a1a">Sensor pipeline</text>
-  <rect x="25" y="40" width="400" height="4" rx="1" fill="#d4d4d4"/>
-  <rect x="25" y="50" width="360" height="4" rx="1" fill="#d4d4d4"/>
-  <rect x="25" y="60" width="380" height="4" rx="1" fill="#d4d4d4"/>
-  <rect x="25" y="72" width="300" height="22" rx="3" fill="#f5f5f5" stroke="#d4d4d4" stroke-width="0.5"/>
-  <rect x="33" y="78" width="160" height="3" rx="1" fill="#999999"/>
-  <rect x="33" y="85" width="120" height="3" rx="1" fill="#999999"/>
-  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#6b6b6b">2</text>
-</svg>
-
-_Figure: Content slide — light theme_
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #404040; border-radius:3px">
-  <rect x="10" y="10" width="680" height="90" fill="#1a1a1a" stroke="#404040" stroke-width="0.5"/>
-  <text x="350" y="42" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="600" fill="#e4e4e4">Braking System Review</text>
-  <text x="350" y="62" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#999999">Sprint 12 — 2026-03-23</text>
-  <text x="350" y="78" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#56b4e9">INTERNAL</text>
-  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#999999">1</text>
-</svg>
-
-_Figure: Title slide — dark theme_
-
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 110" style="border:1px solid #404040; border-radius:3px">
-  <rect x="10" y="10" width="680" height="90" fill="#1a1a1a" stroke="#404040" stroke-width="0.5"/>
-  <text x="25" y="32" font-family="sans-serif" font-size="14" font-weight="600" fill="#e4e4e4">Sensor pipeline</text>
-  <rect x="25" y="40" width="400" height="4" rx="1" fill="#404040"/>
-  <rect x="25" y="50" width="360" height="4" rx="1" fill="#404040"/>
-  <rect x="25" y="60" width="380" height="4" rx="1" fill="#404040"/>
-  <rect x="25" y="72" width="300" height="22" rx="3" fill="#2a2a2a" stroke="#404040" stroke-width="0.5"/>
-  <rect x="33" y="78" width="160" height="3" rx="1" fill="#666666"/>
-  <rect x="33" y="85" width="120" height="3" rx="1" fill="#666666"/>
-  <text x="670" y="94" text-anchor="end" font-family="sans-serif" font-size="8" fill="#999999">2</text>
-</svg>
-
-_Figure: Content slide — dark theme_
-
-Slide decks use **16:9** aspect ratio (1920 × 1080 logical units), optimized for
-projectors, wide monitors, and video conferencing. Both light and dark themes
-are supported.
-
-| Property           | Value                       |
-| ------------------ | --------------------------- |
-| Aspect ratio       | 16:9 (1920 × 1080)          |
-| Margins            | 60px top/bottom, 80px sides |
-| Title slide font   | 48pt, SemiBold              |
-| Slide heading (H2) | 36pt, SemiBold              |
-| Body text          | 24pt, Regular               |
-| Code blocks        | 20pt, Mono                  |
-| Footer             | Slide number (right), 14pt  |
 
 ## Specimen
 

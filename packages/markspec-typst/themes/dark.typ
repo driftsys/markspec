@@ -18,9 +18,9 @@
 #let entry-test = rgb("#EE7733")
 
 // Alert border colors (Tol palette)
-#let alert-note = rgb("#4477AA")
-#let alert-tip = rgb("#228833")
-#let alert-important = rgb("#AA3377")
-#let alert-warning = rgb("#CCBB44")
-#let alert-caution = rgb("#EE6677")
+#let alert-note = rgb("#0077BB")
+#let alert-tip = rgb("#009988")
+#let alert-important = rgb("#EE3377")
+#let alert-warning = rgb("#EE7733")
+#let alert-caution = rgb("#CC3311")
 
