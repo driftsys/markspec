@@ -75,6 +75,7 @@ jobs:
         with:
           fetch-depth: 0
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/driftsys/git-std/main/install.sh | bash || true
+          curl -fsSL https://github.com/driftsys/git-std/releases/download/v0.10.2/git-std-x86_64-unknown-linux-musl.tar.gz \
+            | tar -xz --strip-components=1 -C /usr/local/bin ./git-std
           git-std --version
       - run: git-std check --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
