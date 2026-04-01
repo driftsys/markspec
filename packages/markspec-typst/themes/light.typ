@@ -1,4 +1,4 @@
-// Generated from docs/spec/tokens.yaml — do not edit.
+// Generated from theme/tokens.yaml — do not edit.
 
 // MarkSpec light theme.
 
