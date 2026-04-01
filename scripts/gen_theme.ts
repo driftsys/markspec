@@ -13,8 +13,7 @@ const TYPST_DIR = join(ROOT, "packages/markspec-typst");
 const CSS_DIR = join(ROOT, "theme");
 
 const HEADER_TYPST = "// Generated from theme/tokens.yaml — do not edit.\n";
-const HEADER_CSS =
-  "/* Generated from theme/tokens.yaml — do not edit. */\n";
+const HEADER_CSS = "/* Generated from theme/tokens.yaml — do not edit. */\n";
 
 // ── Load tokens ─────────────────────────────────────────────────────────
 
