@@ -5,10 +5,10 @@ language = "en"
 src = "."
 
 [build]
-build-dir = "../../_site/spec"
+build-dir = "../../../_site/spec"
 
 [output.html]
 no-section-label = true
-additional-css = ["../theme/markspec.css"]
+additional-css = ["../../../theme/markspec.css"]
 git-repository-url = "https://github.com/driftsys/markspec"
-edit-url-template = "https://github.com/driftsys/markspec/edit/main/docs/spec/{path}"
+edit-url-template = "https://github.com/driftsys/markspec/edit/main/docs/spec/language/{path}"
