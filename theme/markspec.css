@@ -129,3 +129,28 @@ h1, h2, h3, h4 { font-weight: 600; }
 .pill { font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 9px; background: var(--ms-bg-code); color: var(--ms-secondary); white-space: nowrap; }
 .cross-ref { text-decoration: underline dashed; text-decoration-color: var(--ms-border); text-underline-offset: 2px; color: inherit; cursor: pointer; }
 
+/* ── Alerts ─────────────────────────────────────────────── */
+
+.alert {
+  border: 1px solid var(--ms-border);
+  border-radius: 3px;
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0;
+}
+.alert.note { border-color: var(--ms-alert-note-border); background: var(--ms-alert-note-bg); }
+.alert.tip { border-color: var(--ms-alert-tip-border); background: var(--ms-alert-tip-bg); }
+.alert.important { border-color: var(--ms-alert-important-border); background: var(--ms-alert-important-bg); }
+.alert.warning { border-color: var(--ms-alert-warning-border); background: var(--ms-alert-warning-bg); }
+.alert.caution { border-color: var(--ms-alert-caution-border); background: var(--ms-alert-caution-bg); }
+.alert-label { display: block; font-weight: 600; margin-bottom: var(--space-1); }
+
+/* ── Captions ───────────────────────────────────────────── */
+
+p.caption {
+  font-size: var(--size-small);
+  color: var(--ms-secondary);
+  font-style: italic;
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+

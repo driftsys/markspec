@@ -710,8 +710,10 @@
           "jsr:@std/assert@1",
           "npm:@myriaddreamin/typst-ts-node-compiler@0.6",
           "npm:@types/mdast@4",
+          "npm:rehype-stringify@10",
           "npm:remark-gfm@4",
           "npm:remark-parse@11",
+          "npm:remark-rehype@11",
           "npm:unified@11",
           "npm:web-tree-sitter@0.24"
         ]

@@ -4,7 +4,8 @@
   "exports": {
     ".": "./core/mod.ts",
     "./core": "./core/mod.ts",
-    "./render": "./render/mod.ts"
+    "./render": "./render/mod.ts",
+    "./book": "./book/mod.ts"
   },
   "imports": {
     "@cliffy/command": "jsr:@cliffy/command@^1",
@@ -12,6 +13,8 @@
     "unified": "npm:unified@^11",
     "remark-parse": "npm:remark-parse@^11",
     "remark-gfm": "npm:remark-gfm@^4",
+    "remark-rehype": "npm:remark-rehype@^11",
+    "rehype-stringify": "npm:rehype-stringify@^10",
     "mdast": "npm:@types/mdast@^4",
     "web-tree-sitter": "npm:web-tree-sitter@^0.24",
     "typst-ts-node-compiler": "npm:@myriaddreamin/typst-ts-node-compiler@^0.6"
