@@ -33,10 +33,10 @@ Deno.test("format with no args exits 1", async () => {
   assertStringIncludes(stderr, "no files specified");
 });
 
-Deno.test("book build prints not yet implemented", async () => {
+Deno.test("book build without project.yaml exits 1", async () => {
   const { code, stderr } = await markspec(["book", "build"]);
   assertEquals(code, 1);
-  assertStringIncludes(stderr, "not yet implemented");
+  assertStringIncludes(stderr, "no project.yaml found");
 });
 
 Deno.test("help subcommand shows root help", async () => {
