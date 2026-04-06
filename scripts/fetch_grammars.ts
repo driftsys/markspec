@@ -51,7 +51,7 @@ const GRAMMARS: Record<string, Grammar> = {
   "tree-sitter-c.wasm": {
     source: "npm",
     pkg: "tree-sitter-c",
-    version: "0.23.5",
+    version: "0.24.1",
   },
   "tree-sitter-cpp.wasm": {
     source: "npm",
