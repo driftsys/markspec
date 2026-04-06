@@ -27,11 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mdBook
-        uses: peaceiris/actions-mdbook@v2
-        with:
-          mdbook-version: latest
-
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -40,13 +35,16 @@ jobs:
         run: deno run --allow-read --allow-write scripts/gen_theme.ts
 
       - name: Build language spec book
-        run: mdbook build docs/spec/language
+        working-directory: docs/spec/language
+        run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/spec
 
       - name: Build typography book
-        run: mdbook build docs/spec/typography
+        working-directory: docs/spec/typography
+        run: deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/typography
 
       - name: Build guide book
-        run: mdbook build docs/guide
+        working-directory: docs/guide
+        run: deno run --allow-read --allow-write ../../packages/markspec/main.ts book build --output ../../_site/guide
 
       - name: Install Typst
         uses: typst-community/setup-typst@v4
