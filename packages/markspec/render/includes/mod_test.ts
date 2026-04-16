@@ -14,12 +14,13 @@ function testEntry(overrides: Partial<Entry> = {}): Entry {
     title: "Sensor debouncing",
     body: "The sensor driver shall debounce raw inputs.",
     attributes: [
-      { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+      { key: "Id", value: "SRS_00000000000000000000000001" },
       { key: "Satisfies", value: "SYS_BRK_0001" },
       { key: "Labels", value: "ASIL-B" },
     ],
-    id: "SRS_01HGW2Q8MNP3",
+    id: "SRS_00000000000000000000000001",
     entryType: "SRS",
+    family: "spec",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
     ...overrides,
@@ -73,7 +74,7 @@ Deno.test("processIncludes: display ID resolves to full entry", async () => {
       "",
       "  The sensor driver shall debounce raw inputs.",
       "",
-      "  Id: SRS_01HGW2Q8MNP3 \\",
+      "  Id: SRS_00000000000000000000000001 \\",
       "  Satisfies: SYS_BRK_0001 \\",
       "  Labels: ASIL-B",
       "",
@@ -146,8 +147,8 @@ Deno.test("processIncludes: multiple includes all resolve", async () => {
     displayId: "SRS_BRK_0002",
     title: "Brake pressure",
     body: "Brake pressure shall be monitored.",
-    attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP4" }],
-    id: "SRS_01HGW2Q8MNP4",
+    attributes: [{ key: "Id", value: "SRS_00000000000000000000000002" }],
+    id: "SRS_00000000000000000000000002",
   });
 
   const input = [

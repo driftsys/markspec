@@ -8,7 +8,7 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { validate } from "./mod.ts";
 import type { Entry } from "../model/mod.ts";
 
-/** Helper to build a typed entry. */
+/** Helper to build a spec entry. */
 function typedEntry(
   overrides: Partial<Entry> & { displayId: string },
 ): Entry {
@@ -17,6 +17,7 @@ function typedEntry(
     body: "Body.",
     attributes: [],
     entryType: "SRS",
+    family: "spec",
     source: "markdown",
     location: { file: "test.md", line: 1, column: 1 },
     ...overrides,
@@ -33,6 +34,7 @@ function refEntry(
     body: "Body.",
     attributes: [],
     entryType: undefined,
+    family: "reference",
     id: undefined,
     source: "markdown",
     location: { file: "refs.md", line: 1, column: 1 },
@@ -48,8 +50,8 @@ Deno.test("validate: valid entries pass", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
     }),
   ];
   const result = validate(entries);
@@ -85,14 +87,14 @@ Deno.test("validate: duplicate display ID → MSL-R006", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
       location: { file: "a.md", line: 3, column: 1 },
     }),
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2R9QLP4",
-      attributes: [{ key: "Id", value: "SRS_01HGW2R9QLP4" }],
+      id: "SRS_00000000000000000000000002",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000002" }],
       location: { file: "b.md", line: 5, column: 1 },
     }),
   ];
@@ -108,14 +110,14 @@ Deno.test("validate: duplicate ULID → MSL-R005", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
       location: { file: "a.md", line: 3, column: 1 },
     }),
     typedEntry({
       displayId: "SRS_BRK_0002",
-      id: "SRS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
       location: { file: "b.md", line: 5, column: 1 },
     }),
   ];
@@ -131,8 +133,8 @@ Deno.test("validate: type prefix mismatch → MSL-R007", () => {
     typedEntry({
       displayId: "SRS_BRK_0001",
       entryType: "SRS",
-      id: "SYS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SYS_01HGW2Q8MNP3" }],
+      id: "SYS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SYS_00000000000000000000000001" }],
     }),
   ];
   const result = validate(entries);
@@ -146,9 +148,9 @@ Deno.test("validate: unknown attribute key → MSL-R010 warning", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
+      id: "SRS_00000000000000000000000001",
       attributes: [
-        { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+        { key: "Id", value: "SRS_00000000000000000000000001" },
         { key: "CustomKey", value: "some value" },
       ],
     }),
@@ -203,14 +205,14 @@ Deno.test("validate: Satisfies target exists → passes", () => {
     typedEntry({
       displayId: "SYS_BRK_0042",
       entryType: "SYS",
-      id: "SYS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SYS_01HGW2Q8MNP3" }],
+      id: "SYS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SYS_00000000000000000000000001" }],
     }),
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2R9QLP4",
+      id: "SRS_00000000000000000000000002",
       attributes: [
-        { key: "Id", value: "SRS_01HGW2R9QLP4" },
+        { key: "Id", value: "SRS_00000000000000000000000002" },
         { key: "Satisfies", value: "SYS_BRK_0042" },
       ],
       location: { file: "test.md", line: 10, column: 1 },
@@ -228,9 +230,9 @@ Deno.test("validate: Satisfies target missing → MSL-T001", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
+      id: "SRS_00000000000000000000000001",
       attributes: [
-        { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+        { key: "Id", value: "SRS_00000000000000000000000001" },
         { key: "Satisfies", value: "SYS_BRK_9999" },
       ],
     }),
@@ -247,14 +249,14 @@ Deno.test("validate: multi-value Satisfies with one missing", () => {
     typedEntry({
       displayId: "SYS_BRK_0001",
       entryType: "SYS",
-      id: "SYS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SYS_01HGW2Q8MNP3" }],
+      id: "SYS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SYS_00000000000000000000000001" }],
     }),
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2R9QLP4",
+      id: "SRS_00000000000000000000000002",
       attributes: [
-        { key: "Id", value: "SRS_01HGW2R9QLP4" },
+        { key: "Id", value: "SRS_00000000000000000000000002" },
         { key: "Satisfies", value: "SYS_BRK_0001, SYS_BRK_9999" },
       ],
       location: { file: "test.md", line: 10, column: 1 },
@@ -275,9 +277,9 @@ Deno.test("validate: Derived-from ID checked against entries", () => {
     }),
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
+      id: "SRS_00000000000000000000000001",
       attributes: [
-        { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+        { key: "Id", value: "SRS_00000000000000000000000001" },
         { key: "Derived-from", value: "ISO-26262-6 §9.4" },
       ],
     }),
@@ -292,9 +294,9 @@ Deno.test("validate: Derived-from unresolved → MSL-T004 warning", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
+      id: "SRS_00000000000000000000000001",
       attributes: [
-        { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+        { key: "Id", value: "SRS_00000000000000000000000001" },
         { key: "Derived-from", value: "UNKNOWN-REF §1.2" },
       ],
     }),
@@ -307,83 +309,136 @@ Deno.test("validate: Derived-from unresolved → MSL-T004 warning", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Allocates and Between (MSL-T008, MSL-T009)
+// ADR-002 new checks (MSL-R008, MSL-R009, MSL-T005, MSL-T006)
 // ---------------------------------------------------------------------------
 
-Deno.test("validate: Allocates target missing → MSL-T008", () => {
+Deno.test("validate: reference entry missing URI and URL → MSL-R008", () => {
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "ISO-26262-6",
+      attributes: [{ key: "Document", value: "ISO 26262-6:2018" }],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, false);
+  const r008 = result.diagnostics.find((d) => d.code === "MSL-R008");
+  assertEquals(r008 != null, true);
+  assertStringIncludes(r008!.message, "URI or URL");
+});
+
+Deno.test("validate: reference entry with URL → passes", () => {
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "ISO-26262-6",
+      attributes: [
+        { key: "Document", value: "ISO 26262-6:2018" },
+        { key: "URL", value: "https://www.iso.org/standard/68383.html" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, true);
+});
+
+Deno.test("validate: spec entry NNNN = 0 → MSL-R009", () => {
   const entries: Entry[] = [
     typedEntry({
-      displayId: "SAD_BRK_0010",
-      entryType: "SAD",
-      id: "SAD_01HGW3A2EFG3",
+      displayId: "SRS_BRK_000",
+      id: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+      attributes: [{
+        key: "Id",
+        value: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+      }],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, false);
+  const r009 = result.diagnostics.find((d) => d.code === "MSL-R009");
+  assertEquals(r009 != null, true);
+  assertStringIncludes(r009!.message, "NNNN must be > 0");
+});
+
+Deno.test("validate: References target exists → passes", () => {
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "ISO-26262-6",
       attributes: [
-        { key: "Id", value: "SAD_01HGW3A2EFG3" },
-        { key: "Allocates", value: "SRS_NONEXISTENT" },
+        { key: "URL", value: "https://www.iso.org/standard/68383.html" },
+      ],
+    }),
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000001" },
+        { key: "References", value: "ISO-26262-6" },
+      ],
+      location: { file: "test.md", line: 10, column: 1 },
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, true);
+});
+
+Deno.test("validate: References target missing → MSL-T005", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000001RSTVWXYZABCDE" },
+        { key: "References", value: "UNKNOWN-REF" },
       ],
     }),
   ];
   const result = validate(entries);
   assertEquals(result.valid, false);
-  const t008 = result.diagnostics.find((d) => d.code === "MSL-T008");
-  assertEquals(t008 != null, true);
-  assertStringIncludes(t008!.message, "SRS_NONEXISTENT");
+  const t005 = result.diagnostics.find((d) => d.code === "MSL-T005");
+  assertEquals(t005 != null, true);
+  assertStringIncludes(t005!.message, "UNKNOWN-REF");
 });
 
-Deno.test("validate: Allocates target exists → passes", () => {
+Deno.test("validate: Allocated-to target missing → MSL-T006", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SAD_BRK_0010",
+      entryType: "SAD",
+      id: "SAD_00000000000000000000000010",
+      attributes: [
+        { key: "Id", value: "SAD_00000000000000000000000010" },
+        { key: "Allocated-to", value: "SRS_NONEXISTENT" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(result.valid, false);
+  const t006 = result.diagnostics.find((d) => d.code === "MSL-T006");
+  assertEquals(t006 != null, true);
+  assertStringIncludes(t006!.message, "SRS_NONEXISTENT");
+});
+
+Deno.test("validate: Allocated-to target exists → passes", () => {
   const entries: Entry[] = [
     typedEntry({
       displayId: "SRS_BRK_0001",
-      id: "SRS_01HGW2Q8MNP3",
-      attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
+      id: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+      attributes: [{
+        key: "Id",
+        value: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+      }],
     }),
     typedEntry({
       displayId: "SAD_BRK_0010",
       entryType: "SAD",
-      id: "SAD_01HGW3A2EFG3",
+      id: "SAD_00000000000000000000000010",
       attributes: [
-        { key: "Id", value: "SAD_01HGW3A2EFG3" },
-        { key: "Allocates", value: "SRS_BRK_0001" },
+        { key: "Id", value: "SAD_00000000000000000000000010" },
+        { key: "Allocated-to", value: "SRS_BRK_0001" },
       ],
       location: { file: "arch.md", line: 10, column: 1 },
     }),
   ];
   const result = validate(entries);
-  const t008 = result.diagnostics.filter((d) => d.code === "MSL-T008");
-  assertEquals(t008.length, 0);
-});
-
-Deno.test("validate: Between with 2 parties → passes", () => {
-  const entries: Entry[] = [
-    typedEntry({
-      displayId: "ICD_BRK_0001",
-      entryType: "ICD",
-      id: "ICD_01HGW4A1BCD2",
-      attributes: [
-        { key: "Id", value: "ICD_01HGW4A1BCD2" },
-        { key: "Between", value: "braking-ecu, vehicle-dynamics-ecu" },
-      ],
-    }),
-  ];
-  const result = validate(entries);
-  const t009 = result.diagnostics.filter((d) => d.code === "MSL-T009");
-  assertEquals(t009.length, 0);
-});
-
-Deno.test("validate: Between with 1 party → MSL-T009", () => {
-  const entries: Entry[] = [
-    typedEntry({
-      displayId: "ICD_BRK_0001",
-      entryType: "ICD",
-      id: "ICD_01HGW4A1BCD2",
-      attributes: [
-        { key: "Id", value: "ICD_01HGW4A1BCD2" },
-        { key: "Between", value: "braking-ecu" },
-      ],
-    }),
-  ];
-  const result = validate(entries);
-  assertEquals(result.valid, false);
-  const t009 = result.diagnostics.find((d) => d.code === "MSL-T009");
-  assertEquals(t009 != null, true);
-  assertStringIncludes(t009!.message, "found 1");
+  const t006 = result.diagnostics.filter((d) => d.code === "MSL-T006");
+  assertEquals(t006.length, 0);
 });

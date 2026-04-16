@@ -7,32 +7,27 @@
 
 import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
 
-/** Known attribute keys for typed entries. */
-const TYPED_ATTR_KEYS = new Set([
+/** Known attribute keys for spec entries per ADR-002. */
+const SPEC_ATTR_KEYS = new Set([
   "Id",
   "Satisfies",
   "Derived-from",
-  "Allocates",
-  "Component",
-  "Constrains",
-  "Between",
-  "Interface",
-  "Verifies",
-  "Implements",
+  "References",
+  "Allocated-to",
   "Labels",
 ]);
 
-/** Known attribute keys for reference entries. */
+/** Known attribute keys for reference entries per ADR-002. */
 const REF_ATTR_KEYS = new Set([
-  "Document",
+  "URI",
   "URL",
-  "Status",
+  "Document",
   "Superseded-by",
-  "Derived-from",
+  "Labels",
 ]);
 
-/** ULID format: TYPE prefix + underscore + 12-26 alphanumeric chars. */
-const ULID_RE = /^[A-Z]+_[0-9A-Z]{12,26}$/;
+/** ULID format per ADR-002: TYPE prefix (2-6 chars) + underscore + 26 alphanumeric chars. */
+const ULID_RE = /^[A-Z]{2,6}_[0-9A-Z]{26}$/;
 
 /** Result of a validation pass. */
 export interface ValidateResult {
@@ -68,10 +63,10 @@ function checkStructural(
   const ulids = new Map<string, Entry>();
 
   for (const entry of entries) {
-    const isTyped = entry.entryType != null;
+    const isSpec = entry.family === "spec";
 
-    // MSL-R003: Typed entry must have Id attribute with valid ULID format.
-    if (isTyped) {
+    // MSL-R003: Spec entry must have Id attribute with valid ULID format.
+    if (isSpec) {
       if (!entry.id) {
         diagnostics.push({
           code: "MSL-R003",
@@ -90,7 +85,7 @@ function checkStructural(
     }
 
     // MSL-R004: Exactly one Id per entry.
-    if (isTyped) {
+    if (isSpec) {
       const idCount = entry.attributes.filter((a) => a.key === "Id").length;
       if (idCount > 1) {
         diagnostics.push({
@@ -103,7 +98,7 @@ function checkStructural(
     }
 
     // MSL-R007: Display ID type prefix must match ULID type prefix.
-    if (isTyped && entry.id && ULID_RE.test(entry.id)) {
+    if (isSpec && entry.id && ULID_RE.test(entry.id)) {
       const displayPrefix = entry.entryType!;
       const ulidPrefix = entry.id.split("_")[0];
       if (displayPrefix !== ulidPrefix) {
@@ -114,6 +109,38 @@ function checkStructural(
             `${entry.displayId}: type prefix '${displayPrefix}' does not match Id prefix '${ulidPrefix}'`,
           location: entry.location,
         });
+      }
+    }
+
+    // MSL-R008: Reference entry must have URI or URL attribute.
+    if (!isSpec) {
+      const hasUri = entry.attributes.some((a) => a.key === "URI");
+      const hasUrl = entry.attributes.some((a) => a.key === "URL");
+      if (!hasUri && !hasUrl) {
+        diagnostics.push({
+          code: "MSL-R008",
+          severity: "error",
+          message:
+            `${entry.displayId}: reference entry must have URI or URL attribute`,
+          location: entry.location,
+        });
+      }
+    }
+
+    // MSL-R009: Spec entry NNNN must be > 0 (no 000, 0000, etc.).
+    if (isSpec) {
+      // Extract NNNN from display ID (last segment after last underscore)
+      const parts = entry.displayId.split("_");
+      if (parts.length >= 3) {
+        const nnnn = parts[parts.length - 1];
+        if (/^\d+$/.test(nnnn) && parseInt(nnnn, 10) === 0) {
+          diagnostics.push({
+            code: "MSL-R009",
+            severity: "error",
+            message: `${entry.displayId}: NNNN must be > 0`,
+            location: entry.location,
+          });
+        }
       }
     }
 
@@ -148,7 +175,7 @@ function checkStructural(
     }
 
     // MSL-R010: Unknown attribute keys.
-    const knownKeys = isTyped ? TYPED_ATTR_KEYS : REF_ATTR_KEYS;
+    const knownKeys = isSpec ? SPEC_ATTR_KEYS : REF_ATTR_KEYS;
     for (const attr of entry.attributes) {
       if (!knownKeys.has(attr.key)) {
         diagnostics.push({
@@ -203,38 +230,39 @@ function checkReferences(
       }
     }
 
-    // MSL-T008: Allocates targets must be SRS entries (resolve against known IDs).
-    const allocates = findAttr(entry.attributes, "Allocates");
-    if (allocates) {
-      const targets = allocates.value.split(",").map((s) => s.trim());
+    // MSL-T005: References targets must exist.
+    const references = findAttr(entry.attributes, "References");
+    if (references) {
+      const targets = references.value.split(",").map((s) => s.trim());
       for (const target of targets) {
         if (!target) continue;
         if (!knownIds.has(target)) {
           diagnostics.push({
-            code: "MSL-T008",
+            code: "MSL-T005",
             severity: "error",
             message:
-              `${entry.displayId}: unresolved reference '${target}' in Allocates`,
+              `${entry.displayId}: unresolved reference '${target}' in References`,
             location: entry.location,
           });
         }
       }
     }
 
-    // MSL-T009: Between must list exactly two parties.
-    const between = findAttr(entry.attributes, "Between");
-    if (between) {
-      const parties = between.value.split(",").map((s) => s.trim()).filter(
-        (s) => s.length > 0,
-      );
-      if (parties.length !== 2) {
-        diagnostics.push({
-          code: "MSL-T009",
-          severity: "error",
-          message:
-            `${entry.displayId}: Between must list exactly 2 parties, found ${parties.length}`,
-          location: entry.location,
-        });
+    // MSL-T006: Allocated-to targets must exist.
+    const allocatedTo = findAttr(entry.attributes, "Allocated-to");
+    if (allocatedTo) {
+      const targets = allocatedTo.value.split(",").map((s) => s.trim());
+      for (const target of targets) {
+        if (!target) continue;
+        if (!knownIds.has(target)) {
+          diagnostics.push({
+            code: "MSL-T006",
+            severity: "error",
+            message:
+              `${entry.displayId}: unresolved reference '${target}' in Allocated-to`,
+            location: entry.location,
+          });
+        }
       }
     }
   }

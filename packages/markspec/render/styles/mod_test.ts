@@ -33,6 +33,7 @@ function buildCompiled(
       attributes: e.attributes ?? [],
       id: e.id,
       entryType: e.entryType,
+      family: e.entryType ? "spec" : "reference",
       location: { file: "test.md", line: 1, column: 1 },
       source: "markdown",
     };

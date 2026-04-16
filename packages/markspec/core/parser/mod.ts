@@ -62,6 +62,16 @@ export interface ParseFileResult {
 }
 
 /**
+ * Detect if a file is a references document.
+ * References context enables recognition of reference entries (slugs).
+ * @param file - File path
+ */
+function isReferencesDocument(file: string): boolean {
+  const basename = file.split("/").pop() ?? "";
+  return basename === "references.md" || file.includes("/references/");
+}
+
+/**
  * Parse a file and return entries and annotation links, dispatching by type.
  *
  * Source files (`.rs`, `.java`, `.c`, `.cpp`, etc.) are parsed with
@@ -83,7 +93,11 @@ export async function parseFile(
     return parseSource(content, { file: options.file, language });
   }
 
-  return { entries: parseMarkdown(content, options), links: [] };
+  const isReferencesDoc = isReferencesDocument(options.file);
+  return {
+    entries: parseMarkdown(content, { file: options.file, isReferencesDoc }),
+    links: [],
+  };
 }
 
 /**

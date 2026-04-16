@@ -6,7 +6,7 @@
  */
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
-import type { Entry, EntryType } from "../model/mod.ts";
+import type { Entry, EntryFamily, EntryType } from "../model/mod.ts";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
 import { processor } from "./remark.ts";
 
@@ -14,18 +14,25 @@ import { processor } from "./remark.ts";
 export interface ParseMarkdownOptions {
   /** File path used in source locations. */
   readonly file?: string;
+  /** Is this a references document? If undefined, auto-detect from file path. */
+  readonly isReferencesDoc?: boolean;
 }
 
 /**
- * Typed entry display ID pattern: `TYPE_XYZ_NNN[N]`.
- * TYPE = 2+ uppercase letters, XYZ = 2-12 uppercase letters, NNN[N] = 3 or 4 zero-padded digits.
+ * Spec entry display ID pattern per ADR-002.
+ * TYPE = 2-6 uppercase letters
+ * DOMAIN = 3-8 uppercase alphanumeric (first letter uppercase)
+ * SUBDOMAIN = optional, same as DOMAIN
+ * NNNN = 3-6 digits, must be > 0
  */
-const TYPED_ID_RE = /^([A-Z]{2,})_[A-Z]{2,12}_\d{3,4}$/;
+const TYPED_ID_RE =
+  /^([A-Z]{2,6})_[A-Z][A-Z0-9]{2,7}(_[A-Z][A-Z0-9]{2,7})?_\d{3,6}$/;
 
 /**
- * Reference entry display ID pattern: letters, digits, hyphens.
+ * Reference entry slug pattern per ADR-002.
+ * Starts with letter, alphanumeric + internal hyphens/dots.
  */
-const REF_ID_RE = /^[A-Za-z0-9-]{2,}$/;
+const REF_SLUG_RE = /^[A-Za-z][A-Za-z0-9]*([.-][A-Za-z0-9]+)*$/;
 
 /**
  * Match a display ID in `[...]` at the start of a list item paragraph.
@@ -49,6 +56,10 @@ export function parseMarkdown(
   options?: ParseMarkdownOptions,
 ): Entry[] {
   const file = options?.file ?? "<unknown>";
+  const isReferencesDoc = detectReferencesDocument(
+    file,
+    options?.isReferencesDoc,
+  );
   const tree = processor.parse(markdown);
   const entries: Entry[] = [];
 
@@ -67,12 +78,33 @@ export function parseMarkdown(
     if (list.ordered) continue;
 
     for (const item of list.children) {
-      const entry = extractEntry(item, markdown, file, definitions);
+      const entry = extractEntry(
+        item,
+        markdown,
+        file,
+        definitions,
+        isReferencesDoc,
+      );
       if (entry) entries.push(entry);
     }
   }
 
   return entries;
+}
+
+/**
+ * Detect if a file is a references document.
+ * References context enables recognition of reference entries (slugs).
+ * @param file - File path
+ * @param explicit - Explicit override (undefined = auto-detect)
+ */
+function detectReferencesDocument(
+  file: string,
+  explicit: boolean | undefined,
+): boolean {
+  if (explicit !== undefined) return explicit;
+  const basename = file.split("/").pop() ?? "";
+  return basename === "references.md" || file.includes("/references/");
 }
 
 /**
@@ -84,6 +116,7 @@ function extractEntry(
   markdown: string,
   file: string,
   definitions: Set<string>,
+  isReferencesDoc: boolean,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -149,21 +182,25 @@ function extractEntry(
 
   if (!displayId) return undefined;
 
-  // Validate display ID format
-  if (!TYPED_ID_RE.test(displayId) && !REF_ID_RE.test(displayId)) {
+  // Discriminate spec vs reference entry
+  let family: EntryFamily | undefined;
+  let entryType: EntryType | undefined;
+
+  const typedMatch = TYPED_ID_RE.exec(displayId);
+  if (typedMatch) {
+    family = "spec";
+    entryType = typedMatch[1] as EntryType;
+  } else if (isReferencesDoc && REF_SLUG_RE.test(displayId)) {
+    family = "reference";
+    entryType = undefined;
+  } else {
     return undefined;
   }
 
-  // An entry block requires indented body content (more than just the title line).
+  // Body requirement: spec entries require body; reference entries optionally have body.
   // If there's only one child (the title paragraph) and no further content,
-  // it's not an entry block.
-  if (item.children.length < 2) return undefined;
-
-  // Extract entry type from typed display IDs
-  const typedMatch = TYPED_ID_RE.exec(displayId);
-  const entryType: EntryType | undefined = typedMatch
-    ? typedMatch[1] as EntryType
-    : undefined;
+  // it's only valid for reference entries.
+  if (family === "spec" && item.children.length < 2) return undefined;
 
   // Extract body content from remaining children
   const bodyContent = extractBodyContent(item, markdown);
@@ -187,6 +224,7 @@ function extractEntry(
     attributes,
     id,
     entryType,
+    family,
     location: { file, line, column },
     source: "markdown",
   };

@@ -143,16 +143,17 @@ function extractLinksFromAttribute(
 }
 
 /**
- * Attribute keys that produce traceability links.
- * Note: Constrains targets are component names (free text), not entry IDs,
- * so they are not included here. They would produce dangling links.
+ * Attribute keys that produce traceability links per ADR-002.
+ * Spec attributes: Satisfies, Derived-from, References, Allocated-to.
+ * Reference attributes: none.
+ * Element attributes: (not yet specified; deferred to future ADR).
+ * Test attributes: (not yet specified; deferred to future ADR).
  */
 const ATTR_TO_LINK_KIND: Record<string, LinkKind | undefined> = {
   "Satisfies": "satisfies",
   "Derived-from": "derived-from",
-  "Allocates": "allocates",
-  "Verifies": "verifies",
-  "Implements": "implements",
+  "References": "references",
+  "Allocated-to": "allocated-to",
 };
 
 /** Build an adjacency map from links using a key selector. */
