@@ -403,23 +403,30 @@ Part 1 defines the format — how to write entry blocks and attribute blocks. Th
 part defines the vocabulary — the builtin types, their attributes, and their
 traceability rules.
 
-### 2.1 Typed entries
+### 2.1 Typed entries (Spec family)
 
-An entry whose display ID matches `TYPE_XYZ_NNN[N]` (uppercase letters,
-underscore, 2–12 uppercase letters, underscore, zero-padded number of 3 or 4
-digits starting from `001`) is a typed entry. Typed entries are recognized in
-any MarkSpec file.
+An entry whose display ID matches the spec pattern per ADR-002 is a typed
+**spec** entry. Spec entries are recognized in any MarkSpec file.
 
-Typed entries have two identifiers:
+**Display ID format (ADR-002):**
 
-- **Display ID** — human-readable, in the `[...]` marker. `TYPE` is the entry
-  type. `XYZ` is a 2–12 letter project or domain abbreviation. `NNN[N]` is
-  zero-padded from `001` (3 digits) or `0001` (4 digits), unique within the
-  project.
+- `TYPE` — 2–6 uppercase letters (e.g., `SRS`, `SYS`, `STK`)
+- `DOMAIN` — 3–8 uppercase alphanumeric, first char uppercase (e.g., `BRK`,
+  `SENSOR`)
+- `SUBDOMAIN` — optional, same as DOMAIN
+- `NNNN` — 3–6 decimal digits, must be > 0 (e.g., `001`, `0042`)
+
+Example: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`
+
+Spec entries have two identifiers:
+
+- **Display ID** — human-readable, in the `[...]` marker. Used for
+  cross-document references and traceability matrices.
 - **ULID** — universally unique, in the `Id:` attribute. Formatted as
-  `TYPE_ULID` (e.g., `SRS_01HGW2Q8MNP3`). The ULID ensures global uniqueness
-  across projects and survives renumbering. Mandatory. Assigned by tooling,
-  never hand-authored. Once assigned, it never changes.
+  `TYPE_ALPHANUMERIC` (26 alphanumeric chars, e.g.,
+  `SRS_00000000000000000000000001`). The ULID ensures global uniqueness across
+  projects and survives renumbering. Mandatory. Assigned by tooling, never
+  hand-authored. Once assigned, it never changes.
 
 **Builtin types:**
 
@@ -437,14 +444,16 @@ Typed entries have two identifiers:
 Non-builtin types are valid — tooling validates entry format but not
 traceability direction or level.
 
-### 2.2 Typed entry attributes
+### 2.2 Spec entry attributes (ADR-002)
 
-| Attribute      | Required | Format                                  |
-| -------------- | -------- | --------------------------------------- |
-| `Id`           | yes      | `TYPE_ULID`                             |
-| `Satisfies`    | no       | Parent entry display ID(s)              |
-| `Derived-from` | no       | Reference ID + optional section locator |
-| `Labels`       | no       | Comma-separated tags                    |
+| Attribute      | Required | Format                                    |
+| -------------- | -------- | ----------------------------------------- |
+| `Id`           | yes      | 26-char ULID: `TYPE_[0-9A-Z]{26}`         |
+| `Satisfies`    | no       | Spec entry display ID(s), comma-separated |
+| `Derived-from` | no       | Reference ID + optional section locator   |
+| `References`   | no       | Reference ID(s), comma-separated          |
+| `Allocated-to` | no       | Element/architecture ID(s)                |
+| `Labels`       | no       | Comma-separated tags                      |
 
 **`Derived-from` format:**
 
@@ -452,15 +461,16 @@ traceability direction or level.
 Derived-from: ISO-26262-6 §9.4
 ```
 
-The ID before the space (`ISO-26262-6`) is validated against the registry chain.
+The ID before the space (`ISO-26262-6`) is validated against reference entries.
 The section locator after it (`§9.4`) is free text — tooling warns on unknown
 sections when lists are available but does not error.
 
-### 2.3 Reference entries
+### 2.3 Reference entries (Reference family per ADR-002)
 
-An entry whose display ID does not match `TYPE_XYZ_NNNN` is a reference entry.
-Reference IDs are slugs: letters, digits, and hyphens (`[A-Za-z0-9-]+`).
-Reference entries are recognized only in documents of type `references`.
+An entry whose display ID does not match the spec pattern is a **reference**
+entry. Reference IDs are slugs: letters, digits, hyphens, and dots
+(`[A-Za-z][A-Za-z0-9]*([.-][A-Za-z0-9]+)*`). Reference entries are recognized
+only in documents named `references.md` or in `references/` directories.
 
 **ID conventions:**
 
@@ -493,18 +503,18 @@ AUTOSAR-R22-11     ← AUTOSAR R22-11
   URL: https://www.rtca.org/products/do-178c/
 ```
 
-**Reference entry attributes:**
+**Reference entry attributes (ADR-002):**
 
-| Attribute       | Required | Format                              |
-| --------------- | -------- | ----------------------------------- |
-| `Document`      | no       | Full document identifier            |
-| `URL`           | no       | Canonical URL                       |
-| `Status`        | no       | `active`, `withdrawn`, `superseded` |
-| `Superseded-by` | no       | Replacement entry ID                |
-| `Derived-from`  | no       | Parent standard or regulation       |
+| Attribute       | Required | Format                |
+| --------------- | -------- | --------------------- |
+| `URI`           | no       | Canonical URI         |
+| `URL`           | no       | Canonical HTTP(S) URL |
+| `Document`      | no       | Full document title   |
+| `Superseded-by` | no       | Replacement entry ID  |
+| `Labels`        | no       | Comma-separated tags  |
 
-Reference IDs are used in `{{ref.ISO-26262-6}}` inline references and in
-`Derived-from:` attributes on typed entries.
+At least one of `URI` or `URL` is required. Reference IDs are used in
+`Derived-from:` and `References:` attributes on spec entries.
 
 ### 2.4 Requirement types
 
