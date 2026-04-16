@@ -164,6 +164,25 @@ Additional relations (`Verifies`, `Implements`, etc.) are declared by profiles,
 not by the core. The validation rule "the target must exist" applies to all
 relations at the core level; direction rules come from the loaded profile.
 
+### Test Entries (Spec Family)
+
+Test entries are spec entries with TYPE values in the verification category:
+**VAL**, **SIT**, **SWT**. They follow the same display ID and ULID format as
+other spec entries.
+
+| TYPE    | Full name               | Verifies level |
+| ------- | ----------------------- | -------------- |
+| **VAL** | Acceptance Test         | STK            |
+| **SIT** | System Integration Test | SYS            |
+| **SWT** | Software Unit Test      | SRS            |
+
+Test entries are no different from requirement or architecture entries at the
+core level — they are spec entries with a specific TYPE. The direction rule (VAL
+verifies STK, SIT verifies SYS/ICD, SWT verifies SRS) is a profile concern, not
+a core concern. Test entries may carry `Verifies` and `Implements` links
+(declared by profiles), alongside the core attributes (`Satisfies`,
+`Derived-from`, `References`, `Allocated-to`).
+
 ### Validation rules (errors)
 
 1. Display ID matches the spec regex.
@@ -350,7 +369,23 @@ title, and a `URI` or `URL`.
 
 ---
 
-## Part 4 — In-Code Entries
+## Part 4 — Element Entries (Anticipated)
+
+A fourth family for system elements (components, units, interfaces, hardware
+items) is anticipated. Element entries represent the architecture and system
+decomposition — the "things" that implement spec entries.
+
+Examples: ECU, sensor module, communication bus, CAN interface, software
+component, hardware subsystem.
+
+Element entries are **not** specified in this ADR. They are deferred to a
+subsequent architectural decision record. When defined, they will follow the
+same principles: a precise format, minimal required attributes, and well-defined
+validation rules independent of any domain vocabulary.
+
+---
+
+## Part 5 — In-Code Entries
 
 Requirements can be authored in doc comments in source files. A doc comment
 starting with `[TYPE_XYZ_NNNN]` is recognized as a MarkSpec requirement. The
@@ -423,20 +458,15 @@ be exported to ReqIF, synchronized with external ALM tools via REST APIs, and
 imported back without losing identity. Compatibility is an output of MarkSpec,
 not a constraint on it.
 
-### Element entries deferred
-
-A third family for system elements (components, units, interfaces, hardware
-items) is anticipated but defined in a subsequent ADR. This ADR focuses on spec
-and reference entries, which have stable definitions and existing tooling.
-
 ---
 
 ## Open points
 
-- **Traceability direction rules** (in validator) become profile-parameterized
-  when profiles are specified. The core defines "edges declared by the loaded
-  profile", not hardcoded directions.
-- **Profile document format** is deferred to a subsequent ADR.
-- **Element entry family** is deferred to a subsequent ADR.
-- **Test entry family** (VAL, SIT, SWT entries with Verifies/Implements
-  LinkKind) is deferred to ADR-003.
+- **Profile document format** is deferred to a subsequent ADR. Profiles will
+  declare concrete TYPE vocabularies, traceability direction rules, and
+  domain-specific attributes.
+- **Element entry family** specification is deferred. When defined, elements
+  will be recognized by a distinct display ID format and supported as a fourth
+  family.
+- **Test procedure formats** (IEEE 829, Gherkin, Robot Framework in test entry
+  bodies) and **Verifies/Implements LinkKind** are deferred to ADR-003.
