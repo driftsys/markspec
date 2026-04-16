@@ -97,12 +97,13 @@ Deno.test("parseMarkdown: extracts reference entry", () => {
   Document: ISO 26262-6:2018\\
   URL: https://www.iso.org/standard/68383.html
 `;
-  const entries = parseMarkdown(md, { file: "refs.md" });
+  const entries = parseMarkdown(md, { file: "refs.md", isReferencesDoc: true });
   assertEquals(entries.length, 1);
   assertEquals(entries[0].displayId, "ISO-26262-6");
   assertEquals(entries[0].title, "ISO 26262 Part 6");
   assertEquals(entries[0].entryType, undefined);
   assertEquals(entries[0].id, undefined);
+  assertEquals(entries[0].family, "reference");
   assertStringIncludes(entries[0].body, "Road vehicles");
 });
 
@@ -224,15 +225,16 @@ Deno.test("parseMarkdown: 3-digit display ID is valid", () => {
 Deno.test("parseMarkdown: long domain abbreviation is valid", () => {
   const md = `# Test
 
-- [SRS_LONGDOMAIN_0001] Long domain entry
+- [SRS_LONGDOM_0001] Long domain entry
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3
+  Id: SRS_00000000000000000000000001
 `;
   const entries = parseMarkdown(md, { file: "test.md" });
   assertEquals(entries.length, 1);
-  assertEquals(entries[0].displayId, "SRS_LONGDOMAIN_0001");
+  assertEquals(entries[0].displayId, "SRS_LONGDOM_0001");
+  assertEquals(entries[0].family, "spec");
 });
 
 Deno.test("parseMarkdown: long type prefix is valid", () => {
@@ -340,9 +342,10 @@ Deno.test("parseMarkdown: shortcut ref without definition is still an entry", ()
 
   Document: ISO 26262-6:2018
 `;
-  const entries = parseMarkdown(md, { file: "test.md" });
+  const entries = parseMarkdown(md, { file: "references.md" });
   assertEquals(entries.length, 1);
   assertEquals(entries[0].displayId, "ISO-26262-6");
+  assertEquals(entries[0].family, "reference");
 });
 
 // ---------------------------------------------------------------------------

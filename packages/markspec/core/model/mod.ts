@@ -81,12 +81,15 @@ export interface Attribute {
 /** The origin format of the entry. */
 export type EntrySource = "markdown" | "doc-comment";
 
+/** Entry family — spec entries are project declarations; reference entries are external citations. */
+export type EntryFamily = "spec" | "reference";
+
 /**
  * A parsed MarkSpec entry — the core AST node.
  *
- * Covers both typed entries (`SRS_BRK_0001`) and reference entries
- * (`ISO-26262-6`). The `entryType` field is set for typed entries,
- * `undefined` for reference entries.
+ * Covers both spec entries (`SRS_BRK_0001`) and reference entries
+ * (`ISO-26262-6`). The `family` field discriminates; `entryType` is the
+ * TYPE prefix for spec entries, `undefined` for reference entries.
  */
 export interface Entry {
   /** Human-readable display ID from the `[...]` marker. */
@@ -97,10 +100,12 @@ export interface Entry {
   readonly body: string;
   /** Parsed attribute block (`Key: Value` lines). */
   readonly attributes: readonly Attribute[];
-  /** ULID from the `Id:` attribute, if present. */
+  /** ULID from the `Id:` attribute, if present (spec entries only). */
   readonly id: Ulid | undefined;
-  /** Resolved entry type prefix (e.g., `SRS`), if this is a typed entry. */
+  /** Resolved entry type prefix (e.g., `SRS`), if this is a spec entry. */
   readonly entryType: EntryType | undefined;
+  /** Entry family: spec (project declaration) or reference (external citation). */
+  readonly family: EntryFamily;
   /** Where the entry was found. */
   readonly location: SourceLocation;
   /** Whether this came from a Markdown file or a doc comment. */
@@ -240,10 +245,8 @@ export interface InlineRef {
 export type LinkKind =
   | "satisfies"
   | "derived-from"
-  | "allocates"
-  | "constrains"
-  | "verifies"
-  | "implements";
+  | "references"
+  | "allocated-to";
 
 /** A directional link between two entries in the traceability graph. */
 export interface Link {

@@ -84,7 +84,6 @@ interface TraceRow {
   entryType: string;
   satisfies: string;
   satisfiedBy: string;
-  verifiedBy: string;
 }
 
 function buildTraceRows(
@@ -107,10 +106,6 @@ function buildTraceRows(
         .filter((l) => l.kind === "satisfies")
         .map((l) => l.from)
         .join(", "),
-      verifiedBy: rev
-        .filter((l) => l.kind === "verifies")
-        .map((l) => l.from)
-        .join(", "),
     };
   });
 }
@@ -127,7 +122,7 @@ function formatTraceability(
   }
 
   if (format === "csv") {
-    const header = "ID,Title,Type,Satisfies,Satisfied-by,Verified-by";
+    const header = "ID,Title,Type,Satisfies,Satisfied-by";
     const lines = rows.map((r) =>
       [
         r.id,
@@ -135,21 +130,19 @@ function formatTraceability(
         r.entryType,
         csvEscape(r.satisfies),
         csvEscape(r.satisfiedBy),
-        csvEscape(r.verifiedBy),
       ].join(",")
     );
     return [header, ...lines].join("\n");
   }
 
   // Markdown table
-  const header =
-    "| ID | Title | Type | Satisfies | Satisfied-by | Verified-by |";
-  const sep = "| -- | ----- | ---- | --------- | ------------ | ----------- |";
+  const header = "| ID | Title | Type | Satisfies | Satisfied-by |";
+  const sep = "| -- | ----- | ---- | --------- | ------------ |";
   const lines = rows.map(
     (r) =>
       `| ${r.id} | ${r.title} | ${r.entryType} | ${r.satisfies || "\u2014"} | ${
         r.satisfiedBy || "\u2014"
-      } | ${r.verifiedBy || "\u2014"} |`,
+      } |`,
   );
   return [header, sep, ...lines].join("\n");
 }
@@ -166,7 +159,6 @@ interface CoverageStats {
   gaps: {
     orphans: DisplayId[];
     unsatisfied: DisplayId[];
-    unverified: DisplayId[];
   };
 }
 
@@ -177,7 +169,6 @@ function computeCoverage(
   const byType: Record<string, number> = {};
   const orphans: DisplayId[] = [];
   const unsatisfied: DisplayId[] = [];
-  const unverified: DisplayId[] = [];
   let withSatisfies = 0;
   let withoutSatisfies = 0;
 
@@ -205,12 +196,6 @@ function computeCoverage(
     ) {
       unsatisfied.push(entry.displayId);
     }
-
-    // Typed entries without verification
-    const hasVerification = rev.some((l) => l.kind === "verifies");
-    if (entry.entryType && !hasVerification) {
-      unverified.push(entry.displayId);
-    }
   }
 
   return {
@@ -218,7 +203,7 @@ function computeCoverage(
     byType,
     withSatisfies,
     withoutSatisfies,
-    gaps: { orphans, unsatisfied, unverified },
+    gaps: { orphans, unsatisfied },
   };
 }
 
@@ -242,7 +227,6 @@ function formatCoverage(
       `Without Satisfies,${stats.withoutSatisfies}`,
       `Orphans,${stats.gaps.orphans.length}`,
       `Unsatisfied parents,${stats.gaps.unsatisfied.length}`,
-      `Unverified,${stats.gaps.unverified.length}`,
     ];
     return lines.join("\n");
   }
@@ -278,15 +262,6 @@ function formatCoverage(
       "## Unsatisfied parents (STK/SYS with no children)",
       "",
       ...stats.gaps.unsatisfied.map((id) => `- ${id}`),
-      "",
-    );
-  }
-
-  if (stats.gaps.unverified.length > 0) {
-    lines.push(
-      "## Unverified requirements",
-      "",
-      ...stats.gaps.unverified.map((id) => `- ${id}`),
       "",
     );
   }

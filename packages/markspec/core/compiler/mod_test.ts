@@ -29,7 +29,7 @@ Deno.test("compile: single entry with no links", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
+  Id: SRS_00000000000000000000000001\\
   Labels: ASIL-B
 `,
     }),
@@ -53,13 +53,13 @@ Deno.test("compile: Satisfies produces forward and reverse links", async () => {
 
   Body.
 
-  Id: SYS_01HGW2Q8MNP3
+  Id: SYS_00000000000000000000000001
 
 - [SRS_BRK_0001] Software requirement
 
   Body.
 
-  Id: SRS_01HGW2R9QLP4\\
+  Id: SRS_00000000000000000000000002\\
   Satisfies: SYS_BRK_0042
 `,
     }),
@@ -89,7 +89,7 @@ Deno.test("compile: multi-value Satisfies produces multiple links", async () => 
 
   Body.
 
-  Id: SYS_01HGW2Q8MNP3
+  Id: SYS_00000000000000000000000001
 
 - [SYS_BRK_0002] Second system req
 
@@ -101,7 +101,7 @@ Deno.test("compile: multi-value Satisfies produces multiple links", async () => 
 
   Body.
 
-  Id: SRS_01HGW2S0ABC5\\
+  Id: SRS_00000000000000000000000003\\
   Satisfies: SYS_BRK_0001, SYS_BRK_0002
 `,
     }),
@@ -127,7 +127,7 @@ Deno.test("compile: Derived-from extracts ID part only", async () => {
 
   Body.
 
-  Id: SRS_01HGW2Q8MNP3\\
+  Id: SRS_00000000000000000000000001\\
   Derived-from: ISO-26262-6 §9.4
 `,
     }),
@@ -139,7 +139,7 @@ Deno.test("compile: Derived-from extracts ID part only", async () => {
   assertEquals(dfLinks[0].to, "ISO-26262-6");
 });
 
-Deno.test("compile: Allocates produces allocates link", async () => {
+Deno.test("compile: Allocated-to produces allocated-to link", async () => {
   const result = await compile(["arch.md"], {
     readFile: mockFs({
       "arch.md": `# Architecture
@@ -148,20 +148,20 @@ Deno.test("compile: Allocates produces allocates link", async () => {
 
   Body.
 
-  Id: SRS_01HGW2Q8MNP3
+  Id: SRS_00000000000000000000000001
 
 - [SAD_BRK_0010] Allocation
 
   Sensor debouncing allocated to braking ECU.
 
-  Id: SAD_01HGW3A2EFG3\\
-  Allocates: SRS_BRK_0001\\
+  Id: SAD_0000000000000000000000000010\\
+  Allocated-to: SRS_BRK_0001\\
   Component: BRK-ECU-SENSOR
 `,
     }),
   });
 
-  const allocLinks = result.links.filter((l) => l.kind === "allocates");
+  const allocLinks = result.links.filter((l) => l.kind === "allocated-to");
   assertEquals(allocLinks.length, 1);
   assertEquals(allocLinks[0].from, "SAD_BRK_0010");
   assertEquals(allocLinks[0].to, "SRS_BRK_0001");

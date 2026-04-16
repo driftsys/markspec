@@ -20,7 +20,7 @@ Deno.test("validate: valid file exits 0", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
+  Id: SRS_00000000000000000000000001\\
   Labels: ASIL-B
 `,
     },
@@ -59,7 +59,7 @@ Deno.test("validate: broken Satisfies reference exits 1", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
+  Id: SRS_00000000000000000000000001\\
   Satisfies: SYS_BRK_9999\\
   Labels: ASIL-B
 `,
@@ -83,7 +83,7 @@ Deno.test("validate: warning only exits 2", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
+  Id: SRS_00000000000000000000000001\\
   CustomKey: some value\\
   Labels: ASIL-B
 `,
@@ -107,7 +107,7 @@ Deno.test("validate: --strict promotes warning to error → exit 1", async () =>
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
+  Id: SRS_00000000000000000000000001\\
   CustomKey: some value\\
   Labels: ASIL-B
 `,
@@ -154,7 +154,7 @@ Deno.test("validate: valid Rust source file exits 0", async () => {
 ///
 /// The sensor driver shall debounce.
 ///
-/// Id: SRS_01HGW2Q8MNP3A1B2C3D4E5
+/// Id: SRS_00000000000000000000000001
 fn debounce() {}
 `,
     },
@@ -187,13 +187,13 @@ Deno.test("validate: mixed .md and .rs files", async () => {
 
   Body.
 
-  Id: SYS_01HGW2Q8MNP3A1B2C3D4E5
+  Id: SYS_00000000000000000000000001
 `,
       "lib.rs": `/// [SRS_BRK_0001] Software requirement
 ///
 /// Body.
 ///
-/// Id: SRS_01HGW2R9QLP4A1B2C3D4E5\\
+/// Id: SRS_00000000000000000000000002\\
 /// Satisfies: SYS_BRK_0042
 fn impl_debounce() {}
 `,

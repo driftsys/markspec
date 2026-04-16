@@ -36,8 +36,9 @@ function entry(
     title: `Title of ${id}`,
     body: "Body.",
     attributes: attrs,
-    id: type ? `${type}_01HGW2Q8MNP3` : undefined,
+    id: type ? `${type}_00000000000000000000000001` : undefined,
     entryType: type,
+    family: type ? "spec" : "reference",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
   };
@@ -167,11 +168,11 @@ Deno.test("report: scope filter matches domain", () => {
 
 Deno.test("report: label filter matches entry labels", () => {
   const a = entry("SRS_BRK_0001", "SRS", [
-    { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+    { key: "Id", value: "SRS_00000000000000000000000001" },
     { key: "Labels", value: "ASIL-B" },
   ]);
   const b = entry("SRS_BRK_0002", "SRS", [
-    { key: "Id", value: "SRS_01HGW2R9QLP4" },
+    { key: "Id", value: "SRS_00000000000000000000000002" },
     { key: "Labels", value: "ASIL-D" },
   ]);
   const result = makeResult([a, b]);

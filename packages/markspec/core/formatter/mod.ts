@@ -7,20 +7,31 @@
  */
 
 import { ulid as defaultUlid } from "@std/ulid";
-import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
+import type {
+  Attribute,
+  Diagnostic,
+  Entry,
+  EntryFamily,
+} from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
-/** Canonical attribute ordering. Unknown keys go before Labels. */
-const CANONICAL_ORDER: readonly string[] = [
+/** Canonical attribute ordering for spec entries. Unknown keys go before Labels. */
+const SPEC_CANONICAL_ORDER: readonly string[] = [
   "Id",
   "Satisfies",
   "Derived-from",
-  "Allocates",
-  "Component",
-  "Constrains",
-  "Between",
-  "Interface",
+  "References",
+  "Allocated-to",
+  "Labels",
+];
+
+/** Canonical attribute ordering for reference entries. Unknown keys go before Labels. */
+const REF_CANONICAL_ORDER: readonly string[] = [
+  "URI",
+  "URL",
+  "Document",
+  "Superseded-by",
   "Labels",
 ];
 
@@ -74,8 +85,8 @@ export function format(
     const indent = (entry.location.column - 1) + 2;
     let attrs = [...entry.attributes];
 
-    // Assign ULID to typed entries missing Id.
-    if (entry.entryType && !attrs.some((a) => a.key === "Id")) {
+    // Assign ULID to spec entries missing Id.
+    if (entry.family === "spec" && !attrs.some((a) => a.key === "Id")) {
       const newId = `${entry.entryType}_${genUlid()}`;
       attrs = [{ key: "Id", value: newId }, ...attrs];
       diagnostics.push({
@@ -88,7 +99,7 @@ export function format(
 
     if (attrs.length === 0) continue;
 
-    const normalized = sortAttributes(attrs);
+    const normalized = sortAttributes(attrs, entry.family);
     const range = findAttributeBlockRange(lines, entry.location.line, indent);
 
     if (range) {
@@ -117,10 +128,17 @@ export function format(
 }
 
 /**
- * Sort attributes to canonical order.
+ * Sort attributes to canonical order based on entry family.
  * Unknown keys are placed before Labels, preserving their relative order.
  */
-export function sortAttributes(attributes: Attribute[]): Attribute[] {
+export function sortAttributes(
+  attributes: Attribute[],
+  family: EntryFamily,
+): Attribute[] {
+  const CANONICAL_ORDER = family === "reference"
+    ? REF_CANONICAL_ORDER
+    : SPEC_CANONICAL_ORDER;
+
   const known: (Attribute[] | undefined)[] = new Array(CANONICAL_ORDER.length);
   const unknown: Attribute[] = [];
 
