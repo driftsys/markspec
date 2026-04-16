@@ -403,12 +403,12 @@ Part 1 defines the format — how to write entry blocks and attribute blocks. Th
 part defines the vocabulary — the builtin types, their attributes, and their
 traceability rules.
 
-### 2.1 Typed entries (Spec family)
+### 2.1 Spec Entries
 
-An entry whose display ID matches the spec pattern per ADR-002 is a typed
-**spec** entry. Spec entries are recognized in any MarkSpec file.
+An entry whose display ID matches the spec pattern is a **spec** entry. Spec
+entries are recognized in any MarkSpec file.
 
-**Display ID format (ADR-002):**
+**Display ID format:**
 
 - `TYPE` — 2–6 uppercase letters (e.g., `SRS`, `SYS`, `STK`)
 - `DOMAIN` — 3–8 uppercase alphanumeric, first char uppercase (e.g., `BRK`,
@@ -444,7 +444,7 @@ Spec entries have two identifiers:
 Non-builtin types are valid — tooling validates entry format but not
 traceability direction or level.
 
-### 2.2 Spec entry attributes (ADR-002)
+### 2.2 Spec Entry Attributes
 
 | Attribute      | Required | Format                                    |
 | -------------- | -------- | ----------------------------------------- |
@@ -465,7 +465,7 @@ The ID before the space (`ISO-26262-6`) is validated against reference entries.
 The section locator after it (`§9.4`) is free text — tooling warns on unknown
 sections when lists are available but does not error.
 
-### 2.3 Reference entries (Reference family per ADR-002)
+### 2.3 Reference Entries
 
 An entry whose display ID does not match the spec pattern is a **reference**
 entry. Reference IDs are slugs: letters, digits, hyphens, and dots
@@ -492,18 +492,17 @@ AUTOSAR-R22-11     ← AUTOSAR R22-11
   Road vehicles — Functional safety — Part 6: Product development at the
   software level.
 
-  Document: ISO 26262-6:2018\
+  URI: urn:iso:std:iso:26262:-6:ed-2\
   URL: https://www.iso.org/standard/68383.html
 
 - [DO-178C] DO-178C
 
   Software Considerations in Airborne Systems and Equipment Certification.
 
-  Document: RTCA DO-178C\
   URL: https://www.rtca.org/products/do-178c/
 ```
 
-**Reference entry attributes (ADR-002):**
+**Reference Entry Attributes:**
 
 | Attribute       | Required | Format                |
 | --------------- | -------- | --------------------- |

@@ -1,25 +1,41 @@
-# ADR-002: Entry Model — Spec and Reference Entries
+# ADR-002: Entry Model — Spec and Reference Families
 
-Status: Proposed\
-Date: 2026-04-12\
+Status: Accepted\
+Date: 2026-04-17\
 Scope: MarkSpec
 
 ## Context
 
-ADR-001 introduced entry blocks as MarkSpec's mechanism for authoring traceable
-artifacts alongside prose. It hardcoded an automotive V-model vocabulary (STK,
-SYS, SRS, SAD, ICD, VAL, SIT, SWT) directly into the core specification, which
-ties MarkSpec to a single domain and limits adoption in aerospace, medical,
-railway, and other safety-critical contexts.
+### Requirements need to be traceable
 
-This ADR separates the **entry format** from the **domain vocabulary**. The core
-defines a universal entry model with two families — **spec entries** and
-**reference entries** — each with a precise format, a minimal set of required
-attributes, and well-defined validation rules. Concrete type vocabularies
-(automotive V-model, DO-178C, IEC 62304) move out of the core into profiles.
+MarkSpec documents must support requirements that are:
 
-A third family for system elements (components, units, interfaces) is
-anticipated but defined in a separate ADR.
+- **Traceable** — linked to source code, tests, architecture, and external
+  standards
+- **Structured** — carrying metadata (priority, status, traceability links)
+  without forcing external databases
+- **Bidirectional** — upstream links (what a requirement depends on) and
+  downstream links (what it verifies, implements, or allocates to) both
+  discoverable
+- **Versionable** — surviving renumbering, migration between systems, and git
+  history
+
+The initial design (ADR-001) hardcoded an automotive V-model vocabulary (STK,
+SYS, SRS, SAD, ICD, VAL, SIT, SWT) into the core format, which limits adoption
+in aerospace (DO-178C), medical (IEC 62304), railway (EN 50128), and other
+safety-critical domains.
+
+### Core must separate format from vocabulary
+
+This ADR separates the **entry format** (how to write traceable blocks) from the
+**domain vocabulary** (what types of entries exist). The core defines a
+universal entry model with two formal families — **spec entries** and
+**reference entries** — each with precise format, minimal required attributes,
+and well-defined validation rules.
+
+Concrete type vocabularies (automotive V-model, DO-178C, IEC 62304) move out of
+the core into profiles. This allows MarkSpec to serve multiple industries
+without compromising either the core format or domain-specific needs.
 
 ---
 
@@ -89,7 +105,7 @@ the content.
 | **NNNN**      | 3 to 6 digits, number ≥ 1                                    | Sequential number within scope              |
 
 **Scope** for uniqueness and numbering is the full `TYPE_DOMAIN[_SUBDOMAIN]`
-prefix. Maximum of 999 999 entries per scope.
+prefix. Maximum of 999,999 entries per scope.
 
 Concrete TYPE values (STK, SYS, SRS, VAL, SIT, SWT…) are not defined by the
 core. They come from a profile loaded by the project.
@@ -140,12 +156,13 @@ a standard 26-character Crockford base32 ULID.
 | `Id`           | yes      | Prefixed ULID, assigned by tooling                               |
 | `Satisfies`    | no       | Upstream link to parent spec entry/entries                       |
 | `Derived-from` | no       | Upstream link to a reference entry with optional section locator |
+| `References`   | no       | Comma-separated reference IDs this entry cites                   |
+| `Allocated-to` | no       | Allocation to system element(s) or component(s)                  |
 | `Labels`       | no       | Free-form tags (inherited from Entry base)                       |
 
-Additional relations (`Verifies`, `Implements`, `Allocates`, `Between`…) are
-declared by profiles, not by the core. The validation rule "the target must
-exist" applies to all relations at the core level; direction rules come from the
-loaded profile.
+Additional relations (`Verifies`, `Implements`, etc.) are declared by profiles,
+not by the core. The validation rule "the target must exist" applies to all
+relations at the core level; direction rules come from the loaded profile.
 
 ### Validation rules (errors)
 
@@ -157,7 +174,8 @@ loaded profile.
 6. Subdomain presence is consistent within a `TYPE_DOMAIN` scope: either all
    entries in the scope use a subdomain or none do.
 7. NNNN is a positive integer (no `000`, `0000`, etc.).
-8. `Satisfies` and `Derived-from` targets exist in the resolution scope.
+8. `Satisfies`, `Derived-from`, `References`, and `Allocated-to` targets exist
+   in the resolution scope.
 
 ### Creation and autocompletion rule
 
@@ -330,14 +348,27 @@ Reference entries are an explicit exception to the Entry base rule that requires
 a body paragraph. A minimal reference entry may consist of only a display ID, a
 title, and a `URI` or `URL`.
 
-### Style guide recommendations (warnings)
+---
 
-1. Body contains a substantive abstract of 1 to 3 sentences describing the
-   intent and scope of the cited publication.
-2. `URI` is explicit when the slug corresponds to a standard with an official
-   URN (ISO, IETF, ISBN, DOI).
-3. `Document` is explicit when the title diverges from the formal bibliographic
-   citation.
+## Part 4 — In-Code Entries
+
+Requirements can be authored in doc comments in source files. A doc comment
+starting with `[TYPE_XYZ_NNNN]` is recognized as a MarkSpec requirement. The
+leading `-` bullet is optional in doc comments — the `[DISPLAY_ID]` pattern
+alone is sufficient.
+
+**Supported languages:**
+
+- Rust (`///`)
+- Kotlin (`/** */` KDoc)
+- C++ (`///` Doxygen)
+- C (`/** */` Doxygen)
+- Java 23+ (`///` per JEP 467)
+- Java legacy (`/** */` Javadoc, with caveats)
+
+The doc comment is the requirement specification. The function decorated is the
+implementation. The test function is the verification. Tooling discovers these
+implicit relationships and outputs them as traceability links.
 
 ---
 
@@ -347,7 +378,7 @@ title, and a `URI` or `URL`.
 
 The core specification defines:
 
-- The entry block grammar (shared).
+- The entry block grammar (shared across families).
 - The `Labels` universal attribute.
 - The spec display ID regex and the ULID format.
 - The reference slug regex and bibliographic attributes.
@@ -357,13 +388,26 @@ It does **not** define concrete type vocabularies, traceability graph
 constraints, or domain-specific attributes. These are the responsibility of
 profiles.
 
-### Fast Track becomes a profile
+### Profiles become the vocabulary layer
 
 The automotive V-model vocabulary (STK, SYS, SRS, SAD, ICD, VAL, SIT, SWT) and
-its traceability rules move from the core specification to a
-`fast-track-profile` or similar profile document. Existing Fast Track projects
-continue to work by declaring this profile. New projects targeting other domains
-(DO-178C, IEC 62304, EN 50128) declare their own profile.
+its traceability rules move from the core specification to a profile document.
+Existing Fast Track projects continue to work by declaring this profile. New
+projects targeting other domains (DO-178C, IEC 62304, EN 50128) declare their
+own profile. See future ADR on profile format.
+
+### Format is domain-agnostic
+
+MarkSpec can now serve aerospace, medical, railway, and other safety-critical
+industries without core changes. Each domain declares its own profile with its
+own vocabulary and traceability rules.
+
+### Source files are pure Markdown
+
+Authored entries render correctly on GitHub and GitLab without any build step.
+Git history remains clean — only human-authored content is committed. Generated
+outputs (traceability matrices, resolved references, compiled documentation) are
+build artifacts.
 
 ### Registry chain applies uniformly
 
@@ -372,32 +416,27 @@ registry chain. The import mechanism is the same for both families. The
 distinction between the families is about their **role** (canonical declaration
 vs. bibliographic notice), not about whether they are local or external.
 
+### Tool interoperability is simplified
+
+The ULID is the reconciliation key across all external systems. Requirements can
+be exported to ReqIF, synchronized with external ALM tools via REST APIs, and
+imported back without losing identity. Compatibility is an output of MarkSpec,
+not a constraint on it.
+
 ### Element entries deferred
 
 A third family for system elements (components, units, interfaces, hardware
 items) is anticipated but defined in a subsequent ADR. This ADR focuses on spec
 and reference entries, which have stable definitions and existing tooling.
 
-### Migration from ADR-001
+---
 
-- Existing spec entries in Fast Track projects remain valid. The display ID
-  regex is a relaxation of what ADR-001 allowed (TYPE up to 6 characters instead
-  of 2+, explicit subdomain support, NNNN up to 6 digits).
-- Existing reference entries in RefHub remain valid. The slug regex is
-  compatible with the existing convention of uppercase hyphenated slugs.
-- The `Status` attribute on reference entries (ADR-001 referenced) is removed in
-  favor of `Labels` for withdrawn/superseded/draft classification.
-- The `Derived-from` attribute on reference entries is removed. The relation
-  between standards is captured in prose or labels, not as a structural
-  attribute.
-- The new `URI` attribute is introduced on reference entries to support
-  canonical identifiers beyond web URLs.
+## Open points
 
-### Open points
-
-- **Traceability direction rules** (MSL-T002, MSL-T007) become
-  profile-parameterized. Their core definitions shift from "SRS → SYS → STK" to
-  "edges declared by the loaded profile". This is a separate concern to be
-  addressed when profiles are specified.
-- **Element entry family** is deferred to a subsequent ADR.
+- **Traceability direction rules** (in validator) become profile-parameterized
+  when profiles are specified. The core defines "edges declared by the loaded
+  profile", not hardcoded directions.
 - **Profile document format** is deferred to a subsequent ADR.
+- **Element entry family** is deferred to a subsequent ADR.
+- **Test entry family** (VAL, SIT, SWT entries with Verifies/Implements
+  LinkKind) is deferred to ADR-003.
