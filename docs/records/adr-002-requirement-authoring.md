@@ -1,8 +1,14 @@
 # ADR-002: Requirement authoring
 
-Status: Accepted\
+Status: ⏸️ **Superseded by [ADR-002: Entry Model](../adr/adr-entry-model.md)
+(2026-04-17)**\
 Date: 2026-03-01\
 Scope: MarkSpec
+
+> This ADR is superseded. The entry model specification has been formalized in
+> the new ADR-002 with family discrimination (Spec vs Reference), updated
+> display ID regexes, and enhanced attribute vocabularies. See the new ADR for
+> the current specification.
 
 ## Context
 
