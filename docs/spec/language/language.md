@@ -119,17 +119,17 @@ Labels: ASIL-B
 
 MarkSpec **restricts** the following CommonMark features:
 
-| Feature          | CommonMark                               | MarkSpec restriction                          |
-| ---------------- | ---------------------------------------- | --------------------------------------------- |
-| Headings         | ATX and setext                           | ATX only.                                     |
-| Code blocks      | Fenced (backtick and tilde) and indented | Backtick-fenced only.                         |
-| Emphasis         | `*text*` and `_text_`                    | `_text_` only.                                |
-| Strong           | `**text**` and `__text__`                | `**text**` only.                              |
-| List markers     | `-`, `*`, `+`                            | `-` only.                                     |
-| Horizontal rules | `---`, `***`, `___`                      | `---` only.                                   |
-| Hard line breaks | Trailing `\` and trailing double-space   | Trailing `\` only.                            |
-| Inline HTML      | Any HTML element                         | Comments only (`<!-- -->`). No HTML elements. |
-| Front matter     | YAML `---` blocks (not CommonMark)       | Not allowed.                                  |
+| Feature          | CommonMark                               | MarkSpec restriction                                                                                |
+| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Headings         | ATX and setext                           | ATX only.                                                                                           |
+| Code blocks      | Fenced (backtick and tilde) and indented | Backtick-fenced only.                                                                               |
+| Emphasis         | `*text*` and `_text_`                    | `_text_` only.                                                                                      |
+| Strong           | `**text**` and `__text__`                | `**text**` only.                                                                                    |
+| List markers     | `-`, `*`, `+`                            | `-` only.                                                                                           |
+| Horizontal rules | `---`, `***`, `___`                      | `---` only.                                                                                         |
+| Hard line breaks | Trailing `\` and trailing double-space   | Trailing `\` only.                                                                                  |
+| Inline HTML      | Any HTML element                         | Comments only (`<!-- -->`). No HTML elements.                                                       |
+| Front matter     | YAML `---` blocks (not CommonMark)       | YAML (`---`) and TOML (`+++`) allowed at the top of the file; schema defined in §1.3 §6 and Part 6. |
 
 MarkSpec **requires** beyond CommonMark minimums:
 
@@ -375,7 +375,7 @@ alone is sufficient.
 /// than the window must not alter the stable output.
 ///
 /// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Level: unit \
+/// Test-level: unit \
 /// Verifies: SRS_BRK_0107 \
 /// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
@@ -386,7 +386,7 @@ fn swt_brk_0107_debounce_filters_noise() {
 ```
 
 The doc comment declares the Test entry. The function body is the executable
-artifact. The test's `Source` is inferred from the file path.
+artifact. The file path is observable as the `file.path` property (see Part 6).
 
 A production unit declares what it realizes via its own doc comment:
 
@@ -396,13 +396,60 @@ A production unit declares what it realizes via its own doc comment:
 /// Rejects transient noise on raw sensor readings.
 ///
 /// Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV \
-/// Kind: unit \
+/// Element-kind: unit \
 /// Realizes: SRS_BRK_0107
 fn debounce_input(raw: u16) -> u16 { ... }
 ```
 
 Tooling extracts these doc comments to produce the same traceability output as
 Markdown-authored entries.
+
+#### §6 Front matter
+
+Document-level metadata is authored in **YAML front matter** — a `---`-delimited
+block at the very top of the file, before the H1.
+
+**Example 8b — document with front matter:**
+
+```markdown
+---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+document-type: requirements
+status: approved
+labels: [requirements, ASIL-B]
+external-id: doors:VHC:SRS-BRK
+---
+
+# Braking Software Requirements
+
+## Introduction
+
+...
+```
+
+Front matter carries:
+
+- **Document identity** (`document-id`, `document-type`).
+- **Universal attributes** (`labels`, `status`, `external-id`, `supersedes`,
+  `references`) — same set and semantics as entry-level universal attributes.
+- A reserved **`metadata:` map** for org-specific free-form fields.
+- Optional **profile-declared keys** (e.g., automotive `asil:`).
+- Optional **allowlisted ecosystem keys** declared in `.markspec.yaml` (for Hugo
+  / Jekyll / Docusaurus interop).
+
+**Forbidden keys** (Markdown-native concepts; duplication creates drift):
+`title`, `description`, `toc`, `sections`, `authors`, `author`, `date`,
+`created`, `modified`, `cover`, `images`. These live in H1, body paragraphs, or
+git history — never in front matter.
+
+**Casing convention**: front matter keys use **kebab-case** (`document-id`),
+matching YAML ecosystem convention. Entry trailers keep Title-Case (`Spec-id:`),
+matching git-trailers convention.
+
+**TOML tolerance**: `+++`-delimited TOML front matter is accepted as input (for
+GitLab-flavored Markdown parity); the formatter normalizes to YAML.
+
+Full document-structure specification: see Part 6 — Document Model.
 
 ---
 
@@ -1171,19 +1218,44 @@ schema is defined at `https://driftsys.github.io/schemas/project/v1.json`.
 **license:** defaults to `proprietary` — absence of a declared license means all
 rights reserved. Use [SPDX identifiers] when specifying a license.
 
-### 6.2 Document properties
+### 6.2 Document attributes and properties
 
-Per-file. Nothing stored inside the document. Every property always resolves.
+Per-file metadata splits into two tiers (mirroring the entry model):
+
+- **Attributes** — authored by the author in YAML front matter.
+- **Properties** — observed by tooling (filename, git history, filesystem).
+
+#### Document attributes (authored in front matter)
+
+| Attribute       | Type          | Required | Description                                                                             |
+| --------------- | ------------- | -------- | --------------------------------------------------------------------------------------- |
+| `document-id`   | `id`          | no       | Document ULID — `01H…` 26-char Crockford base32                                         |
+| `document-type` | `enum`        | no       | Overrides filename/directive detection (see §6.3)                                       |
+| `labels`        | `tag-list`    | no       | Classification tags                                                                     |
+| `status`        | `enum`        | no       | Lifecycle state (`draft` / `approved` / `deprecated` / `withdrawn`), default `approved` |
+| `external-id`   | `external-id` | no       | Cross-system identifier (`scheme:value`)                                                |
+| `supersedes`    | `id`          | no       | `document-id` of a document this one replaces                                           |
+| `references`    | `citation`    | no       | External reference citations with optional locator                                      |
+| `metadata`      | map           | no       | Org free-form metadata, never validated                                                 |
+
+All attribute value types follow the 14-type system from §2.6. Profiles may
+declare additional keys; projects may allowlist SSG-ecosystem keys in
+`.markspec.yaml` → `frontMatter.allowedKeys` (see §9.1).
+
+#### Document properties (observed)
 
 | Property     | Source                          | Fallback                      |
 | ------------ | ------------------------------- | ----------------------------- |
 | **title**    | H1 heading                      | Filename stem                 |
-| **type**     | Filename stem or directive      | `doc`                         |
 | **revision** | Merge-to-main count             | `0`                           |
 | **authors**  | `project.yaml`                  | Git unique commit authors     |
 | **created**  | Git first commit timestamp      | File system creation time     |
 | **modified** | Git last merge commit timestamp | File system modification time |
-| **status**   | Branch/main/directive           | `approved`                    |
+
+These are **never authored in front matter** — `title:`, `author:`, `date:`,
+`description:`, `toc:`, `cover:` in front matter are errors (see §8.5 MSL-D001).
+The H1, first paragraph, git history, and filesystem are the authoritative
+sources.
 
 **revision:** starts at `0`. Increments on each merged PR/MR that modifies the
 file. Commits within a branch do not count.
@@ -1191,8 +1263,9 @@ file. Commits within a branch do not count.
 **authors:** `project.yaml` recommended — Git history is fragile across moves
 and migrations.
 
-**status:** `draft` (in branch), `approved` (on main), `deprecated`
-(`markspec:deprecated` directive).
+**status**: derived from `status:` in front matter if present, otherwise branch
+context (`draft` on branch, `approved` on main) and `markspec:deprecated`
+directive. Front-matter `status:` wins when set.
 
 ### 6.3 Document types
 
@@ -1347,15 +1420,15 @@ requirements") are profile concerns, not core concerns.
 
 ### 8.5 Document structure (MSL-D)
 
-| ID         | Severity     | Rule                                                                                                                                                                   |
-| ---------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-D001` | error        | No front matter. Auto-fixed.                                                                                                                                           |
-| `MSL-D002` | warning      | Footnotes must not contain requirement IDs.                                                                                                                            |
-| `MSL-D003` | notice       | Non-standard alert types.                                                                                                                                              |
-| `MSL-D004` | warning      | Caption format: `_Table:_` above, `_Figure:_` below.                                                                                                                   |
-| `MSL-D005` | warning      | SVGs: `viewBox` required, no fixed `width`/`height`.                                                                                                                   |
-| `MSL-D006` | configurable | Inline links vs reference-style links. Controlled by `referenceLinks` config: `none` (no check), `warn` (prefer reference-style), `enforce` (require reference-style). |
-| `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                      |
+| ID         | Severity     | Rule                                                                                                                                                                                                                                                                    |
+| ---------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-D001` | error        | Front matter keys must be core, profile-declared, `metadata`, or allowlisted in `.markspec.yaml`. Forbidden keys (`title`, `description`, `toc`, `authors`, `author`, `date`, `created`, `modified`, `cover`, `images`, `sections`) are errors with auto-fix to remove. |
+| `MSL-D002` | warning      | Footnotes must not contain requirement IDs.                                                                                                                                                                                                                             |
+| `MSL-D003` | notice       | Non-standard alert types.                                                                                                                                                                                                                                               |
+| `MSL-D004` | warning      | Caption format: `_Table:_` above, `_Figure:_` below.                                                                                                                                                                                                                    |
+| `MSL-D005` | warning      | SVGs: `viewBox` required, no fixed `width`/`height`.                                                                                                                                                                                                                    |
+| `MSL-D006` | configurable | Inline links vs reference-style links. Controlled by `referenceLinks` config: `none` (no check), `warn` (prefer reference-style), `enforce` (require reference-style).                                                                                                  |
+| `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                                                                                                                       |
 
 ### 8.6 Glossary (MSL-G)
 
@@ -1385,17 +1458,28 @@ requirements") are profile concerns, not core concerns.
 
 ```yaml
 referenceLinks: warn # none | warn | enforce
+frontMatter:
+  allowedKeys:
+    - layout # Hugo
+    - permalink # Jekyll
+    - sidebar_position # Docusaurus
+    - draft
+    - aliases
 ```
 
 `.markspec.toml`:
 
 ```toml
 referenceLinks = "warn"
+
+[frontMatter]
+allowedKeys = ["layout", "permalink", "sidebar_position", "draft", "aliases"]
 ```
 
-| Property         | Type   | Default  | Values                    |
-| ---------------- | ------ | -------- | ------------------------- |
-| `referenceLinks` | string | `"warn"` | `none`, `warn`, `enforce` |
+| Property                  | Type     | Default  | Values                                                                                                       |
+| ------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `referenceLinks`          | string   | `"warn"` | `none`, `warn`, `enforce`                                                                                    |
+| `frontMatter.allowedKeys` | string[] | `[]`     | Top-level front-matter keys to accept beyond core / profile / `metadata`. Preserved verbatim, not validated. |
 
 All formatting rules are fixed. There is no formatter choice — dprint is the
 formatter.
