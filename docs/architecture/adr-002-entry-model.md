@@ -114,15 +114,157 @@ git-trailers convention.
 | **body**       | At least one paragraph (reference entries excepted — see Part 3)  |
 | **identity**   | Exactly one of `Spec-id`, `Test-id`, `Element-id`, `Reference-id` |
 
-### Universal core attribute
+### Attribute origin
 
-| Attribute  | Description                                          |
-| ---------- | ---------------------------------------------------- |
-| **Labels** | Free-form classification tags. Comma-separated list. |
+Every attribute has an **origin** describing how its value arrives in the model:
 
-`Labels` is the only semantically universal attribute at the core level.
-Identity attributes are structurally universal (every entry must carry exactly
-one) but their name and value format depend on the family.
+- **Authored** — written by the author in the source file.
+- **Inferred** — pre-filled by `markspec format` from a heuristic (source
+  context, namespace hierarchy, profile mapping). Committed to the source file,
+  author-overridable when the heuristic misfires.
+- **Assigned** — generated fresh by `markspec format` at creation time (identity
+  attributes: `Spec-id`, `Test-id`, `Element-id`). Never derived from other
+  data, never changes after assignment.
+- **Generated** — computed at build time by inverting other entries' authored
+  relations (`Verified-by`, `Realized-by`, `Cited-by`, …). Never committed to
+  source.
+
+### Universal attributes
+
+The following attributes apply to every family, with identical semantics and
+value types:
+
+| Attribute         | Type          | Origin    | Description                                                |
+| ----------------- | ------------- | --------- | ---------------------------------------------------------- |
+| **Labels**        | `tag-list`    | authored  | Free-form classification tags                              |
+| **Status**        | `enum`        | authored  | Lifecycle state (see below). Optional, default `approved`. |
+| **References**    | `citation`    | authored  | Citations of external reference entries, with locator      |
+| **External-id**   | `external-id` | authored  | Identifier(s) in an external system                        |
+| **Supersedes**    | `id`          | authored  | Display ID of a same-family entry this one replaces        |
+| **Superseded-by** | `id`          | generated | Inverse of `Supersedes`                                    |
+
+Identity attributes (`Spec-id`, `Test-id`, `Element-id`, `Reference-id`) are
+structurally universal — every entry carries exactly one — but their name and
+value format depend on the family (see Parts 2–5).
+
+#### Status vocabulary
+
+The core `Status` vocabulary is intentionally small:
+
+| Value        | Meaning                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| `draft`      | Work in progress, not yet accepted                               |
+| `approved`   | Reviewed and accepted (default when `Status` is absent)          |
+| `deprecated` | Still valid, being phased out — new work should not depend on it |
+| `withdrawn`  | No longer valid — references to it should be removed             |
+
+Profiles may extend the vocabulary with domain-specific states (`baselined`,
+`verified`, `under-review`, …). Tooling warns when a `Satisfies:` /
+`Derived-from:` / `Verifies:` / `Realizes:` target is `deprecated` or
+`withdrawn`.
+
+#### Supersedes semantics
+
+`Supersedes` expresses same-family replacement — a deprecated SRS pointing to
+its successor, a withdrawn reference pointing to the new standard. A test does
+not supersede a spec; the relation is intra-family only. The generated inverse
+`Superseded-by` is computed at build time from the authored `Supersedes` links.
+
+### Entry properties (observed)
+
+A **property** is a model-level observation about an entry that is not part of
+the markup language. Properties are never authored in source, never round-trip
+through `markspec format`, and do not appear in git diffs. They are captured by
+the tooling from observable sources:
+
+| Category | Source                 | Example properties                                      |
+| -------- | ---------------------- | ------------------------------------------------------- |
+| `file`   | The repository itself  | `path`, `line`, `column`                                |
+| `git`    | `git log`, `git blame` | `created_at`, `modified_at`, `contributors`, `revision` |
+| `sync`   | External connectors    | `last_synced_at`, `remote_state`, `external_source`     |
+| `build`  | The compilation step   | `resolution_source`, `registry_origin`                  |
+
+The model exposes properties as a separate namespace alongside attributes —
+`entry.attributes` vs `entry.properties`. Inline references may reach into
+properties via `{{spec.X.modified_at}}` or similar, but the core language does
+not define attribute names like `Modified-at` at the entry level.
+
+**Design rule**: observed facts are properties; declared facts are attributes.
+If a piece of information is something the author _states_, it belongs in an
+attribute; if it is something the system _witnesses_, it belongs in a property.
+This prevents author-inference conflicts (the author cannot override a git
+commit timestamp, and the system cannot overwrite an authored
+`Status: deprecated`).
+
+The full property model — observation contracts, sync connector design, caching
+strategy, build-time provenance — is deferred to
+[ADR-006 — Property Model](./adr-006-property-model.md).
+
+### Attribute value types
+
+Every attribute has a declared **value type** that determines which forms the
+parser accepts and which form the formatter produces.
+
+| Type          | Cardinality | Multi-line repeat | CSV on one line | Description                                                 |
+| ------------- | ----------- | ----------------- | --------------- | ----------------------------------------------------------- |
+| `id`          | single      | —                 | —               | Display ID or slug                                          |
+| `id-list`     | repeatable  | ✓                 | ✓               | Multiple identifiers                                        |
+| `uri`         | single      | —                 | —               | URI per RFC 3986 (URN, DOI, HTTPS URL)                      |
+| `url`         | single      | —                 | —               | HTTPS navigation link                                       |
+| `path`        | single      | —                 | —               | Filesystem path                                             |
+| `path-or-id`  | single      | —                 | —               | Filesystem path or element display ID                       |
+| `enum`        | single      | —                 | —               | One value from a closed vocabulary                          |
+| `tag-list`    | repeatable  | ✓                 | ✓               | Free-form tags                                              |
+| `text`        | single      | —                 | —               | Free-form single-line text                                  |
+| `citation`    | repeatable  | ✓                 | ✗               | Slug + optional free-text locator (locator may contain `,`) |
+| `external-id` | repeatable  | ✓                 | ✓               | `scheme:value` qualified identifier                         |
+| `integer`     | single      | —                 | —               | Whole number                                                |
+| `date`        | single      | —                 | —               | ISO 8601 date (`YYYY-MM-DD`)                                |
+| `boolean`     | single      | —                 | —               | `true` or `false`                                           |
+
+#### Repeatable attributes
+
+For types marked repeatable, authors may use either form.
+
+**Multi-line repeat** follows the git-trailers convention:
+
+```text
+Derived-from: SYS_BRK_0042
+Derived-from: SYS_BRK_0043
+Labels: ASIL-B
+Labels: safety
+```
+
+**CSV on one line** is accepted when no value contains a comma:
+
+```text
+Derived-from: SYS_BRK_0042, SYS_BRK_0043
+Labels: ASIL-B, safety
+```
+
+The formatter always rewrites repeatable values to **multi-line** form for
+diff-friendliness, grep-friendliness, and strict alignment with git trailers.
+CSV is an accepted input but never a canonical output.
+
+#### CSV restriction
+
+CSV is forbidden for types whose values may contain commas. The `citation` type
+(used by `References`) permits free-text locators like `§9.4, Table 7`, which
+would be ambiguous in CSV form. Citations must use multi-line:
+
+```text
+References: ISO-26262-6 §9.4.5
+References: ISO-26262-6 Table 12
+References: UNECE-R155
+```
+
+#### Future types
+
+The following types are anticipated for profile use or future ADRs but are not
+defined by the core today: `purl` (Package URL, specialized `external-id`),
+`quantity` (number with unit, e.g. `150ms`), `version` (semver), `duration` (ISO
+8601 duration), `email`, `percentage`, `range`. Profiles may introduce these
+types and declare attributes that use them.
 
 ---
 
@@ -188,16 +330,17 @@ any standard ULID library to generate and validate it directly.
 **Immutability**: once assigned, never changed. **Uniqueness**: globally unique
 across the registry chain.
 
-### Core attributes
+### Family-specific attributes
 
-| Attribute        | Description                                                                             |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| **Spec-id**      | ULID, required, assigned by `markspec format`                                           |
-| **Derived-from** | Optional, repeatable. Upstream link to parent spec(s) via V-model decomposition         |
-| **Satisfies**    | Optional, repeatable. Upstream link to parent spec(s) this spec completely fulfills     |
-| **References**   | Optional, repeatable. Upstream link to external reference(s)                            |
-| **Allocated-to** | Optional, repeatable. Downstream link to element(s) responsible for realizing this spec |
-| **Labels**       | Universal core attribute                                                                |
+| Attribute        | Type      | Origin   | Description                                                       |
+| ---------------- | --------- | -------- | ----------------------------------------------------------------- |
+| **Spec-id**      | `id`      | assigned | ULID, required                                                    |
+| **Derived-from** | `id-list` | authored | Upstream link to parent spec(s) via V-model decomposition         |
+| **Satisfies**    | `id-list` | authored | Upstream link to parent spec(s) this spec completely fulfills     |
+| **Allocated-to** | `id-list` | authored | Downstream link to element(s) responsible for realizing this spec |
+
+Spec entries also carry the universal attributes from Part 1 (`Labels`,
+`Status`, `References`, `External-id`, `Supersedes`).
 
 **Derived-from** expresses the relation by which a spec is produced from a
 parent spec, by decomposition, refinement, or partial realization. It is the
@@ -232,19 +375,6 @@ decomposition element of it.
 - Use **`Satisfies`** when one child alone is sufficient to fulfill the parent.
 
 Profiles may restrict or refine these semantics.
-
-**References** expresses the external source(s) of a spec. The cited source can
-be a standard, a regulation, a contract, an internal company document, a
-research paper, or any bibliographic entity tracked as a reference entry.
-
-```text
-References: ISO-26262-6 §9.4.5
-References: UNECE-R155
-```
-
-`References` is **repeatable**. The value format is `slug [locator]` — the slug
-identifies the reference entry, and the optional locator (e.g., `§9.4.5`,
-`Table 7`, `p. 42`) points to a specific section within the referenced document.
 
 **Allocated-to** expresses **top-down architectural allocation** — the architect
 declares which Element(s) are responsible for realizing this Spec. The direction
@@ -411,20 +541,25 @@ identifier, and the `Reference-id` is the canonical external identifier.
 
 Unlike specs, tests, and elements, a reference entry's body is optional.
 
-### Core attributes
+### Family-specific attributes
 
-| Attribute         | Description                                                         |
-| ----------------- | ------------------------------------------------------------------- |
-| **Reference-id**  | URI, required, author-provided                                      |
-| **Url**           | Optional. HTTPS navigation link, when different from `Reference-id` |
-| **Document**      | Optional. Canonical document identifier; falls back to title        |
-| **Superseded-by** | Optional. Slug of a reference that replaces this one                |
-| **Labels**        | Universal core attribute                                            |
+| Attribute              | Type   | Origin   | Description                                                    |
+| ---------------------- | ------ | -------- | -------------------------------------------------------------- |
+| **Reference-id**       | `uri`  | authored | URI, required                                                  |
+| **Reference-url**      | `url`  | authored | HTTPS navigation link when different from `Reference-id`       |
+| **Reference-document** | `text` | authored | Canonical document identifier; falls back to title when absent |
+
+Reference entries also carry the universal attributes from Part 1 (`Labels`,
+`Status`, `External-id`, `Supersedes`). `Supersedes` replaces the previous
+Reference-only `Superseded-by` attribute; the generated inverse is still
+`Superseded-by`. `References` is not applicable to Reference entries (a
+reference entry does not itself cite other references via the `References`
+attribute).
 
 ### Section locators in citations
 
-When a spec or test cites a reference via the `References` attribute, the value
-may include a free-text locator after the slug:
+When a spec, test, or element cites a reference via the `References` attribute,
+the value may include a free-text locator after the slug:
 
 ```text
 References: ISO-26262-6 §9.4.5
@@ -440,11 +575,6 @@ locator is preserved verbatim for display and is not validated.
 | ------------ | --------------------------------------------------------------------------------------- |
 | **Cited-by** | Downstream inverse of `References`. Specs, tests, or elements that cite this reference. |
 
-### Status via Labels
-
-Reference lifecycle is expressed via `Labels`, not a dedicated `Status`
-attribute. Common labels: `withdrawn`, `superseded`, `draft`, `informative`.
-
 ### Example
 
 ```markdown
@@ -455,8 +585,8 @@ attribute. Common labels: `withdrawn`, `superseded`, `draft`, `informative`.
   ASIL levels A through D.
 
   Reference-id: urn:iso:std:iso:26262:-6:ed-2\
-  Url: https://www.iso.org/standard/68383.html\
-  Document: ISO 26262-6:2018\
+  Reference-url: https://www.iso.org/standard/68383.html\
+  Reference-document: ISO 26262-6:2018\
   Labels: functional-safety, automotive
 ```
 
@@ -507,20 +637,24 @@ TYPE prefix.
 once assigned, never changed. **Uniqueness**: globally unique across the
 registry chain.
 
-### Core attributes
+### Family-specific attributes
 
-| Attribute    | Origin                   | Cardinality | Description                                              |
-| ------------ | ------------------------ | ----------- | -------------------------------------------------------- |
-| **Test-id**  | authored (tool-assigned) | 1           | ULID, required                                           |
-| **Level**    | authored or inferred     | 0..1        | Test level in the V-model hierarchy                      |
-| **Source**   | inferred                 | 0..1        | Filesystem path of the source file (for automated tests) |
-| **Verifies** | authored                 | 0..*        | Upstream link to spec(s) this test verifies              |
-| **Tests**    | authored                 | 0..*        | Upstream link to element(s) this test exercises          |
-| **Labels**   | authored                 | 0..*        | Universal core attribute                                 |
+| Attribute      | Type      | Origin   | Description                                     |
+| -------------- | --------- | -------- | ----------------------------------------------- |
+| **Test-id**    | `id`      | assigned | ULID, required                                  |
+| **Test-level** | `enum`    | inferred | Test level in the V-model hierarchy             |
+| **Verifies**   | `id-list` | authored | Upstream link to spec(s) this test verifies     |
+| **Tests**      | `id-list` | authored | Upstream link to element(s) this test exercises |
 
-### Level vocabulary
+Test entries also carry the universal attributes from Part 1 (`Labels`,
+`Status`, `References`, `External-id`, `Supersedes`).
 
-The core `Level` vocabulary follows the universal V-model terminology
+Filesystem location (source path of an automated test) is a **property**, not an
+attribute — see Part 1 "Entry properties" and ADR-006.
+
+### Test-level vocabulary
+
+The core `Test-level` vocabulary follows the universal V-model terminology
 established by ISO/IEC/IEEE 29119 and adopted across every safety-critical
 standard:
 
@@ -531,8 +665,8 @@ standard:
 | `system`      | Verifies the integrated system against its system requirements                        |
 | `acceptance`  | Validates the system against stakeholder needs                                        |
 
-`Level` is **optional at the core**. A test without `Level` is structurally
-valid. Profiles may make it mandatory.
+`Test-level` is **optional at the core**. A test without `Test-level` is
+structurally valid. Profiles may make it mandatory.
 
 The core vocabulary is **extensible by profile** — a profile may add
 domain-specific levels (e.g., hardware/software integration, penetration test,
@@ -541,9 +675,9 @@ smoke test) or refine distinctions within the base levels.
 ### Profile mapping examples
 
 The following table illustrates how different industry standards map their test
-activities to the core `Level` vocabulary. The activity names are those defined
-by each standard's reference model; **the TYPE prefixes used in display IDs are
-not prescribed by MarkSpec** — each profile or project defines its own
+activities to the core `Test-level` vocabulary. The activity names are those
+defined by each standard's reference model; **the TYPE prefixes used in display
+IDs are not prescribed by MarkSpec** — each profile or project defines its own
 conventions.
 
 | Core Level    | ASPICE 4.0                                             | DO-178C                             | IEC 62304                         | ISO/IEC/IEEE 29119     |
@@ -553,18 +687,18 @@ conventions.
 | `system`      | SWE.6 Software Verification, SYS.5 System Verification | (covered within integration/system) | §5.7 Software system testing      | System test level      |
 | `acceptance`  | VAL.1 Validation                                       | (covered by ARP4754A)               | (covered by IEC 82304-1)          | Acceptance test level  |
 
-### Level inference from TYPE
+### Test-level inference from TYPE
 
-When a profile is loaded, `Level` may be **inferred** from the TYPE prefix of
-the display ID. The profile declares the mapping. For example, a profile
+When a profile is loaded, `Test-level` may be **inferred** from the TYPE prefix
+of the display ID. The profile declares the mapping. For example, a profile
 configured with `SWT → unit`, `SIT → integration`, `SQT → system`,
-`VAL → acceptance` allows the tooling to pre-fill `Level` during
-`markspec
-format` based on the display ID's TYPE prefix.
+`VAL → acceptance` allows the tooling to pre-fill `Test-level` during
+`markspec format` based on the display ID's TYPE prefix.
 
-Inferred `Level` values are committed to the repository and author-overridable
-when the inference does not fit. Without a profile loaded, the TYPE prefix is
-opaque to the core — the author declares `Level` explicitly if needed.
+Inferred `Test-level` values are committed to the repository and
+author-overridable when the inference does not fit. Without a profile loaded,
+the TYPE prefix is opaque to the core — the author declares `Test-level`
+explicitly if needed.
 
 ### Verifies
 
@@ -600,29 +734,17 @@ required by SWE.4 BP5:
 - **Test ↔ requirement** via `Verifies` (and generated `Verified-by`)
 - **Test ↔ unit** via `Tests` (and generated `Tested-by`)
 
-### Source
-
-`Source` is the filesystem path of the source file containing the test (for
-automated tests). It is **inferred** by `markspec format` when the test is
-extracted from a code file, and committed to the repository.
-
-```text
-Source: src/braking/controller.rs
-```
-
-For manual tests (e.g., VAL procedures, HIL test scripts that are purely
-human-executed), `Source` is omitted.
-
 ### Two modes: automated and manual
 
 **Automated test** — declared in code as a `#[test]` function (Rust), `@Test`
 method (Java/Kotlin), pytest function (Python), or equivalent. MarkSpec extracts
-the test entry from the code, with `Source` inferred from the file path. The
-test's behavior is encoded in the function body; the MarkSpec entry captures the
-traceability metadata.
+the test entry from the code; the source-file path is observable as the `file`
+property (see Part 1 "Entry properties"). The test's behavior is encoded in the
+function body; the MarkSpec entry captures the traceability metadata.
 
 **Manual test** — declared as a standalone Markdown entry, typically in a
-dedicated document. No code, no `Source`, no inferable attributes.
+dedicated document. No code, no file property for the test body (only for the
+Markdown location), no inferable attributes.
 
 ### Generated attributes
 
@@ -648,7 +770,7 @@ Authoring convention using doc comment per ADR-001:
 /// the output shall remain at 500.
 ///
 /// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
-/// Level: unit
+/// Test-level: unit
 /// Verifies: SRS_BRK_0107
 /// Tests: braking_core::controller::debounce_input
 /// Labels: automated, rust, ASIL-B
@@ -661,8 +783,8 @@ fn swt_brk_0107_debounce_filters_noise() {
 ```
 
 The doc comment declares the Test entry; the function body is the executable
-artifact. The test's `Source` is inferred from the file path; other attributes
-are authored.
+artifact. The file path is observable as the `file.path` property; no attribute
+duplication in the source.
 
 _Note: The TYPE prefix `SWT` is an industrial convention for "Software unit
 Test" common in automotive contexts; it is not prescribed by MarkSpec. ASPICE,
@@ -681,8 +803,7 @@ For projects using a generic profile with neutral TYPE conventions
   the full pressure range.
 
   Test-id: 01HGW3T3QRST6UVWXYZABCDEF\
-  Level: integration\
-  Source: tests/integration/braking.rs\
+  Test-level: integration\
   Verifies: SRS_BRK_0107\
   Verifies: SRS_BRK_0108\
   Tests: braking_core::controller\
@@ -709,13 +830,13 @@ For projects using a generic profile with neutral TYPE conventions
   - Vehicle stops at least 2 m before the obstacle.
 
   Test-id: 01HGW3U4RSTU7VWXYZABCDEFG\
-  Level: acceptance\
+  Test-level: acceptance\
   Verifies: STK_BRK_0001\
   Labels: manual, hil, ASIL-D
 ```
 
-No `Source` (purely manual), no `Tests` (the procedure exercises the entire
-vehicle integration, not a specific element).
+No `Tests` (the procedure exercises the entire vehicle integration, not a
+specific element).
 
 ---
 
@@ -791,43 +912,33 @@ The `Element-id` provides the stable internal identity that survives display ID
 renames, whether the rename originates from within MarkSpec or from an external
 system (Codebeamer, DOORS, PLM).
 
-### Core attributes
+### Family-specific attributes
 
-| Attribute          | Origin                | Description                                                           |
-| ------------------ | --------------------- | --------------------------------------------------------------------- |
-| **Element-id**     | authored              | ULID, required, assigned by `markspec format`                         |
-| **External-id**    | authored              | Optional, repeatable. Identifier in an external system                |
-| **Kind**           | authored or inferred  | Optional. Element kind from the core vocabulary or a profile          |
-| **Source**         | inferred              | Optional. Filesystem path of the source file (for code units)         |
-| **Part-of**        | authored              | Optional. Containment link to a parent element                        |
-| **Realizes**       | authored              | Optional, repeatable. Upstream link to spec(s) this element realizes  |
-| **Depends-on**     | authored or generated | Optional, repeatable. Upstream link to element(s) this element uses   |
-| **Generated-from** | inferred              | Optional, repeatable. Path or element this element was generated from |
-| **Labels**         | authored              | Universal core attribute                                              |
+| Attribute          | Type         | Origin   | Description                                                  |
+| ------------------ | ------------ | -------- | ------------------------------------------------------------ |
+| **Element-id**     | `id`         | assigned | ULID, required                                               |
+| **Element-kind**   | `enum`       | inferred | Element kind from the core vocabulary or a profile           |
+| **Part-of**        | `id`         | inferred | Containment link to a parent element (from namespace)        |
+| **Realizes**       | `id-list`    | authored | Upstream link to spec(s) this element realizes               |
+| **Depends-on**     | `id-list`    | authored | Upstream link to element(s) this element uses                |
+| **Generated-from** | `path-or-id` | authored | Path or element this element was generated from (repeatable) |
+
+Element entries also carry the universal attributes from Part 1 (`Labels`,
+`Status`, `References`, `External-id`, `Supersedes`).
+
+Filesystem location of a code unit is a **property**, not an attribute — see
+Part 1 "Entry properties" and ADR-006.
 
 Note that Element **no longer carries** `Verifies`, `Tests`, or `Role` — these
 attributes moved to the Test family (`Verifies`, `Tests`) or were dropped
 (`Role`) as part of the four-family refactor.
 
-**External-id** — identifier in an external system that owns the element's
-lifecycle. Serves as the synchronization key. A `scheme:identifier` convention
-is recommended:
-
-```text
-External-id: codebeamer:project-123:item-45678
-External-id: doors:VHC_BRK:BRK-0042
-External-id: plm:part:0261-545-109
-```
-
-**Source** — the filesystem path to the source file where a unit is defined.
-Applies primarily to elements of `Kind: unit`.
-
-```text
-Source: src/braking/controller.rs
-```
-
-**Part-of** expresses the containment hierarchy at the semantic level. When
-absent, the parent is inferred from the display ID namespace.
+**Part-of** expresses the containment hierarchy at the semantic level. The
+inference rule strips the last segment from the display ID (`foo::bar::baz` →
+`Part-of: foo::bar`). This is a heuristic: authors frequently override it when a
+code unit belongs to a crate or artifact rather than to its lexical parent
+(e.g., `braking_core::controller::debounce_input` is `Part-of: braking-core`,
+not `Part-of: braking_core::controller`).
 
 **Realizes** — upstream link to one or more specs that this element realizes.
 Used for production code that fulfills requirements:
@@ -852,8 +963,11 @@ Depends-on: zlib
 Depends-on: braking::sensors::pressure
 ```
 
-`Depends-on` can be **author-declared** for significant dependencies (especially
-SoUP) or **tool-generated** by static analysis extracting call/import graphs.
+`Depends-on` is **author-declared** for significant dependencies (especially
+SoUP). Tooling may suggest values from static analysis, but the attribute is
+authored — not inferred — because dependency declarations have policy
+significance (SoUP acknowledgement, license compliance) that requires explicit
+author intent.
 
 **Generated-from** — upstream link to the source from which this element was
 generated. Important for ISO 26262 Tool Confidence Level analysis.
@@ -863,7 +977,7 @@ Generated-from: schemas/can_messages.dbc
 Generated-from: schemas::can::dbc
 ```
 
-### Core kind vocabulary
+### Element-kind vocabulary
 
 | Kind           | Description                               | Typical correspondences                                 |
 | -------------- | ----------------------------------------- | ------------------------------------------------------- |
@@ -875,9 +989,9 @@ Generated-from: schemas::can::dbc
 The distinction between **`artifact`** and **`dependency`** is structural: an
 `artifact` is something the project **produces** from its own source code; a
 `dependency` is something the project **consumes** from outside.
-`Kind: dependency` is the canonical way to declare SoUP usage.
+`Element-kind: dependency` is the canonical way to declare SoUP usage.
 
-Profiles may extend the `Kind` vocabulary with domain-specific values
+Profiles may extend the `Element-kind` vocabulary with domain-specific values
 (automotive: `ecu`, `sensor`, `actuator`; aerospace: `lrm`, `csci`; medical:
 `software-system`, `software-item`).
 
@@ -886,14 +1000,15 @@ testable entity, per ASPICE definition. This is independent of language
 conventions: a Rust `mod tests` is a syntactic grouping, not an ASPICE unit.
 Each function is its own testable entity.
 
-### Automatic inference of Kind
+### Automatic inference of Element-kind
 
-When `markspec format` parses source code, it infers `Kind`:
+When `markspec format` parses source code, it infers `Element-kind`:
 
-- Doc comment on a function, method, class, struct, enum → `Kind: unit`
-- Doc comment on `Cargo.toml`, `pom.xml`, build descriptor → `Kind: artifact`
-- Entry in dependencies section → `Kind: dependency`
-- Doc comment on repository root README → `Kind: item`
+- Doc comment on a function, method, class, struct, enum → `Element-kind: unit`
+- Doc comment on `Cargo.toml`, `pom.xml`, build descriptor →
+  `Element-kind: artifact`
+- Entry in dependencies section → `Element-kind: dependency`
+- Doc comment on repository root README → `Element-kind: item`
 
 ### Generated attributes
 
@@ -914,7 +1029,7 @@ When `markspec format` parses source code, it infers `Kind`:
   Main repository for the DriftSys open-source braking system.
 
   Element-id: 01HGW3A0MNPQ4FGHIJKLMNOPQR\
-  Kind: item\
+  Element-kind: item\
   Labels: automotive, open-source
 ```
 
@@ -926,7 +1041,7 @@ When `markspec format` parses source code, it infers `Kind`:
   Core logic for brake pressure calculation and sensor filtering.
 
   Element-id: 01HGW3B2NPQR5GHIJKLMNOPQRST\
-  Kind: artifact\
+  Element-kind: artifact\
   Part-of: github.com/driftsys/braking\
   Labels: rust, ASIL-B
 ```
@@ -939,8 +1054,7 @@ When `markspec format` parses source code, it infers `Kind`:
   Rejects transient noise on raw sensor readings using a configurable window.
 
   Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
-  Kind: unit\
-  Source: src/braking/controller.rs\
+  Element-kind: unit\
   Part-of: braking-core\
   Realizes: SRS_BRK_0107\
   Labels: rust, ASIL-B
@@ -958,8 +1072,7 @@ requirement. Tests of this unit are declared as Test entries (Part 4) with
   Auto-generated Rust bindings for CAN message layouts.
 
   Element-id: 01HGW3G2UVWX9JKLMNOPQRSTUV\
-  Kind: unit\
-  Source: target/generated/bindings.rs\
+  Element-kind: unit\
   Part-of: braking-core\
   Generated-from: schemas/can_messages.dbc\
   Labels: rust
@@ -974,7 +1087,7 @@ requirement. Tests of this unit are declared as Test entries (Part 4) with
   in non-safety-critical paths only.
 
   Element-id: 01HGW3M0NPQR5GHIJKLMNOPQRS\
-  Kind: dependency\
+  Element-kind: dependency\
   External-id: pkg:generic/zlib@1.2.13\
   Labels: soup, third-party
 ```
@@ -990,8 +1103,8 @@ requirement. Tests of this unit are declared as Test entries (Part 4) with
   Labels: hardware, automotive
 ```
 
-Hardware elements typically do not carry a core `Kind` (the core kinds describe
-code). A profile may add hardware kinds (`ecu`, `sensor`, `actuator`).
+Hardware elements typically do not carry a core `Element-kind` (the core kinds
+describe code). A profile may add hardware kinds (`ecu`, `sensor`, `actuator`).
 
 ---
 
@@ -1215,20 +1328,93 @@ An automated migration tool can rewrite legacy attributes.
 
 ---
 
+## Annex C — Built-in Attributes Recap
+
+Complete catalog of attributes defined by the core. Origin legend: `assigned`
+(tool-generated ULID at creation), `authored` (written by the author),
+`inferred` (pre-filled by tooling, author-overridable), `generated` (computed at
+build time from inverse relations, never committed).
+
+### Universal attributes (all families)
+
+| Attribute       | Type          | Origin    | Required | Description                               |
+| --------------- | ------------- | --------- | -------- | ----------------------------------------- |
+| `Labels`        | `tag-list`    | authored  | no       | Classification tags                       |
+| `Status`        | `enum`        | authored  | no       | Lifecycle state (default `approved`)      |
+| `References`    | `citation`    | authored  | no       | External reference citations with locator |
+| `External-id`   | `external-id` | authored  | no       | Cross-system identifier(s)                |
+| `Supersedes`    | `id`          | authored  | no       | Same-family entry this one replaces       |
+| `Superseded-by` | `id`          | generated | —        | Inverse of `Supersedes`                   |
+
+### Spec family
+
+| Attribute      | Type      | Origin    | Required | Description                           |
+| -------------- | --------- | --------- | -------- | ------------------------------------- |
+| `Spec-id`      | `id`      | assigned  | yes      | ULID                                  |
+| `Derived-from` | `id-list` | authored  | no       | Upstream link (V-model decomposition) |
+| `Satisfies`    | `id-list` | authored  | no       | Upstream link (complete fulfillment)  |
+| `Allocated-to` | `id-list` | authored  | no       | Downstream allocation to element(s)   |
+| `Derives`      | `id-list` | generated | —        | Inverse of `Derived-from`             |
+| `Satisfied-by` | `id-list` | generated | —        | Inverse of `Satisfies`                |
+| `Realized-by`  | `id-list` | generated | —        | Inverse of Element.`Realizes`         |
+| `Verified-by`  | `id-list` | generated | —        | Inverse of Test.`Verifies`            |
+
+### Test family
+
+| Attribute    | Type      | Origin   | Required | Description                                      |
+| ------------ | --------- | -------- | -------- | ------------------------------------------------ |
+| `Test-id`    | `id`      | assigned | yes      | ULID                                             |
+| `Test-level` | `enum`    | inferred | no       | `unit` / `integration` / `system` / `acceptance` |
+| `Verifies`   | `id-list` | authored | no       | Upstream link to spec(s) verified                |
+| `Tests`      | `id-list` | authored | no       | Upstream link to element(s) exercised            |
+
+### Element family
+
+| Attribute        | Type         | Origin    | Required | Description                                 |
+| ---------------- | ------------ | --------- | -------- | ------------------------------------------- |
+| `Element-id`     | `id`         | assigned  | yes      | ULID                                        |
+| `Element-kind`   | `enum`       | inferred  | no       | `item` / `artifact` / `dependency` / `unit` |
+| `Part-of`        | `id`         | inferred  | no       | Containment parent (from namespace)         |
+| `Realizes`       | `id-list`    | authored  | no       | Upstream link to spec(s) realized           |
+| `Depends-on`     | `id-list`    | authored  | no       | Upstream link to element(s) used            |
+| `Generated-from` | `path-or-id` | authored  | no       | Source of a tool-generated element          |
+| `Contains`       | `id-list`    | generated | —        | Inverse of `Part-of`                        |
+| `Used-by`        | `id-list`    | generated | —        | Inverse of `Depends-on`                     |
+| `Allocated`      | `id-list`    | generated | —        | Inverse of Spec.`Allocated-to`              |
+| `Tested-by`      | `id-list`    | generated | —        | Inverse of Test.`Tests`                     |
+
+### Reference family
+
+| Attribute            | Type      | Origin    | Required | Description                                  |
+| -------------------- | --------- | --------- | -------- | -------------------------------------------- |
+| `Reference-id`       | `uri`     | authored  | yes      | URI (URN, DOI, or HTTPS URL)                 |
+| `Reference-url`      | `url`     | authored  | no       | Navigation link when different from URI      |
+| `Reference-document` | `text`    | authored  | no       | Canonical citation; falls back to title      |
+| `Cited-by`           | `id-list` | generated | —        | Inverse of `References` on Spec/Test/Element |
+
+Reference entries never carry `References` (a reference entry does not cite
+other references via the `References` attribute; the replacement relation is
+expressed via the universal `Supersedes` attribute).
+
+---
+
 ## Open questions (deferred to later ADRs)
 
 - **Profile document format**: how profiles are authored and distributed.
 - **Profile-level traceability rules**: validation of `Derived-from`,
   `Allocated-to`, `Verifies`, `Tests` (cardinality, type combinations, ASIL
   compatibility).
+- **Property model**: git observation contracts, sync connectors, property
+  namespace, caching, build-time provenance — deferred to
+  [ADR-006 — Property Model](./adr-006-property-model.md).
 - **In-code entries**: conventions for authoring spec, test, and element entries
   in doc comments across languages (Rust `///`, Kotlin KDoc, Doxygen, Javadoc,
   Java JDK 23+).
-- **Inline references in prose**: Mustache `{{ref.X}}`, `{{element.X}}`,
+- **Inline references in prose**: Mustache `{{spec.X}}`, `{{element.X}}`,
   `{{test.X}}` syntax, alongside Pandoc `[@ID]` citation syntax.
 - **Test execution attributes**: profile-specific attributes for test results,
   coverage metrics, execution environment.
 - **Element lifecycle beyond renames**: merge and split operations from external
   systems.
 - **Tool qualification modeling**: ISO 26262 Part 8 TCL attributes for elements
-  of `Kind: dependency` used as development tools.
+  of `Element-kind: dependency` used as development tools.

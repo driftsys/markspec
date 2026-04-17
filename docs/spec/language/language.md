@@ -423,7 +423,29 @@ attributes are mutually exclusive.
 Concrete TYPE vocabularies (STK, SRS, VAL, SWT…) are not defined by the core.
 They come from a profile loaded by the project.
 
-### 2.1 Spec Entries
+### 2.1 Universal attributes
+
+The following attributes apply to every family:
+
+| Attribute       | Type          | Required | Description                               |
+| --------------- | ------------- | -------- | ----------------------------------------- |
+| `Labels`        | `tag-list`    | no       | Classification tags                       |
+| `Status`        | `enum`        | no       | Lifecycle state (default `approved`)      |
+| `References`    | `citation`    | no       | External reference citations with locator |
+| `External-id`   | `external-id` | no       | Cross-system identifier(s)                |
+| `Supersedes`    | `id`          | no       | Same-family entry this one replaces       |
+| `Superseded-by` | `id`          | —        | Generated inverse of `Supersedes`         |
+
+`Status` vocabulary: `draft`, `approved` (default), `deprecated`, `withdrawn`.
+Profiles may extend the set.
+
+`Supersedes` expresses same-family replacement only (a test cannot supersede a
+spec). Tooling warns when a `Satisfies:` / `Derived-from:` / `Verifies:` /
+`Realizes:` target is `deprecated` or `withdrawn`.
+
+See §2.6 for attribute value types (multi-line repeat vs CSV, canonical form).
+
+### 2.2 Spec Entries
 
 A spec entry is a numbered, locally-authoritative declaration the project
 formulates: a requirement, an architecture block, a design decision, a hazard,
@@ -443,21 +465,17 @@ Examples: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`, `HAZ_VHC_00001`.
 **Identity:** `Spec-id` carries a bare 26-character ULID. Assigned by
 `markspec format`, never hand-authored, immutable once assigned.
 
-**Core attributes:**
+**Family-specific attributes** (plus the universal attributes from §2.1):
 
-| Attribute      | Required | Format                                        |
-| -------------- | -------- | --------------------------------------------- |
-| `Spec-id`      | yes      | Bare ULID: `[0-9A-HJKMNP-TV-Z]{26}`           |
-| `Derived-from` | no       | Spec display ID(s), repeatable                |
-| `Satisfies`    | no       | Spec display ID(s), repeatable                |
-| `References`   | no       | Reference slug + optional locator, repeatable |
-| `Allocated-to` | no       | Element display ID(s), repeatable             |
-| `Labels`       | no       | Comma-separated tags                          |
+| Attribute      | Type      | Required | Description                         |
+| -------------- | --------- | -------- | ----------------------------------- |
+| `Spec-id`      | `id`      | yes      | Bare ULID: `[0-9A-HJKMNP-TV-Z]{26}` |
+| `Derived-from` | `id-list` | no       | Spec display ID(s)                  |
+| `Satisfies`    | `id-list` | no       | Spec display ID(s)                  |
+| `Allocated-to` | `id-list` | no       | Element display ID(s)               |
 
 - `Derived-from` — upstream link by V-model decomposition (broad).
 - `Satisfies` — upstream link expressing complete fulfillment (strong).
-- `References` — upstream link to an external reference. Format:
-  `slug [locator]` (e.g., `ISO-26262-6 §9.4.5`). Locator is free text.
 - `Allocated-to` — downstream top-down allocation from spec to element(s).
 
 **Example 9 — spec entry:**
@@ -473,7 +491,7 @@ Examples: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`, `HAZ_VHC_00001`.
   Labels: ASIL-B
 ```
 
-### 2.2 Test Entries
+### 2.3 Test Entries
 
 A test entry is a verification of declared behavior, either automated (code
 tests) or manual (procedures on HIL benches, vehicles, prototypes). Tests
@@ -485,16 +503,17 @@ lifecycle.
 **Identity:** `Test-id` carries a bare 26-character ULID. Assigned by
 `markspec format`, never hand-authored, immutable once assigned.
 
-**Core attributes:**
+**Family-specific attributes** (plus the universal attributes from §2.1):
 
-| Attribute  | Required | Format                                               |
-| ---------- | -------- | ---------------------------------------------------- |
-| `Test-id`  | yes      | Bare ULID                                            |
-| `Level`    | no       | One of `unit`, `integration`, `system`, `acceptance` |
-| `Source`   | no       | Filesystem path (for automated tests, inferred)      |
-| `Verifies` | no       | Spec display ID(s), repeatable                       |
-| `Tests`    | no       | Element display ID(s), repeatable                    |
-| `Labels`   | no       | Comma-separated tags                                 |
+| Attribute    | Type      | Required | Description                                          |
+| ------------ | --------- | -------- | ---------------------------------------------------- |
+| `Test-id`    | `id`      | yes      | Bare ULID                                            |
+| `Test-level` | `enum`    | no       | One of `unit`, `integration`, `system`, `acceptance` |
+| `Verifies`   | `id-list` | no       | Spec display ID(s)                                   |
+| `Tests`      | `id-list` | no       | Element display ID(s)                                |
+
+Filesystem location of an automated test is a **property** (`file.path`), not an
+attribute — see ADR-002 Part 1 "Entry properties" and ADR-006.
 
 - `Level` — V-model test level. Optional at the core; extensible by profile.
 - `Source` — inferred from the source file path for in-code tests; absent for
@@ -518,7 +537,7 @@ lifecycle.
   Labels: automated, rust, ASIL-B
 ```
 
-### 2.3 Element Entries
+### 2.4 Element Entries
 
 An element entry is a canonical declaration of a system object with stable
 identity: a code unit, a build artifact, a dependency, a hardware part.
@@ -536,19 +555,19 @@ Examples: `braking_core`, `braking_core::controller`,
 **Identity:** `Element-id` carries a bare 26-character ULID. Assigned by
 `markspec format`, never hand-authored, immutable once assigned.
 
-**Core attributes:**
+**Family-specific attributes** (plus the universal attributes from §2.1):
 
-| Attribute        | Required | Format                                          |
-| ---------------- | -------- | ----------------------------------------------- |
-| `Element-id`     | yes      | Bare ULID                                       |
-| `External-id`    | no       | URI in external system, repeatable              |
-| `Kind`           | no       | One of `item`, `artifact`, `dependency`, `unit` |
-| `Source`         | no       | Filesystem path of source file (for code units) |
-| `Part-of`        | no       | Parent element display ID                       |
-| `Realizes`       | no       | Spec display ID(s), repeatable                  |
-| `Depends-on`     | no       | Element display ID(s), repeatable               |
-| `Generated-from` | no       | Path or element display ID, repeatable          |
-| `Labels`         | no       | Comma-separated tags                            |
+| Attribute        | Type         | Required | Description                                     |
+| ---------------- | ------------ | -------- | ----------------------------------------------- |
+| `Element-id`     | `id`         | yes      | Bare ULID                                       |
+| `Element-kind`   | `enum`       | no       | One of `item`, `artifact`, `dependency`, `unit` |
+| `Part-of`        | `id`         | no       | Parent element display ID                       |
+| `Realizes`       | `id-list`    | no       | Spec display ID(s)                              |
+| `Depends-on`     | `id-list`    | no       | Element display ID(s)                           |
+| `Generated-from` | `path-or-id` | no       | Path or element display ID                      |
+
+Filesystem location of a code unit is a **property** (`file.path`), not an
+attribute — see ADR-002 Part 1 "Entry properties" and ADR-006.
 
 - `Kind` — core vocabulary is `item` (repo), `artifact` (produced build unit),
   `dependency` (consumed external), `unit` (function-level declaration).
@@ -565,14 +584,13 @@ Examples: `braking_core`, `braking_core::controller`,
   Rejects transient noise on raw sensor readings using a configurable window.
 
   Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
-  Kind: unit\
-  Source: src/braking/controller.rs\
+  Element-kind: unit\
   Part-of: braking-core\
   Realizes: SRS_BRK_0107\
   Labels: rust, ASIL-B
 ```
 
-### 2.4 Reference Entries
+### 2.5 Reference Entries
 
 A reference entry is a bibliographic citation of an external published artifact:
 a standard, a regulation, a paper, an RFC, a corporate specification.
@@ -602,15 +620,17 @@ during parsing.
 **Body is optional** for reference entries — a minimal entry may consist of
 display ID, title, and `Reference-id` only.
 
-**Core attributes:**
+**Family-specific attributes** (plus the universal attributes from §2.1):
 
-| Attribute       | Required | Format                                      |
-| --------------- | -------- | ------------------------------------------- |
-| `Reference-id`  | yes      | URI (URN, DOI, or HTTPS URL)                |
-| `Url`           | no       | HTTPS navigation link if different from URI |
-| `Document`      | no       | Full formal citation; falls back to title   |
-| `Superseded-by` | no       | Slug of replacement reference               |
-| `Labels`        | no       | Comma-separated tags                        |
+| Attribute            | Type   | Required | Description                                 |
+| -------------------- | ------ | -------- | ------------------------------------------- |
+| `Reference-id`       | `uri`  | yes      | URI (URN, DOI, or HTTPS URL)                |
+| `Reference-url`      | `url`  | no       | HTTPS navigation link if different from URI |
+| `Reference-document` | `text` | no       | Full formal citation; falls back to title   |
+
+Replacement is expressed via the universal `Supersedes` / `Superseded-by`
+attributes from §2.1. Lifecycle state is expressed via the universal `Status`
+attribute (use `withdrawn` or `deprecated`).
 
 **Example 12 — reference entry:**
 
@@ -620,12 +640,56 @@ display ID, title, and `Reference-id` only.
   Road vehicles — Functional safety — Part 6: Software level.
 
   Reference-id: urn:iso:std:iso:26262:-6:ed-2\
-  Url: https://www.iso.org/standard/68383.html\
-  Document: ISO 26262-6:2018\
+  Reference-url: https://www.iso.org/standard/68383.html\
+  Reference-document: ISO 26262-6:2018\
   Labels: functional-safety, automotive
 ```
 
-### 2.5 Family recognition
+### 2.6 Attribute value types
+
+Every attribute declares a **value type** that determines which input forms the
+parser accepts and which form the formatter produces.
+
+| Type          | Cardinality | Multi-line repeat | CSV on one line | Description                                                 |
+| ------------- | ----------- | ----------------- | --------------- | ----------------------------------------------------------- |
+| `id`          | single      | —                 | —               | Display ID or slug                                          |
+| `id-list`     | repeatable  | ✓                 | ✓               | Multiple identifiers                                        |
+| `uri`         | single      | —                 | —               | URI per RFC 3986 (URN, DOI, HTTPS URL)                      |
+| `url`         | single      | —                 | —               | HTTPS navigation link                                       |
+| `path`        | single      | —                 | —               | Filesystem path                                             |
+| `path-or-id`  | single      | —                 | —               | Filesystem path or element display ID                       |
+| `enum`        | single      | —                 | —               | One value from a closed vocabulary                          |
+| `tag-list`    | repeatable  | ✓                 | ✓               | Free-form tags                                              |
+| `text`        | single      | —                 | —               | Free-form single-line text                                  |
+| `citation`    | repeatable  | ✓                 | ✗               | Slug + optional free-text locator (locator may contain `,`) |
+| `external-id` | repeatable  | ✓                 | ✓               | `scheme:value` qualified identifier                         |
+| `integer`     | single      | —                 | —               | Whole number                                                |
+| `date`        | single      | —                 | —               | ISO 8601 date (`YYYY-MM-DD`)                                |
+| `boolean`     | single      | —                 | —               | `true` or `false`                                           |
+
+**Multi-line repeat** (git-trailers canonical form):
+
+```text
+Derived-from: SYS_BRK_0042
+Derived-from: SYS_BRK_0043
+Labels: ASIL-B
+Labels: safety
+```
+
+**CSV on one line** (accepted when no value contains a comma):
+
+```text
+Derived-from: SYS_BRK_0042, SYS_BRK_0043
+Labels: ASIL-B, safety
+```
+
+The formatter rewrites every repeatable attribute to **multi-line** form. CSV is
+an accepted input but never a canonical output.
+
+CSV is **forbidden** for the `citation` type. `References` values may carry
+free-text locators like `§9.4, Table 7` that would be ambiguous in CSV.
+
+### 2.7 Family recognition
 
 The family of an entry is decided by its identity attribute, not by its display
 ID format or the document it appears in:
@@ -1241,7 +1305,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 | `MSL-R005` | error    | ULID unique across repository.                                                                    |
 | `MSL-R006` | error    | Display ID unique within project and registry chain.                                              |
 | `MSL-R007` | error    | Display ID format matches the declared family.                                                    |
-| `MSL-R008` | error    | Reference entry: at least one of `Reference-id`, `Url` present.                                   |
+| `MSL-R008` | error    | Reference entry: `Reference-id` required (URI).                                                   |
 | `MSL-R009` | error    | Spec/Test NNNN > 0.                                                                               |
 | `MSL-R010` | warning  | Unknown attributes. Generated attributes must not appear in source.                               |
 | `MSL-R011` | error    | No emphasis inside entry blocks.                                                                  |
@@ -1253,18 +1317,19 @@ carrying an identity attribute.
 
 ### 8.3 Traceability (MSL-T)
 
-| ID         | Severity | Rule                                                                     |
-| ---------- | -------- | ------------------------------------------------------------------------ |
-| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.              |
-| `MSL-T002` | error    | `Derived-from:` target must resolve to an existing spec entry.           |
-| `MSL-T003` | warning  | `References:` slug must resolve through the reference registry chain.    |
-| `MSL-T004` | error    | `Allocated-to:` target must resolve to an existing element entry.        |
-| `MSL-T005` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry. |
-| `MSL-T006` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.    |
-| `MSL-T007` | error    | `Tests:` target (on tests) must resolve to an existing element entry.    |
-| `MSL-T008` | error    | `Part-of:` target must resolve to an existing element entry.             |
-| `MSL-T009` | error    | `Depends-on:` target must resolve to an existing element entry.          |
-| `MSL-T010` | error    | `Superseded-by:` target must resolve to an existing reference entry.     |
+| ID         | Severity | Rule                                                                                                       |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                                |
+| `MSL-T002` | error    | `Derived-from:` target must resolve to an existing spec entry.                                             |
+| `MSL-T003` | warning  | `References:` slug must resolve through the reference registry chain.                                      |
+| `MSL-T004` | error    | `Allocated-to:` target must resolve to an existing element entry.                                          |
+| `MSL-T005` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                                   |
+| `MSL-T006` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                                      |
+| `MSL-T007` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                                      |
+| `MSL-T008` | error    | `Part-of:` target must resolve to an existing element entry.                                               |
+| `MSL-T009` | error    | `Depends-on:` target must resolve to an existing element entry.                                            |
+| `MSL-T010` | error    | `Supersedes:` target must resolve to an existing same-family entry.                                        |
+| `MSL-T011` | warning  | `Satisfies:` / `Derived-from:` / `Verifies:` / `Realizes:` target has `Status: deprecated` or `withdrawn`. |
 
 Direction and level-crossing rules (e.g., "acceptance tests verify stakeholder
 requirements") are profile concerns, not core concerns.
