@@ -52,32 +52,76 @@ diagrams versioned alongside their documents.
 
 ### Preferred formats
 
-Three authoring paths, each with a clear use case:
+**Diagrams are always stored as SVG files** — never embedded as inline fenced
+code blocks (e.g., Mermaid in a `` ```mermaid `` block). SVG renders
+consistently across GitHub, GitLab, PDF output, presentations, and editor
+previews; inline blocks depend on platform-specific rendering and break in
+offline or PDF contexts.
 
-| Format             | Use case                                                              | Source extension                          | Output extension |
-| ------------------ | --------------------------------------------------------------------- | ----------------------------------------- | ---------------- |
-| **Raw SVG**        | Simple schematics, block diagrams — smallest footprint                | (none, hand-authored or script-generated) | `.svg`           |
-| **PlantUML → SVG** | Sequence diagrams, state machines, anything with repetitive structure | `.puml`                                   | `.plantuml.svg`  |
-| **draw.io → SVG**  | Mixed free-form + structured diagrams where a GUI editor pays off     | `.drawio`                                 | `.drawio.svg`    |
+Three recommended authoring paths, chosen by use case:
 
-**Raw SVG** is the lightest option. Authored by hand or produced by scripts
-(Graphviz, D2, Mermaid CLI). No generator source to track; the `.svg` is the
-source of truth.
+- **PlantUML** — use for **simple, structured diagrams**: sequence diagrams,
+  state machines, activity flows, and class diagrams with roughly **13 classes
+  or fewer**. Textual source is diff-friendly and renders deterministically.
+  Beyond ~13 classes, PlantUML's auto-layout becomes cluttered and a GUI editor
+  pays off.
 
-**PlantUML** — recommended for sequence diagrams, state machines, activity
-flows, and any diagram with repetitive structure. The `.puml` source is
-diff-friendly, diffs cleanly across commits, and renders deterministically.
-Store both the `.puml` source and the generated `.plantuml.svg` alongside.
+- **draw.io** (or equivalent GUI tools: Inkscape, Excalidraw) — use for **more
+  advanced diagram authoring**: mixed free-form shapes, swimlanes, annotated
+  architecture, complex class diagrams, or anything where visual layout matters
+  and PlantUML's auto-layout falls short.
 
-**draw.io** — recommended when a GUI editor is needed (mixed free-form shapes,
-swimlanes, annotated architecture diagrams). Export with **embedded source** so
-the `.drawio.svg` file is both a rendered image and a round-trippable draw.io
-document. The single `.drawio.svg` file serves as both source and output.
+- **Raw SVG** — use for **AI-assisted authoring** (generate the SVG directly
+  with AI tools) and for diagrams produced by scripts or authored by hand. No
+  separate source to maintain — the `.svg` is the source of truth.
 
-Other formats (Mermaid, Excalidraw, TikZ, Graphviz DOT) are permitted but not
-preferred — their sources may be harder to render deterministically across CI
-environments, or their outputs may not embed cleanly in SVG. Teams using these
-formats accept responsibility for reproducibility.
+Other SVG-producing tools (Graphviz/DOT, D2, TikZ, Mermaid CLI) are equally
+acceptable when their output meets the SVG guidelines in this ADR (viewBox set,
+no fixed width/height, monochrome style). The three paths above are about common
+use cases, not a closed set.
+
+### Raster formats (PNG)
+
+PNG is acceptable when SVG does not make sense — photographs, screenshots,
+heatmaps, rendered 3D scenes, bitmap plots with dense pixel data. For any
+diagram that can be expressed as vector (shapes, lines, text, flows), use SVG.
+PNG should be the exception, not the default.
+
+Store PNG files with a descriptive name and no source-format suffix:
+
+```text
+dashboard-screenshot.png
+thermal-map.png
+```
+
+### Storage conventions
+
+The file extension encodes whether the source is embedded in the SVG:
+
+**Source embedded in the SVG** (draw.io "Include a copy of my diagram" option,
+PlantUML with source in `<desc>`, other round-trippable tools) — use
+`<name>.<source>.svg`:
+
+```text
+unlock-sequence.plantuml.svg   # PlantUML source embedded in the SVG
+architecture.drawio.svg        # draw.io source embedded in the SVG
+```
+
+The single file is both source and rendered output. This is the preferred
+storage style — one file to commit, no drift between source and render.
+
+**Source not embedded** (generator emits a separate source file) — store source
+and SVG side by side with matching base names:
+
+```text
+unlock-sequence.puml           # PlantUML source
+unlock-sequence.svg            # generated output
+architecture.dot               # Graphviz source
+architecture.svg               # generated output
+```
+
+**AI-assisted or hand-authored SVG** — only the `.svg` file exists; no source
+file to pair with. The SVG itself is the authoritative artifact.
 
 ### SVG sizing for PDF documents (A4, ~25mm margins)
 

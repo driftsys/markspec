@@ -350,15 +350,28 @@ the document self-contained — when a folder is moved or reorganized, the diagr
 travels with the document. Non-relative image references are flagged by
 MSL-D008.
 
-**Preferred formats**:
+**Diagrams are always stored as SVG files** — never embedded as inline fenced
+code blocks (e.g., `` ```mermaid ``). SVG renders consistently across GitHub,
+GitLab, PDF, and presentation output.
 
-- **Raw SVG** (`.svg`) — hand-authored or script-generated. Smallest footprint.
-  Best for simple schematics and block diagrams.
-- **PlantUML → SVG** (`.puml` source, `.plantuml.svg` output) — recommended for
-  sequence diagrams, state machines, and any diagram with repetitive structure.
-  Diff-friendly source, renders deterministically.
-- **draw.io → SVG** (`.drawio.svg` with embedded source) — recommended for mixed
-  free-form + structured diagrams where a GUI editor pays off.
+**Authoring recommendations by use case**:
+
+- **PlantUML** — simple structured diagrams: sequences, state machines, class
+  diagrams with ~13 classes or fewer.
+- **draw.io** (or Inkscape, Excalidraw) — advanced authoring with free-form
+  shapes, swimlanes, complex layouts.
+- **Raw SVG** — AI-assisted authoring, scripts, or hand-authored.
+
+**Storage conventions**:
+
+- Source embedded in the SVG → `<name>.<source>.svg` (e.g.
+  `architecture.drawio.svg`, `unlock-sequence.plantuml.svg`).
+- Source not embedded → source and SVG side by side (e.g. `architecture.dot` +
+  `architecture.svg`).
+
+**PNG** is acceptable when SVG does not make sense — photographs, screenshots,
+heatmaps, dense bitmap data. Use a descriptive filename with no source-format
+suffix (`dashboard-screenshot.png`).
 
 See
 [ADR-003 — Diagram authoring](../../architecture/adr-003-diagram-authoring.md)
