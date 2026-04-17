@@ -21,19 +21,63 @@ The naming convention mirrors the document name:
 ```text
 modules/braking/
 ├── specification.md
-├── specification-overview.svg
-├── specification-state-machine.svg
-└── specification-sequence.svg
+├── diagrams/
+│   ├── unlock-sequence.puml
+│   ├── unlock-sequence.plantuml.svg
+│   ├── architecture-overview.drawio
+│   ├── architecture-overview.drawio.svg
+│   └── state-machine.svg
 ```
 
-Diagrams are embedded using standard Markdown image syntax with relative paths:
+Diagrams are embedded using standard Markdown image syntax with **relative paths
+only**:
 
 ```markdown
-![System overview](specification-overview.svg)
+![Unlock sequence](./diagrams/unlock-sequence.plantuml.svg)
 ```
+
+**Path rules**:
+
+- **Absolute URLs** (`https://…`) are not permitted.
+- **Repo-root links** (`/docs/…`) are not permitted.
+- **Paths escaping the document folder** via repeated `../../` are not
+  permitted.
+- **Relative paths** keep the document self-contained: when a folder is moved or
+  reorganized, the diagram travels with the document.
+
+MarkSpec flags any non-relative image reference as a build warning (MSL-D008).
 
 This renders natively on GitHub and GitLab, requires no build step, and keeps
 diagrams versioned alongside their documents.
+
+### Preferred formats
+
+Three authoring paths, each with a clear use case:
+
+| Format             | Use case                                                              | Source extension                          | Output extension |
+| ------------------ | --------------------------------------------------------------------- | ----------------------------------------- | ---------------- |
+| **Raw SVG**        | Simple schematics, block diagrams — smallest footprint                | (none, hand-authored or script-generated) | `.svg`           |
+| **PlantUML → SVG** | Sequence diagrams, state machines, anything with repetitive structure | `.puml`                                   | `.plantuml.svg`  |
+| **draw.io → SVG**  | Mixed free-form + structured diagrams where a GUI editor pays off     | `.drawio`                                 | `.drawio.svg`    |
+
+**Raw SVG** is the lightest option. Authored by hand or produced by scripts
+(Graphviz, D2, Mermaid CLI). No generator source to track; the `.svg` is the
+source of truth.
+
+**PlantUML** — recommended for sequence diagrams, state machines, activity
+flows, and any diagram with repetitive structure. The `.puml` source is
+diff-friendly, diffs cleanly across commits, and renders deterministically.
+Store both the `.puml` source and the generated `.plantuml.svg` alongside.
+
+**draw.io** — recommended when a GUI editor is needed (mixed free-form shapes,
+swimlanes, annotated architecture diagrams). Export with **embedded source** so
+the `.drawio.svg` file is both a rendered image and a round-trippable draw.io
+document. The single `.drawio.svg` file serves as both source and output.
+
+Other formats (Mermaid, Excalidraw, TikZ, Graphviz DOT) are permitted but not
+preferred — their sources may be harder to render deterministically across CI
+environments, or their outputs may not embed cleanly in SVG. Teams using these
+formats accept responsibility for reproducibility.
 
 ### SVG sizing for PDF documents (A4, ~25mm margins)
 

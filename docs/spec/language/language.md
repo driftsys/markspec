@@ -335,10 +335,37 @@ _This is just italic text._
 
 Does not start with `Table:`.
 
-#### §4 Figure captions
+#### §4 Figure captions and diagrams
 
-Emphasized paragraph starting with `Figure:` immediately below an image.
-Alternatively, the image alt text is the caption.
+Diagrams are embedded using standard Markdown image syntax with **relative paths
+only**:
+
+```markdown
+![Unlock sequence](./diagrams/unlock-sequence.plantuml.svg)
+```
+
+Absolute URLs (`https://…`), repo-root links (`/docs/…`), and paths that escape
+the document folder via repeated `../../` are not permitted. Relative paths keep
+the document self-contained — when a folder is moved or reorganized, the diagram
+travels with the document. Non-relative image references are flagged by
+MSL-D008.
+
+**Preferred formats**:
+
+- **Raw SVG** (`.svg`) — hand-authored or script-generated. Smallest footprint.
+  Best for simple schematics and block diagrams.
+- **PlantUML → SVG** (`.puml` source, `.plantuml.svg` output) — recommended for
+  sequence diagrams, state machines, and any diagram with repetitive structure.
+  Diff-friendly source, renders deterministically.
+- **draw.io → SVG** (`.drawio.svg` with embedded source) — recommended for mixed
+  free-form + structured diagrams where a GUI editor pays off.
+
+See
+[ADR-003 — Diagram authoring](../../architecture/adr-003-diagram-authoring.md)
+for sizing, visual style, and tooling details.
+
+**Captions**: an emphasized paragraph starting with `Figure:` immediately below
+an image. Alternatively, the image alt text is the caption.
 
 **Example 6 — explicit caption:**
 
@@ -1429,6 +1456,7 @@ requirements") are profile concerns, not core concerns.
 | `MSL-D005` | warning      | SVGs: `viewBox` required, no fixed `width`/`height`.                                                                                                                                                                                                                    |
 | `MSL-D006` | configurable | Inline links vs reference-style links. Controlled by `referenceLinks` config: `none` (no check), `warn` (prefer reference-style), `enforce` (require reference-style).                                                                                                  |
 | `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                                                                                                                       |
+| `MSL-D008` | warning      | Image paths must be relative and stay within the document folder. Absolute URLs, repo-root links (`/...`), and `../../`-escaping paths are flagged.                                                                                                                     |
 
 ### 8.6 Glossary (MSL-G)
 
