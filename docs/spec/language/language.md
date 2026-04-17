@@ -253,10 +253,13 @@ block.
   The sensor driver shall debounce raw inputs to eliminate electrical noise
   before processing.
 
-  The debounce window shall be configurable per sensor type.
+  The debounce window shall be configurable per sensor type:
 
-  > [!WARNING]
-  > Failure to debounce may lead to spurious activation.
+  | Sensor type | Window (ms) | Sample rate (Hz) |
+  | ----------- | ----------- | ---------------- |
+  | Pressure    | 10          | 100              |
+  | Speed       | 5           | 200              |
+  | Temperature | 50          | 20               |
 
   Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
   Satisfies: SYS_BRK_0042\
