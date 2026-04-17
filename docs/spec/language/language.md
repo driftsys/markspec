@@ -1469,7 +1469,7 @@ requirements") are profile concerns, not core concerns.
 | `MSL-D005` | warning      | SVGs: `viewBox` required, no fixed `width`/`height`.                                                                                                                                                                                                                    |
 | `MSL-D006` | configurable | Inline links vs reference-style links. Controlled by `referenceLinks` config: `none` (no check), `warn` (prefer reference-style), `enforce` (require reference-style).                                                                                                  |
 | `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                                                                                                                       |
-| `MSL-D008` | warning      | Image paths must be relative and stay within the document folder. Absolute URLs, repo-root links (`/...`), and `../../`-escaping paths are flagged.                                                                                                                     |
+| `MSL-D008` | error        | Image paths must be relative and stay within the document folder. Absolute URLs (`https://...`), repo-root links (`/...`), and paths escaping via `../../` are not permitted (ADR-003).                                                                                 |
 
 ### 8.6 Glossary (MSL-G)
 

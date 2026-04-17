@@ -45,7 +45,7 @@ only**:
 - **Relative paths** keep the document self-contained: when a folder is moved or
   reorganized, the diagram travels with the document.
 
-MarkSpec flags any non-relative image reference as a build warning (MSL-D008).
+MarkSpec rejects any non-relative image reference as a build error (MSL-D008).
 
 This renders natively on GitHub and GitLab, requires no build step, and keeps
 diagrams versioned alongside their documents.
