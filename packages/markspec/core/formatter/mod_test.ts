@@ -255,7 +255,7 @@ Deno.test("format: idempotent on already-formatted input", () => {
 const MOCK_ULID = "01HGW2Q8MNTEST";
 const mockUlid = () => MOCK_ULID;
 
-Deno.test("format: missing Id gets ULID with correct type prefix", () => {
+Deno.test("format: missing identity on spec entry gets Spec-id with bare ULID", () => {
   const md = `# Test
 
 - [SRS_BRK_0001] Title
@@ -267,9 +267,9 @@ Deno.test("format: missing Id gets ULID with correct type prefix", () => {
 `;
   const result = format(md, { generateUlid: mockUlid });
   assertEquals(result.changed, true);
-  assertStringIncludes(result.output, `Id: SRS_${MOCK_ULID}`);
-  // Id should be first attribute
-  const idIdx = result.output.indexOf("Id:");
+  assertStringIncludes(result.output, `Spec-id: ${MOCK_ULID}`);
+  // Identity should come before family-specific relations
+  const idIdx = result.output.indexOf("Spec-id:");
   const satIdx = result.output.indexOf("Satisfies:");
   assertEquals(idIdx < satIdx, true);
 });
@@ -318,7 +318,7 @@ Deno.test("format: reference entries skip ULID", () => {
   assertEquals(result.output.includes("Id:"), false);
 });
 
-Deno.test("format: diagnostic emitted on ULID assignment", () => {
+Deno.test("format: diagnostic emitted on identity assignment", () => {
   const md = `# Test
 
 - [SRS_BRK_0001] Title
@@ -331,10 +331,10 @@ Deno.test("format: diagnostic emitted on ULID assignment", () => {
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].severity, "info");
   assertStringIncludes(result.diagnostics[0].message, "SRS_BRK_0001");
-  assertStringIncludes(result.diagnostics[0].message, `SRS_${MOCK_ULID}`);
+  assertStringIncludes(result.diagnostics[0].message, `Spec-id: ${MOCK_ULID}`);
 });
 
-Deno.test("format: entry with no attributes gets new block with Id", () => {
+Deno.test("format: entry with no attributes gets new block with Spec-id", () => {
   const md = `# Test
 
 - [SRS_BRK_0001] Title
@@ -343,8 +343,7 @@ Deno.test("format: entry with no attributes gets new block with Id", () => {
 `;
   const result = format(md, { generateUlid: mockUlid });
   assertEquals(result.changed, true);
-  assertStringIncludes(result.output, `Id: SRS_${MOCK_ULID}`);
-  // Body should still be there
+  assertStringIncludes(result.output, `Spec-id: ${MOCK_ULID}`);
   assertStringIncludes(result.output, "Body text only, no attributes.");
 });
 
@@ -361,7 +360,104 @@ Deno.test("format: mock generateUlid produces deterministic output", () => {
 `;
   const result = format(md, { generateUlid: mockUlid });
   assertEquals(result.changed, true);
-  // Both should get the same mock ULID (in real usage they'd differ)
-  const idMatches = [...result.output.matchAll(/Id: SRS_01HGW2Q8MNTEST/g)];
+  // Both should get the same mock ULID (in real usage they'd differ).
+  const idMatches = [...result.output.matchAll(/Spec-id: 01HGW2Q8MNTEST/g)];
   assertEquals(idMatches.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4a — new-family identity assignment and canonical orders
+// ---------------------------------------------------------------------------
+
+// Test / element auto-assignment requires the parser to first classify
+// the entry as test / element. Without an identity attribute already
+// present, the parser falls back to display-ID-shape + filename (which
+// only covers references today). Profile-driven classification for
+// test and element entries is future Phase 6 work; auto-assignment of
+// Test-id / Element-id to anonymous entries is deferred until then.
+
+Deno.test("format: reference entry without Reference-id is not auto-assigned", () => {
+  // Reference-id is a URI, authored by the human, never generated.
+  const md = `# References
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+  Functional safety.
+
+  URI: urn:iso:std:iso:26262:-6:ed-2
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  assertEquals(result.output.includes(MOCK_ULID), false);
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-F001").length,
+    0,
+  );
+});
+
+Deno.test("format: new Spec-id in source is not touched", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Labels: ASIL-B
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  // Don't add another identity; don't replace the existing one.
+  assertStringIncludes(result.output, "Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(result.output.includes(MOCK_ULID), false);
+});
+
+Deno.test("format: canonical order for test family", () => {
+  const md = `# Test
+
+- [SWT_BRK_0001] Title
+
+  Body.
+
+  Labels: ASIL-B\\
+  Test-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Verifies: SRS_BRK_0001\\
+  Test-level: unit
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  const lines = result.output.split("\n");
+  const testIdLine = lines.findIndex((l) => l.trim().startsWith("Test-id:"));
+  const levelLine = lines.findIndex((l) => l.trim().startsWith("Test-level:"));
+  const verifiesLine = lines.findIndex((l) => l.trim().startsWith("Verifies:"));
+  const labelsLine = lines.findIndex((l) => l.trim().startsWith("Labels:"));
+  assertEquals(
+    testIdLine < levelLine && levelLine < verifiesLine &&
+      verifiesLine < labelsLine,
+    true,
+  );
+});
+
+Deno.test("format: canonical order for element family", () => {
+  const md = `# Elements
+
+- [braking::foo] Foo
+
+  Body.
+
+  Labels: rust\\
+  Part-of: braking\\
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY\\
+  Element-kind: unit\\
+  Realizes: SRS_BRK_0001
+`;
+  const result = format(md, { generateUlid: mockUlid });
+  const lines = result.output.split("\n");
+  const elIdLine = lines.findIndex((l) => l.trim().startsWith("Element-id:"));
+  const kindLine = lines.findIndex((l) => l.trim().startsWith("Element-kind:"));
+  const partLine = lines.findIndex((l) => l.trim().startsWith("Part-of:"));
+  const realizesLine = lines.findIndex((l) => l.trim().startsWith("Realizes:"));
+  const labelsLine = lines.findIndex((l) => l.trim().startsWith("Labels:"));
+  assertEquals(
+    elIdLine < kindLine && kindLine < partLine &&
+      partLine < realizesLine && realizesLine < labelsLine,
+    true,
+  );
 });
