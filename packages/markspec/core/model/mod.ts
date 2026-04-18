@@ -4,6 +4,16 @@
  * MarkSpec document model — AST types, ID types, and project configuration.
  */
 
+export {
+  ATTRIBUTE_CATALOG,
+  attributesForFamily,
+  attributeSpec,
+  ELEMENT_KIND_VALUES,
+  STATUS_VALUES,
+  TEST_LEVEL_VALUES,
+} from "./attributes.ts";
+export type { AttributeSpec } from "./attributes.ts";
+
 // ---------------------------------------------------------------------------
 // Builtin entry types
 // ---------------------------------------------------------------------------
@@ -81,8 +91,131 @@ export interface Attribute {
 /** The origin format of the entry. */
 export type EntrySource = "markdown" | "doc-comment";
 
-/** Entry family — spec entries are project declarations; reference entries are external citations. */
-export type EntryFamily = "spec" | "reference";
+/**
+ * Entry family per ADR-002.
+ *
+ * Four families, each with a dedicated identity attribute:
+ * - `spec` — project declaration (requirement, architecture, decision, hazard)
+ * - `test` — verification of declared behavior (automated or manual)
+ * - `element` — canonical system object (code unit, artifact, dependency, hardware)
+ * - `reference` — bibliographic citation of an external artifact
+ *
+ * Family is determined by the identity attribute the entry carries
+ * (`Spec-id` / `Test-id` / `Element-id` / `Reference-id`), not by display-ID
+ * pattern or document context. See {@linkcode IdentityAttribute}.
+ */
+export type EntryFamily = "spec" | "test" | "element" | "reference";
+
+/**
+ * Identity attribute key per ADR-002 Part 6.
+ *
+ * Every entry carries exactly one of these; its presence determines the family.
+ */
+export type IdentityAttribute =
+  | "Spec-id"
+  | "Test-id"
+  | "Element-id"
+  | "Reference-id";
+
+/** Map from identity attribute key to family. */
+export const FAMILY_BY_IDENTITY_KEY: Readonly<
+  Record<IdentityAttribute, EntryFamily>
+> = {
+  "Spec-id": "spec",
+  "Test-id": "test",
+  "Element-id": "element",
+  "Reference-id": "reference",
+};
+
+/** Map from family to identity attribute key. */
+export const IDENTITY_KEY_BY_FAMILY: Readonly<
+  Record<EntryFamily, IdentityAttribute>
+> = {
+  spec: "Spec-id",
+  test: "Test-id",
+  element: "Element-id",
+  reference: "Reference-id",
+};
+
+/**
+ * Origin of an attribute value per ADR-002 Part 1.
+ *
+ * - `authored` — written by the author in the source file.
+ * - `inferred` — pre-filled by `markspec format` from a heuristic,
+ *   committed to source, author-overridable.
+ * - `assigned` — generated fresh by `markspec format` at creation time
+ *   (identity attributes). Never derived, never changes after assignment.
+ * - `generated` — computed at build time from inverse relations.
+ *   Never committed to source.
+ */
+export type AttributeOrigin =
+  | "authored"
+  | "inferred"
+  | "assigned"
+  | "generated";
+
+/**
+ * Attribute value type per ADR-002 Part 1 (14 types).
+ *
+ * Cardinality is encoded in the type:
+ * - Repeatable: `id-list`, `tag-list`, `citation`, `external-id`.
+ * - Single-valued: everything else.
+ *
+ * Repeatable types accept multi-line and (except `citation`) CSV on input;
+ * the formatter always emits multi-line form.
+ */
+export type AttributeValueType =
+  | "id"
+  | "id-list"
+  | "uri"
+  | "url"
+  | "path"
+  | "path-or-id"
+  | "enum"
+  | "tag-list"
+  | "text"
+  | "citation"
+  | "external-id"
+  | "integer"
+  | "date"
+  | "boolean";
+
+/**
+ * Observed properties of an entry per ADR-002 Part 1 and ADR-006 (stub).
+ *
+ * Properties are model-level observations — never authored in source, never
+ * round-trip through `markspec format`, not in git diffs. Each category is
+ * optional; absence means "not observed (yet)".
+ *
+ * Observation contracts for git/sync/build are deferred to ADR-006. Only
+ * `file.path` is populated today (set by the parser from the parse options).
+ */
+export interface EntryProperties {
+  /** Repository location. */
+  readonly file?: {
+    readonly path: string;
+    readonly line?: number;
+    readonly column?: number;
+  };
+  /** Version-control observations. */
+  readonly git?: {
+    readonly createdAt?: string;
+    readonly modifiedAt?: string;
+    readonly contributors?: readonly string[];
+    readonly revision?: string;
+  };
+  /** External connector state. */
+  readonly sync?: {
+    readonly lastSyncedAt?: string;
+    readonly remoteState?: string;
+    readonly externalSource?: string;
+  };
+  /** Compilation-time provenance. */
+  readonly build?: {
+    readonly resolutionSource?: string;
+    readonly registryOrigin?: string;
+  };
+}
 
 /**
  * A parsed MarkSpec entry — the core AST node.
@@ -110,6 +243,13 @@ export interface Entry {
   readonly location: SourceLocation;
   /** Whether this came from a Markdown file or a doc comment. */
   readonly source: EntrySource;
+  /**
+   * Observed properties (file path, git history, sync state, build origin).
+   *
+   * Populated progressively: Phase 2 wires `file.path`; ADR-006 work wires
+   * the rest. Consumers must tolerate missing values.
+   */
+  readonly properties?: EntryProperties;
 }
 
 // ---------------------------------------------------------------------------
@@ -241,12 +381,25 @@ export interface InlineRef {
 // Traceability graph
 // ---------------------------------------------------------------------------
 
-/** Kind of directional link between entries. */
+/**
+ * Kind of directional link between entries.
+ *
+ * Extends the four-link spec/reference model to cover all ADR-002 relations:
+ * Test.`Verifies`, Test.`Tests`, Element.`Realizes`, Element.`Depends-on`,
+ * Element.`Part-of`, Element.`Generated-from`, universal `Supersedes`.
+ */
 export type LinkKind =
   | "satisfies"
   | "derived-from"
   | "references"
-  | "allocated-to";
+  | "allocated-to"
+  | "realizes"
+  | "verifies"
+  | "tests"
+  | "depends-on"
+  | "part-of"
+  | "generated-from"
+  | "supersedes";
 
 /** A directional link between two entries in the traceability graph. */
 export interface Link {
@@ -254,4 +407,74 @@ export interface Link {
   readonly to: DisplayId;
   readonly kind: LinkKind;
   readonly location: SourceLocation;
+}
+
+// ---------------------------------------------------------------------------
+// Document
+// ---------------------------------------------------------------------------
+
+/**
+ * Document-level attributes authored in YAML front matter per ADR-007.
+ *
+ * Keys use kebab-case (YAML-ecosystem convention). Core keys below; profiles
+ * declare additional keys; `.markspec.yaml` → `frontMatter.allowedKeys`
+ * allowlists ecosystem keys (Hugo, Jekyll, Docusaurus). Keys forbidden by
+ * ADR-007 (`title`, `description`, `date`, `authors`, …) are rejected by
+ * MSL-D001 and never reach this map.
+ */
+export interface DocumentAttributes {
+  /** Document ULID — bare 26-char Crockford base32. */
+  readonly "document-id"?: string;
+  /** Overrides filename/directive-based type detection. */
+  readonly "document-type"?: string;
+  /** Classification tags (`tag-list`). */
+  readonly labels?: readonly string[];
+  /** Lifecycle state (`draft` / `approved` / `deprecated` / `withdrawn`). */
+  readonly status?: string;
+  /** Cross-system identifier(s) (`external-id`). */
+  readonly "external-id"?: readonly string[];
+  /** `document-id` of a document this one replaces. */
+  readonly supersedes?: string;
+  /** External reference citations with optional locator (`citation`). */
+  readonly references?: readonly string[];
+  /** Org free-form metadata, never validated. */
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  /** Allowlisted ecosystem keys (preserved verbatim, not validated). */
+  readonly extra?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Observed document properties per ADR-007 §6.2 — derived, never authored.
+ *
+ * The H1, first paragraph, git history, and filesystem are the authoritative
+ * sources. These fields are populated progressively as observation support
+ * lands.
+ */
+export interface DocumentProperties {
+  /** H1 heading, or filename stem fallback. */
+  readonly title?: string;
+  /** Merge-to-main count (starts at `0`). */
+  readonly revision?: number;
+  /** Contributors from `project.yaml` or git history. */
+  readonly authors?: readonly string[];
+  /** First commit timestamp, or filesystem ctime fallback. */
+  readonly createdAt?: string;
+  /** Last merge-commit timestamp, or filesystem mtime fallback. */
+  readonly modifiedAt?: string;
+}
+
+/**
+ * A parsed MarkSpec document per ADR-007.
+ *
+ * A Markdown (or source) file containing entries, optionally preceded by YAML
+ * front matter. Document metadata is split into authored `attributes` (front
+ * matter) and observed `properties` (H1, git, filesystem).
+ */
+export interface Document {
+  /** File path (absolute or project-relative). */
+  readonly file: string;
+  /** Document-level attributes from front matter. */
+  readonly attributes: DocumentAttributes;
+  /** Observed document properties. */
+  readonly properties: DocumentProperties;
 }
