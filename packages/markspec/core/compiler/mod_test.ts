@@ -487,3 +487,110 @@ document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
   assertEquals(result.entries.size, 1);
   assertEquals(result.entries.has("SRS_BRK_0001"), true);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 6a — end-to-end four-family traceability
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: end-to-end four-family traceability graph", async () => {
+  // Exercise the full model: Reference cited by Spec, Spec allocated to
+  // Element, Element realizes Spec, Test verifies Spec, Test tests Element,
+  // all with the new identity attributes, all in their own documents.
+  const result = await compile(
+    ["specs.md", "tests.md", "elements.md", "references.md"],
+    {
+      readFile: mockFs({
+        "references.md": `# References
+
+- [@ISO-26262-6] ISO 26262 Part 6
+
+  Road vehicles — Functional safety — Part 6: Software level.
+
+  Reference-id: urn:iso:std:iso:26262:-6:ed-2
+`,
+        "specs.md": `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+document-type: requirements
+status: approved
+---
+
+# Braking requirements
+
+- [SRS_BRK_0107] Sensor input debouncing
+
+  The sensor driver shall debounce raw inputs.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Allocated-to: braking_core::controller::debounce\\
+  References: ISO-26262-6 §9.4.5\\
+  Labels: ASIL-B
+`,
+        "tests.md": `# Tests
+
+- [SWT_BRK_0107] Debounce unit test
+
+  Given a 10ms window, a 5ms spike must not alter output.
+
+  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
+  Test-level: unit\\
+  Verifies: SRS_BRK_0107\\
+  Tests: braking_core::controller::debounce
+`,
+        "elements.md": `# Elements
+
+- [braking_core::controller::debounce] Debounce function
+
+  Rejects transient noise on raw sensor readings.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY\\
+  Element-kind: unit\\
+  Realizes: SRS_BRK_0107
+`,
+      }),
+    },
+  );
+
+  // All four entries parsed
+  assertEquals(result.entries.size, 4);
+  assertEquals(result.entries.has("SRS_BRK_0107"), true);
+  assertEquals(result.entries.has("SWT_BRK_0107"), true);
+  assertEquals(result.entries.has("braking_core::controller::debounce"), true);
+  assertEquals(result.entries.has("ISO-26262-6"), true);
+
+  // Each entry has the correct family
+  assertEquals(result.entries.get("SRS_BRK_0107")?.family, "spec");
+  assertEquals(result.entries.get("SWT_BRK_0107")?.family, "test");
+  assertEquals(
+    result.entries.get("braking_core::controller::debounce")?.family,
+    "element",
+  );
+  assertEquals(result.entries.get("ISO-26262-6")?.family, "reference");
+
+  // Traceability graph: 5 links (Allocated-to, References, Verifies, Tests, Realizes)
+  assertEquals(result.links.length, 5);
+
+  // Spot-check each link kind
+  const byKind = (k: string) => result.links.filter((l) => l.kind === k);
+  assertEquals(byKind("allocated-to").length, 1);
+  assertEquals(byKind("references").length, 1);
+  assertEquals(byKind("verifies").length, 1);
+  assertEquals(byKind("tests").length, 1);
+  assertEquals(byKind("realizes").length, 1);
+
+  // Element is reached by both Realizes and Tests
+  const incomingToElement = result.reverse
+    .get("braking_core::controller::debounce") ?? [];
+  const incomingKinds = incomingToElement.map((l) => l.kind).sort();
+  assertEquals(incomingKinds, ["allocated-to", "tests"]);
+
+  // Document surface
+  assertEquals(result.documents?.size, 1);
+  assertEquals(
+    result.documents?.get("specs.md")?.attributes["document-type"],
+    "requirements",
+  );
+
+  // No validation errors
+  const errors = result.diagnostics.filter((d) => d.severity === "error");
+  assertEquals(errors.length, 0, JSON.stringify(errors, null, 2));
+});
