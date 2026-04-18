@@ -391,79 +391,177 @@ function validateLegacyIdentity(
   }
 }
 
-/** MSL-T reference integrity checks. */
+/**
+ * Family-aware traceability rule per ADR-002 §Part 2-5 / language.md §8.3.
+ *
+ * Each attribute that carries cross-entry references specifies which family
+ * its targets must belong to. The relation names here use the on-wire
+ * codes MSL-T001/T004/T005/T006 + T007-T013 for the new rules; note the
+ * numbering diverges from language.md §8.3 (a docs PR will re-align).
+ */
+interface TraceabilityRule {
+  /** Attribute key (e.g., `Satisfies`, `Realizes`). */
+  readonly key: string;
+  /** Expected target family, or `"same"` for Supersedes. */
+  readonly target: Entry["family"] | "same";
+  /** MSL diagnostic code. */
+  readonly code: string;
+  /** Diagnostic severity when target is missing or wrong family. */
+  readonly severity: "error" | "warning";
+  /** Which source families may carry this attribute (optional). */
+  readonly source?: readonly Entry["family"][];
+  /**
+   * Whether the value may carry a free-text locator after the slug
+   * (`"ID §locator"`). Only `Derived-from` historically permitted this
+   * shape; the catalog treats it as `id-list`, so locators are no longer
+   * valid but we keep tolerance for legacy fixtures.
+   */
+  readonly tolerateLocator?: boolean;
+}
+
+const TRACEABILITY_RULES: readonly TraceabilityRule[] = [
+  {
+    key: "Satisfies",
+    target: "spec",
+    code: "MSL-T001",
+    severity: "error",
+    source: ["spec"],
+  },
+  {
+    key: "Derived-from",
+    target: "spec",
+    code: "MSL-T004",
+    severity: "warning",
+    source: ["spec"],
+    tolerateLocator: true,
+  },
+  {
+    key: "References",
+    target: "reference",
+    code: "MSL-T005",
+    severity: "error",
+    source: ["spec", "test", "element"],
+  },
+  {
+    key: "Allocated-to",
+    target: "element",
+    code: "MSL-T006",
+    severity: "error",
+    source: ["spec"],
+  },
+  {
+    key: "Realizes",
+    target: "spec",
+    code: "MSL-T007",
+    severity: "error",
+    source: ["element"],
+  },
+  {
+    key: "Verifies",
+    target: "spec",
+    code: "MSL-T008",
+    severity: "error",
+    source: ["test"],
+  },
+  {
+    key: "Tests",
+    target: "element",
+    code: "MSL-T009",
+    severity: "error",
+    source: ["test"],
+  },
+  {
+    key: "Part-of",
+    target: "element",
+    code: "MSL-T010",
+    severity: "error",
+    source: ["element"],
+  },
+  {
+    key: "Depends-on",
+    target: "element",
+    code: "MSL-T011",
+    severity: "error",
+    source: ["element"],
+  },
+  {
+    key: "Supersedes",
+    target: "same",
+    code: "MSL-T012",
+    severity: "error",
+  },
+];
+
+/** Split a repeatable attribute value into individual target identifiers. */
+function splitTargets(value: string, tolerateLocator: boolean): string[] {
+  if (tolerateLocator) {
+    // Legacy form accepted locator suffix after the ID (e.g., "SYS_X §1.2").
+    const first = value.split(/\s/)[0];
+    return first ? [first] : [];
+  }
+  return value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/** MSL-T traceability integrity checks. */
 function checkReferences(
   entries: readonly Entry[],
   diagnostics: Diagnostic[],
 ): void {
-  const knownIds = new Set(entries.map((e) => e.displayId));
+  const byDisplayId = new Map<string, Entry>();
+  for (const entry of entries) {
+    if (!byDisplayId.has(entry.displayId)) {
+      byDisplayId.set(entry.displayId, entry);
+    }
+  }
 
   for (const entry of entries) {
-    // MSL-T001: Satisfies targets must exist.
-    const satisfies = findAttr(entry.attributes, "Satisfies");
-    if (satisfies) {
-      const targets = satisfies.value.split(",").map((s) => s.trim());
+    for (const rule of TRACEABILITY_RULES) {
+      if (rule.source && !rule.source.includes(entry.family)) continue;
+      const attr = findAttr(entry.attributes, rule.key);
+      if (!attr) continue;
+
+      const targets = splitTargets(attr.value, rule.tolerateLocator ?? false);
       for (const target of targets) {
-        if (!target) continue;
-        if (!knownIds.has(target)) {
+        const resolved = byDisplayId.get(target);
+        if (!resolved) {
           diagnostics.push({
-            code: "MSL-T001",
-            severity: "error",
+            code: rule.code,
+            severity: rule.severity,
             message:
-              `${entry.displayId}: unresolved reference '${target}' in Satisfies`,
+              `${entry.displayId}: unresolved reference '${target}' in ${rule.key}`,
             location: entry.location,
           });
+          continue;
         }
-      }
-    }
 
-    // MSL-T004: Derived-from ID portion checked against known entries.
-    const derivedFrom = findAttr(entry.attributes, "Derived-from");
-    if (derivedFrom) {
-      const idPart = derivedFrom.value.split(/\s/)[0];
-      if (idPart && !knownIds.has(idPart)) {
-        diagnostics.push({
-          code: "MSL-T004",
-          severity: "warning",
-          message:
-            `${entry.displayId}: unresolved Derived-from reference '${idPart}'`,
-          location: entry.location,
-        });
-      }
-    }
-
-    // MSL-T005: References targets must exist.
-    const references = findAttr(entry.attributes, "References");
-    if (references) {
-      const targets = references.value.split(",").map((s) => s.trim());
-      for (const target of targets) {
-        if (!target) continue;
-        if (!knownIds.has(target)) {
+        // Family check
+        const expected = rule.target === "same" ? entry.family : rule.target;
+        if (resolved.family !== expected) {
           diagnostics.push({
-            code: "MSL-T005",
-            severity: "error",
+            code: rule.code,
+            severity: rule.severity,
             message:
-              `${entry.displayId}: unresolved reference '${target}' in References`,
+              `${entry.displayId}: ${rule.key} target '${target}' is family '${resolved.family}', expected '${expected}'`,
             location: entry.location,
           });
+          continue;
         }
-      }
-    }
 
-    // MSL-T006: Allocated-to targets must exist.
-    const allocatedTo = findAttr(entry.attributes, "Allocated-to");
-    if (allocatedTo) {
-      const targets = allocatedTo.value.split(",").map((s) => s.trim());
-      for (const target of targets) {
-        if (!target) continue;
-        if (!knownIds.has(target)) {
-          diagnostics.push({
-            code: "MSL-T006",
-            severity: "error",
-            message:
-              `${entry.displayId}: unresolved reference '${target}' in Allocated-to`,
-            location: entry.location,
-          });
+        // MSL-T013: warn when upstream target is deprecated or withdrawn.
+        if (
+          rule.key === "Satisfies" || rule.key === "Derived-from" ||
+          rule.key === "Realizes" || rule.key === "Verifies"
+        ) {
+          const status = findAttr(resolved.attributes, "Status")?.value;
+          if (status === "deprecated" || status === "withdrawn") {
+            diagnostics.push({
+              code: "MSL-T013",
+              severity: "warning",
+              message:
+                `${entry.displayId}: ${rule.key} target '${target}' has Status: ${status}`,
+              location: entry.location,
+            });
+          }
         }
       }
     }
