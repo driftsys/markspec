@@ -408,13 +408,13 @@ Deno.test("parseRequirementBlock: extracts display ID", () => {
 
   The sensor driver shall debounce raw inputs.
 
-  Id: SRS_01HGW2Q8MNP3 \\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
   Labels: ASIL-B`;
 
   const req = parseRequirementBlock(block);
   assertEquals(req.displayId, "SRS_BRK_0001");
   assertEquals(req.title, "Sensor debouncing");
-  assertEquals(req.id, "SRS_01HGW2Q8MNP3");
+  assertEquals(req.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
   assertEquals(req.labels, ["ASIL-B"]);
 });
 ```
@@ -484,7 +484,7 @@ Deno.test("validate: broken upstream link fails", async () => {
   const input = `
 - [SRS_BRK_0001] Sensor debouncing
 
-  Id: SRS_01HGW2Q8MNP3 \\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
   Satisfies: SYS_NONEXISTENT \\
   Labels: ASIL-B
 `;

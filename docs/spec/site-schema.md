@@ -91,8 +91,8 @@ Authors write entry IDs as usual. Resolution order:
 - [SRS_ABS_0001] Wheel speed sampling rate
 
   Satisfies: SYS_BRK_001\
-  Derived-from: ISO-26262-6 §7.4\
-  Id: SRS_01HGW2Q8MNP3
+  References: ISO-26262-6 §7.4\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 ```
 
 `SYS_BRK_001` is not found in the current project, so it is searched in

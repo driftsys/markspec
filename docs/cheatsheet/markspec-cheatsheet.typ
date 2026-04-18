@@ -111,7 +111,7 @@ Slug: `fig.architecture-overview`
   The sensor driver shall debounce
   raw inputs to eliminate noise.
 
-  Id: SRS_01HGW2Q8MNP3\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```]
@@ -128,7 +128,9 @@ No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
 
 == ULID
 
-`TYPE_01HGW2Q8MNP3` — 12–13 chars. Assigned by tooling, never changes.
+Bare 26-char Crockford base32, e.g. `01HGW2Q8MNP3RSTVWXYZABCDEF`.
+Lives in the family-specific identity attribute (`Spec-id`, `Test-id`,
+`Element-id`). Assigned by tooling, never changes.
 
 == Entry types
 
@@ -151,102 +153,101 @@ No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
 
 #code[```kotlin
 /**
- * [SRS_BRK_0107] Sensor debouncing
+ * [SWT_BRK_0107] Debounce unit test
  *
- * The sensor driver shall reject
- * transient noise shorter than the
- * configured debounce window.
+ * Given a 10ms debounce window,
+ * a 5ms noise spike must not alter
+ * the stable output.
  *
- * Id: SRS_01HGW2R9QLP4\
- * Satisfies: SYS_BRK_0042\
- * Labels: ASIL-B
+ * Test-id: 01HGW3R9QNP4ABCDEFGHJKMNPQ\
+ * Test-level: unit\
+ * Verifies: SRS_BRK_0107\
+ * Tests: braking_core::controller::debounce
  */
 @Test
 fun `swt_brk_0107 debounce`() { }
 ```]
 
-== Code annotations
-
-#code[```kotlin
-/** Verifies: SRS_BRK_0107 */
-/** Implements: SRS_BRK_0107 */
-```]
+Traceability lives inside entry blocks: test entries declare `Verifies`
+and `Tests` directly; there is no standalone annotation path.
 
 Languages: Rust `///` · Kotlin `/** */` · C++ `///` · C `/** */` · Java 23+ `///`
 
 #colbreak()
 
-= Attributes
+= Attributes (by family)
 
-== Authored (committed)
+Every entry carries exactly one identity attribute; its presence selects
+the family.
+
+== Spec
 
 #table(
   columns: (auto, 1fr),
   stroke: 0.4pt + luma(180),
   inset: 3pt,
   table.header[*Attr*][*Description*],
-  [`Id`], [ULID, mandatory],
-  [`Satisfies`], [Upstream parent ID(s)],
-  [`Derived-from`], [External ref + section],
-  [`Labels`], [Comma-separated tags],
+  [`Spec-id`], [Bare ULID, assigned],
+  [`Satisfies`], [Parent spec, complete fulfillment],
+  [`Derived-from`], [Parent spec, V-model decomposition],
+  [`Allocated-to`], [Element(s) responsible],
 )
+
+== Test
+
+#table(
+  columns: (auto, 1fr),
+  stroke: 0.4pt + luma(180),
+  inset: 3pt,
+  [`Test-id`], [Bare ULID, assigned],
+  [`Test-level`], [`unit` / `integration` / `system` / `acceptance`],
+  [`Verifies`], [Spec display ID(s)],
+  [`Tests`], [Element display ID(s)],
+)
+
+== Element
+
+#table(
+  columns: (auto, 1fr),
+  stroke: 0.4pt + luma(180),
+  inset: 3pt,
+  [`Element-id`], [Bare ULID, assigned],
+  [`Element-kind`], [`item` / `artifact` / `dependency` / `unit`],
+  [`Part-of`], [Parent element],
+  [`Realizes`], [Spec display ID(s)],
+  [`Depends-on`], [Element display ID(s)],
+  [`Generated-from`], [Path or element],
+)
+
+== Reference
+
+#table(
+  columns: (auto, 1fr),
+  stroke: 0.4pt + luma(180),
+  inset: 3pt,
+  [`Reference-id`], [URI (URN / DOI / HTTPS), authored],
+  [`Reference-url`], [Navigation link],
+  [`Reference-document`], [Canonical citation],
+)
+
+== Universal
+
+`Labels` · `Status` · `References` · `External-id` · `Supersedes`
 
 == Generated (never in source)
 
-`Verified-by` · `Implemented-by`
+Spec: `Derives`, `Satisfied-by`, `Realized-by`, `Verified-by`\
+Element: `Contains`, `Used-by`, `Allocated`, `Tested-by`\
+Reference: `Cited-by`\
+Universal: `Superseded-by`
 
-== SAD-specific
-
-#table(
-  columns: (auto, 1fr),
-  stroke: 0.4pt + luma(180),
-  inset: 3pt,
-  [`Allocates`], [SRS display ID(s)],
-  [`Component`], [Name or registry ID],
-  [`Constrains`], [Component name(s)],
-)
-
-== ICD-specific
-
-#table(
-  columns: (auto, 1fr),
-  stroke: 0.4pt + luma(180),
-  inset: 3pt,
-  [`Between`], [Two parties, comma-separated],
-  [`Interface`], [RIDL ref `{{ridl.id}}`],
-)
-
-== Derived-from format
+== References format
 
 #code[```text
-Derived-from: ISO-26262-6 §9.4
+References: ISO-26262-6 §9.4
 ```]
 
-ID validated; section locator is free text.
-
-= ATDD example (Kotlin + Gherkin)
-
-#code[```kotlin
-/**
- * [SYS_BRK_0042] Sensor noise filtering
- *
- * Scenario: Reject transient noise
- *   Given a raw sensor input of 512
- *   And a noise spike of 50 lasting 2ms
- *   When the debounce window is 5ms
- *   Then the output shall remain 512
- *
- * Id: SYS_01HGW2P4KFR7\
- * Satisfies: STK_BRK_0001\
- * Labels: ASIL-B
- */
-@Test
-fun `sit_brk_0042 reject transient noise`() {
-    val sensor = SensorDriver(debounceMs = 5)
-    sensor.feed(512, spikeOf(50, durationMs = 2))
-    assertEquals(512, sensor.output())
-}
-```]
+Slug resolved through registry chain; locator is free text.
 
 ]
 
