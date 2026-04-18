@@ -1396,7 +1396,10 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.
-- **Front matter** — stripped from all files.
+- **Front matter** — YAML form; keys sorted to canonical order (core keys, then
+  profile-declared, then `metadata:`, then allowlisted ecosystem keys);
+  forbidden keys removed with an info diagnostic (MSL-D001). See §6.2 and
+  [ADR-007](../../architecture/adr-007-document-structure.md).
 
 ---
 
