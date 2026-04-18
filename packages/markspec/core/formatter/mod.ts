@@ -13,9 +13,20 @@ import type {
   Entry,
   EntryFamily,
 } from "../model/mod.ts";
-import { IDENTITY_KEY_BY_FAMILY } from "../model/mod.ts";
+import { attributeSpec, IDENTITY_KEY_BY_FAMILY } from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
+
+/**
+ * Value types that accept CSV on input but must be emitted as multi-line
+ * per ADR-002 §2.6. `citation` is deliberately excluded because locators
+ * may contain commas.
+ */
+const CSV_SPLITTABLE_TYPES: ReadonlySet<string> = new Set([
+  "id-list",
+  "tag-list",
+  "external-id",
+]);
 
 /**
  * Canonical attribute ordering for spec entries per ADR-002 Annex C.
@@ -178,7 +189,7 @@ export function format(
 
     if (attrs.length === 0) continue;
 
-    const normalized = sortAttributes(attrs, entry.family);
+    const normalized = sortAttributes(expandCsvValues(attrs), entry.family);
     const range = findAttributeBlockRange(lines, entry.location.line, indent);
 
     if (range) {
@@ -204,6 +215,33 @@ export function format(
   }
 
   return { output: lines.join("\n"), diagnostics, changed };
+}
+
+/**
+ * Expand CSV values on repeatable-type attributes into one entry per value
+ * per ADR-002 §2.6. `id-list` / `tag-list` / `external-id` accept CSV input
+ * but must round-trip as multi-line output; `citation` is left alone
+ * because locators may contain commas.
+ */
+export function expandCsvValues(attrs: Attribute[]): Attribute[] {
+  const result: Attribute[] = [];
+  for (const attr of attrs) {
+    const spec = attributeSpec(attr.key);
+    if (
+      spec && CSV_SPLITTABLE_TYPES.has(spec.type) && attr.value.includes(",")
+    ) {
+      const values = attr.value
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      for (const value of values) {
+        result.push({ key: attr.key, value });
+      }
+    } else {
+      result.push(attr);
+    }
+  }
+  return result;
 }
 
 /**

@@ -461,3 +461,118 @@ Deno.test("format: canonical order for element family", () => {
     true,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4b — CSV → multi-line canonicalization for repeatable types
+// ---------------------------------------------------------------------------
+
+Deno.test("format: Derived-from CSV splits into multi-line", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Derived-from: SYS_BRK_0042, SYS_BRK_0043
+`;
+  const result = format(md);
+  assertEquals(result.changed, true);
+  const derivedLines = result.output.split("\n").filter((l) =>
+    l.trim().startsWith("Derived-from:")
+  );
+  assertEquals(derivedLines.length, 2);
+  assertStringIncludes(derivedLines[0], "SYS_BRK_0042");
+  assertStringIncludes(derivedLines[1], "SYS_BRK_0043");
+});
+
+Deno.test("format: Labels CSV splits into multi-line", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Labels: ASIL-B, safety, automotive
+`;
+  const result = format(md);
+  assertEquals(result.changed, true);
+  const labelLines = result.output.split("\n").filter((l) =>
+    l.trim().startsWith("Labels:")
+  );
+  assertEquals(labelLines.length, 3);
+});
+
+Deno.test("format: References (citation) does NOT CSV-split", () => {
+  // References is a citation type — locators may contain commas, so the
+  // formatter must keep the value intact.
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  References: ISO-26262-6 §9.4, Table 7
+`;
+  const result = format(md);
+  const refLines = result.output.split("\n").filter((l) =>
+    l.trim().startsWith("References:")
+  );
+  assertEquals(refLines.length, 1);
+  assertStringIncludes(refLines[0], "§9.4, Table 7");
+});
+
+Deno.test("format: multi-line repeatable attributes are preserved", () => {
+  // Input is already multi-line; formatter keeps it that way (idempotent).
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Derived-from: SYS_BRK_0042\\
+  Derived-from: SYS_BRK_0043
+`;
+  const result = format(md);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, md);
+});
+
+Deno.test("format: CSV + multi-line mixed input canonicalizes to all multi-line", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Labels: ASIL-B, safety\\
+  Labels: automotive
+`;
+  const result = format(md);
+  assertEquals(result.changed, true);
+  const labelLines = result.output.split("\n").filter((l) =>
+    l.trim().startsWith("Labels:")
+  );
+  assertEquals(labelLines.length, 3);
+});
+
+Deno.test("format: CSV expansion is idempotent (double-format = single)", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  Derived-from: SYS_BRK_0042, SYS_BRK_0043\\
+  Labels: ASIL-B, safety
+`;
+  const first = format(md);
+  const second = format(first.output);
+  assertEquals(second.changed, false);
+  assertEquals(second.output, first.output);
+});
