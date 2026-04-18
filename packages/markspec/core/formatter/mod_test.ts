@@ -576,3 +576,121 @@ Deno.test("format: CSV expansion is idempotent (double-format = single)", () => 
   assertEquals(second.changed, false);
   assertEquals(second.output, first.output);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4c — front-matter canonical form
+// ---------------------------------------------------------------------------
+
+Deno.test("format: front matter with core keys is canonicalized", () => {
+  const md = `---
+status: approved
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+document-type: requirements
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const result = format(md);
+  assertEquals(result.changed, true);
+  // document-id should come before document-type, then status.
+  const docIdIdx = result.output.indexOf("document-id:");
+  const docTypeIdx = result.output.indexOf("document-type:");
+  const statusIdx = result.output.indexOf("status:");
+  assertEquals(docIdIdx < docTypeIdx, true);
+  assertEquals(docTypeIdx < statusIdx, true);
+});
+
+Deno.test("format: front matter forbidden key removed with diagnostic", () => {
+  const md = `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+title: Should be stripped
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const result = format(md);
+  assertEquals(result.output.includes("title:"), false);
+  const d001 = result.diagnostics.find((d) => d.code === "MSL-D001");
+  assertEquals(d001 != null, true);
+});
+
+Deno.test("format: front matter metadata map is preserved verbatim", () => {
+  const md = `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+metadata:
+  owner: safety-team
+  jira-epic: PROJ-123
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const result = format(md);
+  assertStringIncludes(result.output, "owner: safety-team");
+  assertStringIncludes(result.output, "jira-epic: PROJ-123");
+});
+
+Deno.test("format: front matter without any body entries still canonicalizes", () => {
+  const md = `---
+status: draft
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+---
+
+# Just a heading
+
+Some prose.
+`;
+  const result = format(md);
+  assertEquals(result.changed, true);
+  const docIdIdx = result.output.indexOf("document-id:");
+  const statusIdx = result.output.indexOf("status:");
+  assertEquals(docIdIdx < statusIdx, true);
+});
+
+Deno.test("format: no front matter leaves input untouched", () => {
+  const md = `# Just a heading
+
+Some prose.
+`;
+  const result = format(md);
+  assertEquals(result.changed, false);
+  assertEquals(result.output, md);
+});
+
+Deno.test("format: front matter idempotent on already-canonical input", () => {
+  const md = `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+document-type: requirements
+status: approved
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const first = format(md);
+  const second = format(first.output);
+  assertEquals(second.changed, false);
+  assertEquals(second.output, first.output);
+});

@@ -7,14 +7,17 @@
  */
 
 import { ulid as defaultUlid } from "@std/ulid";
+import { stringify as stringifyYaml } from "@std/yaml";
 import type {
   Attribute,
   Diagnostic,
+  DocumentAttributes,
   Entry,
   EntryFamily,
 } from "../model/mod.ts";
 import { attributeSpec, IDENTITY_KEY_BY_FAMILY } from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
+import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
 /**
@@ -27,6 +30,21 @@ const CSV_SPLITTABLE_TYPES: ReadonlySet<string> = new Set([
   "tag-list",
   "external-id",
 ]);
+
+/**
+ * Canonical front-matter key order per ADR-007. Core keys first, then
+ * `metadata` (reserved free-form map), then `extra` (allowlisted ecosystem
+ * keys / profile keys) are emitted verbatim at the end.
+ */
+const FRONT_MATTER_CORE_ORDER: readonly string[] = [
+  "document-id",
+  "document-type",
+  "labels",
+  "status",
+  "external-id",
+  "supersedes",
+  "references",
+];
 
 /**
  * Canonical attribute ordering for spec entries per ADR-002 Annex C.
@@ -152,14 +170,19 @@ export function format(
   options?: FormatOptions,
 ): FormatResult {
   const file = options?.file ?? "<unknown>";
-  const entries = parseMarkdown(markdown, { file });
 
-  if (entries.length === 0) {
-    return { output: markdown, diagnostics: [], changed: false };
+  // Extract any YAML front matter first so entries are parsed against the
+  // body only (front-matter `---` could be confused with horizontal rules).
+  const fm = extractFrontMatter(markdown, { file });
+  const body = fm.hadFrontMatter ? fm.markdown : markdown;
+  const entries = parseMarkdown(body, { file });
+  const diagnostics: Diagnostic[] = [...fm.diagnostics];
+
+  if (entries.length === 0 && !fm.hadFrontMatter) {
+    return { output: markdown, diagnostics, changed: false };
   }
 
-  const lines = markdown.split("\n");
-  const diagnostics: Diagnostic[] = [];
+  const lines = body.split("\n");
   let changed = false;
 
   // Process bottom-to-top so line splicing doesn't shift earlier entries.
@@ -214,7 +237,44 @@ export function format(
     }
   }
 
-  return { output: lines.join("\n"), diagnostics, changed };
+  const formattedBody = lines.join("\n");
+
+  if (fm.hadFrontMatter) {
+    const canonicalFm = renderFrontMatter(fm.attributes);
+    const output = canonicalFm + formattedBody;
+    if (output !== markdown) changed = true;
+    return { output, diagnostics, changed };
+  }
+
+  return { output: formattedBody, diagnostics, changed };
+}
+
+/**
+ * Render {@linkcode DocumentAttributes} as a canonical YAML front matter
+ * block. Keys are emitted in canonical order (core → metadata → extra);
+ * an `extra` subtree is flattened to top-level keys per ADR-007
+ * allowlist conventions.
+ */
+function renderFrontMatter(attrs: DocumentAttributes): string {
+  const ordered: Record<string, unknown> = {};
+  const a = attrs as Record<string, unknown>;
+
+  for (const key of FRONT_MATTER_CORE_ORDER) {
+    if (a[key] !== undefined) ordered[key] = a[key];
+  }
+  if (a.metadata !== undefined) ordered.metadata = a.metadata;
+  if (a.extra && typeof a.extra === "object") {
+    for (const [key, value] of Object.entries(a.extra)) {
+      ordered[key] = value;
+    }
+  }
+
+  if (Object.keys(ordered).length === 0) {
+    return "---\n---\n\n";
+  }
+
+  const yaml = stringifyYaml(ordered).trimEnd();
+  return `---\n${yaml}\n---\n\n`;
 }
 
 /**
