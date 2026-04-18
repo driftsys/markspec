@@ -631,3 +631,139 @@ Deno.test("validate: legacy Id path still works for back-compat", () => {
     0,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3b — enum-type attribute value validation (MSL-R014)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: valid Status passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      attributes: [
+        { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+        { key: "Status", value: "approved" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+  assertEquals(r014, undefined);
+});
+
+Deno.test("validate: unknown Status value → MSL-R014", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      attributes: [
+        { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+        { key: "Status", value: "bogus" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+  assertEquals(r014 != null, true);
+  assertStringIncludes(r014!.message, "Status");
+  assertStringIncludes(r014!.message, "bogus");
+  assertStringIncludes(r014!.message, "approved");
+});
+
+Deno.test("validate: unknown Test-level → MSL-R014", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SWT_BRK_0001",
+      family: "test",
+      entryType: "SWT",
+      id: "01HGW3R9Q2P4ABCDEFGHJKMNPQ",
+      attributes: [
+        { key: "Test-id", value: "01HGW3R9Q2P4ABCDEFGHJKMNPQ" },
+        { key: "Test-level", value: "hardware" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+  assertEquals(r014 != null, true);
+  assertStringIncludes(r014!.message, "Test-level");
+  assertStringIncludes(r014!.message, "unit");
+});
+
+Deno.test("validate: valid Test-level (unit, integration, system, acceptance) passes", () => {
+  for (const level of ["unit", "integration", "system", "acceptance"]) {
+    const entries: Entry[] = [
+      typedEntry({
+        displayId: "SWT_BRK_0001",
+        family: "test",
+        entryType: "SWT",
+        id: "01HGW3R9Q2P4ABCDEFGHJKMNPQ",
+        attributes: [
+          { key: "Test-id", value: "01HGW3R9Q2P4ABCDEFGHJKMNPQ" },
+          { key: "Test-level", value: level },
+        ],
+      }),
+    ];
+    const result = validate(entries);
+    const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+    assertEquals(r014, undefined, `level '${level}' should pass`);
+  }
+});
+
+Deno.test("validate: unknown Element-kind → MSL-R014", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "braking::foo",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+      attributes: [
+        { key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" },
+        { key: "Element-kind", value: "widget" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+  assertEquals(r014 != null, true);
+  assertStringIncludes(r014!.message, "Element-kind");
+});
+
+Deno.test("validate: all four Element-kind vocab values pass", () => {
+  for (const kind of ["item", "artifact", "dependency", "unit"]) {
+    const entries: Entry[] = [
+      typedEntry({
+        displayId: "braking::foo",
+        family: "element",
+        entryType: undefined,
+        id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+        attributes: [
+          { key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" },
+          { key: "Element-kind", value: kind },
+        ],
+      }),
+    ];
+    const result = validate(entries);
+    const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+    assertEquals(r014, undefined, `kind '${kind}' should pass`);
+  }
+});
+
+Deno.test("validate: Status withdrawn and deprecated are valid", () => {
+  for (const status of ["draft", "approved", "deprecated", "withdrawn"]) {
+    const entries: Entry[] = [
+      typedEntry({
+        displayId: "SRS_BRK_0001",
+        id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+        attributes: [
+          { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+          { key: "Status", value: status },
+        ],
+      }),
+    ];
+    const result = validate(entries);
+    const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
+    assertEquals(r014, undefined, `status '${status}' should pass`);
+  }
+});
