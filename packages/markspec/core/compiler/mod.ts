@@ -144,16 +144,24 @@ function extractLinksFromAttribute(
 
 /**
  * Attribute keys that produce traceability links per ADR-002.
+ *
  * Spec attributes: Satisfies, Derived-from, References, Allocated-to.
- * Reference attributes: none.
- * Element attributes: (not yet specified; deferred to future ADR).
- * Test attributes: (not yet specified; deferred to future ADR).
+ * Test attributes: Verifies, Tests.
+ * Element attributes: Realizes, Depends-on, Part-of, Generated-from.
+ * Universal: Supersedes (same-family).
  */
 const ATTR_TO_LINK_KIND: Record<string, LinkKind | undefined> = {
   "Satisfies": "satisfies",
   "Derived-from": "derived-from",
   "References": "references",
   "Allocated-to": "allocated-to",
+  "Realizes": "realizes",
+  "Verifies": "verifies",
+  "Tests": "tests",
+  "Depends-on": "depends-on",
+  "Part-of": "part-of",
+  "Generated-from": "generated-from",
+  "Supersedes": "supersedes",
 };
 
 /** Build an adjacency map from links using a key selector. */
