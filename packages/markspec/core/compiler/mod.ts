@@ -8,6 +8,7 @@
 import type {
   Diagnostic,
   DisplayId,
+  Document,
   Entry,
   Link,
   LinkKind,
@@ -32,6 +33,12 @@ export interface CompileResult {
   readonly forward: ReadonlyMap<DisplayId, readonly Link[]>;
   /** Incoming links per entry (entry → sources pointing to it). */
   readonly reverse: ReadonlyMap<DisplayId, readonly Link[]>;
+  /**
+   * Documents keyed by file path. A file appears here only when it carried
+   * YAML front matter per ADR-007. Optional during the v2 migration;
+   * consumers should treat absence as an empty map.
+   */
+  readonly documents?: ReadonlyMap<string, Document>;
   /** Diagnostics from parsing and validation. */
   readonly diagnostics: readonly Diagnostic[];
 }
@@ -52,6 +59,7 @@ export async function compile(
   const allEntries: Entry[] = [];
   const annotationLinks: Link[] = [];
   const parseDiagnostics: Diagnostic[] = [];
+  const documents = new Map<string, Document>();
 
   // Phase 1: Read and parse all files.
   for (const filePath of paths) {
@@ -70,6 +78,8 @@ export async function compile(
     const result = await parseFile(content, { file: filePath });
     allEntries.push(...result.entries);
     annotationLinks.push(...result.links);
+    parseDiagnostics.push(...result.diagnostics);
+    if (result.document) documents.set(filePath, result.document);
   }
 
   // Phase 2: Validate all entries.
@@ -93,7 +103,7 @@ export async function compile(
     ...validationResult.diagnostics,
   ];
 
-  return { entries, links, forward, reverse, diagnostics };
+  return { entries, links, forward, reverse, documents, diagnostics };
 }
 
 /** Extract traceability links from entry attributes. */

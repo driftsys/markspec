@@ -11,10 +11,17 @@
  */
 
 import { extname } from "@std/path";
-import type { Caption, Entry, Link } from "../model/mod.ts";
+import type {
+  Caption,
+  Diagnostic,
+  Document,
+  Entry,
+  Link,
+} from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { isSupportedExtension, loadGrammar } from "./grammars.ts";
 import { parseSource } from "./source.ts";
+import { extractFrontMatter } from "./frontmatter.ts";
 import {
   detectCaptions as detectCaptionsImpl,
   type DetectCaptionsOptions,
@@ -59,12 +66,24 @@ export function parse(
   return parseMarkdown(markdown, options);
 }
 
-/** Result of parsing a file (entries + annotation links). */
+/** Result of parsing a file (entries + annotation links + document). */
 export interface ParseFileResult {
   /** Parsed entries. */
   readonly entries: Entry[];
   /** Standalone annotation links (from source file doc comments). */
   readonly links: Link[];
+  /**
+   * Document-level metadata parsed from YAML front matter. `undefined` for
+   * source files (Rust/Kotlin/C/...) and for Markdown files without front
+   * matter; present otherwise so downstream consumers can resolve
+   * `{{document.*}}` inline references.
+   */
+  readonly document?: Document;
+  /**
+   * Parse-level diagnostics (forbidden front-matter keys, malformed YAML).
+   * Merged into the compile result's diagnostics.
+   */
+  readonly diagnostics: readonly Diagnostic[];
 }
 
 /**
@@ -78,15 +97,12 @@ function isReferencesDocument(file: string): boolean {
 }
 
 /**
- * Parse a file and return entries and annotation links, dispatching by type.
+ * Parse a file and return entries, annotation links, and (for Markdown
+ * files) a Document with front-matter attributes.
  *
  * Source files (`.rs`, `.java`, `.c`, `.cpp`, etc.) are parsed with
- * tree-sitter to extract doc comment entries and standalone annotations.
- * All other files are parsed as Markdown (no annotation links).
- *
- * @param content - File content
- * @param options - Must include `file` path for extension detection
- * @returns Parsed entries and annotation links
+ * tree-sitter to extract doc comment entries; no front matter is
+ * recognized on source files.
  */
 export async function parseFile(
   content: string,
@@ -96,13 +112,34 @@ export async function parseFile(
 
   if (isSupportedExtension(ext)) {
     const language = await loadGrammar(ext);
-    return parseSource(content, { file: options.file, language });
+    const result = await parseSource(content, {
+      file: options.file,
+      language,
+    });
+    return { ...result, diagnostics: [] };
   }
 
+  const fm = extractFrontMatter(content, { file: options.file });
+  const body = fm.hadFrontMatter ? fm.markdown : content;
   const isReferencesDoc = isReferencesDocument(options.file);
+  const entries = parseMarkdown(body, {
+    file: options.file,
+    isReferencesDoc,
+  });
+
+  const document: Document | undefined = fm.hadFrontMatter
+    ? {
+      file: options.file,
+      attributes: fm.attributes,
+      properties: {},
+    }
+    : undefined;
+
   return {
-    entries: parseMarkdown(content, { file: options.file, isReferencesDoc }),
+    entries,
     links: [],
+    document,
+    diagnostics: fm.diagnostics,
   };
 }
 
