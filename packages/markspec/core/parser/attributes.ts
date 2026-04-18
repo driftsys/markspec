@@ -6,7 +6,8 @@
  * trailing attribute blocks from body prose.
  */
 
-import type { Attribute } from "../model/mod.ts";
+import type { Attribute, TypedAttributes } from "../model/mod.ts";
+import { attributeSpec } from "../model/attributes.ts";
 
 /**
  * Pattern matching a `Key: Value` attribute line.
@@ -49,6 +50,60 @@ export function parseAttributes(lines: readonly string[]): Attribute[] {
  * Used to detect attribute blocks at the end of entry bodies.
  */
 export const ATTR_LINE_RE = /^[A-Z][A-Za-z-]*: .+\\?$/;
+
+/**
+ * Types whose values may be CSV-split on input per ADR-002 §2.6.
+ * `citation` is deliberately excluded because locators may contain commas.
+ */
+const CSV_SPLITTABLE_TYPES = new Set([
+  "id-list",
+  "tag-list",
+  "external-id",
+]);
+
+/**
+ * Collate a flat list of parsed attributes into a typed, keyed map per
+ * ADR-002 §2.6.
+ *
+ * - Repeatable types (`id-list` / `tag-list` / `external-id`): multi-line
+ *   entries merge; CSV values on a single line split on `,`.
+ * - `citation`: multi-line only (locators may contain commas).
+ * - Single-valued types: all occurrences are preserved in-order; the
+ *   validator decides what to do about duplicates.
+ * - Unknown keys: preserved as-is, one entry per occurrence.
+ */
+export function collateAttributes(
+  attributes: readonly Attribute[],
+): TypedAttributes {
+  const map = new Map<string, string[]>();
+
+  for (const attr of attributes) {
+    const spec = attributeSpec(attr.key);
+    const type = spec?.type;
+
+    let values: string[];
+    if (type && CSV_SPLITTABLE_TYPES.has(type) && attr.value.includes(",")) {
+      values = attr.value
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    } else {
+      values = [attr.value];
+    }
+
+    const existing = map.get(attr.key);
+    if (existing) {
+      existing.push(...values);
+    } else {
+      map.set(attr.key, values);
+    }
+  }
+
+  // Freeze value arrays to match the readonly contract.
+  return new Map(
+    Array.from(map, ([key, values]) => [key, Object.freeze([...values])]),
+  );
+}
 
 /**
  * Split raw entry content into body text and attribute lines.
