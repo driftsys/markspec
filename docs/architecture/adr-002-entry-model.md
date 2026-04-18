@@ -318,7 +318,7 @@ both.
 Every spec entry carries a `Spec-id` attribute containing a bare ULID:
 
 ```text
-Spec-id: 01HGW2P4KFR7ABCDEFGHJKMNP
+Spec-id: 01HGW2P4KFR7ABCDEFGHJKMNPQ
 ```
 
 The value is 26 characters in Crockford base32, with no TYPE prefix. The family
@@ -429,7 +429,7 @@ Standard software requirement:
   > [!WARNING]
   > Failure to debounce may lead to spurious brake activation.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
   Derived-from: SYS_BRK_0042\
   Labels: ASIL-B
 ```
@@ -443,7 +443,7 @@ Normative stakeholder requirement mandated by a safety standard:
   for all production code, with decision coverage achieved for ASIL-D
   components.
 
-  Spec-id: 01HGW2R0NPQR4STVWXYZABCDE\
+  Spec-id: 01HGW2R0NPQR4STVWXYZABCDEF\
   References: ISO-26262-6 §9.4.5\
   References: ISO-26262-6 Table-12\
   Labels: ASIL-D, coverage
@@ -457,7 +457,7 @@ Architecture block with top-down allocation:
   The sensor filtering component provides debouncing and range-checking for all
   pressure sensor inputs to the braking subsystem.
 
-  Spec-id: 01HGW2S1PQRS5TUVWXYZABCDE\
+  Spec-id: 01HGW2S1PQRS5TVWXYZABCDEFG\
   Derived-from: SRS_BRK_0107\
   Allocated-to: braking_core::controller::sensor_filter\
   Labels: ASIL-B
@@ -627,7 +627,7 @@ Examples: `SWT_BRK_0107`, `SIT_BRK_0042`, `VAL_VHC_0001`, `UT_BRK_0107`.
 Every test entry carries a `Test-id` attribute containing a bare ULID:
 
 ```text
-Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+Test-id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
 ```
 
 Same format as `Spec-id` and `Element-id`: 26 characters in Crockford base32, no
@@ -769,7 +769,7 @@ Authoring convention using doc comment per ADR-001:
 /// when a noise spike of 999 occurs for 5ms (shorter than window),
 /// the output shall remain at 500.
 ///
-/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+/// Test-id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
 /// Test-level: unit
 /// Verifies: SRS_BRK_0107
 /// Tests: braking_core::controller::debounce_input
@@ -802,7 +802,7 @@ For projects using a generic profile with neutral TYPE conventions
   Verifies that the sensor filter and brake controller interact correctly across
   the full pressure range.
 
-  Test-id: 01HGW3T3QRST6UVWXYZABCDEF\
+  Test-id: 01HGW3T3QRST6VWXYZABCDEFGH\
   Test-level: integration\
   Verifies: SRS_BRK_0107\
   Verifies: SRS_BRK_0108\
@@ -829,7 +829,7 @@ For projects using a generic profile with neutral TYPE conventions
   - Full braking force achieved within 150 ms of detection.
   - Vehicle stops at least 2 m before the obstacle.
 
-  Test-id: 01HGW3U4RSTU7VWXYZABCDEFG\
+  Test-id: 01HGW3V4RSTW7VWXYZABCDEFGH\
   Test-level: acceptance\
   Verifies: STK_BRK_0001\
   Labels: manual, hil, ASIL-D
@@ -899,7 +899,7 @@ Semantically, `::braking::debounce_input` is equivalent to
 Every element entry carries an `Element-id` attribute containing a bare ULID:
 
 ```text
-Element-id: 01HGW2R9QLP4ABCDEFGHJKMNPQ
+Element-id: 01HGW2R9QNP4ABCDEFGHJKMNPQ
 ```
 
 26 characters in Crockford base32, no TYPE prefix.
@@ -1028,7 +1028,7 @@ When `markspec format` parses source code, it infers `Element-kind`:
 
   Main repository for the DriftSys open-source braking system.
 
-  Element-id: 01HGW3A0MNPQ4FGHIJKLMNOPQR\
+  Element-id: 01HGW3A0MNPQ4FGHJKMNPQRSTV\
   Element-kind: item\
   Labels: automotive, open-source
 ```
@@ -1040,7 +1040,7 @@ When `markspec format` parses source code, it infers `Element-kind`:
 
   Core logic for brake pressure calculation and sensor filtering.
 
-  Element-id: 01HGW3B2NPQR5GHIJKLMNOPQRST\
+  Element-id: 01HGW3B2NPQR5GHJKMNPQRSTVW\
   Element-kind: artifact\
   Part-of: github.com/driftsys/braking\
   Labels: rust, ASIL-B
@@ -1053,7 +1053,7 @@ When `markspec format` parses source code, it infers `Element-kind`:
 
   Rejects transient noise on raw sensor readings using a configurable window.
 
-  Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY\
   Element-kind: unit\
   Part-of: braking-core\
   Realizes: SRS_BRK_0107\
@@ -1071,7 +1071,7 @@ requirement. Tests of this unit are declared as Test entries (Part 4) with
 
   Auto-generated Rust bindings for CAN message layouts.
 
-  Element-id: 01HGW3G2UVWX9JKLMNOPQRSTUV\
+  Element-id: 01HGW3G2VWXY9JKMNPQRSTVWXY\
   Element-kind: unit\
   Part-of: braking-core\
   Generated-from: schemas/can_messages.dbc\
@@ -1086,7 +1086,7 @@ requirement. Tests of this unit are declared as Test entries (Part 4) with
   Third-party compression library. SoUP — not qualified to ASIL standards. Used
   in non-safety-critical paths only.
 
-  Element-id: 01HGW3M0NPQR5GHIJKLMNOPQRS\
+  Element-id: 01HGW3M0NPQR5GHJKMNPQRSTVW\
   Element-kind: dependency\
   External-id: pkg:generic/zlib@1.2.13\
   Labels: soup, third-party
@@ -1099,7 +1099,7 @@ requirement. Tests of this unit are declared as Test entries (Part 4) with
 
   Front brake pressure sensor connected via CAN to the ECU.
 
-  Element-id: 01HGW2R9QLP4ABCDEFGHJKMNPQ\
+  Element-id: 01HGW2R9QNP4ABCDEFGHJKMNPQ\
   Labels: hardware, automotive
 ```
 

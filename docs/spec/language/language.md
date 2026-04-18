@@ -1439,16 +1439,23 @@ carrying an identity attribute.
 | ID         | Severity | Rule                                                                                                       |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------- |
 | `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                                |
-| `MSL-T002` | error    | `Derived-from:` target must resolve to an existing spec entry.                                             |
-| `MSL-T003` | warning  | `References:` slug must resolve through the reference registry chain.                                      |
-| `MSL-T004` | error    | `Allocated-to:` target must resolve to an existing element entry.                                          |
-| `MSL-T005` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                                   |
-| `MSL-T006` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                                      |
-| `MSL-T007` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                                      |
-| `MSL-T008` | error    | `Part-of:` target must resolve to an existing element entry.                                               |
-| `MSL-T009` | error    | `Depends-on:` target must resolve to an existing element entry.                                            |
-| `MSL-T010` | error    | `Supersedes:` target must resolve to an existing same-family entry.                                        |
-| `MSL-T011` | warning  | `Satisfies:` / `Derived-from:` / `Verifies:` / `Realizes:` target has `Status: deprecated` or `withdrawn`. |
+| `MSL-T004` | warning  | `Derived-from:` target must resolve to an existing spec entry.                                             |
+| `MSL-T005` | error    | `References:` slug must resolve to an existing reference entry.                                            |
+| `MSL-T006` | error    | `Allocated-to:` target must resolve to an existing element entry.                                          |
+| `MSL-T007` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                                   |
+| `MSL-T008` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                                      |
+| `MSL-T009` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                                      |
+| `MSL-T010` | error    | `Part-of:` target must resolve to an existing element entry.                                               |
+| `MSL-T011` | error    | `Depends-on:` target must resolve to an existing element entry.                                            |
+| `MSL-T012` | error    | `Supersedes:` target must resolve to an existing same-family entry.                                        |
+| `MSL-T013` | warning  | `Satisfies:` / `Derived-from:` / `Verifies:` / `Realizes:` target has `Status: deprecated` or `withdrawn`. |
+
+`MSL-T014` is reserved for a future registry-chain check on `References:`
+(warning severity) when reference resolution via upstream registries lands.
+
+MSL-R014 (introduced during the four-family migration) validates enum-type
+attribute values: `Status`, `Test-level`, `Element-kind` must be drawn from the
+vocabulary declared in ADR-002 Annex C.
 
 Direction and level-crossing rules (e.g., "acceptance tests verify stakeholder
 requirements") are profile concerns, not core concerns.
