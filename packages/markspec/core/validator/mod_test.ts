@@ -270,22 +270,25 @@ Deno.test("validate: multi-value Satisfies with one missing", () => {
 });
 
 Deno.test("validate: Derived-from ID checked against entries", () => {
+  // Derived-from is spec→spec per ADR-002 §Part 2. Target must be a spec.
   const entries: Entry[] = [
-    refEntry({
-      displayId: "ISO-26262-6",
-      attributes: [{ key: "Document", value: "ISO 26262-6:2018" }],
+    typedEntry({
+      displayId: "SYS_BRK_0042",
+      entryType: "SYS",
+      id: "SYS_00000000000000000000000042",
+      attributes: [{ key: "Id", value: "SYS_00000000000000000000000042" }],
     }),
     typedEntry({
       displayId: "SRS_BRK_0001",
       id: "SRS_00000000000000000000000001",
       attributes: [
         { key: "Id", value: "SRS_00000000000000000000000001" },
-        { key: "Derived-from", value: "ISO-26262-6 §9.4" },
+        { key: "Derived-from", value: "SYS_BRK_0042" },
       ],
+      location: { file: "test.md", line: 10, column: 1 },
     }),
   ];
   const result = validate(entries);
-  // ISO-26262-6 exists as a display ID → no warning
   const t004 = result.diagnostics.filter((d) => d.code === "MSL-T004");
   assertEquals(t004.length, 0);
 });
@@ -418,13 +421,16 @@ Deno.test("validate: Allocated-to target missing → MSL-T006", () => {
 });
 
 Deno.test("validate: Allocated-to target exists → passes", () => {
+  // Allocated-to targets elements per ADR-002 §Part 2.
   const entries: Entry[] = [
     typedEntry({
-      displayId: "SRS_BRK_0001",
-      id: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+      displayId: "braking_core::controller",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
       attributes: [{
-        key: "Id",
-        value: "SRS_00000000000000000000000001RSTVWXYZABCDE",
+        key: "Element-id",
+        value: "01HGW3D6QRST7JKMNPQRSTVWXY",
       }],
     }),
     typedEntry({
@@ -433,7 +439,7 @@ Deno.test("validate: Allocated-to target exists → passes", () => {
       id: "SAD_00000000000000000000000010",
       attributes: [
         { key: "Id", value: "SAD_00000000000000000000000010" },
-        { key: "Allocated-to", value: "SRS_BRK_0001" },
+        { key: "Allocated-to", value: "braking_core::controller" },
       ],
       location: { file: "arch.md", line: 10, column: 1 },
     }),
@@ -766,4 +772,252 @@ Deno.test("validate: Status withdrawn and deprecated are valid", () => {
     const r014 = result.diagnostics.find((d) => d.code === "MSL-R014");
     assertEquals(r014, undefined, `status '${status}' should pass`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3c — traceability target-family checks (MSL-T001, T004-T013)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Satisfies target with wrong family → MSL-T001", () => {
+  // Satisfies must target a spec entry; target below is a reference.
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "ISO-26262-6",
+      id: "urn:iso:std:iso:26262:-6:ed-2",
+      attributes: [
+        { key: "Reference-id", value: "urn:iso:std:iso:26262:-6:ed-2" },
+      ],
+    }),
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000001" },
+        { key: "Satisfies", value: "ISO-26262-6" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t001 = result.diagnostics.find((d) => d.code === "MSL-T001");
+  assertEquals(t001 != null, true);
+  assertStringIncludes(t001!.message, "family 'reference'");
+  assertStringIncludes(t001!.message, "expected 'spec'");
+});
+
+Deno.test("validate: Realizes target must be spec → MSL-T007", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "braking::one",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+      attributes: [{ key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" }],
+    }),
+    typedEntry({
+      displayId: "braking::controller",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXZ",
+      attributes: [
+        { key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXZ" },
+        { key: "Realizes", value: "braking::one" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t007 = result.diagnostics.find((d) => d.code === "MSL-T007");
+  assertEquals(t007 != null, true);
+  assertStringIncludes(t007!.message, "expected 'spec'");
+});
+
+Deno.test("validate: Verifies (on test) target must be spec → MSL-T008", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "braking::unit",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+      attributes: [{ key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" }],
+    }),
+    typedEntry({
+      displayId: "SWT_BRK_0001",
+      family: "test",
+      entryType: "SWT",
+      id: "01HGW3R9Q2P4ABCDEFGHJKMNPQ",
+      attributes: [
+        { key: "Test-id", value: "01HGW3R9Q2P4ABCDEFGHJKMNPQ" },
+        { key: "Verifies", value: "braking::unit" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t008 = result.diagnostics.find((d) => d.code === "MSL-T008");
+  assertEquals(t008 != null, true);
+});
+
+Deno.test("validate: Tests (on test) target must be element → MSL-T009", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
+    }),
+    typedEntry({
+      displayId: "SWT_BRK_0001",
+      family: "test",
+      entryType: "SWT",
+      id: "01HGW3R9Q2P4ABCDEFGHJKMNPQ",
+      attributes: [
+        { key: "Test-id", value: "01HGW3R9Q2P4ABCDEFGHJKMNPQ" },
+        { key: "Tests", value: "SRS_BRK_0001" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t009 = result.diagnostics.find((d) => d.code === "MSL-T009");
+  assertEquals(t009 != null, true);
+});
+
+Deno.test("validate: Part-of target must be element → MSL-T010", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
+    }),
+    typedEntry({
+      displayId: "braking::child",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+      attributes: [
+        { key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" },
+        { key: "Part-of", value: "SRS_BRK_0001" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t010 = result.diagnostics.find((d) => d.code === "MSL-T010");
+  assertEquals(t010 != null, true);
+});
+
+Deno.test("validate: Supersedes must target same family → MSL-T012", () => {
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "ISO-26262-6",
+      id: "urn:iso:std:iso:26262:-6:ed-2",
+      attributes: [
+        { key: "Reference-id", value: "urn:iso:std:iso:26262:-6:ed-2" },
+      ],
+    }),
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000001" },
+        { key: "Supersedes", value: "ISO-26262-6" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t012 = result.diagnostics.find((d) => d.code === "MSL-T012");
+  assertEquals(t012 != null, true);
+  assertStringIncludes(t012!.message, "expected 'spec'");
+});
+
+Deno.test("validate: Supersedes same family passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [{ key: "Id", value: "SRS_00000000000000000000000001" }],
+    }),
+    typedEntry({
+      displayId: "SRS_BRK_0002",
+      id: "SRS_00000000000000000000000002",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000002" },
+        { key: "Supersedes", value: "SRS_BRK_0001" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t012 = result.diagnostics.find((d) => d.code === "MSL-T012");
+  assertEquals(t012, undefined);
+});
+
+Deno.test("validate: upstream target with Status: deprecated → MSL-T013 warning", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SYS_BRK_0042",
+      entryType: "SYS",
+      id: "SYS_00000000000000000000000042",
+      attributes: [
+        { key: "Id", value: "SYS_00000000000000000000000042" },
+        { key: "Status", value: "deprecated" },
+      ],
+    }),
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000001" },
+        { key: "Satisfies", value: "SYS_BRK_0042" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t013 = result.diagnostics.find((d) => d.code === "MSL-T013");
+  assertEquals(t013 != null, true);
+  assertStringIncludes(t013!.message, "deprecated");
+});
+
+Deno.test("validate: upstream target with Status: approved → no MSL-T013", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SYS_BRK_0042",
+      entryType: "SYS",
+      id: "SYS_00000000000000000000000042",
+      attributes: [
+        { key: "Id", value: "SYS_00000000000000000000000042" },
+        { key: "Status", value: "approved" },
+      ],
+    }),
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [
+        { key: "Id", value: "SRS_00000000000000000000000001" },
+        { key: "Satisfies", value: "SYS_BRK_0042" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t013 = result.diagnostics.find((d) => d.code === "MSL-T013");
+  assertEquals(t013, undefined);
+});
+
+Deno.test("validate: Depends-on to element passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "braking::lib",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+      attributes: [{ key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" }],
+    }),
+    typedEntry({
+      displayId: "braking::main",
+      family: "element",
+      entryType: undefined,
+      id: "01HGW3D6QRST7JKMNPQRSTVWXZ",
+      attributes: [
+        { key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXZ" },
+        { key: "Depends-on", value: "braking::lib" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const t011 = result.diagnostics.find((d) => d.code === "MSL-T011");
+  assertEquals(t011, undefined);
 });
