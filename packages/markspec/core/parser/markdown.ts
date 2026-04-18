@@ -19,20 +19,22 @@ export interface ParseMarkdownOptions {
 }
 
 /**
- * Spec entry display ID pattern per ADR-002.
+ * Spec / test entry display ID pattern per ADR-002 §Annex B.
  * TYPE = 2-6 uppercase letters
  * DOMAIN = 3-8 uppercase alphanumeric (first letter uppercase)
  * SUBDOMAIN = optional, same as DOMAIN
  * NNNN = 3-6 digits, must be > 0
+ * Shared by spec and test families — discriminated by identity attribute.
  */
 const TYPED_ID_RE =
   /^([A-Z]{2,6})_[A-Z][A-Z0-9]{2,7}(_[A-Z][A-Z0-9]{2,7})?_\d{3,6}$/;
 
 /**
- * Reference entry slug pattern per ADR-002.
- * Starts with letter, alphanumeric + internal hyphens/dots.
+ * Reference entry slug pattern per ADR-002 §Part 3 (widened from the old
+ * narrow subset to include `.`, `/`, `_`, and `-` inside the slug, matching
+ * Pandoc citation-key convention's disciplined subset).
  */
-const REF_SLUG_RE = /^[A-Za-z][A-Za-z0-9]*([.-][A-Za-z0-9]+)*$/;
+const REF_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 
 /**
  * Match a display ID in `[...]` at the start of a list item paragraph.
@@ -182,6 +184,10 @@ function extractEntry(
 
   if (!displayId) return undefined;
 
+  // Strip optional leading `@` on reference display IDs for Pandoc citation
+  // compatibility (ADR-002 §Part 3). Canonical slug never contains `@`.
+  if (displayId.startsWith("@")) displayId = displayId.slice(1);
+
   // Discriminate spec vs reference entry
   let family: EntryFamily | undefined;
   let entryType: EntryType | undefined;
@@ -227,6 +233,7 @@ function extractEntry(
     family,
     location: { file, line, column },
     source: "markdown",
+    properties: { file: { path: file, line, column } },
   };
 }
 

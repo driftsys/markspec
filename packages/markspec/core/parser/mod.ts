@@ -25,6 +25,12 @@ export type { DetectCaptionsOptions } from "./captions.ts";
 export { detectDirectives } from "./directives.ts";
 export type { DetectDirectivesOptions } from "./directives.ts";
 
+export { extractFrontMatter } from "./frontmatter.ts";
+export type {
+  ExtractFrontMatterOptions,
+  FrontMatterResult,
+} from "./frontmatter.ts";
+
 export { detectInlineRefs } from "./references.ts";
 export type { DetectInlineRefsOptions } from "./references.ts";
 

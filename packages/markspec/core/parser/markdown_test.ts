@@ -492,3 +492,67 @@ Deno.test("parseMarkdown: fixture — braking requirements", () => {
   assertEquals(entries[1].id, "SRS_01HGW2R9QLP4");
   assertEquals(entries[1].attributes.length, 3);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 2a additions — @ stripping, widened reference slug, file.path property
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: strips optional leading @ from reference display ID", () => {
+  const md = `# References
+
+- [@ISO-26262-6] ISO 26262 Part 6
+
+  Road vehicles — Functional safety.
+
+  URI: urn:iso:std:iso:26262:-6:ed-2
+`;
+  const entries = parseMarkdown(md, { file: "references.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "ISO-26262-6");
+  assertEquals(entries[0].family, "reference");
+});
+
+Deno.test("parseMarkdown: widened reference slug accepts slashes and dots", () => {
+  const md = `# References
+
+- [ISO/IEC-25010] ISO/IEC 25010
+
+  Systems and software engineering — quality models.
+
+  URI: urn:iso:std:iso-iec:25010
+`;
+  const entries = parseMarkdown(md, { file: "references.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "ISO/IEC-25010");
+  assertEquals(entries[0].family, "reference");
+});
+
+Deno.test("parseMarkdown: widened reference slug accepts underscores", () => {
+  const md = `# References
+
+- [smith_2021] Smith 2021 paper
+
+  Citation body.
+
+  URI: doi:10.1000/example
+`;
+  const entries = parseMarkdown(md, { file: "references.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "smith_2021");
+  assertEquals(entries[0].family, "reference");
+});
+
+Deno.test("parseMarkdown: entry properties carry file.path from options", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Entry with properties
+
+  Body text.
+
+  Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "docs/braking.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].properties?.file?.path, "docs/braking.md");
+  assertEquals(entries[0].properties?.file?.line, entries[0].location.line);
+});
