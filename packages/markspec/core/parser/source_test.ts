@@ -335,74 +335,10 @@ fn foo() {}
 });
 
 // ---------------------------------------------------------------------------
-// Rust: standalone annotations (Verifies/Implements)
+// Traceability surface
 // ---------------------------------------------------------------------------
 
-Deno.test("parseSource: extracts Verifies annotation", async () => {
-  const language = await getRustLanguage();
-  const source = `/// Verifies: STK_AEB_0001
-#[test]
-fn val_aeb_0001_vehicle_stops() {}
-`;
-
-  const { entries, links } = parseSource(source, { file: "test.rs", language });
-  assertEquals(entries.length, 0);
-  assertEquals(links.length, 1);
-  assertEquals(links[0].kind, "verifies");
-  assertEquals(links[0].to, "STK_AEB_0001");
-  assertEquals(links[0].from, "val_aeb_0001_vehicle_stops");
-});
-
-Deno.test("parseSource: extracts Implements annotation", async () => {
-  const language = await getRustLanguage();
-  const source = `/// Implements: SRS_BRK_0001
-fn impl_braking() {}
-`;
-
-  const { entries, links } = parseSource(source, { file: "test.rs", language });
-  assertEquals(entries.length, 0);
-  assertEquals(links.length, 1);
-  assertEquals(links[0].kind, "implements");
-  assertEquals(links[0].to, "SRS_BRK_0001");
-  assertEquals(links[0].from, "impl_braking");
-});
-
-Deno.test("parseSource: extracts comma-separated annotation targets", async () => {
-  const language = await getRustLanguage();
-  const source = `/// Verifies: STK_AEB_0001, STK_AEB_0002
-#[test]
-fn val_aeb_both() {}
-`;
-
-  const { links } = parseSource(source, { file: "test.rs", language });
-  assertEquals(links.length, 2);
-  assertEquals(links[0].to, "STK_AEB_0001");
-  assertEquals(links[1].to, "STK_AEB_0002");
-});
-
-Deno.test("parseSource: mixed entries and annotations", async () => {
-  const language = await getRustLanguage();
-  const source = `/// [SRS_BRK_0001] Brake pressure
-///
-/// Body text.
-///
-/// Id: SRS_01HGW2Q8MNP3
-fn brake() {}
-
-/// Verifies: SRS_BRK_0001
-#[test]
-fn swt_brk_0001() {}
-`;
-
-  const { entries, links } = parseSource(source, { file: "test.rs", language });
-  assertEquals(entries.length, 1);
-  assertEquals(entries[0].displayId, "SRS_BRK_0001");
-  assertEquals(links.length, 1);
-  assertEquals(links[0].kind, "verifies");
-  assertEquals(links[0].to, "SRS_BRK_0001");
-});
-
-Deno.test("parseSource: annotation inside entry block is attribute, not link", async () => {
+Deno.test("parseSource: links is always empty under the four-family model", async () => {
   const language = await getRustLanguage();
   const source = `/// [SRS_BRK_0001] Title
 ///
@@ -416,48 +352,19 @@ fn foo() {}
   const { entries, links } = parseSource(source, { file: "test.rs", language });
   assertEquals(entries.length, 1);
   assertEquals(links.length, 0);
-  // Verifies is an attribute on the entry, not a standalone link.
+  // Verifies inside the entry block becomes an attribute, not a standalone link.
   const verifies = entries[0].attributes.find((a) => a.key === "Verifies");
   assertEquals(verifies?.value, "STK_BRK_0001");
 });
 
-Deno.test("parseSource: annotation fallback from when no function name", async () => {
+Deno.test("parseSource: doc comments without entry blocks produce no entries or links", async () => {
   const language = await getRustLanguage();
   const source = `/// Verifies: STK_AEB_0001
+#[test]
+fn val_aeb_0001_vehicle_stops() {}
 `;
 
-  const { links } = parseSource(source, { file: "test.rs", language });
-  assertEquals(links.length, 1);
-  assertEquals(links[0].from, "test.rs:1");
-});
-
-Deno.test("parseSource: fixture — in-code-rust-annotations.rs", async () => {
-  const language = await getRustLanguage();
-  const fixturePath = join(
-    import.meta.dirname!,
-    "..",
-    "..",
-    "..",
-    "..",
-    "tests",
-    "fixtures",
-    "in-code-rust-annotations.rs",
-  );
-  const content = await Deno.readTextFile(fixturePath);
-  const { entries, links } = parseSource(content, {
-    file: "in-code-rust-annotations.rs",
-    language,
-  });
-
-  assertEquals(entries.length, 1);
-  assertEquals(entries[0].displayId, "SRS_BRK_0010");
-  assertEquals(links.length, 4); // 1 Verifies + 2 Implements + 1 Verifies
-  assertEquals(links[0].kind, "verifies");
-  assertEquals(links[0].to, "STK_AEB_0001");
-  assertEquals(links[1].kind, "implements");
-  assertEquals(links[1].to, "SRS_BRK_0001");
-  assertEquals(links[2].kind, "implements");
-  assertEquals(links[2].to, "SRS_BRK_0002");
-  assertEquals(links[3].kind, "verifies");
-  assertEquals(links[3].to, "SRS_BRK_0010");
+  const { entries, links } = parseSource(source, { file: "test.rs", language });
+  assertEquals(entries.length, 0);
+  assertEquals(links.length, 0);
 });
