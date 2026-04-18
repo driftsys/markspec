@@ -6,7 +6,14 @@
  */
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
-import type { Entry, EntryFamily, EntryType } from "../model/mod.ts";
+import type {
+  Attribute,
+  Entry,
+  EntryFamily,
+  EntryType,
+  IdentityAttribute,
+} from "../model/mod.ts";
+import { FAMILY_BY_IDENTITY_KEY } from "../model/mod.ts";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
 import { processor } from "./remark.ts";
 
@@ -35,6 +42,62 @@ const TYPED_ID_RE =
  * Pandoc citation-key convention's disciplined subset).
  */
 const REF_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
+
+/**
+ * Element entry display ID pattern per ADR-002 §Part 5.
+ * Optional leading `::` marks an absolute path; `::` is the hierarchy
+ * separator between segments; `.` and `/` may appear inside a segment.
+ */
+const ELEMENT_ID_RE =
+  /^(::)?[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?(::[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?)*$/;
+
+/** Identity-attribute keys per ADR-002 Part 6. */
+const IDENTITY_KEYS: readonly IdentityAttribute[] = [
+  "Spec-id",
+  "Test-id",
+  "Element-id",
+  "Reference-id",
+];
+
+/** Display-ID regex for each family (post-identity-attribute discrimination). */
+function displayIdMatchesFamily(
+  displayId: string,
+  family: EntryFamily,
+): { matches: boolean; entryType: EntryType | undefined } {
+  switch (family) {
+    case "spec":
+    case "test": {
+      const m = TYPED_ID_RE.exec(displayId);
+      return {
+        matches: m !== null,
+        entryType: m?.[1] as EntryType | undefined,
+      };
+    }
+    case "element":
+      return {
+        matches: ELEMENT_ID_RE.test(displayId),
+        entryType: undefined,
+      };
+    case "reference":
+      return { matches: REF_SLUG_RE.test(displayId), entryType: undefined };
+  }
+}
+
+/**
+ * Find the sole identity attribute on an entry. Returns undefined when none
+ * present; returns the first attribute when more than one is present (a
+ * condition the validator flags as MSL-R003 in Phase 3).
+ */
+function findIdentityAttribute(
+  attributes: readonly Attribute[],
+): Attribute | undefined {
+  for (const attr of attributes) {
+    if ((IDENTITY_KEYS as readonly string[]).includes(attr.key)) {
+      return attr;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Match a display ID in `[...]` at the start of a list item paragraph.
@@ -188,36 +251,51 @@ function extractEntry(
   // compatibility (ADR-002 §Part 3). Canonical slug never contains `@`.
   if (displayId.startsWith("@")) displayId = displayId.slice(1);
 
-  // Discriminate spec vs reference entry
-  let family: EntryFamily | undefined;
-  let entryType: EntryType | undefined;
-
-  const typedMatch = TYPED_ID_RE.exec(displayId);
-  if (typedMatch) {
-    family = "spec";
-    entryType = typedMatch[1] as EntryType;
-  } else if (isReferencesDoc && REF_SLUG_RE.test(displayId)) {
-    family = "reference";
-    entryType = undefined;
-  } else {
-    return undefined;
-  }
-
-  // Body requirement: spec entries require body; reference entries optionally have body.
-  // If there's only one child (the title paragraph) and no further content,
-  // it's only valid for reference entries.
-  if (family === "spec" && item.children.length < 2) return undefined;
-
-  // Extract body content from remaining children
+  // Extract body content and attributes first — identity-attribute-based
+  // family discrimination per ADR-002 Part 6 depends on the attribute block.
   const bodyContent = extractBodyContent(item, markdown);
-
-  // Split body and attributes
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
 
-  // Extract ULID from Id attribute
-  const idAttr = attributes.find((a) => a.key === "Id");
-  const id = idAttr?.value;
+  let family: EntryFamily | undefined;
+  let entryType: EntryType | undefined;
+  let id: string | undefined;
+
+  const identityAttr = findIdentityAttribute(attributes);
+  if (identityAttr) {
+    // Family is determined by the identity attribute (ADR-002 Part 6).
+    family = FAMILY_BY_IDENTITY_KEY[identityAttr.key as IdentityAttribute];
+    id = identityAttr.value;
+    const match = displayIdMatchesFamily(displayId, family);
+    if (!match.matches) {
+      // Display ID doesn't match the declared family's format. Accept the
+      // entry anyway — the validator (Phase 3) surfaces MSL-R007 for this
+      // mismatch rather than silently dropping the entry here.
+    }
+    entryType = match.entryType;
+  } else {
+    // Legacy fallback: discriminate by display-ID regex + references-doc
+    // heuristic. Used while source files still carry `Id:` instead of the
+    // new family-specific identity attributes.
+    const typedMatch = TYPED_ID_RE.exec(displayId);
+    if (typedMatch) {
+      family = "spec";
+      entryType = typedMatch[1] as EntryType;
+    } else if (isReferencesDoc && REF_SLUG_RE.test(displayId)) {
+      family = "reference";
+      entryType = undefined;
+    } else {
+      return undefined;
+    }
+    // Legacy ULID comes from the `Id` attribute.
+    const idAttr = attributes.find((a) => a.key === "Id");
+    id = idAttr?.value;
+  }
+
+  // Body requirement: non-reference entries require body. If there's only
+  // one child (the title paragraph) and no further content, accept only
+  // reference entries.
+  if (family !== "reference" && item.children.length < 2) return undefined;
 
   // Source location
   const line = item.position?.start.line ?? 1;
