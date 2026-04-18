@@ -58,7 +58,7 @@ GitHub and GitLab — no tooling required to read.
   The sensor driver shall debounce raw inputs to eliminate electrical noise
   before processing.
 
-  Id: SRS_01HGW2Q8MNP3\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```

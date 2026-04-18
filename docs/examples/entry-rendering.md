@@ -11,7 +11,7 @@ label pills, and cross-reference links.
   falls below the configurable threshold and the driver has not applied the
   brake pedal.
 
-  Id: STK_01HGW3A2BCD5\
+  Spec-id: 01HGW3A2BCD5VWXYZABCDEFGHJ\
   Labels: ASIL-B, safety-critical
 
 - [SYS_AEB_0012] Object threat assessment from radar tracks
@@ -19,7 +19,7 @@ label pills, and cross-reference links.
   The system shall compute a threat level for each tracked object based on
   time-to-collision, relative velocity, and object classification.
 
-  Id: SYS_01HGW3C4DEF6\
+  Spec-id: 01HGW3C4DEF6VWXYZABCDEFGHJ\
   Satisfies: STK_AEB_0001\
   Labels: ASIL-B
 
@@ -28,7 +28,7 @@ label pills, and cross-reference links.
   The braking ECU shall apply a 5-sample median filter to the raw brake pressure
   sensor input before processing.
 
-  Id: SWE_01HGW2Q8MNP3\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
   Satisfies: SYS_AEB_0012\
   Labels: ASIL-B, real-time, performance
 
@@ -44,7 +44,7 @@ alone.
   tracking) from decision (threat assessment, braking command) via a
   publish-subscribe message bus.
 
-  Id: SAD_01HGW4E5GHJ7\
+  Spec-id: 01HGW4E5GHJ7VWXYZABCDEFGHJ\
   Satisfies: STK_AEB_0001
 
 - [ICD_AEB_0010] Radar frame interface
@@ -52,7 +52,7 @@ alone.
   The radar driver shall publish `RadarFrame` messages at 20 Hz containing
   range, velocity, azimuth, and classification for each detected object.
 
-  Id: ICD_01HGW4F6HKL8\
+  Spec-id: 01HGW4F6HKM8VWXYZABCDEFGHJ\
   Satisfies: SAD_AEB_0001\
   Labels: interface
 
@@ -64,7 +64,7 @@ alone.
   positive closing velocity and returns infinity for zero or negative closing
   velocity.
 
-  Id: SWT_01HGW5G7JMN9\
+  Test-id: 01HGW5G7JMN9VWXYZABCDEFGHJ\
   Verifies: SWE_BRK_0107
 
 - [SIT_AEB_0012] Perception-to-decision integration
@@ -72,7 +72,7 @@ alone.
   Verify end-to-end that a radar frame with a stationary object at 40m produces
   a `High` threat level through the full perception–decision pipeline.
 
-  Id: SIT_01HGW5H8KPQ0\
+  Test-id: 01HGW5H8KPQ0VWXYZABCDEFGHJ\
   Verifies: SYS_AEB_0012\
   Labels: integration
 
@@ -85,7 +85,7 @@ Entry with no labels — pill group is not rendered:
   The braking ECU shall reject brake pressure readings outside the valid sensor
   range [0, 250] bar.
 
-  Id: SRS_01HGW6J9LRS1\
+  Spec-id: 01HGW6J9NRS1VWXYZABCDEFGHJ\
   Satisfies: SYS_AEB_0012
 
 Entry with many labels — pill group wraps to the next line:
@@ -95,7 +95,7 @@ Entry with many labels — pill group wraps to the next line:
   The braking ECU shall detect open-circuit, short-circuit, and out-of-range
   faults on all brake pressure sensors within one sample period.
 
-  Id: SRS_01HGW6K0MST2\
+  Spec-id: 01HGW6K0MST2VWXYZABCDEFGHJ\
   Satisfies: SYS_AEB_0012\
   Labels: ASIL-B, safety-critical, real-time, performance, diagnostics, fault-tolerance
 
@@ -106,7 +106,7 @@ Entry with multiple cross-references:
   The braking ECU shall use triple-modular redundancy voting across the three
   brake pressure sensors.
 
-  Id: SRS_01HGW6L1NUV3\
+  Spec-id: 01HGW6N1NVW3VWXYZABCDEFGHJ\
   Satisfies: SYS_AEB_0012\
   Derived-from: STK_AEB_0001\
   Labels: ASIL-B, redundancy

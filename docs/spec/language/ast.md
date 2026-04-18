@@ -146,7 +146,7 @@ list (unordered, depth 0)
     paragraph
       text "The sensor driver shall debounce..."
     paragraph
-      text "Id: SRS_01HGW2Q8MNP3\"
+      text "Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\"
       softBreak
       text "Satisfies: SYS_BRK_0042\"
       softBreak
@@ -156,7 +156,7 @@ list (unordered, depth 0)
 **Output:**
 
 ```
-msEntry (typed)
+msEntry (spec)
   displayId: "SRS_BRK_0001"
   title
     text "Sensor debouncing"
@@ -164,7 +164,7 @@ msEntry (typed)
     paragraph
       text "The sensor driver shall debounce..."
   attributes
-    { key: "Id", value: "SRS_01HGW2Q8MNP3" }
+    { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }
     { key: "Satisfies", value: "SYS_BRK_0042" }
     { key: "Labels", value: "ASIL-B" }
 ```
@@ -196,7 +196,7 @@ with identifier `commonmark` exists → skip.
 
     Body text.
 
-    Id: SRS_01HGW2R9QLP4
+    Spec-id: 01HGW2R9QNP4ABCDEFGHJKMNPQ
 ```
 
 The inner `list` has depth > 1 (parent chain includes a `listItem`) → skip.
