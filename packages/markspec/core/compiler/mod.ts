@@ -123,6 +123,16 @@ function extractLinks(entries: readonly Entry[]): Link[] {
   return links;
 }
 
+/**
+ * Attributes whose value is `slug + optional free-text locator` per
+ * ADR-002 §2.6 (citation type + legacy Derived-from tolerance). The link
+ * target is the leading non-whitespace token only.
+ */
+const LOCATOR_BEARING_ATTRS: ReadonlySet<string> = new Set([
+  "Derived-from",
+  "References",
+]);
+
 /** Map an attribute key+value to zero or more links. */
 function extractLinksFromAttribute(
   from: DisplayId,
@@ -133,7 +143,7 @@ function extractLinksFromAttribute(
   const kind = ATTR_TO_LINK_KIND[key];
   if (!kind) return [];
 
-  if (key === "Derived-from") {
+  if (LOCATOR_BEARING_ATTRS.has(key)) {
     // Format: "ID §section" — extract ID part only.
     const idPart = value.split(/\s/)[0];
     if (idPart) {
@@ -142,7 +152,7 @@ function extractLinksFromAttribute(
     return [];
   }
 
-  // Comma-separated targets (Satisfies, Allocates, Verifies, Implements).
+  // Comma-separated targets for id-list attributes.
   return value
     .split(",")
     .map((s) => s.trim())

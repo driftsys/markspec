@@ -441,6 +441,9 @@ const TRACEABILITY_RULES: readonly TraceabilityRule[] = [
     code: "MSL-T005",
     severity: "error",
     source: ["spec", "test", "element"],
+    // References is a `citation` type per ADR-002 §2.6: "slug + optional
+    // free-text locator". Strip the locator before resolution.
+    tolerateLocator: true,
   },
   {
     key: "Allocated-to",
