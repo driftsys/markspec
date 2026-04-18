@@ -204,3 +204,195 @@ Deno.test("compile: file-not-found produces diagnostic", async () => {
   assertEquals(errors.length, 1);
   assertStringIncludes(errors[0].message, "missing.md");
 });
+
+// ---------------------------------------------------------------------------
+// Phase 5a — new link kinds (Realizes, Verifies, Tests, Depends-on, Part-of,
+// Generated-from, Supersedes)
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: Realizes produces realizes link", async () => {
+  const result = await compile(["elements.md"], {
+    readFile: mockFs({
+      "elements.md": `# Elements
+
+- [SRS_BRK_0001] Software requirement
+
+  Body.
+
+  Id: SRS_00000000000000000000000001
+
+- [braking_core::controller] Controller unit
+
+  Body.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY\\
+  Realizes: SRS_BRK_0001
+`,
+    }),
+  });
+  const realizes = result.links.filter((l) => l.kind === "realizes");
+  assertEquals(realizes.length, 1);
+  assertEquals(realizes[0].from, "braking_core::controller");
+  assertEquals(realizes[0].to, "SRS_BRK_0001");
+});
+
+Deno.test("compile: Verifies on test produces verifies link", async () => {
+  const result = await compile(["tests.md"], {
+    readFile: mockFs({
+      "tests.md": `# Tests
+
+- [SRS_BRK_0001] Software requirement
+
+  Body.
+
+  Id: SRS_00000000000000000000000001
+
+- [SWT_BRK_0107] Debounce unit test
+
+  Body.
+
+  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
+  Verifies: SRS_BRK_0001
+`,
+    }),
+  });
+  const verifies = result.links.filter((l) => l.kind === "verifies");
+  assertEquals(verifies.length, 1);
+  assertEquals(verifies[0].from, "SWT_BRK_0107");
+  assertEquals(verifies[0].to, "SRS_BRK_0001");
+});
+
+Deno.test("compile: Tests on test produces tests link", async () => {
+  const result = await compile(["tests.md"], {
+    readFile: mockFs({
+      "tests.md": `# Tests
+
+- [braking::unit] Unit
+
+  Body.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY
+
+- [SWT_BRK_0107] Unit test
+
+  Body.
+
+  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
+  Tests: braking::unit
+`,
+    }),
+  });
+  const tests = result.links.filter((l) => l.kind === "tests");
+  assertEquals(tests.length, 1);
+  assertEquals(tests[0].to, "braking::unit");
+});
+
+Deno.test("compile: Depends-on on element produces depends-on link", async () => {
+  const result = await compile(["elements.md"], {
+    readFile: mockFs({
+      "elements.md": `# Elements
+
+- [braking::lib] Library
+
+  Body.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY
+
+- [braking::main] Main
+
+  Body.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWX2\\
+  Depends-on: braking::lib
+`,
+    }),
+  });
+  const depends = result.links.filter((l) => l.kind === "depends-on");
+  assertEquals(depends.length, 1);
+  assertEquals(depends[0].to, "braking::lib");
+});
+
+Deno.test("compile: Part-of on element produces part-of link", async () => {
+  const result = await compile(["elements.md"], {
+    readFile: mockFs({
+      "elements.md": `# Elements
+
+- [braking_core] Parent
+
+  Body.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY
+
+- [braking_core::child] Child
+
+  Body.
+
+  Element-id: 01HGW3D6QRST7JKMNPQRSTVWX2\\
+  Part-of: braking_core
+`,
+    }),
+  });
+  const partOf = result.links.filter((l) => l.kind === "part-of");
+  assertEquals(partOf.length, 1);
+  assertEquals(partOf[0].to, "braking_core");
+});
+
+Deno.test("compile: Supersedes produces supersedes link (same-family)", async () => {
+  const result = await compile(["req.md"], {
+    readFile: mockFs({
+      "req.md": `# Requirements
+
+- [SRS_BRK_0001] Old
+
+  Body.
+
+  Id: SRS_00000000000000000000000001
+
+- [SRS_BRK_0002] New
+
+  Body.
+
+  Id: SRS_00000000000000000000000002\\
+  Supersedes: SRS_BRK_0001
+`,
+    }),
+  });
+  const supers = result.links.filter((l) => l.kind === "supersedes");
+  assertEquals(supers.length, 1);
+  assertEquals(supers[0].from, "SRS_BRK_0002");
+  assertEquals(supers[0].to, "SRS_BRK_0001");
+});
+
+Deno.test("compile: multiple Verifies produces multiple links", async () => {
+  const result = await compile(["tests.md"], {
+    readFile: mockFs({
+      "tests.md": `# Tests
+
+- [SRS_BRK_0001] SW req 1
+
+  Body.
+
+  Id: SRS_00000000000000000000000001
+
+- [SRS_BRK_0002] SW req 2
+
+  Body.
+
+  Id: SRS_00000000000000000000000002
+
+- [SIT_BRK_0001] Integration test
+
+  Body.
+
+  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
+  Verifies: SRS_BRK_0001, SRS_BRK_0002
+`,
+    }),
+  });
+  const verifies = result.links.filter((l) => l.kind === "verifies");
+  assertEquals(verifies.length, 2);
+  assertEquals(verifies.map((l) => l.to).sort(), [
+    "SRS_BRK_0001",
+    "SRS_BRK_0002",
+  ]);
+});
