@@ -13,7 +13,7 @@
  */
 
 import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
-import { IDENTITY_KEY_BY_FAMILY } from "../model/mod.ts";
+import { attributeSpec, IDENTITY_KEY_BY_FAMILY } from "../model/mod.ts";
 
 /** Known attribute keys for spec entries (legacy set kept for back-compat). */
 const SPEC_ATTR_KEYS = new Set([
@@ -202,6 +202,11 @@ function checkStructural(
       }
     }
 
+    // MSL-R014: Attribute value matches its declared type's vocabulary.
+    // Scoped to enum types today (Status / Test-level / Element-kind);
+    // other value-type checks follow in later phases.
+    validateEnumValues(entry, diagnostics);
+
     // MSL-R010: Unknown attribute keys per family.
     const knownKeys = knownKeysFor(entry.family);
     for (const attr of entry.attributes) {
@@ -283,6 +288,35 @@ function validateNewIdentity(
       severity: "error",
       message:
         `${entry.displayId}: display ID does not match the ${entry.family} family format`,
+      location: entry.location,
+    });
+  }
+}
+
+/**
+ * Validate enum-type attribute values against their catalog vocabulary.
+ *
+ * Per ADR-002 §2.6, each attribute carries a declared value type. Enum
+ * attributes (`Status`, `Test-level`, `Element-kind`) have a closed
+ * vocabulary; anything outside it emits MSL-R014.
+ */
+function validateEnumValues(
+  entry: Entry,
+  diagnostics: Diagnostic[],
+): void {
+  for (const attr of entry.attributes) {
+    const spec = attributeSpec(attr.key);
+    if (!spec) continue;
+    if (spec.type !== "enum") continue;
+    if (!spec.enumValues) continue;
+    if (spec.enumValues.includes(attr.value)) continue;
+    diagnostics.push({
+      code: "MSL-R014",
+      severity: "error",
+      message:
+        `${entry.displayId}: ${attr.key} value '${attr.value}' is not one of ${
+          spec.enumValues.join(", ")
+        }`,
       location: entry.location,
     });
   }
