@@ -556,3 +556,106 @@ Deno.test("parseMarkdown: entry properties carry file.path from options", () => 
   assertEquals(entries[0].properties?.file?.path, "docs/braking.md");
   assertEquals(entries[0].properties?.file?.line, entries[0].location.line);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 2b-ii — identity-attribute-based family discrimination
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: Spec-id attribute sets family=spec and id", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Sensor input debouncing
+
+  Body text.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE
+`;
+  const entries = parseMarkdown(md, { file: "braking.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].family, "spec");
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDE");
+  assertEquals(entries[0].entryType, "SRS");
+});
+
+Deno.test("parseMarkdown: Test-id attribute sets family=test", () => {
+  const md = `# Test
+
+- [SWT_BRK_0107] Debounce unit test
+
+  Given a 10ms window, a 5ms spike must not alter output.
+
+  Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+`;
+  const entries = parseMarkdown(md, { file: "tests.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].family, "test");
+  assertEquals(entries[0].id, "01HGW3R9QLP4ABCDEFGHJKMNPQ");
+  assertEquals(entries[0].entryType, "SWT");
+});
+
+Deno.test("parseMarkdown: Element-id attribute sets family=element", () => {
+  const md = `# Elements
+
+- [braking_core::controller::debounce_input] Debounce function
+
+  Rejects transient noise on raw sensor readings.
+
+  Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV
+`;
+  const entries = parseMarkdown(md, { file: "elements.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].family, "element");
+  assertEquals(
+    entries[0].displayId,
+    "braking_core::controller::debounce_input",
+  );
+  assertEquals(entries[0].id, "01HGW3D6QRST7IJKLMNOPQRSTUV");
+  assertEquals(entries[0].entryType, undefined);
+});
+
+Deno.test("parseMarkdown: Reference-id attribute sets family=reference (any doc)", () => {
+  // Reference-id makes a reference entry even outside a references.md doc.
+  const md = `# Random doc
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+  Functional safety standard.
+
+  Reference-id: urn:iso:std:iso:26262:-6:ed-2
+`;
+  const entries = parseMarkdown(md, { file: "random.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].family, "reference");
+  assertEquals(entries[0].id, "urn:iso:std:iso:26262:-6:ed-2");
+});
+
+Deno.test("parseMarkdown: legacy Id attribute still works (back-compat)", () => {
+  const md = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body.
+
+  Id: SRS_01HGW2Q8MNP3
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].family, "spec");
+  assertEquals(entries[0].id, "SRS_01HGW2Q8MNP3");
+  assertEquals(entries[0].entryType, "SRS");
+});
+
+Deno.test("parseMarkdown: element display ID with :: hierarchy is recognized via Element-id", () => {
+  const md = `# Test
+
+- [::vehicle::braking::ecu-sensor] ECU sensor
+
+  Hardware element.
+
+  Element-id: 01HGW2R9QLP4ABCDEFGHJKMNPQ
+`;
+  const entries = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].family, "element");
+  assertEquals(entries[0].displayId, "::vehicle::braking::ecu-sensor");
+});
