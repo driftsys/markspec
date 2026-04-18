@@ -442,3 +442,192 @@ Deno.test("validate: Allocated-to target exists → passes", () => {
   const t006 = result.diagnostics.filter((d) => d.code === "MSL-T006");
   assertEquals(t006.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3a — new identity-attribute path (ADR-002 Part 6)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: new Spec-id with bare ULID passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      attributes: [
+        { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+});
+
+Deno.test("validate: Spec-id with legacy TYPE-prefixed ULID → MSL-R004", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_01HGW2Q8MNP3",
+      attributes: [{ key: "Spec-id", value: "SRS_01HGW2Q8MNP3" }],
+    }),
+  ];
+  const result = validate(entries);
+  const r004 = result.diagnostics.find((d) => d.code === "MSL-R004");
+  assertEquals(r004 != null, true);
+  assertStringIncludes(r004!.message, "bare 26-char Crockford base32");
+});
+
+Deno.test("validate: Spec-id with lowercase letter in ULID → MSL-R004", () => {
+  // Crockford base32 is uppercase only; lowercase is malformed.
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "01hgw2q8mnp3rstvwxyzabcdef",
+      attributes: [
+        { key: "Spec-id", value: "01hgw2q8mnp3rstvwxyzabcdef" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r004 = result.diagnostics.find((d) => d.code === "MSL-R004");
+  assertEquals(r004 != null, true);
+});
+
+Deno.test("validate: Reference-id with URI passes", () => {
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "ISO-26262-6",
+      id: "urn:iso:std:iso:26262:-6:ed-2",
+      attributes: [
+        { key: "Reference-id", value: "urn:iso:std:iso:26262:-6:ed-2" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+});
+
+Deno.test("validate: Reference-id without scheme → MSL-R004", () => {
+  const entries: Entry[] = [
+    refEntry({
+      displayId: "BOGUS",
+      id: "not a uri",
+      attributes: [{ key: "Reference-id", value: "not a uri" }],
+    }),
+  ];
+  const result = validate(entries);
+  const r004 = result.diagnostics.find((d) => d.code === "MSL-R004");
+  assertEquals(r004 != null, true);
+  assertStringIncludes(r004!.message, "not a URI");
+});
+
+Deno.test("validate: both legacy Id: and new Spec-id → MSL-R003 migration conflict", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      attributes: [
+        { key: "Id", value: "SRS_01HGW2Q8MNP3" },
+        { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r003 = result.diagnostics.find((d) => d.code === "MSL-R003");
+  assertEquals(r003 != null, true);
+  assertStringIncludes(r003!.message, "legacy");
+});
+
+Deno.test("validate: two new identity attributes → MSL-R003", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      attributes: [
+        { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+        { key: "Test-id", value: "01HGW3R9Q2P4ABCDEFGHJKMNPQ" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r003 = result.diagnostics.find((d) => d.code === "MSL-R003");
+  assertEquals(r003 != null, true);
+  assertStringIncludes(r003!.message, "multiple identity attributes");
+});
+
+Deno.test("validate: Spec-id with element-format display ID → MSL-R007", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "braking::controller::debounce",
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      entryType: undefined,
+      attributes: [
+        { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  const r007 = result.diagnostics.find((d) => d.code === "MSL-R007");
+  assertEquals(r007 != null, true);
+  assertStringIncludes(r007!.message, "does not match the spec family format");
+});
+
+Deno.test("validate: Element-id entry with :: display ID passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "braking_core::controller::debounce_input",
+      id: "01HGW3D6QRST7JKMNPQRSTVWXY",
+      family: "element",
+      entryType: undefined,
+      attributes: [
+        { key: "Element-id", value: "01HGW3D6QRST7JKMNPQRSTVWXY" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+});
+
+Deno.test("validate: Test-id entry with TYPED display ID passes", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SWT_BRK_0107",
+      id: "01HGW3R9Q2P4ABCDEFGHJKMNPQ",
+      family: "test",
+      entryType: "SWT",
+      attributes: [
+        { key: "Test-id", value: "01HGW3R9Q2P4ABCDEFGHJKMNPQ" },
+      ],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+});
+
+Deno.test("validate: legacy Id path still works for back-compat", () => {
+  const entries: Entry[] = [
+    typedEntry({
+      displayId: "SRS_BRK_0001",
+      id: "SRS_00000000000000000000000001",
+      attributes: [{
+        key: "Id",
+        value: "SRS_00000000000000000000000001",
+      }],
+    }),
+  ];
+  const result = validate(entries);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+});
