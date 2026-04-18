@@ -349,22 +349,20 @@ Deno.test("parseSource: links is always empty under the four-family model", asyn
 fn foo() {}
 `;
 
-  const { entries, links } = parseSource(source, { file: "test.rs", language });
+  const { entries } = parseSource(source, { file: "test.rs", language });
   assertEquals(entries.length, 1);
-  assertEquals(links.length, 0);
-  // Verifies inside the entry block becomes an attribute, not a standalone link.
+  // Verifies inside the entry block becomes an attribute.
   const verifies = entries[0].attributes.find((a) => a.key === "Verifies");
   assertEquals(verifies?.value, "STK_BRK_0001");
 });
 
-Deno.test("parseSource: doc comments without entry blocks produce no entries or links", async () => {
+Deno.test("parseSource: doc comments without entry blocks produce no entries", async () => {
   const language = await getRustLanguage();
   const source = `/// Verifies: STK_AEB_0001
 #[test]
 fn val_aeb_0001_vehicle_stops() {}
 `;
 
-  const { entries, links } = parseSource(source, { file: "test.rs", language });
+  const { entries } = parseSource(source, { file: "test.rs", language });
   assertEquals(entries.length, 0);
-  assertEquals(links.length, 0);
 });

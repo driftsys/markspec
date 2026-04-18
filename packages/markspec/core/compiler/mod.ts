@@ -57,7 +57,6 @@ export async function compile(
 ): Promise<CompileResult> {
   const read = options.readFile;
   const allEntries: Entry[] = [];
-  const annotationLinks: Link[] = [];
   const parseDiagnostics: Diagnostic[] = [];
   const documents = new Map<string, Document>();
 
@@ -77,7 +76,6 @@ export async function compile(
     }
     const result = await parseFile(content, { file: filePath });
     allEntries.push(...result.entries);
-    annotationLinks.push(...result.links);
     parseDiagnostics.push(...result.diagnostics);
     if (result.document) documents.set(filePath, result.document);
   }
@@ -94,7 +92,7 @@ export async function compile(
     }
   }
 
-  const links = [...extractLinks(allEntries), ...annotationLinks];
+  const links = extractLinks(allEntries);
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 

@@ -11,13 +11,7 @@
  */
 
 import { extname } from "@std/path";
-import type {
-  Caption,
-  Diagnostic,
-  Document,
-  Entry,
-  Link,
-} from "../model/mod.ts";
+import type { Caption, Diagnostic, Document, Entry } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { isSupportedExtension, loadGrammar } from "./grammars.ts";
 import { parseSource } from "./source.ts";
@@ -66,12 +60,10 @@ export function parse(
   return parseMarkdown(markdown, options);
 }
 
-/** Result of parsing a file (entries + annotation links + document). */
+/** Result of parsing a file (entries + optional document + diagnostics). */
 export interface ParseFileResult {
   /** Parsed entries. */
   readonly entries: Entry[];
-  /** Standalone annotation links (from source file doc comments). */
-  readonly links: Link[];
   /**
    * Document-level metadata parsed from YAML front matter. `undefined` for
    * source files (Rust/Kotlin/C/...) and for Markdown files without front
@@ -112,11 +104,11 @@ export async function parseFile(
 
   if (isSupportedExtension(ext)) {
     const language = await loadGrammar(ext);
-    const result = await parseSource(content, {
+    const result = parseSource(content, {
       file: options.file,
       language,
     });
-    return { ...result, diagnostics: [] };
+    return { entries: result.entries, diagnostics: [] };
   }
 
   const fm = extractFrontMatter(content, { file: options.file });
@@ -137,7 +129,6 @@ export async function parseFile(
 
   return {
     entries,
-    links: [],
     document,
     diagnostics: fm.diagnostics,
   };

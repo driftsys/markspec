@@ -8,7 +8,7 @@
 
 import type { SyntaxNode } from "web-tree-sitter";
 import Parser from "web-tree-sitter";
-import type { Entry, Link } from "../model/mod.ts";
+import type { Entry } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
 
 /** Options for {@linkcode parseSource}. */
@@ -23,13 +23,6 @@ export interface ParseSourceOptions {
 export interface ParseSourceResult {
   /** Entries found in doc comment blocks. */
   readonly entries: Entry[];
-  /**
-   * Traceability links extracted outside entry blocks. Always empty under
-   * the four-family model — test entries carry `Verifies:` / `Tests:` inside
-   * entry blocks; element entries carry `Realizes:` / `Depends-on:`. Kept for
-   * API stability with {@linkcode Link[]}.
-   */
-  readonly links: Link[];
 }
 
 /** A contiguous doc comment block extracted from source. */
@@ -92,7 +85,7 @@ export function parseSource(
 
   tree.delete();
   parser.delete();
-  return { entries, links: [] };
+  return { entries };
 }
 
 /**
