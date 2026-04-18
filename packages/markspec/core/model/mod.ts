@@ -84,6 +84,22 @@ export interface Attribute {
   readonly value: string;
 }
 
+/**
+ * Collated attributes keyed by Title-Case attribute name per ADR-002 §2.6.
+ *
+ * Repeatable types (`id-list`, `tag-list`, `external-id`) carry one entry
+ * per value after CSV-splitting and multi-line merging; `citation` carries
+ * one entry per occurrence (no CSV-splitting, locators may contain `,`).
+ * Single-valued types carry a one-element array; if the author wrote the
+ * attribute twice, the later value wins but both appear in
+ * {@linkcode Entry.attributes} for round-trip fidelity.
+ *
+ * This is the representation the validator, formatter, and compiler consult
+ * for typed processing; {@linkcode Entry.attributes} is the source of truth
+ * for exact round-trip through `markspec format`.
+ */
+export type TypedAttributes = ReadonlyMap<string, readonly string[]>;
+
 // ---------------------------------------------------------------------------
 // Entry
 // ---------------------------------------------------------------------------
@@ -231,8 +247,16 @@ export interface Entry {
   readonly title: string;
   /** Body content (paragraphs, alerts, code blocks) between title and attributes. */
   readonly body: string;
-  /** Parsed attribute block (`Key: Value` lines). */
+  /** Parsed attribute block (`Key: Value` lines), in source order. */
   readonly attributes: readonly Attribute[];
+  /**
+   * Collated, typed view of {@linkcode Entry.attributes} per ADR-002 §2.6.
+   *
+   * Populated by the parser alongside `attributes`. Downstream layers
+   * (validator, compiler) consult this map for typed processing; the
+   * formatter still reads `attributes` for exact round-trip.
+   */
+  readonly typedAttributes?: TypedAttributes;
   /** ULID from the `Id:` attribute, if present (spec entries only). */
   readonly id: Ulid | undefined;
   /** Resolved entry type prefix (e.g., `SRS`), if this is a spec entry. */

@@ -139,3 +139,80 @@ Deno.test("parseAttributes: lines without Key: Value pattern are skipped", () =>
   assertEquals(attrs.length, 1);
   assertEquals(attrs[0].key, "Id");
 });
+
+// ---------------------------------------------------------------------------
+// collateAttributes — ADR-002 §2.6 repeatable attribute handling
+// ---------------------------------------------------------------------------
+
+import { collateAttributes } from "./attributes.ts";
+
+Deno.test("collateAttributes: single-valued attribute is kept as-is", () => {
+  const collated = collateAttributes([
+    { key: "Spec-id", value: "01HGW2Q8MNP3" },
+  ]);
+  assertEquals(collated.get("Spec-id"), ["01HGW2Q8MNP3"]);
+});
+
+Deno.test("collateAttributes: id-list multi-line values merge", () => {
+  const collated = collateAttributes([
+    { key: "Derived-from", value: "SYS_BRK_0042" },
+    { key: "Derived-from", value: "SYS_BRK_0043" },
+  ]);
+  assertEquals(collated.get("Derived-from"), ["SYS_BRK_0042", "SYS_BRK_0043"]);
+});
+
+Deno.test("collateAttributes: id-list CSV on one line splits", () => {
+  const collated = collateAttributes([
+    { key: "Derived-from", value: "SYS_BRK_0042, SYS_BRK_0043" },
+  ]);
+  assertEquals(collated.get("Derived-from"), ["SYS_BRK_0042", "SYS_BRK_0043"]);
+});
+
+Deno.test("collateAttributes: tag-list CSV splits", () => {
+  const collated = collateAttributes([
+    { key: "Labels", value: "ASIL-B, safety, automotive" },
+  ]);
+  assertEquals(collated.get("Labels"), ["ASIL-B", "safety", "automotive"]);
+});
+
+Deno.test("collateAttributes: citation does not CSV-split (locators may contain commas)", () => {
+  const collated = collateAttributes([
+    { key: "References", value: "ISO-26262-6 §9.4, Table 7" },
+    { key: "References", value: "UNECE-R155" },
+  ]);
+  assertEquals(collated.get("References"), [
+    "ISO-26262-6 §9.4, Table 7",
+    "UNECE-R155",
+  ]);
+});
+
+Deno.test("collateAttributes: external-id CSV splits", () => {
+  const collated = collateAttributes([
+    { key: "External-id", value: "doors:VHC:001, codebeamer:42" },
+  ]);
+  assertEquals(collated.get("External-id"), [
+    "doors:VHC:001",
+    "codebeamer:42",
+  ]);
+});
+
+Deno.test("collateAttributes: unknown keys preserved one entry per occurrence", () => {
+  const collated = collateAttributes([
+    { key: "Bespoke", value: "alpha" },
+    { key: "Bespoke", value: "beta" },
+  ]);
+  assertEquals(collated.get("Bespoke"), ["alpha", "beta"]);
+});
+
+Deno.test("collateAttributes: mixes multi-line and CSV correctly", () => {
+  const collated = collateAttributes([
+    { key: "Labels", value: "ASIL-B, safety" },
+    { key: "Labels", value: "automotive" },
+  ]);
+  assertEquals(collated.get("Labels"), ["ASIL-B", "safety", "automotive"]);
+});
+
+Deno.test("collateAttributes: empty input returns empty map", () => {
+  const collated = collateAttributes([]);
+  assertEquals(collated.size, 0);
+});

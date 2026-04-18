@@ -14,7 +14,11 @@ import type {
   IdentityAttribute,
 } from "../model/mod.ts";
 import { FAMILY_BY_IDENTITY_KEY } from "../model/mod.ts";
-import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
+import {
+  collateAttributes,
+  parseAttributes,
+  splitBodyAndAttributes,
+} from "./attributes.ts";
 import { processor } from "./remark.ts";
 
 /** Options for {@linkcode parseMarkdown}. */
@@ -306,6 +310,7 @@ function extractEntry(
     title: title ?? "",
     body,
     attributes,
+    typedAttributes: collateAttributes(attributes),
     id,
     entryType,
     family,
