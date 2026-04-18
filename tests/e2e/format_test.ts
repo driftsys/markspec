@@ -96,7 +96,7 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 // ULID assignment
 // ---------------------------------------------------------------------------
 
-Deno.test("format: assigns ULID to entry missing Id", async () => {
+Deno.test("format: assigns Spec-id to spec entry missing identity", async () => {
   const input = `# Test
 
 - [SRS_BRK_0001] Title
@@ -108,9 +108,9 @@ Deno.test("format: assigns ULID to entry missing Id", async () => {
 `;
   const { code, stderr, readFile } = await runFormat({ "req.md": input });
   assertEquals(code, 0);
-  assertStringIncludes(stderr, "assigned Id:");
+  assertStringIncludes(stderr, "assigned Spec-id:");
   const output = await readFile("req.md");
-  assertStringIncludes(output, "Id: SRS_");
+  assertStringIncludes(output, "Spec-id: ");
 });
 
 // ---------------------------------------------------------------------------
