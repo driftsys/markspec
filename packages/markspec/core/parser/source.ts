@@ -78,13 +78,21 @@ export function parseSource(
     if (parsed.length > 0) {
       // Block contains entry blocks — extract entries.
       for (const entry of parsed) {
+        const location = {
+          file,
+          line: block.startLine,
+          column: block.startColumn,
+        };
         entries.push({
           ...entry,
           source: "doc-comment",
-          location: {
-            file,
-            line: block.startLine,
-            column: block.startColumn,
+          location,
+          properties: {
+            file: {
+              path: file,
+              line: block.startLine,
+              column: block.startColumn,
+            },
           },
         });
       }
