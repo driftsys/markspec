@@ -100,7 +100,7 @@ See [ISO 26262-6] for software-level requirements.
 **Hard line breaks** (trailing `\`):
 
 ```markdown
-Id: SRS_01HGW2Q8MNP3\
+Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
 Satisfies: SYS_BRK_0042\
 Labels: ASIL-B
 ```
@@ -119,17 +119,17 @@ Labels: ASIL-B
 
 MarkSpec **restricts** the following CommonMark features:
 
-| Feature          | CommonMark                               | MarkSpec restriction                          |
-| ---------------- | ---------------------------------------- | --------------------------------------------- |
-| Headings         | ATX and setext                           | ATX only.                                     |
-| Code blocks      | Fenced (backtick and tilde) and indented | Backtick-fenced only.                         |
-| Emphasis         | `*text*` and `_text_`                    | `_text_` only.                                |
-| Strong           | `**text**` and `__text__`                | `**text**` only.                              |
-| List markers     | `-`, `*`, `+`                            | `-` only.                                     |
-| Horizontal rules | `---`, `***`, `___`                      | `---` only.                                   |
-| Hard line breaks | Trailing `\` and trailing double-space   | Trailing `\` only.                            |
-| Inline HTML      | Any HTML element                         | Comments only (`<!-- -->`). No HTML elements. |
-| Front matter     | YAML `---` blocks (not CommonMark)       | Not allowed.                                  |
+| Feature          | CommonMark                               | MarkSpec restriction                                                                                |
+| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Headings         | ATX and setext                           | ATX only.                                                                                           |
+| Code blocks      | Fenced (backtick and tilde) and indented | Backtick-fenced only.                                                                               |
+| Emphasis         | `*text*` and `_text_`                    | `_text_` only.                                                                                      |
+| Strong           | `**text**` and `__text__`                | `**text**` only.                                                                                    |
+| List markers     | `-`, `*`, `+`                            | `-` only.                                                                                           |
+| Horizontal rules | `---`, `***`, `___`                      | `---` only.                                                                                         |
+| Hard line breaks | Trailing `\` and trailing double-space   | Trailing `\` only.                                                                                  |
+| Inline HTML      | Any HTML element                         | Comments only (`<!-- -->`). No HTML elements.                                                       |
+| Front matter     | YAML `---` blocks (not CommonMark)       | YAML (`---`) and TOML (`+++`) allowed at the top of the file; schema defined in §1.3 §6 and Part 6. |
 
 MarkSpec **requires** beyond CommonMark minimums:
 
@@ -253,12 +253,15 @@ block.
   The sensor driver shall debounce raw inputs to eliminate electrical noise
   before processing.
 
-  The debounce window shall be configurable per sensor type.
+  The debounce window shall be configurable per sensor type:
 
-  > [!WARNING]
-  > Failure to debounce may lead to spurious activation.
+  | Sensor type | Window (ms) | Sample rate (Hz) |
+  | ----------- | ----------- | ---------------- |
+  | Pressure    | 10          | 100              |
+  | Speed       | 5           | 200              |
+  | Temperature | 50          | 20               |
 
-  Id: SRS_01HGW2Q8MNP3\
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```
@@ -274,8 +277,10 @@ No indented body. Normal list item.
 Emphasis (`_text_`) must not appear inside entry blocks. Strong (`**text**`) and
 inline code are allowed.
 
-Part 2 defines the two families of entries (typed entries and reference
-entries), their ID formats, and their attributes.
+Part 2 defines the four families of entries (spec, test, element, reference),
+their ID formats, and their attributes. The family of an entry is determined by
+the identity attribute it carries in its trailers — `Spec-id`, `Test-id`,
+`Element-id`, or `Reference-id`.
 
 Rendering of entry blocks (admonition-style left border, type coloring, label
 pills, cross-reference links) is specified in the [Typography](typography.md)
@@ -289,16 +294,17 @@ except the last line.
 **Example 3 — attribute block:**
 
 ```markdown
-Id: SRS_01HGW2Q8MNP3\
+Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
 Satisfies: SYS_BRK_0042\
 Labels: ASIL-B
 ```
 
-Which attributes are valid depends on the entry type. Part 2 defines the builtin
-attributes.
+Which attributes are valid depends on the entry family. Part 2 defines the
+family-specific attributes.
 
-Generated attributes (`Verified-by`, `Implemented-by`) are computed by tooling
-and never appear in source.
+Generated attributes (`Verified-by`, `Realized-by`, `Tested-by`, `Cited-by`,
+`Derives`, `Satisfied-by`, `Contains`, `Used-by`, `Allocated`) are computed by
+tooling and never appear in source.
 
 #### §3 Table captions
 
@@ -329,10 +335,50 @@ _This is just italic text._
 
 Does not start with `Table:`.
 
-#### §4 Figure captions
+#### §4 Figure captions and diagrams
 
-Emphasized paragraph starting with `Figure:` immediately below an image.
-Alternatively, the image alt text is the caption.
+Diagrams are embedded using standard Markdown image syntax with **relative paths
+only**:
+
+```markdown
+![Unlock sequence](./diagrams/unlock-sequence.plantuml.svg)
+```
+
+Absolute URLs (`https://…`), repo-root links (`/docs/…`), and paths that escape
+the document folder via repeated `../../` are not permitted. Relative paths keep
+the document self-contained — when a folder is moved or reorganized, the diagram
+travels with the document. Non-relative image references are flagged by
+MSL-D008.
+
+**Diagrams are always stored as SVG files** — never embedded as inline fenced
+code blocks (e.g., `` ```mermaid ``). SVG renders consistently across GitHub,
+GitLab, PDF, and presentation output.
+
+**Authoring recommendations by use case**:
+
+- **PlantUML** — simple structured diagrams: sequences, state machines, class
+  diagrams with ~13 classes or fewer.
+- **draw.io** (or Inkscape, Excalidraw) — advanced authoring with free-form
+  shapes, swimlanes, complex layouts.
+- **Raw SVG** — AI-assisted authoring, scripts, or hand-authored.
+
+**Storage conventions**:
+
+- Source embedded in the SVG → `<name>.<source>.svg` (e.g.
+  `architecture.drawio.svg`, `unlock-sequence.plantuml.svg`).
+- Source not embedded → source and SVG side by side (e.g. `architecture.dot` +
+  `architecture.svg`).
+
+**PNG** is acceptable when SVG does not make sense — photographs, screenshots,
+heatmaps, dense bitmap data. Use a descriptive filename with no source-format
+suffix (`dashboard-screenshot.png`).
+
+See
+[ADR-003 — Diagram authoring](../../architecture/adr-003-diagram-authoring.md)
+for sizing, visual style, and tooling details.
+
+**Captions**: an emphasized paragraph starting with `Figure:` immediately below
+an image. Alternatively, the image alt text is the caption.
 
 **Example 6 — explicit caption:**
 
@@ -360,16 +406,18 @@ starting with `[TYPE_XYZ_NNNN]` is recognized as a MarkSpec requirement. The
 leading `-` bullet is optional in doc comments — the `[DISPLAY_ID]` pattern
 alone is sufficient.
 
-**Example 8 — Rust doc comment requirement:**
+**Example 8 — Rust doc comment test entry:**
 
 ```rust
-/// [SRS_BRK_0107] Sensor input debouncing
+/// [SWT_BRK_0107] Debounce unit test
 ///
-/// The sensor driver shall reject transient noise shorter
-/// than the configured debounce window.
+/// Given a debounce window of 10ms, a transient spike shorter
+/// than the window must not alter the stable output.
 ///
-/// Id: SRS_01HGW2R9QLP4 \
-/// Satisfies: SYS_BRK_0042 \
+/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
+/// Test-level: unit \
+/// Verifies: SRS_BRK_0107 \
+/// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
 #[test]
 fn swt_brk_0107_debounce_filters_noise() {
@@ -377,38 +425,124 @@ fn swt_brk_0107_debounce_filters_noise() {
 }
 ```
 
-The doc comment is the requirement. The test function is the verification. The
-`Verified-by` link is implicit — tooling discovers that the test carrying this
-doc comment is the SWT.
+The doc comment declares the Test entry. The function body is the executable
+artifact. The file path is observable as the `file.path` property (see Part 6).
 
-Code annotations declare upstream links:
+A production unit declares what it realizes via its own doc comment:
 
 ```rust
-/// Verifies: SRS_BRK_0107
-#[test]
-fn swt_brk_0107_debounce_filters_noise() { ... }
-
-/// Implements: SRS_BRK_0107
+/// [braking_core::controller::debounce_input] Debounce function
+///
+/// Rejects transient noise on raw sensor readings.
+///
+/// Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV \
+/// Element-kind: unit \
+/// Realizes: SRS_BRK_0107
 fn debounce_input(raw: u16) -> u16 { ... }
 ```
 
-Tooling extracts doc comments and `Verifies:` / `Implements:` annotations to
-produce the same traceability output as Markdown-authored entries.
+Tooling extracts these doc comments to produce the same traceability output as
+Markdown-authored entries.
+
+#### §6 Front matter
+
+Document-level metadata is authored in **YAML front matter** — a `---`-delimited
+block at the very top of the file, before the H1.
+
+**Example 8b — document with front matter:**
+
+```markdown
+---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+document-type: requirements
+status: approved
+labels: [requirements, ASIL-B]
+external-id: doors:VHC:SRS-BRK
+---
+
+# Braking Software Requirements
+
+## Introduction
+
+...
+```
+
+Front matter carries:
+
+- **Document identity** (`document-id`, `document-type`).
+- **Universal attributes** (`labels`, `status`, `external-id`, `supersedes`,
+  `references`) — same set and semantics as entry-level universal attributes.
+- A reserved **`metadata:` map** for org-specific free-form fields.
+- Optional **profile-declared keys** (e.g., automotive `asil:`).
+- Optional **allowlisted ecosystem keys** declared in `.markspec.yaml` (for Hugo
+  / Jekyll / Docusaurus interop).
+
+**Forbidden keys** (Markdown-native concepts; duplication creates drift):
+`title`, `description`, `toc`, `sections`, `authors`, `author`, `date`,
+`created`, `modified`, `cover`, `images`. These live in H1, body paragraphs, or
+git history — never in front matter.
+
+**Casing convention**: front matter keys use **kebab-case** (`document-id`),
+matching YAML ecosystem convention. Entry trailers keep Title-Case (`Spec-id:`),
+matching git-trailers convention.
+
+**TOML tolerance**: `+++`-delimited TOML front matter is accepted as input (for
+GitLab-flavored Markdown parity); the formatter normalizes to YAML.
+
+Full document-structure specification: see Part 6 — Document Model.
 
 ---
 
-## Part 2 — Builtin Types and Attributes
+## Part 2 — Entry Families
 
 Part 1 defines the format — how to write entry blocks and attribute blocks. This
-part defines the vocabulary — the builtin types, their attributes, and their
-traceability rules.
+part defines the four entry families — spec, test, element, and reference —
+their ID formats, identity attributes, and core attributes.
 
-### 2.1 Typed entries (Spec family)
+Every entry carries exactly one **identity attribute** that determines its
+family: `Spec-id`, `Test-id`, `Element-id`, or `Reference-id`. The four
+attributes are mutually exclusive.
 
-An entry whose display ID matches the spec pattern per ADR-002 is a typed
-**spec** entry. Spec entries are recognized in any MarkSpec file.
+| Family    | Identity attribute | Value format                              |
+| --------- | ------------------ | ----------------------------------------- |
+| spec      | `Spec-id`          | Bare ULID (26-char Crockford base32)      |
+| test      | `Test-id`          | Bare ULID                                 |
+| element   | `Element-id`       | Bare ULID                                 |
+| reference | `Reference-id`     | URI (URN, DOI, or HTTPS URL per RFC 3986) |
 
-**Display ID format (ADR-002):**
+Concrete TYPE vocabularies (STK, SRS, VAL, SWT…) are not defined by the core.
+They come from a profile loaded by the project.
+
+### 2.1 Universal attributes
+
+The following attributes apply to every family:
+
+| Attribute       | Type          | Required | Description                               |
+| --------------- | ------------- | -------- | ----------------------------------------- |
+| `Labels`        | `tag-list`    | no       | Classification tags                       |
+| `Status`        | `enum`        | no       | Lifecycle state (default `approved`)      |
+| `References`    | `citation`    | no       | External reference citations with locator |
+| `External-id`   | `external-id` | no       | Cross-system identifier(s)                |
+| `Supersedes`    | `id`          | no       | Same-family entry this one replaces       |
+| `Superseded-by` | `id`          | —        | Generated inverse of `Supersedes`         |
+
+`Status` vocabulary: `draft`, `approved` (default), `deprecated`, `withdrawn`.
+Profiles may extend the set.
+
+`Supersedes` expresses same-family replacement only (a test cannot supersede a
+spec). Tooling warns when a `Satisfies:` / `Derived-from:` / `Verifies:` /
+`Realizes:` target is `deprecated` or `withdrawn`.
+
+See §2.6 for attribute value types (multi-line repeat vs CSV, canonical form).
+
+### 2.2 Spec Entries
+
+A spec entry is a numbered, locally-authoritative declaration the project
+formulates: a requirement, an architecture block, a design decision, a hazard,
+an analysis.
+
+**Display ID format:**
+`^[A-Z]{2,6}_[A-Z][A-Z0-9]{2,7}(_[A-Z][A-Z0-9]{2,7})?_\d{3,6}$`
 
 - `TYPE` — 2–6 uppercase letters (e.g., `SRS`, `SYS`, `STK`)
 - `DOMAIN` — 3–8 uppercase alphanumeric, first char uppercase (e.g., `BRK`,
@@ -416,203 +550,254 @@ An entry whose display ID matches the spec pattern per ADR-002 is a typed
 - `SUBDOMAIN` — optional, same as DOMAIN
 - `NNNN` — 3–6 decimal digits, must be > 0 (e.g., `001`, `0042`)
 
-Example: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`
+Examples: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`, `HAZ_VHC_00001`.
 
-Spec entries have two identifiers:
+**Identity:** `Spec-id` carries a bare 26-character ULID. Assigned by
+`markspec format`, never hand-authored, immutable once assigned.
 
-- **Display ID** — human-readable, in the `[...]` marker. Used for
-  cross-document references and traceability matrices.
-- **ULID** — universally unique, in the `Id:` attribute. Formatted as
-  `TYPE_ALPHANUMERIC` (26 alphanumeric chars, e.g.,
-  `SRS_00000000000000000000000001`). The ULID ensures global uniqueness across
-  projects and survives renumbering. Mandatory. Assigned by tooling, never
-  hand-authored. Once assigned, it never changes.
+**Family-specific attributes** (plus the universal attributes from §2.1):
 
-**Builtin types:**
+| Attribute      | Type      | Required | Description                         |
+| -------------- | --------- | -------- | ----------------------------------- |
+| `Spec-id`      | `id`      | yes      | Bare ULID: `[0-9A-HJKMNP-TV-Z]{26}` |
+| `Derived-from` | `id-list` | no       | Spec display ID(s)                  |
+| `Satisfies`    | `id-list` | no       | Spec display ID(s)                  |
+| `Allocated-to` | `id-list` | no       | Element display ID(s)               |
 
-| Category     | Type  | Full name                  |
-| ------------ | ----- | -------------------------- |
-| Requirements | `STK` | Stakeholder requirement    |
-|              | `SYS` | System requirement         |
-|              | `SRS` | Software requirement       |
-| Architecture | `SAD` | Architecture description   |
-|              | `ICD` | Interface control document |
-| Verification | `VAL` | Acceptance test            |
-|              | `SIT` | System integration test    |
-|              | `SWT` | Software test              |
+- `Derived-from` — upstream link by V-model decomposition (broad).
+- `Satisfies` — upstream link expressing complete fulfillment (strong).
+- `Allocated-to` — downstream top-down allocation from spec to element(s).
 
-Non-builtin types are valid — tooling validates entry format but not
-traceability direction or level.
+**Example 9 — spec entry:**
 
-### 2.2 Spec entry attributes (ADR-002)
+```markdown
+- [SRS_BRK_0107] Sensor input debouncing
 
-| Attribute      | Required | Format                                    |
-| -------------- | -------- | ----------------------------------------- |
-| `Id`           | yes      | 26-char ULID: `TYPE_[0-9A-Z]{26}`         |
-| `Satisfies`    | no       | Spec entry display ID(s), comma-separated |
-| `Derived-from` | no       | Reference ID + optional section locator   |
-| `References`   | no       | Reference ID(s), comma-separated          |
-| `Allocated-to` | no       | Element/architecture ID(s)                |
-| `Labels`       | no       | Comma-separated tags                      |
+  The sensor driver shall debounce raw inputs to eliminate electrical noise
+  before processing.
 
-**`Derived-from` format:**
-
-```text
-Derived-from: ISO-26262-6 §9.4
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+  Derived-from: SYS_BRK_0042\
+  Labels: ASIL-B
 ```
 
-The ID before the space (`ISO-26262-6`) is validated against reference entries.
-The section locator after it (`§9.4`) is free text — tooling warns on unknown
-sections when lists are available but does not error.
+### 2.3 Test Entries
 
-### 2.3 Reference entries (Reference family per ADR-002)
+A test entry is a verification of declared behavior, either automated (code
+tests) or manual (procedures on HIL benches, vehicles, prototypes). Tests
+combine two roles: they specify expected behavior and have an execution
+lifecycle.
 
-An entry whose display ID does not match the spec pattern is a **reference**
-entry. Reference IDs are slugs: letters, digits, hyphens, and dots
-(`[A-Za-z][A-Za-z0-9]*([.-][A-Za-z0-9]+)*`). Reference entries are recognized
-only in documents named `references.md` or in `references/` directories.
+**Display ID format:** same as spec entries.
+
+**Identity:** `Test-id` carries a bare 26-character ULID. Assigned by
+`markspec format`, never hand-authored, immutable once assigned.
+
+**Family-specific attributes** (plus the universal attributes from §2.1):
+
+| Attribute    | Type      | Required | Description                                          |
+| ------------ | --------- | -------- | ---------------------------------------------------- |
+| `Test-id`    | `id`      | yes      | Bare ULID                                            |
+| `Test-level` | `enum`    | no       | One of `unit`, `integration`, `system`, `acceptance` |
+| `Verifies`   | `id-list` | no       | Spec display ID(s)                                   |
+| `Tests`      | `id-list` | no       | Element display ID(s)                                |
+
+Filesystem location of an automated test is a **property** (`file.path`), not an
+attribute — see ADR-002 Part 1 "Entry properties" and ADR-006.
+
+- `Level` — V-model test level. Optional at the core; extensible by profile.
+- `Source` — inferred from the source file path for in-code tests; absent for
+  manual tests.
+- `Verifies` — upstream link to spec(s) this test verifies (ASPICE SWE.4 BP5).
+- `Tests` — upstream link to element(s) this test exercises.
+
+**Example 10 — test entry:**
+
+```markdown
+- [SWT_BRK_0107] Debounce unit test
+
+  Given a 10ms debounce window, a 5ms noise spike must not alter the stable
+  output.
+
+  Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ\
+  Level: unit\
+  Source: src/braking/controller.rs\
+  Verifies: SRS_BRK_0107\
+  Tests: braking_core::controller::debounce_input\
+  Labels: automated, rust, ASIL-B
+```
+
+### 2.4 Element Entries
+
+An element entry is a canonical declaration of a system object with stable
+identity: a code unit, a build artifact, a dependency, a hardware part.
+
+**Display ID format:**
+`^(::)?[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?(::[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?)*$`
+
+Segments are separated by the hierarchy separator `::`. Inside a segment, `.`
+and `/` carry technical meaning (file extensions, paths); `-` and `_` are
+readable word connectors. An optional leading `::` marks an absolute path.
+
+Examples: `braking_core`, `braking_core::controller`,
+`braking_core::controller::debounce_input`, `BRK-ECU-SENSOR`.
+
+**Identity:** `Element-id` carries a bare 26-character ULID. Assigned by
+`markspec format`, never hand-authored, immutable once assigned.
+
+**Family-specific attributes** (plus the universal attributes from §2.1):
+
+| Attribute        | Type         | Required | Description                                     |
+| ---------------- | ------------ | -------- | ----------------------------------------------- |
+| `Element-id`     | `id`         | yes      | Bare ULID                                       |
+| `Element-kind`   | `enum`       | no       | One of `item`, `artifact`, `dependency`, `unit` |
+| `Part-of`        | `id`         | no       | Parent element display ID                       |
+| `Realizes`       | `id-list`    | no       | Spec display ID(s)                              |
+| `Depends-on`     | `id-list`    | no       | Element display ID(s)                           |
+| `Generated-from` | `path-or-id` | no       | Path or element display ID                      |
+
+Filesystem location of a code unit is a **property** (`file.path`), not an
+attribute — see ADR-002 Part 1 "Entry properties" and ADR-006.
+
+- `Kind` — core vocabulary is `item` (repo), `artifact` (produced build unit),
+  `dependency` (consumed external), `unit` (function-level declaration).
+  Extensible by profile.
+- `Realizes` — upstream link from element to spec(s) (bottom-up realization).
+- `Depends-on` — usage relationship, typically generated by static analysis.
+- `Generated-from` — provenance for tool-generated code.
+
+**Example 11 — element entry (production unit):**
+
+```markdown
+- [braking_core::controller::debounce_input] Debounce function
+
+  Rejects transient noise on raw sensor readings using a configurable window.
+
+  Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
+  Element-kind: unit\
+  Part-of: braking-core\
+  Realizes: SRS_BRK_0107\
+  Labels: rust, ASIL-B
+```
+
+### 2.5 Reference Entries
+
+A reference entry is a bibliographic citation of an external published artifact:
+a standard, a regulation, a paper, an RFC, a corporate specification.
+
+**Slug format:** `^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$` (after stripping
+optional leading `@` for Pandoc citation compatibility).
 
 **ID conventions:**
 
 ```text
 ISO-26262-6        ← ISO 26262-6:2018
-ISO-IEC-15504      ← ISO/IEC 15504
+ISO/IEC-15504      ← ISO/IEC 15504
 DO-178C            ← RTCA DO-178C
 ECSS-E-ST-40C      ← ECSS-E-ST-40C
 SAE-J3061          ← SAE J3061
 MISRA-C-2012       ← MISRA C:2012
 AUTOSAR-R22-11     ← AUTOSAR R22-11
+smith2021          ← academic citation
 ```
 
-**Example 9 — reference entries:**
+Both `[@ISO-26262-6]` and `[ISO-26262-6]` are accepted; the `@` is stripped
+during parsing.
+
+**Identity:** `Reference-id` carries a URI (URN, DOI, or HTTPS URL per RFC
+3986). Author-provided, not tooling-generated.
+
+**Body is optional** for reference entries — a minimal entry may consist of
+display ID, title, and `Reference-id` only.
+
+**Family-specific attributes** (plus the universal attributes from §2.1):
+
+| Attribute            | Type   | Required | Description                                 |
+| -------------------- | ------ | -------- | ------------------------------------------- |
+| `Reference-id`       | `uri`  | yes      | URI (URN, DOI, or HTTPS URL)                |
+| `Reference-url`      | `url`  | no       | HTTPS navigation link if different from URI |
+| `Reference-document` | `text` | no       | Full formal citation; falls back to title   |
+
+Replacement is expressed via the universal `Supersedes` / `Superseded-by`
+attributes from §2.1. Lifecycle state is expressed via the universal `Status`
+attribute (use `withdrawn` or `deprecated`).
+
+**Example 12 — reference entry:**
 
 ```markdown
-- [ISO-26262-6] ISO 26262 Part 6
+- [@ISO-26262-6] ISO 26262 Part 6
 
-  Road vehicles — Functional safety — Part 6: Product development at the
-  software level.
+  Road vehicles — Functional safety — Part 6: Software level.
 
-  Document: ISO 26262-6:2018\
-  URL: https://www.iso.org/standard/68383.html
-
-- [DO-178C] DO-178C
-
-  Software Considerations in Airborne Systems and Equipment Certification.
-
-  Document: RTCA DO-178C\
-  URL: https://www.rtca.org/products/do-178c/
+  Reference-id: urn:iso:std:iso:26262:-6:ed-2\
+  Reference-url: https://www.iso.org/standard/68383.html\
+  Reference-document: ISO 26262-6:2018\
+  Labels: functional-safety, automotive
 ```
 
-**Reference entry attributes (ADR-002):**
+### 2.6 Attribute value types
 
-| Attribute       | Required | Format                |
-| --------------- | -------- | --------------------- |
-| `URI`           | no       | Canonical URI         |
-| `URL`           | no       | Canonical HTTP(S) URL |
-| `Document`      | no       | Full document title   |
-| `Superseded-by` | no       | Replacement entry ID  |
-| `Labels`        | no       | Comma-separated tags  |
+Every attribute declares a **value type** that determines which input forms the
+parser accepts and which form the formatter produces.
 
-At least one of `URI` or `URL` is required. Reference IDs are used in
-`Derived-from:` and `References:` attributes on spec entries.
+| Type          | Cardinality | Multi-line repeat | CSV on one line | Description                                                 |
+| ------------- | ----------- | ----------------- | --------------- | ----------------------------------------------------------- |
+| `id`          | single      | —                 | —               | Display ID or slug                                          |
+| `id-list`     | repeatable  | ✓                 | ✓               | Multiple identifiers                                        |
+| `uri`         | single      | —                 | —               | URI per RFC 3986 (URN, DOI, HTTPS URL)                      |
+| `url`         | single      | —                 | —               | HTTPS navigation link                                       |
+| `path`        | single      | —                 | —               | Filesystem path                                             |
+| `path-or-id`  | single      | —                 | —               | Filesystem path or element display ID                       |
+| `enum`        | single      | —                 | —               | One value from a closed vocabulary                          |
+| `tag-list`    | repeatable  | ✓                 | ✓               | Free-form tags                                              |
+| `text`        | single      | —                 | —               | Free-form single-line text                                  |
+| `citation`    | repeatable  | ✓                 | ✗               | Slug + optional free-text locator (locator may contain `,`) |
+| `external-id` | repeatable  | ✓                 | ✓               | `scheme:value` qualified identifier                         |
+| `integer`     | single      | —                 | —               | Whole number                                                |
+| `date`        | single      | —                 | —               | ISO 8601 date (`YYYY-MM-DD`)                                |
+| `boolean`     | single      | —                 | —               | `true` or `false`                                           |
 
-### 2.4 Requirement types
+**Multi-line repeat** (git-trailers canonical form):
 
-Three levels following the V-model hierarchy:
-
-- **STK** — stakeholder requirements.
-- **SYS** — system requirements.
-- **SRS** — software requirements.
-
-Direction is upward: SRS → SYS → STK via `Satisfies:`.
-
-### 2.5 Architecture types
-
-**SAD** — architecture descriptions. Subtypes distinguished by attribute
-presence:
-
-- **Decomposition** — defines components. No extra attributes.
-- **Allocation** — maps requirements to components. `Allocates:` + `Component:`.
-- **Constraint** — defines architectural rules. `Constrains:`.
-
-**Example 10 — SAD decomposition:**
-
-```markdown
-- [SAD_BRK_0001] Braking system decomposition
-
-  The braking subsystem consists of three components: sensor-driver, controller,
-  and actuator-interface.
-
-  Id: SAD_01HGW3A1BCD2\
-  Satisfies: SYS_BRK_0001\
-  Labels: ASIL-B
+```text
+Derived-from: SYS_BRK_0042
+Derived-from: SYS_BRK_0043
+Labels: ASIL-B
+Labels: safety
 ```
 
-**Example 11 — SAD allocation:**
+**CSV on one line** (accepted when no value contains a comma):
 
-```markdown
-- [SAD_BRK_0010] Sensor debouncing allocation
-
-  Sensor input debouncing is allocated to the braking ECU sensor-driver
-  partition.
-
-  Id: SAD_01HGW3A2EFG3\
-  Allocates: SRS_BRK_0107\
-  Component: BRK-ECU-SENSOR\
-  Labels: ASIL-B
+```text
+Derived-from: SYS_BRK_0042, SYS_BRK_0043
+Labels: ASIL-B, safety
 ```
 
-**SAD-specific attributes:**
+The formatter rewrites every repeatable attribute to **multi-line** form. CSV is
+an accepted input but never a canonical output.
 
-| Attribute    | Format                              |
-| ------------ | ----------------------------------- |
-| `Allocates`  | SRS display ID(s)                   |
-| `Component`  | Component name or registry entry ID |
-| `Constrains` | Component name(s)                   |
+CSV is **forbidden** for the `citation` type. `References` values may carry
+free-text locators like `§9.4, Table 7` that would be ambiguous in CSV.
 
-**ICD** — interface control documents. System-level contracts between deployment
-units, ECUs, or external systems.
+### 2.7 Family recognition
 
-**Example 12 — ICD entry:**
+The family of an entry is decided by its identity attribute, not by its display
+ID format or the document it appears in:
 
-```markdown
-- [ICD_BRK_0001] Brake pressure CAN interface
-
-  The braking ECU shall publish brake pressure on CAN message 0x142 at 10ms
-  cycle time. Payload: 16-bit unsigned, 0.1 bar resolution, big-endian.
-
-  Id: ICD_01HGW4A1BCD2\
-  Between: braking-ecu, vehicle-dynamics-ecu\
-  Satisfies: SYS_BRK_0035\
-  Interface: {{ridl.brake-pressure-can}}\
-  Labels: ASIL-B
+```text
+entry has Spec-id      → spec
+entry has Test-id      → test
+entry has Element-id   → element
+entry has Reference-id → reference
 ```
 
-**ICD-specific attributes:**
+An entry must carry exactly one identity attribute. Carrying two is an error;
+carrying none is an error.
 
-| Attribute   | Format                                  |
-| ----------- | --------------------------------------- |
-| `Between`   | Two parties, comma-separated            |
-| `Interface` | Optional RIDL reference (`{{ridl.id}}`) |
-
-SAD satisfies SYS. ICD satisfies SYS or SAD.
-
-### 2.6 Verification types
-
-Three test types mirror the requirement hierarchy:
-
-| Requirement | Test    | Full name               |
-| ----------- | ------- | ----------------------- |
-| **STK**     | **VAL** | Acceptance test         |
-| **SYS**     | **SIT** | System integration test |
-| **SRS**     | **SWT** | Software test           |
-
-Each test level verifies its corresponding requirement level — cross-level
-verification is an error (MSL-T007).
-
-ICD entries are verified by SIT — the test proves both sides implement the
-contract. A SIT entry can carry `Verifies: ICD_BRK_0001` alongside
-`Verifies: SYS_BRK_0042`. No additional test type is needed.
+When a new entry is authored without an identity attribute, `markspec format`
+classifies it using the display ID format and the document directive (see Part
+3), then assigns the appropriate identity attribute with a fresh ULID or prompts
+for the URI.
 
 ---
 
@@ -663,20 +848,28 @@ Placed in the first HTML comment after the H1 heading.
 | `markspec:glossary`   | none               | doc     |
 | `markspec:summary`    | none               | doc     |
 | `markspec:deck`       | none               | deck    |
+| `markspec:specs`      | none               | doc     |
+| `markspec:tests`      | none               | doc     |
+| `markspec:elements`   | none               | doc     |
 | `markspec:references` | registry URL       | both    |
 | `markspec:deprecated` | reason (free text) | both    |
 | `markspec:paginate`   | none               | deck    |
 
 Type directives (`glossary`, `summary`, `deck`) are mutually exclusive.
-`deprecated` and `references` can coexist with a type directive. `doc` is the
-default — no directive for it. Multiple `markspec:references` directives declare
-multiple upstream registries. Order matters — registries are searched first to
-last, with an implicit fallback to RefHub.
+Family-hint directives (`specs`, `tests`, `elements`, `references` without a
+payload) hint at the predominant entry family in the document — used by
+`markspec format` to classify new entries before they carry an identity
+attribute. `deprecated` and `references` (with a URL payload) can coexist with
+any type directive. `doc` is the default — no directive for it. Multiple
+`markspec:references` directives with URL payloads declare multiple upstream
+registries; order matters, with an implicit fallback to RefHub.
 
 `glossary` and `summary` are auto-detected from filename (`GLOSSARY.md`,
-`SUMMARY.md`). The directive is needed when the file has a different name (e.g.,
-`toc.md` with `markspec:summary`). `deck` is never auto-detected — it always
-requires an explicit directive.
+`SUMMARY.md`). Family-hint directives are auto-detected from filename:
+`tests.md` implies `markspec:tests`, `elements.md` implies `markspec:elements`,
+`references.md` implies `markspec:references`. The directive is needed when the
+file has a different name. `deck` is never auto-detected — it always requires an
+explicit directive.
 
 **Example 15 — deck with pagination:**
 
@@ -998,10 +1191,10 @@ They use double braces: `{{namespace.id}}`.
 
 ### 5.1 Syntax
 
-**Example 27 — requirement and test references:**
+**Example 27 — spec and test references:**
 
 ```markdown
-This module implements {{req.SRS_BRK_0107}}. Verified by {{test.SWT_BRK_0107}}.
+This module implements {{spec.SRS_BRK_0107}}. Verified by {{test.SWT_BRK_0107}}.
 ```
 
 **Example 28 — reference to a standard:**
@@ -1022,15 +1215,15 @@ build time: resolved to links.
 
 ### 5.2 Namespaces
 
-| Namespace | References                   | ID source         |
-| --------- | ---------------------------- | ----------------- |
-| `req`     | Requirements (STK, SYS, SRS) | Display ID        |
-| `arch`    | Architecture (SAD, ICD)      | Display ID        |
-| `test`    | Tests (VAL, SIT, SWT)        | Display ID        |
-| `ref`     | External references          | Registry entry ID |
-| `fig`     | Figures                      | Slug from caption |
-| `tbl`     | Tables                       | Slug from caption |
-| `h`       | Headings                     | GFM anchor        |
+| Namespace | References                        | ID source         |
+| --------- | --------------------------------- | ----------------- |
+| `spec`    | Spec entries (any TYPE)           | Display ID        |
+| `test`    | Test entries                      | Display ID        |
+| `element` | Element entries                   | Display ID        |
+| `ref`     | Reference entries, registry chain | Slug              |
+| `fig`     | Figures                           | Slug from caption |
+| `tbl`     | Tables                            | Slug from caption |
+| `h`       | Headings                          | GFM anchor        |
 
 Slugs use the GFM algorithm: lowercase, spaces to hyphens, punctuation stripped.
 
@@ -1065,19 +1258,44 @@ schema is defined at `https://driftsys.github.io/schemas/project/v1.json`.
 **license:** defaults to `proprietary` — absence of a declared license means all
 rights reserved. Use [SPDX identifiers] when specifying a license.
 
-### 6.2 Document properties
+### 6.2 Document attributes and properties
 
-Per-file. Nothing stored inside the document. Every property always resolves.
+Per-file metadata splits into two tiers (mirroring the entry model):
+
+- **Attributes** — authored by the author in YAML front matter.
+- **Properties** — observed by tooling (filename, git history, filesystem).
+
+#### Document attributes (authored in front matter)
+
+| Attribute       | Type          | Required | Description                                                                             |
+| --------------- | ------------- | -------- | --------------------------------------------------------------------------------------- |
+| `document-id`   | `id`          | no       | Document ULID — `01H…` 26-char Crockford base32                                         |
+| `document-type` | `enum`        | no       | Overrides filename/directive detection (see §6.3)                                       |
+| `labels`        | `tag-list`    | no       | Classification tags                                                                     |
+| `status`        | `enum`        | no       | Lifecycle state (`draft` / `approved` / `deprecated` / `withdrawn`), default `approved` |
+| `external-id`   | `external-id` | no       | Cross-system identifier (`scheme:value`)                                                |
+| `supersedes`    | `id`          | no       | `document-id` of a document this one replaces                                           |
+| `references`    | `citation`    | no       | External reference citations with optional locator                                      |
+| `metadata`      | map           | no       | Org free-form metadata, never validated                                                 |
+
+All attribute value types follow the 14-type system from §2.6. Profiles may
+declare additional keys; projects may allowlist SSG-ecosystem keys in
+`.markspec.yaml` → `frontMatter.allowedKeys` (see §9.1).
+
+#### Document properties (observed)
 
 | Property     | Source                          | Fallback                      |
 | ------------ | ------------------------------- | ----------------------------- |
 | **title**    | H1 heading                      | Filename stem                 |
-| **type**     | Filename stem or directive      | `doc`                         |
 | **revision** | Merge-to-main count             | `0`                           |
 | **authors**  | `project.yaml`                  | Git unique commit authors     |
 | **created**  | Git first commit timestamp      | File system creation time     |
 | **modified** | Git last merge commit timestamp | File system modification time |
-| **status**   | Branch/main/directive           | `approved`                    |
+
+These are **never authored in front matter** — `title:`, `author:`, `date:`,
+`description:`, `toc:`, `cover:` in front matter are errors (see §8.5 MSL-D001).
+The H1, first paragraph, git history, and filesystem are the authoritative
+sources.
 
 **revision:** starts at `0`. Increments on each merged PR/MR that modifies the
 file. Commits within a branch do not count.
@@ -1085,19 +1303,22 @@ file. Commits within a branch do not count.
 **authors:** `project.yaml` recommended — Git history is fragile across moves
 and migrations.
 
-**status:** `draft` (in branch), `approved` (on main), `deprecated`
-(`markspec:deprecated` directive).
+**status**: derived from `status:` in front matter if present, otherwise branch
+context (`draft` on branch, `approved` on main) and `markspec:deprecated`
+directive. Front-matter `status:` wins when set.
 
 ### 6.3 Document types
 
-| Type         | Detection                    | Description                          |
-| ------------ | ---------------------------- | ------------------------------------ |
-| `doc`        | default                      | Any Markdown file                    |
-| `glossary`   | `GLOSSARY.md` or directive   | Heading-based term definitions       |
-| `summary`    | `SUMMARY.md` or directive    | Book table of contents               |
-| `references` | `references.md` or directive | External standard/regulation entries |
-| `deck`       | directive only               | Slide deck (`---` = slide breaks)    |
-| `code`       | file extension               | Source files with doc comments       |
+| Type         | Detection                    | Description                       |
+| ------------ | ---------------------------- | --------------------------------- |
+| `doc`        | default                      | Any Markdown file                 |
+| `glossary`   | `GLOSSARY.md` or directive   | Heading-based term definitions    |
+| `summary`    | `SUMMARY.md` or directive    | Book table of contents            |
+| `references` | `references.md` or directive | Reference entry collection        |
+| `tests`      | `tests.md` or directive      | Test entry collection             |
+| `elements`   | `elements.md` or directive   | Element entry collection          |
+| `deck`       | directive only               | Slide deck (`---` = slide breaks) |
+| `code`       | file extension               | Source files with doc comments    |
 
 **Heading rules by type:**
 
@@ -1105,22 +1326,22 @@ and migrations.
 - **glossary** — one H1 (title), H2 (letter groups), H3 (terms).
 - **summary** — first H1 is the book title, additional H1s are part headings.
   Exempt from single-H1.
-- **references** — one H1, standard heading rules.
+- **references**, **tests**, **elements** — one H1, standard heading rules.
 - **deck** — one H1 (deck title). `---` creates slide breaks. H2 headings start
   each slide. Heading hierarchy is per-slide — H3/H4 within a slide are valid
   regardless of other slides.
 
 ### 6.4 Content entities
 
-| Entity   | Source                            | ID         |
-| -------- | --------------------------------- | ---------- |
-| **req**  | STK, SYS, SRS entry blocks        | Display ID |
-| **arch** | SAD, ICD entry blocks             | Display ID |
-| **test** | VAL, SIT, SWT entry blocks        | Display ID |
-| **ref**  | Reference entries, registry chain | Entry ID   |
-| **fig**  | Figure captions, alt text         | Slug       |
-| **tbl**  | Table captions                    | Slug       |
-| **h**    | Headings                          | GFM anchor |
+| Entity      | Source                            | ID         |
+| ----------- | --------------------------------- | ---------- |
+| **spec**    | Spec entry blocks                 | Display ID |
+| **test**    | Test entry blocks                 | Display ID |
+| **element** | Element entry blocks              | Display ID |
+| **ref**     | Reference entries, registry chain | Slug       |
+| **fig**     | Figure captions, alt text         | Slug       |
+| **tbl**     | Table captions                    | Slug       |
+| **h**       | Headings                          | GFM anchor |
 
 ### 6.5 References
 
@@ -1137,9 +1358,9 @@ validated against the resolution chain at build time.
 ### 6.6 Rule activation
 
 Entry rules (MSL-R\*) activate on any file containing `- [DISPLAY_ID]` entry
-blocks. Traceability rules (MSL-T\*) activate on typed entries only. Glossary
-rules (MSL-G\*) activate only on `glossary` documents. Summary rules (MSL-S\*)
-activate only on `summary` documents.
+blocks. Traceability rules (MSL-T\*) activate on entries carrying an identity
+attribute. Glossary rules (MSL-G\*) activate only on `glossary` documents.
+Summary rules (MSL-S\*) activate only on `summary` documents.
 
 ---
 
@@ -1175,7 +1396,10 @@ activate only on `summary` documents.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.
-- **Front matter** — stripped from all files.
+- **Front matter** — YAML form; keys sorted to canonical order (core keys, then
+  profile-declared, then `metadata:`, then allowlisted ecosystem keys);
+  forbidden keys removed with an info diagnostic (MSL-D001). See §6.2 and
+  [ADR-007](../../architecture/adr-007-document-structure.md).
 
 ---
 
@@ -1191,56 +1415,64 @@ activate only on `summary` documents.
 
 ### 8.2 Entry format (MSL-R)
 
-| ID         | Severity | Rule                                                                |
-| ---------- | -------- | ------------------------------------------------------------------- |
-| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body.                   |
-| `MSL-R002` | error    | Typed entry: display ID matches `[A-Z]{2,}_[A-Z]{2,12}_\d{3,4}`.    |
-| `MSL-R003` | error    | Typed entry: `Id:` required, matches `[A-Z]+_[0-9A-Z]{12,26}`.      |
-| `MSL-R004` | error    | Typed entry: exactly one `Id:` per entry.                           |
-| `MSL-R005` | error    | ULID unique across repository.                                      |
-| `MSL-R006` | error    | Display ID unique within project.                                   |
-| `MSL-R007` | error    | Display ID type prefix matches ULID type prefix.                    |
-| `MSL-R008` | warning  | Sequential numbering expected.                                      |
-| `MSL-R009` | warning  | Canonical attribute order. Auto-fixed.                              |
-| `MSL-R010` | warning  | Unknown attributes. Generated attributes must not appear in source. |
-| `MSL-R011` | error    | No emphasis inside entry blocks.                                    |
+| ID         | Severity | Rule                                                                                              |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (reference body is optional).                    |
+| `MSL-R002` | error    | Display ID matches the family's format regex.                                                     |
+| `MSL-R003` | error    | Exactly one identity attribute per entry (`Spec-id`, `Test-id`, `Element-id`, or `Reference-id`). |
+| `MSL-R004` | error    | Identity attribute value well-formed (bare ULID for Spec/Test/Element; URI for Reference).        |
+| `MSL-R005` | error    | ULID unique across repository.                                                                    |
+| `MSL-R006` | error    | Display ID unique within project and registry chain.                                              |
+| `MSL-R007` | error    | Display ID format matches the declared family.                                                    |
+| `MSL-R008` | error    | Reference entry: `Reference-id` required (URI).                                                   |
+| `MSL-R009` | error    | Spec/Test NNNN > 0.                                                                               |
+| `MSL-R010` | warning  | Unknown attributes. Generated attributes must not appear in source.                               |
+| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                  |
+| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                            |
+| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                     |
 
-MSL-R001 applies to all entry blocks. MSL-R002–R010 apply only to typed entries
-(ID matches `TYPE_XYZ_NNNN`). MSL-R011 applies to all entry blocks.
+MSL-R001 and MSL-R011 apply to all entry blocks. MSL-R002–R010 apply to entries
+carrying an identity attribute.
 
 ### 8.3 Traceability (MSL-T)
 
-| ID         | Severity | Rule                                                            |
-| ---------- | -------- | --------------------------------------------------------------- |
-| `MSL-T001` | error    | `Satisfies:` target must exist.                                 |
-| `MSL-T002` | error    | Direction upward: SRS → SYS → STK. SAD → SYS. ICD → SYS or SAD. |
-| `MSL-T003` | warning  | SYS/SRS without `Satisfies:` — may be derived.                  |
-| `MSL-T004` | warning  | `Derived-from:` ID validated against registry chain.            |
-| `MSL-T005` | error    | `/// Verifies:` target must exist.                              |
-| `MSL-T006` | error    | `/// Implements:` target must exist.                            |
-| `MSL-T007` | error    | VAL→STK, SIT→SYS/ICD, SWT→SRS. Cross-level is error.            |
-| `MSL-T008` | error    | `Allocates:` target must be an SRS entry.                       |
-| `MSL-T009` | error    | `Between:` must list exactly two parties.                       |
+| ID         | Severity | Rule                                                                                                       |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                                |
+| `MSL-T002` | error    | `Derived-from:` target must resolve to an existing spec entry.                                             |
+| `MSL-T003` | warning  | `References:` slug must resolve through the reference registry chain.                                      |
+| `MSL-T004` | error    | `Allocated-to:` target must resolve to an existing element entry.                                          |
+| `MSL-T005` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                                   |
+| `MSL-T006` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                                      |
+| `MSL-T007` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                                      |
+| `MSL-T008` | error    | `Part-of:` target must resolve to an existing element entry.                                               |
+| `MSL-T009` | error    | `Depends-on:` target must resolve to an existing element entry.                                            |
+| `MSL-T010` | error    | `Supersedes:` target must resolve to an existing same-family entry.                                        |
+| `MSL-T011` | warning  | `Satisfies:` / `Derived-from:` / `Verifies:` / `Realizes:` target has `Status: deprecated` or `withdrawn`. |
+
+Direction and level-crossing rules (e.g., "acceptance tests verify stakeholder
+requirements") are profile concerns, not core concerns.
 
 ### 8.4 References (MSL-M)
 
-| ID         | Severity | Rule                                                        |
-| ---------- | -------- | ----------------------------------------------------------- |
-| `MSL-M001` | error    | Every `{{namespace.id}}` must resolve.                      |
-| `MSL-M002` | error    | Namespace: `req`, `arch`, `test`, `ref`, `fig`, `tbl`, `h`. |
-| `MSL-M003` | error    | No sections, inverted sections, or partials.                |
+| ID         | Severity | Rule                                                            |
+| ---------- | -------- | --------------------------------------------------------------- |
+| `MSL-M001` | error    | Every `{{namespace.id}}` must resolve.                          |
+| `MSL-M002` | error    | Namespace: `spec`, `test`, `element`, `ref`, `fig`, `tbl`, `h`. |
+| `MSL-M003` | error    | No sections, inverted sections, or partials.                    |
 
 ### 8.5 Document structure (MSL-D)
 
-| ID         | Severity     | Rule                                                                                                                                                                   |
-| ---------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-D001` | error        | No front matter. Auto-fixed.                                                                                                                                           |
-| `MSL-D002` | warning      | Footnotes must not contain requirement IDs.                                                                                                                            |
-| `MSL-D003` | notice       | Non-standard alert types.                                                                                                                                              |
-| `MSL-D004` | warning      | Caption format: `_Table:_` above, `_Figure:_` below.                                                                                                                   |
-| `MSL-D005` | warning      | SVGs: `viewBox` required, no fixed `width`/`height`.                                                                                                                   |
-| `MSL-D006` | configurable | Inline links vs reference-style links. Controlled by `referenceLinks` config: `none` (no check), `warn` (prefer reference-style), `enforce` (require reference-style). |
-| `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                      |
+| ID         | Severity     | Rule                                                                                                                                                                                                                                                                    |
+| ---------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-D001` | error        | Front matter keys must be core, profile-declared, `metadata`, or allowlisted in `.markspec.yaml`. Forbidden keys (`title`, `description`, `toc`, `authors`, `author`, `date`, `created`, `modified`, `cover`, `images`, `sections`) are errors with auto-fix to remove. |
+| `MSL-D002` | warning      | Footnotes must not contain requirement IDs.                                                                                                                                                                                                                             |
+| `MSL-D003` | notice       | Non-standard alert types.                                                                                                                                                                                                                                               |
+| `MSL-D004` | warning      | Caption format: `_Table:_` above, `_Figure:_` below.                                                                                                                                                                                                                    |
+| `MSL-D005` | warning      | SVGs: `viewBox` required, no fixed `width`/`height`.                                                                                                                                                                                                                    |
+| `MSL-D006` | configurable | Inline links vs reference-style links. Controlled by `referenceLinks` config: `none` (no check), `warn` (prefer reference-style), `enforce` (require reference-style).                                                                                                  |
+| `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                                                                                                                       |
+| `MSL-D008` | error        | Image paths must be relative and stay within the document folder. Absolute URLs (`https://...`), repo-root links (`/...`), and paths escaping via `../../` are not permitted (ADR-003).                                                                                 |
 
 ### 8.6 Glossary (MSL-G)
 
@@ -1270,17 +1502,28 @@ MSL-R001 applies to all entry blocks. MSL-R002–R010 apply only to typed entrie
 
 ```yaml
 referenceLinks: warn # none | warn | enforce
+frontMatter:
+  allowedKeys:
+    - layout # Hugo
+    - permalink # Jekyll
+    - sidebar_position # Docusaurus
+    - draft
+    - aliases
 ```
 
 `.markspec.toml`:
 
 ```toml
 referenceLinks = "warn"
+
+[frontMatter]
+allowedKeys = ["layout", "permalink", "sidebar_position", "draft", "aliases"]
 ```
 
-| Property         | Type   | Default  | Values                    |
-| ---------------- | ------ | -------- | ------------------------- |
-| `referenceLinks` | string | `"warn"` | `none`, `warn`, `enforce` |
+| Property                  | Type     | Default  | Values                                                                                                       |
+| ------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `referenceLinks`          | string   | `"warn"` | `none`, `warn`, `enforce`                                                                                    |
+| `frontMatter.allowedKeys` | string[] | `[]`     | Top-level front-matter keys to accept beyond core / profile / `metadata`. Preserved verbatim, not validated. |
 
 All formatting rules are fixed. There is no formatter choice — dprint is the
 formatter.
@@ -1502,13 +1745,15 @@ each supported language.
 ### Rust
 
 ```rust
-/// [SRS_BRK_0107] Sensor input debouncing
+/// [SWT_BRK_0107] Debounce unit test
 ///
-/// The sensor driver shall reject transient noise shorter
-/// than the configured debounce window.
+/// Given a 10ms debounce window, a 5ms noise spike
+/// must not alter the stable output.
 ///
-/// Id: SRS_01HGW2R9QLP4 \
-/// Satisfies: SYS_BRK_0042 \
+/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
+/// Level: unit \
+/// Verifies: SRS_BRK_0107 \
+/// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
 #[test]
 fn swt_brk_0107_debounce_filters_noise() {
@@ -1520,13 +1765,15 @@ fn swt_brk_0107_debounce_filters_noise() {
 
 ```kotlin
 /**
- * [SRS_BRK_0107] Sensor input debouncing
+ * [SWT_BRK_0107] Debounce unit test
  *
- * The sensor driver shall reject transient noise shorter
- * than the configured debounce window.
+ * Given a 10ms debounce window, a 5ms noise spike
+ * must not alter the stable output.
  *
- * Id: SRS_01HGW2R9QLP4 \
- * Satisfies: SYS_BRK_0042 \
+ * Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
+ * Level: unit \
+ * Verifies: SRS_BRK_0107 \
+ * Tests: braking_core::controller::debounce_input \
  * Labels: ASIL-B
  */
 @Test
@@ -1538,13 +1785,15 @@ fun `swt_brk_0107 debounce filters noise`() {
 ### C++ (Doxygen)
 
 ```cpp
-/// [SRS_BRK_0107] Sensor input debouncing
+/// [SWT_BRK_0107] Debounce unit test
 ///
-/// The sensor driver shall reject transient noise shorter
-/// than the configured debounce window.
+/// Given a 10ms debounce window, a 5ms noise spike
+/// must not alter the stable output.
 ///
-/// Id: SRS_01HGW2R9QLP4 \
-/// Satisfies: SYS_BRK_0042 \
+/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
+/// Level: unit \
+/// Verifies: SRS_BRK_0107 \
+/// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
 auto debounce_input(uint16_t raw) -> uint16_t;
 ```
@@ -1553,13 +1802,15 @@ auto debounce_input(uint16_t raw) -> uint16_t;
 
 ```c
 /**
- * [SRS_BRK_0107] Sensor input debouncing
+ * [SWT_BRK_0107] Debounce unit test
  *
- * The sensor driver shall reject transient noise shorter
- * than the configured debounce window.
+ * Given a 10ms debounce window, a 5ms noise spike
+ * must not alter the stable output.
  *
- * Id: SRS_01HGW2R9QLP4 \
- * Satisfies: SYS_BRK_0042 \
+ * Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
+ * Level: unit \
+ * Verifies: SRS_BRK_0107 \
+ * Tests: braking_core::controller::debounce_input \
  * Labels: ASIL-B
  */
 void debounce_input(uint16_t* raw);
@@ -1568,13 +1819,15 @@ void debounce_input(uint16_t* raw);
 ### Java (JDK 23+)
 
 ```java
-/// [SRS_BRK_0107] Sensor input debouncing
+/// [SWT_BRK_0107] Debounce unit test
 ///
-/// The sensor driver shall reject transient noise shorter
-/// than the configured debounce window.
+/// Given a 10ms debounce window, a 5ms noise spike
+/// must not alter the stable output.
 ///
-/// Id: SRS_01HGW2R9QLP4 \
-/// Satisfies: SYS_BRK_0042 \
+/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
+/// Level: unit \
+/// Verifies: SRS_BRK_0107 \
+/// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
 @Test
 void swt_brk_0107_debounce_filters_noise() {
@@ -1589,13 +1842,15 @@ Attributes are on consecutive lines.
 
 ```java
 /**
- * [SRS_BRK_0107] Sensor input debouncing
+ * [SWT_BRK_0107] Debounce unit test
  *
- * The sensor driver shall reject transient noise shorter
- * than the configured debounce window.
+ * Given a 10ms debounce window, a 5ms noise spike
+ * must not alter the stable output.
  *
- * Id: SRS_01HGW2R9QLP4
- * Satisfies: SYS_BRK_0042
+ * Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+ * Level: unit
+ * Verifies: SRS_BRK_0107
+ * Tests: braking_core::controller::debounce_input
  * Labels: ASIL-B
  */
 @Test
