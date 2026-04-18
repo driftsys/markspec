@@ -1,5 +1,180 @@
 # Changelog
 
+## [0.2.1] (2026-04-18)
+
+### Bug Fixes
+
+- **ci:** update .githooks for git-std 0.11.1 API ([02cfeea])
+- **ci:** fix deno fmt line length in gen_theme.ts ([dfe26a7])
+- **ci:** update deno fmt excludes and regenerate theme headers after theme/
+  move ([d4b90ae])
+- **ci:** pin git-std to v0.10.2 to fix broken conventional commits check
+  ([72fab14])
+- **ci:** exclude docs/examples/ from dprint markdown formatter ([81205af])
+- **render:** fix single-element Typst array, deferred cross-ref links, label
+  line wrap ([98e25bd])
+- **ci:** add --allow-env --allow-ffi to test step for typst napi addon
+  ([b1b1858])
+
+### Features
+
+- **cli:** add markspec migrate — legacy Id: → Spec-id: rewrite ([c4fbc09]),
+  refs [#215]
+- **core:** phase 6a — end-to-end four-family fixture + citation slug fix
+  ([910282d]), refs [#198]
+- **core:** phase 5b — integrate front matter into parseFile and compile
+  ([7d2ddff]), refs [#198]
+- **core:** phase 5a — compiler extracts new traceability link kinds
+  ([60a5c04]), refs [#198]
+- **core:** phase 4c — front-matter canonical form ([fc232f8]), refs [#198]
+- **core:** phase 4b — multi-line trailer canonicalization ([393fffc]), refs
+  [#198]
+- **core:** phase 4a — formatter identity assignment and canonical orders
+  ([becafec]), refs [#198]
+- **core:** phase 3c — family-aware traceability checks (MSL-T001..T013)
+  ([2137fd8]), refs [#198]
+- **core:** phase 3b — validate enum attribute values (MSL-R014) ([331e2f1]),
+  refs [#198]
+- **core:** phase 3a — validator rules for new identity attributes ([89d83c9]),
+  refs [#198]
+- **core:** phase 2b-iii — collate repeatable attributes into typed map
+  ([cdfacdb]), refs [#198]
+- **core:** phase 2b-ii — identity-attribute family discrimination in parser
+  ([63ec936]), refs [#198]
+- **core:** phase 2a — front-matter parser and additive parser changes
+  ([74fd645]), refs [#198]
+- **core:** add four-family entry model types and attribute catalog ([eb33cd8]),
+  refs [#198]
+- **core:** implement ADR-002 entry model with family discrimination ([23a38b4])
+- **book:** implement markspec book build CLI command ([#182]) ([ad7b7f2]),
+  closes [#182]
+- **book:** implement book/ library module with SUMMARY.md parser and HTML
+  renderer ([b29301d]), closes [#47]
+- **render:** admonition-style entry block rendering ([ca82915]), closes [#175],
+  [#177], [#178], #179. Relates to #176.
+- **render:** add requirement block styling ([#46]) ([6c0be2c])
+- **repo:** commit WASM grammars via Git LFS ([4f361a7])
+- **repo:** fetch grammars during bootstrap ([61aa15f])
+- **render:** add mustache preprocessing ([#172]) ([2901636])
+- **render:** add caption numbering ([#45]) ([#170]) ([4971997])
+- **render:** add include directive processing ([#44]) ([#169]) ([98956f3])
+- **core:** add grammar lockfile and auto-update workflow ([adb7c51])
+- **render:** add render module with Typst PDF compilation ([#42]) ([3f3afb7])
+- **core:** enable Kotlin grammar fetching via GitHub Release ([30e7767])
+- **core:** display ID assignment and source file formatting ([476149a]), closes
+  [#19], [#18], [#10]
+- **core:** extract Verifies/Implements annotations from source doc comments
+  ([#11]) ([7e2efa3])
+
+### Refactoring
+
+- **core:** phase 5c — remove dead standalone-annotation link plumbing
+  ([7aa0bd1]), refs [#198]
+- **core:** phase 2b-i — drop standalone Verifies/Implements annotation path
+  ([0439e6b]), refs [#198]
+- **docs:** consolidate ADRs and reorganize documentation structure ([9845e70])
+- **docs:** restructure spec books, consolidate theme/, move cheatsheet
+  ([9eab514])
+
+### Documentation
+
+- **docs:** migrate user-facing entry examples to four-family model ([e69036e]),
+  refs [#215]
+- **spec:** phase 6b — align §8.3 MSL-T table with implementation, fix ULID
+  examples ([18a9fa3]), refs [#198]
+- **spec:** fix stale front-matter normalization rule (ADR-007) ([5244136])
+- **docs:** make MSL-D008 (non-relative image paths) an error ([5c14e70])
+- **docs:** restructure diagrams by use case, add PNG support ([342c31f])
+- **docs:** tighten diagram conventions (relative paths, preferred formats)
+  ([2c74384])
+- **spec:** align language spec with ADR-007 (front matter) ([ff3ce51])
+- **docs:** add ADR-007 for document structure and front matter ([b1c7013])
+- **spec:** replace warning admonition with a table in entry-block example
+  ([d576f0e])
+- **docs:** add universal attributes, value types, Status, properties
+  ([40d312e])
+- **docs:** rewrite ADR-002 and language spec for four-family model ([2770a47])
+- **docs:** add Test and Element entry families to ADR-002 ([154151c])
+- **docs:** mark old ADR-002 requirement authoring as superseded ([b8cf971])
+- **spec:** update language.md for ADR-002 entry model ([227bf6d])
+- **docs:** document entry rendering, color tokens, and reorder typography spec
+  ([43e05c8])
+
+[0.2.1]: https://github.com/driftsys/markspec/compare/v0.2.0...v0.2.1
+[02cfeea]: https://github.com/driftsys/markspec/commit/02cfeea
+[dfe26a7]: https://github.com/driftsys/markspec/commit/dfe26a7
+[d4b90ae]: https://github.com/driftsys/markspec/commit/d4b90ae
+[72fab14]: https://github.com/driftsys/markspec/commit/72fab14
+[81205af]: https://github.com/driftsys/markspec/commit/81205af
+[98e25bd]: https://github.com/driftsys/markspec/commit/98e25bd
+[b1b1858]: https://github.com/driftsys/markspec/commit/b1b1858
+[c4fbc09]: https://github.com/driftsys/markspec/commit/c4fbc09
+[#215]: https://github.com/driftsys/markspec/issues/215
+[910282d]: https://github.com/driftsys/markspec/commit/910282d
+[#198]: https://github.com/driftsys/markspec/issues/198
+[7d2ddff]: https://github.com/driftsys/markspec/commit/7d2ddff
+[60a5c04]: https://github.com/driftsys/markspec/commit/60a5c04
+[fc232f8]: https://github.com/driftsys/markspec/commit/fc232f8
+[393fffc]: https://github.com/driftsys/markspec/commit/393fffc
+[becafec]: https://github.com/driftsys/markspec/commit/becafec
+[2137fd8]: https://github.com/driftsys/markspec/commit/2137fd8
+[331e2f1]: https://github.com/driftsys/markspec/commit/331e2f1
+[89d83c9]: https://github.com/driftsys/markspec/commit/89d83c9
+[cdfacdb]: https://github.com/driftsys/markspec/commit/cdfacdb
+[63ec936]: https://github.com/driftsys/markspec/commit/63ec936
+[74fd645]: https://github.com/driftsys/markspec/commit/74fd645
+[eb33cd8]: https://github.com/driftsys/markspec/commit/eb33cd8
+[23a38b4]: https://github.com/driftsys/markspec/commit/23a38b4
+[ad7b7f2]: https://github.com/driftsys/markspec/commit/ad7b7f2
+[#182]: https://github.com/driftsys/markspec/issues/182
+[b29301d]: https://github.com/driftsys/markspec/commit/b29301d
+[#47]: https://github.com/driftsys/markspec/issues/47
+[ca82915]: https://github.com/driftsys/markspec/commit/ca82915
+[#175]: https://github.com/driftsys/markspec/issues/175
+[#177]: https://github.com/driftsys/markspec/issues/177
+[#178]: https://github.com/driftsys/markspec/issues/178
+[6c0be2c]: https://github.com/driftsys/markspec/commit/6c0be2c
+[#46]: https://github.com/driftsys/markspec/issues/46
+[4f361a7]: https://github.com/driftsys/markspec/commit/4f361a7
+[61aa15f]: https://github.com/driftsys/markspec/commit/61aa15f
+[2901636]: https://github.com/driftsys/markspec/commit/2901636
+[#172]: https://github.com/driftsys/markspec/issues/172
+[4971997]: https://github.com/driftsys/markspec/commit/4971997
+[#45]: https://github.com/driftsys/markspec/issues/45
+[#170]: https://github.com/driftsys/markspec/issues/170
+[98956f3]: https://github.com/driftsys/markspec/commit/98956f3
+[#44]: https://github.com/driftsys/markspec/issues/44
+[#169]: https://github.com/driftsys/markspec/issues/169
+[adb7c51]: https://github.com/driftsys/markspec/commit/adb7c51
+[3f3afb7]: https://github.com/driftsys/markspec/commit/3f3afb7
+[#42]: https://github.com/driftsys/markspec/issues/42
+[30e7767]: https://github.com/driftsys/markspec/commit/30e7767
+[476149a]: https://github.com/driftsys/markspec/commit/476149a
+[#19]: https://github.com/driftsys/markspec/issues/19
+[#18]: https://github.com/driftsys/markspec/issues/18
+[#10]: https://github.com/driftsys/markspec/issues/10
+[7e2efa3]: https://github.com/driftsys/markspec/commit/7e2efa3
+[#11]: https://github.com/driftsys/markspec/issues/11
+[7aa0bd1]: https://github.com/driftsys/markspec/commit/7aa0bd1
+[0439e6b]: https://github.com/driftsys/markspec/commit/0439e6b
+[9845e70]: https://github.com/driftsys/markspec/commit/9845e70
+[9eab514]: https://github.com/driftsys/markspec/commit/9eab514
+[e69036e]: https://github.com/driftsys/markspec/commit/e69036e
+[18a9fa3]: https://github.com/driftsys/markspec/commit/18a9fa3
+[5244136]: https://github.com/driftsys/markspec/commit/5244136
+[5c14e70]: https://github.com/driftsys/markspec/commit/5c14e70
+[342c31f]: https://github.com/driftsys/markspec/commit/342c31f
+[2c74384]: https://github.com/driftsys/markspec/commit/2c74384
+[ff3ce51]: https://github.com/driftsys/markspec/commit/ff3ce51
+[b1c7013]: https://github.com/driftsys/markspec/commit/b1c7013
+[d576f0e]: https://github.com/driftsys/markspec/commit/d576f0e
+[40d312e]: https://github.com/driftsys/markspec/commit/40d312e
+[2770a47]: https://github.com/driftsys/markspec/commit/2770a47
+[154151c]: https://github.com/driftsys/markspec/commit/154151c
+[b8cf971]: https://github.com/driftsys/markspec/commit/b8cf971
+[227bf6d]: https://github.com/driftsys/markspec/commit/227bf6d
+[43e05c8]: https://github.com/driftsys/markspec/commit/43e05c8
+
 ## [0.2.0] (2026-03-29)
 
 ### Features
