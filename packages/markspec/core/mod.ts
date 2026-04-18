@@ -69,6 +69,10 @@ export type {
 export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 
+// Migration (legacy Id: → Spec-id: per ADR-002 v2)
+export { migrateLegacyIds } from "./migrate/mod.ts";
+export type { MigrateOptions, MigrateResult } from "./migrate/mod.ts";
+
 // Validator
 export { validate } from "./validator/mod.ts";
 export type { ValidateResult } from "./validator/mod.ts";
