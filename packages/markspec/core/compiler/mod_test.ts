@@ -396,3 +396,94 @@ Deno.test("compile: multiple Verifies produces multiple links", async () => {
     "SRS_BRK_0002",
   ]);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 5b — front matter exposed via CompileResult.documents
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: front matter is extracted into CompileResult.documents", async () => {
+  const result = await compile(["req.md"], {
+    readFile: mockFs({
+      "req.md": `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+document-type: requirements
+status: approved
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    }),
+  });
+  assertEquals(result.documents?.size, 1);
+  const doc = result.documents?.get("req.md");
+  assertEquals(doc?.attributes["document-id"], "01HGW2D0DOCPQ4FGHIJKLMNOPQR");
+  assertEquals(doc?.attributes["document-type"], "requirements");
+  assertEquals(doc?.attributes.status, "approved");
+});
+
+Deno.test("compile: file without front matter produces no Document entry", async () => {
+  const result = await compile(["req.md"], {
+    readFile: mockFs({
+      "req.md": `# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Id: SRS_00000000000000000000000001
+`,
+    }),
+  });
+  assertEquals(result.documents?.size, 0);
+});
+
+Deno.test("compile: forbidden front-matter key surfaces MSL-D001", async () => {
+  const result = await compile(["req.md"], {
+    readFile: mockFs({
+      "req.md": `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+title: Should be rejected
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    }),
+  });
+  const d001 = result.diagnostics.find((d) => d.code === "MSL-D001");
+  assertEquals(d001 != null, true);
+});
+
+Deno.test("compile: front matter separates body for entry parsing", async () => {
+  // The --- in front matter should not be mistaken for a horizontal rule
+  // in the entry-extraction pass.
+  const result = await compile(["req.md"], {
+    readFile: mockFs({
+      "req.md": `---
+document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
+---
+
+# Title
+
+- [SRS_BRK_0001] Entry
+
+  Body.
+
+  Id: SRS_00000000000000000000000001
+`,
+    }),
+  });
+  assertEquals(result.entries.size, 1);
+  assertEquals(result.entries.has("SRS_BRK_0001"), true);
+});
