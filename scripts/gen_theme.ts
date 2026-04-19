@@ -228,27 +228,42 @@ function genCss(): string {
   lines.push("code, pre > code { font-family: var(--font-mono); }");
   lines.push("h1, h2, h3, h4 { font-weight: 600; }");
 
-  // Entry block styling
+  // Entry block styling — colored by family (spec/test/element/reference)
   lines.push(
     "\n/* ── Entry blocks ──────────────────────────────────────── */\n",
   );
+  const defaultFamily = "spec";
   lines.push(`.req-block {
-  border-left: 2px solid var(--ms-entry-req);
+  border-left: 2px solid var(--ms-entry-${defaultFamily});
   padding: 0 0 0 14px;
   margin: 12pt 0;
-}
-.req-block[data-entry-type="spec"] { border-left-color: var(--ms-entry-spec); }
-.req-block[data-entry-type="test"] { border-left-color: var(--ms-entry-test); }
-.req-block .req-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
-.req-block .req-id { font-size: var(--size-body); font-weight: 500; color: var(--ms-entry-req); }
-.req-block[data-entry-type="spec"] .req-id { color: var(--ms-entry-spec); }
-.req-block[data-entry-type="test"] .req-id { color: var(--ms-entry-test); }
-.req-block .req-name { font-size: var(--size-body); font-weight: 500; }
+}`);
+  for (const family of Object.keys(tokens.entries)) {
+    if (family === defaultFamily) continue;
+    lines.push(
+      `.req-block[data-entry-family="${family}"] { border-left-color: var(--ms-entry-${family}); }`,
+    );
+  }
+  lines.push(
+    `.req-block .req-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }`,
+  );
+  lines.push(
+    `.req-block .req-id { font-size: var(--size-body); font-weight: 500; color: var(--ms-entry-${defaultFamily}); }`,
+  );
+  for (const family of Object.keys(tokens.entries)) {
+    if (family === defaultFamily) continue;
+    lines.push(
+      `.req-block[data-entry-family="${family}"] .req-id { color: var(--ms-entry-${family}); }`,
+    );
+  }
+  lines.push(
+    `.req-block .req-name { font-size: var(--size-body); font-weight: 500; }
 .req-block .req-body { margin-top: 4px; line-height: 1.65; }
 .req-block .req-meta { font-size: var(--size-small); font-style: italic; color: var(--ms-secondary); margin-top: 8px; }
 .pill-group { display: inline-flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; }
 .pill { font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 9px; background: var(--ms-bg-code); color: var(--ms-secondary); white-space: nowrap; }
-.cross-ref { text-decoration: underline dashed; text-decoration-color: var(--ms-border); text-underline-offset: 2px; color: inherit; cursor: pointer; }`);
+.cross-ref { text-decoration: underline dashed; text-decoration-color: var(--ms-border); text-underline-offset: 2px; color: inherit; cursor: pointer; }`,
+  );
 
   // Alert styling
   lines.push(

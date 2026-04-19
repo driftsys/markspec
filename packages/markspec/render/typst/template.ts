@@ -36,7 +36,7 @@ export function generateTypstDocument(
   entries: readonly Entry[] = [],
 ): string {
   const metaArgs = buildMetaArgs(metadata);
-  const imports = `#import "lib.typ": markspec-doc, req-block, entry-category
+  const imports = `#import "lib.typ": markspec-doc, req-block
 #import "vendor/cmarker/lib.typ": render
 #import "themes/light.typ" as theme`;
 
@@ -159,19 +159,9 @@ function findEntryEnd(lines: readonly string[], start: number): number {
   return i;
 }
 
-/**
- * Map entry type prefix to the color category used by req-block.
- */
-function entryTypeCategory(entryType: string | undefined): string {
-  if (!entryType) return "req";
-  if (["ARC", "SAD", "ICD"].includes(entryType)) return "spec";
-  if (["TST", "VAL", "SIT", "SWT"].includes(entryType)) return "test";
-  return "req";
-}
-
 /** Render a single entry as a Typst `req-block` call. */
 function renderEntryTypst(entry: Entry): string {
-  const category = entryTypeCategory(entry.entryType);
+  const family = entry.family;
 
   // Extract labels from attributes
   const labelsAttr = entry.attributes.find((a) => a.key === "Labels");
@@ -201,7 +191,7 @@ function renderEntryTypst(entry: Entry): string {
     : "()";
 
   return `#req-block(
-  type: "${category}",
+  family: "${family}",
   display-id: "${escapeTypstString(entry.displayId)}",
   title: "${escapeTypstString(entry.title)}",
   body: render("${bodyEscaped}"),

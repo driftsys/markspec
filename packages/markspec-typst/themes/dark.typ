@@ -13,9 +13,10 @@
 #let border = rgb("#404040")
 
 // Entry type colors (Tol palette)
-#let entry-req = rgb("#0077BB")
-#let entry-spec = rgb("#009988")
+#let entry-spec = rgb("#0077BB")
 #let entry-test = rgb("#EE7733")
+#let entry-element = rgb("#009988")
+#let entry-reference = rgb("#6b6b6b")
 
 // Alert border colors (Tol palette)
 #let alert-note = rgb("#0077BB")

@@ -75,7 +75,7 @@ Deno.test("book build: exits 0 and writes HTML files", async () => {
   assertStringIncludes(stderr, "index.html");
 });
 
-Deno.test("book build: emits req-block for default (req) entry", async () => {
+Deno.test("book build: emits req-block for spec-family entry", async () => {
   const dir = await Deno.makeTempDir();
   try {
     for (const [name, content] of Object.entries(FIXTURE)) {
@@ -98,14 +98,14 @@ Deno.test("book build: emits req-block for default (req) entry", async () => {
 
     const html = await Deno.readTextFile(`${dir}/_site/requirements.html`);
     assertStringIncludes(html, 'class="req-block"');
-    assertStringIncludes(html, 'data-entry-type="req"');
+    assertStringIncludes(html, 'data-entry-family="spec"');
     assertStringIncludes(html, "STK_BRK_0001");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("book build: emits correct data-entry-type for spec (ARC) entries", async () => {
+Deno.test("book build: emits data-entry-family for ARC (spec-family) entries", async () => {
   const dir = await Deno.makeTempDir();
   try {
     for (const [name, content] of Object.entries(FIXTURE)) {
@@ -127,7 +127,7 @@ Deno.test("book build: emits correct data-entry-type for spec (ARC) entries", as
     await cmd.output();
 
     const html = await Deno.readTextFile(`${dir}/_site/specs.html`);
-    assertStringIncludes(html, 'data-entry-type="spec"');
+    assertStringIncludes(html, 'data-entry-family="spec"');
     assertStringIncludes(html, "ARC_BRK_0001");
   } finally {
     await Deno.remove(dir, { recursive: true });

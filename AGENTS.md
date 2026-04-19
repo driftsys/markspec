@@ -187,18 +187,20 @@ type-based coloring, label pills, and dashed-underline cross-references.
    entry block boundaries and emits `#req-block(...)` Typst calls for entries;
    prose segments go through `cmarker`.
 3. `packages/markspec-typst/entry.typ` defines `req-block`, `pill`, `cross-ref`,
-   and `entry-category`. Imported into `lib.typ`.
+   and `entry-color`. Imported into `lib.typ`.
 
 **Design tokens:**
 
-Entry type colors live in `theme/tokens.yaml` under `entries:`. Two Paul Tol
-palettes are used — bright (print/PDF) and vibrant (screen/HTML):
+Entry colors live in `theme/tokens.yaml` under `entries:`, keyed by family. Two
+Paul Tol palettes are used — bright (print/PDF) and vibrant (screen/HTML);
+`reference` is intentionally neutral since references point at external content:
 
-| Type | Prefixes           | Print     | Screen    |
-| ---- | ------------------ | --------- | --------- |
-| req  | STK, SYS, SWE, SRS | `#4477AA` | `#0077BB` |
-| spec | ARC, SAD, ICD      | `#228833` | `#009988` |
-| test | TST, VAL, SIT, SWT | `#EE6677` | `#EE7733` |
+| Family    | Print     | Screen    |
+| --------- | --------- | --------- |
+| spec      | `#4477AA` | `#0077BB` |
+| test      | `#EE6677` | `#EE7733` |
+| element   | `#228833` | `#009988` |
+| reference | `#6b6b6b` | `#6b6b6b` |
 
 Run `just tokens` after editing `tokens.yaml` to regenerate:
 

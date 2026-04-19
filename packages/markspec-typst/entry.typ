@@ -2,25 +2,17 @@
 
 #import "tokens.typ": *
 
-/// Resolve the theme color for an entry type.
+/// Resolve the theme color for an entry family.
 ///
-/// - type (str): one of "req", "spec", "test"
-/// - theme (module): a theme module with entry-req, entry-spec, entry-test
+/// - family (str): one of "spec", "test", "element", "reference"
+/// - theme (module): a theme module with entry-spec, entry-test,
+///   entry-element, entry-reference
 /// -> color
-#let entry-color(type, theme) = {
-  if type == "spec" { theme.entry-spec }
-  else if type == "test" { theme.entry-test }
-  else { theme.entry-req }
-}
-
-/// Map an entry type prefix to its color category.
-///
-/// - prefix (str): e.g. "STK", "SYS", "SWE", "SRS", "ARC", "ICD", "TST", etc.
-/// -> str: "req", "spec", or "test"
-#let entry-category(prefix) = {
-  if prefix in ("ARC", "SAD", "ICD") { "spec" }
-  else if prefix in ("TST", "VAL", "SIT", "SWT") { "test" }
-  else { "req" }
+#let entry-color(family, theme) = {
+  if family == "test" { theme.entry-test }
+  else if family == "element" { theme.entry-element }
+  else if family == "reference" { theme.entry-reference }
+  else { theme.entry-spec }
 }
 
 /// Render a label pill (rounded badge).
@@ -51,7 +43,7 @@
 
 /// Render a full entry block with admonition-style left border.
 ///
-/// - type (str): color category — "req", "spec", or "test"
+/// - family (str): entry family — "spec", "test", "element", or "reference"
 /// - display-id (str): human-readable display ID (e.g. "SWE_BRK_0107")
 /// - title (str): entry title
 /// - body (content): body content
@@ -60,7 +52,7 @@
 /// - theme (module): theme module for colors
 /// -> content
 #let req-block(
-  type: "req",
+  family: "spec",
   display-id: "",
   title: "",
   body: [],
@@ -68,7 +60,7 @@
   labels: (),
   theme: none,
 ) = {
-  let color = entry-color(type, theme)
+  let color = entry-color(family, theme)
 
   block(
     stroke: (left: 2pt + color),

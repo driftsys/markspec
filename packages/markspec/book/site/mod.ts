@@ -54,7 +54,7 @@ const _astParser = unified().use(remarkParse).use(remarkGfm);
  * Render a Markdown chapter to an HTML string.
  *
  * Intercepts MarkSpec-extended elements at their line boundaries:
- * - Entry blocks → `<div class="req-block" data-entry-type="...">` with
+ * - Entry blocks → `<div class="req-block" data-entry-family="...">` with
  *   ID, title, label pills, body, and attribute metadata
  * - GFM alerts (`> [!NOTE]`) → `<div class="alert note|tip|...">` with
  *   full border and tint background (Tol vibrant via `markspec.css`)
@@ -253,15 +253,8 @@ function _escapeHtml(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function _entryCategory(entryType: string | undefined): string {
-  if (!entryType) return "req";
-  if (["ARC", "SAD", "ICD"].includes(entryType)) return "spec";
-  if (["TST", "VAL", "SIT", "SWT"].includes(entryType)) return "test";
-  return "req";
-}
-
 function _entryToHtml(entry: Entry): string {
-  const category = _entryCategory(entry.entryType);
+  const family = entry.family;
 
   const labelsAttr = entry.attributes.find((a) => a.key === "Labels");
   const labels = labelsAttr
@@ -295,7 +288,7 @@ function _entryToHtml(entry: Entry): string {
     }</div>`
     : "";
 
-  return `<div class="req-block" data-entry-type="${category}">
+  return `<div class="req-block" data-entry-family="${family}">
   <div class="req-title">
     <code class="req-id">${_escapeHtml(entry.displayId)}</code>
     <span class="req-name">${_escapeHtml(entry.title)}</span>

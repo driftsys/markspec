@@ -273,40 +273,51 @@ photocopy.
 | WARNING   | `#EE7733` (orange)          | `#fdf4ee` | `#CCBB44` (yellow)        |
 | CAUTION   | `#CC3311` (vermillion)      | `#fdeeed` | `#EE6677` (red)           |
 
-#### Entry type colors
+#### Entry family colors
 
-Entry blocks are colored **by type** (the nature of the artifact), not by layer.
-The layer is already encoded in the ID prefix and does not need redundant color
-signaling.
+Entry blocks are colored **by family** — the fundamental kind of artifact
+(specification, test, element, reference) — as determined by the identity
+attribute (`Spec-id`, `Test-id`, `Element-id`, `Reference-id`). Layer is already
+encoded in the display-ID prefix (SRS, ARC, TST, …) and does not need redundant
+color signaling.
 
 Two Paul Tol sub-palettes are used, selected by output target:
 
-| Type | Prefixes           | Print (Tol bright) | Screen (Tol vibrant) |
-| ---- | ------------------ | ------------------ | -------------------- |
-| req  | STK, SYS, SWE, SRS | Blue `#4477AA`     | Blue `#0077BB`       |
-| spec | ARC, SAD, ICD      | Green `#228833`    | Teal `#009988`       |
-| test | TST, VAL, SIT, SWT | Red `#EE6677`      | Orange `#EE7733`     |
+| Family    | Print (Tol bright) | Screen (Tol vibrant) |
+| --------- | ------------------ | -------------------- |
+| spec      | Blue `#4477AA`     | Blue `#0077BB`       |
+| test      | Red `#EE6677`      | Orange `#EE7733`     |
+| element   | Green `#228833`    | Teal `#009988`       |
+| reference | Grey `#6b6b6b`     | Grey `#6b6b6b`       |
 
 - **Print theme** (Tol bright): default for PDF output. Softer tones, designed
   by Paul Tol for documents.
 - **Screen theme** (Tol vibrant): default for HTML output. More saturated,
   designed by Tol for data visualization / dashboards.
+- **Reference is neutral** (achromatic grey, same in both palettes) — references
+  are pointers to external material, not primary authored content, so they
+  intentionally recede visually. Uses the same grey as the `secondary` text
+  token for consistency.
 
-Both palettes are colorblind-safe by design (tested for protanopia,
-deuteranopia, tritanopia). No red-green confusion at the chosen mappings.
+The chromatic families are colorblind-safe by design (tested for protanopia,
+deuteranopia, tritanopia). No red-green confusion at the chosen mappings. The
+print palette uses three colors from the Paul Tol **bright** qualitative scheme
+(7 colors); the screen palette uses three colors from the Paul Tol **vibrant**
+qualitative scheme (7 colors). Both are single-scheme picks — no cross-scheme
+mixing.
 
-The print palette uses three colors from the Paul Tol **bright** qualitative
-scheme (7 colors). The screen palette uses three colors from the Paul Tol
-**vibrant** qualitative scheme (7 colors). Both are single-scheme picks — no
-cross-scheme mixing.
-
-The type color is applied to:
+The family color is applied to:
 
 1. The **2px left border** of the entry block.
 2. The **display ID** text on the title line.
 
-No other element uses the type color. Body text, metadata, and pills use the
+No other element uses the family color. Body text, metadata, and pills use the
 document's standard text/background colors.
+
+Profiles may override the `entries:` section of `tokens.yaml` to adjust the
+palette for a specific document set (e.g. a house style that prefers warmer
+tones for `spec`). Overrides flow through `just tokens` and propagate to both
+Typst themes and the generated CSS.
 
 ##### Design tokens
 
@@ -314,23 +325,27 @@ The `entries:` section of `theme/tokens.yaml` is the canonical source:
 
 ```yaml
 entries:
-  req: { print: "#4477AA", screen: "#0077BB" }
-  spec: { print: "#228833", screen: "#009988" }
+  spec: { print: "#4477AA", screen: "#0077BB" }
   test: { print: "#EE6677", screen: "#EE7733" }
+  element: { print: "#228833", screen: "#009988" }
+  reference: { print: "#6b6b6b", screen: "#6b6b6b" }
 ```
 
 Running `just tokens` regenerates all downstream files from this source:
 
-| Output file                | Token names emitted                                    |
-| -------------------------- | ------------------------------------------------------ |
-| `themes/light.typ` (Typst) | `entry-req`, `entry-spec`, `entry-test`                |
-| `themes/dark.typ` (Typst)  | `entry-req`, `entry-spec`, `entry-test`                |
-| `theme/markspec.css`       | `--ms-entry-req`, `--ms-entry-spec`, `--ms-entry-test` |
+| Output file                | Token names emitted                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `themes/light.typ` (Typst) | `entry-spec`, `entry-test`, `entry-element`, `entry-reference`                     |
+| `themes/dark.typ` (Typst)  | `entry-spec`, `entry-test`, `entry-element`, `entry-reference`                     |
+| `theme/markspec.css`       | `--ms-entry-spec`, `--ms-entry-test`, `--ms-entry-element`, `--ms-entry-reference` |
+
+HTML entry blocks carry `data-entry-family="<family>"`; the CSS keys off that
+attribute to pick the right border and display-ID color.
 
 **Palette selection by output target:**
 
 - **PDF output** — uses the Typst **light theme** (`themes/light.typ`), which
-  takes the `print` value (Tol bright) for each type.
+  takes the `print` value (Tol bright) for each family.
 - **HTML output** — uses the CSS `--ms-entry-*` custom properties, which always
   take the `screen` value (Tol vibrant).
 - **Dark PDF theme** (`themes/dark.typ`) takes the `screen` value (Tol vibrant).
