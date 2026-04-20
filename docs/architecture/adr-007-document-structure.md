@@ -44,7 +44,6 @@ ecosystem reality.
 ---
 document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
 document-type: requirements
-status: approved
 labels: [requirements, ASIL-B]
 external-id: doors:VHC:SRS-BRK
 ---
@@ -112,8 +111,8 @@ repurposed).
 | --------------- | ------------- | ---------------- | ------------------------------------------------- |
 | `document-id`   | `id`          | core (identity)  | Document ULID; bare 26-char Crockford base32      |
 | `document-type` | `enum`        | core (identity)  | Overrides filename/directive-based type detection |
-| `labels`        | `tag-list`    | core (universal) | Classification tags                               |
-| `status`        | `enum`        | core (universal) | Lifecycle state, default `approved`               |
+| `labels`        | `tag-list`    | core (universal) | Classification tags (includes `DRAFT` marker)     |
+| `deprecated`    | `string`      | core (universal) | Retirement reason (non-replacement case)          |
 | `external-id`   | `external-id` | core (universal) | Cross-system identifier                           |
 | `supersedes`    | `id`          | core (universal) | Replacement link to another document              |
 | `references`    | `citation`    | core (universal) | External reference citations                      |
@@ -122,6 +121,19 @@ repurposed).
 Core keys mirror the universal attribute set from ADR-002 Part 1, plus two
 document-specific identity keys (`document-id`, `document-type`). Attribute
 value types follow the same 14-type system defined in ADR-002.
+
+Document lifecycle follows the same model as entry lifecycle (ADR-002
+§Retirement semantics and §Draft state):
+
+- **Draft state** — set the `DRAFT` label in `labels:` to mark the document as
+  not yet authoritative.
+- **Retirement via replacement** — use `supersedes:` to point at the document
+  that replaces this one; `superseded-by:` is generated on the predecessor.
+- **Retirement without replacement** — set `deprecated:` to a free-text reason
+  (e.g., "archived after platform migration").
+
+There is no separate `status:` front-matter key. There is no `DEPRECATED` /
+`WITHDRAWN` label — retirement is expressed structurally.
 
 ### Profile extensibility
 
@@ -246,7 +258,9 @@ etc.) are errors with auto-fix to remove."
 ## Open questions (deferred)
 
 - **Profile document format** — how profiles declare their front-matter keys,
-  types, and validation rules. Deferred to the profile-format ADR.
+  types, and validation rules — specified in
+  [ADR-008 — Profile System](./adr-008-profile-system.md), specifically the
+  `profile.documents.frontMatter` schema.
 - **TOML support details** — exact normalization behavior, whether TOML is
   first-class input or conversion-only. Leaning YAML-canonical.
 - **Front-matter inline references** — whether `{{document.document-id}}` syntax

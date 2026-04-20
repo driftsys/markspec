@@ -1,0 +1,109 @@
+# Strawman profile used to validate ADR-008 schema shape.
+# Not a complete ASPICE profile — a minimal vertical exercising every
+# section of the profile schema for design review.
+
+id: "@markspec/profile-aspice-swe-mini"
+version: 0.1.0
+description: Minimal ASPICE SWE vertical (design validation)
+license: MIT
+extends: "npm:@markspec/profile-generic@^1.0"
+
+profile:
+
+  # ==========================================================================
+  # Universal — applies to every entry regardless of category
+  # ==========================================================================
+  attributes:
+    - { name: External-id, type: string, cardinality: 0..1 }
+
+  labels:
+    # ASIL — mutually exclusive safety integrity level
+    - { name: QM,     group: asil }
+    - { name: ASIL-A, group: asil }
+    - { name: ASIL-B, group: asil }
+    - { name: ASIL-C, group: asil }
+    - { name: ASIL-D, group: asil }
+    # Ungrouped
+    - { name: security }
+    - { name: automated, applies: [test] }
+    - { name: manual,    applies: [test] }
+
+  # ==========================================================================
+  # Per-category defaults
+  # ==========================================================================
+  spec:
+    attributes:
+      - { name: Derived-from, type: id-list }
+      - { name: Realized-by,  type: id-list }
+    traceability:
+      Derived-from: { target: [{ category: spec }] }
+      Realized-by:  { target: [{ category: element }] }
+
+  test:
+    attributes:
+      - { name: Verifies, type: id-list }
+      - { name: Tests,    type: id-list }
+    levels: [unit, integration, system, acceptance]
+    traceability:
+      Verifies: { target: [{ category: spec }] }
+      Tests:    { target: [{ category: element }] }
+
+  element:
+    required: [Element-kind]
+    kinds: [module, class, function, source]
+
+  reference:
+    attributes:
+      - { name: Reference-url, type: url, cardinality: 0..1 }
+
+  # ==========================================================================
+  # Per-TYPE — tightens rules for each TYPE prefix
+  # ==========================================================================
+  types:
+    STK:
+      category: spec
+      description: Stakeholder requirement (SWE.1 input)
+
+    SRS:
+      category: spec
+      description: Software requirement (SWE.1 output)
+      required: [Derived-from]
+      traceability:
+        Derived-from: { target: [STK], cardinality: 1..N, required: true }
+
+    SWE:
+      category: spec
+      description: Software element spec (SWE.2)
+      required: [Derived-from, Realized-by]
+      traceability:
+        Derived-from: { target: [SRS], cardinality: 1..N, required: true }
+        Realized-by:  { target: [{ category: element }], cardinality: 1..N, required: true }
+
+    SWT:
+      category: test
+      description: Software unit test (SWE.4)
+      level: unit
+      required: [Verifies, Tests]
+      traceability:
+        Verifies: { target: [SRS, SWE], cardinality: 1..N, required: true }
+        Tests:    { target: [{ category: element }], cardinality: 1..N, required: true }
+
+    SIT:
+      category: test
+      description: Software integration test (SWE.5)
+      level: integration
+      required: [Verifies]
+      traceability:
+        Verifies: { target: [SRS, SWE], cardinality: 1..N, required: true }
+
+  # ==========================================================================
+  # Document-level
+  # ==========================================================================
+  documents:
+    # Core doc types (requirements, architecture, tests, references) come
+    # with baked-in contains: mappings — redeclaring them is not permitted.
+    # Add new doc types here if needed, with explicit contains: declarations.
+    types: []
+    frontMatter:
+      - { name: asil, type: enum, values: [QM, A, B, C, D], cardinality: 0..1 }
+      - { name: safety-goal, type: string, cardinality: 0..1 }

@@ -134,41 +134,83 @@ Every attribute has an **origin** describing how its value arrives in the model:
 The following attributes apply to every family, with identical semantics and
 value types:
 
-| Attribute         | Type          | Origin    | Description                                                |
-| ----------------- | ------------- | --------- | ---------------------------------------------------------- |
-| **Labels**        | `tag-list`    | authored  | Free-form classification tags                              |
-| **Status**        | `enum`        | authored  | Lifecycle state (see below). Optional, default `approved`. |
-| **References**    | `citation`    | authored  | Citations of external reference entries, with locator      |
-| **External-id**   | `external-id` | authored  | Identifier(s) in an external system                        |
-| **Supersedes**    | `id`          | authored  | Display ID of a same-family entry this one replaces        |
-| **Superseded-by** | `id`          | generated | Inverse of `Supersedes`                                    |
+| Attribute         | Type          | Origin    | Description                                           |
+| ----------------- | ------------- | --------- | ----------------------------------------------------- |
+| **Labels**        | `tag-list`    | authored  | Free-form classification tags                         |
+| **References**    | `citation`    | authored  | Citations of external reference entries, with locator |
+| **External-id**   | `external-id` | authored  | Identifier(s) in an external system                   |
+| **Supersedes**    | `id`          | authored  | Display ID of a same-family entry this one replaces   |
+| **Superseded-by** | `id`          | generated | Inverse of `Supersedes`                               |
+| **Deprecated**    | `string`      | authored  | Retirement reason when no successor exists            |
 
 Identity attributes (`Spec-id`, `Test-id`, `Element-id`, `Reference-id`) are
 structurally universal — every entry carries exactly one — but their name and
 value format depend on the family (see Parts 2–5).
 
-#### Status vocabulary
+#### Retirement semantics
 
-The core `Status` vocabulary is intentionally small:
+Entries can be **retired** — taken out of active use — in one of two
+structurally distinct ways:
 
-| Value        | Meaning                                                          |
-| ------------ | ---------------------------------------------------------------- |
-| `draft`      | Work in progress, not yet accepted                               |
-| `approved`   | Reviewed and accepted (default when `Status` is absent)          |
-| `deprecated` | Still valid, being phased out — new work should not depend on it |
-| `withdrawn`  | No longer valid — references to it should be removed             |
+**Replacement-based retirement** — a successor entry carries
+`Supersedes: <predecessor-id>`. The predecessor automatically gains the
+generated inverse `Superseded-by: <successor-id>`. The presence of
+`Superseded-by:` on an entry is the structural signal that it has been replaced.
 
-Profiles may extend the vocabulary with domain-specific states (`baselined`,
-`verified`, `under-review`, …). Tooling warns when a `Satisfies:` /
-`Derived-from:` / `Verifies:` / `Realizes:` target is `deprecated` or
-`withdrawn`.
+**Non-replacement retirement** — the entry carries
+`Deprecated: "<free-text reason>"`, e.g., "Feature cut from scope in v3.0" or
+"Based on a misunderstanding of FR-BRK-0012; see ADR-042 for context". This
+covers cases where no single successor exists (obsolete, factually wrong, scope
+cut, standard retracted).
+
+An entry is considered **retired** when either signal is present:
+
+- `Superseded-by:` is set (generated), OR
+- `Deprecated:` is authored.
+
+The two are complementary, not mutually exclusive — a replacement may still
+carry a `Deprecated:` reason for additional context. Tooling treats any retired
+entry as a warning target for incoming links.
+
+#### Draft state
+
+The `DRAFT` label is a plain universal tag that marks an entry as "not yet
+authoritative". It does not belong to an exclusive group — it is a free-form
+label that happens to carry a well-known semantic when set:
+
+```text
+Labels: DRAFT
+```
+
+Entries without the `DRAFT` label and without any retirement signal are treated
+as **active and authoritative** (the implicit default). `DRAFT` exists to let
+authors merge work-in-progress entries that should not yet be treated as
+canonical — for example, entries behind a feature flag, or entries in a branch
+pending review that has been merged for visibility but not for adoption.
+
+#### Link-resolution severity
+
+Tooling emits severity-tiered diagnostics when a link attribute (`Satisfies:`,
+`Derived-from:`, `Verifies:`, `Realizes:`, …) targets a non-active entry:
+
+| Target state                                        | Severity |
+| --------------------------------------------------- | -------- |
+| Active (no marker)                                  | OK       |
+| `Labels: DRAFT`                                     | info     |
+| Retired (`Superseded-by:` set OR `Deprecated:` set) | warning  |
+| Unresolved (entry does not exist)                   | error    |
+
+This replaces the legacy MSL-T013 check that targeted
+`Status: deprecated|withdrawn`. There is no separate `DEPRECATED` or `WITHDRAWN`
+label — retirement is expressed structurally through `Supersedes` or
+`Deprecated`.
 
 #### Supersedes semantics
 
-`Supersedes` expresses same-family replacement — a deprecated SRS pointing to
-its successor, a withdrawn reference pointing to the new standard. A test does
-not supersede a spec; the relation is intra-family only. The generated inverse
-`Superseded-by` is computed at build time from the authored `Supersedes` links.
+`Supersedes` expresses same-family replacement. The successor carries
+`Supersedes: <predecessor-id>`; the predecessor gains the generated inverse
+`Superseded-by: <successor-id>`. A test does not supersede a spec; the relation
+is intra-family only. A successor may in turn be superseded, forming a chain.
 
 ### Entry properties (observed)
 
@@ -193,8 +235,8 @@ not define attribute names like `Modified-at` at the entry level.
 If a piece of information is something the author _states_, it belongs in an
 attribute; if it is something the system _witnesses_, it belongs in a property.
 This prevents author-inference conflicts (the author cannot override a git
-commit timestamp, and the system cannot overwrite an authored
-`Status: deprecated`).
+commit timestamp, and the system cannot overwrite an authored `Deprecated:`
+reason).
 
 The full property model — observation contracts, sync connector design, caching
 strategy, build-time provenance — is deferred to
@@ -340,7 +382,9 @@ across the registry chain.
 | **Allocated-to** | `id-list` | authored | Downstream link to element(s) responsible for realizing this spec |
 
 Spec entries also carry the universal attributes from Part 1 (`Labels`,
-`Status`, `References`, `External-id`, `Supersedes`).
+`References`, `External-id`, `Supersedes`, `Deprecated`). Draft state is carried
+by the `DRAFT` label; retirement is expressed through `Supersedes` (replacement)
+or `Deprecated` (non-replacement). See §Retirement semantics.
 
 **Derived-from** expresses the relation by which a spec is produced from a
 parent spec, by decomposition, refinement, or partial realization. It is the
@@ -550,11 +594,13 @@ Unlike specs, tests, and elements, a reference entry's body is optional.
 | **Reference-document** | `text` | authored | Canonical document identifier; falls back to title when absent |
 
 Reference entries also carry the universal attributes from Part 1 (`Labels`,
-`Status`, `External-id`, `Supersedes`). `Supersedes` replaces the previous
-Reference-only `Superseded-by` attribute; the generated inverse is still
-`Superseded-by`. `References` is not applicable to Reference entries (a
-reference entry does not itself cite other references via the `References`
-attribute).
+`External-id`, `Supersedes`, `Deprecated`). Draft state is carried by the
+`DRAFT` label; retirement is expressed through `Supersedes` (replacement by a
+new standard) or `Deprecated` (standard retracted with no successor).
+`Supersedes` replaces the previous Reference-only `Superseded-by` attribute; the
+generated inverse is still `Superseded-by`. `References` is not applicable to
+Reference entries (a reference entry does not itself cite other references via
+the `References` attribute).
 
 ### Section locators in citations
 
@@ -647,7 +693,9 @@ registry chain.
 | **Tests**      | `id-list` | authored | Upstream link to element(s) this test exercises |
 
 Test entries also carry the universal attributes from Part 1 (`Labels`,
-`Status`, `References`, `External-id`, `Supersedes`).
+`References`, `External-id`, `Supersedes`, `Deprecated`). Draft state is carried
+by the `DRAFT` label; retirement is expressed through `Supersedes` (replacement)
+or `Deprecated` (non-replacement). See §Retirement semantics.
 
 Filesystem location (source path of an automated test) is a **property**, not an
 attribute — see Part 1 "Entry properties" and ADR-006.
@@ -924,7 +972,9 @@ system (Codebeamer, DOORS, PLM).
 | **Generated-from** | `path-or-id` | authored | Path or element this element was generated from (repeatable) |
 
 Element entries also carry the universal attributes from Part 1 (`Labels`,
-`Status`, `References`, `External-id`, `Supersedes`).
+`References`, `External-id`, `Supersedes`, `Deprecated`). Draft state is carried
+by the `DRAFT` label; retirement is expressed through `Supersedes` (replacement)
+or `Deprecated` (non-replacement). See §Retirement semantics.
 
 Filesystem location of a code unit is a **property**, not an attribute — see
 Part 1 "Entry properties" and ADR-006.
@@ -1337,14 +1387,14 @@ build time from inverse relations, never committed).
 
 ### Universal attributes (all families)
 
-| Attribute       | Type          | Origin    | Required | Description                               |
-| --------------- | ------------- | --------- | -------- | ----------------------------------------- |
-| `Labels`        | `tag-list`    | authored  | no       | Classification tags                       |
-| `Status`        | `enum`        | authored  | no       | Lifecycle state (default `approved`)      |
-| `References`    | `citation`    | authored  | no       | External reference citations with locator |
-| `External-id`   | `external-id` | authored  | no       | Cross-system identifier(s)                |
-| `Supersedes`    | `id`          | authored  | no       | Same-family entry this one replaces       |
-| `Superseded-by` | `id`          | generated | —        | Inverse of `Supersedes`                   |
+| Attribute       | Type          | Origin    | Required | Description                                   |
+| --------------- | ------------- | --------- | -------- | --------------------------------------------- |
+| `Labels`        | `tag-list`    | authored  | no       | Classification tags (includes `DRAFT` marker) |
+| `References`    | `citation`    | authored  | no       | External reference citations with locator     |
+| `External-id`   | `external-id` | authored  | no       | Cross-system identifier(s)                    |
+| `Supersedes`    | `id`          | authored  | no       | Same-family entry this one replaces           |
+| `Superseded-by` | `id`          | generated | —        | Inverse of `Supersedes`                       |
+| `Deprecated`    | `string`      | authored  | no       | Retirement reason (non-replacement case)      |
 
 ### Spec family
 
@@ -1400,10 +1450,12 @@ expressed via the universal `Supersedes` attribute).
 
 ## Open questions (deferred to later ADRs)
 
-- **Profile document format**: how profiles are authored and distributed.
+- **Profile document format**: how profiles are authored and distributed —
+  specified in [ADR-008 — Profile System](./adr-008-profile-system.md).
 - **Profile-level traceability rules**: validation of `Derived-from`,
   `Allocated-to`, `Verifies`, `Tests` (cardinality, type combinations, ASIL
-  compatibility).
+  compatibility) — mechanism defined in [ADR-008](./adr-008-profile-system.md);
+  automated cross-chain validation remains future work.
 - **Property model**: git observation contracts, sync connectors, property
   namespace, caching, build-time provenance — deferred to
   [ADR-006 — Property Model](./adr-006-property-model.md).

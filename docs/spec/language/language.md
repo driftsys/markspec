@@ -455,7 +455,6 @@ block at the very top of the file, before the H1.
 ---
 document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
 document-type: requirements
-status: approved
 labels: [requirements, ASIL-B]
 external-id: doors:VHC:SRS-BRK
 ---
@@ -470,8 +469,9 @@ external-id: doors:VHC:SRS-BRK
 Front matter carries:
 
 - **Document identity** (`document-id`, `document-type`).
-- **Universal attributes** (`labels`, `status`, `external-id`, `supersedes`,
+- **Universal attributes** (`labels`, `external-id`, `supersedes`, `deprecated`,
   `references`) — same set and semantics as entry-level universal attributes.
+  Draft state via `DRAFT` label; retirement via `supersedes:` or `deprecated:`.
 - A reserved **`metadata:` map** for org-specific free-form fields.
 - Optional **profile-declared keys** (e.g., automotive `asil:`).
 - Optional **allowlisted ecosystem keys** declared in `.markspec.yaml` (for Hugo
@@ -517,21 +517,33 @@ They come from a profile loaded by the project.
 
 The following attributes apply to every family:
 
-| Attribute       | Type          | Required | Description                               |
-| --------------- | ------------- | -------- | ----------------------------------------- |
-| `Labels`        | `tag-list`    | no       | Classification tags                       |
-| `Status`        | `enum`        | no       | Lifecycle state (default `approved`)      |
-| `References`    | `citation`    | no       | External reference citations with locator |
-| `External-id`   | `external-id` | no       | Cross-system identifier(s)                |
-| `Supersedes`    | `id`          | no       | Same-family entry this one replaces       |
-| `Superseded-by` | `id`          | —        | Generated inverse of `Supersedes`         |
+| Attribute       | Type          | Required | Description                                   |
+| --------------- | ------------- | -------- | --------------------------------------------- |
+| `Labels`        | `tag-list`    | no       | Classification tags (includes `DRAFT` marker) |
+| `References`    | `citation`    | no       | External reference citations with locator     |
+| `External-id`   | `external-id` | no       | Cross-system identifier(s)                    |
+| `Supersedes`    | `id`          | no       | Same-family entry this one replaces           |
+| `Superseded-by` | `id`          | —        | Generated inverse of `Supersedes`             |
+| `Deprecated`    | `string`      | no       | Retirement reason (non-replacement case)      |
 
-`Status` vocabulary: `draft`, `approved` (default), `deprecated`, `withdrawn`.
-Profiles may extend the set.
+**Draft state** is carried by the `DRAFT` label — a plain universal tag with no
+exclusive-group semantics. Authors set `Labels: DRAFT` on entries that are
+merged but not yet authoritative.
 
-`Supersedes` expresses same-family replacement only (a test cannot supersede a
-spec). Tooling warns when a `Satisfies:` / `Derived-from:` / `Verifies:` /
-`Realizes:` target is `deprecated` or `withdrawn`.
+**Retirement** is structural, expressed two ways:
+
+- **Replacement** — successor entry authors `Supersedes: <predecessor-id>`; the
+  predecessor automatically gains the generated `Superseded-by:` inverse.
+- **Non-replacement** — entry authors `Deprecated: "<free-text reason>"` (e.g.,
+  "Feature cut from scope in v3.0").
+
+An entry is **retired** when either signal is present. The two are complementary
+(a replacement may still carry a `Deprecated:` reason for additional context).
+Tooling emits severity-tiered diagnostics when a `Satisfies:` / `Derived-from:`
+/ `Verifies:` / `Realizes:` target is retired or draft: `DRAFT` target → info,
+retired target → warning, unresolved target → error. There is no `DEPRECATED` /
+`WITHDRAWN` label — retirement lives in `Supersedes` and `Deprecated`. See
+ADR-002 §Retirement semantics.
 
 See §2.6 for attribute value types (multi-line repeat vs CSV, canonical form).
 
@@ -719,8 +731,8 @@ display ID, title, and `Reference-id` only.
 | `Reference-document` | `text` | no       | Full formal citation; falls back to title   |
 
 Replacement is expressed via the universal `Supersedes` / `Superseded-by`
-attributes from §2.1. Lifecycle state is expressed via the universal `Status`
-attribute (use `withdrawn` or `deprecated`).
+attributes from §2.1. Retirement without replacement is expressed via the
+universal `Deprecated` attribute (e.g., a withdrawn standard with no successor).
 
 **Example 12 — reference entry:**
 
@@ -821,9 +833,7 @@ the payload.
 ```markdown
 <!--
 markspec:deck
-markspec:deprecated Superseded by braking-v2.md which
-  implements the revised sensor interface defined in
-  SYS_BRK_0050.
+markspec:references https://safety.company.io/registry
 -->
 ```
 
@@ -843,26 +853,28 @@ payload.
 
 Placed in the first HTML comment after the H1 heading.
 
-| Directive             | Payload            | Context |
-| --------------------- | ------------------ | ------- |
-| `markspec:glossary`   | none               | doc     |
-| `markspec:summary`    | none               | doc     |
-| `markspec:deck`       | none               | deck    |
-| `markspec:specs`      | none               | doc     |
-| `markspec:tests`      | none               | doc     |
-| `markspec:elements`   | none               | doc     |
-| `markspec:references` | registry URL       | both    |
-| `markspec:deprecated` | reason (free text) | both    |
-| `markspec:paginate`   | none               | deck    |
+| Directive             | Payload      | Context |
+| --------------------- | ------------ | ------- |
+| `markspec:glossary`   | none         | doc     |
+| `markspec:summary`    | none         | doc     |
+| `markspec:deck`       | none         | deck    |
+| `markspec:specs`      | none         | doc     |
+| `markspec:tests`      | none         | doc     |
+| `markspec:elements`   | none         | doc     |
+| `markspec:references` | registry URL | both    |
+| `markspec:paginate`   | none         | deck    |
 
 Type directives (`glossary`, `summary`, `deck`) are mutually exclusive.
 Family-hint directives (`specs`, `tests`, `elements`, `references` without a
 payload) hint at the predominant entry family in the document — used by
 `markspec format` to classify new entries before they carry an identity
-attribute. `deprecated` and `references` (with a URL payload) can coexist with
-any type directive. `doc` is the default — no directive for it. Multiple
+attribute. `references` (with a URL payload) can coexist with any type
+directive. `doc` is the default — no directive for it. Multiple
 `markspec:references` directives with URL payloads declare multiple upstream
 registries; order matters, with an implicit fallback to RefHub.
+
+Document-level retirement uses the `deprecated:` front-matter key (or
+`supersedes:` for replacement retirement), not a directive. See §6.2.
 
 `glossary` and `summary` are auto-detected from filename (`GLOSSARY.md`,
 `SUMMARY.md`). Family-hint directives are auto-detected from filename:
@@ -891,13 +903,23 @@ markspec:paginate
 **Example 16 — deprecated glossary:**
 
 ```markdown
-# Legacy Terms
+---
+document-type: glossary
+supersedes: 01HGW2D0GLOSPQ4FGHIJKLMNOPQ # platform-glossary.md document-id
+---
 
-<!--
-markspec:glossary
-markspec:deprecated Replaced by platform-glossary.md as of
-  v2.0.0.
--->
+# Legacy Terms
+```
+
+Or for a glossary with no successor:
+
+```markdown
+---
+document-type: glossary
+deprecated: "Archived after platform migration; content no longer maintained."
+---
+
+# Legacy Terms
 ```
 
 **Example 17 — upstream registries:**
@@ -1267,16 +1289,21 @@ Per-file metadata splits into two tiers (mirroring the entry model):
 
 #### Document attributes (authored in front matter)
 
-| Attribute       | Type          | Required | Description                                                                             |
-| --------------- | ------------- | -------- | --------------------------------------------------------------------------------------- |
-| `document-id`   | `id`          | no       | Document ULID — `01H…` 26-char Crockford base32                                         |
-| `document-type` | `enum`        | no       | Overrides filename/directive detection (see §6.3)                                       |
-| `labels`        | `tag-list`    | no       | Classification tags                                                                     |
-| `status`        | `enum`        | no       | Lifecycle state (`draft` / `approved` / `deprecated` / `withdrawn`), default `approved` |
-| `external-id`   | `external-id` | no       | Cross-system identifier (`scheme:value`)                                                |
-| `supersedes`    | `id`          | no       | `document-id` of a document this one replaces                                           |
-| `references`    | `citation`    | no       | External reference citations with optional locator                                      |
-| `metadata`      | map           | no       | Org free-form metadata, never validated                                                 |
+| Attribute       | Type          | Required | Description                                        |
+| --------------- | ------------- | -------- | -------------------------------------------------- |
+| `document-id`   | `id`          | no       | Document ULID — `01H…` 26-char Crockford base32    |
+| `document-type` | `enum`        | no       | Overrides filename/directive detection (see §6.3)  |
+| `labels`        | `tag-list`    | no       | Classification tags (includes `DRAFT` marker)      |
+| `external-id`   | `external-id` | no       | Cross-system identifier (`scheme:value`)           |
+| `supersedes`    | `id`          | no       | `document-id` of a document this one replaces      |
+| `deprecated`    | `string`      | no       | Retirement reason (non-replacement case)           |
+| `references`    | `citation`    | no       | External reference citations with optional locator |
+| `metadata`      | map           | no       | Org free-form metadata, never validated            |
+
+Document lifecycle mirrors entry lifecycle: `DRAFT` label for work in progress;
+`supersedes:` for replacement retirement; `deprecated:` for non-replacement
+retirement. There is no separate `status:` front-matter key. There is no
+`DEPRECATED` / `WITHDRAWN` label.
 
 All attribute value types follow the 14-type system from §2.6. Profiles may
 declare additional keys; projects may allowlist SSG-ecosystem keys in
@@ -1303,9 +1330,9 @@ file. Commits within a branch do not count.
 **authors:** `project.yaml` recommended — Git history is fragile across moves
 and migrations.
 
-**status**: derived from `status:` in front matter if present, otherwise branch
-context (`draft` on branch, `approved` on main) and `markspec:deprecated`
-directive. Front-matter `status:` wins when set.
+**draft / retirement**: structural signals, not derived. Documents carry `DRAFT`
+via `labels:` and/or `deprecated:` via front matter. Replacement is via
+`supersedes:`. No branch-derived lifecycle inference.
 
 ### 6.3 Document types
 
@@ -1436,26 +1463,27 @@ carrying an identity attribute.
 
 ### 8.3 Traceability (MSL-T)
 
-| ID         | Severity | Rule                                                                                                       |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                                |
-| `MSL-T004` | warning  | `Derived-from:` target must resolve to an existing spec entry.                                             |
-| `MSL-T005` | error    | `References:` slug must resolve to an existing reference entry.                                            |
-| `MSL-T006` | error    | `Allocated-to:` target must resolve to an existing element entry.                                          |
-| `MSL-T007` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                                   |
-| `MSL-T008` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                                      |
-| `MSL-T009` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                                      |
-| `MSL-T010` | error    | `Part-of:` target must resolve to an existing element entry.                                               |
-| `MSL-T011` | error    | `Depends-on:` target must resolve to an existing element entry.                                            |
-| `MSL-T012` | error    | `Supersedes:` target must resolve to an existing same-family entry.                                        |
-| `MSL-T013` | warning  | `Satisfies:` / `Derived-from:` / `Verifies:` / `Realizes:` target has `Status: deprecated` or `withdrawn`. |
+| ID         | Severity | Rule                                                                                              |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                       |
+| `MSL-T004` | warning  | `Derived-from:` target must resolve to an existing spec entry.                                    |
+| `MSL-T005` | error    | `References:` slug must resolve to an existing reference entry.                                   |
+| `MSL-T006` | error    | `Allocated-to:` target must resolve to an existing element entry.                                 |
+| `MSL-T007` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                          |
+| `MSL-T008` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                             |
+| `MSL-T009` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                             |
+| `MSL-T010` | error    | `Part-of:` target must resolve to an existing element entry.                                      |
+| `MSL-T011` | error    | `Depends-on:` target must resolve to an existing element entry.                                   |
+| `MSL-T012` | error    | `Supersedes:` target must resolve to an existing same-family entry.                               |
+| `MSL-T013` | tiered   | Link target is non-active: `DRAFT` label=info; `Superseded-by:` set or `Deprecated:` set=warning. |
 
 `MSL-T014` is reserved for a future registry-chain check on `References:`
 (warning severity) when reference resolution via upstream registries lands.
 
 MSL-R014 (introduced during the four-family migration) validates enum-type
-attribute values: `Status`, `Test-level`, `Element-kind` must be drawn from the
-vocabulary declared in ADR-002 Annex C.
+attribute values: `Test-level`, `Element-kind` must be drawn from the vocabulary
+declared in ADR-002 Annex C. Lifecycle state is enforced through the label-group
+exclusivity rules rather than enum validation.
 
 Direction and level-crossing rules (e.g., "acceptance tests verify stakeholder
 requirements") are profile concerns, not core concerns.
