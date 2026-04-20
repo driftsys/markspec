@@ -1,21 +1,27 @@
 # ADR-008: Profile System — Vocabulary, Rules, and Extension Distribution
 
 Status: Proposed\
-Date: 2026-04-19\
+Date: 2026-04-19 (revised 2026-04-20 for ADR-009 alignment)\
 Scope: MarkSpec\
 Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md),
 [ADR-006 — Property Model](./adr-006-property-model.md),
-[ADR-007 — Document Structure](./adr-007-document-structure.md)
+[ADR-007 — Document Structure](./adr-007-document-structure.md),
+[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
 
 ## Context
 
-ADR-002 separates the **entry format** (four families: Spec, Test, Element,
-Reference) from the **domain vocabulary** (concrete TYPE prefixes, Element
-kinds, status values, traceability rules). It calls this extension layer a
-**profile** and defers the profile format to a future ADR.
+ADR-009 establishes the core / profile boundary: the core recognizes two
+semantics-free entry shapes (**identified** and **referenced**) and a single
+`Id:` identity attribute. All type vocabulary, relation names, attribute
+spellings beyond `Id:`, and compliance rules are declared in profiles.
 
-Since ADR-002 was drafted, three characteristics of the extension need have
-become clear:
+This ADR specifies the **profile format, distribution, and extends-chain
+semantics** that realize that boundary. It also covers coding-standard and
+language-pack profiles (rule-profiles and adapter-bearing profiles per ADR-011),
+though the specifics of those live in their own ADRs.
+
+Since ADR-002 was drafted (and amended by ADR-009), three characteristics of the
+extension need have become clear:
 
 - **Layered authorship.** Public domain profiles (ASPICE, ISO 26262, DO-178C,
   IEC 62304) form a baseline. Organizations tune that baseline with
@@ -145,39 +151,43 @@ id: "@markspec/profile-aspice-4"
 version: 1.2.0
 description: ASPICE 4.0 software engineering profile
 license: MIT
-extends: "npm:@markspec/profile-generic@^1.0"
+extends: "npm:@markspec/profile-default@^1.0"
 
 # Content — participates in the extends-chain merge
 profile:
 
-  # Universal scope — applies to any entry regardless of category
+  # Universal scope — applies to any entry regardless of shape or type
   required: []
   attributes: []
   labels: []
 
-  # Per-category scope
-  spec:
+  # Per-shape scope (the two core shapes from ADR-009 §1)
+  identified:
     required: []
     attributes: []
     traceability: {}
-  test:
-    required: []
-    attributes: []
-    levels: []
-    traceability: {}
-  element:
-    required: []
-    attributes: []
-    kinds: []
-    traceability: {}
-  reference:
+  referenced:
     required: []
     attributes: []
 
-  # Per-TYPE scope (keyed map; TYPE prefix is the key)
+  # Per-type scope (keyed map; type-name is the key)
   types:
-    SRS: { category: spec, required: [Derived-from] }
-    SWT: { category: test, level: unit, required: [Tests, Verifies] }
+    requirement:
+      shape: identified
+      display-id-pattern: "SPEC-{n:03d}"
+      required: [Derived-from]
+      traceability: {}
+    test:
+      shape: identified
+      display-id-pattern: "TEST-{n:03d}"
+      required: [Tests, Verifies]
+      traceability: {}
+    standard:
+      shape: referenced
+      attributes: []
+    dependency:
+      shape: referenced
+      attributes: []
 
   # Document-level scope (per ADR-007)
   documents:
@@ -185,54 +195,44 @@ profile:
     frontMatter: []
 ```
 
-**Terminology mapping.** The YAML uses `category` where ADR-002 uses _family_.
-The two terms refer to the same four values (`spec`, `test`, `element`,
-`reference`). `category` is used in the YAML for clarity of reading; `family`
-remains the normative term in the entry-model ADR. Implementations should accept
-both in parser diagnostics.
+**Terminology note.** The schema uses `identified` / `referenced` as the
+per-shape scope keys, matching ADR-009's vocabulary. The earlier four-family
+scope keys (`spec`, `test`, `element`, `reference`) no longer exist: those
+distinctions become profile-declared types within a shape (see `types:` above).
+
+**Type shape requirement.** Every entry under `types:` must declare a `shape:`
+of either `identified` or `referenced`. The shape determines which per-shape
+scope its rules inherit from and which identity-value format its entries must
+carry (ULID or URI, per ADR-009 §2).
 
 **Fixed key set.** Inside `profile:` the recognized keys are:
 
 - Universal content: `required`, `attributes`, `labels`.
-- Category scopes: `spec`, `test`, `element`, `reference`.
-- TYPE scope: `types` (keyed map).
+- Shape scopes: `identified`, `referenced`.
+- Type scope: `types` (keyed map; each type declares `shape:` and optional
+  `display-id-pattern:`, `required:`, `attributes:`, `traceability:`).
 - Document scope: `documents`.
 
 Any other top-level key under `profile:` is a validation error.
 
-**Note — `kinds:` and `levels:` sugar.** `element.kinds:` and `test.levels:` are
-documented shortcuts for extending the core-defined enum attributes
-`Element-kind` and `Test-level` respectively. Each expands as an implicit
-attribute declaration with enum-union merge (per the standard `attributes:`
-merge semantics):
+**Note — per-type attribute shortcuts are profile-specific.** The earlier
+`element.kinds:` and `test.levels:` shortcut syntax no longer exists; kinds and
+levels are no longer core concepts. A profile that wants to declare an
+enum-valued attribute on a type uses the ordinary `attributes:` list:
 
 ```yaml
-# Shortcut form
-element:
-  kinds: [ecu, sensor, actuator]
-
-# Equivalent to
-element:
-  attributes:
-    - { name: Element-kind, type: enum, values: [ecu, sensor, actuator] }
+types:
+  unit:
+    shape: identified
+    attributes:
+      - name: Test-level
+        type: enum
+        values: [unit, integration, system, acceptance]
 ```
 
-Profiles may use either form; tooling treats them identically. The shortcut
-exists because profile authors commonly extend only these two enums.
-
-**Note — TYPE-scoped `level:` semantics.** A TYPE declaration may carry a
-`level:` field (e.g., `SWT: { category: test, level: unit }`). Its semantics
-follow ADR-002 §"Test-level inference from TYPE":
-
-- On `markspec format`, if an entry of the TYPE omits `Test-level:`, the
-  formatter pre-fills it with the TYPE's declared level and commits it to source
-  (so the inferred value is inspectable in diffs).
-- The author's explicit `Test-level:` value always wins. The validator accepts
-  any valid Test-level regardless of the TYPE mapping.
-
-This is default / inference behavior, not enforcement. Profiles that need strict
-TYPE-to-level binding should express it through `rules.required` (not in scope
-for v1).
+Compliance profiles may publish shortcuts of their own (e.g., a "unit-test" type
+declaration with `Test-level` baked in), but these are profile-level
+conveniences, not schema-level shortcuts.
 
 **Note — default cardinality.** When an attribute declaration omits
 `cardinality:`, the default is inferred from `type:`:
@@ -310,38 +310,33 @@ This replaces the former single-threshold MSL-T013 rule that targeted
 documents:
   types:
     - id: requirements
-      contains: [spec]
+      contains: [requirement]
       description: Requirement specifications
-    - id: architecture
-      contains: [spec, element]
     - id: tests
       contains: [test]
+    - id: references
+      contains: [standard, glossary]
   frontMatter: []
 ```
 
-The `contains:` field declares which entry categories may appear in documents of
-that type. Two uses:
+The `contains:` field declares which **entry types** (not shapes) may appear in
+documents of that type. Two uses:
 
-- **Anonymous entry classification** — an entry without an explicit identity
-  attribute (e.g., `[SWT_AUTH_0001]` with no `Test-id:`) is classified into the
-  category listed in the enclosing document's `contains:`. Closes part of the
-  classification heuristic gap from ADR-002.
-- **Scope validation** — placing an entry of a category not listed in
-  `contains:` produces a validation error
-  (`specs don't belong in a tests
-  document`).
+- **Scope validation** — placing an entry of a type not listed in `contains:`
+  produces a validation error ("requirements document does not admit entries of
+  type `test`").
+- **Anonymous entry classification (optional, per profile)** — a profile that
+  declares `contains:` for a doc type may additionally allow an entry with no
+  explicit `type:` attribute to be classified by the enclosing document's
+  `contains:` list, provided the list contains exactly one entry-type. This is
+  purely a convenience and does not make display-ID parsing dependent on
+  document context.
 
-Core ships with baked-in `contains:` mappings for the reserved doc types:
-
-| Doc type       | `contains:`       |
-| -------------- | ----------------- |
-| `requirements` | `[spec]`          |
-| `architecture` | `[spec, element]` |
-| `tests`        | `[test]`          |
-| `references`   | `[reference]`     |
-
-**Profiles may add new doc types, but cannot override the core mapping for
-reserved doc types.** Profile-added types must declare `contains:` explicitly.
+The core does not pre-populate `contains:` for any document type; ADR-009
+removes the four-family baked-in mapping. Each profile declares its own document
+types and their accepted entry types. The default profile (ADR-010) declares
+baseline document types appropriate to its type vocabulary (`requirement`,
+`note`, `term`, `reference`); compliance profiles extend or replace them.
 
 ### 5. `extends:` chain and merge semantics
 
@@ -369,103 +364,110 @@ profile.* (universal)  ⊂  profile.<category>.*  ⊂  profile.types.<PREFIX>.*
 Each scope accumulates on `required`, `attributes`, and vocabulary lists; each
 scope may tighten constraints.
 
-### 6. TYPE enforcement
+### 6. Type enforcement and display-ID patterns
 
-Presence of `profile.types:` determines whether the profile enforces TYPE
-prefixes on entry display IDs:
+Presence of `profile.types:` determines whether the profile enforces typed
+entries:
 
-- **`types:` absent or empty** — anonymous entries permitted; no TYPE
-  vocabulary. Core markspec defaults apply.
-- **`types:` declared with at least one entry** — every entry's display ID must
-  begin with a declared TYPE prefix. Unknown TYPEs are validation errors.
+- **`types:` absent or empty** — type-less entries permitted; profile validates
+  only shape-level rules. Core hygiene (ADR-009 §10) still applies.
+- **`types:` declared with at least one entry** — every entry must carry a
+  `type:` attribute whose value is a declared type-name. Unknown types are
+  validation errors.
 
-v1 does not support a `'*'` wildcard entry. Profiles wanting "strict on some,
+**Display-ID patterns** are declared per type via the `display-id-pattern:`
+template specified in ADR-009 §5 (literal prefix + `{n}` placeholder with
+optional padding). Enforcement modes (`error`, `warn`, `off`) are
+profile-controlled per type:
+
+```yaml
+types:
+  requirement:
+    shape: identified
+    display-id-pattern: "REQ-{n:03d}"
+    display-id-pattern-enforcement: error # strict
+```
+
+Display-ID prefix → type mapping is not baked in; a profile may additionally
+declare a prefix-to-type mapping if it wants automatic classification, but the
+`type:` attribute is always authoritative.
+
+v1 does not support a `'*'` wildcard type. Profiles wanting "strict on some,
 permissive on others" can be added later without breaking compatibility; the
 two-mode model is easier to teach.
 
 ### 7. Traceability rules
 
-Link rules are declared co-located with the **source** of the link — the
-category or TYPE where the link originates. This matches the authoring mental
-model ("when I write an SRS, what are the rules on its outgoing links?").
+Link rules are declared co-located with the **source** of the link — the shape
+or type where the link originates. This matches the authoring mental model
+("when I write a requirement, what are the rules on its outgoing links?").
 
 Each scope may carry a `traceability:` map keyed by link-attribute name. Each
 entry in the map declares:
 
-| Field         | Meaning                                                                                                                                                  |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `target`      | A list of matchers. Each matcher is a TYPE prefix string, a list of TYPE strings, or an object `{ category: <name> }` matching any member of a category. |
-| `cardinality` | Count bounds (`0..1`, `1..1`, `0..N`, `1..N`). Optional; tightens the attribute's declared cardinality.                                                  |
-| `required`    | Boolean; whether the link attribute must be present. Defaults to false.                                                                                  |
+| Field         | Meaning                                                                                                                                       |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target`      | A list of matchers. Each matcher is a type-name string, a list of type-names, or an object `{ shape: identified }` / `{ shape: referenced }`. |
+| `cardinality` | Count bounds (`0..1`, `1..1`, `0..N`, `1..N`). Optional; tightens the attribute's declared cardinality.                                       |
+| `required`    | Boolean; whether the link attribute must be present. Defaults to false.                                                                       |
 
 **Example (ASPICE SWE.4 BP5 bidirectional traceability):**
 
 ```yaml
 profile:
-  spec:
+  identified:
     traceability:
       Derived-from:
-        target: [{ category: spec }] # Specs derive from Specs (default)
-
-  test:
-    traceability:
-      Verifies:
-        target: [{ category: spec }]
-      Tests:
-        target: [{ category: element }]
+        target: [{ shape: identified }] # default: any identified entry
 
   types:
-    SRS:
-      category: spec
+    requirement:
+      shape: identified
       traceability:
         Derived-from:
-          target: [STK] # narrows: SRS derives only from STK
+          target: [stakeholder-requirement] # narrows by type
           cardinality: 1..N
           required: true
 
-    SWT:
-      category: test
+    test:
+      shape: identified
       traceability:
         Verifies:
-          target: [SRS, SWE]
+          target: [requirement, software-requirement]
           cardinality: 1..N
           required: true
         Tests:
-          target: [{ category: element }]
+          target: [unit, component]
           cardinality: 1..N
           required: true
 ```
 
 **Generated inverses are not declared in profiles.** The downstream half of each
 link (`Verified-by`, `Tested-by`, `Realizes`) is generated by markspec from the
-forward declaration, per ADR-002.
+forward declaration, per ADR-002 (as revised alongside ADR-009).
 
-### 8. Identity model — unchanged
+### 8. Identity model — superseded by ADR-009
 
-This ADR **does not modify** the identity-attribute decisions from ADR-002. Each
-family keeps its dedicated identity attribute:
+This section's earlier content — which retained the four family-specific
+identity attributes (`Spec-id`, `Test-id`, `Element-id`, `Reference-id`) and
+explicitly rejected the single-`Id:` variant — is **superseded by
+[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md) §2** and
+its §12 rebuttal of the four rejection reasons.
 
-- `Spec-id` → Spec entries (bare ULID)
-- `Test-id` → Test entries (bare ULID)
-- `Element-id` → Element entries (namespace path / file+symbol)
-- `Reference-id` → Reference entries (slug / Pandoc cite / URI)
+Summary of the new model, for readers who arrive here via `extends:` chains or
+older documentation:
 
-Categorized identity attributes remain the discrimination mechanism. Display IDs
-follow the conventions laid out in ADR-002 (human-readable `TYPE_DOMAIN_NUMBER`
-for Spec/Test; symbolic path for Element; slug/cite/URL for Reference). A
-profile's `types:` section declares the TYPE prefixes admitted for Spec and Test
-display IDs; profile authors may further constrain display-ID shapes via
-additional rules in future revisions.
+- Every entry carries exactly one identity attribute, **`Id:`**.
+- The value is either a **ULID** (26-char Crockford base32 → identified shape)
+  or a **URI** with a scheme (RFC 3986 → referenced shape).
+- Shape is determined by `Id:` value format alone; no discriminator attribute,
+  no display-ID prefix, no profile lookup participates.
+- The former family-specific identity attributes are not accepted by the core
+  parser; `markspec migrate` rewrites them to `Id:`.
 
-A variant design considered during this ADR's design phase — a single `Id:`
-attribute with family derived by inference — was rejected. Rationale:
-
-- Introduces a multi-input resolution cascade (value shape, discriminator
-  attribute, display-ID TYPE prefix, profile map).
-- Breaks core-only mode (no profile needed to parse entries correctly).
-- Worsens error messages; an explicit `Test-id` says what it is.
-- Would invalidate the PR #217 migration shipped earlier in April 2026.
-- Saves one attribute name per entry — not worth the cost.
+Profiles do not redeclare identity — `Id:` is core-reserved. A profile may
+declare its `types:` vocabulary using any naming it wishes; identity is uniform
+across profiles.
 
 ### 9. CLI surface
 
@@ -496,8 +498,9 @@ markspec doctor                       # consumer — diagnostics: active chain,
 
 Profiles may contain a `hooks/` directory. When loaded, hooks extend markspec's
 parser, language server, or MCP surface. The interfaces, sandboxing, and
-lifecycle are specified in a separate ADR (ADR-009, deferred) and are not in
-scope here.
+lifecycle are specified in a separate ADR (ADR-012, deferred; this was
+originally reserved as ADR-009 but that number was reclaimed by the Core /
+Profile Boundary ADR) and are not in scope here.
 
 This ADR reserves the directory and the loader's awareness of it. Profiles
 without hooks ship pure declarative content; profiles with hooks ship both.
@@ -522,24 +525,25 @@ Hook-only profiles (no `profile:` content section) are valid distribution units.
 
 ### What shifts for existing consumers
 
-- Projects using an implicit vocabulary (no profile) continue to work — they run
-  against markspec core defaults. Profile adoption is opt-in.
-- Projects already using the four-family model (post-ADR-002) pick up a profile
-  by running `markspec profile add <spec>`; no source changes required.
-- The `Spec-id` / `Test-id` / `Element-id` / `Reference-id` model survives as
-  the identity mechanism; no additional migration beyond what PR #217 already
-  introduced.
+- Projects using core-only mode (no profile) continue to work — they run against
+  markspec core defaults. The default profile (ADR-010) loads automatically
+  unless explicitly disabled, providing generic types and hygiene rules.
+- Projects already using the pre-ADR-009 four-family identity attributes
+  (`Spec-id` / `Test-id` / `Element-id` / `Reference-id`) run `markspec migrate`
+  to rewrite those attributes to `Id:`; see ADR-009 §12.
+- The identity model is now **single-`Id:`-with-format-discrimination** per
+  ADR-009 §2.
 
 ### What is explicitly deferred
 
-- **Hook API and lifecycle** — ADR-009 (separate).
+- **Hook API and lifecycle** — ADR-012 (separate; originally reserved as
+  ADR-009).
 - **Attribute declaration schema detail** — the full list of value types,
   per-attribute option flags, and validation helpers is a refinement of this
   ADR. Skeleton shape is defined here; full detail is a follow-up.
-- **Built-in default profile** — whether markspec ships a `generic` profile that
-  registers the common automotive TYPEs (SRS, SWT, …) is a tooling decision, not
-  an architectural one.
-- **Wildcard `'*'` TYPE fallback** — deferred until a real use case demands
+- **Built-in default profile** — specified in
+  [ADR-010 — Default Profile](./adr-010-default-profile.md).
+- **Wildcard `'*'` type fallback** — deferred until a real use case demands
   "strict on some, permissive on others".
 - **`jsr:` and raw `https:` profile schemes** — admissible extension, not v1
   scope.
@@ -549,13 +553,22 @@ Hook-only profiles (no `profile:` content section) are valid distribution units.
 
 ## Dependencies
 
-- ✅ [ADR-002 — Entry Model](./adr-002-entry-model.md) — the four-family model
-  and categorized identity attributes this ADR extends.
+- ✅ [ADR-002 — Entry Model](./adr-002-entry-model.md) (as revised alongside
+  ADR-009) — entry model this ADR extends.
 - ✅ [ADR-007 — Document Structure](./adr-007-document-structure.md) — the
   front-matter mechanism profiles extend via `profile.documents.frontMatter`.
+- ✅ [ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md) —
+  core / profile split, two-shape model, identity contract. Supersedes the
+  previous ADR-008 §8.
 - 🔗 [ADR-006 — Property Model](./adr-006-property-model.md) — profile-declared
   generated attributes populate the property layer defined here.
-- 🔗 ADR-009 — Profile Hooks (deferred): API, sandbox, lifecycle.
+- 🔗 [ADR-010 — Default Profile](./adr-010-default-profile.md) — the bundled
+  profile that loads by default, using the schema specified here.
+- 🔗
+  [ADR-011 — Language Pack and Dependency Ingestion](./adr-011-language-pack-and-dependency-ingestion.md)
+  — language packs and rule-profiles as instances of this schema.
+- 🔗 ADR-012 — Profile Hooks (deferred; originally reserved as ADR-009): API,
+  sandbox, lifecycle.
 
 ## Acceptance criteria
 
@@ -563,9 +576,9 @@ Hook-only profiles (no `profile:` content section) are valid distribution units.
 - [ ] Three distribution channels (local, git, npm) resolve end-to-end.
 - [ ] Monorepo subpath + per-profile tag convention supported.
 - [ ] `extends:` chain resolution with additive + tightening merge implemented.
-- [ ] TYPE enforcement (strict vs absent) implemented at validator layer.
-- [ ] `profile.types.<PREFIX>.traceability` merges correctly across the chain
-      and across scope tiers (universal → category → TYPE).
+- [ ] Type enforcement (strict vs absent) implemented at validator layer.
+- [ ] `profile.types.<name>.traceability` merges correctly across the chain and
+      across scope tiers (universal → shape → type).
 - [ ] CLI surface (`new`, `publish`, `add`, `doctor`) available with the
       described behavior.
 - [ ] Vendored profiles are reproducible: running `markspec profile add` against
@@ -573,18 +586,20 @@ Hook-only profiles (no `profile:` content section) are valid distribution units.
 - [ ] ADR-002 §"Out of scope — Profile document format", ADR-006 §Dependencies,
       and ADR-007 §"Out of scope — Profile document format" updated to reference
       this ADR.
+- [ ] Identity contract conforms to ADR-009 §2: `Id:` with ULID-or-URI
+      discrimination; no family-specific identity attributes accepted.
 
 ## Out of scope (future work)
 
-- **Profile hooks** — code that extends parser, LSP, MCP. ADR-009.
+- **Profile hooks** — code that extends parser, LSP, MCP. ADR-012.
 - **Profile registry / discovery** — a markspec-specific registry beyond reusing
   git and npm.
 - **Profile-level traceability validation** — automated checks across a resolved
   `extends:` chain (e.g., "this child's Derived-from rule cannot possibly be
-  satisfied given the parent's TYPE vocabulary").
+  satisfied given the parent's type vocabulary").
 - **Signing and provenance** — SLSA-style provenance for published profiles;
   reuses whatever git tag signing / npm signing the ecosystem offers.
 - **Profile composition at the consumer** — merging two content-bearing profiles
   inside `.markspec.yaml`. Projects use a pre-merged domain profile instead.
 - **`jsr:` and `https:` specifier schemes** for profiles.
-- **Wildcard `'*'` TYPE entry** for permissive-with-fallback mode.
+- **Wildcard `'*'` type entry** for permissive-with-fallback mode.

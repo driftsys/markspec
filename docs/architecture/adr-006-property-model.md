@@ -1,25 +1,35 @@
 # ADR-006: Property Model
 
 Status: Proposed\
-Date: 2026-04-17\
+Date: 2026-04-17 (revised 2026-04-20 for ADR-009 alignment)\
 Scope: MarkSpec\
-Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md)
+Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md),
+[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
 
 ## Context
 
 ADR-002 introduces a two-tier model for entries:
 
-- **Attributes** — language-level facts authored in source (`Spec-id`,
-  `Derived-from`, `Status`, …) or generated at build time from inverse relations
-  (`Verified-by`, `Cited-by`, …).
+- **Attributes** — language-level facts authored in source (`Id:`,
+  `Derived-from:`, …) or generated at build time from inverse relations
+  (`Verified-by:`, `Cited-by:`, …).
 - **Properties** — model-level observations about an entry: where it lives in
   the repository, when it was created, who has touched it, how an external
   system tracks it. Properties are never authored in source, never round-trip
   through `markspec format`, and do not appear in git diffs.
 
+ADR-009 §4 formalizes the dual of this distinction on the identity axis:
+**identity** (ULID or URI in the `Id:` attribute, display ID, slug) is stable
+across renames and refactors; **provenance** (path, module, line, commit,
+extraction tool, source-type) is mutable and must never be used as identity. All
+provenance facts are properties; none are attributes.
+
 ADR-002 defines the concept and lists four property categories (`file`, `git`,
 `sync`, `build`) without specifying how they are captured, represented in the
-model, or exposed to downstream consumers.
+model, or exposed to downstream consumers. ADR-009 introduces a fifth
+operational concern — **entry-source provenance** for entries extracted from
+non-Markdown sources (doc comments in source code, SBOM ingestion, ECAD/PLM
+exports) — which this ADR must also specify.
 
 This ADR specifies the property model in detail.
 
@@ -38,6 +48,15 @@ Canonical property names per category:
   `external_source`.
 - **`build.*`** — compilation-time provenance: `resolution_source`,
   `registry_origin`.
+- **`source.*`** — entry-source provenance (per ADR-009 §9 and ADR-011): `type`
+  (one of `markdown`, `code`, `sbom`, `ecad`, `plm`, …), `adapter` (language
+  pack / SBOM tool / custom adapter identifier), `language` (where applicable:
+  `rust`, `kotlin`, `c`, …), `rule` (the extractor rule that matched, for
+  debugging), `extracted_at` (timestamp of last extraction).
+
+The `source.*` category is populated when an entry is produced by an adapter
+other than the Markdown parser. Markdown-authored entries set `source.type` to
+`markdown` and omit adapter-specific fields.
 
 ### 2. Observation contracts
 
@@ -88,9 +107,12 @@ How external systems (Jira, DOORS, Jama, Codebeamer, PLM) integrate:
 
 - ✅ [ADR-002](./adr-002-entry-model.md) — Entry Model (attributes vs properties
   distinction)
+- ✅ [ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md) —
+  identity vs provenance principle (§4); entry-source abstraction (§9)
 - 🔗 Related: [ADR-008 — Profile System](./adr-008-profile-system.md)
-  (profile-declared attributes populating the property layer), in-code entries
-  ADR (file properties for code-authored entries)
+  (profile-declared attributes populating the property layer),
+  [ADR-011 — Language Pack and Dependency Ingestion](./adr-011-language-pack-and-dependency-ingestion.md)
+  (source-category properties for code-extracted and SBOM-ingested entries)
 
 ## Acceptance criteria
 
