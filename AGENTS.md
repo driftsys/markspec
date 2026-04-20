@@ -27,8 +27,9 @@ markspec/
 │       ├── core/
 │       │   ├── mod.ts               ← public API barrel (the library boundary)
 │       │   ├── mod_test.ts          ← unit test (colocated)
-│       │   ├── model/               ← types: Entry, DisplayId, Ulid, Attribute,
-│       │   │   └── mod.ts             EntryType, SourceLocation, ProjectConfig
+│       │   ├── model/               ← types: Entry, EntryShape (identified |
+│       │   │   └── mod.ts             referenced), DisplayId, Ulid, Attribute,
+│       │   │                          SourceLocation, ProjectConfig
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
 │       │   │   ├── mod.ts
 │       │   │   ├── markdown.ts      ←   CommonMark AST walk, entry detection
@@ -71,8 +72,8 @@ markspec/
 │   └── tokens.yaml                  ← canonical design tokens SSOT (run `just tokens`)
 ├── docs/
 │   ├── spec/                        ← language specification (published as book)
-│   │   ├── language.md              ←   grammar, entry format, attributes
-│   │   └── typography.md            ←   fonts, layout, palettes, entry rendering
+│   │   ├── language/language.md     ←   grammar, entry format, attributes
+│   │   └── typography/typography.md ←   fonts, layout, palettes, entry rendering
 │   ├── guide/                       ← user-facing documentation (published as
 │   │                                  book)
 │   ├── examples/                    ← showcase documents (excluded from formatters)
@@ -192,13 +193,16 @@ type-based coloring, label pills, and dashed-underline cross-references.
 **Design tokens:**
 
 Entry type colors live in `theme/tokens.yaml` under `entries:`. Two Paul Tol
-palettes are used — bright (print/PDF) and vibrant (screen/HTML):
+palettes are used — bright (print/PDF) and vibrant (screen/HTML). Type buckets
+are profile-driven; the table below shows the current prefix mapping used by the
+legacy Typst renderer (to be replaced by profile-declared type → color-bucket
+mapping under the new entry model — see ADR-011):
 
-| Type | Prefixes           | Print     | Screen    |
-| ---- | ------------------ | --------- | --------- |
-| req  | STK, SYS, SWE, SRS | `#4477AA` | `#0077BB` |
-| spec | ARC, SAD, ICD      | `#228833` | `#009988` |
-| test | TST, VAL, SIT, SWT | `#EE6677` | `#EE7733` |
+| Bucket | Prefixes (legacy)  | Print     | Screen    |
+| ------ | ------------------ | --------- | --------- |
+| req    | STK, SYS, SWE, SRS | `#4477AA` | `#0077BB` |
+| spec   | ARC, SAD, ICD      | `#228833` | `#009988` |
+| test   | TST, VAL, SIT, SWT | `#EE6677` | `#EE7733` |
 
 Run `just tokens` after editing `tokens.yaml` to regenerate:
 
@@ -222,9 +226,13 @@ and is not yet wired into the pipeline. The Typst splicing approach in
 | STK    | Stakeholder Requirement           | `docs/product/stakeholder-requirements.md` |
 | SAD    | Software Architecture Description | `docs/product/software-architecture.md`    |
 
-The full MarkSpec spec defines eight builtin types (STK, SYS, SRS, SAD, ICD,
-VAL, SIT, SWT). This project only uses two because it is a CLI tool, not a
-safety-critical embedded system.
+MarkSpec's core defines no type vocabulary — all types come from profiles. See
+[ADR-009 — Core / Profile Boundary](docs/architecture/adr-009-core-profile-boundary.md)
+and [ADR-010 — Default Profile](docs/architecture/adr-010-default-profile.md).
+This project uses STK (stakeholder requirement) and SAD (software architecture
+description) entry types under a lightweight project profile. A full compliance
+profile (ASPICE, ISO 26262) would declare additional types
+(software-requirement, unit-test, integration-test, …).
 
 ## Technology stack
 
@@ -253,9 +261,9 @@ one is internal.
 docs/
 ├── spec/                            ← public language specification
 │   ├── SUMMARY.md                     (published as separate book)
-│   ├── language.md                  ← MarkSpec grammar: CommonMark + GFM/GLFM
+│   ├── language/language.md         ← MarkSpec grammar: CommonMark + GFM/GLFM
 │   │                                  subset, entry format, attributes
-│   └── typography.md                ← fonts, page layout, diagram sizing,
+│   └── typography/typography.md     ← fonts, page layout, diagram sizing,
 │                                      color palettes
 ├── guide/                           ← user-facing documentation
 │   ├── SUMMARY.md                     (published as separate book)
@@ -268,13 +276,25 @@ docs/
 │   │                                  readable raw on GitHub/GitLab)
 │   ├── stakeholder-requirements.md  ← STK entries
 │   └── software-architecture.md     ← SAD entries
-└── records/                         ← decision trail (not published)
-    ├── adr-001-markdown-format.md
-    ├── adr-002-requirement-authoring.md
-    ├── adr-003-diagram-authoring.md
-    ├── adr-004-book-structure.md
-    └── adr-005-cli-architecture.md
 ```
+
+**Architecture decision records** live in `docs/architecture/`:
+
+- `adr-001-markdown-format.md` — CommonMark + GFM/GLFM subset
+- `adr-002-entry-model.md` — identified and referenced entry shapes
+- `adr-003-diagram-authoring.md` — SVG authoring conventions
+- `adr-004-book-structure.md` — SUMMARY.md + four-part book structure
+- `adr-005-cli-architecture.md` — subcommand dispatch, single binary
+- `adr-006-property-model.md` — observed facts (file, git, sync, build, source)
+- `adr-007-document-structure.md` — YAML front matter, document-id
+- `adr-008-profile-system.md` — profile manifest, distribution, extends chain
+- `adr-009-core-profile-boundary.md` — the anchoring core/profile split
+- `adr-010-default-profile.md` — bundled RFC 2119 baseline profile
+- `adr-011-language-pack-and-dependency-ingestion.md` — languages + SBOM
+- `overview.md` — narrative architecture tour
+
+See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
+order.
 
 **Conventions:**
 
@@ -400,22 +420,24 @@ Colocated with source, following Deno convention (`@std` pattern). File naming:
 Unit tests import directly from the module under test:
 
 ```typescript
-import { parseRequirementBlock } from "./parser.ts";
+import { parseEntryBlock } from "./parser.ts";
 import { assertEquals } from "@std/assert";
 
-Deno.test("parseRequirementBlock: extracts display ID", () => {
+Deno.test("parseEntryBlock: extracts display ID", () => {
   const block = `- [SRS_BRK_0001] Sensor debouncing
 
   The sensor driver shall debounce raw inputs.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
+  type: requirement \\
   Labels: ASIL-B`;
 
-  const req = parseRequirementBlock(block);
-  assertEquals(req.displayId, "SRS_BRK_0001");
-  assertEquals(req.title, "Sensor debouncing");
-  assertEquals(req.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
-  assertEquals(req.labels, ["ASIL-B"]);
+  const entry = parseEntryBlock(block);
+  assertEquals(entry.shape, "identified");
+  assertEquals(entry.displayId, "SRS_BRK_0001");
+  assertEquals(entry.title, "Sensor debouncing");
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entry.labels, ["ASIL-B"]);
 });
 ```
 
@@ -484,7 +506,8 @@ Deno.test("validate: broken upstream link fails", async () => {
   const input = `
 - [SRS_BRK_0001] Sensor debouncing
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
+  type: requirement \\
   Satisfies: SYS_NONEXISTENT \\
   Labels: ASIL-B
 `;
@@ -595,7 +618,8 @@ verification. They live together.
 /// the ratio of range to closing velocity for each tracked
 /// object.
 ///
-/// Id: SRS_01HGW3C4DEF6 \
+/// Id: 01HGW3C4DEF6ABCDEFGHJKMNPQ \
+/// type: software-requirement \
 /// Satisfies: SYS_AEB_0012 \
 /// Labels: ASIL-B
 #[test]
@@ -619,7 +643,8 @@ test across module boundaries using only the crate's public API.
 /// object based on time-to-collision, relative velocity, and
 /// object classification.
 ///
-/// Id: SYS_01HGW3A2BCD5 \
+/// Id: 01HGW3A2BCD5ABCDEFGHJKMNPQ \
+/// type: system-requirement \
 /// Satisfies: STK_AEB_0001 \
 /// Labels: ASIL-B
 #[test]
@@ -678,8 +703,8 @@ severity/effort/priority, and review flow.
   commit directly to the main working tree unless the user explicitly says to
   work in the tree.
 - **Start from the issue.** Read the acceptance criteria and
-  `docs/spec/language.md`, propose an approach, and wait for approval before
-  implementing.
+  `docs/spec/language/language.md`, propose an approach, and wait for approval
+  before implementing.
 - **ATDD + TDD.** Write acceptance tests first from the story's acceptance
   criteria, then TDD the unit tests and implementation.
 - **Single PR = code + tests + docs.** Every pull request ships implementation,

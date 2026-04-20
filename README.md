@@ -18,8 +18,11 @@ that processes it.
 markspec format          # stamp ULIDs, normalize attributes
 markspec validate        # check broken refs, missing Ids
 markspec compile <paths> # build traceability graph → JSON
+markspec migrate         # rewrite legacy Id attributes
 markspec export          # JSON → csv, reqif, yaml
-markspec insert          # scaffold requirement block
+markspec insert          # scaffold entry block
+markspec profile         # add / publish / manage profiles
+markspec deps ingest     # ingest dependencies via SBOM tooling
 
 markspec doc build       # document PDF
 markspec book build      # PDF + HTML book
@@ -50,7 +53,7 @@ One binary. One install. Three rendering targets (document, book, deck).
 MarkSpec extends CommonMark with constructs that render as plain Markdown on
 GitHub and GitLab — no tooling required to read.
 
-**Entry blocks** — a list item with a typed ID and an indented body:
+**Entry blocks** — a list item with a display ID and an indented body:
 
 ```markdown
 - [SRS_BRK_0001] Sensor input debouncing
@@ -58,15 +61,24 @@ GitHub and GitLab — no tooling required to read.
   The sensor driver shall debounce raw inputs to eliminate electrical noise
   before processing.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
+  type: requirement\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```
 
-In PDF output, entry blocks render as admonition-style blocks: a 2px colored
-left border (blue for requirements, green for architecture/spec, red for tests),
-label pills on the title line, and italic metadata with dashed-underline
-cross-references. See
+Every entry carries a single `Id:` attribute. A ULID value identifies an
+**identified** entry (content the project authors); a URI value (`urn:`, `doi:`,
+`pkg:`, `https:`, …) identifies a **referenced** entry (citation of an external
+artifact). Type and compliance vocabulary come from the active profile. See
+[ADR-009 — Core / Profile Boundary](docs/architecture/adr-009-core-profile-boundary.md)
+for the principle and
+[ADR-002 — Entry Model](docs/architecture/adr-002-entry-model.md) for the full
+entry specification.
+
+In PDF output, entry blocks render as admonition-style blocks with
+profile-driven color-coding by type, label pills on the title line, and italic
+metadata with dashed-underline cross-references. See
 [`docs/examples/entry-rendering.md`](docs/examples/entry-rendering.md) for a
 full showcase.
 
@@ -88,7 +100,7 @@ _Table: Sensor thresholds_
 _Figure: High-level architecture of the braking system_
 ```
 
-**In-code entries** — requirements in doc comments, same format:
+**In-code entries** — entries in doc comments, same format:
 
 ```rust
 /// [SRS_BRK_0001] Sensor input debouncing
@@ -96,7 +108,8 @@ _Figure: High-level architecture of the braking system_
 /// The sensor driver shall reject transient noise shorter
 /// than the configured debounce window.
 ///
-/// Id: SRS_01HGW2Q8MNP3 \
+/// Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \
+/// type: requirement \
 /// Satisfies: SYS_BRK_0042 \
 /// Labels: ASIL-B
 #[test]

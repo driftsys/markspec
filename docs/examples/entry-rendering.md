@@ -1,7 +1,11 @@
 # Entry Rendering Showcase
 
-This document demonstrates the admonition-style rendering for all entry types,
-label pills, and cross-reference links.
+This document demonstrates the admonition-style rendering for entries under a
+sample compliance profile, with label pills and cross-reference links. The
+`type:` attribute and cross-reference relation names (`Satisfies`,
+`Verifies`, `Derived-from`) come from the active profile — see
+[ADR-009](../architecture/adr-009-core-profile-boundary.md) for the
+core/profile split.
 
 ## Requirements (req — blue)
 
@@ -11,7 +15,8 @@ label pills, and cross-reference links.
   falls below the configurable threshold and the driver has not applied the
   brake pedal.
 
-  Spec-id: 01HGW3A2BCD5VWXYZABCDEFGHJ\
+  Id: 01HGW3A2BCD5VWXYZABCDEFGHJ\
+  type: stakeholder-requirement\
   Labels: ASIL-B, safety-critical
 
 - [SYS_AEB_0012] Object threat assessment from radar tracks
@@ -19,7 +24,8 @@ label pills, and cross-reference links.
   The system shall compute a threat level for each tracked object based on
   time-to-collision, relative velocity, and object classification.
 
-  Spec-id: 01HGW3C4DEF6VWXYZABCDEFGHJ\
+  Id: 01HGW3C4DEF6VWXYZABCDEFGHJ\
+  type: system-requirement\
   Satisfies: STK_AEB_0001\
   Labels: ASIL-B
 
@@ -28,7 +34,8 @@ label pills, and cross-reference links.
   The braking ECU shall apply a 5-sample median filter to the raw brake pressure
   sensor input before processing.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
+  type: software-requirement\
   Satisfies: SYS_AEB_0012\
   Labels: ASIL-B, real-time, performance
 
@@ -44,7 +51,8 @@ alone.
   tracking) from decision (threat assessment, braking command) via a
   publish-subscribe message bus.
 
-  Spec-id: 01HGW4E5GHJ7VWXYZABCDEFGHJ\
+  Id: 01HGW4E5GHJ7VWXYZABCDEFGHJ\
+  type: software-architecture\
   Satisfies: STK_AEB_0001
 
 - [ICD_AEB_0010] Radar frame interface
@@ -52,7 +60,8 @@ alone.
   The radar driver shall publish `RadarFrame` messages at 20 Hz containing
   range, velocity, azimuth, and classification for each detected object.
 
-  Spec-id: 01HGW4F6HKM8VWXYZABCDEFGHJ\
+  Id: 01HGW4F6HKM8VWXYZABCDEFGHJ\
+  type: interface-control-document\
   Satisfies: SAD_AEB_0001\
   Labels: interface
 
@@ -64,7 +73,8 @@ alone.
   positive closing velocity and returns infinity for zero or negative closing
   velocity.
 
-  Test-id: 01HGW5G7JMN9VWXYZABCDEFGHJ\
+  Id: 01HGW5G7JMN9VWXYZABCDEFGHJ\
+  type: unit-test\
   Verifies: SWE_BRK_0107
 
 - [SIT_AEB_0012] Perception-to-decision integration
@@ -72,7 +82,8 @@ alone.
   Verify end-to-end that a radar frame with a stationary object at 40m produces
   a `High` threat level through the full perception–decision pipeline.
 
-  Test-id: 01HGW5H8KPQ0VWXYZABCDEFGHJ\
+  Id: 01HGW5H8KPQ0VWXYZABCDEFGHJ\
+  type: integration-test\
   Verifies: SYS_AEB_0012\
   Labels: integration
 
@@ -85,7 +96,8 @@ Entry with no labels — pill group is not rendered:
   The braking ECU shall reject brake pressure readings outside the valid sensor
   range [0, 250] bar.
 
-  Spec-id: 01HGW6J9NRS1VWXYZABCDEFGHJ\
+  Id: 01HGW6J9NRS1VWXYZABCDEFGHJ\
+  type: software-requirement\
   Satisfies: SYS_AEB_0012
 
 Entry with many labels — pill group wraps to the next line:
@@ -95,7 +107,8 @@ Entry with many labels — pill group wraps to the next line:
   The braking ECU shall detect open-circuit, short-circuit, and out-of-range
   faults on all brake pressure sensors within one sample period.
 
-  Spec-id: 01HGW6K0MST2VWXYZABCDEFGHJ\
+  Id: 01HGW6K0MST2VWXYZABCDEFGHJ\
+  type: software-requirement\
   Satisfies: SYS_AEB_0012\
   Labels: ASIL-B, safety-critical, real-time, performance, diagnostics, fault-tolerance
 
@@ -106,7 +119,27 @@ Entry with multiple cross-references:
   The braking ECU shall use triple-modular redundancy voting across the three
   brake pressure sensors.
 
-  Spec-id: 01HGW6N1NVW3VWXYZABCDEFGHJ\
+  Id: 01HGW6N1NVW3VWXYZABCDEFGHJ\
+  type: software-requirement\
   Satisfies: SYS_AEB_0012\
   Derived-from: STK_AEB_0001\
   Labels: ASIL-B, redundancy
+
+## Referenced entries
+
+Citations of external standards are **referenced entries** — their `Id:` is a
+URI, and the display ID serves as a pandoc-style slug:
+
+- [@ISO-26262-6] ISO 26262 Part 6
+
+  Road vehicles — Functional safety — Part 6: Software level.
+
+  Id: urn:iso:std:iso:26262:-6:ed-2\
+  type: standard\
+  Labels: functional-safety, automotive
+
+- [serde] serde Rust serialization framework
+
+  Id: pkg:cargo/serde@1.0.0\
+  type: dependency\
+  Labels: dependency, open-source
