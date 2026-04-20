@@ -335,66 +335,6 @@ const cli = new Command()
       Deno.exit(1);
     }
   })
-  .command("migrate [...files:string]")
-  .description(
-    "Rewrite legacy `Id: TYPE_<ULID>` to ADR-002 v2 `Spec-id: <bare-ULID>`",
-  )
-  .option(
-    "--check",
-    "Check mode: report but don't write (exit 1 if changes needed)",
-  )
-  .action(async (options: { check?: boolean }, ...files: string[]) => {
-    if (files.length === 0) {
-      console.error("error: no files specified");
-      console.error("usage: markspec migrate <file...>");
-      Deno.exit(1);
-    }
-
-    const { migrateLegacyIds } = await import("./core/mod.ts");
-
-    let totalMigrated = 0;
-    let totalUnchanged = 0;
-    let totalRewrites = 0;
-    let hasErrors = false;
-
-    for (const filePath of files) {
-      let content: string;
-      try {
-        content = await Deno.readTextFile(filePath);
-      } catch {
-        console.error(`error: ${filePath}: file not found`);
-        hasErrors = true;
-        continue;
-      }
-
-      const result = migrateLegacyIds(content, { file: filePath });
-
-      for (const d of result.diagnostics) {
-        const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
-        console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
-      }
-
-      if (result.changed) {
-        totalMigrated++;
-        totalRewrites += result.migrations;
-        if (!options.check) {
-          await Deno.writeTextFile(filePath, result.output);
-        }
-      } else {
-        totalUnchanged++;
-      }
-    }
-
-    const total = totalMigrated + totalUnchanged;
-    console.error(
-      `${totalMigrated} file(s) migrated (${totalRewrites} attribute${
-        totalRewrites === 1 ? "" : "s"
-      }), ${totalUnchanged} unchanged (${total} total)`,
-    );
-
-    if (hasErrors) Deno.exit(1);
-    if (options.check && totalMigrated > 0) Deno.exit(1);
-  })
   .command("validate [...files:string]")
   .description("Check broken refs, missing Ids, duplicates")
   .option("--strict", "Promote warnings to errors")
