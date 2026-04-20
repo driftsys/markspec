@@ -88,8 +88,9 @@ How external systems (Jira, DOORS, Jama, Codebeamer, PLM) integrate:
 
 - ✅ [ADR-002](./adr-002-entry-model.md) — Entry Model (attributes vs properties
   distinction)
-- 🔗 Related: profile document format ADR (profile-declared properties), in-code
-  entries ADR (file properties for code-authored entries)
+- 🔗 Related: [ADR-008 — Profile System](./adr-008-profile-system.md)
+  (profile-declared attributes populating the property layer), in-code entries
+  ADR (file properties for code-authored entries)
 
 ## Acceptance criteria
 

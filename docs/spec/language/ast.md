@@ -384,8 +384,7 @@ interface MsDirectiveEntry {
 ```markdown
 <!--
 markspec:deck
-markspec:deprecated Superseded by braking-v2.md which
-  implements the revised sensor interface.
+markspec:references https://safety.company.io/registry
 -->
 ```
 
@@ -395,7 +394,7 @@ markspec:deprecated Superseded by braking-v2.md which
 msDirective
   directives:
     { name: "deck", payload: "" }
-    { name: "deprecated", payload: "Superseded by braking-v2.md which\n  implements the revised sensor interface." }
+    { name: "references", payload: "https://safety.company.io/registry" }
 ```
 
 Range directives (`markspec:columns`, `markspec:disable`, `markspec:ignore`)
