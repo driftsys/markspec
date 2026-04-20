@@ -1,13 +1,24 @@
 # Site Schema Specification
 
+> **Status (2026-04-20): revision in progress.** References to the four-family
+> entry model (STK/SYS/SRS/SAD/ICD/VAL/SIT/SWT as "entry types") in this
+> document predate
+> [ADR-009 — Core / Profile Boundary](../architecture/adr-009-core-profile-boundary.md).
+> Under the revised model, core entries have a **shape** (identified or
+> referenced) and a profile-declared **type**. The specific prefixes above are
+> examples of types that a compliance profile (e.g.,
+> `@markspec/profile-aspice-swe-mini`) declares, not core concepts. JSON schemas
+> emitted by `markspec site build` will expose `shape` + `type` rather than a
+> fixed family enumeration.
+
 This document specifies the static site generator (`markspec site build`) and
 its JSON API. It defines the output file tree, JSON schemas, HTML page types,
 build pipeline, inter-project dependency model, process project integration,
 tool configuration, and AI context delivery.
 
 The site generator produces a complete static site with HTML pages and a JSON
-API covering all entry types (STK, SYS, SRS, SAD, ICD, VAL, SIT, SWT, custom,
-references), traceability, coverage, product BOM, and inter-project
+API covering all declared entry types (profile-declared under the revised model
+— see status note above), traceability, coverage, product BOM, and inter-project
 dependencies. The design follows the refhub pattern (specification-first,
 data-first, pregenerated, no runtime) but is configurable via `.markspec.toml`
 with overridable templates and pluggable page modules.

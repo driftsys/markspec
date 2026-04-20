@@ -9,8 +9,10 @@
 A Markdown flavor for traceable industrial documentation, and a CLI toolchain
 that processes it.
 
-> Early development. The [language specification](docs/spec/language.md) is
-> stable. Tooling is not yet functional.
+> Early development. The
+> [language specification](docs/spec/language/language.md) is under active
+> revision to match ADR-009 (core/profile boundary). Tooling is not yet
+> functional.
 
 ## Tools
 

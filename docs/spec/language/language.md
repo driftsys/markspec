@@ -1,5 +1,18 @@
 # MarkSpec — Markdown Flavor Specification
 
+> **Status (2026-04-20): revision in progress.** This document was written
+> against the four-family entry model (Spec/Test/Element/Reference).
+> [ADR-009 — Core / Profile Boundary](../../architecture/adr-009-core-profile-boundary.md)
+> and the revised
+> [ADR-002 — Entry Model](../../architecture/adr-002-entry-model.md) collapse
+> the four families into two core shapes (identified, referenced) with a single
+> `Id:` attribute format-discriminated by ULID vs URI. The ADRs are the
+> authoritative reference; this document is being aligned in stages. Sections
+> describing family-specific identity attributes (`Spec-id`, `Test-id`,
+> `Element-id`, `Reference-id`) are superseded by ADR-002 Parts 2 and 3;
+> sections describing family-recognition heuristics are superseded by ADR-002
+> Part 4.
+
 ## Introduction
 
 MarkSpec is a Markdown flavor for traceable industrial documentation. It targets
@@ -11,14 +24,15 @@ MarkSpec is a three-layer stack:
 1. **[CommonMark]** — the parsing baseline.
 2. **[GFM] / [GLFM] shared subset** — platform extensions portable across GitHub
    and GitLab.
-3. **MarkSpec extensions** — requirement authoring, captions, inline references,
+3. **MarkSpec extensions** — entry authoring, captions, inline references,
    directives, and book structure.
 
 Source files are pure, readable Markdown. They render correctly on GitHub and
 GitLab without any build step. PDF generation, traceability matrices, and
 reference resolution are build concerns — not format concerns.
 
-This specification is the normative reference for MarkSpec tooling.
+This specification is the normative reference for MarkSpec tooling (once brought
+in line with ADR-009 — see status note above).
 
 ---
 
