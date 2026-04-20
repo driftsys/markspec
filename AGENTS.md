@@ -429,7 +429,6 @@ Deno.test("parseEntryBlock: extracts display ID", () => {
   The sensor driver shall debounce raw inputs.
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
-  type: requirement \\
   Labels: ASIL-B`;
 
   const entry = parseEntryBlock(block);
@@ -507,7 +506,6 @@ Deno.test("validate: broken upstream link fails", async () => {
 - [SRS_BRK_0001] Sensor debouncing
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
-  type: requirement \\
   Satisfies: SYS_NONEXISTENT \\
   Labels: ASIL-B
 `;
@@ -619,7 +617,6 @@ verification. They live together.
 /// object.
 ///
 /// Id: 01HGW3C4DEF6ABCDEFGHJKMNPQ \
-/// type: software-requirement \
 /// Satisfies: SYS_AEB_0012 \
 /// Labels: ASIL-B
 #[test]
@@ -644,7 +641,6 @@ test across module boundaries using only the crate's public API.
 /// object classification.
 ///
 /// Id: 01HGW3A2BCD5ABCDEFGHJKMNPQ \
-/// type: system-requirement \
 /// Satisfies: STK_AEB_0001 \
 /// Labels: ASIL-B
 #[test]

@@ -338,12 +338,21 @@ break a cross-reference — references resolve against the ULID.
 Identified entries carry the universal attributes from Part 1 (`Id`, `Labels`,
 `References`, `External-id`, `Supersedes`, `Superseded-by`, `Deprecated`).
 
-### Profile-declared type
+### Profile-declared type (usually inferred)
 
-Every identified entry SHOULD carry a `type:` attribute declaring its type-name
-within the active profile's vocabulary. The core does not require `type:`;
-profiles that declare a `types:` vocabulary typically do. The `type:` value is
-validated against the profile's declared types.
+Every identified entry has an effective **type** — a name drawn from the active
+profile's `types:` vocabulary. Type is normally **inferred by the profile from
+the display-ID prefix** via a declared pattern
+(`display-id-pattern: "SRS_{scope}_{n:04d}"` maps `SRS_BRK_0107` →
+`type: software-requirement`). Authors do not write `type:` in source when
+inference succeeds.
+
+An explicit `type:` attribute **overrides inference** and is used when:
+
+- The display ID does not match any declared pattern — free-form slugs, symbolic
+  element paths (`braking_core::controller::debounce`), glossary terms.
+- Pattern matching is ambiguous (multiple declared patterns match the same ID).
+- The author wants the type visible in source without consulting the profile.
 
 Compliance profiles populate the type vocabulary richly:
 
@@ -363,20 +372,27 @@ The core does not define `Derived-from`, `Verifies`, `Tests`, `Realizes`,
 `Allocated-to`, `Depends-on`, `Element-kind`, `Test-level`, or any similar
 attribute; they belong in the profile layer (ADR-008 §4 and §7).
 
-### Example — with a default-profile type
+### Example — inferred type (default profile)
+
+Under the default profile's `requirement: display-id-pattern: "REQ-{n:03d}"`:
 
 ```markdown
-- [SPEC-107] Sensor input debouncing
+- [REQ-107] Sensor input debouncing
 
   The sensor driver SHALL debounce raw inputs to eliminate electrical noise
   before processing. The debounce window SHALL be configurable per sensor type.
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  type: requirement\
   Labels: sensor
 ```
 
-### Example — with a compliance-profile (ASPICE) type
+The profile infers `type: requirement` from the `REQ-` prefix. No `type:`
+attribute in source.
+
+### Example — inferred type (ASPICE profile)
+
+Under an ASPICE profile's
+`software-requirement: display-id-pattern: "SRS_{scope}_{n:04d}"`:
 
 ```markdown
 - [SRS_BRK_0107] Sensor input debouncing
@@ -388,14 +404,33 @@ attribute; they belong in the profile layer (ADR-008 §4 and §7).
   > Failure to debounce may lead to spurious brake activation.
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  type: software-requirement\
   Derived-from: 01HGW2R0NPQR4STVWXYZABCDEF\
   Labels: ASIL-B
 ```
 
-The two examples illustrate the same identified entry viewed under different
-profiles. The core entry model is identical; only the display-ID pattern,
-`type:` vocabulary, and profile-declared attributes (`Derived-from:`) differ.
+The profile infers `type: software-requirement` from the `SRS_` prefix.
+
+### Example — explicit `type:` override
+
+When the display ID is a symbolic path with no declared prefix pattern:
+
+```markdown
+- [braking_core::controller::debounce_input] Debounce function
+
+  Rejects transient noise on raw sensor readings.
+
+  Id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
+  type: unit\
+  Realizes: 01HGW2Q8MNP3RSTVWXYZABCDEF
+```
+
+The author writes `type: unit` because no `display-id-pattern` matches a
+namespaced symbolic path.
+
+The three examples illustrate the same identified entry shape viewed under
+different profiles and authoring conditions. The core entry model is identical;
+only the display-ID pattern, `type:` vocabulary (inferred or explicit), and
+profile-declared attributes (`Derived-from:`, `Realizes:`) differ.
 
 ---
 
@@ -694,16 +729,13 @@ Shape resolution does not consult a profile, a document, or a display-ID prefix.
 It inspects `Id:` and decides. This property is what makes core-only mode
 (ADR-009 §10) workable and what keeps error diagnostics precise.
 
-### Migration from pre-ADR-009 format
+### No migration surface
 
-Projects using the pre-ADR-009 family-specific attributes (`Spec-id`, `Test-id`,
-`Element-id`, `Reference-id`) migrate via `markspec migrate`:
-
-- `Spec-id:`, `Test-id:`, `Element-id:` → `Id:` (ULID preserved).
-- `Reference-id: <URI>` → `Id: <URI>` (URI preserved; slug moves to display ID
-  if it was elsewhere).
-- Earlier legacy `Id: <TYPE>_<ULID>` (pre-four-family) → `Id: <ULID>` with
-  `type:` inferred from the prefix.
+MarkSpec has not shipped. The core entry model has no backward-compatibility
+obligations to earlier drafts. Previous family-specific attributes (`Spec-id`,
+`Test-id`, `Element-id`, `Reference-id`) and the pre-family `Id: <TYPE>_<ULID>`
+format are not accepted by the parser; any such content in fixtures or examples
+is rewritten by hand. No `markspec migrate` subcommand is introduced.
 
 Display IDs are preserved unchanged. Type values are inferred from the
 historical family or TYPE prefix and written to an explicit `type:` attribute

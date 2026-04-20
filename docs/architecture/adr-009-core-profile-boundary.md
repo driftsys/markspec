@@ -139,28 +139,50 @@ Refactoring a module, renaming a file, or moving an entry between files must
 never break a cross-reference. Provenance updates; identity does not. File path
 and module name are observable properties, not authored attributes.
 
-### 5. Display-ID patterns are profile-declared
+### 5. Display-ID patterns drive type inference
 
 The core accepts any non-empty, project-unique display ID string. It does not
 constrain format, does not enforce prefixes, and does not derive type from
 prefix.
 
-Profiles may tighten this by declaring **display-ID patterns** per type, in
-template form (not regex), so the same declaration can both **recognize** an
-existing display ID and **mint** a new one:
+Profiles tighten this by declaring **display-ID patterns** per type, in template
+form (not regex), so the same declaration (a) **recognizes** an existing display
+ID, (b) **mints** a new one, and (c) **infers the type** of an entry from its
+display ID:
 
 ```yaml
 profile:
   types:
     requirement:
-      display-id-pattern: "SPEC-{n:03d}" # SPEC-001, SPEC-042, SPEC-107
+      display-id-pattern: "SRS_{scope}_{n:04d}"
     test:
-      display-id-pattern: "TEST-{n:03d}"
+      display-id-pattern: "SWT_{scope}_{n:04d}"
 ```
 
+Given `- [SRS_BRK_0107] ...`, the profile matches the `SRS_*` pattern and
+classifies the entry as `type: requirement`. The author does not write `type:`
+in source.
+
+**Explicit `type:` is an override.** A `type:` attribute on an entry supersedes
+pattern-based inference. It is used when:
+
+- The display ID does not match any declared pattern (free-form slugs; glossary
+  terms; symbolic element paths).
+- Two profiles declare overlapping patterns and the author wants unambiguous
+  classification.
+- The author wants the entry's type to be inspectable in the source without
+  consulting the profile.
+
+**Ambiguity and diagnostics.** When multiple patterns match the same display ID,
+tooling emits a warning and requires the author to disambiguate via an explicit
+`type:` attribute. When no pattern matches, the entry has no type attribute
+unless one is explicitly authored; validators that require a typed entry emit an
+error.
+
 Minimum pattern grammar: literal prefix + one numeric placeholder `{n}` with
-optional zero-padding (`{n:03d}`). Later extensions (slug placeholders, per-type
-scope counters, domain sub-scoping) are additive refinements.
+optional zero-padding (`{n:03d}`), optional scope placeholders. Later extensions
+(additional placeholders, per-type scope counters, domain sub-scoping) are
+additive refinements.
 
 Templates are compiled internally to a recognizer regex for parsing and used
 directly for minting. Regex-only declarations are not supported because they
@@ -292,10 +314,10 @@ is addressed by the model above:
    \`type: test\`` on an identified entry) are separate from
    identity diagnostics and come from profile rules.
 4. **"Would invalidate the PR #217 migration shipped earlier in April 2026."**
-   MarkSpec has not shipped. The migration is pre-release and explicitly
-   revisable; the revision to ADR-002 accompanying this ADR reverses it and
-   `markspec migrate` gains a follow-up legacy-`Spec-id:`/`Test-id:`/etc. →
-   `Id:` rewrite.
+   MarkSpec has not shipped and has no backward-compatibility obligations. PR
+   #217 is reverted by the entry-model revision accompanying this ADR. No
+   migration command is provided; legacy content (if any exists) is rewritten by
+   hand. See §Consequences — "What this ADR enables".
 
 ADR-008 §8 is superseded by this section.
 
@@ -327,9 +349,9 @@ ADR-008 §8 is superseded by this section.
   `References`, `External-id`, `Supersedes`, `Superseded-by`, `Deprecated`) plus
   the built-in `Supersedes:` relation. Everything else moves to the default
   profile (ADR-010) or to compliance profiles.
-- Tooling: `markspec migrate` adds a legacy-Id rewrite step covering both
-  ADR-001 `Id:` (already handled, pre-family) and ADR-002 family-specific
-  attributes.
+- Tooling: MarkSpec has not shipped and supports no backward compatibility;
+  legacy content under the pre-boundary model (if any exists in fixtures or
+  examples) is rewritten by hand. No migration command is introduced.
 
 ### What does _not_ change
 
@@ -373,10 +395,10 @@ ADR-008 §8 is superseded by this section.
       profile vocabulary.
 - [ ] Core-only mode (no profile loaded) produces a well-formed model with only
       hygiene diagnostics.
-- [ ] `markspec migrate` rewrites legacy family-specific identity attributes
-      (`Spec-id` / `Test-id` / `Element-id` / `Reference-id`) to `Id:`.
 - [ ] Revisions to ADR-002, ADR-006, ADR-007, ADR-008 land alongside this ADR,
       with cross-references updated.
+- [ ] No migration command exists; the pre-boundary `markspec migrate` surface
+      and its tests are removed from the code.
 
 ## Out of scope (future ADRs)
 
@@ -388,8 +410,5 @@ ADR-008 §8 is superseded by this section.
   `pkg:` identity for dependencies, hardware BOM ingestion. **ADR-011**.
 - **Profile hooks** — code extension points for parser, LSP, MCP. **ADR-012**
   (renumbered from ADR-009 slot previously reserved by ADR-008).
-- **Migration tooling for legacy `Spec-id:`/`Test-id:`/`Element-id:`
-  /`Reference-id:` attributes** — implementation-level; `markspec migrate`
-  follow-up.
 - **Display-ID pattern grammar extensions** — slug placeholders, per-type scope
   counters, domain sub-scoping beyond the minimum `{n:03d}` form.

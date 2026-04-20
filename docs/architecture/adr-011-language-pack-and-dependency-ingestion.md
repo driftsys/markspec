@@ -148,11 +148,30 @@ Either tool satisfies the dependency-ingestion input contract: CycloneDX or SPDX
 JSON. Both tools are distributable, scriptable, and ubiquitously deployed in
 security-scanning pipelines.
 
-**Invocation.** `markspec deps ingest` runs the configured SBOM producer against
-the project, parses the resulting CycloneDX / SPDX JSON, and emits one
-**referenced** entry per package component plus typed **`depends-on`** edges
-between them. Caching behavior, retry semantics, and CLI flags are
-implementation detail to be specified with the other entry-source APIs.
+**Invocation — compile-time, config-driven.** There is **no standalone
+`markspec deps ingest` subcommand.** Dependency ingestion runs as part of
+`markspec compile` when enabled in `.markspec.yaml`:
+
+```yaml
+# .markspec.yaml
+deps:
+  ingest: true # enable SBOM-based dependency ingestion
+  tool: syft # or: cdxgen
+  include: ["Cargo.toml", "package.json"] # optional path allowlist
+```
+
+During `markspec compile`, the configured SBOM producer is invoked against the
+project root, its CycloneDX / SPDX JSON output is parsed, and one **referenced**
+entry per package component is emitted into the compiled model along with typed
+**`depends-on`** edges between them.
+
+Caching behavior (hash of manifest inputs, re-use across runs), retry semantics,
+and per-tool flags are implementation detail to be specified with the other
+entry-source APIs.
+
+When `deps.ingest:` is absent or `false`, `markspec compile` ingests no
+dependencies and emits no `depends-on` edges. SBOM tooling is never required for
+a project that does not opt in.
 
 **Identity — purl.** Dependency entries use Package URL (**purl**, per the
 purl-spec) as the `Id:` value:
@@ -222,7 +241,7 @@ rules are deferred to a follow-up ADR. This ADR reserves the pattern.
 The same ingestion pipeline extends to hardware:
 
 - **CycloneDX hardware components** and **SPDX 3.0 hardware profile** are
-  consumed by the same `markspec deps ingest` entry point.
+  consumed by the same compile-time ingestion pipeline described in §5.
 - **Parts** (catalog components) are emitted as referenced entries with a
   purl-like identity scheme (`pkg:hardware/...`, supplier catalog URIs, or
   profile-declared part-ID schemes).
@@ -256,11 +275,13 @@ provide the ingestion; the compliance profile provides the semantics.
 
 - The existing language-grammar registration code relocates behind the
   entry-source adapter API.
-- A new `markspec deps ingest` command is introduced; `markspec deps` is
-  reserved as the subcommand group for future dependency operations.
-- SBOM-tool invocation is an external-process call; tests and CI pipelines need
-  at least one producer installed. A consumer-friendly error path is required
-  when neither tool is available.
+- `markspec compile` gains a compile-time dependency-ingestion step gated by
+  `.markspec.yaml` `deps.ingest:` configuration; no new top-level subcommand is
+  introduced.
+- SBOM-tool invocation is an external-process call; tests and CI pipelines that
+  exercise ingestion need at least one producer installed. A consumer-friendly
+  error path is required when `deps.ingest` is enabled but no configured
+  producer is available.
 
 ### Trade-offs accepted
 
@@ -268,10 +289,11 @@ provide the ingestion; the compliance profile provides the semantics.
   binary. The opt-out mechanism is the escape hatch for weight-sensitive users.
   Expected binary growth is acceptable given the ubiquity of each language in
   MarkSpec's target audiences.
-- **External tool dependency.** `markspec deps ingest` relies on Syft or cdxgen.
-  This trades a runtime dependency for the avoidance of N maintainer-years of
-  manifest-parser code. The trade is justified because the SBOM tools are
-  mature, widely deployed, and standardized on CycloneDX / SPDX.
+- **External tool dependency for ingestion.** Compile-time SBOM ingestion relies
+  on Syft or cdxgen when enabled. This trades a runtime dependency for the
+  avoidance of N maintainer-years of manifest-parser code. The trade is
+  justified because the SBOM tools are mature, widely deployed, and standardized
+  on CycloneDX / SPDX. Projects that do not opt in never invoke the tools.
 
 ## Dependencies
 
@@ -298,9 +320,10 @@ provide the ingestion; the compliance profile provides the semantics.
 - [ ] `default-language-pack: false` in `.markspec.yaml` disables it cleanly.
 - [ ] Each adapter yields identified entries for doc-commented declarations and
       referenced entries for imports.
-- [ ] `markspec deps ingest` invokes a configured SBOM producer (Syft or
-      cdxgen), ingests CycloneDX / SPDX JSON, emits purl-identified referenced
-      entries, and emits `depends-on` edges.
+- [ ] `markspec compile`, when `.markspec.yaml` sets `deps.ingest: true`,
+      invokes the configured SBOM producer (Syft or cdxgen), ingests CycloneDX /
+      SPDX JSON, emits purl-identified referenced entries, and emits
+      `depends-on` edges.
 - [ ] Dependency entries carry SBOM-sourced attributes (licenses, description)
       and provenance properties (manifest path, tool name, timestamp).
 - [ ] Hardware-BOM ingestion reuses the same CycloneDX / SPDX pipeline for

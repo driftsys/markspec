@@ -20,11 +20,10 @@ that processes it.
 markspec format          # stamp ULIDs, normalize attributes
 markspec validate        # check broken refs, missing Ids
 markspec compile <paths> # build traceability graph → JSON
-markspec migrate         # rewrite legacy Id attributes
+                         # (ingests deps via SBOM tooling if configured)
 markspec export          # JSON → csv, reqif, yaml
 markspec insert          # scaffold entry block
 markspec profile         # add / publish / manage profiles
-markspec deps ingest     # ingest dependencies via SBOM tooling
 
 markspec doc build       # document PDF
 markspec book build      # PDF + HTML book
@@ -64,7 +63,6 @@ GitHub and GitLab — no tooling required to read.
   before processing.
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  type: requirement\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```
@@ -72,11 +70,10 @@ GitHub and GitLab — no tooling required to read.
 Every entry carries a single `Id:` attribute. A ULID value identifies an
 **identified** entry (content the project authors); a URI value (`urn:`, `doi:`,
 `pkg:`, `https:`, …) identifies a **referenced** entry (citation of an external
-artifact). Type and compliance vocabulary come from the active profile. See
-[ADR-009 — Core / Profile Boundary](docs/architecture/adr-009-core-profile-boundary.md)
-for the principle and
-[ADR-002 — Entry Model](docs/architecture/adr-002-entry-model.md) for the full
-entry specification.
+artifact). The entry's type (requirement, test, unit, standard, dependency, …)
+is inferred by the active profile from the display-ID prefix (`SRS_` →
+`type: software-requirement`); compliance vocabulary comes from the active
+profile.
 
 In PDF output, entry blocks render as admonition-style blocks with
 profile-driven color-coding by type, label pills on the title line, and italic
@@ -111,7 +108,6 @@ _Figure: High-level architecture of the braking system_
 /// than the configured debounce window.
 ///
 /// Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \
-/// type: requirement \
 /// Satisfies: SYS_BRK_0042 \
 /// Labels: ASIL-B
 #[test]

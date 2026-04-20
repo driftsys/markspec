@@ -1,27 +1,40 @@
 # Site Schema Specification
 
-> **Status (2026-04-20): revision in progress.** References to the four-family
-> entry model (STK/SYS/SRS/SAD/ICD/VAL/SIT/SWT as "entry types") in this
-> document predate
-> [ADR-009 — Core / Profile Boundary](../architecture/adr-009-core-profile-boundary.md).
-> Under the revised model, core entries have a **shape** (identified or
-> referenced) and a profile-declared **type**. The specific prefixes above are
-> examples of types that a compliance profile (e.g.,
-> `@markspec/profile-aspice-swe-mini`) declares, not core concepts. JSON schemas
-> emitted by `markspec site build` will expose `shape` + `type` rather than a
-> fixed family enumeration.
-
 This document specifies the static site generator (`markspec site build`) and
 its JSON API. It defines the output file tree, JSON schemas, HTML page types,
 build pipeline, inter-project dependency model, process project integration,
 tool configuration, and AI context delivery.
 
+## Entry model vocabulary in this document
+
+The site generator operates on MarkSpec's two core **entry shapes** —
+**identified** (ULID-valued `Id:`) and **referenced** (URI-valued `Id:`).
+Concrete **types** (`requirement`, `test`, `unit`, `standard`, `dependency`, …)
+are declared by the active profile; they are not a fixed core enumeration. The
+profile maps display-ID prefixes to types — a profile might declare
+`software-requirement: display-id-pattern: "SRS_{scope}_{n:04d}"`, so that any
+entry of the form `[SRS_BRK_0107]` is classified as type `software-requirement`
+without the author writing `type:` in source.
+
+Throughout this document, TYPE prefixes like `STK`, `SYS`, `SRS`, `SAD`, `ICD`,
+`VAL`, `SIT`, `SWT` refer to example profile-declared types from a hypothetical
+automotive profile; they illustrate the generator's output organization but are
+not core vocabulary.
+
+The generated API surfaces `shape` + `type` on each entry rather than a fixed
+family enumeration. HTML output is organized by type; per-type directories
+(`entries/software-requirement/`, `entries/unit-test/`, …) match the profile's
+declared vocabulary. Referenced entries are grouped under `entries/refs/`
+regardless of profile-declared type.
+
+---
+
 The site generator produces a complete static site with HTML pages and a JSON
-API covering all declared entry types (profile-declared under the revised model
-— see status note above), traceability, coverage, product BOM, and inter-project
-dependencies. The design follows the refhub pattern (specification-first,
-data-first, pregenerated, no runtime) but is configurable via `.markspec.toml`
-with overridable templates and pluggable page modules.
+API covering all declared entry types (profile-declared), traceability,
+coverage, product BOM, and inter-project dependencies. The design follows the
+refhub pattern (specification-first, data-first, pregenerated, no runtime) but
+is configurable via `.markspec.toml` with overridable templates and pluggable
+page modules.
 
 JSON schemas referenced by the generated API are published in the
 `driftsys/schemas` repository, not in each generated site.
@@ -101,9 +114,9 @@ Authors write entry IDs as usual. Resolution order:
 
 - [SRS_ABS_0001] Wheel speed sampling rate
 
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
   Satisfies: SYS_BRK_001\
-  References: ISO-26262-6 §7.4\
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+  References: ISO-26262-6 §7.4
 ```
 
 `SYS_BRK_001` is not found in the current project, so it is searched in

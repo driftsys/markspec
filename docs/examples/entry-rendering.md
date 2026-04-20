@@ -1,11 +1,11 @@
 # Entry Rendering Showcase
 
 This document demonstrates the admonition-style rendering for entries under a
-sample compliance profile, with label pills and cross-reference links. The
-`type:` attribute and cross-reference relation names (`Satisfies`,
-`Verifies`, `Derived-from`) come from the active profile — see
-[ADR-009](../architecture/adr-009-core-profile-boundary.md) for the
-core/profile split.
+sample compliance profile, with label pills and cross-reference links. Each
+entry's type (requirement, test, architecture, standard, dependency, …) is
+inferred by the active profile from the display-ID prefix — no `type:`
+attribute is written in source. Cross-reference relation names (`Satisfies`,
+`Verifies`, `Derived-from`) are likewise profile-declared.
 
 ## Requirements (req — blue)
 
@@ -16,7 +16,6 @@ core/profile split.
   brake pedal.
 
   Id: 01HGW3A2BCD5VWXYZABCDEFGHJ\
-  type: stakeholder-requirement\
   Labels: ASIL-B, safety-critical
 
 - [SYS_AEB_0012] Object threat assessment from radar tracks
@@ -25,7 +24,6 @@ core/profile split.
   time-to-collision, relative velocity, and object classification.
 
   Id: 01HGW3C4DEF6VWXYZABCDEFGHJ\
-  type: system-requirement\
   Satisfies: STK_AEB_0001\
   Labels: ASIL-B
 
@@ -35,7 +33,6 @@ core/profile split.
   sensor input before processing.
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  type: software-requirement\
   Satisfies: SYS_AEB_0012\
   Labels: ASIL-B, real-time, performance
 
@@ -52,7 +49,6 @@ alone.
   publish-subscribe message bus.
 
   Id: 01HGW4E5GHJ7VWXYZABCDEFGHJ\
-  type: software-architecture\
   Satisfies: STK_AEB_0001
 
 - [ICD_AEB_0010] Radar frame interface
@@ -61,7 +57,6 @@ alone.
   range, velocity, azimuth, and classification for each detected object.
 
   Id: 01HGW4F6HKM8VWXYZABCDEFGHJ\
-  type: interface-control-document\
   Satisfies: SAD_AEB_0001\
   Labels: interface
 
@@ -74,7 +69,6 @@ alone.
   velocity.
 
   Id: 01HGW5G7JMN9VWXYZABCDEFGHJ\
-  type: unit-test\
   Verifies: SWE_BRK_0107
 
 - [SIT_AEB_0012] Perception-to-decision integration
@@ -83,7 +77,6 @@ alone.
   a `High` threat level through the full perception–decision pipeline.
 
   Id: 01HGW5H8KPQ0VWXYZABCDEFGHJ\
-  type: integration-test\
   Verifies: SYS_AEB_0012\
   Labels: integration
 
@@ -97,7 +90,6 @@ Entry with no labels — pill group is not rendered:
   range [0, 250] bar.
 
   Id: 01HGW6J9NRS1VWXYZABCDEFGHJ\
-  type: software-requirement\
   Satisfies: SYS_AEB_0012
 
 Entry with many labels — pill group wraps to the next line:
@@ -108,7 +100,6 @@ Entry with many labels — pill group wraps to the next line:
   faults on all brake pressure sensors within one sample period.
 
   Id: 01HGW6K0MST2VWXYZABCDEFGHJ\
-  type: software-requirement\
   Satisfies: SYS_AEB_0012\
   Labels: ASIL-B, safety-critical, real-time, performance, diagnostics, fault-tolerance
 
@@ -120,7 +111,6 @@ Entry with multiple cross-references:
   brake pressure sensors.
 
   Id: 01HGW6N1NVW3VWXYZABCDEFGHJ\
-  type: software-requirement\
   Satisfies: SYS_AEB_0012\
   Derived-from: STK_AEB_0001\
   Labels: ASIL-B, redundancy
@@ -135,11 +125,9 @@ URI, and the display ID serves as a pandoc-style slug:
   Road vehicles — Functional safety — Part 6: Software level.
 
   Id: urn:iso:std:iso:26262:-6:ed-2\
-  type: standard\
   Labels: functional-safety, automotive
 
 - [serde] serde Rust serialization framework
 
   Id: pkg:cargo/serde@1.0.0\
-  type: dependency\
   Labels: dependency, open-source

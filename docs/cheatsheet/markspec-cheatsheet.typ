@@ -121,7 +121,6 @@ Slug: `fig.architecture-overview`
   raw inputs to eliminate noise.
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  type: software-requirement\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```]
@@ -171,7 +170,6 @@ entries (external citations) carry a URI (`urn:`, `doi:`, `pkg:`, `https:`,
  * the stable output.
  *
  * Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ\
- * type: unit-test\
  * Verifies: SRS_BRK_0107\
  * Tests: braking_core::controller::debounce
  */
