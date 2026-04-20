@@ -1,15 +1,17 @@
 # ADR-007: Document Structure — Front Matter, Title, and Body
 
 Status: Proposed\
-Date: 2026-04-17\
+Date: 2026-04-17 (revised 2026-04-20 for ADR-009 alignment)\
 Scope: MarkSpec\
-Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md)
+Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md),
+[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
 
 ## Context
 
-ADR-002 defines the model for entries inside a document: four families, each
-with identity, attributes, and properties. It does not specify what a
-**document** itself is, how it is identified, or what metadata it carries.
+ADR-002 (as revised alongside ADR-009) defines the model for entries inside a
+document: two shapes (identified, referenced), each with identity, attributes,
+and properties. It does not specify what a **document** itself is, how it is
+identified, or what metadata it carries.
 
 In practice, many organizations need document-level identity and metadata that
 is distinct from the entries the document contains:
@@ -109,7 +111,7 @@ repurposed).
 
 | Key             | Type          | Scope            | Purpose                                           |
 | --------------- | ------------- | ---------------- | ------------------------------------------------- |
-| `document-id`   | `id`          | core (identity)  | Document ULID; bare 26-char Crockford base32      |
+| `document-id`   | `id`          | core (identity)  | Document identity; ULID or URI per ADR-009 §2     |
 | `document-type` | `enum`        | core (identity)  | Overrides filename/directive-based type detection |
 | `labels`        | `tag-list`    | core (universal) | Classification tags (includes `DRAFT` marker)     |
 | `deprecated`    | `string`      | core (universal) | Retirement reason (non-replacement case)          |
@@ -120,7 +122,11 @@ repurposed).
 
 Core keys mirror the universal attribute set from ADR-002 Part 1, plus two
 document-specific identity keys (`document-id`, `document-type`). Attribute
-value types follow the same 14-type system defined in ADR-002.
+value types follow the same 14-type system defined in ADR-002. The `document-id`
+value follows the same ULID-or-URI discrimination rule as the entry-level `Id:`
+attribute (ADR-009 §2); project-authored documents conventionally use a ULID,
+but a document may alternatively carry a URI when it represents a stable
+external artifact.
 
 Document lifecycle follows the same model as entry lifecycle (ADR-002
 §Retirement semantics and §Draft state):
@@ -202,8 +208,8 @@ Front matter keys use **kebab-case** (`document-id`, not `Document-id`). This
 matches YAML-ecosystem convention across Hugo, Jekyll, Docusaurus, Kubernetes,
 Helm, and dozens of other YAML-consuming tools.
 
-Entry attribute trailers continue to use **Title-Case** (`Spec-id:`,
-`Derived-from:`) because they follow git-trailers convention.
+Entry attribute trailers continue to use **Title-Case** (`Id:`, `Derived-from:`)
+because they follow git-trailers convention.
 
 Each syntax follows its own ecosystem's convention; the parser normalizes both
 forms to the same internal key.
