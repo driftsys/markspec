@@ -161,3 +161,54 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: identified.traceability parsed", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  identified:
+    traceability:
+      Derived-from:
+        target: [{shape: identified}]
+        cardinality: 0..N
+        required: false
+`);
+  assertEquals(result.diagnostics.length, 0);
+  const trace = result.manifest?.identified.traceability;
+  assertEquals(trace?.size, 1);
+  const rule = trace?.get("Derived-from");
+  assertEquals(rule?.target.length, 1);
+  assertEquals(rule?.target[0], { shape: "identified" });
+  assertEquals(rule?.required, false);
+  assertEquals(rule?.cardinality?.lower, 0);
+  assertEquals(rule?.cardinality?.upper, Infinity);
+});
+
+Deno.test("parseManifest: traceability rejects bad shape matcher", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  identified:
+    traceability:
+      Bad:
+        target: [{shape: nonsense}]
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: traceability target is required", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  identified:
+    traceability:
+      MissingTarget:
+        required: true
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});

@@ -12,6 +12,8 @@ import {
   type AttrDecl,
   type Cardinality,
   LIST_VALUE_TYPES,
+  type TargetMatcher,
+  type TraceRule,
   VALUE_TYPES,
   type ValueType,
 } from "../model/mod.ts";
@@ -240,6 +242,112 @@ function parseAttrList(
   return out;
 }
 
+function parseTargetMatcher(
+  raw: unknown,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): TargetMatcher | undefined {
+  if (typeof raw === "string" && raw.length > 0) return raw;
+  if (raw != null && typeof raw === "object" && !Array.isArray(raw)) {
+    const r = raw as Record<string, unknown>;
+    if (
+      typeof r.shape === "string" &&
+      (r.shape === "identified" || r.shape === "referenced")
+    ) {
+      return { shape: r.shape };
+    }
+  }
+  diagnostics.push({
+    code: "PROFILE-LOAD-003",
+    severity: "error",
+    message:
+      `${context}: target matcher must be a type-name string or {shape: identified|referenced}`,
+    location: { file: sourcePath, line: 1, column: 1 },
+  });
+  return undefined;
+}
+
+function parseTraceRule(
+  raw: unknown,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): TraceRule | undefined {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: trace rule must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.target) || r.target.length === 0) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: trace rule requires non-empty 'target' list`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const targets: TargetMatcher[] = [];
+  for (const item of r.target) {
+    const m = parseTargetMatcher(
+      item,
+      `${context}.target`,
+      sourcePath,
+      diagnostics,
+    );
+    if (m !== undefined) targets.push(m);
+  }
+  if (targets.length === 0) return undefined;
+  const cardinality = r.cardinality !== undefined
+    ? parseCardinality(
+      r.cardinality,
+      { lower: 0, upper: Infinity },
+      `${context}.cardinality`,
+      sourcePath,
+      diagnostics,
+    )
+    : undefined;
+  const required = r.required === true;
+  return { target: targets, cardinality, required };
+}
+
+function parseTraceabilityMap(
+  raw: unknown,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): Map<string, TraceRule> {
+  const out = new Map<string, TraceRule>();
+  if (raw === undefined) return out;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: 'traceability' must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return out;
+  }
+  for (
+    const [linkName, ruleRaw] of Object.entries(raw as Record<string, unknown>)
+  ) {
+    const rule = parseTraceRule(
+      ruleRaw,
+      `${context}.${linkName}`,
+      sourcePath,
+      diagnostics,
+    );
+    if (rule) out.set(linkName, rule);
+  }
+  return out;
+}
+
 /**
  * Parse and validate a raw markspec.yaml string.
  *
@@ -385,7 +493,12 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
-  // identifiedTraceability parsed in Task 1.8; empty map for now
+  const identifiedTraceability = parseTraceabilityMap(
+    idRaw.traceability,
+    "profile.identified.traceability",
+    sourcePath,
+    diagnostics,
+  );
 
   const referencedRequired = parseStringList(
     refRaw.required,
@@ -418,7 +531,7 @@ export function parseManifest(
     identified: {
       required: identifiedRequired,
       attributes: identifiedAttributes,
-      traceability: new Map(),
+      traceability: identifiedTraceability,
     },
     referenced: {
       required: referencedRequired,
