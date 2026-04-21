@@ -37,6 +37,44 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "documents",
 ]);
 
+const ALLOWED_IDENTIFIED_KEYS = new Set([
+  "required",
+  "attributes",
+  "traceability",
+]);
+const ALLOWED_REFERENCED_KEYS = new Set(["required", "attributes"]);
+
+function parseShapeScope(
+  raw: unknown,
+  allowedKeys: Set<string>,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): Record<string, unknown> | undefined {
+  if (raw === undefined) return {};
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const r = raw as Record<string, unknown>;
+  for (const key of Object.keys(r)) {
+    if (!allowedKeys.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${context}: unknown key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+  }
+  return r;
+}
+
 /** Result of parsing a profile manifest. */
 export interface ParseManifestResult {
   readonly manifest: ProfileManifest | null;
@@ -316,6 +354,56 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  const idRaw = parseShapeScope(
+    profileSection.identified,
+    ALLOWED_IDENTIFIED_KEYS,
+    "profile.identified",
+    sourcePath,
+    diagnostics,
+  );
+  const refRaw = parseShapeScope(
+    profileSection.referenced,
+    ALLOWED_REFERENCED_KEYS,
+    "profile.referenced",
+    sourcePath,
+    diagnostics,
+  );
+
+  if (idRaw === undefined || refRaw === undefined || diagnostics.length > 0) {
+    return { manifest: null, diagnostics };
+  }
+
+  const identifiedRequired = parseStringList(
+    idRaw.required,
+    "profile.identified.required",
+    sourcePath,
+    diagnostics,
+  );
+  const identifiedAttributes = parseAttrList(
+    idRaw.attributes,
+    "profile.identified.attributes",
+    sourcePath,
+    diagnostics,
+  );
+  // identifiedTraceability parsed in Task 1.8; empty map for now
+
+  const referencedRequired = parseStringList(
+    refRaw.required,
+    "profile.referenced.required",
+    sourcePath,
+    diagnostics,
+  );
+  const referencedAttributes = parseAttrList(
+    refRaw.attributes,
+    "profile.referenced.attributes",
+    sourcePath,
+    diagnostics,
+  );
+
+  if (diagnostics.length > 0) {
+    return { manifest: null, diagnostics };
+  }
+
   const manifest: ProfileManifest = {
     id,
     version,
@@ -327,8 +415,15 @@ export function parseManifest(
     universalRequired,
     universalAttributes,
     labels,
-    identified: { required: [], attributes: [], traceability: new Map() },
-    referenced: { required: [], attributes: [] },
+    identified: {
+      required: identifiedRequired,
+      attributes: identifiedAttributes,
+      traceability: new Map(),
+    },
+    referenced: {
+      required: referencedRequired,
+      attributes: referencedAttributes,
+    },
     types: new Map(),
     documents: { types: [], frontMatter: [] },
   };

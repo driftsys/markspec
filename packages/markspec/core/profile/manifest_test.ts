@@ -125,3 +125,39 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: shape scopes parsed", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  identified:
+    required: [Rationale]
+    attributes:
+      - name: Rationale
+        type: text
+  referenced:
+    attributes:
+      - name: Description
+        type: text
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.identified.required, ["Rationale"]);
+  assertEquals(result.manifest?.identified.attributes.length, 1);
+  assertEquals(result.manifest?.identified.attributes[0].name, "Rationale");
+  assertEquals(result.manifest?.referenced.attributes.length, 1);
+  assertEquals(result.manifest?.referenced.attributes[0].name, "Description");
+});
+
+Deno.test("parseManifest: referenced.traceability is not a recognized key", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  referenced:
+    traceability:
+      Something: {target: []}
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
