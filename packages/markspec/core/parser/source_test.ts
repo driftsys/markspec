@@ -42,7 +42,7 @@ Deno.test("parseSource: extracts Rust doc comment entry", async () => {
 ///
 /// The sensor driver shall reject transient noise.
 ///
-/// Id: SRS_01HGW2Q8MNP3 \\
+/// Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
 /// Satisfies: SYS_BRK_0042 \\
 /// Labels: ASIL-B
 #[test]
@@ -53,8 +53,8 @@ fn swt_brk_0001() {}
   assertEquals(result.entries.length, 1);
   assertEquals(result.entries[0].displayId, "SRS_BRK_0001");
   assertEquals(result.entries[0].title, "Sensor input debouncing");
-  assertEquals(result.entries[0].id, "SRS_01HGW2Q8MNP3");
-  assertEquals(result.entries[0].entryType, "SRS");
+  assertEquals(result.entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(result.entries[0].shape, "identified");
   assertEquals(result.entries[0].source, "doc-comment");
   assertEquals(result.entries[0].location.file, "src/braking.rs");
   assertEquals(result.entries[0].location.line, 1);

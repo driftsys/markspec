@@ -36,8 +36,7 @@ function makeEntry(displayId: string): Entry {
     body: "",
     attributes: [],
     id: undefined,
-    entryType: displayId.split("_")[0],
-    family: "spec",
+    shape: "identified",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
   };

@@ -57,13 +57,12 @@ Deno.test("model types are constructible", () => {
     body: "The sensor driver shall debounce raw inputs.",
     attributes: [attr],
     id: "SRS_00000000000000000000000001",
-    entryType: "SRS",
-    family: "spec",
+    shape: "identified",
     location: loc,
     source: "markdown",
   };
   assertEquals(entry.displayId, "SRS_BRK_0001");
-  assertEquals(entry.entryType, "SRS");
+  assertEquals(entry.shape, "identified");
 
   const config: ProjectConfig = {
     name: "test-project",

@@ -6,45 +6,25 @@
 
 export {
   ATTRIBUTE_CATALOG,
-  attributesForFamily,
   attributeSpec,
-  ELEMENT_KIND_VALUES,
-  STATUS_VALUES,
-  TEST_LEVEL_VALUES,
+  UNIVERSAL_ATTRIBUTE_KEYS,
 } from "./attributes.ts";
 export type { AttributeSpec } from "./attributes.ts";
-
-// ---------------------------------------------------------------------------
-// Builtin entry types
-// ---------------------------------------------------------------------------
-
-/** Builtin requirement, architecture, and verification types. */
-export type BuiltinType =
-  | "STK"
-  | "SYS"
-  | "SRS"
-  | "SAD"
-  | "ICD"
-  | "VAL"
-  | "SIT"
-  | "SWT";
-
-/**
- * Entry type — a builtin type or any user-defined uppercase string.
- * Non-builtin types are valid; tooling validates format but not
- * traceability direction or level.
- */
-export type EntryType = BuiltinType | (string & Record<never, never>);
 
 // ---------------------------------------------------------------------------
 // Display ID
 // ---------------------------------------------------------------------------
 
 /**
- * Human-readable entry identifier.
+ * Human-readable entry identifier from the `[...]` bracket marker.
  *
- * Typed entries match `TYPE_XYZ_NNN[N]` (e.g., `SRS_BRK_001`, `SRS_BRK_0001`).
- * Reference entries are slugs: `[A-Za-z0-9-]+` (e.g., `ISO-26262-6`).
+ * The core accepts any non-empty, project-unique string. Profiles may
+ * tighten by declaring per-type `display-id-pattern:` templates, used for
+ * both ID minting and type inference.
+ *
+ * For referenced entries the display ID is a slug (pandoc/BibTeX cite-key
+ * convention, e.g., `ISO-26262-6`, `serde`, `smith2021`). The leading `@`
+ * in `[@slug]` is accepted as Pandoc sugar and stripped during parsing.
  */
 export type DisplayId = string;
 
@@ -53,8 +33,10 @@ export type DisplayId = string;
 // ---------------------------------------------------------------------------
 
 /**
- * Universally unique ID in `TYPE_ULID` format (e.g., `SRS_01HGW2Q8MNP3`).
- * Assigned by tooling, never hand-authored, never changes once assigned.
+ * Universally unique identifier, bare 26-character Crockford base32.
+ *
+ * Used as the `Id:` attribute value for identified entries. Assigned by
+ * tooling, never hand-authored, immutable once assigned.
  */
 export type Ulid = string;
 
@@ -85,7 +67,7 @@ export interface Attribute {
 }
 
 /**
- * Collated attributes keyed by Title-Case attribute name per ADR-002 §2.6.
+ * Collated attributes keyed by Title-Case attribute name.
  *
  * Repeatable types (`id-list`, `tag-list`, `external-id`) carry one entry
  * per value after CSV-splitting and multi-line merging; `citation` carries
@@ -101,66 +83,64 @@ export interface Attribute {
 export type TypedAttributes = ReadonlyMap<string, readonly string[]>;
 
 // ---------------------------------------------------------------------------
-// Entry
+// Entry shape and identity
 // ---------------------------------------------------------------------------
 
 /** The origin format of the entry. */
 export type EntrySource = "markdown" | "doc-comment";
 
 /**
- * Entry family per ADR-002.
+ * Entry shape — one of two semantics-free categories the core recognizes.
  *
- * Four families, each with a dedicated identity attribute:
- * - `spec` — project declaration (requirement, architecture, decision, hazard)
- * - `test` — verification of declared behavior (automated or manual)
- * - `element` — canonical system object (code unit, artifact, dependency, hardware)
- * - `reference` — bibliographic citation of an external artifact
+ * - `identified` — content unit the project authors and owns; `Id:` value
+ *   is a bare ULID.
+ * - `referenced` — citation pointing to an external artifact; `Id:` value
+ *   is a scheme-qualified URI (RFC 3986): `urn:`, `doi:`, `pkg:`,
+ *   `https:`, `isbn:`, …
  *
- * Family is determined by the identity attribute the entry carries
- * (`Spec-id` / `Test-id` / `Element-id` / `Reference-id`), not by display-ID
- * pattern or document context. See {@linkcode IdentityAttribute}.
+ * Shape is determined by the `Id:` attribute's value format, not by the
+ * display-ID format or the document context. Concrete types
+ * (`requirement`, `test`, `unit`, `standard`, `dependency`, …) are declared
+ * by the active profile, not by the core.
  */
-export type EntryFamily = "spec" | "test" | "element" | "reference";
+export type EntryShape = "identified" | "referenced";
+
+/** Core-reserved identity attribute name. */
+export const IDENTITY_KEY = "Id" as const;
+
+/** Regex matching a bare ULID (identified-entry `Id:` value). */
+export const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /**
- * Identity attribute key per ADR-002 Part 6.
+ * Regex matching a scheme-qualified URI (RFC 3986 §3.1 scheme).
  *
- * Every entry carries exactly one of these; its presence determines the family.
+ * A scheme starts with a letter, followed by letters/digits/`+`/`-`/`.`,
+ * terminated by `:`. This is the gate that distinguishes a URI value from
+ * a bare slug in an `Id:` attribute.
  */
-export type IdentityAttribute =
-  | "Spec-id"
-  | "Test-id"
-  | "Element-id"
-  | "Reference-id";
-
-/** Map from identity attribute key to family. */
-export const FAMILY_BY_IDENTITY_KEY: Readonly<
-  Record<IdentityAttribute, EntryFamily>
-> = {
-  "Spec-id": "spec",
-  "Test-id": "test",
-  "Element-id": "element",
-  "Reference-id": "reference",
-};
-
-/** Map from family to identity attribute key. */
-export const IDENTITY_KEY_BY_FAMILY: Readonly<
-  Record<EntryFamily, IdentityAttribute>
-> = {
-  spec: "Spec-id",
-  test: "Test-id",
-  element: "Element-id",
-  reference: "Reference-id",
-};
+export const URI_SCHEME_RE = /^[A-Za-z][A-Za-z0-9+\-.]*:/;
 
 /**
- * Origin of an attribute value per ADR-002 Part 1.
+ * Decide the shape of an entry from its `Id:` value.
+ *
+ * Returns `undefined` for inputs that are neither a bare ULID nor a
+ * scheme-qualified URI — the caller emits a validation error.
+ */
+export function shapeFromIdValue(value: string): EntryShape | undefined {
+  if (ULID_RE.test(value)) return "identified";
+  if (URI_SCHEME_RE.test(value)) return "referenced";
+  return undefined;
+}
+
+/**
+ * Origin of an attribute value.
  *
  * - `authored` — written by the author in the source file.
  * - `inferred` — pre-filled by `markspec format` from a heuristic,
  *   committed to source, author-overridable.
  * - `assigned` — generated fresh by `markspec format` at creation time
- *   (identity attributes). Never derived, never changes after assignment.
+ *   (the ULID inside an identified-entry `Id:`). Never derived, never
+ *   changes after assignment.
  * - `generated` — computed at build time from inverse relations.
  *   Never committed to source.
  */
@@ -171,7 +151,7 @@ export type AttributeOrigin =
   | "generated";
 
 /**
- * Attribute value type per ADR-002 Part 1 (14 types).
+ * Attribute value type (14 types).
  *
  * Cardinality is encoded in the type:
  * - Repeatable: `id-list`, `tag-list`, `citation`, `external-id`.
@@ -197,14 +177,11 @@ export type AttributeValueType =
   | "boolean";
 
 /**
- * Observed properties of an entry per ADR-002 Part 1 and ADR-006 (stub).
+ * Observed properties of an entry.
  *
  * Properties are model-level observations — never authored in source, never
  * round-trip through `markspec format`, not in git diffs. Each category is
  * optional; absence means "not observed (yet)".
- *
- * Observation contracts for git/sync/build are deferred to ADR-006. Only
- * `file.path` is populated today (set by the parser from the parse options).
  */
 export interface EntryProperties {
   /** Repository location. */
@@ -231,14 +208,31 @@ export interface EntryProperties {
     readonly resolutionSource?: string;
     readonly registryOrigin?: string;
   };
+  /**
+   * Entry-source provenance — set when an entry is produced by an adapter
+   * other than the Markdown parser (doc-comment extractor, SBOM ingester,
+   * ECAD/PLM connector).
+   */
+  readonly source?: {
+    readonly type: string;
+    readonly adapter?: string;
+    readonly language?: string;
+    readonly rule?: string;
+    readonly extractedAt?: string;
+  };
 }
 
 /**
  * A parsed MarkSpec entry — the core AST node.
  *
- * Covers both spec entries (`SRS_BRK_0001`) and reference entries
- * (`ISO-26262-6`). The `family` field discriminates; `entryType` is the
- * TYPE prefix for spec entries, `undefined` for reference entries.
+ * The `shape` field discriminates the two core categories:
+ * - `identified` entries carry a bare ULID in `id` (populated).
+ * - `referenced` entries carry a URI in `id` (populated).
+ *
+ * The `type` field holds the active profile's classification for the entry
+ * (inferred from the display-ID pattern or authored explicitly via a
+ * `type:` attribute). It is `undefined` when no profile rule classifies
+ * the entry.
  */
 export interface Entry {
   /** Human-readable display ID from the `[...]` marker. */
@@ -250,28 +244,36 @@ export interface Entry {
   /** Parsed attribute block (`Key: Value` lines), in source order. */
   readonly attributes: readonly Attribute[];
   /**
-   * Collated, typed view of {@linkcode Entry.attributes} per ADR-002 §2.6.
+   * Collated, typed view of {@linkcode Entry.attributes}.
    *
    * Populated by the parser alongside `attributes`. Downstream layers
    * (validator, compiler) consult this map for typed processing; the
    * formatter still reads `attributes` for exact round-trip.
    */
   readonly typedAttributes?: TypedAttributes;
-  /** ULID from the `Id:` attribute, if present (spec entries only). */
-  readonly id: Ulid | undefined;
-  /** Resolved entry type prefix (e.g., `SRS`), if this is a spec entry. */
-  readonly entryType: EntryType | undefined;
-  /** Entry family: spec (project declaration) or reference (external citation). */
-  readonly family: EntryFamily;
+  /**
+   * Value of the `Id:` attribute — a ULID for identified entries, a URI for
+   * referenced entries. Absent when `Id:` was missing or malformed.
+   */
+  readonly id?: string;
+  /**
+   * Profile-declared type for this entry, when classified.
+   *
+   * Normally inferred by the active profile from the display-ID prefix
+   * matching a declared `display-id-pattern:`. An explicit `type:`
+   * attribute in source overrides inference. Absent when no profile rule
+   * matches (e.g., free-form display ID with no `type:` attribute).
+   */
+  readonly type?: string;
+  /** Entry shape — `identified` or `referenced`. */
+  readonly shape: EntryShape;
   /** Where the entry was found. */
   readonly location: SourceLocation;
   /** Whether this came from a Markdown file or a doc comment. */
   readonly source: EntrySource;
   /**
-   * Observed properties (file path, git history, sync state, build origin).
-   *
-   * Populated progressively: Phase 2 wires `file.path`; ADR-006 work wires
-   * the rest. Consumers must tolerate missing values.
+   * Observed properties (file path, git history, sync state, build origin,
+   * source-adapter provenance).
    */
   readonly properties?: EntryProperties;
 }
@@ -406,11 +408,13 @@ export interface InlineRef {
 // ---------------------------------------------------------------------------
 
 /**
- * Kind of directional link between entries.
+ * Kind of directional link between entries — relation name lifted from the
+ * source attribute.
  *
- * Extends the four-link spec/reference model to cover all ADR-002 relations:
- * Test.`Verifies`, Test.`Tests`, Element.`Realizes`, Element.`Depends-on`,
- * Element.`Part-of`, Element.`Generated-from`, universal `Supersedes`.
+ * The core bakes in only `supersedes` (universal retirement). All other
+ * relation names listed here are conventions recognized by shipped profile
+ * packages; in a profile-aware pipeline, link kinds come from the active
+ * profile's `traceability:` declarations rather than this closed union.
  */
 export type LinkKind =
   | "satisfies"
@@ -438,16 +442,20 @@ export interface Link {
 // ---------------------------------------------------------------------------
 
 /**
- * Document-level attributes authored in YAML front matter per ADR-007.
+ * Document-level attributes authored in YAML front matter.
  *
  * Keys use kebab-case (YAML-ecosystem convention). Core keys below; profiles
  * declare additional keys; `.markspec.yaml` → `frontMatter.allowedKeys`
  * allowlists ecosystem keys (Hugo, Jekyll, Docusaurus). Keys forbidden by
- * ADR-007 (`title`, `description`, `date`, `authors`, …) are rejected by
- * MSL-D001 and never reach this map.
+ * the language spec (`title`, `description`, `date`, `authors`, …) are
+ * rejected by MSL-D001 and never reach this map.
  */
 export interface DocumentAttributes {
-  /** Document ULID — bare 26-char Crockford base32. */
+  /**
+   * Document identity — ULID (identified) or URI (referenced), same
+   * discrimination rule as entry `Id:`. Conventionally a ULID for
+   * project-authored documents.
+   */
   readonly "document-id"?: string;
   /** Overrides filename/directive-based type detection. */
   readonly "document-type"?: string;
@@ -468,11 +476,11 @@ export interface DocumentAttributes {
 }
 
 /**
- * Observed document properties per ADR-007 §6.2 — derived, never authored.
+ * Observed document properties — derived, never authored.
  *
- * The H1, first paragraph, git history, and filesystem are the authoritative
- * sources. These fields are populated progressively as observation support
- * lands.
+ * The H1, first paragraph, git history, and filesystem are the
+ * authoritative sources. These fields are populated progressively as
+ * observation support lands.
  */
 export interface DocumentProperties {
   /** H1 heading, or filename stem fallback. */
@@ -488,11 +496,11 @@ export interface DocumentProperties {
 }
 
 /**
- * A parsed MarkSpec document per ADR-007.
+ * A parsed MarkSpec document.
  *
- * A Markdown (or source) file containing entries, optionally preceded by YAML
- * front matter. Document metadata is split into authored `attributes` (front
- * matter) and observed `properties` (H1, git, filesystem).
+ * A Markdown (or source) file containing entries, optionally preceded by
+ * YAML front matter. Document metadata is split into authored `attributes`
+ * (front matter) and observed `properties` (H1, git, filesystem).
  */
 export interface Document {
   /** File path (absolute or project-relative). */

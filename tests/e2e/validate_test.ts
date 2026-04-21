@@ -20,7 +20,7 @@ Deno.test("validate: valid file exits 0", async () => {
 
   Body text.
 
-  Id: SRS_00000000000000000000000001\\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
   Labels: ASIL-B
 `,
     },
@@ -50,7 +50,7 @@ Deno.test("validate: missing Id exits 1", async () => {
   assertStringIncludes(stderr, "missing Id");
 });
 
-Deno.test("validate: broken Satisfies reference exits 1", async () => {
+Deno.test("validate: unresolved References citation exits 1 (MSL-T005)", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
       "req.md": `# Test
@@ -59,15 +59,15 @@ Deno.test("validate: broken Satisfies reference exits 1", async () => {
 
   Body text.
 
-  Id: SRS_00000000000000000000000001\\
-  Satisfies: SYS_BRK_9999\\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+  References: UNKNOWN-STANDARD\\
   Labels: ASIL-B
 `,
     },
   });
   assertEquals(code, 1);
-  assertStringIncludes(stderr, "MSL-T001");
-  assertStringIncludes(stderr, "SYS_BRK_9999");
+  assertStringIncludes(stderr, "MSL-T005");
+  assertStringIncludes(stderr, "UNKNOWN-STANDARD");
 });
 
 // ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ Deno.test("validate: warning only exits 2", async () => {
 
   Body text.
 
-  Id: SRS_00000000000000000000000001\\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
   CustomKey: some value\\
   Labels: ASIL-B
 `,
@@ -107,7 +107,7 @@ Deno.test("validate: --strict promotes warning to error → exit 1", async () =>
 
   Body text.
 
-  Id: SRS_00000000000000000000000001\\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
   CustomKey: some value\\
   Labels: ASIL-B
 `,
@@ -154,7 +154,7 @@ Deno.test("validate: valid Rust source file exits 0", async () => {
 ///
 /// The sensor driver shall debounce.
 ///
-/// Id: SRS_00000000000000000000000001
+/// Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 fn debounce() {}
 `,
     },
@@ -178,7 +178,7 @@ fn debounce() {}
   assertStringIncludes(stderr, "MSL-R003");
 });
 
-Deno.test("validate: mixed .md and .rs files", async () => {
+Deno.test("validate: mixed .md and .rs files — no error diagnostics", async () => {
   const { code } = await markspec(["validate", "req.md", "lib.rs"], {
     files: {
       "req.md": `# Test
@@ -187,18 +187,19 @@ Deno.test("validate: mixed .md and .rs files", async () => {
 
   Body.
 
-  Id: SYS_00000000000000000000000001
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
 `,
       "lib.rs": `/// [SRS_BRK_0001] Software requirement
 ///
 /// Body.
 ///
-/// Id: SRS_00000000000000000000000002\\
-/// Satisfies: SYS_BRK_0042
+/// Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
 fn impl_debounce() {}
 `,
     },
   });
+  // Exit 0 when no errors; warnings (including MSL-R010 for unknown attrs)
+  // produce exit 2, so the fixture uses only universal attributes.
   assertEquals(code, 0);
 });
 

@@ -2,18 +2,12 @@
  * @module parser/markdown
  *
  * CommonMark + MarkSpec extension parser. Walks the mdast AST to detect
- * `- [TYPE_XYZ_NNN[N]]` entry blocks and extract structured attributes.
+ * `- [DISPLAY_ID] Title` entry blocks and extract structured attributes.
  */
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
-import type {
-  Attribute,
-  Entry,
-  EntryFamily,
-  EntryType,
-  IdentityAttribute,
-} from "../model/mod.ts";
-import { FAMILY_BY_IDENTITY_KEY } from "../model/mod.ts";
+import type { Attribute, Entry, EntryShape } from "../model/mod.ts";
+import { IDENTITY_KEY, shapeFromIdValue } from "../model/mod.ts";
 import {
   collateAttributes,
   parseAttributes,
@@ -25,96 +19,47 @@ import { processor } from "./remark.ts";
 export interface ParseMarkdownOptions {
   /** File path used in source locations. */
   readonly file?: string;
-  /** Is this a references document? If undefined, auto-detect from file path. */
+  /**
+   * Is this a references document? If undefined, auto-detect from file path.
+   * When true, `[slug]` items without an `Id:` attribute are still admitted
+   * as referenced-entry candidates (the validator flags the missing `Id:`).
+   */
   readonly isReferencesDoc?: boolean;
 }
 
 /**
- * Spec / test entry display ID pattern per ADR-002 §Annex B.
- * TYPE = 2-6 uppercase letters
- * DOMAIN = 3-8 uppercase alphanumeric (first letter uppercase)
- * SUBDOMAIN = optional, same as DOMAIN
- * NNNN = 3-6 digits, must be > 0
- * Shared by spec and test families — discriminated by identity attribute.
+ * Slug pattern for referenced-entry display IDs.
+ *
+ * Pandoc/BibTeX cite-key convention, restricted to a portable character set
+ * (`.`, `/`, `_`, `-` accepted inside; must start with a letter and end
+ * with an alphanumeric).
  */
-const TYPED_ID_RE =
-  /^([A-Z]{2,6})_[A-Z][A-Z0-9]{2,7}(_[A-Z][A-Z0-9]{2,7})?_\d{3,6}$/;
+const SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
+
+/** Match `[...]` at the start of a list item paragraph. Captures: [1] = display ID, [2] = title. */
+const ENTRY_START_RE = /^\[([^\]]+)\]\s*(.*)$/;
 
 /**
- * Reference entry slug pattern per ADR-002 §Part 3 (widened from the old
- * narrow subset to include `.`, `/`, `_`, and `-` inside the slug, matching
- * Pandoc citation-key convention's disciplined subset).
- */
-const REF_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
-
-/**
- * Element entry display ID pattern per ADR-002 §Part 5.
- * Optional leading `::` marks an absolute path; `::` is the hierarchy
- * separator between segments; `.` and `/` may appear inside a segment.
- */
-const ELEMENT_ID_RE =
-  /^(::)?[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?(::[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?)*$/;
-
-/** Identity-attribute keys per ADR-002 Part 6. */
-const IDENTITY_KEYS: readonly IdentityAttribute[] = [
-  "Spec-id",
-  "Test-id",
-  "Element-id",
-  "Reference-id",
-];
-
-/** Display-ID regex for each family (post-identity-attribute discrimination). */
-function displayIdMatchesFamily(
-  displayId: string,
-  family: EntryFamily,
-): { matches: boolean; entryType: EntryType | undefined } {
-  switch (family) {
-    case "spec":
-    case "test": {
-      const m = TYPED_ID_RE.exec(displayId);
-      return {
-        matches: m !== null,
-        entryType: m?.[1] as EntryType | undefined,
-      };
-    }
-    case "element":
-      return {
-        matches: ELEMENT_ID_RE.test(displayId),
-        entryType: undefined,
-      };
-    case "reference":
-      return { matches: REF_SLUG_RE.test(displayId), entryType: undefined };
-  }
-}
-
-/**
- * Find the sole identity attribute on an entry. Returns undefined when none
- * present; returns the first attribute when more than one is present (a
- * condition the validator flags as MSL-R003 in Phase 3).
+ * Find the `Id:` attribute on an entry. Returns undefined when absent. If
+ * more than one `Id:` is present, returns the first — the validator flags
+ * this as MSL-R003.
  */
 function findIdentityAttribute(
   attributes: readonly Attribute[],
 ): Attribute | undefined {
   for (const attr of attributes) {
-    if ((IDENTITY_KEYS as readonly string[]).includes(attr.key)) {
-      return attr;
-    }
+    if (attr.key === IDENTITY_KEY) return attr;
   }
   return undefined;
 }
 
 /**
- * Match a display ID in `[...]` at the start of a list item paragraph.
- * Captures: [1] = full display ID, [2] = title (rest of line).
- */
-const ENTRY_START_RE = /^\[([^\]]+)\]\s*(.*)$/;
-
-/**
  * Parse a Markdown string and return all MarkSpec entries found.
  *
- * Walks the mdast AST to detect `- [DISPLAY_ID] Title` list items
- * with indented body content. Extracts display ID, title, body,
- * and trailing attribute blocks.
+ * Walks the mdast AST to detect `- [DISPLAY_ID] Title` list items with
+ * indented body content. Extracts display ID, title, body, and trailing
+ * attribute blocks. Entry shape (identified or referenced) is decided by
+ * the `Id:` attribute's value format.
  *
  * @param markdown - Markdown source text
  * @param options - Parse options (file path for source locations)
@@ -251,55 +196,50 @@ function extractEntry(
 
   if (!displayId) return undefined;
 
-  // Strip optional leading `@` on reference display IDs for Pandoc citation
-  // compatibility (ADR-002 §Part 3). Canonical slug never contains `@`.
+  // Strip optional leading `@` on referenced-entry display IDs for Pandoc
+  // citation compatibility. Canonical slug never contains `@`.
   if (displayId.startsWith("@")) displayId = displayId.slice(1);
 
-  // Extract body content and attributes first — identity-attribute-based
-  // family discrimination per ADR-002 Part 6 depends on the attribute block.
+  // Extract body content and attributes.
   const bodyContent = extractBodyContent(item, markdown);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
 
-  let family: EntryFamily | undefined;
-  let entryType: EntryType | undefined;
+  // Discriminate shape by the `Id:` attribute's value format.
+  let shape: EntryShape | undefined;
   let id: string | undefined;
 
   const identityAttr = findIdentityAttribute(attributes);
   if (identityAttr) {
-    // Family is determined by the identity attribute (ADR-002 Part 6).
-    family = FAMILY_BY_IDENTITY_KEY[identityAttr.key as IdentityAttribute];
     id = identityAttr.value;
-    const match = displayIdMatchesFamily(displayId, family);
-    if (!match.matches) {
-      // Display ID doesn't match the declared family's format. Accept the
-      // entry anyway — the validator (Phase 3) surfaces MSL-R007 for this
-      // mismatch rather than silently dropping the entry here.
+    shape = shapeFromIdValue(identityAttr.value);
+    if (shape === undefined) {
+      // `Id:` is neither a ULID nor a scheme-qualified URI. Accept as an
+      // identified entry so the validator can surface MSL-R004; missing
+      // shape on a parsed entry is not useful downstream.
+      shape = "identified";
     }
-    entryType = match.entryType;
   } else {
-    // Legacy fallback: discriminate by display-ID regex + references-doc
-    // heuristic. Used while source files still carry `Id:` instead of the
-    // new family-specific identity attributes.
-    const typedMatch = TYPED_ID_RE.exec(displayId);
-    if (typedMatch) {
-      family = "spec";
-      entryType = typedMatch[1] as EntryType;
-    } else if (isReferencesDoc && REF_SLUG_RE.test(displayId)) {
-      family = "reference";
-      entryType = undefined;
+    // No `Id:`. Fall back on display-ID shape + document context to decide
+    // whether to admit the entry at all.
+    if (isReferencesDoc && SLUG_RE.test(displayId)) {
+      shape = "referenced";
     } else {
-      return undefined;
+      // No identity attribute and no references-doc context — admit as
+      // identified so the validator can surface the missing-`Id:` error.
+      shape = "identified";
     }
-    // Legacy ULID comes from the `Id` attribute.
-    const idAttr = attributes.find((a) => a.key === "Id");
-    id = idAttr?.value;
   }
 
-  // Body requirement: non-reference entries require body. If there's only
-  // one child (the title paragraph) and no further content, accept only
-  // reference entries.
-  if (family !== "reference" && item.children.length < 2) return undefined;
+  // Inferred type from display-ID prefix — left to the profile layer. For
+  // now the core records no type; downstream profile-aware code populates
+  // this field when a profile is loaded.
+  const type: string | undefined = undefined;
+
+  // Body requirement: identified entries require a body; referenced entries
+  // may omit it. If there's only one child (the title paragraph), admit
+  // only referenced entries.
+  if (shape !== "referenced" && item.children.length < 2) return undefined;
 
   // Source location
   const line = item.position?.start.line ?? 1;
@@ -312,8 +252,8 @@ function extractEntry(
     attributes,
     typedAttributes: collateAttributes(attributes),
     id,
-    entryType,
-    family,
+    type,
+    shape,
     location: { file, line, column },
     source: "markdown",
     properties: { file: { path: file, line, column } },

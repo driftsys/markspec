@@ -18,15 +18,14 @@ export {
 } from "./model/mod.ts";
 export type {
   Attribute,
-  BuiltinType,
   Caption,
   ConfigFieldError,
   Diagnostic,
   Directive,
   DisplayId,
   Entry,
+  EntryShape,
   EntrySource,
-  EntryType,
   InlineRef,
   Link,
   LinkKind,

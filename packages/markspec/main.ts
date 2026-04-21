@@ -454,9 +454,10 @@ const cli = new Command()
         console.log(JSON.stringify(output, null, 2));
       } else {
         console.log(`${entry.displayId}  ${entry.title}`);
-        if (entry.entryType) {
-          console.log(`  Type: ${entry.entryType}`);
+        if (entry.type) {
+          console.log(`  Type: ${entry.type}`);
         }
+        console.log(`  Shape: ${entry.shape}`);
         for (const attr of entry.attributes) {
           console.log(`  ${attr.key}: ${attr.value}`);
         }

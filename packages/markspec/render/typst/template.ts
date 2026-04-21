@@ -162,16 +162,25 @@ function findEntryEnd(lines: readonly string[], start: number): number {
 /**
  * Map entry type prefix to the color category used by req-block.
  */
-function entryTypeCategory(entryType: string | undefined): string {
-  if (!entryType) return "req";
-  if (["ARC", "SAD", "ICD"].includes(entryType)) return "spec";
-  if (["TST", "VAL", "SIT", "SWT"].includes(entryType)) return "test";
+/**
+ * Legacy prefix → color-category heuristic used by the Typst template.
+ *
+ * A profile-aware pipeline maps the profile-declared `type:` to a color
+ * bucket through theme tokens; until that lands, categorize from the
+ * display-ID prefix. Referenced entries (`entry.shape === "referenced"`)
+ * always use `"req"` as a neutral fallback.
+ */
+function displayIdCategory(displayId: string, shape: string): string {
+  if (shape === "referenced") return "req";
+  const prefix = displayId.split("_")[0];
+  if (["ARC", "SAD", "ICD"].includes(prefix)) return "spec";
+  if (["TST", "VAL", "SIT", "SWT"].includes(prefix)) return "test";
   return "req";
 }
 
 /** Render a single entry as a Typst `req-block` call. */
 function renderEntryTypst(entry: Entry): string {
-  const category = entryTypeCategory(entry.entryType);
+  const category = displayIdCategory(entry.displayId, entry.shape);
 
   // Extract labels from attributes
   const labelsAttr = entry.attributes.find((a) => a.key === "Labels");
