@@ -87,6 +87,13 @@
   show raw.where(lang: "gwt"): gherkin-hanging
   show raw.where(lang: "feature"): gherkin-hanging
 
+  // Tables: keep atomic up to 70% of slide height; above that, allow
+  // splitting so very long tables don't leave large bottom whitespace.
+  show table: it => context {
+    let h = measure(it).height
+    block(breakable: h > page.height * 0.7, width: 100%, it)
+  }
+
   show link: set text(fill: t.accent)
 
   body

@@ -70,12 +70,13 @@
 ) = {
   let color = entry-color(type, theme)
 
-  block(
-    stroke: (left: 2pt + color),
-    inset: (left: 12pt, top: 0pt, bottom: 4pt, right: 0pt),
-    width: 100%,
-    {
-      // Title line
+  // Build the entry's content into a single closure so we can measure it
+  // and decide whether to render the wrapping block as breakable.
+  // Atomic-by-default — but only if the entry comfortably fits on a page.
+  // Above 70% of page height, allow the renderer to split the block
+  // rather than push to a fresh page leaving large bottom whitespace.
+  let entry-body = {
+    // Title line
       {
         text(size: size-body, weight: "medium", fill: color, display-id)
         h(6pt)
@@ -115,6 +116,17 @@
         }
         parts.join[ #sym.dot.c ]
       }
-    },
-  )
+    }
+
+  context {
+    let measured = measure(entry-body)
+    let avoid-break-threshold = page.height * 0.7
+    block(
+      stroke: (left: 2pt + color),
+      inset: (left: 12pt, top: 0pt, bottom: 4pt, right: 0pt),
+      width: 100%,
+      breakable: measured.height > avoid-break-threshold,
+      entry-body,
+    )
+  }
 }

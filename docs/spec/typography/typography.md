@@ -83,17 +83,36 @@ _Figure: Type scale hierarchy_
 Sizes follow a minor third ratio (1.2) rounded to half-points. The base size is
 10pt for A4 documents.
 
-| Element         | Size   | Weight         | Leading |
-| --------------- | ------ | -------------- | ------- |
-| H1              | 20pt   | SemiBold       | 24pt    |
-| H2              | 16.5pt | SemiBold       | 20pt    |
-| H3              | 14pt   | SemiBold       | 17pt    |
-| H4              | 12pt   | SemiBold       | 15pt    |
-| Body            | 10pt   | Regular        | 14pt    |
-| Small / caption | 8.5pt  | Regular        | 12pt    |
-| Code block      | 9pt    | Regular (Mono) | 13pt    |
-| Inline code     | 9pt    | Regular (Mono) | —       |
-| Footer / header | 8pt    | Regular        | 10pt    |
+| Element         | Size   | Weight         | Leading | Ratio |
+| --------------- | ------ | -------------- | ------- | ----- |
+| H1              | 20pt   | SemiBold       | 24pt    | 1.20  |
+| H2              | 16.5pt | SemiBold       | 20pt    | 1.21  |
+| H3              | 14pt   | SemiBold       | 17pt    | 1.21  |
+| H4              | 12pt   | SemiBold       | 15pt    | 1.25  |
+| Body            | 10pt   | Regular        | 14pt    | 1.40  |
+| Small / caption | 8.5pt  | Regular        | 12pt    | 1.41  |
+| Code block      | 9pt    | Regular (Mono) | 13pt    | 1.44  |
+| Inline code     | 9pt    | Regular (Mono) | —       | —     |
+| Footer / header | 8pt    | Regular        | 10pt    | 1.25  |
+
+**Line-spacing rationale.** Body text uses a **1.4 line-height ratio** (14 ÷
+10), at the tight end of the standard tech-writing band (1.4–1.6 per IBM Design
+Language, Microsoft typography, Google Material, Chicago Manual of Style). The
+1.4 choice prioritizes **density**: spec / requirements / traceability documents
+are read more often as reference material than as long-form prose, and a tighter
+ratio fits more content per page without compromising legibility at 10pt body.
+Headings stay near 1.2 (display ratio — short, scannable strings don't need
+breathing room). Code blocks sit at 1.4–1.45 so multi-line listings don't feel
+cramped despite the smaller 9pt size.
+
+When the renderer's templates apply line-spacing inside compound contexts, they
+may locally tighten or relax these defaults — code listings inside body prose,
+for example, set `par(leading: 0.55em,
+spacing: 0.55em)` on the inner `raw.line`
+paragraphs so that line-by-line code does not inherit the body paragraph spacing
+(`spacing: 12pt` per §Spacing) which would push lines too far apart for a code
+listing. These template-level overrides are values, not new design tokens; the
+canonical scale above is what's published in `theme/tokens.yaml`.
 
 ### Spacing
 
