@@ -47,9 +47,14 @@ export function generateTypstDocument(
   const showRule = `#show: markspec-doc.with(${metaArgs})`;
 
   // When `imageBasePrefix` is set, pass a scope-level `image` function
-  // to cmarker so that relative image paths in the user's Markdown
-  // resolve against the source-document directory instead of cmarker's
-  // own location.
+  // to cmarker that:
+  //   1. Prefixes relative image paths with the source-document
+  //      directory (so `![](./asset.svg)` resolves against the user's
+  //      file, not against cmarker's vendored location).
+  //   2. Wraps each image in `block(sticky: true)` so the image stays
+  //      on the same page as the next block (typically a `_Figure: …_`
+  //      caption). Without this, a figure can be split from its
+  //      caption across a page break.
   const imageBinding = imageBasePrefix
     ? `#let ms-image(src, alt: none, ..args) = {
   let prefixed = if src.starts-with("/") or src.contains("://") {
@@ -57,7 +62,7 @@ export function generateTypstDocument(
   } else {
     "${escapeTypstString(imageBasePrefix)}" + src
   }
-  image(prefixed, alt: alt, ..args)
+  block(sticky: true, image(prefixed, alt: alt, ..args))
 }`
     : "";
   const renderCall = imageBasePrefix ? "render" : "render";
