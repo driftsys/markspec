@@ -55,20 +55,31 @@
   show raw: set raw(syntaxes: "syntaxes/gherkin.sublime-syntax")
 
   show raw: set text(font: font-mono, size: size-code)
-  show raw.where(block: true): it => block(
-    fill: t.bg-code,
-    stroke: 0.5pt + t.border,
-    radius: 3pt,
-    inset: space-3,
-    width: 100%,
-    {
-      // Tighten line-to-line spacing inside code blocks; the body
-      // `par(spacing: space-3)` applies to each `raw.line` paragraph
-      // and pushes the lines too far apart for a code listing.
+  show raw.where(block: true): it => {
+    // Tighten line-to-line spacing inside code blocks; the body
+    // `par(spacing: space-3)` applies to each `raw.line` paragraph
+    // and pushes the lines too far apart for a code listing.
+    let inner = {
       set par(leading: 0.55em, spacing: 0.55em)
       it
-    },
-  )
+    }
+    // Atomic-by-default per the same convention as entries and tables:
+    // a code listing is a logical unit. Above 70% of page height,
+    // allow splitting so very long listings don't push to a fresh page
+    // above large bottom whitespace.
+    context layout(size => {
+      let measured = measure(box(width: size.width, inner))
+      block(
+        fill: t.bg-code,
+        stroke: 0.5pt + t.border,
+        radius: 3pt,
+        inset: space-3,
+        width: 100%,
+        breakable: measured.height > page.height * 0.7,
+        inner,
+      )
+    })
+  }
 
   // Hanging indent for Gherkin/GWT/feature blocks: when a long step
   // line wraps, the continuation aligns past the step verb instead of

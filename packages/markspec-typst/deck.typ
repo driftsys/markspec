@@ -59,18 +59,27 @@
   show raw: set raw(syntaxes: "syntaxes/gherkin.sublime-syntax")
 
   show raw: set text(font: font-mono, size: 20pt)
-  show raw.where(block: true): it => block(
-    fill: t.bg-code,
-    stroke: 0.5pt + t.border,
-    radius: 3pt,
-    inset: space-4,
-    width: 100%,
-    {
+  show raw.where(block: true): it => {
+    let inner = {
       // Tighten line-to-line spacing inside code blocks.
       set par(leading: 0.55em, spacing: 0.55em)
       it
-    },
-  )
+    }
+    // Atomic-by-default; split only when the listing exceeds 70% of
+    // the slide height (rare on a slide).
+    context layout(size => {
+      let measured = measure(box(width: size.width, inner))
+      block(
+        fill: t.bg-code,
+        stroke: 0.5pt + t.border,
+        radius: 3pt,
+        inset: space-4,
+        width: 100%,
+        breakable: measured.height > page.height * 0.7,
+        inner,
+      )
+    })
+  }
 
   // Hanging indent for Gherkin/GWT/feature: wrapped continuations align
   // past the step verb instead of flush left. Applied via a nested
