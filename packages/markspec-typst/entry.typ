@@ -118,8 +118,13 @@
       }
     }
 
-  context {
-    let measured = measure(entry-body)
+  // Measure the entry's content at the actual container width so layouts
+  // that depend on width (tables, wrapped text, code blocks) measure
+  // accurately. `measure(entry-body)` alone gives inflated heights
+  // because the unconstrained-width measurement makes tables/code-blocks
+  // think they have infinite room.
+  context layout(size => {
+    let measured = measure(box(width: size.width, entry-body))
     let avoid-break-threshold = page.height * 0.7
     block(
       stroke: (left: 2pt + color),
@@ -128,5 +133,5 @@
       breakable: measured.height > avoid-break-threshold,
       entry-body,
     )
-  }
+  })
 }
