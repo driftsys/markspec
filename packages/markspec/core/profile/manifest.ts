@@ -8,6 +8,15 @@
 
 import { parse as parseYaml } from "@std/yaml";
 import type { Diagnostic, ProfileManifest } from "../model/mod.ts";
+import {
+  type AttrDecl,
+  type Cardinality,
+  LIST_VALUE_TYPES,
+  VALUE_TYPES,
+  type ValueType,
+} from "../model/mod.ts";
+
+const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
 const ALLOWED_ROOT_KEYS = new Set([
   "id",
@@ -32,6 +41,165 @@ const ALLOWED_PROFILE_KEYS = new Set([
 export interface ParseManifestResult {
   readonly manifest: ProfileManifest | null;
   readonly diagnostics: readonly Diagnostic[];
+}
+
+function parseStringList(
+  raw: unknown,
+  key: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((v) => typeof v === "string")) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `'${key}' must be a list of strings`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return [];
+  }
+  return raw as string[];
+}
+
+function defaultCardinality(type: ValueType): Cardinality {
+  return LIST_VALUE_TYPES.has(type)
+    ? { lower: 0, upper: Infinity }
+    : { lower: 0, upper: 1 };
+}
+
+function parseCardinality(
+  raw: unknown,
+  fallback: Cardinality,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): Cardinality {
+  if (raw === undefined) return fallback;
+  if (typeof raw !== "string") {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: cardinality must be a string like '1..N'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return fallback;
+  }
+  const m = /^(\d+)\.\.(\d+|N)$/.exec(raw);
+  if (!m) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: invalid cardinality '${raw}'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return fallback;
+  }
+  const lower = Number(m[1]);
+  const upper = m[2] === "N" ? Infinity : Number(m[2]);
+  if (upper < lower) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: cardinality upper (${
+        m[2]
+      }) less than lower (${lower})`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return fallback;
+  }
+  return { lower, upper };
+}
+
+function parseAttrDecl(
+  raw: unknown,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): AttrDecl | undefined {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: attribute entry must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const r = raw as Record<string, unknown>;
+  const name = r.name;
+  const type = r.type;
+  if (typeof name !== "string" || name.length === 0) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: attribute missing 'name'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  if (typeof type !== "string" || !VALUE_TYPE_SET.has(type)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: attribute '${name}' has invalid type '${type}'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const vtype = type as ValueType;
+  const required = r.required === true;
+  const cardinality = parseCardinality(
+    r.cardinality,
+    defaultCardinality(vtype),
+    `${context}/${name}`,
+    sourcePath,
+    diagnostics,
+  );
+  let values: readonly string[] | undefined;
+  if (vtype === "enum") {
+    const rawValues = r.values;
+    if (
+      !Array.isArray(rawValues) ||
+      rawValues.some((v) => typeof v !== "string")
+    ) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `${context}: enum attribute '${name}' requires a 'values' list of strings`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    values = rawValues as string[];
+  }
+  // inverse: parsed in a later task (Phase 1 can leave this undefined)
+  return { name, type: vtype, required, cardinality, values };
+}
+
+function parseAttrList(
+  raw: unknown,
+  context: string,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): AttrDecl[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${context}: 'attributes' must be a list`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return [];
+  }
+  const out: AttrDecl[] = [];
+  for (const item of raw) {
+    const attr = parseAttrDecl(item, context, sourcePath, diagnostics);
+    if (attr) out.push(attr);
+  }
+  return out;
 }
 
 /**
@@ -123,6 +291,31 @@ export function parseManifest(
     }
   }
 
+  const profileSection = (rawProfile ?? {}) as Record<string, unknown>;
+
+  const universalRequired = parseStringList(
+    profileSection.required,
+    "profile.required",
+    sourcePath,
+    diagnostics,
+  );
+  const universalAttributes = parseAttrList(
+    profileSection.attributes,
+    "profile.attributes",
+    sourcePath,
+    diagnostics,
+  );
+  const labels = parseStringList(
+    profileSection.labels,
+    "profile.labels",
+    sourcePath,
+    diagnostics,
+  );
+
+  if (diagnostics.length > 0) {
+    return { manifest: null, diagnostics };
+  }
+
   const manifest: ProfileManifest = {
     id,
     version,
@@ -131,9 +324,9 @@ export function parseManifest(
       : undefined,
     license: typeof root.license === "string" ? root.license : undefined,
     extends: undefined, // parsed in later task
-    universalRequired: [],
-    universalAttributes: [],
-    labels: [],
+    universalRequired,
+    universalAttributes,
+    labels,
     identified: { required: [], attributes: [], traceability: new Map() },
     referenced: { required: [], attributes: [] },
     types: new Map(),

@@ -75,3 +75,53 @@ profile:
     throw new Error(`expected 'nonsense' in message, got: ${msg}`);
   }
 });
+
+Deno.test("parseManifest: universal attributes + required + labels", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  required: [Status]
+  labels: [DRAFT, INTERNAL]
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved, deprecated]
+      required: false
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.universalRequired, ["Status"]);
+  assertEquals(result.manifest?.labels, ["DRAFT", "INTERNAL"]);
+  assertEquals(result.manifest?.universalAttributes.length, 1);
+  const attr = result.manifest?.universalAttributes[0];
+  assertEquals(attr?.name, "Status");
+  assertEquals(attr?.type, "enum");
+  assertEquals(attr?.values, ["draft", "approved", "deprecated"]);
+  assertEquals(attr?.required, false);
+});
+
+Deno.test("parseManifest: attribute with invalid value type errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Weird
+      type: bogus
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: enum attribute without values errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Mode
+      type: enum
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
