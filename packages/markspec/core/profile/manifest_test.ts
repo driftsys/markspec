@@ -5,6 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { parseManifest } from "./manifest.ts";
 
 Deno.test("parseManifest: minimal valid manifest", () => {
@@ -432,4 +433,28 @@ profile:
 `);
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: complete fixture parses without diagnostics", async () => {
+  const path = fromFileUrl(
+    new URL(
+      "../../../../tests/fixtures/profiles/phase1/complete.yaml",
+      import.meta.url,
+    ),
+  );
+  const yaml = await Deno.readTextFile(path);
+  const result = parseManifest(yaml, path);
+  assertEquals(result.diagnostics, []);
+  const m = result.manifest!;
+  assertEquals(m.id, "@acme/profile-complete");
+  assertEquals(m.version, "1.2.3");
+  assertEquals(m.extends, { kind: "local", path: "./base" });
+  assertEquals(m.universalRequired, ["Status"]);
+  assertEquals(m.universalAttributes.length, 1);
+  assertEquals(m.identified.traceability.get("Derived-from")?.target.length, 1);
+  assertEquals(m.referenced.attributes[0].name, "Description");
+  assertEquals(m.types.size, 3);
+  assertEquals(m.types.get("test")?.attributes[0].inverse?.name, "Verified-by");
+  assertEquals(m.documents.types.length, 2);
+  assertEquals(m.documents.frontMatter.length, 1);
 });
