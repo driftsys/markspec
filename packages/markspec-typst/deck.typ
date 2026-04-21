@@ -59,19 +59,33 @@
   show raw: set raw(syntaxes: "syntaxes/gherkin.sublime-syntax")
 
   show raw: set text(font: font-mono, size: 20pt)
-  show raw.where(block: true): block.with(
+  show raw.where(block: true): it => block(
     fill: t.bg-code,
     stroke: 0.5pt + t.border,
     radius: 3pt,
     inset: space-4,
     width: 100%,
+    {
+      // Tighten line-to-line spacing inside code blocks.
+      set par(leading: 0.55em, spacing: 0.55em)
+      it
+    },
   )
 
   // Hanging indent for Gherkin/GWT/feature: wrapped continuations align
-  // past the step verb instead of flush left.
-  show raw.where(lang: "gherkin"): set par(hanging-indent: 4em)
-  show raw.where(lang: "gwt"): set par(hanging-indent: 4em)
-  show raw.where(lang: "feature"): set par(hanging-indent: 4em)
+  // past the step verb instead of flush left. Applied via a nested
+  // `show raw.line` rule because `set par` on `raw` itself doesn't
+  // propagate into the per-line paragraph context.
+  let gherkin-hanging(it) = {
+    show raw.line: line => {
+      set par(hanging-indent: 5em)
+      line
+    }
+    it
+  }
+  show raw.where(lang: "gherkin"): gherkin-hanging
+  show raw.where(lang: "gwt"): gherkin-hanging
+  show raw.where(lang: "feature"): gherkin-hanging
 
   show link: set text(fill: t.accent)
 

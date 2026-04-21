@@ -55,21 +55,37 @@
   show raw: set raw(syntaxes: "syntaxes/gherkin.sublime-syntax")
 
   show raw: set text(font: font-mono, size: size-code)
-  show raw.where(block: true): block.with(
+  show raw.where(block: true): it => block(
     fill: t.bg-code,
     stroke: 0.5pt + t.border,
     radius: 3pt,
     inset: space-3,
     width: 100%,
+    {
+      // Tighten line-to-line spacing inside code blocks; the body
+      // `par(spacing: space-3)` applies to each `raw.line` paragraph
+      // and pushes the lines too far apart for a code listing.
+      set par(leading: 0.55em, spacing: 0.55em)
+      it
+    },
   )
 
   // Hanging indent for Gherkin/GWT/feature blocks: when a long step
   // line wraps, the continuation aligns past the step verb instead of
-  // flush left. 4em in monospace ~= 6–7 character widths, enough to
-  // clear "  Given " / "  When " / "  Then " style prefixes.
-  show raw.where(lang: "gherkin"): set par(hanging-indent: 4em)
-  show raw.where(lang: "gwt"): set par(hanging-indent: 4em)
-  show raw.where(lang: "feature"): set par(hanging-indent: 4em)
+  // flush left. Raw blocks render each source line as an independent
+  // `raw.line` with its own paragraph context, so the hanging indent
+  // must be set via a nested `show raw.line` rule — a block-level
+  // `set par` on `raw` itself doesn't propagate.
+  let gherkin-hanging(it) = {
+    show raw.line: line => {
+      set par(hanging-indent: 5em)
+      line
+    }
+    it
+  }
+  show raw.where(lang: "gherkin"): gherkin-hanging
+  show raw.where(lang: "gwt"): gherkin-hanging
+  show raw.where(lang: "feature"): gherkin-hanging
 
   show link: set text(fill: t.accent)
 
