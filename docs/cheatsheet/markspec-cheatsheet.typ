@@ -21,7 +21,16 @@
 // ── Page 1: Markdown Flavor & Entries ──────────────────────────────────
 
 #align(center, text(14pt, weight: "bold")[MarkSpec Cheat Sheet — Flavor & Entries])
-#v(0.6em)
+#v(0.2em)
+#align(center, text(
+  7pt,
+  style: "italic",
+  fill: luma(120),
+)[Cheatsheet under revision (2026-04-20) — ADR-009 introduced a single `Id:`
+  attribute and two shapes (identified, referenced). Family-specific identity
+  attributes shown on this sheet (`Spec-id`/`Test-id`/`Element-id`/`Reference-id`)
+  are superseded; see docs/architecture/adr-002-entry-model.md.])
+#v(0.4em)
 
 #columns(3, gutter: 14pt)[
 
@@ -111,7 +120,7 @@ Slug: `fig.architecture-overview`
   The sensor driver shall debounce
   raw inputs to eliminate noise.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```]
@@ -126,11 +135,12 @@ No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
 - *XXX* — 2–6 uppercase letters (project abbrev)
 - *NNNN* — zero-padded, unique in project
 
-== ULID
+== Identity
 
-Bare 26-char Crockford base32, e.g. `01HGW2Q8MNP3RSTVWXYZABCDEF`.
-Lives in the family-specific identity attribute (`Spec-id`, `Test-id`,
-`Element-id`). Assigned by tooling, never changes.
+Every entry has `Id:`. Identified entries (content we author) carry a ULID
+(26-char Crockford base32, assigned by tooling, never changes). Referenced
+entries (external citations) carry a URI (`urn:`, `doi:`, `pkg:`, `https:`,
+...). Shape is determined by `Id:` value format. See ADR-002 and ADR-009.
 
 == Entry types
 
@@ -159,8 +169,7 @@ Lives in the family-specific identity attribute (`Spec-id`, `Test-id`,
  * a 5ms noise spike must not alter
  * the stable output.
  *
- * Test-id: 01HGW3R9QNP4ABCDEFGHJKMNPQ\
- * Test-level: unit\
+ * Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ\
  * Verifies: SRS_BRK_0107\
  * Tests: braking_core::controller::debounce
  */

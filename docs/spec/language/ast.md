@@ -1,5 +1,14 @@
 # MarkSpec AST Extensions
 
+> **Status (2026-04-20): revision in progress.** AST node fields that encode the
+> old four-family `family` discriminator will be replaced by a `shape` field
+> (`identified | referenced`) per
+> [ADR-009 §1](../../architecture/adr-009-core-profile-boundary.md) and the
+> revised [ADR-002](../../architecture/adr-002-entry-model.md). Entry-identity
+> fields consolidate to a single `id` value (ULID or URI) per ADR-002 Part 4.
+> The document structure and entry-detection descriptions are otherwise still
+> applicable.
+
 This document specifies the MarkSpec abstract syntax tree extensions. The input
 is a standard [mdast] tree produced by a CommonMark parser (remark). The
 MarkSpec transform walks the tree and promotes recognized patterns into

@@ -32,8 +32,7 @@ function buildCompiled(
       body: e.body ?? "",
       attributes: e.attributes ?? [],
       id: e.id,
-      entryType: e.entryType,
-      family: e.entryType ? "spec" : "reference",
+      shape: e.entryType ? "identified" : "referenced",
       location: { file: "test.md", line: 1, column: 1 },
       source: "markdown",
     };
@@ -62,7 +61,6 @@ Deno.test("styleRequirementBlocks: entry block is transformed with ID in monospa
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
   }]);
@@ -90,7 +88,6 @@ Deno.test("styleRequirementBlocks: attributes rendered as compact table", () => 
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [
       { key: "Id", value: "SRS_01HGW2Q8MNP3" },
@@ -126,7 +123,6 @@ Deno.test("styleRequirementBlocks: body text preserved between title and attribu
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
   }]);
@@ -163,14 +159,12 @@ Deno.test("styleRequirementBlocks: multiple entries in one document all transfor
     {
       displayId: "SRS_BRK_0001",
       title: "Sensor debouncing",
-      entryType: "SRS",
       id: "SRS_01HGW2Q8MNP3",
       attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
     },
     {
       displayId: "SRS_BRK_0002",
       title: "Threshold check",
-      entryType: "SRS",
       id: "SRS_01HGW2R9QLP4",
       attributes: [{ key: "Id", value: "SRS_01HGW2R9QLP4" }],
     },
@@ -202,7 +196,6 @@ Deno.test("styleRequirementBlocks: non-entry list items are NOT transformed", ()
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
   }]);
@@ -252,7 +245,6 @@ Deno.test("styleRequirementBlocks: entry with alert/admonition preserves it", ()
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
   }]);
@@ -278,7 +270,6 @@ Deno.test("styleRequirementBlocks: Id attribute value rendered in monospace", ()
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Title",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
   }]);
@@ -298,7 +289,6 @@ Deno.test("styleRequirementBlocks: Satisfies values rendered in monospace", () =
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Title",
-    entryType: "SRS",
     attributes: [{ key: "Satisfies", value: "SYS_BRK_0042, SYS_BRK_0043" }],
   }]);
 
@@ -324,7 +314,6 @@ Deno.test("styleRequirementBlocks: list item with unknown display ID is not tran
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Other entry",
-    entryType: "SRS",
   }]);
 
   const result = styleRequirementBlocks(md, compiled);
@@ -355,7 +344,6 @@ More prose here.
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
-    entryType: "SRS",
     id: "SRS_01HGW2Q8MNP3",
     attributes: [{ key: "Id", value: "SRS_01HGW2Q8MNP3" }],
   }]);

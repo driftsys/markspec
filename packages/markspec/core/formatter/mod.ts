@@ -13,9 +13,8 @@ import type {
   Diagnostic,
   DocumentAttributes,
   Entry,
-  EntryFamily,
 } from "../model/mod.ts";
-import { attributeSpec, IDENTITY_KEY_BY_FAMILY } from "../model/mod.ts";
+import { attributeSpec, IDENTITY_KEY } from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
@@ -47,97 +46,29 @@ const FRONT_MATTER_CORE_ORDER: readonly string[] = [
 ];
 
 /**
- * Canonical attribute ordering for spec entries per ADR-002 Annex C.
+ * Canonical attribute ordering per the language spec.
  *
- * Identity comes first; family-specific relations next; universal attributes
- * last (Labels/Status/External-id/Supersedes). Unknown keys go just before
- * Labels, preserving their relative order.
+ * Identity (`Id:`) comes first, then profile-declared attributes appear in
+ * the order the author wrote them (or in the order a profile-aware pass
+ * may rewrite them), then the universal set
+ * (References / Labels / External-id / Supersedes / Deprecated). Unknown
+ * keys are placed just before `Labels:`, preserving their relative order.
  *
- * Legacy `Id:` appears right after `Spec-id:` so pre-v2 fixtures keep the
- * same relative ordering they used to produce.
+ * A profile-aware formatter may extend this with profile-declared canonical
+ * positions; the core formatter only knows about `Id:` and the universal
+ * set.
  */
-const SPEC_CANONICAL_ORDER: readonly string[] = [
-  "Spec-id",
+const CANONICAL_ORDER: readonly string[] = [
   "Id",
-  "Satisfies",
-  "Derived-from",
-  "Allocated-to",
+  // Profile-declared attributes land here in whatever order the source has
+  // them; the filler slot keeps them between Id and the universal set.
   "References",
   "Labels",
-  "Status",
-  "External-id",
-  "Supersedes",
-];
-
-/** Canonical attribute ordering for test entries per ADR-002 Annex C. */
-const TEST_CANONICAL_ORDER: readonly string[] = [
-  "Test-id",
-  "Test-level",
-  "Verifies",
-  "Tests",
-  "References",
-  "Labels",
-  "Status",
-  "External-id",
-  "Supersedes",
-];
-
-/** Canonical attribute ordering for element entries per ADR-002 Annex C. */
-const ELEMENT_CANONICAL_ORDER: readonly string[] = [
-  "Element-id",
-  "Element-kind",
-  "Part-of",
-  "Realizes",
-  "Depends-on",
-  "Generated-from",
-  "References",
-  "Labels",
-  "Status",
-  "External-id",
-  "Supersedes",
-];
-
-/**
- * Canonical attribute ordering for reference entries per ADR-002 Annex C.
- *
- * Legacy `URI` / `URL` / `Document` appear after their v2 equivalents to
- * keep old fixtures producing the same relative order.
- */
-const REF_CANONICAL_ORDER: readonly string[] = [
-  "Reference-id",
-  "URI",
-  "Reference-url",
-  "URL",
-  "Reference-document",
-  "Document",
-  "Labels",
-  "Status",
   "External-id",
   "Supersedes",
   "Superseded-by",
+  "Deprecated",
 ];
-
-/** Identity attribute keys (new + legacy) that count as "entry identity". */
-const IDENTITY_KEYS: readonly string[] = [
-  "Spec-id",
-  "Test-id",
-  "Element-id",
-  "Reference-id",
-  "Id",
-];
-
-function canonicalOrderFor(family: EntryFamily): readonly string[] {
-  switch (family) {
-    case "spec":
-      return SPEC_CANONICAL_ORDER;
-    case "test":
-      return TEST_CANONICAL_ORDER;
-    case "element":
-      return ELEMENT_CANONICAL_ORDER;
-    case "reference":
-      return REF_CANONICAL_ORDER;
-  }
-}
 
 /** Options for {@linkcode format}. */
 export interface FormatOptions {
@@ -194,25 +125,24 @@ export function format(
     const indent = (entry.location.column - 1) + 2;
     let attrs = [...entry.attributes];
 
-    // Assign a bare ULID identity attribute to Spec/Test/Element entries
-    // that carry no identity yet. Reference entries are left alone —
-    // `Reference-id` is authored (a URI), not generated.
-    const hasIdentity = attrs.some((a) => IDENTITY_KEYS.includes(a.key));
-    if (!hasIdentity && entry.family !== "reference") {
-      const key = IDENTITY_KEY_BY_FAMILY[entry.family];
+    // Assign a bare ULID `Id:` to identified entries that carry no
+    // identity yet. Referenced entries are left alone — their `Id:` is a
+    // URI that must be author-provided.
+    const hasIdentity = attrs.some((a) => a.key === IDENTITY_KEY);
+    if (!hasIdentity && entry.shape === "identified") {
       const newId = genUlid();
-      attrs = [{ key, value: newId }, ...attrs];
+      attrs = [{ key: IDENTITY_KEY, value: newId }, ...attrs];
       diagnostics.push({
         code: "MSL-F001",
         severity: "info",
-        message: `assigned ${key}: ${newId} to ${entry.displayId}`,
+        message: `assigned Id: ${newId} to ${entry.displayId}`,
         location: entry.location,
       });
     }
 
     if (attrs.length === 0) continue;
 
-    const normalized = sortAttributes(expandCsvValues(attrs), entry.family);
+    const normalized = sortAttributes(expandCsvValues(attrs));
     const range = findAttributeBlockRange(lines, entry.location.line, indent);
 
     if (range) {
@@ -305,15 +235,15 @@ export function expandCsvValues(attrs: Attribute[]): Attribute[] {
 }
 
 /**
- * Sort attributes to canonical order based on entry family.
- * Unknown keys are placed before Labels, preserving their relative order.
+ * Sort attributes to canonical order per the language spec.
+ *
+ * `Id:` first, then profile-declared/unknown keys in source order, then
+ * universal attributes (References / Labels / External-id / Supersedes /
+ * Superseded-by / Deprecated).
  */
 export function sortAttributes(
   attributes: Attribute[],
-  family: EntryFamily,
 ): Attribute[] {
-  const CANONICAL_ORDER = canonicalOrderFor(family);
-
   const known: (Attribute[] | undefined)[] = new Array(CANONICAL_ORDER.length);
   const unknown: Attribute[] = [];
 

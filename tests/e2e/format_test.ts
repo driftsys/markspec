@@ -96,21 +96,20 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 // ULID assignment
 // ---------------------------------------------------------------------------
 
-Deno.test("format: assigns Spec-id to spec entry missing identity", async () => {
+Deno.test("format: assigns Id to identified entry missing identity", async () => {
   const input = `# Test
 
 - [SRS_BRK_0001] Title
 
   Body text.
 
-  Satisfies: SYS_BRK_0042\\
   Labels: ASIL-B
 `;
   const { code, stderr, readFile } = await runFormat({ "req.md": input });
   assertEquals(code, 0);
-  assertStringIncludes(stderr, "assigned Spec-id:");
+  assertStringIncludes(stderr, "assigned Id:");
   const output = await readFile("req.md");
-  assertStringIncludes(output, "Spec-id: ");
+  assertStringIncludes(output, "Id: ");
 });
 
 // ---------------------------------------------------------------------------

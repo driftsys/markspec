@@ -161,11 +161,11 @@ Deno.test("collateAttributes: id-list multi-line values merge", () => {
   assertEquals(collated.get("Derived-from"), ["SYS_BRK_0042", "SYS_BRK_0043"]);
 });
 
-Deno.test("collateAttributes: id-list CSV on one line splits", () => {
+Deno.test("collateAttributes: tag-list CSV on one line splits", () => {
   const collated = collateAttributes([
-    { key: "Derived-from", value: "SYS_BRK_0042, SYS_BRK_0043" },
+    { key: "Labels", value: "one, two" },
   ]);
-  assertEquals(collated.get("Derived-from"), ["SYS_BRK_0042", "SYS_BRK_0043"]);
+  assertEquals(collated.get("Labels"), ["one", "two"]);
 });
 
 Deno.test("collateAttributes: tag-list CSV splits", () => {

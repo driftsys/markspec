@@ -1,596 +1,299 @@
 /**
  * @module compiler/mod_test
  *
- * Unit tests for the compiler and traceability graph.
+ * Unit tests for the compiler pipeline. Exercises multi-file parsing,
+ * entry-graph construction, link extraction, and diagnostic propagation.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import { compile } from "./mod.ts";
 
-/** Mock file system for testing. */
-function mockFs(files: Record<string, string>) {
-  return (path: string): Promise<string> => {
+const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
+const ULID_C = "01HGW2Q8MNP3RSTVWXYZABCDEH";
+
+/** In-memory file reader builder. */
+function reader(files: Record<string, string>): (p: string) => Promise<string> {
+  return (path) => {
     const content = files[path];
-    if (content == null) return Promise.reject(new Error(`not found: ${path}`));
+    if (content === undefined) {
+      return Promise.reject(new Error(`file not found: ${path}`));
+    }
     return Promise.resolve(content);
   };
 }
 
 // ---------------------------------------------------------------------------
-// Basic compilation
+// Parsing + entry graph
 // ---------------------------------------------------------------------------
 
-Deno.test("compile: single entry with no links", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Test
+Deno.test("compile: extracts entries from a single file", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Title
 
-- [SRS_BRK_0001] Sensor debouncing
+  Body.
 
-  Body text.
-
-  Id: SRS_00000000000000000000000001\\
-  Labels: ASIL-B
+  Id: ${ULID_A}
 `,
-    }),
-  });
-
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
   assertEquals(result.entries.size, 1);
-  assertEquals(result.entries.has("SRS_BRK_0001"), true);
-  assertEquals(result.links.length, 0);
+  const entry = result.entries.get("REQ-001");
+  assertExists(entry);
+  assertEquals(entry.shape, "identified");
+  assertEquals(entry.id, ULID_A);
+});
+
+Deno.test("compile: merges entries across multiple files", async () => {
+  const files = {
+    "a.md": `- [REQ-001] First
+
+  Body.
+
+  Id: ${ULID_A}
+`,
+    "b.md": `- [REQ-002] Second
+
+  Body.
+
+  Id: ${ULID_B}
+`,
+  };
+  const result = await compile(["a.md", "b.md"], { readFile: reader(files) });
+  assertEquals(result.entries.size, 2);
+  assertExists(result.entries.get("REQ-001"));
+  assertExists(result.entries.get("REQ-002"));
+});
+
+Deno.test("compile: mixed identified + referenced entries", async () => {
+  const files = {
+    "requirements.md": `- [REQ-001] Title
+
+  Body.
+
+  Id: ${ULID_A}
+`,
+    "references.md": `- [ISO-26262-6] Standard
+
+  Id: urn:iso:std:iso:26262:-6:ed-2
+`,
+  };
+  const result = await compile(["requirements.md", "references.md"], {
+    readFile: reader(files),
+  });
+  assertEquals(result.entries.get("REQ-001")?.shape, "identified");
+  assertEquals(result.entries.get("ISO-26262-6")?.shape, "referenced");
+});
+
+Deno.test("compile: missing file emits MSL-E000 error", async () => {
+  const result = await compile(["missing.md"], { readFile: reader({}) });
+  const err = result.diagnostics.find((d) => d.code === "MSL-E000");
+  assertEquals(err?.severity, "error");
 });
 
 // ---------------------------------------------------------------------------
-// Traceability links
+// Link extraction
 // ---------------------------------------------------------------------------
 
-Deno.test("compile: Satisfies produces forward and reverse links", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Test
-
-- [SYS_BRK_0042] System requirement
+Deno.test("compile: Supersedes produces a link", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Original
 
   Body.
 
-  Id: SYS_00000000000000000000000001
+  Id: ${ULID_A}
 
-- [SRS_BRK_0001] Software requirement
+- [REQ-002] Replacement
 
   Body.
 
-  Id: SRS_00000000000000000000000002\\
-  Satisfies: SYS_BRK_0042
+  Id: ${ULID_B}\\
+  Supersedes: REQ-001
 `,
-    }),
-  });
-
-  assertEquals(result.links.length, 1);
-  assertEquals(result.links[0].from, "SRS_BRK_0001");
-  assertEquals(result.links[0].to, "SYS_BRK_0042");
-  assertEquals(result.links[0].kind, "satisfies");
-
-  // Forward: SRS_BRK_0001 has one outgoing link
-  const fwd = result.forward.get("SRS_BRK_0001");
-  assertEquals(fwd?.length, 1);
-
-  // Reverse: SYS_BRK_0042 has one incoming link
-  const rev = result.reverse.get("SYS_BRK_0042");
-  assertEquals(rev?.length, 1);
-  assertEquals(rev?.[0].from, "SRS_BRK_0001");
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const supersedesLinks = result.links.filter((l) => l.kind === "supersedes");
+  assertEquals(supersedesLinks.length, 1);
+  assertEquals(supersedesLinks[0].from, "REQ-002");
+  assertEquals(supersedesLinks[0].to, "REQ-001");
 });
 
-Deno.test("compile: multi-value Satisfies produces multiple links", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Test
+Deno.test("compile: References citation produces a link", async () => {
+  const files = {
+    "refs.md": `- [ISO-26262-6] Standard
 
-- [SYS_BRK_0001] First system req
-
-  Body.
-
-  Id: SYS_00000000000000000000000001
-
-- [SYS_BRK_0002] Second system req
-
-  Body.
-
-  Id: SYS_01HGW2R9QLP4
-
-- [SRS_BRK_0001] Software req
-
-  Body.
-
-  Id: SRS_00000000000000000000000003\\
-  Satisfies: SYS_BRK_0001, SYS_BRK_0002
+  Id: urn:iso:std:iso:26262:-6:ed-2
 `,
-    }),
-  });
+    "req.md": `- [REQ-001] Title
 
-  assertEquals(result.links.length, 2);
-  assertEquals(result.links[0].to, "SYS_BRK_0001");
-  assertEquals(result.links[1].to, "SYS_BRK_0002");
+  Body.
+
+  Id: ${ULID_A}\\
+  References: ISO-26262-6 §9.4
+`,
+  };
+  const result = await compile(["refs.md", "req.md"], {
+    readFile: reader(files),
+  });
+  const refLinks = result.links.filter((l) => l.kind === "references");
+  assertEquals(refLinks.length, 1);
+  assertEquals(refLinks[0].from, "REQ-001");
+  assertEquals(refLinks[0].to, "ISO-26262-6");
 });
 
-Deno.test("compile: Derived-from extracts ID part only", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Test
-
-- [ISO-26262-6] ISO 26262 Part 6
-
-  Road vehicles.
-
-  Document: ISO 26262-6:2018
-
-- [SRS_BRK_0001] Software req
+Deno.test("compile: id-list attr value splits into multiple links", async () => {
+  // Any id-list attribute the compiler recognizes — Satisfies is on the
+  // legacy link-kind list, so it still produces links even though it is
+  // profile-declared in the new model.
+  const files = {
+    "req.md": `- [REQ-PARENT-A] A
 
   Body.
 
-  Id: SRS_00000000000000000000000001\\
-  Derived-from: ISO-26262-6 §9.4
-`,
-    }),
-  });
+  Id: ${ULID_A}
 
-  const dfLinks = result.links.filter((l) => l.kind === "derived-from");
-  assertEquals(dfLinks.length, 1);
-  assertEquals(dfLinks[0].from, "SRS_BRK_0001");
-  assertEquals(dfLinks[0].to, "ISO-26262-6");
-});
-
-Deno.test("compile: Allocated-to produces allocated-to link", async () => {
-  const result = await compile(["arch.md"], {
-    readFile: mockFs({
-      "arch.md": `# Architecture
-
-- [SRS_BRK_0001] Target req
+- [REQ-PARENT-B] B
 
   Body.
 
-  Id: SRS_00000000000000000000000001
+  Id: ${ULID_B}
 
-- [SAD_BRK_0010] Allocation
+- [REQ-CHILD] Child
 
-  Sensor debouncing allocated to braking ECU.
+  Body.
 
-  Id: SAD_0000000000000000000000000010\\
-  Allocated-to: SRS_BRK_0001\\
-  Component: BRK-ECU-SENSOR
+  Id: ${ULID_C}\\
+  Satisfies: REQ-PARENT-A, REQ-PARENT-B
 `,
-    }),
-  });
-
-  const allocLinks = result.links.filter((l) => l.kind === "allocated-to");
-  assertEquals(allocLinks.length, 1);
-  assertEquals(allocLinks[0].from, "SAD_BRK_0010");
-  assertEquals(allocLinks[0].to, "SRS_BRK_0001");
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const sat = result.links.filter((l) => l.kind === "satisfies");
+  assertEquals(sat.length, 2);
+  assertEquals(sat.map((l) => l.to).sort(), ["REQ-PARENT-A", "REQ-PARENT-B"]);
 });
 
 // ---------------------------------------------------------------------------
-// Diagnostics pass through
+// Forward / reverse adjacency maps
 // ---------------------------------------------------------------------------
 
-Deno.test("compile: validation diagnostics included", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Test
+Deno.test("compile: forward map carries outgoing links per entry", async () => {
+  const files = {
+    "req.md": `- [REQ-001] First
 
-- [SRS_BRK_0001] Missing Id entry
+  Body.
 
-  Body text.
+  Id: ${ULID_A}
 
-  Labels: ASIL-B
+- [REQ-002] Second
+
+  Body.
+
+  Id: ${ULID_B}\\
+  Supersedes: REQ-001
 `,
-    }),
-  });
-
-  const errors = result.diagnostics.filter((d) => d.severity === "error");
-  assertEquals(errors.length > 0, true);
-  assertStringIncludes(errors[0].message, "missing Id");
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const out = result.forward.get("REQ-002") ?? [];
+  assertEquals(out.length, 1);
+  assertEquals(out[0].kind, "supersedes");
 });
 
-// ---------------------------------------------------------------------------
-// Error handling
-// ---------------------------------------------------------------------------
-
-Deno.test("compile: file-not-found produces diagnostic", async () => {
-  const result = await compile(["missing.md"], {
-    readFile: mockFs({}),
-  });
-
-  assertEquals(result.entries.size, 0);
-  const errors = result.diagnostics.filter((d) => d.severity === "error");
-  assertEquals(errors.length, 1);
-  assertStringIncludes(errors[0].message, "missing.md");
-});
-
-// ---------------------------------------------------------------------------
-// Phase 5a — new link kinds (Realizes, Verifies, Tests, Depends-on, Part-of,
-// Generated-from, Supersedes)
-// ---------------------------------------------------------------------------
-
-Deno.test("compile: Realizes produces realizes link", async () => {
-  const result = await compile(["elements.md"], {
-    readFile: mockFs({
-      "elements.md": `# Elements
-
-- [SRS_BRK_0001] Software requirement
+Deno.test("compile: reverse map carries incoming links per target", async () => {
+  const files = {
+    "req.md": `- [REQ-001] First
 
   Body.
 
-  Id: SRS_00000000000000000000000001
+  Id: ${ULID_A}
 
-- [braking_core::controller] Controller unit
+- [REQ-002] Second
 
   Body.
 
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY\\
-  Realizes: SRS_BRK_0001
+  Id: ${ULID_B}\\
+  Supersedes: REQ-001
 `,
-    }),
-  });
-  const realizes = result.links.filter((l) => l.kind === "realizes");
-  assertEquals(realizes.length, 1);
-  assertEquals(realizes[0].from, "braking_core::controller");
-  assertEquals(realizes[0].to, "SRS_BRK_0001");
-});
-
-Deno.test("compile: Verifies on test produces verifies link", async () => {
-  const result = await compile(["tests.md"], {
-    readFile: mockFs({
-      "tests.md": `# Tests
-
-- [SRS_BRK_0001] Software requirement
-
-  Body.
-
-  Id: SRS_00000000000000000000000001
-
-- [SWT_BRK_0107] Debounce unit test
-
-  Body.
-
-  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
-  Verifies: SRS_BRK_0001
-`,
-    }),
-  });
-  const verifies = result.links.filter((l) => l.kind === "verifies");
-  assertEquals(verifies.length, 1);
-  assertEquals(verifies[0].from, "SWT_BRK_0107");
-  assertEquals(verifies[0].to, "SRS_BRK_0001");
-});
-
-Deno.test("compile: Tests on test produces tests link", async () => {
-  const result = await compile(["tests.md"], {
-    readFile: mockFs({
-      "tests.md": `# Tests
-
-- [braking::unit] Unit
-
-  Body.
-
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY
-
-- [SWT_BRK_0107] Unit test
-
-  Body.
-
-  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
-  Tests: braking::unit
-`,
-    }),
-  });
-  const tests = result.links.filter((l) => l.kind === "tests");
-  assertEquals(tests.length, 1);
-  assertEquals(tests[0].to, "braking::unit");
-});
-
-Deno.test("compile: Depends-on on element produces depends-on link", async () => {
-  const result = await compile(["elements.md"], {
-    readFile: mockFs({
-      "elements.md": `# Elements
-
-- [braking::lib] Library
-
-  Body.
-
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY
-
-- [braking::main] Main
-
-  Body.
-
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWX2\\
-  Depends-on: braking::lib
-`,
-    }),
-  });
-  const depends = result.links.filter((l) => l.kind === "depends-on");
-  assertEquals(depends.length, 1);
-  assertEquals(depends[0].to, "braking::lib");
-});
-
-Deno.test("compile: Part-of on element produces part-of link", async () => {
-  const result = await compile(["elements.md"], {
-    readFile: mockFs({
-      "elements.md": `# Elements
-
-- [braking_core] Parent
-
-  Body.
-
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY
-
-- [braking_core::child] Child
-
-  Body.
-
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWX2\\
-  Part-of: braking_core
-`,
-    }),
-  });
-  const partOf = result.links.filter((l) => l.kind === "part-of");
-  assertEquals(partOf.length, 1);
-  assertEquals(partOf[0].to, "braking_core");
-});
-
-Deno.test("compile: Supersedes produces supersedes link (same-family)", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Requirements
-
-- [SRS_BRK_0001] Old
-
-  Body.
-
-  Id: SRS_00000000000000000000000001
-
-- [SRS_BRK_0002] New
-
-  Body.
-
-  Id: SRS_00000000000000000000000002\\
-  Supersedes: SRS_BRK_0001
-`,
-    }),
-  });
-  const supers = result.links.filter((l) => l.kind === "supersedes");
-  assertEquals(supers.length, 1);
-  assertEquals(supers[0].from, "SRS_BRK_0002");
-  assertEquals(supers[0].to, "SRS_BRK_0001");
-});
-
-Deno.test("compile: multiple Verifies produces multiple links", async () => {
-  const result = await compile(["tests.md"], {
-    readFile: mockFs({
-      "tests.md": `# Tests
-
-- [SRS_BRK_0001] SW req 1
-
-  Body.
-
-  Id: SRS_00000000000000000000000001
-
-- [SRS_BRK_0002] SW req 2
-
-  Body.
-
-  Id: SRS_00000000000000000000000002
-
-- [SIT_BRK_0001] Integration test
-
-  Body.
-
-  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
-  Verifies: SRS_BRK_0001, SRS_BRK_0002
-`,
-    }),
-  });
-  const verifies = result.links.filter((l) => l.kind === "verifies");
-  assertEquals(verifies.length, 2);
-  assertEquals(verifies.map((l) => l.to).sort(), [
-    "SRS_BRK_0001",
-    "SRS_BRK_0002",
-  ]);
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const incoming = result.reverse.get("REQ-001") ?? [];
+  assertEquals(incoming.length, 1);
+  assertEquals(incoming[0].from, "REQ-002");
 });
 
 // ---------------------------------------------------------------------------
-// Phase 5b — front matter exposed via CompileResult.documents
+// Diagnostic propagation
 // ---------------------------------------------------------------------------
 
-Deno.test("compile: front matter is extracted into CompileResult.documents", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `---
+Deno.test("compile: validator diagnostics surface in result", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Title
+
+  Body.
+`,
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  // Missing Id: → MSL-R003.
+  const missing = result.diagnostics.find((d) => d.code === "MSL-R003");
+  assertEquals(missing?.severity, "error");
+});
+
+Deno.test("compile: duplicate Id surfaces MSL-R005", async () => {
+  const files = {
+    "a.md": `- [REQ-001] First
+
+  Body.
+
+  Id: ${ULID_A}
+`,
+    "b.md": `- [REQ-002] Second
+
+  Body.
+
+  Id: ${ULID_A}
+`,
+  };
+  const result = await compile(["a.md", "b.md"], { readFile: reader(files) });
+  const dup = result.diagnostics.find((d) => d.code === "MSL-R005");
+  assertEquals(dup?.severity, "error");
+});
+
+// ---------------------------------------------------------------------------
+// Documents (front matter)
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: captures front-matter document when present", async () => {
+  const files = {
+    "req.md": `---
 document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
 document-type: requirements
-status: approved
 ---
 
-# Title
-
-- [SRS_BRK_0001] Entry
+- [REQ-001] Title
 
   Body.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+  Id: ${ULID_A}
 `,
-    }),
-  });
-  assertEquals(result.documents?.size, 1);
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
   const doc = result.documents?.get("req.md");
-  assertEquals(doc?.attributes["document-id"], "01HGW2D0DOCPQ4FGHIJKLMNOPQR");
-  assertEquals(doc?.attributes["document-type"], "requirements");
-  assertEquals(doc?.attributes.status, "approved");
-});
-
-Deno.test("compile: file without front matter produces no Document entry", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `# Title
-
-- [SRS_BRK_0001] Entry
-
-  Body.
-
-  Id: SRS_00000000000000000000000001
-`,
-    }),
-  });
-  assertEquals(result.documents?.size, 0);
-});
-
-Deno.test("compile: forbidden front-matter key surfaces MSL-D001", async () => {
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `---
-document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
-title: Should be rejected
----
-
-# Title
-
-- [SRS_BRK_0001] Entry
-
-  Body.
-
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-`,
-    }),
-  });
-  const d001 = result.diagnostics.find((d) => d.code === "MSL-D001");
-  assertEquals(d001 != null, true);
-});
-
-Deno.test("compile: front matter separates body for entry parsing", async () => {
-  // The --- in front matter should not be mistaken for a horizontal rule
-  // in the entry-extraction pass.
-  const result = await compile(["req.md"], {
-    readFile: mockFs({
-      "req.md": `---
-document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
----
-
-# Title
-
-- [SRS_BRK_0001] Entry
-
-  Body.
-
-  Id: SRS_00000000000000000000000001
-`,
-    }),
-  });
-  assertEquals(result.entries.size, 1);
-  assertEquals(result.entries.has("SRS_BRK_0001"), true);
-});
-
-// ---------------------------------------------------------------------------
-// Phase 6a — end-to-end four-family traceability
-// ---------------------------------------------------------------------------
-
-Deno.test("compile: end-to-end four-family traceability graph", async () => {
-  // Exercise the full model: Reference cited by Spec, Spec allocated to
-  // Element, Element realizes Spec, Test verifies Spec, Test tests Element,
-  // all with the new identity attributes, all in their own documents.
-  const result = await compile(
-    ["specs.md", "tests.md", "elements.md", "references.md"],
-    {
-      readFile: mockFs({
-        "references.md": `# References
-
-- [@ISO-26262-6] ISO 26262 Part 6
-
-  Road vehicles — Functional safety — Part 6: Software level.
-
-  Reference-id: urn:iso:std:iso:26262:-6:ed-2
-`,
-        "specs.md": `---
-document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
-document-type: requirements
-status: approved
----
-
-# Braking requirements
-
-- [SRS_BRK_0107] Sensor input debouncing
-
-  The sensor driver shall debounce raw inputs.
-
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  Allocated-to: braking_core::controller::debounce\\
-  References: ISO-26262-6 §9.4.5\\
-  Labels: ASIL-B
-`,
-        "tests.md": `# Tests
-
-- [SWT_BRK_0107] Debounce unit test
-
-  Given a 10ms window, a 5ms spike must not alter output.
-
-  Test-id: 01HGW3R9Q2P4ABCDEFGHJKMNPQ\\
-  Test-level: unit\\
-  Verifies: SRS_BRK_0107\\
-  Tests: braking_core::controller::debounce
-`,
-        "elements.md": `# Elements
-
-- [braking_core::controller::debounce] Debounce function
-
-  Rejects transient noise on raw sensor readings.
-
-  Element-id: 01HGW3D6QRST7JKMNPQRSTVWXY\\
-  Element-kind: unit\\
-  Realizes: SRS_BRK_0107
-`,
-      }),
-    },
-  );
-
-  // All four entries parsed
-  assertEquals(result.entries.size, 4);
-  assertEquals(result.entries.has("SRS_BRK_0107"), true);
-  assertEquals(result.entries.has("SWT_BRK_0107"), true);
-  assertEquals(result.entries.has("braking_core::controller::debounce"), true);
-  assertEquals(result.entries.has("ISO-26262-6"), true);
-
-  // Each entry has the correct family
-  assertEquals(result.entries.get("SRS_BRK_0107")?.family, "spec");
-  assertEquals(result.entries.get("SWT_BRK_0107")?.family, "test");
+  assertExists(doc);
   assertEquals(
-    result.entries.get("braking_core::controller::debounce")?.family,
-    "element",
+    doc.attributes["document-id"],
+    "01HGW2D0DOCPQ4FGHIJKLMNOPQR",
   );
-  assertEquals(result.entries.get("ISO-26262-6")?.family, "reference");
+  assertEquals(doc.attributes["document-type"], "requirements");
+});
 
-  // Traceability graph: 5 links (Allocated-to, References, Verifies, Tests, Realizes)
-  assertEquals(result.links.length, 5);
+Deno.test("compile: no front matter → document absent", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Title
 
-  // Spot-check each link kind
-  const byKind = (k: string) => result.links.filter((l) => l.kind === k);
-  assertEquals(byKind("allocated-to").length, 1);
-  assertEquals(byKind("references").length, 1);
-  assertEquals(byKind("verifies").length, 1);
-  assertEquals(byKind("tests").length, 1);
-  assertEquals(byKind("realizes").length, 1);
+  Body.
 
-  // Element is reached by both Realizes and Tests
-  const incomingToElement = result.reverse
-    .get("braking_core::controller::debounce") ?? [];
-  const incomingKinds = incomingToElement.map((l) => l.kind).sort();
-  assertEquals(incomingKinds, ["allocated-to", "tests"]);
-
-  // Document surface
-  assertEquals(result.documents?.size, 1);
-  assertEquals(
-    result.documents?.get("specs.md")?.attributes["document-type"],
-    "requirements",
-  );
-
-  // No validation errors
-  const errors = result.diagnostics.filter((d) => d.severity === "error");
-  assertEquals(errors.length, 0, JSON.stringify(errors, null, 2));
+  Id: ${ULID_A}
+`,
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  assertEquals(result.documents?.has("req.md"), false);
 });

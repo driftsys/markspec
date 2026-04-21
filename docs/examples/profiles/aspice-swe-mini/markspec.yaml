@@ -1,17 +1,17 @@
-# Strawman profile used to validate ADR-008 schema shape.
-# Not a complete ASPICE profile — a minimal vertical exercising every
-# section of the profile schema for design review.
+# Strawman profile used to validate ADR-008 schema shape (post-ADR-009 revision).
+# Not a complete ASPICE profile — a minimal vertical exercising every section
+# of the profile schema for design review.
 
 id: "@markspec/profile-aspice-swe-mini"
 version: 0.1.0
 description: Minimal ASPICE SWE vertical (design validation)
 license: MIT
-extends: "npm:@markspec/profile-generic@^1.0"
+extends: "npm:@markspec/profile-default@^1.0"
 
 profile:
 
   # ==========================================================================
-  # Universal — applies to every entry regardless of category
+  # Universal — applies to every entry regardless of shape or type
   # ==========================================================================
   attributes:
     - { name: External-id, type: string, cardinality: 0..1 }
@@ -25,85 +25,113 @@ profile:
     - { name: ASIL-D, group: asil }
     # Ungrouped
     - { name: security }
-    - { name: automated, applies: [test] }
-    - { name: manual,    applies: [test] }
+    - { name: automated, applies: [unit-test, integration-test] }
+    - { name: manual,    applies: [unit-test, integration-test] }
 
   # ==========================================================================
-  # Per-category defaults
+  # Per-shape defaults (the two core shapes from ADR-009 §1)
   # ==========================================================================
-  spec:
+  identified:
     attributes:
       - { name: Derived-from, type: id-list }
       - { name: Realized-by,  type: id-list }
+      - { name: Verifies,     type: id-list }
+      - { name: Tests,        type: id-list }
     traceability:
-      Derived-from: { target: [{ category: spec }] }
-      Realized-by:  { target: [{ category: element }] }
+      Derived-from: { target: [{ shape: identified }] }
 
-  test:
-    attributes:
-      - { name: Verifies, type: id-list }
-      - { name: Tests,    type: id-list }
-    levels: [unit, integration, system, acceptance]
-    traceability:
-      Verifies: { target: [{ category: spec }] }
-      Tests:    { target: [{ category: element }] }
-
-  element:
-    required: [Element-kind]
-    kinds: [module, class, function, source]
-
-  reference:
+  referenced:
     attributes:
       - { name: Reference-url, type: url, cardinality: 0..1 }
 
   # ==========================================================================
-  # Per-TYPE — tightens rules for each TYPE prefix
+  # Per-type — each type declares its shape and tightens rules
   # ==========================================================================
   types:
-    STK:
-      category: spec
+    stakeholder-requirement:
+      shape: identified
       description: Stakeholder requirement (SWE.1 input)
+      display-id-pattern: "STK_{scope}_{n:04d}"
 
-    SRS:
-      category: spec
+    software-requirement:
+      shape: identified
       description: Software requirement (SWE.1 output)
+      display-id-pattern: "SRS_{scope}_{n:04d}"
       required: [Derived-from]
       traceability:
-        Derived-from: { target: [STK], cardinality: 1..N, required: true }
+        Derived-from:
+          target: [stakeholder-requirement]
+          cardinality: 1..N
+          required: true
 
-    SWE:
-      category: spec
+    software-element:
+      shape: identified
       description: Software element spec (SWE.2)
+      display-id-pattern: "SWE_{scope}_{n:04d}"
       required: [Derived-from, Realized-by]
       traceability:
-        Derived-from: { target: [SRS], cardinality: 1..N, required: true }
-        Realized-by:  { target: [{ category: element }], cardinality: 1..N, required: true }
+        Derived-from:
+          target: [software-requirement]
+          cardinality: 1..N
+          required: true
+        Realized-by:
+          target: [unit]
+          cardinality: 1..N
+          required: true
 
-    SWT:
-      category: test
+    unit:
+      shape: identified
+      description: Source-code unit (function, method, module)
+      # display-id-pattern-enforcement: off  # namespace-path IDs
+      attributes:
+        - { name: Element-kind, type: enum, values: [module, class, function, source] }
+
+    unit-test:
+      shape: identified
       description: Software unit test (SWE.4)
-      level: unit
+      display-id-pattern: "SWT_{scope}_{n:04d}"
       required: [Verifies, Tests]
       traceability:
-        Verifies: { target: [SRS, SWE], cardinality: 1..N, required: true }
-        Tests:    { target: [{ category: element }], cardinality: 1..N, required: true }
+        Verifies:
+          target: [software-requirement, software-element]
+          cardinality: 1..N
+          required: true
+        Tests:
+          target: [unit]
+          cardinality: 1..N
+          required: true
 
-    SIT:
-      category: test
+    integration-test:
+      shape: identified
       description: Software integration test (SWE.5)
-      level: integration
+      display-id-pattern: "SIT_{scope}_{n:04d}"
       required: [Verifies]
       traceability:
-        Verifies: { target: [SRS, SWE], cardinality: 1..N, required: true }
+        Verifies:
+          target: [software-requirement, software-element]
+          cardinality: 1..N
+          required: true
+
+    standard:
+      shape: referenced
+      description: External normative standard (ISO, DO, IEC, RFC, …)
 
   # ==========================================================================
   # Document-level
   # ==========================================================================
   documents:
-    # Core doc types (requirements, architecture, tests, references) come
-    # with baked-in contains: mappings — redeclaring them is not permitted.
-    # Add new doc types here if needed, with explicit contains: declarations.
-    types: []
+    # Each profile declares its own document types and contains: mappings.
+    # The core does not bake in any document-type vocabulary (per ADR-008
+    # post-ADR-009 revision).
+    types:
+      - id: requirements
+        contains: [stakeholder-requirement, software-requirement]
+      - id: architecture
+        contains: [software-element]
+      - id: tests
+        contains: [unit-test, integration-test]
+      - id: references
+        contains: [standard]
     frontMatter:
       - { name: asil, type: enum, values: [QM, A, B, C, D], cardinality: 0..1 }
       - { name: safety-goal, type: string, cardinality: 0..1 }

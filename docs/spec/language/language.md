@@ -11,14 +11,34 @@ MarkSpec is a three-layer stack:
 1. **[CommonMark]** — the parsing baseline.
 2. **[GFM] / [GLFM] shared subset** — platform extensions portable across GitHub
    and GitLab.
-3. **MarkSpec extensions** — requirement authoring, captions, inline references,
+3. **MarkSpec extensions** — entry authoring, captions, inline references,
    directives, and book structure.
 
 Source files are pure, readable Markdown. They render correctly on GitHub and
 GitLab without any build step. PDF generation, traceability matrices, and
 reference resolution are build concerns — not format concerns.
 
-This specification is the normative reference for MarkSpec tooling.
+### Core vs. profile
+
+MarkSpec splits responsibility between a **core** — this specification — and a
+**profile** — an external vocabulary pack that names concrete entry types and
+declares their attributes, relation names, and rules.
+
+- The core defines **two entry shapes** (identified and referenced), the syntax
+  for authoring entries, a single identity attribute (`Id:`), a small universal
+  attribute set, and the rules for discriminating shape from `Id:` value format.
+  It contains no type vocabulary.
+- A profile declares concrete types (`requirement`, `test`, `unit`, `standard`,
+  `dependency`, …) within the two shapes, per-type attributes, traceability
+  relations, and validation rules.
+
+A bundled **default profile** ships with MarkSpec and loads by default (it can
+be opted out of in `.markspec.yaml`). Compliance profiles (ASPICE, ISO 26262,
+DO-178C, IEC 62304, MISRA-C) stack on top via an `extends:` chain.
+
+This specification is the normative reference for the MarkSpec core. Profile
+schemas are specified by each profile's `markspec.yaml` manifest; the default
+profile's manifest is the reference for the out-of-box type vocabulary.
 
 ---
 
@@ -100,7 +120,7 @@ See [ISO 26262-6] for software-level requirements.
 **Hard line breaks** (trailing `\`):
 
 ```markdown
-Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
 Satisfies: SYS_BRK_0042\
 Labels: ASIL-B
 ```
@@ -261,7 +281,8 @@ block.
   | Speed       | 5           | 200              |
   | Temperature | 50          | 20               |
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+  type: software-requirement\
   Satisfies: SYS_BRK_0042\
   Labels: ASIL-B
 ```
@@ -277,10 +298,9 @@ No indented body. Normal list item.
 Emphasis (`_text_`) must not appear inside entry blocks. Strong (`**text**`) and
 inline code are allowed.
 
-Part 2 defines the four families of entries (spec, test, element, reference),
-their ID formats, and their attributes. The family of an entry is determined by
-the identity attribute it carries in its trailers — `Spec-id`, `Test-id`,
-`Element-id`, or `Reference-id`.
+Part 2 defines the two entry shapes (identified, referenced), the rule that
+discriminates them, the universal attributes that apply to both, and the
+profile-declared extensions layered on top.
 
 Rendering of entry blocks (admonition-style left border, type coloring, label
 pills, cross-reference links) is specified in the [Typography](typography.md)
@@ -294,17 +314,17 @@ except the last line.
 **Example 3 — attribute block:**
 
 ```markdown
-Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
 Satisfies: SYS_BRK_0042\
 Labels: ASIL-B
 ```
 
-Which attributes are valid depends on the entry family. Part 2 defines the
-family-specific attributes.
+The set of valid attributes is the universal set (Part 2 §2.1) plus whatever the
+active profile declares for the entry's shape and inferred type.
 
-Generated attributes (`Verified-by`, `Realized-by`, `Tested-by`, `Cited-by`,
-`Derives`, `Satisfied-by`, `Contains`, `Used-by`, `Allocated`) are computed by
-tooling and never appear in source.
+**Generated attributes** (build-time inverses of authored relations such as
+`Verified-by` from `Verifies`, `Cited-by` from `References`) are computed by
+tooling and never appear in source. The exact set is profile-declared.
 
 #### §3 Table captions
 
@@ -373,9 +393,9 @@ GitLab, PDF, and presentation output.
 heatmaps, dense bitmap data. Use a descriptive filename with no source-format
 suffix (`dashboard-screenshot.png`).
 
-See
-[ADR-003 — Diagram authoring](../../architecture/adr-003-diagram-authoring.md)
-for sizing, visual style, and tooling details.
+For sizing, visual style, and tooling details (PlantUML viewport, draw.io
+embedding, color palettes, stroke weights), see the [Typography](typography.md)
+chapter.
 
 **Captions**: an emphasized paragraph starting with `Figure:` immediately below
 an image. Alternatively, the image alt text is the caption.
@@ -401,10 +421,9 @@ Slug: `fig.system-overview`. Explicit caption takes precedence.
 
 #### §5 In-code entries
 
-Requirements can be authored in doc comments in source files. A doc comment
-starting with `[TYPE_XYZ_NNNN]` is recognized as a MarkSpec requirement. The
-leading `-` bullet is optional in doc comments — the `[DISPLAY_ID]` pattern
-alone is sufficient.
+Entries can be authored in doc comments in source files. A doc comment beginning
+with `[DISPLAY_ID]` is recognized as a MarkSpec entry. The leading `-` bullet is
+optional in doc comments — the bracket pattern alone is sufficient.
 
 **Example 8 — Rust doc comment test entry:**
 
@@ -414,8 +433,7 @@ alone is sufficient.
 /// Given a debounce window of 10ms, a transient spike shorter
 /// than the window must not alter the stable output.
 ///
-/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Test-level: unit \
+/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
 /// Verifies: SRS_BRK_0107 \
 /// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
@@ -425,19 +443,23 @@ fn swt_brk_0107_debounce_filters_noise() {
 }
 ```
 
-The doc comment declares the Test entry. The function body is the executable
-artifact. The file path is observable as the `file.path` property (see Part 6).
+The doc comment declares the entry; the function body is the executable
+artifact. The `SWT_` prefix triggers the active profile's type inference (e.g.,
+`type: unit-test` under an ASPICE profile). Authors do not write `type:` in
+source. The file path is observable as the `file.path` property (see Part 6).
 
-A production unit declares what it realizes via its own doc comment:
+A production unit declares what it realizes via its own doc comment. Because the
+display ID is a symbolic namespace path with no declared prefix pattern, the
+author writes `type:` explicitly:
 
 ```rust
 /// [braking_core::controller::debounce_input] Debounce function
 ///
 /// Rejects transient noise on raw sensor readings.
 ///
-/// Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV \
-/// Element-kind: unit \
-/// Realizes: SRS_BRK_0107
+/// Id: 01HGW3D6QRST7IJKLMNOPQRSTUV \
+/// type: unit \
+/// Realizes: 01HGW2Q8MNP3RSTVWXYZABCDEF
 fn debounce_input(raw: u16) -> u16 { ... }
 ```
 
@@ -483,8 +505,8 @@ Front matter carries:
 git history — never in front matter.
 
 **Casing convention**: front matter keys use **kebab-case** (`document-id`),
-matching YAML ecosystem convention. Entry trailers keep Title-Case (`Spec-id:`),
-matching git-trailers convention.
+matching YAML ecosystem convention. Entry trailers keep Title-Case (`Id:`,
+`Satisfies:`, `Labels:`), matching git-trailers convention.
 
 **TOML tolerance**: `+++`-delimited TOML front matter is accepted as input (for
 GitLab-flavored Markdown parity); the formatter normalizes to YAML.
@@ -493,25 +515,38 @@ Full document-structure specification: see Part 6 — Document Model.
 
 ---
 
-## Part 2 — Entry Families
+## Part 2 — Entry Shapes
 
 Part 1 defines the format — how to write entry blocks and attribute blocks. This
-part defines the four entry families — spec, test, element, and reference —
-their ID formats, identity attributes, and core attributes.
+part defines the core entry model: the two **shapes** the core recognizes, the
+single `Id:` identity attribute, the value-format rule that discriminates shape,
+the universal attributes shared between shapes, and the relationship between the
+core and profile-declared type vocabulary.
 
-Every entry carries exactly one **identity attribute** that determines its
-family: `Spec-id`, `Test-id`, `Element-id`, or `Reference-id`. The four
-attributes are mutually exclusive.
+MarkSpec recognizes two shapes:
 
-| Family    | Identity attribute | Value format                              |
-| --------- | ------------------ | ----------------------------------------- |
-| spec      | `Spec-id`          | Bare ULID (26-char Crockford base32)      |
-| test      | `Test-id`          | Bare ULID                                 |
-| element   | `Element-id`       | Bare ULID                                 |
-| reference | `Reference-id`     | URI (URN, DOI, or HTTPS URL per RFC 3986) |
+| Shape          | Intent                                | `Id:` value                  | Display ID role               |
+| -------------- | ------------------------------------- | ---------------------------- | ----------------------------- |
+| **identified** | Content the project authors and owns  | ULID (26-char Crockford b32) | Human-readable alias          |
+| **referenced** | Citation pointing to an external work | URI (RFC 3986, scheme req.)  | Slug (pandoc/BibTeX cite-key) |
 
-Concrete TYPE vocabularies (STK, SRS, VAL, SWT…) are not defined by the core.
-They come from a profile loaded by the project.
+Every entry carries exactly one `Id:` attribute. Its **value format** determines
+the shape:
+
+```text
+Id: 01HGW2P4KFR7ABCDEFGHJKMNPQ        # ULID → identified
+Id: urn:iso:std:iso:26262:-6:ed-2     # URI → referenced
+Id: pkg:cargo/serde@1.0.0             # URI (purl) → referenced
+Id: doi:10.1109/IEEESTD.2008.4610935  # URI → referenced
+```
+
+The two value formats are visually disjoint — a ULID has no scheme; a URI must
+carry a scheme followed by `:`. A bare slug (no scheme, not a ULID) is rejected
+as an `Id:` value.
+
+Concrete **types** (`requirement`, `test`, `unit`, `standard`, `dependency`,
+`hazard`, …) are declared by the active profile, not by the core. The core has
+no TYPE vocabulary and no family enum.
 
 ### 2.1 Universal attributes
 
@@ -522,7 +557,7 @@ The following attributes apply to every family:
 | `Labels`        | `tag-list`    | no       | Classification tags (includes `DRAFT` marker) |
 | `References`    | `citation`    | no       | External reference citations with locator     |
 | `External-id`   | `external-id` | no       | Cross-system identifier(s)                    |
-| `Supersedes`    | `id`          | no       | Same-family entry this one replaces           |
+| `Supersedes`    | `id`          | no       | Same-shape entry this one replaces            |
 | `Superseded-by` | `id`          | —        | Generated inverse of `Supersedes`             |
 | `Deprecated`    | `string`      | no       | Retirement reason (non-replacement case)      |
 
@@ -539,48 +574,60 @@ merged but not yet authoritative.
 
 An entry is **retired** when either signal is present. The two are complementary
 (a replacement may still carry a `Deprecated:` reason for additional context).
-Tooling emits severity-tiered diagnostics when a `Satisfies:` / `Derived-from:`
-/ `Verifies:` / `Realizes:` target is retired or draft: `DRAFT` target → info,
-retired target → warning, unresolved target → error. There is no `DEPRECATED` /
-`WITHDRAWN` label — retirement lives in `Supersedes` and `Deprecated`. See
-ADR-002 §Retirement semantics.
+Tooling emits severity-tiered diagnostics when a relation target is retired or
+draft: `DRAFT` target → info, retired target → warning, unresolved target →
+error. There is no `DEPRECATED` / `WITHDRAWN` label — retirement lives in
+`Supersedes` and `Deprecated`. `Supersedes` operates within a shape: an
+identified entry supersedes an identified entry; a referenced entry supersedes a
+referenced entry.
 
-See §2.6 for attribute value types (multi-line repeat vs CSV, canonical form).
+See §2.5 for attribute value types (multi-line repeat vs CSV, canonical form).
 
-### 2.2 Spec Entries
+### 2.2 Identified entries
 
-A spec entry is a numbered, locally-authoritative declaration the project
-formulates: a requirement, an architecture block, a design decision, a hazard,
-an analysis.
+An identified entry is a content unit the project authors and owns: a
+requirement, a test, a rule, a component, a code unit, a hardware part, a
+glossary term, a hazard, a design decision. Its identity is project-local and
+machine-generated.
 
-**Display ID format:**
-`^[A-Z]{2,6}_[A-Z][A-Z0-9]{2,7}(_[A-Z][A-Z0-9]{2,7})?_\d{3,6}$`
+**Display ID:** any non-empty, project-unique string. The core does not
+constrain format. Profiles tighten by declaring per-type `display-id-pattern:`
+templates; the active profile determines what shape identified-entry display IDs
+take in a given project. Common conventions:
 
-- `TYPE` — 2–6 uppercase letters (e.g., `SRS`, `SYS`, `STK`)
-- `DOMAIN` — 3–8 uppercase alphanumeric, first char uppercase (e.g., `BRK`,
-  `SENSOR`)
-- `SUBDOMAIN` — optional, same as DOMAIN
-- `NNNN` — 3–6 decimal digits, must be > 0 (e.g., `001`, `0042`)
+```text
+SRS_BRK_0107                              ← typed prefix + scope + number
+braking_core::controller::debounce_input  ← symbolic namespace path
+REQ-042, NOTE-007                         ← simple typed prefix + number
+```
 
-Examples: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`, `HAZ_VHC_00001`.
+**Identity:** `Id:` carries a bare 26-character ULID
+(`^[0-9A-HJKMNP-TV-Z]{26}$`). Assigned by `markspec format`, never
+hand-authored, immutable once assigned. The ULID is the stable identity; the
+display ID is a renumberable alias that resolves through the ULID for
+cross-references.
 
-**Identity:** `Spec-id` carries a bare 26-character ULID. Assigned by
-`markspec format`, never hand-authored, immutable once assigned.
+**Type:** profile-declared. Normally inferred by the active profile from the
+display-ID prefix (`SRS_BRK_0107` → `type: software-requirement` under an ASPICE
+profile that declares
+`software-requirement: display-id-pattern: "SRS_{scope}_{n:04d}"`). An explicit
+`type:` attribute in source overrides inference and is required when the display
+ID matches no declared pattern.
 
-**Family-specific attributes** (plus the universal attributes from §2.1):
+**Profile-declared attributes:** every attribute beyond the universal set (§2.1)
+is declared by the active profile. Examples — declared by an automotive ASPICE
+profile, not by the core:
 
-| Attribute      | Type      | Required | Description                         |
-| -------------- | --------- | -------- | ----------------------------------- |
-| `Spec-id`      | `id`      | yes      | Bare ULID: `[0-9A-HJKMNP-TV-Z]{26}` |
-| `Derived-from` | `id-list` | no       | Spec display ID(s)                  |
-| `Satisfies`    | `id-list` | no       | Spec display ID(s)                  |
-| `Allocated-to` | `id-list` | no       | Element display ID(s)               |
+- `Derived-from`, `Satisfies`, `Allocated-to` on requirements
+- `Verifies`, `Tests`, `Test-level` on tests
+- `Realizes`, `Depends-on`, `Part-of`, `Element-kind` on units / artifacts
+- `ASIL`, `Safety-goal`, `Risk-class` on hazards / safety-relevant entries
 
-- `Derived-from` — upstream link by V-model decomposition (broad).
-- `Satisfies` — upstream link expressing complete fulfillment (strong).
-- `Allocated-to` — downstream top-down allocation from spec to element(s).
+The core does not define any of these names. They live in the profile manifest
+and are validated against the profile's `attributes:` / `traceability:`
+declarations.
 
-**Example 9 — spec entry:**
+**Example 9 — inferred type (SRS prefix):**
 
 ```markdown
 - [SRS_BRK_0107] Sensor input debouncing
@@ -588,166 +635,134 @@ Examples: `SRS_BRK_0001`, `SYS_SENSOR_DETECTOR_0042`, `HAZ_VHC_00001`.
   The sensor driver shall debounce raw inputs to eliminate electrical noise
   before processing.
 
-  Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDE\
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
   Derived-from: SYS_BRK_0042\
   Labels: ASIL-B
 ```
 
-### 2.3 Test Entries
-
-A test entry is a verification of declared behavior, either automated (code
-tests) or manual (procedures on HIL benches, vehicles, prototypes). Tests
-combine two roles: they specify expected behavior and have an execution
-lifecycle.
-
-**Display ID format:** same as spec entries.
-
-**Identity:** `Test-id` carries a bare 26-character ULID. Assigned by
-`markspec format`, never hand-authored, immutable once assigned.
-
-**Family-specific attributes** (plus the universal attributes from §2.1):
-
-| Attribute    | Type      | Required | Description                                          |
-| ------------ | --------- | -------- | ---------------------------------------------------- |
-| `Test-id`    | `id`      | yes      | Bare ULID                                            |
-| `Test-level` | `enum`    | no       | One of `unit`, `integration`, `system`, `acceptance` |
-| `Verifies`   | `id-list` | no       | Spec display ID(s)                                   |
-| `Tests`      | `id-list` | no       | Element display ID(s)                                |
-
-Filesystem location of an automated test is a **property** (`file.path`), not an
-attribute — see ADR-002 Part 1 "Entry properties" and ADR-006.
-
-- `Level` — V-model test level. Optional at the core; extensible by profile.
-- `Source` — inferred from the source file path for in-code tests; absent for
-  manual tests.
-- `Verifies` — upstream link to spec(s) this test verifies (ASPICE SWE.4 BP5).
-- `Tests` — upstream link to element(s) this test exercises.
-
-**Example 10 — test entry:**
-
-```markdown
-- [SWT_BRK_0107] Debounce unit test
-
-  Given a 10ms debounce window, a 5ms noise spike must not alter the stable
-  output.
-
-  Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ\
-  Level: unit\
-  Source: src/braking/controller.rs\
-  Verifies: SRS_BRK_0107\
-  Tests: braking_core::controller::debounce_input\
-  Labels: automated, rust, ASIL-B
-```
-
-### 2.4 Element Entries
-
-An element entry is a canonical declaration of a system object with stable
-identity: a code unit, a build artifact, a dependency, a hardware part.
-
-**Display ID format:**
-`^(::)?[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?(::[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?)*$`
-
-Segments are separated by the hierarchy separator `::`. Inside a segment, `.`
-and `/` carry technical meaning (file extensions, paths); `-` and `_` are
-readable word connectors. An optional leading `::` marks an absolute path.
-
-Examples: `braking_core`, `braking_core::controller`,
-`braking_core::controller::debounce_input`, `BRK-ECU-SENSOR`.
-
-**Identity:** `Element-id` carries a bare 26-character ULID. Assigned by
-`markspec format`, never hand-authored, immutable once assigned.
-
-**Family-specific attributes** (plus the universal attributes from §2.1):
-
-| Attribute        | Type         | Required | Description                                     |
-| ---------------- | ------------ | -------- | ----------------------------------------------- |
-| `Element-id`     | `id`         | yes      | Bare ULID                                       |
-| `Element-kind`   | `enum`       | no       | One of `item`, `artifact`, `dependency`, `unit` |
-| `Part-of`        | `id`         | no       | Parent element display ID                       |
-| `Realizes`       | `id-list`    | no       | Spec display ID(s)                              |
-| `Depends-on`     | `id-list`    | no       | Element display ID(s)                           |
-| `Generated-from` | `path-or-id` | no       | Path or element display ID                      |
-
-Filesystem location of a code unit is a **property** (`file.path`), not an
-attribute — see ADR-002 Part 1 "Entry properties" and ADR-006.
-
-- `Kind` — core vocabulary is `item` (repo), `artifact` (produced build unit),
-  `dependency` (consumed external), `unit` (function-level declaration).
-  Extensible by profile.
-- `Realizes` — upstream link from element to spec(s) (bottom-up realization).
-- `Depends-on` — usage relationship, typically generated by static analysis.
-- `Generated-from` — provenance for tool-generated code.
-
-**Example 11 — element entry (production unit):**
+**Example 10 — explicit type override (symbolic path):**
 
 ```markdown
 - [braking_core::controller::debounce_input] Debounce function
 
   Rejects transient noise on raw sensor readings using a configurable window.
 
-  Element-id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
-  Element-kind: unit\
-  Part-of: braking-core\
-  Realizes: SRS_BRK_0107\
-  Labels: rust, ASIL-B
+  Id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
+  type: unit\
+  Realizes: 01HGW2Q8MNP3RSTVWXYZABCDE
 ```
 
-### 2.5 Reference Entries
+The author writes `type: unit` because no `display-id-pattern` matches a
+symbolic namespace path. `Realizes:` references the upstream entry by its ULID
+identity (the stable handle), not by display ID.
 
-A reference entry is a bibliographic citation of an external published artifact:
-a standard, a regulation, a paper, an RFC, a corporate specification.
+### 2.3 Referenced entries
 
-**Slug format:** `^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$` (after stripping
-optional leading `@` for Pandoc citation compatibility).
+A referenced entry is a bibliographic citation of an external artifact: a
+standard, a regulation, a paper, an RFC, a corporate specification, a package
+dependency, a hardware part from an external catalog.
 
-**ID conventions:**
+**Display ID (slug):** matches `^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$`
+(pandoc/BibTeX-style cite-key, restricted to a portable character set). Common
+conventions:
 
 ```text
 ISO-26262-6        ← ISO 26262-6:2018
 ISO/IEC-15504      ← ISO/IEC 15504
 DO-178C            ← RTCA DO-178C
-ECSS-E-ST-40C      ← ECSS-E-ST-40C
-SAE-J3061          ← SAE J3061
-MISRA-C-2012       ← MISRA C:2012
-AUTOSAR-R22-11     ← AUTOSAR R22-11
+RFC-2119           ← IETF RFC
+serde              ← Rust crate (dependency)
 smith2021          ← academic citation
 ```
 
-Both `[@ISO-26262-6]` and `[ISO-26262-6]` are accepted; the `@` is stripped
-during parsing.
+Both `[@ISO-26262-6]` and `[ISO-26262-6]` are accepted in the entry header; the
+leading `@` is pandoc-citation sugar and is stripped during parsing. Inline
+pandoc citations `[@ISO-26262-6]` in prose resolve to the matching referenced
+entry.
 
-**Identity:** `Reference-id` carries a URI (URN, DOI, or HTTPS URL per RFC
-3986). Author-provided, not tooling-generated.
+**Identity:** `Id:` carries a URI per RFC 3986 — any scheme, but the scheme is
+**required** (`urn:`, `doi:`, `pkg:`, `https:`, `isbn:`, …):
 
-**Body is optional** for reference entries — a minimal entry may consist of
-display ID, title, and `Reference-id` only.
+```text
+Id: urn:iso:std:iso:26262:-6:ed-2     ← URN (preferred for standards)
+Id: doi:10.1109/IEEESTD.2008.4610935  ← DOI (preferred for papers)
+Id: pkg:cargo/serde@1.0.0             ← purl (Package URL, for dependencies)
+Id: isbn:9780132350884                ← ISBN
+Id: https://www.rfc-editor.org/rfc/rfc2119
+```
 
-**Family-specific attributes** (plus the universal attributes from §2.1):
+Author-provided, not tooling-generated. A bare slug (no scheme) is rejected as
+an `Id:` value — the slug lives in the display ID, not in `Id:`.
 
-| Attribute            | Type   | Required | Description                                 |
-| -------------------- | ------ | -------- | ------------------------------------------- |
-| `Reference-id`       | `uri`  | yes      | URI (URN, DOI, or HTTPS URL)                |
-| `Reference-url`      | `url`  | no       | HTTPS navigation link if different from URI |
-| `Reference-document` | `text` | no       | Full formal citation; falls back to title   |
+**Type:** profile-declared. Normally inferred by the active profile from the URI
+scheme or the display ID (`Id: pkg:cargo/...` → `type: dependency`;
+`Id: urn:iso:...` → `type: standard`). An explicit `type:` overrides inference.
 
-Replacement is expressed via the universal `Supersedes` / `Superseded-by`
-attributes from §2.1. Retirement without replacement is expressed via the
-universal `Deprecated` attribute (e.g., a withdrawn standard with no successor).
+**Body is optional** for referenced entries — a minimal entry may consist of
+display ID, title, and `Id:` only.
 
-**Example 12 — reference entry:**
+**Universal attributes** (§2.1) apply, except that `References:` is **not
+applicable** to referenced entries (a referenced entry does not itself cite
+other referenced entries via `References:`; the replacement relation is
+expressed via the universal `Supersedes`).
+
+**Profile-declared attributes:** profiles may declare convenience attributes for
+referenced entries — `Reference-url:` (HTTPS navigation link when different from
+the canonical `Id:`), `Reference-document:` (canonical citation string),
+`License:` (SPDX license expression for dependencies), etc.
+
+**Example 11 — normative standard:**
 
 ```markdown
 - [@ISO-26262-6] ISO 26262 Part 6
 
   Road vehicles — Functional safety — Part 6: Software level.
 
-  Reference-id: urn:iso:std:iso:26262:-6:ed-2\
+  Id: urn:iso:std:iso:26262:-6:ed-2\
   Reference-url: https://www.iso.org/standard/68383.html\
   Reference-document: ISO 26262-6:2018\
   Labels: functional-safety, automotive
 ```
 
-### 2.6 Attribute value types
+**Example 12 — dependency (purl):**
+
+```markdown
+- [serde] serde Rust serialization framework
+
+  Id: pkg:cargo/serde@1.0.0\
+  License: Apache-2.0 OR MIT
+```
+
+### 2.4 Shape discrimination
+
+The shape of an entry is determined by the **value format** of its `Id:`
+attribute. An entry has exactly one `Id:`.
+
+```text
+if Id matches ULID regex (^[0-9A-HJKMNP-TV-Z]{26}$)  → identified
+if Id is a scheme-qualified URI (RFC 3986)            → referenced
+otherwise                                             → validation error
+```
+
+Properties of this rule:
+
+- **Disjoint** — ULIDs and URIs do not overlap. A ULID has no scheme; a URI
+  requires a scheme followed by `:`. No value matches both.
+- **Complete** — every well-formed `Id:` value is either a ULID or a URI; the
+  two exhaust the accepted formats.
+- **Independent of display ID** — shape is decided by the `Id:` value, not by
+  the display-ID format.
+- **Independent of document context** — shape is intrinsic to the entry, not
+  dependent on which document it appears in.
+- **Independent of profile** — shape resolution completes without consulting any
+  profile.
+
+When a new entry is authored without an `Id:` attribute, `markspec format`
+classifies it using a heuristic on the display ID and the document directive
+(see Part 3), then either mints a fresh ULID (identified) or prompts for a URI
+(referenced). Once `Id:` is assigned, the shape is fixed by the value's format.
+
+### 2.5 Attribute value types
 
 Every attribute declares a **value type** that determines which input forms the
 parser accepts and which form the formatter produces.
@@ -790,26 +805,6 @@ an accepted input but never a canonical output.
 
 CSV is **forbidden** for the `citation` type. `References` values may carry
 free-text locators like `§9.4, Table 7` that would be ambiguous in CSV.
-
-### 2.7 Family recognition
-
-The family of an entry is decided by its identity attribute, not by its display
-ID format or the document it appears in:
-
-```text
-entry has Spec-id      → spec
-entry has Test-id      → test
-entry has Element-id   → element
-entry has Reference-id → reference
-```
-
-An entry must carry exactly one identity attribute. Carrying two is an error;
-carrying none is an error.
-
-When a new entry is authored without an identity attribute, `markspec format`
-classifies it using the display ID format and the document directive (see Part
-3), then assigns the appropriate identity attribute with a fresh ULID or prompts
-for the URI.
 
 ---
 
@@ -1341,11 +1336,13 @@ via `labels:` and/or `deprecated:` via front matter. Replacement is via
 | `doc`        | default                      | Any Markdown file                 |
 | `glossary`   | `GLOSSARY.md` or directive   | Heading-based term definitions    |
 | `summary`    | `SUMMARY.md` or directive    | Book table of contents            |
-| `references` | `references.md` or directive | Reference entry collection        |
-| `tests`      | `tests.md` or directive      | Test entry collection             |
-| `elements`   | `elements.md` or directive   | Element entry collection          |
+| `references` | `references.md` or directive | Referenced-entry collection       |
 | `deck`       | directive only               | Slide deck (`---` = slide breaks) |
 | `code`       | file extension               | Source files with doc comments    |
+
+Profiles may declare additional document types and bind them to per-type
+collections (e.g., `requirements.md`, `tests.md` mapped to specific
+profile-declared identified types). The core ships only the generic types above.
 
 **Heading rules by type:**
 
@@ -1353,22 +1350,25 @@ via `labels:` and/or `deprecated:` via front matter. Replacement is via
 - **glossary** — one H1 (title), H2 (letter groups), H3 (terms).
 - **summary** — first H1 is the book title, additional H1s are part headings.
   Exempt from single-H1.
-- **references**, **tests**, **elements** — one H1, standard heading rules.
+- **references** and other profile-declared collection types — one H1, standard
+  heading rules.
 - **deck** — one H1 (deck title). `---` creates slide breaks. H2 headings start
   each slide. Heading hierarchy is per-slide — H3/H4 within a slide are valid
   regardless of other slides.
 
 ### 6.4 Content entities
 
-| Entity      | Source                            | ID         |
-| ----------- | --------------------------------- | ---------- |
-| **spec**    | Spec entry blocks                 | Display ID |
-| **test**    | Test entry blocks                 | Display ID |
-| **element** | Element entry blocks              | Display ID |
-| **ref**     | Reference entries, registry chain | Slug       |
-| **fig**     | Figure captions, alt text         | Slug       |
-| **tbl**     | Table captions                    | Slug       |
-| **h**       | Headings                          | GFM anchor |
+| Entity         | Source                                    | ID         |
+| -------------- | ----------------------------------------- | ---------- |
+| **identified** | Identified entry blocks (ULID-valued Id:) | Display ID |
+| **referenced** | Referenced entry blocks (URI-valued Id:)  | Slug       |
+| **fig**        | Figure captions, alt text                 | Slug       |
+| **tbl**        | Table captions                            | Slug       |
+| **h**          | Headings                                  | GFM anchor |
+
+The active profile classifies identified and referenced entries into specific
+types (`requirement`, `test`, `unit`, `standard`, `dependency`, …). The core
+distinguishes only the two shapes; everything finer is profile-declared.
 
 ### 6.5 References
 
@@ -1425,8 +1425,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 - **Alerts** — markers uppercased, spacing normalized.
 - **Front matter** — YAML form; keys sorted to canonical order (core keys, then
   profile-declared, then `metadata:`, then allowlisted ecosystem keys);
-  forbidden keys removed with an info diagnostic (MSL-D001). See §6.2 and
-  [ADR-007](../../architecture/adr-007-document-structure.md).
+  forbidden keys removed with an info diagnostic (MSL-D001). See §6.
 
 ---
 
@@ -1442,24 +1441,24 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 
 ### 8.2 Entry format (MSL-R)
 
-| ID         | Severity | Rule                                                                                              |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (reference body is optional).                    |
-| `MSL-R002` | error    | Display ID matches the family's format regex.                                                     |
-| `MSL-R003` | error    | Exactly one identity attribute per entry (`Spec-id`, `Test-id`, `Element-id`, or `Reference-id`). |
-| `MSL-R004` | error    | Identity attribute value well-formed (bare ULID for Spec/Test/Element; URI for Reference).        |
-| `MSL-R005` | error    | ULID unique across repository.                                                                    |
-| `MSL-R006` | error    | Display ID unique within project and registry chain.                                              |
-| `MSL-R007` | error    | Display ID format matches the declared family.                                                    |
-| `MSL-R008` | error    | Reference entry: `Reference-id` required (URI).                                                   |
-| `MSL-R009` | error    | Spec/Test NNNN > 0.                                                                               |
-| `MSL-R010` | warning  | Unknown attributes. Generated attributes must not appear in source.                               |
-| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                  |
-| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                            |
-| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                     |
+| ID         | Severity | Rule                                                                                                                                            |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (referenced-entry body is optional).                                                           |
+| `MSL-R002` | error    | Display ID is non-empty; matches the active profile's `display-id-pattern:` for its inferred type when one applies.                             |
+| `MSL-R003` | error    | Exactly one `Id:` attribute per entry.                                                                                                          |
+| `MSL-R004` | error    | `Id:` value well-formed: bare ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) for identified entries; scheme-qualified URI (RFC 3986) for referenced entries. |
+| `MSL-R005` | error    | ULID unique across repository.                                                                                                                  |
+| `MSL-R006` | error    | Display ID unique within project and registry chain.                                                                                            |
+| `MSL-R007` | warning  | When a profile declares a `display-id-pattern:` for the entry's inferred type, the display ID matches it.                                       |
+| `MSL-R008` | error    | Slug-shaped display ID (no scheme, not a ULID) on a referenced entry must match the slug regex.                                                 |
+| `MSL-R009` | warning  | Sequence number > 0 in patterned display IDs.                                                                                                   |
+| `MSL-R010` | warning  | Unknown attributes (not in core universal set, not declared by active profile). Generated attributes must not appear in source.                 |
+| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                                                                |
+| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                                                                          |
+| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                                                                   |
 
 MSL-R001 and MSL-R011 apply to all entry blocks. MSL-R002–R010 apply to entries
-carrying an identity attribute.
+carrying an `Id:` attribute.
 
 ### 8.3 Traceability (MSL-T)
 
@@ -1480,10 +1479,9 @@ carrying an identity attribute.
 `MSL-T014` is reserved for a future registry-chain check on `References:`
 (warning severity) when reference resolution via upstream registries lands.
 
-MSL-R014 (introduced during the four-family migration) validates enum-type
-attribute values: `Test-level`, `Element-kind` must be drawn from the vocabulary
-declared in ADR-002 Annex C. Lifecycle state is enforced through the label-group
-exclusivity rules rather than enum validation.
+Profile-declared enum attributes (e.g., `ASIL`, `Test-level`, `Element-kind`)
+are validated against the vocabulary declared in the active profile's manifest.
+The core defines no enum vocabularies of its own.
 
 Direction and level-crossing rules (e.g., "acceptance tests verify stakeholder
 requirements") are profile concerns, not core concerns.
@@ -1785,8 +1783,7 @@ each supported language.
 /// Given a 10ms debounce window, a 5ms noise spike
 /// must not alter the stable output.
 ///
-/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Level: unit \
+/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
 /// Verifies: SRS_BRK_0107 \
 /// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
@@ -1805,8 +1802,7 @@ fn swt_brk_0107_debounce_filters_noise() {
  * Given a 10ms debounce window, a 5ms noise spike
  * must not alter the stable output.
  *
- * Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
- * Level: unit \
+ * Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
  * Verifies: SRS_BRK_0107 \
  * Tests: braking_core::controller::debounce_input \
  * Labels: ASIL-B
@@ -1825,8 +1821,7 @@ fun `swt_brk_0107 debounce filters noise`() {
 /// Given a 10ms debounce window, a 5ms noise spike
 /// must not alter the stable output.
 ///
-/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Level: unit \
+/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
 /// Verifies: SRS_BRK_0107 \
 /// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
@@ -1842,8 +1837,7 @@ auto debounce_input(uint16_t raw) -> uint16_t;
  * Given a 10ms debounce window, a 5ms noise spike
  * must not alter the stable output.
  *
- * Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
- * Level: unit \
+ * Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
  * Verifies: SRS_BRK_0107 \
  * Tests: braking_core::controller::debounce_input \
  * Labels: ASIL-B
@@ -1859,8 +1853,7 @@ void debounce_input(uint16_t* raw);
 /// Given a 10ms debounce window, a 5ms noise spike
 /// must not alter the stable output.
 ///
-/// Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Level: unit \
+/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
 /// Verifies: SRS_BRK_0107 \
 /// Tests: braking_core::controller::debounce_input \
 /// Labels: ASIL-B
@@ -1882,8 +1875,7 @@ Attributes are on consecutive lines.
  * Given a 10ms debounce window, a 5ms noise spike
  * must not alter the stable output.
  *
- * Test-id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
- * Level: unit
+ * Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
  * Verifies: SRS_BRK_0107
  * Tests: braking_core::controller::debounce_input
  * Labels: ASIL-B

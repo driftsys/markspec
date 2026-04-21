@@ -97,7 +97,7 @@ function buildTraceRows(
     return {
       id: entry.displayId,
       title: entry.title,
-      entryType: entry.entryType ?? "",
+      entryType: entry.type ?? "",
       satisfies: fwd
         .filter((l) => l.kind === "satisfies")
         .map((l) => l.to)
@@ -173,7 +173,8 @@ function computeCoverage(
   let withoutSatisfies = 0;
 
   for (const entry of entries) {
-    const t = entry.entryType ?? "ref";
+    // Bucket by profile-declared type when available, fall back to shape.
+    const t = entry.type ?? (entry.shape === "referenced" ? "ref" : "untyped");
     byType[t] = (byType[t] ?? 0) + 1;
 
     const fwd = result.forward.get(entry.displayId) ?? [];
@@ -182,16 +183,17 @@ function computeCoverage(
 
     if (hasSatisfies) {
       withSatisfies++;
-    } else if (entry.entryType) {
+    } else if (entry.shape === "identified") {
       withoutSatisfies++;
       orphans.push(entry.displayId);
     }
 
-    // STK/SYS without children = unsatisfied parent
+    // Identified entries without downstream satisfiers are tentatively
+    // orphaned. Which types count as "top-level unsatisfied" is
+    // profile-specific; a profile-aware reporter layer refines this.
     const hasSatisfiedBy = rev.some((l) => l.kind === "satisfies");
     if (
-      entry.entryType &&
-      ["STK", "SYS"].includes(entry.entryType) &&
+      entry.type &&
       !hasSatisfiedBy
     ) {
       unsatisfied.push(entry.displayId);

@@ -388,9 +388,12 @@ types:
     display-id-pattern-enforcement: error # strict
 ```
 
-Display-ID prefix → type mapping is not baked in; a profile may additionally
-declare a prefix-to-type mapping if it wants automatic classification, but the
-`type:` attribute is always authoritative.
+Display-ID patterns also drive **type inference** (ADR-009 §5): an entry whose
+display ID matches a type's `display-id-pattern:` acquires that `type:`
+automatically, with no `type:` attribute in source. An explicit `type:`
+attribute in source **overrides** inference and is used when the display ID
+matches no pattern, matches multiple patterns ambiguously, or when the author
+wants the type visible in the trailers without consulting the profile.
 
 v1 does not support a `'*'` wildcard type. Profiles wanting "strict on some,
 permissive on others" can be added later without breaking compatibility; the

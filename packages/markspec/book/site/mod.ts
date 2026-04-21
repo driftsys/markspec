@@ -253,15 +253,16 @@ function _escapeHtml(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function _entryCategory(entryType: string | undefined): string {
-  if (!entryType) return "req";
-  if (["ARC", "SAD", "ICD"].includes(entryType)) return "spec";
-  if (["TST", "VAL", "SIT", "SWT"].includes(entryType)) return "test";
+function _entryCategory(displayId: string, shape: string): string {
+  if (shape === "referenced") return "req";
+  const prefix = displayId.split("_")[0];
+  if (["ARC", "SAD", "ICD"].includes(prefix)) return "spec";
+  if (["TST", "VAL", "SIT", "SWT"].includes(prefix)) return "test";
   return "req";
 }
 
 function _entryToHtml(entry: Entry): string {
-  const category = _entryCategory(entry.entryType);
+  const category = _entryCategory(entry.displayId, entry.shape);
 
   const labelsAttr = entry.attributes.find((a) => a.key === "Labels");
   const labels = labelsAttr

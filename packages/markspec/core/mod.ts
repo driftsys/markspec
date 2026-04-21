@@ -18,15 +18,14 @@ export {
 } from "./model/mod.ts";
 export type {
   Attribute,
-  BuiltinType,
   Caption,
   ConfigFieldError,
   Diagnostic,
   Directive,
   DisplayId,
   Entry,
+  EntryShape,
   EntrySource,
-  EntryType,
   InlineRef,
   Link,
   LinkKind,
@@ -68,10 +67,6 @@ export type {
 // Formatter
 export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
-
-// Migration (legacy Id: → Spec-id: per ADR-002 v2)
-export { migrateLegacyIds } from "./migrate/mod.ts";
-export type { MigrateOptions, MigrateResult } from "./migrate/mod.ts";
 
 // Validator
 export { validate } from "./validator/mod.ts";
