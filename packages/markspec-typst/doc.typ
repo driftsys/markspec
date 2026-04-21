@@ -63,6 +63,14 @@
     width: 100%,
   )
 
+  // Hanging indent for Gherkin/GWT/feature blocks: when a long step
+  // line wraps, the continuation aligns past the step verb instead of
+  // flush left. 4em in monospace ~= 6–7 character widths, enough to
+  // clear "  Given " / "  When " / "  Then " style prefixes.
+  show raw.where(lang: "gherkin"): set par(hanging-indent: 4em)
+  show raw.where(lang: "gwt"): set par(hanging-indent: 4em)
+  show raw.where(lang: "feature"): set par(hanging-indent: 4em)
+
   show link: set text(fill: t.accent)
 
   // Cover page

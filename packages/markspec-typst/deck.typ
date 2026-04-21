@@ -67,6 +67,12 @@
     width: 100%,
   )
 
+  // Hanging indent for Gherkin/GWT/feature: wrapped continuations align
+  // past the step verb instead of flush left.
+  show raw.where(lang: "gherkin"): set par(hanging-indent: 4em)
+  show raw.where(lang: "gwt"): set par(hanging-indent: 4em)
+  show raw.where(lang: "feature"): set par(hanging-indent: 4em)
+
   show link: set text(fill: t.accent)
 
   body
