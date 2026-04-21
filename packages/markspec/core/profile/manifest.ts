@@ -15,6 +15,7 @@ import {
   type EnforcementMode,
   type EntryShape,
   LIST_VALUE_TYPES,
+  type ProfileSpecifier,
   type TargetMatcher,
   type TraceRule,
   type TypeDef,
@@ -116,6 +117,50 @@ function parseStringList(
     return [];
   }
   return raw as string[];
+}
+
+function parseSpecifier(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): ProfileSpecifier | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string" || raw.length === 0) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `'extends' must be a non-empty string specifier`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  if (raw.startsWith("./") || raw.startsWith("../")) {
+    return { kind: "local", path: raw };
+  }
+  if (raw.startsWith("git+")) {
+    const m = /^git\+(https?:\/\/[^#]+?\.git)(\/[^#]+)?#(.+)$/.exec(raw);
+    if (!m) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `'extends' git specifier malformed; expected git+https://host/.git[/subpath]#<tag>`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    const [, repo, rawSubpath, tag] = m;
+    const subpath = rawSubpath ? rawSubpath.slice(1) : undefined;
+    return { kind: "git", repo, subpath, tag };
+  }
+  diagnostics.push({
+    code: "PROFILE-LOAD-003",
+    severity: "error",
+    message:
+      `'extends' specifier scheme not supported in v1 (use local './path' or git+https URL with #tag)`,
+    location: { file: sourcePath, line: 1, column: 1 },
+  });
+  return undefined;
 }
 
 function defaultCardinality(type: ValueType): Cardinality {
@@ -658,6 +703,11 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  const extendsSpec = parseSpecifier(root.extends, sourcePath, diagnostics);
+  if (root.extends !== undefined && extendsSpec === undefined) {
+    return { manifest: null, diagnostics };
+  }
+
   const rawProfile = root.profile;
   if (rawProfile !== undefined) {
     if (
@@ -788,7 +838,7 @@ export function parseManifest(
       ? root.description
       : undefined,
     license: typeof root.license === "string" ? root.license : undefined,
-    extends: undefined, // parsed in later task
+    extends: extendsSpec,
     universalRequired,
     universalAttributes,
     labels,

@@ -330,3 +330,48 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: extends local path", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+extends: "./base"
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.extends, { kind: "local", path: "./base" });
+});
+
+Deno.test("parseManifest: extends git specifier", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+extends: "git+https://github.com/acme/repo.git/aspice#aspice/v1.0.0"
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.extends, {
+    kind: "git",
+    repo: "https://github.com/acme/repo.git",
+    subpath: "aspice",
+    tag: "aspice/v1.0.0",
+  });
+});
+
+Deno.test("parseManifest: extends git without tag errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+extends: "git+https://github.com/acme/repo.git"
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: extends unrecognized scheme errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+extends: "npm:@acme/profile@1.0"
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
