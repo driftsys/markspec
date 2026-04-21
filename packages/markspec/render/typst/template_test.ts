@@ -59,3 +59,52 @@ Deno.test("generateTypstDocument: handles multiline markdown", () => {
   assertStringIncludes(result, "# Title");
   assertStringIncludes(result, "## Section");
 });
+
+// ---------------------------------------------------------------------------
+// Import prefix + image base prefix (relative-image support)
+// ---------------------------------------------------------------------------
+
+Deno.test("generateTypstDocument: applies typstPackageImportPrefix to imports", () => {
+  const result = generateTypstDocument(
+    "content",
+    {},
+    [],
+    "/driftsys/markspec/packages/markspec-typst/",
+  );
+  assertStringIncludes(
+    result,
+    '#import "/driftsys/markspec/packages/markspec-typst/lib.typ":',
+  );
+  assertStringIncludes(
+    result,
+    '#import "/driftsys/markspec/packages/markspec-typst/vendor/cmarker/lib.typ":',
+  );
+});
+
+Deno.test("generateTypstDocument: emits ms-image scope binding when imageBasePrefix set", () => {
+  const result = generateTypstDocument(
+    "![alt](asset.svg)",
+    {},
+    [],
+    "",
+    "/asdk/project/docs/",
+  );
+  // ms-image wrapper is defined
+  assertStringIncludes(result, "#let ms-image(src, alt: none, ..args)");
+  // The base prefix is embedded
+  assertStringIncludes(result, '"/asdk/project/docs/" + src');
+  // render() is called with the scope override
+  assertStringIncludes(result, "scope: (image: ms-image)");
+});
+
+Deno.test("generateTypstDocument: no ms-image binding when imageBasePrefix empty", () => {
+  const result = generateTypstDocument("![alt](asset.svg)", {}, [], "", "");
+  if (result.includes("ms-image")) {
+    throw new Error("ms-image should not appear when imageBasePrefix is empty");
+  }
+  if (result.includes("scope: (image:")) {
+    throw new Error(
+      "render() should not carry a scope override when no imageBasePrefix",
+    );
+  }
+});

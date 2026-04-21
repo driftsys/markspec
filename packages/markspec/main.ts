@@ -96,10 +96,12 @@ const docCmd = new Command()
       "../markspec-typst/",
       import.meta.url,
     ).pathname;
+    const sourceFilePath = new URL(file, `file://${Deno.cwd()}/`).pathname;
     const result = renderPdf(markdown, {
       compiled,
       config,
       typstPackagePath,
+      sourceFilePath,
     });
 
     for (const d of result.diagnostics) {

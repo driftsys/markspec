@@ -34,29 +34,50 @@ export function generateTypstDocument(
   markdown: string,
   metadata: DocumentMetadata = {},
   entries: readonly Entry[] = [],
+  typstPackageImportPrefix: string = "",
+  imageBasePrefix: string = "",
 ): string {
   const metaArgs = buildMetaArgs(metadata);
-  const imports = `#import "lib.typ": markspec-doc, req-block, entry-category
-#import "vendor/cmarker/lib.typ": render
-#import "themes/light.typ" as theme`;
+  const prefix = typstPackageImportPrefix;
+  const imports =
+    `#import "${prefix}lib.typ": markspec-doc, req-block, entry-category
+#import "${prefix}vendor/cmarker/lib.typ": render
+#import "${prefix}themes/light.typ" as theme`;
 
   const showRule = `#show: markspec-doc.with(${metaArgs})`;
 
+  // When `imageBasePrefix` is set, pass a scope-level `image` function
+  // to cmarker so that relative image paths in the user's Markdown
+  // resolve against the source-document directory instead of cmarker's
+  // own location.
+  const imageBinding = imageBasePrefix
+    ? `#let ms-image(src, alt: none, ..args) = {
+  let prefixed = if src.starts-with("/") or src.contains("://") {
+    src
+  } else {
+    "${escapeTypstString(imageBasePrefix)}" + src
+  }
+  image(prefixed, alt: alt, ..args)
+}`
+    : "";
+  const renderCall = imageBasePrefix ? "render" : "render";
+  const scopeArg = imageBasePrefix ? `, scope: (image: ms-image)` : "";
+
   if (entries.length === 0) {
     const escaped = escapeTypstString(markdown);
-    return `${imports}\n\n${showRule}\n\n#render("${escaped}")\n`;
+    return `${imports}\n\n${imageBinding}\n\n${showRule}\n\n#${renderCall}("${escaped}"${scopeArg})\n`;
   }
 
   const segments = spliceEntries(markdown, entries);
   const body = segments.map((seg) => {
     if (seg.kind === "prose") {
       if (seg.content.trim() === "") return "";
-      return `#render("${escapeTypstString(seg.content)}")`;
+      return `#${renderCall}("${escapeTypstString(seg.content)}"${scopeArg})`;
     }
-    return renderEntryTypst(seg.entry);
+    return renderEntryTypst(seg.entry, scopeArg);
   }).filter((s) => s !== "").join("\n\n");
 
-  return `${imports}\n\n${showRule}\n\n${body}\n`;
+  return `${imports}\n\n${imageBinding}\n\n${showRule}\n\n${body}\n`;
 }
 
 /** A segment of the document: either prose or an entry block. */
@@ -179,7 +200,7 @@ function displayIdCategory(displayId: string, shape: string): string {
 }
 
 /** Render a single entry as a Typst `req-block` call. */
-function renderEntryTypst(entry: Entry): string {
+function renderEntryTypst(entry: Entry, scopeArg: string = ""): string {
   const category = displayIdCategory(entry.displayId, entry.shape);
 
   // Extract labels from attributes
@@ -213,7 +234,7 @@ function renderEntryTypst(entry: Entry): string {
   type: "${category}",
   display-id: "${escapeTypstString(entry.displayId)}",
   title: "${escapeTypstString(entry.title)}",
-  body: render("${bodyEscaped}"),
+  body: render("${bodyEscaped}"${scopeArg}),
   attrs: ${attrsStr},
   labels: ${labelsStr},
   theme: theme,

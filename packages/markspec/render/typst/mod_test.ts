@@ -84,3 +84,33 @@ Deno.test("compileTypst: reports error for invalid Typst", () => {
   assert(result.diagnostics.length > 0, "expected diagnostics");
   assertEquals(result.pdf, undefined);
 });
+
+Deno.test("compileTypst: mainFilePath lets relative paths resolve from source dir", async () => {
+  // Create a temp SVG in a scratch directory, then compile a Typst source
+  // that references it relatively. Without `mainFilePath`, the path would
+  // resolve from the workspace root and fail; with `mainFilePath` pointing
+  // at a shadow file next to the SVG, it resolves correctly.
+  const tempDir = await Deno.makeTempDir();
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>`;
+  await Deno.writeTextFile(`${tempDir}/chart.svg`, svg);
+
+  try {
+    const source = `#image("chart.svg", width: 10pt)`;
+    const result = compileTypst(source, {
+      workspace: tempDir,
+      fontPaths: [FONT_PATH],
+      mainFilePath: `${tempDir}/main.typ`,
+    });
+
+    assertEquals(
+      result.diagnostics.map((d) => d.message),
+      [],
+      "expected no diagnostics when relative SVG resolves from source dir",
+    );
+    assert(result.pdf !== undefined, "expected PDF output");
+    assert(result.pdf.length > 100, "expected non-trivial PDF");
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
