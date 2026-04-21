@@ -6,6 +6,8 @@
 name: Gherkin
 file_extensions:
   - feature
+  - gherkin
+  - gwt
 scope: source.gherkin
 
 contexts:
