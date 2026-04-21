@@ -55,6 +55,9 @@
   show heading.where(level: 1): set text(size: 48pt, weight: "semibold")
   show heading.where(level: 2): set text(size: 36pt, weight: "semibold")
 
+  // Load bundled syntaxes not included in syntect's default set.
+  show raw: set raw(syntaxes: "syntaxes/gherkin.sublime-syntax")
+
   show raw: set text(font: font-mono, size: 20pt)
   show raw.where(block: true): block.with(
     fill: t.bg-code,

@@ -1,0 +1,85 @@
+%YAML 1.2
+---
+# Minimal Gherkin (Cucumber) syntax for Typst's syntect highlighter.
+# Covers the English keyword set. Other locales' keywords can be added
+# to `feature_keywords` / `step_keywords` without structural changes.
+name: Gherkin
+file_extensions:
+  - feature
+scope: source.gherkin
+
+contexts:
+  main:
+    # Line comments
+    - match: '^\s*#.*$'
+      scope: comment.line.number-sign.gherkin
+
+    # Tags (@tag, @wip, @slow)
+    - match: '^\s*(@[^\s@]+)(?:\s+@[^\s@]+)*\s*$'
+      scope: entity.name.tag.gherkin
+
+    # Feature-level keywords
+    - match: '^\s*(Feature|Business Need|Ability|Rule|Example|Scenario Outline|Scenario Template|Scenarios|Scenario|Examples|Background)(:)'
+      captures:
+        1: keyword.control.feature.gherkin
+        2: punctuation.separator.gherkin
+
+    # Step keywords — language-agnostic `*` plus English words.
+    - match: '^\s*(Given|When|Then|And|But|\*)(?=\s)'
+      scope: keyword.other.step.gherkin
+
+    # Parameter placeholders (used in Scenario Outline Examples)
+    - match: '<[^>]+>'
+      scope: variable.parameter.gherkin
+
+    # Docstrings: triple-quoted blocks
+    - match: '"""'
+      scope: punctuation.definition.string.begin.gherkin
+      push: docstring_triple_double
+    - match: "'''"
+      scope: punctuation.definition.string.begin.gherkin
+      push: docstring_triple_single
+
+    # Data tables — pipe-delimited
+    - match: '\|'
+      scope: punctuation.separator.table.gherkin
+
+    # Inline quoted strings in step text
+    - match: '"'
+      scope: punctuation.definition.string.begin.gherkin
+      push: string_double
+    - match: "'"
+      scope: punctuation.definition.string.begin.gherkin
+      push: string_single
+
+    # Numbers
+    - match: '\b\d+(\.\d+)?\b'
+      scope: constant.numeric.gherkin
+
+  docstring_triple_double:
+    - meta_scope: string.quoted.triple.gherkin
+    - match: '"""'
+      scope: punctuation.definition.string.end.gherkin
+      pop: true
+
+  docstring_triple_single:
+    - meta_scope: string.quoted.triple.gherkin
+    - match: "'''"
+      scope: punctuation.definition.string.end.gherkin
+      pop: true
+
+  string_double:
+    - meta_scope: string.quoted.double.gherkin
+    - match: '\\.'
+      scope: constant.character.escape.gherkin
+    - match: '"'
+      scope: punctuation.definition.string.end.gherkin
+      pop: true
+
+  string_single:
+    - meta_scope: string.quoted.single.gherkin
+    - match: '\\.'
+      scope: constant.character.escape.gherkin
+    - match: "'"
+      scope: punctuation.definition.string.end.gherkin
+      pop: true
