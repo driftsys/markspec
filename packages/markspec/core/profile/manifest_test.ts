@@ -60,3 +60,18 @@ bogus: whatever
     throw new Error(`expected 'bogus' in message, got: ${msg}`);
   }
 });
+
+Deno.test("parseManifest: profile section accepts only recognized keys", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  required: []
+  nonsense: {}
+`);
+  assertEquals(result.manifest, null);
+  const msg = result.diagnostics[0].message;
+  if (!msg.includes("nonsense")) {
+    throw new Error(`expected 'nonsense' in message, got: ${msg}`);
+  }
+});

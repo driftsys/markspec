@@ -18,6 +18,16 @@ const ALLOWED_ROOT_KEYS = new Set([
   "profile",
 ]);
 
+const ALLOWED_PROFILE_KEYS = new Set([
+  "required",
+  "attributes",
+  "labels",
+  "identified",
+  "referenced",
+  "types",
+  "documents",
+]);
+
 /** Result of parsing a profile manifest. */
 export interface ParseManifestResult {
   readonly manifest: ProfileManifest | null;
@@ -82,6 +92,35 @@ export function parseManifest(
 
   if (id === undefined || version === undefined) {
     return { manifest: null, diagnostics };
+  }
+
+  const rawProfile = root.profile;
+  if (rawProfile !== undefined) {
+    if (
+      rawProfile == null || typeof rawProfile !== "object" ||
+      Array.isArray(rawProfile)
+    ) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: "'profile' must be a mapping",
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return { manifest: null, diagnostics };
+    }
+    for (const key of Object.keys(rawProfile as Record<string, unknown>)) {
+      if (!ALLOWED_PROFILE_KEYS.has(key)) {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message: `unknown key under 'profile': '${key}'`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+      }
+    }
+    if (diagnostics.length > 0) {
+      return { manifest: null, diagnostics };
+    }
   }
 
   const manifest: ProfileManifest = {
