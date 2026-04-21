@@ -375,3 +375,61 @@ extends: "npm:@acme/profile@1.0"
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: attribute inverse parsed", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    test:
+      shape: identified
+      attributes:
+        - name: Verifies
+          type: id-list
+          inverse:
+            name: Verified-by
+            category: requirement
+`);
+  assertEquals(result.diagnostics.length, 0);
+  const attr = result.manifest?.types.get("test")?.attributes[0];
+  assertEquals(attr?.inverse?.name, "Verified-by");
+  assertEquals(attr?.inverse?.category, "requirement");
+});
+
+Deno.test("parseManifest: inverse on non-id attribute errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    x:
+      shape: identified
+      attributes:
+        - name: Foo
+          type: text
+          inverse:
+            name: Foo-back
+            category: bar
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: inverse missing fields errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    x:
+      shape: identified
+      attributes:
+        - name: Link
+          type: id-list
+          inverse:
+            name: Back
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});

@@ -275,8 +275,45 @@ function parseAttrDecl(
     }
     values = rawValues as string[];
   }
-  // inverse: parsed in a later task (Phase 1 can leave this undefined)
-  return { name, type: vtype, required, cardinality, values };
+  let inverse: { name: string; category: string } | undefined;
+  if (r.inverse !== undefined) {
+    if (vtype !== "id" && vtype !== "id-list") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `${context}/${name}: 'inverse' only valid on id or id-list attributes`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    if (
+      r.inverse == null || typeof r.inverse !== "object" ||
+      Array.isArray(r.inverse)
+    ) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${context}/${name}: 'inverse' must be a mapping`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    const inv = r.inverse as Record<string, unknown>;
+    if (typeof inv.name !== "string" || typeof inv.category !== "string") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `${context}/${name}: 'inverse' requires string 'name' and 'category'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    inverse = { name: inv.name, category: inv.category };
+  }
+
+  return { name, type: vtype, required, cardinality, values, inverse };
 }
 
 function parseAttrList(
