@@ -11,9 +11,12 @@ import type { Diagnostic, ProfileManifest } from "../model/mod.ts";
 import {
   type AttrDecl,
   type Cardinality,
+  type EnforcementMode,
+  type EntryShape,
   LIST_VALUE_TYPES,
   type TargetMatcher,
   type TraceRule,
+  type TypeDef,
   VALUE_TYPES,
   type ValueType,
 } from "../model/mod.ts";
@@ -45,6 +48,15 @@ const ALLOWED_IDENTIFIED_KEYS = new Set([
   "traceability",
 ]);
 const ALLOWED_REFERENCED_KEYS = new Set(["required", "attributes"]);
+
+const ALLOWED_TYPE_KEYS = new Set([
+  "shape",
+  "display-id-pattern",
+  "display-id-pattern-enforcement",
+  "required",
+  "attributes",
+  "traceability",
+]);
 
 function parseShapeScope(
   raw: unknown,
@@ -348,6 +360,143 @@ function parseTraceabilityMap(
   return out;
 }
 
+function parseTypeDef(
+  name: string,
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): TypeDef | undefined {
+  const ctx = `profile.types.${name}`;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${ctx}: must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const r = raw as Record<string, unknown>;
+  for (const key of Object.keys(r)) {
+    if (!ALLOWED_TYPE_KEYS.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${ctx}: unknown key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+  }
+
+  const shape = r.shape;
+  if (shape !== "identified" && shape !== "referenced") {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${ctx}: 'shape' must be 'identified' or 'referenced'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+
+  if (shape === "referenced" && r.traceability !== undefined) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message:
+        `${ctx}: referenced types cannot declare traceability (referenced entries don't originate links)`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+
+  let displayIdPattern: string | undefined;
+  if (r["display-id-pattern"] !== undefined) {
+    if (typeof r["display-id-pattern"] !== "string") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${ctx}: 'display-id-pattern' must be a string`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    displayIdPattern = r["display-id-pattern"];
+  }
+
+  let enforcement: EnforcementMode = "off";
+  const rawEnf = r["display-id-pattern-enforcement"];
+  if (rawEnf !== undefined) {
+    if (rawEnf !== "off" && rawEnf !== "warn" && rawEnf !== "error") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `${ctx}: 'display-id-pattern-enforcement' must be off|warn|error`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    enforcement = rawEnf;
+  }
+
+  const required = parseStringList(
+    r.required,
+    `${ctx}.required`,
+    sourcePath,
+    diagnostics,
+  );
+  const attributes = parseAttrList(
+    r.attributes,
+    `${ctx}.attributes`,
+    sourcePath,
+    diagnostics,
+  );
+  const traceability = shape === "identified"
+    ? parseTraceabilityMap(
+      r.traceability,
+      `${ctx}.traceability`,
+      sourcePath,
+      diagnostics,
+    )
+    : new Map<string, TraceRule>();
+
+  return {
+    name,
+    shape: shape as EntryShape,
+    displayIdPattern,
+    displayIdPatternEnforcement: enforcement,
+    required,
+    attributes,
+    traceability,
+  };
+}
+
+function parseTypesMap(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): Map<string, TypeDef> {
+  const out = new Map<string, TypeDef>();
+  if (raw === undefined) return out;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `profile.types: must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return out;
+  }
+  for (
+    const [name, rawType] of Object.entries(raw as Record<string, unknown>)
+  ) {
+    const td = parseTypeDef(name, rawType, sourcePath, diagnostics);
+    if (td) out.set(name, td);
+  }
+  return out;
+}
+
 /**
  * Parse and validate a raw markspec.yaml string.
  *
@@ -517,6 +666,11 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  const types = parseTypesMap(profileSection.types, sourcePath, diagnostics);
+  if (diagnostics.length > 0) {
+    return { manifest: null, diagnostics };
+  }
+
   const manifest: ProfileManifest = {
     id,
     version,
@@ -537,7 +691,7 @@ export function parseManifest(
       required: referencedRequired,
       attributes: referencedAttributes,
     },
-    types: new Map(),
+    types: types,
     documents: { types: [], frontMatter: [] },
   };
 

@@ -212,3 +212,83 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: types map parsed", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: error
+      required: [Rationale]
+      attributes:
+        - name: Rationale
+          type: text
+      traceability:
+        Derived-from:
+          target: [stakeholder-requirement]
+          cardinality: 1..N
+          required: true
+    standard:
+      shape: referenced
+`);
+  assertEquals(result.diagnostics.length, 0);
+  const types = result.manifest?.types;
+  assertEquals(types?.size, 2);
+  const req = types?.get("requirement");
+  assertEquals(req?.shape, "identified");
+  assertEquals(req?.displayIdPattern, "REQ-{n:04d}");
+  assertEquals(req?.displayIdPatternEnforcement, "error");
+  assertEquals(req?.required, ["Rationale"]);
+  assertEquals(req?.attributes[0].name, "Rationale");
+  const trace = req?.traceability.get("Derived-from");
+  assertEquals(trace?.target, ["stakeholder-requirement"]);
+  const std = types?.get("standard");
+  assertEquals(std?.shape, "referenced");
+  assertEquals(std?.displayIdPatternEnforcement, "off");
+});
+
+Deno.test("parseManifest: type must declare shape", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      attributes: []
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: type with bad shape errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    thing:
+      shape: sideways
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: referenced type with traceability errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    standard:
+      shape: referenced
+      traceability:
+        Something:
+          target: [other]
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
