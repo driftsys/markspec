@@ -9,6 +9,15 @@
 import { parse as parseYaml } from "@std/yaml";
 import type { Diagnostic, ProfileManifest } from "../model/mod.ts";
 
+const ALLOWED_ROOT_KEYS = new Set([
+  "id",
+  "version",
+  "description",
+  "license",
+  "extends",
+  "profile",
+]);
+
 /** Result of parsing a profile manifest. */
 export interface ParseManifestResult {
   readonly manifest: ProfileManifest | null;
@@ -52,6 +61,22 @@ export function parseManifest(
   }
 
   const root = parsed as Record<string, unknown>;
+
+  for (const key of Object.keys(root)) {
+    if (!ALLOWED_ROOT_KEYS.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `unknown top-level manifest key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+  }
+  // if any unknown key, bail out now before further parsing
+  if (diagnostics.length > 0) {
+    return { manifest: null, diagnostics };
+  }
+
   const id = requireString(root, "id", sourcePath, diagnostics);
   const version = requireString(root, "version", sourcePath, diagnostics);
 

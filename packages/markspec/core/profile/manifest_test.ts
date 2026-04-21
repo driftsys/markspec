@@ -45,3 +45,18 @@ Deno.test("parseManifest: malformed YAML fails with PROFILE-LOAD-002", () => {
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-002");
 });
+
+Deno.test("parseManifest: unknown top-level key errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+bogus: whatever
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+  // message mentions the offending key
+  const msg = result.diagnostics[0].message;
+  if (!msg.includes("bogus")) {
+    throw new Error(`expected 'bogus' in message, got: ${msg}`);
+  }
+});
