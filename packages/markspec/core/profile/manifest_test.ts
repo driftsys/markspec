@@ -292,3 +292,41 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: documents section parsed", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  documents:
+    types:
+      - id: requirements-doc
+        contains: [requirement]
+        description: Requirements specifications
+    frontMatter:
+      - name: document-version
+        type: text
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.documents.types.length, 1);
+  assertEquals(result.manifest?.documents.types[0].id, "requirements-doc");
+  assertEquals(result.manifest?.documents.types[0].contains, ["requirement"]);
+  assertEquals(result.manifest?.documents.frontMatter.length, 1);
+  assertEquals(
+    result.manifest?.documents.frontMatter[0].name,
+    "document-version",
+  );
+});
+
+Deno.test("parseManifest: document type missing id errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  documents:
+    types:
+      - contains: [requirement]
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});

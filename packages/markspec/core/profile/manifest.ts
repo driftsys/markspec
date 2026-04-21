@@ -11,6 +11,7 @@ import type { Diagnostic, ProfileManifest } from "../model/mod.ts";
 import {
   type AttrDecl,
   type Cardinality,
+  type DocTypeDef,
   type EnforcementMode,
   type EntryShape,
   LIST_VALUE_TYPES,
@@ -57,6 +58,9 @@ const ALLOWED_TYPE_KEYS = new Set([
   "attributes",
   "traceability",
 ]);
+
+const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
+const ALLOWED_DOCUMENTS_KEYS = new Set(["types", "frontMatter"]);
 
 function parseShapeScope(
   raw: unknown,
@@ -497,6 +501,103 @@ function parseTypesMap(
   return out;
 }
 
+function parseDocTypeDef(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): DocTypeDef | undefined {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `profile.documents.types: each entry must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const r = raw as Record<string, unknown>;
+  for (const key of Object.keys(r)) {
+    if (!ALLOWED_DOC_TYPE_KEYS.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.documents.types: unknown key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+  }
+  if (typeof r.id !== "string" || r.id.length === 0) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `profile.documents.types: entry missing 'id'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const contains = parseStringList(
+    r.contains,
+    `profile.documents.types.${r.id}.contains`,
+    sourcePath,
+    diagnostics,
+  );
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+  return { id: r.id, contains, description };
+}
+
+function parseDocumentsSection(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): { types: DocTypeDef[]; frontMatter: AttrDecl[] } {
+  if (raw === undefined) return { types: [], frontMatter: [] };
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `profile.documents: must be a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return { types: [], frontMatter: [] };
+  }
+  const r = raw as Record<string, unknown>;
+  for (const key of Object.keys(r)) {
+    if (!ALLOWED_DOCUMENTS_KEYS.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.documents: unknown key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+  }
+  const types: DocTypeDef[] = [];
+  if (r.types !== undefined) {
+    if (!Array.isArray(r.types)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.documents.types: must be a list`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    } else {
+      for (const item of r.types) {
+        const dt = parseDocTypeDef(item, sourcePath, diagnostics);
+        if (dt) types.push(dt);
+      }
+    }
+  }
+  const frontMatter = parseAttrList(
+    r.frontMatter,
+    "profile.documents.frontMatter",
+    sourcePath,
+    diagnostics,
+  );
+  return { types, frontMatter };
+}
+
 /**
  * Parse and validate a raw markspec.yaml string.
  *
@@ -671,6 +772,15 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  const documents = parseDocumentsSection(
+    profileSection.documents,
+    sourcePath,
+    diagnostics,
+  );
+  if (diagnostics.length > 0) {
+    return { manifest: null, diagnostics };
+  }
+
   const manifest: ProfileManifest = {
     id,
     version,
@@ -692,7 +802,7 @@ export function parseManifest(
       attributes: referencedAttributes,
     },
     types: types,
-    documents: { types: [], frontMatter: [] },
+    documents: documents,
   };
 
   return { manifest, diagnostics };
