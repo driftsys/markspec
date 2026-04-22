@@ -59,11 +59,38 @@ async function requireProjectConfig() {
 }
 
 /**
+ * Load the active profile chain (or null) for the current project and
+ * surface any diagnostics. Called by every profile-aware subcommand so
+ * `.markspec.yaml` errors are caught uniformly.
+ *
+ * The loaded chain itself is not yet consumed by the validator / compiler —
+ * that lands in Phase 5+ of the profile system rollout.
+ */
+async function loadActiveProfile(projectRoot: string) {
+  const { loadProfileForCommand } = await import("./core/mod.ts");
+  const result = await loadProfileForCommand(projectRoot, readFile);
+
+  let sawError = false;
+  for (const diag of result.diagnostics) {
+    const loc = diag.location
+      ? `${diag.location.file}:${diag.location.line}`
+      : "";
+    console.error(`${diag.severity}[${diag.code}]: ${loc} ${diag.message}`);
+    if (diag.severity === "error") sawError = true;
+  }
+  if (sawError) {
+    Deno.exit(1);
+  }
+  return result.chain;
+}
+
+/**
  * Compile project files and return the result.
  * Shared helper for commands that need the compiled graph.
  */
 async function compileProject(paths: string[]): Promise<CompileResult> {
-  await requireProjectConfig();
+  const configResult = await requireProjectConfig();
+  await loadActiveProfile(configResult.projectRoot);
   const { compile } = await import("./core/mod.ts");
   const result = await compile(paths, {
     readFile: (p) => Deno.readTextFile(p),
@@ -291,6 +318,12 @@ const cli = new Command()
       Deno.exit(1);
     }
 
+    const { discoverProjectRoot } = await import("./core/mod.ts");
+    const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
+    if (projectRoot !== undefined) {
+      await loadActiveProfile(projectRoot);
+    }
+
     const { format } = await import("./core/mod.ts");
 
     let totalFormatted = 0;
@@ -354,6 +387,12 @@ const cli = new Command()
         console.error("error: no files specified");
         console.error("usage: markspec validate <file...>");
         Deno.exit(1);
+      }
+
+      const { discoverProjectRoot } = await import("./core/mod.ts");
+      const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
+      if (projectRoot !== undefined) {
+        await loadActiveProfile(projectRoot);
       }
 
       const { parseFile, validate } = await import("./core/mod.ts");
