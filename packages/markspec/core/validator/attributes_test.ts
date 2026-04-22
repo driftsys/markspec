@@ -448,6 +448,82 @@ Deno.test("validateAttributesForEntry: one bad value among good ones → single 
   assertEquals(a004.length, 1);
 });
 
+Deno.test("effectiveScope: trace rule without explicit attribute declaration synthesizes id-list", () => {
+  const origin = ORIGIN;
+  const traceRule = {
+    target: ["requirement"] as const,
+    cardinality: { lower: 1, upper: 2 },
+    required: true,
+  };
+  const p: EffectiveProfile = {
+    required: { value: [], origin },
+    attributes: new Map(),
+    labels: { value: [], origin },
+    identified: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map([
+        ["Verifies", { value: traceRule, origin }],
+      ]),
+    },
+    referenced: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+  const e = entry({ shape: "identified" });
+  const scope = effectiveScope(e, p);
+  const verifies = scope.attributes.get("Verifies");
+  if (!verifies) throw new Error("expected synthesized Verifies attribute");
+  assertEquals(verifies.type, "id-list");
+  assertEquals(verifies.required, false);
+  assertEquals(verifies.cardinality, { lower: 0, upper: Infinity });
+});
+
+Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule synthesis", () => {
+  // If the profile declares both the attribute AND the trace rule,
+  // the explicit attr wins (not synthesized).
+  const origin = ORIGIN;
+  const explicitAttr: AttrDecl = {
+    name: "Verifies",
+    type: "id-list",
+    required: true,
+    cardinality: { lower: 1, upper: 3 },
+  };
+  const traceRule = {
+    target: ["requirement"] as const,
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p: EffectiveProfile = {
+    required: { value: [], origin },
+    attributes: new Map([
+      ["Verifies", { value: explicitAttr, origin }],
+    ]),
+    labels: { value: [], origin },
+    identified: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map([
+        ["Verifies", { value: traceRule, origin }],
+      ]),
+    },
+    referenced: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+  const e = entry({ shape: "identified" });
+  const scope = effectiveScope(e, p);
+  assertEquals(scope.attributes.get("Verifies"), explicitAttr);
+});
+
 Deno.test("validateAttributesForEntry: enum value-type mismatch → MSL-A004", () => {
   const enumAttr: AttrDecl = {
     name: "Status",

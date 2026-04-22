@@ -1,0 +1,16 @@
+id: "@acme/phase7-traceable"
+version: 0.1.0
+description: Phase 7 e2e — profile with traceability rules
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+    test:
+      shape: identified
+      display-id-pattern: "TEST-{n:04d}"
+      traceability:
+        Verifies:
+          target: [requirement]
+          cardinality: 1..2
+          required: true
