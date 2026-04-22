@@ -262,13 +262,14 @@ function parseAttrDecl(
     const rawValues = r.values;
     if (
       !Array.isArray(rawValues) ||
-      rawValues.some((v) => typeof v !== "string")
+      rawValues.some((v) => typeof v !== "string") ||
+      rawValues.length === 0
     ) {
       diagnostics.push({
         code: "PROFILE-LOAD-003",
         severity: "error",
         message:
-          `${context}: enum attribute '${name}' requires a 'values' list of strings`,
+          `${context}: enum attribute '${name}' requires a non-empty 'values' list of strings`,
         location: { file: sourcePath, line: 1, column: 1 },
       });
       return undefined;

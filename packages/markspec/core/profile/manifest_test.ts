@@ -458,3 +458,17 @@ Deno.test("parseManifest: complete fixture parses without diagnostics", async ()
   assertEquals(m.documents.types.length, 2);
   assertEquals(m.documents.frontMatter.length, 1);
 });
+
+Deno.test("parseManifest: enum attribute with empty values errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Mode
+      type: enum
+      values: []
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
