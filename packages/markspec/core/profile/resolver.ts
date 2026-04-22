@@ -84,9 +84,7 @@ export async function resolveGitSpecifier(
   diagnostics: Diagnostic[],
   opts: ResolveGitOptions = {},
 ): Promise<ResolvedProfileSource | null> {
-  // Silence the "runGit is unused" lint — Task 4.4 wires it in.
-  const _runGit = opts.runGit ?? defaultRunGit;
-  void _runGit;
+  const runGit = opts.runGit ?? defaultRunGit;
 
   const location = await computeCacheLocation(projectRoot, {
     repo: specifier.repo,
@@ -94,26 +92,95 @@ export async function resolveGitSpecifier(
     tag: specifier.tag,
   });
 
-  const rawYaml = await readFile(location.manifestPath);
-  if (rawYaml !== undefined) {
-    return {
-      rawYaml,
-      sourcePath: location.manifestPath,
-      baseDir: specifier.subpath !== undefined
-        // baseDir is the directory containing the manifest (subpath-relative
-        // when subpath is set so the profile's own extends: resolves against
-        // the profile's directory, not the repo root).
-        ? location.manifestPath.slice(0, -"/markspec.yaml".length)
-        : location.dir,
-    };
+  // Cache hit?
+  const cached = await readFile(location.manifestPath);
+  if (cached !== undefined) {
+    return buildResolvedSource(cached, location, specifier);
   }
 
-  diagnostics.push({
-    code: "PROFILE-LOAD-001",
-    severity: "error",
-    message: `git profile cache miss at ${location.dir} ` +
-      `(Phase 4 Task 4.4 will replace this with a clone on miss)`,
-    location: { file: location.dir, line: 1, column: 1 },
-  });
-  return null;
+  // Cache miss — clone shallow + sparse, then checkout the tag.
+  const cloneResult = await runGit([
+    "clone",
+    "--depth=1",
+    `--branch=${specifier.tag}`,
+    "--filter=blob:none",
+    "--sparse",
+    "--no-checkout",
+    specifier.repo,
+    location.dir,
+  ]);
+  if (cloneResult.code !== 0) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-001",
+      severity: "error",
+      message: `git clone failed for ${specifier.repo}#${specifier.tag}: ` +
+        cloneResult.stderr.trim(),
+      location: { file: location.dir, line: 1, column: 1 },
+    });
+    return null;
+  }
+
+  if (specifier.subpath !== undefined) {
+    const sparseResult = await runGit(
+      ["sparse-checkout", "set", specifier.subpath],
+      location.dir,
+    );
+    if (sparseResult.code !== 0) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-001",
+        severity: "error",
+        message:
+          `git sparse-checkout failed for ${specifier.repo}#${specifier.tag} ` +
+          `subpath '${specifier.subpath}': ${sparseResult.stderr.trim()}`,
+        location: { file: location.dir, line: 1, column: 1 },
+      });
+      return null;
+    }
+  }
+
+  const checkoutResult = await runGit(
+    ["checkout", specifier.tag],
+    location.dir,
+  );
+  if (checkoutResult.code !== 0) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-001",
+      severity: "error",
+      message: `git checkout failed for ${specifier.repo}#${specifier.tag}: ` +
+        checkoutResult.stderr.trim(),
+      location: { file: location.dir, line: 1, column: 1 },
+    });
+    return null;
+  }
+
+  // After clone+checkout, expect the manifest at the computed path.
+  const postCloneYaml = await readFile(location.manifestPath);
+  if (postCloneYaml === undefined) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-001",
+      severity: "error",
+      message:
+        `git clone of ${specifier.repo}#${specifier.tag} succeeded but ` +
+        `no markspec.yaml at ${location.manifestPath}`,
+      location: { file: location.manifestPath, line: 1, column: 1 },
+    });
+    return null;
+  }
+
+  return buildResolvedSource(postCloneYaml, location, specifier);
+}
+
+function buildResolvedSource(
+  rawYaml: string,
+  location: { manifestPath: string; dir: string },
+  specifier: Extract<ProfileSpecifier, { kind: "git" }>,
+): ResolvedProfileSource {
+  const baseDir = specifier.subpath !== undefined
+    ? location.manifestPath.slice(0, -"/markspec.yaml".length)
+    : location.dir;
+  return {
+    rawYaml,
+    sourcePath: location.manifestPath,
+    baseDir,
+  };
 }
