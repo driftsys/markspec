@@ -43,6 +43,30 @@ export {
 } from "./config/mod.ts";
 export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
+export {
+  MARKSPEC_YAML_FILENAME,
+  parseMarkspecYaml,
+  readMarkspecYaml,
+} from "./config/markspec.ts";
+export type {
+  MarkspecYaml,
+  ParseMarkspecYamlResult,
+} from "./config/markspec.ts";
+
+// Profile system (ADR-008)
+export {
+  loadChain,
+  loadProfileForCommand,
+  parseManifest,
+  resolveLocalSpecifier,
+} from "./profile/mod.ts";
+export type {
+  LoadChainResult,
+  LoadProfileForCommandResult,
+  ParseManifestResult,
+  ResolvedProfileSource,
+} from "./profile/mod.ts";
+
 // Parser
 export {
   detectCaptions,
