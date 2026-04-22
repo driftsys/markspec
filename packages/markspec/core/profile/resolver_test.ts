@@ -5,7 +5,9 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { resolveLocalSpecifier } from "./resolver.ts";
+import { resolveGitSpecifier, resolveLocalSpecifier } from "./resolver.ts";
+import { computeCacheLocation } from "./git-cache.ts";
+import type { RunGit } from "./git-cache.ts";
 import type { Diagnostic } from "../model/mod.ts";
 
 function mockReadFile(map: Record<string, string>) {
@@ -61,4 +63,65 @@ Deno.test("resolveLocalSpecifier: parent-relative path resolves correctly", asyn
   assertEquals(diagnostics, []);
   assertEquals(result?.sourcePath, "/workspace/shared/base/markspec.yaml");
   assertEquals(result?.baseDir, "/workspace/shared/base");
+});
+
+// A RunGit that records what it would have done without touching the
+// filesystem. Stays unused on the cache-hit path.
+function mockRunGit(): { runGit: RunGit; calls: string[][] } {
+  const calls: string[][] = [];
+  const runGit: RunGit = (args) => {
+    calls.push([...args]);
+    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+  };
+  return { runGit, calls };
+}
+
+Deno.test("resolveGitSpecifier: cache hit reads markspec.yaml, never calls git", async () => {
+  const diagnostics: Diagnostic[] = [];
+  const { runGit, calls } = mockRunGit();
+
+  const spec = {
+    kind: "git" as const,
+    repo: "https://github.com/acme/repo.git",
+    subpath: undefined,
+    tag: "v1.0.0",
+  };
+  const loc = await computeCacheLocation("/project", spec);
+
+  const result = await resolveGitSpecifier(
+    spec,
+    "/project",
+    mockReadFile({
+      [loc.manifestPath]: "id: @acme/cached\nversion: 1.0.0\n",
+    }),
+    diagnostics,
+    { runGit },
+  );
+
+  assertEquals(diagnostics, []);
+  assertEquals(result?.rawYaml, "id: @acme/cached\nversion: 1.0.0\n");
+  assertEquals(result?.sourcePath, loc.manifestPath);
+  assertEquals(result?.baseDir, loc.dir);
+  assertEquals(calls.length, 0); // git never invoked
+});
+
+Deno.test("resolveGitSpecifier: cache miss emits PROFILE-LOAD-001 (pre-Task-4.4 scaffold)", async () => {
+  const diagnostics: Diagnostic[] = [];
+  const { runGit } = mockRunGit();
+
+  const result = await resolveGitSpecifier(
+    {
+      kind: "git",
+      repo: "https://github.com/acme/repo.git",
+      subpath: undefined,
+      tag: "v1.0.0",
+    },
+    "/project",
+    mockReadFile({}), // empty — no cache
+    diagnostics,
+    { runGit },
+  );
+
+  assertEquals(result, null);
+  assertEquals(diagnostics[0].code, "PROFILE-LOAD-001");
 });
