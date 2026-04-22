@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { effectiveTraceRules } from "./traceability.ts";
+import { effectiveTraceRules, matchesAnyTarget } from "./traceability.ts";
 import type {
   EffectiveProfile,
   EffectiveShapeScope,
@@ -192,4 +192,77 @@ Deno.test("effectiveTraceRules: classified entry with unknown type falls back to
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 1);
   assertEquals(rules.get("Derived-from"), derivedFromRule);
+});
+
+function targetEntry(opts: {
+  shape: EntryShape;
+  type?: string;
+  displayId?: string;
+}): Entry {
+  return {
+    displayId: opts.displayId ?? "Y-001",
+    id: "01TARGET02TARGET03TARGET04",
+    shape: opts.shape,
+    type: opts.type,
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [],
+    typedAttributes: new Map(),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+}
+
+Deno.test("matchesAnyTarget: string matcher accepts target with matching type", () => {
+  const t = targetEntry({ shape: "identified", type: "requirement" });
+  assertEquals(matchesAnyTarget(t, ["requirement"]), true);
+});
+
+Deno.test("matchesAnyTarget: string matcher rejects mismatched type", () => {
+  const t = targetEntry({ shape: "identified", type: "note" });
+  assertEquals(matchesAnyTarget(t, ["requirement"]), false);
+});
+
+Deno.test("matchesAnyTarget: string matcher rejects un-classified target", () => {
+  const t = targetEntry({ shape: "identified" });
+  assertEquals(matchesAnyTarget(t, ["requirement"]), false);
+});
+
+Deno.test("matchesAnyTarget: shape matcher accepts matching shape", () => {
+  const t = targetEntry({ shape: "identified" });
+  assertEquals(matchesAnyTarget(t, [{ shape: "identified" }]), true);
+});
+
+Deno.test("matchesAnyTarget: shape matcher rejects opposite shape", () => {
+  const t = targetEntry({ shape: "referenced" });
+  assertEquals(matchesAnyTarget(t, [{ shape: "identified" }]), false);
+});
+
+Deno.test("matchesAnyTarget: multi-matcher uses OR — first match wins", () => {
+  const t = targetEntry({ shape: "identified", type: "requirement" });
+  assertEquals(
+    matchesAnyTarget(t, ["stakeholder-requirement", "requirement"]),
+    true,
+  );
+});
+
+Deno.test("matchesAnyTarget: multi-matcher all reject → false", () => {
+  const t = targetEntry({ shape: "identified", type: "other" });
+  assertEquals(matchesAnyTarget(t, ["a", "b", { shape: "referenced" }]), false);
+});
+
+Deno.test("matchesAnyTarget: mixed string + shape matcher", () => {
+  const reqTarget = targetEntry({ shape: "identified", type: "requirement" });
+  const refTarget = targetEntry({ shape: "referenced", type: "citation" });
+  const otherIdentified = targetEntry({ shape: "identified", type: "note" });
+
+  const rule = ["requirement", { shape: "referenced" as const }];
+  assertEquals(matchesAnyTarget(reqTarget, rule), true);
+  assertEquals(matchesAnyTarget(refTarget, rule), true);
+  assertEquals(matchesAnyTarget(otherIdentified, rule), false);
+});
+
+Deno.test("matchesAnyTarget: empty matcher list → always false", () => {
+  const t = targetEntry({ shape: "identified", type: "requirement" });
+  assertEquals(matchesAnyTarget(t, []), false);
 });

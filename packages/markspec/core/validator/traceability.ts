@@ -15,7 +15,12 @@
  * never have declared outgoing links.
  */
 
-import type { EffectiveProfile, Entry, TraceRule } from "../model/mod.ts";
+import type {
+  EffectiveProfile,
+  Entry,
+  TargetMatcher,
+  TraceRule,
+} from "../model/mod.ts";
 
 /**
  * Effective trace rules for an entry: union of identified-shape-scope rules
@@ -47,4 +52,27 @@ export function effectiveTraceRules(
   }
 
   return out;
+}
+
+/**
+ * Return true if the target entry matches any of the rule's target matchers.
+ * OR semantics across the list.
+ *
+ * - Type-name matcher (string): target's classified type equals the name.
+ *   An un-classified target never matches a type-name matcher.
+ * - Shape matcher ({shape: "identified"|"referenced"}): target's shape
+ *   equals the matcher's shape.
+ */
+export function matchesAnyTarget(
+  target: Entry,
+  matchers: readonly TargetMatcher[],
+): boolean {
+  for (const m of matchers) {
+    if (typeof m === "string") {
+      if (target.type === m) return true;
+    } else {
+      if (target.shape === m.shape) return true;
+    }
+  }
+  return false;
 }
