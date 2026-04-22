@@ -162,7 +162,9 @@ function parseProfileSpecifier(
     return { kind: "local", path: raw };
   }
   if (raw.startsWith("git+")) {
-    const m = /^git\+(https?:\/\/[^#]+?\.git)(\/[^#]+)?#(.+)$/.exec(raw);
+    const m = /^git\+((?:https?|file):\/\/[^#]+?\.git)(\/[^#]+)?#(.+)$/.exec(
+      raw,
+    );
     if (!m) {
       diagnostics.push({
         code: "MARKSPEC-YAML-003",
