@@ -8,7 +8,13 @@
  * entries in a strict profile (types declared) produce MSL-T003.
  */
 
-import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
+import type {
+  Diagnostic,
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  ProvenancedMapEntry,
+} from "../model/mod.ts";
 import { compileDisplayIdPattern } from "./pattern.ts";
 
 /** Result of classifying a single entry. */
@@ -105,4 +111,71 @@ function findExplicitTypeAttribute(entry: Entry): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Result of running the classification stage over a batch of entries. */
+export interface ClassifyStageResult {
+  /** Entries with `type` set on successful classification. */
+  readonly entries: readonly Entry[];
+  readonly diagnostics: readonly Diagnostic[];
+}
+
+/**
+ * Run classification across all entries. Produces new {@linkcode Entry}
+ * objects with `type` set when classification succeeds; un-classified
+ * entries pass through with `type` unchanged.
+ *
+ * Also emits `MSL-T004` when a classified entry's display ID violates the
+ * type's `display-id-pattern-enforcement` level.
+ */
+export function classifyEntriesStage(
+  entries: readonly Entry[],
+  profile: EffectiveProfile,
+): ClassifyStageResult {
+  const diagnostics: Diagnostic[] = [];
+  const out: Entry[] = [];
+
+  for (const entry of entries) {
+    const classified = classifyEntry(entry, profile);
+    diagnostics.push(...classified.diagnostics);
+
+    if (classified.type !== undefined) {
+      const typeEntry = profile.types.get(classified.type);
+      if (typeEntry !== undefined) {
+        const enforceDiag = checkEnforcement(entry, typeEntry);
+        if (enforceDiag !== undefined) {
+          diagnostics.push(enforceDiag);
+        }
+      }
+      out.push({ ...entry, type: classified.type });
+    } else {
+      out.push(entry);
+    }
+  }
+
+  return { entries: out, diagnostics };
+}
+
+/**
+ * If the classified type declares a display-id-pattern and the entry's
+ * display ID doesn't match it, emit an MSL-T004 at the configured severity.
+ * Returns `undefined` when the display ID matches or enforcement is `off`.
+ */
+function checkEnforcement(
+  entry: Entry,
+  typeEntry: ProvenancedMapEntry<EffectiveTypeDef>,
+): Diagnostic | undefined {
+  const pattern = typeEntry.value.displayIdPattern.value;
+  if (pattern === undefined) return undefined;
+  const level = typeEntry.value.displayIdPatternEnforcement.value;
+  if (level === "off") return undefined;
+  const regex = compileDisplayIdPattern(pattern);
+  if (regex.test(entry.displayId)) return undefined;
+  return {
+    code: "MSL-T004",
+    severity: level === "error" ? "error" : "warning",
+    message: `${entry.displayId}: display ID doesn't match pattern ` +
+      `'${pattern}' for type '${typeEntry.value.name}'`,
+    location: entry.location,
+  };
 }

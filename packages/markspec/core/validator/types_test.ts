@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { classifyEntry } from "./types.ts";
+import { classifyEntriesStage, classifyEntry } from "./types.ts";
 import type {
   EffectiveProfile,
   EffectiveTypeDef,
@@ -222,4 +222,140 @@ Deno.test("classifyEntry: type without pattern doesn't participate in pattern ma
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, undefined);
   assertEquals(result.diagnostics[0].code, "MSL-T003");
+});
+
+Deno.test("classifyEntriesStage: sets entry.type on successful classification", () => {
+  const profile = buildProfile([
+    buildType({
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: "REQ-{n:04d}",
+    }),
+  ]);
+  const entries = [
+    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+    buildEntry({ displayId: "REQ-0002", shape: "identified" }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.entries[0].type, "requirement");
+  assertEquals(result.entries[1].type, "requirement");
+});
+
+Deno.test("classifyEntriesStage: preserves entries for un-classified (permissive mode)", () => {
+  const profile = buildProfile([]);
+  const entries = [
+    buildEntry({ displayId: "FOO-001", shape: "identified" }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.entries[0].type, undefined);
+});
+
+Deno.test("classifyEntriesStage: accumulates diagnostics across entries", () => {
+  const profile = buildProfile([
+    buildType({
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: "REQ-{n:04d}",
+    }),
+  ]);
+  const entries = [
+    buildEntry({ displayId: "FOO-001", shape: "identified" }),
+    buildEntry({ displayId: "BAR-002", shape: "identified" }),
+    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  const t003 = result.diagnostics.filter((d) => d.code === "MSL-T003");
+  assertEquals(t003.length, 2);
+});
+
+Deno.test("classifyEntriesStage: MSL-T004 warn when enforcement=warn and pattern mismatches", () => {
+  const profile = buildProfile([
+    buildType({
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: "REQ-{n:04d}",
+      enforcement: "warn",
+    }),
+  ]);
+  const entries = [
+    buildEntry({
+      displayId: "FOO-001",
+      shape: "identified",
+      typeAttribute: "requirement",
+    }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  assertEquals(result.entries[0].type, "requirement");
+  const t004 = result.diagnostics.find((d) => d.code === "MSL-T004");
+  if (!t004) {
+    throw new Error(
+      `expected MSL-T004, got: ${result.diagnostics.map((d) => d.code)}`,
+    );
+  }
+  assertEquals(t004.severity, "warning");
+});
+
+Deno.test("classifyEntriesStage: MSL-T004 error when enforcement=error", () => {
+  const profile = buildProfile([
+    buildType({
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: "REQ-{n:04d}",
+      enforcement: "error",
+    }),
+  ]);
+  const entries = [
+    buildEntry({
+      displayId: "FOO-001",
+      shape: "identified",
+      typeAttribute: "requirement",
+    }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  const t004 = result.diagnostics.find((d) => d.code === "MSL-T004");
+  if (!t004) {
+    throw new Error(
+      `expected MSL-T004, got: ${result.diagnostics.map((d) => d.code)}`,
+    );
+  }
+  assertEquals(t004.severity, "error");
+});
+
+Deno.test("classifyEntriesStage: no MSL-T004 when enforcement=off", () => {
+  const profile = buildProfile([
+    buildType({
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: "REQ-{n:04d}",
+      enforcement: "off",
+    }),
+  ]);
+  const entries = [
+    buildEntry({
+      displayId: "FOO-001",
+      shape: "identified",
+      typeAttribute: "requirement",
+    }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  const t004 = result.diagnostics.find((d) => d.code === "MSL-T004");
+  assertEquals(t004, undefined);
+});
+
+Deno.test("classifyEntriesStage: pattern-matched classification is never MSL-T004 (by definition)", () => {
+  const profile = buildProfile([
+    buildType({
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: "REQ-{n:04d}",
+      enforcement: "error",
+    }),
+  ]);
+  const entries = [
+    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+  ];
+  const result = classifyEntriesStage(entries, profile);
+  assertEquals(result.diagnostics, []);
 });
