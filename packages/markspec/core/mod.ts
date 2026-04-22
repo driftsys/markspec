@@ -113,9 +113,13 @@ export {
   classifyEntry,
   compileDisplayIdPattern,
   effectiveScope,
+  effectiveTraceRules,
+  matchesAnyTarget,
+  normalizeListValues,
   runPipeline,
   validate,
   validateAttributesForEntry,
+  validateTraceabilityForEntry,
   validateValue,
 } from "./validator/mod.ts";
 export type {

@@ -278,3 +278,144 @@ Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () =
   assertEquals(t003.length, 0);
   assertEquals(result.valid, true);
 });
+
+Deno.test("runPipeline: Stage 4 catches required link missing", () => {
+  const origin = "@test/p";
+  const requiredRule = {
+    target: ["requirement"] as const,
+    cardinality: { lower: 1, upper: Infinity },
+    required: true,
+  };
+  const reqType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "test",
+      shape: "identified",
+      displayIdPattern: { value: "TEST-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map([
+        ["Verifies", { value: requiredRule, origin }],
+      ]),
+    },
+  };
+  const profile: EffectiveProfile = {
+    required: { value: [], origin },
+    attributes: new Map(),
+    labels: { value: [], origin },
+    identified: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    referenced: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map([["test", reqType]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+
+  const e: Entry = {
+    displayId: "TEST-0001",
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "identified",
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+
+  const result = runPipeline([e], profile);
+  const l001 = result.diagnostics.find((d) => d.code === "MSL-L001");
+  if (!l001) {
+    throw new Error(
+      `expected MSL-L001, got: ${result.diagnostics.map((d) => d.code)}`,
+    );
+  }
+  assertEquals(result.valid, false);
+});
+
+Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {
+  const origin = "@test/p";
+  const verifiesAttr = {
+    name: "Verifies",
+    type: "id-list" as const,
+    required: false,
+    cardinality: { lower: 0, upper: Infinity },
+  };
+  const profile: EffectiveProfile = {
+    required: { value: [], origin },
+    attributes: new Map([
+      ["Verifies", { value: verifiesAttr, origin }],
+    ]),
+    labels: { value: [], origin },
+    identified: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    referenced: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+
+  const target1: Entry = {
+    displayId: "REQ-0001",
+    id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
+    shape: "identified",
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [],
+    typedAttributes: new Map([["Id", ["01T1T1T1T1T1T1T1T1T1T1T1T1"]]]),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+  const target2: Entry = {
+    displayId: "REQ-0002",
+    id: "01T2T2T2T2T2T2T2T2T2T2T2T2",
+    shape: "identified",
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [],
+    typedAttributes: new Map([["Id", ["01T2T2T2T2T2T2T2T2T2T2T2T2"]]]),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+  const e: Entry = {
+    displayId: "TEST-0001",
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "identified",
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      {
+        key: "Verifies",
+        value: "01T1T1T1T1T1T1T1T1T1T1T1T1, 01T2T2T2T2T2T2T2T2T2T2T2T2",
+      },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Verifies", ["01T1T1T1T1T1T1T1T1T1T1T1T1, 01T2T2T2T2T2T2T2T2T2T2T2T2"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+
+  const result = runPipeline([e, target1, target2], profile);
+  // Stage 3 should see split values → no MSL-A004.
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-A004"), []);
+});

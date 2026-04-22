@@ -263,3 +263,11 @@ export type { EffectiveAttrScope } from "./attributes.ts";
 
 export { validateValue } from "./value_types.ts";
 export type { ValueValidator } from "./value_types.ts";
+
+export { normalizeListValues } from "./normalize.ts";
+
+export {
+  effectiveTraceRules,
+  matchesAnyTarget,
+  validateTraceabilityForEntry,
+} from "./traceability.ts";

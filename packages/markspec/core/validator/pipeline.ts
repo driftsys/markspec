@@ -2,17 +2,18 @@
  * @module core/validator/pipeline
  *
  * Validator pipeline. Composes Stage 1 (core hygiene — existing `validate`),
- * Stage 2 (type classification — {@linkcode classifyEntriesStage}), and
- * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}).
- *
- * Subsequent phases will append Stage 4 (traceability rules) to the same
- * runner.
+ * Stage 2 (type classification — {@linkcode classifyEntriesStage}),
+ * Stage 2.5 (list-value normalization — {@linkcode normalizeListValues}),
+ * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}),
+ * and Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}).
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import { classifyEntriesStage } from "./types.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
+import { normalizeListValues } from "./normalize.ts";
+import { validateTraceabilityForEntry } from "./traceability.ts";
 
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
@@ -64,11 +65,32 @@ export function runPipeline(
     diagnostics.push(...stage2.diagnostics);
   }
 
+  // Stage 2.5 — normalize profile-declared list-value attributes. Splits
+  // comma-separated values for `id-list`/`tag-list` attributes the core parser
+  // didn't see so that Stage 3 sees already-split values.
+  if (profile !== null) {
+    finalEntries = finalEntries.map((e) => normalizeListValues(e, profile));
+  }
+
   // Stage 3 — typed attributes (only when a profile is loaded).
   if (profile !== null) {
     for (const entry of finalEntries) {
       const stage3 = validateAttributesForEntry(entry, profile);
       diagnostics.push(...stage3);
+    }
+  }
+
+  // Stage 4 — traceability rules (only when a profile is loaded). Builds a
+  // graph index keyed by `entry.id` from the post-classification entries so
+  // trace-rule target matchers can look up the classified type/shape.
+  if (profile !== null) {
+    const graph = new Map<string, Entry>();
+    for (const e of finalEntries) {
+      if (e.id) graph.set(e.id, e);
+    }
+    for (const entry of finalEntries) {
+      const stage4 = validateTraceabilityForEntry(entry, profile, graph);
+      diagnostics.push(...stage4);
     }
   }
 
