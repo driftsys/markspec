@@ -146,7 +146,7 @@ function checkStructural(
     // attributes; until then, anything outside the universal set is
     // unrecognized.
     for (const attr of entry.attributes) {
-      if (!UNIVERSAL_KEYS.has(attr.key) && attr.key !== "type") {
+      if (!UNIVERSAL_KEYS.has(attr.key) && attr.key !== "Type") {
         diagnostics.push({
           code: "MSL-R010",
           severity: "warning",
