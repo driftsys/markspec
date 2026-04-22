@@ -1,0 +1,20 @@
+id: "@acme/phase3-base"
+version: 1.0.0
+description: Phase 3 e2e — parent base profile
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved, deprecated]
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: warn
+      attributes:
+        - name: Rationale
+          type: text
+      traceability:
+        Derived-from:
+          target: [{ shape: identified }]
+          cardinality: 0..N

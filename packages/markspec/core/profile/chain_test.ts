@@ -75,24 +75,105 @@ Deno.test("loadChain: git specifier errors with PROFILE-LOAD-001 (Phase 4 scope)
   }
 });
 
-Deno.test("loadChain: manifest with extends: is loaded but extends is ignored", async () => {
-  // Phase 2 does not walk extends. The chain is the single leaf profile.
-  // Phase 3 will replace this behavior with real chain resolution.
+Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/child" },
+    "/project",
+    mockReadFile({
+      "/project/profiles/child/markspec.yaml":
+        `id: "@acme/child"\nversion: 1.0.0\nextends: "../base"\n`,
+      "/project/profiles/base/markspec.yaml":
+        `id: "@acme/base"\nversion: 1.0.0\n`,
+    }),
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.length, 2);
+  // tiers[0] = root parent, tiers[last] = leaf
+  assertEquals(result.chain?.tiers[0].id, "@acme/base");
+  assertEquals(result.chain?.tiers[1].id, "@acme/child");
+});
+
+Deno.test("loadChain: three-tier chain loads in order", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
     "/project",
     mockReadFile({
       "/project/profiles/leaf/markspec.yaml":
-        `id: "@acme/leaf"\nversion: 1.0.0\nextends: "./parent"\n`,
-      // parent intentionally unreadable — Phase 2 must not try to fetch it
+        `id: "@acme/leaf"\nversion: 1.0.0\nextends: "../mid"\n`,
+      "/project/profiles/mid/markspec.yaml":
+        `id: "@acme/mid"\nversion: 1.0.0\nextends: "../base"\n`,
+      "/project/profiles/base/markspec.yaml":
+        `id: "@acme/base"\nversion: 1.0.0\n`,
     }),
   );
   assertEquals(result.diagnostics, []);
-  assertEquals(result.chain?.tiers.length, 1);
-  assertEquals(result.chain?.tiers[0].id, "@acme/leaf");
-  // The manifest still carries the parsed extends — Phase 3 will consume it.
-  assertEquals(result.chain?.tiers[0].manifest.extends, {
-    kind: "local",
-    path: "./parent",
-  });
+  assertEquals(result.chain?.tiers.map((t) => t.id), [
+    "@acme/base",
+    "@acme/mid",
+    "@acme/leaf",
+  ]);
+});
+
+Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/a" },
+    "/project",
+    mockReadFile({
+      "/project/profiles/a/markspec.yaml":
+        `id: "@acme/a"\nversion: 1.0.0\nextends: "../b"\n`,
+      "/project/profiles/b/markspec.yaml":
+        `id: "@acme/b"\nversion: 1.0.0\nextends: "../a"\n`,
+    }),
+  );
+  assertEquals(result.chain, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-004");
+});
+
+Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/me" },
+    "/project",
+    mockReadFile({
+      "/project/profiles/me/markspec.yaml":
+        `id: "@acme/me"\nversion: 1.0.0\nextends: "./"\n`,
+    }),
+  );
+  assertEquals(result.chain, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-004");
+});
+
+Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", async () => {
+  const files: Record<string, string> = {};
+  // Build a 22-tier chain (leaf + 21 ancestors)
+  for (let i = 0; i < 22; i++) {
+    const id = `@acme/t${i}`;
+    const extendsLine = i < 21 ? `\nextends: "../t${i + 1}"` : "";
+    files[`/project/profiles/t${i}/markspec.yaml`] =
+      `id: "${id}"\nversion: 1.0.0${extendsLine}\n`;
+  }
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/t0" },
+    "/project",
+    mockReadFile(files),
+  );
+  assertEquals(result.chain, null);
+  assertEquals(
+    result.diagnostics.find((d) => d.code === "PROFILE-LOAD-005") !==
+      undefined,
+    true,
+  );
+});
+
+Deno.test("loadChain: extends of unresolvable parent propagates PROFILE-LOAD-001", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/leaf" },
+    "/project",
+    mockReadFile({
+      "/project/profiles/leaf/markspec.yaml":
+        `id: "@acme/leaf"\nversion: 1.0.0\nextends: "../missing"\n`,
+      // no file at /project/profiles/missing/markspec.yaml
+    }),
+  );
+  assertEquals(result.chain, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
 });

@@ -1,0 +1,18 @@
+id: "@acme/phase3-child"
+version: 1.0.0
+description: Phase 3 e2e — valid child that tightens the base
+extends: "../base"
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved] # narrowed
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: error # tightened
+      traceability:
+        Derived-from:
+          target: [{ shape: identified }]
+          cardinality: 1..N # tightened

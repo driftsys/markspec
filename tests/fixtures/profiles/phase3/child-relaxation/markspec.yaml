@@ -1,0 +1,14 @@
+id: "@acme/phase3-bad-child"
+version: 1.0.0
+description: Phase 3 e2e — child that relaxes (invalid)
+extends: "../base"
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [
+        draft,
+        approved,
+        deprecated,
+        new-value,
+      ] # added 'new-value' — relaxation
