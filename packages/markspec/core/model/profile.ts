@@ -5,6 +5,8 @@
  * schema. Used by the profile loader, merger, and validator.
  */
 
+import type { EntryShape } from "./mod.ts";
+
 // ---------------------------------------------------------------------------
 // Value types (ADR-002 Annex C)
 // ---------------------------------------------------------------------------
@@ -84,8 +86,6 @@ export interface TraceRule {
 // ---------------------------------------------------------------------------
 // Type definition
 // ---------------------------------------------------------------------------
-
-export type EntryShape = "identified" | "referenced";
 
 export type EnforcementMode = "off" | "warn" | "error";
 
