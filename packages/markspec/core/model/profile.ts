@@ -183,4 +183,70 @@ export interface LoadedProfile {
  */
 export interface ProfileChain {
   readonly tiers: readonly LoadedProfile[];
+  readonly effective: EffectiveProfile;
+}
+
+// ---------------------------------------------------------------------------
+// Runtime: effective profile (merged chain) + provenance wrappers
+// ---------------------------------------------------------------------------
+
+/** Identifier of the profile (tier) that contributed a value — `manifest.id`. */
+export type ProfileId = string;
+
+/** A single value annotated with the profile it originated from. */
+export interface ProvenancedValue<T> {
+  readonly value: T;
+  readonly origin: ProfileId;
+}
+
+/**
+ * A map-valued entry: the current effective value, the tier that set it, and
+ * the ordered list of parent tiers whose values this entry narrowed or
+ * replaced. Used for fields where children can override parents (attributes,
+ * traceability rules, type definitions).
+ */
+export interface ProvenancedMapEntry<V> {
+  readonly value: V;
+  readonly origin: ProfileId;
+  readonly overrides?: readonly ProfileId[];
+}
+
+/** Map with per-entry provenance. Keys are always strings (attr/type/link names). */
+export type ProvenancedMap<V> = ReadonlyMap<string, ProvenancedMapEntry<V>>;
+
+/** Shape-scope rules after merging (identified or referenced). */
+export interface EffectiveShapeScope {
+  readonly required: ProvenancedValue<readonly string[]>;
+  readonly attributes: ProvenancedMap<AttrDecl>;
+  /** Referenced scope's traceability is always empty (referenced entries don't originate links). */
+  readonly traceability: ProvenancedMap<TraceRule>;
+}
+
+/** Type-scope rules after merging. */
+export interface EffectiveTypeDef {
+  readonly name: string;
+  /** Shape is frozen at the type's declaration — never changes across the chain. */
+  readonly shape: EntryShape;
+  readonly displayIdPattern: ProvenancedValue<string | undefined>;
+  readonly displayIdPatternEnforcement: ProvenancedValue<EnforcementMode>;
+  readonly required: ProvenancedValue<readonly string[]>;
+  readonly attributes: ProvenancedMap<AttrDecl>;
+  readonly traceability: ProvenancedMap<TraceRule>;
+}
+
+/**
+ * The merged, validator-ready view of a profile chain. Every field carries
+ * per-rule provenance so a diagnostic can blame the right tier.
+ */
+export interface EffectiveProfile {
+  readonly required: ProvenancedValue<readonly string[]>;
+  readonly attributes: ProvenancedMap<AttrDecl>;
+  readonly labels: ProvenancedValue<readonly string[]>;
+  readonly identified: EffectiveShapeScope;
+  readonly referenced: EffectiveShapeScope;
+  readonly types: ProvenancedMap<EffectiveTypeDef>;
+  readonly documents: {
+    readonly types: ProvenancedMap<DocTypeDef>;
+    readonly frontMatter: ProvenancedMap<AttrDecl>;
+  };
 }

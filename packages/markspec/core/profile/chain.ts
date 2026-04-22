@@ -13,6 +13,7 @@
 import type { ReadFile } from "../config/mod.ts";
 import type {
   Diagnostic,
+  EffectiveProfile,
   LoadedProfile,
   ProfileChain,
   ProfileSpecifier,
@@ -78,5 +79,25 @@ export async function loadChain(
     baseDir: resolved.baseDir,
   };
 
-  return { chain: { tiers: [tier] }, diagnostics };
+  const placeholderEffective: EffectiveProfile = {
+    required: { value: [], origin: tier.id },
+    attributes: new Map(),
+    labels: { value: [], origin: tier.id },
+    identified: {
+      required: { value: [], origin: tier.id },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    referenced: {
+      required: { value: [], origin: tier.id },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+  return {
+    chain: { tiers: [tier], effective: placeholderEffective },
+    diagnostics,
+  };
 }
