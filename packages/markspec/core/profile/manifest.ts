@@ -63,6 +63,19 @@ const ALLOWED_TYPE_KEYS = new Set([
 const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
 const ALLOWED_DOCUMENTS_KEYS = new Set(["types", "frontMatter"]);
 
+const ALLOWED_ATTR_KEYS = new Set([
+  "name",
+  "type",
+  "required",
+  "cardinality",
+  "values",
+  "inverse",
+]);
+
+const ALLOWED_INVERSE_KEYS = new Set(["name", "category"]);
+
+const ALLOWED_TRACE_RULE_KEYS = new Set(["target", "cardinality", "required"]);
+
 function parseShapeScope(
   raw: unknown,
   allowedKeys: Set<string>,
@@ -228,6 +241,17 @@ function parseAttrDecl(
     return undefined;
   }
   const r = raw as Record<string, unknown>;
+  for (const key of Object.keys(r)) {
+    if (!ALLOWED_ATTR_KEYS.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${context}: attribute entry has unknown key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+  }
   const name = r.name;
   const type = r.type;
   if (typeof name !== "string" || name.length === 0) {
@@ -301,6 +325,17 @@ function parseAttrDecl(
       return undefined;
     }
     const inv = r.inverse as Record<string, unknown>;
+    for (const key of Object.keys(inv)) {
+      if (!ALLOWED_INVERSE_KEYS.has(key)) {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message: `${context}/${name}: 'inverse' has unknown key '${key}'`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+        return undefined;
+      }
+    }
     if (
       typeof inv.name !== "string" || inv.name.length === 0 ||
       typeof inv.category !== "string" || inv.category.length === 0
@@ -386,6 +421,17 @@ function parseTraceRule(
     return undefined;
   }
   const r = raw as Record<string, unknown>;
+  for (const key of Object.keys(r)) {
+    if (!ALLOWED_TRACE_RULE_KEYS.has(key)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${context}: trace rule has unknown key '${key}'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+  }
   if (!Array.isArray(r.target) || r.target.length === 0) {
     diagnostics.push({
       code: "PROFILE-LOAD-003",

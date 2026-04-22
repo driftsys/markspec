@@ -500,3 +500,52 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: unknown key on attribute errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  attributes:
+    - name: X
+      type: text
+      garbage: yo
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: unknown key on inverse errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    x:
+      shape: identified
+      attributes:
+        - name: Link
+          type: id-list
+          inverse:
+            name: Back
+            category: foo
+            bogus: 1
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: unknown key on trace rule errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  identified:
+    traceability:
+      Bad:
+        target: [{shape: identified}]
+        garbage: 1
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
