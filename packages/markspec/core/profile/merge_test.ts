@@ -344,3 +344,197 @@ profile:
   assertEquals(req.traceability.get("Derived-from")?.origin, "@acme/parent");
   assertEquals(req.traceability.get("Allocates-to")?.origin, "@acme/child");
 });
+
+Deno.test("mergeChain: tighten — child narrows cardinality 0..N → 1..N", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Tags
+      type: tag-list
+      cardinality: 0..N
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Tags
+      type: tag-list
+      cardinality: 1..N
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const tags = result.effective!.attributes.get("Tags")!;
+  assertEquals(tags.value.cardinality, { lower: 1, upper: Infinity });
+  assertEquals(tags.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: relax — child widens cardinality emits PROFILE-MERGE-001", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Tags
+      type: tag-list
+      cardinality: 1..N
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Tags
+      type: tag-list
+      cardinality: 0..N
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  const msg = result.diagnostics[0].message;
+  if (!msg.includes("Tags") || !msg.includes("cardinality")) {
+    throw new Error(`diagnostic message missing context: ${msg}`);
+  }
+});
+
+Deno.test("mergeChain: tighten — child narrows enum values", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved, deprecated, withdrawn]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const status = result.effective!.attributes.get("Status")!;
+  assertEquals(status.value.values, ["draft", "approved"]);
+});
+
+Deno.test("mergeChain: relax — child adds enum value not in parent emits PROFILE-MERGE-001", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved, new-value]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+});
+
+Deno.test("mergeChain: tighten — child sets required:true", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Rationale
+      type: text
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Rationale
+      type: text
+      required: true
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const rationale = result.effective!.attributes.get("Rationale")!;
+  assertEquals(rationale.value.required, true);
+});
+
+Deno.test("mergeChain: relax — child sets required:false when parent had true", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Rationale
+      type: text
+      required: true
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Rationale
+      type: text
+      required: false
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+});
+
+Deno.test("mergeChain: type mismatch — child changes attr type emits PROFILE-MERGE-001", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Count
+      type: integer
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Count
+      type: text
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+});

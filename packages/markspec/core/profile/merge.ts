@@ -236,33 +236,145 @@ function unionList(
 }
 
 /**
- * Union of attribute maps. Task 3.4 handles non-overlap only — if the child
- * declares an attribute with the same name as the parent, we keep the parent's
- * entry and record the child tier as an override (Task 3.5 turns this into a
- * tightening check).
+ * Union of attribute maps. When the child redeclares an attribute the parent
+ * already declared, the child's declaration must not relax the parent's
+ * constraints (Task 3.5). Narrowing is allowed; relaxation records a
+ * PROFILE-MERGE-001 diagnostic and keeps the parent entry so downstream code
+ * still sees a valid attribute.
  */
 function unionAttrMap(
   parent: ProvenancedMap<AttrDecl>,
   childAttrs: readonly AttrDecl[],
   childOrigin: ProfileId,
-  _diagnostics: Diagnostic[],
+  diagnostics: Diagnostic[],
 ): ProvenancedMap<AttrDecl> {
   const out = new Map(parent);
   for (const a of childAttrs) {
     const existing = out.get(a.name);
     if (!existing) {
       out.set(a.name, { value: a, origin: childOrigin });
-    } else {
-      // Overlap — parent's value is kept (no tightening yet).
-      // Task 3.5 replaces this with a tightening check.
-      const overrides = [
-        ...(existing.overrides ?? []),
-        childOrigin,
-      ];
-      out.set(a.name, { ...existing, overrides });
+      continue;
     }
+    const tightened = tightenAttr(
+      existing,
+      a,
+      childOrigin,
+      diagnostics,
+    );
+    if (tightened) {
+      out.set(a.name, tightened);
+    }
+    // If tightening failed (returned undefined), diagnostics were recorded;
+    // keep the parent entry so downstream code still sees a valid attribute.
   }
   return out;
+}
+
+/**
+ * Tighten a parent attribute declaration with a child's redeclaration.
+ * Returns the new effective entry on success, or `undefined` if the child
+ * relaxes (caller records PROFILE-MERGE-001).
+ */
+function tightenAttr(
+  existing: ProvenancedMapEntry<AttrDecl>,
+  child: AttrDecl,
+  childOrigin: ProfileId,
+  diagnostics: Diagnostic[],
+): ProvenancedMapEntry<AttrDecl> | undefined {
+  const parent = existing.value;
+
+  // Value-type must match exactly.
+  if (parent.type !== child.type) {
+    diagnostics.push(mergeRelaxation(
+      `attribute '${parent.name}'`,
+      "type",
+      `${parent.type} (${existing.origin})`,
+      `${child.type} (${childOrigin})`,
+    ));
+    return undefined;
+  }
+
+  // Cardinality: child lower ≥ parent lower AND child upper ≤ parent upper.
+  if (child.cardinality.lower < parent.cardinality.lower) {
+    diagnostics.push(mergeRelaxation(
+      `attribute '${parent.name}'`,
+      "cardinality.lower",
+      `${parent.cardinality.lower} (${existing.origin})`,
+      `${child.cardinality.lower} (${childOrigin})`,
+    ));
+    return undefined;
+  }
+  if (child.cardinality.upper > parent.cardinality.upper) {
+    diagnostics.push(mergeRelaxation(
+      `attribute '${parent.name}'`,
+      "cardinality.upper",
+      `${formatUpper(parent.cardinality.upper)} (${existing.origin})`,
+      `${formatUpper(child.cardinality.upper)} (${childOrigin})`,
+    ));
+    return undefined;
+  }
+
+  // Required flag: once required, cannot be un-required.
+  if (parent.required === true && child.required === false) {
+    diagnostics.push(mergeRelaxation(
+      `attribute '${parent.name}'`,
+      "required",
+      `true (${existing.origin})`,
+      `false (${childOrigin})`,
+    ));
+    return undefined;
+  }
+
+  // Enum: child.values must be a subset of parent.values.
+  if (parent.type === "enum") {
+    const parentSet = new Set(parent.values ?? []);
+    const childValues = child.values ?? [];
+    for (const v of childValues) {
+      if (!parentSet.has(v)) {
+        diagnostics.push(mergeRelaxation(
+          `attribute '${parent.name}'`,
+          "enum values",
+          `[${[...parentSet].join(",")}] (${existing.origin})`,
+          `added '${v}' (${childOrigin})`,
+        ));
+        return undefined;
+      }
+    }
+  }
+
+  // Build the tightened value (field-by-field, child wins on narrower bounds).
+  const merged: AttrDecl = {
+    name: parent.name,
+    type: parent.type,
+    required: parent.required || child.required,
+    cardinality: child.cardinality,
+    values: parent.type === "enum" ? child.values : parent.values,
+    inverse: child.inverse ?? parent.inverse,
+  };
+  const overrides = [
+    ...(existing.overrides ?? []),
+    existing.origin,
+  ];
+  return { value: merged, origin: childOrigin, overrides };
+}
+
+function mergeRelaxation(
+  subject: string,
+  field: string,
+  parentView: string,
+  childView: string,
+): Diagnostic {
+  return {
+    code: "PROFILE-MERGE-001",
+    severity: "error",
+    message:
+      `${subject}: field '${field}' relaxed by child (parent: ${parentView}, child: ${childView})`,
+    location: { file: "<merge>", line: 1, column: 1 },
+  };
+}
+
+function formatUpper(u: number): string {
+  return u === Infinity ? "N" : String(u);
 }
 
 /**
