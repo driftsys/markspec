@@ -510,3 +510,22 @@ export interface Document {
   /** Observed document properties. */
   readonly properties: DocumentProperties;
 }
+
+// ---------------------------------------------------------------------------
+// Profile model re-exports
+// ---------------------------------------------------------------------------
+
+export type {
+  AttrDecl,
+  Cardinality,
+  DocTypeDef,
+  EnforcementMode,
+  InverseDecl,
+  ProfileManifest,
+  ProfileSpecifier,
+  TargetMatcher,
+  TraceRule,
+  TypeDef,
+  ValueType,
+} from "./profile.ts";
+export { LIST_VALUE_TYPES, VALUE_TYPES } from "./profile.ts";
