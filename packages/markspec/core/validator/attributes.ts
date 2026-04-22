@@ -11,7 +11,20 @@
  *   - Unknown attributes (MSL-A005 warning)
  */
 
-import type { AttrDecl, EffectiveProfile, Entry } from "../model/mod.ts";
+import type {
+  AttrDecl,
+  Diagnostic,
+  EffectiveProfile,
+  Entry,
+} from "../model/mod.ts";
+import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/mod.ts";
+
+/** Core-reserved attribute keys that are always permitted regardless of profile. */
+const CORE_RESERVED_KEYS: ReadonlySet<string> = new Set([
+  "Id",
+  "Type",
+  ...UNIVERSAL_ATTRIBUTE_KEYS,
+]);
 
 /**
  * Effective attribute declarations and required list for an entry, derived
@@ -68,4 +81,83 @@ export function effectiveScope(
   }
 
   return { required, attributes };
+}
+
+/**
+ * Run Stage 3 structural + value-type checks for one entry. Returns all
+ * diagnostics the entry produced.
+ *
+ * Task 6.2 ships required / cardinality / unknown checks. Task 6.6 wires in
+ * value-type conformance (MSL-A004) through the value-types registry.
+ */
+export function validateAttributesForEntry(
+  entry: Entry,
+  profile: EffectiveProfile,
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const scope = effectiveScope(entry, profile);
+  const present = entry.typedAttributes ?? new Map<string, readonly string[]>();
+
+  // MSL-A001: required attribute missing.
+  for (const name of scope.required) {
+    if (!present.has(name)) {
+      diagnostics.push({
+        code: "MSL-A001",
+        severity: "error",
+        message: `${entry.displayId}: required attribute '${name}' is missing`,
+        location: entry.location,
+      });
+    }
+  }
+
+  // Iterate attributes present on the entry.
+  for (const [name, values] of present) {
+    const decl = scope.attributes.get(name);
+
+    if (decl === undefined) {
+      // MSL-A005: unknown attribute (warn). Skip core-reserved keys.
+      if (!CORE_RESERVED_KEYS.has(name)) {
+        diagnostics.push({
+          code: "MSL-A005",
+          severity: "warning",
+          message:
+            `${entry.displayId}: attribute '${name}' is not declared in the profile scope`,
+          location: entry.location,
+        });
+      }
+      continue;
+    }
+
+    // MSL-A002: upper cardinality.
+    if (values.length > decl.cardinality.upper) {
+      diagnostics.push({
+        code: "MSL-A002",
+        severity: "error",
+        message:
+          `${entry.displayId}: attribute '${name}' has ${values.length} values ` +
+          `but max is ${formatUpper(decl.cardinality.upper)}`,
+        location: entry.location,
+      });
+    }
+
+    // MSL-A003: lower cardinality (only when attribute is present).
+    if (values.length < decl.cardinality.lower) {
+      diagnostics.push({
+        code: "MSL-A003",
+        severity: "error",
+        message:
+          `${entry.displayId}: attribute '${name}' has ${values.length} values ` +
+          `but min is ${decl.cardinality.lower}`,
+        location: entry.location,
+      });
+    }
+
+    // MSL-A004: value-type conformance — Task 6.6 wires this in.
+  }
+
+  return diagnostics;
+}
+
+function formatUpper(u: number): string {
+  return u === Infinity ? "N" : String(u);
 }

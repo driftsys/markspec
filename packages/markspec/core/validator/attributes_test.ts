@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { effectiveScope } from "./attributes.ts";
+import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import type {
   AttrDecl,
   EffectiveProfile,
@@ -276,4 +276,119 @@ Deno.test("effectiveScope: type-scope attr wins over shape-scope attr on name co
   const e = entry({ shape: "identified", type: "requirement" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.attributes.get("Status"), typeStatus);
+});
+
+Deno.test("validateAttributesForEntry: required missing → MSL-A001", () => {
+  const p = profile({
+    universalRequired: ["Status"],
+    universalAttrs: [statusAttr],
+  });
+  const e = entry({ shape: "identified", attrs: {} });
+  const diags = validateAttributesForEntry(e, p);
+  const a001 = diags.find((d) => d.code === "MSL-A001");
+  if (!a001) {
+    throw new Error(`expected MSL-A001, got: ${diags.map((d) => d.code)}`);
+  }
+  if (!a001.message.includes("Status")) {
+    throw new Error(`expected Status in message: ${a001.message}`);
+  }
+});
+
+Deno.test("validateAttributesForEntry: required present → no MSL-A001", () => {
+  const p = profile({
+    universalRequired: ["Status"],
+    universalAttrs: [statusAttr],
+  });
+  const e = entry({
+    shape: "identified",
+    attrs: { Status: ["draft"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  assertEquals(diags.filter((d) => d.code === "MSL-A001"), []);
+});
+
+Deno.test("validateAttributesForEntry: cardinality upper exceeded → MSL-A002", () => {
+  const singleValAttr: AttrDecl = {
+    name: "Title",
+    type: "text",
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+  };
+  const p = profile({ universalAttrs: [singleValAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Title: ["first", "second"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a002 = diags.find((d) => d.code === "MSL-A002");
+  if (!a002) {
+    throw new Error(`expected MSL-A002, got: ${diags.map((d) => d.code)}`);
+  }
+});
+
+Deno.test("validateAttributesForEntry: cardinality lower unmet when attribute present → MSL-A003", () => {
+  const listAttr: AttrDecl = {
+    name: "Labels",
+    type: "tag-list",
+    required: false,
+    cardinality: { lower: 2, upper: Infinity },
+  };
+  const p = profile({ universalAttrs: [listAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Labels: ["only-one"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a003 = diags.find((d) => d.code === "MSL-A003");
+  if (!a003) {
+    throw new Error(`expected MSL-A003, got: ${diags.map((d) => d.code)}`);
+  }
+});
+
+Deno.test("validateAttributesForEntry: cardinality lower with 0 values + not required = no diagnostic", () => {
+  const listAttr: AttrDecl = {
+    name: "Labels",
+    type: "tag-list",
+    required: false,
+    cardinality: { lower: 1, upper: Infinity },
+  };
+  const p = profile({ universalAttrs: [listAttr] });
+  const e = entry({ shape: "identified", attrs: {} });
+  const diags = validateAttributesForEntry(e, p);
+  assertEquals(diags.filter((d) => d.code === "MSL-A003"), []);
+});
+
+Deno.test("validateAttributesForEntry: unknown attribute → MSL-A005 warning", () => {
+  const p = profile({ universalAttrs: [statusAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { UnknownThing: ["value"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a005 = diags.find((d) => d.code === "MSL-A005");
+  if (!a005) {
+    throw new Error(`expected MSL-A005, got: ${diags.map((d) => d.code)}`);
+  }
+  assertEquals(a005.severity, "warning");
+});
+
+Deno.test("validateAttributesForEntry: declared attributes do NOT emit MSL-A005", () => {
+  const p = profile({ universalAttrs: [statusAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Status: ["draft"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  assertEquals(diags.filter((d) => d.code === "MSL-A005"), []);
+});
+
+Deno.test("validateAttributesForEntry: core-reserved attributes are never unknown", () => {
+  const p = profile({});
+  const e = entry({
+    shape: "identified",
+    attrs: { Id: ["01HGW2Q8MNP3RSTVWXYZABCDEF"], Type: ["requirement"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a005 = diags.filter((d) => d.code === "MSL-A005");
+  assertEquals(a005, []);
 });
