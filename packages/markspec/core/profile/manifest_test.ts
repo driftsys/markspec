@@ -549,3 +549,18 @@ profile:
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: extends git+file:// specifier", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+extends: "git+file:///tmp/foo.git#v1.0"
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.extends, {
+    kind: "git",
+    repo: "file:///tmp/foo.git",
+    subpath: undefined,
+    tag: "v1.0",
+  });
+});

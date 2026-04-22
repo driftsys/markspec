@@ -8,11 +8,26 @@
 export { parseManifest } from "./manifest.ts";
 export type { ParseManifestResult } from "./manifest.ts";
 
-export { resolveLocalSpecifier } from "./resolver.ts";
-export type { ResolvedProfileSource } from "./resolver.ts";
+export { resolveGitSpecifier, resolveLocalSpecifier } from "./resolver.ts";
+export type { ResolvedProfileSource, ResolveGitOptions } from "./resolver.ts";
+
+export {
+  computeCacheKey,
+  computeCacheLocation,
+  defaultAppendFile,
+  defaultRunGit,
+  ensureCacheGitignored,
+} from "./git-cache.ts";
+export type {
+  AppendFile,
+  CacheLocation,
+  GitCacheKeyInput,
+  RunGit,
+  RunGitResult,
+} from "./git-cache.ts";
 
 export { loadChain } from "./chain.ts";
-export type { LoadChainResult } from "./chain.ts";
+export type { LoadChainOptions, LoadChainResult } from "./chain.ts";
 
 export { loadProfileForCommand } from "./load.ts";
 export type { LoadProfileForCommandResult } from "./load.ts";

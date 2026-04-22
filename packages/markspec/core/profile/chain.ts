@@ -5,9 +5,11 @@
  * up to the root, producing a multi-tier {@linkcode ProfileChain} ordered
  * root → leaf.
  *
- * Phase 3 scope: local specifiers only, cycle + depth detection. Git
- * specifiers in the chain still emit the Phase-4 stub error. The chain's
- * {@linkcode EffectiveProfile} is produced by {@linkcode mergeChain}.
+ * Supports both local and git specifiers, with cycle + depth detection. Git
+ * specifiers route through {@linkcode resolveGitSpecifier} (per-project
+ * shallow+sparse clone cache); local specifiers route through
+ * {@linkcode resolveLocalSpecifier}. The chain's {@linkcode EffectiveProfile}
+ * is produced by {@linkcode mergeChain}.
  */
 
 import { resolve as resolvePath } from "@std/path";
@@ -19,9 +21,10 @@ import type {
   ProfileChain,
   ProfileSpecifier,
 } from "../model/mod.ts";
+import type { AppendFile, RunGit } from "./git-cache.ts";
 import { parseManifest } from "./manifest.ts";
 import { mergeChain } from "./merge.ts";
-import { resolveLocalSpecifier } from "./resolver.ts";
+import { resolveGitSpecifier, resolveLocalSpecifier } from "./resolver.ts";
 
 /** Maximum number of tiers allowed in an `extends:` chain. */
 const MAX_CHAIN_DEPTH = 20;
@@ -30,6 +33,12 @@ const MAX_CHAIN_DEPTH = 20;
 export interface LoadChainResult {
   readonly chain: ProfileChain | null;
   readonly diagnostics: readonly Diagnostic[];
+}
+
+/** Options accepted by {@linkcode loadChain}. */
+export interface LoadChainOptions {
+  readonly runGit?: RunGit;
+  readonly appendFile?: AppendFile;
 }
 
 /**
@@ -41,25 +50,19 @@ export interface LoadChainResult {
  * @param specifier - The leaf specifier (from `.markspec.yaml`)
  * @param contextDir - Directory the specifier was declared in (for local
  *                     path resolution)
+ * @param projectRoot - Absolute path of the project root (used to locate
+ *                     the `.markspec/cache/` directory for git specifiers)
  * @param readFile - File reader abstraction
+ * @param opts - Injectable runners for git-cache operations (optional)
  */
 export async function loadChain(
   specifier: ProfileSpecifier,
   contextDir: string,
+  projectRoot: string,
   readFile: ReadFile,
+  opts: LoadChainOptions = {},
 ): Promise<LoadChainResult> {
   const diagnostics: Diagnostic[] = [];
-
-  if (specifier.kind === "git") {
-    diagnostics.push({
-      code: "PROFILE-LOAD-001",
-      severity: "error",
-      message: "git profile specifiers are not supported in v1 Phase 2 " +
-        "(landing in Phase 4); use a local './path' specifier for now",
-      location: { file: "<specifier>", line: 1, column: 1 },
-    });
-    return { chain: null, diagnostics };
-  }
 
   // Walk extends: chain. Accumulate tiers leaf-first, reverse at the end.
   const tiersLeafFirst: LoadedProfile[] = [];
@@ -68,24 +71,13 @@ export async function loadChain(
   let cursorDir = contextDir;
 
   while (cursorSpec !== undefined) {
-    if (cursorSpec.kind === "git") {
-      diagnostics.push({
-        code: "PROFILE-LOAD-001",
-        severity: "error",
-        message:
-          "git profile specifiers in extends: chain are not supported yet " +
-          "(landing in Phase 4)",
-        location: { file: "<specifier>", line: 1, column: 1 },
-      });
-      return { chain: null, diagnostics };
-    }
-
     const key = specifierKey(cursorSpec, cursorDir);
     if (visited.has(key)) {
       diagnostics.push({
         code: "PROFILE-LOAD-004",
         severity: "error",
-        message: `profile extends: cycle detected at ${cursorSpec.path} ` +
+        message:
+          `profile extends: cycle detected at ${stringifySpec(cursorSpec)} ` +
           `(already visited in this chain)`,
         location: { file: "<specifier>", line: 1, column: 1 },
       });
@@ -104,12 +96,20 @@ export async function loadChain(
       return { chain: null, diagnostics };
     }
 
-    const resolved = await resolveLocalSpecifier(
-      cursorSpec,
-      cursorDir,
-      readFile,
-      diagnostics,
-    );
+    const resolved = cursorSpec.kind === "git"
+      ? await resolveGitSpecifier(
+        cursorSpec,
+        projectRoot,
+        readFile,
+        diagnostics,
+        { runGit: opts.runGit, appendFile: opts.appendFile },
+      )
+      : await resolveLocalSpecifier(
+        cursorSpec,
+        cursorDir,
+        readFile,
+        diagnostics,
+      );
     if (!resolved) {
       return { chain: null, diagnostics };
     }
@@ -161,22 +161,37 @@ export async function loadChain(
 }
 
 /**
- * Canonical cycle-detection key for a resolved local specifier. Two specifiers
- * that resolve to the same directory (after path normalization: `.`, `..`)
- * are the same tier.
+ * Canonical cycle-detection key for a resolved specifier. Two specifiers that
+ * resolve to the same tier are canonicalized to the same key:
  *
- * Note: this does NOT canonicalize symlinks. Two different symlinked paths
- * pointing at the same profile will only be caught by MAX_CHAIN_DEPTH, which
- * emits PROFILE-LOAD-005 instead of PROFILE-LOAD-004. Acceptable for v1 since
- * Deno.realPath would require an additional I/O round-trip and a filesystem
- * shim for the test mock reader. Revisit when git cache paths (Phase 4) make
- * symlink resolution more likely in practice.
+ * - Local specifiers key on the absolute resolved directory (after
+ *   normalization of `.` / `..`).
+ * - Git specifiers key on `(repo, tag, subpath)`, which is what the git cache
+ *   itself uses — two specifiers that hit the same cache entry are the same
+ *   tier.
+ *
+ * Note: this does NOT canonicalize symlinks for local specifiers. Two
+ * different symlinked paths pointing at the same profile will only be caught
+ * by MAX_CHAIN_DEPTH, which emits PROFILE-LOAD-005 instead of
+ * PROFILE-LOAD-004. Acceptable for v1 since `Deno.realPath` would require an
+ * additional I/O round-trip and a filesystem shim for the test mock reader.
  */
 function specifierKey(
-  spec: Extract<ProfileSpecifier, { kind: "local" }>,
+  spec: ProfileSpecifier,
   contextDir: string,
 ): string {
-  return `local:${resolvePath(contextDir, spec.path)}`;
+  if (spec.kind === "local") {
+    return `local:${resolvePath(contextDir, spec.path)}`;
+  }
+  return `git:${spec.repo}#${spec.tag}|${spec.subpath ?? ""}`;
+}
+
+/** Human-readable one-liner for a specifier (used in diagnostic messages). */
+function stringifySpec(spec: ProfileSpecifier): string {
+  if (spec.kind === "local") {
+    return spec.path;
+  }
+  return `git+${spec.repo}#${spec.tag}`;
 }
 
 /**

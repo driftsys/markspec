@@ -55,18 +55,31 @@ export type {
 
 // Profile system (ADR-008)
 export {
+  computeCacheKey,
+  computeCacheLocation,
+  defaultAppendFile,
+  defaultRunGit,
+  ensureCacheGitignored,
   loadChain,
   loadProfileForCommand,
   mergeChain,
   parseManifest,
+  resolveGitSpecifier,
   resolveLocalSpecifier,
 } from "./profile/mod.ts";
 export type {
+  AppendFile,
+  CacheLocation,
+  GitCacheKeyInput,
+  LoadChainOptions,
   LoadChainResult,
   LoadProfileForCommandResult,
   MergeResult,
   ParseManifestResult,
   ResolvedProfileSource,
+  ResolveGitOptions,
+  RunGit,
+  RunGitResult,
 } from "./profile/mod.ts";
 
 // Parser

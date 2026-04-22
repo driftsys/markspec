@@ -68,7 +68,12 @@ export async function loadProfileForCommand(
     return { chain: null, diagnostics };
   }
 
-  const chainResult = await loadChain(profiles[0], projectRoot, readFile);
+  const chainResult = await loadChain(
+    profiles[0],
+    projectRoot,
+    projectRoot,
+    readFile,
+  );
   diagnostics.push(...chainResult.diagnostics);
   return { chain: chainResult.chain, diagnostics };
 }
