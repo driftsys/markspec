@@ -903,7 +903,7 @@ function requireString(
   diagnostics: Diagnostic[],
 ): string | undefined {
   const v = root[key];
-  if (typeof v !== "string" || v.length === 0) {
+  if (typeof v !== "string" || v.trim().length === 0) {
     diagnostics.push({
       code: "PROFILE-LOAD-003",
       severity: "error",
