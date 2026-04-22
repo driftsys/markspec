@@ -1,0 +1,13 @@
+id: "@acme/phase5-typed"
+version: 0.1.0
+description: Phase 5 e2e — profile with typed entries
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: error
+    note:
+      shape: identified
+      display-id-pattern: "NOTE-{n:03d}"
+      display-id-pattern-enforcement: off
