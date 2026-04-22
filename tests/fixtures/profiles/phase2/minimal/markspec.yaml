@@ -1,0 +1,8 @@
+id: "@acme/phase2-minimal"
+version: 0.1.0
+description: Minimal profile used by Phase 2 e2e tests
+profile:
+  types:
+    note:
+      shape: identified
+      display-id-pattern: "NOTE-{n:03d}"
