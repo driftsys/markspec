@@ -40,11 +40,31 @@ export interface SerializedCompileResult {
 export function serializeCompileResult(
   result: CompileResult,
 ): SerializedCompileResult {
+  const rawEntries = Object.fromEntries(result.entries);
+  const entries: Record<string, Entry> = {};
+  for (const [key, entry] of Object.entries(rawEntries)) {
+    entries[key] = serializeEntry(entry);
+  }
   return {
-    entries: Object.fromEntries(result.entries),
+    entries,
     links: result.links,
     forward: Object.fromEntries(result.forward),
     reverse: Object.fromEntries(result.reverse),
     diagnostics: result.diagnostics,
+  };
+}
+
+/**
+ * Convert an {@linkcode Entry} to a JSON-safe form by replacing
+ * `typedAttributes` (a `ReadonlyMap`) with a plain object.
+ */
+function serializeEntry(entry: Entry): Entry {
+  if (!entry.typedAttributes || entry.typedAttributes.size === 0) {
+    return entry;
+  }
+  const typedObj = Object.fromEntries(entry.typedAttributes);
+  return {
+    ...entry,
+    typedAttributes: typedObj as unknown as Entry["typedAttributes"],
   };
 }
