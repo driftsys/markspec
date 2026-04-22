@@ -301,7 +301,10 @@ function parseAttrDecl(
       return undefined;
     }
     const inv = r.inverse as Record<string, unknown>;
-    if (typeof inv.name !== "string" || typeof inv.category !== "string") {
+    if (
+      typeof inv.name !== "string" || inv.name.length === 0 ||
+      typeof inv.category !== "string" || inv.category.length === 0
+    ) {
       diagnostics.push({
         code: "PROFILE-LOAD-003",
         severity: "error",

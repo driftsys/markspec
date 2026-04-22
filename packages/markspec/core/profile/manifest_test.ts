@@ -481,3 +481,22 @@ version: 1.0.0
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
+
+Deno.test("parseManifest: inverse with empty name errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    x:
+      shape: identified
+      attributes:
+        - name: Link
+          type: id-list
+          inverse:
+            name: ""
+            category: foo
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
