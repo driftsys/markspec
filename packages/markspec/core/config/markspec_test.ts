@@ -123,3 +123,31 @@ Deno.test("parseMarkspecYaml: malformed specifier errors", () => {
   assertEquals(result.config, null);
   assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
 });
+
+Deno.test("parseMarkspecYaml: git+file:// specifier parsed", () => {
+  const result = parseMarkspecYaml(
+    `profiles:\n  - "git+file:///tmp/foo.git#v1.0"\n`,
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.config?.profiles[0], {
+    kind: "git",
+    repo: "file:///tmp/foo.git",
+    subpath: undefined,
+    tag: "v1.0",
+  });
+});
+
+Deno.test("parseMarkspecYaml: git+file:// with subpath parsed", () => {
+  const result = parseMarkspecYaml(
+    `profiles:\n  - "git+file:///tmp/foo.git/sub#v1.0"\n`,
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.config?.profiles[0], {
+    kind: "git",
+    repo: "file:///tmp/foo.git",
+    subpath: "sub",
+    tag: "v1.0",
+  });
+});

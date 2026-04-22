@@ -170,7 +170,7 @@ function parseProfileSpecifier(
         code: "MARKSPEC-YAML-003",
         severity: "error",
         message:
-          `${context}: git specifier malformed; expected git+https://host/.git[/subpath]#<tag>`,
+          `${context}: git specifier malformed; expected git+<https|file>://host/.git[/subpath]#<tag>`,
         location: { file: sourcePath, line: 1, column: 1 },
       });
       return undefined;
@@ -183,7 +183,7 @@ function parseProfileSpecifier(
     code: "MARKSPEC-YAML-003",
     severity: "error",
     message:
-      `${context}: unsupported specifier scheme (use './path' or 'git+https://…#<tag>')`,
+      `${context}: unsupported specifier scheme (use './path' or 'git+<https|file>://…#<tag>')`,
     location: { file: sourcePath, line: 1, column: 1 },
   });
   return undefined;

@@ -159,7 +159,7 @@ function parseSpecifier(
         code: "PROFILE-LOAD-003",
         severity: "error",
         message:
-          `'extends' git specifier malformed; expected git+https://host/.git[/subpath]#<tag>`,
+          `'extends' git specifier malformed; expected git+<https|file>://host/.git[/subpath]#<tag>`,
         location: { file: sourcePath, line: 1, column: 1 },
       });
       return undefined;
@@ -172,7 +172,7 @@ function parseSpecifier(
     code: "PROFILE-LOAD-003",
     severity: "error",
     message:
-      `'extends' specifier scheme not supported in v1 (use local './path' or git+https URL with #tag)`,
+      `'extends' specifier scheme not supported in v1 (use local './path' or 'git+<https|file>://…#<tag>')`,
     location: { file: sourcePath, line: 1, column: 1 },
   });
   return undefined;
