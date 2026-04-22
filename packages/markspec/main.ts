@@ -391,11 +391,11 @@ const cli = new Command()
 
       const { discoverProjectRoot } = await import("./core/mod.ts");
       const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
-      if (projectRoot !== undefined) {
-        await loadActiveProfile(projectRoot);
-      }
+      const chain = projectRoot !== undefined
+        ? await loadActiveProfile(projectRoot)
+        : null;
 
-      const { parseFile, validate } = await import("./core/mod.ts");
+      const { parseFile, runPipeline } = await import("./core/mod.ts");
 
       const allEntries = [];
       for (const filePath of files) {
@@ -410,7 +410,7 @@ const cli = new Command()
         allEntries.push(...result.entries);
       }
 
-      const result = validate(allEntries);
+      const result = runPipeline(allEntries, chain?.effective ?? null);
 
       // Apply --strict: promote warnings to errors.
       const diagnostics = options.strict

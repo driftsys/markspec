@@ -48,7 +48,7 @@ profile:
 
 const REQ_MD = `# Example
 
-- [NOTE-001] A note
+- [REQ-0001] A requirement
 
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
 `;

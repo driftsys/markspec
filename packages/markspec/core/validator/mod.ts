@@ -249,3 +249,11 @@ export function findAttr(
 ): Attribute | undefined {
   return attrs.find((a) => a.key === key);
 }
+
+export { runPipeline } from "./pipeline.ts";
+export type { PipelineResult } from "./pipeline.ts";
+
+export { classifyEntriesStage, classifyEntry } from "./types.ts";
+export type { ClassifyResult, ClassifyStageResult } from "./types.ts";
+
+export { compileDisplayIdPattern } from "./pattern.ts";

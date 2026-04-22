@@ -108,8 +108,8 @@ export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 
 // Validator
-export { validate } from "./validator/mod.ts";
-export type { ValidateResult } from "./validator/mod.ts";
+export { runPipeline, validate } from "./validator/mod.ts";
+export type { PipelineResult, ValidateResult } from "./validator/mod.ts";
 
 // Compiler
 export { compile, serializeCompileResult } from "./compiler/mod.ts";
