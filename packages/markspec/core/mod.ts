@@ -57,12 +57,14 @@ export type {
 export {
   loadChain,
   loadProfileForCommand,
+  mergeChain,
   parseManifest,
   resolveLocalSpecifier,
 } from "./profile/mod.ts";
 export type {
   LoadChainResult,
   LoadProfileForCommandResult,
+  MergeResult,
   ParseManifestResult,
   ResolvedProfileSource,
 } from "./profile/mod.ts";

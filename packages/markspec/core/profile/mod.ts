@@ -16,3 +16,6 @@ export type { LoadChainResult } from "./chain.ts";
 
 export { loadProfileForCommand } from "./load.ts";
 export type { LoadProfileForCommandResult } from "./load.ts";
+
+export { mergeChain } from "./merge.ts";
+export type { MergeResult } from "./merge.ts";

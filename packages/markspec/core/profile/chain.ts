@@ -6,9 +6,8 @@
  * root → leaf.
  *
  * Phase 3 scope: local specifiers only, cycle + depth detection. Git
- * specifiers in the chain still emit the Phase-4 stub error. The
- * {@linkcode EffectiveProfile} is still a placeholder — Task 3.8 wires the
- * real merge.
+ * specifiers in the chain still emit the Phase-4 stub error. The chain's
+ * {@linkcode EffectiveProfile} is produced by {@linkcode mergeChain}.
  */
 
 import { resolve as resolvePath } from "@std/path";
@@ -21,6 +20,7 @@ import type {
   ProfileSpecifier,
 } from "../model/mod.ts";
 import { parseManifest } from "./manifest.ts";
+import { mergeChain } from "./merge.ts";
 import { resolveLocalSpecifier } from "./resolver.ts";
 
 /** Maximum number of tiers allowed in an `extends:` chain. */
@@ -142,11 +142,20 @@ export async function loadChain(
   // Reverse so tiers[0] = root parent, tiers[last] = leaf child.
   const tiers = tiersLeafFirst.reverse();
 
-  // Effective profile is still a placeholder — Task 3.8 wires real merge.
-  const placeholderEffective = buildPlaceholderEffective(tiers);
+  // Build a temporary chain shape to feed into mergeChain. It reads only
+  // .tiers; the placeholder effective is ignored by merge.
+  const stubChain: ProfileChain = {
+    tiers,
+    effective: buildPlaceholderEffective(tiers),
+  };
+  const mergeResult = mergeChain(stubChain);
+  diagnostics.push(...mergeResult.diagnostics);
+  if (!mergeResult.effective) {
+    return { chain: null, diagnostics };
+  }
 
   return {
-    chain: { tiers, effective: placeholderEffective },
+    chain: { tiers, effective: mergeResult.effective },
     diagnostics,
   };
 }
@@ -163,7 +172,10 @@ function specifierKey(
 }
 
 /**
- * Placeholder EffectiveProfile — Task 3.8 replaces with real merge output.
+ * Build a placeholder EffectiveProfile used only as a stub input when
+ * constructing the {@linkcode ProfileChain} shape we hand to
+ * {@linkcode mergeChain}. `mergeChain` reads only `.tiers`, so the stub
+ * contents are irrelevant.
  */
 function buildPlaceholderEffective(
   tiers: readonly LoadedProfile[],
