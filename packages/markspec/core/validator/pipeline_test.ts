@@ -198,6 +198,59 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
   assertEquals(result.valid, false);
 });
 
+Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", () => {
+  const origin = "@test/p";
+  const rationaleAttr = {
+    name: "Rationale",
+    type: "text" as const,
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+  };
+  const profile: EffectiveProfile = {
+    required: { value: [], origin },
+    attributes: new Map([["Rationale", { value: rationaleAttr, origin }]]),
+    labels: { value: [], origin },
+    identified: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    referenced: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+
+  const e: Entry = {
+    displayId: "X-001",
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "identified",
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Rationale", value: "because" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Rationale", ["because"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+
+  const result = runPipeline([e], profile);
+  const r010 = result.diagnostics.find((d) => d.code === "MSL-R010");
+  if (r010) {
+    throw new Error(
+      `expected MSL-R010 suppressed, got: ${r010.message}`,
+    );
+  }
+});
+
 Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () => {
   const origin = "@test/p";
   const profile: EffectiveProfile = {

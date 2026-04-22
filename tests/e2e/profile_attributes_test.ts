@@ -57,12 +57,10 @@ Deno.test("profile attributes e2e: happy path — all required present, types va
 `,
     },
   });
-  // No Stage-3 MSL-A diagnostics expected. Stage-1 MSL-R010 warnings for
-  // profile-declared attributes are unavoidable in the core-only unknown
-  // check, so exit code may be 2 (warning-only) rather than 0.
-  if (code !== 0 && code !== 2) {
-    throw new Error(`expected code 0 or 2, got ${code}`);
-  }
+  // No Stage-3 MSL-A diagnostics expected, and the pipeline suppresses
+  // Stage-1 MSL-R010 warnings for profile-declared attributes, so exit
+  // code should be 0.
+  assertEquals(code, 0);
   const msl_a = stderr.split("\n").filter((l) => l.includes("MSL-A"));
   assertEquals(msl_a, []);
 });
