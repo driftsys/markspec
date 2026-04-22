@@ -538,3 +538,150 @@ profile:
   assertEquals(result.effective, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
 });
+
+Deno.test("mergeChain: type shape mismatch across tiers emits PROFILE-MERGE-001", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    thing:
+      shape: identified
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    thing:
+      shape: referenced
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  const msg = result.diagnostics[0].message;
+  if (!msg.includes("shape")) {
+    throw new Error(`expected 'shape' in message, got: ${msg}`);
+  }
+});
+
+Deno.test("mergeChain: display-id-pattern differs between tiers emits PROFILE-MERGE-001", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:06d}"
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  const msg = result.diagnostics[0].message;
+  if (!msg.includes("display-id-pattern")) {
+    throw new Error(`expected 'display-id-pattern' in message, got: ${msg}`);
+  }
+});
+
+Deno.test("mergeChain: child may set display-id-pattern when parent had none", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const req = result.effective!.types.get("requirement")!.value;
+  assertEquals(req.displayIdPattern.value, "REQ-{n:04d}");
+  assertEquals(req.displayIdPattern.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: enforcement tightens off → warn → error", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: warn
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: error
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const req = result.effective!.types.get("requirement")!.value;
+  assertEquals(req.displayIdPatternEnforcement.value, "error");
+});
+
+Deno.test("mergeChain: enforcement loosening error → warn emits PROFILE-MERGE-001", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: error
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      display-id-pattern-enforcement: warn
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+});

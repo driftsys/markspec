@@ -149,31 +149,16 @@ function foldTier(
       };
       types.set(name, { value: eff, origin });
     } else {
-      // Fold child's additions into existing type. Tightening in Tasks 3.5–3.7.
-      const merged: EffectiveTypeDef = {
-        name,
-        shape: existing.value.shape, // shape never changes
-        displayIdPattern: existing.value.displayIdPattern,
-        displayIdPatternEnforcement: existing.value.displayIdPatternEnforcement,
-        required: unionList(existing.value.required, td.required, origin),
-        attributes: unionAttrMap(
-          existing.value.attributes,
-          td.attributes,
-          origin,
-          diagnostics,
-        ),
-        traceability: unionTraceMap(
-          existing.value.traceability,
-          td.traceability,
-          origin,
-          diagnostics,
-        ),
-      };
-      const overrides = [
-        ...(existing.overrides ?? []),
-        existing.origin,
-      ];
-      types.set(name, { value: merged, origin, overrides });
+      const tightened = tightenType(
+        existing,
+        td,
+        origin,
+        diagnostics,
+      );
+      if (tightened) {
+        types.set(name, tightened);
+      }
+      // If tightening failed, parent entry is kept (diagnostics already pushed).
     }
   }
 
@@ -350,6 +335,111 @@ function tightenAttr(
     cardinality: child.cardinality,
     values: parent.type === "enum" ? child.values : parent.values,
     inverse: child.inverse ?? parent.inverse,
+  };
+  const overrides = [
+    ...(existing.overrides ?? []),
+    existing.origin,
+  ];
+  return { value: merged, origin: childOrigin, overrides };
+}
+
+const ENFORCEMENT_ORDER: Record<string, number> = { off: 0, warn: 1, error: 2 };
+
+/**
+ * Tighten a parent type declaration with a child's redeclaration. Returns the
+ * new effective entry on success, or `undefined` if the child relaxes (caller
+ * keeps the parent entry; diagnostics already recorded).
+ */
+function tightenType(
+  existing: ProvenancedMapEntry<EffectiveTypeDef>,
+  child: TypeDef,
+  childOrigin: ProfileId,
+  diagnostics: Diagnostic[],
+): ProvenancedMapEntry<EffectiveTypeDef> | undefined {
+  const name = child.name;
+  const effExisting = existing.value;
+
+  // Shape must match.
+  if (effExisting.shape !== child.shape) {
+    diagnostics.push(mergeRelaxation(
+      `type '${name}'`,
+      "shape",
+      `${effExisting.shape} (${existing.origin})`,
+      `${child.shape} (${childOrigin})`,
+    ));
+    return undefined;
+  }
+
+  // Display-ID pattern: if parent set one, child cannot change it. If parent
+  // had none, child may set it.
+  let displayIdPattern = effExisting.displayIdPattern;
+  if (child.displayIdPattern !== undefined) {
+    if (
+      effExisting.displayIdPattern.value !== undefined &&
+      effExisting.displayIdPattern.value !== child.displayIdPattern
+    ) {
+      diagnostics.push(mergeRelaxation(
+        `type '${name}'`,
+        "display-id-pattern",
+        `'${effExisting.displayIdPattern.value}' (${effExisting.displayIdPattern.origin})`,
+        `'${child.displayIdPattern}' (${childOrigin})`,
+      ));
+      return undefined;
+    }
+    if (effExisting.displayIdPattern.value === undefined) {
+      // Parent had no pattern — child contributes it.
+      displayIdPattern = { value: child.displayIdPattern, origin: childOrigin };
+    }
+  }
+
+  // Enforcement — tighten only (off < warn < error).
+  let enforcement = effExisting.displayIdPatternEnforcement;
+  if (child.displayIdPatternEnforcement !== enforcement.value) {
+    const parentLevel = ENFORCEMENT_ORDER[enforcement.value];
+    const childLevel = ENFORCEMENT_ORDER[child.displayIdPatternEnforcement];
+    if (childLevel < parentLevel) {
+      diagnostics.push(mergeRelaxation(
+        `type '${name}'`,
+        "display-id-pattern-enforcement",
+        `${enforcement.value} (${enforcement.origin})`,
+        `${child.displayIdPatternEnforcement} (${childOrigin})`,
+      ));
+      return undefined;
+    }
+    enforcement = {
+      value: child.displayIdPatternEnforcement,
+      origin: childOrigin,
+    };
+  }
+
+  // Fold child's attributes + traceability + required (same additive/tightening
+  // primitives as the existing fold).
+  const attributes = unionAttrMap(
+    effExisting.attributes,
+    child.attributes,
+    childOrigin,
+    diagnostics,
+  );
+  const traceability = unionTraceMap(
+    effExisting.traceability,
+    child.traceability,
+    childOrigin,
+    diagnostics,
+  );
+  const required = unionList(
+    effExisting.required,
+    child.required,
+    childOrigin,
+  );
+
+  const merged: EffectiveTypeDef = {
+    name,
+    shape: effExisting.shape,
+    displayIdPattern,
+    displayIdPatternEnforcement: enforcement,
+    required,
+    attributes,
+    traceability,
   };
   const overrides = [
     ...(existing.overrides ?? []),
