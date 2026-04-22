@@ -1,16 +1,18 @@
 /**
  * @module core/validator/pipeline
  *
- * Validator pipeline. Composes Stage 1 (core hygiene — existing `validate`)
- * with Stage 2 (type classification — {@linkcode classifyEntriesStage}).
+ * Validator pipeline. Composes Stage 1 (core hygiene — existing `validate`),
+ * Stage 2 (type classification — {@linkcode classifyEntriesStage}), and
+ * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}).
  *
- * Subsequent phases will append Stage 3 (typed attribute validation) and
- * Stage 4 (traceability rules) to the same runner.
+ * Subsequent phases will append Stage 4 (traceability rules) to the same
+ * runner.
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import { classifyEntriesStage } from "./types.ts";
+import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
@@ -37,9 +39,22 @@ export function runPipeline(
 ): PipelineResult {
   const diagnostics: Diagnostic[] = [];
 
-  // Stage 1 — core hygiene.
+  // Stage 1 — core hygiene. When a profile is loaded, suppress MSL-R010
+  // warnings for attributes the profile actually declares (Stage 3's scope
+  // validates them directly — the core-only R010 check would be noise).
   const stage1 = validate(entries);
-  diagnostics.push(...stage1.diagnostics);
+  const profileDeclaredAttrs = profile !== null
+    ? collectAllProfileAttributes(entries, profile)
+    : null;
+  const filteredStage1 = profileDeclaredAttrs === null
+    ? stage1.diagnostics
+    : stage1.diagnostics.filter((d) => {
+      if (d.code !== "MSL-R010") return true;
+      const match = /attribute '([^']+)'/.exec(d.message);
+      if (!match) return true;
+      return !profileDeclaredAttrs.has(match[1]);
+    });
+  diagnostics.push(...filteredStage1);
 
   // Stage 2 — classification (only when a profile is loaded).
   let finalEntries: readonly Entry[] = entries;
@@ -49,6 +64,41 @@ export function runPipeline(
     diagnostics.push(...stage2.diagnostics);
   }
 
+  // Stage 3 — typed attributes (only when a profile is loaded).
+  if (profile !== null) {
+    for (const entry of finalEntries) {
+      const stage3 = validateAttributesForEntry(entry, profile);
+      diagnostics.push(...stage3);
+    }
+  }
+
   const valid = !diagnostics.some((d) => d.severity === "error");
   return { entries: finalEntries, diagnostics, valid };
+}
+
+/**
+ * Union of all attribute names declared by the profile's effective scope
+ * across all entries. Used to suppress core Stage 1 MSL-R010 warnings for
+ * attributes that Stage 3 already validates.
+ *
+ * Computed per-entry because the effective scope for an entry depends on
+ * its shape and (when classified) type. Stage 1 runs before classification,
+ * so we pre-classify by iterating; entries without `type` still contribute
+ * their universal+shape scope.
+ */
+function collectAllProfileAttributes(
+  entries: readonly Entry[],
+  profile: EffectiveProfile,
+): Set<string> {
+  const out = new Set<string>();
+  for (const entry of entries) {
+    const scope = effectiveScope(entry, profile);
+    for (const name of scope.attributes.keys()) out.add(name);
+  }
+  // Also include every type-scoped attribute in the profile, since an entry
+  // may have declared attributes before Stage 2 classification runs.
+  for (const [, typeEntry] of profile.types) {
+    for (const name of typeEntry.value.attributes.keys()) out.add(name);
+  }
+  return out;
 }

@@ -1,0 +1,23 @@
+id: "@acme/phase6-attributed"
+version: 0.1.0
+description: Phase 6 e2e — profile with typed attributes for each diagnostic code
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved]
+  types:
+    requirement:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      required: [Rationale]
+      attributes:
+        - name: Rationale
+          type: text
+          cardinality: 1..1
+        - name: Count
+          type: integer
+          cardinality: 0..1
+        - name: Owners
+          type: tag-list
+          cardinality: 2..3
