@@ -21,6 +21,7 @@ import type {
   ProfileManifest,
   ProvenancedMap,
   ProvenancedMapEntry,
+  ProvenancedValue,
   TraceRule,
   TypeDef,
 } from "../model/mod.ts";
@@ -37,8 +38,8 @@ export interface MergeResult {
  * in root → leaf order; later tiers can add to or tighten earlier tiers'
  * rules. Returns `{ effective: null }` if any tier relaxes an ancestor.
  *
- * Task 3.3 scaffold: single-tier identity merge. Tasks 3.4–3.7 extend this
- * with additive, tightening, and subset rules.
+ * Task 3.4: additive merge (union across tiers). Tasks 3.5–3.7 extend this
+ * with tightening and subset rules.
  */
 export function mergeChain(chain: ProfileChain): MergeResult {
   const diagnostics: Diagnostic[] = [];
@@ -57,10 +58,236 @@ export function mergeChain(chain: ProfileChain): MergeResult {
     };
   }
 
-  // Start with the root tier's universal + shape + types, annotated with that
-  // tier's id as origin. Subsequent tasks fold additional tiers.
-  const effective = seedFromTier(tiers[0]);
-  return { effective, diagnostics };
+  // Start from root, fold each subsequent tier.
+  let effective = seedFromTier(tiers[0]);
+  for (let i = 1; i < tiers.length; i++) {
+    effective = foldTier(effective, tiers[i], diagnostics);
+  }
+
+  // If any merge error was recorded, drop the effective profile.
+  const hasError = diagnostics.some((d) => d.severity === "error");
+  return hasError
+    ? { effective: null, diagnostics }
+    : { effective, diagnostics };
+}
+
+/**
+ * Apply a child tier's additions on top of the current accumulated
+ * EffectiveProfile. Task 3.4 implements additive only; Tasks 3.5–3.7 extend
+ * this with tightening and subset checks.
+ */
+function foldTier(
+  base: EffectiveProfile,
+  tier: LoadedProfile,
+  diagnostics: Diagnostic[],
+): EffectiveProfile {
+  const origin: ProfileId = tier.id;
+  const m = tier.manifest;
+
+  // Universal additive.
+  const required = unionList(base.required, m.universalRequired, origin);
+  const labels = unionList(base.labels, m.labels, origin);
+  const attributes = unionAttrMap(
+    base.attributes,
+    m.universalAttributes,
+    origin,
+    diagnostics,
+  );
+
+  // Shape scopes — same additive pattern.
+  const identified: EffectiveShapeScope = {
+    required: unionList(
+      base.identified.required,
+      m.identified.required,
+      origin,
+    ),
+    attributes: unionAttrMap(
+      base.identified.attributes,
+      m.identified.attributes,
+      origin,
+      diagnostics,
+    ),
+    traceability: unionTraceMap(
+      base.identified.traceability,
+      m.identified.traceability,
+      origin,
+      diagnostics,
+    ),
+  };
+  const referenced: EffectiveShapeScope = {
+    required: unionList(
+      base.referenced.required,
+      m.referenced.required,
+      origin,
+    ),
+    attributes: unionAttrMap(
+      base.referenced.attributes,
+      m.referenced.attributes,
+      origin,
+      diagnostics,
+    ),
+    traceability: base.referenced.traceability, // always empty
+  };
+
+  // Types — add new types, fold existing ones.
+  const types = new Map(base.types);
+  for (const [name, td] of m.types) {
+    const existing = types.get(name);
+    if (!existing) {
+      // Fresh type contributed by this tier.
+      const eff: EffectiveTypeDef = {
+        name,
+        shape: td.shape,
+        displayIdPattern: { value: td.displayIdPattern, origin },
+        displayIdPatternEnforcement: {
+          value: td.displayIdPatternEnforcement,
+          origin,
+        },
+        required: { value: td.required, origin },
+        attributes: mapFromAttrList(td.attributes, origin),
+        traceability: mapFromTrace(td.traceability, origin),
+      };
+      types.set(name, { value: eff, origin });
+    } else {
+      // Fold child's additions into existing type. Tightening in Tasks 3.5–3.7.
+      const merged: EffectiveTypeDef = {
+        name,
+        shape: existing.value.shape, // shape never changes
+        displayIdPattern: existing.value.displayIdPattern,
+        displayIdPatternEnforcement: existing.value.displayIdPatternEnforcement,
+        required: unionList(existing.value.required, td.required, origin),
+        attributes: unionAttrMap(
+          existing.value.attributes,
+          td.attributes,
+          origin,
+          diagnostics,
+        ),
+        traceability: unionTraceMap(
+          existing.value.traceability,
+          td.traceability,
+          origin,
+          diagnostics,
+        ),
+      };
+      const overrides = [
+        ...(existing.overrides ?? []),
+        existing.origin,
+      ];
+      types.set(name, { value: merged, origin, overrides });
+    }
+  }
+
+  // Documents — add new doc types + frontMatter.
+  const docTypes = new Map(base.documents.types);
+  for (const dt of m.documents.types) {
+    if (!docTypes.has(dt.id)) {
+      docTypes.set(dt.id, { value: dt, origin });
+    }
+    // Overlap handling deferred.
+  }
+  const frontMatter = unionAttrMap(
+    base.documents.frontMatter,
+    m.documents.frontMatter,
+    origin,
+    diagnostics,
+  );
+
+  return {
+    required,
+    attributes,
+    labels,
+    identified,
+    referenced,
+    types,
+    documents: {
+      types: docTypes,
+      frontMatter,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Additive merge primitives
+// ---------------------------------------------------------------------------
+
+/**
+ * Union of two string lists; parent entries first, child entries appended,
+ * duplicates dropped. Origin = child tier if anything was added, else parent.
+ */
+function unionList(
+  parent: ProvenancedValue<readonly string[]>,
+  childList: readonly string[],
+  childOrigin: ProfileId,
+): ProvenancedValue<readonly string[]> {
+  if (childList.length === 0) {
+    return parent;
+  }
+  const seen = new Set(parent.value);
+  const merged = [...parent.value];
+  let anyAdded = false;
+  for (const s of childList) {
+    if (!seen.has(s)) {
+      merged.push(s);
+      seen.add(s);
+      anyAdded = true;
+    }
+  }
+  return anyAdded ? { value: merged, origin: childOrigin } : parent;
+}
+
+/**
+ * Union of attribute maps. Task 3.4 handles non-overlap only — if the child
+ * declares an attribute with the same name as the parent, we keep the parent's
+ * entry and record the child tier as an override (Task 3.5 turns this into a
+ * tightening check).
+ */
+function unionAttrMap(
+  parent: ProvenancedMap<AttrDecl>,
+  childAttrs: readonly AttrDecl[],
+  childOrigin: ProfileId,
+  _diagnostics: Diagnostic[],
+): ProvenancedMap<AttrDecl> {
+  const out = new Map(parent);
+  for (const a of childAttrs) {
+    const existing = out.get(a.name);
+    if (!existing) {
+      out.set(a.name, { value: a, origin: childOrigin });
+    } else {
+      // Overlap — parent's value is kept (no tightening yet).
+      // Task 3.5 replaces this with a tightening check.
+      const overrides = [
+        ...(existing.overrides ?? []),
+        childOrigin,
+      ];
+      out.set(a.name, { ...existing, overrides });
+    }
+  }
+  return out;
+}
+
+/**
+ * Union of traceability rule maps, same pattern as attributes.
+ */
+function unionTraceMap(
+  parent: ProvenancedMap<TraceRule>,
+  childTrace: ReadonlyMap<string, TraceRule>,
+  childOrigin: ProfileId,
+  _diagnostics: Diagnostic[],
+): ProvenancedMap<TraceRule> {
+  const out = new Map(parent);
+  for (const [name, rule] of childTrace) {
+    const existing = out.get(name);
+    if (!existing) {
+      out.set(name, { value: rule, origin: childOrigin });
+    } else {
+      const overrides = [
+        ...(existing.overrides ?? []),
+        childOrigin,
+      ];
+      out.set(name, { ...existing, overrides });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

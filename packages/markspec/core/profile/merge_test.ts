@@ -120,3 +120,227 @@ profile:
   assertEquals(req.value.attributes.size, 1);
   assertEquals(req.value.attributes.get("Rationale")?.origin, "@acme/single");
 });
+
+/**
+ * Build a multi-tier chain from an ordered list of YAMLs (root → leaf).
+ */
+function multiTierChain(yamls: readonly string[]): ProfileChain {
+  const tiers: LoadedProfile[] = yamls.map((yaml, i) => {
+    const parsed = parseManifest(yaml);
+    if (!parsed.manifest) {
+      throw new Error(
+        `tier ${i} parse failed: ${
+          parsed.diagnostics.map((d) => d.message).join("; ")
+        }`,
+      );
+    }
+    return {
+      id: parsed.manifest.id,
+      version: parsed.manifest.version,
+      specifier: { kind: "local", path: `./t${i}` },
+      manifest: parsed.manifest,
+      sourcePath: `/fixture/t${i}/markspec.yaml`,
+      baseDir: `/fixture/t${i}`,
+    };
+  });
+  // Stub effective — mergeChain rebuilds it.
+  return {
+    tiers,
+    effective: {
+      required: { value: [], origin: tiers[0].id },
+      attributes: new Map(),
+      labels: { value: [], origin: tiers[0].id },
+      identified: {
+        required: { value: [], origin: tiers[0].id },
+        attributes: new Map(),
+        traceability: new Map(),
+      },
+      referenced: {
+        required: { value: [], origin: tiers[0].id },
+        attributes: new Map(),
+        traceability: new Map(),
+      },
+      types: new Map(),
+      documents: { types: new Map(), frontMatter: new Map() },
+    },
+  };
+}
+
+Deno.test("mergeChain: additive — child adds universal attribute parent didn't have", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Owner
+      type: text
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const eff = result.effective!;
+  assertEquals(eff.attributes.size, 2);
+  assertEquals(eff.attributes.get("Status")?.origin, "@acme/parent");
+  assertEquals(eff.attributes.get("Owner")?.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: additive — required is union", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  required: [Status]
+  attributes:
+    - name: Status
+      type: enum
+      values: [draft, approved]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  required: [Owner]
+  attributes:
+    - name: Owner
+      type: text
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const eff = result.effective!;
+  // Order: parent entries come first, child's additions appended.
+  assertEquals(eff.required.value, ["Status", "Owner"]);
+  // required.origin points at the leaf child since it last modified the list.
+  assertEquals(eff.required.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: additive — labels are union, deduplicated", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  labels: [DRAFT, INTERNAL]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  labels: [INTERNAL, PUBLIC]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  // Union without duplicates, parent entries first.
+  assertEquals(result.effective!.labels.value, ["DRAFT", "INTERNAL", "PUBLIC"]);
+});
+
+Deno.test("mergeChain: additive — child adds a new type", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    test:
+      shape: identified
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const types = result.effective!.types;
+  assertEquals(types.size, 2);
+  assertEquals(types.get("requirement")?.origin, "@acme/parent");
+  assertEquals(types.get("test")?.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: additive — child adds attribute to an existing type", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      attributes:
+        - name: Rationale
+          type: text
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      attributes:
+        - name: Owner
+          type: text
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const req = result.effective!.types.get("requirement")!.value;
+  assertEquals(req.attributes.size, 2);
+  assertEquals(req.attributes.get("Rationale")?.origin, "@acme/parent");
+  assertEquals(req.attributes.get("Owner")?.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: additive — child adds traceability rule to existing type", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [{shape: identified}]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Allocates-to:
+          target: [{shape: identified}]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const req = result.effective!.types.get("requirement")!.value;
+  assertEquals(req.traceability.size, 2);
+  assertEquals(req.traceability.get("Derived-from")?.origin, "@acme/parent");
+  assertEquals(req.traceability.get("Allocates-to")?.origin, "@acme/child");
+});
