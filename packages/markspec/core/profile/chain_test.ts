@@ -6,6 +6,8 @@
 
 import { assertEquals } from "@std/assert";
 import { loadChain } from "./chain.ts";
+import type { RunGit } from "./git-cache.ts";
+import { computeCacheLocation } from "./git-cache.ts";
 
 function mockReadFile(map: Record<string, string>) {
   return (path: string): Promise<string | undefined> =>
@@ -15,6 +17,7 @@ function mockReadFile(map: Record<string, string>) {
 Deno.test("loadChain: happy path returns a one-tier chain", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/custom" },
+    "/project",
     "/project",
     mockReadFile({
       "/project/profiles/custom/markspec.yaml":
@@ -35,6 +38,7 @@ Deno.test("loadChain: unresolvable specifier propagates PROFILE-LOAD-001", async
   const result = await loadChain(
     { kind: "local", path: "./profiles/missing" },
     "/project",
+    "/project",
     mockReadFile({}),
   );
   assertEquals(result.chain, null);
@@ -46,6 +50,7 @@ Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", async () 
   const result = await loadChain(
     { kind: "local", path: "./profiles/broken" },
     "/project",
+    "/project",
     mockReadFile({
       "/project/profiles/broken/markspec.yaml": `no_id: true\n`,
     }),
@@ -56,28 +61,10 @@ Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", async () 
   assertEquals(codes[0], "PROFILE-LOAD-003");
 });
 
-Deno.test("loadChain: git specifier errors with PROFILE-LOAD-001 (Phase 4 scope)", async () => {
-  const result = await loadChain(
-    {
-      kind: "git",
-      repo: "https://github.com/acme/base.git",
-      subpath: undefined,
-      tag: "v1.0",
-    },
-    "/project",
-    mockReadFile({}),
-  );
-  assertEquals(result.chain, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
-  const msg = result.diagnostics[0].message;
-  if (!msg.toLowerCase().includes("git")) {
-    throw new Error(`expected 'git' in message, got: ${msg}`);
-  }
-});
-
 Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/child" },
+    "/project",
     "/project",
     mockReadFile({
       "/project/profiles/child/markspec.yaml":
@@ -96,6 +83,7 @@ Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
 Deno.test("loadChain: three-tier chain loads in order", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
+    "/project",
     "/project",
     mockReadFile({
       "/project/profiles/leaf/markspec.yaml":
@@ -118,6 +106,7 @@ Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/a" },
     "/project",
+    "/project",
     mockReadFile({
       "/project/profiles/a/markspec.yaml":
         `id: "@acme/a"\nversion: 1.0.0\nextends: "../b"\n`,
@@ -132,6 +121,7 @@ Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
 Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/me" },
+    "/project",
     "/project",
     mockReadFile({
       "/project/profiles/me/markspec.yaml":
@@ -154,6 +144,7 @@ Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/t0" },
     "/project",
+    "/project",
     mockReadFile(files),
   );
   assertEquals(result.chain, null);
@@ -168,12 +159,106 @@ Deno.test("loadChain: extends of unresolvable parent propagates PROFILE-LOAD-001
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
     "/project",
+    "/project",
     mockReadFile({
       "/project/profiles/leaf/markspec.yaml":
         `id: "@acme/leaf"\nversion: 1.0.0\nextends: "../missing"\n`,
       // no file at /project/profiles/missing/markspec.yaml
     }),
   );
+  assertEquals(result.chain, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
+});
+
+Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier", async () => {
+  const spec = {
+    kind: "git" as const,
+    repo: "https://github.com/acme/repo.git",
+    subpath: undefined,
+    tag: "v1.0.0",
+  };
+  const loc = await computeCacheLocation("/project", spec);
+
+  const gitCalls: string[][] = [];
+  const runGit: RunGit = (args) => {
+    gitCalls.push([...args]);
+    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+  };
+
+  // Cache hit: markspec.yaml is already at the cache location.
+  const result = await loadChain(
+    spec,
+    "/project",
+    "/project",
+    mockReadFile({
+      [loc.manifestPath]: `id: "@acme/from-git"\nversion: 1.0.0\n`,
+    }),
+    { runGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.length, 1);
+  assertEquals(result.chain?.tiers[0].id, "@acme/from-git");
+  assertEquals(gitCalls.length, 0); // hit — no git calls
+});
+
+Deno.test("loadChain: git specifier in extends chain is walked", async () => {
+  const parentSpec = {
+    kind: "git" as const,
+    repo: "https://github.com/acme/parent.git",
+    subpath: undefined,
+    tag: "v1.0.0",
+  };
+  const parentLoc = await computeCacheLocation("/project", parentSpec);
+
+  const runGit: RunGit = () =>
+    Promise.resolve({ code: 0, stdout: "", stderr: "" });
+
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/child" },
+    "/project",
+    "/project",
+    mockReadFile({
+      "/project/profiles/child/markspec.yaml":
+        `id: "@acme/child"\nversion: 1.0.0\n` +
+        `extends: "git+${parentSpec.repo}#${parentSpec.tag}"\n`,
+      [parentLoc.manifestPath]: `id: "@acme/git-parent"\nversion: 1.0.0\n`,
+    }),
+    { runGit },
+  );
+
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.map((t) => t.id), [
+    "@acme/git-parent",
+    "@acme/child",
+  ]);
+});
+
+Deno.test("loadChain: git clone failure propagates PROFILE-LOAD-001", async () => {
+  const failingRunGit: RunGit = (args) => {
+    if (args[0] === "clone") {
+      return Promise.resolve({
+        code: 128,
+        stdout: "",
+        stderr: "fatal: unreachable",
+      });
+    }
+    return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+  };
+
+  const result = await loadChain(
+    {
+      kind: "git",
+      repo: "https://github.com/acme/no-such.git",
+      subpath: undefined,
+      tag: "v1.0.0",
+    },
+    "/project",
+    "/project",
+    mockReadFile({}),
+    { runGit: failingRunGit },
+  );
+
   assertEquals(result.chain, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
 });
