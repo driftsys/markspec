@@ -106,3 +106,58 @@ Deno.test("defaultRunGit: nonzero exit code is captured, not thrown", async () =
     );
   }
 });
+
+import { ensureCacheGitignored } from "./git-cache.ts";
+
+// File-system stubs the helper uses.
+interface FsStub {
+  read: (path: string) => Promise<string | undefined>;
+  append: (path: string, content: string) => Promise<void>;
+  writes: { path: string; content: string }[];
+}
+
+function fsStub(initial: Record<string, string> = {}): FsStub {
+  const files = { ...initial };
+  const writes: { path: string; content: string }[] = [];
+  return {
+    read: (path) => Promise.resolve(files[path]),
+    append: (path, content) => {
+      files[path] = (files[path] ?? "") + content;
+      writes.push({ path, content });
+      return Promise.resolve();
+    },
+    writes,
+  };
+}
+
+Deno.test("ensureCacheGitignored: appends entry when missing", async () => {
+  const fs = fsStub({ "/project/.gitignore": "node_modules/\n" });
+  await ensureCacheGitignored("/project", fs.read, fs.append);
+  assertEquals(fs.writes.length, 1);
+  assertEquals(fs.writes[0].path, "/project/.gitignore");
+  if (!fs.writes[0].content.includes(".markspec/cache/")) {
+    throw new Error(
+      `expected .markspec/cache/ in appended content: ${fs.writes[0].content}`,
+    );
+  }
+});
+
+Deno.test("ensureCacheGitignored: idempotent when entry already present", async () => {
+  const fs = fsStub({
+    "/project/.gitignore": "node_modules/\n.markspec/cache/\n",
+  });
+  await ensureCacheGitignored("/project", fs.read, fs.append);
+  assertEquals(fs.writes.length, 0);
+});
+
+Deno.test("ensureCacheGitignored: idempotent when broader .markspec/ is present", async () => {
+  const fs = fsStub({ "/project/.gitignore": ".markspec/\n" });
+  await ensureCacheGitignored("/project", fs.read, fs.append);
+  assertEquals(fs.writes.length, 0);
+});
+
+Deno.test("ensureCacheGitignored: no-op when .gitignore absent", async () => {
+  const fs = fsStub({});
+  await ensureCacheGitignored("/project", fs.read, fs.append);
+  assertEquals(fs.writes.length, 0);
+});

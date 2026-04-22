@@ -10,8 +10,13 @@
 import { join, resolve } from "@std/path";
 import type { ReadFile } from "../config/mod.ts";
 import type { Diagnostic, ProfileSpecifier } from "../model/mod.ts";
-import { computeCacheLocation, defaultRunGit } from "./git-cache.ts";
-import type { RunGit } from "./git-cache.ts";
+import {
+  computeCacheLocation,
+  defaultAppendFile,
+  defaultRunGit,
+  ensureCacheGitignored,
+} from "./git-cache.ts";
+import type { AppendFile, RunGit } from "./git-cache.ts";
 
 /**
  * A profile that has been located on disk (or in a cache) and read.
@@ -62,6 +67,8 @@ export async function resolveLocalSpecifier(
 export interface ResolveGitOptions {
   /** Injectable git runner — defaults to {@linkcode defaultRunGit}. */
   readonly runGit?: RunGit;
+  /** Injectable file appender — defaults to {@linkcode defaultAppendFile}. */
+  readonly appendFile?: AppendFile;
 }
 
 /**
@@ -119,6 +126,13 @@ export async function resolveGitSpecifier(
     });
     return null;
   }
+
+  // First fetch populated the cache — make sure it's ignored by git.
+  await ensureCacheGitignored(
+    projectRoot,
+    readFile,
+    opts.appendFile ?? defaultAppendFile,
+  );
 
   if (specifier.subpath !== undefined) {
     const sparseResult = await runGit(

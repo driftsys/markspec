@@ -101,3 +101,50 @@ export const defaultRunGit: RunGit = async (args, cwd) => {
     stderr: textDecoder.decode(stderr),
   };
 };
+
+/** Injectable appender for {@linkcode ensureCacheGitignored}. */
+export type AppendFile = (path: string, content: string) => Promise<void>;
+
+/**
+ * Idempotently add `.markspec/cache/` to the project's `.gitignore` if that
+ * file exists. No-op when `.gitignore` is absent.
+ *
+ * Treats `.markspec/`, `.markspec/cache`, and `.markspec/cache/` as already
+ * ignored (broadest pattern wins).
+ *
+ * @param projectRoot - Absolute path containing the `.gitignore`
+ * @param readFile - Abstraction matching `core/config/mod.ts` `ReadFile`
+ * @param appendFile - Abstraction that appends a string to a file
+ */
+export async function ensureCacheGitignored(
+  projectRoot: string,
+  readFile: (path: string) => Promise<string | undefined>,
+  appendFile: AppendFile,
+): Promise<void> {
+  const gitignorePath = join(projectRoot, ".gitignore");
+  const current = await readFile(gitignorePath);
+  if (current === undefined) {
+    return;
+  }
+  // Treat any of these patterns as "already ignored" and skip.
+  const lines = current.split("\n").map((l) => l.trim());
+  const ignored = lines.some((l) =>
+    l === ".markspec/" ||
+    l === ".markspec/cache/" ||
+    l === ".markspec/cache"
+  );
+  if (ignored) {
+    return;
+  }
+  const needsLeadingNewline = current.length > 0 && !current.endsWith("\n");
+  const content = (needsLeadingNewline ? "\n" : "") + ".markspec/cache/\n";
+  await appendFile(gitignorePath, content);
+}
+
+/**
+ * Default `AppendFile` backed by `Deno.writeTextFile` with `{ append: true }`.
+ * Requires `--allow-write`.
+ */
+export const defaultAppendFile: AppendFile = async (path, content) => {
+  await Deno.writeTextFile(path, content, { append: true });
+};
