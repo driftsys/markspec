@@ -22,6 +22,7 @@ import type {
   ProvenancedMap,
   ProvenancedMapEntry,
   ProvenancedValue,
+  TargetMatcher,
   TraceRule,
   TypeDef,
 } from "../model/mod.ts";
@@ -474,22 +475,128 @@ function unionTraceMap(
   parent: ProvenancedMap<TraceRule>,
   childTrace: ReadonlyMap<string, TraceRule>,
   childOrigin: ProfileId,
-  _diagnostics: Diagnostic[],
+  diagnostics: Diagnostic[],
 ): ProvenancedMap<TraceRule> {
   const out = new Map(parent);
   for (const [name, rule] of childTrace) {
     const existing = out.get(name);
     if (!existing) {
       out.set(name, { value: rule, origin: childOrigin });
-    } else {
-      const overrides = [
-        ...(existing.overrides ?? []),
-        childOrigin,
-      ];
-      out.set(name, { ...existing, overrides });
+      continue;
+    }
+    const tightened = tightenTraceRule(
+      existing,
+      name,
+      rule,
+      childOrigin,
+      diagnostics,
+    );
+    if (tightened) {
+      out.set(name, tightened);
     }
   }
   return out;
+}
+
+function tightenTraceRule(
+  existing: ProvenancedMapEntry<TraceRule>,
+  linkName: string,
+  child: TraceRule,
+  childOrigin: ProfileId,
+  diagnostics: Diagnostic[],
+): ProvenancedMapEntry<TraceRule> | undefined {
+  const parent = existing.value;
+
+  // Subset check: every child target must be covered by some parent target.
+  for (const ct of child.target) {
+    if (!targetCoveredBy(ct, parent.target)) {
+      diagnostics.push({
+        code: "PROFILE-MERGE-002",
+        severity: "error",
+        message: `traceability '${linkName}': child target ${
+          stringifyMatcher(ct)
+        } not covered by parent target [${
+          parent.target.map(stringifyMatcher).join(", ")
+        }] (${existing.origin} vs ${childOrigin})`,
+        location: { file: "<merge>", line: 1, column: 1 },
+      });
+      return undefined;
+    }
+  }
+
+  // Cardinality tightening (same rule as attribute cardinality).
+  let cardinality = parent.cardinality;
+  if (child.cardinality !== undefined) {
+    const parentCard = parent.cardinality ?? { lower: 0, upper: Infinity };
+    if (child.cardinality.lower < parentCard.lower) {
+      diagnostics.push(mergeRelaxation(
+        `traceability '${linkName}'`,
+        "cardinality.lower",
+        `${parentCard.lower} (${existing.origin})`,
+        `${child.cardinality.lower} (${childOrigin})`,
+      ));
+      return undefined;
+    }
+    if (child.cardinality.upper > parentCard.upper) {
+      diagnostics.push(mergeRelaxation(
+        `traceability '${linkName}'`,
+        "cardinality.upper",
+        `${formatUpper(parentCard.upper)} (${existing.origin})`,
+        `${formatUpper(child.cardinality.upper)} (${childOrigin})`,
+      ));
+      return undefined;
+    }
+    cardinality = child.cardinality;
+  }
+
+  // Required flag: once required, cannot be un-required.
+  if (parent.required === true && child.required === false) {
+    diagnostics.push(mergeRelaxation(
+      `traceability '${linkName}'`,
+      "required",
+      `true (${existing.origin})`,
+      `false (${childOrigin})`,
+    ));
+    return undefined;
+  }
+
+  const merged: TraceRule = {
+    target: child.target, // already proven to be a subset
+    cardinality,
+    required: parent.required || child.required,
+  };
+  const overrides = [
+    ...(existing.overrides ?? []),
+    existing.origin,
+  ];
+  return { value: merged, origin: childOrigin, overrides };
+}
+
+/**
+ * True when a child target matcher is covered by the parent's target list.
+ * - Type-name child covered by identical type-name in parent OR by ANY shape
+ *   matcher in parent.
+ * - Shape-matcher child covered only by identical shape matcher in parent.
+ */
+function targetCoveredBy(
+  child: TargetMatcher,
+  parentList: readonly TargetMatcher[],
+): boolean {
+  if (typeof child === "string") {
+    for (const p of parentList) {
+      if (typeof p === "string" && p === child) return true;
+      if (typeof p !== "string") return true; // any shape matcher covers type names
+    }
+    return false;
+  }
+  for (const p of parentList) {
+    if (typeof p !== "string" && p.shape === child.shape) return true;
+  }
+  return false;
+}
+
+function stringifyMatcher(m: TargetMatcher): string {
+  return typeof m === "string" ? m : `{shape: ${m.shape}}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -685,3 +685,159 @@ profile:
   assertEquals(result.effective, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
 });
+
+Deno.test("mergeChain: traceability target narrows valid subset", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [stakeholder-req, system-req]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [stakeholder-req]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const trace = result.effective!.types.get("requirement")!.value
+    .traceability.get("Derived-from")!;
+  assertEquals(trace.value.target, ["stakeholder-req"]);
+  assertEquals(trace.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: traceability target adds type not in parent emits PROFILE-MERGE-002", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [stakeholder-req]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [stakeholder-req, system-req]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-002");
+});
+
+Deno.test("mergeChain: child narrows shape matcher to specific type is allowed", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  identified:
+    traceability:
+      Derived-from:
+        target: [{shape: identified}]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  identified:
+    traceability:
+      Derived-from:
+        target: [stakeholder-req]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const trace = result.effective!.identified.traceability
+    .get("Derived-from")!;
+  assertEquals(trace.value.target, ["stakeholder-req"]);
+});
+
+Deno.test("mergeChain: child adds shape matcher not in parent emits PROFILE-MERGE-002", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  identified:
+    traceability:
+      Derived-from:
+        target: [{shape: identified}]
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  identified:
+    traceability:
+      Derived-from:
+        target: [{shape: identified}, {shape: referenced}]
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-002");
+});
+
+Deno.test("mergeChain: traceability cardinality tightens like attribute cardinality", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [stakeholder-req]
+          cardinality: 0..N
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      traceability:
+        Derived-from:
+          target: [stakeholder-req]
+          cardinality: 1..N
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const trace = result.effective!.types.get("requirement")!.value
+    .traceability.get("Derived-from")!;
+  assertEquals(trace.value.cardinality, { lower: 1, upper: Infinity });
+});
