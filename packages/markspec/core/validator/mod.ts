@@ -257,3 +257,9 @@ export { classifyEntriesStage, classifyEntry } from "./types.ts";
 export type { ClassifyResult, ClassifyStageResult } from "./types.ts";
 
 export { compileDisplayIdPattern } from "./pattern.ts";
+
+export { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
+export type { EffectiveAttrScope } from "./attributes.ts";
+
+export { validateValue } from "./value_types.ts";
+export type { ValueValidator } from "./value_types.ts";

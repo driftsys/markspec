@@ -131,6 +131,73 @@ Deno.test("runPipeline: both stages contribute diagnostics independently", () =>
   assertEquals(result.valid, false);
 });
 
+Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => {
+  const origin = "@test/p";
+  const rationaleAttr = {
+    name: "Rationale",
+    type: "text" as const,
+    required: true,
+    cardinality: { lower: 1, upper: 1 },
+  };
+  const reqType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "requirement",
+      shape: "identified",
+      displayIdPattern: { value: "REQ-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      required: { value: ["Rationale"], origin },
+      attributes: new Map([
+        ["Rationale", { value: rationaleAttr, origin }],
+      ]),
+      traceability: new Map(),
+    },
+  };
+  const profile: EffectiveProfile = {
+    required: { value: [], origin },
+    attributes: new Map(),
+    labels: { value: [], origin },
+    identified: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    referenced: {
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+    },
+    types: new Map([["requirement", reqType]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+
+  // Entry classified as requirement but missing Rationale.
+  const e: Entry = {
+    displayId: "REQ-0001",
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "identified",
+    source: "markdown",
+    title: "",
+    body: "",
+    attributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+  };
+
+  const result = runPipeline([e], profile);
+  const a001 = result.diagnostics.find((d) => d.code === "MSL-A001");
+  if (!a001) {
+    throw new Error(
+      `expected MSL-A001, got: ${result.diagnostics.map((d) => d.code)}`,
+    );
+  }
+  assertEquals(result.valid, false);
+});
+
 Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () => {
   const origin = "@test/p";
   const profile: EffectiveProfile = {

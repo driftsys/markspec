@@ -1,16 +1,18 @@
 /**
  * @module core/validator/pipeline
  *
- * Validator pipeline. Composes Stage 1 (core hygiene — existing `validate`)
- * with Stage 2 (type classification — {@linkcode classifyEntriesStage}).
+ * Validator pipeline. Composes Stage 1 (core hygiene — existing `validate`),
+ * Stage 2 (type classification — {@linkcode classifyEntriesStage}), and
+ * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}).
  *
- * Subsequent phases will append Stage 3 (typed attribute validation) and
- * Stage 4 (traceability rules) to the same runner.
+ * Subsequent phases will append Stage 4 (traceability rules) to the same
+ * runner.
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import { classifyEntriesStage } from "./types.ts";
+import { validateAttributesForEntry } from "./attributes.ts";
 
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
@@ -47,6 +49,14 @@ export function runPipeline(
     const stage2 = classifyEntriesStage(entries, profile);
     finalEntries = stage2.entries;
     diagnostics.push(...stage2.diagnostics);
+  }
+
+  // Stage 3 — typed attributes (only when a profile is loaded).
+  if (profile !== null) {
+    for (const entry of finalEntries) {
+      const stage3 = validateAttributesForEntry(entry, profile);
+      diagnostics.push(...stage3);
+    }
   }
 
   const valid = !diagnostics.some((d) => d.severity === "error");

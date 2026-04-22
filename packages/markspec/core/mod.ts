@@ -108,8 +108,24 @@ export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 
 // Validator
-export { runPipeline, validate } from "./validator/mod.ts";
-export type { PipelineResult, ValidateResult } from "./validator/mod.ts";
+export {
+  classifyEntriesStage,
+  classifyEntry,
+  compileDisplayIdPattern,
+  effectiveScope,
+  runPipeline,
+  validate,
+  validateAttributesForEntry,
+  validateValue,
+} from "./validator/mod.ts";
+export type {
+  ClassifyResult,
+  ClassifyStageResult,
+  EffectiveAttrScope,
+  PipelineResult,
+  ValidateResult,
+  ValueValidator,
+} from "./validator/mod.ts";
 
 // Compiler
 export { compile, serializeCompileResult } from "./compiler/mod.ts";

@@ -18,6 +18,7 @@ import type {
   Entry,
 } from "../model/mod.ts";
 import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/mod.ts";
+import { validateValue } from "./value_types.ts";
 
 /** Core-reserved attribute keys that are always permitted regardless of profile. */
 const CORE_RESERVED_KEYS: ReadonlySet<string> = new Set([
@@ -152,7 +153,20 @@ export function validateAttributesForEntry(
       });
     }
 
-    // MSL-A004: value-type conformance — Task 6.6 wires this in.
+    // MSL-A004: value-type conformance.
+    for (const v of values) {
+      const detail = validateValue(v, decl);
+      if (detail !== null) {
+        diagnostics.push({
+          code: "MSL-A004",
+          severity: "error",
+          message:
+            `${entry.displayId}: attribute '${name}' has invalid value: ${detail}`,
+          location: entry.location,
+        });
+        break; // one diagnostic per attribute is enough
+      }
+    }
   }
 
   return diagnostics;

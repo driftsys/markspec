@@ -392,3 +392,78 @@ Deno.test("validateAttributesForEntry: core-reserved attributes are never unknow
   const a005 = diags.filter((d) => d.code === "MSL-A005");
   assertEquals(a005, []);
 });
+
+Deno.test("validateAttributesForEntry: value-type mismatch → MSL-A004", () => {
+  const intAttr: AttrDecl = {
+    name: "Count",
+    type: "integer",
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+  };
+  const p = profile({ universalAttrs: [intAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Count: ["not-an-int"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a004 = diags.find((d) => d.code === "MSL-A004");
+  if (!a004) {
+    throw new Error(`expected MSL-A004, got: ${diags.map((d) => d.code)}`);
+  }
+  if (!a004.message.includes("Count")) {
+    throw new Error(`expected attribute name in message: ${a004.message}`);
+  }
+});
+
+Deno.test("validateAttributesForEntry: all valid values → no MSL-A004", () => {
+  const intAttr: AttrDecl = {
+    name: "Count",
+    type: "integer",
+    required: false,
+    cardinality: { lower: 0, upper: Infinity },
+  };
+  const p = profile({ universalAttrs: [intAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Count: ["1", "2", "3"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  assertEquals(diags.filter((d) => d.code === "MSL-A004"), []);
+});
+
+Deno.test("validateAttributesForEntry: one bad value among good ones → single MSL-A004", () => {
+  const intAttr: AttrDecl = {
+    name: "Count",
+    type: "integer",
+    required: false,
+    cardinality: { lower: 0, upper: Infinity },
+  };
+  const p = profile({ universalAttrs: [intAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Count: ["1", "bad", "3"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a004 = diags.filter((d) => d.code === "MSL-A004");
+  assertEquals(a004.length, 1);
+});
+
+Deno.test("validateAttributesForEntry: enum value-type mismatch → MSL-A004", () => {
+  const enumAttr: AttrDecl = {
+    name: "Status",
+    type: "enum",
+    required: false,
+    cardinality: { lower: 0, upper: 1 },
+    values: ["draft", "approved"],
+  };
+  const p = profile({ universalAttrs: [enumAttr] });
+  const e = entry({
+    shape: "identified",
+    attrs: { Status: ["rejected"] },
+  });
+  const diags = validateAttributesForEntry(e, p);
+  const a004 = diags.find((d) => d.code === "MSL-A004");
+  if (!a004) {
+    throw new Error(`expected MSL-A004, got: ${diags.map((d) => d.code)}`);
+  }
+});
