@@ -20,9 +20,6 @@ profile:
     test:
       shape: identified
       display-id-pattern: "TEST-{n:04d}"
-      attributes:
-        - name: Verifies
-          type: id-list
       traceability:
         Verifies:
           target: [requirement]

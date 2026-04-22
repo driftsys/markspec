@@ -81,7 +81,49 @@ export function effectiveScope(
     }
   }
 
+  // Synthesize implicit id-list attribute declarations for trace rule link
+  // names that aren't explicitly declared as attributes. A trace rule IS an
+  // id-list attribute by definition — profile authors shouldn't have to
+  // declare it in both places.
+  const shapeTrace = entry.shape === "identified"
+    ? profile.identified.traceability
+    : profile.referenced.traceability;
+  for (const [name] of shapeTrace) {
+    if (!attributes.has(name)) {
+      attributes.set(name, synthesizedLinkAttr(name));
+    }
+  }
+  if (entry.type !== undefined) {
+    const typeEntry = profile.types.get(entry.type);
+    if (typeEntry !== undefined) {
+      for (const [name] of typeEntry.value.traceability) {
+        if (!attributes.has(name)) {
+          attributes.set(name, synthesizedLinkAttr(name));
+        }
+      }
+    }
+  }
+
   return { required, attributes };
+}
+
+/**
+ * Build a synthesized `id-list` AttrDecl for a trace rule's link name when
+ * the profile doesn't explicitly declare the attribute. This keeps Stage 2.5
+ * (CSV normalization) and Stage 3 (unknown-attribute check) honest without
+ * requiring profile authors to double-declare link attributes.
+ *
+ * Cardinality defaults to 0..N (unbounded list). Cardinality on the trace
+ * rule itself is enforced by Stage 4 (traceability), which reads the rule
+ * directly.
+ */
+function synthesizedLinkAttr(name: string): AttrDecl {
+  return {
+    name,
+    type: "id-list",
+    required: false,
+    cardinality: { lower: 0, upper: Infinity },
+  };
 }
 
 /**
