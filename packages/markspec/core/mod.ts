@@ -132,10 +132,15 @@ export type {
 } from "./validator/mod.ts";
 
 // Compiler
-export { compile, serializeCompileResult } from "./compiler/mod.ts";
+export {
+  compile,
+  generateInverses,
+  serializeCompileResult,
+} from "./compiler/mod.ts";
 export type {
   CompileOptions,
   CompileResult,
+  GenerateInversesResult,
   SerializedCompileResult,
 } from "./compiler/mod.ts";
 

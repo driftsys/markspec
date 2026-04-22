@@ -9,18 +9,22 @@ import type {
   Diagnostic,
   DisplayId,
   Document,
+  EffectiveProfile,
   Entry,
   Link,
   LinkKind,
   SourceLocation,
 } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
-import { validate } from "../validator/mod.ts";
+import { classifyEntriesStage, validate } from "../validator/mod.ts";
+import { generateInverses } from "./inverses.ts";
 
 /** Options for {@linkcode compile}. */
 export interface CompileOptions {
   /** File reader function. Required — no default to avoid Deno dependency in library code. */
   readonly readFile: (path: string) => Promise<string>;
+  /** Active profile for inverse attribute generation. Optional — when absent, inverses are skipped. */
+  readonly profile?: EffectiveProfile;
 }
 
 /** Compiled project output with resolved traceability graph. */
@@ -83,16 +87,39 @@ export async function compile(
   // Phase 2: Validate all entries.
   const validationResult = validate(allEntries);
 
+  // Phase 2.5: Classify entries when a profile is loaded.
+  let classifiedEntries: readonly Entry[] = allEntries;
+  if (options.profile) {
+    const stage2 = classifyEntriesStage(allEntries, options.profile);
+    classifiedEntries = stage2.entries;
+    parseDiagnostics.push(...stage2.diagnostics);
+  }
+
   // Phase 3: Build traceability graph.
   // Keep first occurrence of each display ID (validator catches duplicates).
   const entries = new Map<DisplayId, Entry>();
-  for (const entry of allEntries) {
+  for (const entry of classifiedEntries) {
     if (!entries.has(entry.displayId)) {
       entries.set(entry.displayId, entry);
     }
   }
 
-  const links = extractLinks(allEntries);
+  // Phase 3.5: Generate inverse attributes from profile declarations.
+  if (options.profile) {
+    const inverseResult = generateInverses(
+      [...entries.values()],
+      options.profile,
+    );
+    parseDiagnostics.push(...inverseResult.diagnostics);
+    entries.clear();
+    for (const entry of inverseResult.entries) {
+      if (!entries.has(entry.displayId)) {
+        entries.set(entry.displayId, entry);
+      }
+    }
+  }
+
+  const links = extractLinks([...entries.values()]);
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 
@@ -203,3 +230,7 @@ function buildAdjacency(
 // Re-export serialization helper.
 export { serializeCompileResult } from "./schema.ts";
 export type { SerializedCompileResult } from "./schema.ts";
+
+// Re-export inverse generation.
+export { generateInverses } from "./inverses.ts";
+export type { GenerateInversesResult } from "./inverses.ts";

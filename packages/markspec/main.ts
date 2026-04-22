@@ -90,10 +90,11 @@ async function loadActiveProfile(projectRoot: string) {
  */
 async function compileProject(paths: string[]): Promise<CompileResult> {
   const configResult = await requireProjectConfig();
-  await loadActiveProfile(configResult.projectRoot);
+  const chain = await loadActiveProfile(configResult.projectRoot);
   const { compile } = await import("./core/mod.ts");
   const result = await compile(paths, {
     readFile: (p) => Deno.readTextFile(p),
+    profile: chain?.effective ?? undefined,
   });
 
   for (const diag of result.diagnostics) {
@@ -285,6 +286,47 @@ function _escHtml(s: string): string {
     "&gt;",
   );
 }
+
+// ── Profile command group ─────────────────────────────────────────────
+
+const profileCmd = new Command()
+  .description("Profile management")
+  .command("show")
+  .description("Show the active profile chain")
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(async (options: { format?: string }) => {
+    const { config: _config, projectRoot } = await requireProjectConfig();
+    const chain = await loadActiveProfile(projectRoot);
+
+    if (options.format === "json") {
+      const output = {
+        chain: chain
+          ? chain.tiers.map((tier) => ({
+            id: tier.id,
+            version: tier.version,
+            specifier: tier.specifier,
+            sourcePath: tier.sourcePath,
+          }))
+          : [],
+      };
+      console.log(JSON.stringify(output, null, 2));
+    } else {
+      if (!chain) {
+        console.error("no profile configured for this project");
+      } else {
+        console.error("Active profile chain:");
+        for (const tier of chain.tiers) {
+          const spec = tier.specifier.kind === "local"
+            ? tier.specifier.path
+            : `${tier.specifier.repo}@${tier.specifier.tag}`;
+          console.error(`  ${tier.id}@${tier.version}  (${spec})`);
+          console.error(`    source: ${tier.sourcePath}`);
+        }
+      }
+    }
+  });
 
 const deckCmd = new Command()
   .description("Presentation generation")
@@ -679,6 +721,54 @@ const cli = new Command()
   .description("Run format + validate as a pre-commit hook")
   .action(notImplemented("hook"))
   // Nested commands
+  .command("profile", profileCmd)
+  .command("doctor")
+  .description("Project health check")
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(async (options: { format?: string }) => {
+    const { config, projectRoot } = await requireProjectConfig();
+
+    // Load profile, but catch diagnostics via loadActiveProfile
+    // (it already prints diagnostics and exits on error).
+    const chain = await loadActiveProfile(projectRoot);
+
+    const diagnostics: Array<
+      { severity: string; code: string; message: string }
+    > = [];
+
+    if (options.format === "json") {
+      const output = {
+        project: {
+          name: config.name,
+          version: config.version,
+          root: projectRoot,
+        },
+        profile: chain
+          ? {
+            id: chain.tiers[0].id,
+            version: chain.tiers[0].version,
+            tiers: chain.tiers.length,
+          }
+          : null,
+        diagnostics,
+      };
+      console.log(JSON.stringify(output, null, 2));
+    } else {
+      console.error(`Project: ${config.name} (${config.version})`);
+      console.error(`Root: ${projectRoot}`);
+      if (chain) {
+        console.error(
+          `Profile: ${chain.tiers[0].id}@${
+            chain.tiers[0].version
+          } (${chain.tiers.length} tier(s))`,
+        );
+      } else {
+        console.error("Profile: no profile configured");
+      }
+    }
+  })
   .command("doc", docCmd)
   .command("book", bookCmd)
   .command("deck", deckCmd)
