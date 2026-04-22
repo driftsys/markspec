@@ -521,6 +521,8 @@ export type {
   DocTypeDef,
   EnforcementMode,
   InverseDecl,
+  LoadedProfile,
+  ProfileChain,
   ProfileManifest,
   ProfileSpecifier,
   TargetMatcher,

@@ -154,3 +154,33 @@ export interface ProfileManifest {
     readonly frontMatter: readonly AttrDecl[];
   };
 }
+
+// ---------------------------------------------------------------------------
+// Runtime: loaded profile + chain
+// ---------------------------------------------------------------------------
+
+/**
+ * A profile after it has been resolved and parsed. One tier of a
+ * {@linkcode ProfileChain}.
+ *
+ * `sourcePath` is the absolute path of the `markspec.yaml` the manifest was
+ * parsed from. `baseDir` is the directory containing that file — used as the
+ * context for resolving this profile's `extends:` (in Phase 3+).
+ */
+export interface LoadedProfile {
+  readonly id: string;
+  readonly version: string;
+  readonly specifier: ProfileSpecifier;
+  readonly manifest: ProfileManifest;
+  readonly sourcePath: string;
+  readonly baseDir: string;
+}
+
+/**
+ * The resolved profile chain for a project. A Phase 2 chain always contains
+ * exactly one tier (no `extends:` walking). Phase 3 introduces multi-tier
+ * chains ordered root-parent → leaf-child.
+ */
+export interface ProfileChain {
+  readonly tiers: readonly LoadedProfile[];
+}
