@@ -59,6 +59,15 @@ export function mergeChain(chain: ProfileChain): MergeResult {
     };
   }
 
+  // TODO(Phase 5): §3.3 cross-scope layering within one profile.
+  // The spec requires that tightening rules apply across scopes within a
+  // single tier (profile.required ⊂ shape.required ⊂ type.required etc.).
+  // Phase 3 implements cross-tier merging only; within-tier scope coherence
+  // is deferred to the validator pipeline which sees the final EffectiveProfile.
+  // When Phase 5 lands the validator, add a check here (or in a separate
+  // validateScopeLayering helper) to catch a profile whose type-scope
+  // required is narrower than its shape-scope required, for example.
+
   // Start from root, fold each subsequent tier.
   let effective = seedFromTier(tiers[0]);
   for (let i = 1; i < tiers.length; i++) {

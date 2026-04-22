@@ -161,8 +161,16 @@ export async function loadChain(
 }
 
 /**
- * Canonical cycle-detection key for a resolved local specifier. Two
- * specifiers that resolve to the same directory are the same tier.
+ * Canonical cycle-detection key for a resolved local specifier. Two specifiers
+ * that resolve to the same directory (after path normalization: `.`, `..`)
+ * are the same tier.
+ *
+ * Note: this does NOT canonicalize symlinks. Two different symlinked paths
+ * pointing at the same profile will only be caught by MAX_CHAIN_DEPTH, which
+ * emits PROFILE-LOAD-005 instead of PROFILE-LOAD-004. Acceptable for v1 since
+ * Deno.realPath would require an additional I/O round-trip and a filesystem
+ * shim for the test mock reader. Revisit when git cache paths (Phase 4) make
+ * symlink resolution more likely in practice.
  */
 function specifierKey(
   spec: Extract<ProfileSpecifier, { kind: "local" }>,
