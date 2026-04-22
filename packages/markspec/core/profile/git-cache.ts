@@ -62,3 +62,42 @@ export async function computeCacheLocation(
     : join(dir, "markspec.yaml");
   return { key, dir, manifestPath };
 }
+
+/** Result of running a git subcommand — captures exit code + output streams. */
+export interface RunGitResult {
+  readonly code: number;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/**
+ * Inject this into the resolver to stub git invocations in unit tests.
+ * Production code uses {@linkcode defaultRunGit}.
+ */
+export type RunGit = (
+  args: readonly string[],
+  cwd?: string,
+) => Promise<RunGitResult>;
+
+const textDecoder = new TextDecoder();
+
+/**
+ * Default implementation backed by `Deno.Command("git", …)`. Captures stdout
+ * and stderr; never throws for nonzero exit — callers inspect `result.code`.
+ *
+ * Requires `--allow-run=git` at the Deno CLI level.
+ */
+export const defaultRunGit: RunGit = async (args, cwd) => {
+  const cmd = new Deno.Command("git", {
+    args: [...args],
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const { code, stdout, stderr } = await cmd.output();
+  return {
+    code,
+    stdout: textDecoder.decode(stdout),
+    stderr: textDecoder.decode(stderr),
+  };
+};
