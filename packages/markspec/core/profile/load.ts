@@ -7,7 +7,12 @@
  * subcommand.
  */
 
-import { parseMarkspecYaml, readMarkspecYaml } from "../config/markspec.ts";
+import { join } from "@std/path";
+import {
+  MARKSPEC_YAML_FILENAME,
+  parseMarkspecYaml,
+  readMarkspecYaml,
+} from "../config/markspec.ts";
 import type { ReadFile } from "../config/mod.ts";
 import type { Diagnostic, ProfileChain } from "../model/mod.ts";
 import { loadChain } from "./chain.ts";
@@ -40,7 +45,7 @@ export async function loadProfileForCommand(
     return { chain: null, diagnostics };
   }
 
-  const sourcePath = `${projectRoot}/.markspec.yaml`;
+  const sourcePath = join(projectRoot, MARKSPEC_YAML_FILENAME);
   const parsed = parseMarkspecYaml(rawYaml, sourcePath);
   diagnostics.push(...parsed.diagnostics);
   if (!parsed.config) {
