@@ -212,3 +212,124 @@ Deno.test("validateValue: external-id rejects empty / whitespace-only", () => {
     throw new Error("expected whitespace-only to be invalid external-id");
   }
 });
+
+// path
+Deno.test("validateValue: path accepts relative paths", () => {
+  const d = decl("path");
+  for (
+    const v of [
+      "docs/spec.md",
+      "./docs/spec.md",
+      "../sibling/file.txt",
+      "deep/nested/path/file.ts",
+      "a",
+    ]
+  ) {
+    if (validateValue(v, d) !== null) {
+      throw new Error(`expected '${v}' to be valid path`);
+    }
+  }
+});
+
+Deno.test("validateValue: path rejects POSIX absolute", () => {
+  const d = decl("path");
+  for (const v of ["/absolute", "/usr/local/bin"]) {
+    if (validateValue(v, d) === null) {
+      throw new Error(`expected '${v}' to be invalid`);
+    }
+  }
+});
+
+Deno.test("validateValue: path rejects Windows absolute (drive letter)", () => {
+  const d = decl("path");
+  for (const v of ["C:\\Users\\foo", "C:/Users/foo"]) {
+    if (validateValue(v, d) === null) {
+      throw new Error(`expected '${v}' to be invalid`);
+    }
+  }
+});
+
+Deno.test("validateValue: path rejects empty", () => {
+  const d = decl("path");
+  if (validateValue("", d) === null) {
+    throw new Error("expected empty to be invalid");
+  }
+});
+
+// path-or-id
+Deno.test("validateValue: path-or-id accepts ULID", () => {
+  const d = decl("path-or-id");
+  assertEquals(validateValue("01HGW2Q8MNP3RSTVWXYZABCDEF", d), null);
+});
+
+Deno.test("validateValue: path-or-id accepts URI", () => {
+  const d = decl("path-or-id");
+  assertEquals(validateValue("doi:10.1/abc", d), null);
+  assertEquals(validateValue("urn:example", d), null);
+});
+
+Deno.test("validateValue: path-or-id accepts relative paths", () => {
+  const d = decl("path-or-id");
+  assertEquals(validateValue("docs/spec.md", d), null);
+  assertEquals(validateValue("../sibling", d), null);
+});
+
+Deno.test("validateValue: path-or-id rejects absolute path", () => {
+  const d = decl("path-or-id");
+  if (validateValue("/absolute", d) === null) {
+    throw new Error("expected '/absolute' to be invalid path-or-id");
+  }
+});
+
+Deno.test("validateValue: path-or-id rejects empty", () => {
+  const d = decl("path-or-id");
+  if (validateValue("", d) === null) {
+    throw new Error("expected empty to be invalid path-or-id");
+  }
+});
+
+// tag-list (per element)
+Deno.test("validateValue: tag-list accepts bareword tokens (per element)", () => {
+  const d = decl("tag-list", { cardinality: { lower: 0, upper: Infinity } });
+  for (const v of ["ASIL-B", "DRAFT", "v1.2.0", "under_score", "a", "A-B-C"]) {
+    if (validateValue(v, d) !== null) {
+      throw new Error(`expected '${v}' to be valid tag`);
+    }
+  }
+});
+
+Deno.test("validateValue: tag-list rejects whitespace / empty / special chars", () => {
+  const d = decl("tag-list", { cardinality: { lower: 0, upper: Infinity } });
+  for (
+    const v of [
+      "",
+      "with space",
+      "symbol!",
+      "comma,sep",
+      'quote"ed',
+      "tab\there",
+    ]
+  ) {
+    if (validateValue(v, d) === null) {
+      throw new Error(`expected '${v}' to be invalid tag`);
+    }
+  }
+});
+
+// citation
+Deno.test("validateValue: citation accepts non-empty trimmed string", () => {
+  const d = decl("citation");
+  assertEquals(validateValue("Smith 2021", d), null);
+  assertEquals(validateValue("ISO-26262-6 §5.3", d), null);
+  assertEquals(validateValue("Multiple\nlines\nallowed", d), null);
+});
+
+Deno.test("validateValue: citation rejects empty / whitespace-only", () => {
+  const d = decl("citation");
+  if (validateValue("", d) === null) {
+    throw new Error("expected empty to be invalid citation");
+  }
+  if (validateValue("   \n\t   ", d) === null) {
+    throw new Error("expected whitespace-only to be invalid citation");
+  }
+});

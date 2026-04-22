@@ -87,13 +87,42 @@ const validateExternalId: ValueValidator = (value, _decl) => {
 };
 
 // ---------------------------------------------------------------------------
-// Registry — Task 6.3 installs 5 validators; subsequent tasks extend.
+// Individual validators (Task 6.5 path / list / citation types)
 // ---------------------------------------------------------------------------
 
-/** Placeholder for Tasks 6.4 and 6.5 to override. */
-const notYetImplemented: ValueValidator = (_value, decl) => {
-  return `value-type '${decl.type}' not yet implemented (coming in Task 6.4 or 6.5)`;
+// `/absolute` (POSIX) or `C:` / `C:\` / `C:/` (Windows) → absolute.
+const ABSOLUTE_RE = /^(\/|[A-Za-z]:[\\/]?)/;
+const validatePath: ValueValidator = (value, _decl) => {
+  if (value.length === 0) return `path cannot be empty`;
+  if (ABSOLUTE_RE.test(value)) {
+    return `absolute paths are not allowed: '${value}' (use a relative path)`;
+  }
+  return null;
 };
+
+const validatePathOrId: ValueValidator = (value, decl) => {
+  if (ULID_RE.test(value)) return null;
+  if (URI_SCHEME_RE.test(value)) return null;
+  return validatePath(value, decl);
+};
+
+const TAG_RE = /^[A-Za-z0-9_\-.]+$/;
+const validateTagList: ValueValidator = (value, _decl) => {
+  if (value.length === 0) return `tag cannot be empty`;
+  return TAG_RE.test(value)
+    ? null
+    : `invalid tag '${value}' (expected bareword of letters, digits, '_', '-', '.')`;
+};
+
+const validateCitation: ValueValidator = (value, _decl) => {
+  return value.trim().length > 0
+    ? null
+    : `citation cannot be empty or whitespace-only`;
+};
+
+// ---------------------------------------------------------------------------
+// Registry — all 14 value types are now implemented.
+// ---------------------------------------------------------------------------
 
 /** Registry of per-type validators. */
 const VALIDATORS: Record<ValueType, ValueValidator> = {
@@ -107,8 +136,8 @@ const VALIDATORS: Record<ValueType, ValueValidator> = {
   uri: validateUri,
   url: validateUrl,
   "external-id": validateExternalId,
-  path: notYetImplemented,
-  "path-or-id": notYetImplemented,
-  "tag-list": notYetImplemented,
-  citation: notYetImplemented,
+  path: validatePath,
+  "path-or-id": validatePathOrId,
+  "tag-list": validateTagList,
+  citation: validateCitation,
 };
