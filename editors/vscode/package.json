@@ -1,0 +1,70 @@
+{
+  "name": "markspec-ide",
+  "displayName": "MarkSpec",
+  "description": "MarkSpec language support — diagnostics, completions, and entry block scaffolding for traceable industrial documentation.",
+  "version": "0.0.1",
+  "publisher": "driftsys",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/driftsys/markspec",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "markspec",
+    "requirements",
+    "traceability",
+    "iso26262",
+    "aspice"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "workspaceContains:**/*.md"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "MarkSpec",
+      "properties": {
+        "markspec.server.path": {
+          "type": "string",
+          "default": "markspec",
+          "description": "Path to the markspec binary. Defaults to 'markspec' on PATH."
+        },
+        "markspec.server.args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["lsp"],
+          "description": "Arguments passed to the markspec binary to start the LSP server."
+        },
+        "markspec.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace communication between VS Code and the MarkSpec LSP server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "watch": "tsc -watch -p tsconfig.json",
+    "package": "vsce package --no-dependencies",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.82.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.5.0"
+  }
+}

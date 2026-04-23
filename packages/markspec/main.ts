@@ -774,8 +774,10 @@ const cli = new Command()
   .command("deck", deckCmd)
   // Server commands
   .command("lsp")
-  .description("Start LSP server")
-  .action(notImplemented("lsp"))
+  .description("Start LSP server (stdio JSON-RPC)")
+  .action(async () => {
+    await import("./lsp/server.ts");
+  })
   .command("mcp")
   .description("Start MCP server")
   .action(notImplemented("mcp"))
