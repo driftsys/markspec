@@ -1567,10 +1567,10 @@ formatter.
 lint:
   steps:
     - name: Format check
-      run: markspec fmt --check
+      run: markspec format --check
 
     - name: Lint
-      run: markspec lint
+      run: markspec validate
 ```
 
 ### 9.3 Editor integration

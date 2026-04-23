@@ -1,5 +1,9 @@
 # Site Schema Specification
 
+> **Status: Draft** — This document specifies the planned static site generator
+> and JSON API. The `markspec site build` command and related features are not
+> yet implemented. See issue #134 for tracking.
+
 This document specifies the static site generator (`markspec site build`) and
 its JSON API. It defines the output file tree, JSON schemas, HTML page types,
 build pipeline, inter-project dependency model, process project integration,
