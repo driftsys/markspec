@@ -65,9 +65,20 @@ markspec/
 │       ├── cli/
 │       │   └── commands/            ← one file per subcommand
 │       ├── lsp/
-│       │   └── server.ts            ← LSP protocol adapter
+│       │   ├── server.ts            ← LSP server entry point (stdio JSON-RPC,
+│       │   │                          diagnostics + completions)
+│       │   ├── workspace.ts         ← in-memory entry index, incremental updates
+│       │   ├── diagnostics.ts       ← core Diagnostic → LSP Diagnostic bridge
+│       │   ├── completions.ts       ← block scaffold + ID reference completion
+│       │   ├── context.ts           ← doc comment context guard (source files)
+│       │   └── util.ts              ← URI↔path conversion, debounce
 │       └── mcp/
 │           └── server.ts            ← MCP protocol adapter
+├── editors/
+│   └── vscode/                      ← markspec-ide VSCode extension
+│       ├── package.json
+│       ├── src/extension.ts         ← spawns `markspec lsp`, connects to VSCode
+│       └── tsconfig.json
 ├── theme/
 │   └── tokens.yaml                  ← canonical design tokens SSOT (run `just tokens`)
 ├── docs/
@@ -90,28 +101,35 @@ markspec/
     └── fixtures/                    ← sample .md and source files for testing
 ```
 
+**Read these files for current LSP implementation — do not rely on prose
+alone:**
+
+@packages/markspec/lsp/server.ts @packages/markspec/lsp/workspace.ts
+@packages/markspec/lsp/completions.ts @packages/markspec/lsp/context.ts
+@packages/markspec/lsp/diagnostics.ts @packages/markspec/lsp/util.ts
+@packages/markspec/main.ts
+
 ## Key rules
 
 **Single binary, lazy loading.** `main.ts` dispatches subcommands. Each
 subcommand dynamically imports only the modules it needs. `markspec validate`
 never loads Typst WASM. `markspec book build` never loads ReqIF.
 
-**Three compile targets from the same source:**
+**One compile target — one binary:**
 
 ```bash
 deno compile packages/markspec/main.ts            # → markspec
-deno compile packages/markspec/lsp/server.ts      # → markspec-lsp
-deno compile packages/markspec/mcp/server.ts      # → markspec-mcp
 ```
+
+All subcommands — including `lsp` and `mcp` — are dispatched from the single
+`markspec` binary. There is no separate `markspec-lsp` or `markspec-mcp` binary.
+The `lsp/server.ts` and `mcp/server.ts` modules are dynamically imported by
+`main.ts` when the corresponding subcommand is invoked.
 
 **`core/mod.ts` is the library boundary.** Everything outside `core/` imports
 from `core/mod.ts`, never from internal paths like `core/parser/markdown.ts`.
 This is enforced by convention. When an external consumer needs the library, we
 add a `deno.json` to `core/` and publish to JSR — nothing else changes.
-
-**`markspec-ide` is the only external extension.** It lives in a separate repo
-and dispatches via PATH lookup (`markspec ide` → finds `markspec-ide` binary).
-PDF, book, and deck are subcommands of the main binary, not extensions.
 
 **Dependency flow is strictly one-directional:**
 
@@ -160,20 +178,20 @@ just clean                      # remove build artifacts
 
 ## CLI subcommands
 
-| Command                    | Module                       | Purpose                                                              |
-| -------------------------- | ---------------------------- | -------------------------------------------------------------------- |
-| `markspec format`          | `core/formatter`             | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook. |
-| `markspec validate`        | `core/validator`             | Check broken refs, missing Ids, malformed entries, duplicates.       |
-| `markspec compile <paths>` | `core/compiler`              | Parse all files, build traceability graph, output compiled JSON.     |
-| `markspec export`          | `core/reporter`              | Compiled JSON → json, csv, reqif, yaml.                              |
-| `markspec insert`          | `core/formatter`             | Agent write path: insert a requirement block into a file.            |
-| `markspec doc build`       | `render/typst`               | Single document → PDF via Typst WASM.                                |
-| `markspec book build`      | `book/site`                  | Multi-chapter → static HTML site.                                    |
-| `markspec book dev`        | `book/site`                  | Live preview with hot reload.                                        |
-| `markspec deck build`      | `deck/touying`               | Slides → PDF via Touying/Typst.                                      |
-| `markspec deck dev`        | `deck/touying`               | Live slide preview.                                                  |
-| `markspec lsp`             | dispatches to `markspec-lsp` | LSP server for editor integration.                                   |
-| `markspec mcp`             | dispatches to `markspec-mcp` | MCP server for AI agent integration.                                 |
+| Command                    | Module           | Purpose                                                                    |
+| -------------------------- | ---------------- | -------------------------------------------------------------------------- |
+| `markspec format`          | `core/formatter` | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook.       |
+| `markspec validate`        | `core/validator` | Check broken refs, missing Ids, malformed entries, duplicates.             |
+| `markspec compile <paths>` | `core/compiler`  | Parse all files, build traceability graph, output compiled JSON.           |
+| `markspec export`          | `core/reporter`  | Compiled JSON → json, csv, reqif, yaml.                                    |
+| `markspec insert`          | `core/formatter` | Agent write path: insert a requirement block into a file.                  |
+| `markspec doc build`       | `render/typst`   | Single document → PDF via Typst WASM.                                      |
+| `markspec book build`      | `book/site`      | Multi-chapter → static HTML site.                                          |
+| `markspec book dev`        | `book/site`      | Live preview with hot reload.                                              |
+| `markspec deck build`      | `deck/touying`   | Slides → PDF via Touying/Typst.                                            |
+| `markspec deck dev`        | `deck/touying`   | Live slide preview.                                                        |
+| `markspec lsp`             | `lsp/server`     | LSP server for editor integration.                                         |
+| `markspec mcp`             | `mcp/server`     | MCP server for AI agent integration. **Not yet wired** (`notImplemented`). |
 
 ## Entry block rendering pipeline
 
