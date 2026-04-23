@@ -178,20 +178,39 @@ just clean                      # remove build artifacts
 
 ## CLI subcommands
 
-| Command                    | Module           | Purpose                                                                    |
-| -------------------------- | ---------------- | -------------------------------------------------------------------------- |
-| `markspec format`          | `core/formatter` | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook.       |
-| `markspec validate`        | `core/validator` | Check broken refs, missing Ids, malformed entries, duplicates.             |
-| `markspec compile <paths>` | `core/compiler`  | Parse all files, build traceability graph, output compiled JSON.           |
-| `markspec export`          | `core/reporter`  | Compiled JSON → json, csv, reqif, yaml.                                    |
-| `markspec insert`          | `core/formatter` | Agent write path: insert a requirement block into a file.                  |
-| `markspec doc build`       | `render/typst`   | Single document → PDF via Typst WASM.                                      |
-| `markspec book build`      | `book/site`      | Multi-chapter → static HTML site.                                          |
-| `markspec book dev`        | `book/site`      | Live preview with hot reload.                                              |
-| `markspec deck build`      | `deck/touying`   | Slides → PDF via Touying/Typst.                                            |
-| `markspec deck dev`        | `deck/touying`   | Live slide preview.                                                        |
-| `markspec lsp`             | `lsp/server`     | LSP server for editor integration.                                         |
-| `markspec mcp`             | `mcp/server`     | MCP server for AI agent integration. **Not yet wired** (`notImplemented`). |
+### Implemented
+
+| Command                               | Module                            | Purpose                                                              |
+| ------------------------------------- | --------------------------------- | -------------------------------------------------------------------- |
+| `markspec format [...files]`          | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook. |
+| `markspec validate [...files]`        | `core/validator`                  | Check broken refs, missing Ids, malformed entries, duplicates.       |
+| `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.     |
+| `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                |
+| `markspec context <id> <paths...>`    | `core/compiler`                   | Walk the Satisfies chain upward from an entry.                       |
+| `markspec dependents <id> <paths...>` | `core/compiler`                   | List all entries that depend on a given entry.                       |
+| `markspec report <kind> <paths...>`   | `core/reporter`                   | Generate traceability matrix or coverage report.                     |
+| `markspec profile show`               | `core/profile`                    | Show the active profile chain and effective configuration.           |
+| `markspec doctor`                     | `core/profile` + `core/validator` | Project health check: profile, config, and validation summary.       |
+| `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                |
+| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                    |
+| `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                  |
+
+### Not yet implemented
+
+These commands are registered in `main.ts` but print an error and exit. Do not
+invoke them.
+
+| Command               | Intended purpose                                          |
+| --------------------- | --------------------------------------------------------- |
+| `markspec export`     | Compiled JSON → json, csv, reqif, yaml.                   |
+| `markspec insert`     | Agent write path: insert a requirement block into a file. |
+| `markspec create`     | Scaffold a new requirement block.                         |
+| `markspec next-id`    | Print the next available display ID for a type.           |
+| `markspec hook`       | Run format + validate as a pre-commit hook.               |
+| `markspec book dev`   | Live preview with hot reload.                             |
+| `markspec deck build` | Slides → PDF via Touying/Typst.                           |
+| `markspec deck dev`   | Live slide preview.                                       |
+| `markspec mcp`        | MCP server for AI agent integration.                      |
 
 ## Entry block rendering pipeline
 

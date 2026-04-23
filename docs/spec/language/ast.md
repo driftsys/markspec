@@ -1,13 +1,13 @@
 # MarkSpec AST Extensions
 
-> **Status (2026-04-20): revision in progress.** AST node fields that encode the
-> old four-family `family` discriminator will be replaced by a `shape` field
-> (`identified | referenced`) per
-> [ADR-009 §1](../../architecture/adr-009-core-profile-boundary.md) and the
-> revised [ADR-002](../../architecture/adr-002-entry-model.md). Entry-identity
-> fields consolidate to a single `id` value (ULID or URI) per ADR-002 Part 4.
-> The document structure and entry-detection descriptions are otherwise still
-> applicable.
+> **Status (2026-04-23): partially updated.** The `entryKind` field has been
+> renamed to `shape` with values `identified | referenced` per
+> [ADR-009](../../architecture/adr-009-core-profile-boundary.md) and
+> [ADR-002](../../architecture/adr-002-entry-model.md). Entry-identity uses a
+> single `Id:` attribute (ULID or URI). Examples below reflect these changes.
+> The AST node interface (`MsEntry`) has not yet been updated in the actual
+> codebase — the parser produces flat `Entry` objects, not mdast extension
+> nodes. This document describes the planned AST layer.
 
 This document specifies the MarkSpec abstract syntax tree extensions. The input
 is a standard [mdast] tree produced by a CommonMark parser (remark). The
@@ -66,10 +66,10 @@ listItem
   ├─ listItem has no children beyond the first          → No body. Skip.
   │   paragraph? (single paragraph, no continuation)
   │
-  ├─ Bracket content matches typed entry pattern        → msEntry (typed)
+  ├─ Bracket content matches typed entry pattern        → msEntry (identified)
   │   /^[A-Z]{2,}_[A-Z]{2,12}_\d{3,4}$/
   │
-  ├─ Bracket content matches reference entry pattern    → msEntry (reference)
+  ├─ Bracket content matches reference entry pattern    → msEntry (referenced)
   │   /^[A-Za-z0-9-]+$/ AND document type is
   │   "references"
   │
@@ -97,7 +97,7 @@ entry candidate.
 ```typescript
 interface MsEntry extends mdast.Parent {
   type: "msEntry";
-  entryKind: "typed" | "reference";
+  shape: "identified" | "referenced";
   displayId: string;
   title: MsEntryTitle;
   body: mdast.BlockContent[];
@@ -118,13 +118,13 @@ interface MsAttribute {
 
 **Fields:**
 
-| Field        | Source                                                            |
-| ------------ | ----------------------------------------------------------------- |
-| `entryKind`  | `"typed"` if display ID matches typed pattern, else `"reference"` |
-| `displayId`  | Text content inside `[...]` brackets                              |
-| `title`      | Inline content after the closing `]` on the first line            |
-| `body`       | All block-level children between title and attribute block        |
-| `attributes` | Parsed from the trailing `Key: Value\` lines                      |
+| Field        | Source                                                                  |
+| ------------ | ----------------------------------------------------------------------- |
+| `shape`      | `"identified"` if display ID matches typed pattern, else `"referenced"` |
+| `displayId`  | Text content inside `[...]` brackets                                    |
+| `title`      | Inline content after the closing `]` on the first line                  |
+| `body`       | All block-level children between title and attribute block              |
+| `attributes` | Parsed from the trailing `Key: Value\` lines                            |
 
 ### Attribute block extraction
 
@@ -155,7 +155,7 @@ list (unordered, depth 0)
     paragraph
       text "The sensor driver shall debounce..."
     paragraph
-      text "Spec-id: 01HGW2Q8MNP3RSTVWXYZABCDEF\"
+      text "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\"
       softBreak
       text "Satisfies: SYS_BRK_0042\"
       softBreak
@@ -165,7 +165,7 @@ list (unordered, depth 0)
 **Output:**
 
 ```
-msEntry (spec)
+msEntry (identified)
   displayId: "SRS_BRK_0001"
   title
     text "Sensor debouncing"
@@ -173,7 +173,7 @@ msEntry (spec)
     paragraph
       text "The sensor driver shall debounce..."
   attributes
-    { key: "Spec-id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }
+    { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }
     { key: "Satisfies", value: "SYS_BRK_0042" }
     { key: "Labels", value: "ASIL-B" }
 ```
@@ -205,7 +205,7 @@ with identifier `commonmark` exists → skip.
 
     Body text.
 
-    Spec-id: 01HGW2R9QNP4ABCDEFGHJKMNPQ
+    Id: 01HGW2R9QNP4ABCDEFGHJKMNPQ
 ```
 
 The inner `list` has depth > 1 (parent chain includes a `listItem`) → skip.

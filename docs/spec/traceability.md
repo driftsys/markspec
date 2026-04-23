@@ -1,5 +1,10 @@
 # Traceability
 
+> **Status: Draft** — This document describes the planned traceability strategy.
+> Features like `.markspec.lock`, `markspec sync`, and automated provenance
+> inference are not yet implemented. The design direction is valid but no code
+> exists for these features yet.
+
 This specification defines the MarkSpec traceability strategy across authoring,
 inference, and persisted metadata.
 

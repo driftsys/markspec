@@ -34,7 +34,7 @@ default profile     ·  Generic types (requirement, note, term, reference),
 core                ·  Two entry shapes (identified, referenced), single `Id:`
                        with ULID-or-URI format discrimination, typed-edge
                        graph, attribute schema, rule evaluator, entry-source
-                       pipeline, tree-sitter runtime, typography pipeline.
+                        pipeline, typography pipeline.
 ```
 
 Each layer is optional relative to the one above it. Core runs standalone.
@@ -62,10 +62,9 @@ The core is deliberately small and semantics-free. It ships:
   types, origin, cardinality; profiles populate the vocabulary.
 - **Generic rule evaluator** — predicates over the graph; dormant without
   profile rules.
-- **Entry-source pipeline** — adapters for Markdown, code (tree-sitter), SBOM
-  tools, etc. ([ADR-011](./adr-011-language-pack-and-dependency-ingestion.md)).
-- **Tree-sitter runtime** — for code-block syntax highlighting and for language
-  adapters.
+- **Entry-source pipeline** — adapters for Markdown and code doc comments.
+  Future: tree-sitter-based language adapters, SBOM tools
+  ([ADR-011](./adr-011-language-pack-and-dependency-ingestion.md)).
 - **Typography / rendering** — PDF, book, deck output; same rendering engine
   across output formats ([ADR-004](./adr-004-book-structure.md)).
 - **Property namespace** — observed facts (path, git history, extraction
@@ -73,8 +72,9 @@ The core is deliberately small and semantics-free. It ships:
   ([ADR-006](./adr-006-property-model.md)).
 - **Document structure** — front matter, document identity, reserved keys
   ([ADR-007](./adr-007-document-structure.md)).
-- **CLI** — `markspec format`, `validate`, `migrate`, `profile`, `deps`,
-  `render`, etc. ([ADR-005](./adr-005-cli-architecture.md)).
+- **CLI** — `markspec format`, `validate`, `compile`, `show`, `report`,
+  `profile show`, `doctor`, `doc build`, `book build`
+  ([ADR-005](./adr-005-cli-architecture.md)).
 
 The core does **not** ship: type vocabulary, compliance attributes, traceability
 rules, in-code doc-comment conventions, dependency manifest parsers, specific
@@ -119,6 +119,11 @@ See [ADR-008](./adr-008-profile-system.md) for distribution and
 coding-standard rule-profile pattern.
 
 ## What the language pack adds
+
+> **Not yet implemented.** The language pack described below is planned but not
+> yet built. Currently, source-file doc comment extraction uses a regex-based
+> parser. See [ADR-011](./adr-011-language-pack-and-dependency-ingestion.md) for
+> the design.
 
 The default language pack ships with the binary (opt out via
 `default-language-pack: false`) and covers nine languages: Rust, Kotlin, C, C++,
