@@ -17,6 +17,8 @@
     "rehype-stringify": "npm:rehype-stringify@^10",
     "mdast": "npm:@types/mdast@^4",
     "web-tree-sitter": "npm:web-tree-sitter@^0.24",
-    "typst-ts-node-compiler": "npm:@myriaddreamin/typst-ts-node-compiler@^0.6"
+    "typst-ts-node-compiler": "npm:@myriaddreamin/typst-ts-node-compiler@^0.6",
+    "vscode-languageserver/node": "npm:vscode-languageserver@^9/node.js",
+    "vscode-languageserver-textdocument": "npm:vscode-languageserver-textdocument@^1"
   }
 }
