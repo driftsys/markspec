@@ -1,7 +1,6 @@
 # Entry Model Type-Safety Cleanup
 
-**Date:** 2026-05-02
-**Issue:** #215 (partial — type-safety / API hygiene items)
+**Date:** 2026-05-02 **Issue:** #215 (partial — type-safety / API hygiene items)
 **Scope:** Three mechanical changes to remove transitional optionals and clarify
 the Entry model.
 
@@ -56,15 +55,15 @@ readonly rawAttributes: readonly Attribute[];
 
 **Consumer impact:** rename `.attributes` → `.rawAttributes` in:
 
-| File | Sites |
-|------|-------|
-| `core/validator/mod.ts` | 4 |
-| `core/compiler/mod.ts` | 1 |
-| `core/formatter/mod.ts` | 1 |
-| `render/typst/template.ts` | 2 |
-| `render/includes/mod.ts` | 1 |
-| `book/site/mod.ts` | 2 |
-| `main.ts` | 1 |
+| File                                   | Sites  |
+| -------------------------------------- | ------ |
+| `core/validator/mod.ts`                | 4      |
+| `core/compiler/mod.ts`                 | 1      |
+| `core/formatter/mod.ts`                | 1      |
+| `render/typst/template.ts`             | 2      |
+| `render/includes/mod.ts`               | 1      |
+| `book/site/mod.ts`                     | 2      |
+| `main.ts`                              | 1      |
 | Test files constructing Entry literals | ~15-20 |
 
 ### 3. Make `CompileResult.documents` required
@@ -91,8 +90,8 @@ readonly documents: ReadonlyMap<string, Document>;
 ## Verification
 
 - `deno check` passes (type errors → compile errors guide the rename)
-- `deno test --allow-read --allow-write --allow-run` passes with same results
-  as before (659 pass, 2 pre-existing render/typst failures)
+- `deno test --allow-read --allow-write --allow-run` passes with same results as
+  before (659 pass, 2 pre-existing render/typst failures)
 - `deno lint` clean
 
 ## Estimated size

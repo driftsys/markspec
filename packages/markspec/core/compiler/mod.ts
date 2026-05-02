@@ -38,12 +38,8 @@ export interface CompileResult {
   readonly forward: ReadonlyMap<DisplayId, readonly Link[]>;
   /** Incoming links per entry (entry → sources pointing to it). */
   readonly reverse: ReadonlyMap<DisplayId, readonly Link[]>;
-  /**
-   * Documents keyed by file path. A file appears here only when it carried
-   * YAML front matter per ADR-007. Optional during the v2 migration;
-   * consumers should treat absence as an empty map.
-   */
-  readonly documents?: ReadonlyMap<string, Document>;
+  /** Documents keyed by file path. A file appears here only when it carried YAML front matter per ADR-007. */
+  readonly documents: ReadonlyMap<string, Document>;
   /** Diagnostics from parsing and validation. */
   readonly diagnostics: readonly Diagnostic[];
 }

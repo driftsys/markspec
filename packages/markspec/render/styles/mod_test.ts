@@ -44,6 +44,7 @@ function buildCompiled(
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 }

@@ -51,6 +51,7 @@ function makeCompiled(entries: Entry[]): CompileResult {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 }

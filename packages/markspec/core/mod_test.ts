@@ -163,6 +163,7 @@ Deno.test("report produces traceability output", () => {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
   const opts: ReportOptions = { kind: "traceability", format: "md" };

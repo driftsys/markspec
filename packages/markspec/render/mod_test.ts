@@ -9,6 +9,7 @@ function emptyCompileResult(): CompileResult {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 }
