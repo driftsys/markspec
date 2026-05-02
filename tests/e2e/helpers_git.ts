@@ -92,10 +92,24 @@ export async function setupGitFixture(
 
 async function runOrThrow(args: string[]): Promise<void> {
   const [bin, ...rest] = args;
+  // Deno.Command env merges with the parent process environment. When this
+  // function runs inside a git hook (e.g. pre-push), git has already set
+  // GIT_DIR and GIT_WORK_TREE, which causes `git init --bare` to fail with
+  //   "GIT_WORK_TREE not allowed without specifying GIT_DIR"
+  // Use clearEnv + an explicit allowlist to guarantee a clean git environment.
+  const parentEnv = Deno.env.toObject();
+  const safeEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parentEnv)) {
+    if (!k.startsWith("GIT_")) {
+      safeEnv[k] = v;
+    }
+  }
   const cmd = new Deno.Command(bin, {
     args: rest,
     stdout: "piped",
     stderr: "piped",
+    clearEnv: true,
+    env: safeEnv,
   });
   const { code, stderr } = await cmd.output();
   if (code !== 0) {
