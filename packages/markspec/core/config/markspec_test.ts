@@ -4,7 +4,7 @@
  * Unit tests for .markspec.yaml loading.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import {
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
@@ -150,4 +150,48 @@ Deno.test("parseMarkspecYaml: git+file:// with subpath parsed", () => {
     subpath: "sub",
     tag: "v1.0",
   });
+});
+
+Deno.test("parseMarkspecYaml: npm scoped specifier parsed", () => {
+  const result = parseMarkspecYaml(
+    'profiles:\n  - "npm:@markspec/profile-default@^1.0"',
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics.length, 0);
+  assertExists(result.config);
+  assertEquals(result.config.profiles.length, 1);
+  const spec = result.config.profiles[0];
+  assertEquals(spec.kind, "npm");
+  if (spec.kind === "npm") {
+    assertEquals(spec.scope, "@markspec");
+    assertEquals(spec.name, "profile-default");
+    assertEquals(spec.range, "^1.0");
+  }
+});
+
+Deno.test("parseMarkspecYaml: npm unscoped specifier parsed", () => {
+  const result = parseMarkspecYaml(
+    'profiles:\n  - "npm:my-profile@1.2.3"',
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics.length, 0);
+  assertExists(result.config);
+  assertEquals(result.config.profiles.length, 1);
+  const spec = result.config.profiles[0];
+  assertEquals(spec.kind, "npm");
+  if (spec.kind === "npm") {
+    assertEquals(spec.scope, undefined);
+    assertEquals(spec.name, "my-profile");
+    assertEquals(spec.range, "1.2.3");
+  }
+});
+
+Deno.test("parseMarkspecYaml: npm specifier missing version range errors", () => {
+  const result = parseMarkspecYaml(
+    'profiles:\n  - "npm:@markspec/profile-default"',
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
 });
