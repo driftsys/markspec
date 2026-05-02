@@ -30,7 +30,7 @@ function buildCompiled(
       displayId: e.displayId,
       title: e.title,
       body: e.body ?? "",
-      attributes: e.attributes ?? [],
+      rawAttributes: e.attributes ?? [],
       id: e.id,
       shape: e.entryType ? "identified" : "referenced",
       location: { file: "test.md", line: 1, column: 1 },

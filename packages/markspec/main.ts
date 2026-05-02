@@ -738,7 +738,7 @@ const cli = new Command()
           console.log(`  Type: ${entry.type}`);
         }
         console.log(`  Shape: ${entry.shape}`);
-        for (const attr of entry.attributes) {
+        for (const attr of entry.rawAttributes) {
           console.log(`  ${attr.key}: ${attr.value}`);
         }
         console.log(

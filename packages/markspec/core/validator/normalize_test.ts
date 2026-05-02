@@ -62,7 +62,7 @@ function entry(opts: {
     source: "markdown",
     title: "",
     body: "",
-    attributes,
+    rawAttributes: attributes,
     typedAttributes: new Map(
       Object.entries(attrs).map(([k, vs]) => [k, vs]),
     ),

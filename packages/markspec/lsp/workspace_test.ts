@@ -19,7 +19,7 @@ function entry(
     displayId,
     title: opts.title ?? displayId,
     body: "",
-    attributes: opts.id ? [{ key: "Id", value: opts.id }] : [],
+    rawAttributes: opts.id ? [{ key: "Id", value: opts.id }] : [],
     id: opts.id,
     shape: "identified",
     location,

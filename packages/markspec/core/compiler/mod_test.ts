@@ -276,7 +276,7 @@ document-type: requirements
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
-  const doc = result.documents?.get("req.md");
+  const doc = result.documents.get("req.md");
   assertExists(doc);
   assertEquals(
     doc.attributes["document-id"],
@@ -295,5 +295,5 @@ Deno.test("compile: no front matter → document absent", async () => {
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
-  assertEquals(result.documents?.has("req.md"), false);
+  assertEquals(result.documents.has("req.md"), false);
 });

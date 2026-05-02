@@ -55,7 +55,7 @@ Deno.test("model types are constructible", () => {
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
     body: "The sensor driver shall debounce raw inputs.",
-    attributes: [attr],
+    rawAttributes: [attr],
     id: "SRS_00000000000000000000000001",
     shape: "identified",
     location: loc,

@@ -7,7 +7,7 @@ const LOC: SourceLocation = { file: "test.md", line: 1, column: 1 };
 function makeEntry(
   displayId: string,
   opts: {
-    attributes?: Array<{ key: string; value: string }>;
+    rawAttributes?: Array<{ key: string; value: string }>;
     typedAttributes?: ReadonlyMap<string, readonly string[]>;
   } = {},
 ): Entry {
@@ -15,7 +15,7 @@ function makeEntry(
     displayId,
     title: displayId,
     body: "",
-    attributes: opts.attributes ?? [],
+    rawAttributes: opts.rawAttributes ?? [],
     typedAttributes: opts.typedAttributes ?? new Map(),
     shape: "identified",
     location: LOC,
@@ -59,7 +59,7 @@ Deno.test("checkLinkTargets: Deprecated target produces warning", () => {
     [
       "REQ-001",
       makeEntry("REQ-001", {
-        attributes: [{ key: "Deprecated", value: "replaced by REQ-003" }],
+        rawAttributes: [{ key: "Deprecated", value: "replaced by REQ-003" }],
       }),
     ],
     ["REQ-002", makeEntry("REQ-002")],

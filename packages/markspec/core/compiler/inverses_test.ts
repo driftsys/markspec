@@ -22,7 +22,7 @@ function entry(
   return {
     title: "",
     body: "",
-    attributes: [],
+    rawAttributes: [],
     shape: "identified",
     location: LOC,
     source: "markdown",
@@ -129,7 +129,7 @@ Deno.test("generateInverses: basic inverse — Verifies → Verified-by", () => 
   assertEquals(result.diagnostics.length, 0);
   const updatedReq = result.entries.find((e) => e.displayId === "REQ_001")!;
   assertEquals(
-    updatedReq.typedAttributes?.get("Verified-by"),
+    updatedReq.typedAttributes.get("Verified-by"),
     ["01BBBBBBBBBBBBBBBBBBBBBBBBB"],
   );
 });
@@ -165,7 +165,7 @@ Deno.test("generateInverses: category filter — skips non-matching target type"
   assertEquals(result.diagnostics.length, 0);
   const updatedSpec = result.entries.find((e) => e.displayId === "SPEC_001")!;
   // Inverse should NOT be added — category mismatch
-  assertEquals(updatedSpec.typedAttributes?.has("Verified-by"), false);
+  assertEquals(updatedSpec.typedAttributes.has("Verified-by"), false);
 });
 
 Deno.test("generateInverses: multiple sources aggregate into id-list", () => {
@@ -206,7 +206,7 @@ Deno.test("generateInverses: multiple sources aggregate into id-list", () => {
   const result = generateInverses([req, tst1, tst2], profile);
   assertEquals(result.diagnostics.length, 0);
   const updatedReq = result.entries.find((e) => e.displayId === "REQ_002")!;
-  const verifiedBy = updatedReq.typedAttributes?.get("Verified-by");
+  const verifiedBy = updatedReq.typedAttributes.get("Verified-by");
   assertEquals(verifiedBy?.length, 2);
   assertEquals(verifiedBy?.includes("01FFFFFFFFFFFFFFFFFFFFFFFFFF"), true);
   assertEquals(verifiedBy?.includes("01GGGGGGGGGGGGGGGGGGGGGGGG1"), true);
@@ -262,7 +262,7 @@ Deno.test("generateInverses: referenced entries are skipped as sources", () => {
   const result = generateInverses([req, ref], profile);
   assertEquals(result.diagnostics.length, 0);
   const updatedReq = result.entries.find((e) => e.displayId === "REQ_004")!;
-  assertEquals(updatedReq.typedAttributes?.has("Verified-by"), false);
+  assertEquals(updatedReq.typedAttributes.has("Verified-by"), false);
 });
 
 Deno.test("generateInverses: clean run produces empty diagnostics", () => {
@@ -309,7 +309,7 @@ Deno.test("generateInverses: MSL-L005 when authored inverse disagrees with gener
 
   // Union: both authored and generated values present
   const updatedReq = result.entries.find((e) => e.displayId === "REQ_005")!;
-  const verifiedBy = updatedReq.typedAttributes?.get("Verified-by")!;
+  const verifiedBy = updatedReq.typedAttributes.get("Verified-by")!;
   assertEquals(verifiedBy.length, 2);
   assertEquals(verifiedBy.includes("01ZZZZZZZZZZZZZZZZZZZZZZZZ1"), true);
   assertEquals(verifiedBy.includes("01LLLLLLLLLLLLLLLLLLLLLLLL1"), true);
@@ -379,7 +379,7 @@ Deno.test("generateInverses: inverse from universal-scope attribute", () => {
   assertEquals(result.diagnostics.length, 0);
   const updatedParent = result.entries.find((e) => e.displayId === "REQ_P")!;
   assertEquals(
-    updatedParent.typedAttributes?.get("Satisfied-by"),
+    updatedParent.typedAttributes.get("Satisfied-by"),
     ["01QQQQQQQQQQQQQQQQQQQQQQQQ1"],
   );
 });
@@ -416,7 +416,7 @@ Deno.test("generateInverses: inverse from identified-shape-scope attribute", () 
   assertEquals(result.diagnostics.length, 0);
   const updatedParent = result.entries.find((e) => e.displayId === "REQ_IS1")!;
   assertEquals(
-    updatedParent.typedAttributes?.get("Satisfied-by"),
+    updatedParent.typedAttributes.get("Satisfied-by"),
     ["01SSSSSSSSSSSSSSSSSSSSSSSS1"],
   );
 });

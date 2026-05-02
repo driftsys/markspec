@@ -138,7 +138,7 @@ function extractLinks(entries: readonly Entry[]): Link[] {
   const links: Link[] = [];
 
   for (const entry of entries) {
-    for (const attr of entry.attributes) {
+    for (const attr of entry.rawAttributes) {
       const extracted = extractLinksFromAttribute(
         entry.displayId,
         attr.key,

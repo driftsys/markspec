@@ -15,7 +15,7 @@ function entry(partial: Partial<Entry> & { displayId: string }): Entry {
     displayId: partial.displayId,
     title: partial.title ?? "Test entry",
     body: partial.body ?? "Body.",
-    attributes: partial.attributes ?? [],
+    rawAttributes: partial.rawAttributes ?? [],
     id: partial.id,
     shape: partial.shape ?? "identified",
     location: partial.location ??
@@ -36,7 +36,7 @@ Deno.test("validate: entry with ULID Id passes", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
       shape: "identified",
     }),
@@ -57,7 +57,7 @@ Deno.test("validate: malformed Id → MSL-R004", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: "not-a-ulid-or-uri" }],
+      rawAttributes: [{ key: "Id", value: "not-a-ulid-or-uri" }],
       id: "not-a-ulid-or-uri",
     }),
   ]);
@@ -69,7 +69,7 @@ Deno.test("validate: URI Id on referenced entry passes", () => {
   const result = validate([
     entry({
       displayId: "ISO-26262-6",
-      attributes: [{ key: "Id", value: "urn:iso:std:iso:26262:-6:ed-2" }],
+      rawAttributes: [{ key: "Id", value: "urn:iso:std:iso:26262:-6:ed-2" }],
       id: "urn:iso:std:iso:26262:-6:ed-2",
       shape: "referenced",
     }),
@@ -84,7 +84,7 @@ Deno.test("validate: ULID Id with shape=referenced → MSL-R004 mismatch", () =>
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
       shape: "referenced",
     }),
@@ -97,7 +97,7 @@ Deno.test("validate: multiple Id attributes → MSL-R003", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "Id", value: ULID_B },
       ],
@@ -116,12 +116,12 @@ Deno.test("validate: duplicate display ID → MSL-R006", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
     }),
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_B }],
+      rawAttributes: [{ key: "Id", value: ULID_B }],
       id: ULID_B,
       location: { file: "other.md", line: 5, column: 1 },
     }),
@@ -134,12 +134,12 @@ Deno.test("validate: duplicate Id value → MSL-R005", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
     }),
     entry({
       displayId: "REQ-002",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
       location: { file: "other.md", line: 5, column: 1 },
     }),
@@ -156,7 +156,7 @@ Deno.test("validate: universal attribute not flagged", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "Labels", value: "important" },
       ],
@@ -171,7 +171,7 @@ Deno.test("validate: unknown attribute → MSL-R010 warning", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "Custom-attr", value: "value" },
       ],
@@ -191,12 +191,12 @@ Deno.test("validate: Supersedes target exists → passes", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
     }),
     entry({
       displayId: "REQ-002",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_B },
         { key: "Supersedes", value: "REQ-001" },
       ],
@@ -212,7 +212,7 @@ Deno.test("validate: Supersedes unresolved → MSL-T012", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "Supersedes", value: "REQ-GONE" },
       ],
@@ -231,7 +231,7 @@ Deno.test("validate: References target is referenced entry → passes", () => {
   const result = validate([
     entry({
       displayId: "ISO-26262-6",
-      attributes: [{
+      rawAttributes: [{
         key: "Id",
         value: "urn:iso:std:iso:26262:-6:ed-2",
       }],
@@ -240,7 +240,7 @@ Deno.test("validate: References target is referenced entry → passes", () => {
     }),
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "References", value: "ISO-26262-6 §9.4" },
       ],
@@ -256,7 +256,7 @@ Deno.test("validate: References unresolved → MSL-T005", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "References", value: "UNKNOWN-STANDARD" },
       ],
@@ -271,12 +271,12 @@ Deno.test("validate: References target is identified (wrong shape) → MSL-T005"
   const result = validate([
     entry({
       displayId: "REQ-001",
-      attributes: [{ key: "Id", value: ULID_A }],
+      rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
     }),
     entry({
       displayId: "REQ-002",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_B },
         { key: "References", value: "REQ-001" },
       ],
@@ -296,7 +296,7 @@ Deno.test("validate: complete valid set → no error diagnostics", () => {
   const result = validate([
     entry({
       displayId: "ISO-26262-6",
-      attributes: [{
+      rawAttributes: [{
         key: "Id",
         value: "urn:iso:std:iso:26262:-6:ed-2",
       }],
@@ -305,7 +305,7 @@ Deno.test("validate: complete valid set → no error diagnostics", () => {
     }),
     entry({
       displayId: "REQ-001",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_A },
         { key: "Labels", value: "ASIL-B" },
         { key: "References", value: "ISO-26262-6 §9.4" },
@@ -315,7 +315,7 @@ Deno.test("validate: complete valid set → no error diagnostics", () => {
     }),
     entry({
       displayId: "REQ-002",
-      attributes: [
+      rawAttributes: [
         { key: "Id", value: ULID_B },
         { key: "Supersedes", value: "REQ-001" },
       ],

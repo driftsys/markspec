@@ -9,7 +9,7 @@ function makeEntry(displayId: string): Entry {
     displayId,
     title: `Title for ${displayId}`,
     body: "",
-    attributes: [],
+    rawAttributes: [],
     id: undefined,
     shape: "identified",
     location: { file: "test.md", line: 1, column: 1 },

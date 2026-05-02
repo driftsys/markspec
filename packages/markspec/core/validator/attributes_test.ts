@@ -95,7 +95,7 @@ function entry(opts: {
     shape: opts.shape,
     type: opts.type,
     source: "markdown",
-    attributes,
+    rawAttributes: attributes,
     typedAttributes: new Map(
       Object.entries(attrs).map(([k, vs]) => [k, vs]),
     ),

@@ -64,7 +64,7 @@ function filterEntries(
 
   if (label) {
     entries = entries.filter((e) => {
-      const labelsAttr = e.attributes.find((a) => a.key === "Labels");
+      const labelsAttr = e.rawAttributes.find((a) => a.key === "Labels");
       if (!labelsAttr) return false;
       const labels = labelsAttr.value.split(",").map((s) => s.trim());
       return labels.includes(label);

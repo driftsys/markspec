@@ -34,7 +34,7 @@ function buildEntry(opts: {
     id: opts.id ?? "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape,
     source: "markdown",
-    attributes,
+    rawAttributes: attributes,
     location: { file: "t.md", line: 1, column: 1 },
     typedAttributes: new Map(),
   };
@@ -100,7 +100,7 @@ Deno.test("runPipeline: Stage 1 error contributes to diagnostics + valid=false",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: "identified",
     source: "markdown",
-    attributes: [],
+    rawAttributes: [],
     location: { file: "t.md", line: 1, column: 1 },
     typedAttributes: new Map(),
   };
@@ -123,7 +123,7 @@ Deno.test("runPipeline: both stages contribute diagnostics independently", () =>
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: "identified",
     source: "markdown",
-    attributes: [],
+    rawAttributes: [],
     location: { file: "t.md", line: 1, column: 1 },
     typedAttributes: new Map(),
   };
@@ -182,7 +182,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
     source: "markdown",
     title: "",
     body: "",
-    attributes: [
+    rawAttributes: [
       { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
     ],
     typedAttributes: new Map([
@@ -234,7 +234,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
     source: "markdown",
     title: "",
     body: "",
-    attributes: [
+    rawAttributes: [
       { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
       { key: "Rationale", value: "because" },
     ],
@@ -328,7 +328,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
     source: "markdown",
     title: "",
     body: "",
-    attributes: [
+    rawAttributes: [
       { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
     ],
     typedAttributes: new Map([
@@ -382,7 +382,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     source: "markdown",
     title: "",
     body: "",
-    attributes: [],
+    rawAttributes: [],
     typedAttributes: new Map([["Id", ["01T1T1T1T1T1T1T1T1T1T1T1T1"]]]),
     location: { file: "t.md", line: 1, column: 1 },
   };
@@ -393,7 +393,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     source: "markdown",
     title: "",
     body: "",
-    attributes: [],
+    rawAttributes: [],
     typedAttributes: new Map([["Id", ["01T2T2T2T2T2T2T2T2T2T2T2T2"]]]),
     location: { file: "t.md", line: 1, column: 1 },
   };
@@ -404,7 +404,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     source: "markdown",
     title: "",
     body: "",
-    attributes: [
+    rawAttributes: [
       { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
       {
         key: "Verifies",
