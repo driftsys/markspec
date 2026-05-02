@@ -264,12 +264,12 @@ function _entryCategory(displayId: string, shape: string): string {
 function _entryToHtml(entry: Entry): string {
   const category = _entryCategory(entry.displayId, entry.shape);
 
-  const labelsAttr = entry.attributes.find((a) => a.key === "Labels");
+  const labelsAttr = entry.rawAttributes.find((a) => a.key === "Labels");
   const labels = labelsAttr
     ? labelsAttr.value.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
 
-  const metaAttrs = entry.attributes.filter((a) => a.key !== "Labels");
+  const metaAttrs = entry.rawAttributes.filter((a) => a.key !== "Labels");
 
   const pillsHtml = labels.length > 0
     ? `<span class="pill-group">${

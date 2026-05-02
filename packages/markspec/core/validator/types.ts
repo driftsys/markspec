@@ -105,7 +105,7 @@ export function classifyEntry(
 }
 
 function findExplicitTypeAttribute(entry: Entry): string | undefined {
-  for (const attr of entry.attributes) {
+  for (const attr of entry.rawAttributes) {
     if (attr.key === "Type") {
       return attr.value.trim();
     }

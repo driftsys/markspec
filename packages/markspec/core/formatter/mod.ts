@@ -123,7 +123,7 @@ export function format(
 
   for (const entry of sorted) {
     const indent = (entry.location.column - 1) + 2;
-    let attrs = [...entry.attributes];
+    let attrs = [...entry.rawAttributes];
 
     // Assign a bare ULID `Id:` to identified entries that carry no
     // identity yet. Referenced entries are left alone — their `Id:` is a

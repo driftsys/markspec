@@ -34,11 +34,12 @@ function makeEntry(displayId: string): Entry {
     displayId,
     title: `Title for ${displayId}`,
     body: "",
-    attributes: [],
+    rawAttributes: [],
     id: undefined,
     shape: "identified",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
+    typedAttributes: new Map(),
   };
 }
 
@@ -50,6 +51,7 @@ function makeCompiled(entries: Entry[]): CompileResult {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 }

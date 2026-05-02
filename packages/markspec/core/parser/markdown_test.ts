@@ -184,7 +184,7 @@ Deno.test("parseMarkdown: trailing attribute block is parsed", () => {
 `;
   const [entry] = parseMarkdown(md);
   const attrs = Object.fromEntries(
-    entry.attributes.map((a) => [a.key, a.value]),
+    entry.rawAttributes.map((a) => [a.key, a.value]),
   );
   assertEquals(attrs["Id"], ULID);
   assertEquals(attrs["Labels"], "one, two");

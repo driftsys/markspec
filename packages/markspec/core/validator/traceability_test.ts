@@ -88,7 +88,7 @@ function entry(opts: { shape: EntryShape; type?: string }): Entry {
     source: "markdown",
     title: "",
     body: "",
-    attributes: [],
+    rawAttributes: [],
     typedAttributes: new Map(),
     location: { file: "t.md", line: 1, column: 1 },
   };
@@ -211,7 +211,7 @@ function targetEntry(opts: {
     source: "markdown",
     title: "",
     body: "",
-    attributes: [],
+    rawAttributes: [],
     typedAttributes: new Map(),
     location: { file: "t.md", line: 1, column: 1 },
   };
@@ -301,7 +301,7 @@ function entryWithAttrs(opts: {
     source: "markdown",
     title: "",
     body: "",
-    attributes,
+    rawAttributes: attributes,
     typedAttributes: new Map(
       Object.entries(attrs).map(([k, vs]) => [k, vs]),
     ),

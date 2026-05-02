@@ -55,11 +55,12 @@ Deno.test("model types are constructible", () => {
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
     body: "The sensor driver shall debounce raw inputs.",
-    attributes: [attr],
+    rawAttributes: [attr],
     id: "SRS_00000000000000000000000001",
     shape: "identified",
     location: loc,
     source: "markdown",
+    typedAttributes: new Map(),
   };
   assertEquals(entry.displayId, "SRS_BRK_0001");
   assertEquals(entry.shape, "identified");
@@ -162,6 +163,7 @@ Deno.test("report produces traceability output", () => {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
   const opts: ReportOptions = { kind: "traceability", format: "md" };

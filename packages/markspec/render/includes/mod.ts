@@ -391,7 +391,7 @@ function renderAttributes(entry: Entry): string[] {
     lines.push(`Id: ${entry.id}`);
   }
 
-  for (const attr of entry.attributes) {
+  for (const attr of entry.rawAttributes) {
     // Skip Id — already handled above.
     if (attr.key === "Id") continue;
     lines.push(`${attr.key}: ${attr.value}`);

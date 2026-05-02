@@ -9,11 +9,12 @@ function makeEntry(displayId: string): Entry {
     displayId,
     title: `Title for ${displayId}`,
     body: "",
-    attributes: [],
+    rawAttributes: [],
     id: undefined,
     shape: "identified",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
+    typedAttributes: new Map(),
   };
 }
 
@@ -39,6 +40,7 @@ Deno.test("serializeCompileResult: converts Maps to plain objects", () => {
     links: [link],
     forward,
     reverse,
+    documents: new Map(),
     diagnostics: [],
   };
 
@@ -66,6 +68,7 @@ Deno.test("serializeCompileResult: entries keyed by displayId", () => {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 
@@ -93,6 +96,7 @@ Deno.test("serializeCompileResult: links preserved as-is", () => {
     links: [link],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 
@@ -111,6 +115,7 @@ Deno.test("serializeCompileResult: round-trip via JSON.parse", () => {
     links: [link],
     forward: new Map([["SRS_BRK_0001", [link]]]),
     reverse: new Map([["SYS_BRK_0042", [link]]]),
+    documents: new Map(),
     diagnostics: [
       {
         code: "MSL-W001",

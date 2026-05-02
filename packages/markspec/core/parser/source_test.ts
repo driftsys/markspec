@@ -89,13 +89,13 @@ fn foo() {}
 `;
 
   const { entries } = parseSource(source, { file: "test.rs", language });
-  assertEquals(entries[0].attributes.length, 3);
-  assertEquals(entries[0].attributes[0].key, "Id");
-  assertEquals(entries[0].attributes[0].value, "SRS_01HGW2Q8MNP3");
-  assertEquals(entries[0].attributes[1].key, "Satisfies");
-  assertEquals(entries[0].attributes[1].value, "SYS_BRK_0042");
-  assertEquals(entries[0].attributes[2].key, "Labels");
-  assertEquals(entries[0].attributes[2].value, "ASIL-B");
+  assertEquals(entries[0].rawAttributes.length, 3);
+  assertEquals(entries[0].rawAttributes[0].key, "Id");
+  assertEquals(entries[0].rawAttributes[0].value, "SRS_01HGW2Q8MNP3");
+  assertEquals(entries[0].rawAttributes[1].key, "Satisfies");
+  assertEquals(entries[0].rawAttributes[1].value, "SYS_BRK_0042");
+  assertEquals(entries[0].rawAttributes[2].key, "Labels");
+  assertEquals(entries[0].rawAttributes[2].value, "ASIL-B");
 });
 
 // ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ Deno.test("parseSource: fixture — in-code-rust.rs", async () => {
   assertEquals(entries[0].id, "SRS_01HGW2Q8MNP3");
   assertEquals(entries[0].source, "doc-comment");
   assertStringIncludes(entries[0].body, "debounce window");
-  assertEquals(entries[0].attributes.length, 3);
+  assertEquals(entries[0].rawAttributes.length, 3);
 });
 
 // ---------------------------------------------------------------------------
@@ -352,7 +352,7 @@ fn foo() {}
   const { entries } = parseSource(source, { file: "test.rs", language });
   assertEquals(entries.length, 1);
   // Verifies inside the entry block becomes an attribute.
-  const verifies = entries[0].attributes.find((a) => a.key === "Verifies");
+  const verifies = entries[0].rawAttributes.find((a) => a.key === "Verifies");
   assertEquals(verifies?.value, "STK_BRK_0001");
 });
 

@@ -249,7 +249,7 @@ function extractEntry(
     displayId,
     title: title ?? "",
     body,
-    attributes,
+    rawAttributes: attributes,
     typedAttributes: collateAttributes(attributes),
     id,
     type,

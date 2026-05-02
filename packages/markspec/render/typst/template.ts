@@ -204,7 +204,7 @@ function renderEntryTypst(entry: Entry, scopeArg: string = ""): string {
   const category = displayIdCategory(entry.displayId, entry.shape);
 
   // Extract labels from attributes
-  const labelsAttr = entry.attributes.find((a) => a.key === "Labels");
+  const labelsAttr = entry.rawAttributes.find((a) => a.key === "Labels");
   const labels = labelsAttr
     ? labelsAttr.value.split(",").map((s) => s.trim()).filter((s) =>
       s.length > 0
@@ -212,7 +212,7 @@ function renderEntryTypst(entry: Entry, scopeArg: string = ""): string {
     : [];
 
   // Build attrs array (excluding Labels — those go into pills)
-  const attrs = entry.attributes
+  const attrs = entry.rawAttributes
     .filter((a) => a.key !== "Labels")
     .map((a) =>
       `("${escapeTypstString(a.key)}", "${escapeTypstString(a.value)}")`

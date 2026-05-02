@@ -30,11 +30,12 @@ function buildCompiled(
       displayId: e.displayId,
       title: e.title,
       body: e.body ?? "",
-      attributes: e.attributes ?? [],
+      rawAttributes: e.attributes ?? [],
       id: e.id,
       shape: e.entryType ? "identified" : "referenced",
       location: { file: "test.md", line: 1, column: 1 },
       source: "markdown",
+      typedAttributes: new Map(),
     };
     map.set(e.displayId, entry);
   }
@@ -43,6 +44,7 @@ function buildCompiled(
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 }

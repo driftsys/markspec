@@ -74,10 +74,10 @@ export interface Attribute {
  * one entry per occurrence (no CSV-splitting, locators may contain `,`).
  * Single-valued types carry a one-element array; if the author wrote the
  * attribute twice, the later value wins but both appear in
- * {@linkcode Entry.attributes} for round-trip fidelity.
+ * {@linkcode Entry.rawAttributes} for round-trip fidelity.
  *
  * This is the representation the validator, formatter, and compiler consult
- * for typed processing; {@linkcode Entry.attributes} is the source of truth
+ * for typed processing; {@linkcode Entry.rawAttributes} is the source of truth
  * for exact round-trip through `markspec format`.
  */
 export type TypedAttributes = ReadonlyMap<string, readonly string[]>;
@@ -241,16 +241,21 @@ export interface Entry {
   readonly title: string;
   /** Body content (paragraphs, alerts, code blocks) between title and attributes. */
   readonly body: string;
-  /** Parsed attribute block (`Key: Value` lines), in source order. */
-  readonly attributes: readonly Attribute[];
   /**
-   * Collated, typed view of {@linkcode Entry.attributes}.
-   *
-   * Populated by the parser alongside `attributes`. Downstream layers
-   * (validator, compiler) consult this map for typed processing; the
-   * formatter still reads `attributes` for exact round-trip.
+   * Source-order raw attribute array. Used by the formatter for round-trip
+   * fidelity (preserving key casing, line order, and trailing backslashes).
+   * For lookup-oriented access, use `typedAttributes` — the collated,
+   * CSV-split Map view of the same data.
    */
-  readonly typedAttributes?: TypedAttributes;
+  readonly rawAttributes: readonly Attribute[];
+  /**
+   * Collated, typed view of {@linkcode Entry.rawAttributes}.
+   *
+   * Populated by the parser alongside `rawAttributes`. Downstream layers
+   * (validator, compiler) consult this map for typed processing; the
+   * formatter still reads `rawAttributes` for exact round-trip.
+   */
+  readonly typedAttributes: TypedAttributes;
   /**
    * Value of the `Id:` attribute — a ULID for identified entries, a URI for
    * referenced entries. Absent when `Id:` was missing or malformed.

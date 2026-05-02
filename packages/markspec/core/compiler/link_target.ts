@@ -54,18 +54,18 @@ type TargetState = "active" | "draft" | "retired";
 
 function classifyTargetState(entry: Entry): TargetState {
   // Check for retirement markers
-  const hasDeprecated = entry.attributes.some((a) => a.key === "Deprecated");
+  const hasDeprecated = entry.rawAttributes.some((a) => a.key === "Deprecated");
   if (hasDeprecated) return "retired";
 
-  const supersededBy = entry.typedAttributes?.get("Superseded-by");
+  const supersededBy = entry.typedAttributes.get("Superseded-by");
   if (supersededBy && supersededBy.length > 0) return "retired";
 
   // Check for DRAFT label via typedAttributes
-  const labels = entry.typedAttributes?.get("Labels");
+  const labels = entry.typedAttributes.get("Labels");
   if (labels && labels.includes("DRAFT")) return "draft";
 
   // Also check raw attributes for Labels containing DRAFT
-  for (const attr of entry.attributes) {
+  for (const attr of entry.rawAttributes) {
     if (attr.key === "Labels") {
       const values = attr.value.split(",").map((s) => s.trim());
       if (values.includes("DRAFT")) return "draft";

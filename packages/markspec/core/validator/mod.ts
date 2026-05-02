@@ -59,7 +59,7 @@ function checkStructural(
 
   for (const entry of entries) {
     // MSL-R003: exactly one `Id:` attribute per entry.
-    const idAttrs = entry.attributes.filter((a) => a.key === IDENTITY_KEY);
+    const idAttrs = entry.rawAttributes.filter((a) => a.key === IDENTITY_KEY);
     if (idAttrs.length === 0) {
       diagnostics.push({
         code: "MSL-R003",
@@ -145,7 +145,7 @@ function checkStructural(
     // profile-aware validator widens this check to include profile-declared
     // attributes; until then, anything outside the universal set is
     // unrecognized.
-    for (const attr of entry.attributes) {
+    for (const attr of entry.rawAttributes) {
       if (!UNIVERSAL_KEYS.has(attr.key) && attr.key !== "Type") {
         diagnostics.push({
           code: "MSL-R010",
@@ -184,7 +184,7 @@ function checkReferences(
   // MSL-T012: `Supersedes:` — the one baked-in relation. Target must
   // resolve; profile rules check type/shape compatibility separately.
   for (const entry of entries) {
-    const supersedes = entry.attributes.find((a) => a.key === "Supersedes");
+    const supersedes = entry.rawAttributes.find((a) => a.key === "Supersedes");
     if (!supersedes) continue;
     const target = supersedes.value.trim();
     const resolved = byDisplayId.get(target) ?? byId.get(target);
@@ -201,7 +201,7 @@ function checkReferences(
   // MSL-T005: `References:` — citations must resolve to a referenced
   // entry. This is a universal relation (citing identified → referenced).
   for (const entry of entries) {
-    const citations = entry.attributes.filter((a) => a.key === "References");
+    const citations = entry.rawAttributes.filter((a) => a.key === "References");
     for (const attr of citations) {
       // Citation format: "slug [free-text locator]"; take the first token.
       const slug = attr.value.split(/\s/)[0];

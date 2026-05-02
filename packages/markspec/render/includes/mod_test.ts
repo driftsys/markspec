@@ -13,7 +13,7 @@ function testEntry(overrides: Partial<Entry> = {}): Entry {
     displayId: "SRS_BRK_0001",
     title: "Sensor debouncing",
     body: "The sensor driver shall debounce raw inputs.",
-    attributes: [
+    rawAttributes: [
       { key: "Id", value: "SRS_00000000000000000000000001" },
       { key: "Satisfies", value: "SYS_BRK_0001" },
       { key: "Labels", value: "ASIL-B" },
@@ -22,6 +22,7 @@ function testEntry(overrides: Partial<Entry> = {}): Entry {
     shape: "identified",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
+    typedAttributes: new Map(),
     ...overrides,
   };
 }
@@ -34,6 +35,7 @@ function compiled(...entries: Entry[]): CompileResult {
     links: [],
     forward: new Map(),
     reverse: new Map(),
+    documents: new Map(),
     diagnostics: [],
   };
 }
@@ -146,7 +148,7 @@ Deno.test("processIncludes: multiple includes all resolve", async () => {
     displayId: "SRS_BRK_0002",
     title: "Brake pressure",
     body: "Brake pressure shall be monitored.",
-    attributes: [{ key: "Id", value: "SRS_00000000000000000000000002" }],
+    rawAttributes: [{ key: "Id", value: "SRS_00000000000000000000000002" }],
     id: "SRS_00000000000000000000000002",
   });
 
@@ -280,7 +282,7 @@ Deno.test("processIncludes: missing anchor produces diagnostic", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("processIncludes: entry with empty body renders correctly", async () => {
-  const entry = testEntry({ body: "", attributes: [], id: undefined });
+  const entry = testEntry({ body: "", rawAttributes: [], id: undefined });
   const input = "<!-- include: SRS_BRK_0001 -->";
 
   const result = await processIncludes(input, options([entry]));

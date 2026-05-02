@@ -31,8 +31,9 @@ function buildEntry(opts: {
     shape: opts.shape,
     type: opts.type,
     source: "markdown",
-    attributes,
+    rawAttributes: attributes,
     location: { file: "t.md", line: 1, column: 1 },
+    typedAttributes: new Map(),
   };
 }
 

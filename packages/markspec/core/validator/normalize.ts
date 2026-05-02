@@ -26,8 +26,6 @@ export function normalizeListValues(
   entry: Entry,
   profile: EffectiveProfile,
 ): Entry {
-  if (!entry.typedAttributes) return entry;
-
   const scope = effectiveScope(entry, profile);
   const rewritten = new Map<string, readonly string[]>();
   let anyChange = false;

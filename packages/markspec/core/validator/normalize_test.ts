@@ -62,7 +62,7 @@ function entry(opts: {
     source: "markdown",
     title: "",
     body: "",
-    attributes,
+    rawAttributes: attributes,
     typedAttributes: new Map(
       Object.entries(attrs).map(([k, vs]) => [k, vs]),
     ),
@@ -100,7 +100,7 @@ Deno.test("normalizeListValues: id-list with comma-separated value is split", ()
     },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Verifies"), [
+  assertEquals(out.typedAttributes.get("Verifies"), [
     "REQ-0001",
     "REQ-0002",
     "REQ-0003",
@@ -114,7 +114,7 @@ Deno.test("normalizeListValues: tag-list with comma-separated value is split", (
     attrs: { Labels: ["DRAFT, INTERNAL"] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Labels"), ["DRAFT", "INTERNAL"]);
+  assertEquals(out.typedAttributes.get("Labels"), ["DRAFT", "INTERNAL"]);
 });
 
 Deno.test("normalizeListValues: no comma → idempotent (value unchanged)", () => {
@@ -124,7 +124,7 @@ Deno.test("normalizeListValues: no comma → idempotent (value unchanged)", () =
     attrs: { Verifies: ["REQ-0001", "REQ-0002"] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Verifies"), ["REQ-0001", "REQ-0002"]);
+  assertEquals(out.typedAttributes.get("Verifies"), ["REQ-0001", "REQ-0002"]);
   assertEquals(out, e);
 });
 
@@ -135,7 +135,7 @@ Deno.test("normalizeListValues: trims whitespace around split values", () => {
     attrs: { Verifies: ["  REQ-0001  ,  REQ-0002  "] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Verifies"), [
+  assertEquals(out.typedAttributes.get("Verifies"), [
     "REQ-0001",
     "REQ-0002",
   ]);
@@ -148,7 +148,7 @@ Deno.test("normalizeListValues: empty-string fragments from double commas are dr
     attrs: { Verifies: ["REQ-0001,,REQ-0002"] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Verifies"), [
+  assertEquals(out.typedAttributes.get("Verifies"), [
     "REQ-0001",
     "REQ-0002",
   ]);
@@ -161,7 +161,7 @@ Deno.test("normalizeListValues: non-list types are never split", () => {
     attrs: { Rationale: ["one, two, three"] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Rationale"), ["one, two, three"]);
+  assertEquals(out.typedAttributes.get("Rationale"), ["one, two, three"]);
 });
 
 Deno.test("normalizeListValues: mix of multi-line and comma-separated merges correctly", () => {
@@ -171,7 +171,7 @@ Deno.test("normalizeListValues: mix of multi-line and comma-separated merges cor
     attrs: { Verifies: ["REQ-0001, REQ-0002", "REQ-0003"] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Verifies"), [
+  assertEquals(out.typedAttributes.get("Verifies"), [
     "REQ-0001",
     "REQ-0002",
     "REQ-0003",
@@ -185,7 +185,7 @@ Deno.test("normalizeListValues: un-declared attribute is untouched", () => {
     attrs: { Unknown: ["a, b, c"] },
   });
   const out = normalizeListValues(e, p);
-  assertEquals(out.typedAttributes?.get("Unknown"), ["a, b, c"]);
+  assertEquals(out.typedAttributes.get("Unknown"), ["a, b, c"]);
 });
 
 Deno.test("normalizeListValues: entry with no typedAttributes is returned as-is", () => {
@@ -233,5 +233,5 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
   });
   const classified = { ...e, type: "requirement" };
   const out = normalizeListValues(classified, p);
-  assertEquals(out.typedAttributes?.get("Verifies"), ["REQ-0001", "REQ-0002"]);
+  assertEquals(out.typedAttributes.get("Verifies"), ["REQ-0001", "REQ-0002"]);
 });

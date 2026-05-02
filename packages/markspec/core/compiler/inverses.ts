@@ -66,7 +66,6 @@ export function generateInverses(
 
   for (const source of entries) {
     if (source.shape !== "identified" || source.id === undefined) continue;
-    if (!source.typedAttributes) continue;
 
     const applicableSpecs = resolveApplicableSpecs(
       inverseSpecs,
@@ -108,13 +107,13 @@ export function generateInverses(
     }
 
     const newAttrs = new Map<string, readonly string[]>(
-      e.typedAttributes ?? [],
+      e.typedAttributes,
     );
     let changed = false;
 
     for (const [inverseName, generatedIds] of targetInverses) {
       const generatedArr = [...generatedIds];
-      const authored = e.typedAttributes?.get(inverseName);
+      const authored = e.typedAttributes.get(inverseName);
 
       if (authored && authored.length > 0) {
         const authoredSet = new Set(authored);
