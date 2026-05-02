@@ -330,6 +330,199 @@ const profileCmd = new Command()
         }
       }
     }
+  })
+  .command("new <id:string>")
+  .description("Scaffold a new profile directory")
+  .option("--dir <dir:string>", "Override output directory")
+  .action(async (options: { dir?: string }, id: string) => {
+    const PROFILE_ID_RE = /^(@[a-z0-9-]+\/)?[a-z0-9][a-z0-9-]*$/;
+    if (!PROFILE_ID_RE.test(id)) {
+      console.error(
+        `error: invalid profile id '${id}'\n` +
+          "  expected: lowercase alphanumeric with hyphens, optional @scope/ prefix\n" +
+          "  examples: my-profile, @org/my-profile",
+      );
+      Deno.exit(1);
+    }
+
+    const dirName = id.includes("/") ? id.split("/")[1] : id;
+    const targetDir = options.dir ?? `./${dirName}`;
+
+    try {
+      await Deno.stat(targetDir);
+      console.error(`error: directory '${targetDir}' already exists`);
+      Deno.exit(1);
+    } catch (err) {
+      if (!(err instanceof Deno.errors.NotFound)) throw err;
+    }
+
+    await Deno.mkdir(targetDir, { recursive: true });
+
+    const manifest = `id: "${id}"
+version: 0.1.0
+description: ""
+# license: MIT
+# extends: "./path/to/parent"
+
+profile:
+  # Universal scope
+  attributes: []
+  labels: []
+
+  # Per-shape scope
+  identified:
+    attributes: []
+  referenced:
+    attributes: []
+
+  # Per-type scope
+  types: {}
+
+  # Document scope
+  documents:
+    types: []
+    frontMatter: []
+`;
+
+    const readme = `# ${id}\n\nA MarkSpec profile.\n`;
+
+    await Deno.writeTextFile(`${targetDir}/markspec.yaml`, manifest);
+    await Deno.writeTextFile(`${targetDir}/README.md`, readme);
+
+    console.error(`created profile at ${targetDir}/`);
+  })
+  .command("publish")
+  .description("Validate a profile manifest for publishability")
+  .option("--dry-run", "Validate only (default)", { default: true })
+  .option("--dir <dir:string>", "Profile directory", { default: "." })
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(
+    async (options: { dryRun?: boolean; dir?: string; format?: string }) => {
+      const { parseManifest } = await import("./core/mod.ts");
+      const dir = options.dir ?? ".";
+      const manifestPath = `${dir}/markspec.yaml`;
+
+      let rawYaml: string;
+      try {
+        rawYaml = await Deno.readTextFile(manifestPath);
+      } catch {
+        console.error(`error: no markspec.yaml found at ${manifestPath}`);
+        Deno.exit(1);
+      }
+
+      const result = parseManifest(rawYaml, manifestPath);
+      const diagnostics = [...result.diagnostics];
+
+      if (result.manifest) {
+        if (!result.manifest.description) {
+          diagnostics.push({
+            code: "PROFILE-PUB-001",
+            severity: "warning",
+            message:
+              "profile is missing 'description' (recommended for publishing)",
+            location: { file: manifestPath, line: 1, column: 1 },
+          });
+        }
+        if (!result.manifest.license) {
+          diagnostics.push({
+            code: "PROFILE-PUB-002",
+            severity: "warning",
+            message:
+              "profile is missing 'license' (recommended for publishing)",
+            location: { file: manifestPath, line: 1, column: 1 },
+          });
+        }
+      }
+
+      const hasErrors = diagnostics.some((d) => d.severity === "error");
+
+      if (options.format === "json") {
+        const output = {
+          valid: !hasErrors,
+          profile: result.manifest
+            ? { id: result.manifest.id, version: result.manifest.version }
+            : null,
+          diagnostics: diagnostics.map((d) => ({
+            severity: d.severity,
+            code: d.code,
+            message: d.message,
+          })),
+        };
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        for (const diag of diagnostics) {
+          console.error(`${diag.severity}[${diag.code}]: ${diag.message}`);
+        }
+        if (!hasErrors) {
+          console.error(
+            result.manifest
+              ? `✓ ${result.manifest.id}@${result.manifest.version} is valid for publishing`
+              : "✓ profile is valid",
+          );
+        }
+      }
+
+      Deno.exit(hasErrors ? 1 : 0);
+    },
+  )
+  .command("add <spec:string>")
+  .description("Add a profile to the project")
+  .option("--format <format:string>", "Output format (json|text)", {
+    default: "text",
+  })
+  .action(async (options: { format?: string }, spec: string) => {
+    const { config: _config, projectRoot } = await requireProjectConfig();
+
+    // Parse the specifier string to validate format.
+    const { parseMarkspecYaml } = await import("./core/config/markspec.ts");
+    const testYaml = `profiles:\n  - "${spec}"\n`;
+    const parseResult = parseMarkspecYaml(testYaml, "<cli>");
+
+    if (!parseResult.config || parseResult.config.profiles.length === 0) {
+      for (const diag of parseResult.diagnostics) {
+        console.error(`${diag.severity}[${diag.code}]: ${diag.message}`);
+      }
+      Deno.exit(1);
+    }
+
+    const specifier = parseResult.config.profiles[0];
+
+    // For local specifiers, validate the profile exists by attempting load.
+    if (specifier.kind === "local") {
+      const { loadChain } = await import("./core/mod.ts");
+      const chainResult = await loadChain(
+        specifier,
+        projectRoot,
+        projectRoot,
+        readFile,
+      );
+
+      let sawError = false;
+      for (const diag of chainResult.diagnostics) {
+        console.error(`${diag.severity}[${diag.code}]: ${diag.message}`);
+        if (diag.severity === "error") sawError = true;
+      }
+      if (sawError || !chainResult.chain) {
+        Deno.exit(1);
+      }
+    }
+
+    // Record the specifier in .markspec.yaml.
+    const { addProfileSpecifier } = await import("./core/config/markspec.ts");
+    await addProfileSpecifier(
+      spec,
+      readFile,
+      (path: string, content: string) => Deno.writeTextFile(path, content),
+      projectRoot,
+    );
+
+    if (options.format === "json") {
+      console.log(JSON.stringify({ added: spec }));
+    } else {
+      console.error(`added profile: ${spec}`);
+    }
   });
 
 const deckCmd = new Command()
