@@ -24,7 +24,11 @@ import type {
 import type { AppendFile, RunGit } from "./git-cache.ts";
 import { parseManifest } from "./manifest.ts";
 import { mergeChain } from "./merge.ts";
-import { resolveGitSpecifier, resolveLocalSpecifier } from "./resolver.ts";
+import {
+  type ResolvedProfileSource,
+  resolveGitSpecifier,
+  resolveLocalSpecifier,
+} from "./resolver.ts";
 
 /** Maximum number of tiers allowed in an `extends:` chain. */
 const MAX_CHAIN_DEPTH = 20;
@@ -96,20 +100,34 @@ export async function loadChain(
       return { chain: null, diagnostics };
     }
 
-    const resolved = cursorSpec.kind === "git"
-      ? await resolveGitSpecifier(
+    let resolved: ResolvedProfileSource | null;
+    if (cursorSpec.kind === "git") {
+      resolved = await resolveGitSpecifier(
         cursorSpec,
         projectRoot,
         readFile,
         diagnostics,
         { runGit: opts.runGit, appendFile: opts.appendFile },
-      )
-      : await resolveLocalSpecifier(
+      );
+    } else if (cursorSpec.kind === "npm") {
+      // npm resolution wired in Task 4
+      diagnostics.push({
+        code: "PROFILE-LOAD-001",
+        severity: "error",
+        message: `npm specifier '${
+          stringifySpec(cursorSpec)
+        }' not yet supported in chain resolution`,
+        location: { file: "<specifier>", line: 1, column: 1 },
+      });
+      resolved = null;
+    } else {
+      resolved = await resolveLocalSpecifier(
         cursorSpec,
         cursorDir,
         readFile,
         diagnostics,
       );
+    }
     if (!resolved) {
       return { chain: null, diagnostics };
     }
@@ -183,7 +201,15 @@ function specifierKey(
   if (spec.kind === "local") {
     return `local:${resolvePath(contextDir, spec.path)}`;
   }
-  return `git:${spec.repo}#${spec.tag}|${spec.subpath ?? ""}`;
+  if (spec.kind === "git") {
+    return `git:${spec.repo}#${spec.tag}|${spec.subpath ?? ""}`;
+  }
+  if (spec.kind === "npm") {
+    const pkg = spec.scope ? `${spec.scope}/${spec.name}` : spec.name;
+    return `npm:${pkg}@${spec.range}`;
+  }
+  const _exhaustive: never = spec;
+  throw new Error(`Unknown specifier kind`);
 }
 
 /** Human-readable one-liner for a specifier (used in diagnostic messages). */
@@ -191,7 +217,15 @@ function stringifySpec(spec: ProfileSpecifier): string {
   if (spec.kind === "local") {
     return spec.path;
   }
-  return `git+${spec.repo}#${spec.tag}`;
+  if (spec.kind === "git") {
+    return `git+${spec.repo}#${spec.tag}`;
+  }
+  if (spec.kind === "npm") {
+    const pkg = spec.scope ? `${spec.scope}/${spec.name}` : spec.name;
+    return `npm:${pkg}@${spec.range}`;
+  }
+  const _exhaustive: never = spec;
+  throw new Error(`Unknown specifier kind`);
 }
 
 /**

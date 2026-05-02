@@ -121,6 +121,12 @@ export type ProfileSpecifier =
     readonly repo: string;
     readonly subpath?: string;
     readonly tag: string;
+  }
+  | {
+    readonly kind: "npm";
+    readonly scope?: string;
+    readonly name: string;
+    readonly range: string;
   };
 
 /** Parsed `markspec.yaml` content — the manifest authored in a profile. */

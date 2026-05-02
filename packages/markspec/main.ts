@@ -320,7 +320,11 @@ const profileCmd = new Command()
         for (const tier of chain.tiers) {
           const spec = tier.specifier.kind === "local"
             ? tier.specifier.path
-            : `${tier.specifier.repo}@${tier.specifier.tag}`;
+            : tier.specifier.kind === "git"
+            ? `${tier.specifier.repo}@${tier.specifier.tag}`
+            : `npm:${
+              tier.specifier.scope ? `${tier.specifier.scope}/` : ""
+            }${tier.specifier.name}@${tier.specifier.range}`;
           console.error(`  ${tier.id}@${tier.version}  (${spec})`);
           console.error(`    source: ${tier.sourcePath}`);
         }
