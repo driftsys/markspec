@@ -40,15 +40,18 @@ export async function setupGitFixture(
   const workDir = `${opts.workspaceDir}/_gitwork/${opts.name}`;
 
   await Deno.mkdir(bareDir, { recursive: true });
+  // Ensure workDir is truly fresh — uncaught errors from other test files
+  // (render/typst WASM NAPI) can corrupt Deno runner state, leaving ghost
+  // artifacts. Deleting first guarantees a clean git init.
+  await Deno.remove(workDir, { recursive: true }).catch(() => {});
   await Deno.mkdir(workDir, { recursive: true });
 
   await runOrThrow(["git", "init", "--bare", bareDir]);
 
-  await runOrThrow(["git", "init", workDir]);
+  await runOrThrow(["git", "init", "-b", "main", workDir]);
   await runOrThrow(["git", "-C", workDir, "config", "user.email", "t@t.test"]);
   await runOrThrow(["git", "-C", workDir, "config", "user.name", "Test"]);
   await runOrThrow(["git", "-C", workDir, "config", "commit.gpgsign", "false"]);
-  await runOrThrow(["git", "-C", workDir, "checkout", "-b", "main"]);
 
   for (const [relPath, content] of Object.entries(opts.files)) {
     const abs = `${workDir}/${relPath}`;
