@@ -11,6 +11,8 @@ updates:
       actions:
         patterns:
           - "*"
+    commit-message:
+      prefix: "chore"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
