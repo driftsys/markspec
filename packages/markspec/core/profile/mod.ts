@@ -34,3 +34,6 @@ export type { LoadProfileForCommandResult } from "./load.ts";
 
 export { mergeChain } from "./merge.ts";
 export type { MergeResult } from "./merge.ts";
+
+export { cacheDir } from "./cache.ts";
+export type { CacheEnv } from "./cache.ts";
