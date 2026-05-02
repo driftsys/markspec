@@ -30,6 +30,10 @@ markspec/
 │       │   ├── model/               ← types: Entry, EntryShape (identified |
 │       │   │   └── mod.ts             referenced), DisplayId, Ulid, Attribute,
 │       │   │                          SourceLocation, ProjectConfig
+│       │   ├── config/              ← project.yaml discovery + loading
+│       │   │   └── mod.ts
+│       │   ├── profile/             ← profile manifest load, merge, resolver
+│       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
 │       │   │   ├── mod.ts
 │       │   │   ├── markdown.ts      ←   CommonMark AST walk, entry detection
@@ -90,7 +94,7 @@ markspec/
 │   ├── examples/                    ← showcase documents (excluded from formatters)
 │   │   └── entry-rendering.md       ←   all entry types, pills, cross-refs
 │   ├── product/                     ← internal engineering (not published)
-│   └── records/                     ← architecture decision records
+│   └── architecture/                ← architecture decision records (ADRs)
 └── tests/
     ├── e2e/
     │   ├── helpers.ts               ← shared test helper (markspec() function)
@@ -157,24 +161,36 @@ optimize; start with pure TypeScript.
 ```bash
 deno check packages/markspec/main.ts packages/markspec/core/mod.ts \
   packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts  # type-check
-deno test --allow-read                                              # run all tests
+deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi  # run all tests
 deno lint                                                           # lint
-deno fmt                                                            # format
-deno fmt --check                                                    # format check (CI)
+deno fmt && dprint fmt                                              # format (TS + MD/JSON/YAML)
+deno fmt --check && dprint check                                    # format check (CI)
 ```
 
 Or via `just` (preferred):
 
 ```bash
-just check                      # type-check
-just test                       # test
-just lint                       # lint (Deno + dprint)
-just build                      # check + test + lint
-just verify                     # validate commits + build
-just fmt                        # format (Deno + dprint)
+just check                      # lint + test + type-check (all three)
+just test                       # test only
+just lint                       # deno lint + dprint check
+just build                      # check (lint+test+typecheck) + compile binary → dist/markspec
+just fmt                        # deno fmt (TS) + dprint fmt (MD/JSON/YAML/TOML)
 just tokens                     # regenerate Typst + CSS from theme/tokens.yaml
+just compile                    # compile CLI binary → dist/markspec
 just clean                      # remove build artifacts
 ```
+
+**`just verify` does not exist.** Use `just build` before opening a PR.
+
+**Two separate format tools:** `deno fmt` handles TypeScript only; `dprint fmt`
+handles Markdown, JSON, YAML, TOML. CI runs them as separate jobs — both must
+pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
+
+**Design tokens CI gate:** Editing `theme/tokens.yaml` requires running
+`just tokens` and committing the generated files
+(`packages/markspec-typst/tokens.typ`,
+`packages/markspec-typst/themes/light.typ` and `dark.typ`,
+`theme/markspec.css`). CI runs `scripts/check_tokens.sh` and fails if stale.
 
 ## CLI subcommands
 
@@ -211,6 +227,11 @@ invoke them.
 | `markspec deck build` | Slides → PDF via Touying/Typst.                           |
 | `markspec deck dev`   | Live slide preview.                                       |
 | `markspec mcp`        | MCP server for AI agent integration.                      |
+
+**Project context:** `format` and `validate` work file-locally without a
+`project.yaml`. All other commands (`compile`, `show`, `context`, `dependents`,
+`report`, `doc build`, `book build`) require a `project.yaml` found by walking
+up from the working directory.
 
 ## Entry block rendering pipeline
 
@@ -339,9 +360,9 @@ order.
   serves as interface documentation.
 - `product/` is flat — requirements and architecture entries live side by side
   as peer work products.
-- `records/` is a peer of `product/`, `guide/`, and `spec/` — it groups ADRs
-  separately because they have a different lifecycle (immutable once accepted,
-  accumulate over time).
+- `architecture/` is a peer of `product/`, `guide/`, and `spec/` — it groups
+  ADRs separately because they have a different lifecycle (immutable once
+  accepted, accumulate over time).
 - `spec/` and `guide/` each have their own `SUMMARY.md` and build as independent
   books.
 - `product/` is not bundled into a book — it is just files in the repo, readable
@@ -592,7 +613,7 @@ deno test packages/markspec/
 deno test --allow-run --allow-read tests/e2e/
 
 # everything
-deno test --allow-run --allow-read
+deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
 
 # update snapshots
 deno test --allow-run --allow-read -- --update
@@ -614,7 +635,7 @@ never reachable from `mod.ts` and will not be included in published packages.
 ### CI
 
 ```yaml
-- run: deno test --allow-run --allow-read
+- run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
 ```
 
 Snapshot files (`.snap`) are committed to the repository. CI verifies them — if
@@ -752,7 +773,9 @@ severity/effort/priority, and review flow.
 
 - **Zero warnings.** No warnings from `deno check`, `deno lint`, or `deno test`.
   Fix warnings as they appear.
-- **Code style:** `deno fmt` for formatting. Always format before committing.
+- **Code style:** `deno fmt` for TypeScript, `dprint fmt` for
+  Markdown/JSON/YAML/TOML. Always run `just fmt` before committing. Both
+  `deno fmt --check` and `dprint check` are separate CI gates — both must pass.
 - **Naming.** Names must reveal intent. Avoid `temp`, `data`, `flag`, `info`.
   Use `camelCase` for variables and functions, `PascalCase` for types and
   interfaces.
