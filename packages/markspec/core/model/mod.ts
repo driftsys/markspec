@@ -461,8 +461,8 @@ export interface DocumentAttributes {
   readonly "document-type"?: string;
   /** Classification tags (`tag-list`). */
   readonly labels?: readonly string[];
-  /** Lifecycle state (`draft` / `approved` / `deprecated` / `withdrawn`). */
-  readonly status?: string;
+  /** Retirement reason (free-text). Presence marks the document as retired. */
+  readonly deprecated?: string;
   /** Cross-system identifier(s) (`external-id`). */
   readonly "external-id"?: readonly string[];
   /** `document-id` of a document this one replaces. */

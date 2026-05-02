@@ -39,7 +39,7 @@ const FRONT_MATTER_CORE_ORDER: readonly string[] = [
   "document-id",
   "document-type",
   "labels",
-  "status",
+  "deprecated",
   "external-id",
   "supersedes",
   "references",

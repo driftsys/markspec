@@ -179,12 +179,108 @@ function parseProfileSpecifier(
     const subpath = rawSubpath ? rawSubpath.slice(1) : undefined;
     return { kind: "git", repo, subpath, tag };
   }
+  if (raw.startsWith("npm:")) {
+    // npm:@scope/name@range or npm:name@range
+    const body = raw.slice(4); // strip "npm:"
+    const scopedMatch = /^(@[a-z0-9-]+\/[a-z0-9-]+)@(.+)$/.exec(body);
+    if (scopedMatch) {
+      const [, fullName, range] = scopedMatch;
+      const slashIdx = fullName.indexOf("/");
+      return {
+        kind: "npm",
+        scope: fullName.slice(0, slashIdx),
+        name: fullName.slice(slashIdx + 1),
+        range,
+      };
+    }
+    const unscopedMatch = /^([a-z0-9-]+)@(.+)$/.exec(body);
+    if (unscopedMatch) {
+      const [, name, range] = unscopedMatch;
+      return { kind: "npm", name, range };
+    }
+    diagnostics.push({
+      code: "MARKSPEC-YAML-003",
+      severity: "error",
+      message:
+        `${context}: npm specifier malformed; expected npm:[@scope/]name@<version-range>`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
   diagnostics.push({
     code: "MARKSPEC-YAML-003",
     severity: "error",
     message:
-      `${context}: unsupported specifier scheme (use './path' or 'git+<https|file>://…#<tag>')`,
+      `${context}: unsupported specifier scheme (use './path', 'git+<https|file>://…#<tag>', or 'npm:[@scope/]name@<range>')`,
     location: { file: sourcePath, line: 1, column: 1 },
   });
   return undefined;
+}
+
+/** Injectable file writer for addProfileSpecifier. */
+export type WriteFile = (path: string, content: string) => Promise<void>;
+
+/**
+ * Append a profile specifier to `.markspec.yaml`.
+ *
+ * - File absent: creates with `profiles:\n  - <specifier>\n`.
+ * - File exists with `profiles:` key: appends after the last list entry.
+ * - File exists without `profiles:` key: appends the block at end of file.
+ *
+ * Uses raw string manipulation to preserve user comments and formatting.
+ */
+export async function addProfileSpecifier(
+  specifier: string,
+  readFileFn: ReadFile,
+  writeFileFn: WriteFile,
+  projectRoot: string,
+): Promise<void> {
+  const filePath = join(projectRoot, MARKSPEC_YAML_FILENAME);
+  const existing = await readFileFn(filePath);
+
+  if (existing === undefined) {
+    await writeFileFn(filePath, `profiles:\n  - "${specifier}"\n`);
+    return;
+  }
+
+  const profilesIdx = existing.indexOf("profiles:");
+  if (profilesIdx === -1) {
+    const trailing = existing.endsWith("\n") ? "" : "\n";
+    await writeFileFn(
+      filePath,
+      existing + trailing + `\nprofiles:\n  - "${specifier}"\n`,
+    );
+    return;
+  }
+
+  const lines = existing.split("\n");
+  let lastEntryLine = -1;
+  let inProfiles = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trimStart().startsWith("profiles:")) {
+      inProfiles = true;
+      continue;
+    }
+    if (inProfiles) {
+      if (/^\s+-\s/.test(lines[i])) {
+        lastEntryLine = i;
+      } else if (
+        lines[i].trim().length > 0 && !lines[i].startsWith(" ") &&
+        !lines[i].startsWith("#")
+      ) {
+        break;
+      }
+    }
+  }
+
+  if (lastEntryLine >= 0) {
+    lines.splice(lastEntryLine + 1, 0, `  - "${specifier}"`);
+  } else {
+    const profilesLine = lines.findIndex((l) =>
+      l.trimStart().startsWith("profiles:")
+    );
+    lines.splice(profilesLine + 1, 0, `  - "${specifier}"`);
+  }
+
+  await writeFileFn(filePath, lines.join("\n"));
 }

@@ -29,7 +29,7 @@ const CORE_KEYS: ReadonlySet<string> = new Set([
   "document-id",
   "document-type",
   "labels",
-  "status",
+  "deprecated",
   "external-id",
   "supersedes",
   "references",
@@ -190,6 +190,18 @@ export function extractFrontMatter(
         continue;
       }
       metadata = value as Record<string, unknown>;
+      continue;
+    }
+
+    // Transitional: status: was removed in favor of Labels: DRAFT / deprecated:
+    if (key === "status") {
+      diagnostics.push({
+        code: "MSL-D002",
+        severity: "warning",
+        message: `front-matter key 'status' is no longer recognized; ` +
+          `use 'Labels: DRAFT' for draft state or 'deprecated: "<reason>"' for retirement`,
+        location: { file, line: 1, column: 1 },
+      });
       continue;
     }
 

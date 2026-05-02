@@ -4,8 +4,9 @@
  * Unit tests for .markspec.yaml loading.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import {
+  addProfileSpecifier,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,
@@ -150,4 +151,102 @@ Deno.test("parseMarkspecYaml: git+file:// with subpath parsed", () => {
     subpath: "sub",
     tag: "v1.0",
   });
+});
+
+Deno.test("parseMarkspecYaml: npm scoped specifier parsed", () => {
+  const result = parseMarkspecYaml(
+    'profiles:\n  - "npm:@markspec/profile-default@^1.0"',
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics.length, 0);
+  assertExists(result.config);
+  assertEquals(result.config.profiles.length, 1);
+  const spec = result.config.profiles[0];
+  assertEquals(spec.kind, "npm");
+  if (spec.kind === "npm") {
+    assertEquals(spec.scope, "@markspec");
+    assertEquals(spec.name, "profile-default");
+    assertEquals(spec.range, "^1.0");
+  }
+});
+
+Deno.test("parseMarkspecYaml: npm unscoped specifier parsed", () => {
+  const result = parseMarkspecYaml(
+    'profiles:\n  - "npm:my-profile@1.2.3"',
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics.length, 0);
+  assertExists(result.config);
+  assertEquals(result.config.profiles.length, 1);
+  const spec = result.config.profiles[0];
+  assertEquals(spec.kind, "npm");
+  if (spec.kind === "npm") {
+    assertEquals(spec.scope, undefined);
+    assertEquals(spec.name, "my-profile");
+    assertEquals(spec.range, "1.2.3");
+  }
+});
+
+Deno.test("parseMarkspecYaml: npm specifier missing version range errors", () => {
+  const result = parseMarkspecYaml(
+    'profiles:\n  - "npm:@markspec/profile-default"',
+    "/project/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+});
+
+Deno.test("addProfileSpecifier: creates file when absent", async () => {
+  const writes: Record<string, string> = {};
+  await addProfileSpecifier(
+    "npm:@markspec/profile-default@^1.0",
+    () => Promise.resolve(undefined),
+    (path, content) => {
+      writes[path] = content;
+      return Promise.resolve();
+    },
+    "/project",
+  );
+  const written = writes["/project/.markspec.yaml"];
+  assertExists(written);
+  assertStringIncludes(written, "profiles:");
+  assertStringIncludes(written, "npm:@markspec/profile-default@^1.0");
+});
+
+Deno.test("addProfileSpecifier: appends to existing profiles list", async () => {
+  const existing = 'profiles:\n  - "./local-profile"\n';
+  const writes: Record<string, string> = {};
+  await addProfileSpecifier(
+    "npm:@markspec/profile-default@^1.0",
+    () => Promise.resolve(existing),
+    (path, content) => {
+      writes[path] = content;
+      return Promise.resolve();
+    },
+    "/project",
+  );
+  const written = writes["/project/.markspec.yaml"];
+  assertExists(written);
+  assertStringIncludes(written, "./local-profile");
+  assertStringIncludes(written, "npm:@markspec/profile-default@^1.0");
+});
+
+Deno.test("addProfileSpecifier: adds profiles key when missing", async () => {
+  const existing = "# some comment\n";
+  const writes: Record<string, string> = {};
+  await addProfileSpecifier(
+    "./my-profile",
+    () => Promise.resolve(existing),
+    (path, content) => {
+      writes[path] = content;
+      return Promise.resolve();
+    },
+    "/project",
+  );
+  const written = writes["/project/.markspec.yaml"];
+  assertExists(written);
+  assertStringIncludes(written, "# some comment");
+  assertStringIncludes(written, "profiles:");
+  assertStringIncludes(written, "./my-profile");
 });

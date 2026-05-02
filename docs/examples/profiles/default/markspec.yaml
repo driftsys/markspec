@@ -1,0 +1,22 @@
+# Baseline default profile — minimal identity, no rules.
+# Used as the root of extends: chains in examples and tests.
+
+id: "@markspec/profile-default"
+version: 1.0.0
+description: Baseline MarkSpec profile
+license: MIT
+
+profile:
+  attributes: []
+  labels: []
+
+  identified:
+    attributes: []
+  referenced:
+    attributes: []
+
+  types: {}
+
+  documents:
+    types: []
+    frontMatter: []

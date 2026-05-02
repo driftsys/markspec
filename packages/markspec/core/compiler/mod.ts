@@ -18,6 +18,7 @@ import type {
 import { parseFile } from "../parser/mod.ts";
 import { classifyEntriesStage, validate } from "../validator/mod.ts";
 import { generateInverses } from "./inverses.ts";
+import { checkLinkTargets } from "./link_target.ts";
 
 /** Options for {@linkcode compile}. */
 export interface CompileOptions {
@@ -120,12 +121,17 @@ export async function compile(
   }
 
   const links = extractLinks([...entries.values()]);
+
+  // MSL-T013: check link targets for draft/retired state.
+  const linkTargetDiags = checkLinkTargets(entries, links);
+
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 
   const diagnostics = [
     ...parseDiagnostics,
     ...validationResult.diagnostics,
+    ...linkTargetDiags,
   ];
 
   return { entries, links, forward, reverse, documents, diagnostics };
