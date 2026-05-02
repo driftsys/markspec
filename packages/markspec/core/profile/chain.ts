@@ -110,16 +110,16 @@ export async function loadChain(
         { runGit: opts.runGit, appendFile: opts.appendFile },
       );
     } else if (cursorSpec.kind === "npm") {
-      // npm resolution wired in Task 4
-      diagnostics.push({
-        code: "PROFILE-LOAD-001",
-        severity: "error",
-        message: `npm specifier '${
-          stringifySpec(cursorSpec)
-        }' not yet supported in chain resolution`,
-        location: { file: "<specifier>", line: 1, column: 1 },
-      });
-      resolved = null;
+      const { resolveNpmSpecifier } = await import("./npm.ts");
+      const { cacheDir: cacheDirFn } = await import("./cache.ts");
+      resolved = await resolveNpmSpecifier(
+        cursorSpec,
+        diagnostics,
+        {
+          cacheRoot: cacheDirFn(),
+          readFile,
+        },
+      );
     } else {
       resolved = await resolveLocalSpecifier(
         cursorSpec,
