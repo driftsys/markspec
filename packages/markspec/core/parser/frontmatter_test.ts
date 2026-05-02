@@ -2,7 +2,7 @@
  * @module parser/frontmatter_test
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { extractFrontMatter } from "./frontmatter.ts";
 
 Deno.test("extractFrontMatter: no front matter returns input unchanged", () => {
@@ -18,7 +18,7 @@ Deno.test("extractFrontMatter: extracts core keys", () => {
   const md = `---
 document-id: 01HGW2D0DOCPQ4FGHIJKLMNOPQR
 document-type: requirements
-status: approved
+deprecated: "Replaced by v2"
 ---
 
 # Title
@@ -30,7 +30,7 @@ status: approved
     "01HGW2D0DOCPQ4FGHIJKLMNOPQR",
   );
   assertEquals(result.attributes["document-type"], "requirements");
-  assertEquals(result.attributes.status, "approved");
+  assertEquals(result.attributes.deprecated, "Replaced by v2");
   assertEquals(result.markdown, "# Title\n");
 });
 
@@ -161,4 +161,36 @@ Deno.test("extractFrontMatter: empty front matter is valid", () => {
   assert(result.hadFrontMatter);
   assertEquals(result.attributes, {});
   assertEquals(result.diagnostics.length, 0);
+});
+
+Deno.test("extractFrontMatter: deprecated key accepted", () => {
+  const md = `---
+document-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+deprecated: "Replaced by v2 architecture document"
+---
+
+# My Document
+`;
+  const result = extractFrontMatter(md);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(
+    result.attributes.deprecated,
+    "Replaced by v2 architecture document",
+  );
+});
+
+Deno.test("extractFrontMatter: status key emits MSL-D002 warning", () => {
+  const md = `---
+document-id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+status: draft
+---
+
+# My Document
+`;
+  const result = extractFrontMatter(md);
+  const d002 = result.diagnostics.find((d) => d.code === "MSL-D002");
+  assertExists(d002);
+  assertEquals(d002.severity, "warning");
+  assert(d002.message.includes("status"));
+  assert(d002.message.includes("Labels: DRAFT"));
 });
