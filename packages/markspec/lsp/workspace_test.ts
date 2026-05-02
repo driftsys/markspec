@@ -24,6 +24,7 @@ function entry(
     shape: "identified",
     location,
     source: "markdown",
+    typedAttributes: new Map(),
   };
 }
 

@@ -139,7 +139,7 @@ export function validateAttributesForEntry(
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const scope = effectiveScope(entry, profile);
-  const present = entry.typedAttributes ?? new Map<string, readonly string[]>();
+  const present = entry.typedAttributes;
 
   // MSL-A001: required attribute missing.
   for (const name of scope.required) {

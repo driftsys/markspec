@@ -250,7 +250,7 @@ export interface Entry {
    * (validator, compiler) consult this map for typed processing; the
    * formatter still reads `attributes` for exact round-trip.
    */
-  readonly typedAttributes?: TypedAttributes;
+  readonly typedAttributes: TypedAttributes;
   /**
    * Value of the `Id:` attribute — a ULID for identified entries, a URI for
    * referenced entries. Absent when `Id:` was missing or malformed.

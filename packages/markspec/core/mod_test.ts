@@ -60,6 +60,7 @@ Deno.test("model types are constructible", () => {
     shape: "identified",
     location: loc,
     source: "markdown",
+    typedAttributes: new Map(),
   };
   assertEquals(entry.displayId, "SRS_BRK_0001");
   assertEquals(entry.shape, "identified");

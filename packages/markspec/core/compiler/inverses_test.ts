@@ -26,6 +26,7 @@ function entry(
     shape: "identified",
     location: LOC,
     source: "markdown",
+    typedAttributes: new Map(),
     ...overrides,
   };
 }

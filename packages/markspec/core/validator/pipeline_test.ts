@@ -36,6 +36,7 @@ function buildEntry(opts: {
     source: "markdown",
     attributes,
     location: { file: "t.md", line: 1, column: 1 },
+    typedAttributes: new Map(),
   };
 }
 
@@ -101,6 +102,7 @@ Deno.test("runPipeline: Stage 1 error contributes to diagnostics + valid=false",
     source: "markdown",
     attributes: [],
     location: { file: "t.md", line: 1, column: 1 },
+    typedAttributes: new Map(),
   };
   const result = runPipeline([entry], null);
   const msl_r003 = result.diagnostics.find((d) => d.code === "MSL-R003");
@@ -123,6 +125,7 @@ Deno.test("runPipeline: both stages contribute diagnostics independently", () =>
     source: "markdown",
     attributes: [],
     location: { file: "t.md", line: 1, column: 1 },
+    typedAttributes: new Map(),
   };
   const result = runPipeline([entry], profile);
   const codes = new Set(result.diagnostics.map((d) => d.code));

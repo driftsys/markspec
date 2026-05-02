@@ -21,6 +21,7 @@ function entry(partial: Partial<Entry> & { displayId: string }): Entry {
     location: partial.location ??
       { file: "test.md", line: 1, column: 1 },
     source: partial.source ?? "markdown",
+    typedAttributes: partial.typedAttributes ?? new Map(),
   };
 }
 

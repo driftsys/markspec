@@ -98,7 +98,7 @@ export function validateTraceabilityForEntry(
   if (entry.shape !== "identified") return diagnostics;
 
   const rules = effectiveTraceRules(entry, profile);
-  const present = entry.typedAttributes ?? new Map<string, readonly string[]>();
+  const present = entry.typedAttributes;
 
   for (const [linkName, rule] of rules) {
     const values = present.get(linkName);

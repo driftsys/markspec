@@ -22,6 +22,7 @@ function testEntry(overrides: Partial<Entry> = {}): Entry {
     shape: "identified",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
+    typedAttributes: new Map(),
     ...overrides,
   };
 }

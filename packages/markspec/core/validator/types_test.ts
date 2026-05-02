@@ -33,6 +33,7 @@ function buildEntry(opts: {
     source: "markdown",
     attributes,
     location: { file: "t.md", line: 1, column: 1 },
+    typedAttributes: new Map(),
   };
 }
 

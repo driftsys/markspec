@@ -16,7 +16,7 @@ function makeEntry(
     title: displayId,
     body: "",
     attributes: opts.attributes ?? [],
-    typedAttributes: opts.typedAttributes,
+    typedAttributes: opts.typedAttributes ?? new Map(),
     shape: "identified",
     location: LOC,
     source: "markdown",
