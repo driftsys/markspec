@@ -51,6 +51,17 @@ export async function markspec(
       "--allow-write",
       ...(opts.permissions ?? []),
     ];
+    // Strip GIT_* variables so that git commands spawned by the CLI (e.g.
+    // `git clone` in the profile resolver) are not polluted by the hook
+    // environment (GIT_DIR, GIT_WORK_TREE, etc.) when tests run inside a
+    // git pre-push hook from a bare-with-worktree repository.
+    const parentEnv = Deno.env.toObject();
+    const safeEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parentEnv)) {
+      if (!k.startsWith("GIT_")) {
+        safeEnv[k] = v;
+      }
+    }
     const cmd = new Deno.Command("deno", {
       args: [
         "run",
@@ -61,6 +72,8 @@ export async function markspec(
       cwd,
       stdout: "piped",
       stderr: "piped",
+      clearEnv: true,
+      env: safeEnv,
     });
     const result = await cmd.output();
     return {
