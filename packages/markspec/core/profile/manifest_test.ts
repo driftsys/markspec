@@ -4,7 +4,7 @@
  * Unit tests for markspec.yaml manifest parsing.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import { fromFileUrl } from "@std/path";
 import { parseManifest } from "./manifest.ts";
 
@@ -371,7 +371,34 @@ Deno.test("parseManifest: extends unrecognized scheme errors", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+extends: "s3://bucket/profile"
+`);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: extends npm scoped specifier parsed", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
 extends: "npm:@acme/profile@1.0"
+`);
+  assertEquals(result.diagnostics.length, 0);
+  assertExists(result.manifest);
+  assertExists(result.manifest.extends);
+  assertEquals(result.manifest.extends.kind, "npm");
+  if (result.manifest.extends.kind === "npm") {
+    assertEquals(result.manifest.extends.scope, "@acme");
+    assertEquals(result.manifest.extends.name, "profile");
+    assertEquals(result.manifest.extends.range, "1.0");
+  }
+});
+
+Deno.test("parseManifest: extends npm malformed specifier errors", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+extends: "npm:@acme/profile"
 `);
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");

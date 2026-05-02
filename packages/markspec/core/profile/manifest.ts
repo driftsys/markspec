@@ -53,6 +53,7 @@ const ALLOWED_REFERENCED_KEYS = new Set(["required", "attributes"]);
 
 const ALLOWED_TYPE_KEYS = new Set([
   "shape",
+  "description",
   "display-id-pattern",
   "display-id-pattern-enforcement",
   "required",
@@ -168,11 +169,38 @@ function parseSpecifier(
     const subpath = rawSubpath ? rawSubpath.slice(1) : undefined;
     return { kind: "git", repo, subpath, tag };
   }
+  if (raw.startsWith("npm:")) {
+    const body = raw.slice(4);
+    const scopedMatch = /^(@[a-z0-9-]+\/[a-z0-9-]+)@(.+)$/.exec(body);
+    if (scopedMatch) {
+      const [, fullName, range] = scopedMatch;
+      const slashIdx = fullName.indexOf("/");
+      return {
+        kind: "npm",
+        scope: fullName.slice(0, slashIdx),
+        name: fullName.slice(slashIdx + 1),
+        range,
+      };
+    }
+    const unscopedMatch = /^([a-z0-9-]+)@(.+)$/.exec(body);
+    if (unscopedMatch) {
+      const [, name, range] = unscopedMatch;
+      return { kind: "npm", scope: undefined, name, range };
+    }
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message:
+        `'extends' npm specifier malformed; expected npm:[@scope/]name@<version-range>`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
   diagnostics.push({
     code: "PROFILE-LOAD-003",
     severity: "error",
     message:
-      `'extends' specifier scheme not supported in v1 (use local './path' or 'git+<https|file>://…#<tag>')`,
+      `'extends' specifier scheme not supported (use './path', 'git+<https|file>://…#<tag>', or 'npm:[@scope/]name@<range>')`,
     location: { file: sourcePath, line: 1, column: 1 },
   });
   return undefined;

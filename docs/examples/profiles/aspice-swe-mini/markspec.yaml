@@ -14,19 +14,19 @@ profile:
   # Universal — applies to every entry regardless of shape or type
   # ==========================================================================
   attributes:
-    - { name: External-id, type: string, cardinality: 0..1 }
+    - { name: External-id, type: external-id, cardinality: 0..1 }
 
   labels:
     # ASIL — mutually exclusive safety integrity level
-    - { name: QM,     group: asil }
-    - { name: ASIL-A, group: asil }
-    - { name: ASIL-B, group: asil }
-    - { name: ASIL-C, group: asil }
-    - { name: ASIL-D, group: asil }
+    - QM
+    - ASIL-A
+    - ASIL-B
+    - ASIL-C
+    - ASIL-D
     # Ungrouped
-    - { name: security }
-    - { name: automated, applies: [unit-test, integration-test] }
-    - { name: manual,    applies: [unit-test, integration-test] }
+    - security
+    - automated
+    - manual
 
   # ==========================================================================
   # Per-shape defaults (the two core shapes from ADR-009 §1)
@@ -134,4 +134,4 @@ profile:
         contains: [standard]
     frontMatter:
       - { name: asil, type: enum, values: [QM, A, B, C, D], cardinality: 0..1 }
-      - { name: safety-goal, type: string, cardinality: 0..1 }
+      - { name: safety-goal, type: text, cardinality: 0..1 }
