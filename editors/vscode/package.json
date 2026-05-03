@@ -56,8 +56,9 @@
   "scripts": {
     "compile": "tsc -p tsconfig.json",
     "watch": "tsc -watch -p tsconfig.json",
-    "package": "vsce package --no-dependencies",
-    "lint": "eslint src"
+    "package": "vsce package",
+    "lint": "eslint src",
+    "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
