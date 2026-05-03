@@ -49,6 +49,11 @@
           "enum": ["off", "messages", "verbose"],
           "default": "off",
           "description": "Trace communication between VS Code and the MarkSpec LSP server."
+        },
+        "markspec.trace.debugLog": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a writable file for LSP server lifecycle and crash logging. Empty means disabled. Equivalent to setting MARKSPEC_LSP_DEBUG_LOG when spawning the server manually."
         }
       }
     }
