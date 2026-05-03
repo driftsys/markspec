@@ -61,7 +61,8 @@
   "scripts": {
     "compile": "tsc -p tsconfig.json",
     "watch": "tsc -watch -p tsconfig.json",
-    "package": "vsce package",
+    "bundle": "deno run --config ../../deno.json --allow-read --allow-write scripts/bundleBinary.ts",
+    "package": "npm run bundle && vsce package",
     "lint": "eslint src",
     "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js"
   },
