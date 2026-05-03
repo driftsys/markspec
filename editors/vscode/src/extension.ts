@@ -1,33 +1,34 @@
 /**
  * MarkSpec VSCode Extension
  *
- * Thin LSP client that spawns `markspec lsp` and connects it to VS Code.
- * All language intelligence (diagnostics, completions) lives in the server;
- * this extension just manages the lifecycle.
+ * Thin LSP client. Spawns the markspec LSP server (bundled binary by default,
+ * or a configured deno + source path for dev mode) and connects it to VS Code.
  */
 
 import { type ExtensionContext, window, workspace } from "vscode";
-
+import process from "node:process";
 import {
   LanguageClient,
   type LanguageClientOptions,
-  type ServerOptions,
-  TransportKind,
 } from "vscode-languageclient/node";
+import { resolveServerOptions } from "./serverOptions";
 
 let client: LanguageClient | undefined;
 
 export function activate(context: ExtensionContext): void {
   const config = workspace.getConfiguration("markspec");
-  const serverPath = config.get<string>("server.path", "markspec");
-  const serverArgs = config.get<string[]>("server.args", ["lsp"]);
   const traceLevel = config.get<string>("trace.server", "off");
 
-  const serverOptions: ServerOptions = {
-    command: serverPath,
-    args: serverArgs,
-    transport: TransportKind.stdio,
-  };
+  const workspaceFolder = workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+  const serverOptions = resolveServerOptions({
+    extensionPath: context.extensionPath,
+    workspaceFolder,
+    configuredServerPath: config.get<string>("server.path") || undefined,
+    configuredServerArgs: config.get<string[]>("server.args"),
+    debugLogPath: config.get<string>("trace.debugLog") || undefined,
+    platform: process.platform,
+  });
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
