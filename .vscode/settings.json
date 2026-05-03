@@ -15,5 +15,15 @@
   "cSpell.words": [
     "markspec",
     "driftsys"
-  ]
+  ],
+  "markspec.server.path": "deno",
+  "markspec.server.args": [
+    "run",
+    "--allow-read",
+    "--allow-env",
+    "--allow-run",
+    "${workspaceFolder}/packages/markspec/main.ts",
+    "lsp"
+  ],
+  "markspec.trace.server": "verbose"
 }
