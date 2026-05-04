@@ -20,10 +20,13 @@ import {
   type InitializeResult,
   InsertTextFormat,
   ProposedFeatures,
+  StreamMessageReader,
+  StreamMessageWriter,
   TextDocuments,
   TextDocumentSyncKind,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
+import process from "node:process";
 import {
   DEFAULT_PROJECT_CONFIG,
   type Diagnostic as CoreDiagnostic,
@@ -55,7 +58,11 @@ export const VERSION = "0.0.1";
 // Connection and document manager
 // ---------------------------------------------------------------------------
 
-const connection = createConnection(ProposedFeatures.all);
+const connection = createConnection(
+  ProposedFeatures.all,
+  new StreamMessageReader(process.stdin),
+  new StreamMessageWriter(process.stdout),
+);
 const documents = new TextDocuments(TextDocument);
 
 // ---------------------------------------------------------------------------
