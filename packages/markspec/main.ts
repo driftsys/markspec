@@ -972,6 +972,14 @@ const cli = new Command()
   // Server commands
   .command("lsp")
   .description("Start LSP server (stdio JSON-RPC)")
+  // LSP clients (e.g. vscode-languageclient) append a transport flag to args.
+  // We always use stdio, so accept and ignore these.
+  .option("--stdio", "Transport flag (no-op; stdio is always used)")
+  .option("--node-ipc", "Transport flag (no-op; stdio is always used)")
+  .option(
+    "--socket=<port:number>",
+    "Transport flag (no-op; stdio is always used)",
+  )
   .action(async () => {
     await import("./lsp/server.ts");
   })
