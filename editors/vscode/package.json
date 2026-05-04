@@ -49,6 +49,11 @@
           "enum": ["off", "messages", "verbose"],
           "default": "off",
           "description": "Trace communication between VS Code and the MarkSpec LSP server."
+        },
+        "markspec.trace.debugLog": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a writable file for LSP server lifecycle and crash logging. Empty means disabled. Equivalent to setting MARKSPEC_LSP_DEBUG_LOG when spawning the server manually."
         }
       }
     }
@@ -56,13 +61,16 @@
   "scripts": {
     "compile": "tsc -p tsconfig.json",
     "watch": "tsc -watch -p tsconfig.json",
-    "package": "vsce package --no-dependencies",
-    "lint": "eslint src"
+    "bundle": "deno run --config ../../deno.json --allow-read --allow-write scripts/bundleBinary.ts",
+    "package": "npm run bundle && vsce package",
+    "lint": "eslint src",
+    "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
+    "@types/node": "^20.19.39",
     "@types/vscode": "^1.82.0",
     "@vscode/vsce": "^3.0.0",
     "typescript": "^5.5.0"

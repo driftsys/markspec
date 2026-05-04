@@ -13,6 +13,6 @@
     "declaration": true,
     "sourceMap": true
   },
-  "include": ["src"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "out"]
 }
