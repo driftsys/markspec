@@ -25,5 +25,15 @@
       "docs/examples/",
       "theme/"
     ]
+  },
+  "test": {
+    "exclude": [
+      "editors/"
+    ]
+  },
+  "lint": {
+    "exclude": [
+      "editors/"
+    ]
   }
 }
