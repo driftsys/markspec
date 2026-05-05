@@ -51,6 +51,7 @@ import {
   isSourceFile,
 } from "./context.ts";
 import { debounce, pathToUri, uriToPath } from "./util.ts";
+import { debugLog } from "./debug_log.ts";
 
 export const VERSION = "0.0.1";
 
@@ -64,6 +65,27 @@ const connection = createConnection(
   new StreamMessageWriter(process.stdout),
 );
 const documents = new TextDocuments(TextDocument);
+
+debugLog(
+  `server starting (pid=${Deno.pid}, args=${JSON.stringify(Deno.args)})`,
+);
+
+globalThis.addEventListener("unhandledrejection", (e) => {
+  e.preventDefault();
+  const reason = (e.reason as Error)?.stack ?? String(e.reason);
+  debugLog(`unhandledrejection: ${reason}`);
+  try {
+    connection.console.error(`unhandled rejection: ${reason}`);
+  } catch { /* connection may not be ready */ }
+});
+
+globalThis.addEventListener("error", (e) => {
+  const stack = e.error?.stack ?? e.message;
+  debugLog(`error: ${stack}`);
+  try {
+    connection.console.error(`uncaught error: ${stack}`);
+  } catch { /* connection may not be ready */ }
+});
 
 // ---------------------------------------------------------------------------
 // Server state
@@ -162,6 +184,7 @@ function getEntryTypes(): EntryTypeInfo[] {
 
 connection.onInitialize(
   async (params: InitializeParams): Promise<InitializeResult> => {
+    debugLog("onInitialize: start");
     const rootUri = params.rootUri ?? params.rootPath;
     if (rootUri) {
       const rootPath = rootUri.startsWith("file://")
@@ -193,6 +216,7 @@ connection.onInitialize(
       }
     }
 
+    debugLog("onInitialize: end");
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Full,
@@ -209,8 +233,10 @@ connection.onInitialize(
 // ---------------------------------------------------------------------------
 
 connection.onInitialized(async () => {
+  debugLog("onInitialized: start");
   if (!projectRoot) {
     connection.console.log("No project root found — running without index");
+    debugLog("onInitialized: end (no project root)");
     return;
   }
 
@@ -238,12 +264,20 @@ connection.onInitialized(async () => {
     connection.console.log(
       `Indexed ${files.length} files, ${index.getAllEntries().length} entries`,
     );
+    debugLog(`onInitialized: indexed ${files.length} files`);
 
     // Initial cross-file validation
     publishAllDiagnostics();
+
+    connection.sendNotification("markspec/indexed", {
+      files: files.length,
+      entries: index.getAllEntries().length,
+    });
   } catch (err) {
     connection.console.error(`Indexing failed: ${err}`);
+    debugLog(`onInitialized: indexing failed: ${err}`);
   }
+  debugLog("onInitialized: end");
 });
 
 // ---------------------------------------------------------------------------
@@ -332,7 +366,12 @@ connection.onCompletion((params): CompletionItem[] => {
 // ---------------------------------------------------------------------------
 
 connection.onShutdown(() => {
+  debugLog("onShutdown");
   debouncedValidateAll.cancel();
+});
+
+connection.onExit(() => {
+  debugLog("onExit");
 });
 
 // ---------------------------------------------------------------------------
