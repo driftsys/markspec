@@ -55,9 +55,75 @@ jobs:
             markspec-${{ matrix.target }}.tar.gz
             markspec-${{ matrix.target }}.tar.gz.sha256
 
+  package-vsix:
+    name: Package VSIX (${{ matrix.vsce-target }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            vsce-target: linux-x64
+            binary: markspec
+          - target: x86_64-apple-darwin
+            vsce-target: darwin-x64
+            binary: markspec
+          - target: aarch64-apple-darwin
+            vsce-target: darwin-arm64
+            binary: markspec
+          - target: x86_64-pc-windows-msvc
+            vsce-target: win32-x64
+            binary: markspec.exe
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: markspec-${{ matrix.target }}
+          path: artifacts
+
+      - name: Extract binary
+        run: |
+          cd artifacts
+          tar xzf markspec-${{ matrix.target }}.tar.gz
+
+      - name: Bundle binary into extension
+        run: |
+          deno run --allow-read --allow-write \
+            editors/vscode/scripts/bundleBinary.ts \
+            --source artifacts/${{ matrix.binary }} \
+            --name ${{ matrix.binary }}
+
+      - name: Install extension deps
+        run: cd editors/vscode && npm ci
+
+      - name: Compile extension
+        run: cd editors/vscode && npm run compile
+
+      - name: Package VSIX
+        run: |
+          cd editors/vscode
+          npx vsce package --target ${{ matrix.vsce-target }} \
+            --out markspec-ide-${{ matrix.vsce-target }}.vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v7
+        with:
+          name: markspec-ide-${{ matrix.vsce-target }}-vsix
+          path: editors/vscode/markspec-ide-${{ matrix.vsce-target }}.vsix
+
   release:
     name: GitHub Release
-    needs: build
+    needs: [build, package-vsix]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -75,6 +141,7 @@ jobs:
           files: |
             artifacts/*.tar.gz
             artifacts/*.sha256
+            artifacts/*.vsix
 
   publish-jsr:
     name: Publish to JSR
