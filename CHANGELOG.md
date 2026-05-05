@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.3] (2026-05-05)
+
+### Bug Fixes
+
+- **ci:** pin deno --config when bundling binary in package-vsix job ([13575d6])
+
+[1.1.3]: https://github.com/driftsys/markspec/compare/v1.1.2...v1.1.3
+[13575d6]: https://github.com/driftsys/markspec/commit/13575d6
+
 ## [1.1.2] (2026-05-05)
 
 ### Bug Fixes
