@@ -106,8 +106,12 @@ jobs:
           tar xzf markspec-${{ matrix.target }}.tar.gz
 
       - name: Bundle binary into extension
+        # editors/vscode has its own package.json (which Deno picks up as a
+        # config file by default) but is not part of the root deno.json
+        # workspace. Pin to the root config so the script's @std/* imports
+        # resolve correctly.
         run: |
-          deno run --allow-read --allow-write \
+          deno run --config deno.json --allow-read --allow-write \
             editors/vscode/scripts/bundleBinary.ts \
             --source artifacts/${{ matrix.binary }} \
             --name ${{ matrix.binary }}
