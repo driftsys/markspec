@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.2] (2026-05-05)
+
+### Bug Fixes
+
+- **ci:** use sha256sum on linux/windows, fall back to shasum on macos
+  ([c456661])
+
+[1.1.2]: https://github.com/driftsys/markspec/compare/v1.1.1...v1.1.2
+[c456661]: https://github.com/driftsys/markspec/commit/c456661
+
 ## [1.1.1] (2026-05-05)
 
 ### Bug Fixes
