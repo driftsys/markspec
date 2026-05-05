@@ -1,5 +1,76 @@
 # Changelog
 
+## [1.1.0] (2026-05-05)
+
+### Features
+
+- **lsp:** wire vscode LSP status bar item and showOutput command ([3152866])
+- **lsp:** vscode status bar item module showing LSP health ([6e152e9])
+- **lsp:** emit markspec/indexed notification after initial diagnostics pass
+  ([7a1c177])
+- **lsp:** wire debug log into server lifecycle and uncaught error handlers
+  ([f68ed59])
+- **lsp:** MARKSPEC_LSP_DEBUG_LOG env-var-gated lifecycle logging ([2bb2686])
+- **lsp:** add markspec.trace.debugLog setting to vscode extension ([e915afb])
+- **lsp:** wire markspec lsp subcommand, add VSCode extension and editor
+  integration guide ([18b7a34])
+
+### Refactoring
+
+- **lsp:** extract vscode serverOptions resolver into testable module
+  ([5a02131])
+- **core:** rename Entry.attributes to rawAttributes ([c77b741])
+- **core:** make CompileResult.documents required ([64b6748])
+- **core:** make Entry.typedAttributes required ([dd4cbb4])
+
+### Bug Fixes
+
+- **ci:** release binaries embed tree-sitter grammars and Typst plugin
+  ([d2fb33b])
+- **repo:** make just compile work with bundled WASM grammars and Typst plugin
+  ([2bb434a])
+- **lsp:** bind stdio transport explicitly and accept --stdio on lsp subcommand
+  ([855862c])
+- **ci:** use git init -b main for portability across git versions ([3a4160e])
+
+### Documentation
+
+- **docs:** document VS Code dev-mode LSP workflow ([56c8d9d])
+- **docs:** switch jsonc fence to json5 so deno fmt and dprint both accept it
+  ([f9e29e0])
+- **docs:** drop trailing commas in spec jsonc example to satisfy deno fmt
+  ([b31a185])
+- **docs:** land LSP install/spawn spec and plan ([a6048a6])
+- **docs:** add entry model type-safety cleanup design spec ([85f113b])
+- **repo:** fix stale build commands, layout gaps, and CI flags in AGENTS.md
+  ([7e2e5d1])
+- **docs:** fix stale terminology, add draft banners, and write user guide pages
+  ([2bb28c6])
+
+[1.1.0]: https://github.com/driftsys/markspec/compare/v1.0.0...v1.1.0
+[3152866]: https://github.com/driftsys/markspec/commit/3152866
+[6e152e9]: https://github.com/driftsys/markspec/commit/6e152e9
+[7a1c177]: https://github.com/driftsys/markspec/commit/7a1c177
+[f68ed59]: https://github.com/driftsys/markspec/commit/f68ed59
+[2bb2686]: https://github.com/driftsys/markspec/commit/2bb2686
+[e915afb]: https://github.com/driftsys/markspec/commit/e915afb
+[18b7a34]: https://github.com/driftsys/markspec/commit/18b7a34
+[5a02131]: https://github.com/driftsys/markspec/commit/5a02131
+[c77b741]: https://github.com/driftsys/markspec/commit/c77b741
+[64b6748]: https://github.com/driftsys/markspec/commit/64b6748
+[dd4cbb4]: https://github.com/driftsys/markspec/commit/dd4cbb4
+[d2fb33b]: https://github.com/driftsys/markspec/commit/d2fb33b
+[2bb434a]: https://github.com/driftsys/markspec/commit/2bb434a
+[855862c]: https://github.com/driftsys/markspec/commit/855862c
+[3a4160e]: https://github.com/driftsys/markspec/commit/3a4160e
+[56c8d9d]: https://github.com/driftsys/markspec/commit/56c8d9d
+[f9e29e0]: https://github.com/driftsys/markspec/commit/f9e29e0
+[b31a185]: https://github.com/driftsys/markspec/commit/b31a185
+[a6048a6]: https://github.com/driftsys/markspec/commit/a6048a6
+[85f113b]: https://github.com/driftsys/markspec/commit/85f113b
+[7e2e5d1]: https://github.com/driftsys/markspec/commit/7e2e5d1
+[2bb28c6]: https://github.com/driftsys/markspec/commit/2bb28c6
+
 ## [0.2.1] (2026-04-18)
 
 ### Bug Fixes
