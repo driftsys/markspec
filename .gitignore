@@ -9,6 +9,9 @@ _site/
 npm/
 *.pdf
 
+# Compile-time WASM mirrors (see scripts/compile_binary.ts)
+*.wasm.bin
+
 # Deno
 .deno/
 

@@ -8,6 +8,7 @@
     "jsr:@david/code-block-writer@^13.0.3": "13.0.3",
     "jsr:@deno/dnt@~0.42.3": "0.42.3",
     "jsr:@std/assert@1": "1.0.13",
+    "jsr:@std/cli@1": "1.0.28",
     "jsr:@std/fmt@1": "1.0.8",
     "jsr:@std/fmt@^1.0.9": "1.0.9",
     "jsr:@std/fs@1": "1.0.18",
@@ -75,6 +76,9 @@
       "dependencies": [
         "jsr:@std/internal"
       ]
+    },
+    "@std/cli@1.0.28": {
+      "integrity": "74ef9b976db59ca6b23a5283469c9072be6276853807a83ec6c7ce412135c70a"
     },
     "@std/fmt@1.0.8": {
       "integrity": "71e1fc498787e4434d213647a6e43e794af4fd393ef8f52062246e06f7e372b7"
@@ -823,6 +827,8 @@
     "dependencies": [
       "jsr:@deno/dnt@~0.42.3",
       "jsr:@std/assert@1",
+      "jsr:@std/cli@1",
+      "jsr:@std/fs@1",
       "jsr:@std/path@1",
       "jsr:@std/ulid@1",
       "jsr:@std/yaml@1"
