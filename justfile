@@ -62,10 +62,9 @@ publish: build
 
 # Compile the CLI binary for the current platform
 compile:
-    deno compile --allow-read --allow-write --allow-run --allow-env --allow-ffi \
-        --include packages/markspec-typst/ \
-        --output dist/markspec \
-        packages/markspec/main.ts
+    deno run --allow-read --allow-write --allow-run --allow-env \
+        scripts/compile_binary.ts \
+        --output dist/markspec
 
 # Bump, push tag, and publish (full local release flow)
 release: bump

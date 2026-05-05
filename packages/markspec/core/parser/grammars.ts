@@ -71,6 +71,14 @@ async function doLoad(grammarName: string): Promise<Parser.Language> {
     await Parser.init();
     initialized = true;
   }
-  const wasmPath = join(GRAMMARS_DIR, `${grammarName}.wasm`);
-  return Parser.Language.load(wasmPath);
+  // The compiled binary embeds grammars as .wasm.bin to bypass Deno's
+  // WASM-import resolver (see scripts/compile_binary.ts). Prefer the
+  // mirror when present; fall back to .wasm in dev mode.
+  const binPath = join(GRAMMARS_DIR, `${grammarName}.wasm.bin`);
+  try {
+    await Deno.stat(binPath);
+    return Parser.Language.load(binPath);
+  } catch {
+    return Parser.Language.load(join(GRAMMARS_DIR, `${grammarName}.wasm`));
+  }
 }
