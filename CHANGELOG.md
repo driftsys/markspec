@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1] (2026-05-05)
+
+### Bug Fixes
+
+- **ci:** use bash shell on windows runners in release build matrix ([1cc1b31])
+
+[1.1.1]: https://github.com/driftsys/markspec/compare/v1.1.0...v1.1.1
+[1cc1b31]: https://github.com/driftsys/markspec/commit/1cc1b31
+
 ## [1.1.0] (2026-05-05)
 
 ### Features
