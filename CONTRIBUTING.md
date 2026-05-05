@@ -91,6 +91,32 @@ Write documentation in Markdown following the
 - Use numbered lists for sequences, bulleted lists for everything else.
 - Put code-related text in code blocks.
 
+## VS Code extension development
+
+The repo is configured for dev-mode LSP. The committed `.vscode/settings.json`
+points the extension at `deno run packages/markspec/main.ts lsp` so changes to
+the LSP source take effect on every VS Code reload — no rebuild required.
+
+First-time setup:
+
+```bash
+cd editors/vscode
+npm install
+npm run compile
+code --install-extension <path-to-built-vsix>  # or use F5 from editors/vscode
+```
+
+To work on the _extension itself_ (not the LSP server):
+
+1. Open `editors/vscode/` in VS Code.
+2. Press F5 — opens an Extension Development Host window with the extension
+   loaded.
+3. In the host window, open the markspec repo. The dev-mode LSP runs against
+   live source.
+
+To debug LSP crashes, set `markspec.trace.debugLog` to a writable file path in
+your workspace settings. Lifecycle events and uncaught errors land there.
+
 <!-- ref links -->
 
 [cc]: https://www.conventionalcommits.org/
