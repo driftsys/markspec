@@ -268,6 +268,11 @@ connection.onInitialized(async () => {
 
     // Initial cross-file validation
     publishAllDiagnostics();
+
+    connection.sendNotification("markspec/indexed", {
+      files: files.length,
+      entries: index.getAllEntries().length,
+    });
   } catch (err) {
     connection.console.error(`Indexing failed: ${err}`);
     debugLog(`onInitialized: indexing failed: ${err}`);
