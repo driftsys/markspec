@@ -37,10 +37,10 @@ jobs:
 
       - name: Compile
         run: |
-          deno compile --allow-read --allow-write --allow-run --allow-env \
+          deno run --allow-read --allow-write --allow-run --allow-env \
+            scripts/compile_binary.ts \
             --target ${{ matrix.target }} \
-            --output ${{ matrix.binary }} \
-            packages/markspec/main.ts
+            --output ${{ matrix.binary }}
 
       - name: Package
         run: |
