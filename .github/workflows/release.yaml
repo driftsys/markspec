@@ -48,7 +48,13 @@ jobs:
       - name: Package
         run: |
           tar czf markspec-${{ matrix.target }}.tar.gz ${{ matrix.binary }}
-          shasum -a 256 markspec-${{ matrix.target }}.tar.gz > markspec-${{ matrix.target }}.tar.gz.sha256
+          # macOS ships shasum (Perl); Linux + Windows Git-Bash ship sha256sum.
+          # Both produce the same "HASH  FILE" output format.
+          if command -v sha256sum >/dev/null; then
+            sha256sum markspec-${{ matrix.target }}.tar.gz > markspec-${{ matrix.target }}.tar.gz.sha256
+          else
+            shasum -a 256 markspec-${{ matrix.target }}.tar.gz > markspec-${{ matrix.target }}.tar.gz.sha256
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
