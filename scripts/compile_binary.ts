@@ -25,7 +25,10 @@
  *
  * Usage:
  *   deno run --allow-read --allow-write --allow-run --allow-env \
- *     scripts/compile_binary.ts [--output dist/markspec]
+ *     scripts/compile_binary.ts [--output dist/markspec] [--target <triple>]
+ *
+ * --target is forwarded to `deno compile` for cross-compilation
+ * (e.g. x86_64-pc-windows-msvc). Omitting it builds for the host platform.
  */
 
 import { parseArgs } from "@std/cli/parse-args";
@@ -45,11 +48,12 @@ const CMARKER_DIR = join(
 const CMARKER_LIB = join(CMARKER_DIR, "lib.typ");
 
 const args = parseArgs(Deno.args, {
-  string: ["output"],
+  string: ["output", "target"],
   default: { output: join(REPO_ROOT, "dist", "markspec") },
 });
 
 const output = args.output as string;
+const target = args.target as string | undefined;
 
 interface Mirror {
   readonly source: string;
@@ -126,6 +130,7 @@ async function runDenoCompile(mirrors: readonly Mirror[]): Promise<number> {
       "--allow-run",
       "--allow-env",
       "--allow-ffi",
+      ...(target ? ["--target", target] : []),
       "--include",
       "grammars/",
       "--include",
