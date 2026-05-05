@@ -88,6 +88,7 @@ export class LspTestClient {
         "--allow-read",
         "--allow-write",
         "--allow-env",
+        "--allow-run",
         LSP_ENTRY,
         "--stdio",
       ],
@@ -184,10 +185,12 @@ export class LspTestClient {
   }
 
   /** Perform the initialize → initialized handshake. */
-  async initialize(): Promise<unknown> {
+  async initialize(
+    options: { processId?: number | null } = {},
+  ): Promise<unknown> {
     const rootUri = `file://${this.workDir}`;
     const result = await this.request("initialize", {
-      processId: null,
+      processId: options.processId === undefined ? Deno.pid : options.processId,
       rootUri,
       capabilities: {},
     });

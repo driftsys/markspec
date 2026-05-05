@@ -19,11 +19,15 @@
     "./packages/markspec"
   ],
   "fmt": {
-    "exclude": [
-      "docs/index.html",
-      "docs/spec/typography/diagrams/",
-      "docs/examples/",
-      "theme/"
+    "include": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mts",
+      "**/*.cts",
+      "**/*.mjs",
+      "**/*.cjs"
     ]
   },
   "test": {
