@@ -30,6 +30,13 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "markspec.showOutput",
+        "title": "MarkSpec: Show Output",
+        "category": "MarkSpec"
+      }
+    ],
     "configuration": {
       "title": "MarkSpec",
       "properties": {
