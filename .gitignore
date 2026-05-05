@@ -28,3 +28,6 @@ Thumbs.db
 
 # dprint
 .dprint/
+
+# Claude Code local state (per-developer worktrees and settings)
+.claude/
