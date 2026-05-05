@@ -98,7 +98,7 @@ not a side effect.
 Developers set `markspec.server.path` in their workspace settings to override
 the bundled binary. Conventional values:
 
-```jsonc
+```json5
 {
   // Use system deno against live source (fastest iteration)
   "markspec.server.path": "deno",
