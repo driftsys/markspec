@@ -1043,7 +1043,7 @@ export function parseManifest(
   }
 
   const types = parseTypesMap(profileSection.types, sourcePath, diagnostics);
-  if (diagnostics.length > 0) {
+  if (diagnostics.some((d) => d.severity === "error")) {
     return { manifest: null, diagnostics };
   }
 
@@ -1052,7 +1052,7 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
-  if (diagnostics.length > 0) {
+  if (diagnostics.some((d) => d.severity === "error")) {
     return { manifest: null, diagnostics };
   }
 

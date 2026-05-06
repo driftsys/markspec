@@ -591,3 +591,124 @@ extends: "git+file:///tmp/foo.git#v1.0"
     tag: "v1.0",
   });
 });
+
+Deno.test("parseManifest: profile.colors maps semantic names to palette hues", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+    accent: red
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types: {}
+  documents: { types: [], frontMatter: [] }
+`;
+  const result = parseManifest(yaml, "test.yaml");
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+  assertExists(result.manifest);
+  assertEquals(result.manifest.colors.get("primary"), "blue");
+  assertEquals(result.manifest.colors.get("accent"), "red");
+});
+
+Deno.test("parseManifest: unknown palette hue emits MSL-PROFILE-COLOR-002", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+profile:
+  colors:
+    primary: indigo
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types: {}
+  documents: { types: [], frontMatter: [] }
+`;
+  const result = parseManifest(yaml, "test.yaml");
+  const err = result.diagnostics.find((d) => d.code === "MSL-PROFILE-COLOR-002");
+  assertExists(err);
+  assertEquals(err.severity, "error");
+});
+
+Deno.test("parseManifest: invalid semantic name is rejected", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+profile:
+  colors:
+    "Primary": blue
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types: {}
+  documents: { types: [], frontMatter: [] }
+`;
+  const result = parseManifest(yaml, "test.yaml");
+  const err = result.diagnostics.find((d) =>
+    d.severity === "error" && d.message.includes("semantic name")
+  );
+  assertExists(err);
+});
+
+Deno.test("parseManifest: per-type color: is parsed", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types:
+    requirement:
+      shape: identified
+      color: primary
+  documents: { types: [], frontMatter: [] }
+`;
+  const result = parseManifest(yaml, "test.yaml");
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error").length,
+    0,
+  );
+  assertExists(result.manifest);
+  const reqType = result.manifest.types.get("requirement");
+  assertExists(reqType);
+  assertEquals(reqType.color, "primary");
+});
+
+Deno.test("parseManifest: color on referenced type emits MSL-PROFILE-COLOR-001 warning", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types:
+    standard:
+      shape: referenced
+      color: primary
+  documents: { types: [], frontMatter: [] }
+`;
+  const result = parseManifest(yaml, "test.yaml");
+  const warn = result.diagnostics.find((d) =>
+    d.code === "MSL-PROFILE-COLOR-001"
+  );
+  assertExists(warn);
+  assertEquals(warn.severity, "warning");
+  // Manifest still loads — warning, not error.
+  assertExists(result.manifest);
+});
