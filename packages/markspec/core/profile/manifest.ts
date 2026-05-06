@@ -25,6 +25,23 @@ import {
 
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
+/**
+ * The seven palette hues a profile may bind a semantic name to.
+ * Mirrors the `diagram:` group in `theme/tokens.yaml`.
+ */
+const PALETTE_HUES = [
+  "blue",
+  "cyan",
+  "teal",
+  "orange",
+  "red",
+  "purple",
+  "grey",
+] as const;
+
+/** Regex for valid semantic-name keys in `profile.colors:`. */
+const COLOR_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
 const ALLOWED_ROOT_KEYS = new Set([
   "id",
   "version",
@@ -38,6 +55,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "required",
   "attributes",
   "labels",
+  "colors",
   "identified",
   "referenced",
   "types",
@@ -59,6 +77,7 @@ const ALLOWED_TYPE_KEYS = new Set([
   "required",
   "attributes",
   "traceability",
+  "color",
 ]);
 
 const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
@@ -526,6 +545,66 @@ function parseTraceabilityMap(
   return out;
 }
 
+/**
+ * Parse the `profile.colors:` block. Each key must match COLOR_NAME_RE;
+ * each value must be one of PALETTE_HUES. Unknown hues emit
+ * MSL-PROFILE-COLOR-002 (error). Returns an empty map when the block is
+ * absent.
+ */
+function parseColorsMap(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  if (raw === undefined) return out;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "profile.colors: must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return out;
+  }
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!COLOR_NAME_RE.test(name)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `profile.colors: '${name}' is not a valid semantic name (lowercase letters, digits, hyphens; must start with a letter)`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    if (typeof value !== "string") {
+      diagnostics.push({
+        code: "MSL-PROFILE-COLOR-002",
+        severity: "error",
+        message:
+          `profile.colors.${name}: value must be a string palette hue name`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    if (!(PALETTE_HUES as readonly string[]).includes(value)) {
+      diagnostics.push({
+        code: "MSL-PROFILE-COLOR-002",
+        severity: "error",
+        message:
+          `profile.colors.${name}: '${value}' is not a palette hue (allowed: ${
+            PALETTE_HUES.join(", ")
+          })`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    out.set(name, value);
+  }
+  return out;
+}
+
 function parseTypeDef(
   name: string,
   raw: unknown,
@@ -606,6 +685,29 @@ function parseTypeDef(
     enforcement = rawEnf;
   }
 
+  let color: string | undefined;
+  if (r.color !== undefined) {
+    if (typeof r.color !== "string") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${ctx}: 'color' must be a string`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    color = r.color;
+    if (shape === "referenced") {
+      diagnostics.push({
+        code: "MSL-PROFILE-COLOR-001",
+        severity: "warning",
+        message:
+          `${ctx}: 'color' on a referenced-shape type is ignored at render time`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+  }
+
   const required = parseStringList(
     r.required,
     `${ctx}.required`,
@@ -635,6 +737,7 @@ function parseTypeDef(
     required,
     attributes,
     traceability,
+    color,
   };
 }
 
@@ -874,6 +977,11 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
+  const colors = parseColorsMap(
+    profileSection.colors,
+    sourcePath,
+    diagnostics,
+  );
 
   if (diagnostics.length > 0) {
     return { manifest: null, diagnostics };
@@ -959,6 +1067,7 @@ export function parseManifest(
     universalRequired,
     universalAttributes,
     labels,
+    colors,
     identified: {
       required: identifiedRequired,
       attributes: identifiedAttributes,
