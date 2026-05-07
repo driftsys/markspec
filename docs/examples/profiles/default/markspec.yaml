@@ -10,6 +10,15 @@ profile:
   attributes: []
   labels: []
 
+  colors:
+    primary: blue
+    secondary: teal
+    tertiary: cyan
+    accent: purple
+    muted: grey
+    warning: orange
+    danger: red
+
   identified:
     attributes: []
   referenced:
