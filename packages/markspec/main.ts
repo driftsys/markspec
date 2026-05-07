@@ -10,7 +10,7 @@
 
 import { Command } from "@cliffy/command";
 import { ConfigError, VERSION } from "./core/mod.ts";
-import type { CompileResult, ReadFile } from "./core/mod.ts";
+import type { CompileResult, ProfileChain, ReadFile } from "./core/mod.ts";
 import type { BookStructure, Chapter } from "./book/mod.ts";
 
 /** Print "not yet implemented" to stderr and exit 1. */
@@ -85,10 +85,12 @@ async function loadActiveProfile(projectRoot: string) {
 }
 
 /**
- * Compile project files and return the result.
+ * Compile project files and return the result alongside the loaded profile chain.
  * Shared helper for commands that need the compiled graph.
  */
-async function compileProject(paths: string[]): Promise<CompileResult> {
+async function compileProject(
+  paths: string[],
+): Promise<{ result: CompileResult; chain: ProfileChain | null }> {
   const configResult = await requireProjectConfig();
   const chain = await loadActiveProfile(configResult.projectRoot);
   const { compile } = await import("./core/mod.ts");
@@ -104,7 +106,7 @@ async function compileProject(paths: string[]): Promise<CompileResult> {
     console.error(`${diag.severity}[${diag.code}]: ${loc} ${diag.message}`);
   }
 
-  return result;
+  return { result, chain };
 }
 
 // ── Nested subcommands (composed as separate Command instances) ───────
@@ -116,7 +118,7 @@ const docCmd = new Command()
   .option("-o, --output <path:string>", "Output file path")
   .action(async (options: { output?: string }, file: string) => {
     const { config } = await requireProjectConfig();
-    const compiled = await compileProject([file]);
+    const { result: compiled, chain } = await compileProject([file]);
     const { renderPdf } = await import("./render/mod.ts");
 
     const markdown = await Deno.readTextFile(file);
@@ -130,6 +132,7 @@ const docCmd = new Command()
       config,
       typstPackagePath,
       sourceFilePath,
+      profile: chain?.effective,
     });
 
     for (const d of result.diagnostics) {
@@ -155,7 +158,8 @@ const bookCmd = new Command()
     default: "SUMMARY.md",
   })
   .action(async (options: { output: string; summary: string }) => {
-    const { config } = await requireProjectConfig();
+    const { config, projectRoot } = await requireProjectConfig();
+    const bookChain = await loadActiveProfile(projectRoot);
 
     // Read SUMMARY.md
     let summaryMd = "";
@@ -184,9 +188,10 @@ const bookCmd = new Command()
       }
     }
 
-    // Compile for traceability context
+    // Compile for traceability context (profile-aware for coloring)
     const compiled = await compile([...files.keys()], {
       readFile: (p) => Deno.readTextFile(p),
+      profile: bookChain?.effective ?? undefined,
     });
 
     const result = buildBook(structure, { files, compiled, config });
@@ -683,7 +688,7 @@ const cli = new Command()
     default: "text",
   })
   .action(async (_options: { format?: string }, ...paths: string[]) => {
-    const result = await compileProject(paths);
+    const { result, chain: _chain } = await compileProject(paths);
 
     if (_options.format === "json") {
       const { serializeCompileResult } = await import("./core/mod.ts");
@@ -714,7 +719,7 @@ const cli = new Command()
   })
   .action(
     async (options: { format?: string }, id: string, ...paths: string[]) => {
-      const result = await compileProject(paths);
+      const { result, chain: _chain } = await compileProject(paths);
       const entry = result.entries.get(id);
 
       if (!entry) {
@@ -771,7 +776,7 @@ const cli = new Command()
       id: string,
       ...paths: string[]
     ) => {
-      const result = await compileProject(paths);
+      const { result, chain: _profileChain } = await compileProject(paths);
       const entry = result.entries.get(id);
 
       if (!entry) {
@@ -830,7 +835,7 @@ const cli = new Command()
   })
   .action(
     async (options: { format?: string }, id: string, ...paths: string[]) => {
-      const result = await compileProject(paths);
+      const { result, chain: _chain } = await compileProject(paths);
       const entry = result.entries.get(id);
 
       if (!entry) {
@@ -896,7 +901,7 @@ const cli = new Command()
         Deno.exit(1);
       }
 
-      const compiled = await compileProject(paths);
+      const { result: compiled, chain: _chain } = await compileProject(paths);
       const { report } = await import("./core/mod.ts");
 
       const output = report(compiled, {
