@@ -70,11 +70,18 @@ export function mergeChain(chain: ProfileChain): MergeResult {
 
   // Start from root, fold each subsequent tier.
   let effective = seedFromTier(tiers[0]);
-  // Validate per-type colors on the seed (single-tier chain case + first tier).
-  validateTypeColors(effective, diagnostics, tiers[0].sourcePath);
   for (let i = 1; i < tiers.length; i++) {
     effective = foldTier(effective, tiers[i], diagnostics);
   }
+
+  // Validate per-type color references against the FINAL merged colors map.
+  // Running this only after all tiers fold avoids false positives when a parent
+  // tier references a color that a child tier supplies in its colors: block.
+  validateTypeColors(
+    effective,
+    diagnostics,
+    tiers[tiers.length - 1].sourcePath,
+  );
 
   // If any merge error was recorded, drop the effective profile.
   const hasError = diagnostics.some((d) => d.severity === "error");
@@ -206,9 +213,6 @@ function foldTier(
       frontMatter,
     },
   };
-
-  // Validate per-type color references against the merged colors map.
-  validateTypeColors(result, diagnostics, tier.sourcePath);
 
   return result;
 }

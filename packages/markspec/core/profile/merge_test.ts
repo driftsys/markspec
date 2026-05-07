@@ -947,6 +947,36 @@ profile:
   assertEquals(t.value.color.origin, "@acme/child");
 });
 
+Deno.test("mergeChain: parent type may reference a color declared by a child tier", () => {
+  // Regression test: validation must run after the full chain folds, otherwise
+  // a parent that defines a type with color: name where the child supplies
+  // name in its colors: map fails spuriously with MSL-PROFILE-COLOR-003.
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      color: primary
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  colors:
+    primary: blue
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const t = result.effective!.types.get("requirement")!;
+  assertEquals(t.value.color.value, "primary");
+  assertEquals(result.effective!.colors.get("primary")?.value, "blue");
+});
+
 Deno.test("mergeChain: child overrides parent's type color, only the latest is validated", () => {
   // Parent declares the color "old" but does not bind it; child redefines the
   // type with a valid "new" color and that's what's validated.
