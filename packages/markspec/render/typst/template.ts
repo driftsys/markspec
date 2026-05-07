@@ -41,8 +41,7 @@ export function generateTypstDocument(
 ): string {
   const metaArgs = buildMetaArgs(metadata);
   const prefix = typstPackageImportPrefix;
-  const imports =
-    `#import "${prefix}lib.typ": markspec-doc, req-block
+  const imports = `#import "${prefix}lib.typ": markspec-doc, req-block
 #import "${prefix}vendor/cmarker/lib.typ": render
 #import "${prefix}themes/light.typ" as theme`;
 

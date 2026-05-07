@@ -146,27 +146,33 @@ function makeReferencedEntry(overrides: Partial<Entry> = {}): Entry {
   };
 }
 
-Deno.test("generateTypstDocument: identified entry without profile emits color: \"blue\"", () => {
+Deno.test('generateTypstDocument: identified entry without profile emits color: "blue"', () => {
   const entry = makeIdentifiedEntry();
   // Build minimal markdown that matches the entry's line 1
-  const markdown = `- [STK_0001] Test requirement\n\n  The system shall do something.\n\n  Id: 01HGABCDEFGHJKMNPQRSTVWXYZ \\\n`;
+  const markdown =
+    `- [STK_0001] Test requirement\n\n  The system shall do something.\n\n  Id: 01HGABCDEFGHJKMNPQRSTVWXYZ \\\n`;
   const result = generateTypstDocument(markdown, {}, [entry]);
   assertStringIncludes(result, 'color: "blue"');
 });
 
 Deno.test("generateTypstDocument: referenced entry emits color: none", () => {
   const entry = makeReferencedEntry();
-  const markdown = `- [EXT_0001] External reference\n\n  Id: https://example.com/ext/0001 \\\n`;
+  const markdown =
+    `- [EXT_0001] External reference\n\n  Id: https://example.com/ext/0001 \\\n`;
   const result = generateTypstDocument(markdown, {}, [entry]);
   assertStringIncludes(result, "color: none");
 });
 
 Deno.test("generateTypstDocument: identified entry does not emit legacy type: argument", () => {
   const entry = makeIdentifiedEntry();
-  const markdown = `- [STK_0001] Test requirement\n\n  The system shall do something.\n\n  Id: 01HGABCDEFGHJKMNPQRSTVWXYZ \\\n`;
+  const markdown =
+    `- [STK_0001] Test requirement\n\n  The system shall do something.\n\n  Id: 01HGABCDEFGHJKMNPQRSTVWXYZ \\\n`;
   const result = generateTypstDocument(markdown, {}, [entry]);
   // The old "type:" argument should no longer appear in req-block calls
-  if (result.includes('type: "req"') || result.includes('type: "spec"') || result.includes('type: "test"')) {
+  if (
+    result.includes('type: "req"') || result.includes('type: "spec"') ||
+    result.includes('type: "test"')
+  ) {
     throw new Error("Legacy type: category argument found in output");
   }
 });

@@ -74,7 +74,10 @@ function makeProfile(
 Deno.test("resolveEntryColor: referenced shape returns null regardless of profile/type", () => {
   const profile = makeProfile({ primary: "blue" }, { ref: "primary" });
   assertEquals(resolveEntryColor(makeReferencedEntry("ref"), profile), null);
-  assertEquals(resolveEntryColor(makeReferencedEntry(undefined), profile), null);
+  assertEquals(
+    resolveEntryColor(makeReferencedEntry(undefined), profile),
+    null,
+  );
   assertEquals(resolveEntryColor(makeReferencedEntry("ref"), undefined), null);
 });
 
