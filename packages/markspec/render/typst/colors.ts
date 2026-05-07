@@ -51,5 +51,11 @@ export function resolveEntryColor(
   const hueEntry = profile.colors.get(colorName);
   if (!hueEntry) return DEFAULT_HUE;
 
-  return hueEntry.value as PaletteHue;
+  // Defense in depth: the manifest parser already enforces PALETTE_HUES, but
+  // EffectiveProfile can in principle be constructed programmatically (tests,
+  // future APIs) without going through parseManifest. Guard the cast so an
+  // invalid hue can never reach the Typst interpolation in template.ts.
+  const hue = hueEntry.value;
+  if (!(PALETTE_HUES as readonly string[]).includes(hue)) return DEFAULT_HUE;
+  return hue as PaletteHue;
 }
