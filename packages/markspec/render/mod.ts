@@ -10,7 +10,12 @@
  * validate, or compile commands.
  */
 
-import type { CompileResult, Diagnostic, ProjectConfig } from "../core/mod.ts";
+import type {
+  CompileResult,
+  Diagnostic,
+  EffectiveProfile,
+  ProjectConfig,
+} from "../core/mod.ts";
 import { parse } from "../core/mod.ts";
 import { generateTypstDocument } from "./typst/template.ts";
 import type { DocumentMetadata } from "./typst/template.ts";
@@ -38,6 +43,11 @@ export interface RenderOptions {
    * and image references outside the package will not load.
    */
   readonly sourceFilePath?: string;
+  /**
+   * Active effective profile, used to resolve entry colors.
+   * When omitted, identified entries fall back to "blue".
+   */
+  readonly profile?: EffectiveProfile;
 }
 
 /** Result of a render operation. */
@@ -162,6 +172,7 @@ export function renderTypst(
     entries,
     typstPackageImportPrefix,
     imageBasePrefix,
+    options.profile,
   );
 }
 
