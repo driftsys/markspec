@@ -57,11 +57,6 @@ themes:
     bg-alert: "#242424"
     border: "#404040"
 
-entries:
-  req: { print: "#4477AA", screen: "#0077BB" }
-  spec: { print: "#228833", screen: "#009988" }
-  test: { print: "#EE6677", screen: "#EE7733" }
-
 # print = Tol bright (PDF); screen = Tol vibrant (HTML)
 alerts:
   note: {

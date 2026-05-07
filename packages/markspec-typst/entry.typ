@@ -2,25 +2,22 @@
 
 #import "tokens.typ": *
 
-/// Resolve the theme color for an entry type.
+/// Resolve the theme color for an entry.
 ///
-/// - type (str): one of "req", "spec", "test"
-/// - theme (module): a theme module with entry-req, entry-spec, entry-test
-/// -> color
-#let entry-color(type, theme) = {
-  if type == "spec" { theme.entry-spec }
-  else if type == "test" { theme.entry-test }
-  else { theme.entry-req }
-}
-
-/// Map an entry type prefix to its color category.
-///
-/// - prefix (str): e.g. "STK", "SYS", "SWE", "SRS", "ARC", "ICD", "TST", etc.
-/// -> str: "req", "spec", or "test"
-#let entry-category(prefix) = {
-  if prefix in ("ARC", "SAD", "ICD") { "spec" }
-  else if prefix in ("TST", "VAL", "SIT", "SWT") { "test" }
-  else { "req" }
+/// - color (str | none): a palette hue name ("blue", "cyan", "teal",
+///   "orange", "red", "purple", "grey") or `none` for an uncolored block.
+/// - theme (module): a theme module that exports `entry-<hue>` colors.
+/// -> color | none
+#let entry-color(color, theme) = {
+  if color == none { none }
+  else if color == "blue" { theme.entry-blue }
+  else if color == "cyan" { theme.entry-cyan }
+  else if color == "teal" { theme.entry-teal }
+  else if color == "orange" { theme.entry-orange }
+  else if color == "red" { theme.entry-red }
+  else if color == "purple" { theme.entry-purple }
+  else if color == "grey" { theme.entry-grey }
+  else { theme.entry-blue }  // fallback for unexpected input
 }
 
 /// Render a label pill (rounded badge).
@@ -51,8 +48,8 @@
 
 /// Render a full entry block with admonition-style left border.
 ///
-/// - type (str): color category — "req", "spec", or "test"
-/// - display-id (str): human-readable display ID (e.g. "SWE_BRK_0107")
+/// - color (str | none): palette hue name or `none` for uncolored.
+/// - display-id (str): human-readable display ID (e.g. "SWE_BRK_0107").
 /// - title (str): entry title
 /// - body (content): body content
 /// - attrs (array): array of (key, value) pairs for the metadata line
@@ -60,7 +57,7 @@
 /// - theme (module): theme module for colors
 /// -> content
 #let req-block(
-  type: "req",
+  color: none,
   display-id: "",
   title: "",
   body: [],
@@ -68,16 +65,17 @@
   labels: (),
   theme: none,
 ) = {
-  let color = entry-color(type, theme)
+  let resolved = entry-color(color, theme)
 
   block(
-    stroke: (left: 2pt + color),
+    stroke: if resolved == none { none } else { (left: 2pt + resolved) },
     inset: (left: 12pt, top: 0pt, bottom: 4pt, right: 0pt),
     width: 100%,
     {
       // Title line
       {
-        text(size: size-body, weight: "medium", fill: color, display-id)
+        let id-fill = if resolved == none { theme.text } else { resolved }
+        text(size: size-body, weight: "medium", fill: id-fill, display-id)
         h(6pt)
         text(size: size-body, weight: "medium", title)
         if labels.len() > 0 {
@@ -91,13 +89,13 @@
         }
       }
 
-      // Body
+      // Body (unchanged)
       if body != [] and body != "" {
         v(space-1)
         text(size: size-body, body)
       }
 
-      // Metadata line
+      // Metadata line (unchanged)
       if attrs.len() > 0 {
         v(space-2)
         set text(size: size-small, style: "italic", fill: theme.secondary)
@@ -105,7 +103,6 @@
         let parts = ()
         for (key, value) in attrs {
           if key in traceability-keys {
-            // Split comma-separated references
             let refs = value.split(",").map(s => s.trim())
             let linked = refs.map(r => cross-ref(r))
             parts.push([#key: #linked.join([, ])])

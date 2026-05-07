@@ -242,6 +242,7 @@ function buildPlaceholderEffective(
     required: { value: [], origin: leafOrigin },
     attributes: new Map(),
     labels: { value: [], origin: leafOrigin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin: leafOrigin },
       attributes: new Map(),

@@ -50,6 +50,7 @@ function typeDef(opts: {
       shape: opts.shape,
       displayIdPattern: { value: undefined, origin: ORIGIN },
       displayIdPatternEnforcement: { value: "off", origin: ORIGIN },
+      color: { value: undefined, origin: ORIGIN },
       required: { value: opts.required ?? [], origin: ORIGIN },
       attributes: provAttrs(opts.attributes ?? []),
       traceability: new Map(),
@@ -70,6 +71,7 @@ function profile(opts: {
     required: { value: opts.universalRequired ?? [], origin: ORIGIN },
     attributes: provAttrs(opts.universalAttrs ?? []),
     labels: { value: [], origin: ORIGIN },
+    colors: new Map(),
     identified: opts.identified ?? shapeScope({}),
     referenced: opts.referenced ?? shapeScope({}),
     types: typesMap,
@@ -459,6 +461,7 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -504,6 +507,7 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
       ["Verifies", { value: explicitAttr, origin }],
     ]),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),

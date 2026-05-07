@@ -97,6 +97,8 @@ export interface TypeDef {
   readonly required: readonly string[];
   readonly attributes: readonly AttrDecl[];
   readonly traceability: ReadonlyMap<string, TraceRule>;
+  /** Optional semantic color-role name (key into `ProfileManifest.colors`). */
+  readonly color?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +144,14 @@ export interface ProfileManifest {
   readonly universalRequired: readonly string[];
   readonly universalAttributes: readonly AttrDecl[];
   readonly labels: readonly string[];
+
+  /**
+   * Semantic color-role bindings authored on this manifest.
+   * Maps a profile-author-chosen name (e.g. "primary") to a palette hue
+   * name (one of "blue", "cyan", "teal", "orange", "red", "purple", "grey").
+   * Empty when the manifest does not declare `profile.colors:`.
+   */
+  readonly colors: ReadonlyMap<string, string>;
 
   readonly identified: {
     readonly required: readonly string[];
@@ -235,6 +245,8 @@ export interface EffectiveTypeDef {
   readonly shape: EntryShape;
   readonly displayIdPattern: ProvenancedValue<string | undefined>;
   readonly displayIdPatternEnforcement: ProvenancedValue<EnforcementMode>;
+  /** Resolved semantic color-role name, or `undefined` when unset. */
+  readonly color: ProvenancedValue<string | undefined>;
   readonly required: ProvenancedValue<readonly string[]>;
   readonly attributes: ProvenancedMap<AttrDecl>;
   readonly traceability: ProvenancedMap<TraceRule>;
@@ -248,6 +260,8 @@ export interface EffectiveProfile {
   readonly required: ProvenancedValue<readonly string[]>;
   readonly attributes: ProvenancedMap<AttrDecl>;
   readonly labels: ProvenancedValue<readonly string[]>;
+  /** Semantic color-role bindings merged across the chain. */
+  readonly colors: ProvenancedMap<string>;
   readonly identified: EffectiveShapeScope;
   readonly referenced: EffectiveShapeScope;
   readonly types: ProvenancedMap<EffectiveTypeDef>;

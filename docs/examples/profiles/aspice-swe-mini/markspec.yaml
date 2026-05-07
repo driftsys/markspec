@@ -50,11 +50,13 @@ profile:
   types:
     stakeholder-requirement:
       shape: identified
+      color: primary
       description: Stakeholder requirement (SWE.1 input)
       display-id-pattern: "STK_{scope}_{n:04d}"
 
     software-requirement:
       shape: identified
+      color: primary
       description: Software requirement (SWE.1 output)
       display-id-pattern: "SRS_{scope}_{n:04d}"
       required: [Derived-from]
@@ -66,6 +68,7 @@ profile:
 
     software-element:
       shape: identified
+      color: secondary
       description: Software element spec (SWE.2)
       display-id-pattern: "SWE_{scope}_{n:04d}"
       required: [Derived-from, Realized-by]
@@ -81,6 +84,7 @@ profile:
 
     unit:
       shape: identified
+      color: tertiary
       description: Source-code unit (function, method, module)
       # display-id-pattern-enforcement: off  # namespace-path IDs
       attributes:
@@ -88,6 +92,7 @@ profile:
 
     unit-test:
       shape: identified
+      color: danger
       description: Software unit test (SWE.4)
       display-id-pattern: "SWT_{scope}_{n:04d}"
       required: [Verifies, Tests]
@@ -103,6 +108,7 @@ profile:
 
     integration-test:
       shape: identified
+      color: danger
       description: Software integration test (SWE.5)
       display-id-pattern: "SIT_{scope}_{n:04d}"
       required: [Verifies]

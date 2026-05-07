@@ -35,6 +35,7 @@ function singleTierChain(yaml: string): ProfileChain {
       required: { value: [], origin: tier.id },
       attributes: new Map(),
       labels: { value: [], origin: tier.id },
+      colors: new Map(),
       identified: {
         required: { value: [], origin: tier.id },
         attributes: new Map(),
@@ -150,6 +151,7 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
       required: { value: [], origin: tiers[0].id },
       attributes: new Map(),
       labels: { value: [], origin: tiers[0].id },
+      colors: new Map(),
       identified: {
         required: { value: [], origin: tiers[0].id },
         attributes: new Map(),
@@ -840,4 +842,170 @@ profile:
   const trace = result.effective!.types.get("requirement")!.value
     .traceability.get("Derived-from")!;
   assertEquals(trace.value.cardinality, { lower: 1, upper: Infinity });
+});
+
+// ---------------------------------------------------------------------------
+// Profile colors — map merge + per-type color reference validation
+// ---------------------------------------------------------------------------
+
+Deno.test("mergeChain: colors map is unioned across tiers, child overrides parent", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+    accent: red
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  colors:
+    accent: purple
+    muted: grey
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const colors = result.effective!.colors;
+  assertEquals(colors.get("primary")?.value, "blue");
+  assertEquals(colors.get("primary")?.origin, "@acme/parent");
+  assertEquals(colors.get("accent")?.value, "purple"); // child wins
+  assertEquals(colors.get("accent")?.origin, "@acme/child");
+  assertEquals(colors.get("accent")?.overrides, ["@acme/parent"]);
+  assertEquals(colors.get("muted")?.value, "grey");
+  assertEquals(colors.get("muted")?.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: single-tier — type with declared color resolves cleanly", () => {
+  const chain = singleTierChain(`
+id: "@acme/single"
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+  types:
+    requirement:
+      shape: identified
+      color: primary
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const t = result.effective!.types.get("requirement")!;
+  assertEquals(t.value.color.value, "primary");
+  assertEquals(t.value.color.origin, "@acme/single");
+});
+
+Deno.test("mergeChain: type with unknown color emits MSL-PROFILE-COLOR-003", () => {
+  const chain = singleTierChain(`
+id: "@acme/leaf"
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+  types:
+    requirement:
+      shape: identified
+      color: missing
+`);
+  const result = mergeChain(chain);
+  const err = result.diagnostics.find(
+    (d) => d.code === "MSL-PROFILE-COLOR-003",
+  );
+  assertEquals(err?.severity, "error");
+  // Effective is null because the diagnostic is an error.
+  assertEquals(result.effective, null);
+});
+
+Deno.test("mergeChain: child type may reference a color declared in parent's colors map", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      color: primary
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const t = result.effective!.types.get("requirement")!;
+  assertEquals(t.value.color.value, "primary");
+  assertEquals(t.value.color.origin, "@acme/child");
+});
+
+Deno.test("mergeChain: parent type may reference a color declared by a child tier", () => {
+  // Regression test: validation must run after the full chain folds, otherwise
+  // a parent that defines a type with color: name where the child supplies
+  // name in its colors: map fails spuriously with MSL-PROFILE-COLOR-003.
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    requirement:
+      shape: identified
+      color: primary
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  colors:
+    primary: blue
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const t = result.effective!.types.get("requirement")!;
+  assertEquals(t.value.color.value, "primary");
+  assertEquals(result.effective!.colors.get("primary")?.value, "blue");
+});
+
+Deno.test("mergeChain: child overrides parent's type color, only the latest is validated", () => {
+  // Parent declares the color "old" but does not bind it; child redefines the
+  // type with a valid "new" color and that's what's validated.
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  colors:
+    new: blue
+  types:
+    requirement:
+      shape: identified
+      color: new
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    requirement:
+      shape: identified
+      color: new
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  const t = result.effective!.types.get("requirement")!;
+  assertEquals(t.value.color.value, "new");
+  assertEquals(t.value.color.origin, "@acme/child");
 });

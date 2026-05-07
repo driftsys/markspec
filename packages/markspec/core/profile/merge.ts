@@ -74,6 +74,15 @@ export function mergeChain(chain: ProfileChain): MergeResult {
     effective = foldTier(effective, tiers[i], diagnostics);
   }
 
+  // Validate per-type color references against the FINAL merged colors map.
+  // Running this only after all tiers fold avoids false positives when a parent
+  // tier references a color that a child tier supplies in its colors: block.
+  validateTypeColors(
+    effective,
+    diagnostics,
+    tiers[tiers.length - 1].sourcePath,
+  );
+
   // If any merge error was recorded, drop the effective profile.
   const hasError = diagnostics.some((d) => d.severity === "error");
   return hasError
@@ -103,6 +112,9 @@ function foldTier(
     origin,
     diagnostics,
   );
+
+  // Colors map: last-write-wins per key, additive across tiers.
+  const colors = unionColorsMap(base.colors, m.colors, origin);
 
   // Shape scopes — same additive pattern.
   const identified: EffectiveShapeScope = {
@@ -153,6 +165,7 @@ function foldTier(
           value: td.displayIdPatternEnforcement,
           origin,
         },
+        color: { value: td.color, origin },
         required: { value: td.required, origin },
         attributes: mapFromAttrList(td.attributes, origin),
         traceability: mapFromTrace(td.traceability, origin),
@@ -187,10 +200,11 @@ function foldTier(
     diagnostics,
   );
 
-  return {
+  const result: EffectiveProfile = {
     required,
     attributes,
     labels,
+    colors,
     identified,
     referenced,
     types,
@@ -199,11 +213,64 @@ function foldTier(
       frontMatter,
     },
   };
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
 // Additive merge primitives
 // ---------------------------------------------------------------------------
+
+/**
+ * Union of color maps: last-write-wins per key, additive across tiers.
+ * Each redefinition in a child tier overrides the parent's binding for that
+ * key while preserving the override history for provenance.
+ */
+function unionColorsMap(
+  parent: ProvenancedMap<string>,
+  childColors: ReadonlyMap<string, string>,
+  childOrigin: ProfileId,
+): ProvenancedMap<string> {
+  if (childColors.size === 0) {
+    return parent;
+  }
+  const out = new Map(parent);
+  for (const [name, hue] of childColors) {
+    const prior = out.get(name);
+    out.set(name, {
+      value: hue,
+      origin: childOrigin,
+      overrides: prior ? [...(prior.overrides ?? []), prior.origin] : undefined,
+    });
+  }
+  return out;
+}
+
+/**
+ * Validate per-type `color:` references resolve to a name declared in the
+ * effective `colors:` map. Emits MSL-PROFILE-COLOR-003 for unknown names.
+ * Validation runs against the FINAL effective type entry (after all tiers
+ * have folded), so only the latest tier's color choice is checked.
+ */
+function validateTypeColors(
+  effective: EffectiveProfile,
+  diagnostics: Diagnostic[],
+  fallbackFile: string,
+): void {
+  for (const [typeName, entry] of effective.types) {
+    const colorName = entry.value.color.value;
+    if (colorName === undefined) continue;
+    if (!effective.colors.has(colorName)) {
+      diagnostics.push({
+        code: "MSL-PROFILE-COLOR-003",
+        severity: "error",
+        message:
+          `type '${typeName}' references unknown color '${colorName}' (not declared in profile.colors of this profile or any parent)`,
+        location: { file: fallbackFile, line: 1, column: 1 },
+      });
+    }
+  }
+}
 
 /**
  * Union of two string lists; parent entries first, child entries appended,
@@ -442,11 +509,17 @@ function tightenType(
     childOrigin,
   );
 
+  // Color: child overrides parent when set; otherwise parent's color stays.
+  const color = child.color !== undefined
+    ? { value: child.color, origin: childOrigin }
+    : effExisting.color;
+
   const merged: EffectiveTypeDef = {
     name,
     shape: effExisting.shape,
     displayIdPattern,
     displayIdPatternEnforcement: enforcement,
+    color,
     required,
     attributes,
     traceability,
@@ -620,6 +693,7 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
     required: { value: m.universalRequired, origin },
     attributes: mapFromAttrList(m.universalAttributes, origin),
     labels: { value: m.labels, origin },
+    colors: mapFromColors(m.colors, origin),
     identified: buildShapeScope(m.identified, origin),
     referenced: {
       required: { value: m.referenced.required, origin },
@@ -632,6 +706,17 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
       frontMatter: mapFromAttrList(m.documents.frontMatter, origin),
     },
   };
+}
+
+function mapFromColors(
+  colors: ReadonlyMap<string, string>,
+  origin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map<string, ProvenancedMapEntry<string>>();
+  for (const [name, hue] of colors) {
+    out.set(name, { value: hue, origin });
+  }
+  return out;
 }
 
 function buildShapeScope(
@@ -681,6 +766,7 @@ function mapFromTypes(
         value: td.displayIdPatternEnforcement,
         origin,
       },
+      color: { value: td.color, origin },
       required: { value: td.required, origin },
       attributes: mapFromAttrList(td.attributes, origin),
       traceability: mapFromTrace(td.traceability, origin),

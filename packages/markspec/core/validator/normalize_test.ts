@@ -31,6 +31,7 @@ function profile(opts: {
     required: { value: [], origin: ORIGIN },
     attributes: provAttrs(opts.universalAttrs ?? []),
     labels: { value: [], origin: ORIGIN },
+    colors: new Map(),
     identified: {
       required: { value: [], origin: ORIGIN },
       attributes: new Map(),
@@ -201,6 +202,7 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -218,6 +220,7 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
           shape: "identified",
           displayIdPattern: { value: undefined, origin },
           displayIdPatternEnforcement: { value: "off", origin },
+          color: { value: undefined, origin },
           required: { value: [], origin },
           attributes: provAttrs([idListAttr]),
           traceability: new Map(),

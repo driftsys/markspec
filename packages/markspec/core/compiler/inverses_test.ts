@@ -72,6 +72,7 @@ function makeProfile(
         shape: "identified",
         displayIdPattern: { value: undefined, origin: "test-profile" },
         displayIdPatternEnforcement: { value: "off", origin: "test-profile" },
+        color: { value: undefined, origin: "test-profile" },
         required: { value: [], origin: "test-profile" },
         attributes: pm(attrs),
         traceability: new Map(),
@@ -83,6 +84,7 @@ function makeProfile(
     required: { value: [], origin: "test-profile" },
     attributes: pm(universalAttrs),
     labels: { value: [], origin: "test-profile" },
+    colors: new Map(),
     identified: {
       ...emptyShapeScope,
       attributes: pm(identifiedAttrs),

@@ -8,7 +8,8 @@
  * `req-block` calls with admonition-style left borders.
  */
 
-import type { Entry } from "../../core/mod.ts";
+import type { EffectiveProfile, Entry } from "../../core/mod.ts";
+import { resolveEntryColor } from "./colors.ts";
 
 /** Metadata for the generated Typst document. */
 export interface DocumentMetadata {
@@ -36,11 +37,11 @@ export function generateTypstDocument(
   entries: readonly Entry[] = [],
   typstPackageImportPrefix: string = "",
   imageBasePrefix: string = "",
+  profile: EffectiveProfile | undefined = undefined,
 ): string {
   const metaArgs = buildMetaArgs(metadata);
   const prefix = typstPackageImportPrefix;
-  const imports =
-    `#import "${prefix}lib.typ": markspec-doc, req-block, entry-category
+  const imports = `#import "${prefix}lib.typ": markspec-doc, req-block
 #import "${prefix}vendor/cmarker/lib.typ": render
 #import "${prefix}themes/light.typ" as theme`;
 
@@ -74,7 +75,7 @@ export function generateTypstDocument(
       if (seg.content.trim() === "") return "";
       return `#${renderCall}("${escapeTypstString(seg.content)}"${scopeArg})`;
     }
-    return renderEntryTypst(seg.entry, scopeArg);
+    return renderEntryTypst(seg.entry, profile, scopeArg);
   }).filter((s) => s !== "").join("\n\n");
 
   return `${imports}\n\n${imageBinding}\n\n${showRule}\n\n${body}\n`;
@@ -180,28 +181,13 @@ function findEntryEnd(lines: readonly string[], start: number): number {
   return i;
 }
 
-/**
- * Map entry type prefix to the color category used by req-block.
- */
-/**
- * Legacy prefix → color-category heuristic used by the Typst template.
- *
- * A profile-aware pipeline maps the profile-declared `type:` to a color
- * bucket through theme tokens; until that lands, categorize from the
- * display-ID prefix. Referenced entries (`entry.shape === "referenced"`)
- * always use `"req"` as a neutral fallback.
- */
-function displayIdCategory(displayId: string, shape: string): string {
-  if (shape === "referenced") return "req";
-  const prefix = displayId.split("_")[0];
-  if (["ARC", "SAD", "ICD"].includes(prefix)) return "spec";
-  if (["TST", "VAL", "SIT", "SWT"].includes(prefix)) return "test";
-  return "req";
-}
-
 /** Render a single entry as a Typst `req-block` call. */
-function renderEntryTypst(entry: Entry, scopeArg: string = ""): string {
-  const category = displayIdCategory(entry.displayId, entry.shape);
+function renderEntryTypst(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+  scopeArg: string = "",
+): string {
+  const color = resolveEntryColor(entry, profile);
 
   // Extract labels from attributes
   const labelsAttr = entry.rawAttributes.find((a) => a.key === "Labels");
@@ -231,7 +217,7 @@ function renderEntryTypst(entry: Entry, scopeArg: string = ""): string {
     : "()";
 
   return `#req-block(
-  type: "${category}",
+  color: ${color === null ? "none" : `"${color}"`},
   display-id: "${escapeTypstString(entry.displayId)}",
   title: "${escapeTypstString(entry.title)}",
   body: render("${bodyEscaped}"${scopeArg}),

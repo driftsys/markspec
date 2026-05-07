@@ -121,3 +121,33 @@ Deno.test("strawman: standard type has referenced shape", async () => {
   assertExists(standard);
   assertEquals(standard.value.shape, "referenced");
 });
+
+Deno.test("strawman: per-type color resolves through merged colors map", async () => {
+  const result = await loadStrawmanChain();
+  assertExists(result.chain);
+  const types = result.chain.effective.types;
+  const colors = result.chain.effective.colors;
+
+  // Default profile colors are inherited.
+  assertEquals(colors.get("primary")?.value, "blue");
+  assertEquals(colors.get("secondary")?.value, "teal");
+  assertEquals(colors.get("danger")?.value, "red");
+
+  // Strawman types pick roles.
+  const stk = types.get("stakeholder-requirement");
+  assertExists(stk);
+  assertEquals(stk.value.color.value, "primary");
+
+  const swe = types.get("software-element");
+  assertExists(swe);
+  assertEquals(swe.value.color.value, "secondary");
+
+  const swt = types.get("unit-test");
+  assertExists(swt);
+  assertEquals(swt.value.color.value, "danger");
+
+  // Referenced type carries no color.
+  const standard = types.get("standard");
+  assertExists(standard);
+  assertEquals(standard.value.color.value, undefined);
+});

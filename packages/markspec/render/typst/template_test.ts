@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { generateTypstDocument } from "./template.ts";
 import type { DocumentMetadata } from "./template.ts";
+import type { Entry } from "../../core/mod.ts";
 
 Deno.test("generateTypstDocument: imports markspec-doc and cmarker", () => {
   const result = generateTypstDocument("Hello world");
@@ -106,5 +107,72 @@ Deno.test("generateTypstDocument: no ms-image binding when imageBasePrefix empty
     throw new Error(
       "render() should not carry a scope override when no imageBasePrefix",
     );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Entry rendering — color: argument
+// ---------------------------------------------------------------------------
+
+/** Minimal identified entry fixture for template tests. */
+function makeIdentifiedEntry(overrides: Partial<Entry> = {}): Entry {
+  return {
+    displayId: "STK_0001",
+    title: "Test requirement",
+    body: "The system shall do something.",
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    id: "01HGABCDEFGHJKMNPQRSTVWXYZ",
+    shape: "identified",
+    source: "markdown",
+    location: { file: "test.md", line: 1, column: 1 },
+    ...overrides,
+  };
+}
+
+/** Minimal referenced entry fixture. */
+function makeReferencedEntry(overrides: Partial<Entry> = {}): Entry {
+  return {
+    displayId: "EXT_0001",
+    title: "External reference",
+    body: "",
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    id: "https://example.com/ext/0001",
+    shape: "referenced",
+    source: "markdown",
+    location: { file: "test.md", line: 1, column: 1 },
+    ...overrides,
+  };
+}
+
+Deno.test('generateTypstDocument: identified entry without profile emits color: "blue"', () => {
+  const entry = makeIdentifiedEntry();
+  // Build minimal markdown that matches the entry's line 1
+  const markdown =
+    `- [STK_0001] Test requirement\n\n  The system shall do something.\n\n  Id: 01HGABCDEFGHJKMNPQRSTVWXYZ \\\n`;
+  const result = generateTypstDocument(markdown, {}, [entry]);
+  assertStringIncludes(result, 'color: "blue"');
+});
+
+Deno.test("generateTypstDocument: referenced entry emits color: none", () => {
+  const entry = makeReferencedEntry();
+  const markdown =
+    `- [EXT_0001] External reference\n\n  Id: https://example.com/ext/0001 \\\n`;
+  const result = generateTypstDocument(markdown, {}, [entry]);
+  assertStringIncludes(result, "color: none");
+});
+
+Deno.test("generateTypstDocument: identified entry does not emit legacy type: argument", () => {
+  const entry = makeIdentifiedEntry();
+  const markdown =
+    `- [STK_0001] Test requirement\n\n  The system shall do something.\n\n  Id: 01HGABCDEFGHJKMNPQRSTVWXYZ \\\n`;
+  const result = generateTypstDocument(markdown, {}, [entry]);
+  // The old "type:" argument should no longer appear in req-block calls
+  if (
+    result.includes('type: "req"') || result.includes('type: "spec"') ||
+    result.includes('type: "test"')
+  ) {
+    throw new Error("Legacy type: category argument found in output");
   }
 });
