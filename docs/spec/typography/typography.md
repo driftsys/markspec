@@ -312,12 +312,12 @@ The bundled default profile ships seven role bindings — one per palette hue:
 | Role        | Palette hue |
 | ----------- | ----------- |
 | `primary`   | `blue`      |
-| `secondary` | `cyan`      |
-| `tertiary`  | `teal`      |
-| `accent`    | `orange`    |
+| `secondary` | `teal`      |
+| `tertiary`  | `cyan`      |
+| `accent`    | `purple`    |
 | `muted`     | `grey`      |
-| `warning`   | `red`       |
-| `danger`    | `purple`    |
+| `warning`   | `orange`    |
+| `danger`    | `red`       |
 
 Projects with a custom profile can declare additional roles or override the
 defaults by extending the default profile and re-mapping hues.
