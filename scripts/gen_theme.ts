@@ -24,7 +24,6 @@ interface Tokens {
   page: Record<string, string>;
   slide: Record<string, string>;
   themes: Record<string, Record<string, string>>;
-  entries: Record<string, { print: string; screen: string }>;
   alerts: Record<
     string,
     {
@@ -114,8 +113,8 @@ function genTypstTheme(name: string, colors: Record<string, string>): string {
   // Entry type colors (Tol palette)
   const palette = name === "light" ? "print" : "screen";
   lines.push("\n// Entry type colors (Tol palette)");
-  for (const [type, props] of Object.entries(tokens.entries)) {
-    lines.push(`#let entry-${type} = rgb("${props[palette]}")`);
+  for (const [hue, props] of Object.entries(tokens.diagram)) {
+    lines.push(`#let entry-${hue} = rgb("${props[palette]}")`);
   }
 
   // Alert border colors — print palette for light theme, screen for dark
@@ -169,8 +168,8 @@ function genCss(): string {
 
   // Entry type colors (screen/vibrant palette for HTML)
   lines.push("\n  /* Entry type colors (Tol vibrant) */");
-  for (const [type, props] of Object.entries(tokens.entries)) {
-    lines.push(`  --ms-entry-${type}: ${props.screen};`);
+  for (const [hue, props] of Object.entries(tokens.diagram)) {
+    lines.push(`  --ms-entry-${hue}: ${props.screen};`);
   }
 
   // Alert colors (Tol vibrant — screen palette for HTML)

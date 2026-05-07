@@ -40,9 +40,13 @@
   --ms-border: #d4d4d4;
 
   /* Entry type colors (Tol vibrant) */
-  --ms-entry-req: #0077BB;
-  --ms-entry-spec: #009988;
-  --ms-entry-test: #EE7733;
+  --ms-entry-blue: #0077BB;
+  --ms-entry-cyan: #33BBEE;
+  --ms-entry-teal: #009988;
+  --ms-entry-orange: #EE7733;
+  --ms-entry-red: #CC3311;
+  --ms-entry-purple: #EE3377;
+  --ms-entry-grey: #BBBBBB;
 
   /* Alert colors (Tol vibrant) */
   --ms-alert-note-border: #0077BB;
