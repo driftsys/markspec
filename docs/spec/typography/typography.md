@@ -276,29 +276,67 @@ photocopy.
 #### Entry type colors
 
 Entry blocks are colored **by type** (the nature of the artifact), not by layer.
-The layer is already encoded in the ID prefix and does not need redundant color
-signaling.
+Color is profile-driven: profiles declare semantic color roles, types claim a
+role, and the renderer resolves that role to a palette hue from
+`theme/tokens.yaml`.
 
-Two Paul Tol sub-palettes are used, selected by output target:
+##### Color roles and palette hues
 
-| Type | Prefixes           | Print (Tol bright) | Screen (Tol vibrant) |
-| ---- | ------------------ | ------------------ | -------------------- |
-| req  | STK, SYS, SWE, SRS | Blue `#4477AA`     | Blue `#0077BB`       |
-| spec | ARC, SAD, ICD      | Green `#228833`    | Teal `#009988`       |
-| test | TST, VAL, SIT, SWT | Red `#EE6677`      | Orange `#EE7733`     |
+Profiles declare color roles in the `profile.colors:` map (semantic name →
+palette hue). Each type definition picks a role via its `color:` field. The
+renderer resolves: role → palette hue → theme entry color.
 
-- **Print theme** (Tol bright): default for PDF output. Softer tones, designed
-  by Paul Tol for documents.
-- **Screen theme** (Tol vibrant): default for HTML output. More saturated,
-  designed by Tol for data visualization / dashboards.
+The seven palette hues come from `theme/tokens.yaml` under `diagram:`:
+
+| Hue      | Print (Tol bright) | Screen (Tol vibrant) |
+| -------- | ------------------ | -------------------- |
+| `blue`   | `#4477AA`          | `#0077BB`            |
+| `cyan`   | `#66CCEE`          | `#33BBEE`            |
+| `teal`   | `#228833`          | `#009988`            |
+| `orange` | `#CCBB44`          | `#EE7733`            |
+| `red`    | `#EE6677`          | `#CC3311`            |
+| `purple` | `#AA3377`          | `#EE3377`            |
+| `grey`   | `#BBBBBB`          | `#BBBBBB`            |
 
 Both palettes are colorblind-safe by design (tested for protanopia,
 deuteranopia, tritanopia). No red-green confusion at the chosen mappings.
 
-The print palette uses three colors from the Paul Tol **bright** qualitative
-scheme (7 colors). The screen palette uses three colors from the Paul Tol
-**vibrant** qualitative scheme (7 colors). Both are single-scheme picks — no
-cross-scheme mixing.
+The print palette draws from the Paul Tol **bright** qualitative scheme (7
+colors). The screen palette draws from the Paul Tol **vibrant** qualitative
+scheme (7 colors). Both are single-scheme picks — no cross-scheme mixing.
+
+##### Default profile role bindings
+
+The bundled default profile ships seven role bindings — one per palette hue:
+
+| Role        | Palette hue |
+| ----------- | ----------- |
+| `primary`   | `blue`      |
+| `secondary` | `cyan`      |
+| `tertiary`  | `teal`      |
+| `accent`    | `orange`    |
+| `muted`     | `grey`      |
+| `warning`   | `red`       |
+| `danger`    | `purple`    |
+
+Projects with a custom profile can declare additional roles or override the
+defaults by extending the default profile and re-mapping hues.
+
+##### Color resolution
+
+The renderer applies the following resolution rules in order:
+
+| Entry shape | Profile loaded | Type known | `type.color` set | Result               |
+| ----------- | -------------- | ---------- | ---------------- | -------------------- |
+| referenced  | (any)          | (any)      | (any)            | uncolored            |
+| identified  | yes            | yes        | yes              | resolved palette hue |
+| identified  | yes            | yes        | no               | `blue` (fallback)    |
+| identified  | yes            | no         | —                | `blue` (fallback)    |
+| identified  | no             | —          | —                | `blue` (fallback)    |
+
+`referenced`-shape entries are always uncolored: no left border, default text
+color. This distinction is intentional — referenced entries are external
+artifacts cited for traceability, not first-class project artifacts.
 
 The type color is applied to:
 
@@ -310,27 +348,22 @@ document's standard text/background colors.
 
 ##### Design tokens
 
-The `entries:` section of `theme/tokens.yaml` is the canonical source:
+The `diagram:` section of `theme/tokens.yaml` is the canonical source for
+palette hues. Running `just tokens` regenerates all downstream files:
 
-```yaml
-entries:
-  req: { print: "#4477AA", screen: "#0077BB" }
-  spec: { print: "#228833", screen: "#009988" }
-  test: { print: "#EE6677", screen: "#EE7733" }
-```
-
-Running `just tokens` regenerates all downstream files from this source:
-
-| Output file                | Token names emitted                                    |
-| -------------------------- | ------------------------------------------------------ |
-| `themes/light.typ` (Typst) | `entry-req`, `entry-spec`, `entry-test`                |
-| `themes/dark.typ` (Typst)  | `entry-req`, `entry-spec`, `entry-test`                |
-| `theme/markspec.css`       | `--ms-entry-req`, `--ms-entry-spec`, `--ms-entry-test` |
+| Output file                | Token names emitted                                         |
+| -------------------------- | ----------------------------------------------------------- |
+| `themes/light.typ` (Typst) | `entry-blue`, `entry-cyan`, `entry-teal`, `entry-orange`,   |
+|                            | `entry-red`, `entry-purple`, `entry-grey`                   |
+| `themes/dark.typ` (Typst)  | same token names, `screen` palette values                   |
+| `theme/markspec.css`       | `--ms-entry-blue`, `--ms-entry-cyan`, `--ms-entry-teal`,    |
+|                            | `--ms-entry-orange`, `--ms-entry-red`, `--ms-entry-purple`, |
+|                            | `--ms-entry-grey`                                           |
 
 **Palette selection by output target:**
 
 - **PDF output** — uses the Typst **light theme** (`themes/light.typ`), which
-  takes the `print` value (Tol bright) for each type.
+  takes the `print` value (Tol bright) for each hue.
 - **HTML output** — uses the CSS `--ms-entry-*` custom properties, which always
   take the `screen` value (Tol vibrant).
 - **Dark PDF theme** (`themes/dark.typ`) takes the `screen` value (Tol vibrant).
