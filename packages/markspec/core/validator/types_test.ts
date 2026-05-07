@@ -53,6 +53,7 @@ function buildType(opts: {
         value: opts.enforcement ?? "off",
         origin,
       },
+      color: { value: undefined, origin },
       required: { value: [], origin },
       attributes: new Map(),
       traceability: new Map(),
@@ -71,6 +72,7 @@ function buildProfile(
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),

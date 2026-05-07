@@ -632,7 +632,9 @@ profile:
   documents: { types: [], frontMatter: [] }
 `;
   const result = parseManifest(yaml, "test.yaml");
-  const err = result.diagnostics.find((d) => d.code === "MSL-PROFILE-COLOR-002");
+  const err = result.diagnostics.find((d) =>
+    d.code === "MSL-PROFILE-COLOR-002"
+  );
   assertExists(err);
   assertEquals(err.severity, "error");
 });

@@ -48,6 +48,7 @@ function buildProfileWithRequirement(): EffectiveProfile {
       shape: "identified",
       displayIdPattern: { value: "REQ-{n:04d}", origin },
       displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
       required: { value: [], origin },
       attributes: new Map(),
       traceability: new Map(),
@@ -58,6 +59,7 @@ function buildProfileWithRequirement(): EffectiveProfile {
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -149,6 +151,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
       shape: "identified",
       displayIdPattern: { value: "REQ-{n:04d}", origin },
       displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
       required: { value: ["Rationale"], origin },
       attributes: new Map([
         ["Rationale", { value: rationaleAttr, origin }],
@@ -160,6 +163,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -213,6 +217,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
     required: { value: [], origin },
     attributes: new Map([["Rationale", { value: rationaleAttr, origin }]]),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -260,6 +265,7 @@ Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () =
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -296,6 +302,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
       shape: "identified",
       displayIdPattern: { value: "TEST-{n:04d}", origin },
       displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
       required: { value: [], origin },
       attributes: new Map(),
       traceability: new Map([
@@ -307,6 +314,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
     required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
@@ -361,6 +369,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
       ["Verifies", { value: verifiesAttr, origin }],
     ]),
     labels: { value: [], origin },
+    colors: new Map(),
     identified: {
       required: { value: [], origin },
       attributes: new Map(),
