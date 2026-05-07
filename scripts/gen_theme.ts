@@ -231,17 +231,33 @@ function genCss(): string {
   lines.push(
     "\n/* ── Entry blocks ──────────────────────────────────────── */\n",
   );
+  // Entry blocks render via the seven-hue palette — see
+  // docs/superpowers/specs/2026-05-06-profile-driven-entry-colors-design.md.
+  // The HTML book pipeline does not yet emit per-entry hue classes; until it
+  // does, every .req-block falls back to the palette `blue` default (matching
+  // the renderer's no-profile fallback). Per-hue classes are defined so the
+  // book module can opt in by emitting `class="req-block hue-<name>"`.
   lines.push(`.req-block {
-  border-left: 2px solid var(--ms-entry-req);
+  border-left: 2px solid var(--ms-entry-blue);
   padding: 0 0 0 14px;
   margin: 12pt 0;
 }
-.req-block[data-entry-type="spec"] { border-left-color: var(--ms-entry-spec); }
-.req-block[data-entry-type="test"] { border-left-color: var(--ms-entry-test); }
+.req-block.hue-cyan { border-left-color: var(--ms-entry-cyan); }
+.req-block.hue-teal { border-left-color: var(--ms-entry-teal); }
+.req-block.hue-orange { border-left-color: var(--ms-entry-orange); }
+.req-block.hue-red { border-left-color: var(--ms-entry-red); }
+.req-block.hue-purple { border-left-color: var(--ms-entry-purple); }
+.req-block.hue-grey { border-left-color: var(--ms-entry-grey); }
+.req-block.uncolored { border-left: none; padding-left: 0; }
 .req-block .req-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
-.req-block .req-id { font-size: var(--size-body); font-weight: 500; color: var(--ms-entry-req); }
-.req-block[data-entry-type="spec"] .req-id { color: var(--ms-entry-spec); }
-.req-block[data-entry-type="test"] .req-id { color: var(--ms-entry-test); }
+.req-block .req-id { font-size: var(--size-body); font-weight: 500; color: var(--ms-entry-blue); }
+.req-block.hue-cyan .req-id { color: var(--ms-entry-cyan); }
+.req-block.hue-teal .req-id { color: var(--ms-entry-teal); }
+.req-block.hue-orange .req-id { color: var(--ms-entry-orange); }
+.req-block.hue-red .req-id { color: var(--ms-entry-red); }
+.req-block.hue-purple .req-id { color: var(--ms-entry-purple); }
+.req-block.hue-grey .req-id { color: var(--ms-entry-grey); }
+.req-block.uncolored .req-id { color: var(--ms-text); }
 .req-block .req-name { font-size: var(--size-body); font-weight: 500; }
 .req-block .req-body { margin-top: 4px; line-height: 1.65; }
 .req-block .req-meta { font-size: var(--size-small); font-style: italic; color: var(--ms-secondary); margin-top: 8px; }
