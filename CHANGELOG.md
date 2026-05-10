@@ -54,10 +54,10 @@ Relocates resolveEntryColor from
 BuildBookOptions and RenderChapterOptions gain an optional profile
   field; the book CLI threads bookChain.effective into both compile and
   buildBook. _entryToHtml drops the V-model prefix heuristic (_entryCategory)
-  and emits class="req-block hue-<name>" for identified entries with a resolved
-  color, or class="req-block uncolored" for referenced-shape entries. The
-  matching .hue-<name> and .uncolored CSS rules were already shipped with PR
-  #257; the book pipeline now opts in.
+  and emits `class="req-block hue-<name>"` for identified entries with a
+  resolved color, or `class="req-block uncolored"` for referenced-shape
+  entries. The matching `.hue-<name>` and `.uncolored` CSS rules were already
+  shipped with PR #257; the book pipeline now opts in.
 
 Adds three integration tests (issue
   #260) covering parseManifest -> mergeChain -> resolveEntryColor end-to-end:
