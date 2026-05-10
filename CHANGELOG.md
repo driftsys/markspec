@@ -1,32 +1,67 @@
 # Changelog
 
-## [1.1.3] (2026-05-05)
+> **Note on versioning.** Tags `v1.1.0`–`v1.1.3` from May 5 2026 were
+> retracted — the project is still pre-stable and remains on the 0.x line.
+> Their content (LSP server, multiplatform VSIX, CI release fixes) is
+> incorporated into [0.3.0]. No external consumers were affected (zero
+> downloads on the v1.1.3 binaries; JSR was never updated past 0.0.1).
+
+## [0.3.0] (2026-05-07)
+
+### Features
+
+- **render:** profile-driven entry colors — `profile.colors:` semantic-name
+  → palette-hue map and per-type `color:` field replace the prefix
+  heuristic ([#257])
+- **lsp:** vscode extension with diagnostics, completions, status bar item,
+  debug logging, and per-platform VSIX builds
+- **core:** profile system completion — npm specifier resolver, `profile
+  new` / `profile add` / `profile publish` CLI commands ([#243])
+- **core:** retirement model — `Deprecated:` attribute, MSL-T013 tiered
+  link-target severity, drop `status:` front-matter key
+- **render:** atomic-by-default rendering for entry blocks, tables, and
+  code blocks; figure caption sticky-glue ([#226])
+
+### Refactoring
+
+- **core:** entry-model-v2 — two-shape model (`identified` / `referenced`)
+  with single `Id:` attribute, ULID-or-URI format discrimination ([#225])
+- **core:** rename `Entry.attributes` to `rawAttributes`; make
+  `typedAttributes` and `CompileResult.documents` required
 
 ### Bug Fixes
 
-- **ci:** pin deno --config when bundling binary in package-vsix job ([13575d6])
-
-[1.1.3]: https://github.com/driftsys/markspec/compare/v1.1.2...v1.1.3
-[13575d6]: https://github.com/driftsys/markspec/commit/13575d6
-
-## [1.1.2] (2026-05-05)
-
-### Bug Fixes
-
+- **render:** drop `entry-category` from Typst document import preamble
+- **core:** validate per-type colors only after full chain merge
+- **render:** guard `PaletteHue` cast against unvalidated input
+- **ci:** pin deno --config when bundling binary in package-vsix job
 - **ci:** use sha256sum on linux/windows, fall back to shasum on macos
-  ([c456661])
+- **ci:** use bash shell on windows runners in release build matrix
+- **ci:** release binaries embed tree-sitter grammars and Typst plugin
 
-[1.1.2]: https://github.com/driftsys/markspec/compare/v1.1.1...v1.1.2
-[c456661]: https://github.com/driftsys/markspec/commit/c456661
+### Architecture
 
-## [1.1.1] (2026-05-05)
+- **adr-009:** anchoring core/profile boundary — core ships no type
+  vocabulary; types and color roles come from profiles
+- **adr-010:** bundled `@markspec/profile-default` baseline profile
+- **adr-011:** language packs and SBOM-delegated dependency ingestion
 
-### Bug Fixes
+### Notes
 
-- **ci:** use bash shell on windows runners in release build matrix ([1cc1b31])
+- Removes the prefix-heuristic auto-coloring (STK/SAD/SRS/SWT). Identified
+  entries without a profile fall back to palette `blue`.
+- Removes the `entries.req/spec/test` token group; downstream consumers of
+  `--ms-entry-req` / `theme.entry-req` switch to `--ms-entry-blue` etc.
+- HTML book color application is not yet wired (issue [#261]); the
+  generated CSS gives every `.req-block` a blue border until book emits
+  per-hue classes.
 
-[1.1.1]: https://github.com/driftsys/markspec/compare/v1.1.0...v1.1.1
-[1cc1b31]: https://github.com/driftsys/markspec/commit/1cc1b31
+[0.3.0]: https://github.com/driftsys/markspec/compare/v0.2.1...v0.3.0
+[#225]: https://github.com/driftsys/markspec/pull/225
+[#226]: https://github.com/driftsys/markspec/pull/226
+[#243]: https://github.com/driftsys/markspec/pull/243
+[#257]: https://github.com/driftsys/markspec/pull/257
+[#261]: https://github.com/driftsys/markspec/issues/261
 
 ## [1.1.0] (2026-05-05)
 
