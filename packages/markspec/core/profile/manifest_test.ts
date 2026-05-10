@@ -654,7 +654,9 @@ profile:
   documents: { types: [], frontMatter: [] }
 `;
   const result = parseManifest(yaml, "test.yaml");
-  const err = result.diagnostics.find((d) => d.code === "MSL-PROFILE-COLOR-004");
+  const err = result.diagnostics.find((d) =>
+    d.code === "MSL-PROFILE-COLOR-004"
+  );
   assertExists(err);
   assertEquals(err.severity, "error");
 });

@@ -27,7 +27,6 @@ import {
 
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
-
 const ALLOWED_ROOT_KEYS = new Set([
   "id",
   "version",
