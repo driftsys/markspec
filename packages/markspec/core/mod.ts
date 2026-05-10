@@ -25,6 +25,7 @@ export type {
   Directive,
   DisplayId,
   EffectiveProfile,
+  EffectiveTypeDef,
   Entry,
   EntryShape,
   EntrySource,
