@@ -56,7 +56,8 @@ const _astParser = unified().use(remarkParse).use(remarkGfm);
  * Render a Markdown chapter to an HTML string.
  *
  * Intercepts MarkSpec-extended elements at their line boundaries:
- * - Entry blocks → `<div class="req-block" data-entry-type="...">` with
+ * - Entry blocks → `<div class="req-block hue-<name>">` (or
+ *   `class="req-block uncolored"` for referenced-shape entries) with
  *   ID, title, label pills, body, and attribute metadata
  * - GFM alerts (`> [!NOTE]`) → `<div class="alert note|tip|...">` with
  *   full border and tint background (Tol vibrant via `markspec.css`)
