@@ -5,26 +5,22 @@
 > superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement v1 of the MarkSpec MCP server — a stdio JSON-RPC server
-that exposes the project's traceability data to AI coding agents as MCP
-resources and tools. Covers GitHub issues #60–#62; #63 (write tool) is
-deferred.
+**Goal:** Implement v1 of the MarkSpec MCP server — a stdio JSON-RPC server that
+exposes the project's traceability data to AI coding agents as MCP resources and
+tools. Covers GitHub issues #60–#62; #63 (write tool) is deferred.
 
 **Architecture:** The `markspec mcp` subcommand lazy-loads `mcp/server.ts`,
-which constructs a single `Server` from `@modelcontextprotocol/sdk` on stdio.
-A module-level `ProjectCache` runs `compile()` once on initialize (background)
-and re-runs it on every `resources/read` or `tools/call` whose mtime check
-detects file changes. Three resource families
-(`markspec://profile`, `markspec://entries`, `markspec://entry/{displayId}`)
-and four tools (`entry_search`, `entry_context`, `validate`,
-`markspec_refresh`) all return Markdown bodies. Subscriptions emit
-`notifications/resources/updated` on invalidation for clients that honor them
-(Claude Code today; Copilot ignores).
+which constructs a single `Server` from `@modelcontextprotocol/sdk` on stdio. A
+module-level `ProjectCache` runs `compile()` once on initialize (background) and
+re-runs it on every `resources/read` or `tools/call` whose mtime check detects
+file changes. Three resource families (`markspec://profile`,
+`markspec://entries`, `markspec://entry/{displayId}`) and four tools
+(`entry_search`, `entry_context`, `validate`, `markspec_refresh`) all return
+Markdown bodies. Subscriptions emit `notifications/resources/updated` on
+invalidation for clients that honor them (Claude Code today; Copilot ignores).
 
-**Tech Stack:**
-`npm:@modelcontextprotocol/sdk`,
-`@driftsys/markspec/core` (via `core/mod.ts`),
-Deno/TypeScript.
+**Tech Stack:** `npm:@modelcontextprotocol/sdk`, `@driftsys/markspec/core` (via
+`core/mod.ts`), Deno/TypeScript.
 
 **Spec:**
 [`docs/superpowers/specs/2026-05-10-mcp-server-design.md`](../specs/2026-05-10-mcp-server-design.md)
@@ -37,34 +33,34 @@ Deno/TypeScript.
 
 ## File Map
 
-| File                                              | Responsibility                                          |
-| ------------------------------------------------- | ------------------------------------------------------- |
-| `packages/markspec/deno.json`                     | Add `@modelcontextprotocol/sdk` import                  |
-| `packages/markspec/mcp/uri.ts`                    | MCP URI scheme: parse/format `markspec://...`           |
-| `packages/markspec/mcp/uri_test.ts`               | Unit tests for URI helpers                              |
-| `packages/markspec/mcp/project.ts`                | Project root discovery, compile cache, mtime check      |
-| `packages/markspec/mcp/project_test.ts`           | Unit tests for cache invalidation                       |
-| `packages/markspec/mcp/resources/profile.ts`      | Render `markspec://profile` as Markdown                 |
-| `packages/markspec/mcp/resources/profile_test.ts` | Unit tests for profile renderer                         |
-| `packages/markspec/mcp/resources/entry.ts`        | Render `markspec://entry/{id}` as Markdown              |
-| `packages/markspec/mcp/resources/entry_test.ts`   | Unit tests for entry renderer                           |
-| `packages/markspec/mcp/resources/entries.ts`      | Render `markspec://entries` index as Markdown           |
-| `packages/markspec/mcp/resources/entries_test.ts` | Unit tests for entries-index renderer                   |
-| `packages/markspec/mcp/resources/mod.ts`          | Resource registration: list, read, route by URI         |
-| `packages/markspec/mcp/resources/mod_test.ts`     | Unit tests for resource dispatch                        |
-| `packages/markspec/mcp/tools/search.ts`           | `entry_search`: ranking + Markdown render               |
-| `packages/markspec/mcp/tools/search_test.ts`      | Unit tests for ranking and rendering                    |
-| `packages/markspec/mcp/tools/context.ts`          | `entry_context`: chain walk + Markdown tree             |
-| `packages/markspec/mcp/tools/context_test.ts`     | Unit tests for chain walk                               |
-| `packages/markspec/mcp/tools/validate.ts`         | `validate`: diagnostics → Markdown report               |
-| `packages/markspec/mcp/tools/validate_test.ts`    | Unit tests for diagnostics rendering                    |
-| `packages/markspec/mcp/tools/refresh.ts`          | `markspec_refresh`: force-recompile                     |
-| `packages/markspec/mcp/tools/refresh_test.ts`     | Unit tests for refresh tool                             |
-| `packages/markspec/mcp/tools/mod.ts`              | Tool registration: list, call dispatch                  |
-| `packages/markspec/mcp/server.ts`                 | Server bootstrap, lifecycle, subscriptions              |
-| `packages/markspec/main.ts`                       | Replace `notImplemented("mcp")` with dynamic import     |
-| `tests/e2e/mcp_test.ts`                           | E2E: spawn `markspec mcp`, drive JSON-RPC over stdio    |
-| `docs/guide/commands.md`                          | Document `markspec mcp` and connection examples         |
+| File                                              | Responsibility                                       |
+| ------------------------------------------------- | ---------------------------------------------------- |
+| `packages/markspec/deno.json`                     | Add `@modelcontextprotocol/sdk` import               |
+| `packages/markspec/mcp/uri.ts`                    | MCP URI scheme: parse/format `markspec://...`        |
+| `packages/markspec/mcp/uri_test.ts`               | Unit tests for URI helpers                           |
+| `packages/markspec/mcp/project.ts`                | Project root discovery, compile cache, mtime check   |
+| `packages/markspec/mcp/project_test.ts`           | Unit tests for cache invalidation                    |
+| `packages/markspec/mcp/resources/profile.ts`      | Render `markspec://profile` as Markdown              |
+| `packages/markspec/mcp/resources/profile_test.ts` | Unit tests for profile renderer                      |
+| `packages/markspec/mcp/resources/entry.ts`        | Render `markspec://entry/{id}` as Markdown           |
+| `packages/markspec/mcp/resources/entry_test.ts`   | Unit tests for entry renderer                        |
+| `packages/markspec/mcp/resources/entries.ts`      | Render `markspec://entries` index as Markdown        |
+| `packages/markspec/mcp/resources/entries_test.ts` | Unit tests for entries-index renderer                |
+| `packages/markspec/mcp/resources/mod.ts`          | Resource registration: list, read, route by URI      |
+| `packages/markspec/mcp/resources/mod_test.ts`     | Unit tests for resource dispatch                     |
+| `packages/markspec/mcp/tools/search.ts`           | `entry_search`: ranking + Markdown render            |
+| `packages/markspec/mcp/tools/search_test.ts`      | Unit tests for ranking and rendering                 |
+| `packages/markspec/mcp/tools/context.ts`          | `entry_context`: chain walk + Markdown tree          |
+| `packages/markspec/mcp/tools/context_test.ts`     | Unit tests for chain walk                            |
+| `packages/markspec/mcp/tools/validate.ts`         | `validate`: diagnostics → Markdown report            |
+| `packages/markspec/mcp/tools/validate_test.ts`    | Unit tests for diagnostics rendering                 |
+| `packages/markspec/mcp/tools/refresh.ts`          | `markspec_refresh`: force-recompile                  |
+| `packages/markspec/mcp/tools/refresh_test.ts`     | Unit tests for refresh tool                          |
+| `packages/markspec/mcp/tools/mod.ts`              | Tool registration: list, call dispatch               |
+| `packages/markspec/mcp/server.ts`                 | Server bootstrap, lifecycle, subscriptions           |
+| `packages/markspec/main.ts`                       | Replace `notImplemented("mcp")` with dynamic import  |
+| `tests/e2e/mcp_test.ts`                           | E2E: spawn `markspec mcp`, drive JSON-RPC over stdio |
+| `docs/guide/commands.md`                          | Document `markspec mcp` and connection examples      |
 
 ---
 
@@ -76,7 +72,8 @@ Deno/TypeScript.
 - Create: `packages/markspec/mcp/uri.ts`
 - Create: `packages/markspec/mcp/uri_test.ts`
 
-- [ ] **Step 1: Add `@modelcontextprotocol/sdk` to `packages/markspec/deno.json`**
+- [ ] **Step 1: Add `@modelcontextprotocol/sdk` to
+      `packages/markspec/deno.json`**
 
 In the `imports` map of `packages/markspec/deno.json`, add:
 
@@ -177,8 +174,8 @@ Deno.test("isEntryUri: false for other URIs", () => {
 
 - [ ] **Step 3: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/uri_test.ts`
-Expected: FAIL — module `./uri.ts` not found.
+Run: `deno test packages/markspec/mcp/uri_test.ts` Expected: FAIL — module
+`./uri.ts` not found.
 
 - [ ] **Step 4: Implement `mcp/uri.ts`**
 
@@ -235,8 +232,8 @@ export function isEntryUri(uri: string): boolean {
 
 - [ ] **Step 5: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/uri_test.ts`
-Expected: PASS (9 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/uri_test.ts` Expected: PASS (9 tests, 0
+failures).
 
 - [ ] **Step 6: Commit**
 
@@ -433,8 +430,8 @@ Deno.test("subscribeInvalidation: fires handlers after recompile", async () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/project_test.ts`
-Expected: FAIL — module `./project.ts` not found.
+Run: `deno test packages/markspec/mcp/project_test.ts` Expected: FAIL — module
+`./project.ts` not found.
 
 - [ ] **Step 3: Implement `mcp/project.ts`**
 
@@ -710,8 +707,8 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/project_test.ts`
-Expected: PASS (7 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/project_test.ts` Expected: PASS (7 tests,
+0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -809,8 +806,8 @@ Deno.test("renderProfile: omits sections that are empty", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/resources/profile_test.ts`
-Expected: FAIL — module `./profile.ts` not found.
+Run: `deno test packages/markspec/mcp/resources/profile_test.ts` Expected: FAIL
+— module `./profile.ts` not found.
 
 - [ ] **Step 3: Implement the renderer with a typed view input**
 
@@ -1045,8 +1042,8 @@ function targetIncludesType(
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/resources/profile_test.ts`
-Expected: PASS (3 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/resources/profile_test.ts` Expected: PASS
+(3 tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -1187,8 +1184,8 @@ Deno.test("renderEntry: omits Attributes section when only Id present", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/resources/entry_test.ts`
-Expected: FAIL — module `./entry.ts` not found.
+Run: `deno test packages/markspec/mcp/resources/entry_test.ts` Expected: FAIL —
+module `./entry.ts` not found.
 
 - [ ] **Step 3: Implement the renderer**
 
@@ -1273,8 +1270,8 @@ export function renderEntry(
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/resources/entry_test.ts`
-Expected: PASS (8 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/resources/entry_test.ts` Expected: PASS (8
+tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -1358,8 +1355,7 @@ Deno.test("renderEntriesIndex: empty corpus", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/resources/entries_test.ts`
-Expected: FAIL.
+Run: `deno test packages/markspec/mcp/resources/entries_test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Implement the renderer**
 
@@ -1414,8 +1410,8 @@ export function renderEntriesIndex(entries: readonly Entry[]): string {
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/resources/entries_test.ts`
-Expected: PASS (4 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/resources/entries_test.ts` Expected: PASS
+(4 tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -1433,8 +1429,8 @@ git commit -m "feat(mcp): render markspec://entries index as Markdown"
 - Create: `packages/markspec/mcp/resources/mod.ts`
 
 This module wires the SDK's `resources/list` and `resources/read` handlers to
-the three renderers. It also exposes a `listResourceDescriptors()` helper so
-the e2e test can verify advertised resources without invoking the SDK.
+the three renderers. It also exposes a `listResourceDescriptors()` helper so the
+e2e test can verify advertised resources without invoking the SDK.
 
 - [ ] **Step 1: Implement the registration module**
 
@@ -1587,7 +1583,8 @@ export function registerResources(server: Server, project: Project): void {
 }
 ```
 
-- [ ] **Step 2: Add a unit test for `listResourceDescriptors` and `readResource`**
+- [ ] **Step 2: Add a unit test for `listResourceDescriptors` and
+      `readResource`**
 
 Create `packages/markspec/mcp/resources/mod_test.ts`:
 
@@ -1691,8 +1688,8 @@ Deno.test("readResource: rejects missing entry", async () => {
 
 - [ ] **Step 3: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/resources/`
-Expected: PASS (all resource tests).
+Run: `deno test packages/markspec/mcp/resources/` Expected: PASS (all resource
+tests).
 
 - [ ] **Step 4: Commit**
 
@@ -1809,8 +1806,7 @@ Deno.test("renderSearchResults: links each hit", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/tools/search_test.ts`
-Expected: FAIL.
+Run: `deno test packages/markspec/mcp/tools/search_test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Implement the tool**
 
@@ -1920,8 +1916,8 @@ export const ENTRY_SEARCH_DESCRIPTOR = {
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/tools/search_test.ts`
-Expected: PASS (7 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/tools/search_test.ts` Expected: PASS (7
+tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -2082,8 +2078,7 @@ Deno.test("renderContext: nested list with indentation", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/tools/context_test.ts`
-Expected: FAIL.
+Run: `deno test packages/markspec/mcp/tools/context_test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Implement the tool**
 
@@ -2203,8 +2198,8 @@ export const ENTRY_CONTEXT_DESCRIPTOR = {
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/tools/context_test.ts`
-Expected: PASS (6 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/tools/context_test.ts` Expected: PASS (6
+tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -2294,8 +2289,7 @@ Deno.test("filterDiagnostics: absolute path match", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/tools/validate_test.ts`
-Expected: FAIL.
+Run: `deno test packages/markspec/mcp/tools/validate_test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Implement the tool**
 
@@ -2403,8 +2397,8 @@ export const VALIDATE_DESCRIPTOR = {
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/tools/validate_test.ts`
-Expected: PASS (6 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/tools/validate_test.ts` Expected: PASS (6
+tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -2450,8 +2444,7 @@ Deno.test("renderRefresh: zero counts", () => {
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
-Run: `deno test packages/markspec/mcp/tools/refresh_test.ts`
-Expected: FAIL.
+Run: `deno test packages/markspec/mcp/tools/refresh_test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Implement the tool**
 
@@ -2490,8 +2483,8 @@ export const REFRESH_DESCRIPTOR = {
 
 - [ ] **Step 4: Run tests to confirm they pass**
 
-Run: `deno test packages/markspec/mcp/tools/refresh_test.ts`
-Expected: PASS (2 tests, 0 failures).
+Run: `deno test packages/markspec/mcp/tools/refresh_test.ts` Expected: PASS (2
+tests, 0 failures).
 
 - [ ] **Step 5: Commit**
 
@@ -2634,8 +2627,8 @@ export function registerTools(server: Server, project: Project): void {
 
 - [ ] **Step 2: Type-check the package**
 
-Run: `deno check packages/markspec/mcp/tools/mod.ts`
-Expected: PASS with no errors.
+Run: `deno check packages/markspec/mcp/tools/mod.ts` Expected: PASS with no
+errors.
 
 - [ ] **Step 3: Commit**
 
@@ -2734,8 +2727,7 @@ if (import.meta.main) {
 
 - [ ] **Step 2: Type-check the package**
 
-Run: `deno check packages/markspec/mcp/server.ts`
-Expected: PASS with no errors.
+Run: `deno check packages/markspec/mcp/server.ts` Expected: PASS with no errors.
 
 - [ ] **Step 3: Commit**
 
@@ -2757,9 +2749,9 @@ git commit -m "feat(mcp): bootstrap MCP server over stdio with resource notifica
 Find in `packages/markspec/main.ts` the block:
 
 ```typescript
-  .command("mcp")
-  .description("Start MCP server")
-  .action(notImplemented("mcp"))
+.command("mcp")
+.description("Start MCP server")
+.action(notImplemented("mcp"))
 ```
 
 - [ ] **Step 2: Replace with a dynamic-import action**
@@ -2767,26 +2759,26 @@ Find in `packages/markspec/main.ts` the block:
 Replace the action with:
 
 ```typescript
-  .command("mcp")
-  .description("Start MCP server (stdio JSON-RPC)")
-  .action(async () => {
-    const { startServer } = await import("./mcp/server.ts");
-    await startServer();
-  })
+.command("mcp")
+.description("Start MCP server (stdio JSON-RPC)")
+.action(async () => {
+  const { startServer } = await import("./mcp/server.ts");
+  await startServer();
+})
 ```
 
 - [ ] **Step 3: Type-check**
 
-Run: `deno check packages/markspec/main.ts`
-Expected: PASS.
+Run: `deno check packages/markspec/main.ts` Expected: PASS.
 
 - [ ] **Step 4: Smoke-test the binary**
 
-Run: `deno run --allow-read --allow-write --allow-env --allow-net=0 packages/markspec/main.ts mcp < /dev/null`
+Run:
+`deno run --allow-read --allow-write --allow-env --allow-net=0 packages/markspec/main.ts mcp < /dev/null`
 Expected: process starts, exits cleanly when stdin closes.
 
-If the smoke test fails due to a missing permission (e.g. `--allow-ffi`), add
-it and re-run. The full permission set this command needs is:
+If the smoke test fails due to a missing permission (e.g. `--allow-ffi`), add it
+and re-run. The full permission set this command needs is:
 `--allow-read --allow-write --allow-env --allow-net --allow-ffi`.
 
 - [ ] **Step 5: Commit**
@@ -3132,9 +3124,9 @@ Then append a new `## mcp` section near the end of `docs/guide/commands.md`:
 ````markdown
 ## mcp
 
-Starts the MarkSpec MCP server. Communicates over stdio JSON-RPC. Exposes
-the active project as MCP resources and tools to any MCP-capable AI client
-(Claude Code, Claude Desktop, GitHub Copilot in VS Code, OpenCode).
+Starts the MarkSpec MCP server. Communicates over stdio JSON-RPC. Exposes the
+active project as MCP resources and tools to any MCP-capable AI client (Claude
+Code, Claude Desktop, GitHub Copilot in VS Code, OpenCode).
 
 ```bash
 markspec mcp
@@ -3142,8 +3134,8 @@ markspec mcp
 
 ### Resources
 
-- `markspec://profile` — distilled profile manifest (types, attributes,
-  link kinds, labels).
+- `markspec://profile` — distilled profile manifest (types, attributes, link
+  kinds, labels).
 - `markspec://entries` — index of all project entries, grouped by type.
 - `markspec://entry/{displayId}` — one entry per resource, with attributes,
   body, outgoing/incoming links.
@@ -3155,8 +3147,8 @@ markspec mcp
 - `entry_context { id, depth? }` — walk the `satisfies` chain upward.
 - `validate { files? }` — run the validator, return a Markdown diagnostics
   report.
-- `markspec_refresh` — force-invalidate the compile cache (call after
-  agent edits to guarantee freshness).
+- `markspec_refresh` — force-invalidate the compile cache (call after agent
+  edits to guarantee freshness).
 
 ### Claude Desktop config
 
@@ -3174,8 +3166,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. The MarkSpec resources and tools appear in the
-attach menu.
+Restart Claude Desktop. The MarkSpec resources and tools appear in the attach
+menu.
 
 ### Claude Code
 
@@ -3198,17 +3190,15 @@ In your project's `.vscode/mcp.json`:
 }
 ```
 
-Copilot does not support MCP resource subscriptions today, but the
-`markspec://` resources still work — the server runs a fresh validity
-check on every read, so a re-read after an edit returns up-to-date
-content.
+Copilot does not support MCP resource subscriptions today, but the `markspec://`
+resources still work — the server runs a fresh validity check on every read, so
+a re-read after an edit returns up-to-date content.
 ````
 
 - [ ] **Step 3: Format and verify**
 
-Run: `dprint fmt docs/guide/commands.md`
-Run: `dprint check docs/guide/commands.md`
-Expected: clean format check.
+Run: `dprint fmt docs/guide/commands.md` Run:
+`dprint check docs/guide/commands.md` Expected: clean format check.
 
 - [ ] **Step 4: Commit**
 
@@ -3272,15 +3262,13 @@ deferral comment.
 
 - [ ] **Run full test suite**
 
-Run: `just check`
-Expected: lint passes, type-check passes, all tests pass (including new MCP
-unit tests + the e2e test).
+Run: `just check` Expected: lint passes, type-check passes, all tests pass
+(including new MCP unit tests + the e2e test).
 
 - [ ] **Run a build**
 
-Run: `just build`
-Expected: lint + tests + type-check + binary compile all succeed; `dist/markspec`
-exists and runs.
+Run: `just build` Expected: lint + tests + type-check + binary compile all
+succeed; `dist/markspec` exists and runs.
 
 - [ ] **Manual smoke from binary**
 
