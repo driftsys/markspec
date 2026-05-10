@@ -83,7 +83,12 @@ const HANDLERS: Record<string, ToolHandler> = {
         project.profileChain.tiers[0].version
       }`
       : null;
-    return renderDiagnosticsReport(filtered, profileLabel, result.entries.size);
+    return renderDiagnosticsReport(
+      filtered,
+      profileLabel,
+      result.entries.size,
+      project.projectRoot,
+    );
   },
 
   markspec_refresh: async (_args, project) => {

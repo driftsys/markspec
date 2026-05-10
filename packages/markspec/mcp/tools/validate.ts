@@ -8,6 +8,7 @@
  */
 
 import type { Diagnostic } from "../../core/mod.ts";
+import { relativeToRoot } from "../path.ts";
 
 /** Filter diagnostics by a list of file paths. */
 export function filterDiagnostics(
@@ -31,6 +32,7 @@ export function renderDiagnosticsReport(
   diagnostics: readonly Diagnostic[],
   profileLabel: string | null,
   entryCount: number,
+  projectRoot?: string,
 ): string {
   if (diagnostics.length === 0) {
     const profilePart = profileLabel ? ` under ${profileLabel}` : "";
@@ -70,10 +72,17 @@ export function renderDiagnosticsReport(
     for (const d of list) {
       lines.push(`### ${d.code}`, "");
       const loc = d.location
-        ? `${d.location.file}:${d.location.line}:${d.location.column}`
+        ? `${
+          relativeToRoot(d.location.file, projectRoot)
+        }:${d.location.line}:${d.location.column}`
         : "(no location)";
       lines.push(loc, "");
-      lines.push(d.message, "");
+      // Strip any absolute projectRoot prefix that the core validator may
+      // have embedded inside the message (e.g. "also at /abs/path/...").
+      const message = projectRoot
+        ? d.message.split(projectRoot + "/").join("")
+        : d.message;
+      lines.push(message, "");
     }
   }
 

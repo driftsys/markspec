@@ -10,6 +10,7 @@
  */
 
 import type { Entry, Link } from "../../core/mod.ts";
+import { relativeToRoot } from "../path.ts";
 import { entryUri } from "../uri.ts";
 
 /** Render one entry to Markdown. */
@@ -18,6 +19,7 @@ export function renderEntry(
   forwardLinks: readonly Link[],
   reverseLinks: readonly Link[],
   titles: ReadonlyMap<string, string>,
+  projectRoot?: string,
 ): string {
   const lines: string[] = [];
 
@@ -27,7 +29,9 @@ export function renderEntry(
   lines.push(`**Shape**: ${entry.shape}`);
   if (entry.id) lines.push(`**Id**: \`${entry.id}\``);
   lines.push(
-    `**Location**: ${entry.location.file}:${entry.location.line}`,
+    `**Location**: ${
+      relativeToRoot(entry.location.file, projectRoot)
+    }:${entry.location.line}`,
   );
   lines.push("");
 

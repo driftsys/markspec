@@ -69,6 +69,18 @@ Deno.test("renderEntry: includes ULID and location", () => {
   assertStringIncludes(md, "stakeholder-requirements.md:42");
 });
 
+Deno.test("renderEntry: renders location relative to projectRoot", () => {
+  const md = renderEntry(ENTRY, [], [], TITLES, "/proj");
+  assertStringIncludes(
+    md,
+    "**Location**: docs/product/stakeholder-requirements.md:42",
+  );
+  assertEquals(
+    md.includes("/proj/docs/product/stakeholder-requirements.md"),
+    false,
+  );
+});
+
 Deno.test("renderEntry: includes body paragraph", () => {
   const md = renderEntry(ENTRY, [], [], TITLES);
   assertStringIncludes(md, "When the system detects an imminent collision");

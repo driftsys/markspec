@@ -4,7 +4,7 @@
  * Unit tests for the validate tool's Markdown report.
  */
 
-import { assertStringIncludes } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Diagnostic } from "../../core/mod.ts";
 import { filterDiagnostics, renderDiagnosticsReport } from "./validate.ts";
 
@@ -40,6 +40,28 @@ Deno.test("renderDiagnosticsReport: errors and warnings sections", () => {
   assertStringIncludes(md, "/proj/docs/req.md:128:3");
   assertStringIncludes(md, "## Warnings");
   assertStringIncludes(md, "### MSL-R010");
+});
+
+Deno.test("renderDiagnosticsReport: renders locations relative to projectRoot", () => {
+  const md = renderDiagnosticsReport([ERR, WARN], null, 1, "/proj");
+  assertStringIncludes(md, "docs/req.md:128:3");
+  assertStringIncludes(md.split("\n").join(" "), " docs/req.md:128:3");
+});
+
+Deno.test("renderDiagnosticsReport: scrubs projectRoot from embedded message paths", () => {
+  const dup: Diagnostic = {
+    code: "MSL-R006",
+    severity: "error",
+    message:
+      "duplicate display ID 'STK_AEB_0001' (also at /proj/docs/other.md:12)",
+    location: { file: "/proj/docs/req.md", line: 5, column: 1 },
+  };
+  const md = renderDiagnosticsReport([dup], null, 1, "/proj");
+  assertStringIncludes(
+    md,
+    "duplicate display ID 'STK_AEB_0001' (also at docs/other.md:12)",
+  );
+  assertEquals(md.includes("/proj/docs/other.md"), false);
 });
 
 Deno.test("filterDiagnostics: passes all when files undefined", () => {

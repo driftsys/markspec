@@ -116,6 +116,7 @@ export async function readResource(
         result.forward.get(displayId) ?? [],
         result.reverse.get(displayId) ?? [],
         titles,
+        project.projectRoot,
       ),
     };
   }
