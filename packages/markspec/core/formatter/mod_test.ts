@@ -76,9 +76,9 @@ Deno.test("format: canonical order places Id first, universal attrs last", () =>
 
   Body.
 
-  Labels: important\\
-  Id: ${MOCK_ULID}\\
-  Supersedes: OLD-001
+      Labels: important
+      Id: ${MOCK_ULID}
+      Supersedes: OLD-001
 `;
   const result = format(md);
   const output = result.output;
@@ -96,9 +96,9 @@ Deno.test("format: unknown (profile-declared) attributes preserved", () => {
 
   Body.
 
-  Id: ${MOCK_ULID}\\
-  Derived-from: PARENT-001\\
-  Labels: one
+      Id: ${MOCK_ULID}
+      Derived-from: PARENT-001
+      Labels: one
 `;
   const result = format(md);
   // Unknown keys survive the formatter — profile-aware validation handles
@@ -116,8 +116,8 @@ Deno.test("format: Labels CSV expands to multi-line", () => {
 
   Body.
 
-  Id: ${MOCK_ULID}\\
-  Labels: one, two, three
+      Id: ${MOCK_ULID}
+      Labels: one, two, three
 `;
   const result = format(md);
   assertStringIncludes(result.output, "Labels: one");
@@ -132,9 +132,9 @@ Deno.test("format: multi-line Labels preserved", () => {
 
   Body.
 
-  Id: ${MOCK_ULID}\\
-  Labels: one\\
-  Labels: two
+      Id: ${MOCK_ULID}
+      Labels: one
+      Labels: two
 `;
   const result = format(md);
   assertStringIncludes(result.output, "Labels: one");
@@ -150,8 +150,8 @@ Deno.test("format: output is idempotent (format twice = format once)", () => {
 
   Body.
 
-  Id: ${MOCK_ULID}\\
-  Labels: important
+      Id: ${MOCK_ULID}
+      Labels: important
 `;
   const once = format(md);
   const twice = format(once.output);

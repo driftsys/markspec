@@ -83,9 +83,9 @@ Deno.test("styleRequirementBlocks: attributes rendered as compact table", () => 
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3 \\
-  Satisfies: SYS_BRK_0042 \\
-  Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 `;
   const compiled = buildCompiled([{
     displayId: "SRS_BRK_0001",

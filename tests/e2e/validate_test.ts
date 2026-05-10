@@ -20,8 +20,8 @@ Deno.test("validate: valid file exits 0", async () => {
 
   Body text.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: ASIL-B
 `,
     },
   });
@@ -59,9 +59,9 @@ Deno.test("validate: unresolved References citation exits 1 (MSL-T005)", async (
 
   Body text.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  References: UNKNOWN-STANDARD\\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: UNKNOWN-STANDARD
+      Labels: ASIL-B
 `,
     },
   });
@@ -83,9 +83,9 @@ Deno.test("validate: warning only exits 2", async () => {
 
   Body text.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  CustomKey: some value\\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      CustomKey: some value
+      Labels: ASIL-B
 `,
     },
   });
@@ -107,9 +107,9 @@ Deno.test("validate: --strict promotes warning to error → exit 1", async () =>
 
   Body text.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  CustomKey: some value\\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      CustomKey: some value
+      Labels: ASIL-B
 `,
     },
   });

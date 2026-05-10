@@ -41,12 +41,12 @@ Deno.test("traceability e2e: test entry Verifies a requirement → clean", async
 
 - [REQ-0001] A requirement
 
-  Id: 01REQ000000000000000000001\\
+      Id: 01REQ000000000000000000001
 
 - [TEST-0001] A test
 
-  Id: 01TEST00000000000000000001\\
-  Verifies: 01REQ000000000000000000001\\
+      Id: 01TEST00000000000000000001
+      Verifies: 01REQ000000000000000000001
 `,
     },
   });
@@ -63,7 +63,7 @@ Deno.test("traceability e2e: test entry missing Verifies → MSL-L001", async ()
 
 - [TEST-0001] A test with no Verifies
 
-  Id: 01TEST00000000000000000001\\
+      Id: 01TEST00000000000000000001
 `,
     },
   });
@@ -80,22 +80,22 @@ Deno.test("traceability e2e: Verifies too many targets → MSL-L002", async () =
 
 - [REQ-0001] First
 
-  Id: 01REQ000000000000000000001\\
+      Id: 01REQ000000000000000000001
 
 - [REQ-0002] Second
 
-  Id: 01REQ000000000000000000002\\
+      Id: 01REQ000000000000000000002
 
 - [REQ-0003] Third
 
-  Id: 01REQ000000000000000000003\\
+      Id: 01REQ000000000000000000003
 
 - [TEST-0001] A test
 
-  Id: 01TEST00000000000000000001\\
-  Verifies: 01REQ000000000000000000001\\
-  Verifies: 01REQ000000000000000000002\\
-  Verifies: 01REQ000000000000000000003\\
+      Id: 01TEST00000000000000000001
+      Verifies: 01REQ000000000000000000001
+      Verifies: 01REQ000000000000000000002
+      Verifies: 01REQ000000000000000000003
 `,
     },
   });
@@ -111,12 +111,12 @@ Deno.test("traceability e2e: Verifies points at a non-requirement → MSL-L004",
 
 - [TEST-0002] Another test
 
-  Id: 01TEST00000000000000000002\\
+      Id: 01TEST00000000000000000002
 
 - [TEST-0001] A test verifying the wrong type
 
-  Id: 01TEST00000000000000000001\\
-  Verifies: 01TEST00000000000000000002\\
+      Id: 01TEST00000000000000000001
+      Verifies: 01TEST00000000000000000002
 `,
     },
   });
@@ -133,16 +133,16 @@ Deno.test("traceability e2e: comma-separated Verifies is split by Stage 2.5", as
 
 - [REQ-0001] First
 
-  Id: 01REQ000000000000000000001\\
+      Id: 01REQ000000000000000000001
 
 - [REQ-0002] Second
 
-  Id: 01REQ000000000000000000002\\
+      Id: 01REQ000000000000000000002
 
 - [TEST-0001] A test verifying two reqs via CSV syntax
 
-  Id: 01TEST00000000000000000001\\
-  Verifies: 01REQ000000000000000000001, 01REQ000000000000000000002\\
+      Id: 01TEST00000000000000000001
+      Verifies: 01REQ000000000000000000001, 01REQ000000000000000000002
 `,
     },
   });
@@ -161,7 +161,7 @@ Deno.test("traceability e2e: no profile → Stage 4 silent", async () => {
 
 - [TEST-0001] A test
 
-  Id: 01TEST00000000000000000001\\
+      Id: 01TEST00000000000000000001
 `,
     },
   });

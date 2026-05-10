@@ -27,16 +27,16 @@ const REQUIREMENTS_MD = `# Requirements
 
   Braking system shall stop the vehicle within 3 seconds.
 
-  Id: STK_01HGW2Q8MNP3\\
-  Labels: ASIL-B, Safety
+      Id: STK_01HGW2Q8MNP3
+      Labels: ASIL-B, Safety
 
 - [SRS_BRK_0001] Sensor input debouncing
 
   The sensor driver shall debounce raw inputs.
 
-  Id: SRS_01HGW2R9QLP4\\
-  Satisfies: STK_BRK_0001\\
-  Labels: ASIL-B
+      Id: SRS_01HGW2R9QLP4
+      Satisfies: STK_BRK_0001
+      Labels: ASIL-B
 
 > [!WARNING]
 > Failure to debounce may lead to spurious brake activation.
@@ -49,8 +49,8 @@ const SPECS_MD = `# Architecture Specs
 
   The braking ECU shall expose a CAN bus interface.
 
-  Id: ARC_01HGW2S0ABC5\\
-  Satisfies: STK_BRK_0001
+      Id: ARC_01HGW2S0ABC5
+      Satisfies: STK_BRK_0001
 
 ![Braking ECU interface diagram](arch.png)
 

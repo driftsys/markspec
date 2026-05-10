@@ -120,9 +120,8 @@ See [ISO 26262-6] for software-level requirements.
 **Hard line breaks** (trailing `\`):
 
 ```markdown
-Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
-Satisfies: SYS_BRK_0042\
-Labels: ASIL-B
+First line ends here,\
+and the next line continues.
 ```
 
 **Horizontal rules:**
@@ -258,8 +257,8 @@ closing `]`.
 
   Body paragraphs.
 
-  Key: Value\
-  Key: Value
+      Key: Value
+      Key: Value
 ```
 
 A `- [DISPLAY_ID]` with no indented body is a normal list item — not an entry
@@ -461,10 +460,10 @@ optional in doc comments — the bracket pattern alone is sufficient.
 /// Given a debounce window of 10ms, a transient spike shorter
 /// than the window must not alter the stable output.
 ///
-/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Verifies: SRS_BRK_0107 \
-/// Tests: braking_core::controller::debounce_input \
-/// Labels: ASIL-B
+///     Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+///     Verifies: SRS_BRK_0107
+///     Tests: braking_core::controller::debounce_input
+///     Labels: ASIL-B
 #[test]
 fn swt_brk_0107_debounce_filters_noise() {
     // test implementation
@@ -485,9 +484,9 @@ author writes `type:` explicitly:
 ///
 /// Rejects transient noise on raw sensor readings.
 ///
-/// Id: 01HGW3D6QRST7IJKLMNOPQRSTUV \
-/// type: unit \
-/// Realizes: 01HGW2Q8MNP3RSTVWXYZABCDEF
+///     Id: 01HGW3D6QRST7IJKLMNOPQRSTUV
+///     type: unit
+///     Realizes: 01HGW2Q8MNP3RSTVWXYZABCDEF
 fn debounce_input(raw: u16) -> u16 { ... }
 ```
 
@@ -663,9 +662,9 @@ declarations.
   The sensor driver shall debounce raw inputs to eliminate electrical noise
   before processing.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
-  Derived-from: SYS_BRK_0042\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDE
+      Derived-from: SYS_BRK_0042
+      Labels: ASIL-B
 ```
 
 **Example 10 — explicit type override (symbolic path):**
@@ -675,9 +674,9 @@ declarations.
 
   Rejects transient noise on raw sensor readings using a configurable window.
 
-  Id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
-  type: unit\
-  Realizes: 01HGW2Q8MNP3RSTVWXYZABCDE
+      Id: 01HGW3D6QRST7IJKLMNOPQRSTUV
+      type: unit
+      Realizes: 01HGW2Q8MNP3RSTVWXYZABCDE
 ```
 
 The author writes `type: unit` because no `display-id-pattern` matches a
@@ -746,10 +745,10 @@ the canonical `Id:`), `Reference-document:` (canonical citation string),
 
   Road vehicles — Functional safety — Part 6: Software level.
 
-  Id: urn:iso:std:iso:26262:-6:ed-2\
-  Reference-url: https://www.iso.org/standard/68383.html\
-  Reference-document: ISO 26262-6:2018\
-  Labels: functional-safety, automotive
+      Id: urn:iso:std:iso:26262:-6:ed-2
+      Reference-url: https://www.iso.org/standard/68383.html
+      Reference-document: ISO 26262-6:2018
+      Labels: functional-safety, automotive
 ```
 
 **Example 12 — dependency (purl):**
@@ -757,8 +756,8 @@ the canonical `Id:`), `Reference-document:` (canonical citation string),
 ```markdown
 - [serde] serde Rust serialization framework
 
-  Id: pkg:cargo/serde@1.0.0\
-  License: Apache-2.0 OR MIT
+      Id: pkg:cargo/serde@1.0.0
+      License: Apache-2.0 OR MIT
 ```
 
 ### 2.4 Shape discrimination
@@ -1811,10 +1810,10 @@ each supported language.
 /// Given a 10ms debounce window, a 5ms noise spike
 /// must not alter the stable output.
 ///
-/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Verifies: SRS_BRK_0107 \
-/// Tests: braking_core::controller::debounce_input \
-/// Labels: ASIL-B
+///     Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+///     Verifies: SRS_BRK_0107
+///     Tests: braking_core::controller::debounce_input
+///     Labels: ASIL-B
 #[test]
 fn swt_brk_0107_debounce_filters_noise() {
     // test implementation
@@ -1830,10 +1829,10 @@ fn swt_brk_0107_debounce_filters_noise() {
  * Given a 10ms debounce window, a 5ms noise spike
  * must not alter the stable output.
  *
- * Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
- * Verifies: SRS_BRK_0107 \
- * Tests: braking_core::controller::debounce_input \
- * Labels: ASIL-B
+ *     Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+ *     Verifies: SRS_BRK_0107
+ *     Tests: braking_core::controller::debounce_input
+ *     Labels: ASIL-B
  */
 @Test
 fun `swt_brk_0107 debounce filters noise`() {
@@ -1849,10 +1848,10 @@ fun `swt_brk_0107 debounce filters noise`() {
 /// Given a 10ms debounce window, a 5ms noise spike
 /// must not alter the stable output.
 ///
-/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Verifies: SRS_BRK_0107 \
-/// Tests: braking_core::controller::debounce_input \
-/// Labels: ASIL-B
+///     Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+///     Verifies: SRS_BRK_0107
+///     Tests: braking_core::controller::debounce_input
+///     Labels: ASIL-B
 auto debounce_input(uint16_t raw) -> uint16_t;
 ```
 
@@ -1865,10 +1864,10 @@ auto debounce_input(uint16_t raw) -> uint16_t;
  * Given a 10ms debounce window, a 5ms noise spike
  * must not alter the stable output.
  *
- * Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
- * Verifies: SRS_BRK_0107 \
- * Tests: braking_core::controller::debounce_input \
- * Labels: ASIL-B
+ *     Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+ *     Verifies: SRS_BRK_0107
+ *     Tests: braking_core::controller::debounce_input
+ *     Labels: ASIL-B
  */
 void debounce_input(uint16_t* raw);
 ```
@@ -1881,10 +1880,10 @@ void debounce_input(uint16_t* raw);
 /// Given a 10ms debounce window, a 5ms noise spike
 /// must not alter the stable output.
 ///
-/// Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ \
-/// Verifies: SRS_BRK_0107 \
-/// Tests: braking_core::controller::debounce_input \
-/// Labels: ASIL-B
+///     Id: 01HGW3R9QLP4ABCDEFGHJKMNPQ
+///     Verifies: SRS_BRK_0107
+///     Tests: braking_core::controller::debounce_input
+///     Labels: ASIL-B
 @Test
 void swt_brk_0107_debounce_filters_noise() {
     // test implementation

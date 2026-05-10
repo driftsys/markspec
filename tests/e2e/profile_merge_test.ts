@@ -50,7 +50,7 @@ const REQ_MD = `# Example
 
 - [REQ-0001] A requirement
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
 
 Deno.test("profile merge e2e: valid two-tier chain loads cleanly", async () => {

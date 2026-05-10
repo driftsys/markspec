@@ -19,9 +19,9 @@ const REQUIREMENTS = `# Requirements
 
   The sensor driver shall debounce raw inputs to eliminate electrical noise.
 
-  Id: SRS_01HGW2R9QLP4\\
-  Satisfies: SYS_BRK_0042\\
-  Labels: ASIL-B
+      Id: SRS_01HGW2R9QLP4
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 `;
 
 // ---------------------------------------------------------------------------

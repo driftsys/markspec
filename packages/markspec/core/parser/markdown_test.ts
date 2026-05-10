@@ -178,9 +178,9 @@ Deno.test("parseMarkdown: trailing attribute block is parsed", () => {
 
   Body.
 
-  Id: ${ULID}\\
-  Labels: one, two\\
-  Supersedes: OLD-001
+      Id: ${ULID}
+      Labels: one, two
+      Supersedes: OLD-001
 `;
   const { entries: [entry] } = parseMarkdown(md);
   const attrs = Object.fromEntries(
@@ -295,9 +295,9 @@ Deno.test("parseMarkdown: typedAttributes collates repeatable values", () => {
 
   Body.
 
-  Id: ${ULID}\\
-  Labels: one\\
-  Labels: two
+      Id: ${ULID}
+      Labels: one
+      Labels: two
 `;
   const { entries: [entry] } = parseMarkdown(md);
   const labels = entry.typedAttributes?.get("Labels");

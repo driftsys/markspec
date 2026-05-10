@@ -42,9 +42,9 @@ Deno.test("parseSource: extracts Rust doc comment entry", async () => {
 ///
 /// The sensor driver shall reject transient noise.
 ///
-/// Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
-/// Satisfies: SYS_BRK_0042 \\
-/// Labels: ASIL-B
+///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+///     Satisfies: SYS_BRK_0042
+///     Labels: ASIL-B
 #[test]
 fn swt_brk_0001() {}
 `;
@@ -82,9 +82,9 @@ Deno.test("parseSource: extracts attributes from Rust doc comment", async () => 
 ///
 /// Body text.
 ///
-/// Id: SRS_01HGW2Q8MNP3 \\
-/// Satisfies: SYS_BRK_0042 \\
-/// Labels: ASIL-B
+///     Id: SRS_01HGW2Q8MNP3
+///     Satisfies: SYS_BRK_0042
+///     Labels: ASIL-B
 fn foo() {}
 `;
 
@@ -344,8 +344,8 @@ Deno.test("parseSource: links is always empty under the four-family model", asyn
 ///
 /// Body text.
 ///
-/// Id: SRS_01HGW2Q8MNP3 \\
-/// Verifies: STK_BRK_0001
+///     Id: SRS_01HGW2Q8MNP3
+///     Verifies: STK_BRK_0001
 fn foo() {}
 `;
 

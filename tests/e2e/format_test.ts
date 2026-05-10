@@ -65,9 +65,9 @@ Deno.test("format: normalizes attribute order in file", async () => {
 
   Body text.
 
-  Labels: ASIL-B\\
-  Id: SRS_01HGW2Q8MNP3\\
-  Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
+      Satisfies: SYS_BRK_0042
 `;
   const { code, stderr } = await runFormat({ "req.md": input });
   assertEquals(code, 0);
@@ -81,8 +81,8 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 
   Body text.
 
-  Labels: ASIL-B\\
-  Id: SRS_01HGW2Q8MNP3
+      Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
 `;
   const { readFile } = await runFormat({ "req.md": input });
   const output = await readFile("req.md");
@@ -142,8 +142,8 @@ Deno.test("format: --check exits 1 when changes needed", async () => {
 
   Body text.
 
-  Labels: ASIL-B\\
-  Id: SRS_01HGW2Q8MNP3
+      Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
 `;
   const { code, readFile } = await runFormat({ "req.md": input }, ["--check"]);
   assertEquals(code, 1);
@@ -206,8 +206,8 @@ Deno.test("format: reports summary to stderr", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
-  Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
+      Labels: ASIL-B
 `;
   const { stderr } = await runFormat({ "req.md": input });
   assertStringIncludes(stderr, "file(s) formatted");
