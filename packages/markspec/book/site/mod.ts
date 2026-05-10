@@ -16,11 +16,7 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
 import type { Blockquote, Root, Text } from "mdast";
-import type {
-  Caption,
-  EffectiveProfile,
-  Entry,
-} from "../../core/mod.ts";
+import type { Caption, EffectiveProfile, Entry } from "../../core/mod.ts";
 import { detectCaptions, parse, resolveEntryColor } from "../../core/mod.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -259,7 +255,10 @@ function _escapeHtml(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function _entryClass(entry: Entry, profile: EffectiveProfile | undefined): string {
+function _entryClass(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+): string {
   // Resolves `null` for referenced-shape (uncolored) and a palette hue for
   // identified entries. The CSS in theme/markspec.css defines `.hue-<hue>`
   // for the seven palette hues and `.uncolored` for the null case.
