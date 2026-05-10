@@ -8,20 +8,18 @@
  * for the resolution table.
  */
 
-import type { EffectiveProfile, Entry } from "../../core/mod.ts";
+import {
+  type EffectiveProfile,
+  type Entry,
+  PALETTE_HUES,
+  type PaletteHue,
+} from "../../core/mod.ts";
 
-/** The seven palette hues the renderer can emit. */
-export const PALETTE_HUES = [
-  "blue",
-  "cyan",
-  "teal",
-  "orange",
-  "red",
-  "purple",
-  "grey",
-] as const;
-
-export type PaletteHue = typeof PALETTE_HUES[number];
+// Re-export so existing consumers of these symbols (tests, downstream code)
+// don't need to switch imports. The single source of truth lives in
+// `core/model/palette.ts`.
+export { PALETTE_HUES };
+export type { PaletteHue };
 
 /** Default identified-entry hue when no profile / no type color resolves. */
 const DEFAULT_HUE: PaletteHue = "blue";

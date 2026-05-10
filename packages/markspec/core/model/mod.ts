@@ -11,6 +11,9 @@ export {
 } from "./attributes.ts";
 export type { AttributeSpec } from "./attributes.ts";
 
+export { COLOR_NAME_RE, PALETTE_HUES } from "./palette.ts";
+export type { PaletteHue } from "./palette.ts";
+
 // ---------------------------------------------------------------------------
 // Display ID
 // ---------------------------------------------------------------------------

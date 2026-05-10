@@ -11,10 +11,12 @@ import type { Diagnostic, ProfileManifest } from "../model/mod.ts";
 import {
   type AttrDecl,
   type Cardinality,
+  COLOR_NAME_RE,
   type DocTypeDef,
   type EnforcementMode,
   type EntryShape,
   LIST_VALUE_TYPES,
+  PALETTE_HUES,
   type ProfileSpecifier,
   type TargetMatcher,
   type TraceRule,
@@ -24,23 +26,6 @@ import {
 } from "../model/mod.ts";
 
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
-
-/**
- * The seven palette hues a profile may bind a semantic name to.
- * Mirrors the `diagram:` group in `theme/tokens.yaml`.
- */
-const PALETTE_HUES = [
-  "blue",
-  "cyan",
-  "teal",
-  "orange",
-  "red",
-  "purple",
-  "grey",
-] as const;
-
-/** Regex for valid semantic-name keys in `profile.colors:`. */
-const COLOR_NAME_RE = /^[a-z][a-z0-9-]*$/;
 
 const ALLOWED_ROOT_KEYS = new Set([
   "id",
@@ -570,7 +555,7 @@ function parseColorsMap(
   for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!COLOR_NAME_RE.test(name)) {
       diagnostics.push({
-        code: "PROFILE-LOAD-003",
+        code: "MSL-PROFILE-COLOR-004",
         severity: "error",
         message:
           `profile.colors: '${name}' is not a valid semantic name (lowercase letters, digits, hyphens; must start with a letter)`,

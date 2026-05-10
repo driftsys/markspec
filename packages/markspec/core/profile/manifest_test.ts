@@ -639,7 +639,7 @@ profile:
   assertEquals(err.severity, "error");
 });
 
-Deno.test("parseManifest: invalid semantic name is rejected", () => {
+Deno.test("parseManifest: invalid semantic name emits MSL-PROFILE-COLOR-004", () => {
   const yaml = `
 id: test
 version: 1.0.0
@@ -655,9 +655,10 @@ profile:
 `;
   const result = parseManifest(yaml, "test.yaml");
   const err = result.diagnostics.find((d) =>
-    d.severity === "error" && d.message.includes("semantic name")
+    d.code === "MSL-PROFILE-COLOR-004"
   );
   assertExists(err);
+  assertEquals(err.severity, "error");
 });
 
 Deno.test("parseManifest: per-type color: is parsed", () => {

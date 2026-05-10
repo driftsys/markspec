@@ -14,6 +14,7 @@ export const VERSION = "0.0.1";
 export {
   ConfigError,
   DEFAULT_PROJECT_CONFIG,
+  PALETTE_HUES,
   REFHUB_URL,
 } from "./model/mod.ts";
 export type {
@@ -30,6 +31,7 @@ export type {
   InlineRef,
   Link,
   LinkKind,
+  PaletteHue,
   ProfileChain,
   ProjectConfig,
   Severity,
