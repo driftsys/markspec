@@ -17,9 +17,9 @@
 ///   Then the output shall change to 600
 /// ```
 ///
-/// Id: SRS_01HGW2Q8MNP3 \
-/// Satisfies: SYS_BRK_0042 \
-/// Labels: ASIL-B
+///     Id: SRS_01HGW2Q8MNP3
+///     Satisfies: SYS_BRK_0042
+///     Labels: ASIL-B
 #[test]
 fn swt_brk_0001_debounce_filters_noise() {
     // test implementation

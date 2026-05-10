@@ -123,9 +123,9 @@ Deno.test("format: second run reports 0 formatted", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
-  Satisfies: SYS_BRK_0042\\
-  Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 `;
   const { stderr } = await runFormat({ "req.md": input });
   assertStringIncludes(stderr, "0 file(s) formatted");
@@ -159,9 +159,9 @@ Deno.test("format: --check exits 0 when clean", async () => {
 
   Body text.
 
-  Id: SRS_01HGW2Q8MNP3\\
-  Satisfies: SYS_BRK_0042\\
-  Labels: ASIL-B
+      Id: SRS_01HGW2Q8MNP3
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 `;
   const { code } = await runFormat({ "req.md": input }, ["--check"]);
   assertEquals(code, 0);

@@ -118,9 +118,9 @@ Authors write entry IDs as usual. Resolution order:
 
 - [SRS_ABS_0001] Wheel speed sampling rate
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  Satisfies: SYS_BRK_001\
-  References: ISO-26262-6 §7.4
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_BRK_001
+      References: ISO-26262-6 §7.4
 ```
 
 `SYS_BRK_001` is not found in the current project, so it is searched in
@@ -603,17 +603,17 @@ Process projects define four things as markspec entries:
 
   Application shall complete startup within 1 second.
 
-  Applies-to: PTYPE_001\
-  Compliance: mandatory\
-  Id: STK_01HGW2Q8MNP8
+      Applies-to: PTYPE_001
+      Compliance: mandatory
+      Id: STK_01HGW2Q8MNP8
 
 - [STK_TRACE_001] Requirement traceability
 
   Every SRS entry must trace to a SYS or STK entry.
 
-  Applies-to: PTYPE_002\
-  Compliance: mandatory\
-  Id: STK_01HGW2Q8MNP9
+      Applies-to: PTYPE_002
+      Compliance: mandatory
+      Id: STK_01HGW2Q8MNP9
 ```
 
 The compiler reads process entries from the declared process dependency and uses

@@ -1,9 +1,5 @@
 # ADR-003: Diagram authoring
 
-Status: Accepted\
-Date: 2026-03-01\
-Scope: MarkSpec
-
 ## Context
 
 MarkSpec documents include diagrams for architecture overviews, state machines,

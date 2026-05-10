@@ -6,7 +6,7 @@
  */
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
-import type { Attribute, Entry, EntryShape } from "../model/mod.ts";
+import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
 import { IDENTITY_KEY, shapeFromIdValue } from "../model/mod.ts";
 import {
   collateAttributes,
@@ -53,6 +53,14 @@ function findIdentityAttribute(
   return undefined;
 }
 
+/** Result returned by {@linkcode parseMarkdown}. */
+export interface ParseMarkdownResult {
+  /** Parsed entries found in the Markdown source. */
+  readonly entries: Entry[];
+  /** Parse-level diagnostics (e.g., deprecation warnings). */
+  readonly diagnostics: Diagnostic[];
+}
+
 /**
  * Parse a Markdown string and return all MarkSpec entries found.
  *
@@ -63,12 +71,12 @@ function findIdentityAttribute(
  *
  * @param markdown - Markdown source text
  * @param options - Parse options (file path for source locations)
- * @returns Array of parsed entries
+ * @returns Parsed entries and any parse-level diagnostics
  */
 export function parseMarkdown(
   markdown: string,
   options?: ParseMarkdownOptions,
-): Entry[] {
+): ParseMarkdownResult {
   const file = options?.file ?? "<unknown>";
   const isReferencesDoc = detectReferencesDocument(
     file,
@@ -76,6 +84,7 @@ export function parseMarkdown(
   );
   const tree = processor.parse(markdown);
   const entries: Entry[] = [];
+  const diagnostics: Diagnostic[] = [];
 
   // Collect link definition identifiers for shortcut reference exclusion.
   const definitions = new Set(
@@ -98,12 +107,13 @@ export function parseMarkdown(
         file,
         definitions,
         isReferencesDoc,
+        diagnostics,
       );
       if (entry) entries.push(entry);
     }
   }
 
-  return entries;
+  return { entries, diagnostics };
 }
 
 /**
@@ -124,6 +134,7 @@ function detectReferencesDocument(
 /**
  * Attempt to extract a MarkSpec entry from a list item.
  * Returns undefined if the list item is not an entry block.
+ * Diagnostics (e.g., deprecation warnings) are pushed into the accumulator.
  */
 function extractEntry(
   item: ListItem,
@@ -131,6 +142,7 @@ function extractEntry(
   file: string,
   definitions: Set<string>,
   isReferencesDoc: boolean,
+  diagnostics: Diagnostic[],
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -204,6 +216,22 @@ function extractEntry(
   const bodyContent = extractBodyContent(item, markdown);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
+
+  // Detect legacy paragraph + trailing-backslash attribute form and warn.
+  if (
+    attributes.length > 0 &&
+    attrLines.some((line) => line.trimEnd().endsWith("\\"))
+  ) {
+    const entryLine = item.position?.start.line ?? 1;
+    diagnostics.push({
+      code: "MSL-DEPRECATED-ATTR-001",
+      severity: "warning",
+      message:
+        "legacy attribute block (paragraph with trailing `\\`) is deprecated; " +
+        "run `markspec format` to convert to the canonical indented code block",
+      location: { file, line: entryLine, column: 1 },
+    });
+  }
 
   // Discriminate shape by the `Id:` attribute's value format.
   let shape: EntryShape | undefined;

@@ -103,7 +103,7 @@ export function buildBlockScaffoldItems(
       {
         label: "New entry",
         insertText:
-          "${1:PREFIX_NNNN}] ${2:Title}\n\n  ${3:Body.}\n\n  Id: \\${ULID}",
+          "${1:PREFIX_NNNN}] ${2:Title}\n\n  ${3:Body.}\n\n      Id: \\${ULID}",
         isSnippet: true,
         kind: KIND_SNIPPET,
       },
@@ -116,7 +116,7 @@ export function buildBlockScaffoldItems(
       label: `New ${type.name} (${displayId})`,
       detail: type.name,
       insertText:
-        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n  Id: \\$\{ULID} \\\\\n  \${3:Satisfies: }`,
+        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: \\$\{ULID}\n      \${3:Satisfies: }`,
       isSnippet: true,
       kind: KIND_SNIPPET,
     };

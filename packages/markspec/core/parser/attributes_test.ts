@@ -4,8 +4,9 @@
  * Unit tests for attribute block parsing.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
+import { parseFile } from "./mod.ts";
 
 // ---------------------------------------------------------------------------
 // Backslash-separated attributes
@@ -273,3 +274,51 @@ Deno.test("parseAttributes: both shapes produce identical Attribute[]", () => {
   ]);
   assertEquals(newShape, legacyShape);
 });
+
+// ---------------------------------------------------------------------------
+// Deprecation diagnostic (MSL-DEPRECATED-ATTR-001)
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "parseFile: legacy paragraph + backslash attribute shape emits MSL-DEPRECATED-ATTR-001",
+  async () => {
+    const md = [
+      "- [SRS_TEST_0001] Legacy entry",
+      "",
+      "  Body.",
+      "",
+      "  Id: 01HGW2Q8MNP3RSTVWXYZABCDE\\",
+      "  Labels: ASIL-B",
+      "",
+    ].join("\n");
+
+    const result = await parseFile(md, { file: "test.md" });
+    const codes = result.diagnostics.map((d) => d.code);
+    assert(
+      codes.includes("MSL-DEPRECATED-ATTR-001"),
+      `expected MSL-DEPRECATED-ATTR-001 in diagnostics, got: ${codes.join(",")}`,
+    );
+  },
+);
+
+Deno.test(
+  "parseFile: canonical indented-code attribute form emits no deprecation warning",
+  async () => {
+    const md = [
+      "- [SRS_TEST_0001] Canonical entry",
+      "",
+      "  Body.",
+      "",
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+      "      Labels: ASIL-B",
+      "",
+    ].join("\n");
+
+    const result = await parseFile(md, { file: "test.md" });
+    const codes = result.diagnostics.map((d) => d.code);
+    assert(
+      !codes.includes("MSL-DEPRECATED-ATTR-001"),
+      `unexpected deprecation warning; got: ${codes.join(",")}`,
+    );
+  },
+);

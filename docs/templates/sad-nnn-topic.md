@@ -25,9 +25,9 @@
   <!-- Example: "The acquisition module shall use a lock-free ring buffer
        to decouple sensor sampling from processing." -->
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 ## Interfaces
 
@@ -39,9 +39,9 @@
   <!-- Example: "The sensor gateway shall expose a CAN 2.0B interface
        publishing filtered sensor frames at 100 Hz." -->
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 ## Constraints
 
@@ -61,9 +61,9 @@ Not applicable.
 
   Description of the regulatory constraint.
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 -->
 
@@ -78,9 +78,9 @@ Not applicable.
 
   Description of the privacy constraint.
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 -->
 
@@ -95,9 +95,9 @@ Not applicable.
 
   Description of the safety constraint.
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 -->
 
@@ -112,9 +112,9 @@ Not applicable.
 
   Description of the cybersecurity constraint.
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 -->
 
@@ -129,8 +129,8 @@ Not applicable.
 
   Description of the performance or reliability constraint.
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 -->

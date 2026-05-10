@@ -1,12 +1,5 @@
 # ADR-011: Language Pack and Dependency Ingestion
 
-Status: Proposed\
-Date: 2026-04-20\
-Scope: MarkSpec\
-Depends on: [ADR-008 — Profile System](./adr-008-profile-system.md),
-[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md),
-[ADR-010 — Default Profile](./adr-010-default-profile.md)
-
 ## Context
 
 ADR-009 introduces an **entry-source abstraction**: entries in the MarkSpec

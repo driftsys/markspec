@@ -358,3 +358,34 @@ More prose here.
   assertStringIncludes(result.output, "More prose here.");
   assertStringIncludes(result.output, "`SRS_BRK_0001`");
 });
+
+// ---------------------------------------------------------------------------
+// Indented-code attribute form
+// ---------------------------------------------------------------------------
+
+Deno.test("styleRequirementBlocks: parses attributes from indented-code form", () => {
+  const md = `- [SRS_TEST_0001] Render styles regression
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDE
+      Labels: ASIL-B
+`;
+  const compiled = buildCompiled([{
+    displayId: "SRS_TEST_0001",
+    title: "Render styles regression",
+    id: "01HGW2Q8MNP3RSTVWXYZABCDE",
+    attributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDE" },
+      { key: "Labels", value: "ASIL-B" },
+    ],
+  }]);
+
+  const result = styleRequirementBlocks(md, compiled);
+
+  // The styled output must include the attribute row(s) from the table.
+  assertStringIncludes(result.output, "**Id**");
+  assertStringIncludes(result.output, "01HGW2Q8MNP3RSTVWXYZABCDE");
+  assertStringIncludes(result.output, "**Labels**");
+  assertStringIncludes(result.output, "ASIL-B");
+});

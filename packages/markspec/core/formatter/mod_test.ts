@@ -7,7 +7,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { format } from "./mod.ts";
+import { format, renderAttributeBlock } from "./mod.ts";
 
 const MOCK_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const MOCK_ULID_2 = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -163,7 +163,7 @@ Deno.test("format: unchanged-input does not mutate source", () => {
 
   Body.
 
-  Id: ${MOCK_ULID}
+      Id: ${MOCK_ULID}
 `;
   const result = format(md);
   // Already canonical form — changed should be false.
@@ -230,4 +230,34 @@ Just prose.
   const result = format(md);
   assertEquals(result.changed, false);
   assertEquals(result.output, md);
+});
+
+// ---------------------------------------------------------------------------
+// renderAttributeBlock — indented code block emission
+// ---------------------------------------------------------------------------
+
+Deno.test("renderAttributeBlock: emits indented code block (4-space prefix, no backslash)", () => {
+  const block = renderAttributeBlock(
+    [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDE" },
+      { key: "Satisfies", value: "SYS_BRK_0042" },
+      { key: "Labels", value: "ASIL-B" },
+    ],
+    2, // body indent of a list-item entry
+  );
+
+  const expected =
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDE\n" +
+    "      Satisfies: SYS_BRK_0042\n" +
+    "      Labels: ASIL-B";
+
+  assertEquals(block, expected);
+});
+
+Deno.test("renderAttributeBlock: doc-comment indent (no list wrapper)", () => {
+  const block = renderAttributeBlock(
+    [{ key: "Id", value: "01HGW3C4DEF6ABCDEFGHJKMNPQ" }],
+    0, // doc comment, no list nesting
+  );
+  assertEquals(block, "    Id: 01HGW3C4DEF6ABCDEFGHJKMNPQ");
 });

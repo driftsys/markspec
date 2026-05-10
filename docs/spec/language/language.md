@@ -281,10 +281,10 @@ block.
   | Speed       | 5           | 200              |
   | Temperature | 50          | 20               |
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
-  type: software-requirement\
-  Satisfies: SYS_BRK_0042\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDE
+      type: software-requirement
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 ```
 
 **Example 2 — not an entry block:**
@@ -308,15 +308,25 @@ chapter, §"Entry rendering".
 
 #### §2 Attribute blocks
 
-`Key: Value` lines at the end of an entry block. Separated by trailing `\`
-except the last line.
+An attribute block is the **trailing indented code block** of an entry. Each
+content line is a single `Key: Value` pair. No trailing line-continuation
+characters.
+
+The block is indented 4 spaces relative to the entry body indent (CommonMark
+indented-code-block rule). Inside a Markdown list item, that means **6 spaces of
+indentation** before the `Key`; inside a source-file doc comment (no enclosing
+list), 4 spaces of indentation relative to the comment content column.
 
 **Example 3 — attribute block:**
 
 ```markdown
-Id: 01HGW2Q8MNP3RSTVWXYZABCDE\
-Satisfies: SYS_BRK_0042\
-Labels: ASIL-B
+- [SRS_BRK_0001] Sensor debouncing
+
+  Sensor driver shall debounce raw inputs.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDE
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 ```
 
 The set of valid attributes is the universal set (Part 2 §2.1) plus whatever the
@@ -325,6 +335,24 @@ active profile declares for the entry's shape and inferred type.
 **Generated attributes** (build-time inverses of authored relations such as
 `Verified-by` from `Verifies`, `Cited-by` from `References`) are computed by
 tooling and never appear in source. The exact set is profile-declared.
+
+**Disambiguation from body code blocks.** The trailing indented code block
+qualifies as an attribute block only when every one of its content lines matches
+the pattern `^[A-Z][A-Za-z-]*:` (followed by a space). Otherwise it remains a
+regular code block and the entry is treated as having no attribute block. Fenced
+code blocks (triple-backtick fences) anywhere in the entry are body content and
+never confused with the attribute block — different syntactic shape.
+
+**Trailing position is required.** If body prose appears after an indented
+`Key: Value` block, that block is not trailing — it is treated as a regular code
+block with no attribute meaning. Authors must place attributes at the very end
+of the entry.
+
+**Backward compatibility.** During the transition, the parser also accepts the
+legacy paragraph-with-trailing-`\` shape. Running `markspec format` rewrites
+legacy blocks to the canonical indented form. The legacy shape emits a
+deprecation diagnostic (`MSL-DEPRECATED-ATTR-001`) and will be removed in a
+future major release.
 
 #### §3 Table captions
 

@@ -106,7 +106,7 @@ export function format(
   // body only (front-matter `---` could be confused with horizontal rules).
   const fm = extractFrontMatter(markdown, { file });
   const body = fm.hadFrontMatter ? fm.markdown : markdown;
-  const entries = parseMarkdown(body, { file });
+  const { entries } = parseMarkdown(body, { file });
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
 
   if (entries.length === 0 && !fm.hadFrontMatter) {
@@ -281,19 +281,21 @@ export function sortAttributes(
 }
 
 /**
- * Render attributes as indented `Key: Value\` lines.
- * Trailing backslash on all lines except the last.
+ * Render attributes as an indented code block.
+ * Each line is `Key: Value` at (indent + 4) absolute columns;
+ * no trailing line-continuation characters.
+ *
+ * @param attributes - The attributes to render, in canonical order.
+ * @param indent - Body indent for the entry (2 for list-wrapped entries,
+ *   0 for entries inside source-file doc comments).
  */
 export function renderAttributeBlock(
   attributes: Attribute[],
   indent: number,
 ): string {
-  const prefix = " ".repeat(indent);
+  const prefix = " ".repeat(indent + 4);
   return attributes
-    .map((attr, i) => {
-      const sep = i < attributes.length - 1 ? "\\" : "";
-      return `${prefix}${attr.key}: ${attr.value}${sep}`;
-    })
+    .map((attr) => `${prefix}${attr.key}: ${attr.value}`)
     .join("\n");
 }
 

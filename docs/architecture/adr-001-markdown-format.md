@@ -1,9 +1,5 @@
 # ADR-001: Markdown format
 
-Status: Accepted\
-Date: 2026-03-01\
-Scope: MarkSpec
-
 ## Context
 
 MarkSpec needs a documentation format that is simple, portable, Git-native, and
