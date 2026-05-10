@@ -16,8 +16,12 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
 import type { Blockquote, Root, Text } from "mdast";
-import type { Caption, Entry } from "../../core/mod.ts";
-import { detectCaptions, parse } from "../../core/mod.ts";
+import type {
+  Caption,
+  EffectiveProfile,
+  Entry,
+} from "../../core/mod.ts";
+import { detectCaptions, parse, resolveEntryColor } from "../../core/mod.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +32,8 @@ type AlertType = "note" | "tip" | "important" | "warning" | "caution";
 export interface RenderChapterOptions {
   /** File path used in source locations (for diagnostics). */
   readonly file?: string;
+  /** Active profile, if any. Drives per-entry color resolution. */
+  readonly profile?: EffectiveProfile;
 }
 
 /** Result of rendering a chapter to HTML. */
@@ -99,7 +105,7 @@ export function renderChapterHtml(
     }
 
     if (region.kind === "entry") {
-      parts.push(_entryToHtml(region.entry!));
+      parts.push(_entryToHtml(region.entry!, options.profile));
     } else if (region.kind === "alert") {
       const raw = lines.slice(region.start, region.end);
       parts.push(_alertToHtml(region.alertType!, raw));
@@ -253,16 +259,19 @@ function _escapeHtml(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function _entryCategory(displayId: string, shape: string): string {
-  if (shape === "referenced") return "req";
-  const prefix = displayId.split("_")[0];
-  if (["ARC", "SAD", "ICD"].includes(prefix)) return "spec";
-  if (["TST", "VAL", "SIT", "SWT"].includes(prefix)) return "test";
-  return "req";
+function _entryClass(entry: Entry, profile: EffectiveProfile | undefined): string {
+  // Resolves `null` for referenced-shape (uncolored) and a palette hue for
+  // identified entries. The CSS in theme/markspec.css defines `.hue-<hue>`
+  // for the seven palette hues and `.uncolored` for the null case.
+  const hue = resolveEntryColor(entry, profile);
+  return hue === null ? "req-block uncolored" : `req-block hue-${hue}`;
 }
 
-function _entryToHtml(entry: Entry): string {
-  const category = _entryCategory(entry.displayId, entry.shape);
+function _entryToHtml(
+  entry: Entry,
+  profile: EffectiveProfile | undefined,
+): string {
+  const blockClass = _entryClass(entry, profile);
 
   const labelsAttr = entry.rawAttributes.find((a) => a.key === "Labels");
   const labels = labelsAttr
@@ -296,7 +305,7 @@ function _entryToHtml(entry: Entry): string {
     }</div>`
     : "";
 
-  return `<div class="req-block" data-entry-type="${category}">
+  return `<div class="${blockClass}">
   <div class="req-title">
     <code class="req-id">${_escapeHtml(entry.displayId)}</code>
     <span class="req-name">${_escapeHtml(entry.title)}</span>

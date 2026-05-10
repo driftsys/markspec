@@ -17,7 +17,12 @@ export type {
 export { renderChapterHtml } from "./site/mod.ts";
 export type { RenderChapterOptions, RenderChapterResult } from "./site/mod.ts";
 
-import type { CompileResult, Diagnostic, ProjectConfig } from "../core/mod.ts";
+import type {
+  CompileResult,
+  Diagnostic,
+  EffectiveProfile,
+  ProjectConfig,
+} from "../core/mod.ts";
 import { renderChapterHtml } from "./site/mod.ts";
 import type { BookStructure, Chapter } from "./summary/mod.ts";
 
@@ -31,6 +36,8 @@ export interface BuildBookOptions {
   readonly compiled: CompileResult;
   /** Project configuration from `project.yaml`. */
   readonly config: ProjectConfig;
+  /** Active profile chain's merged view, if any. Drives entry coloring. */
+  readonly profile?: EffectiveProfile;
 }
 
 /** A rendered chapter ready for site assembly. */
@@ -74,7 +81,10 @@ export function buildBook(
     const markdown = options.files.get(chapter.path);
     if (!markdown) continue; // skip missing files
 
-    const { html } = renderChapterHtml(markdown, { file: chapter.path });
+    const { html } = renderChapterHtml(markdown, {
+      file: chapter.path,
+      profile: options.profile,
+    });
     chapters.push({
       kind: chapter.kind,
       title: chapter.title,

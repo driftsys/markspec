@@ -75,7 +75,7 @@ Deno.test("book build: exits 0 and writes HTML files", async () => {
   assertStringIncludes(stderr, "index.html");
 });
 
-Deno.test("book build: emits req-block for default (req) entry", async () => {
+Deno.test("book build: identified entry without profile gets hue-blue fallback", async () => {
   const dir = await Deno.makeTempDir();
   try {
     for (const [name, content] of Object.entries(FIXTURE)) {
@@ -97,15 +97,20 @@ Deno.test("book build: emits req-block for default (req) entry", async () => {
     await cmd.output();
 
     const html = await Deno.readTextFile(`${dir}/_site/requirements.html`);
-    assertStringIncludes(html, 'class="req-block"');
-    assertStringIncludes(html, 'data-entry-type="req"');
+    // Identified entries with no profile loaded fall back to palette blue;
+    // referenced entries would get .uncolored. The fixture has no profile.
+    assertStringIncludes(html, 'class="req-block hue-blue"');
     assertStringIncludes(html, "STK_BRK_0001");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("book build: emits correct data-entry-type for spec (ARC) entries", async () => {
+Deno.test("book build: prefix heuristic is gone — ARC entries do NOT auto-color spec", async () => {
+  // Regression test for the V-model prefix removal. Pre-PR-#257, ARC_*
+  // display IDs auto-mapped to data-entry-type="spec". Now color must come
+  // from the active profile's per-type binding; without a profile, every
+  // identified entry falls back to palette blue.
   const dir = await Deno.makeTempDir();
   try {
     for (const [name, content] of Object.entries(FIXTURE)) {
@@ -127,8 +132,13 @@ Deno.test("book build: emits correct data-entry-type for spec (ARC) entries", as
     await cmd.output();
 
     const html = await Deno.readTextFile(`${dir}/_site/specs.html`);
-    assertStringIncludes(html, 'data-entry-type="spec"');
+    assertStringIncludes(html, 'class="req-block hue-blue"');
     assertStringIncludes(html, "ARC_BRK_0001");
+    if (html.includes("data-entry-type") || html.includes("hue-spec")) {
+      throw new Error(
+        "legacy data-entry-type or 'hue-spec' class still present in book HTML",
+      );
+    }
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

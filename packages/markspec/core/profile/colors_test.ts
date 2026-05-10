@@ -5,7 +5,7 @@
 
 import { assertEquals } from "@std/assert";
 import { resolveEntryColor } from "./colors.ts";
-import type { EffectiveProfile, Entry } from "../../core/mod.ts";
+import type { EffectiveProfile, Entry } from "../model/mod.ts";
 
 function makeIdentifiedEntry(type: string | undefined): Entry {
   return {
@@ -125,4 +125,126 @@ Deno.test("resolveEntryColor: type's color name not in colors map falls back to 
     { req: "unknown" },
   );
   assertEquals(resolveEntryColor(makeIdentifiedEntry("req"), profile), "blue");
+});
+
+// ── Integration: parseManifest → mergeChain → resolveEntryColor ──────────
+// (issue #260 — guards against drift between manifest validator and renderer)
+
+import { parseManifest } from "./manifest.ts";
+import { mergeChain } from "./merge.ts";
+import type { LoadedProfile, ProfileChain } from "../model/mod.ts";
+
+function loadEffective(yaml: string): EffectiveProfile {
+  const parsed = parseManifest(yaml, "test.yaml");
+  if (!parsed.manifest) {
+    throw new Error(
+      `parseManifest failed: ${
+        parsed.diagnostics.map((d) => d.code).join(", ")
+      }`,
+    );
+  }
+  const tier: LoadedProfile = {
+    id: parsed.manifest.id,
+    version: parsed.manifest.version,
+    specifier: { kind: "local", path: "." },
+    manifest: parsed.manifest,
+    sourcePath: "test.yaml",
+    baseDir: ".",
+  };
+  // mergeChain reads only .tiers; effective is filled by mergeChain itself.
+  const chain = { tiers: [tier] } as unknown as ProfileChain;
+  const merged = mergeChain(chain);
+  if (!merged.effective) {
+    throw new Error(
+      `mergeChain failed: ${merged.diagnostics.map((d) => d.code).join(", ")}`,
+    );
+  }
+  return merged.effective;
+}
+
+Deno.test("integration: end-to-end manifest → merge → resolve picks the declared hue", () => {
+  const yaml = `
+id: "@acme/profile"
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+    danger: red
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types:
+    requirement:
+      shape: identified
+      color: primary
+    test:
+      shape: identified
+      color: danger
+  documents: { types: [], frontMatter: [] }
+`;
+  const profile = loadEffective(yaml);
+
+  assertEquals(
+    resolveEntryColor(makeIdentifiedEntry("requirement"), profile),
+    "blue",
+  );
+  assertEquals(
+    resolveEntryColor(makeIdentifiedEntry("test"), profile),
+    "red",
+  );
+});
+
+Deno.test("integration: manifest with type.color absent → renderer falls back to blue", () => {
+  const yaml = `
+id: "@acme/profile"
+version: 1.0.0
+profile:
+  colors:
+    primary: teal
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types:
+    requirement:
+      shape: identified
+  documents: { types: [], frontMatter: [] }
+`;
+  const profile = loadEffective(yaml);
+
+  // type exists but color is unset — fallback to palette blue, NOT to
+  // any declared role like 'primary' (decoupling renderer from profile
+  // vocabulary, per the design spec's resolution table).
+  assertEquals(
+    resolveEntryColor(makeIdentifiedEntry("requirement"), profile),
+    "blue",
+  );
+});
+
+Deno.test("integration: referenced-shape type stays uncolored even with color authored", () => {
+  // Manifest will emit MSL-PROFILE-COLOR-001 (warning) — manifest still
+  // loads, merge succeeds, and the renderer must return null.
+  const yaml = `
+id: "@acme/profile"
+version: 1.0.0
+profile:
+  colors:
+    primary: blue
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types:
+    standard:
+      shape: referenced
+      color: primary
+  documents: { types: [], frontMatter: [] }
+`;
+  const profile = loadEffective(yaml);
+
+  assertEquals(
+    resolveEntryColor(makeReferencedEntry("standard"), profile),
+    null,
+  );
 });

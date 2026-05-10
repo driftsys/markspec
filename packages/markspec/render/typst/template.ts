@@ -8,8 +8,11 @@
  * `req-block` calls with admonition-style left borders.
  */
 
-import type { EffectiveProfile, Entry } from "../../core/mod.ts";
-import { resolveEntryColor } from "./colors.ts";
+import {
+  type EffectiveProfile,
+  type Entry,
+  resolveEntryColor,
+} from "../../core/mod.ts";
 
 /** Metadata for the generated Typst document. */
 export interface DocumentMetadata {

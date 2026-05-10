@@ -194,7 +194,12 @@ const bookCmd = new Command()
       profile: bookChain?.effective ?? undefined,
     });
 
-    const result = buildBook(structure, { files, compiled, config });
+    const result = buildBook(structure, {
+      files,
+      compiled,
+      config,
+      profile: bookChain?.effective,
+    });
 
     for (const d of result.diagnostics) {
       console.error(`${d.severity}[${d.code}]: ${d.message}`);
