@@ -2,7 +2,8 @@
 
 **Date**: 2026-05-10 **Scope**: `packages/markspec/mcp/` **References**:
 [ADR-005](../../architecture/adr-005-cli-architecture.md), GitHub issues #60–#63,
-[2026-04-23 LSP design](2026-04-23-lsp-server-design.md)
+[2026-04-23 LSP design](2026-04-23-lsp-server-design.md),
+[MCP specification](https://spec.modelcontextprotocol.io)
 
 ## 1. Overview
 
@@ -10,25 +11,28 @@ This spec defines v1 of the MarkSpec MCP server — a stdio JSON-RPC server that
 exposes MarkSpec's traceability data to AI coding agents (Claude Desktop, Claude
 Code, and any other MCP client).
 
-V1 is **read-only**. It ships five tools backed by the already-implemented core
-library (`core/mod.ts`), giving agents the same query power as the
-`markspec show / context / dependents / validate` CLI subcommands. Write
-operations (`requirement_insert`) are deferred until `markspec insert` lands as
-its own epic.
+**Design principle: idiomatic MCP.** Static, addressable data is exposed as MCP
+**resources** with Markdown bodies. Parameterized actions are exposed as MCP
+**tools** that return Markdown content. Nothing is dumped as JSON-in-a-text-blob
+— agents read Markdown natively, clients render it, and the URI scheme makes
+entries first-class objects that can be browsed and subscribed to.
+
+V1 is **read-only**. Write operations (`requirement_insert`) are deferred until
+`markspec insert` lands as its own epic.
 
 | Issue | Feature                          | v1 status                              |
 | ----- | -------------------------------- | -------------------------------------- |
 | #60   | `mcp/` module + `markspec mcp`   | In scope — server scaffold + lifecycle |
-| #61   | Lookup tool (id → entry)         | In scope — renamed `entry_lookup`      |
-| #62   | Search tool (query → entries)    | In scope — renamed `entry_search`      |
+| #61   | Lookup tool (id → entry)         | In scope — replaced by `markspec://entry/{id}` resource |
+| #62   | Search tool (query → entries)    | In scope — `entry_search` tool         |
 | #63   | `requirement_insert` write tool  | **Deferred** — see §9                  |
 
-### Tool naming
+### Tool/resource naming
 
-The original issues use `registry_lookup` / `registry_search`. v1 ships them as
-`entry_lookup` / `entry_search` to match current vocabulary; "registry" now
-implies external RefHub-style standard lookup, which is a separate future tool
-family. Issues #61/#62 will be updated when the spec is approved.
+The original issues use `registry_*`. "Registry" now implies external
+RefHub-style standard lookup (a separate future tool family); local
+project entries are surfaced under `markspec://entry/...` resources.
+Issues #61/#62 will be updated when the spec is approved.
 
 ## 2. Architecture
 
@@ -44,40 +48,45 @@ deno compile packages/markspec/main.ts  # → markspec (single binary)
 ```
 
 This matches the lazy-loading invariant in
-[CLAUDE.md / AGENTS.md](../../../AGENTS.md): each subcommand pulls in only the
-modules it needs.
+[CLAUDE.md / AGENTS.md](../../../AGENTS.md).
 
 ### 2.2 Module structure
 
 ```text
 packages/markspec/mcp/
-├── server.ts          ← entry: stdio transport, MCP server lifecycle, tool registration
-├── project.ts         ← project context: discoverProjectRoot, compile cache, mtime check, refresh
-├── tools/
-│   ├── mod.ts         ← register all tools; shared input-schema helpers
-│   ├── lookup.ts      ← entry_lookup
-│   ├── search.ts      ← entry_search
-│   ├── context.ts     ← entry_context
-│   ├── dependents.ts  ← entry_dependents
-│   ├── validate.ts    ← validate
-│   └── refresh.ts     ← markspec_refresh
-└── (e2e tests live in tests/e2e/mcp_test.ts; unit tests are colocated)
+├── server.ts          ← entry: stdio transport, server lifecycle, registration
+├── project.ts         ← project context: discover, compile cache, mtime check, refresh
+├── resources/
+│   ├── mod.ts         ← register resources, handle resources/list and resources/read
+│   ├── profile.ts     ← markspec://profile renderer
+│   ├── entries.ts     ← markspec://entries (index) renderer
+│   └── entry.ts       ← markspec://entry/{displayId} renderer
+└── tools/
+    ├── mod.ts         ← register tools
+    ├── search.ts      ← entry_search
+    ├── context.ts     ← entry_context
+    ├── validate.ts    ← validate
+    └── refresh.ts     ← markspec_refresh
 ```
 
-Each tool is one file with: a name, a JSON Schema for inputs, and a handler.
-`tools/mod.ts` collects them and registers them with the server. No barrel
-`mod.ts` at the top of `mcp/` — nothing outside `mcp/` imports these modules.
+Resources and tools are siblings under `mcp/`. Each file has one responsibility.
+No barrel `mod.ts` at the top of `mcp/` — nothing outside `mcp/` imports these
+modules. Unit tests are colocated as `<name>_test.ts`; the e2e test lives at
+`tests/e2e/mcp_test.ts`.
 
 ### 2.3 Dependency flow
 
 ```text
 core/mod.ts ← project.ts
+core/mod.ts ← resources/*.ts
 core/mod.ts ← tools/*.ts
+project.ts  ← resources/*.ts
 project.ts  ← tools/*.ts
-tools/mod.ts ← server.ts
-project.ts   ← server.ts
+resources/mod.ts ← server.ts
+tools/mod.ts     ← server.ts
+project.ts       ← server.ts
 
-npm:@modelcontextprotocol/sdk ← server.ts, tools/mod.ts
+npm:@modelcontextprotocol/sdk ← server.ts, resources/mod.ts, tools/mod.ts
 ```
 
 The MCP module imports exclusively from `core/mod.ts` — never from internal core
@@ -89,19 +98,19 @@ paths.
 
 stdio only. The server is launched as a child process by the MCP client; the
 client writes JSON-RPC messages to stdin and reads responses from stdout. This
-matches Claude Desktop's default and matches the LSP's transport choice. HTTP /
-SSE is out of scope for v1.
+matches Claude Desktop's default and the LSP's transport choice. HTTP / SSE is
+out of scope for v1.
 
 ### 3.2 Capabilities
 
-The server advertises one capability:
+The server advertises three capabilities:
 
-- `tools` — list and call tools
+- `resources` — with `subscribe: true` and `listChanged: true`
+- `tools` — with `listChanged: false` (tool set is static across the session)
+- (no `prompts`, no `sampling`)
 
-Resources, prompts, and sampling are **not** implemented in v1. They are
-plausible follow-ups (resources especially — exposing parsed entries as MCP
-resources would let clients browse the project), but the read-tool set is enough
-for the agent use cases we know about.
+Subscriptions and list-changed notifications are essential for the live-feel
+behaviour described in §4.7.
 
 ### 3.3 Initialize sequence
 
@@ -111,10 +120,11 @@ for the agent use cases we know about.
 3. **In parallel** (background, fire-and-forget): the server kicks off a
    `compile()` of the project rooted at `Deno.cwd()`. The in-flight promise is
    stored in module state. See §4.
-4. Client typically follows up with `tools/list`. This call does not require
-   the compile to be done — the tool list is static.
-5. First `tools/call` awaits the in-flight compile promise. Subsequent calls
-   use the cached result if no files have changed.
+4. Clients typically follow with `resources/list` and/or `tools/list`.
+   `tools/list` does not require the compile (tool list is static).
+   `resources/list` awaits the compile (entries are listed as resources).
+5. `resources/read` and `tools/call` use the cached compile, triggering a
+   recompile only when the mtime check detects changes.
 
 ### 3.4 Shutdown
 
@@ -123,17 +133,18 @@ On either signal it stops accepting new requests and exits the process. The
 in-flight compile (if any) is abandoned by process exit — `compile()` has no
 cancel API, but it touches no shared state, so abandoning is safe.
 
-## 4. Project Context and Caching
+## 4. Project Context, Caching, and Notifications
 
 ### 4.1 Discovery
 
 On `initialize`, the server calls `discoverProjectRoot(Deno.cwd(), readFile)`
 from `core/mod.ts`. If no `project.yaml` is found, the server still starts and
-`tools/list` works, but every `tools/call` returns a clean error:
+`tools/list` works, but every `resources/*` and `tools/call` returns a clean
+error:
 
-> `"MarkSpec MCP server: no project.yaml found from <cwd>. Tools require project context."`
+> `"MarkSpec MCP server: no project.yaml found from <cwd>. Operations require project context."`
 
-This mirrors how the project-aware CLI subcommands behave.
+This mirrors the project-aware CLI subcommands.
 
 ### 4.2 Compile cache
 
@@ -144,16 +155,18 @@ ProjectCache = {
   projectRoot: string,
   config: ProjectConfig,
   profile: ProfileChain | null,
-  inFlight: Promise<CompileResult> | null,    // background compile
-  result: CompileResult | null,               // last successful result
-  compiledAt: number,                         // ms epoch
+  inFlight: Promise<CompileResult> | null,
+  result: CompileResult | null,
+  compiledAt: number,
   trackedFiles: { path: string, mtime: number }[],
+  prevEntryIds: Set<string>,    // last-known entry IDs, for resource list diffing
 }
 ```
 
 ### 4.3 Invalidation: mtime check on every call
 
-`getCompiled()` is the single entry point used by all tools. Algorithm:
+`getCompiled()` is the single entry point used by every resource handler and
+tool. Algorithm:
 
 1. If `result === null` and `inFlight !== null`: await `inFlight`, populate
    `result`, return.
@@ -163,72 +176,208 @@ ProjectCache = {
    - `anyNewFile` — a discovered file is not in `trackedFiles`
    - `anyMissing` — a tracked file no longer exists
 3. If any of those is true: await a fresh `compile()`, swap into `result`,
-   update `compiledAt` and `trackedFiles`, return.
+   update `compiledAt` and `trackedFiles`, fire notifications (§4.7), return.
 4. Otherwise: return `result`.
 
 The stat sweep is single-digit milliseconds for projects with hundreds of files
 — well under the cost of a recompile (100–500 ms typical). No filesystem
-watcher is needed in v1; we can add one later if profiling shows the stat sweep
-dominates on very large projects.
+watcher in v1; we can add one later if profiling shows the stat sweep dominates.
 
 ### 4.4 Explicit refresh
 
 `markspec_refresh` is a no-arg tool that forces a recompile. It exists as an
-escape hatch: an agent that has just edited several files can call refresh to
-guarantee the next query sees the new state without depending on mtime
-resolution.
+escape hatch for agents that just edited files and don't want to depend on mtime
+resolution. It also fires the §4.7 notifications.
 
 ### 4.5 Concurrency
 
-`getCompiled()` is `async`. If two tool calls land while a recompile is
-in-flight, both await the same `inFlight` promise — `compile()` is not run
-twice. A simple per-process mutex (one `inFlight: Promise | null` slot) is
-sufficient for stdio's single-client model.
+`getCompiled()` is `async`. If two calls land while a recompile is in-flight,
+both await the same `inFlight` promise — `compile()` is not run twice. A simple
+per-process mutex (one `inFlight: Promise | null` slot) is sufficient for
+stdio's single-client model.
 
-## 5. Tools
+### 4.6 Subscriptions
 
-All tool inputs use JSON Schema declared inline in the tool file. All outputs
-are JSON-serializable.
+The server tracks per-resource subscribers via the SDK's built-in subscription
+machinery. We do not implement a custom subscription registry; we just call
+`server.sendResourceUpdated(uri)` and `server.sendResourceListChanged()` when
+appropriate.
 
-Outputs are wrapped in the MCP `CallToolResult` shape: a `content` array with a
-single `text` item containing pretty-printed JSON. Agents parse this back into
-structured data. (The MCP SDK supports structured `content` types but JSON-as-
-text is the broadly compatible idiom.)
+### 4.7 Change notifications
 
-### 5.1 `entry_lookup` (#61)
+After a successful recompile (whether from auto-invalidation in step 3 or from
+`markspec_refresh`), the server fires:
 
-Resolve a single entry by display ID or ULID.
+- `notifications/resources/list_changed` — always. Entries may have appeared or
+  disappeared, so the resource list is potentially different.
+- `notifications/resources/updated` for `markspec://profile` — if the profile
+  chain changed (profile mtime tracked separately).
+- `notifications/resources/updated` for `markspec://entries` — always.
+- `notifications/resources/updated` for `markspec://entry/{id}` — for each
+  entry whose attributes, location, forward links, or reverse links changed.
+  The diff is computed by serializing the entry's rendered Markdown and
+  comparing to the previous-rendered version (hashed).
 
-- **Input**: `{ id: string }`
-- **Output**:
-  ```json
-  {
-    "displayId": "STK_AEB_0001",
-    "ulid": "01HGW2...",
-    "title": "...",
-    "type": "stakeholder-requirement",
-    "shape": "identified",
-    "attributes": [{ "key": "Satisfies", "value": "..." }, ...],
-    "location": { "file": "...", "line": 42, "column": 1 },
-    "forwardLinks": [{ "kind": "satisfies", "to": "SYS_AEB_0012" }, ...],
-    "reverseLinks": [{ "kind": "verified-by", "from": "SIT_AEB_0030" }, ...]
-  }
-  ```
-- **Error**: `entry not found: <id>`
+Clients that subscribed to specific entry resources thus get pinpoint update
+notifications; clients that listed resources get list-change notifications.
 
-Backed by `compile().entries.get(id)` plus `forward.get(id)` and
-`reverse.get(id)`. Mirrors `markspec show <id> --format json` exactly.
+## 5. Resources
 
-### 5.2 `entry_search` (#62)
+All resources are read-only. URIs use the `markspec://` scheme. All bodies are
+`text/markdown`.
+
+### 5.1 `markspec://profile`
+
+Distilled summary of the active profile chain, rendered as Markdown.
+
+**MIME**: `text/markdown`
+
+**Body example**:
+
+```markdown
+# MarkSpec Profile
+
+**Active**: @org/aspice-swe-mini@1.0.0
+**Inherits**: @driftsys/markspec-default@0.3.0
+
+ASPICE software-engineering subset profile.
+
+## Entry types
+
+### stakeholder-requirement
+
+- **Display-ID pattern**: `STK_{DOMAIN}_{NNNN}`
+- **Shape**: identified
+- **Color**: blue
+- **Required attributes**: Id
+- **Allowed attributes**: Satisfies, Labels, Status
+- **Outgoing links**: satisfies
+- **Incoming links**: verified-by
+
+A stakeholder need or expectation expressed at the contract level.
+
+### software-requirement
+
+…
+
+## Universal attributes
+
+These apply to all identified entries regardless of type.
+
+- **Id** (required) — ULID or URI
+
+## Link kinds
+
+| Kind          | Direction | Allowed between                       |
+| ------------- | --------- | ------------------------------------- |
+| satisfies     | outgoing  | software-requirement → system-requirement |
+| derived-from  | outgoing  | software-requirement → software-requirement |
+| verified-by   | outgoing  | software-requirement → software-test  |
+
+## Labels
+
+ASIL-A, ASIL-B, ASIL-C, ASIL-D — ISO 26262 ASIL classifications.
+```
+
+Sections are omitted when the profile has nothing in them (e.g., a profile
+with no labels declared has no "Labels" section).
+
+### 5.2 `markspec://entries`
+
+Index of all entries in the project, grouped by type, with display-ID and
+title only — a table of contents.
+
+**MIME**: `text/markdown`
+
+**Body example**:
+
+```markdown
+# Entries (1,247)
+
+## stakeholder-requirement (12)
+
+- [STK_AEB_0001](markspec://entry/STK_AEB_0001) — Stop on imminent collision
+- [STK_AEB_0002](markspec://entry/STK_AEB_0002) — Driver override at any time
+…
+
+## software-requirement (243)
+
+- [SRS_AEB_0001](markspec://entry/SRS_AEB_0001) — Sensor debouncing
+…
+```
+
+Links use the `markspec://entry/...` URI scheme, so MCP clients that follow
+resource links navigate naturally.
+
+### 5.3 `markspec://entry/{displayId}`
+
+A single entry rendered with attributes, location, body, outgoing and incoming
+links. Each entry in the project registers as its own resource, so
+`resources/list` enumerates `entries.size` URIs of this form.
+
+**MIME**: `text/markdown`
+
+**Body example**:
+
+```markdown
+# STK_AEB_0001 — Stop on imminent collision
+
+**Type**: stakeholder-requirement
+**Shape**: identified
+**Id**: `01HGW2Q8MNP3RSTVWXYZABCDEF`
+**Location**: [docs/product/stakeholder-requirements.md:42](file:///…/docs/product/stakeholder-requirements.md)
+
+When the system detects an imminent collision with a stationary object,
+it shall command emergency braking sufficient to stop the vehicle before
+contact.
+
+## Attributes
+
+- **Labels**: ASIL-B
+
+## Outgoing links
+
+- **satisfies** → [SYS_AEB_0012](markspec://entry/SYS_AEB_0012) — Object threat assessment
+
+## Incoming links
+
+- **verified-by** ← [VAL_AEB_0001](markspec://entry/VAL_AEB_0001) — Vehicle stops before collision
+- **verified-by** ← [SIT_AEB_0030](markspec://entry/SIT_AEB_0030) — Threat from radar track
+```
+
+Reverse links are included inline. This is why we do not ship a separate
+`entry_dependents` tool — the entry resource already answers that question
+naturally.
+
+### 5.4 Resource listing
+
+`resources/list` returns descriptors for:
+
+- `markspec://profile` — name "Active profile", description "Distilled
+  profile manifest for this project"
+- `markspec://entries` — name "Entry index", description "All entries grouped
+  by type"
+- one descriptor per entry: name = displayId, description = title
+
+Servers receiving a `resources/list` call with pagination cursors page through
+the entry resources. The SDK handles pagination; we pass it the full list and
+let it slice.
+
+## 6. Tools
+
+All tool outputs are Markdown content in the MCP `CallToolResult.content` array
+(single `{ type: "text", text: <markdown> }` item).
+
+### 6.1 `entry_search`
 
 Rank-search entries by display-ID and title.
 
 - **Input**: `{ query: string, limit?: number }` — `limit` defaults to 20,
   capped at 100.
-- **Output**: array of `{ displayId, title, type, score }`, sorted by score
-  descending.
+- **Output**: Markdown list of ranked matches with links into
+  `markspec://entry/…`.
 
-#### Ranking algorithm (v1)
+**Ranking algorithm (v1)**:
 
 1. Normalize `query` and each candidate field to lowercase.
 2. Tokenize on whitespace and underscores.
@@ -240,58 +389,99 @@ Rank-search entries by display-ID and title.
    - +2 if all query-tokens appear in title (any order)
 4. Drop entries with score 0. Sort descending. Take `limit`.
 
-This is ~30 lines of pure code. It handles the two natural query shapes
-(partial ID, keyword from a known title) and is trivial to upgrade later. We
-explicitly chose not to pull in `fuse.js` for v1 — cost is dependency weight
-and we have no evidence the better fuzziness moves the needle.
+**Body example**:
 
-### 5.3 `entry_context` (#60-adjacent)
+```markdown
+# Search results for "braking" (3 matches)
 
-Walk the `Satisfies` chain upward from an entry.
+1. [STK_AEB_0001](markspec://entry/STK_AEB_0001) — Stop on imminent collision (score 11)
+2. [SRS_AEB_0010](markspec://entry/SRS_AEB_0010) — Apply continuous braking force (score 8)
+3. [VAL_AEB_0001](markspec://entry/VAL_AEB_0001) — Vehicle stops before collision (score 6)
+```
+
+### 6.2 `entry_context`
+
+Walk the `Satisfies` chain upward from an entry. Returns a Markdown tree.
 
 - **Input**: `{ id: string, depth?: number }` — `depth` defaults to 10.
-- **Output**: array of `{ displayId, title, depth }` in BFS order, where
-  `depth` is hops from the start entry (0 = the start entry itself).
+- **Output**: Markdown nested-list rendering of the chain. Cycle protection via
+  `visited` set.
 
-Mirrors `markspec context <id> --format json`. Same cycle protection
-(`visited` set).
+**Body example**:
 
-### 5.4 `entry_dependents` (#60-adjacent)
+```markdown
+# Context for [SRS_AEB_0010](markspec://entry/SRS_AEB_0010)
 
-List all entries that link to the given entry (any link kind).
+- **SRS_AEB_0010** — Apply continuous braking force
+  - satisfies → [SYS_AEB_0012](markspec://entry/SYS_AEB_0012) — Object threat assessment
+    - satisfies → [STK_AEB_0001](markspec://entry/STK_AEB_0001) — Stop on imminent collision
+```
 
-- **Input**: `{ id: string }`
-- **Output**: array of `{ from, kind, title }` from `compile().reverse.get(id)`.
+Indentation level = hops from the start entry.
 
-Mirrors `markspec dependents <id> --format json`.
+### 6.3 `validate`
 
-### 5.5 `validate`
-
-Run the validator pipeline.
+Run the validator pipeline; return a Markdown diagnostics report.
 
 - **Input**: `{ files?: string[] }` — when omitted, validate the full project.
-  Relative paths are resolved against the project root; absolute paths are
-  used as-is.
-- **Output**: array of `{ severity, code, message, location }`. Always full
-  diagnostics (no truncation). Cross-file diagnostics are computed against the
-  full corpus regardless; if `files` is provided, the result is filtered to
-  diagnostics whose `location.file` matches one of the input paths after
-  normalizing both sides to absolute paths.
+  Relative paths resolved against the project root; absolute used as-is.
+  When provided, the result is filtered to diagnostics whose `location.file`
+  matches an input path after normalization.
+- **Output**: Markdown report. Empty diagnostics produce a one-line success
+  message.
 
-Mirrors `markspec validate --format json`. `--strict` is **not** exposed in v1
-— agents can promote warnings themselves if they need to.
+**Body example** (with issues):
 
-### 5.6 `markspec_refresh`
+```markdown
+# Validation: 2 errors, 1 warning
 
-Force-invalidate the compile cache.
+## Errors
+
+### MSL-R004: unresolved reference
+
+[docs/product/software-requirements.md:128:3](file:///…)
+
+> `Satisfies: SYS_NONEXISTENT`
+
+`SYS_NONEXISTENT` is not declared in the project corpus.
+
+### MSL-R001: missing ULID
+
+[docs/product/stakeholder-requirements.md:67:1](file:///…)
+
+Entry `[STK_AEB_0014]` is missing an `Id:` attribute.
+
+## Warnings
+
+### MSL-R010: unrecognized attribute
+
+[docs/product/software-requirements.md:200:3](file:///…)
+
+> `Priority: high`
+
+`Priority` is not an allowed attribute for `software-requirement` under the
+active profile.
+```
+
+**Body example** (clean):
+
+```markdown
+✓ All 1,247 entries pass validation under @org/aspice-swe-mini@1.0.0.
+```
+
+### 6.4 `markspec_refresh`
+
+Force-invalidate the compile cache. Always recompiles. Fires the §4.7
+notifications.
 
 - **Input**: `{}`
-- **Output**: `{ refreshed: true, entries: <number>, links: <number> }`
+- **Output**:
 
-Always recompiles, even if mtime check would have skipped it. Returns counts
-so agents can sanity-check that the recompile happened.
+  ```markdown
+  Refreshed. 1,247 entries, 3,891 links.
+  ```
 
-## 6. SDK and Dependencies
+## 7. SDK and Dependencies
 
 `@modelcontextprotocol/sdk` (TypeScript MCP SDK), imported via `npm:` because
 no JSR mirror exists today:
@@ -301,115 +491,127 @@ import { Server } from "npm:@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
 } from "npm:@modelcontextprotocol/sdk/types.js";
 ```
 
 This matches the existing precedent (`vscode-languageserver` is also `npm:`).
-Node.js compatibility is preserved — the SDK is npm-published and runs on both
-runtimes.
+Node.js compatibility is preserved.
 
 No additional dependencies. JSON Schema for tool inputs is hand-written
-(schemas are tiny — three fields max). No Zod, no JSON-Schema-from-Zod.
+(schemas are tiny — three fields max). No Zod.
 
-## 7. Errors
+## 8. Errors
 
 Two categories:
 
-**Setup errors** — surface as MCP errors on the offending `tools/call`:
+**Setup errors** — surface as MCP errors on the offending request:
 
 | Code              | Trigger                                              |
 | ----------------- | ---------------------------------------------------- |
 | `NO_PROJECT_ROOT` | No `project.yaml` found from `Deno.cwd()`            |
 | `COMPILE_FAILED`  | `compile()` returned errors of severity `error`      |
 
-**Tool errors** — handler-level, returned as `isError: true` content:
+**Per-request errors** — returned as `isError: true` content (tools) or as
+JSON-RPC errors (resources):
 
 | Code              | Trigger                                       |
 | ----------------- | --------------------------------------------- |
-| `ENTRY_NOT_FOUND` | `entry_lookup`/`context`/`dependents` miss    |
-| `INVALID_INPUT`   | JSON-schema validation failed                 |
+| `ENTRY_NOT_FOUND` | `markspec://entry/{id}` or `entry_context` miss |
+| `INVALID_INPUT`   | JSON-schema validation failed (tools only)    |
+| `INVALID_URI`     | `resources/read` for an unrecognized URI      |
 
 `COMPILE_FAILED` is a hard error — the cache is left empty and subsequent
-calls retry. We do **not** silently return partial graphs; the agent should
-know the project is broken.
-
-## 8. Tests
-
-### 8.1 Unit tests
-
-Each `tools/<name>.ts` has a colocated `<name>_test.ts`. Tests build a minimal
-fixture `CompileResult` (or use a shared builder) and assert tool output JSON
-shape and content. No process spawning, no SDK mocking.
-
-The ranking algorithm in `search.ts` gets focused tests for each scoring rule
-(prefix bonus, token coverage, etc.).
-
-`project.ts` gets unit tests for the cache invalidation logic with an
-in-memory readFile / stat shim.
-
-### 8.2 E2E test
-
-`tests/e2e/mcp_test.ts` spawns `deno run main.ts mcp` with a fixture project
-in a temp directory. It exchanges a real JSON-RPC sequence over stdio:
-
-1. `initialize` → assert capabilities include `tools`.
-2. `tools/list` → assert all six tools present, schemas non-empty.
-3. `tools/call entry_lookup { id: "STK_AEB_0001" }` → assert response shape.
-4. `tools/call entry_search { query: "braking" }` → assert at least one hit.
-5. `tools/call validate {}` → assert empty diagnostics on the clean fixture.
-6. Mutate a fixture file to introduce a broken ref. `tools/call validate {}`
-   → assert the broken-ref diagnostic appears (proves auto-invalidation works).
-7. `shutdown` notification → assert clean exit.
-
-This is the integration boundary; it never imports from `mcp/` directly.
-
-### 8.3 Snapshot tests
-
-`tests/e2e/mcp_test.ts` snapshots the `tools/list` response so wording or
-schema regressions are caught on review.
+calls retry. We do not silently return partial graphs.
 
 ## 9. Out of Scope for v1
 
 | Item                    | Reason                                                    |
 | ----------------------- | --------------------------------------------------------- |
-| `requirement_insert`    | Requires `markspec insert` (epic:insert, #38–#41); land that first, then add the wrapper tool. |
-| External RefHub lookup  | A separate tool family — distinct concept from local entries. |
+| `requirement_insert`    | Requires `markspec insert` (epic:insert, #38–#41) first.  |
+| External RefHub registry | Separate tool family; distinct concept from local entries. |
 | HTTP / SSE transport    | stdio covers Claude Desktop / Claude Code defaults.       |
-| Resources / prompts     | Agent UX is fine without; tools cover known use cases.    |
-| Sampling                | Out of scope; relevant only for nested-LLM workflows.     |
+| Prompts                 | No agent use case yet.                                    |
+| Sampling                | Relevant only for nested-LLM workflows.                   |
 | Multi-root workspace    | Single project root matches CLI semantics.                |
 | Filesystem watcher      | Stat sweep is cheap enough; revisit if profiling demands. |
-| Hot profile reload      | Profile chain is loaded once on initialize; refresh tool re-reads. |
+| Hot profile reload      | Profile chain loaded once; refresh tool re-reads.         |
+| Document resources      | `markspec://document/{path}` for full source bodies — defer until use case is clear. |
 
-## 10. Rollout
+## 10. Tests
+
+### 10.1 Unit tests
+
+Each `resources/<name>.ts` and `tools/<name>.ts` has a colocated `<name>_test.ts`.
+Tests build a minimal fixture `CompileResult` (or use a shared builder) and
+assert the rendered Markdown body — usually via `assertStringIncludes` for
+behavioural assertions and `assertSnapshot` for layout-level checks.
+
+The ranking algorithm in `tools/search.ts` gets focused tests per scoring rule.
+
+`project.ts` gets unit tests for the cache invalidation logic with an in-memory
+readFile / stat shim.
+
+### 10.2 E2E test
+
+`tests/e2e/mcp_test.ts` spawns `deno run main.ts mcp` with a fixture project in
+a temp directory. It exchanges a real JSON-RPC sequence over stdio:
+
+1. `initialize` → assert capabilities include `resources` and `tools`.
+2. `tools/list` → assert all four tools present.
+3. `resources/list` → assert `markspec://profile`, `markspec://entries`, and at
+   least one `markspec://entry/...` present.
+4. `resources/read markspec://profile` → assert Markdown body includes profile
+   id.
+5. `resources/read markspec://entry/STK_AEB_0001` → assert body includes
+   "Outgoing links" section.
+6. `tools/call entry_search { query: "braking" }` → assert at least one hit
+   formatted as a link.
+7. `tools/call validate {}` → assert success message on the clean fixture.
+8. Subscribe to `markspec://entry/STK_AEB_0001`. Mutate the underlying file to
+   change its title. Trigger `markspec_refresh`. Assert that
+   `notifications/resources/updated` arrives for that URI.
+9. `shutdown` notification → assert clean exit.
+
+This is the integration boundary; it never imports from `mcp/` directly.
+
+### 10.3 Snapshot tests
+
+`tests/e2e/mcp_test.ts` snapshots the `tools/list` response and the rendered
+Markdown of the fixture's `markspec://profile` so wording or schema regressions
+are caught on review.
+
+## 11. Rollout
 
 One PR with the full v1:
 
-1. Add `mcp/server.ts`, `mcp/project.ts`, `mcp/tools/*.ts`, colocated unit
-   tests.
+1. Add `mcp/server.ts`, `mcp/project.ts`, `mcp/resources/*.ts`, `mcp/tools/*.ts`,
+   colocated unit tests.
 2. Add `tests/e2e/mcp_test.ts`.
 3. Wire `markspec mcp` in `main.ts` to `await import("./mcp/server.ts")`,
    removing the `notImplemented("mcp")` placeholder.
-4. Add `npm:@modelcontextprotocol/sdk` to the project's dependency graph (it
-   is pulled in transitively by `import` — no `deno.json` change required
-   beyond what the lockfile records).
+4. Add `npm:@modelcontextprotocol/sdk` to the dependency graph.
 5. Update [docs/guide/commands.md](../../guide/commands.md) — promote `mcp`
-   from "not implemented" to documented, with a worked example connecting
-   from Claude Desktop.
-6. Update GitHub issues #60–#63 with the renamed tools and the deferral of
-   #63.
+   from "not implemented" to documented, with a worked example connecting from
+   Claude Desktop.
+6. Update GitHub issues #60–#63 with the resource/tool layout and the deferral
+   of #63.
 
-## 11. Open Questions
+## 12. Open Questions
 
 None blocking implementation. Items for follow-up after v1 ships:
 
-- **Telemetry**: Should the server log tool invocation counts? Useful for
-  understanding which tools agents actually use, but introduces a logging
-  surface. Defer.
-- **Caching across processes**: Each `markspec mcp` process keeps its own
+- **Telemetry**: tool/resource invocation counts. Defer.
+- **Caching across processes**: each `markspec mcp` process keeps its own
   cache. Two MCP clients connecting (e.g., Claude Desktop and Claude Code
   simultaneously) compile twice. Acceptable for v1.
-- **Profile changes**: Editing `.markspec.yaml` doesn't currently invalidate
+- **Profile changes**: editing `.markspec.yaml` doesn't currently invalidate
   the cache (mtime check only watches parsed files). If profile-driven
-  attribute validation lands, we add `.markspec.yaml` to the watched set.
+  attribute validation lands, add `.markspec.yaml` to the watched set.
+- **Document resources**: exposing whole `.md` files as
+  `markspec://document/{path}` resources may be useful for agents that want
+  to "read the architecture spec." Defer until there's a clear request.
