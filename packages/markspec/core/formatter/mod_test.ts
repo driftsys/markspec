@@ -246,8 +246,7 @@ Deno.test("renderAttributeBlock: emits indented code block (4-space prefix, no b
     2, // body indent of a list-item entry
   );
 
-  const expected =
-    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDE\n" +
+  const expected = "      Id: 01HGW2Q8MNP3RSTVWXYZABCDE\n" +
     "      Satisfies: SYS_BRK_0042\n" +
     "      Labels: ASIL-B";
 

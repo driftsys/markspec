@@ -226,8 +226,7 @@ Deno.test("splitBodyAndAttributes: indented-code-block form (new canonical)", ()
   // Body indent is already stripped by the caller; the input below is what
   // extractBodyContent returns for an entry whose attribute block is an
   // indented code block at body+4 columns.
-  const content =
-    "Body sentence.\n" +
+  const content = "Body sentence.\n" +
     "\n" +
     "    Id: 01HGW2Q8MNP3RSTVWXYZABCDE\n" +
     "    Satisfies: SYS_BRK_0042\n" +
@@ -244,8 +243,7 @@ Deno.test("splitBodyAndAttributes: indented-code-block form (new canonical)", ()
 });
 
 Deno.test("splitBodyAndAttributes: legacy backslash-paragraph form still parses", () => {
-  const content =
-    "Body sentence.\n" +
+  const content = "Body sentence.\n" +
     "\n" +
     "Id: 01HGW2Q8MNP3RSTVWXYZABCDE\\\n" +
     "Satisfies: SYS_BRK_0042\\\n" +
@@ -296,7 +294,9 @@ Deno.test(
     const codes = result.diagnostics.map((d) => d.code);
     assert(
       codes.includes("MSL-DEPRECATED-ATTR-001"),
-      `expected MSL-DEPRECATED-ATTR-001 in diagnostics, got: ${codes.join(",")}`,
+      `expected MSL-DEPRECATED-ATTR-001 in diagnostics, got: ${
+        codes.join(",")
+      }`,
     );
   },
 );
