@@ -40,3 +40,5 @@ export type { CacheEnv } from "./cache.ts";
 
 export { defaultRunNpm, resolveNpmSpecifier } from "./npm.ts";
 export type { ResolveNpmOptions, RunNpm } from "./npm.ts";
+
+export { resolveEntryColor } from "./colors.ts";

@@ -1,25 +1,18 @@
 /**
- * @module render/typst/colors
+ * @module core/profile/colors
  *
  * Profile-driven entry color resolution. Pure function that maps an entry
  * and the active profile to a palette hue name (or `null` for uncolored).
+ *
+ * Lives in core/profile so both rendering layers (Typst PDF and HTML book)
+ * can call it without crossing the peer-module boundary defined in AGENTS.md.
  *
  * See docs/superpowers/specs/2026-05-06-profile-driven-entry-colors-design.md
  * for the resolution table.
  */
 
-import {
-  type EffectiveProfile,
-  type Entry,
-  PALETTE_HUES,
-  type PaletteHue,
-} from "../../core/mod.ts";
-
-// Re-export so existing consumers of these symbols (tests, downstream code)
-// don't need to switch imports. The single source of truth lives in
-// `core/model/palette.ts`.
-export { PALETTE_HUES };
-export type { PaletteHue };
+import type { EffectiveProfile, Entry } from "../model/mod.ts";
+import { PALETTE_HUES, type PaletteHue } from "../model/palette.ts";
 
 /** Default identified-entry hue when no profile / no type color resolves. */
 const DEFAULT_HUE: PaletteHue = "blue";
@@ -52,7 +45,7 @@ export function resolveEntryColor(
   // Defense in depth: the manifest parser already enforces PALETTE_HUES, but
   // EffectiveProfile can in principle be constructed programmatically (tests,
   // future APIs) without going through parseManifest. Guard the cast so an
-  // invalid hue can never reach the Typst interpolation in template.ts.
+  // invalid hue can never reach downstream interpolation.
   const hue = hueEntry.value;
   if (!(PALETTE_HUES as readonly string[]).includes(hue)) return DEFAULT_HUE;
   return hue as PaletteHue;

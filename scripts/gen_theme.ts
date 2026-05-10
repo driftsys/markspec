@@ -233,10 +233,11 @@ function genCss(): string {
   );
   // Entry blocks render via the seven-hue palette — see
   // docs/superpowers/specs/2026-05-06-profile-driven-entry-colors-design.md.
-  // The HTML book pipeline does not yet emit per-entry hue classes; until it
-  // does, every .req-block falls back to the palette `blue` default (matching
-  // the renderer's no-profile fallback). Per-hue classes are defined so the
-  // book module can opt in by emitting `class="req-block hue-<name>"`.
+  // The book HTML renderer (packages/markspec/book/site/mod.ts) emits
+  // class="req-block hue-<name>" for identified entries (or `uncolored`
+  // for referenced entries) using resolveEntryColor and the active
+  // profile. The base .req-block rule supplies the palette-blue fallback
+  // when no profile is loaded.
   lines.push(`.req-block {
   border-left: 2px solid var(--ms-entry-blue);
   padding: 0 0 0 14px;

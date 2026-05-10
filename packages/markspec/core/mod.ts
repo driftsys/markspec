@@ -68,6 +68,7 @@ export {
   loadProfileForCommand,
   mergeChain,
   parseManifest,
+  resolveEntryColor,
   resolveGitSpecifier,
   resolveLocalSpecifier,
 } from "./profile/mod.ts";
