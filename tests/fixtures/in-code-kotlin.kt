@@ -12,9 +12,9 @@
  *   Then the output shall remain 500
  * ```
  *
- * Id: SRS_01HGW2Q8MNP3 \
- * Satisfies: SYS_BRK_0042 \
- * Labels: ASIL-B
+ *     Id: SRS_01HGW2Q8MNP3
+ *     Satisfies: SYS_BRK_0042
+ *     Labels: ASIL-B
  */
 @Test
 fun `swt_brk_0001 debounce filters noise`() {

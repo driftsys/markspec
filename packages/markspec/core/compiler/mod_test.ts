@@ -107,8 +107,8 @@ Deno.test("compile: Supersedes produces a link", async () => {
 
   Body.
 
-  Id: ${ULID_B}\\
-  Supersedes: REQ-001
+      Id: ${ULID_B}
+      Supersedes: REQ-001
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
@@ -128,8 +128,8 @@ Deno.test("compile: References citation produces a link", async () => {
 
   Body.
 
-  Id: ${ULID_A}\\
-  References: ISO-26262-6 §9.4
+      Id: ${ULID_A}
+      References: ISO-26262-6 §9.4
 `,
   };
   const result = await compile(["refs.md", "req.md"], {
@@ -162,8 +162,8 @@ Deno.test("compile: id-list attr value splits into multiple links", async () => 
 
   Body.
 
-  Id: ${ULID_C}\\
-  Satisfies: REQ-PARENT-A, REQ-PARENT-B
+      Id: ${ULID_C}
+      Satisfies: REQ-PARENT-A, REQ-PARENT-B
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
@@ -188,8 +188,8 @@ Deno.test("compile: forward map carries outgoing links per entry", async () => {
 
   Body.
 
-  Id: ${ULID_B}\\
-  Supersedes: REQ-001
+      Id: ${ULID_B}
+      Supersedes: REQ-001
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
@@ -210,8 +210,8 @@ Deno.test("compile: reverse map carries incoming links per target", async () => 
 
   Body.
 
-  Id: ${ULID_B}\\
-  Supersedes: REQ-001
+      Id: ${ULID_B}
+      Supersedes: REQ-001
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });

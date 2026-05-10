@@ -1,11 +1,5 @@
 # ADR-010: Default Profile — RFC 2119 Hygiene and Generic Types
 
-Status: Proposed\
-Date: 2026-04-20\
-Scope: MarkSpec\
-Depends on: [ADR-008 — Profile System](./adr-008-profile-system.md),
-[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
-
 ## Context
 
 ADR-009 moves the four-family taxonomy out of the core into the profile layer

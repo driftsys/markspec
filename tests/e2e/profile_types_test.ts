@@ -34,7 +34,7 @@ Deno.test("profile types e2e: entry matching REQ pattern classifies cleanly", as
 
 - [REQ-0001] A requirement
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `,
     },
   });
@@ -53,7 +53,7 @@ Deno.test("profile types e2e: un-classified entry emits MSL-T003", async () => {
 
 - [FOO-001] An entry with no matching type
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `,
     },
   });
@@ -71,8 +71,8 @@ Deno.test("profile types e2e: explicit Type: attribute overrides display-ID infe
 
 - [FOO-001] Explicitly typed as note
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  Type: note
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: note
 `,
     },
   });
@@ -89,8 +89,8 @@ Deno.test("profile types e2e: explicit Type: unknown value emits MSL-T001", asyn
 
 - [REQ-0001] Unknown type
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  Type: bogus
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: bogus
 `,
     },
   });
@@ -108,8 +108,8 @@ Deno.test("profile types e2e: pattern-enforcement=error + mismatch emits MSL-T00
 
 - [FOO-001] Requirement via explicit Type: but wrong display-ID form
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
-  Type: requirement
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
 `,
     },
   });
@@ -125,7 +125,7 @@ Deno.test("profile types e2e: no .markspec.yaml — core-only mode, no MSL-T dia
 
 - [FOO-001] An entry
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `,
     },
   });

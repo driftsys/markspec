@@ -1,11 +1,5 @@
 # ADR-002: Entry Model — Identified and Referenced Entries
 
-Status: Proposed\
-Date: 2026-04-17 (revised 2026-04-20 for ADR-009 alignment)\
-Scope: MarkSpec\
-Depends on: [ADR-001 — Markdown Format](./adr-001-markdown-format.md),
-[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
-
 ## Context
 
 ADR-001 introduced entry blocks as MarkSpec's mechanism for authoring traceable
@@ -59,8 +53,8 @@ identified or referenced.
 
   Body paragraphs.
 
-  Key: Value \
-  Key: Value
+      Key: Value
+      Key: Value
 ```
 
 An entry block is a Markdown list item whose content between `[` and `]` is a
@@ -382,8 +376,8 @@ Under the default profile's `requirement: display-id-pattern: "REQ-{n:03d}"`:
   The sensor driver SHALL debounce raw inputs to eliminate electrical noise
   before processing. The debounce window SHALL be configurable per sensor type.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  Labels: sensor
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: sensor
 ```
 
 The profile infers `type: requirement` from the `REQ-` prefix. No `type:`
@@ -403,9 +397,9 @@ Under an ASPICE profile's
   > [!WARNING]
   > Failure to debounce may lead to spurious brake activation.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  Derived-from: 01HGW2R0NPQR4STVWXYZABCDEF\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Derived-from: 01HGW2R0NPQR4STVWXYZABCDEF
+      Labels: ASIL-B
 ```
 
 The profile infers `type: software-requirement` from the `SRS_` prefix.
@@ -419,9 +413,9 @@ When the display ID is a symbolic path with no declared prefix pattern:
 
   Rejects transient noise on raw sensor readings.
 
-  Id: 01HGW3D6QRST7IJKLMNOPQRSTUV\
-  type: unit\
-  Realizes: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Id: 01HGW3D6QRST7IJKLMNOPQRSTUV
+      type: unit
+      Realizes: 01HGW2Q8MNP3RSTVWXYZABCDEF
 ```
 
 The author writes `type: unit` because no `display-id-pattern` matches a
@@ -561,10 +555,10 @@ locator is preserved verbatim for display and is not validated.
   requirements for software unit design, implementation, and verification across
   ASIL levels A through D.
 
-  Id: urn:iso:std:iso:26262:-6:ed-2\
-  Reference-url: https://www.iso.org/standard/68383.html\
-  Reference-document: ISO 26262-6:2018\
-  Labels: functional-safety, automotive
+      Id: urn:iso:std:iso:26262:-6:ed-2
+      Reference-url: https://www.iso.org/standard/68383.html
+      Reference-document: ISO 26262-6:2018
+      Labels: functional-safety, automotive
 ```
 
 ### Example — dependency (purl)
@@ -572,8 +566,8 @@ locator is preserved verbatim for display and is not validated.
 ```markdown
 - [serde] serde Rust serialization framework
 
-  Id: pkg:cargo/serde@1.0.0\
-  License: Apache-2.0 OR MIT
+      Id: pkg:cargo/serde@1.0.0
+      License: Apache-2.0 OR MIT
 ```
 
 A dependency entry is a referenced entry whose `Id:` is a Package URL (purl).
@@ -585,8 +579,8 @@ risk / verification attributes to dependency entries; see ADR-011.
 ```markdown
 - [RFC-2119] Key words for use in RFCs
 
-  Id: doi:10.17487/RFC2119\
-  Reference-url: https://www.rfc-editor.org/rfc/rfc2119
+      Id: doi:10.17487/RFC2119
+      Reference-url: https://www.rfc-editor.org/rfc/rfc2119
 ```
 
 ---

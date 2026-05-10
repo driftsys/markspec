@@ -38,12 +38,12 @@ const DOC_MD = `# Inverses
 
 - [REQ-0001] A requirement
 
-  Id: 01REQ000000000000000000001\\
+      Id: 01REQ000000000000000000001
 
 - [TEST-0001] A test
 
-  Id: 01TEST00000000000000000001\\
-  Verifies: 01REQ000000000000000000001\\
+      Id: 01TEST00000000000000000001
+      Verifies: 01REQ000000000000000000001
 `;
 
 Deno.test("compile e2e: generated inverse Verified-by appears on requirement", async () => {
@@ -82,13 +82,13 @@ Deno.test("compile e2e: MSL-L005 warning on authored-vs-generated mismatch", asy
 
 - [REQ-0001] A requirement
 
-  Id: 01REQ000000000000000000001\\
-  Verified-by: 01WRONG0000000000000000001\\
+      Id: 01REQ000000000000000000001
+      Verified-by: 01WRONG0000000000000000001
 
 - [TEST-0001] A test
 
-  Id: 01TEST00000000000000000001\\
-  Verifies: 01REQ000000000000000000001\\
+      Id: 01TEST00000000000000000001
+      Verifies: 01REQ000000000000000000001
 `;
 
   const { stderr } = await markspec(

@@ -15,24 +15,24 @@ const FIXTURE = {
 
   Emergency braking.
 
-  Id: STK_01HGW2Q8MNP3\\
-  Labels: ASIL-B
+      Id: STK_01HGW2Q8MNP3
+      Labels: ASIL-B
 
 - [SYS_BRK_0042] System requirement
 
   Threat assessment.
 
-  Id: SYS_01HGW2R9QLP4\\
-  Satisfies: STK_BRK_0001\\
-  Labels: ASIL-B
+      Id: SYS_01HGW2R9QLP4
+      Satisfies: STK_BRK_0001
+      Labels: ASIL-B
 
 - [SRS_BRK_0001] Software requirement
 
   Sensor debouncing.
 
-  Id: SRS_01HGW2S0ABC5\\
-  Satisfies: SYS_BRK_0042\\
-  Labels: ASIL-B
+      Id: SRS_01HGW2S0ABC5
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 `,
 };
 
@@ -103,8 +103,8 @@ Deno.test("report: --scope filters by domain", async () => {
 
   Body.
 
-  Id: SRS_01HGW2T1DEF6\\
-  Labels: ASIL-A
+      Id: SRS_01HGW2T1DEF6
+      Labels: ASIL-A
 `,
   };
   const { code, stdout } = await markspec(

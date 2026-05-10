@@ -60,7 +60,7 @@ export function parseSource(
 
   for (const block of blocks) {
     const markdown = wrapAsListItem(block.lines);
-    const parsed = parseMarkdown(markdown, { file });
+    const { entries: parsed } = parseMarkdown(markdown, { file });
 
     for (const entry of parsed) {
       const location = {

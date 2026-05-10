@@ -1,9 +1,5 @@
 # ADR-004: Book structure
 
-Status: Accepted\
-Date: 2026-03-01\
-Scope: MarkSpec
-
 ## Context
 
 Project documentation needs to be rendered as a navigable book for auditors,

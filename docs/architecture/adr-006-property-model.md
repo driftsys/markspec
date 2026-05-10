@@ -1,11 +1,5 @@
 # ADR-006: Property Model
 
-Status: Proposed\
-Date: 2026-04-17 (revised 2026-04-20 for ADR-009 alignment)\
-Scope: MarkSpec\
-Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md),
-[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
-
 ## Context
 
 ADR-002 introduces a two-tier model for entries:

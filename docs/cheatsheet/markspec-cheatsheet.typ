@@ -120,9 +120,9 @@ Slug: `fig.architecture-overview`
   The sensor driver shall debounce
   raw inputs to eliminate noise.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\
-  Satisfies: SYS_BRK_0042\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_BRK_0042
+      Labels: ASIL-B
 ```]
 
 No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
@@ -169,9 +169,9 @@ entries (external citations) carry a URI (`urn:`, `doi:`, `pkg:`, `https:`,
  * a 5ms noise spike must not alter
  * the stable output.
  *
- * Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ\
- * Verifies: SRS_BRK_0107\
- * Tests: braking_core::controller::debounce
+ *     Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
+ *     Verifies: SRS_BRK_0107
+ *     Tests: braking_core::controller::debounce
  */
 @Test
 fun `swt_brk_0107 debounce`() { }
@@ -404,8 +404,8 @@ Only in `references` document type. Display ID = slug.
   Road vehicles — Functional
   safety — Part 6: Software.
 
-  Document: ISO 26262-6:2018\
-  URL: https://www.iso.org/...
+      Document: ISO 26262-6:2018
+      URL: https://www.iso.org/...
 ```]
 
 == Reference attributes

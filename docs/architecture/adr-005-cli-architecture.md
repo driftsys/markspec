@@ -1,9 +1,5 @@
 # ADR-005: CLI architecture
 
-Status: Accepted\
-Date: 2026-03-23\
-Scope: MarkSpec CLI
-
 ## Context
 
 MarkSpec needs a CLI tool that handles multiple subcommands (format, validate,

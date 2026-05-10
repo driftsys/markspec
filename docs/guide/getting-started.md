@@ -94,13 +94,13 @@ Add a second entry that satisfies the first:
 
   The service shall expose a /health endpoint returning 200 OK.
 
-  Id: 01KPVVC9J2B1ZA64QZEMHF02PX\
-  Satisfies: STK_PRJ_0001
+      Id: 01KPVVC9J2B1ZA64QZEMHF02PX
+      Satisfies: STK_PRJ_0001
 ```
 
 The `Satisfies:` attribute creates a directed link from SRS_PRJ_0001 to
-STK_PRJ_0001 in the traceability graph. The trailing backslash (`\`) separates
-attributes on consecutive lines.
+STK_PRJ_0001 in the traceability graph. Attributes are written as a 4-space
+indented code block at the end of the entry.
 
 ## Compile
 

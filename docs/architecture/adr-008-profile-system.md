@@ -1,13 +1,5 @@
 # ADR-008: Profile System — Vocabulary, Rules, and Extension Distribution
 
-Status: Proposed\
-Date: 2026-04-19 (revised 2026-04-20 for ADR-009 alignment)\
-Scope: MarkSpec\
-Depends on: [ADR-002 — Entry Model](./adr-002-entry-model.md),
-[ADR-006 — Property Model](./adr-006-property-model.md),
-[ADR-007 — Document Structure](./adr-007-document-structure.md),
-[ADR-009 — Core / Profile Boundary](./adr-009-core-profile-boundary.md)
-
 ## Context
 
 ADR-009 establishes the core / profile boundary: the core recognizes two

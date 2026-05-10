@@ -32,9 +32,9 @@
        Example: "The sensor pipeline shall use an interrupt-driven architecture
        with a lock-free ring buffer to decouple acquisition from processing." -->
 
-  Id:\
-  Satisfies:\
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
   <!-- Id: left empty, assigned by `markspec doc format`.
        Satisfies: upstream requirement ID (e.g., STK_BRK_0001, SYS_BRK_0042).
@@ -49,9 +49,9 @@
 
   Description of the interface contract.
 
-  Id: \
-  Satisfies: \
-  Labels:
+      Id:
+      Satisfies:
+      Labels:
 
 -->
 

@@ -57,7 +57,7 @@ export function parse(
   markdown: string,
   options?: ParseOptions,
 ): Entry[] {
-  return parseMarkdown(markdown, options);
+  return parseMarkdown(markdown, options).entries;
 }
 
 /** Result of parsing a file (entries + optional document + diagnostics). */
@@ -114,7 +114,7 @@ export async function parseFile(
   const fm = extractFrontMatter(content, { file: options.file });
   const body = fm.hadFrontMatter ? fm.markdown : content;
   const isReferencesDoc = isReferencesDocument(options.file);
-  const entries = parseMarkdown(body, {
+  const { entries, diagnostics: parseDiagnostics } = parseMarkdown(body, {
     file: options.file,
     isReferencesDoc,
   });
@@ -130,7 +130,7 @@ export async function parseFile(
   return {
     entries,
     document,
-    diagnostics: fm.diagnostics,
+    diagnostics: [...fm.diagnostics, ...parseDiagnostics],
   };
 }
 

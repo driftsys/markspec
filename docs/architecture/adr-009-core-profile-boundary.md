@@ -1,15 +1,5 @@
 # ADR-009: Core / Profile Boundary
 
-Status: Proposed\
-Date: 2026-04-20\
-Scope: MarkSpec\
-Supersedes: ADR-002 §Part 6 (Family Recognition), ADR-008 §8 (Identity model —
-unchanged)\
-Updates: [ADR-002 — Entry Model](./adr-002-entry-model.md),
-[ADR-006 — Property Model](./adr-006-property-model.md),
-[ADR-007 — Document Structure](./adr-007-document-structure.md),
-[ADR-008 — Profile System](./adr-008-profile-system.md)
-
 ## Context
 
 ADR-001 through ADR-008 gradually built a data model centered on four entry

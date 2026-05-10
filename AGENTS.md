@@ -486,8 +486,8 @@ Deno.test("parseEntryBlock: extracts display ID", () => {
 
   The sensor driver shall debounce raw inputs.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
-  Labels: ASIL-B`;
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: ASIL-B`;
 
   const entry = parseEntryBlock(block);
   assertEquals(entry.shape, "identified");
@@ -563,9 +563,9 @@ Deno.test("validate: broken upstream link fails", async () => {
   const input = `
 - [SRS_BRK_0001] Sensor debouncing
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF \\
-  Satisfies: SYS_NONEXISTENT \\
-  Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_NONEXISTENT
+      Labels: ASIL-B
 `;
 
   const { code, stderr } = await markspec(["validate"], {
@@ -674,9 +674,9 @@ verification. They live together.
 /// the ratio of range to closing velocity for each tracked
 /// object.
 ///
-/// Id: 01HGW3C4DEF6ABCDEFGHJKMNPQ \
-/// Satisfies: SYS_AEB_0012 \
-/// Labels: ASIL-B
+///     Id: 01HGW3C4DEF6ABCDEFGHJKMNPQ
+///     Satisfies: SYS_AEB_0012
+///     Labels: ASIL-B
 #[test]
 fn swt_aeb_0030_ttc_calculation() {
     let ttc = compute_ttc(50.0, 15.0);
@@ -698,9 +698,9 @@ test across module boundaries using only the crate's public API.
 /// object based on time-to-collision, relative velocity, and
 /// object classification.
 ///
-/// Id: 01HGW3A2BCD5ABCDEFGHJKMNPQ \
-/// Satisfies: STK_AEB_0001 \
-/// Labels: ASIL-B
+///     Id: 01HGW3A2BCD5ABCDEFGHJKMNPQ
+///     Satisfies: STK_AEB_0001
+///     Labels: ASIL-B
 #[test]
 fn sit_aeb_0012_threat_from_radar_track() {
     let frame = mock_radar_frame(50.0, 15.0, ObjectClass::Vehicle);

@@ -60,8 +60,8 @@ Deno.test("lsp completions: ID reference on 'Satisfies:'", async () => {
 
   Body text.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEG \\
-  Satisfies: 
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Satisfies:
 `;
   const client = await LspTestClient.create({
     "project.yaml": "name: test-project\n",
@@ -83,10 +83,10 @@ Deno.test("lsp completions: ID reference on 'Satisfies:'", async () => {
     // Give server time to parse and index
     await new Promise((r) => setTimeout(r, 500));
 
-    // Request completion after "Satisfies: " (line 11, char 14)
+    // Request completion after "Satisfies:" (line 11, char 16)
     const result = await client.request("textDocument/completion", {
       textDocument: { uri: fileUri },
-      position: { line: 11, character: 14 },
+      position: { line: 11, character: 16 },
     }) as Array<{ label: string }>;
 
     assertExists(result);

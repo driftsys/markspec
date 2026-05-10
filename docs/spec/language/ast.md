@@ -124,24 +124,29 @@ interface MsAttribute {
 | `displayId`  | Text content inside `[...]` brackets                                    |
 | `title`      | Inline content after the closing `]` on the first line                  |
 | `body`       | All block-level children between title and attribute block              |
-| `attributes` | Parsed from the trailing `Key: Value\` lines                            |
+| `attributes` | Parsed from the trailing indented code block (`code` mdast node)        |
 
 ### Attribute block extraction
 
-The last paragraph in the `listItem` body is inspected for attribute lines. A
-paragraph is an attribute block when every line matches:
+The trailing block of the `listItem` body is inspected. The attribute block is a
+trailing indented `code` mdast node (4-space indent relative to body indent in
+CommonMark) whose content lines each match:
 
 ```
-Key: Value[\]
+Key: Value
 ```
 
-Where `Key` is a capitalized word (`[A-Z][a-z-]*`), `:` is the separator,
-`Value` is the remainder, and `\` is an optional trailing backslash (line
-continuation). The last line has no backslash.
+Where `Key` matches `[A-Z][A-Za-z-]*` and `:` is the separator. The block
+qualifies as an attribute block only when **every** content line matches.
 
-If the trailing paragraph is an attribute block, it is removed from `body` and
-its lines are parsed into `MsAttribute` entries. If it is not an attribute
-block, `attributes` is empty and the paragraph stays in `body`.
+If the trailing `code` node is an attribute block, it is removed from `body` and
+its lines are parsed into `MsAttribute` entries. Otherwise, `attributes` is
+empty and the `code` node stays in `body` (as a regular code block).
+
+**Backward compatibility.** During the transition, the parser also accepts the
+legacy form: a trailing `paragraph` whose text content is `Key: Value` lines
+joined by hard line breaks (the trailing `\` form). When the legacy shape is
+recognized, the parser emits `MSL-DEPRECATED-ATTR-001`.
 
 ### Examples
 
@@ -154,12 +159,8 @@ list (unordered, depth 0)
       text "[SRS_BRK_0001] Sensor debouncing"
     paragraph
       text "The sensor driver shall debounce..."
-    paragraph
-      text "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\"
-      softBreak
-      text "Satisfies: SYS_BRK_0042\"
-      softBreak
-      text "Labels: ASIL-B"
+    code (indented)
+      "Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\nSatisfies: SYS_BRK_0042\nLabels: ASIL-B"
 ```
 
 **Output:**
@@ -226,12 +227,18 @@ Attribute blocks are always extracted as part of `msEntry` detection (§1). They
 do not exist as standalone nodes — they are a structural component of an entry
 block.
 
-When an entry block is detected, the trailing paragraph is tested for the
-attribute pattern. If it matches, it is consumed into the `msEntry.attributes`
-array and removed from the tree.
+When an entry block is detected, the trailing `code` mdast node is tested for
+the attribute pattern. If every content line matches `Key: Value`, it is
+consumed into the `msEntry.attributes` array and removed from the tree.
+Otherwise, the `code` node stays in `body` as a regular code block.
 
-Outside of entry blocks, `Key: Value\` paragraphs are not recognized as
-attribute blocks — they remain normal paragraphs.
+The trailing position is required: if any block-level content appears after the
+candidate `code` node, it does not qualify as an attribute block.
+
+**Legacy shape.** During the transition, a trailing `paragraph` with
+`Key: Value` lines separated by hard line breaks is also recognized. This
+triggers `MSL-DEPRECATED-ATTR-001`. The legacy form will be removed in a future
+major release.
 
 ---
 
