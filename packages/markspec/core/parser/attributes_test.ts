@@ -216,3 +216,60 @@ Deno.test("collateAttributes: empty input returns empty map", () => {
   const collated = collateAttributes([]);
   assertEquals(collated.size, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Both legacy and canonical attribute shapes parse identically
+// ---------------------------------------------------------------------------
+
+Deno.test("splitBodyAndAttributes: indented-code-block form (new canonical)", () => {
+  // Body indent is already stripped by the caller; the input below is what
+  // extractBodyContent returns for an entry whose attribute block is an
+  // indented code block at body+4 columns.
+  const content =
+    "Body sentence.\n" +
+    "\n" +
+    "    Id: 01HGW2Q8MNP3RSTVWXYZABCDE\n" +
+    "    Satisfies: SYS_BRK_0042\n" +
+    "    Labels: ASIL-B";
+
+  const [body, attrs] = splitBodyAndAttributes(content);
+
+  assertEquals(body, "Body sentence.");
+  assertEquals(attrs, [
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+    "Satisfies: SYS_BRK_0042",
+    "Labels: ASIL-B",
+  ]);
+});
+
+Deno.test("splitBodyAndAttributes: legacy backslash-paragraph form still parses", () => {
+  const content =
+    "Body sentence.\n" +
+    "\n" +
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE\\\n" +
+    "Satisfies: SYS_BRK_0042\\\n" +
+    "Labels: ASIL-B";
+
+  const [body, attrs] = splitBodyAndAttributes(content);
+
+  assertEquals(body, "Body sentence.");
+  // Note: trailing `\` is preserved by splitBodyAndAttributes;
+  // parseAttributes strips it via ATTRIBUTE_RE's optional `\\?`.
+  assertEquals(attrs, [
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE\\",
+    "Satisfies: SYS_BRK_0042\\",
+    "Labels: ASIL-B",
+  ]);
+});
+
+Deno.test("parseAttributes: both shapes produce identical Attribute[]", () => {
+  const newShape = parseAttributes([
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+    "Satisfies: SYS_BRK_0042",
+  ]);
+  const legacyShape = parseAttributes([
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE\\",
+    "Satisfies: SYS_BRK_0042\\",
+  ]);
+  assertEquals(newShape, legacyShape);
+});
