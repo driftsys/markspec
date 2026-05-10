@@ -1,5 +1,103 @@
 # Changelog
 
+## [0.4.0] (2026-05-10)
+
+### Bug Fixes
+
+- **mcp:** render entry and diagnostic locations relative to projectRoot
+  ([4452666])
+- **mcp:** resolve concurrent-compile race and stuck-error state in project
+  cache ([057d2cf])
+
+### Documentation
+
+- **docs:** document markspec mcp subcommand and client setup ([da48d1f])
+- **docs:** add v1 MCP server implementation plan ([423117f])
+- **spec:** document MCP client compatibility for Claude/Copilot/OpenCode
+  ([aa081a7])
+- **spec:** redesign v1 MCP server around resources and Markdown content
+  ([6051097])
+- **spec:** add v1 MCP server design (read-only tools, mtime cache) ([937daa4])
+- **repo:** complete attribute-block syntax migration across docs and tests
+  ([13d116d])
+- **book:** update renderChapterHtml JSDoc for new hue-class output ([c896452])
+- **docs:** regenerate full changelog via git-std ([f6aa687])
+
+### Features
+
+- **mcp:** wire markspec mcp subcommand to mcp/server.ts ([0249872])
+- **mcp:** bootstrap MCP server over stdio with resource notifications
+  ([4addd3b])
+- **mcp:** register tools/list and tools/call dispatch ([abef2d5])
+- **mcp:** add markspec_refresh tool ([f09718e])
+- **mcp:** add validate tool with Markdown diagnostics report ([0c172ee])
+- **mcp:** add entry_context tool with chain-walk renderer ([3c9199e])
+- **mcp:** add entry_search tool with ranking and Markdown render ([b4a7878])
+- **mcp:** register resources/list and resources/read handlers ([8b13a61])
+- **mcp:** render markspec://entries index as Markdown ([1551fdd])
+- **mcp:** render markspec://entry/{id} as Markdown ([6bf8978])
+- **mcp:** render markspec://profile as Markdown distillation ([92c3aab])
+- **mcp:** add project context with compile cache and mtime invalidation
+  ([1c02324])
+- **mcp:** add MCP SDK dependency and markspec:// URI helpers ([5e8c4a2])
+- **core:** switch attribute block syntax to indented code block ([7c92a7d])
+- **book:** wire profile-driven entry colors and add merge integration tests
+  ([a675081]), closes [#260], #261.
+
+Relocates resolveEntryColor from
+  render/typst/colors.ts into core/profile/colors.ts so both rendering layers
+  (Typst PDF and HTML book) can call it through the library boundary defined in
+  AGENTS.md. The render-side file becomes obsolete and is removed; its tests
+  move to core/profile/colors_test.ts where they remain the canonical resolver
+  coverage.
+
+BuildBookOptions and RenderChapterOptions gain an optional profile
+  field; the book CLI threads bookChain.effective into both compile and
+  buildBook. _entryToHtml drops the V-model prefix heuristic (_entryCategory)
+  and emits class="req-block hue-<name>" for identified entries with a resolved
+  color, or class="req-block uncolored" for referenced-shape entries. The
+  matching .hue-<name> and .uncolored CSS rules were already shipped with PR
+  #257; the book pipeline now opts in.
+
+Adds three integration tests (issue
+  #260) covering parseManifest -> mergeChain -> resolveEntryColor end-to-end:
+  declared hue resolves correctly, type-without-color falls back to blue, and a
+  referenced-shape type with color authored stays uncolored at render time
+  despite the manifest emitting MSL-PROFILE-COLOR-001.
+
+Existing e2e book tests
+  are updated to assert the new class-based output. The 'data-entry-type=spec
+  for ARC entries' test is repurposed as a regression check that the prefix
+  heuristic is gone.
+
+[0.4.0]: https://github.com/driftsys/markspec/compare/v0.3.0...v0.4.0
+[4452666]: https://github.com/driftsys/markspec/commit/4452666
+[057d2cf]: https://github.com/driftsys/markspec/commit/057d2cf
+[da48d1f]: https://github.com/driftsys/markspec/commit/da48d1f
+[423117f]: https://github.com/driftsys/markspec/commit/423117f
+[aa081a7]: https://github.com/driftsys/markspec/commit/aa081a7
+[6051097]: https://github.com/driftsys/markspec/commit/6051097
+[937daa4]: https://github.com/driftsys/markspec/commit/937daa4
+[13d116d]: https://github.com/driftsys/markspec/commit/13d116d
+[c896452]: https://github.com/driftsys/markspec/commit/c896452
+[f6aa687]: https://github.com/driftsys/markspec/commit/f6aa687
+[0249872]: https://github.com/driftsys/markspec/commit/0249872
+[4addd3b]: https://github.com/driftsys/markspec/commit/4addd3b
+[abef2d5]: https://github.com/driftsys/markspec/commit/abef2d5
+[f09718e]: https://github.com/driftsys/markspec/commit/f09718e
+[0c172ee]: https://github.com/driftsys/markspec/commit/0c172ee
+[3c9199e]: https://github.com/driftsys/markspec/commit/3c9199e
+[b4a7878]: https://github.com/driftsys/markspec/commit/b4a7878
+[8b13a61]: https://github.com/driftsys/markspec/commit/8b13a61
+[1551fdd]: https://github.com/driftsys/markspec/commit/1551fdd
+[6bf8978]: https://github.com/driftsys/markspec/commit/6bf8978
+[92c3aab]: https://github.com/driftsys/markspec/commit/92c3aab
+[1c02324]: https://github.com/driftsys/markspec/commit/1c02324
+[5e8c4a2]: https://github.com/driftsys/markspec/commit/5e8c4a2
+[7c92a7d]: https://github.com/driftsys/markspec/commit/7c92a7d
+[a675081]: https://github.com/driftsys/markspec/commit/a675081
+[#260]: https://github.com/driftsys/markspec/issues/260
+
 ## [0.3.0] (2026-05-10)
 
 ### Documentation
