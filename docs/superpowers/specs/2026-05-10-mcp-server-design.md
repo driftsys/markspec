@@ -528,13 +528,40 @@ JSON-RPC errors (resources):
 `COMPILE_FAILED` is a hard error — the cache is left empty and subsequent
 calls retry. We do not silently return partial graphs.
 
-## 9. Out of Scope for v1
+## 9. Client Compatibility
+
+The design works in the three MCP clients we care about today. Coverage as of
+2026-05-10:
+
+| Feature                                                      | Claude Code | GitHub Copilot (VS Code) | OpenCode    |
+| ------------------------------------------------------------ | ----------- | ------------------------ | ----------- |
+| stdio transport                                              | ✓           | ✓                        | ✓           |
+| `tools/list`, `tools/call`                                   | ✓           | ✓                        | ✓           |
+| `resources/list`, `resources/read`                           | ✓           | ✓                        | ✓           |
+| `resources/subscribe` + `resources/updated` notifications    | ✓           | ✗ (ignored)              | ⚠ partial   |
+
+Subscriptions (§4.6, §4.7) are a **latency optimization**, never a correctness
+mechanism. Every `resources/read` and `tools/call` runs through
+`getCompiled()` (§4.3), which stats tracked files and recompiles on staleness.
+A Copilot agent that re-reads `markspec://entry/STK_AEB_0001` after an edit
+sees the updated content even though Copilot ignored the `resources/updated`
+notification — because the read itself triggered the recompile.
+
+The server still advertises `subscribe: true` and emits notifications
+unconditionally. Clients that honor them get push updates; clients that don't
+are no worse off than they would be without subscriptions at all.
+
+Stdio is the only transport in v1 (§3.1) because Copilot does not yet support
+HTTP/SSE for MCP and the other two support stdio natively. Adding HTTP later
+is additive.
+
+## 10. Out of Scope for v1
 
 | Item                    | Reason                                                    |
 | ----------------------- | --------------------------------------------------------- |
 | `requirement_insert`    | Requires `markspec insert` (epic:insert, #38–#41) first.  |
 | External RefHub registry | Separate tool family; distinct concept from local entries. |
-| HTTP / SSE transport    | stdio covers Claude Desktop / Claude Code defaults.       |
+| HTTP / SSE transport    | Not supported by Copilot today; stdio is universal.       |
 | Prompts                 | No agent use case yet.                                    |
 | Sampling                | Relevant only for nested-LLM workflows.                   |
 | Multi-root workspace    | Single project root matches CLI semantics.                |
@@ -542,9 +569,9 @@ calls retry. We do not silently return partial graphs.
 | Hot profile reload      | Profile chain loaded once; refresh tool re-reads.         |
 | Document resources      | `markspec://document/{path}` for full source bodies — defer until use case is clear. |
 
-## 10. Tests
+## 11. Tests
 
-### 10.1 Unit tests
+### 11.1 Unit tests
 
 Each `resources/<name>.ts` and `tools/<name>.ts` has a colocated `<name>_test.ts`.
 Tests build a minimal fixture `CompileResult` (or use a shared builder) and
@@ -556,7 +583,7 @@ The ranking algorithm in `tools/search.ts` gets focused tests per scoring rule.
 `project.ts` gets unit tests for the cache invalidation logic with an in-memory
 readFile / stat shim.
 
-### 10.2 E2E test
+### 11.2 E2E test
 
 `tests/e2e/mcp_test.ts` spawns `deno run main.ts mcp` with a fixture project in
 a temp directory. It exchanges a real JSON-RPC sequence over stdio:
@@ -579,13 +606,13 @@ a temp directory. It exchanges a real JSON-RPC sequence over stdio:
 
 This is the integration boundary; it never imports from `mcp/` directly.
 
-### 10.3 Snapshot tests
+### 11.3 Snapshot tests
 
 `tests/e2e/mcp_test.ts` snapshots the `tools/list` response and the rendered
 Markdown of the fixture's `markspec://profile` so wording or schema regressions
 are caught on review.
 
-## 11. Rollout
+## 12. Rollout
 
 One PR with the full v1:
 
@@ -601,7 +628,7 @@ One PR with the full v1:
 6. Update GitHub issues #60–#63 with the resource/tool layout and the deferral
    of #63.
 
-## 12. Open Questions
+## 13. Open Questions
 
 None blocking implementation. Items for follow-up after v1 ships:
 
