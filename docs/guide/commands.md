@@ -258,6 +258,80 @@ markspec doctor
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
+## AI agent integration
+
+### mcp
+
+Start the MarkSpec MCP server. Communicates over stdio JSON-RPC. Exposes the
+active project as MCP resources and tools to any MCP-capable AI client (Claude
+Code, Claude Desktop, GitHub Copilot in VS Code, OpenCode).
+
+```sh
+markspec mcp
+```
+
+#### Resources
+
+- `markspec://profile` — distilled profile manifest (types, attributes, link
+  kinds, labels).
+- `markspec://entries` — index of all project entries, grouped by type.
+- `markspec://entry/{displayId}` — one entry per resource, with attributes,
+  body, outgoing/incoming links.
+
+#### Tools
+
+- `entry_search { query, limit? }` — rank-search entries by display ID and
+  title.
+- `entry_context { id, depth? }` — walk the `satisfies` chain upward.
+- `validate { files? }` — run the validator, return a Markdown diagnostics
+  report.
+- `markspec_refresh` — force-invalidate the compile cache (call after agent
+  edits to guarantee freshness).
+
+#### Claude Desktop config
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "markspec": {
+      "command": "markspec",
+      "args": ["mcp"],
+      "cwd": "/path/to/your/markspec-project"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. The MarkSpec resources and tools appear in the attach
+menu.
+
+#### Claude Code
+
+```sh
+claude mcp add markspec --command markspec --args mcp --cwd /path/to/project
+```
+
+#### VS Code (Copilot)
+
+In your project's `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "markspec": {
+      "command": "markspec",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Copilot does not support MCP resource subscriptions today, but the `markspec://`
+resources still work — the server runs a fresh staleness check on every read, so
+a re-read after an edit returns up-to-date content.
+
 ## Not yet implemented
 
 These commands are registered but print an error and exit:
@@ -272,4 +346,3 @@ These commands are registered but print an error and exit:
 | `book dev`         | Live preview with hot reload                             |
 | `deck build`       | Slides → PDF via Touying/Typst                           |
 | `deck dev`         | Live slide preview                                       |
-| `mcp`              | MCP server for AI agent integration                      |
