@@ -994,8 +994,11 @@ const cli = new Command()
     await import("./lsp/server.ts");
   })
   .command("mcp")
-  .description("Start MCP server")
-  .action(notImplemented("mcp"))
+  .description("Start MCP server (stdio JSON-RPC)")
+  .action(async () => {
+    const { startServer } = await import("./mcp/server.ts");
+    await startServer();
+  })
   // Version subcommand (alias for --version)
   .command("version")
   .description("Print version")
