@@ -6,7 +6,7 @@
  * Uses an in-memory ProjectEnv shim so no filesystem access is required.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { createProject, type ProjectEnv } from "./project.ts";
 
 /** Build a ProjectEnv that serves a fixed file map. */
@@ -137,6 +137,48 @@ Deno.test("forceRefresh: recompiles even with no changes", async () => {
   const r2 = await proj.forceRefresh();
   // Different object — recompile happened.
   assertEquals(r1 !== r2, true);
+});
+
+Deno.test("getCompiled: recovers from a transient compile error", async () => {
+  // Build an env where the first compile fails (walk throws), then the
+  // underlying problem clears and a subsequent getCompiled() succeeds.
+  // This verifies that runCompile()'s finally resets `inFlight`, so the
+  // cache doesn't get jammed into a permanent error state.
+  const { env } = makeEnv({
+    "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
+    "/proj/req.md": { content: REQ_DOC, mtime: 1 },
+  });
+  let failNextWalk = true;
+  const wrappedEnv: ProjectEnv = {
+    ...env,
+    walk: function (root: string) {
+      if (failNextWalk) {
+        failNextWalk = false;
+        return (async function* () {
+          throw new Error("simulated walk failure");
+          // deno-lint-ignore no-unreachable
+          yield "";
+        })();
+      }
+      return env.walk(root);
+    },
+  };
+
+  const proj = await createProject(wrappedEnv);
+
+  // First call: the background compile failed, so this should reject with
+  // the simulated error.
+  await assertRejects(
+    () => proj.getCompiled(),
+    Error,
+    "simulated walk failure",
+  );
+
+  // Second call: the in-flight slot must have been reset, so this should
+  // start a fresh compile and succeed.
+  const result = await proj.getCompiled();
+  assertExists(result);
+  assertEquals(result.entries.size, 1);
 });
 
 Deno.test("subscribeInvalidation: fires handlers after recompile", async () => {

@@ -180,33 +180,58 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
 
   /** Run compile() over current tracked set; update cache. */
   async function runCompile(): Promise<CompileResult> {
-    const paths = await discoverTracked();
-    const result = await compile(paths, {
-      readFile: async (p: string) => {
-        const content = await env.readFile(p);
-        if (content === undefined) {
-          throw new Error(`failed to read ${p}`);
-        }
-        return content;
-      },
-      profile: profileChain?.effective ?? undefined,
-    });
+    try {
+      const paths = await discoverTracked();
+      const result = await compile(paths, {
+        readFile: async (p: string) => {
+          const content = await env.readFile(p);
+          if (content === undefined) {
+            throw new Error(`failed to read ${p}`);
+          }
+          return content;
+        },
+        profile: profileChain?.effective ?? undefined,
+      });
 
-    // Snapshot mtimes for next invalidation check.
-    const snapshot: TrackedFile[] = [];
-    for (const path of paths) {
-      try {
-        const { mtime } = await env.stat(path);
-        snapshot.push({ path, mtime });
-      } catch {
-        // File disappeared during compile — ignore.
+      // Snapshot mtimes for next invalidation check.
+      const snapshot: TrackedFile[] = [];
+      for (const path of paths) {
+        try {
+          const { mtime } = await env.stat(path);
+          snapshot.push({ path, mtime });
+        } catch {
+          // File disappeared during compile — ignore.
+        }
       }
+      tracked = snapshot;
+      cached = result;
+      // Fire handlers AFTER cache is committed but isolate handler errors so
+      // one bad subscriber doesn't break others or abort the compile result.
+      for (const h of handlers) {
+        try {
+          h(result);
+        } catch {
+          // Handler error — ignore.
+        }
+      }
+      return result;
+    } finally {
+      // Always reset the in-flight slot — success or failure — so a subsequent
+      // call can retry. Without this, a single compile failure jams the cache
+      // permanently (every future await re-throws the same rejection).
+      inFlight = null;
     }
-    tracked = snapshot;
-    cached = result;
-    inFlight = null;
-    for (const h of handlers) h(result);
-    return result;
+  }
+
+  /**
+   * Idempotent compile starter. Returns the existing in-flight promise if
+   * one is running; otherwise starts a new compile and stores its promise.
+   * This is the single gate through which all recompiles must pass — it
+   * prevents two concurrent callers from kicking off duplicate compiles.
+   */
+  function ensureCompile(): Promise<CompileResult> {
+    if (!inFlight) inFlight = runCompile();
+    return inFlight;
   }
 
   /** Detect any change in the tracked file set since the last compile. */
@@ -235,10 +260,12 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
 
   // Kick off background compile so first tool call doesn't pay the cost.
   if (projectRoot) {
-    inFlight = runCompile().catch(() => {
-      // Errors surface on the awaited call.
-      return null as unknown as CompileResult;
-    });
+    const promise = ensureCompile();
+    // Prevent unhandled-rejection warnings if no caller awaits this promise
+    // immediately. The error still surfaces naturally on the first
+    // getCompiled() / forceRefresh() call, and inFlight will have been reset
+    // to null by runCompile()'s finally so the next call can retry.
+    promise.catch(() => {});
   }
 
   return {
@@ -253,13 +280,15 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
             "Operations require project context.",
         );
       }
-      if (inFlight) {
-        const result = await inFlight;
-        if (result) return result;
+      // Ride an in-flight compile if one is already running.
+      if (inFlight) return await inFlight;
+      // Stale-check is async — re-check inFlight afterwards in case another
+      // caller raced us into starting a compile during the await.
+      if (cached && !(await isStale())) {
+        if (inFlight) return await inFlight;
+        return cached;
       }
-      if (cached && !(await isStale())) return cached;
-      inFlight = runCompile();
-      return await inFlight;
+      return await ensureCompile();
     },
     async forceRefresh(): Promise<CompileResult> {
       if (!projectRoot) {
@@ -268,8 +297,10 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
             "Operations require project context.",
         );
       }
-      inFlight = runCompile();
-      return await inFlight;
+      // Force-refresh joins an in-flight compile rather than firing a second
+      // one. What matters is that after this resolves, the cache reflects a
+      // fresh compile.
+      return await ensureCompile();
     },
     subscribeInvalidation(handler: InvalidationHandler): () => void {
       handlers.add(handler);
