@@ -23,7 +23,7 @@ const FIXTURE_DOC = `# Stakeholder requirements
 
   Body.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
 
 interface RpcResponse {
@@ -261,7 +261,7 @@ Deno.test("mcp: file edit + markspec_refresh fires resources/updated", async () 
     await Deno.writeTextFile(
       `${cwd}/req.md`,
       FIXTURE_DOC +
-        `\n- [STK_E2E_0002] Second\n\n  Body.\n\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEG\n`,
+        `\n- [STK_E2E_0002] Second\n\n  Body.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG\n`,
     );
 
     const resp = await proc.request("tools/call", {
@@ -272,8 +272,15 @@ Deno.test("mcp: file edit + markspec_refresh fires resources/updated", async () 
     const content = (resp.result as any).content as Array<{ text: string }>;
     assertStringIncludes(content[0].text, "2 entries");
 
-    const notifs = proc.drainNotifications();
-    const methods = notifs.map((n) => n.method);
+    // Subscription handlers fire on the next microtask after the tool call
+    // response; give the runtime up to ~500ms to flush them before draining.
+    const deadline = performance.now() + 500;
+    let methods: (string | undefined)[] = [];
+    while (performance.now() < deadline) {
+      methods = proc.drainNotifications().map((n) => n.method);
+      if (methods.includes("notifications/resources/list_changed")) break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
     assertEquals(
       methods.includes("notifications/resources/list_changed"),
       true,
