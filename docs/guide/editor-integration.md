@@ -30,7 +30,17 @@ interfere with your language's native LSP (rust-analyzer, kotlin-lsp, etc.).
 ## VS Code
 
 Install the **MarkSpec** extension from the `editors/vscode/` directory in this
-repository.
+repository. The extension requires VS Code **1.101 or newer** (the version that
+introduced the stable MCP extension API).
+
+The extension provides two integrations in one install:
+
+- **LSP** — diagnostics, completions, and entry-block scaffolding in the editor.
+- **MCP** — registers a `markspec` MCP server with VS Code so Copilot (and any
+  other MCP-aware client) can use the project's resources and tools without a
+  separate `.vscode/mcp.json`.
+
+Both point at the same `markspec` binary, resolved from `markspec.server.path`.
 
 ### From source
 
@@ -50,11 +60,13 @@ code --extensionDevelopmentPath=editors/vscode
 
 ### Configuration
 
-| Setting                 | Default      | Description                                   |
-| ----------------------- | ------------ | --------------------------------------------- |
-| `markspec.server.path`  | `"markspec"` | Path to the `markspec` binary.                |
-| `markspec.server.args`  | `["lsp"]`    | Arguments passed to start the LSP server.     |
-| `markspec.trace.server` | `"off"`      | Trace level: `off`, `messages`, or `verbose`. |
+| Setting                 | Default      | Description                                               |
+| ----------------------- | ------------ | --------------------------------------------------------- |
+| `markspec.server.path`  | `"markspec"` | Path to the `markspec` binary (used by both LSP and MCP). |
+| `markspec.server.args`  | `["lsp"]`    | Arguments passed to start the LSP server.                 |
+| `markspec.mcp.enabled`  | `true`       | Register the MarkSpec MCP server with VS Code.            |
+| `markspec.mcp.args`     | `["mcp"]`    | Arguments passed to start the MCP server.                 |
+| `markspec.trace.server` | `"off"`      | Trace level: `off`, `messages`, or `verbose`.             |
 
 If `markspec` is not on your PATH, set the full path:
 
@@ -63,6 +75,22 @@ If `markspec` is not on your PATH, set the full path:
   "markspec.server.path": "/home/you/.local/bin/markspec"
 }
 ```
+
+### MCP server
+
+Once the extension is installed, the **MarkSpec** MCP server appears in
+Copilot's MCP picker — no `.vscode/mcp.json` required. To disable the
+registration:
+
+```json
+{
+  "markspec.mcp.enabled": false
+}
+```
+
+The manual `.vscode/mcp.json` recipe in
+[Commands — `mcp` § VS Code (Copilot)](commands.md#vs-code-copilot) remains
+supported for editors that don't run the extension.
 
 ## Neovim
 

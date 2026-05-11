@@ -25,5 +25,13 @@
     "${workspaceFolder}/packages/markspec/main.ts",
     "lsp"
   ],
+  "markspec.mcp.args": [
+    "run",
+    "--allow-read",
+    "--allow-env",
+    "--allow-run",
+    "${workspaceFolder}/packages/markspec/main.ts",
+    "mcp"
+  ],
   "markspec.trace.server": "verbose"
 }

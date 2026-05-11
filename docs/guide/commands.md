@@ -315,7 +315,12 @@ claude mcp add markspec --command markspec --args mcp --cwd /path/to/project
 
 #### VS Code (Copilot)
 
-In your project's `.vscode/mcp.json`:
+The `markspec-ide` extension auto-registers the MarkSpec MCP server with VS Code
+1.101+ — install the extension and the server appears in Copilot's MCP picker.
+See [Editor integration — VS Code](editor-integration.md#vs-code).
+
+For users who don't run the extension, the manual recipe still works. Add a
+`.vscode/mcp.json` in your project:
 
 ```json
 {
