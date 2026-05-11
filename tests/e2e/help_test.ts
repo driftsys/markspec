@@ -1,4 +1,4 @@
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 Deno.test("--help prints usage and lists subcommands", async () => {
@@ -18,13 +18,14 @@ Deno.test("--help prints usage and lists subcommands", async () => {
 Deno.test("version subcommand prints version", async () => {
   const { code, stdout } = await markspec(["version"]);
   assertEquals(code, 0);
-  assertStringIncludes(stdout, "markspec 0.0.1");
+  // Don't pin to a literal — match the shape (semver-ish).
+  assertMatch(stdout, /^markspec \d+\.\d+\.\d+/m);
 });
 
 Deno.test("--version flag prints version", async () => {
   const { code, stdout } = await markspec(["--version"]);
   assertEquals(code, 0);
-  assertStringIncludes(stdout, "0.0.1");
+  assertMatch(stdout, /\d+\.\d+\.\d+/);
 });
 
 Deno.test("format with no args exits 1", async () => {

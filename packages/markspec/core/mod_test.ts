@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertMatch } from "@std/assert";
 import {
   compile,
   ConfigError,
@@ -29,7 +29,9 @@ import type {
 // ---------------------------------------------------------------------------
 
 Deno.test("version is set", () => {
-  assertEquals(VERSION, "0.0.1");
+  // Don't pin to a literal — the bump tooling rewrites this on every
+  // release. Assert the shape (semver-ish) instead.
+  assertMatch(VERSION, /^\d+\.\d+\.\d+(-[\w.]+)?$/);
 });
 
 // ---------------------------------------------------------------------------

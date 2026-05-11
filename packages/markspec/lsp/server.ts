@@ -53,7 +53,7 @@ import {
 import { debounce, pathToUri, uriToPath } from "./util.ts";
 import { debugLog } from "./debug_log.ts";
 
-export const VERSION = "0.0.1";
+export const VERSION = "0.4.0";
 
 // ---------------------------------------------------------------------------
 // Connection and document manager

@@ -4,3 +4,24 @@ scopes = ["auto", "repo", "ci", "spec", "core", "cli", "lsp", "mcp", "render", "
 
 [versioning]
 tag_prefix = "v"
+
+# git-std bump only looks for version files at the project root. The
+# canonical version lives in project.yaml; these entries keep the JSR
+# package manifest, the in-binary VERSION constants, and the VS Code
+# extension manifest in lockstep on every bump.
+
+[[version_files]]
+path = "packages/markspec/deno.json"
+regex = '(?m)^  "version": "([^"]+)"'
+
+[[version_files]]
+path = "packages/markspec/core/mod.ts"
+regex = 'export const VERSION = "([^"]+)";'
+
+[[version_files]]
+path = "packages/markspec/lsp/server.ts"
+regex = 'export const VERSION = "([^"]+)";'
+
+[[version_files]]
+path = "editors/vscode/package.json"
+regex = '(?m)^  "version": "([^"]+)"'
