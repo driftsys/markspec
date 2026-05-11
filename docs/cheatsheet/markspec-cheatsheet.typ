@@ -21,15 +21,6 @@
 // ── Page 1: Markdown Flavor & Entries ──────────────────────────────────
 
 #align(center, text(14pt, weight: "bold")[MarkSpec Cheat Sheet — Flavor & Entries])
-#v(0.2em)
-#align(center, text(
-  7pt,
-  style: "italic",
-  fill: luma(120),
-)[Cheatsheet under revision (2026-04-20) — ADR-009 introduced a single `Id:`
-  attribute and two shapes (identified, referenced). Family-specific identity
-  attributes shown on this sheet (`Spec-id`/`Test-id`/`Element-id`/`Reference-id`)
-  are superseded; see docs/architecture/adr-002-entry-model.md.])
 #v(0.4em)
 
 #columns(3, gutter: 14pt)[
@@ -121,142 +112,102 @@ Slug: `fig.architecture-overview`
   raw inputs to eliminate noise.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-      Satisfies: SYS_BRK_0042
+      Derived-from: 01HGW2R0NPQR4STVWXYZABCDEF
       Labels: ASIL-B
 ```]
 
 No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
 
-== Display ID format
-
-`TYPE_XXX_NNNN`
-
-- *TYPE* — STK, SYS, SRS, SAD, ICD, VAL, SIT, SWT
-- *XXX* — 2–6 uppercase letters (project abbrev)
-- *NNNN* — zero-padded, unique in project
-
-== Identity
-
-Every entry has `Id:`. Identified entries (content we author) carry a ULID
-(26-char Crockford base32, assigned by tooling, never changes). Referenced
-entries (external citations) carry a URI (`urn:`, `doi:`, `pkg:`, `https:`,
-...). Shape is determined by `Id:` value format. See ADR-002 and ADR-009.
-
-== Entry types
+== Two shapes (single `Id:`)
 
 #table(
-  columns: (auto, auto, 1fr),
+  columns: (auto, 1fr),
   stroke: 0.4pt + luma(180),
   inset: 3pt,
-  table.header[*Cat.*][*Type*][*Name*],
-  [Req], [STK], [Stakeholder requirement],
-  [], [SYS], [System requirement],
-  [], [SRS], [Software requirement],
-  [Arch], [SAD], [Architecture description],
-  [], [ICD], [Interface control document],
-  [Test], [VAL], [Acceptance test],
-  [], [SIT], [System integration test],
-  [], [SWT], [Software test],
+  table.header[*Shape*][*`Id:` value*],
+  [Identified], [Bare ULID, assigned by `format`],
+  [Referenced], [URI w/ scheme: `urn:` `doi:` `pkg:` `https:`],
 )
 
-= In-code entries
-
-#code[```kotlin
-/**
- * [SWT_BRK_0107] Debounce unit test
- *
- * Given a 10ms debounce window,
- * a 5ms noise spike must not alter
- * the stable output.
- *
- *     Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
- *     Verifies: SRS_BRK_0107
- *     Tests: braking_core::controller::debounce
- */
-@Test
-fun `swt_brk_0107 debounce`() { }
+#code[```text
+Id: 01HGW2P4KFR7ABCDEFGHJKMNPQ
+Id: urn:iso:std:iso:26262:-6:ed-2
+Id: pkg:cargo/serde@1.0.0
 ```]
 
-Traceability lives inside entry blocks: test entries declare `Verifies`
-and `Tests` directly; there is no standalone annotation path.
+Types are profile-declared.
 
-Languages: Rust `///` · Kotlin `/** */` · C++ `///` · C `/** */` · Java 23+ `///`
+== Display ID
+
+Profile-controlled. Identified: `SRS_BRK_0107`, `REQ-042`,
+`braking::debounce`. Referenced (slug): `ISO-26262-6`, `serde`.
+`[@slug]` accepted; `@` stripped.
+
+== Retirement
+
+- `Supersedes: <id>` → generated `Superseded-by:` (intra-shape).
+- `Deprecated: "<reason>"` for non-replacement retirement.
+- `Labels: DRAFT` for work-in-progress.
 
 #colbreak()
 
-= Attributes (by family)
+= Universal attributes
 
-Every entry carries exactly one identity attribute; its presence selects
-the family.
-
-== Spec
+Apply to every entry (both shapes).
 
 #table(
   columns: (auto, 1fr),
   stroke: 0.4pt + luma(180),
   inset: 3pt,
   table.header[*Attr*][*Description*],
-  [`Spec-id`], [Bare ULID, assigned],
-  [`Satisfies`], [Parent spec, complete fulfillment],
-  [`Derived-from`], [Parent spec, V-model decomposition],
-  [`Allocated-to`], [Element(s) responsible],
+  [`Id`], [ULID or URI; required],
+  [`Labels`], [Free-form tags (`DRAFT`, …)],
+  [`References`], [Cite referenced entries (locator ok)],
+  [`External-id`], [Cross-system identifier],
+  [`Supersedes`], [Same-shape predecessor],
+  [`Superseded-by`], [Generated inverse],
+  [`Deprecated`], [Retirement reason],
 )
 
-== Test
+= Referenced entry
 
-#table(
-  columns: (auto, 1fr),
-  stroke: 0.4pt + luma(180),
-  inset: 3pt,
-  [`Test-id`], [Bare ULID, assigned],
-  [`Test-level`], [`unit` / `integration` / `system` / `acceptance`],
-  [`Verifies`], [Spec display ID(s)],
-  [`Tests`], [Element display ID(s)],
-)
+#code[```markdown
+- [@ISO-26262-6] ISO 26262 Part 6
 
-== Element
-
-#table(
-  columns: (auto, 1fr),
-  stroke: 0.4pt + luma(180),
-  inset: 3pt,
-  [`Element-id`], [Bare ULID, assigned],
-  [`Element-kind`], [`item` / `artifact` / `dependency` / `unit`],
-  [`Part-of`], [Parent element],
-  [`Realizes`], [Spec display ID(s)],
-  [`Depends-on`], [Element display ID(s)],
-  [`Generated-from`], [Path or element],
-)
-
-== Reference
-
-#table(
-  columns: (auto, 1fr),
-  stroke: 0.4pt + luma(180),
-  inset: 3pt,
-  [`Reference-id`], [URI (URN / DOI / HTTPS), authored],
-  [`Reference-url`], [Navigation link],
-  [`Reference-document`], [Canonical citation],
-)
-
-== Universal
-
-`Labels` · `Status` · `References` · `External-id` · `Supersedes`
-
-== Generated (never in source)
-
-Spec: `Derives`, `Satisfied-by`, `Realized-by`, `Verified-by`\
-Element: `Contains`, `Used-by`, `Allocated`, `Tested-by`\
-Reference: `Cited-by`\
-Universal: `Superseded-by`
-
-== References format
-
-#code[```text
-References: ISO-26262-6 §9.4
+      Id: urn:iso:std:iso:26262:-6:ed-2
+      Reference-url: https://www.iso.org/...
+      Reference-document: ISO 26262-6:2018
 ```]
 
-Slug resolved through registry chain; locator is free text.
+Body optional. `Reference-*` are default-profile, not core.
+
+= Profile layer
+
+Core has no types/relations/domain attrs — all profile-declared.
+
+- *Types* — `requirement`, `test`, `unit`, `standard`, …
+- *Relations* — `Derived-from`, `Satisfies`, `Verifies`, `Tests`,
+  `Realizes`, `Allocated-to`, `Depends-on`, `Part-of`, …
+- *Domain* — `Test-level`, `Element-kind`, `ASIL`, `License`, …
+
+Patterns infer type. *Default profile* bundles `requirement`
+(RFC 2119), `note`, `term`, `reference`. Disable via
+`default-profile: false`.
+
+= In-code entries
+
+#code[```kotlin
+/**
+ * [unit-test-debounce] Debounce test
+ *
+ *     Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
+ *     type: test
+ *     Verifies: 01HGW2Q8MNP3RSTVWXYZABCDEF
+ */
+@Test fun debounce() { }
+```]
+
+Rust `///` · Kotlin `/** */` · C `/** */` · Java 23+ `///`
 
 ]
 
@@ -384,43 +335,32 @@ Two braces. No sections or partials. Not resolved inside code fences.
   columns: (auto, 1fr),
   stroke: 0.4pt + luma(180),
   inset: 3pt,
-  table.header[*NS*][*Example*],
-  [`req`], [`{{req.SRS_BRK_0107}}`],
-  [`arch`], [`{{arch.SAD_BRK_0001}}`],
-  [`test`], [`{{test.SWT_BRK_0107}}`],
-  [`ref`], [`{{ref.ISO-26262-6}}`],
-  [`fig`], [`{{fig.system-overview}}`],
-  [`tbl`], [`{{tbl.sensor-thresholds}}`],
-  [`h`], [`{{h.section-heading}}`],
+  table.header[*NS*][*Resolves*],
+  [`project`], [`project.yaml` field (`name`, `version`)],
+  [`req`], [Entry by display ID (e.g. `{{req.SRS_BRK_0107}}`)],
+  [`fig`], [Figure caption slug],
+  [`tbl`], [Table caption slug],
 )
+
+Profile-declared types may add namespaces (e.g. `ref`, `h`).
 
 = Reference entries
 
-Only in `references` document type. Display ID = slug.
+Display ID = slug. `Id:` is a URI (URN/DOI/purl/ISBN/HTTPS).
 
 #code[```markdown
-- [ISO-26262-6] ISO 26262 Part 6
+- [@ISO-26262-6] ISO 26262 Part 6
 
   Road vehicles — Functional
   safety — Part 6: Software.
 
-      Document: ISO 26262-6:2018
-      URL: https://www.iso.org/...
+      Id: urn:iso:std:iso:26262:-6:ed-2
+      Reference-document: ISO 26262-6:2018
+      Reference-url: https://www.iso.org/...
+      Labels: functional-safety
 ```]
 
-== Reference attributes
-
-#table(
-  columns: (auto, 1fr),
-  stroke: 0.4pt + luma(180),
-  inset: 3pt,
-  table.header[*Attribute*][*Description*],
-  [`Document`], [Full document ID],
-  [`URL`], [Canonical URL],
-  [`Status`], [active / withdrawn / superseded],
-  [`Superseded-by`], [Replacement entry ID],
-  [`Derived-from`], [Parent standard],
-)
+`Id:` is core; `Reference-*` and `License` are default-profile.
 
 #colbreak()
 
