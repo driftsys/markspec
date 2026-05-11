@@ -3,12 +3,20 @@
  *
  * Thin LSP client. Spawns the markspec LSP server (bundled binary by default,
  * or a configured deno + source path for dev mode) and connects it to VS Code.
+ *
+ * Also registers the markspec MCP server with VS Code (1.101+) so Copilot
+ * and other MCP-aware clients see the same binary as the LSP — no
+ * separate `.vscode/mcp.json` required.
  */
 
 import {
   commands,
+  EventEmitter,
   type ExtensionContext,
+  lm,
+  McpStdioServerDefinition,
   type OutputChannel,
+  Uri,
   window,
   workspace,
 } from "vscode";
@@ -18,10 +26,20 @@ import {
   type LanguageClientOptions,
 } from "vscode-languageclient/node";
 import { resolveServerOptions } from "./serverOptions";
+import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
 
 let client: LanguageClient | undefined;
 let outputChannel: OutputChannel | undefined;
+
+const MCP_PROVIDER_ID = "markspec";
+
+/** Setting keys whose changes invalidate the MCP definition. */
+const MCP_SETTING_KEYS = [
+  "markspec.mcp.enabled",
+  "markspec.mcp.args",
+  "markspec.server.path",
+];
 
 export function activate(context: ExtensionContext): void {
   const config = workspace.getConfiguration("markspec");
@@ -76,11 +94,71 @@ export function activate(context: ExtensionContext): void {
 
   createStatusBar(context, client);
 
+  registerMcpProvider(context);
+
   context.subscriptions.push({
     dispose: () => {
       client?.stop();
     },
   });
+}
+
+/**
+ * Register the MarkSpec MCP server definition provider with VS Code.
+ *
+ * Uses the stable `vscode.lm.registerMcpServerDefinitionProvider` API
+ * (VS Code 1.101+, June 2025). The provider returns a single stdio
+ * definition that spawns the same binary as the LSP client.
+ *
+ * Changes to `markspec.mcp.*` or `markspec.server.path` settings fire the
+ * `didChange` event so VS Code re-queries the provider.
+ */
+function registerMcpProvider(context: ExtensionContext): void {
+  const didChange = new EventEmitter<void>();
+  context.subscriptions.push(didChange);
+
+  context.subscriptions.push(
+    workspace.onDidChangeConfiguration((event) => {
+      if (MCP_SETTING_KEYS.some((key) => event.affectsConfiguration(key))) {
+        didChange.fire();
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    lm.registerMcpServerDefinitionProvider(MCP_PROVIDER_ID, {
+      onDidChangeMcpServerDefinitions: didChange.event,
+      provideMcpServerDefinitions: () => {
+        const cfg = workspace.getConfiguration("markspec");
+        const workspaceFolder = workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const resolved = resolveMcpDefinition({
+          extensionPath: context.extensionPath,
+          workspaceFolder,
+          enabled: cfg.get<boolean>("mcp.enabled", true),
+          configuredServerPath: cfg.get<string>("server.path") || undefined,
+          configuredMcpArgs: cfg.get<string[]>("mcp.args"),
+          platform: process.platform,
+          extensionVersion: extensionVersion(context),
+        });
+        if (!resolved) return [];
+        const def = new McpStdioServerDefinition(
+          resolved.label,
+          resolved.command,
+          [...resolved.args],
+          {},
+          resolved.version,
+        );
+        if (resolved.cwd) def.cwd = Uri.file(resolved.cwd);
+        return [def];
+      },
+    }),
+  );
+}
+
+/** Best-effort extension version lookup; falls back to "0.0.0". */
+function extensionVersion(context: ExtensionContext): string {
+  const pkg = (context.extension?.packageJSON ?? {}) as { version?: string };
+  return pkg.version ?? "0.0.0";
 }
 
 export function deactivate(): Thenable<void> | undefined {
