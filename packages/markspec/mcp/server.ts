@@ -19,6 +19,30 @@ import { registerTools } from "./tools/mod.ts";
 import { ENTRIES_URI, entryUri, PROFILE_URI } from "./uri.ts";
 
 /**
+ * Top-level guidance shown to MCP clients on `initialize`. Teaches the agent
+ * what this server is for, which surface to use for which intent, and what to
+ * avoid. Clients typically inject this into the system prompt once per
+ * session — keep it dense and stable.
+ */
+const SERVER_INSTRUCTIONS =
+  `MarkSpec exposes a project's requirements, specifications, and tests as a typed traceability graph. Use it to answer questions about entries, their relationships, and validation status.
+
+Pick the right surface per intent:
+- Find entries by keyword → entry_search tool (scales to thousands of entries; preferred discovery path)
+- Show one entry by display ID → resources/read markspec://entry/{displayId}
+- Walk upward from an entry to see what it satisfies → entry_context tool
+- See what depends on an entry → the "Incoming links" section in markspec://entry/{id}
+- Check project health (broken refs, duplicates, rule violations) → validate tool
+- Refresh after CLI/file edits → markspec_refresh tool
+
+Avoid:
+- Reading markspec://entries on projects with more than ~50 entries; use entry_search instead.
+- Calling markspec_refresh between back-to-back reads — MCP reads are cache-coherent within a session.
+- Using this server to edit entries. Writes are CLI-only (markspec format, markspec insert).
+
+All resource bodies are Markdown with cross-references as markspec:// URIs you can follow with resources/read.`;
+
+/**
  * Start the MarkSpec MCP server.
  *
  * Builds the project context, registers resources + tools, hooks the
@@ -34,6 +58,7 @@ export async function startServer(): Promise<void> {
         resources: { subscribe: true, listChanged: true },
         tools: { listChanged: false },
       },
+      instructions: SERVER_INSTRUCTIONS,
     },
   );
 
