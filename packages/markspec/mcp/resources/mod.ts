@@ -46,13 +46,15 @@ export async function listResourceDescriptors(
     {
       uri: PROFILE_URI,
       name: "Active profile",
-      description: "Distilled profile manifest for this project",
+      description:
+        "Distilled profile manifest: declared entry types, attribute definitions, link relations, validation rules. Read once to understand the project's domain vocabulary.",
       mimeType: "text/markdown",
     },
     {
       uri: ENTRIES_URI,
       name: "Entry index",
-      description: "All entries grouped by type",
+      description:
+        "All entries grouped by type. Read for an overview of a small project (<50 entries); for larger projects use the entry_search tool instead.",
       mimeType: "text/markdown",
     },
   ];

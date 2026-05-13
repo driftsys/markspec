@@ -105,6 +105,16 @@ export const VALIDATE_INPUT_SCHEMA = {
 export const VALIDATE_DESCRIPTOR = {
   name: "validate",
   description:
-    "Run the MarkSpec validator. Optional 'files' filters diagnostics by source path.",
+    "Run the project's validation pipeline: broken cross-references, missing or duplicate IDs, malformed entries, and profile rule violations. Returns a Markdown report grouped by severity. " +
+    "Use after edits, before committing, or when an entry's relationships look wrong. " +
+    "Optional 'files' restricts diagnostics to a subset of paths (relative to the project root). " +
+    "An empty 'files' list means all files.",
   inputSchema: VALIDATE_INPUT_SCHEMA,
+  annotations: {
+    title: "Validate project",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 };

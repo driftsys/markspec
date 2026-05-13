@@ -119,6 +119,16 @@ export const ENTRY_SEARCH_INPUT_SCHEMA = {
 export const ENTRY_SEARCH_DESCRIPTOR = {
   name: "entry_search",
   description:
-    "Search project entries by display ID and title. Returns ranked matches as Markdown links.",
+    "Find entries by keyword across display IDs and titles. Returns up to 100 ranked matches as Markdown links to markspec://entry/{id} resources. " +
+    "Use this for any 'find/search/list entries about X' query. " +
+    "Prefer over reading markspec://entries — search scales to thousands of entries; the full index does not. " +
+    "Limit: keep at 5–20 for broad exploratory queries, 50+ only when listing every match in a domain.",
   inputSchema: ENTRY_SEARCH_INPUT_SCHEMA,
+  annotations: {
+    title: "Search entries",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 };

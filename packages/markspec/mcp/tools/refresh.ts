@@ -23,6 +23,16 @@ export const REFRESH_INPUT_SCHEMA = {
 export const REFRESH_DESCRIPTOR = {
   name: "markspec_refresh",
   description:
-    "Force-invalidate the MarkSpec compile cache. Use after editing files to guarantee subsequent reads see the new state.",
+    "Force-invalidate the MarkSpec compile cache so subsequent reads see fresh state. " +
+    "Use only after files were modified outside this MCP session (CLI commands, editor saves, git operations). " +
+    "Do NOT call between back-to-back reads — the cache is already coherent within a session. " +
+    "Returns a one-line confirmation with entry and link counts.",
   inputSchema: REFRESH_INPUT_SCHEMA,
+  annotations: {
+    title: "Refresh compile cache",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 };

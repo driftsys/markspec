@@ -161,6 +161,59 @@ Deno.test("mcp: initialize advertises resources and tools capabilities", async (
   }
 });
 
+Deno.test("mcp: initialize returns top-level instructions guiding agent use", async () => {
+  const { proc, cwd, initResponse } = await setup();
+  try {
+    // deno-lint-ignore no-explicit-any
+    const instructions = (initResponse.result as any).instructions as
+      | string
+      | undefined;
+    assertEquals(typeof instructions, "string");
+    assertStringIncludes(instructions!, "entry_search");
+    assertStringIncludes(instructions!, "markspec://entry/");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp: every tool advertises read-only annotations", async () => {
+  const { proc, cwd } = await setup();
+  try {
+    const resp = await proc.request("tools/list", {});
+    // deno-lint-ignore no-explicit-any
+    const tools = (resp.result as any).tools as Array<{
+      name: string;
+      annotations?: {
+        readOnlyHint?: boolean;
+        destructiveHint?: boolean;
+        idempotentHint?: boolean;
+        openWorldHint?: boolean;
+      };
+    }>;
+    for (const tool of tools) {
+      assertEquals(
+        tool.annotations?.readOnlyHint,
+        true,
+        `${tool.name} should declare readOnlyHint: true`,
+      );
+      assertEquals(
+        tool.annotations?.destructiveHint,
+        false,
+        `${tool.name} should declare destructiveHint: false`,
+      );
+      assertEquals(
+        tool.annotations?.openWorldHint,
+        false,
+        `${tool.name} should declare openWorldHint: false`,
+      );
+    }
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
 Deno.test("mcp: tools/list returns all four tools", async () => {
   const { proc, cwd } = await setup();
   try {

@@ -104,6 +104,16 @@ export const ENTRY_CONTEXT_INPUT_SCHEMA = {
 export const ENTRY_CONTEXT_DESCRIPTOR = {
   name: "entry_context",
   description:
-    "Walk the satisfies chain upward from an entry. Returns a Markdown nested list.",
+    "Walk the satisfies-chain upward from one entry to discover what higher-level requirements it implements. Returns a nested Markdown list with markspec://entry/{id} links. " +
+    "Use to answer 'why does this entry exist' or 'what does this trace up to'. " +
+    "For the opposite direction (what depends on this entry), read markspec://entry/{id} and inspect its Incoming Links section. " +
+    "Depth defaults to 10; lower it (2–3) for quick orientation, raise it only when full transitive context is needed.",
   inputSchema: ENTRY_CONTEXT_INPUT_SCHEMA,
+  annotations: {
+    title: "Trace satisfies chain",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 };
