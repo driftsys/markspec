@@ -15,13 +15,14 @@ export interface CoreTypeDef {
   /**
    * Attributes declared by this type. Subtype attribute sets include
    * everything declared on ancestor types, per ADR-003 §Part 2.
-   *
-   * The spec lists a few "not applicable" exceptions on subtypes
-   * (e.g., `Allocated-to` is excluded from `Test`); those land in a
-   * later slice via an explicit `excludedAttrs` field — they are not
-   * yet enforced here.
    */
   readonly ownAttrs: readonly string[];
+  /**
+   * Attributes inherited from ancestors that are "not applicable" on
+   * this subtype per ADR-003 §Part 2 (e.g., `Allocated-to` on Test).
+   * Removed during {@linkcode attributesForType} resolution.
+   */
+  readonly excludedAttrs?: readonly string[];
 }
 
 /**
@@ -38,7 +39,13 @@ export const CORE_TYPE_HIERARCHY: Readonly<Record<string, CoreTypeDef>> = {
     ownAttrs: ["Derived-from", "Satisfies", "Allocated-to"],
   },
   Requirement: { parent: "Specification", ownAttrs: [] },
-  Test: { parent: "Specification", ownAttrs: ["Verifies", "Tests"] },
+  Test: {
+    parent: "Specification",
+    ownAttrs: ["Verifies", "Tests"],
+    // ADR-003 §Part 2 — Test: "Allocated-to: not applicable —
+    // tests are not allocated to components".
+    excludedAttrs: ["Allocated-to"],
+  },
   Contract: { parent: "Specification", ownAttrs: ["Schema-language"] },
   Record: { parent: "Specification", ownAttrs: ["Caused-by", "Affects"] },
   Risk: { parent: "Specification", ownAttrs: ["Caused-by", "Mitigated-by"] },
@@ -100,17 +107,28 @@ export const CORE_TYPE_HIERARCHY: Readonly<Record<string, CoreTypeDef>> = {
 
 /**
  * Collect every attribute valid on `typeName` by walking the parent
- * chain. Returns a {@linkcode Set} of attribute keys (TitleCase or
+ * chain and subtracting any `excludedAttrs` declared along the way.
+ * Returns a {@linkcode Set} of attribute keys (TitleCase or
  * lowercase-with-hyphens as declared). Returns an empty set for
  * unknown type names — the caller treats unknown types separately.
+ *
+ * Exclusion semantics: an attribute marked `excludedAttrs` on a
+ * subtype is removed from the final set even if an ancestor declared
+ * it. The subtype cannot re-add the attribute later — only its own
+ * `ownAttrs` list contributes.
  */
 export function attributesForType(typeName: string): Set<string> {
   const result = new Set<string>();
+  const excluded = new Set<string>();
   let cursor: string | null = typeName;
   while (cursor !== null && CORE_TYPE_HIERARCHY[cursor]) {
     for (const a of CORE_TYPE_HIERARCHY[cursor].ownAttrs) result.add(a);
+    for (const a of CORE_TYPE_HIERARCHY[cursor].excludedAttrs ?? []) {
+      excluded.add(a);
+    }
     cursor = CORE_TYPE_HIERARCHY[cursor].parent;
   }
+  for (const a of excluded) result.delete(a);
   return result;
 }
 

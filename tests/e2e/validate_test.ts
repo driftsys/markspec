@@ -187,6 +187,31 @@ Deno.test("validate: Satisfies on a Requirement passes (inherits Specification)"
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
+Deno.test("validate: Allocated-to on a Test fires MSL-T022 (subtype exclusion)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [TST-001] My test
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Test
+      Allocated-to: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  // Test extends Specification but spec §Part 2 excludes Allocated-to on Test.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Allocated-to");
+});
+
 Deno.test("validate: License on a SoftwareComponent passes (own attribute)", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
