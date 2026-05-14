@@ -93,6 +93,40 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Canonical trailer ordering — spec §3.3.2 six-group rule
+// ---------------------------------------------------------------------------
+
+Deno.test("format: trailer ordering follows §3.3.2 six-group rule", async () => {
+  const input = `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+      Labels: ASIL-B
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Specification
+      Part-of: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+`;
+  const { code, readFile } = await runFormat({ "req.md": input });
+  assertEquals(code, 0);
+  const output = await readFile("req.md");
+
+  const trailerKeys = output
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^[A-Z][A-Za-z0-9-]*:\s/.test(l))
+    .map((l) => l.split(":")[0]);
+
+  assertEquals(
+    trailerKeys,
+    ["Id", "Type", "Part-of", "Satisfies", "Labels"],
+    "trailers must follow §3.3.2 order: Id/Type → trace-upstream → Labels",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // ULID assignment
 // ---------------------------------------------------------------------------
 

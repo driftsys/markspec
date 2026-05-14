@@ -10,7 +10,11 @@
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
 import { validate } from "./mod.ts";
-import { classifyEntriesStage } from "./types.ts";
+import {
+  classifyEntriesStage,
+  inferTypeFromDisplayIdShape,
+  validateCoreTypeAttribute,
+} from "./types.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import { normalizeListValues } from "./normalize.ts";
 import { validateTraceabilityForEntry } from "./traceability.ts";
@@ -56,6 +60,14 @@ export function runPipeline(
       return !profileDeclaredAttrs.has(match[1]);
     });
   diagnostics.push(...filteredStage1);
+
+  // Stage 1.5 — core type-attribute check. Runs always (core-only mode
+  // included) so unknown `Type:` values fail fast regardless of profile.
+  // Also covers late-stage display-ID-shape inference (step 8 → MSL-T021).
+  for (const entry of entries) {
+    diagnostics.push(...validateCoreTypeAttribute(entry, profile));
+    diagnostics.push(...inferTypeFromDisplayIdShape(entry));
+  }
 
   // Stage 2 — classification (only when a profile is loaded).
   let finalEntries: readonly Entry[] = entries;

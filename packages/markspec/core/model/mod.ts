@@ -58,6 +58,60 @@ export interface SourceLocation {
 }
 
 // ---------------------------------------------------------------------------
+// Core type taxonomy (ADR-003 §Part 1, spec §1.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Core abstract item types. Always valid as `Type:` values regardless of
+ * which profile is loaded (core-only mode included). Convention: TitleCase.
+ *
+ * - `Item` is the abstract root and serves as the bottom fallback in the
+ *   type-resolution chain (§1.3.1 step 8).
+ * - `Specification`, `Component`, `Unit` are abstract+concrete parents:
+ *   instantiable as direct fallbacks when no concrete subtype fits, and
+ *   roots for both core concrete subtypes and profile-declared extensions.
+ */
+export const CORE_ABSTRACT_TYPES = [
+  "Item",
+  "Specification",
+  "Component",
+  "Unit",
+] as const;
+
+/**
+ * Core concrete item types (ADR-003 §Part 1). Twelve subtypes plus three
+ * abstract+concrete parents from {@linkcode CORE_ABSTRACT_TYPES} make up
+ * the "15 concrete instantiable types" the spec describes.
+ */
+export const CORE_CONCRETE_TYPES = [
+  // Specification subtypes
+  "Requirement",
+  "Test",
+  "Contract",
+  "Record",
+  "Risk",
+  // Component subtypes
+  "SoftwareComponent",
+  "HardwareComponent",
+  "SoftwareInterface",
+  "HardwareInterface",
+  // Unit subtypes
+  "SoftwareUnit",
+  "HardwareUnit",
+  // Definition (standalone under Item)
+  "Definition",
+] as const;
+
+/**
+ * All core type names. Accepted as `Type:` values in core-only mode and
+ * when any profile is loaded. Profile-declared types extend this set.
+ */
+export const CORE_TYPES: ReadonlySet<string> = new Set<string>([
+  ...CORE_ABSTRACT_TYPES,
+  ...CORE_CONCRETE_TYPES,
+]);
+
+// ---------------------------------------------------------------------------
 // Attributes
 // ---------------------------------------------------------------------------
 

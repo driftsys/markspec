@@ -29,6 +29,106 @@ Deno.test("validate: valid file exits 0", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Core data model — core abstract types (ADR-003, spec §1.3)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Type: Specification accepted in core-only mode", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Specification
+      Labels: ASIL-B
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+Deno.test("validate: generated-origin attribute in source rejected with MSL-A030", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Superseded-by: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A030");
+  assertStringIncludes(stderr, "Superseded-by");
+});
+
+Deno.test("validate: display-ID containing :: emits MSL-T021 inference warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [braking::controller::debounce] Debounce function
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T021");
+});
+
+Deno.test("validate: lowercase Type: in core-only mode rejected with MSL-T023", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-T023");
+  assertStringIncludes(stderr, "requirement");
+});
+
+Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: NotARealType
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-T020");
+  assertStringIncludes(stderr, "NotARealType");
+});
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 

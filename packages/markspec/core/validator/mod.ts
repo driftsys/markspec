@@ -16,6 +16,7 @@
 
 import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
 import {
+  attributeSpec,
   IDENTITY_KEY,
   ULID_RE,
   UNIVERSAL_ATTRIBUTE_KEYS,
@@ -141,11 +142,24 @@ function checkStructural(
       }
     }
 
-    // MSL-R010: Unknown attributes are warnings in the core. A
-    // profile-aware validator widens this check to include profile-declared
-    // attributes; until then, anything outside the universal set is
-    // unrecognized.
+    // MSL-A030 / MSL-R010 checks per attribute (§4.4 / §4.8).
     for (const attr of entry.rawAttributes) {
+      // MSL-A030: generated-origin attributes must not appear in source.
+      const spec = attributeSpec(attr.key);
+      if (spec?.origin === "generated") {
+        diagnostics.push({
+          code: "MSL-A030",
+          severity: "error",
+          message:
+            `${entry.displayId}: '${attr.key}' has generated origin and must not appear in source (computed at build time per ADR-003 §Part 3)`,
+          location: entry.location,
+        });
+        continue;
+      }
+      // MSL-R010: Unknown attributes are warnings in the core. A
+      // profile-aware validator widens this check to include profile-declared
+      // attributes; until then, anything outside the universal set is
+      // unrecognized.
       if (!UNIVERSAL_KEYS.has(attr.key) && attr.key !== "Type") {
         diagnostics.push({
           code: "MSL-R010",

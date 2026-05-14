@@ -15,7 +15,89 @@ import type {
   Entry,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
+import { CORE_TYPES } from "../model/mod.ts";
 import { compileDisplayIdPattern } from "./pattern.ts";
+
+/**
+ * Profile-declared concrete-type naming convention (spec §1.3): lowercase
+ * alphanumeric with hyphens, starting with a letter. Used to distinguish a
+ * "looks like a profile type but no profile is loaded" diagnostic
+ * (MSL-T023) from a generic "unknown type" diagnostic (MSL-T020).
+ */
+const PROFILE_TYPE_NAME_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+
+/**
+ * Display-ID shape that infers Unit at chain step 8 (spec §1.3.1).
+ * Matches when the display ID carries a path-like separator (`::` for
+ * Rust/C++ symbol paths, `/` for filesystem-style hierarchies).
+ */
+const UNIT_DISPLAY_ID_RE = /(::|\/)/;
+
+/**
+ * Late-stage type inference per spec §1.3.1 step 8 (Authored shape).
+ *
+ * When no explicit `Type:` is present and the display ID carries a
+ * path-like separator, infer `Unit` and emit MSL-T021 as a warning so the
+ * author can promote the inferred type to an explicit declaration. This
+ * implements the narrowest slice of the spec's late-stage chain — the
+ * URI-scheme map (step 5), discriminating-attribute inference (step 6),
+ * and document-directive inference (step 7) land in later slices.
+ */
+export function inferTypeFromDisplayIdShape(
+  entry: Entry,
+): readonly Diagnostic[] {
+  if (entry.shape !== "identified") return [];
+  if (findExplicitTypeAttribute(entry) !== undefined) return [];
+  if (!UNIT_DISPLAY_ID_RE.test(entry.displayId)) return [];
+  return [{
+    code: "MSL-T021",
+    severity: "warning",
+    message: `${entry.displayId}: Type inferred as 'Unit' from display-ID ` +
+      `shape (late-stage inference); declare 'Type:' explicitly to silence`,
+    location: entry.location,
+  }];
+}
+
+/**
+ * Validate the `Type:` attribute value against the core type taxonomy plus
+ * any profile-declared types. Runs in every mode (with or without a loaded
+ * profile) — see spec §1.3 and ADR-003 §Part 1.
+ *
+ * Emits:
+ *   - `MSL-T020` when `Type:` is present but the value is neither a core
+ *     abstract/concrete type nor a profile-declared type.
+ *   - `MSL-T023` when `Type:` matches the profile-declared naming convention
+ *     (lowercase-with-hyphens) but no profile is loaded — i.e., the value
+ *     is plausibly a profile type, just unreachable in core-only mode.
+ */
+export function validateCoreTypeAttribute(
+  entry: Entry,
+  profile: EffectiveProfile | null,
+): readonly Diagnostic[] {
+  const explicitType = findExplicitTypeAttribute(entry);
+  if (explicitType === undefined) return [];
+  if (CORE_TYPES.has(explicitType)) return [];
+  if (profile !== null && profile.types.has(explicitType)) return [];
+
+  // Core-only mode: distinguish "profile-only type" (T023) from "unknown" (T020).
+  if (profile === null && PROFILE_TYPE_NAME_RE.test(explicitType)) {
+    return [{
+      code: "MSL-T023",
+      severity: "error",
+      message: `${entry.displayId}: Type: '${explicitType}' looks like a ` +
+        `profile-declared type but no profile is loaded (core-only mode)`,
+      location: entry.location,
+    }];
+  }
+
+  return [{
+    code: "MSL-T020",
+    severity: "error",
+    message: `${entry.displayId}: Type: '${explicitType}' is not a core type ` +
+      `or a profile-declared type`,
+    location: entry.location,
+  }];
+}
 
 /** Result of classifying a single entry. */
 export interface ClassifyResult {
