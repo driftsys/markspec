@@ -8,7 +8,11 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { explicitType, resolvedCoreType } from "./type_resolution.ts";
+import {
+  explicitType,
+  inferTypeFromDisplayIdPrefix,
+  resolvedCoreType,
+} from "./type_resolution.ts";
 import type { Entry } from "../model/mod.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
@@ -101,4 +105,60 @@ Deno.test("resolvedCoreType: returns undefined when no source resolves to a core
     attrs: [{ key: "Id", value: ULID }],
   });
   assertEquals(resolvedCoreType(entry), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// inferTypeFromDisplayIdPrefix (spec §1.3.1 step 4)
+// ---------------------------------------------------------------------------
+
+Deno.test("inferTypeFromDisplayIdPrefix: REQ-001 → Requirement", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("REQ-001"), "Requirement");
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: TST_AEB_0001 → Test", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("TST_AEB_0001"), "Test");
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: ICD-OpenAPI-1 → Contract", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("ICD-OpenAPI-1"), "Contract");
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: REC_ADR_001 → Record", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("REC_ADR_001"), "Record");
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: RSK-Hazard-001 → Risk", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("RSK-Hazard-001"), "Risk");
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: requires - or _ separator", () => {
+  // `REQ` alone or `REQ001` (no separator) doesn't qualify — these
+  // are ambiguous IDs that shouldn't auto-infer.
+  assertEquals(inferTypeFromDisplayIdPrefix("REQ"), undefined);
+  assertEquals(inferTypeFromDisplayIdPrefix("REQ001"), undefined);
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: case-sensitive", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("req-001"), undefined);
+  assertEquals(inferTypeFromDisplayIdPrefix("Req-001"), undefined);
+});
+
+Deno.test("inferTypeFromDisplayIdPrefix: unrelated prefix → undefined", () => {
+  assertEquals(inferTypeFromDisplayIdPrefix("SAD-001"), undefined);
+  assertEquals(inferTypeFromDisplayIdPrefix("braking::sensor"), undefined);
+});
+
+Deno.test("resolvedCoreType: step 4 falls back to prefix when no explicit Type and no profile classification", () => {
+  const entry = makeEntry({
+    attrs: [{ key: "Id", value: ULID }],
+  });
+  // makeEntry produces displayId "TEST-001" which doesn't match a
+  // prefix — verify undefined.
+  assertEquals(resolvedCoreType(entry), undefined);
+
+  const reqEntry = {
+    ...entry,
+    displayId: "REQ-001",
+  };
+  assertEquals(resolvedCoreType(reqEntry), "Requirement");
 });

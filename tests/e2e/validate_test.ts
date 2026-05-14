@@ -170,6 +170,55 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
 // Per-type attribute compatibility — spec §1.6, MSL-T022
 // ---------------------------------------------------------------------------
 
+Deno.test("validate: [REQ-001] infers Requirement at step 4; Bus-protocol fires MSL-T022", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Bus-protocol: can
+`,
+    },
+  });
+  // REQ_ prefix should infer Requirement at chain step 4. Bus-protocol
+  // is HardwareInterface-only → MSL-T022 (warning).
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Bus-protocol");
+});
+
+Deno.test("validate: [TST-001] infers Test at step 4; Allocated-to fires MSL-T022", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [TST-001] My test
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Allocated-to: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  // TST_ prefix infers Test; Test excludes Allocated-to per ADR-003 §Part 2.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Allocated-to");
+});
+
 Deno.test("validate: Allocated-to on a Component fires MSL-T022 warning", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
