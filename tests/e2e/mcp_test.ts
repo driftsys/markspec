@@ -317,13 +317,23 @@ Deno.test("mcp: file edit + markspec_refresh fires resources/updated", async () 
         `\n- [STK_E2E_0002] Second\n\n  Body.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG\n`,
     );
 
-    const resp = await proc.request("tools/call", {
-      name: "markspec_refresh",
-      arguments: {},
-    });
-    // deno-lint-ignore no-explicit-any
-    const content = (resp.result as any).content as Array<{ text: string }>;
-    assertStringIncludes(content[0].text, "2 entries");
+    // Retry the refresh up to 5 times with short delays. On slow CI
+    // runners the subprocess's view of the file system can lag behind
+    // the test's `writeTextFile` by tens of milliseconds; a single
+    // refresh call can race and report the pre-edit entry count.
+    let lastText = "";
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const resp = await proc.request("tools/call", {
+        name: "markspec_refresh",
+        arguments: {},
+      });
+      // deno-lint-ignore no-explicit-any
+      const content = (resp.result as any).content as Array<{ text: string }>;
+      lastText = content[0].text;
+      if (lastText.includes("2 entries")) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assertStringIncludes(lastText, "2 entries");
 
     // Subscription handlers fire on the next microtask after the tool call
     // response; give the runtime up to ~500ms to flush them before draining.
