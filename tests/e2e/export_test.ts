@@ -57,6 +57,53 @@ Deno.test("export: unknown format fails with error", async () => {
   assertStringIncludes(stderr, "xml");
 });
 
+Deno.test("export csv: emits header row + one row per entry", async () => {
+  const { code, stdout } = await markspec(["export", "csv", "req.md"], {
+    files: BASE_FILES,
+  });
+  assertEquals(code, 0);
+  const lines = stdout.split("\n").filter((l) => l.length > 0);
+  // Header + 1 entry.
+  assertEquals(lines.length, 2);
+  assertEquals(
+    lines[0],
+    "displayId,title,type,shape,id,file,line",
+  );
+  // Row contains the display ID, title, ULID, and "req.md" location.
+  assertStringIncludes(lines[1], "REQ-001");
+  assertStringIncludes(lines[1], "First requirement");
+  assertStringIncludes(lines[1], "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertStringIncludes(lines[1], "req.md");
+});
+
+Deno.test("export csv: quotes values that contain commas", async () => {
+  const sample = `# Example
+
+- [REQ-001] Title, with, commas
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const { code, stdout } = await markspec(["export", "csv", "req.md"], {
+    files: { ...BASE_FILES, "req.md": sample },
+  });
+  assertEquals(code, 0);
+  const lines = stdout.split("\n").filter((l) => l.length > 0);
+  // The title cell must be quoted so commas inside don't split.
+  assertStringIncludes(lines[1], `"Title, with, commas"`);
+});
+
+Deno.test("export csv: empty project emits header only", async () => {
+  const { code, stdout } = await markspec(["export", "csv", "req.md"], {
+    files: { ...BASE_FILES, "req.md": `# Empty\n` },
+  });
+  assertEquals(code, 0);
+  const lines = stdout.split("\n").filter((l) => l.length > 0);
+  assertEquals(lines.length, 1);
+  assertEquals(lines[0], "displayId,title,type,shape,id,file,line");
+});
+
 Deno.test("export json: matches the compile --format json output", async () => {
   const exportRun = await markspec(["export", "json", "req.md"], {
     files: BASE_FILES,
