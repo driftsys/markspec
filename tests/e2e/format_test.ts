@@ -93,6 +93,41 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Title-line normalisation — bullet character (spec §3.2)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: rewrites * bullet to - on entry title line", async () => {
+  const input = "# Test\n\n" +
+    "* [REQ-001] Title\n\n" +
+    "  Body.\n\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const { readFile } = await runFormat({ "req.md": input });
+  const output = await readFile("req.md");
+  // Bullet should have been rewritten.
+  assertEquals(
+    output.includes("* [REQ-001]"),
+    false,
+    `'*' bullet should be normalised to '-'; output:\n${output}`,
+  );
+  assertEquals(
+    output.includes("- [REQ-001]"),
+    true,
+    `'-' bullet should be in output; output:\n${output}`,
+  );
+});
+
+Deno.test("format: rewrites + bullet to - on entry title line", async () => {
+  const input = "# Test\n\n" +
+    "+ [REQ-001] Title\n\n" +
+    "  Body.\n\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const { readFile } = await runFormat({ "req.md": input });
+  const output = await readFile("req.md");
+  assertEquals(output.includes("+ [REQ-001]"), false);
+  assertEquals(output.includes("- [REQ-001]"), true);
+});
+
+// ---------------------------------------------------------------------------
 // Body normalisation — modal keywords (spec §3.4.1)
 // ---------------------------------------------------------------------------
 

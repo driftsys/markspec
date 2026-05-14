@@ -239,6 +239,22 @@ export function format(
     const indent = (entry.location.column - 1) + 2;
     let attrs = [...entry.rawAttributes];
 
+    // Title-line bullet canonicalisation per spec §3.2: rewrite `*`
+    // or `+` to `-`. The list-item position from the parser is the
+    // line carrying the bullet marker; we only touch the marker
+    // character itself, leaving the rest of the title alone.
+    const titleLineIdx = entry.location.line - 1;
+    if (titleLineIdx >= 0 && titleLineIdx < lines.length) {
+      const titleLine = lines[titleLineIdx];
+      const markerCol = entry.location.column - 1;
+      const markerChar = titleLine.charAt(markerCol);
+      if (markerChar === "*" || markerChar === "+") {
+        lines[titleLineIdx] = titleLine.slice(0, markerCol) +
+          "-" + titleLine.slice(markerCol + 1);
+        changed = true;
+      }
+    }
+
     // Assign a bare ULID `Id:` to identified entries that carry no
     // identity yet. Referenced entries are left alone — their `Id:` is a
     // URI that must be author-provided.
