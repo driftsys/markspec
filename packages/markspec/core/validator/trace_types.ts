@@ -86,6 +86,36 @@ function resolvedCoreType(entry: Entry): string | undefined {
   return undefined;
 }
 
+/** True when the entry carries a non-empty `Deprecated:` attribute. */
+function isRetired(entry: Entry): boolean {
+  for (const a of entry.rawAttributes) {
+    if (a.key === "Deprecated" && a.value.trim().length > 0) return true;
+  }
+  return false;
+}
+
+/** True when the entry's `Labels:` set contains `DRAFT`. */
+function isDraft(entry: Entry): boolean {
+  for (const a of entry.rawAttributes) {
+    if (a.key !== "Labels") continue;
+    const values = a.value.split(/[,\s]+/).map((s) => s.trim());
+    if (values.includes("DRAFT")) return true;
+  }
+  return false;
+}
+
+/**
+ * Trace attribute keys subject to link-target severity diagnostics
+ * (MSL-R081 / MSL-R082). `Supersedes` is intentionally excluded: its
+ * target IS the predecessor, expected to be retired, so flagging a
+ * Deprecated predecessor would be noise.
+ */
+const SEVERITY_TRACKED_ATTRS: readonly string[] = [
+  ...new Set(TRACE_RULES.map((r) => r.attr)),
+  "Caused-by",
+  "References",
+];
+
 /**
  * Check whether `targetType` is compatible with any type in
  * `allowedTypes` by walking the parent chain (inheritance-aware).
@@ -190,6 +220,37 @@ export function validateTraceTargetTypes(
           `of type '${targetType}' — expected one of [${allowed.join(", ")}]`,
         location: entry.location,
       });
+    }
+
+    // Link-target severity diagnostics (MSL-R081 / MSL-R082) for all
+    // forward-pointing trace attributes. Supersedes is excluded — its
+    // predecessor target is meant to be retired.
+    for (const attr of entry.rawAttributes) {
+      if (!SEVERITY_TRACKED_ATTRS.includes(attr.key)) continue;
+      // Citations may carry a free-text locator after the slug — take
+      // the first whitespace-separated token as the target.
+      const target = attr.value.trim().split(/\s+/)[0];
+      if (!target) continue;
+      const resolved = byId.get(target) ?? byDisplayId.get(target);
+      if (!resolved) continue;
+      if (isRetired(resolved)) {
+        diagnostics.push({
+          code: "MSL-R081",
+          severity: "warning",
+          message: `${entry.displayId}: ${attr.key}: target '${target}' is ` +
+            `retired (Deprecated set on the target entry)`,
+          location: entry.location,
+        });
+      }
+      if (isDraft(resolved)) {
+        diagnostics.push({
+          code: "MSL-R082",
+          severity: "info",
+          message: `${entry.displayId}: ${attr.key}: target '${target}' ` +
+            `carries Labels: DRAFT`,
+          location: entry.location,
+        });
+      }
     }
   }
 

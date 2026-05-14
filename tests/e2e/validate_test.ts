@@ -330,6 +330,68 @@ Deno.test("validate: Supersedes target with same shape passes", async () => {
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
+Deno.test("validate: link target with Deprecated emits MSL-R081 warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Source requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Retired predecessor
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+      Deprecated: Retired in v2.0
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-R081");
+});
+
+Deno.test("validate: link target with Labels: DRAFT emits MSL-R082 info", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Source requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Draft target
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+      Labels: DRAFT
+`,
+    },
+  });
+  assertEquals(
+    code,
+    0,
+    `expected exit 0 (info), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-R082");
+});
+
 Deno.test("validate: Allocated-to target of type Specification fires MSL-R083", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
