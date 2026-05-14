@@ -512,6 +512,35 @@ Deno.test("validate: Reference display ID with leading digit fires MSL-I006", as
   assertStringIncludes(stderr, "MSL-I006");
 });
 
+Deno.test("validate: References citing an Authored entry fires MSL-R085 warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Source
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: REQ-002
+
+- [REQ-002] Authored target with wrong shape
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-R085");
+  assertStringIncludes(stderr, "REQ-002");
+});
+
 Deno.test("validate: Reference display ID with valid slug passes", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {

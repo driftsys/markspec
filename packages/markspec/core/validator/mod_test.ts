@@ -267,7 +267,7 @@ Deno.test("validate: References unresolved → MSL-T005", () => {
   assertEquals(t005.length, 1);
 });
 
-Deno.test("validate: References target is identified (wrong shape) → MSL-T005", () => {
+Deno.test("validate: References target is identified (wrong shape) → MSL-R085 warning", () => {
   const result = validate([
     entry({
       displayId: "REQ-001",
@@ -284,8 +284,13 @@ Deno.test("validate: References target is identified (wrong shape) → MSL-T005"
       location: { file: "test.md", line: 5, column: 1 },
     }),
   ]);
+  // Per spec §4.8, wrong-shape References target is a warning (MSL-R085),
+  // not an error. Unresolved targets stay MSL-T005 (error).
+  const r085 = result.diagnostics.filter((d) => d.code === "MSL-R085");
+  assertEquals(r085.length, 1);
+  assertEquals(r085[0].severity, "warning");
   const t005 = result.diagnostics.filter((d) => d.code === "MSL-T005");
-  assertEquals(t005.length, 1);
+  assertEquals(t005.length, 0);
 });
 
 // ---------------------------------------------------------------------------

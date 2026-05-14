@@ -264,10 +264,12 @@ function checkReferences(
       }
       if (resolved.shape !== "referenced") {
         diagnostics.push({
-          code: "MSL-T005",
-          severity: "error",
+          code: "MSL-R085",
+          severity: "warning",
           message:
-            `${entry.displayId}: References: target '${slug}' is shape '${resolved.shape}', expected 'referenced'`,
+            `${entry.displayId}: References: target '${slug}' resolves to a ` +
+            `'${resolved.shape}' entry but References must cite a ` +
+            `Reference-shape entry (spec §4.8)`,
           location: entry.location,
         });
       }
