@@ -207,6 +207,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec report <kind> <paths...>`   | `core/reporter`                   | Generate traceability matrix or coverage report.                     |
 | `markspec profile show`               | `core/profile`                    | Show the active profile chain and effective configuration.           |
 | `markspec doctor`                     | `core/profile` + `core/validator` | Project health check: profile, config, and validation summary.       |
+| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`  | Print the next available display ID for a profile-declared type.     |
 | `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                |
 | `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                    |
 | `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                  |
@@ -221,7 +222,6 @@ invoke them.
 | `markspec export`     | Compiled JSON → json, csv, reqif, yaml.                   |
 | `markspec insert`     | Agent write path: insert a requirement block into a file. |
 | `markspec create`     | Scaffold a new requirement block.                         |
-| `markspec next-id`    | Print the next available display ID for a type.           |
 | `markspec hook`       | Run format + validate as a pre-commit hook.               |
 | `markspec book dev`   | Live preview with hot reload.                             |
 | `markspec deck build` | Slides → PDF via Touying/Typst.                           |
@@ -230,8 +230,8 @@ invoke them.
 
 **Project context:** `format` and `validate` work file-locally without a
 `project.yaml`. All other commands (`compile`, `show`, `context`, `dependents`,
-`report`, `doc build`, `book build`) require a `project.yaml` found by walking
-up from the working directory.
+`report`, `next-id`, `doc build`, `book build`) require a `project.yaml` found
+by walking up from the working directory.
 
 ## Entry block rendering pipeline
 
