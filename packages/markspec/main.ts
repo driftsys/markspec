@@ -705,9 +705,32 @@ const cli = new Command()
       );
     }
   })
-  .command("export")
-  .description("Compiled JSON → json, csv, reqif, yaml")
-  .action(notImplemented("export"))
+  .command("export <format:string> <paths...:string>")
+  .description(
+    "Emit the compiled traceability graph in json or yaml (csv, reqif pending)",
+  )
+  .action(async (_options, format: string, ...paths: string[]) => {
+    if (format !== "json" && format !== "yaml") {
+      console.error(
+        `error: unknown export format '${format}' (supported: json, yaml)`,
+      );
+      Deno.exit(1);
+    }
+    const { result } = await compileProject(paths);
+    const { serializeCompileResult } = await import("./core/mod.ts");
+    const output = serializeCompileResult(result);
+    if (format === "json") {
+      console.log(JSON.stringify(output, null, 2));
+    } else {
+      // Round-trip through JSON to strip undefined values — @std/yaml's
+      // stringify throws on undefined, but the Entry shape carries
+      // optional fields (type, id, properties) that may legitimately
+      // be undefined. JSON.stringify drops them.
+      const jsonSafe = JSON.parse(JSON.stringify(output));
+      const { stringify } = await import("@std/yaml");
+      console.log(stringify(jsonSafe));
+    }
+  })
   .command("insert")
   .description("Insert a requirement block into a file")
   .action(notImplemented("insert"))
