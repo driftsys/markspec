@@ -42,6 +42,7 @@ import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
+import { findOccurrencesInFile } from "./highlights.ts";
 import { findReferencingEntries } from "./references.ts";
 import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
 import {
@@ -242,6 +243,7 @@ connection.onInitialize(
         workspaceSymbolProvider: true,
         renameProvider: { prepareProvider: true },
         foldingRangeProvider: true,
+        documentHighlightProvider: true,
       },
     };
   },
@@ -585,6 +587,32 @@ connection.onRenameRequest(async (params) => {
     }
   }
   return { changes };
+});
+
+// ---------------------------------------------------------------------------
+// Document highlights (mark every occurrence in the current file)
+// ---------------------------------------------------------------------------
+
+connection.onDocumentHighlight((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+
+  const filePath = uriToPath(params.textDocument.uri);
+  if (isSourceFile(filePath)) {
+    const lines = document.getText().split("\n");
+    if (!isDocCommentContext(lines, params.position.line)) {
+      return null;
+    }
+  }
+
+  const line = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
+  });
+  const id = displayIdAtPosition(line, params.position.character);
+  if (!id) return null;
+  // deno-lint-ignore no-explicit-any
+  return findOccurrencesInFile(document.getText(), id) as any;
 });
 
 // ---------------------------------------------------------------------------
