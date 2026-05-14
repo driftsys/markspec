@@ -12,16 +12,18 @@
  *   4. Authored display-ID prefix (`REQ` / `TST` / `ICD` / `REC` /
  *      `RSK`) → corresponding core Specification subtype.
  *   5. Reference-shape URI scheme inference (ADR-003 §Part 6).
+ *   6. Discriminating-attribute presence (Verifies → Test,
+ *      Schema-language → Contract, …).
  *
- * Step 6 (discriminating attribute) and step 7 (document directive)
- * are not consulted here; step 8 (display-ID shape) has its own
- * warning-emitting stage in `validator/types.ts`
- * (`inferTypeFromDisplayIdShape`).
+ * Step 7 (document directive) is not consulted here; step 8
+ * (display-ID shape) has its own warning-emitting stage in
+ * `validator/types.ts` (`inferTypeFromDisplayIdShape`).
  */
 
 import type { Entry } from "../model/mod.ts";
 import {
   CORE_TYPE_HIERARCHY,
+  inferTypeFromDiscriminatingAttr,
   inferTypeFromSource,
   inferTypeFromUriScheme,
 } from "../model/mod.ts";
@@ -123,6 +125,12 @@ export function resolvedCoreType(entry: Entry): string | undefined {
   if (entry.shape === "referenced" && entry.id) {
     const inferred = inferTypeFromUriScheme(entry.id);
     if (inferred && CORE_TYPE_HIERARCHY[inferred]) return inferred;
+  }
+  // Step 6: Discriminating attribute presence — first matching key wins.
+  const attrKeys = entry.rawAttributes.map((a) => a.key);
+  const fromDiscriminator = inferTypeFromDiscriminatingAttr(attrKeys);
+  if (fromDiscriminator && CORE_TYPE_HIERARCHY[fromDiscriminator]) {
+    return fromDiscriminator;
   }
   return undefined;
 }

@@ -170,6 +170,58 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
 // Per-type attribute compatibility — spec §1.6, MSL-T022
 // ---------------------------------------------------------------------------
 
+Deno.test("validate: Verifies attr infers Test at step 6; Allocated-to fires MSL-T022", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-test] My test entry
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Verifies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Allocated-to: 01HGW2Q8MNP3RSTVWXYZABCDEH
+`,
+    },
+  });
+  // Verifies present → Test inferred at step 6. Test excludes
+  // Allocated-to per ADR-003 §Part 2 → MSL-T022 (warning).
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Allocated-to");
+});
+
+Deno.test("validate: Schema-language infers Contract at step 6", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-contract] My contract
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Schema-language: openapi
+      Bus-protocol: can
+`,
+    },
+  });
+  // Schema-language → Contract. Bus-protocol is HardwareInterface-only
+  // → MSL-T022.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Bus-protocol");
+});
+
 Deno.test("validate: Source: Cargo.toml infers SoftwareComponent at step 3", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
