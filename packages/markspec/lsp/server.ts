@@ -41,6 +41,7 @@ import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { findReferencingEntries } from "./references.ts";
+import { entriesToDocumentSymbols } from "./symbols.ts";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
@@ -231,6 +232,7 @@ connection.onInitialize(
         hoverProvider: true,
         definitionProvider: true,
         referencesProvider: true,
+        documentSymbolProvider: true,
       },
     };
   },
@@ -478,6 +480,21 @@ connection.onReferences((params) => {
   }
 
   return locations;
+});
+
+// ---------------------------------------------------------------------------
+// Document symbols (outline view)
+// ---------------------------------------------------------------------------
+
+connection.onDocumentSymbol((params) => {
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return null;
+  const entries = index.getEntriesForFile(filePath);
+  // The result conforms to LSP `DocumentSymbol[]`; cast to satisfy the
+  // node-server.d.ts overload that returns `SymbolInformation[]` by
+  // default when the parameter is unannotated.
+  // deno-lint-ignore no-explicit-any
+  return entriesToDocumentSymbols(entries) as any;
 });
 
 // ---------------------------------------------------------------------------
