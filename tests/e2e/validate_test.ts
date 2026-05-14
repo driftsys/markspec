@@ -148,6 +148,63 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
   assertStringIncludes(stderr, "Source");
 });
 
+// MSL-A012 — repeatable attribute value list is empty
+Deno.test("validate: Labels with only commas fires MSL-A012", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: , ,
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A012");
+  assertStringIncludes(stderr, "Labels");
+});
+
+Deno.test("validate: External-id with empty CSV fires MSL-A012", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      External-id: ,,
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A012");
+  assertStringIncludes(stderr, "External-id");
+});
+
+Deno.test("validate: Labels with one non-empty value stays clean (no MSL-A012)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: safety
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-A012"), false);
+});
+
 // MSL-M061 — Requirement entry contains no modal keyword (info)
 Deno.test("validate: Requirement entry with no modal keyword emits MSL-M061 (info)", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
