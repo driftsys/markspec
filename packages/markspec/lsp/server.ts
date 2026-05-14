@@ -41,7 +41,10 @@ import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { findReferencingEntries } from "./references.ts";
-import { entriesToDocumentSymbols } from "./symbols.ts";
+import {
+  entriesToDocumentSymbols,
+  entriesToWorkspaceSymbols,
+} from "./symbols.ts";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
@@ -233,6 +236,7 @@ connection.onInitialize(
         definitionProvider: true,
         referencesProvider: true,
         documentSymbolProvider: true,
+        workspaceSymbolProvider: true,
       },
     };
   },
@@ -495,6 +499,17 @@ connection.onDocumentSymbol((params) => {
   // default when the parameter is unannotated.
   // deno-lint-ignore no-explicit-any
   return entriesToDocumentSymbols(entries) as any;
+});
+
+// ---------------------------------------------------------------------------
+// Workspace symbols (fuzzy entry search)
+// ---------------------------------------------------------------------------
+
+connection.onWorkspaceSymbol((params) => {
+  // The result conforms to LSP `SymbolInformation[]`; cast to satisfy
+  // the typed `SymbolKind` enum the d.ts expects.
+  // deno-lint-ignore no-explicit-any
+  return entriesToWorkspaceSymbols(index.getAllEntries(), params.query) as any;
 });
 
 // ---------------------------------------------------------------------------

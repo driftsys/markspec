@@ -7,7 +7,11 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
-import { entriesToDocumentSymbols, SymbolKindClass } from "./symbols.ts";
+import {
+  entriesToDocumentSymbols,
+  entriesToWorkspaceSymbols,
+  SymbolKindClass,
+} from "./symbols.ts";
 
 function makeEntry(opts: {
   displayId: string;
@@ -77,4 +81,55 @@ Deno.test("entriesToDocumentSymbols: kind is the Class constant", () => {
 
 Deno.test("entriesToDocumentSymbols: empty entry list yields empty array", () => {
   assertEquals(entriesToDocumentSymbols([]), []);
+});
+
+// --- entriesToWorkspaceSymbols ---
+
+Deno.test("entriesToWorkspaceSymbols: empty query returns all entries", () => {
+  const entries = [
+    makeEntry({ displayId: "REQ-001", title: "First", line: 1 }),
+    makeEntry({ displayId: "TST-001", title: "Test", line: 5 }),
+  ];
+  const symbols = entriesToWorkspaceSymbols(entries, "");
+  assertEquals(symbols.length, 2);
+});
+
+Deno.test("entriesToWorkspaceSymbols: matches by displayId substring (case-insensitive)", () => {
+  const entries = [
+    makeEntry({ displayId: "REQ-001", title: "Foo", line: 1 }),
+    makeEntry({ displayId: "TST-001", title: "Bar", line: 5 }),
+  ];
+  const symbols = entriesToWorkspaceSymbols(entries, "req");
+  assertEquals(symbols.length, 1);
+  assertEquals(symbols[0].name, "REQ-001");
+});
+
+Deno.test("entriesToWorkspaceSymbols: matches by title substring (case-insensitive)", () => {
+  const entries = [
+    makeEntry({ displayId: "REQ-001", title: "Sensor debouncing", line: 1 }),
+    makeEntry({ displayId: "TST-001", title: "Other thing", line: 5 }),
+  ];
+  const symbols = entriesToWorkspaceSymbols(entries, "Sensor");
+  assertEquals(symbols.length, 1);
+  assertEquals(symbols[0].name, "REQ-001");
+});
+
+Deno.test("entriesToWorkspaceSymbols: SymbolInformation carries location with file URI", () => {
+  const entries = [
+    makeEntry({ displayId: "REQ-001", title: "X", line: 3, column: 1 }),
+  ];
+  // Override location.file to an absolute path.
+  entries[0] = {
+    ...entries[0],
+    location: { file: "/abs/path/req.md", line: 3, column: 1 },
+  };
+  const sym = entriesToWorkspaceSymbols(entries, "")[0];
+  assertEquals(sym.location.uri, "file:///abs/path/req.md");
+  assertEquals(sym.location.range.start.line, 2);
+});
+
+Deno.test("entriesToWorkspaceSymbols: kind is the Class constant", () => {
+  const entries = [makeEntry({ displayId: "REQ-001", title: "X", line: 1 })];
+  const sym = entriesToWorkspaceSymbols(entries, "")[0];
+  assertEquals(sym.kind, SymbolKindClass);
 });
