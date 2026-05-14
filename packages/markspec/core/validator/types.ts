@@ -27,6 +27,38 @@ import { compileDisplayIdPattern } from "./pattern.ts";
 const PROFILE_TYPE_NAME_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
 /**
+ * Display-ID shape that infers Unit at chain step 8 (spec §1.3.1).
+ * Matches when the display ID carries a path-like separator (`::` for
+ * Rust/C++ symbol paths, `/` for filesystem-style hierarchies).
+ */
+const UNIT_DISPLAY_ID_RE = /(::|\/)/;
+
+/**
+ * Late-stage type inference per spec §1.3.1 step 8 (Authored shape).
+ *
+ * When no explicit `Type:` is present and the display ID carries a
+ * path-like separator, infer `Unit` and emit MSL-T021 as a warning so the
+ * author can promote the inferred type to an explicit declaration. This
+ * implements the narrowest slice of the spec's late-stage chain — the
+ * URI-scheme map (step 5), discriminating-attribute inference (step 6),
+ * and document-directive inference (step 7) land in later slices.
+ */
+export function inferTypeFromDisplayIdShape(
+  entry: Entry,
+): readonly Diagnostic[] {
+  if (entry.shape !== "identified") return [];
+  if (findExplicitTypeAttribute(entry) !== undefined) return [];
+  if (!UNIT_DISPLAY_ID_RE.test(entry.displayId)) return [];
+  return [{
+    code: "MSL-T021",
+    severity: "warning",
+    message: `${entry.displayId}: Type inferred as 'Unit' from display-ID ` +
+      `shape (late-stage inference); declare 'Type:' explicitly to silence`,
+    location: entry.location,
+  }];
+}
+
+/**
  * Validate the `Type:` attribute value against the core type taxonomy plus
  * any profile-declared types. Runs in every mode (with or without a loaded
  * profile) — see spec §1.3 and ADR-003 §Part 1.

@@ -69,6 +69,27 @@ Deno.test("validate: generated-origin attribute in source rejected with MSL-A030
   assertStringIncludes(stderr, "Superseded-by");
 });
 
+Deno.test("validate: display-ID containing :: emits MSL-T021 inference warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [braking::controller::debounce] Debounce function
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T021");
+});
+
 Deno.test("validate: lowercase Type: in core-only mode rejected with MSL-T023", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
