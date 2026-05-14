@@ -69,11 +69,23 @@ markspec/
 │       ├── cli/
 │       │   └── commands/            ← one file per subcommand
 │       ├── lsp/
-│       │   ├── server.ts            ← LSP server entry point (stdio JSON-RPC,
-│       │   │                          diagnostics + completions)
+│       │   ├── server.ts            ← LSP server entry point (stdio JSON-RPC).
+│       │   │                          Capabilities: diagnostics, completions,
+│       │   │                          hover, definition, references, document /
+│       │   │                          workspace symbols, rename.
 │       │   ├── workspace.ts         ← in-memory entry index, incremental updates
 │       │   ├── diagnostics.ts       ← core Diagnostic → LSP Diagnostic bridge
-│       │   ├── completions.ts       ← block scaffold + ID reference completion
+│       │   ├── completions.ts       ← block scaffold + ID reference + Type:
+│       │   │                          value completion triggers
+│       │   ├── hover.ts             ← hover provider: display-ID extraction +
+│       │   │                          Markdown-rendered Entry preview
+│       │   ├── definition.ts        ← Entry → LSP Location for go-to-definition
+│       │   ├── references.ts        ← find-all-references: walks entry
+│       │   │                          attributes for whole-token matches
+│       │   ├── rename.ts            ← workspace rename: whole-token text edits
+│       │   │                          across every tracked file
+│       │   ├── symbols.ts           ← document-symbol (outline) + workspace-
+│       │   │                          symbol (fuzzy entry search) builders
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       └── mcp/
@@ -109,9 +121,11 @@ markspec/
 alone:**
 
 @packages/markspec/lsp/server.ts @packages/markspec/lsp/workspace.ts
-@packages/markspec/lsp/completions.ts @packages/markspec/lsp/context.ts
-@packages/markspec/lsp/diagnostics.ts @packages/markspec/lsp/util.ts
-@packages/markspec/main.ts
+@packages/markspec/lsp/completions.ts @packages/markspec/lsp/hover.ts
+@packages/markspec/lsp/definition.ts @packages/markspec/lsp/references.ts
+@packages/markspec/lsp/rename.ts @packages/markspec/lsp/symbols.ts
+@packages/markspec/lsp/context.ts @packages/markspec/lsp/diagnostics.ts
+@packages/markspec/lsp/util.ts @packages/markspec/main.ts
 
 ## Key rules
 
