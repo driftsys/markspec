@@ -573,6 +573,89 @@ Deno.test("validate: Reference display ID with valid slug passes", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Body block exclusions — spec §2.4.1, MSL-B040-B043
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: heading inside entry body fires MSL-B040", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+  ## Sub-heading inside entry
+
+  More body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-B040");
+});
+
+Deno.test("validate: horizontal rule inside entry body fires MSL-B041", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+  ---
+
+  More body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-B041");
+});
+
+Deno.test("validate: task list inside entry body fires MSL-B042", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+  - [ ] Open task
+  - [x] Closed task
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-B042");
+});
+
+Deno.test("validate: raw HTML inside entry body fires MSL-B043", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text with <div class="custom">raw HTML</div> inside.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-B043");
+});
+
+// ---------------------------------------------------------------------------
 // Captions — spec §2.6
 // ---------------------------------------------------------------------------
 
