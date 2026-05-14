@@ -13,6 +13,7 @@ import {
   parseAttributes,
   splitBodyAndAttributes,
 } from "./attributes.ts";
+import { extractEntityRefs } from "./entity_refs.ts";
 import { processor } from "./remark.ts";
 
 /** Options for {@linkcode parseMarkdown}. */
@@ -273,6 +274,19 @@ function extractEntry(
   const line = item.position?.start.line ?? 1;
   const column = item.position?.start.column ?? 1;
 
+  const entryLocation = { file, line, column };
+
+  // Inline `$Identifier` entity references (spec §2.5.2). Resolution
+  // into the project's entity registry is left to the validator's
+  // marker pass; the parser only emits the lexical hits.
+  const entityRefs = extractEntityRefs(body, {
+    file,
+    // Body content starts on the line after the title; +1 keeps
+    // emitted line numbers 1-based relative to the file.
+    line: line + 1,
+    column: 1,
+  });
+
   return {
     displayId,
     title: title ?? "",
@@ -282,9 +296,10 @@ function extractEntry(
     id,
     type,
     shape,
-    location: { file, line, column },
+    location: entryLocation,
     source: "markdown",
     properties: { file: { path: file, line, column } },
+    entityRefs: entityRefs.length > 0 ? entityRefs : undefined,
   };
 }
 

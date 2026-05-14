@@ -12,6 +12,29 @@ import { parseMarkdown } from "./markdown.ts";
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 
 // ---------------------------------------------------------------------------
+// Inline entity references ($Identifier — spec §2.5.2)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: extracts $Identifier entity refs with conventions", () => {
+  const md = `- [REQ-001] Sensor debouncing
+
+  The $sensorDriver shall debounce $rawPressure within $DEBOUNCE_WINDOW
+  for type $BrakeController to avoid spurious activation.
+
+  Id: ${ULID}
+`;
+  const { entries: [entry] } = parseMarkdown(md);
+  assertExists(entry);
+  const refs = entry.entityRefs ?? [];
+  const byIdent = new Map(refs.map((r) => [r.ident, r.convention]));
+  assertEquals(byIdent.get("$sensorDriver"), "instance");
+  assertEquals(byIdent.get("$rawPressure"), "instance");
+  assertEquals(byIdent.get("$DEBOUNCE_WINDOW"), "constant");
+  assertEquals(byIdent.get("$BrakeController"), "type");
+  assertEquals(refs.length, 4);
+});
+
+// ---------------------------------------------------------------------------
 // Display ID and title
 // ---------------------------------------------------------------------------
 

@@ -338,6 +338,12 @@ export interface Entry {
    * source-adapter provenance).
    */
   readonly properties?: EntryProperties;
+  /**
+   * Inline `$Identifier` entity references discovered in the entry body
+   * prose (spec §2.5.2). Empty when the body contains no references.
+   * Resolution into the project's entity registry happens downstream.
+   */
+  readonly entityRefs?: readonly EntityRef[];
 }
 
 // ---------------------------------------------------------------------------
@@ -462,6 +468,33 @@ export interface Directive {
 export interface InlineRef {
   readonly namespace: string;
   readonly refId: string;
+  readonly location: SourceLocation;
+}
+
+/**
+ * Case convention of a `$Identifier` token (spec §2.5.2). The convention
+ * determines which entity domain the reference resolves into.
+ */
+export type EntityRefConvention = "type" | "instance" | "constant";
+
+/**
+ * An inline `$Identifier` token found in entry body prose (spec §2.5.2).
+ *
+ * `ident` carries the leading `$`. `convention` is derived from the
+ * identifier's case shape:
+ *
+ *   - `type` — PascalCase (`$BrakeController`).
+ *   - `instance` — camelCase (`$rawPressure`).
+ *   - `constant` — SCREAMING_SNAKE (`$DEBOUNCE_WINDOW`). Requires at
+ *     least one underscore or digit to distinguish from a single-segment
+ *     PascalCase identifier like `$ASIL`.
+ *
+ * Resolution to an entity in the project's RIDL types / code symbols /
+ * constants registry is performed by the validator's marker pass.
+ */
+export interface EntityRef {
+  readonly ident: string;
+  readonly convention: EntityRefConvention;
   readonly location: SourceLocation;
 }
 
