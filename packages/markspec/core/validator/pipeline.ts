@@ -18,6 +18,7 @@ import {
 } from "./types.ts";
 import { validateBodyBlocks } from "./body_blocks.ts";
 import { validateCaptions } from "./captions.ts";
+import { validateModalKeywords } from "./modal_keywords.ts";
 import { validatePerTypeAttributes } from "./per_type_attrs.ts";
 import { validateTraceTargetTypes } from "./trace_types.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
@@ -76,6 +77,7 @@ export function runPipeline(
     diagnostics.push(...validateCaptions(entry));
     diagnostics.push(...validateBodyBlocks(entry));
     diagnostics.push(...validatePerTypeAttributes(entry));
+    diagnostics.push(...validateModalKeywords(entry));
   }
 
   // Stage 1.6 — cross-file trace target-type compatibility (MSL-R083).
