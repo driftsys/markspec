@@ -19,6 +19,14 @@ import { CORE_TYPES } from "../model/mod.ts";
 import { compileDisplayIdPattern } from "./pattern.ts";
 
 /**
+ * Profile-declared concrete-type naming convention (spec §1.3): lowercase
+ * alphanumeric with hyphens, starting with a letter. Used to distinguish a
+ * "looks like a profile type but no profile is loaded" diagnostic
+ * (MSL-T023) from a generic "unknown type" diagnostic (MSL-T020).
+ */
+const PROFILE_TYPE_NAME_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+
+/**
  * Validate the `Type:` attribute value against the core type taxonomy plus
  * any profile-declared types. Runs in every mode (with or without a loaded
  * profile) — see spec §1.3 and ADR-003 §Part 1.
@@ -26,6 +34,9 @@ import { compileDisplayIdPattern } from "./pattern.ts";
  * Emits:
  *   - `MSL-T020` when `Type:` is present but the value is neither a core
  *     abstract/concrete type nor a profile-declared type.
+ *   - `MSL-T023` when `Type:` matches the profile-declared naming convention
+ *     (lowercase-with-hyphens) but no profile is loaded — i.e., the value
+ *     is plausibly a profile type, just unreachable in core-only mode.
  */
 export function validateCoreTypeAttribute(
   entry: Entry,
@@ -35,6 +46,18 @@ export function validateCoreTypeAttribute(
   if (explicitType === undefined) return [];
   if (CORE_TYPES.has(explicitType)) return [];
   if (profile !== null && profile.types.has(explicitType)) return [];
+
+  // Core-only mode: distinguish "profile-only type" (T023) from "unknown" (T020).
+  if (profile === null && PROFILE_TYPE_NAME_RE.test(explicitType)) {
+    return [{
+      code: "MSL-T023",
+      severity: "error",
+      message: `${entry.displayId}: Type: '${explicitType}' looks like a ` +
+        `profile-declared type but no profile is loaded (core-only mode)`,
+      location: entry.location,
+    }];
+  }
+
   return [{
     code: "MSL-T020",
     severity: "error",
