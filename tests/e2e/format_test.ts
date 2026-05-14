@@ -93,6 +93,52 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Trailer key re-casing (spec §3.3.4)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: rewrites trailer keys to TitleCase-Hyphenated", async () => {
+  const input = "# Test\n\n" +
+    "- [REQ-001] Title\n\n" +
+    "  Body.\n\n" +
+    "      ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\n" +
+    "      LABELS: ASIL-B\n";
+  const { readFile } = await runFormat({ "req.md": input });
+  const output = await readFile("req.md");
+  // Keys must land in canonical TitleCase-Hyphenated form.
+  assertEquals(
+    /^\s*Id:\s/m.test(output),
+    true,
+    `'Id:' should be canonical; output:\n${output}`,
+  );
+  assertEquals(
+    /^\s*Labels:\s/m.test(output),
+    true,
+    `'Labels:' should be canonical; output:\n${output}`,
+  );
+  // Loud-case inputs must be gone.
+  assertEquals(output.includes("ID: "), false);
+  assertEquals(output.includes("LABELS: "), false);
+});
+
+Deno.test("format: lowercases interior of hyphenated key", async () => {
+  const input = "# Test\n\n" +
+    "- [REF-001] My reference\n\n" +
+    "  Body.\n\n" +
+    "      Id: urn:iso:std:iso:26262:-6:ed-2\n" +
+    "      Reference-URL: https://example.org/spec\n";
+  const { readFile } = await runFormat({ "req.md": input });
+  const output = await readFile("req.md");
+  // Canonical form is `Reference-url` (lowercase after hyphen) per
+  // spec §3.3.4 examples.
+  assertEquals(
+    /^\s*Reference-url:\s/m.test(output),
+    true,
+    `'Reference-url:' should be the canonical form; output:\n${output}`,
+  );
+  assertEquals(output.includes("Reference-URL: "), false);
+});
+
+// ---------------------------------------------------------------------------
 // Title-line normalisation — bullet character (spec §3.2)
 // ---------------------------------------------------------------------------
 
