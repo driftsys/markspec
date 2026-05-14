@@ -15,6 +15,7 @@ import {
   inferTypeFromDisplayIdShape,
   validateCoreTypeAttribute,
 } from "./types.ts";
+import { validateBodyBlocks } from "./body_blocks.ts";
 import { validateCaptions } from "./captions.ts";
 import { validatePerTypeAttributes } from "./per_type_attrs.ts";
 import { validateTraceTargetTypes } from "./trace_types.ts";
@@ -72,6 +73,7 @@ export function runPipeline(
     diagnostics.push(...validateCoreTypeAttribute(entry, profile));
     diagnostics.push(...inferTypeFromDisplayIdShape(entry));
     diagnostics.push(...validateCaptions(entry));
+    diagnostics.push(...validateBodyBlocks(entry));
     diagnostics.push(...validatePerTypeAttributes(entry));
   }
 
