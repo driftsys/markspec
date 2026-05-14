@@ -9,6 +9,7 @@
  */
 
 import type { Entry } from "../core/model/mod.ts";
+import { pathToUri } from "./util.ts";
 
 /** LSP `SymbolKind.Class` numeric constant. */
 export const SymbolKindClass = 5;
@@ -38,6 +39,57 @@ export interface DocumentSymbol {
  * full entry block — for now the cursor placement is enough for
  * outline navigation.
  */
+/** A subset of the LSP `SymbolInformation` interface. */
+export interface SymbolInformation {
+  readonly name: string;
+  readonly kind: number;
+  readonly location: {
+    readonly uri: string;
+    readonly range: {
+      readonly start: { readonly line: number; readonly character: number };
+      readonly end: { readonly line: number; readonly character: number };
+    };
+  };
+  readonly containerName?: string;
+}
+
+/**
+ * Filter and project the workspace's entries to LSP
+ * `SymbolInformation[]` for the `workspace/symbol` request.
+ *
+ * `query` is matched case-insensitively as a substring against both
+ * the entry's display ID and its title; an empty query matches every
+ * entry. `containerName` carries the title so editor results lists
+ * still show both pieces of identifying info.
+ */
+export function entriesToWorkspaceSymbols(
+  entries: readonly Entry[],
+  query: string,
+): SymbolInformation[] {
+  const needle = query.toLowerCase();
+  const out: SymbolInformation[] = [];
+  for (const entry of entries) {
+    if (needle.length > 0) {
+      const matches = entry.displayId.toLowerCase().includes(needle) ||
+        entry.title.toLowerCase().includes(needle);
+      if (!matches) continue;
+    }
+    const line = Math.max(0, entry.location.line - 1);
+    const character = Math.max(0, entry.location.column - 1);
+    const position = { line, character };
+    out.push({
+      name: entry.displayId,
+      kind: SymbolKindClass,
+      location: {
+        uri: pathToUri(entry.location.file),
+        range: { start: position, end: position },
+      },
+      containerName: entry.title,
+    });
+  }
+  return out;
+}
+
 export function entriesToDocumentSymbols(
   entries: readonly Entry[],
 ): DocumentSymbol[] {
