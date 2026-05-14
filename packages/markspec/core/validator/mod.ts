@@ -181,6 +181,20 @@ function checkStructural(
       }
     }
 
+    // MSL-P010 — entry title is empty after trimming. The parser
+    // accepts an empty title for shape stability (`[REQ-001]` with
+    // nothing after) but the canonical form per spec §4.2 requires a
+    // non-empty human-readable title. Fires regardless of shape.
+    if (entry.title.trim().length === 0) {
+      diagnostics.push({
+        code: "MSL-P010",
+        severity: "error",
+        message: `${entry.displayId}: title is empty after trimming ` +
+          `(spec §4.2); add a non-empty human-readable title after ']'`,
+        location: entry.location,
+      });
+    }
+
     // MSL-A011 — `citation`-typed attribute (References:) used CSV
     // form. The canonical form is multi-line per spec §2.3.2: locators
     // may contain commas (e.g. `[@iso26262, p. 42]`), so the parser
