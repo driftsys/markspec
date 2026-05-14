@@ -50,6 +50,44 @@ Deno.test("validate: Type: Specification accepted in core-only mode", async () =
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
+Deno.test("validate: Derives in source rejected with MSL-A030 (generated inverse)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Derives: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A030");
+  assertStringIncludes(stderr, "Derives");
+});
+
+Deno.test("validate: Verified-by in source rejected with MSL-A030", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Verified-by: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A030");
+  assertStringIncludes(stderr, "Verified-by");
+});
+
 Deno.test("validate: generated-origin attribute in source rejected with MSL-A030", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
