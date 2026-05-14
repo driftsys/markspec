@@ -17,6 +17,7 @@ import type {
 } from "../model/mod.ts";
 import { CORE_TYPES } from "../model/mod.ts";
 import { compileDisplayIdPattern } from "./pattern.ts";
+import { explicitType, resolvedCoreType } from "./type_resolution.ts";
 
 /**
  * Profile-declared concrete-type naming convention (spec §1.3): lowercase
@@ -36,18 +37,23 @@ const UNIT_DISPLAY_ID_RE = /(::|\/)/;
 /**
  * Late-stage type inference per spec §1.3.1 step 8 (Authored shape).
  *
- * When no explicit `Type:` is present and the display ID carries a
- * path-like separator, infer `Unit` and emit MSL-T021 as a warning so the
- * author can promote the inferred type to an explicit declaration. This
- * implements the narrowest slice of the spec's late-stage chain — the
- * URI-scheme map (step 5), discriminating-attribute inference (step 6),
- * and document-directive inference (step 7) land in later slices.
+ * When no upstream signal has resolved the entry's type and the display
+ * ID carries a path-like separator, infer `Unit` and emit MSL-T021 as a
+ * warning so the author can promote the inferred type to an explicit
+ * declaration.
+ *
+ * The "no upstream signal" check consults `resolvedCoreType()` so a
+ * profile-classified `entry.type` or any earlier inference branch
+ * suppresses the warning — previously only an explicit `Type:`
+ * attribute did. Step 8 (this function) is the genuinely-late
+ * fallback; firing it on already-classified entries was a false
+ * positive.
  */
 export function inferTypeFromDisplayIdShape(
   entry: Entry,
 ): readonly Diagnostic[] {
   if (entry.shape !== "identified") return [];
-  if (findExplicitTypeAttribute(entry) !== undefined) return [];
+  if (resolvedCoreType(entry) !== undefined) return [];
   if (!UNIT_DISPLAY_ID_RE.test(entry.displayId)) return [];
   return [{
     code: "MSL-T021",
@@ -74,17 +80,17 @@ export function validateCoreTypeAttribute(
   entry: Entry,
   profile: EffectiveProfile | null,
 ): readonly Diagnostic[] {
-  const explicitType = findExplicitTypeAttribute(entry);
-  if (explicitType === undefined) return [];
-  if (CORE_TYPES.has(explicitType)) return [];
-  if (profile !== null && profile.types.has(explicitType)) return [];
+  const value = explicitType(entry);
+  if (value === undefined) return [];
+  if (CORE_TYPES.has(value)) return [];
+  if (profile !== null && profile.types.has(value)) return [];
 
   // Core-only mode: distinguish "profile-only type" (T023) from "unknown" (T020).
-  if (profile === null && PROFILE_TYPE_NAME_RE.test(explicitType)) {
+  if (profile === null && PROFILE_TYPE_NAME_RE.test(value)) {
     return [{
       code: "MSL-T023",
       severity: "error",
-      message: `${entry.displayId}: Type: '${explicitType}' looks like a ` +
+      message: `${entry.displayId}: Type: '${value}' looks like a ` +
         `profile-declared type but no profile is loaded (core-only mode)`,
       location: entry.location,
     }];
@@ -93,7 +99,7 @@ export function validateCoreTypeAttribute(
   return [{
     code: "MSL-T020",
     severity: "error",
-    message: `${entry.displayId}: Type: '${explicitType}' is not a core type ` +
+    message: `${entry.displayId}: Type: '${value}' is not a core type ` +
       `or a profile-declared type`,
     location: entry.location,
   }];
@@ -128,16 +134,16 @@ export function classifyEntry(
   const diagnostics: Diagnostic[] = [];
 
   // 1. Explicit Type: trailer?
-  const explicitType = findExplicitTypeAttribute(entry);
-  if (explicitType !== undefined) {
-    if (profile.types.has(explicitType)) {
-      return { type: explicitType, diagnostics };
+  const explicit = explicitType(entry);
+  if (explicit !== undefined) {
+    if (profile.types.has(explicit)) {
+      return { type: explicit, diagnostics };
     }
     diagnostics.push({
       code: "MSL-T001",
       severity: "error",
       message:
-        `${entry.displayId}: explicit Type: '${explicitType}' is not a declared type`,
+        `${entry.displayId}: explicit Type: '${explicit}' is not a declared type`,
       location: entry.location,
     });
     return { type: undefined, diagnostics };
@@ -184,15 +190,6 @@ export function classifyEntry(
     });
   }
   return { type: undefined, diagnostics };
-}
-
-function findExplicitTypeAttribute(entry: Entry): string | undefined {
-  for (const attr of entry.rawAttributes) {
-    if (attr.key === "Type") {
-      return attr.value.trim();
-    }
-  }
-  return undefined;
 }
 
 /** Result of running the classification stage over a batch of entries. */
