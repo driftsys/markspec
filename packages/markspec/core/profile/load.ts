@@ -15,6 +15,7 @@ import {
 } from "../config/markspec.ts";
 import type { ReadFile } from "../config/mod.ts";
 import type { Diagnostic, ProfileChain } from "../model/mod.ts";
+import { CORE_TYPES } from "../model/mod.ts";
 import { loadChain } from "./chain.ts";
 
 /** Result of `loadProfileForCommand`. */
@@ -75,5 +76,83 @@ export async function loadProfileForCommand(
     readFile,
   );
   diagnostics.push(...chainResult.diagnostics);
+
+  // MSL-A040 — profile must not redefine reserved core keys / types.
+  if (chainResult.chain) {
+    diagnostics.push(...checkReservedRedefinitions(chainResult.chain));
+  }
   return { chain: chainResult.chain, diagnostics };
+}
+
+/**
+ * Reserved attribute names a profile must never declare. Per spec
+ * §4.4 MSL-A040 and ADR-009 §6: the identity slot (`Id`) and the
+ * type attribute (`Type`) are the absolutely reserved keys; their
+ * meaning is fixed by the core and any profile redefinition would
+ * silently break shape discrimination or type resolution.
+ */
+const RESERVED_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
+  "Id",
+  "Type",
+]);
+
+/**
+ * Scan the loaded profile chain for declarations that shadow core
+ * reserved names and emit MSL-A040 diagnostics. The check inspects:
+ *
+ *   - universal `attributes:` scope,
+ *   - per-shape `identified.attributes:` and `referenced.attributes:`,
+ *   - every per-type `attributes:` map under `types:`,
+ *   - each declared type name itself (must not match a core type).
+ */
+function checkReservedRedefinitions(chain: ProfileChain): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const effective = chain.effective;
+
+  // Build origin → sourcePath index from the chain's tiers so diagnostics
+  // can point at the manifest file that introduced each declaration.
+  const originToPath = new Map<string, string>();
+  for (const tier of chain.tiers) {
+    originToPath.set(tier.id, tier.sourcePath);
+  }
+  // Fallback file when an origin somehow isn't in the tier list.
+  const fallbackPath = chain.tiers[0]?.sourcePath ?? "<profile>";
+
+  function pathFor(origin: string): string {
+    return originToPath.get(origin) ?? fallbackPath;
+  }
+
+  function checkAttrMap(
+    map: ReadonlyMap<string, { origin: string }>,
+    scope: string,
+  ): void {
+    for (const [key, entry] of map) {
+      if (RESERVED_ATTRIBUTE_KEYS.has(key)) {
+        diagnostics.push({
+          code: "MSL-A040",
+          severity: "error",
+          message: `profile ${scope} attribute '${key}' shadows a core ` +
+            `reserved key (spec §4.4, ADR-009 §6); choose a different name`,
+          location: { file: pathFor(entry.origin), line: 1, column: 1 },
+        });
+      }
+    }
+  }
+
+  checkAttrMap(effective.attributes, "universal");
+  checkAttrMap(effective.identified.attributes, "identified");
+  checkAttrMap(effective.referenced.attributes, "referenced");
+  for (const [typeName, typeEntry] of effective.types) {
+    checkAttrMap(typeEntry.value.attributes, `type '${typeName}'`);
+    if (CORE_TYPES.has(typeName)) {
+      diagnostics.push({
+        code: "MSL-A040",
+        severity: "error",
+        message: `profile type '${typeName}' shadows a core type name ` +
+          `(spec §4.4); the 15-type core vocabulary is reserved`,
+        location: { file: pathFor(typeEntry.origin), line: 1, column: 1 },
+      });
+    }
+  }
+  return diagnostics;
 }

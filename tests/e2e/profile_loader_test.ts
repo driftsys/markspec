@@ -82,6 +82,70 @@ Deno.test("profile loader e2e: malformed .markspec.yaml fails with MARKSPEC-YAML
   assertStringIncludes(stderr, "MARKSPEC-YAML-002");
 });
 
+// MSL-A040 — profile must not redefine reserved core keys / types.
+Deno.test("profile loader e2e: profile declaring attribute 'Id' fires MSL-A040", async () => {
+  const profile = `id: "@acme/redefines-id"
+version: 0.1.0
+profile:
+  attributes:
+    - name: Id
+      type: text
+`;
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/bad\n`,
+      "profiles/bad/markspec.yaml": profile,
+      "req.md": REQ_MD,
+    },
+  });
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "MSL-A040");
+  assertStringIncludes(stderr, "Id");
+});
+
+Deno.test("profile loader e2e: profile declaring attribute 'Type' fires MSL-A040", async () => {
+  const profile = `id: "@acme/redefines-type"
+version: 0.1.0
+profile:
+  attributes:
+    - name: Type
+      type: text
+`;
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/bad\n`,
+      "profiles/bad/markspec.yaml": profile,
+      "req.md": REQ_MD,
+    },
+  });
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "MSL-A040");
+  assertStringIncludes(stderr, "Type");
+});
+
+Deno.test("profile loader e2e: profile declaring core type name 'Requirement' fires MSL-A040", async () => {
+  const profile = `id: "@acme/redefines-requirement"
+version: 0.1.0
+profile:
+  types:
+    Requirement:
+      shape: identified
+`;
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/bad\n`,
+      "profiles/bad/markspec.yaml": profile,
+      "req.md": REQ_MD,
+    },
+  });
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "MSL-A040");
+  assertStringIncludes(stderr, "Requirement");
+});
+
 Deno.test("profile loader e2e: unknown .markspec.yaml key warns but doesn't block", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
