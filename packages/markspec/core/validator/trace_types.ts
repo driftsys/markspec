@@ -13,7 +13,7 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { CORE_TYPE_HIERARCHY } from "../model/mod.ts";
+import { CORE_TYPE_HIERARCHY, inferTypeFromUriScheme } from "../model/mod.ts";
 
 /**
  * Trace-relation target-type rules. Each entry maps a trace attribute
@@ -78,11 +78,27 @@ function explicitType(entry: Entry): string | undefined {
   return undefined;
 }
 
-/** Resolve an entry's effective core type from explicit + inferred sources. */
+/**
+ * Resolve an entry's effective core type. Tries (in order):
+ *
+ *   1. Explicit `Type:` attribute (spec §1.3.1 step 1).
+ *   2. Profile-classified `entry.type` (set upstream when a profile is
+ *      loaded — spec §1.3.1 step 2 fall-out).
+ *   3. URI-scheme inference for Reference-shape entries
+ *      (ADR-003 §Part 6 / spec §1.3.1 step 5).
+ *
+ * Steps 3-4 + 6-8 of the spec chain are not consulted here — they're
+ * handled by validateCoreTypeAttribute / inferTypeFromDisplayIdShape
+ * in earlier validator stages.
+ */
 function resolvedCoreType(entry: Entry): string | undefined {
   const explicit = explicitType(entry);
   if (explicit && CORE_TYPE_HIERARCHY[explicit]) return explicit;
   if (entry.type && CORE_TYPE_HIERARCHY[entry.type]) return entry.type;
+  if (entry.shape === "referenced" && entry.id) {
+    const inferred = inferTypeFromUriScheme(entry.id);
+    if (inferred && CORE_TYPE_HIERARCHY[inferred]) return inferred;
+  }
   return undefined;
 }
 
