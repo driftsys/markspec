@@ -70,6 +70,51 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
     required: true,
   },
 
+  // Universal classification (spec §1.3 / §1.4) — apply to every entry.
+  // `Type` carries the information-layer classification; `Source` and
+  // `Origin` are universal authoring metadata (SSoT pointer, synthesis
+  // flag). They live in the catalogue so validators / formatters can
+  // look them up without per-call special-casing.
+  {
+    key: "Type",
+    type: "enum",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Source",
+    type: "path-or-id",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Origin",
+    type: "enum",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+    enumValues: ["authored", "synthesized"],
+  },
+
+  // Reference-shape navigation (spec §1.5) — promoted from the RefHub
+  // profile to core in PR #277.
+  {
+    key: "Reference-url",
+    type: "url",
+    origin: "authored",
+    shapes: ["referenced"],
+    required: false,
+  },
+  {
+    key: "Reference-document",
+    type: "text",
+    origin: "authored",
+    shapes: ["referenced"],
+    required: false,
+  },
+
   // Universal — apply to every entry
   {
     key: "Labels",

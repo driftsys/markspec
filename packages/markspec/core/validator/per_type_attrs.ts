@@ -21,19 +21,14 @@ import { resolvedCoreType } from "./type_resolution.ts";
 
 /**
  * Attribute keys that are universal to every entry regardless of type
- * (spec §1.4 + §1.5). The core attribute catalog covers most of these;
- * a few additional keys (`Type`, `Source`, `Origin`, the Reference-shape
- * promoted attrs) are core-known but not in {@linkcode UNIVERSAL_ATTRIBUTE_KEYS}
- * directly, so they're added here.
+ * (spec §1.4 + §1.5). Sourced entirely from {@linkcode UNIVERSAL_ATTRIBUTE_KEYS}
+ * — `Type`, `Source`, `Origin`, `Reference-url`, and `Reference-document`
+ * are now first-class catalogue entries, so the previous hand-maintained
+ * extension list is no longer needed.
  */
-const UNIVERSAL_KEYS: ReadonlySet<string> = new Set<string>([
-  ...UNIVERSAL_ATTRIBUTE_KEYS,
-  "Type",
-  "Source",
-  "Origin",
-  "Reference-url",
-  "Reference-document",
-]);
+const UNIVERSAL_KEYS: ReadonlySet<string> = new Set<string>(
+  UNIVERSAL_ATTRIBUTE_KEYS,
+);
 
 /**
  * Emit MSL-T022 warnings for attributes that are core-known but not

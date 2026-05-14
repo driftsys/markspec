@@ -864,6 +864,28 @@ Deno.test("validate: unresolved References citation exits 1 (MSL-T005)", async (
 // Warnings
 // ---------------------------------------------------------------------------
 
+Deno.test("validate: Origin: synthesized recognised as universal (no MSL-R010)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Origin: synthesized
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(
+    /MSL-R010[^\n]*Origin/.test(stderr),
+    false,
+    `Origin is a universal attribute (spec §1.4); MSL-R010 must not fire on it; stderr: ${stderr}`,
+  );
+});
+
 Deno.test("validate: warning only exits 2", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
