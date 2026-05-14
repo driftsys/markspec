@@ -16,6 +16,7 @@
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import { walkProseLines } from "../util/fence.ts";
+import { resolvedCoreType } from "./type_resolution.ts";
 
 /**
  * RFC 2119 modal keywords in uppercase form, with optional ` NOT`.
@@ -24,13 +25,21 @@ import { walkProseLines } from "../util/fence.ts";
 const UPPERCASE_MODAL_RE = /\b(SHALL|SHOULD|MAY|MUST)(\s+NOT)?\b/g;
 
 /**
+ * RFC 2119 modal keywords in any case (used by MSL-M061 to detect
+ * Requirement entries that have no modal verb at all). Whole-word.
+ */
+const ANY_MODAL_RE = /\b(shall|should|may|must)(\s+not)?\b/i;
+
+/**
  * Scan an entry's body for uppercase modal keywords and emit MSL-M060
  * for each occurrence. Severity is `warning`; the formatter rewrites
  * them on the next run.
  */
 export function validateModalKeywords(entry: Entry): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
+  let anyModalSeen = false;
   walkProseLines(entry.body, (line, lineOffset) => {
+    if (ANY_MODAL_RE.test(line)) anyModalSeen = true;
     UPPERCASE_MODAL_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = UPPERCASE_MODAL_RE.exec(line)) !== null) {
@@ -49,5 +58,21 @@ export function validateModalKeywords(entry: Entry): readonly Diagnostic[] {
       });
     }
   });
+
+  // MSL-M061 — Requirement-type entry contains no modal keyword
+  // (info; style hint). Gated on the resolved core type being
+  // `Requirement` so non-requirement entries (Tests, Contracts, etc.)
+  // are not flagged. The hint stays at info severity so it doesn't
+  // affect exit codes; profiles may promote.
+  if (!anyModalSeen && resolvedCoreType(entry) === "Requirement") {
+    diagnostics.push({
+      code: "MSL-M061",
+      severity: "info",
+      message: `${entry.displayId}: Requirement entry contains no modal ` +
+        `keyword (shall / should / may / must) — consider declaring one ` +
+        `to make the obligation explicit (spec §3.4.1 “Modal keywords”)`,
+      location: entry.location,
+    });
+  }
   return diagnostics;
 }

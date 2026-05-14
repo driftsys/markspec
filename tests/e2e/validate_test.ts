@@ -148,6 +148,61 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
   assertStringIncludes(stderr, "Source");
 });
 
+// MSL-M061 — Requirement entry contains no modal keyword (info)
+Deno.test("validate: Requirement entry with no modal keyword emits MSL-M061 (info)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  The system processes inputs and emits results.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // Info doesn't trigger exit 2 — exit 0, but the diagnostic prints.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-M061");
+});
+
+Deno.test("validate: Requirement entry with lowercase modal stays clean (no MSL-M061)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  The system shall process inputs and emit results.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-M061"), false);
+});
+
+Deno.test("validate: non-Requirement entry without modal does NOT fire MSL-M061", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-test] My test entry
+
+  Body text without any modal keyword.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Test
+`,
+    },
+  });
+  // Type: Test → not Requirement → MSL-M061 is requirement-only.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-M061"), false);
+});
+
 // MSL-M060 — uppercase modal keywords in entry-body prose
 Deno.test("validate: uppercase SHALL in body fires MSL-M060", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
