@@ -223,6 +223,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec doctor`                     | `core/profile` + `core/validator`   | Project health check: profile, config, and validation summary.             |
 | `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`    | Print the next available display ID for a profile-declared type.           |
 | `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`    | Scaffold a new entry block for a profile-declared type (stdout).           |
+| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`    | Append a scaffolded entry block to the file (agent write path).            |
 | `markspec export <format> <paths...>` | `core/compiler`                     | Emit the compiled traceability graph as json or yaml (csv, reqif pending). |
 | `markspec hook [...files]`            | `core/formatter` + `core/validator` | Pre-commit hook: run format --check + validate on the given files.         |
 | `markspec doc build <file>`           | `render/typst`                      | Single document → PDF via Typst WASM.                                      |
@@ -235,13 +236,12 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 These commands are registered in `main.ts` but print an error and exit. Do not
 invoke them.
 
-| Command               | Intended purpose                                          |
-| --------------------- | --------------------------------------------------------- |
-| `markspec export csv` | Tabular export (csv, reqif).                              |
-| `markspec insert`     | Agent write path: insert a requirement block into a file. |
-| `markspec book dev`   | Live preview with hot reload.                             |
-| `markspec deck build` | Slides → PDF via Touying/Typst.                           |
-| `markspec deck dev`   | Live slide preview.                                       |
+| Command               | Intended purpose                |
+| --------------------- | ------------------------------- |
+| `markspec export csv` | Tabular export (csv, reqif).    |
+| `markspec book dev`   | Live preview with hot reload.   |
+| `markspec deck build` | Slides → PDF via Touying/Typst. |
+| `markspec deck dev`   | Live slide preview.             |
 
 **Project context:** `format` and `validate` work file-locally without a
 `project.yaml`. All other commands (`compile`, `show`, `context`, `dependents`,

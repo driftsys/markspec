@@ -731,9 +731,91 @@ const cli = new Command()
       console.log(stringify(jsonSafe));
     }
   })
-  .command("insert")
-  .description("Insert a requirement block into a file")
-  .action(notImplemented("insert"))
+  .command("insert <type:string> <file:string>")
+  .description("Append a scaffolded entry block to <file> (agent write path)")
+  .option("--print", "Also echo the inserted block to stdout for inspection")
+  .action(
+    async (
+      options: { print?: boolean },
+      typeName: string,
+      filePath: string,
+    ) => {
+      // Verify target exists before doing project work.
+      let original: string;
+      try {
+        original = await Deno.readTextFile(filePath);
+      } catch {
+        console.error(`error: ${filePath}: file not found`);
+        Deno.exit(1);
+      }
+
+      const { result, chain } = await compileProject([filePath]);
+      if (!chain) {
+        console.error(`error: insert requires a profile; none configured`);
+        Deno.exit(1);
+      }
+      const typeEntry = chain.effective.types.get(typeName);
+      if (!typeEntry) {
+        console.error(
+          `error: type '${typeName}' is not declared by the active profile`,
+        );
+        Deno.exit(1);
+      }
+      const pattern = typeEntry.value.displayIdPattern.value;
+      if (!pattern) {
+        console.error(`error: type '${typeName}' has no display-id-pattern`);
+        Deno.exit(1);
+      }
+      const placeholderMatch = /\{n:(\d+)d\}/.exec(pattern);
+      if (!placeholderMatch) {
+        console.error(
+          `error: type '${typeName}' display-id-pattern '${pattern}' does ` +
+            `not contain a recognised number placeholder ('{n:Nd}')`,
+        );
+        Deno.exit(1);
+      }
+      const width = parseInt(placeholderMatch[1], 10);
+      const prefix = pattern.slice(0, placeholderMatch.index);
+      const suffix = pattern.slice(
+        placeholderMatch.index + placeholderMatch[0].length,
+      );
+
+      let max = 0;
+      for (const entry of result.entries.values()) {
+        const id = entry.displayId;
+        if (!id.startsWith(prefix)) continue;
+        if (suffix && !id.endsWith(suffix)) continue;
+        const numberPart = id.slice(prefix.length, id.length - suffix.length);
+        const n = parseInt(numberPart, 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+      const next = max + 1;
+      const padded = String(next).padStart(width, "0");
+      const displayId = `${prefix}${padded}${suffix}`;
+
+      const { ulid } = await import("@std/ulid");
+      const id = ulid();
+
+      const block =
+        `- [${displayId}] ${typeName[0].toUpperCase()}${typeName.slice(1)} ` +
+        `title\n\n  Body text.\n\n      Id: ${id}\n      Type: ${typeName}\n`;
+
+      // Ensure exactly one blank line between existing content and the
+      // new block. If the file ends without a trailing newline, add one
+      // first.
+      const separator = original.length === 0 || original.endsWith("\n\n")
+        ? ""
+        : original.endsWith("\n")
+        ? "\n"
+        : "\n\n";
+      await Deno.writeTextFile(filePath, original + separator + block);
+
+      if (options.print) {
+        console.log(block);
+      }
+      console.error(`insert: appended ${displayId} to ${filePath}`);
+    },
+  )
   .command("create <type:string> <paths...:string>")
   .description("Scaffold a new entry block for a profile-declared type")
   .action(async (_options, typeName: string, ...paths: string[]) => {
