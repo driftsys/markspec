@@ -23,6 +23,8 @@ export type { CoreTypeDef } from "./type_hierarchy.ts";
 
 export { inferTypeFromUriScheme } from "./uri_scheme_map.ts";
 
+export { inferTypeFromSource } from "./source_introspection.ts";
+
 // ---------------------------------------------------------------------------
 // Display ID
 // ---------------------------------------------------------------------------
