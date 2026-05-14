@@ -25,6 +25,8 @@ export { inferTypeFromUriScheme } from "./uri_scheme_map.ts";
 
 export { inferTypeFromSource } from "./source_introspection.ts";
 
+export { inferTypeFromDiscriminatingAttr } from "./discriminating_attr.ts";
+
 // ---------------------------------------------------------------------------
 // Display ID
 // ---------------------------------------------------------------------------
