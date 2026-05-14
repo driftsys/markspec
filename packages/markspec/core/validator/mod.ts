@@ -27,6 +27,22 @@ import {
 /** Universal attribute keys the core recognizes. */
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
 
+/**
+ * Slug pattern for Reference-shape display IDs (spec §1.7, ADR-002 §Part 3).
+ * Pandoc/BibTeX cite-key convention, restricted to a portable character
+ * set: starts with a letter, body alphanumeric + `.` / `/` / `-` / `_`,
+ * ends with an alphanumeric.
+ */
+const REFERENCE_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
+
+/**
+ * HTTP(S) URL prefix for `Reference-url` value-type validation (spec
+ * §1.5). The spec specifies HTTPS, but `http://` is accepted for
+ * compatibility with existing fixtures — a future tightening slice can
+ * narrow to HTTPS-only via a configurable strictness knob.
+ */
+const REFERENCE_URL_RE = /^https?:\/\//;
+
 /** Result of a validation pass. */
 export interface ValidateResult {
   /** Diagnostics found during validation. */
@@ -113,6 +129,22 @@ function checkStructural(
       }
     }
 
+    // MSL-I006: Reference-shape display ID must match the slug pattern
+    // (spec §1.7, ADR-002 §Part 3). Authored entries have a free-form
+    // display ID at core level (tightened by profile patterns).
+    if (
+      entry.shape === "referenced" && !REFERENCE_SLUG_RE.test(entry.displayId)
+    ) {
+      diagnostics.push({
+        code: "MSL-I006",
+        severity: "error",
+        message: `${entry.displayId}: Reference-shape display ID does not ` +
+          `match the slug pattern (spec §1.7); expected ` +
+          `^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$`,
+        location: entry.location,
+      });
+    }
+
     // MSL-R006: Display ID unique across all entries.
     const existingDisplay = displayIds.get(entry.displayId);
     if (existingDisplay) {
@@ -143,7 +175,8 @@ function checkStructural(
       }
     }
 
-    // MSL-A030 / MSL-R010 checks per attribute (§4.4 / §4.8).
+    // MSL-A030 / MSL-A050 / MSL-R010 checks per attribute
+    // (§4.4 / §4.8 / spec §1.5).
     for (const attr of entry.rawAttributes) {
       // MSL-A030: generated-origin attributes must not appear in source.
       const spec = attributeSpec(attr.key);
@@ -156,6 +189,22 @@ function checkStructural(
           location: entry.location,
         });
         continue;
+      }
+      // MSL-A050: value does not parse against the declared value type
+      // (§4.4). The core knows the value type for the promoted Reference
+      // attributes (spec §1.5); profile-declared attribute types are
+      // validated by the profile-aware Stage 3 instead.
+      if (attr.key === "Reference-url") {
+        if (!REFERENCE_URL_RE.test(attr.value.trim())) {
+          diagnostics.push({
+            code: "MSL-A050",
+            severity: "error",
+            message: `${entry.displayId}: Reference-url value ` +
+              `'${attr.value.trim()}' is not an http(s) URL (spec §1.5)`,
+            location: entry.location,
+          });
+          continue;
+        }
       }
       // MSL-R010: Unknown attributes are warnings in the core. A
       // profile-aware validator widens this check to include profile-declared
@@ -240,10 +289,12 @@ function checkReferences(
       }
       if (resolved.shape !== "referenced") {
         diagnostics.push({
-          code: "MSL-T005",
-          severity: "error",
+          code: "MSL-R085",
+          severity: "warning",
           message:
-            `${entry.displayId}: References: target '${slug}' is shape '${resolved.shape}', expected 'referenced'`,
+            `${entry.displayId}: References: target '${slug}' resolves to a ` +
+            `'${resolved.shape}' entry but References must cite a ` +
+            `Reference-shape entry (spec §4.8)`,
           location: entry.location,
         });
       }
