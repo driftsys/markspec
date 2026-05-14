@@ -72,7 +72,8 @@ markspec/
 │       │   ├── server.ts            ← LSP server entry point (stdio JSON-RPC).
 │       │   │                          Capabilities: diagnostics, completions,
 │       │   │                          hover, definition, references, document /
-│       │   │                          workspace symbols, rename.
+│       │   │                          workspace symbols, rename, folding,
+│       │   │                          document highlights.
 │       │   ├── workspace.ts         ← in-memory entry index, incremental updates
 │       │   ├── diagnostics.ts       ← core Diagnostic → LSP Diagnostic bridge
 │       │   ├── completions.ts       ← block scaffold + ID reference + Type:
@@ -82,10 +83,13 @@ markspec/
 │       │   ├── definition.ts        ← Entry → LSP Location for go-to-definition
 │       │   ├── references.ts        ← find-all-references: walks entry
 │       │   │                          attributes for whole-token matches
-│       │   ├── rename.ts            ← workspace rename: whole-token text edits
-│       │   │                          across every tracked file
+│       │   ├── rename.ts            ← workspace rename + prepareRename:
+│       │   │                          whole-token text edits across every file
 │       │   ├── symbols.ts           ← document-symbol (outline) + workspace-
 │       │   │                          symbol (fuzzy entry search) builders
+│       │   ├── folding.ts           ← one foldable region per entry block
+│       │   ├── highlights.ts        ← document highlights (read / write) for
+│       │   │                          whole-token display-ID matches in file
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       └── mcp/
@@ -124,6 +128,7 @@ alone:**
 @packages/markspec/lsp/completions.ts @packages/markspec/lsp/hover.ts
 @packages/markspec/lsp/definition.ts @packages/markspec/lsp/references.ts
 @packages/markspec/lsp/rename.ts @packages/markspec/lsp/symbols.ts
+@packages/markspec/lsp/folding.ts @packages/markspec/lsp/highlights.ts
 @packages/markspec/lsp/context.ts @packages/markspec/lsp/diagnostics.ts
 @packages/markspec/lsp/util.ts @packages/markspec/main.ts
 
