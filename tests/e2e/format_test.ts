@@ -96,6 +96,26 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 // Body normalisation — modal keywords (spec §3.4.1)
 // ---------------------------------------------------------------------------
 
+Deno.test("format: EARS keywords lowercased mid-sentence, preserved sentence-initial", async () => {
+  const input = `# Test
+
+- [SRS_BRK_0001] Sensor input
+
+  When invalid, the driver shall ignore. The system reports When errors
+  occur, and While running, it shall check the cycle counter.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const { readFile } = await runFormat({ "req.md": input });
+  const output = await readFile("req.md");
+  // Sentence-initial "When" (line start) → preserved
+  assertStringIncludes(output, "When invalid");
+  // Mid-sentence "When" (after ", and ") → lowercased
+  assertStringIncludes(output, "reports when errors");
+  // Mid-sentence "While" (after "and ") → lowercased
+  assertStringIncludes(output, "and while running");
+});
+
 Deno.test("format: lowercases uppercase modal keywords in body prose", async () => {
   const input = `# Test
 
