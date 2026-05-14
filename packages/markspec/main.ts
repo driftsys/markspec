@@ -297,6 +297,16 @@ function _escHtml(s: string): string {
   );
 }
 
+/** RFC-4180 quoting: surround with double quotes when the value contains
+ * a comma, a double quote, a carriage return, or a newline; double any
+ * embedded quotes inside. */
+function csvQuote(value: string): string {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replaceAll('"', '""')}"`;
+  }
+  return value;
+}
+
 // ── Profile command group ─────────────────────────────────────────────
 
 const profileCmd = new Command()
@@ -707,12 +717,12 @@ const cli = new Command()
   })
   .command("export <format:string> <paths...:string>")
   .description(
-    "Emit the compiled traceability graph in json or yaml (csv, reqif pending)",
+    "Emit the compiled traceability graph in json, yaml, or csv (reqif pending)",
   )
   .action(async (_options, format: string, ...paths: string[]) => {
-    if (format !== "json" && format !== "yaml") {
+    if (format !== "json" && format !== "yaml" && format !== "csv") {
       console.error(
-        `error: unknown export format '${format}' (supported: json, yaml)`,
+        `error: unknown export format '${format}' (supported: json, yaml, csv)`,
       );
       Deno.exit(1);
     }
@@ -721,7 +731,7 @@ const cli = new Command()
     const output = serializeCompileResult(result);
     if (format === "json") {
       console.log(JSON.stringify(output, null, 2));
-    } else {
+    } else if (format === "yaml") {
       // Round-trip through JSON to strip undefined values — @std/yaml's
       // stringify throws on undefined, but the Entry shape carries
       // optional fields (type, id, properties) that may legitimately
@@ -729,6 +739,33 @@ const cli = new Command()
       const jsonSafe = JSON.parse(JSON.stringify(output));
       const { stringify } = await import("@std/yaml");
       console.log(stringify(jsonSafe));
+    } else {
+      // CSV: one row per entry, fixed-shape header. Values are
+      // RFC-4180 quoted when they contain a comma, double quote,
+      // or newline; internal quotes are doubled.
+      const headers = [
+        "displayId",
+        "title",
+        "type",
+        "shape",
+        "id",
+        "file",
+        "line",
+      ];
+      const lines = [headers.join(",")];
+      for (const entry of Object.values(output.entries)) {
+        const row = [
+          entry.displayId,
+          entry.title,
+          entry.type ?? "",
+          entry.shape,
+          entry.id ?? "",
+          entry.location.file,
+          String(entry.location.line),
+        ].map(csvQuote);
+        lines.push(row.join(","));
+      }
+      console.log(lines.join("\n"));
     }
   })
   .command("insert <type:string> <file:string>")
