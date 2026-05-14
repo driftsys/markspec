@@ -129,6 +129,49 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
 });
 
 // ---------------------------------------------------------------------------
+// Captions — spec §2.6
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: orphan Figure: caption emits MSL-C070", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor input
+
+  This is body text.
+
+  Figure: An orphan caption with no figure adjacent
+
+  More body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-C070");
+});
+
+Deno.test("validate: Figure: caption adjacent to image passes", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor input
+
+  ![Sensor diagram](sensor.svg)
+
+  Figure: Sensor connection diagram
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 

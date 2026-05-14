@@ -15,6 +15,7 @@ import {
   inferTypeFromDisplayIdShape,
   validateCoreTypeAttribute,
 } from "./types.ts";
+import { validateCaptions } from "./captions.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import { normalizeListValues } from "./normalize.ts";
 import { validateTraceabilityForEntry } from "./traceability.ts";
@@ -63,10 +64,12 @@ export function runPipeline(
 
   // Stage 1.5 — core type-attribute check. Runs always (core-only mode
   // included) so unknown `Type:` values fail fast regardless of profile.
-  // Also covers late-stage display-ID-shape inference (step 8 → MSL-T021).
+  // Also covers late-stage display-ID-shape inference (step 8 → MSL-T021)
+  // and caption-adjacency rules (§2.6 → MSL-C070).
   for (const entry of entries) {
     diagnostics.push(...validateCoreTypeAttribute(entry, profile));
     diagnostics.push(...inferTypeFromDisplayIdShape(entry));
+    diagnostics.push(...validateCaptions(entry));
   }
 
   // Stage 2 — classification (only when a profile is loaded).
