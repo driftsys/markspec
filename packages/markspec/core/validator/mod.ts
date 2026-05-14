@@ -181,6 +181,36 @@ function checkStructural(
       }
     }
 
+    // MSL-A011 — `citation`-typed attribute (References:) used CSV
+    // form. The canonical form is multi-line per spec §2.3.2: locators
+    // may contain commas (e.g. `[@iso26262, p. 42]`), so the parser
+    // never CSV-splits citation values. Detection scans for a `,` at
+    // bracket-depth zero — commas inside `[…]` are locators and OK.
+    for (const attr of entry.rawAttributes) {
+      const spec = attributeSpec(attr.key);
+      if (spec?.type !== "citation") continue;
+      let depth = 0;
+      let sawTopLevelComma = false;
+      for (const ch of attr.value) {
+        if (ch === "[") depth++;
+        else if (ch === "]" && depth > 0) depth--;
+        else if (ch === "," && depth === 0) {
+          sawTopLevelComma = true;
+          break;
+        }
+      }
+      if (sawTopLevelComma) {
+        diagnostics.push({
+          code: "MSL-A011",
+          severity: "error",
+          message: `${entry.displayId}: '${attr.key}' is citation-typed and ` +
+            `must use multi-line form (spec §2.3.2); CSV is rejected because ` +
+            `Pandoc locators may contain commas`,
+          location: entry.location,
+        });
+      }
+    }
+
     // MSL-A012 — repeatable attribute value list is empty (spec §1.8).
     // Fires when an authored repeatable attribute (id-list, tag-list,
     // citation, external-id) carries no non-empty values after trimming
