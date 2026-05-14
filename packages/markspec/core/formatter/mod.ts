@@ -46,28 +46,75 @@ const FRONT_MATTER_CORE_ORDER: readonly string[] = [
 ];
 
 /**
- * Canonical attribute ordering per the language spec.
+ * Canonical trailer ordering per spec §3.3.2 (six-group rule).
  *
- * Identity (`Id:`) comes first, then profile-declared attributes appear in
- * the order the author wrote them (or in the order a profile-aware pass
- * may rewrite them), then the universal set
- * (References / Labels / External-id / Supersedes / Deprecated). Unknown
- * keys are placed just before `Labels:`, preserving their relative order.
+ * Groups, top → bottom:
+ *   1. Identity & classification — `Id`, `Type`, `Source`, `Origin`.
+ *   2. Reference-shape navigation — `Reference-document`, `Reference-url`.
+ *   3. Trace upstream relations — authored trace edges (`Part-of`,
+ *      `Derived-from`, `Satisfies`, …).
+ *   4. Type-specific data — payload attributes per concrete type
+ *      (`Schema-language`, `License`, `Manufacturer`, …).
+ *   5. Universal trailing — `References`, `External-id`, `Labels`,
+ *      `Supersedes`, `Deprecated`.
+ *   6. Profile-declared / unknown attributes — preserved in source order
+ *      at the bottom (§3.3.6: fmt never deletes a key it doesn't own).
  *
- * A profile-aware formatter may extend this with profile-declared canonical
- * positions; the core formatter only knows about `Id:` and the universal
- * set.
+ * Generated-origin attributes (`Superseded-by`, every inverse from ADR-003
+ * §Part 3) are stripped from this list; the formatter rejects them with
+ * MSL-A030 when found in source (current code keeps `Superseded-by:` to
+ * round-trip historical fixtures — that hardening lands in a later slice).
  */
 const CANONICAL_ORDER: readonly string[] = [
+  // Group 1 — identity & classification
   "Id",
-  // Profile-declared attributes land here in whatever order the source has
-  // them; the filler slot keeps them between Id and the universal set.
+  "Type",
+  "Source",
+  "Origin",
+  // Group 2 — reference-shape navigation
+  "Reference-document",
+  "Reference-url",
+  // Group 3 — trace upstream (authored relations)
+  "Part-of",
+  "Derived-from",
+  "Satisfies",
+  "Verifies",
+  "Tests",
+  "Realizes",
+  "Provides",
+  "Requires",
+  "Depends-on",
+  "Caused-by",
+  "Mitigated-by",
+  "Allocated-to",
+  "Affects",
+  // Group 4 — type-specific data
+  "Schema-language",
+  "License",
+  "Build-manifest",
+  "Package-manager",
+  "Manufacturer",
+  "Part-number",
+  "Datasheet",
+  "Bus-protocol",
+  "Connector-type",
+  "Voltage-level",
+  "Signal-direction",
+  "Symbol",
+  "Language",
+  "Footprint",
+  "Value",
+  "Aliases",
+  "See-also",
+  // Group 5 — universal trailing
   "References",
-  "Labels",
   "External-id",
+  "Labels",
   "Supersedes",
   "Superseded-by",
   "Deprecated",
+  // Group 6 — profile-declared / unknown keys are appended in source order
+  // after this list by sortAttributes().
 ];
 
 /** Options for {@linkcode format}. */
@@ -235,11 +282,11 @@ export function expandCsvValues(attrs: Attribute[]): Attribute[] {
 }
 
 /**
- * Sort attributes to canonical order per the language spec.
+ * Sort attributes to canonical trailer order per spec §3.3.2.
  *
- * `Id:` first, then profile-declared/unknown keys in source order, then
- * universal attributes (References / Labels / External-id / Supersedes /
- * Superseded-by / Deprecated).
+ * Known core keys appear in their {@linkcode CANONICAL_ORDER} slot.
+ * Unknown / profile-declared keys (group 6) are appended at the end in
+ * source order — `fmt` never deletes a key it doesn't own (§3.3.6).
  */
 export function sortAttributes(
   attributes: Attribute[],
@@ -259,24 +306,12 @@ export function sortAttributes(
   }
 
   const result: Attribute[] = [];
-  const labelsIdx = CANONICAL_ORDER.indexOf("Labels");
-  const hasLabels = known[labelsIdx] != null;
-
   for (let i = 0; i < known.length; i++) {
-    // Insert unknown attributes just before Labels (or at end if no Labels).
-    if (i === labelsIdx && hasLabels) {
-      result.push(...unknown);
-    }
     if (known[i] != null) {
       result.push(...known[i]!);
     }
   }
-
-  // If Labels was not present, unknown attrs go at the end.
-  if (!hasLabels) {
-    result.push(...unknown);
-  }
-
+  result.push(...unknown);
   return result;
 }
 
