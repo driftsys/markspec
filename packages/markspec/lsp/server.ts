@@ -41,6 +41,7 @@ import { WorkspaceIndex } from "./workspace.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
+import { entriesToFoldingRanges } from "./folding.ts";
 import { findReferencingEntries } from "./references.ts";
 import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
 import {
@@ -240,6 +241,7 @@ connection.onInitialize(
         documentSymbolProvider: true,
         workspaceSymbolProvider: true,
         renameProvider: { prepareProvider: true },
+        foldingRangeProvider: true,
       },
     };
   },
@@ -583,6 +585,21 @@ connection.onRenameRequest(async (params) => {
     }
   }
   return { changes };
+});
+
+// ---------------------------------------------------------------------------
+// Folding ranges (one foldable region per entry block)
+// ---------------------------------------------------------------------------
+
+connection.onFoldingRanges((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return null;
+  const entries = index.getEntriesForFile(filePath);
+  const totalLines = document.getText().split("\n").length;
+  // deno-lint-ignore no-explicit-any
+  return entriesToFoldingRanges(entries, totalLines) as any;
 });
 
 // ---------------------------------------------------------------------------
