@@ -448,6 +448,28 @@ Deno.test("validate: doi: Reference as Allocated-to target fires MSL-R083 (infer
   assertStringIncludes(stderr, "Requirement");
 });
 
+Deno.test("validate: pkg:cargo Reference with Bus-protocol fires MSL-T022 (scheme infers SoftwareComponent)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [serde] serde framework
+
+      Id: pkg:cargo/serde@1.0.0
+      Bus-protocol: can
+`,
+    },
+  });
+  // pkg:cargo → SoftwareComponent. Bus-protocol is HardwareInterface-only → MSL-T022.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Bus-protocol");
+});
+
 Deno.test("validate: pkg:cargo Reference as Depends-on target passes (infers SoftwareComponent)", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
