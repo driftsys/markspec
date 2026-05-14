@@ -148,6 +148,88 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
   assertStringIncludes(stderr, "Source");
 });
 
+// MSL-A011 — citation attribute used CSV form (always multi-line per §2.3.2)
+Deno.test("validate: References with CSV form fires MSL-A011", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [ISO-1] First reference
+
+      Id: urn:iso:std:iso:1:ed-1
+
+- [ISO-2] Second reference
+
+      Id: urn:iso:std:iso:2:ed-1
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: ISO-1, ISO-2
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A011");
+  assertStringIncludes(stderr, "References");
+});
+
+Deno.test("validate: single-citation References stays clean (no MSL-A011)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+      Id: urn:iso:std:iso:26262:-6:ed-2
+      Type: Requirement
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: ISO-26262-6 §9.4
+`,
+    },
+  });
+  // No comma in citation value → no MSL-A011.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-A011"), false);
+});
+
+Deno.test("validate: multi-line References stays clean (no MSL-A011)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [ISO-1] First reference
+
+      Id: urn:iso:std:iso:1:ed-1
+      Type: Requirement
+
+- [ISO-2] Second reference
+
+      Id: urn:iso:std:iso:2:ed-1
+      Type: Requirement
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: ISO-1
+      References: ISO-2
+`,
+    },
+  });
+  // Canonical form: one cite per line.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-A011"), false);
+});
+
 // MSL-A012 — repeatable attribute value list is empty
 Deno.test("validate: Labels with only commas fires MSL-A012", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
