@@ -26,6 +26,8 @@ export type {
   DisplayId,
   EffectiveProfile,
   EffectiveTypeDef,
+  EntityRef,
+  EntityRefConvention,
   Entry,
   EntryShape,
   EntrySource,
