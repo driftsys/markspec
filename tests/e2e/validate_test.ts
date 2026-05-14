@@ -743,6 +743,25 @@ Deno.test("validate: orphan Figure: caption emits MSL-C070", async () => {
   assertStringIncludes(stderr, "MSL-C070");
 });
 
+Deno.test("validate: Equation: caption adjacent to a Figure fires MSL-C071", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  ![Sensor diagram](sensor.svg)
+
+  Equation: This claims to be an equation but the block above is an image
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-C071");
+});
+
 Deno.test("validate: Figure: caption adjacent to image passes", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
