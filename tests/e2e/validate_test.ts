@@ -230,6 +230,196 @@ Deno.test("validate: License on a Specification fires MSL-T022 warning", async (
 });
 
 // ---------------------------------------------------------------------------
+// Cross-file trace — link target type compatibility (spec §4.8, MSL-R083)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Satisfies target of type Component fires MSL-R083", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [comp-1] My component
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Component
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-R083");
+  assertStringIncludes(stderr, "Satisfies");
+});
+
+Deno.test("validate: Satisfies target of type Requirement passes (R083 OK)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Parent
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+Deno.test("validate: Supersedes target with mismatched shape fires MSL-R084", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Authored requirement that supersedes a reference
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Supersedes: https://example.com/external-spec
+
+- [external-spec] External standard cited as the predecessor
+
+      Id: https://example.com/external-spec
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-R084");
+});
+
+Deno.test("validate: Supersedes target with same shape passes", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-002] Newer
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Supersedes: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-001] Older
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+Deno.test("validate: link target with Deprecated emits MSL-R081 warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Source requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Retired predecessor
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+      Deprecated: Retired in v2.0
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-R081");
+});
+
+Deno.test("validate: link target with Labels: DRAFT emits MSL-R082 info", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Source requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Draft target
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+      Labels: DRAFT
+`,
+    },
+  });
+  assertEquals(
+    code,
+    0,
+    `expected exit 0 (info), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-R082");
+});
+
+Deno.test("validate: Allocated-to target of type Specification fires MSL-R083", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Source requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Allocated-to: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Target requirement (should be Component)
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-R083");
+  assertStringIncludes(stderr, "Allocated-to");
+});
+
+// ---------------------------------------------------------------------------
 // Captions — spec §2.6
 // ---------------------------------------------------------------------------
 
