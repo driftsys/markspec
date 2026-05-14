@@ -39,6 +39,7 @@ import {
 } from "../core/mod.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
+import { buildCodeActions } from "./code_actions.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
@@ -244,6 +245,7 @@ connection.onInitialize(
         renameProvider: { prepareProvider: true },
         foldingRangeProvider: true,
         documentHighlightProvider: true,
+        codeActionProvider: { codeActionKinds: ["quickfix"] },
       },
     };
   },
@@ -587,6 +589,19 @@ connection.onRenameRequest(async (params) => {
     }
   }
   return { changes };
+});
+
+// ---------------------------------------------------------------------------
+// Code actions (quick fixes for diagnostics)
+// ---------------------------------------------------------------------------
+
+connection.onCodeAction((params) => {
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return null;
+  // deno-lint-ignore no-explicit-any
+  const diagnostics = params.context.diagnostics as any;
+  // deno-lint-ignore no-explicit-any
+  return buildCodeActions(params.textDocument.uri, diagnostics) as any;
 });
 
 // ---------------------------------------------------------------------------
