@@ -40,6 +40,7 @@ import { WorkspaceIndex } from "./workspace.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
+import { findReferencingEntries } from "./references.ts";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
@@ -229,6 +230,7 @@ connection.onInitialize(
         },
         hoverProvider: true,
         definitionProvider: true,
+        referencesProvider: true,
       },
     };
   },
@@ -440,6 +442,42 @@ connection.onDefinition((params) => {
   if (!entry) return null;
 
   return entryToLspLocation(entry);
+});
+
+// ---------------------------------------------------------------------------
+// References (find all references to an entry)
+// ---------------------------------------------------------------------------
+
+connection.onReferences((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+
+  const filePath = uriToPath(params.textDocument.uri);
+  if (isSourceFile(filePath)) {
+    const lines = document.getText().split("\n");
+    if (!isDocCommentContext(lines, params.position.line)) {
+      return null;
+    }
+  }
+
+  const line = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
+  });
+
+  const id = displayIdAtPosition(line, params.position.character);
+  if (!id) return null;
+
+  const referencing = findReferencingEntries(index.getAllEntries(), id);
+  const locations = referencing.map(entryToLspLocation);
+
+  // includeDeclaration: prepend the declaration's location when asked.
+  if (params.context?.includeDeclaration) {
+    const decl = index.getEntryByDisplayId(id);
+    if (decl) locations.unshift(entryToLspLocation(decl));
+  }
+
+  return locations;
 });
 
 // ---------------------------------------------------------------------------
