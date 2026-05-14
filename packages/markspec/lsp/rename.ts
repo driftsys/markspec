@@ -23,6 +23,54 @@ export interface TextEdit {
 /** Display-ID character set — letters, digits, dot, slash, hyphen, underscore. */
 const ID_CHAR_RE = /[A-Za-z0-9._/-]/;
 
+/** Whole-token display-ID grammar — must look like an identifier (≥3 chars, starts with alphanumeric). */
+const DISPLAY_ID_TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,}$/;
+
+/** Result of {@linkcode prepareRenameRange}. */
+export interface PrepareRenameResult {
+  readonly range: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  };
+  readonly placeholder: string;
+}
+
+/**
+ * Validate that the cursor sits on a renameable display ID and return
+ * the LSP `prepareRename` response payload: the exact range of the
+ * token plus the placeholder text the editor pre-fills in the rename
+ * input.
+ *
+ * Returns `null` when:
+ *   - the cursor lies on whitespace or past the line end, or
+ *   - the token at that position doesn't satisfy the display-ID
+ *     grammar (≥3 chars, alphanumeric start, valid ID chars only).
+ *
+ * The returned range covers only the display-ID token so the rename
+ * UI underlines the right span.
+ */
+export function prepareRenameRange(
+  line: string,
+  column: number,
+  lspLine: number,
+): PrepareRenameResult | null {
+  if (column < 0 || column >= line.length) return null;
+  if (/\s/.test(line[column])) return null;
+  let start = column;
+  while (start > 0 && ID_CHAR_RE.test(line[start - 1])) start--;
+  let end = column;
+  while (end < line.length && ID_CHAR_RE.test(line[end])) end++;
+  const token = line.slice(start, end);
+  if (!DISPLAY_ID_TOKEN_RE.test(token)) return null;
+  return {
+    range: {
+      start: { line: lspLine, character: start },
+      end: { line: lspLine, character: end },
+    },
+    placeholder: token,
+  };
+}
+
 /**
  * Walk every line of `text`, scan for `oldId`, and emit a TextEdit
  * for each whole-token occurrence that replaces it with `newId`.

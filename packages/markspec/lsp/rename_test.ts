@@ -7,7 +7,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { findIdOccurrencesInFile } from "./rename.ts";
+import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
 
 Deno.test("findIdOccurrencesInFile: finds bracketed declaration", () => {
   const text = `# Test
@@ -69,4 +69,37 @@ Deno.test("findIdOccurrencesInFile: empty text yields empty result", () => {
 Deno.test("findIdOccurrencesInFile: no match yields empty result", () => {
   const text = `- [TST-001] Just a test\n\n  Body.\n`;
   assertEquals(findIdOccurrencesInFile(text, "REQ-001", "REQ-100"), []);
+});
+
+// --- prepareRenameRange ---
+
+Deno.test("prepareRenameRange: returns range + placeholder when cursor is on a display ID", () => {
+  const line = "      Satisfies: REQ-001";
+  const result = prepareRenameRange(line, 20, 5);
+  assertEquals(result, {
+    range: {
+      start: { line: 5, character: 17 },
+      end: { line: 5, character: 24 },
+    },
+    placeholder: "REQ-001",
+  });
+});
+
+Deno.test("prepareRenameRange: returns null when cursor lies on whitespace", () => {
+  const line = "      Satisfies:    ";
+  assertEquals(prepareRenameRange(line, 19, 3), null);
+});
+
+Deno.test("prepareRenameRange: returns null when cursor lands on a short token", () => {
+  const line = "- [REQ-001] my requirement";
+  // Cursor on the word 'my' — too short to be a display ID.
+  assertEquals(prepareRenameRange(line, 13, 0), null);
+});
+
+Deno.test("prepareRenameRange: handles bracketed declaration", () => {
+  const line = "- [REQ-001] Title";
+  const result = prepareRenameRange(line, 5, 0);
+  assertEquals(result?.placeholder, "REQ-001");
+  assertEquals(result?.range.start.character, 3);
+  assertEquals(result?.range.end.character, 10);
 });

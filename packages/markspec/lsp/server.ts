@@ -42,7 +42,7 @@ import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { findReferencingEntries } from "./references.ts";
-import { findIdOccurrencesInFile } from "./rename.ts";
+import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
 import {
   entriesToDocumentSymbols,
   entriesToWorkspaceSymbols,
@@ -239,7 +239,7 @@ connection.onInitialize(
         referencesProvider: true,
         documentSymbolProvider: true,
         workspaceSymbolProvider: true,
-        renameProvider: true,
+        renameProvider: { prepareProvider: true },
       },
     };
   },
@@ -518,6 +518,29 @@ connection.onWorkspaceSymbol((params) => {
 // ---------------------------------------------------------------------------
 // Rename (workspace-wide rename of a display ID)
 // ---------------------------------------------------------------------------
+
+connection.onPrepareRename((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+
+  const filePath = uriToPath(params.textDocument.uri);
+  if (isSourceFile(filePath)) {
+    const lines = document.getText().split("\n");
+    if (!isDocCommentContext(lines, params.position.line)) {
+      return null;
+    }
+  }
+
+  const line = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
+  });
+  return prepareRenameRange(
+    line,
+    params.position.character,
+    params.position.line,
+  );
+});
 
 connection.onRenameRequest(async (params) => {
   const document = documents.get(params.textDocument.uri);
