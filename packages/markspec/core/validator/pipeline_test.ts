@@ -29,7 +29,7 @@ function buildEntry(opts: {
   }
   return {
     displayId: opts.displayId,
-    title: "",
+    title: opts.displayId,
     body: "",
     id: opts.id ?? "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape,

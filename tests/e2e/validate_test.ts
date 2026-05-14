@@ -148,6 +148,59 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
   assertStringIncludes(stderr, "Source");
 });
 
+// MSL-P010 — title is empty after trimming
+Deno.test("validate: entry with empty title fires MSL-P010", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001]
+
+  The system shall debounce inputs.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P010");
+  assertStringIncludes(stderr, "REQ-001");
+});
+
+Deno.test("validate: entry with whitespace-only title fires MSL-P010", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001]
+
+  The system shall debounce inputs.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P010");
+});
+
+Deno.test("validate: entry with non-empty title stays clean (no MSL-P010)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] A real title
+
+  The system shall debounce inputs.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-P010"), false);
+});
+
 // MSL-A011 — citation attribute used CSV form (always multi-line per §2.3.2)
 Deno.test("validate: References with CSV form fires MSL-A011", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
