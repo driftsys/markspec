@@ -38,6 +38,7 @@ import {
 } from "../core/mod.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
+import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
@@ -225,6 +226,7 @@ connection.onInitialize(
         completionProvider: {
           triggerCharacters: ["[", ":"],
         },
+        hoverProvider: true,
       },
     };
   },
@@ -372,6 +374,39 @@ connection.onCompletion((params): CompletionItem[] => {
   }
 
   return [];
+});
+
+// ---------------------------------------------------------------------------
+// Hover
+// ---------------------------------------------------------------------------
+
+connection.onHover((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+
+  const filePath = uriToPath(params.textDocument.uri);
+
+  // Source-file position guard — only consider doc-comment context.
+  if (isSourceFile(filePath)) {
+    const lines = document.getText().split("\n");
+    if (!isDocCommentContext(lines, params.position.line)) {
+      return null;
+    }
+  }
+
+  const line = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
+  });
+
+  const id = displayIdAtPosition(line, params.position.character);
+  if (!id) return null;
+  const entry = index.getEntryByDisplayId(id);
+  if (!entry) return null;
+
+  return {
+    contents: { kind: "markdown", value: formatHoverContent(entry) },
+  };
 });
 
 // ---------------------------------------------------------------------------
