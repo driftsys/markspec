@@ -148,6 +148,90 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
   assertStringIncludes(stderr, "Source");
 });
 
+// MSL-M060 — uppercase modal keywords in entry-body prose
+Deno.test("validate: uppercase SHALL in body fires MSL-M060", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  The system SHALL debounce raw inputs.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // SHALL in prose is a style warning — exit 2.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-M060");
+  assertStringIncludes(stderr, "SHALL");
+});
+
+Deno.test("validate: uppercase MUST NOT in body fires MSL-M060", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  The driver MUST NOT block the main thread.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-M060");
+  assertStringIncludes(stderr, "MUST NOT");
+});
+
+Deno.test("validate: lowercase modal in body does NOT fire MSL-M060", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  The system shall debounce raw inputs and may queue them.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-M060"), false);
+});
+
+Deno.test("validate: SHALL inside fenced code block is NOT flagged", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Example showing the literal RFC 2119 text:
+
+  \`\`\`text
+  The system SHALL respond within 100ms.
+  \`\`\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-M060"), false);
+});
+
 Deno.test("validate: repeated Labels: trailers do NOT fire MSL-A013 (tag-list is repeatable)", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
