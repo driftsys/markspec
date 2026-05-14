@@ -69,7 +69,14 @@ const validateId: ValueValidator = (value, _decl) => {
   return `not a valid id: '${value}' (expected 26-char ULID or scheme-qualified URI)`;
 };
 
-const HTTP_URL_RE = /^https?:\/\//;
+/**
+ * HTTP(S) URL prefix used by the `url` value type (spec §1.8). The
+ * spec specifies HTTPS but `http://` is accepted for compatibility
+ * with existing fixtures; tightening to HTTPS-only is a future
+ * config-driven slice. Exported so other validator passes (e.g.,
+ * file-local `Reference-url` checks) can share one regex.
+ */
+export const HTTP_URL_RE = /^https?:\/\//;
 const validateUrl: ValueValidator = (value, _decl) => {
   return HTTP_URL_RE.test(value) ? null : `not a valid http(s) URL: '${value}'`;
 };

@@ -23,6 +23,7 @@ import {
   UNIVERSAL_ATTRIBUTE_KEYS,
   URI_SCHEME_RE,
 } from "../model/mod.ts";
+import { HTTP_URL_RE } from "./value_types.ts";
 
 /** Universal attribute keys the core recognizes. */
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
@@ -34,14 +35,6 @@ const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
  * ends with an alphanumeric.
  */
 const REFERENCE_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
-
-/**
- * HTTP(S) URL prefix for `Reference-url` value-type validation (spec
- * §1.5). The spec specifies HTTPS, but `http://` is accepted for
- * compatibility with existing fixtures — a future tightening slice can
- * narrow to HTTPS-only via a configurable strictness knob.
- */
-const REFERENCE_URL_RE = /^https?:\/\//;
 
 /** Result of a validation pass. */
 export interface ValidateResult {
@@ -195,7 +188,7 @@ function checkStructural(
       // attributes (spec §1.5); profile-declared attribute types are
       // validated by the profile-aware Stage 3 instead.
       if (attr.key === "Reference-url") {
-        if (!REFERENCE_URL_RE.test(attr.value.trim())) {
+        if (!HTTP_URL_RE.test(attr.value.trim())) {
           diagnostics.push({
             code: "MSL-A050",
             severity: "error",
