@@ -297,7 +297,14 @@ export function format(
     }
   }
 
-  const formattedBody = lines.join("\n");
+  // Spec §3.4.3 / §5.2 — collapse consecutive blank lines to one.
+  // Runs after entry-block splicing so the in-progress line indices
+  // stay aligned with parser-reported positions. Operates inside
+  // fenced code regions only outside-code; verbatim regions keep
+  // their blank-line counts.
+  const collapsedLines = collapseBlankLines(lines);
+  if (collapsedLines.length !== lines.length) changed = true;
+  const formattedBody = collapsedLines.join("\n");
 
   if (fm.hadFrontMatter) {
     const canonicalFm = renderFrontMatter(fm.attributes);
@@ -335,6 +342,36 @@ function renderFrontMatter(attrs: DocumentAttributes): string {
 
   const yaml = stringifyYaml(ordered).trimEnd();
   return `---\n${yaml}\n---\n\n`;
+}
+
+/**
+ * Collapse consecutive blank lines to a single blank line per spec
+ * §3.4.3 (caption boundary) / §5.2 (general body rule). Fenced code
+ * regions are preserved verbatim — blank-line counts inside fenced
+ * blocks are author intent, not noise.
+ */
+function collapseBlankLines(lines: readonly string[]): string[] {
+  const out: string[] = [];
+  let inFence = false;
+  let prevBlank = false;
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      out.push(line);
+      inFence = !inFence;
+      prevBlank = false;
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      prevBlank = false;
+      continue;
+    }
+    const isBlank = line.trim() === "";
+    if (isBlank && prevBlank) continue;
+    out.push(line);
+    prevBlank = isBlank;
+  }
+  return out;
 }
 
 /**

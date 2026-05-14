@@ -139,6 +139,39 @@ Deno.test("format: lowercases interior of hyphenated key", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Blank-line collapse (spec §3.4.3 / §5.2)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: collapses consecutive blank lines to one", async () => {
+  const input = "# Test\n\n" +
+    "- [REQ-001] Title\n\n" +
+    "  Body line one.\n\n\n\n" +
+    "  Body line two.\n\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const { readFile } = await runFormat({ "req.md": input });
+  const output = await readFile("req.md");
+  assertEquals(
+    /\n\n\n/.test(output),
+    false,
+    `multi-blank should collapse to a single blank line; output:\n${output}`,
+  );
+});
+
+Deno.test("format: blank-line collapse is idempotent", async () => {
+  const input = "# Test\n\n" +
+    "- [REQ-001] Title\n\n\n\n" +
+    "  Body.\n\n\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const pass1 = await runFormat({ "req.md": input });
+  const out1 = await pass1.readFile("req.md");
+
+  const pass2 = await runFormat({ "req.md": out1 });
+  const out2 = await pass2.readFile("req.md");
+
+  assertEquals(out1, out2);
+});
+
+// ---------------------------------------------------------------------------
 // Idempotence — spec §3.1 / §5.3
 // ---------------------------------------------------------------------------
 
