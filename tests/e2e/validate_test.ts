@@ -107,6 +107,70 @@ Deno.test("validate: generated-origin attribute in source rejected with MSL-A030
   assertStringIncludes(stderr, "Superseded-by");
 });
 
+// MSL-A013 — single-cardinality core attribute used more than once
+Deno.test("validate: duplicate Type: trailers fire MSL-A013", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Type: Specification
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A013");
+  assertStringIncludes(stderr, "Type");
+});
+
+Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Source: Cargo.toml
+      Source: package.json
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A013");
+  assertStringIncludes(stderr, "Source");
+});
+
+Deno.test("validate: repeated Labels: trailers do NOT fire MSL-A013 (tag-list is repeatable)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: ASIL-B
+      Labels: safety
+`,
+    },
+  });
+  assertEquals(
+    code,
+    0,
+    `expected exit 0 (clean), got ${code}; stderr: ${stderr}`,
+  );
+  assertEquals(stderr.includes("MSL-A013"), false);
+});
+
 Deno.test("validate: display-ID containing :: emits MSL-T021 inference warning", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
