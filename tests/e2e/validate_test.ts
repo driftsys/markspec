@@ -494,6 +494,39 @@ Deno.test("validate: pkg:cargo Reference as Depends-on target passes (infers Sof
 });
 
 // ---------------------------------------------------------------------------
+// Reference shape grammar — spec §1.7, MSL-I006
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Reference display ID with leading digit fires MSL-I006", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [123-bad] Bad slug
+
+      Id: pkg:cargo/foo@1.0.0
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-I006");
+});
+
+Deno.test("validate: Reference display ID with valid slug passes", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+      Id: urn:iso:std:iso:26262:-6:ed-2
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+// ---------------------------------------------------------------------------
 // Captions — spec §2.6
 // ---------------------------------------------------------------------------
 

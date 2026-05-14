@@ -27,6 +27,14 @@ import {
 /** Universal attribute keys the core recognizes. */
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
 
+/**
+ * Slug pattern for Reference-shape display IDs (spec §1.7, ADR-002 §Part 3).
+ * Pandoc/BibTeX cite-key convention, restricted to a portable character
+ * set: starts with a letter, body alphanumeric + `.` / `/` / `-` / `_`,
+ * ends with an alphanumeric.
+ */
+const REFERENCE_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
+
 /** Result of a validation pass. */
 export interface ValidateResult {
   /** Diagnostics found during validation. */
@@ -111,6 +119,22 @@ function checkStructural(
           location: entry.location,
         });
       }
+    }
+
+    // MSL-I006: Reference-shape display ID must match the slug pattern
+    // (spec §1.7, ADR-002 §Part 3). Authored entries have a free-form
+    // display ID at core level (tightened by profile patterns).
+    if (
+      entry.shape === "referenced" && !REFERENCE_SLUG_RE.test(entry.displayId)
+    ) {
+      diagnostics.push({
+        code: "MSL-I006",
+        severity: "error",
+        message: `${entry.displayId}: Reference-shape display ID does not ` +
+          `match the slug pattern (spec §1.7); expected ` +
+          `^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$`,
+        location: entry.location,
+      });
     }
 
     // MSL-R006: Display ID unique across all entries.
