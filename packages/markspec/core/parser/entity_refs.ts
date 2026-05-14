@@ -11,6 +11,7 @@ import type {
   EntityRefConvention,
   SourceLocation,
 } from "../model/mod.ts";
+import { walkProseLines } from "../util/fence.ts";
 
 /**
  * Lexical pattern for an inline entity reference. The leading `$` is the
@@ -62,17 +63,8 @@ export function extractEntityRefs(
   baseLocation: SourceLocation,
 ): EntityRef[] {
   const refs: EntityRef[] = [];
-  const lines = body.split("\n");
-  let inFence = false;
 
-  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-    const line = lines[lineIdx];
-    if (/^\s*(```|~~~)/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-
+  walkProseLines(body, (line, lineIdx) => {
     ENTITY_REF_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = ENTITY_REF_RE.exec(line)) !== null) {
@@ -90,7 +82,7 @@ export function extractEntityRefs(
         },
       });
     }
-  }
+  });
 
   return refs;
 }

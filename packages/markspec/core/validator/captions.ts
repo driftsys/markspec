@@ -8,6 +8,7 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
+import { FENCE_RE } from "../util/fence.ts";
 
 /** Caption keywords recognised by the core. */
 const CAPTION_KEYWORDS = [
@@ -24,9 +25,6 @@ type CaptionKeyword = typeof CAPTION_KEYWORDS[number];
 const CAPTION_LINE_RE = new RegExp(
   `^\\s*(${CAPTION_KEYWORDS.join("|")}):\\s+(\\S.*)$`,
 );
-
-/** Fence open/close marker for ``` and ~~~ blocks. */
-const FENCE_RE = /^\s*(```|~~~)/;
 
 /** Heuristic captionable-block matchers keyed by caption keyword. */
 const captionableMatchers: Record<CaptionKeyword, (line: string) => boolean> = {

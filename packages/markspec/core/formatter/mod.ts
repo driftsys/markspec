@@ -18,6 +18,7 @@ import { attributeSpec, IDENTITY_KEY } from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
+import { walkProseLines } from "../util/fence.ts";
 
 /**
  * Value types that accept CSV on input but must be emitted as multi-line
@@ -78,15 +79,9 @@ function isSentenceInitial(line: string, offset: number): boolean {
  */
 export function normalizeModalKeywords(markdown: string): string {
   const lines = markdown.split("\n");
-  let inFence = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\s*(```|~~~)/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    if (/^( {4}|\t)/.test(line)) continue;
+  walkProseLines(markdown, (line, i) => {
+    // Indented-code / attribute-trailer lines aren't prose either.
+    if (/^( {4}|\t)/.test(line)) return;
     let normalized = line.replace(RFC2119_MODAL_RE, (m) => m.toLowerCase());
     normalized = normalized.replace(
       EARS_KEYWORD_RE,
@@ -94,7 +89,7 @@ export function normalizeModalKeywords(markdown: string): string {
         isSentenceInitial(normalized, offset) ? m : m.toLowerCase(),
     );
     lines[i] = normalized;
-  }
+  });
   return lines.join("\n");
 }
 

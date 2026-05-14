@@ -15,8 +15,8 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
+import { walkProseLines } from "../util/fence.ts";
 
-const FENCE_RE = /^\s*(```|~~~)/;
 const HEADING_RE = /^\s*#{1,6}\s/;
 const HR_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const TASK_LIST_RE = /^\s*[-*+]\s+\[[ xX]\]/;
@@ -91,24 +91,16 @@ const RAW_HTML_DIAG: BodyDiag = {
  */
 export function validateBodyBlocks(entry: Entry): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const lines = entry.body.split("\n");
-  let inFence = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    if (line.trim() === "") continue;
+  walkProseLines(entry.body, (line, i) => {
+    if (line.trim() === "") return;
 
     let diag: BodyDiag | undefined;
     if (HEADING_RE.test(line)) diag = HEADING_DIAG;
     else if (HR_RE.test(line)) diag = HR_DIAG;
     else if (TASK_LIST_RE.test(line)) diag = TASK_LIST_DIAG;
     else if (hasForbiddenHtml(line)) diag = RAW_HTML_DIAG;
-    if (!diag) continue;
+    if (!diag) return;
 
     diagnostics.push({
       code: diag.code,
@@ -120,7 +112,7 @@ export function validateBodyBlocks(entry: Entry): readonly Diagnostic[] {
         column: 1,
       },
     });
-  }
+  });
 
   return diagnostics;
 }
