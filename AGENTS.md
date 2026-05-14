@@ -210,21 +210,23 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 
 ### Implemented
 
-| Command                               | Module                            | Purpose                                                              |
-| ------------------------------------- | --------------------------------- | -------------------------------------------------------------------- |
-| `markspec format [...files]`          | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook. |
-| `markspec validate [...files]`        | `core/validator`                  | Check broken refs, missing Ids, malformed entries, duplicates.       |
-| `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.     |
-| `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                |
-| `markspec context <id> <paths...>`    | `core/compiler`                   | Walk the Satisfies chain upward from an entry.                       |
-| `markspec dependents <id> <paths...>` | `core/compiler`                   | List all entries that depend on a given entry.                       |
-| `markspec report <kind> <paths...>`   | `core/reporter`                   | Generate traceability matrix or coverage report.                     |
-| `markspec profile show`               | `core/profile`                    | Show the active profile chain and effective configuration.           |
-| `markspec doctor`                     | `core/profile` + `core/validator` | Project health check: profile, config, and validation summary.       |
-| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`  | Print the next available display ID for a profile-declared type.     |
-| `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                |
-| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                    |
-| `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                  |
+| Command                               | Module                              | Purpose                                                              |
+| ------------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| `markspec format [...files]`          | `core/formatter`                    | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook. |
+| `markspec validate [...files]`        | `core/validator`                    | Check broken refs, missing Ids, malformed entries, duplicates.       |
+| `markspec compile <paths...>`         | `core/compiler`                     | Parse all files, build traceability graph, output compiled JSON.     |
+| `markspec show <id> <paths...>`       | `core/compiler`                     | Show details of a single entry by display ID or ULID.                |
+| `markspec context <id> <paths...>`    | `core/compiler`                     | Walk the Satisfies chain upward from an entry.                       |
+| `markspec dependents <id> <paths...>` | `core/compiler`                     | List all entries that depend on a given entry.                       |
+| `markspec report <kind> <paths...>`   | `core/reporter`                     | Generate traceability matrix or coverage report.                     |
+| `markspec profile show`               | `core/profile`                      | Show the active profile chain and effective configuration.           |
+| `markspec doctor`                     | `core/profile` + `core/validator`   | Project health check: profile, config, and validation summary.       |
+| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`    | Print the next available display ID for a profile-declared type.     |
+| `markspec hook [...files]`            | `core/formatter` + `core/validator` | Pre-commit hook: run format --check + validate on the given files.   |
+| `markspec doc build <file>`           | `render/typst`                      | Single document → PDF via Typst WASM.                                |
+| `markspec book build`                 | `book/site`                         | Multi-chapter → static HTML site.                                    |
+| `markspec lsp`                        | `lsp/server`                        | LSP server for editor integration (stdio JSON-RPC).                  |
+| `markspec mcp`                        | `mcp/server`                        | MCP server for AI agent integration (stdio JSON-RPC).                |
 
 ### Not yet implemented
 
@@ -236,11 +238,9 @@ invoke them.
 | `markspec export`     | Compiled JSON → json, csv, reqif, yaml.                   |
 | `markspec insert`     | Agent write path: insert a requirement block into a file. |
 | `markspec create`     | Scaffold a new requirement block.                         |
-| `markspec hook`       | Run format + validate as a pre-commit hook.               |
 | `markspec book dev`   | Live preview with hot reload.                             |
 | `markspec deck build` | Slides → PDF via Touying/Typst.                           |
 | `markspec deck dev`   | Live slide preview.                                       |
-| `markspec mcp`        | MCP server for AI agent integration.                      |
 
 **Project context:** `format` and `validate` work file-locally without a
 `project.yaml`. All other commands (`compile`, `show`, `context`, `dependents`,

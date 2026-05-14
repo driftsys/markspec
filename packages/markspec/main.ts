@@ -983,9 +983,72 @@ const cli = new Command()
       }
     },
   )
-  .command("hook")
-  .description("Run format + validate as a pre-commit hook")
-  .action(notImplemented("hook"))
+  .command("hook [...files:string]")
+  .description("Run format --check + validate as a pre-commit hook")
+  .action(async (_options: Record<string, unknown>, ...files: string[]) => {
+    if (files.length === 0) {
+      // Nothing to do — exit clean. Pre-commit frameworks call with
+      // zero files when no tracked file matches the hook's filter.
+      Deno.exit(0);
+    }
+
+    const { discoverProjectRoot, format, parseFile, runPipeline } =
+      await import("./core/mod.ts");
+
+    const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
+    const chain = projectRoot !== undefined
+      ? await loadActiveProfile(projectRoot)
+      : null;
+
+    let hadError = false;
+    const allEntries = [];
+
+    for (const filePath of files) {
+      let content: string;
+      try {
+        content = await Deno.readTextFile(filePath);
+      } catch {
+        console.error(`error: ${filePath}: file not found`);
+        hadError = true;
+        continue;
+      }
+
+      // Stage 1 — format check. `result.changed` means the file is
+      // not in canonical form; reject the commit.
+      const formatResult = format(content, { file: filePath });
+      for (const d of formatResult.diagnostics) {
+        const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
+        console.error(`${d.severity}: ${loc} ${d.message}`);
+      }
+      if (formatResult.changed) {
+        console.error(`${filePath}: needs formatting (run 'markspec format')`);
+        hadError = true;
+      }
+
+      // Stage 2 — collect entries for validation.
+      const parsed = await parseFile(content, { file: filePath });
+      allEntries.push(...parsed.entries);
+    }
+
+    if (!hadError) {
+      const result = runPipeline(allEntries, chain?.effective ?? null);
+      for (const d of result.diagnostics) {
+        const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
+        console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
+      }
+      if (result.diagnostics.some((d) => d.severity === "error")) {
+        hadError = true;
+      }
+    }
+
+    console.error(
+      hadError
+        ? `hook: ${files.length} file(s) checked — failed`
+        : `hook: ${files.length} file(s) checked — clean`,
+    );
+
+    if (hadError) Deno.exit(1);
+  })
   // Nested commands
   .command("profile", profileCmd)
   .command("doctor")
