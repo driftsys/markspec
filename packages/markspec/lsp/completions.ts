@@ -11,6 +11,7 @@
  * The server module calls these and wraps results in LSP CompletionItem.
  */
 
+import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
 import type { DisplayIdEntry } from "./workspace.ts";
 
 /** Block scaffold trigger pattern: `- [` at the start of a list item. */
@@ -19,6 +20,9 @@ const BLOCK_SCAFFOLD_RE = /^\s*-\s*\[$/;
 /** Pattern matching a trace attribute keyword at line start. */
 const TRACE_ATTR_RE =
   /^\s*(Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes)\s*:/;
+
+/** Pattern matching the `Type:` attribute keyword at line start. */
+const TYPE_ATTR_RE = /^\s*Type\s*:/;
 
 /**
  * Check if the text before cursor triggers a block scaffold completion.
@@ -34,6 +38,15 @@ export function isBlockScaffoldTrigger(textBefore: string): boolean {
  */
 export function isTraceAttributeTrigger(textBefore: string): boolean {
   return TRACE_ATTR_RE.test(textBefore);
+}
+
+/**
+ * Check if the text before cursor triggers a `Type:` completion.
+ * Matches the `Type:` attribute keyword at line start, optionally
+ * followed by partial value text.
+ */
+export function isTypeAttributeTrigger(textBefore: string): boolean {
+  return TYPE_ATTR_RE.test(textBefore);
 }
 
 /**
@@ -95,6 +108,43 @@ export function buildIdReferenceItems(
  * with pre-filled display ID and attribute skeleton. Otherwise returns
  * a single generic scaffold item.
  */
+/**
+ * Build completion items for a `Type:` attribute trigger. Lists the
+ * 16 core types (4 abstract + 12 concrete) followed by any
+ * profile-declared type names. Core types come first so authors see
+ * the spec-defined vocabulary before profile extensions.
+ */
+export function buildTypeAttributeItems(
+  profileTypeNames: readonly string[],
+): CompletionItemData[] {
+  const items: CompletionItemData[] = [];
+  for (const name of CORE_ABSTRACT_TYPES) {
+    items.push({
+      label: name,
+      detail: "core abstract type",
+      isSnippet: false,
+      kind: KIND_REFERENCE,
+    });
+  }
+  for (const name of CORE_CONCRETE_TYPES) {
+    items.push({
+      label: name,
+      detail: "core concrete type",
+      isSnippet: false,
+      kind: KIND_REFERENCE,
+    });
+  }
+  for (const name of profileTypeNames) {
+    items.push({
+      label: name,
+      detail: "profile-declared type",
+      isSnippet: false,
+      kind: KIND_REFERENCE,
+    });
+  }
+  return items;
+}
+
 export function buildBlockScaffoldItems(
   types: readonly EntryTypeInfo[],
 ): CompletionItemData[] {

@@ -41,9 +41,11 @@ import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildTypeAttributeItems,
   type EntryTypeInfo,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
+  isTypeAttributeTrigger,
 } from "./completions.ts";
 import {
   isDocCommentContext,
@@ -351,6 +353,17 @@ connection.onCompletion((params): CompletionItem[] => {
   if (isTraceAttributeTrigger(line)) {
     const displayIds = index.getAllDisplayIds();
     const items = buildIdReferenceItems(displayIds);
+    return items.map((item) => ({
+      label: item.label,
+      detail: item.detail,
+      kind: CompletionItemKind.Reference,
+    }));
+  }
+
+  // Trigger 3: Type: attribute value — core types + profile types.
+  if (isTypeAttributeTrigger(line)) {
+    const profileTypeNames = profile ? [...profile.types.keys()] : [];
+    const items = buildTypeAttributeItems(profileTypeNames);
     return items.map((item) => ({
       label: item.label,
       detail: item.detail,
