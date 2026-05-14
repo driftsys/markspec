@@ -181,6 +181,31 @@ function checkStructural(
       }
     }
 
+    // MSL-A012 — repeatable attribute value list is empty (spec §1.8).
+    // Fires when an authored repeatable attribute (id-list, tag-list,
+    // citation, external-id) carries no non-empty values after trimming
+    // and CSV splitting. `citation` is not CSV-splittable, so its check
+    // is a plain trim-and-empty test.
+    for (const attr of entry.rawAttributes) {
+      const spec = attributeSpec(attr.key);
+      if (!spec) continue;
+      if (!REPEATABLE_VALUE_TYPES.has(spec.type)) continue;
+      const raw = attr.value;
+      const isCitation = spec.type === "citation";
+      const values = isCitation
+        ? [raw.trim()].filter((s) => s.length > 0)
+        : raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+      if (values.length === 0) {
+        diagnostics.push({
+          code: "MSL-A012",
+          severity: "error",
+          message: `${entry.displayId}: '${attr.key}' is a repeatable ` +
+            `attribute but the value list is empty (spec §1.8)`,
+          location: entry.location,
+        });
+      }
+    }
+
     // MSL-A013 — single-cardinality core attribute used more than once.
     // `Id:` is excluded because MSL-R003 (above) reports its duplicates
     // with a more specific message. Profile-declared attribute
