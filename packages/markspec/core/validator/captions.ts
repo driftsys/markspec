@@ -35,7 +35,12 @@ const captionableMatchers: Record<CaptionKeyword, (line: string) => boolean> = {
   // Fenced code block (any language).
   Listing: (l) => FENCE_RE.test(l),
   // Gherkin-tagged fenced code block; the loose check is fence-only
-  // because the language tag is on the opening fence line.
+  // because the language tag is on the opening fence line — when the
+  // caption sits BELOW the block, only the closing fence is the
+  // adjacent line and that line has no tag. Tightening to require
+  // `gherkin` would produce false MSL-C071s for valid caption-below
+  // placements. A future cleaner fix would pre-scan fence pairs to
+  // attach language metadata to both opener and closer.
   Feature: (l) => FENCE_RE.test(l),
   // Math fence (`$$`).
   Equation: (l) => /^\s*\$\$/.test(l),
