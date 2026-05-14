@@ -701,6 +701,44 @@ Deno.test("validate: task list inside entry body fires MSL-B042", async () => {
   assertStringIncludes(stderr, "MSL-B042");
 });
 
+Deno.test("validate: non-markspec HTML comment in body fires MSL-B043", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text. <!-- TODO: revisit --> more text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-B043");
+});
+
+Deno.test("validate: markspec directive comment in body is allowed", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+  <!-- markspec:include foo.md -->
+
+  More body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // Markspec directive comments are the one HTML form spec §2.4.1 permits.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
 Deno.test("validate: raw HTML inside entry body fires MSL-B043", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {

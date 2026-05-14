@@ -22,13 +22,36 @@ const HR_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const TASK_LIST_RE = /^\s*[-*+]\s+\[[ xX]\]/;
 
 /**
- * Raw HTML detection. Captures any opening, closing, or self-closing
- * HTML tag (`<tag>`, `</tag>`, `<tag/>`). HTML comments (`<!-- ... -->`)
- * are intentionally allowed, including non-markspec ones, until the
- * tighter "markspec directive comments only" rule lands in a later
- * slice.
+ * HTML tag detection. Matches an opening, closing, or self-closing tag
+ * (`<tag>`, `</tag>`, `<tag/>`). Doesn't match HTML comments — those
+ * are handled by {@linkcode HTML_COMMENT_RE} below so we can allow
+ * markspec directive comments while still flagging arbitrary HTML
+ * comments (which spec §2.4.1 forbids).
  */
-const RAW_HTML_RE = /<\/?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?\/?>/;
+const HTML_TAG_RE = /<\/?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?\/?>/;
+
+/** Any HTML comment, `<!--…-->`. */
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/;
+
+/**
+ * A whole-line markspec directive comment: `<!-- markspec:<rest> -->`
+ * occupying the line on its own (optional leading/trailing
+ * whitespace). The directive form is the one exception spec §2.4.1
+ * carves out from the "no raw HTML" rule.
+ */
+const MARKSPEC_DIRECTIVE_LINE_RE = /^\s*<!--\s*markspec:[\s\S]*?-->\s*$/;
+
+/**
+ * Return `true` when `line` contains raw HTML the body model forbids:
+ * any tag, or any comment that isn't a standalone markspec directive.
+ */
+function hasForbiddenHtml(line: string): boolean {
+  if (HTML_TAG_RE.test(line)) return true;
+  if (HTML_COMMENT_RE.test(line) && !MARKSPEC_DIRECTIVE_LINE_RE.test(line)) {
+    return true;
+  }
+  return false;
+}
 
 interface BodyDiag {
   readonly code: string;
@@ -84,7 +107,7 @@ export function validateBodyBlocks(entry: Entry): readonly Diagnostic[] {
     if (HEADING_RE.test(line)) diag = HEADING_DIAG;
     else if (HR_RE.test(line)) diag = HR_DIAG;
     else if (TASK_LIST_RE.test(line)) diag = TASK_LIST_DIAG;
-    else if (RAW_HTML_RE.test(line)) diag = RAW_HTML_DIAG;
+    else if (hasForbiddenHtml(line)) diag = RAW_HTML_DIAG;
     if (!diag) continue;
 
     diagnostics.push({
