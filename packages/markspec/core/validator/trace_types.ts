@@ -14,6 +14,7 @@
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import { CORE_TYPE_HIERARCHY } from "../model/mod.ts";
+import { resolvedCoreType } from "./type_resolution.ts";
 
 /**
  * Trace-relation target-type rules. Each entry maps a trace attribute
@@ -69,22 +70,6 @@ const POLYMORPHIC_CAUSED_BY: readonly {
     allowed: ["Component", "Unit", "Specification"],
   },
 ];
-
-/** Find the explicit `Type:` attribute on an entry. */
-function explicitType(entry: Entry): string | undefined {
-  for (const attr of entry.rawAttributes) {
-    if (attr.key === "Type") return attr.value.trim();
-  }
-  return undefined;
-}
-
-/** Resolve an entry's effective core type from explicit + inferred sources. */
-function resolvedCoreType(entry: Entry): string | undefined {
-  const explicit = explicitType(entry);
-  if (explicit && CORE_TYPE_HIERARCHY[explicit]) return explicit;
-  if (entry.type && CORE_TYPE_HIERARCHY[entry.type]) return entry.type;
-  return undefined;
-}
 
 /** True when the entry carries a non-empty `Deprecated:` attribute. */
 function isRetired(entry: Entry): boolean {

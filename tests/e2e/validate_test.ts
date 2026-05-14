@@ -420,6 +420,80 @@ Deno.test("validate: Allocated-to target of type Specification fires MSL-R083", 
 });
 
 // ---------------------------------------------------------------------------
+// Reference shape — URI scheme map (ADR-003 §Part 6, spec §1.3.1 step 5)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: doi: Reference as Allocated-to target fires MSL-R083 (infers Requirement)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SAD-001] My spec
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Specification
+      Allocated-to: doi:10.1109/IEEESTD.2008.4610935
+
+- [IEEE-1234] IEEE Standard cited as predecessor
+
+      Id: doi:10.1109/IEEESTD.2008.4610935
+`,
+    },
+  });
+  // doi: → Requirement (Specification); Allocated-to needs Component → R083
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-R083");
+  assertStringIncludes(stderr, "Requirement");
+});
+
+Deno.test("validate: pkg:cargo Reference with Bus-protocol fires MSL-T022 (scheme infers SoftwareComponent)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [serde] serde framework
+
+      Id: pkg:cargo/serde@1.0.0
+      Bus-protocol: can
+`,
+    },
+  });
+  // pkg:cargo → SoftwareComponent. Bus-protocol is HardwareInterface-only → MSL-T022.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Bus-protocol");
+});
+
+Deno.test("validate: pkg:cargo Reference as Depends-on target passes (infers SoftwareComponent)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-app] My app
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: SoftwareComponent
+      Depends-on: pkg:cargo/serde@1.0.0
+
+- [serde] Serde framework
+
+      Id: pkg:cargo/serde@1.0.0
+`,
+    },
+  });
+  // pkg:cargo → SoftwareComponent → Depends-on accepts Component → OK
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+// ---------------------------------------------------------------------------
 // Captions — spec §2.6
 // ---------------------------------------------------------------------------
 
