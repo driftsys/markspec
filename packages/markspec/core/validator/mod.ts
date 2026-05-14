@@ -295,8 +295,9 @@ function checkStructural(
       }
       // MSL-A050: value does not parse against the declared value type
       // (§4.4). The core knows the value type for the promoted Reference
-      // attributes (spec §1.5); profile-declared attribute types are
-      // validated by the profile-aware Stage 3 instead.
+      // attributes (spec §1.5) and the universal enum attributes;
+      // profile-declared attribute types are validated by the
+      // profile-aware Stage 3 instead.
       if (attr.key === "Reference-url") {
         if (!HTTP_URL_RE.test(attr.value.trim())) {
           diagnostics.push({
@@ -304,6 +305,20 @@ function checkStructural(
             severity: "error",
             message: `${entry.displayId}: Reference-url value ` +
               `'${attr.value.trim()}' is not an http(s) URL (spec §1.5)`,
+            location: entry.location,
+          });
+          continue;
+        }
+      }
+      if (spec?.type === "enum" && spec.enumValues) {
+        const trimmed = attr.value.trim();
+        if (trimmed.length > 0 && !spec.enumValues.includes(trimmed)) {
+          diagnostics.push({
+            code: "MSL-A050",
+            severity: "error",
+            message: `${entry.displayId}: ${attr.key} value '${trimmed}' ` +
+              `is not in the allowed set ` +
+              `{${spec.enumValues.join(", ")}} (spec §1.8 enum)`,
             location: entry.location,
           });
           continue;
