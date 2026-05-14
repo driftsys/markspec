@@ -93,6 +93,43 @@ Deno.test("format: writes normalized attributes back to file", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Body normalisation — modal keywords (spec §3.4.1)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: lowercases uppercase modal keywords in body prose", async () => {
+  const input = `# Test
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  The sensor driver SHALL debounce raw inputs and MUST reject spikes
+  shorter than the configured window; MAY emit telemetry.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const { code, readFile } = await runFormat({ "req.md": input });
+  assertEquals(code, 0);
+  const output = await readFile("req.md");
+  assertStringIncludes(output, "shall debounce");
+  assertStringIncludes(output, "must reject");
+  assertStringIncludes(output, "may emit");
+  assertEquals(
+    output.includes("SHALL"),
+    false,
+    `SHALL should be normalised; output:\n${output}`,
+  );
+  assertEquals(
+    output.includes("MUST"),
+    false,
+    `MUST should be normalised; output:\n${output}`,
+  );
+  assertEquals(
+    output.includes("MAY "),
+    false,
+    `MAY should be normalised; output:\n${output}`,
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Canonical trailer ordering — spec §3.3.2 six-group rule
 // ---------------------------------------------------------------------------
 

@@ -31,6 +31,39 @@ const CSV_SPLITTABLE_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * RFC 2119 modal keywords in uppercase form, with optional ` NOT` suffix.
+ * Captured for canonical-form normalisation per spec §3.4.1: uppercase
+ * input is accepted but emitted lowercase.
+ */
+const RFC2119_MODAL_RE = /\b(SHALL|SHOULD|MAY|MUST)(\s+NOT)?\b/g;
+
+/**
+ * Normalise uppercase RFC 2119 modal keywords to lowercase in body prose
+ * (§3.4.1). The pass skips:
+ *
+ * - Fenced code blocks (between paired ``` or ~~~ markers) — code is
+ *   verbatim per round-trip invariants (spec §5.1).
+ * - Lines indented by four or more spaces (or a tab) — conservatively
+ *   captures indented code blocks and attribute trailers, both of which
+ *   are not prose.
+ */
+export function normalizeModalKeywords(markdown: string): string {
+  const lines = markdown.split("\n");
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    if (/^( {4}|\t)/.test(line)) continue;
+    lines[i] = line.replace(RFC2119_MODAL_RE, (m) => m.toLowerCase());
+  }
+  return lines.join("\n");
+}
+
+/**
  * Canonical front-matter key order per ADR-007. Core keys first, then
  * `metadata` (reserved free-form map), then `extra` (allowlisted ecosystem
  * keys / profile keys) are emitted verbatim at the end.
@@ -152,16 +185,20 @@ export function format(
   // Extract any YAML front matter first so entries are parsed against the
   // body only (front-matter `---` could be confused with horizontal rules).
   const fm = extractFrontMatter(markdown, { file });
-  const body = fm.hadFrontMatter ? fm.markdown : markdown;
+  const rawBody = fm.hadFrontMatter ? fm.markdown : markdown;
+  // Body-level canonical-form pass (§3.4.1 modal-keyword normalisation).
+  // Skips fenced code and indented code / trailers; case-only rewrite, so
+  // line/column positions are preserved for the entry-block pass below.
+  const body = normalizeModalKeywords(rawBody);
   const { entries } = parseMarkdown(body, { file });
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
 
   if (entries.length === 0 && !fm.hadFrontMatter) {
-    return { output: markdown, diagnostics, changed: false };
+    return { output: markdown, diagnostics, changed: body !== rawBody };
   }
 
   const lines = body.split("\n");
-  let changed = false;
+  let changed = body !== rawBody;
 
   // Process bottom-to-top so line splicing doesn't shift earlier entries.
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
