@@ -24,6 +24,7 @@ import {
   StreamMessageWriter,
   TextDocuments,
   TextDocumentSyncKind,
+  type TextEdit as LspTextEdit,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
@@ -41,6 +42,7 @@ import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { findReferencingEntries } from "./references.ts";
+import { findIdOccurrencesInFile } from "./rename.ts";
 import {
   entriesToDocumentSymbols,
   entriesToWorkspaceSymbols,
@@ -237,6 +239,7 @@ connection.onInitialize(
         referencesProvider: true,
         documentSymbolProvider: true,
         workspaceSymbolProvider: true,
+        renameProvider: true,
       },
     };
   },
@@ -510,6 +513,53 @@ connection.onWorkspaceSymbol((params) => {
   // the typed `SymbolKind` enum the d.ts expects.
   // deno-lint-ignore no-explicit-any
   return entriesToWorkspaceSymbols(index.getAllEntries(), params.query) as any;
+});
+
+// ---------------------------------------------------------------------------
+// Rename (workspace-wide rename of a display ID)
+// ---------------------------------------------------------------------------
+
+connection.onRenameRequest(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+
+  const filePath = uriToPath(params.textDocument.uri);
+  if (isSourceFile(filePath)) {
+    const lines = document.getText().split("\n");
+    if (!isDocCommentContext(lines, params.position.line)) {
+      return null;
+    }
+  }
+
+  const line = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
+  });
+  const oldId = displayIdAtPosition(line, params.position.character);
+  if (!oldId) return null;
+  const newId = params.newName;
+  if (!newId || newId === oldId) return null;
+
+  // Build per-file TextEdits across the entire workspace. For each
+  // tracked file, prefer the open-document text (live editor state)
+  // and fall back to reading from disk.
+  const changes: Record<string, LspTextEdit[]> = {};
+  for (const path of index.getFilePaths()) {
+    const uri = pathToUri(path);
+    let text: string | undefined;
+    const openDoc = documents.get(uri);
+    if (openDoc) {
+      text = openDoc.getText();
+    } else {
+      text = await readFile(path);
+    }
+    if (text === undefined) continue;
+    const fileEdits = findIdOccurrencesInFile(text, oldId, newId);
+    if (fileEdits.length > 0) {
+      changes[uri] = fileEdits as unknown as LspTextEdit[];
+    }
+  }
+  return { changes };
 });
 
 // ---------------------------------------------------------------------------
