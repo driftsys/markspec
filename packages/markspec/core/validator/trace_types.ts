@@ -105,7 +105,9 @@ function isTargetTypeCompatible(
 
 /**
  * Validate that every authored trace attribute targets an entry of an
- * allowed type. Emits MSL-R083 for each mismatch.
+ * allowed type. Emits MSL-R083 for each type mismatch and MSL-R084
+ * when `Supersedes` crosses the Authored↔Reference shape boundary
+ * (ADR-002 §Part 1 — "Supersedes operates within a shape").
  *
  * Unresolved targets are silently skipped — they're caught elsewhere
  * (MSL-R080 / MSL-T012 / MSL-T005). Targets without a resolvable core
@@ -124,6 +126,23 @@ export function validateTraceTargetTypes(
   const diagnostics: Diagnostic[] = [];
 
   for (const entry of entries) {
+    // MSL-R084: Supersedes target must be the same shape as the source.
+    for (const attr of entry.rawAttributes) {
+      if (attr.key !== "Supersedes") continue;
+      const target = attr.value.trim();
+      const resolved = byId.get(target) ?? byDisplayId.get(target);
+      if (!resolved) continue;
+      if (resolved.shape === entry.shape) continue;
+      diagnostics.push({
+        code: "MSL-R084",
+        severity: "error",
+        message: `${entry.displayId}: Supersedes: target '${target}' is ` +
+          `shape '${resolved.shape}' but source is '${entry.shape}' — ` +
+          `Supersedes operates within a shape (ADR-002 §Part 1)`,
+        location: entry.location,
+      });
+    }
+
     for (const rule of TRACE_RULES) {
       for (const attr of entry.rawAttributes) {
         if (attr.key !== rule.attr) continue;

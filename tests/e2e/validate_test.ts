@@ -285,6 +285,51 @@ Deno.test("validate: Satisfies target of type Requirement passes (R083 OK)", asy
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
+Deno.test("validate: Supersedes target with mismatched shape fires MSL-R084", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Authored requirement that supersedes a reference
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Supersedes: https://example.com/external-spec
+
+- [external-spec] External standard cited as the predecessor
+
+      Id: https://example.com/external-spec
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-R084");
+});
+
+Deno.test("validate: Supersedes target with same shape passes", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-002] Newer
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Supersedes: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-001] Older
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
 Deno.test("validate: Allocated-to target of type Specification fires MSL-R083", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
