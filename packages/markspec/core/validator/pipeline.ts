@@ -17,6 +17,7 @@ import {
 } from "./types.ts";
 import { validateCaptions } from "./captions.ts";
 import { validatePerTypeAttributes } from "./per_type_attrs.ts";
+import { validateTraceTargetTypes } from "./trace_types.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import { normalizeListValues } from "./normalize.ts";
 import { validateTraceabilityForEntry } from "./traceability.ts";
@@ -73,6 +74,11 @@ export function runPipeline(
     diagnostics.push(...validateCaptions(entry));
     diagnostics.push(...validatePerTypeAttributes(entry));
   }
+
+  // Stage 1.6 — cross-file trace target-type compatibility (MSL-R083).
+  // Runs project-wide because targets may live in any entry; needs the
+  // whole batch indexed.
+  diagnostics.push(...validateTraceTargetTypes(entries));
 
   // Stage 2 — classification (only when a profile is loaded).
   let finalEntries: readonly Entry[] = entries;
