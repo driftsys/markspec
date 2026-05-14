@@ -29,6 +29,47 @@ Deno.test("validate: valid file exits 0", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Core data model — core abstract types (ADR-003, spec §1.3)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Type: Specification accepted in core-only mode", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Specification
+      Labels: ASIL-B
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: NotARealType
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-T020");
+  assertStringIncludes(stderr, "NotARealType");
+});
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 

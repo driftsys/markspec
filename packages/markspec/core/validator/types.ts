@@ -15,7 +15,34 @@ import type {
   Entry,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
+import { CORE_TYPES } from "../model/mod.ts";
 import { compileDisplayIdPattern } from "./pattern.ts";
+
+/**
+ * Validate the `Type:` attribute value against the core type taxonomy plus
+ * any profile-declared types. Runs in every mode (with or without a loaded
+ * profile) — see spec §1.3 and ADR-003 §Part 1.
+ *
+ * Emits:
+ *   - `MSL-T020` when `Type:` is present but the value is neither a core
+ *     abstract/concrete type nor a profile-declared type.
+ */
+export function validateCoreTypeAttribute(
+  entry: Entry,
+  profile: EffectiveProfile | null,
+): readonly Diagnostic[] {
+  const explicitType = findExplicitTypeAttribute(entry);
+  if (explicitType === undefined) return [];
+  if (CORE_TYPES.has(explicitType)) return [];
+  if (profile !== null && profile.types.has(explicitType)) return [];
+  return [{
+    code: "MSL-T020",
+    severity: "error",
+    message: `${entry.displayId}: Type: '${explicitType}' is not a core type ` +
+      `or a profile-declared type`,
+    location: entry.location,
+  }];
+}
 
 /** Result of classifying a single entry. */
 export interface ClassifyResult {
