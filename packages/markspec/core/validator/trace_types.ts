@@ -181,30 +181,39 @@ export function validateTraceTargetTypes(
       }
     }
 
-    // Polymorphic Caused-by: choose the allowed set from the source's
-    // resolved type, falling back to the union if the source is the
-    // shared Specification parent or unclassified.
+    // Polymorphic Caused-by: ADR-003 §Part 2 lists distinct allowed
+    // target sets for `Caused-by` on Record vs Risk. If we can't
+    // classify the source as one of those two, we can't pick an
+    // applicable rule — emitting MSL-R083 with the union of both sets
+    // produces a useless "expected one of seven types" message, so we
+    // skip the check entirely. Record/Risk subtype classification
+    // walks the type hierarchy so subtypes (e.g., Hazard extends Risk)
+    // inherit the rule.
     const sourceType = resolvedCoreType(entry);
-    for (const attr of entry.rawAttributes) {
-      if (attr.key !== "Caused-by") continue;
-      const target = attr.value.trim();
-      const resolved = byId.get(target) ?? byDisplayId.get(target);
-      if (!resolved) continue;
-      const targetType = resolvedCoreType(resolved);
-      if (!targetType) continue;
-
-      const role = POLYMORPHIC_CAUSED_BY.find((r) => sourceType === r.source);
-      const allowed = role ? role.allowed : [
-        ...new Set(POLYMORPHIC_CAUSED_BY.flatMap((r) => r.allowed)),
-      ];
-      if (isTargetTypeCompatible(targetType, allowed)) continue;
-      diagnostics.push({
-        code: "MSL-R083",
-        severity: "error",
-        message: `${entry.displayId}: Caused-by: target '${target}' is ` +
-          `of type '${targetType}' — expected one of [${allowed.join(", ")}]`,
-        location: entry.location,
-      });
+    const sourceRole = sourceType
+      ? POLYMORPHIC_CAUSED_BY.find((r) =>
+        isTargetTypeCompatible(sourceType, [r.source])
+      )
+      : undefined;
+    if (sourceRole) {
+      for (const attr of entry.rawAttributes) {
+        if (attr.key !== "Caused-by") continue;
+        const target = attr.value.trim();
+        const resolved = byId.get(target) ?? byDisplayId.get(target);
+        if (!resolved) continue;
+        const targetType = resolvedCoreType(resolved);
+        if (!targetType) continue;
+        if (isTargetTypeCompatible(targetType, sourceRole.allowed)) continue;
+        diagnostics.push({
+          code: "MSL-R083",
+          severity: "error",
+          message: `${entry.displayId}: Caused-by: target '${target}' is ` +
+            `of type '${targetType}' — expected one of [${
+              sourceRole.allowed.join(", ")
+            }] for a ${sourceRole.source} source`,
+          location: entry.location,
+        });
+      }
     }
 
     // Link-target severity diagnostics (MSL-R081 / MSL-R082) for all

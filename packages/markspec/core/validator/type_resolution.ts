@@ -15,10 +15,17 @@
 import type { Entry } from "../model/mod.ts";
 import { CORE_TYPE_HIERARCHY, inferTypeFromUriScheme } from "../model/mod.ts";
 
-/** Read an entry's explicit `Type:` attribute, trimmed. */
+/**
+ * Read an entry's explicit `Type:` attribute, trimmed. Returns
+ * `undefined` when the attribute is absent OR when the trimmed value
+ * is empty — a whitespace-only `Type:` value is treated as "no type
+ * given" so downstream diagnostics don't surface empty-quoted values.
+ */
 export function explicitType(entry: Entry): string | undefined {
   for (const attr of entry.rawAttributes) {
-    if (attr.key === "Type") return attr.value.trim();
+    if (attr.key !== "Type") continue;
+    const trimmed = attr.value.trim();
+    return trimmed.length === 0 ? undefined : trimmed;
   }
   return undefined;
 }
