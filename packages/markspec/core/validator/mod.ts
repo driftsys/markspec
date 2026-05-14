@@ -29,6 +29,19 @@ import { HTTP_URL_RE } from "./value_types.ts";
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
 
 /**
+ * Value-type set that's repeatable per spec §1.8 — these attributes
+ * accept multiple lines for distinct values, so multiple trailers with
+ * the same key are legal. Single-cardinality attributes are anything
+ * not in this set.
+ */
+const REPEATABLE_VALUE_TYPES: ReadonlySet<string> = new Set([
+  "id-list",
+  "tag-list",
+  "citation",
+  "external-id",
+]);
+
+/**
  * Slug pattern for Reference-shape display IDs (spec §1.7, ADR-002 §Part 3).
  * Pandoc/BibTeX cite-key convention, restricted to a portable character
  * set: starts with a letter, body alphanumeric + `.` / `/` / `-` / `_`,
@@ -165,6 +178,34 @@ function checkStructural(
         });
       } else {
         ids.set(entry.id, entry);
+      }
+    }
+
+    // MSL-A013 — single-cardinality core attribute used more than once.
+    // `Id:` is excluded because MSL-R003 (above) reports its duplicates
+    // with a more specific message. Profile-declared attribute
+    // cardinality is enforced by the profile-aware Stage 3 (MSL-A002).
+    const seenSingleKeys = new Set<string>();
+    const reportedA013 = new Set<string>();
+    for (const attr of entry.rawAttributes) {
+      if (attr.key === IDENTITY_KEY) continue;
+      const spec = attributeSpec(attr.key);
+      if (!spec) continue;
+      if (REPEATABLE_VALUE_TYPES.has(spec.type)) continue;
+      if (seenSingleKeys.has(attr.key)) {
+        if (!reportedA013.has(attr.key)) {
+          diagnostics.push({
+            code: "MSL-A013",
+            severity: "error",
+            message:
+              `${entry.displayId}: '${attr.key}' is single-cardinality ` +
+              `but appears more than once (spec §1.8)`,
+            location: entry.location,
+          });
+          reportedA013.add(attr.key);
+        }
+      } else {
+        seenSingleKeys.add(attr.key);
       }
     }
 
