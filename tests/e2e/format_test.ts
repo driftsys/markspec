@@ -139,6 +139,58 @@ Deno.test("format: lowercases interior of hyphenated key", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Idempotence — spec §3.1 / §5.3
+// ---------------------------------------------------------------------------
+
+Deno.test("format: idempotent after bullet rewrite", async () => {
+  const input = "# Test\n\n" +
+    "* [REQ-001] Title\n\n" +
+    "  Body.\n\n" +
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const pass1 = await runFormat({ "req.md": input });
+  const out1 = await pass1.readFile("req.md");
+
+  const pass2 = await runFormat({ "req.md": out1 });
+  const out2 = await pass2.readFile("req.md");
+
+  assertEquals(out1, out2, "format must be idempotent on bullet rewrite");
+});
+
+Deno.test("format: idempotent after key re-casing", async () => {
+  const input = "# Test\n\n" +
+    "- [REQ-001] Title\n\n" +
+    "  Body.\n\n" +
+    "      ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\n" +
+    "      LABELS: ASIL-B\n";
+  const pass1 = await runFormat({ "req.md": input });
+  const out1 = await pass1.readFile("req.md");
+
+  const pass2 = await runFormat({ "req.md": out1 });
+  const out2 = await pass2.readFile("req.md");
+
+  assertEquals(out1, out2, "format must be idempotent on key re-casing");
+});
+
+Deno.test("format: idempotent across combined transforms", async () => {
+  const input = "# Test\n\n" +
+    "* [REQ-001] Title\n\n" +
+    "  The driver SHALL debounce raw inputs.\n\n" +
+    "      ID: 01HGW2Q8MNP3RSTVWXYZABCDEF\n" +
+    "      LABELS: ASIL-B\n";
+  const pass1 = await runFormat({ "req.md": input });
+  const out1 = await pass1.readFile("req.md");
+
+  const pass2 = await runFormat({ "req.md": out1 });
+  const out2 = await pass2.readFile("req.md");
+
+  assertEquals(
+    out1,
+    out2,
+    "format must be idempotent across bullet + key-case + modal normalisation",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Title-line normalisation — bullet character (spec §3.2)
 // ---------------------------------------------------------------------------
 
