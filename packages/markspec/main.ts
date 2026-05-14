@@ -711,9 +711,63 @@ const cli = new Command()
   .command("insert")
   .description("Insert a requirement block into a file")
   .action(notImplemented("insert"))
-  .command("create")
-  .description("Scaffold a new requirement block")
-  .action(notImplemented("create"))
+  .command("create <type:string> <paths...:string>")
+  .description("Scaffold a new entry block for a profile-declared type")
+  .action(async (_options, typeName: string, ...paths: string[]) => {
+    const { result, chain } = await compileProject(paths);
+    if (!chain) {
+      console.error(`error: create requires a profile; none configured`);
+      Deno.exit(1);
+    }
+    const typeEntry = chain.effective.types.get(typeName);
+    if (!typeEntry) {
+      console.error(
+        `error: type '${typeName}' is not declared by the active profile`,
+      );
+      Deno.exit(1);
+    }
+    const pattern = typeEntry.value.displayIdPattern.value;
+    if (!pattern) {
+      console.error(`error: type '${typeName}' has no display-id-pattern`);
+      Deno.exit(1);
+    }
+    const placeholderMatch = /\{n:(\d+)d\}/.exec(pattern);
+    if (!placeholderMatch) {
+      console.error(
+        `error: type '${typeName}' display-id-pattern '${pattern}' does ` +
+          `not contain a recognised number placeholder ('{n:Nd}')`,
+      );
+      Deno.exit(1);
+    }
+    const width = parseInt(placeholderMatch[1], 10);
+    const prefix = pattern.slice(0, placeholderMatch.index);
+    const suffix = pattern.slice(
+      placeholderMatch.index + placeholderMatch[0].length,
+    );
+
+    let max = 0;
+    for (const entry of result.entries.values()) {
+      const id = entry.displayId;
+      if (!id.startsWith(prefix)) continue;
+      if (suffix && !id.endsWith(suffix)) continue;
+      const numberPart = id.slice(prefix.length, id.length - suffix.length);
+      const n = parseInt(numberPart, 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+    const next = max + 1;
+    const padded = String(next).padStart(width, "0");
+    const displayId = `${prefix}${padded}${suffix}`;
+
+    const { ulid } = await import("@std/ulid");
+    const id = ulid();
+
+    const block =
+      `- [${displayId}] ${typeName[0].toUpperCase()}${
+        typeName.slice(1)
+      } title\n` +
+      `\n  Body text.\n\n      Id: ${id}\n      Type: ${typeName}\n`;
+    console.log(block);
+  })
   .command("next-id <type:string> <paths...:string>")
   .description("Print the next available display ID for a type")
   .option("--format <format:string>", "Output format (json|text)", {

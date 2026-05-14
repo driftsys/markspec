@@ -222,6 +222,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec profile show`               | `core/profile`                      | Show the active profile chain and effective configuration.           |
 | `markspec doctor`                     | `core/profile` + `core/validator`   | Project health check: profile, config, and validation summary.       |
 | `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`    | Print the next available display ID for a profile-declared type.     |
+| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`    | Scaffold a new entry block for a profile-declared type (stdout).     |
 | `markspec hook [...files]`            | `core/formatter` + `core/validator` | Pre-commit hook: run format --check + validate on the given files.   |
 | `markspec doc build <file>`           | `render/typst`                      | Single document → PDF via Typst WASM.                                |
 | `markspec book build`                 | `book/site`                         | Multi-chapter → static HTML site.                                    |
@@ -237,7 +238,6 @@ invoke them.
 | --------------------- | --------------------------------------------------------- |
 | `markspec export`     | Compiled JSON → json, csv, reqif, yaml.                   |
 | `markspec insert`     | Agent write path: insert a requirement block into a file. |
-| `markspec create`     | Scaffold a new requirement block.                         |
 | `markspec book dev`   | Live preview with hot reload.                             |
 | `markspec deck build` | Slides → PDF via Touying/Typst.                           |
 | `markspec deck dev`   | Live slide preview.                                       |
