@@ -369,6 +369,40 @@ Deno.test("format: assigns Id to identified entry missing identity", async () =>
   assertStringIncludes(output, "Id: ");
 });
 
+Deno.test("format: synthesized origin derives deterministic ULID from Source", async () => {
+  // First run: Origin: synthesized + Source: → ULID derived per §3.5.
+  const input = `# Test
+
+- [serde] serde framework
+
+  Body text.
+
+      Origin: synthesized
+      Source: crates/foo/Cargo.toml
+`;
+  const { code: code1, readFile: readFile1 } = await runFormat({
+    "req.md": input,
+  });
+  assertEquals(code1, 0);
+  const output1 = await readFile1("req.md");
+
+  // ULID(timestamp=0, randomness=truncate(SHA-256("crates/foo/Cargo.toml"), 80))
+  // The timestamp half is "0000000000" — assert that prefix appears.
+  assertStringIncludes(output1, "Id: 0000000000");
+
+  // Determinism: re-run on the *same input again* → same Id.
+  const { readFile: readFile2 } = await runFormat({ "req.md": input });
+  const output2 = await readFile2("req.md");
+  assertEquals(extractId(output1), extractId(output2));
+});
+
+/** Extract the bare ULID value of the first `Id:` trailer in a file. */
+function extractId(content: string): string {
+  const m = /Id:\s*([0-9A-HJKMNP-TV-Z]{26})/.exec(content);
+  if (!m) throw new Error(`no Id: trailer found in:\n${content}`);
+  return m[1];
+}
+
 // ---------------------------------------------------------------------------
 // Idempotent
 // ---------------------------------------------------------------------------

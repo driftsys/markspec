@@ -19,6 +19,7 @@ import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { walkProseLines } from "../util/fence.ts";
+import { synthesizedUlid } from "./synth_ulid.ts";
 
 /**
  * Value types that accept CSV on input but must be emitted as multi-line
@@ -258,9 +259,19 @@ export function format(
     // Assign a bare ULID `Id:` to identified entries that carry no
     // identity yet. Referenced entries are left alone — their `Id:` is a
     // URI that must be author-provided.
+    //
+    // For `Origin: synthesized` entries (spec §3.5), derive the ULID
+    // deterministically from `Source:` so re-running `fmt` on the same
+    // input reproduces the same identity. Falls back to fresh random
+    // when `Source:` is missing — synthesizing without a source pointer
+    // makes no sense, but the formatter never fails a stamp.
     const hasIdentity = attrs.some((a) => a.key === IDENTITY_KEY);
     if (!hasIdentity && entry.shape === "identified") {
-      const newId = genUlid();
+      const origin = attrs.find((a) => a.key === "Origin")?.value.trim();
+      const source = attrs.find((a) => a.key === "Source")?.value.trim();
+      const newId = origin === "synthesized" && source && source.length > 0
+        ? synthesizedUlid(source)
+        : genUlid();
       attrs = [{ key: IDENTITY_KEY, value: newId }, ...attrs];
       diagnostics.push({
         code: "MSL-F001",
