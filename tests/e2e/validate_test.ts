@@ -50,6 +50,25 @@ Deno.test("validate: Type: Specification accepted in core-only mode", async () =
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
+Deno.test("validate: generated-origin attribute in source rejected with MSL-A030", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Title
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Superseded-by: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A030");
+  assertStringIncludes(stderr, "Superseded-by");
+});
+
 Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
