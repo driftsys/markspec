@@ -113,6 +113,109 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
     shapes: BOTH_SHAPES,
     required: false,
   },
+
+  // Generated inverses from ADR-003 §Part 3. These are NEVER authored
+  // in source; the compiler computes them from authored relations at
+  // build time. MSL-A030 catches anyone who tries to write them
+  // manually.
+  {
+    key: "Derives",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Satisfied-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Realized-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Verified-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Tested-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Allocated",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Contains",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Provided-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Required-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Used-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Caused",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Affected-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Mitigates",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Cited-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
 ];
 
 /** Canonical Title-Case attribute keys the core recognizes. */
