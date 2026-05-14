@@ -365,11 +365,29 @@ export function expandCsvValues(attrs: Attribute[]): Attribute[] {
 }
 
 /**
- * Sort attributes to canonical trailer order per spec §3.3.2.
+ * Canonicalise a trailer key to TitleCase-Hyphenated per spec §3.3.4.
+ * First character of the key uppercase, every other character
+ * lowercase; hyphens preserved. Examples (from the spec):
  *
- * Known core keys appear in their {@linkcode CANONICAL_ORDER} slot.
- * Unknown / profile-declared keys (group 6) are appended at the end in
- * source order — `fmt` never deletes a key it doesn't own (§3.3.6).
+ *   `Id`, `Derived-from`, `Reference-url`, `Bus-protocol`.
+ *
+ * Inputs like `ID`, `BUS-PROTOCOL`, `reference-URL`, `Derived-From`
+ * all canonicalise to the spec form regardless of casing in source.
+ */
+export function canonicalizeKey(key: string): string {
+  if (key.length === 0) return key;
+  return key[0].toUpperCase() + key.slice(1).toLowerCase();
+}
+
+/**
+ * Sort attributes to canonical trailer order per spec §3.3.2 and
+ * re-case each key per spec §3.3.4.
+ *
+ * Known core keys appear in their {@linkcode CANONICAL_ORDER} slot
+ * (lookup is case-insensitive via {@linkcode canonicalizeKey}).
+ * Unknown / profile-declared keys (group 6) are appended at the end
+ * in source order — `fmt` never deletes a key it doesn't own
+ * (§3.3.6). Every emitted attribute carries the canonical key form.
  */
 export function sortAttributes(
   attributes: Attribute[],
@@ -378,13 +396,17 @@ export function sortAttributes(
   const unknown: Attribute[] = [];
 
   for (const attr of attributes) {
-    const idx = CANONICAL_ORDER.indexOf(attr.key);
+    const canonical = canonicalizeKey(attr.key);
+    const recased: Attribute = canonical === attr.key
+      ? attr
+      : { ...attr, key: canonical };
+    const idx = CANONICAL_ORDER.indexOf(canonical);
     if (idx >= 0) {
       // Preserve duplicates — keep all occurrences of the same key.
       if (!known[idx]) known[idx] = [];
-      known[idx]!.push(attr);
+      known[idx]!.push(recased);
     } else {
-      unknown.push(attr);
+      unknown.push(recased);
     }
   }
 
