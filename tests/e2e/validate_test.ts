@@ -148,6 +148,63 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
   assertStringIncludes(stderr, "Source");
 });
 
+// MSL-A050 — Origin: value must match the enum {authored, synthesized}
+Deno.test("validate: Origin: invalid value fires MSL-A050", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Origin: nonsense
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A050");
+  assertStringIncludes(stderr, "Origin");
+});
+
+Deno.test("validate: Origin: authored stays clean (no MSL-A050)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Origin: authored
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-A050"), false);
+});
+
+Deno.test("validate: Origin: synthesized stays clean (no MSL-A050)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Origin: synthesized
+      Source: crates/foo/Cargo.toml
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-A050"), false);
+});
+
 // MSL-P010 — title is empty after trimming
 Deno.test("validate: entry with empty title fires MSL-P010", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
