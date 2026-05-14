@@ -13,6 +13,7 @@ import { validate } from "./mod.ts";
 import {
   classifyEntriesStage,
   inferTypeFromDisplayIdShape,
+  inferTypeFromLateStageChain,
   validateCoreTypeAttribute,
 } from "./types.ts";
 import { validateBodyBlocks } from "./body_blocks.ts";
@@ -88,6 +89,15 @@ export function runPipeline(
     const stage2 = classifyEntriesStage(entries, profile);
     finalEntries = stage2.entries;
     diagnostics.push(...stage2.diagnostics);
+  }
+
+  // Stage 2.4 — late-stage inference warnings (MSL-T021 for steps 5/6).
+  // Runs after Stage 2 so that profile-classified `entry.type` suppresses
+  // the warning correctly. In core-only mode `finalEntries === entries`
+  // and `entry.type` is always undefined, so this stage produces the same
+  // diagnostics regardless of mode.
+  for (const entry of finalEntries) {
+    diagnostics.push(...inferTypeFromLateStageChain(entry));
   }
 
   // Stage 2.5 — normalize profile-declared list-value attributes. Splits
