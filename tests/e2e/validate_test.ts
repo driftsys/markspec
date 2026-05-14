@@ -170,6 +170,91 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
 // Per-type attribute compatibility — spec §1.6, MSL-T022
 // ---------------------------------------------------------------------------
 
+Deno.test("validate: URI-scheme inference (step 5) emits MSL-T021 late-stage warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [serde] Serde framework
+
+      Id: pkg:cargo/serde@1.0.0
+`,
+    },
+  });
+  // pkg:cargo → SoftwareComponent inferred at step 5 (Reference shape,
+  // URI scheme) → MSL-T021 late-stage warning per spec §1.3.2.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T021");
+  assertStringIncludes(stderr, "SoftwareComponent");
+});
+
+Deno.test("validate: discriminating-attr inference (step 6) emits MSL-T021 late-stage warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-test] My test entry
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Verifies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  // Verifies present → Test inferred at step 6 → MSL-T021 late-stage warning.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T021");
+  assertStringIncludes(stderr, "Test");
+});
+
+Deno.test("validate: explicit Type: (step 1) does not emit MSL-T021", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-test] My test entry
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Test
+      Verifies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  // Explicit Type: wins at step 1 — no late-stage warning even though
+  // Verifies would also resolve via step 6.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-T021"), false, "MSL-T021 should not fire");
+});
+
+Deno.test("validate: display-ID prefix (step 4) does not emit MSL-T021", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // REQ prefix matches at step 4 — earlier than the step-5 threshold.
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(stderr.includes("MSL-T021"), false, "MSL-T021 should not fire");
+});
+
 Deno.test("validate: Verifies attr infers Test at step 6; Allocated-to fires MSL-T022", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
@@ -701,10 +786,13 @@ Deno.test("validate: pkg:cargo Reference as Depends-on target passes (infers Sof
 - [serde] Serde framework
 
       Id: pkg:cargo/serde@1.0.0
+      Type: SoftwareComponent
 `,
     },
   });
-  // pkg:cargo → SoftwareComponent → Depends-on accepts Component → OK
+  // pkg:cargo → SoftwareComponent → Depends-on accepts Component → OK.
+  // Explicit Type: on the Reference entry silences the step-5
+  // late-stage MSL-T021 warning that would otherwise fire.
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
@@ -781,9 +869,12 @@ Deno.test("validate: Reference display ID with valid slug passes", async () => {
 - [ISO-26262-6] ISO 26262 Part 6
 
       Id: urn:iso:std:iso:26262:-6:ed-2
+      Type: Requirement
 `,
     },
   });
+  // Explicit Type: silences the step-5 late-stage MSL-T021 that the
+  // urn:iso: scheme would otherwise produce.
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 

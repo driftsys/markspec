@@ -17,7 +17,11 @@ import type {
 } from "../model/mod.ts";
 import { CORE_TYPES } from "../model/mod.ts";
 import { compileDisplayIdPattern } from "./pattern.ts";
-import { explicitType, resolvedCoreType } from "./type_resolution.ts";
+import {
+  explicitType,
+  resolvedCoreType,
+  resolvedCoreTypeWithProvenance,
+} from "./type_resolution.ts";
 
 /**
  * Profile-declared concrete-type naming convention (spec §1.3): lowercase
@@ -60,6 +64,42 @@ export function inferTypeFromDisplayIdShape(
     severity: "warning",
     message: `${entry.displayId}: Type inferred as 'Unit' from display-ID ` +
       `shape (late-stage inference); declare 'Type:' explicitly to silence`,
+    location: entry.location,
+  }];
+}
+
+/**
+ * Late-stage type-inference warning for steps 5 and 6 of the §1.3.1
+ * resolution chain (URI scheme inference; discriminating-attribute
+ * presence). Per spec §1.3.2, MSL-T021 fires for any inference at
+ * step ≥ 5 — step 8 (display-ID shape) is covered by
+ * {@linkcode inferTypeFromDisplayIdShape} above, this function covers
+ * steps 5 and 6. Step 7 (document directive) is not yet wired through.
+ *
+ * Suppressed when the entry already carries a profile-classified
+ * `entry.type` — even if that profile type is not itself in the core
+ * hierarchy (e.g., `test` rather than `Test`). The author has already
+ * provided a type signal through the profile's display-ID-pattern
+ * mechanism; a late-stage warning about a different core type that
+ * happens to also resolve would be noise.
+ */
+export function inferTypeFromLateStageChain(
+  entry: Entry,
+): readonly Diagnostic[] {
+  if (entry.type !== undefined) return [];
+  const resolved = resolvedCoreTypeWithProvenance(entry);
+  if (!resolved) return [];
+  if (resolved.step < 5) return [];
+  const source = resolved.step === 5
+    ? "URI scheme"
+    : "discriminating attribute";
+  return [{
+    code: "MSL-T021",
+    severity: "warning",
+    message:
+      `${entry.displayId}: Type inferred as '${resolved.type}' from ${source} ` +
+      `(late-stage inference, step ${resolved.step}); declare 'Type:' ` +
+      `explicitly to silence`,
     location: entry.location,
   }];
 }

@@ -12,6 +12,7 @@ import {
   explicitType,
   inferTypeFromDisplayIdPrefix,
   resolvedCoreType,
+  resolvedCoreTypeWithProvenance,
 } from "./type_resolution.ts";
 import type { Entry } from "../model/mod.ts";
 
@@ -161,4 +162,102 @@ Deno.test("resolvedCoreType: step 4 falls back to prefix when no explicit Type a
     displayId: "REQ-001",
   };
   assertEquals(resolvedCoreType(reqEntry), "Requirement");
+});
+
+// ---------------------------------------------------------------------------
+// resolvedCoreTypeWithProvenance — tracks which step matched (spec §1.3.1)
+// ---------------------------------------------------------------------------
+
+Deno.test("resolvedCoreTypeWithProvenance: step 1 — explicit Type:", () => {
+  const entry = makeEntry({
+    attrs: [
+      { key: "Id", value: ULID },
+      { key: "Type", value: "Requirement" },
+    ],
+  });
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "Requirement", step: 1 },
+  );
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: step 2 — profile-classified entry.type", () => {
+  const entry = makeEntry({
+    attrs: [{ key: "Id", value: ULID }],
+    type: "SoftwareUnit",
+  });
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "SoftwareUnit", step: 2 },
+  );
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: step 3 — Source: introspection", () => {
+  const entry = makeEntry({
+    attrs: [
+      { key: "Id", value: ULID },
+      { key: "Source", value: "crates/foo/Cargo.toml" },
+    ],
+  });
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "SoftwareComponent", step: 3 },
+  );
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: step 4 — display-ID prefix", () => {
+  const entry = {
+    ...makeEntry({ attrs: [{ key: "Id", value: ULID }] }),
+    displayId: "REQ-001",
+  };
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "Requirement", step: 4 },
+  );
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: step 5 — URI scheme", () => {
+  const entry = makeEntry({
+    attrs: [{ key: "Id", value: "pkg:cargo/serde@1.0.0" }],
+    shape: "referenced",
+    id: "pkg:cargo/serde@1.0.0",
+  });
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "SoftwareComponent", step: 5 },
+  );
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: step 6 — discriminating attribute", () => {
+  const entry = makeEntry({
+    attrs: [
+      { key: "Id", value: ULID },
+      { key: "Verifies", value: "01HGW2Q8MNP3RSTVWXYZABCDEG" },
+    ],
+  });
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "Test", step: 6 },
+  );
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: undefined when nothing resolves", () => {
+  const entry = makeEntry({
+    attrs: [{ key: "Id", value: ULID }],
+  });
+  assertEquals(resolvedCoreTypeWithProvenance(entry), undefined);
+});
+
+Deno.test("resolvedCoreTypeWithProvenance: earliest step wins (explicit Type beats discriminator)", () => {
+  const entry = makeEntry({
+    attrs: [
+      { key: "Id", value: ULID },
+      { key: "Type", value: "Requirement" },
+      { key: "Verifies", value: "01HGW2Q8MNP3RSTVWXYZABCDEG" },
+    ],
+  });
+  assertEquals(
+    resolvedCoreTypeWithProvenance(entry),
+    { type: "Requirement", step: 1 },
+  );
 });
