@@ -7,18 +7,24 @@
  *
  *   1. Explicit `Type:` attribute.
  *   2. Profile-classified `entry.type` (set upstream).
+ *   3. `Source:` introspection (Cargo.toml → SoftwareComponent,
+ *      *.rs → SoftwareUnit, *.proto → SoftwareInterface, …).
  *   4. Authored display-ID prefix (`REQ` / `TST` / `ICD` / `REC` /
  *      `RSK`) → corresponding core Specification subtype.
  *   5. Reference-shape URI scheme inference (ADR-003 §Part 6).
  *
- * Step 3 (`Source:` introspection), step 6 (discriminating attribute),
- * and step 7 (document directive) are not consulted here; step 8
- * (display-ID shape) has its own warning-emitting stage in
- * `validator/types.ts` (`inferTypeFromDisplayIdShape`).
+ * Step 6 (discriminating attribute) and step 7 (document directive)
+ * are not consulted here; step 8 (display-ID shape) has its own
+ * warning-emitting stage in `validator/types.ts`
+ * (`inferTypeFromDisplayIdShape`).
  */
 
 import type { Entry } from "../model/mod.ts";
-import { CORE_TYPE_HIERARCHY, inferTypeFromUriScheme } from "../model/mod.ts";
+import {
+  CORE_TYPE_HIERARCHY,
+  inferTypeFromSource,
+  inferTypeFromUriScheme,
+} from "../model/mod.ts";
 
 /**
  * Map from Authored display-ID prefix to the core type the prefix
@@ -88,10 +94,26 @@ export function explicitType(entry: Entry): string | undefined {
  * type. The caller decides whether to skip validation, fall back to a
  * less specific check, or report on the unclassified state.
  */
+/** Read an entry's `Source:` attribute, trimmed; empty values yield `undefined`. */
+function sourceValue(entry: Entry): string | undefined {
+  for (const attr of entry.rawAttributes) {
+    if (attr.key !== "Source") continue;
+    const trimmed = attr.value.trim();
+    return trimmed.length === 0 ? undefined : trimmed;
+  }
+  return undefined;
+}
+
 export function resolvedCoreType(entry: Entry): string | undefined {
   const explicit = explicitType(entry);
   if (explicit && CORE_TYPE_HIERARCHY[explicit]) return explicit;
   if (entry.type && CORE_TYPE_HIERARCHY[entry.type]) return entry.type;
+  // Step 3: Source: introspection (filename / extension pattern match).
+  const source = sourceValue(entry);
+  if (source !== undefined) {
+    const inferred = inferTypeFromSource(source);
+    if (inferred && CORE_TYPE_HIERARCHY[inferred]) return inferred;
+  }
   // Step 4: Authored display-ID prefix.
   if (entry.shape === "identified") {
     const inferred = inferTypeFromDisplayIdPrefix(entry.displayId);

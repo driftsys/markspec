@@ -170,6 +170,57 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
 // Per-type attribute compatibility — spec §1.6, MSL-T022
 // ---------------------------------------------------------------------------
 
+Deno.test("validate: Source: Cargo.toml infers SoftwareComponent at step 3", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [my-crate] My crate
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Source: crates/my-crate/Cargo.toml
+      Bus-protocol: can
+`,
+    },
+  });
+  // Cargo.toml → SoftwareComponent at step 3. Bus-protocol is
+  // HardwareInterface-only → MSL-T022 (warning).
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Bus-protocol");
+});
+
+Deno.test("validate: Source: .rs file infers SoftwareUnit at step 3", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [debounce] Debounce function
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Source: src/braking/controller.rs
+      License: Apache-2.0
+`,
+    },
+  });
+  // .rs → SoftwareUnit. License is SoftwareComponent-only → MSL-T022.
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "License");
+});
+
 Deno.test("validate: [REQ-001] infers Requirement at step 4; Bus-protocol fires MSL-T022", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
