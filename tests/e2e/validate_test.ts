@@ -129,6 +129,107 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
 });
 
 // ---------------------------------------------------------------------------
+// Per-type attribute compatibility — spec §1.6, MSL-T022
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: Allocated-to on a Component fires MSL-T022 warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [comp-1] My component
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Component
+      Allocated-to: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "Allocated-to");
+  // The attr is core-known; MSL-R010 should NOT also fire on it.
+  assertEquals(
+    /MSL-R010[^\n]*Allocated-to/.test(stderr),
+    false,
+    `MSL-R010 should be suppressed for core-typed attributes; stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: Satisfies on a Requirement passes (inherits Specification)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] First requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Satisfies: 01HGW2Q8MNP3RSTVWXYZABCDEG
+
+- [REQ-002] Parent requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: Requirement
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+Deno.test("validate: License on a SoftwareComponent passes (own attribute)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [sw-1] My package
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: SoftwareComponent
+      License: Apache-2.0
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+});
+
+Deno.test("validate: License on a Specification fires MSL-T022 warning", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [spec-1] My specification
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Specification
+      License: Apache-2.0
+`,
+    },
+  });
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-T022");
+  assertStringIncludes(stderr, "License");
+});
+
+// ---------------------------------------------------------------------------
 // Captions — spec §2.6
 // ---------------------------------------------------------------------------
 

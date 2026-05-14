@@ -14,6 +14,13 @@ export type { AttributeSpec } from "./attributes.ts";
 export { COLOR_NAME_RE, PALETTE_HUES } from "./palette.ts";
 export type { PaletteHue } from "./palette.ts";
 
+export {
+  attributesForType,
+  CORE_TYPE_HIERARCHY,
+  CORE_TYPE_SCOPED_ATTRS,
+} from "./type_hierarchy.ts";
+export type { CoreTypeDef } from "./type_hierarchy.ts";
+
 // ---------------------------------------------------------------------------
 // Display ID
 // ---------------------------------------------------------------------------

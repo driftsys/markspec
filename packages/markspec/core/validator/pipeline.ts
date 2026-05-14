@@ -16,6 +16,7 @@ import {
   validateCoreTypeAttribute,
 } from "./types.ts";
 import { validateCaptions } from "./captions.ts";
+import { validatePerTypeAttributes } from "./per_type_attrs.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import { normalizeListValues } from "./normalize.ts";
 import { validateTraceabilityForEntry } from "./traceability.ts";
@@ -70,6 +71,7 @@ export function runPipeline(
     diagnostics.push(...validateCoreTypeAttribute(entry, profile));
     diagnostics.push(...inferTypeFromDisplayIdShape(entry));
     diagnostics.push(...validateCaptions(entry));
+    diagnostics.push(...validatePerTypeAttributes(entry));
   }
 
   // Stage 2 — classification (only when a profile is loaded).
