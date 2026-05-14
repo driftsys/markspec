@@ -35,6 +35,14 @@ const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
  */
 const REFERENCE_SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 
+/**
+ * HTTP(S) URL prefix for `Reference-url` value-type validation (spec
+ * §1.5). The spec specifies HTTPS, but `http://` is accepted for
+ * compatibility with existing fixtures — a future tightening slice can
+ * narrow to HTTPS-only via a configurable strictness knob.
+ */
+const REFERENCE_URL_RE = /^https?:\/\//;
+
 /** Result of a validation pass. */
 export interface ValidateResult {
   /** Diagnostics found during validation. */
@@ -167,7 +175,8 @@ function checkStructural(
       }
     }
 
-    // MSL-A030 / MSL-R010 checks per attribute (§4.4 / §4.8).
+    // MSL-A030 / MSL-A050 / MSL-R010 checks per attribute
+    // (§4.4 / §4.8 / spec §1.5).
     for (const attr of entry.rawAttributes) {
       // MSL-A030: generated-origin attributes must not appear in source.
       const spec = attributeSpec(attr.key);
@@ -180,6 +189,22 @@ function checkStructural(
           location: entry.location,
         });
         continue;
+      }
+      // MSL-A050: value does not parse against the declared value type
+      // (§4.4). The core knows the value type for the promoted Reference
+      // attributes (spec §1.5); profile-declared attribute types are
+      // validated by the profile-aware Stage 3 instead.
+      if (attr.key === "Reference-url") {
+        if (!REFERENCE_URL_RE.test(attr.value.trim())) {
+          diagnostics.push({
+            code: "MSL-A050",
+            severity: "error",
+            message: `${entry.displayId}: Reference-url value ` +
+              `'${attr.value.trim()}' is not an http(s) URL (spec §1.5)`,
+            location: entry.location,
+          });
+          continue;
+        }
       }
       // MSL-R010: Unknown attributes are warnings in the core. A
       // profile-aware validator widens this check to include profile-declared

@@ -541,6 +541,23 @@ Deno.test("validate: References citing an Authored entry fires MSL-R085 warning"
   assertStringIncludes(stderr, "REQ-002");
 });
 
+Deno.test("validate: Reference-url with non-HTTPS value fires MSL-A050", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [ISO-26262-6] ISO 26262 Part 6
+
+      Id: urn:iso:std:iso:26262:-6:ed-2
+      Reference-url: ftp://example.org/spec.pdf
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-A050");
+  assertStringIncludes(stderr, "Reference-url");
+});
+
 Deno.test("validate: Reference display ID with valid slug passes", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
