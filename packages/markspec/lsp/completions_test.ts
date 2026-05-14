@@ -8,9 +8,11 @@ import { assertEquals } from "@std/assert";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildTypeAttributeItems,
   extractRelationName,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
+  isTypeAttributeTrigger,
 } from "./completions.ts";
 import type { DisplayIdEntry } from "./workspace.ts";
 
@@ -93,4 +95,45 @@ Deno.test("buildBlockScaffoldItems: returns one item per type", () => {
   assertEquals(items.length, 2);
   assertEquals(items[0].label, "New stakeholder-requirement (STK_AEB_0004)");
   assertEquals(items[1].label, "New architecture (SAD_AEB_0002)");
+});
+
+// --- Type-attribute completion ---
+
+Deno.test("isTypeAttributeTrigger: matches '      Type:'", () => {
+  assertEquals(isTypeAttributeTrigger("      Type:"), true);
+});
+
+Deno.test("isTypeAttributeTrigger: matches 'Type: ' with trailing space", () => {
+  assertEquals(isTypeAttributeTrigger("      Type: "), true);
+});
+
+Deno.test("isTypeAttributeTrigger: matches partial value 'Type: Req'", () => {
+  assertEquals(isTypeAttributeTrigger("      Type: Req"), true);
+});
+
+Deno.test("isTypeAttributeTrigger: rejects unrelated key 'Source:'", () => {
+  assertEquals(isTypeAttributeTrigger("      Source: foo"), false);
+});
+
+Deno.test("isTypeAttributeTrigger: rejects 'Type-foo:' suffix", () => {
+  assertEquals(isTypeAttributeTrigger("      Type-foo:"), false);
+});
+
+Deno.test("buildTypeAttributeItems: returns core types when no profile types", () => {
+  const items = buildTypeAttributeItems([]);
+  // 4 abstract + 12 concrete = 16 core types.
+  assertEquals(items.length, 16);
+  const labels = items.map((i) => i.label);
+  // Spot-check a couple of core types are present.
+  assertEquals(labels.includes("Item"), true);
+  assertEquals(labels.includes("Requirement"), true);
+  assertEquals(labels.includes("SoftwareUnit"), true);
+});
+
+Deno.test("buildTypeAttributeItems: appends profile-declared types after core", () => {
+  const items = buildTypeAttributeItems(["requirement", "test"]);
+  assertEquals(items.length, 18);
+  // Profile types come after core types in the listing.
+  assertEquals(items[16].label, "requirement");
+  assertEquals(items[17].label, "test");
 });
