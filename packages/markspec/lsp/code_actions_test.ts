@@ -26,6 +26,53 @@ function diag(opts: {
   };
 }
 
+const DOC_WITH_GENERATED = `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Superseded-by: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+
+Deno.test("buildCodeActions: MSL-A030 → remove generated-attribute line", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A030",
+      message:
+        "REQ-001: 'Superseded-by' has generated origin and must not appear in source",
+      line: 2,
+      character: 0,
+    }),
+  ], DOC_WITH_GENERATED);
+  assertEquals(actions.length, 1);
+  const a = actions[0];
+  assertEquals(a.title, "Remove 'Superseded-by' line");
+  assertEquals(a.kind, "quickfix");
+  const edit = a.edit!.changes!["file:///x.md"][0];
+  // The Superseded-by line is line 7 (0-based) of DOC_WITH_GENERATED.
+  // The TextEdit covers the entire line including its trailing newline.
+  assertEquals(edit.newText, "");
+  assertEquals(edit.range.start.line, 7);
+  assertEquals(edit.range.start.character, 0);
+  assertEquals(edit.range.end.line, 8);
+  assertEquals(edit.range.end.character, 0);
+});
+
+Deno.test("buildCodeActions: MSL-A030 with missing source text yields no action", () => {
+  // Without the document text, the helper can't locate the line.
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A030",
+      message: "REQ-001: 'Derives' has generated origin",
+      line: 2,
+      character: 0,
+    }),
+  ]);
+  assertEquals(actions, []);
+});
+
 Deno.test("buildCodeActions: MSL-M060 → lowercase keyword quick fix", () => {
   const actions = buildCodeActions("file:///x.md", [
     diag({

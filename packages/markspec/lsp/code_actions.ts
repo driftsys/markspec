@@ -51,37 +51,95 @@ export interface CodeAction {
 /** Capture the keyword inside `'…'` in an MSL-M060 message. */
 const KEYWORD_RE = /modal keyword '([^']+)'/;
 
+/** Capture the attribute key inside `'…'` in an MSL-A030 message. */
+const ATTRIBUTE_KEY_RE = /'([A-Z][A-Za-z-]*)'/;
+
 /**
  * Build quick-fix actions for the supplied diagnostics. Returns an
  * empty array when none of the diagnostics has a known fix.
+ *
+ * `documentText` is optional; it's only needed for fixes that locate
+ * a specific line in the source (e.g. MSL-A030 attribute removal).
+ * MSL-M060 only invocations may omit it.
  */
 export function buildCodeActions(
   uri: string,
   diagnostics: readonly LspDiagnosticLike[],
+  documentText?: string,
 ): CodeAction[] {
   const out: CodeAction[] = [];
   for (const diag of diagnostics) {
-    if (diag.code !== "MSL-M060") continue;
-    const match = KEYWORD_RE.exec(diag.message);
-    if (!match) continue;
-    const keyword = match[1];
-    const lowercase = keyword.toLowerCase();
-    const startLine = diag.range.start.line;
-    const startChar = diag.range.start.character;
-    const edit: TextEdit = {
-      range: {
-        start: { line: startLine, character: startChar },
-        end: { line: startLine, character: startChar + keyword.length },
-      },
-      newText: lowercase,
-    };
-    out.push({
-      title: `Lowercase '${lowercase}'`,
+    if (diag.code === "MSL-M060") {
+      const action = buildM060Fix(uri, diag);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-A030" && documentText !== undefined) {
+      const action = buildA030Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    }
+  }
+  return out;
+}
+
+function buildM060Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+): CodeAction | undefined {
+  const match = KEYWORD_RE.exec(diag.message);
+  if (!match) return undefined;
+  const keyword = match[1];
+  const lowercase = keyword.toLowerCase();
+  const startLine = diag.range.start.line;
+  const startChar = diag.range.start.character;
+  const edit: TextEdit = {
+    range: {
+      start: { line: startLine, character: startChar },
+      end: { line: startLine, character: startChar + keyword.length },
+    },
+    newText: lowercase,
+  };
+  return {
+    title: `Lowercase '${lowercase}'`,
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: true,
+    edit: { changes: { [uri]: [edit] } },
+  };
+}
+
+function buildA030Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
+  if (!match) return undefined;
+  const attrKey = match[1];
+  // Walk forward from the diagnostic's line and find the trailer
+  // line that defines this attribute — `<indent><Key>:`. The parser
+  // canonicalises trailer indent to 6 spaces but accepts any indent
+  // ≥4 (one tab), so we match leniently.
+  const lines = documentText.split("\n");
+  const startLine = diag.range.start.line;
+  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
+  for (let i = startLine; i < lines.length; i++) {
+    if (!lineRe.test(lines[i])) continue;
+    return {
+      title: `Remove '${attrKey}' line`,
       kind: "quickfix",
       diagnostics: [diag],
       isPreferred: true,
-      edit: { changes: { [uri]: [edit] } },
-    });
+      edit: {
+        changes: {
+          [uri]: [{
+            range: {
+              start: { line: i, character: 0 },
+              end: { line: i + 1, character: 0 },
+            },
+            newText: "",
+          }],
+        },
+      },
+    };
   }
-  return out;
+  return undefined;
 }
