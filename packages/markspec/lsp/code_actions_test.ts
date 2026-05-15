@@ -46,6 +46,57 @@ const DOC_WITH_TYPO = `# Test
       Type: Requirment
 `;
 
+const DOC_WITH_DUP_TYPE = `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirement
+      Type: Specification
+`;
+
+Deno.test("buildCodeActions: MSL-A013 → remove duplicate single-cardinality lines", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A013",
+      message:
+        "REQ-001: 'Type' is single-cardinality but appears more than once (spec §1.8)",
+      line: 2,
+      character: 0,
+    }),
+  ], DOC_WITH_DUP_TYPE);
+  assertEquals(actions.length, 1);
+  const a = actions[0];
+  assertEquals(a.title, "Remove duplicate 'Type' line(s)");
+  assertEquals(a.kind, "quickfix");
+  const edits = a.edit!.changes!["file:///x.md"];
+  // First Type line (line 7) is kept; the duplicate (line 8) is
+  // deleted. Exactly one edit, covering line 8's full line.
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].newText, "");
+  assertEquals(edits[0].range.start.line, 8);
+  assertEquals(edits[0].range.start.character, 0);
+  assertEquals(edits[0].range.end.line, 9);
+  assertEquals(edits[0].range.end.character, 0);
+});
+
+Deno.test("buildCodeActions: MSL-A013 with only one occurrence yields no action", () => {
+  // Defensive: a single Type line means nothing to dedup.
+  const doc = `# Test\n\n      Type: Requirement\n`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A013",
+      message:
+        "REQ-001: 'Type' is single-cardinality but appears more than once",
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
 Deno.test("buildCodeActions: MSL-T020 → suggest closest core type", () => {
   const actions = buildCodeActions("file:///x.md", [
     diag({

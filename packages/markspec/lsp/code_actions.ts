@@ -13,6 +13,9 @@
  *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
  *     closest core type, when one is within Levenshtein distance 3.
  *     "Did you mean …" rather than exhaustive suggestions.
+ *   - **MSL-A013** — single-cardinality attribute appears more than
+ *     once. Action: delete every duplicate trailer line, keeping the
+ *     first occurrence.
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
@@ -88,6 +91,9 @@ export function buildCodeActions(
       if (action) out.push(action);
     } else if (diag.code === "MSL-T020" && documentText !== undefined) {
       const action = buildT020Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-A013" && documentText !== undefined) {
+      const action = buildA013Fix(uri, diag, documentText);
       if (action) out.push(action);
     }
   }
@@ -197,6 +203,51 @@ function buildT020Fix(
     };
   }
   return undefined;
+}
+
+function buildA013Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
+  if (!match) return undefined;
+  const attrKey = match[1];
+  // Collect every trailer line that defines this attribute, from the
+  // diagnostic's line forward. Keep the first; emit a delete edit
+  // for each subsequent one. Stop scanning once a non-trailer,
+  // non-blank line is hit (end of the trailer block).
+  const lines = documentText.split("\n");
+  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
+  const trailerRe = /^\s{4,}[A-Z][A-Za-z-]*\s*:/;
+  const dupLines: number[] = [];
+  let seenFirst = false;
+  let inBlock = false;
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    const line = lines[i];
+    if (lineRe.test(line)) {
+      inBlock = true;
+      if (seenFirst) dupLines.push(i);
+      else seenFirst = true;
+    } else if (inBlock && line.trim() !== "" && !trailerRe.test(line)) {
+      break;
+    }
+  }
+  if (dupLines.length === 0) return undefined;
+  const edits: TextEdit[] = dupLines.map((i) => ({
+    range: {
+      start: { line: i, character: 0 },
+      end: { line: i + 1, character: 0 },
+    },
+    newText: "",
+  }));
+  return {
+    title: `Remove duplicate '${attrKey}' line(s)`,
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: true,
+    edit: { changes: { [uri]: edits } },
+  };
 }
 
 /** Return the closest core type name within {@linkcode MAX_SUGGESTION_DISTANCE}
