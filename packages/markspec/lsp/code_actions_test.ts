@@ -67,6 +67,52 @@ const DOC_WITH_CSV_REFS = `# Test
       References: ISO-1, ISO-2, ISO-3
 `;
 
+const DOC_WITH_EMPTY_LABELS = `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Labels: , ,
+`;
+
+Deno.test("buildCodeActions: MSL-A012 → remove empty repeatable line", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A012",
+      message:
+        "REQ-001: 'Labels' is a repeatable attribute but the value list is empty (spec §1.8)",
+      line: 2,
+      character: 0,
+    }),
+  ], DOC_WITH_EMPTY_LABELS);
+  assertEquals(actions.length, 1);
+  const a = actions[0];
+  assertEquals(a.title, "Remove empty 'Labels' line");
+  assertEquals(a.kind, "quickfix");
+  const edit = a.edit!.changes!["file:///x.md"][0];
+  // Labels line is line 7 (0-based); the edit deletes the whole line.
+  assertEquals(edit.newText, "");
+  assertEquals(edit.range.start.line, 7);
+  assertEquals(edit.range.start.character, 0);
+  assertEquals(edit.range.end.line, 8);
+  assertEquals(edit.range.end.character, 0);
+});
+
+Deno.test("buildCodeActions: MSL-A012 with missing source text yields no action", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A012",
+      message:
+        "REQ-001: 'Labels' is a repeatable attribute but the value list is empty",
+      line: 2,
+      character: 0,
+    }),
+  ]);
+  assertEquals(actions, []);
+});
+
 Deno.test("buildCodeActions: MSL-A011 → rewrite citation CSV as multi-line", () => {
   const actions = buildCodeActions("file:///x.md", [
     diag({
