@@ -7,16 +7,15 @@
  *
  * Currently handles:
  *
- *   - **MSL-M060** — uppercase modal keyword in body prose. Action:
- *     replace the keyword with its lowercase form. Single-token
- *     (`SHALL`, `SHOULD`, `MAY`, `MUST`) and two-token (`MUST NOT`,
- *     etc.) forms both supported.
- *
- * The validator already emits MSL-M060 with a per-character
- * position pointing at the keyword's start, so the fix's range is
- * `[start, start + keyword.length]`. The keyword itself comes from
- * the diagnostic message (`'<keyword>'`).
+ *   - **MSL-M060** — uppercase modal keyword. Action: lowercase it.
+ *   - **MSL-A030** — generated attribute in source. Action: remove
+ *     the offending trailer line.
+ *   - **MSL-T020** — unknown `Type:` value. Action: replace with the
+ *     closest core type, when one is within Levenshtein distance 3.
+ *     "Did you mean …" rather than exhaustive suggestions.
  */
+
+import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
 
 /** A subset of the LSP `Diagnostic` interface — just what the
  * code-action walker needs. */
@@ -54,6 +53,18 @@ const KEYWORD_RE = /modal keyword '([^']+)'/;
 /** Capture the attribute key inside `'…'` in an MSL-A030 message. */
 const ATTRIBUTE_KEY_RE = /'([A-Z][A-Za-z-]*)'/;
 
+/** Capture the bad type value inside `'…'` in an MSL-T020 message. */
+const T020_VALUE_RE = /Type: '([^']+)'/;
+
+/** All core type names — search target for MSL-T020 "did you mean" fixes. */
+const ALL_CORE_TYPES: readonly string[] = [
+  ...CORE_ABSTRACT_TYPES,
+  ...CORE_CONCRETE_TYPES,
+];
+
+/** Max acceptable Levenshtein distance for a type-name suggestion. */
+const MAX_SUGGESTION_DISTANCE = 3;
+
 /**
  * Build quick-fix actions for the supplied diagnostics. Returns an
  * empty array when none of the diagnostics has a known fix.
@@ -74,6 +85,9 @@ export function buildCodeActions(
       if (action) out.push(action);
     } else if (diag.code === "MSL-A030" && documentText !== undefined) {
       const action = buildA030Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-T020" && documentText !== undefined) {
+      const action = buildT020Fix(uri, diag, documentText);
       if (action) out.push(action);
     }
   }
@@ -142,4 +156,84 @@ function buildA030Fix(
     };
   }
   return undefined;
+}
+
+function buildT020Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const match = T020_VALUE_RE.exec(diag.message);
+  if (!match) return undefined;
+  const badValue = match[1];
+  const suggestion = closestCoreType(badValue);
+  if (!suggestion) return undefined;
+  // Scan forward from the diagnostic line for the matching Type:
+  // trailer line, then locate the bad value's column within it.
+  const lines = documentText.split("\n");
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    const line = lines[i];
+    const idx = line.indexOf(badValue);
+    if (idx < 0) continue;
+    // Confirm this line is a `Type:` trailer (defensive against an
+    // accidental occurrence of the bad value in body prose).
+    if (!/^\s{4,}Type\s*:/.test(line)) continue;
+    return {
+      title: `Replace with '${suggestion}'`,
+      kind: "quickfix",
+      diagnostics: [diag],
+      isPreferred: true,
+      edit: {
+        changes: {
+          [uri]: [{
+            range: {
+              start: { line: i, character: idx },
+              end: { line: i, character: idx + badValue.length },
+            },
+            newText: suggestion,
+          }],
+        },
+      },
+    };
+  }
+  return undefined;
+}
+
+/** Return the closest core type name within {@linkcode MAX_SUGGESTION_DISTANCE}
+ * Levenshtein distance, or `undefined` when nothing is close enough. */
+function closestCoreType(value: string): string | undefined {
+  let best: string | undefined;
+  let bestDistance = MAX_SUGGESTION_DISTANCE + 1;
+  for (const candidate of ALL_CORE_TYPES) {
+    const d = levenshtein(value, candidate);
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = candidate;
+    }
+  }
+  return bestDistance <= MAX_SUGGESTION_DISTANCE ? best : undefined;
+}
+
+/** Iterative O(n·m) Levenshtein distance with a single row buffer. */
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  let prev = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  const curr = new Array(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        curr[j - 1] + 1,
+        prev[j] + 1,
+        prev[j - 1] + cost,
+      );
+    }
+    [prev, curr[0]] = [curr.slice(), 0];
+    for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+  }
+  return prev[b.length];
 }
