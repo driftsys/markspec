@@ -1506,6 +1506,16 @@ carrying an `Id:` attribute.
 `MSL-T014` is reserved for a future registry-chain check on `References:`
 (warning severity) when reference resolution via upstream registries lands.
 
+Type resolution and per-type attribute validation (spec §1.3, §1.6):
+
+| ID         | Severity | Rule                                                                                                                           |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `MSL-T020` | error    | `Type:` value is neither a core type nor a profile-declared type.                                                              |
+| `MSL-T021` | warning  | Core type inferred (display-ID prefix, URI scheme, or discriminating attribute); declare `Type:` explicitly to silence.        |
+| `MSL-T022` | warning  | Attribute is core-known but not valid on the entry's resolved type.                                                            |
+| `MSL-T023` | error    | `Type:` value looks like a profile-declared type but no profile is loaded (core-only mode).                                    |
+| `MSL-T024` | warning  | Entry carries a type-specific attribute but its core type could not be resolved (no `Type:`, no profile, no inferable signal). |
+
 Profile-declared enum attributes (e.g., `ASIL`, `Test-level`, `Element-kind`)
 are validated against the vocabulary declared in the active profile's manifest.
 The core defines no enum vocabularies of its own.
