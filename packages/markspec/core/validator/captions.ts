@@ -8,7 +8,7 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { FENCE_RE } from "../util/fence.ts";
+import { FENCE_RE, walkProseLines } from "../util/fence.ts";
 
 /** Caption keywords recognised by the core. */
 const CAPTION_KEYWORDS = [
@@ -76,17 +76,14 @@ function classifyAdjacentBlock(line: string): CaptionKeyword | undefined {
 export function validateCaptions(entry: Entry): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const lines = entry.body.split("\n");
-  let inFence = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    if (FENCE_RE.test(lines[i])) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-
+  // `walkProseLines` invokes the callback for exactly the lines the
+  // old hand-rolled fence toggle reached — fenced code and the fence
+  // markers themselves are skipped. We keep the split `lines` array
+  // for the above/below neighbour scan, indexed by the callback's `i`.
+  walkProseLines(entry.body, (_line, i) => {
     const match = CAPTION_LINE_RE.exec(lines[i]);
-    if (!match) continue;
+    if (!match) return;
     const keyword = match[1] as CaptionKeyword;
     const matcher = captionableMatchers[keyword];
 
@@ -106,7 +103,7 @@ export function validateCaptions(entry: Entry): readonly Diagnostic[] {
       ? classifyAdjacentBlock(lines[below])
       : undefined;
 
-    if (aboveBlock || belowBlock) continue;
+    if (aboveBlock || belowBlock) return;
 
     // No matching block adjacent. Decide between C070 (no captionable
     // block at all) and C071 (a captionable block of the wrong type).
@@ -123,7 +120,7 @@ export function validateCaptions(entry: Entry): readonly Diagnostic[] {
           column: 1,
         },
       });
-      continue;
+      return;
     }
 
     diagnostics.push({
@@ -138,7 +135,7 @@ export function validateCaptions(entry: Entry): readonly Diagnostic[] {
         column: 1,
       },
     });
-  }
+  });
 
   return diagnostics;
 }

@@ -1513,6 +1513,31 @@ Deno.test("validate: Figure: caption adjacent to image passes", async () => {
   assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
 });
 
+Deno.test("validate: caption keyword inside a fenced code block is not flagged", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [SRS_BRK_0001] Sensor input
+
+  Body text.
+
+  \`\`\`
+  Figure: this is sample code, not a real caption
+  \`\`\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(
+    stderr.includes("MSL-C070") || stderr.includes("MSL-C071"),
+    false,
+    `caption inside fence must not be flagged; stderr: ${stderr}`,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
