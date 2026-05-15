@@ -57,6 +57,57 @@ const DOC_WITH_DUP_TYPE = `# Test
       Type: Specification
 `;
 
+const DOC_WITH_CSV_REFS = `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      References: ISO-1, ISO-2, ISO-3
+`;
+
+Deno.test("buildCodeActions: MSL-A011 → rewrite citation CSV as multi-line", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A011",
+      message:
+        "REQ-001: 'References' is citation-typed and must use multi-line form (spec §2.3.2)",
+      line: 2,
+      character: 0,
+    }),
+  ], DOC_WITH_CSV_REFS);
+  assertEquals(actions.length, 1);
+  const a = actions[0];
+  assertEquals(a.title, "Rewrite 'References' as multi-line");
+  assertEquals(a.kind, "quickfix");
+  const edit = a.edit!.changes!["file:///x.md"][0];
+  // The CSV line (line 7) is replaced with three indented lines,
+  // preserving the original 6-space indent.
+  assertEquals(edit.range.start.line, 7);
+  assertEquals(edit.range.start.character, 0);
+  assertEquals(edit.range.end.line, 8);
+  assertEquals(edit.range.end.character, 0);
+  assertEquals(
+    edit.newText,
+    "      References: ISO-1\n      References: ISO-2\n      References: ISO-3\n",
+  );
+});
+
+Deno.test("buildCodeActions: MSL-A011 with a single value yields no action", () => {
+  const doc = `# Test\n\n      References: ISO-1\n`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-A011",
+      message:
+        "REQ-001: 'References' is citation-typed and must use multi-line form",
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
 Deno.test("buildCodeActions: MSL-A013 → remove duplicate single-cardinality lines", () => {
   const actions = buildCodeActions("file:///x.md", [
     diag({
