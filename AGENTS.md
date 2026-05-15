@@ -73,7 +73,7 @@ markspec/
 │       │   │                          Capabilities: diagnostics, completions,
 │       │   │                          hover, definition, references, document /
 │       │   │                          workspace symbols, rename, folding,
-│       │   │                          document highlights.
+│       │   │                          document highlights, code actions.
 │       │   ├── workspace.ts         ← in-memory entry index, incremental updates
 │       │   ├── diagnostics.ts       ← core Diagnostic → LSP Diagnostic bridge
 │       │   ├── completions.ts       ← block scaffold + ID reference + Type:
@@ -90,6 +90,8 @@ markspec/
 │       │   ├── folding.ts           ← one foldable region per entry block
 │       │   ├── highlights.ts        ← document highlights (read / write) for
 │       │   │                          whole-token display-ID matches in file
+│       │   ├── code_actions.ts      ← quick-fix code actions for diagnostics
+│       │   │                          (MSL-M060 lowercase, MSL-A030 remove)
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       └── mcp/
@@ -129,8 +131,9 @@ alone:**
 @packages/markspec/lsp/definition.ts @packages/markspec/lsp/references.ts
 @packages/markspec/lsp/rename.ts @packages/markspec/lsp/symbols.ts
 @packages/markspec/lsp/folding.ts @packages/markspec/lsp/highlights.ts
-@packages/markspec/lsp/context.ts @packages/markspec/lsp/diagnostics.ts
-@packages/markspec/lsp/util.ts @packages/markspec/main.ts
+@packages/markspec/lsp/code_actions.ts @packages/markspec/lsp/context.ts
+@packages/markspec/lsp/diagnostics.ts @packages/markspec/lsp/util.ts
+@packages/markspec/main.ts
 
 ## Key rules
 

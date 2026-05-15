@@ -598,10 +598,17 @@ connection.onRenameRequest(async (params) => {
 connection.onCodeAction((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   if (!isMarkspecFile(filePath)) return null;
+  const document = documents.get(params.textDocument.uri);
+  const documentText = document?.getText();
   // deno-lint-ignore no-explicit-any
   const diagnostics = params.context.diagnostics as any;
+  const actions = buildCodeActions(
+    params.textDocument.uri,
+    diagnostics,
+    documentText,
+  );
   // deno-lint-ignore no-explicit-any
-  return buildCodeActions(params.textDocument.uri, diagnostics) as any;
+  return actions as any;
 });
 
 // ---------------------------------------------------------------------------
