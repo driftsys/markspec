@@ -4,6 +4,11 @@
  * MarkSpec document model — AST types, ID types, and project configuration.
  */
 
+// model/mod.ts ↔ ast/nodes.ts is a mutual type-only import cycle
+// (nodes.ts imports EntityRefConvention here); TypeScript resolves it
+// cleanly because both directions are `import type`.
+import type { BodyBlock } from "../ast/nodes.ts";
+
 export {
   ATTRIBUTE_CATALOG,
   attributeSpec,
@@ -311,6 +316,8 @@ export interface Entry {
   readonly title: string;
   /** Body content (paragraphs, alerts, code blocks) between title and attributes. */
   readonly body: string;
+  /** Canonical body AST (PR 2: additive, not yet consumed). */
+  readonly bodyAst?: readonly BodyBlock[];
   /**
    * Source-order raw attribute array. Used by the formatter for round-trip
    * fidelity (preserving key casing, line order, and trailing backslashes).
