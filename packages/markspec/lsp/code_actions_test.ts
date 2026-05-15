@@ -36,6 +36,58 @@ const DOC_WITH_GENERATED = `# Test
       Superseded-by: 01HGW2Q8MNP3RSTVWXYZABCDEG
 `;
 
+const DOC_WITH_TYPO = `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: Requirment
+`;
+
+Deno.test("buildCodeActions: MSL-T020 → suggest closest core type", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-T020",
+      message:
+        "REQ-001: Type: 'Requirment' is not a core type or a profile-declared type",
+      line: 2,
+      character: 0,
+    }),
+  ], DOC_WITH_TYPO);
+  // Should suggest 'Requirement' (closest match).
+  const reqAction = actions.find((a) => a.title.includes("Requirement"));
+  assertEquals(
+    reqAction !== undefined,
+    true,
+    `expected a 'Requirement' suggestion, got: ${
+      actions.map((a) => a.title).join(", ")
+    }`,
+  );
+  const edit = reqAction!.edit!.changes!["file:///x.md"][0];
+  assertEquals(edit.newText, "Requirement");
+  // Line 7 (0-based) is the `Type: Requirment` line. Column 12 is
+  // where 'Requirment' starts (after `      Type: `).
+  assertEquals(edit.range.start.line, 7);
+  assertEquals(edit.range.start.character, 12);
+  assertEquals(edit.range.end.character, 22); // 12 + 'Requirment'.length
+});
+
+Deno.test("buildCodeActions: MSL-T020 with valid core type far from any match yields no action", () => {
+  // 'Xyz' has edit distance >3 to every core type → no suggestion.
+  const doc = `# Test\n\n      Type: Xyz\n`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-T020",
+      message: "REQ-001: Type: 'Xyz' is not a core type",
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
 Deno.test("buildCodeActions: MSL-A030 → remove generated-attribute line", () => {
   const actions = buildCodeActions("file:///x.md", [
     diag({

@@ -91,7 +91,8 @@ markspec/
 │       │   ├── highlights.ts        ← document highlights (read / write) for
 │       │   │                          whole-token display-ID matches in file
 │       │   ├── code_actions.ts      ← quick-fix code actions for diagnostics
-│       │   │                          (MSL-M060 lowercase, MSL-A030 remove)
+│       │   │                          (MSL-M060 lowercase, MSL-A030 remove,
+│       │   │                          MSL-T020 suggest)
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       └── mcp/
