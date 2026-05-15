@@ -10,7 +10,12 @@
 
 import { Command } from "@cliffy/command";
 import { ConfigError, VERSION } from "./core/mod.ts";
-import type { CompileResult, ProfileChain, ReadFile } from "./core/mod.ts";
+import type {
+  CaptionConventions,
+  CompileResult,
+  ProfileChain,
+  ReadFile,
+} from "./core/mod.ts";
 import type { BookStructure, Chapter } from "./book/mod.ts";
 
 /** Print "not yet implemented" to stderr and exit 1. */
@@ -648,11 +653,23 @@ const cli = new Command()
         Deno.exit(1);
       }
 
-      const { discoverProjectRoot } = await import("./core/mod.ts");
+      const { discoverProjectRoot, loadConfig } = await import("./core/mod.ts");
       const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
       const chain = projectRoot !== undefined
         ? await loadActiveProfile(projectRoot)
         : null;
+
+      // Load project config for config-driven rules (e.g. MSL-C072
+      // caption-position convention). Absent config → defaults (rules inactive).
+      let captionConventions: CaptionConventions = {};
+      if (projectRoot !== undefined) {
+        try {
+          const configResult = await loadConfig(projectRoot, readFile);
+          if (configResult) {
+            captionConventions = configResult.config.captionConventions;
+          }
+        } catch { /* config load failure is non-fatal for validate */ }
+      }
 
       const { parseFile, runPipeline } = await import("./core/mod.ts");
 
@@ -669,7 +686,11 @@ const cli = new Command()
         allEntries.push(...result.entries);
       }
 
-      const result = runPipeline(allEntries, chain?.effective ?? null);
+      const result = runPipeline(
+        allEntries,
+        chain?.effective ?? null,
+        captionConventions,
+      );
 
       // Apply --strict: promote warnings to errors.
       const diagnostics = options.strict
@@ -1188,13 +1209,24 @@ const cli = new Command()
       Deno.exit(0);
     }
 
-    const { discoverProjectRoot, format, parseFile, runPipeline } =
+    const { discoverProjectRoot, format, loadConfig, parseFile, runPipeline } =
       await import("./core/mod.ts");
 
     const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
     const chain = projectRoot !== undefined
       ? await loadActiveProfile(projectRoot)
       : null;
+
+    // Load caption conventions for MSL-C072.
+    let hookCaptionConventions: CaptionConventions = {};
+    if (projectRoot !== undefined) {
+      try {
+        const configResult = await loadConfig(projectRoot, readFile);
+        if (configResult) {
+          hookCaptionConventions = configResult.config.captionConventions;
+        }
+      } catch { /* non-fatal */ }
+    }
 
     let hadError = false;
     const allEntries = [];
@@ -1227,7 +1259,11 @@ const cli = new Command()
     }
 
     if (!hadError) {
-      const result = runPipeline(allEntries, chain?.effective ?? null);
+      const result = runPipeline(
+        allEntries,
+        chain?.effective ?? null,
+        hookCaptionConventions,
+      );
       for (const d of result.diagnostics) {
         const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
         console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);

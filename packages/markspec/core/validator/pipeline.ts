@@ -8,7 +8,12 @@
  * and Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}).
  */
 
-import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
+import type {
+  CaptionConventions,
+  Diagnostic,
+  EffectiveProfile,
+  Entry,
+} from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import {
   classifyEntriesStage,
@@ -24,6 +29,8 @@ import { validateTraceTargetTypes } from "./trace_types.ts";
 import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import { normalizeListValues } from "./normalize.ts";
 import { validateTraceabilityForEntry } from "./traceability.ts";
+import { validateFeatureAc } from "./feature_ac.ts";
+import { validateCaptionConvention } from "./caption_convention.ts";
 
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
@@ -43,10 +50,16 @@ export interface PipelineResult {
  *
  * When `profile` is `null`, entries pass through unchanged (no `type`
  * assignments).
+ *
+ * @param captionConventions - Optional project-configured caption-position
+ *   conventions (from `ProjectConfig.captionConventions`). When supplied
+ *   and non-empty, MSL-C072 is checked for each entry. Defaults to no
+ *   conventions (rule inactive).
  */
 export function runPipeline(
   entries: readonly Entry[],
   profile: EffectiveProfile | null,
+  captionConventions: CaptionConventions = {},
 ): PipelineResult {
   const diagnostics: Diagnostic[] = [];
 
@@ -75,7 +88,9 @@ export function runPipeline(
     diagnostics.push(...validateCoreTypeAttribute(entry, profile));
     diagnostics.push(...inferTypeFromDisplayIdShape(entry));
     diagnostics.push(...validateCaptions(entry));
+    diagnostics.push(...validateCaptionConvention(entry, captionConventions));
     diagnostics.push(...validateBodyBlocks(entry));
+    diagnostics.push(...validateFeatureAc(entry));
     diagnostics.push(...validatePerTypeAttributes(entry));
     diagnostics.push(...validateModalKeywords(entry));
   }

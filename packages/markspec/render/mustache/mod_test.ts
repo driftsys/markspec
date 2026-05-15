@@ -24,6 +24,7 @@ function makeConfig(
     labels: [],
     parents: [],
     parentFallback: "",
+    captionConventions: {},
     ...overrides,
   };
 }

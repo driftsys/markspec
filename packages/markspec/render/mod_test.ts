@@ -22,6 +22,7 @@ function testConfig(): ProjectConfig {
     labels: [],
     parents: [],
     parentFallback: "",
+    captionConventions: {},
   };
 }
 

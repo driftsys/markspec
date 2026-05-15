@@ -1814,3 +1814,183 @@ Deno.test("validate: no files exits 1", async () => {
   assertEquals(code, 1);
   assertStringIncludes(stderr, "no files specified");
 });
+
+// ---------------------------------------------------------------------------
+// MSL-B044 — Feature block + Acceptance criteria list collision (warning)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: MSL-B044 fires when Feature + AC list present", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Requirements
+
+- [REQ-001] Emergency braking feature
+
+  The system shall apply emergency braking.
+
+  \`\`\`gherkin
+  Feature: Emergency braking
+    Scenario: Collision avoidance
+      Given the vehicle is moving at 60 km/h
+      When an obstacle is detected at 30 m
+      Then emergency braking is applied
+  \`\`\`
+
+  Acceptance criteria
+
+  - The vehicle stops within the required distance
+  - No false activations occur
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // MSL-B044 is a warning → exit 2
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-B044");
+  assertStringIncludes(stderr, "Acceptance criteria");
+});
+
+Deno.test("validate: MSL-B044 does not fire for Feature only (no AC list)", async () => {
+  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Requirements
+
+- [REQ-001] Emergency braking feature
+
+  The system shall apply emergency braking.
+
+  \`\`\`gherkin
+  Feature: Emergency braking
+    Scenario: Collision avoidance
+      Given the vehicle is moving
+      Then braking is applied
+  \`\`\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // Warning from MSL-M061 (no modal keyword — but "shall" is present above)
+  // Let's check MSL-B044 is absent
+  assertEquals(
+    stderr.includes("MSL-B044"),
+    false,
+    `MSL-B044 should not fire; stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: MSL-B044 does not fire for AC list only (no Feature)", async () => {
+  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Requirements
+
+- [REQ-001] Emergency braking requirement
+
+  The system shall apply emergency braking.
+
+  Acceptance criteria
+
+  - The vehicle stops within the required distance
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(
+    stderr.includes("MSL-B044"),
+    false,
+    `MSL-B044 should not fire; stderr: ${stderr}`,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// MSL-C072 — caption position violates project-configured convention (warning)
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: MSL-C072 fires when Figure caption is below but convention=above", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": `name: test-project
+caption-conventions:
+  Figure: above
+`,
+      "req.md": `# Requirements
+
+- [REQ-001] System diagram requirement
+
+  See the brake diagram below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  // MSL-C072 is a warning → exit 2
+  assertEquals(
+    code,
+    2,
+    `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-C072");
+  assertStringIncludes(stderr, "Figure");
+});
+
+Deno.test("validate: MSL-C072 does not fire when Figure caption is below and convention=below", async () => {
+  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": `name: test-project
+caption-conventions:
+  Figure: below
+`,
+      "req.md": `# Requirements
+
+- [REQ-001] System diagram requirement
+
+  See the brake diagram below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(
+    stderr.includes("MSL-C072"),
+    false,
+    `MSL-C072 should not fire when convention matches; stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: MSL-C072 does not fire when no caption-conventions configured", async () => {
+  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Requirements
+
+- [REQ-001] System diagram requirement
+
+  See the brake diagram below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(
+    stderr.includes("MSL-C072"),
+    false,
+    `MSL-C072 should not fire without project config; stderr: ${stderr}`,
+  );
+});

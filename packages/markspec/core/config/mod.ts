@@ -8,6 +8,8 @@
 import { parse as parseYaml } from "@std/yaml";
 import { dirname, join, resolve } from "@std/path";
 import {
+  type CaptionConventions,
+  type CaptionPosition,
   ConfigError,
   type ConfigFieldError,
   DEFAULT_PROJECT_CONFIG,
@@ -211,6 +213,66 @@ export function parseProjectConfig(
     }
   }
 
+  // caption-conventions: optional mapping of keyword → "above" | "below"
+  let captionConventions: CaptionConventions =
+    DEFAULT_PROJECT_CONFIG.captionConventions;
+  const captionConventionsKey = "caption-conventions";
+  if (
+    obj[captionConventionsKey] !== undefined &&
+    obj[captionConventionsKey] !== null
+  ) {
+    const raw = obj[captionConventionsKey];
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+      errors.push({
+        field: captionConventionsKey,
+        message: `expected a mapping of caption-keyword: above|below, got ${
+          Array.isArray(raw) ? "array" : typeof raw
+        }`,
+        line: findLineNumber(yaml, captionConventionsKey),
+      });
+    } else {
+      const rawMap = raw as Record<string, unknown>;
+      const VALID_KEYWORDS = new Set([
+        "Figure",
+        "Table",
+        "Listing",
+        "Feature",
+        "Equation",
+        "List",
+      ]);
+      const parsed: Record<string, CaptionPosition> = {};
+      let badKey: string | undefined;
+      const captionErrsBefore = errors.length;
+      for (const [kw, pos] of Object.entries(rawMap)) {
+        if (!VALID_KEYWORDS.has(kw)) {
+          badKey = kw;
+          break;
+        }
+        if (pos !== "above" && pos !== "below") {
+          errors.push({
+            field: `${captionConventionsKey}.${kw}`,
+            message: `expected "above" or "below", got ${JSON.stringify(pos)}`,
+            line: findLineNumber(yaml, captionConventionsKey),
+          });
+          continue;
+        }
+        parsed[kw] = pos as CaptionPosition;
+      }
+      if (badKey !== undefined) {
+        errors.push({
+          field: `${captionConventionsKey}.${badKey}`,
+          message: `unknown caption keyword '${badKey}'; valid keywords: ${
+            [...VALID_KEYWORDS].join(", ")
+          }`,
+          line: findLineNumber(yaml, captionConventionsKey),
+        });
+      }
+      if (errors.length === captionErrsBefore) {
+        captionConventions = parsed;
+      }
+    }
+  }
+
   if (errors.length > 0) {
     throw new ConfigError(filePath, errors);
   }
@@ -221,6 +283,7 @@ export function parseProjectConfig(
     labels,
     parents,
     parentFallback,
+    captionConventions,
   };
 }
 
