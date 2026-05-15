@@ -18,7 +18,7 @@ import { attributeSpec, IDENTITY_KEY } from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
-import { walkProseLines } from "../util/fence.ts";
+import { FENCE_RE, walkProseLines } from "../util/fence.ts";
 import { synthesizedUlid } from "./synth_ulid.ts";
 
 /**
@@ -366,7 +366,7 @@ function collapseBlankLines(lines: readonly string[]): string[] {
   let inFence = false;
   let prevBlank = false;
   for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) {
+    if (FENCE_RE.test(line)) {
       out.push(line);
       inFence = !inFence;
       prevBlank = false;
