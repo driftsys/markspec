@@ -109,11 +109,20 @@ export function validateCaptions(entry: Entry): readonly Diagnostic[] {
     // block at all) and C071 (a captionable block of the wrong type).
     const mismatchKind = aboveKind ?? belowKind;
     if (mismatchKind !== undefined) {
+      // `Listing` and `Feature` share a fence-only matcher and the
+      // closing ``` carries no language tag, so a fenced block is
+      // genuinely ambiguous between the two (classifyAdjacentBlock
+      // can only ever return `Listing` for a fence). Name the
+      // ambiguity instead of asserting one — disambiguation needs
+      // the deferred fence-language pre-scan.
+      const mismatchLabel = mismatchKind === "Listing"
+        ? "Listing or Feature (fenced)"
+        : mismatchKind;
       diagnostics.push({
         code: "MSL-C071",
         severity: "error",
         message: `${entry.displayId}: ${keyword}: caption is adjacent to a ` +
-          `${mismatchKind} block, not a ${keyword} block (spec §4.7)`,
+          `${mismatchLabel} block, not a ${keyword} block (spec §4.7)`,
         location: {
           file: entry.location.file,
           line: entry.location.line + 1 + i,

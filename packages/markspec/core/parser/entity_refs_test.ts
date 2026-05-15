@@ -88,6 +88,18 @@ Deno.test("extractEntityRefs: standalone $ident inside inline math still fires (
   assertEquals(refs[0].ident, "$foo");
 });
 
+Deno.test("extractEntityRefs: skips $ident inside a multi-line $$ display-math block", () => {
+  const body = [
+    "Before $alpha here.",
+    "$$",
+    "E = $betaMatrix + 1",
+    "$$",
+    "After $gamma here.",
+  ].join("\n");
+  const refs = extractEntityRefs(body, baseLocation);
+  assertEquals(refs.map((r) => r.ident), ["$alpha", "$gamma"]);
+});
+
 Deno.test("extractEntityRefs: discards backslash-escaped $ident", () => {
   const refs = extractEntityRefs("Literal \\$dollar text.", baseLocation);
   assertEquals(refs.length, 0);
