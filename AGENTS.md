@@ -374,6 +374,9 @@ docs/
 - `adr-009-core-profile-boundary.md` — the anchoring core/profile split
 - `adr-010-default-profile.md` — bundled RFC 2119 baseline profile
 - `adr-011-language-pack-and-dependency-ingestion.md` — languages + SBOM
+- `adr-012-diagnostic-code-scheme.md` — phased adoption of the nextgen
+  diagnostic-code catalogue (current `language.md` §8 scheme stays authoritative
+  for `main` until a sequenced migration phase)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
