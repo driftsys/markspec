@@ -73,6 +73,7 @@ Deno.test("model types are constructible", () => {
     labels: ["ASIL-B"],
     parents: [],
     parentFallback: REFHUB_URL,
+    captionConventions: {},
   };
   assertEquals(config.name, "test-project");
 });

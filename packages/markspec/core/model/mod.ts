@@ -392,6 +392,33 @@ export interface Diagnostic {
 /** Default RefHub URL used as implicit fallback for parent registries. */
 export const REFHUB_URL = "https://driftsys.github.io/refhub";
 
+/**
+ * Caption-position convention for a specific caption keyword.
+ * `"above"` — caption must appear above its block.
+ * `"below"` — caption must appear below its block.
+ */
+export type CaptionPosition = "above" | "below";
+
+/**
+ * Per-keyword caption-position conventions.
+ *
+ * Keys are caption keywords (e.g. `"Figure"`, `"Table"`, `"Listing"`,
+ * `"Feature"`, `"Equation"`, `"List"`). A missing key means no
+ * convention is configured for that keyword — MSL-C072 is inactive for
+ * unconfigured keywords.
+ *
+ * Authored in `project.yaml` under `caption-conventions:`:
+ *
+ * ```yaml
+ * caption-conventions:
+ *   Figure: below
+ *   Table: above
+ * ```
+ */
+export type CaptionConventions = Readonly<
+  Partial<Record<string, CaptionPosition>>
+>;
+
 /** MarkSpec project configuration from `project.yaml`. */
 export interface ProjectConfig {
   /** Project name (e.g., `io.driftsys.markspec`). */
@@ -404,6 +431,13 @@ export interface ProjectConfig {
   readonly parents: readonly string[];
   /** Fallback registry URL when parents don't resolve a reference. */
   readonly parentFallback: string;
+  /**
+   * Per-keyword caption-position conventions (spec §4.7 MSL-C072).
+   * When a key is present, the validator emits MSL-C072 if a caption
+   * of that keyword appears on the wrong side of its block. An empty
+   * or absent map means all keywords are unconstrained.
+   */
+  readonly captionConventions: CaptionConventions;
 }
 
 /** Default configuration used when no `project.yaml` is found. */
@@ -413,6 +447,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   labels: [],
   parents: [],
   parentFallback: REFHUB_URL,
+  captionConventions: {},
 };
 
 // ---------------------------------------------------------------------------

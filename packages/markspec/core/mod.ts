@@ -20,6 +20,8 @@ export {
 export type {
   Attribute,
   Caption,
+  CaptionConventions,
+  CaptionPosition,
   ConfigFieldError,
   Diagnostic,
   Directive,
