@@ -1,16 +1,21 @@
 /**
  * @module core/validator/captions
  *
- * Caption-adjacency validation per spec §2.6. Captions are recognised
- * in entry body prose and must sit immediately above or below a
- * captionable block of the matching type (separated by exactly one
- * blank line).
+ * Caption-adjacency validation per spec §2.6. Emits `MSL-C070` for
+ * orphaned captions (no captionable neighbour) and `MSL-C071` for
+ * wrong-type adjacency. The builder emits `CaptionNode` blocks with a
+ * `keyword` field (Figure, Table, etc.) and a `position` hint
+ * ("above"/"below"); the validator checks each caption against its
+ * nearest non-blank neighbour. Captions inside verbatim blocks are
+ * automatically excluded — the builder does not emit `CaptionNode`s for
+ * verbatim content. The "Listing or Feature" ambiguity (a fenced block
+ * without a lang tag is ambiguous) is preserved in the mismatch message.
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { FENCE_RE, walkProseLines } from "../util/fence.ts";
+import type { BodyBlock } from "../ast/nodes.ts";
 
-/** Caption keywords recognised by the core. */
+/** Caption keywords recognised by the core (spec §2.6). */
 const CAPTION_KEYWORDS = [
   "Figure",
   "Table",
@@ -21,103 +26,108 @@ const CAPTION_KEYWORDS = [
 ] as const;
 type CaptionKeyword = typeof CAPTION_KEYWORDS[number];
 
-/** Line shape for a caption: `Keyword: text`. */
-const CAPTION_LINE_RE = new RegExp(
-  `^\\s*(${CAPTION_KEYWORDS.join("|")}):\\s+(\\S.*)$`,
-);
-
-/** Heuristic captionable-block matchers keyed by caption keyword. */
-const captionableMatchers: Record<CaptionKeyword, (line: string) => boolean> = {
-  // Image inline link.
-  Figure: (l) => /^\s*!\[/.test(l),
-  // GFM pipe table (any line with a pipe — first-pass heuristic).
-  Table: (l) => /\|/.test(l),
-  // Fenced code block (any language).
-  Listing: (l) => FENCE_RE.test(l),
-  // Gherkin-tagged fenced code block; the loose check is fence-only
-  // because the language tag is on the opening fence line — when the
-  // caption sits BELOW the block, only the closing fence is the
-  // adjacent line and that line has no tag. Tightening to require
-  // `gherkin` would produce false MSL-C071s for valid caption-below
-  // placements. A future cleaner fix would pre-scan fence pairs to
-  // attach language metadata to both opener and closer.
-  Feature: (l) => FENCE_RE.test(l),
-  // Math fence (`$$`).
-  Equation: (l) => /^\s*\$\$/.test(l),
-  // Markdown list (ordered or unordered).
-  List: (l) => /^\s*([-*+]|\d+\.)\s/.test(l),
-};
+// ---------------------------------------------------------------------------
+// Block-type → caption-keyword classification
+// ---------------------------------------------------------------------------
 
 /**
- * Return the caption keyword whose matcher recognises the given line,
- * or `undefined` when no matcher fires. Used to distinguish a
- * "captionable but wrong type" mismatch from an orphan caption. When
- * multiple matchers fire (e.g., a fenced code block matches both
- * `Listing` and `Feature`), the first declaration order wins —
- * sufficient for MSL-C071 detection because the test "did the caption
- * keyword's own matcher fire" runs first.
+ * Map an AST block kind to the caption keyword whose captionable-block
+ * this block represents, or `undefined` when the block is not captionable
+ * (e.g. paragraph, unknown, note, blockquote, definition-list).
+ *
+ * `code` maps to `Listing` (first in the CAPTION_KEYWORDS order) — the
+ * ambiguity with `Feature`/Gherkin is handled by the caller which emits
+ * "Listing or Feature (fenced)" for `CodeNode`.
  */
-function classifyAdjacentBlock(line: string): CaptionKeyword | undefined {
-  for (const kw of CAPTION_KEYWORDS) {
-    if (captionableMatchers[kw](line)) return kw;
+function blockKindToCaption(
+  block: BodyBlock,
+): CaptionKeyword | undefined {
+  switch (block.kind) {
+    case "figure":
+      return "Figure";
+    case "table":
+      return "Table";
+    case "code":
+      return "Listing"; // possibly also Feature — ambiguous without lang tag
+    case "feature":
+      return "Feature";
+    case "math":
+      return "Equation";
+    case "list":
+      return "List";
+    default:
+      return undefined;
   }
-  return undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /**
  * Validate caption adjacency for one entry. Emits `MSL-C070` for any
- * caption line whose immediate non-blank neighbour (above or below) is
- * not a captionable block of the matching type.
- *
- * Skip rules:
- * - Lines inside fenced code blocks — captions in verbatim content
- *   are not real captions.
+ * caption whose nearest non-blank neighbour (above or below) is not a
+ * captionable block of the matching type, and `MSL-C071` when there is
+ * a captionable block of the *wrong* type adjacent.
  */
 export function validateCaptions(entry: Entry): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const lines = entry.body.split("\n");
+  const blocks = entry.bodyAst ?? [];
 
-  // `walkProseLines` invokes the callback for exactly the lines the
-  // old hand-rolled fence toggle reached — fenced code and the fence
-  // markers themselves are skipped. We keep the split `lines` array
-  // for the above/below neighbour scan, indexed by the callback's `i`.
-  walkProseLines(entry.body, (_line, i) => {
-    const match = CAPTION_LINE_RE.exec(lines[i]);
-    if (!match) return;
-    const keyword = match[1] as CaptionKeyword;
-    const matcher = captionableMatchers[keyword];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (block.kind !== "caption") continue;
 
-    // Walk to the nearest non-blank line above.
-    let above = i - 1;
-    while (above >= 0 && lines[above].trim() === "") above--;
-    const aboveBlock = above >= 0 && matcher(lines[above]);
-    const aboveKind = above >= 0
-      ? classifyAdjacentBlock(lines[above])
+    const keyword = block.keyword as CaptionKeyword; // safe: CaptionNode.keyword and CaptionKeyword are the same 6-string set
+
+    // Immediate preceding block (no caption-skipping — a CaptionNode
+    // neighbour is not a captionable block, matching baseline semantics).
+    const prevIdx = i - 1;
+    const prevBlock = prevIdx >= 0 ? blocks[prevIdx] : undefined;
+
+    // Immediate following block (no caption-skipping — same rationale).
+    const nextIdx = i + 1;
+    const nextBlock = nextIdx < blocks.length ? blocks[nextIdx] : undefined;
+
+    // Check if either neighbour is a captionable block of the matching type.
+    const prevKind = prevBlock ? blockKindToCaption(prevBlock) : undefined;
+    const nextKind = nextBlock ? blockKindToCaption(nextBlock) : undefined;
+
+    // A `CodeNode` may be either Listing or Feature (Gherkin) — both
+    // `blockKindToCaption` returns "Listing" for `code`, so a `Feature:`
+    // caption below a `CodeNode` block is considered matching (the
+    // closing fence has no lang tag; we can't distinguish at this point).
+    const prevMatches = prevBlock !== undefined &&
+      (prevKind === keyword ||
+        (keyword === "Feature" && prevBlock.kind === "code") ||
+        (keyword === "Listing" && prevBlock.kind === "feature"));
+    const nextMatches = nextBlock !== undefined &&
+      (nextKind === keyword ||
+        (keyword === "Feature" && nextBlock.kind === "code") ||
+        (keyword === "Listing" && nextBlock.kind === "feature"));
+
+    if (prevMatches || nextMatches) {
+      // Adjacent to a matching captionable block — valid.
+      continue;
+    }
+
+    // No matching block adjacent. Decide between C070 (orphan) and C071
+    // (wrong-type adjacency).
+    const mismatchKind = prevKind ?? nextKind;
+    const mismatchBlock = mismatchKind !== undefined
+      ? (prevKind !== undefined ? prevBlock : nextBlock)
       : undefined;
 
-    // Walk to the nearest non-blank line below.
-    let below = i + 1;
-    while (below < lines.length && lines[below].trim() === "") below++;
-    const belowBlock = below < lines.length && matcher(lines[below]);
-    const belowKind = below < lines.length
-      ? classifyAdjacentBlock(lines[below])
-      : undefined;
+    // File line: body-relative 1-based start line → entry.location.line + bodyLine
+    const fileLine = entry.location.line + block.range.start.line;
 
-    if (aboveBlock || belowBlock) return;
-
-    // No matching block adjacent. Decide between C070 (no captionable
-    // block at all) and C071 (a captionable block of the wrong type).
-    const mismatchKind = aboveKind ?? belowKind;
-    if (mismatchKind !== undefined) {
-      // `Listing` and `Feature` share a fence-only matcher and the
-      // closing ``` carries no language tag, so a fenced block is
-      // genuinely ambiguous between the two (classifyAdjacentBlock
-      // can only ever return `Listing` for a fence). Name the
-      // ambiguity instead of asserting one — disambiguation needs
-      // the deferred fence-language pre-scan.
-      const mismatchLabel = mismatchKind === "Listing"
-        ? "Listing or Feature (fenced)"
-        : mismatchKind;
+    if (mismatchKind !== undefined && mismatchBlock !== undefined) {
+      // Listing and Feature share a fence-only matcher — a CodeNode or
+      // FeatureNode is ambiguous without the opening fence's language tag.
+      const mismatchLabel =
+        mismatchBlock.kind === "code" || mismatchBlock.kind === "feature"
+          ? "Listing or Feature (fenced)"
+          : mismatchKind;
       diagnostics.push({
         code: "MSL-C071",
         severity: "error",
@@ -125,26 +135,25 @@ export function validateCaptions(entry: Entry): readonly Diagnostic[] {
           `${mismatchLabel} block, not a ${keyword} block (spec §4.7)`,
         location: {
           file: entry.location.file,
-          line: entry.location.line + 1 + i,
+          line: fileLine,
           column: 1,
         },
       });
-      return;
+    } else {
+      diagnostics.push({
+        code: "MSL-C070",
+        severity: "error",
+        message:
+          `${entry.displayId}: ${keyword}: caption is not adjacent to a ` +
+          `captionable block of type ${keyword}`,
+        location: {
+          file: entry.location.file,
+          line: fileLine,
+          column: 1,
+        },
+      });
     }
-
-    diagnostics.push({
-      code: "MSL-C070",
-      severity: "error",
-      message: `${entry.displayId}: ${keyword}: caption is not adjacent to a ` +
-        `captionable block of type ${keyword}`,
-      location: {
-        file: entry.location.file,
-        // Body content begins on the line after the entry title.
-        line: entry.location.line + 1 + i,
-        column: 1,
-      },
-    });
-  });
+  }
 
   return diagnostics;
 }

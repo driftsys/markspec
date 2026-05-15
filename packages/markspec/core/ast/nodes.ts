@@ -29,6 +29,18 @@ export interface ModalMarker {
   readonly cls: ModalMarkerClass;
   /** Canonical (lowercased RFC 2119 / case-preserved EARS) form. */
   readonly canonical: string;
+  /**
+   * Original source text as it appears in the body (may differ from
+   * `canonical` for RFC 2119 keywords written in uppercase, e.g.
+   * `"SHALL"` vs `canonical = "shall"`). Used by the MSL-M060 validator
+   * to report the exact uppercase form in the diagnostic message and to
+   * detect whether the keyword deviates from canonical form.
+   *
+   * Populated by {@link extractMarkersFromText} in `core/ast/build.ts`.
+   * Absent only for `ModalMarker` values constructed outside the builder
+   * (e.g. in tests that predate this field).
+   */
+  readonly raw?: string;
   readonly range: SourceRange;
 }
 
@@ -87,6 +99,13 @@ export interface ListNode {
    * render. Corresponds to the mdast `list.spread` property. */
   readonly spread: boolean;
   readonly items: readonly ListItemNode[];
+  /**
+   * True when at least one item is a GFM task-list item (checked or
+   * unchecked). Used by the body-block exclusion validator (MSL-B042)
+   * to flag task lists inside entry bodies without re-scanning the
+   * body string.
+   */
+  readonly hasTaskItems?: boolean;
   readonly range: SourceRange;
 }
 
@@ -180,6 +199,19 @@ export interface CaptionNode {
 export interface UnknownNode {
   readonly kind: "unknown";
   readonly raw: string;
+  /**
+   * Sub-kind for constructs the body-block exclusion validator (MSL-B040–B043)
+   * needs to distinguish. Absent for truly unknown nodes; set for the three
+   * categories the validator checks:
+   *
+   *   - `"heading"` — CommonMark ATX/setext heading (`#`, `##`, …, underline)
+   *   - `"thematic-break"` — horizontal rule (`---`, `***`, `___`)
+   *   - `"html"` — raw block-level HTML (comment or tag)
+   *
+   * Note: GFM task-list items are detected via `ListNode.hasTaskItems` and
+   * never assigned this subkind.
+   */
+  readonly subkind?: "heading" | "thematic-break" | "html";
   readonly range: SourceRange;
 }
 

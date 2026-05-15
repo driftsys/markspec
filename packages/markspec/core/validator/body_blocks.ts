@@ -10,16 +10,26 @@
  *   - MSL-B043 — raw HTML other than `<!-- markspec:* -->` directive
  *     comments
  *
- * The check walks each entry's `body` string line by line and skips
- * lines inside fenced code blocks (verbatim content is exempt).
+ * Each excluded construct maps to a distinct AST node kind or property:
+ *
+ *   - Headings  → `UnknownNode` with `subkind: "heading"`
+ *   - HR        → `UnknownNode` with `subkind: "thematic-break"`
+ *   - Task list → `ListNode` with `hasTaskItems: true`
+ *   - Block HTML → `UnknownNode` with `subkind: "html"` (raw checked for
+ *     the markspec-directive carve-out)
+ *   - Inline HTML — remains inside `ParagraphNode.content.text` (remark
+ *     does not extract inline HTML nodes into block-level nodes); each
+ *     paragraph's text is scanned line-by-line using the same regex
+ *     approach as the old walkProseLines path, but bounded to prose-only
+ *     nodes (code/feature/math blocks are automatically excluded because
+ *     the builder does not emit prose-bearing nodes for verbatim content).
+ *
+ * Code, Feature, and Math blocks are automatically excluded because the
+ * builder emits opaque nodes for verbatim content — no prose text to scan.
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { walkProseLines } from "../util/fence.ts";
-
-const HEADING_RE = /^\s*#{1,6}\s/;
-const HR_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
-const TASK_LIST_RE = /^\s*[-*+]\s+\[[ xX]\]/;
+import type { BodyBlock } from "../ast/nodes.ts";
 
 /**
  * HTML tag detection. Matches an opening, closing, or self-closing tag
@@ -84,6 +94,135 @@ const RAW_HTML_DIAG: BodyDiag = {
 };
 
 /**
+ * Scan `text` line-by-line for forbidden inline HTML, starting at
+ * `startLine` (1-based body-relative). Returns one `{ diag, bodyLine }`
+ * pair per violating line — the same shape returned by
+ * {@linkcode violationsFromBlock}.
+ *
+ * Each branch in `violationsFromBlock` that checks for inline HTML
+ * supplies its own `text` source (prose text for paragraph/note/blockquote,
+ * verbatim raw source for table) and its own `startLine` anchor; this
+ * helper factors the shared scan loop while preserving per-branch inputs.
+ */
+function htmlViolations(
+  text: string,
+  startLine: number,
+): Array<{ diag: BodyDiag; bodyLine: number }> {
+  const out: Array<{ diag: BodyDiag; bodyLine: number }> = [];
+  const lines = text.split("\n");
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    if (line.trim() === "") continue;
+    if (hasForbiddenHtml(line)) {
+      out.push({ diag: RAW_HTML_DIAG, bodyLine: startLine + li });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// AST-based exclusion walker
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect body-block exclusion violations from a single BodyBlock.
+ * Returns an array of `{ diag, bodyLine }` pairs where `bodyLine` is the
+ * 1-based body-relative line number of the violation (maps to file line via
+ * `entry.location.line + bodyLine`).
+ */
+function violationsFromBlock(
+  block: BodyBlock,
+): Array<{ diag: BodyDiag; bodyLine: number }> {
+  const out: Array<{ diag: BodyDiag; bodyLine: number }> = [];
+
+  switch (block.kind) {
+    case "unknown": {
+      const bodyLine = block.range.start.line;
+      if (block.subkind === "heading") {
+        out.push({ diag: HEADING_DIAG, bodyLine });
+      } else if (block.subkind === "thematic-break") {
+        out.push({ diag: HR_DIAG, bodyLine });
+      } else if (block.subkind === "html") {
+        // Block-level HTML: check if it is a markspec directive (exempt)
+        // or forbidden HTML. The `raw` field carries the verbatim source.
+        if (!MARKSPEC_DIRECTIVE_LINE_RE.test(block.raw)) {
+          out.push({ diag: RAW_HTML_DIAG, bodyLine });
+        }
+      }
+      break;
+    }
+
+    case "list": {
+      if (block.hasTaskItems) {
+        out.push({ diag: TASK_LIST_DIAG, bodyLine: block.range.start.line });
+      } else {
+        // Non-task list: recurse into items to catch nested excluded blocks.
+        for (const item of block.items) {
+          for (const sub of item.blocks) {
+            out.push(...violationsFromBlock(sub));
+          }
+        }
+      }
+      break;
+    }
+
+    case "paragraph": {
+      // Inline HTML remains inside paragraph text (remark does not
+      // surface it as a separate block node). Scan each line of the
+      // paragraph's prose text for forbidden HTML.
+      out.push(...htmlViolations(block.content.text, block.range.start.line));
+      break;
+    }
+
+    // Prose-bearing nodes that are not forbidden — scan for inline HTML.
+    case "note":
+    case "blockquote": {
+      out.push(...htmlViolations(block.content.text, block.range.start.line));
+      break;
+    }
+
+    // Table cells may contain inline HTML.
+    case "table": {
+      // Tables are in-scope for HTML scanning but their cell text is
+      // structured. Scan the raw table source line-by-line instead,
+      // since the `raw` field contains the verbatim source and avoids
+      // needing to reconstruct cell content per-line. The raw field's
+      // line offsets start at `range.start.line`.
+      out.push(...htmlViolations(block.raw, block.range.start.line));
+      break;
+    }
+
+    case "definition-list": {
+      // Definition list items may contain inline HTML in term/definition.
+      for (const item of block.items) {
+        out.push(...htmlViolations(item.term.text, block.range.start.line));
+        out.push(
+          ...htmlViolations(item.definition.text, block.range.start.line),
+        );
+      }
+      break;
+    }
+
+    // Verbatim / structural nodes: no prose to scan.
+    case "code":
+    case "feature":
+    case "math":
+    case "figure":
+    case "caption":
+      break;
+
+    default:
+      break;
+  }
+
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
  * Validate that an entry's body contains none of the excluded body
  * constructs. Emits at most one diagnostic per excluded construct per
  * line (so a paragraph with `<div>foo</div><span>bar</span>` still
@@ -92,27 +231,23 @@ const RAW_HTML_DIAG: BodyDiag = {
 export function validateBodyBlocks(entry: Entry): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
-  walkProseLines(entry.body, (line, i) => {
-    if (line.trim() === "") return;
-
-    let diag: BodyDiag | undefined;
-    if (HEADING_RE.test(line)) diag = HEADING_DIAG;
-    else if (HR_RE.test(line)) diag = HR_DIAG;
-    else if (TASK_LIST_RE.test(line)) diag = TASK_LIST_DIAG;
-    else if (hasForbiddenHtml(line)) diag = RAW_HTML_DIAG;
-    if (!diag) return;
-
-    diagnostics.push({
-      code: diag.code,
-      severity: diag.severity,
-      message: `${entry.displayId}: ${diag.summary}`,
-      location: {
-        file: entry.location.file,
-        line: entry.location.line + 1 + i,
-        column: 1,
-      },
-    });
-  });
+  const blocks = entry.bodyAst ?? [];
+  for (const block of blocks) {
+    for (const { diag, bodyLine } of violationsFromBlock(block)) {
+      diagnostics.push({
+        code: diag.code,
+        severity: diag.severity,
+        message: `${entry.displayId}: ${diag.summary}`,
+        location: {
+          file: entry.location.file,
+          // bodyLine is 1-based body-relative. Body line 1 = file line
+          // entry.location.line + 1 (the line after the title).
+          line: entry.location.line + bodyLine,
+          column: 1,
+        },
+      });
+    }
+  }
 
   return diagnostics;
 }

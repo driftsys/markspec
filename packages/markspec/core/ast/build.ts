@@ -89,6 +89,7 @@ function extractMarkersFromText(
           kind: "modal",
           cls: "rfc2119" as ModalMarkerClass,
           canonical,
+          raw, // preserve source form for uppercase-keyword detection (MSL-M060)
           range: {
             start: { line: lineNo, column: col },
             end: { line: lineNo, column: col + raw.length },
@@ -107,6 +108,7 @@ function extractMarkersFromText(
           kind: "modal",
           cls: "ears" as ModalMarkerClass,
           canonical: raw, // EARS: source form is canonical
+          raw, // same as canonical for EARS
           range: {
             start: { line: lineNo, column: col },
             end: { line: lineNo, column: col + raw.length },
@@ -383,6 +385,11 @@ function mapMdastNode(node: any, body: string): BodyBlock {
     }
 
     case "list": {
+      // Detect GFM task-list items (remark-gfm sets `checked` to true/false).
+      // deno-lint-ignore no-explicit-any
+      const hasTaskItems = node.children.some((item: any) =>
+        item.checked != null
+      );
       const items: ListItemNode[] = node.children.map(
         // deno-lint-ignore no-explicit-any
         (item: any): ListItemNode => {
@@ -399,6 +406,7 @@ function mapMdastNode(node: any, body: string): BodyBlock {
         ordered: node.ordered ?? false,
         spread: node.spread ?? false,
         items,
+        ...(hasTaskItems ? { hasTaskItems: true } : {}),
         range,
       } satisfies ListNode;
     }
@@ -535,13 +543,30 @@ function mapMdastNode(node: any, body: string): BodyBlock {
       } satisfies BlockquoteNode;
     }
 
-    default:
-      // Headings, HR, HTML, and anything else → UnknownNode so content is never lost
+    default: {
+      // Headings, thematic breaks, raw HTML, and anything else → UnknownNode
+      // so content is never lost. We annotate the sub-kind for the body-block
+      // exclusion validator (MSL-B040–B043) so it can distinguish constructs
+      // without re-scanning the body string.
+      type SubKind = "heading" | "thematic-break" | "html" | undefined;
+      let subkind: SubKind;
+      if (
+        node.type === "heading" ||
+        node.type === "setextHeading"
+      ) {
+        subkind = "heading";
+      } else if (node.type === "thematicBreak") {
+        subkind = "thematic-break";
+      } else if (node.type === "html") {
+        subkind = "html";
+      }
       return {
         kind: "unknown",
         raw: extractMdastText(node),
+        ...(subkind !== undefined ? { subkind } : {}),
         range,
       } satisfies UnknownNode;
+    }
   }
 }
 

@@ -118,3 +118,28 @@ Deno.test("extractEntityRefs: returns empty array for body with no refs", () => 
   const refs = extractEntityRefs("Plain prose with no dollars.", baseLocation);
   assertEquals(refs.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// PR 5 — AST-based code/feature-block exclusion
+// ---------------------------------------------------------------------------
+
+Deno.test("extractEntityRefs: skips $ident inside a code block nested in a list item", () => {
+  // Verifies that collectCodeFeatureLines recurses into list items.
+  const body = [
+    "Normal $alpha reference.",
+    "",
+    "- List item",
+    "",
+    "  ```",
+    "  let $insideCodeFence = 1;",
+    "  ```",
+    "",
+    "After $beta reference.",
+  ].join("\n");
+  const refs = extractEntityRefs(body, baseLocation);
+  // Only $alpha and $beta should be extracted; $insideCodeFence must be skipped.
+  assertEquals(
+    refs.map((r) => r.ident),
+    ["$alpha", "$beta"],
+  );
+});

@@ -281,13 +281,14 @@ function extractEntry(
   // Inline `$Identifier` entity references (spec §2.5.2). Resolution
   // into the project's entity registry is left to the validator's
   // marker pass; the parser only emits the lexical hits.
+  // Pass the already-built bodyAst to avoid a redundant mdast parse.
   const entityRefs = extractEntityRefs(body, {
     file,
     // Body content starts on the line after the title; +1 keeps
     // emitted line numbers 1-based relative to the file.
     line: line + 1,
     column: 1,
-  });
+  }, bodyAst);
 
   return {
     displayId,
