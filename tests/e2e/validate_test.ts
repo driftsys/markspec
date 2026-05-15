@@ -618,6 +618,51 @@ Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode
   assertStringIncludes(stderr, "NotARealType");
 });
 
+Deno.test("validate: type-specific attr on an unresolved-type entry warns (MSL-T024)", async () => {
+  // `Manufacturer` is a core-type-scoped attribute but NOT a
+  // discriminating one, so step-6 inference does not rescue it; the
+  // `jira:` scheme is unknown and there is no `Type:`. Previously
+  // silent — now MSL-T024 (warning, exit 2).
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [widget] An external widget
+
+  Body.
+
+      Id: jira:FOO-1
+      Manufacturer: Acme Corp
+`,
+    },
+  });
+  assertEquals(code, 2, `expected exit 2, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-T024");
+  assertStringIncludes(stderr, "Manufacturer");
+});
+
+Deno.test("validate: reference with only universal attrs stays clean (no MSL-T024)", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [extlib] An external library reference
+
+  Body.
+
+      Id: https://example.com/x
+      Labels: ASIL-B
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(
+    stderr.includes("MSL-T024"),
+    false,
+    `universal-only reference must not fire MSL-T024; stderr: ${stderr}`,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Per-type attribute compatibility — spec §1.6, MSL-T022
 // ---------------------------------------------------------------------------

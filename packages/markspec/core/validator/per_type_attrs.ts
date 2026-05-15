@@ -31,18 +31,40 @@ const UNIVERSAL_KEYS: ReadonlySet<string> = new Set<string>(
 );
 
 /**
- * Emit MSL-T022 warnings for attributes that are core-known but not
- * valid on the entry's resolved type. Skips entries whose type cannot
- * be resolved (no explicit `Type:`, no profile classification, no URI
- * scheme inference — those are handled by MSL-T020 / MSL-T021 /
- * MSL-T023) and attributes that are universal or entirely unknown to
- * the core hierarchy (those go through MSL-R010).
+ * Emit per-type attribute diagnostics:
+ *
+ *   - **MSL-T022** (warning) — an attribute is core-known but not
+ *     valid on the entry's *resolved* type.
+ *   - **MSL-T024** (warning) — the entry's core type could not be
+ *     resolved (no explicit `Type:`, no profile classification, no
+ *     inferable signal — display-ID prefix / URI scheme /
+ *     discriminating attribute) yet it carries a core-type-scoped
+ *     attribute, so that attribute cannot be validated. Without this,
+ *     such attributes slipped through silently (e.g. `Manufacturer:`
+ *     on a `jira:`-scheme reference). Universal and entirely unknown
+ *     attributes are exempt — those go through MSL-R010.
  */
 export function validatePerTypeAttributes(
   entry: Entry,
 ): readonly Diagnostic[] {
   const type = resolvedCoreType(entry);
-  if (type === undefined) return [];
+  if (type === undefined) {
+    const diagnostics: Diagnostic[] = [];
+    for (const attr of entry.rawAttributes) {
+      if (UNIVERSAL_KEYS.has(attr.key)) continue;
+      if (!CORE_TYPE_SCOPED_ATTRS.has(attr.key)) continue;
+      diagnostics.push({
+        code: "MSL-T024",
+        severity: "warning",
+        message:
+          `${entry.displayId}: attribute '${attr.key}' is type-specific but ` +
+          `the entry's core type could not be resolved; it cannot be ` +
+          `validated (spec §8.3)`,
+        location: entry.location,
+      });
+    }
+    return diagnostics;
+  }
 
   const allowed = attributesForType(type);
   const diagnostics: Diagnostic[] = [];
