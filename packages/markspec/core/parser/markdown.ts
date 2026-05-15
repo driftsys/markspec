@@ -15,6 +15,7 @@ import {
 } from "./attributes.ts";
 import { extractEntityRefs } from "./entity_refs.ts";
 import { processor } from "./remark.ts";
+import { buildBodyAst } from "../ast/build.ts";
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
@@ -217,6 +218,7 @@ function extractEntry(
   const bodyContent = extractBodyContent(item, markdown);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
+  const bodyAst = buildBodyAst(body);
 
   // Detect legacy paragraph + trailing-backslash attribute form and warn.
   if (
@@ -291,6 +293,7 @@ function extractEntry(
     displayId,
     title: title ?? "",
     body,
+    bodyAst,
     rawAttributes: attributes,
     typedAttributes: collateAttributes(attributes),
     id,
