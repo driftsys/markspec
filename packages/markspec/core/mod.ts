@@ -42,6 +42,33 @@ export type {
   Ulid,
 } from "./model/mod.ts";
 
+// AST (canonical body-AST — spec docs/specs/markspec-core-data-model.md §2)
+// SourceRange is body-relative (no `file`); use SourceLocation for file-absolute positions.
+export type {
+  AdmonitionKind,
+  BlockquoteNode,
+  BodyBlock,
+  CaptionNode,
+  CodeNode,
+  DefinitionListNode,
+  DefinitionPair,
+  EntityRefMarker,
+  FeatureNode,
+  FigureNode,
+  InlineContent,
+  InlineMarker,
+  ListItemNode,
+  ListNode,
+  MathNode,
+  ModalMarker,
+  ModalMarkerClass,
+  NoteNode,
+  ParagraphNode,
+  SourceRange,
+  TableNode,
+  UnknownNode,
+} from "./ast/nodes.ts";
+
 // Config
 export {
   discoverProjectRoot,
