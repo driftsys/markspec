@@ -1538,6 +1538,31 @@ Deno.test("validate: caption keyword inside a fenced code block is not flagged",
   );
 });
 
+Deno.test("validate: C071 names the Listing/Feature ambiguity for a fenced block", async () => {
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] My requirement
+
+  \`\`\`
+  some code
+  \`\`\`
+
+  Table: claims to be a table but the block above is a fenced block
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-C071");
+  // A fenced block is indistinguishable between Listing and Feature
+  // (Gherkin) from the closing fence — the message must say so rather
+  // than asserting one.
+  assertStringIncludes(stderr, "Listing or Feature");
+});
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------

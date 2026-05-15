@@ -46,8 +46,10 @@ export function classifyConvention(ident: string): EntityRefConvention {
  *
  * Skips fenced code blocks (between paired ` ``` ` or `~~~` markers) per
  * spec §2.5.2 (markers are recognised in prose only, not in verbatim
- * content). Skips math-fence `$$…$$` sequences by discarding any `$ident`
- * match preceded by another `$`.
+ * content). Math content is skipped two ways: an inline `$$…$$` fence by
+ * discarding any `$ident` match preceded by another `$`; a multi-line
+ * display-math block (a line that is exactly `$$`, its interior lines,
+ * and the closing `$$`) by tracking the delimiter across lines.
  *
  * The reported {@linkcode SourceLocation} uses 1-based line numbers
  * relative to the body string; callers add the entry's body offset to
@@ -64,7 +66,18 @@ export function extractEntityRefs(
 ): EntityRef[] {
   const refs: EntityRef[] = [];
 
+  // A line whose only content is `$$` opens (or closes) a display-math
+  // block; its interior lines are verbatim math, not prose. Inline
+  // `$$…$$` on a single line is *not* a fence (trimmed ≠ `$$`) and is
+  // still handled by the per-match "preceded by another $" guard below.
+  let inMathFence = false;
+
   walkProseLines(body, (line, lineIdx) => {
+    if (line.trim() === "$$") {
+      inMathFence = !inMathFence;
+      return;
+    }
+    if (inMathFence) return;
     ENTITY_REF_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = ENTITY_REF_RE.exec(line)) !== null) {
