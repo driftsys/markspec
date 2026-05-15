@@ -487,6 +487,274 @@ Deno.test("format: no files exits 1", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// PR 4 formatter cutover — canonicalization survives AST routing
+// ---------------------------------------------------------------------------
+
+/**
+ * Verifies that formatting a NON-canonical body that exercises multiple AST
+ * block shapes (UPPERCASE modal, extra blank lines, fenced code block, GFM
+ * table) still produces the fully canonical output AND is idempotent.
+ *
+ * This test is the PR 4 "watch it pass" case: it proves that
+ * normalizeModalKeywords and collapseBlankLines are still applied BEFORE
+ * the body is emitted via render(buildBodyAst(canonicalBody)), i.e.
+ * canonicalization survives the AST routing introduced in PR 4.
+ */
+Deno.test(
+  "format: canonicalization survives AST routing (PR 4 cutover)",
+  async () => {
+    // Non-canonical input:
+    //   - UPPERCASE modal keywords (SHALL, MUST) — must be lowercased
+    //   - Extra consecutive blank lines in the body — must be collapsed
+    //   - A fenced code block — must be preserved verbatim
+    //   - A GFM table — must round-trip byte-identically
+    const input = `# Test
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  The sensor driver SHALL debounce raw inputs.
+
+
+  It MUST reject spikes shorter than the configured window.
+
+  \`\`\`rust
+  fn debounce(v: u32) -> u32 { v }
+  \`\`\`
+
+  | Signal | Threshold |
+  |--------|-----------|
+  | Raw    | 50 ms     |
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+    const pass1 = await runFormat({ "req.md": input });
+    assertEquals(pass1.code, 0);
+    const out1 = await pass1.readFile("req.md");
+
+    // Modal keywords must be lowercased.
+    assertEquals(out1.includes("SHALL"), false, "SHALL must be lowercased");
+    assertEquals(out1.includes("MUST"), false, "MUST must be lowercased");
+    assertStringIncludes(out1, "shall debounce");
+    assertStringIncludes(out1, "must reject");
+
+    // Extra blank lines must be collapsed (no triple newlines).
+    assertEquals(
+      /\n\n\n/.test(out1),
+      false,
+      "multiple blank lines must collapse to one",
+    );
+
+    // Code block must be preserved verbatim.
+    assertStringIncludes(
+      out1,
+      "```rust\n  fn debounce(v: u32) -> u32 { v }\n  ```",
+    );
+
+    // Table must be present (byte-identical round-trip via AST).
+    assertStringIncludes(out1, "| Signal | Threshold |");
+    assertStringIncludes(out1, "|--------|-----------|");
+
+    // Idempotence: second format produces the exact same output.
+    const pass2 = await runFormat({ "req.md": out1 });
+    const out2 = await pass2.readFile("req.md");
+    assertEquals(
+      out1,
+      out2,
+      "format must be idempotent after AST routing (PR 4 cutover)",
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// PR 4 safe fallback — §5.4 loss-of-information guarantee
+//
+// Bodies containing Markdown constructs not yet covered by the AST
+// equivalence gate (thematic break `---`, hard line break, link reference
+// definition, setext heading) must be preserved byte-for-byte by the
+// formatter — the safe-conditional-fallback branch keeps the original string
+// rather than splicing potentially lossy AST output. Each test below verifies
+// both preservation (no corruption) and idempotence.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an already-canonical document wrapping `body` so we can measure the
+ * formatter's behaviour on the body construct alone, without also triggering
+ * unrelated canonicalization (modal keywords, attr ordering, ULID assignment).
+ *
+ * The constructed doc has:
+ *   - a fixed, pre-assigned `Id:` → no ULID stamp on pass 1
+ *   - no uppercase modals → normalizeModalKeywords is a no-op
+ *   - no extra blank lines → collapseBlankLines is a no-op
+ * so any deviation between `format(doc).output` and `doc` is attributable
+ * exclusively to the AST body step.
+ */
+function makeCanonicalDoc(body: string): string {
+  // Each body line is indented 2 spaces (continuation indent for a top-level
+  // list item). The attr block uses the 6-space trailer indent.
+  const indentedBody = body
+    .split("\n")
+    .map((l) => (l.trim() === "" ? "" : `  ${l}`))
+    .join("\n");
+  return `# Test\n\n- [SRS_BRK_0001] Title\n\n${indentedBody}\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
+}
+
+Deno.test(
+  "format: safe fallback — thematic break body preserved and idempotent",
+  async () => {
+    // `---` is a valid CommonMark thematic break. The AST builder maps it to
+    // an UnknownNode whose render is NOT yet guaranteed byte-identical, so
+    // the mismatch branch must keep the original string.
+    const body = "Paragraph before.\n\n---\n\nParagraph after.";
+    const doc = makeCanonicalDoc(body);
+
+    const pass1 = await runFormat({ "req.md": doc });
+    assertEquals(pass1.code, 0);
+    const out1 = await pass1.readFile("req.md");
+
+    // The thematic break must survive unchanged.
+    assertStringIncludes(
+      out1,
+      "---",
+      `thematic break should be preserved; output:\n${out1}`,
+    );
+
+    // The formatter must be a no-op on an already-canonical document (the
+    // body construct does not affect any formatter pass other than the AST step,
+    // and the safe fallback keeps the original lines).
+    assertEquals(
+      out1,
+      doc,
+      `format should be a no-op on a canonical doc with a thematic-break body; output:\n${out1}`,
+    );
+
+    // Idempotence: second pass must produce identical output.
+    const pass2 = await runFormat({ "req.md": out1 });
+    const out2 = await pass2.readFile("req.md");
+    assertEquals(
+      out1,
+      out2,
+      "format must be idempotent on thematic-break body",
+    );
+  },
+);
+
+Deno.test(
+  "format: safe fallback — hard line break body preserved and idempotent",
+  async () => {
+    // Two trailing spaces before `\n` form a CommonMark hard line break.
+    // The AST round-trip does not yet guarantee preservation of trailing
+    // spaces, so the mismatch branch must keep the original string.
+    const body = "Line one.  \nLine two.";
+    const doc = makeCanonicalDoc(body);
+
+    const pass1 = await runFormat({ "req.md": doc });
+    assertEquals(pass1.code, 0);
+    const out1 = await pass1.readFile("req.md");
+
+    // The two trailing spaces (hard line break marker) must not be stripped.
+    assertEquals(
+      /Line one\. {2}\n/.test(out1),
+      true,
+      `hard line break (two trailing spaces) should be preserved; output:\n${
+        JSON.stringify(out1)
+      }`,
+    );
+
+    assertEquals(
+      out1,
+      doc,
+      `format should be a no-op on a canonical doc with a hard-line-break body; output:\n${out1}`,
+    );
+
+    const pass2 = await runFormat({ "req.md": out1 });
+    const out2 = await pass2.readFile("req.md");
+    assertEquals(
+      out1,
+      out2,
+      "format must be idempotent on hard-line-break body",
+    );
+  },
+);
+
+Deno.test(
+  "format: safe fallback — link reference definition body preserved and idempotent",
+  async () => {
+    // A link reference definition `[id]: url` is valid CommonMark but is not
+    // currently covered by the body-AST builder, so the mismatch branch must
+    // keep the original string, preventing silent deletion.
+    const body = "See [foo] for details.\n\n[foo]: https://example.com";
+    const doc = makeCanonicalDoc(body);
+
+    const pass1 = await runFormat({ "req.md": doc });
+    assertEquals(pass1.code, 0);
+    const out1 = await pass1.readFile("req.md");
+
+    // The link reference definition must survive.
+    assertStringIncludes(
+      out1,
+      "[foo]: https://example.com",
+      `link reference definition should be preserved; output:\n${out1}`,
+    );
+
+    assertEquals(
+      out1,
+      doc,
+      `format should be a no-op on a canonical doc with a link-ref-def body; output:\n${out1}`,
+    );
+
+    const pass2 = await runFormat({ "req.md": out1 });
+    const out2 = await pass2.readFile("req.md");
+    assertEquals(
+      out1,
+      out2,
+      "format must be idempotent on link-ref-def body",
+    );
+  },
+);
+
+Deno.test(
+  "format: safe fallback — setext heading inside body preserved and idempotent (§5.4 no-loss)",
+  async () => {
+    // A setext heading (underline style) is a valid Markdown construct. It is
+    // an MSL-B040 validation error (headings inside entry bodies are not allowed
+    // by the spec) but the FORMATTER must still NOT destroy it — §5.4 guarantees
+    // no loss of information. The safe fallback keeps the original string.
+    const body = "Subheading\n----------\n\nBody paragraph.";
+    const doc = makeCanonicalDoc(body);
+
+    const pass1 = await runFormat({ "req.md": doc });
+    assertEquals(pass1.code, 0);
+    const out1 = await pass1.readFile("req.md");
+
+    // The setext underline must survive.
+    assertStringIncludes(
+      out1,
+      "----------",
+      `setext heading underline should be preserved; output:\n${out1}`,
+    );
+    assertStringIncludes(
+      out1,
+      "Subheading",
+      `setext heading text should be preserved; output:\n${out1}`,
+    );
+
+    assertEquals(
+      out1,
+      doc,
+      `format should be a no-op on a canonical doc with a setext-heading body; output:\n${out1}`,
+    );
+
+    const pass2 = await runFormat({ "req.md": out1 });
+    const out2 = await pass2.readFile("req.md");
+    assertEquals(
+      out1,
+      out2,
+      "format must be idempotent on setext-heading body",
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 
