@@ -7,7 +7,12 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { format, renderAttributeBlock } from "./mod.ts";
+import {
+  format,
+  isSentenceInitial,
+  normalizeModalKeywords,
+  renderAttributeBlock,
+} from "./mod.ts";
 
 const MOCK_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const MOCK_ULID_2 = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -259,4 +264,79 @@ Deno.test("renderAttributeBlock: doc-comment indent (no list wrapper)", () => {
     0, // doc comment, no list nesting
   );
   assertEquals(block, "    Id: 01HGW3C4DEF6ABCDEFGHJKMNPQ");
+});
+
+// ---------------------------------------------------------------------------
+// isSentenceInitial — sentence-start predicate (§3.4.1 EARS rule)
+// ---------------------------------------------------------------------------
+
+Deno.test("isSentenceInitial: offset 0 is sentence-initial", () => {
+  assertEquals(isSentenceInitial("When pressed", 0), true);
+});
+
+Deno.test("isSentenceInitial: only whitespace to the left is sentence-initial", () => {
+  assertEquals(isSentenceInitial("   When pressed", 3), true);
+  assertEquals(isSentenceInitial("\t\tWhen pressed", 2), true);
+});
+
+Deno.test("isSentenceInitial: after terminator (with/without spaces) is sentence-initial", () => {
+  assertEquals(isSentenceInitial("Done. When ready", 6), true); // after '.'
+  assertEquals(isSentenceInitial("Done!  When ready", 7), true); // after '!'
+  assertEquals(isSentenceInitial("Done?\tWhen ready", 6), true); // after '?'
+});
+
+Deno.test("isSentenceInitial: after a word/comma/semicolon is NOT sentence-initial", () => {
+  assertEquals(isSentenceInitial("act When triggered", 4), false); // after 't'
+  assertEquals(isSentenceInitial("a, When b", 3), false); // after ','
+  assertEquals(isSentenceInitial("a; When b", 3), false); // after ';'
+});
+
+// ---------------------------------------------------------------------------
+// normalizeModalKeywords — §3.4.1 case normalisation
+// ---------------------------------------------------------------------------
+
+Deno.test("normalizeModalKeywords: RFC 2119 keywords always lowercased", () => {
+  assertEquals(
+    normalizeModalKeywords("The system SHALL respond and SHOULD log."),
+    "The system shall respond and should log.",
+  );
+  // Even sentence-initial RFC 2119 is lowercased.
+  assertEquals(normalizeModalKeywords("MUST hold."), "must hold.");
+  // `… NOT` suffix is part of the match.
+  assertEquals(
+    normalizeModalKeywords("The widget MUST NOT fail and MAY retry."),
+    "The widget must not fail and may retry.",
+  );
+});
+
+Deno.test("normalizeModalKeywords: EARS preserved sentence-initial, lowercased mid-sentence", () => {
+  assertEquals(
+    normalizeModalKeywords("When the button is pressed the lamp lights."),
+    "When the button is pressed the lamp lights.",
+  );
+  assertEquals(
+    normalizeModalKeywords("The lamp lights When the button is pressed."),
+    "The lamp lights when the button is pressed.",
+  );
+  // Sentence-initial after a terminator is also preserved.
+  assertEquals(
+    normalizeModalKeywords("Idle. While charging the LED blinks."),
+    "Idle. While charging the LED blinks.",
+  );
+});
+
+Deno.test("normalizeModalKeywords: fenced code blocks left verbatim", () => {
+  const input = "Prose SHALL lower.\n```\nlet SHALL = 1; // When code\n```\n";
+  assertEquals(
+    normalizeModalKeywords(input),
+    "Prose shall lower.\n```\nlet SHALL = 1; // When code\n```\n",
+  );
+});
+
+Deno.test("normalizeModalKeywords: indented (code/trailer) lines left verbatim", () => {
+  // 4-space and tab-indented lines are not prose.
+  assertEquals(
+    normalizeModalKeywords("Prose SHALL lower.\n    SHALL stay\n\tMUST stay"),
+    "Prose shall lower.\n    SHALL stay\n\tMUST stay",
+  );
 });

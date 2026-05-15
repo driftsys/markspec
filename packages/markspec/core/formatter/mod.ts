@@ -53,7 +53,7 @@ const EARS_KEYWORD_RE = /\b(When|While|Where|Unless)\b/g;
  * when it hits the beginning of the line or a sentence-terminating
  * punctuation character (`.`, `!`, `?`).
  */
-function isSentenceInitial(line: string, offset: number): boolean {
+export function isSentenceInitial(line: string, offset: number): boolean {
   if (offset === 0) return true;
   let i = offset - 1;
   while (i >= 0 && (line[i] === " " || line[i] === "\t")) i--;
