@@ -19,6 +19,8 @@
  *   - **MSL-A011** — citation attribute in CSV form. Action: rewrite
  *     the single CSV line as one trailer line per value (the
  *     canonical multi-line form), splitting on top-level commas.
+ *   - **MSL-A012** — repeatable attribute with an empty value list.
+ *     Action: remove the empty trailer line.
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
@@ -101,9 +103,45 @@ export function buildCodeActions(
     } else if (diag.code === "MSL-A011" && documentText !== undefined) {
       const action = buildA011Fix(uri, diag, documentText);
       if (action) out.push(action);
+    } else if (diag.code === "MSL-A012" && documentText !== undefined) {
+      const action = buildA012Fix(uri, diag, documentText);
+      if (action) out.push(action);
     }
   }
   return out;
+}
+
+function buildA012Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
+  if (!match) return undefined;
+  const attrKey = match[1];
+  const lines = documentText.split("\n");
+  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    if (!lineRe.test(lines[i])) continue;
+    return {
+      title: `Remove empty '${attrKey}' line`,
+      kind: "quickfix",
+      diagnostics: [diag],
+      isPreferred: true,
+      edit: {
+        changes: {
+          [uri]: [{
+            range: {
+              start: { line: i, character: 0 },
+              end: { line: i + 1, character: 0 },
+            },
+            newText: "",
+          }],
+        },
+      },
+    };
+  }
+  return undefined;
 }
 
 function buildA011Fix(
