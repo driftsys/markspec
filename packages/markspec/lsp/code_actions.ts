@@ -16,6 +16,9 @@
  *   - **MSL-A013** — single-cardinality attribute appears more than
  *     once. Action: delete every duplicate trailer line, keeping the
  *     first occurrence.
+ *   - **MSL-A011** — citation attribute in CSV form. Action: rewrite
+ *     the single CSV line as one trailer line per value (the
+ *     canonical multi-line form), splitting on top-level commas.
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
@@ -95,9 +98,70 @@ export function buildCodeActions(
     } else if (diag.code === "MSL-A013" && documentText !== undefined) {
       const action = buildA013Fix(uri, diag, documentText);
       if (action) out.push(action);
+    } else if (diag.code === "MSL-A011" && documentText !== undefined) {
+      const action = buildA011Fix(uri, diag, documentText);
+      if (action) out.push(action);
     }
   }
   return out;
+}
+
+function buildA011Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const match = ATTRIBUTE_KEY_RE.exec(diag.message);
+  if (!match) return undefined;
+  const attrKey = match[1];
+  const lines = documentText.split("\n");
+  const lineRe = new RegExp(`^(\\s{4,})${attrKey}\\s*:\\s*(.*)$`);
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    const m = lineRe.exec(lines[i]);
+    if (!m) continue;
+    const indent = m[1];
+    const rawValue = m[2];
+    // Split on top-level commas (depth-0). Commas inside `[…]` are
+    // citation locators and must not split — same rule the
+    // MSL-A011 validator uses.
+    const values: string[] = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of rawValue) {
+      if (ch === "[") depth++;
+      else if (ch === "]" && depth > 0) depth--;
+      if (ch === "," && depth === 0) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    values.push(current.trim());
+    const nonEmpty = values.filter((v) => v.length > 0);
+    if (nonEmpty.length < 2) return undefined;
+    const newText = nonEmpty
+      .map((v) => `${indent}${attrKey}: ${v}\n`)
+      .join("");
+    return {
+      title: `Rewrite '${attrKey}' as multi-line`,
+      kind: "quickfix",
+      diagnostics: [diag],
+      isPreferred: true,
+      edit: {
+        changes: {
+          [uri]: [{
+            range: {
+              start: { line: i, character: 0 },
+              end: { line: i + 1, character: 0 },
+            },
+            newText,
+          }],
+        },
+      },
+    };
+  }
+  return undefined;
 }
 
 function buildM060Fix(
