@@ -380,6 +380,10 @@ docs/
 - `adr-013-document-directive-not-a-resolution-step.md` — the family-hint
   document directive is a `markspec format` concern, not a validator
   type-resolution step (type-chain "step 7" deferred by design)
+- `adr-014-canonical-body-ast.md` — canonical body-AST is the load-bearing body
+  model; formatter uses a safe string fallback where the build/render inverse
+  isn't total; B044/C072 shipped (bounded ADR-012 exception), M050/M051
+  deferred-by-dependency (entity-resolution spec not on `main`)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

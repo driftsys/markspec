@@ -63,6 +63,20 @@ review's largest section cannot be closed.
    **deferred-by-policy**, not Prompt-1 defects. The validator conforms to the
    spec `main` ships. This ADR closes the review's lint-code gate.
 
+6. **Amendment (2026-05-16, see [ADR-014](./adr-014-canonical-body-ast.md)) —
+   bounded exception for the AST-gated codes.** §Decision-3 named `MSL-B044`,
+   `MSL-M050`, `MSL-M051`, `MSL-C072` as structurally impossible without the
+   body-AST refactor. That refactor has now landed (PRs #336–#341). The bounded
+   exception: **`MSL-B044` and `MSL-C072` ship _with_ the body-AST refactor**,
+   ahead of the broader `MSL-P/I/M/F` scheme migration, because they have no
+   current-scheme equivalent and are exactly the AST-gated codes this ADR
+   anticipated. **`MSL-M050` / `MSL-M051` remain unshipped —
+   deferred-by-dependency**, not deferred-by-policy: their resolution chain is
+   normative-per-nextgen-content-model-ADR-§Part-2, which is not landed on
+   `main`, so they cannot be implemented without inventing the entity-resolution
+   model. The broader scheme migration (Decisions 2–4) is unaffected and still
+   pending its gates.
+
 ## Consequences
 
 ### What this ADR enables

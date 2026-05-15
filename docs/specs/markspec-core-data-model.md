@@ -896,6 +896,15 @@ invariants).
 | `MSL-M060` | warning  | Modal keyword appears in uppercase (`SHALL`) — will be normalized by `fmt`.                                                                               |
 | `MSL-M061` | info     | Requirement-type entry contains no modal keyword. Style hint; profile may promote.                                                                        |
 
+> **Implementation status (`main`).** `MSL-M060`/`MSL-M061` are implemented.
+> `MSL-M050`/`MSL-M051` are **deferred-by-dependency**: their resolution chain
+> ("ADR-005 §Part 2") is normative per the nextgen content-model ADR, which is
+> **not landed on `main`** — no in-project entity-resolution model is specified
+> here, so they cannot be implemented without inventing one. See
+> [ADR-014](../architecture/adr-014-canonical-body-ast.md) (and
+> [ADR-012](../architecture/adr-012-diagnostic-code-scheme.md) §6). `MSL-B044`
+> (§4.5) and `MSL-C072` (§4.7) are implemented on the body-AST.
+
 ### 4.7 Captions (C)
 
 | Code       | Severity | Meaning                                                                               |
