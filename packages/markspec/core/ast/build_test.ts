@@ -73,7 +73,7 @@ Deno.test("build: ordered list → ListNode with ordered=true", () => {
   assertEquals(list.ordered, true);
 });
 
-Deno.test("build: GFM table → TableNode", () => {
+Deno.test("build: GFM table → TableNode with raw field", () => {
   const body = `| A | B |\n|---|---|\n| 1 | 2 |`;
   const blocks = buildBodyAst(body);
   assertEquals(blocks.length, 1);
@@ -85,6 +85,20 @@ Deno.test("build: GFM table → TableNode", () => {
   assertEquals(tbl.rows.length, 1);
   assertEquals(tbl.rows[0][0].text, "1");
   assertEquals(tbl.rows[0][1].text, "2");
+  // raw must equal the exact source substring
+  assertEquals(tbl.raw, body);
+});
+
+Deno.test("build: table with wide separator row carries exact raw source", () => {
+  // Separator row is wider than the cell content — the key round-trip case.
+  const body =
+    `| Col A         | Col B |\n| ------------- | ----- |\n| x             | y     |`;
+  const blocks = buildBodyAst(body);
+  assertEquals(blocks.length, 1);
+  const tbl = blocks[0] as TableNode;
+  assertEquals(tbl.kind, "table");
+  // raw must equal the verbatim source — not the min-content reconstruction
+  assertEquals(tbl.raw, body);
 });
 
 Deno.test("build: fenced code block → CodeNode", () => {

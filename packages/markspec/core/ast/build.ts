@@ -242,6 +242,9 @@ function tryDefinitionList(
 // deno-lint-ignore no-explicit-any
 function extractMdastText(node: any): string {
   if (!node) return "";
+  // Inline code nodes carry their value without delimiters in mdast;
+  // re-add the backtick delimiters so the round-trip is byte-identical.
+  if (node.type === "inlineCode") return `\`${node.value}\``;
   if (typeof node.value === "string") return node.value;
   if (Array.isArray(node.children)) {
     return node.children.map(extractMdastText).join("");
@@ -308,7 +311,7 @@ function assignCaptionPositions(blocks: BodyBlock[]): BodyBlock[] {
 // ---------------------------------------------------------------------------
 
 // deno-lint-ignore no-explicit-any
-function mapMdastNode(node: any): BodyBlock {
+function mapMdastNode(node: any, body: string): BodyBlock {
   const range = positionToRange(node.position);
 
   switch (node.type) {
@@ -386,7 +389,7 @@ function mapMdastNode(node: any): BodyBlock {
           const itemRange = positionToRange(item.position);
           const subBlocks: BodyBlock[] = (item.children ?? []).map(
             // deno-lint-ignore no-explicit-any
-            (child: any) => mapMdastNode(child),
+            (child: any) => mapMdastNode(child, body),
           );
           return { blocks: subBlocks, range: itemRange };
         },
@@ -394,6 +397,7 @@ function mapMdastNode(node: any): BodyBlock {
       return {
         kind: "list",
         ordered: node.ordered ?? false,
+        spread: node.spread ?? false,
         items,
         range,
       } satisfies ListNode;
@@ -410,10 +414,60 @@ function mapMdastNode(node: any): BodyBlock {
         })
       );
       const [header = [], ...dataRows] = rows;
+      // Extract verbatim source substring to preserve author column widths
+      // for byte-identical round-trip. remark populates offset on position
+      // when the input string is passed to .parse(); fall back to a
+      // line/column slice when offsets are absent (defensive).
+      let raw: string;
+      const pos = node.position;
+      if (
+        pos?.start?.offset !== undefined && pos?.end?.offset !== undefined
+      ) {
+        raw = body.slice(pos.start.offset, pos.end.offset);
+        // Normalize indentation: when a table is nested inside a list
+        // item, remark's start.offset points at the first `|` (column 0
+        // of raw), but continuation rows carry the list-continuation
+        // indent (e.g. "  ") because the source does.  Strip exactly
+        // `(pos.start.column - 1)` leading spaces from every line after
+        // the first so that `raw` is a self-contained, column-0-anchored
+        // table string.  `renderListItem` then re-adds a uniform "  "
+        // prefix to every line, reproducing the original source exactly.
+        // For top-level tables `pos.start.column` is 1, so no stripping
+        // occurs and existing behaviour is preserved.
+        const listIndent = pos.start.column - 1; // 0 for top-level tables
+        if (listIndent > 0) {
+          const prefix = " ".repeat(listIndent);
+          const rawLines = raw.split("\n");
+          raw = [
+            rawLines[0],
+            ...rawLines.slice(1).map((line) =>
+              line.startsWith(prefix) ? line.slice(listIndent) : line
+            ),
+          ].join("\n");
+        }
+      } else if (pos) {
+        // Fallback: reconstruct from 1-based line/column boundaries.
+        const bodyLines = body.split("\n");
+        const startLine = pos.start.line - 1; // 0-based
+        const endLine = pos.end.line - 1; // 0-based
+        const startCol = pos.start.column - 1; // 0-based
+        const endCol = pos.end.column - 1; // 0-based (exclusive)
+        if (startLine === endLine) {
+          raw = bodyLines[startLine]?.slice(startCol, endCol) ?? "";
+        } else {
+          const firstPart = bodyLines[startLine]?.slice(startCol) ?? "";
+          const middleParts = bodyLines.slice(startLine + 1, endLine);
+          const lastPart = bodyLines[endLine]?.slice(0, endCol) ?? "";
+          raw = [firstPart, ...middleParts, lastPart].join("\n");
+        }
+      } else {
+        raw = "";
+      }
       return {
         kind: "table",
         header,
         rows: dataRows,
+        raw,
         range,
       } satisfies TableNode;
     }
@@ -443,15 +497,20 @@ function mapMdastNode(node: any): BodyBlock {
         const admonMatch = ADMONITION_FIRST_LINE_RE.exec(paraText.trim());
         if (admonMatch) {
           const kind = admonMatch[1] as AdmonitionKind;
-          // Rest of the text after the admonition marker
+          // Rest of the text after the admonition marker (may include
+          // embedded newlines when the first paragraph spans multiple
+          // quoted lines, e.g. `> [!NOTE]\n> a\n> b`).
           const rest = paraText.replace(ADMONITION_FIRST_LINE_RE, "").trim();
-          // Collect text from remaining children too
+          // Collect text from remaining paragraph children. Each child
+          // is a separate paragraph (separated by a blank quoted line
+          // `>` in the source), so join with "\n\n" so the renderer
+          // can reproduce the interior blank quoted lines byte-identically.
           const otherText = node.children
             .slice(1)
             // deno-lint-ignore no-explicit-any
             .map((c: any) => extractMdastText(c))
-            .join(" ");
-          const fullText = [rest, otherText].filter(Boolean).join(" ");
+            .join("\n\n");
+          const fullText = [rest, otherText].filter(Boolean).join("\n\n");
           const content = inlineContent(fullText, range);
           return {
             kind: "note",
@@ -461,11 +520,14 @@ function mapMdastNode(node: any): BodyBlock {
           } satisfies NoteNode;
         }
       }
-      // Plain blockquote
+      // Plain blockquote. Each mdast paragraph child corresponds to a
+      // separate paragraph in the source, separated by a blank quoted
+      // line (`>` alone). Join with "\n\n" so the renderer can reproduce
+      // interior blank quoted lines byte-identically.
       const bqText = node.children
         // deno-lint-ignore no-explicit-any
         .map((c: any) => extractMdastText(c))
-        .join(" ");
+        .join("\n\n");
       return {
         kind: "blockquote",
         content: inlineContent(bqText, range),
@@ -508,7 +570,9 @@ export function buildBodyAst(body: string): BodyBlock[] {
   if (!body.trim()) return [];
 
   const tree = processor.parse(body) as Root;
-  const blocks: BodyBlock[] = tree.children.map(mapMdastNode);
+  const blocks: BodyBlock[] = tree.children.map((node) =>
+    mapMdastNode(node, body)
+  );
 
   // Post-pass: assign caption positions
   return assignCaptionPositions(blocks);

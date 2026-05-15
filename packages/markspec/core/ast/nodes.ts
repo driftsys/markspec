@@ -82,6 +82,10 @@ export interface ParagraphNode {
 export interface ListNode {
   readonly kind: "list";
   readonly ordered: boolean;
+  /** True when the list is "loose" (items separated by blank lines in
+   * source). Controls whether items are joined with `\n\n` vs `\n` on
+   * render. Corresponds to the mdast `list.spread` property. */
+  readonly spread: boolean;
   readonly items: readonly ListItemNode[];
   readonly range: SourceRange;
 }
@@ -91,6 +95,10 @@ export interface TableNode {
   readonly kind: "table";
   readonly header: readonly InlineContent[];
   readonly rows: readonly (readonly InlineContent[])[];
+  /** Verbatim source substring of the table (preserves author column
+   * widths for byte-identical round-trip; header/rows are the parsed
+   * view for validators). */
+  readonly raw: string;
   readonly range: SourceRange;
 }
 
