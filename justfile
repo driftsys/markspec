@@ -27,6 +27,10 @@ fmt:
 tokens:
     deno run --allow-read --allow-write scripts/gen_theme.ts
 
+# Regenerate the SP1 AST fidelity matrix catalogue
+ast-fidelity-matrix:
+    deno run --allow-read --allow-write scripts/gen_ast_fidelity_matrix.ts
+
 # Regenerate PlantUML diagrams and fix aspect ratio (requires plantuml)
 diagrams:
     find docs -name "*.puml" -exec plantuml -tsvg {} \;

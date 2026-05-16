@@ -26,7 +26,8 @@
     "_site",
     "npm",
     "CHANGELOG.md",
-    "docs/examples/"
+    "docs/examples/",
+    "docs/product/ast-fidelity-matrix.md"
   ],
   "plugins": [
     "https://plugins.dprint.dev/markdown-0.20.0.wasm",

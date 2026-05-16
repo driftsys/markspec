@@ -66,6 +66,16 @@ jobs:
           deno-version: v2.x
       - run: bash scripts/check_tokens.sh
 
+  ast-fidelity-matrix:
+    name: AST fidelity matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: bash scripts/check_ast_fidelity_matrix.sh
+
   commits:
     name: Conventional commits
     if: github.event_name == 'pull_request'
