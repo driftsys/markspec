@@ -77,10 +77,29 @@ decisions, not left implicit in code comments.
 - The formatter cutover is safe by construction (gate-proven where the AST is
   load-bearing; proven string path everywhere else).
 
-### What shifts for existing code (not yet implemented)
+### What shifts for existing code
 
-- Nothing in shipped behaviour. Output is byte-identical to pre-refactor for
-  every input; all existing diagnostics unchanged.
+- **Formatter output is byte-identical to pre-refactor for every input.** The
+  fallback guard (`render(buildBodyAst(body)) === body` ? emit via AST : keep
+  original string) ensures no document is modified in any way it was not already
+  modified by the pre-refactor formatter. This statement is verified and
+  correct.
+- **Two diagnostics changed intentionally in the validator migration (PR #340).
+  The "all existing diagnostics unchanged" claim in the original draft of this
+  section was false and is corrected here:**
+  - **MSL-B042** now emits one diagnostic per task-list _block_ (one per
+    `ListNode` with `hasTaskItems: true`) rather than one per task-list _item_
+    line. For a body containing a 3-item task list: was 3 diagnostics, now 1.
+    This is **accepted as intentional** — the AST-based approach is structurally
+    cleaner, the error/exit code is unchanged, and the new behaviour is pinned
+    by a regression test (see PR #341 follow-up).
+  - **MSL-M060** now fires on _any_ non-canonical-case modal keyword (e.g.
+    title-case `Should`, `Shall`) rather than only on fully-uppercase forms
+    (`SHOULD`, `SHALL`). This is a behaviour broadening that is arguably more
+    spec-correct but was shipped unlabelled. Its warning message still says "is
+    uppercase" even for title-case forms, which is inaccurate. This is recorded
+    as **known tracked debt** — not fixed in this follow-up (see "Known debt"
+    under Out-of-scope below).
 - Future work inherits two defined obligations: widen the build/render inverse
   toward totality (shrinking the string-fallback set), and specify the
   entity-resolution model that unblocks M050/M051.
@@ -127,3 +146,9 @@ decisions, not left implicit in code comments.
 - Extracting `emitBodyViaAst` + body-geometry helpers out of `formatter/mod.ts`
   into a focused module (tracked code-quality follow-up).
 - The broader `MSL-P/I/M/F` scheme migration (still ADR-012's deferred phase).
+- **Known debt — MSL-M060:** The validator migration (PR #340) broadened M060's
+  trigger beyond all-uppercase modals to any non-canonical-case form (including
+  title-case `Should`, `Shall`). Its warning message still reads "is uppercase"
+  for forms that are merely title-case, not fully uppercase — the wording is
+  inaccurate. Both the trigger broadening and the message inaccuracy are tracked
+  debt; neither is addressed in this ADR or its follow-up PR.

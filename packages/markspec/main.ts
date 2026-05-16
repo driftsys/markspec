@@ -661,6 +661,8 @@ const cli = new Command()
 
       // Load project config for config-driven rules (e.g. MSL-C072
       // caption-position convention). Absent config → defaults (rules inactive).
+      // A malformed config (ConfigError) IS surfaced — a bad caption-conventions
+      // block silently disabling MSL-C072 would be invisible debt (M-1 fix).
       let captionConventions: CaptionConventions = {};
       if (projectRoot !== undefined) {
         try {
@@ -668,7 +670,15 @@ const cli = new Command()
           if (configResult) {
             captionConventions = configResult.config.captionConventions;
           }
-        } catch { /* config load failure is non-fatal for validate */ }
+        } catch (err) {
+          if (err instanceof ConfigError) {
+            console.error(`error: ${err.message}`);
+            Deno.exit(1);
+          }
+          // Other unexpected errors (I/O, etc.) remain non-fatal — the rule
+          // simply stays inactive; the file-missing path already returns undefined
+          // from readFile and never throws.
+        }
       }
 
       const { parseFile, runPipeline } = await import("./core/mod.ts");
@@ -1217,7 +1227,9 @@ const cli = new Command()
       ? await loadActiveProfile(projectRoot)
       : null;
 
-    // Load caption conventions for MSL-C072.
+    // Load caption conventions for MSL-C072.  A malformed config (ConfigError)
+    // IS surfaced — same as the validate command (M-1 fix).  Absent config stays
+    // non-fatal; the rule simply stays inactive.
     let hookCaptionConventions: CaptionConventions = {};
     if (projectRoot !== undefined) {
       try {
@@ -1225,7 +1237,13 @@ const cli = new Command()
         if (configResult) {
           hookCaptionConventions = configResult.config.captionConventions;
         }
-      } catch { /* non-fatal */ }
+      } catch (err) {
+        if (err instanceof ConfigError) {
+          console.error(`error: ${err.message}`);
+          Deno.exit(1);
+        }
+        // Other unexpected errors remain non-fatal.
+      }
     }
 
     let hadError = false;

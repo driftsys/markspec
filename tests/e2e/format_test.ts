@@ -772,3 +772,69 @@ Deno.test("format: reports summary to stderr", async () => {
   assertStringIncludes(stderr, "file(s) formatted");
   assertStringIncludes(stderr, "total)");
 });
+
+// ---------------------------------------------------------------------------
+// Formatter fallback guard — regression test (ADR-014 §Decision-2)
+//
+// The formatter's emitBodyViaAst() uses a safe conditional fallback:
+//   render(buildBodyAst(body)) === body  →  emit via AST
+//   otherwise                           →  keep original string body
+//
+// The build/render inverse is NOT total over valid Markdown.  Bodies that
+// contain constructs not yet covered by the equivalence gate (hard line
+// breaks, setext headings, link-reference definitions, thematic breaks, …)
+// do not round-trip and MUST be left byte-identical by the formatter.
+//
+// This test uses a hard line break (`line  \nline`) — verified to NOT
+// round-trip: render(buildBodyAst("Line one  \nLine two")) returns
+// "Line oneLine two" (the two trailing spaces and newline are lost).
+//
+// If someone removes the fallback guard in emitBodyViaAst(), the formatter
+// will corrupt hard-line-break bodies (stripping the trailing spaces +
+// newline) and this test will fail.  That is the INTENDED guard.
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "format: entry body with hard line break is preserved byte-identically (fallback guard — ADR-014 §Decision-2)",
+  async () => {
+    // The body contains a hard line break: two trailing spaces before \n.
+    // render(buildBodyAst(body)) !== body for this construct, so the
+    // formatter MUST take the string-fallback path, leaving it untouched.
+    const input = [
+      "# Test",
+      "",
+      "- [REQ-001] Hard-line-break requirement",
+      "",
+      "  This sentence ends here.  ",
+      "  This continues on the next line.",
+      "",
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "",
+    ].join("\n");
+
+    const pass1 = await runFormat({ "req.md": input });
+    assertEquals(
+      pass1.code,
+      0,
+      `format should succeed on a hard-line-break body; stderr: ${pass1.stderr}`,
+    );
+
+    const out1 = await pass1.readFile("req.md");
+
+    // The hard line break (two trailing spaces before newline) must be intact.
+    assertEquals(
+      out1.includes("This sentence ends here.  \n"),
+      true,
+      `formatter must preserve the hard line break (two trailing spaces) byte-identically; got:\n${out1}`,
+    );
+
+    // Idempotency: a second pass must not touch the already-canonical file.
+    const pass2 = await runFormat({ "req.md": out1 });
+    const out2 = await pass2.readFile("req.md");
+    assertEquals(
+      out1,
+      out2,
+      "format must be idempotent on a body containing a hard line break",
+    );
+  },
+);
