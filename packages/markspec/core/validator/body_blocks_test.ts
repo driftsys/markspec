@@ -84,6 +84,36 @@ Deno.test("validateBodyBlocks: normal list (no tasks) — no MSL-B042", () => {
 });
 
 // ---------------------------------------------------------------------------
+// MSL-B042: Path A / ADR-014 intentional behaviour change — one diag per
+// task-list BLOCK, not one per item.
+//
+// Pre-Path-A (line-scanner): a 3-item task list emitted 3 MSL-B042 diagnostics,
+// one per item line.  Post-Path-A (AST-based, PR #340): the validator fires
+// once per ListNode with hasTaskItems=true, so the same 3-item list emits
+// EXACTLY ONE MSL-B042.  This was accepted as intentional in ADR-014.
+// This test pins that accepted behaviour.  If someone reverts the validator to
+// per-item line-scanning this test will fail — that is the intended guard.
+// ---------------------------------------------------------------------------
+
+Deno.test("validateBodyBlocks: 3-item task list emits exactly ONE MSL-B042 (ADR-014 Path A intentional change)", () => {
+  const body = [
+    "Body text.",
+    "",
+    "- [ ] First task item",
+    "- [x] Second task item",
+    "- [ ] Third task item",
+    "",
+  ].join("\n");
+  const entry = makeEntry("REQ-001", body);
+  const b042 = validateBodyBlocks(entry).filter((d) => d.code === "MSL-B042");
+  assertEquals(
+    b042.length,
+    1,
+    "Path A AST migration (ADR-014): a multi-item task list must emit exactly 1 MSL-B042, not one per item",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // MSL-B043 — raw HTML
 // ---------------------------------------------------------------------------
 
