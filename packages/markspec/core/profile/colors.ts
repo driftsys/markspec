@@ -31,7 +31,7 @@ export function resolveEntryColor(
   entry: Entry,
   profile: EffectiveProfile | undefined,
 ): PaletteHue | null {
-  if (entry.shape === "referenced") return null;
+  if (entry.shape === "Reference") return null;
 
   if (!profile || !entry.type) return DEFAULT_HUE;
 

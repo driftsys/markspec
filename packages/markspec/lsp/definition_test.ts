@@ -18,7 +18,7 @@ function makeEntry(file: string, line: number, column: number): Entry {
     rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],
     typedAttributes: new Map(),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     location: { file, line, column },
     source: "markdown",
   };

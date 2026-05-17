@@ -66,7 +66,7 @@ export function buildProfileView(
   for (const [name, entry] of eff.types) {
     const tdef: EffectiveTypeDef = entry.value;
     const shape = tdef.shape;
-    const shapeScope = shape === "identified" ? eff.identified : eff.referenced;
+    const shapeScope = shape === "Authored" ? eff.identified : eff.referenced;
 
     const allowed = new Set<string>([
       ...tdef.attributes.keys(),

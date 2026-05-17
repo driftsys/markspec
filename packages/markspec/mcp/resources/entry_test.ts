@@ -20,7 +20,7 @@ const ENTRY: Entry = {
   typedAttributes: new Map(),
   id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
   type: "stakeholder-requirement",
-  shape: "identified",
+  shape: "Authored",
   location: {
     file: "/proj/docs/product/stakeholder-requirements.md",
     line: 42,
@@ -60,7 +60,7 @@ Deno.test("renderEntry: includes title and type", () => {
   const md = renderEntry(ENTRY, [], [], TITLES);
   assertStringIncludes(md, "# STK_AEB_0001 — Stop on imminent collision");
   assertStringIncludes(md, "**Type**: stakeholder-requirement");
-  assertStringIncludes(md, "**Shape**: identified");
+  assertStringIncludes(md, "**Shape**: Authored");
 });
 
 Deno.test("renderEntry: includes ULID and location", () => {

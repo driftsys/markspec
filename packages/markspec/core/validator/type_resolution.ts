@@ -131,14 +131,14 @@ export function resolvedCoreTypeWithProvenance(
     }
   }
   // Step 4: Authored display-ID prefix
-  if (entry.shape === "identified") {
+  if (entry.shape === "Authored") {
     const inferred = inferTypeFromDisplayIdPrefix(entry.displayId);
     if (inferred && CORE_TYPE_HIERARCHY[inferred]) {
       return { type: inferred, step: 4 };
     }
   }
   // Step 5: Reference-shape URI scheme
-  if (entry.shape === "referenced" && entry.id) {
+  if (entry.shape === "Reference" && entry.id) {
     const inferred = inferTypeFromUriScheme(entry.id);
     if (inferred && CORE_TYPE_HIERARCHY[inferred]) {
       return { type: inferred, step: 5 };

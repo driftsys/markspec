@@ -9,7 +9,7 @@ import type { EffectiveProfile, Entry } from "../model/mod.ts";
 
 function makeIdentifiedEntry(type: string | undefined): Entry {
   return {
-    shape: "identified",
+    shape: "Authored",
     displayId: "TST_AAA_0001",
     title: "t",
     body: "",
@@ -23,7 +23,7 @@ function makeIdentifiedEntry(type: string | undefined): Entry {
 }
 
 function makeReferencedEntry(type: string | undefined): Entry {
-  return { ...makeIdentifiedEntry(type), shape: "referenced" } as Entry;
+  return { ...makeIdentifiedEntry(type), shape: "Reference" } as Entry;
 }
 
 function makeProfile(
@@ -40,7 +40,7 @@ function makeProfile(
     Object.entries(typeColors).map(([name, color]) => [name, {
       value: {
         name,
-        shape: "identified" as const,
+        shape: "Authored" as const,
         displayIdPattern: { value: undefined, origin: "test" },
         displayIdPatternEnforcement: { value: "off" as const, origin: "test" },
         color: { value: color, origin: "test" },

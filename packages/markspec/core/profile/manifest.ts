@@ -422,11 +422,21 @@ function parseTargetMatcher(
   if (typeof raw === "string" && raw.length > 0) return raw;
   if (raw != null && typeof raw === "object" && !Array.isArray(raw)) {
     const r = raw as Record<string, unknown>;
-    if (
-      typeof r.shape === "string" &&
-      (r.shape === "identified" || r.shape === "referenced")
-    ) {
-      return { shape: r.shape };
+    if (typeof r.shape === "string") {
+      // The profile-manifest `shape:` vocabulary is the authored
+      // `identified`/`referenced` surface (profile-schema §1.3 marks it
+      // obsolete — its removal is the profile-schema reconciliation
+      // slice, not this one). Map it one-directionally onto the internal
+      // EntryShape. NOT a backward-compat dual-accept: the new names are
+      // deliberately not accepted in authored YAML.
+      const shape = r.shape === "identified"
+        ? "Authored"
+        : r.shape === "referenced"
+        ? "Reference"
+        : undefined;
+      if (shape !== undefined) {
+        return { shape };
+      }
     }
   }
   diagnostics.push({
@@ -618,8 +628,19 @@ function parseTypeDef(
     }
   }
 
-  const shape = r.shape;
-  if (shape !== "identified" && shape !== "referenced") {
+  // The profile-manifest `shape:` vocabulary is the authored
+  // `identified`/`referenced` surface (profile-schema §1.3 marks it
+  // obsolete — its removal is the profile-schema reconciliation slice,
+  // not this one). Map it one-directionally onto the internal EntryShape.
+  // NOT a backward-compat dual-accept: the new names are deliberately not
+  // accepted in authored YAML.
+  const rawShape = r.shape;
+  const shape: "Authored" | "Reference" | undefined = rawShape === "identified"
+    ? "Authored"
+    : rawShape === "referenced"
+    ? "Reference"
+    : undefined;
+  if (shape === undefined) {
     diagnostics.push({
       code: "PROFILE-LOAD-003",
       severity: "error",
@@ -629,7 +650,7 @@ function parseTypeDef(
     return undefined;
   }
 
-  if (shape === "referenced" && r.traceability !== undefined) {
+  if (shape === "Reference" && r.traceability !== undefined) {
     diagnostics.push({
       code: "PROFILE-LOAD-003",
       severity: "error",
@@ -682,7 +703,7 @@ function parseTypeDef(
       return undefined;
     }
     color = r.color;
-    if (shape === "referenced") {
+    if (shape === "Reference") {
       diagnostics.push({
         code: "MSL-PROFILE-COLOR-001",
         severity: "warning",
@@ -705,7 +726,7 @@ function parseTypeDef(
     sourcePath,
     diagnostics,
   );
-  const traceability = shape === "identified"
+  const traceability = shape === "Authored"
     ? parseTraceabilityMap(
       r.traceability,
       `${ctx}.traceability`,

@@ -19,7 +19,7 @@ function makeEntry(opts: {
   line: number;
   column?: number;
   type?: string;
-  shape?: "identified" | "referenced";
+  shape?: "Authored" | "Reference";
 }): Entry {
   return {
     displayId: opts.displayId,
@@ -28,7 +28,7 @@ function makeEntry(opts: {
     rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],
     typedAttributes: new Map(),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: opts.shape ?? "identified",
+    shape: opts.shape ?? "Authored",
     type: opts.type,
     location: { file: "t.md", line: opts.line, column: opts.column ?? 1 },
     source: "markdown",

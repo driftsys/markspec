@@ -29,7 +29,7 @@ function entry(opts: {
     typedAttributes: new Map(),
     id,
     type: opts.type,
-    shape: "identified",
+    shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
   };

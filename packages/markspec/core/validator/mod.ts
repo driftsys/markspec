@@ -116,7 +116,7 @@ function checkStructural(
         });
       }
       // Shape consistency: ULID ↔ identified, URI ↔ referenced.
-      if (isUlid && entry.shape !== "identified") {
+      if (isUlid && entry.shape !== "Authored") {
         diagnostics.push({
           code: "MSL-R004",
           severity: "error",
@@ -124,7 +124,7 @@ function checkStructural(
             `${entry.displayId}: Id: value is a ULID but entry shape is ${entry.shape}`,
           location: entry.location,
         });
-      } else if (isUri && entry.shape !== "referenced") {
+      } else if (isUri && entry.shape !== "Reference") {
         diagnostics.push({
           code: "MSL-R004",
           severity: "error",
@@ -139,7 +139,7 @@ function checkStructural(
     // (spec §1.7, ADR-002 §Part 3). Authored entries have a free-form
     // display ID at core level (tightened by profile patterns).
     if (
-      entry.shape === "referenced" && !REFERENCE_SLUG_RE.test(entry.displayId)
+      entry.shape === "Reference" && !REFERENCE_SLUG_RE.test(entry.displayId)
     ) {
       diagnostics.push({
         code: "MSL-I006",
@@ -405,7 +405,7 @@ function checkReferences(
         });
         continue;
       }
-      if (resolved.shape !== "referenced") {
+      if (resolved.shape !== "Reference") {
         diagnostics.push({
           code: "MSL-R085",
           severity: "warning",

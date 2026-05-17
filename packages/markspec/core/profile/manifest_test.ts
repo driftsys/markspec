@@ -180,7 +180,7 @@ profile:
   assertEquals(trace?.size, 1);
   const rule = trace?.get("Derived-from");
   assertEquals(rule?.target.length, 1);
-  assertEquals(rule?.target[0], { shape: "identified" });
+  assertEquals(rule?.target[0], { shape: "Authored" });
   assertEquals(rule?.required, false);
   assertEquals(rule?.cardinality?.lower, 0);
   assertEquals(rule?.cardinality?.upper, Infinity);
@@ -240,7 +240,7 @@ profile:
   const types = result.manifest?.types;
   assertEquals(types?.size, 2);
   const req = types?.get("requirement");
-  assertEquals(req?.shape, "identified");
+  assertEquals(req?.shape, "Authored");
   assertEquals(req?.displayIdPattern, "REQ-{n:04d}");
   assertEquals(req?.displayIdPatternEnforcement, "error");
   assertEquals(req?.required, ["Rationale"]);
@@ -248,7 +248,7 @@ profile:
   const trace = req?.traceability.get("Derived-from");
   assertEquals(trace?.target, ["stakeholder-requirement"]);
   const std = types?.get("standard");
-  assertEquals(std?.shape, "referenced");
+  assertEquals(std?.shape, "Reference");
   assertEquals(std?.displayIdPatternEnforcement, "off");
 });
 

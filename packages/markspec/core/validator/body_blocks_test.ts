@@ -20,7 +20,7 @@ function makeEntry(displayId: string, body: string): Entry {
     bodyAst: buildBodyAst(body),
     rawAttributes: [],
     id: undefined,
-    shape: "identified",
+    shape: "Authored",
     location: { file: "test.md", line: 10, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),

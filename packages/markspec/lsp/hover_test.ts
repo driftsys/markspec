@@ -24,7 +24,7 @@ function makeEntry(opts: {
     rawAttributes: [{ key: "Id", value: ULID }],
     typedAttributes: new Map(),
     id: ULID,
-    shape: "identified",
+    shape: "Authored",
     type: opts.type,
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",

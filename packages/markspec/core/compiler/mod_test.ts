@@ -40,7 +40,7 @@ Deno.test("compile: extracts entries from a single file", async () => {
   assertEquals(result.entries.size, 1);
   const entry = result.entries.get("REQ-001");
   assertExists(entry);
-  assertEquals(entry.shape, "identified");
+  assertEquals(entry.shape, "Authored");
   assertEquals(entry.id, ULID_A);
 });
 
@@ -81,8 +81,8 @@ Deno.test("compile: mixed identified + referenced entries", async () => {
   const result = await compile(["requirements.md", "references.md"], {
     readFile: reader(files),
   });
-  assertEquals(result.entries.get("REQ-001")?.shape, "identified");
-  assertEquals(result.entries.get("ISO-26262-6")?.shape, "referenced");
+  assertEquals(result.entries.get("REQ-001")?.shape, "Authored");
+  assertEquals(result.entries.get("ISO-26262-6")?.shape, "Reference");
 });
 
 Deno.test("compile: missing file emits MSL-E000 error", async () => {

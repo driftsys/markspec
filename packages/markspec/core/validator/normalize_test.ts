@@ -95,7 +95,7 @@ const textAttr: AttrDecl = {
 Deno.test("normalizeListValues: id-list with comma-separated value is split", () => {
   const p = profile({ universalAttrs: [idListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: {
       Verifies: ["REQ-0001, REQ-0002, REQ-0003"],
     },
@@ -111,7 +111,7 @@ Deno.test("normalizeListValues: id-list with comma-separated value is split", ()
 Deno.test("normalizeListValues: tag-list with comma-separated value is split", () => {
   const p = profile({ universalAttrs: [tagListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Labels: ["DRAFT, INTERNAL"] },
   });
   const out = normalizeListValues(e, p);
@@ -121,7 +121,7 @@ Deno.test("normalizeListValues: tag-list with comma-separated value is split", (
 Deno.test("normalizeListValues: no comma → idempotent (value unchanged)", () => {
   const p = profile({ universalAttrs: [idListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Verifies: ["REQ-0001", "REQ-0002"] },
   });
   const out = normalizeListValues(e, p);
@@ -132,7 +132,7 @@ Deno.test("normalizeListValues: no comma → idempotent (value unchanged)", () =
 Deno.test("normalizeListValues: trims whitespace around split values", () => {
   const p = profile({ universalAttrs: [idListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Verifies: ["  REQ-0001  ,  REQ-0002  "] },
   });
   const out = normalizeListValues(e, p);
@@ -145,7 +145,7 @@ Deno.test("normalizeListValues: trims whitespace around split values", () => {
 Deno.test("normalizeListValues: empty-string fragments from double commas are dropped", () => {
   const p = profile({ universalAttrs: [idListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Verifies: ["REQ-0001,,REQ-0002"] },
   });
   const out = normalizeListValues(e, p);
@@ -158,7 +158,7 @@ Deno.test("normalizeListValues: empty-string fragments from double commas are dr
 Deno.test("normalizeListValues: non-list types are never split", () => {
   const p = profile({ universalAttrs: [textAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Rationale: ["one, two, three"] },
   });
   const out = normalizeListValues(e, p);
@@ -168,7 +168,7 @@ Deno.test("normalizeListValues: non-list types are never split", () => {
 Deno.test("normalizeListValues: mix of multi-line and comma-separated merges correctly", () => {
   const p = profile({ universalAttrs: [idListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Verifies: ["REQ-0001, REQ-0002", "REQ-0003"] },
   });
   const out = normalizeListValues(e, p);
@@ -182,7 +182,7 @@ Deno.test("normalizeListValues: mix of multi-line and comma-separated merges cor
 Deno.test("normalizeListValues: un-declared attribute is untouched", () => {
   const p = profile({ universalAttrs: [idListAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Unknown: ["a, b, c"] },
   });
   const out = normalizeListValues(e, p);
@@ -191,7 +191,7 @@ Deno.test("normalizeListValues: un-declared attribute is untouched", () => {
 
 Deno.test("normalizeListValues: entry with no typedAttributes is returned as-is", () => {
   const p = profile({ universalAttrs: [idListAttr] });
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const out = normalizeListValues(e, p);
   assertEquals(out, e);
 });
@@ -217,7 +217,7 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
       ["requirement", {
         value: {
           name: "requirement",
-          shape: "identified",
+          shape: "Authored",
           displayIdPattern: { value: undefined, origin },
           displayIdPatternEnforcement: { value: "off", origin },
           color: { value: undefined, origin },
@@ -231,7 +231,7 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
     documents: { types: new Map(), frontMatter: new Map() },
   };
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Verifies: ["REQ-0001, REQ-0002"] },
   });
   const classified = { ...e, type: "requirement" };

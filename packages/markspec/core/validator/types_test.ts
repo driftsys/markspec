@@ -92,11 +92,11 @@ Deno.test("classifyEntry: unique pattern match classifies entry", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
-  const entry = buildEntry({ displayId: "REQ-0001", shape: "identified" });
+  const entry = buildEntry({ displayId: "REQ-0001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, "requirement");
   assertEquals(result.diagnostics, []);
@@ -106,11 +106,11 @@ Deno.test("classifyEntry: no match + strict mode emits MSL-T003", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
-  const entry = buildEntry({ displayId: "FOO-001", shape: "identified" });
+  const entry = buildEntry({ displayId: "FOO-001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, undefined);
   assertEquals(result.diagnostics[0].code, "MSL-T003");
@@ -120,16 +120,16 @@ Deno.test("classifyEntry: ambiguous match emits MSL-T002", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n}",
     }),
     buildType({
       name: "req-extended",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
-  const entry = buildEntry({ displayId: "REQ-0001", shape: "identified" });
+  const entry = buildEntry({ displayId: "REQ-0001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, undefined);
   assertEquals(result.diagnostics[0].code, "MSL-T002");
@@ -139,16 +139,16 @@ Deno.test("classifyEntry: only types with matching shape are considered", () => 
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
     buildType({
       name: "citation",
-      shape: "referenced",
+      shape: "Reference",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
-  const entry = buildEntry({ displayId: "REQ-0001", shape: "identified" });
+  const entry = buildEntry({ displayId: "REQ-0001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, "requirement");
   assertEquals(result.diagnostics, []);
@@ -158,13 +158,13 @@ Deno.test("classifyEntry: explicit Type: trailer used when present", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
   const entry = buildEntry({
     displayId: "FOO-001",
-    shape: "identified",
+    shape: "Authored",
     typeAttribute: "requirement",
   });
   const result = classifyEntry(entry, profile);
@@ -174,11 +174,11 @@ Deno.test("classifyEntry: explicit Type: trailer used when present", () => {
 
 Deno.test("classifyEntry: explicit Type: unknown value emits MSL-T001", () => {
   const profile = buildProfile([
-    buildType({ name: "requirement", shape: "identified" }),
+    buildType({ name: "requirement", shape: "Authored" }),
   ]);
   const entry = buildEntry({
     displayId: "REQ-0001",
-    shape: "identified",
+    shape: "Authored",
     typeAttribute: "bogus",
   });
   const result = classifyEntry(entry, profile);
@@ -190,18 +190,18 @@ Deno.test("classifyEntry: explicit Type: overrides pattern inference", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n}",
     }),
     buildType({
       name: "note",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "NOTE-{n}",
     }),
   ]);
   const entry = buildEntry({
     displayId: "REQ-1",
-    shape: "identified",
+    shape: "Authored",
     typeAttribute: "note",
   });
   const result = classifyEntry(entry, profile);
@@ -211,7 +211,7 @@ Deno.test("classifyEntry: explicit Type: overrides pattern inference", () => {
 
 Deno.test("classifyEntry: permissive (empty types map) never emits MSL-T003", () => {
   const profile = buildProfile([]);
-  const entry = buildEntry({ displayId: "FOO-001", shape: "identified" });
+  const entry = buildEntry({ displayId: "FOO-001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, undefined);
   assertEquals(result.diagnostics, []);
@@ -219,9 +219,9 @@ Deno.test("classifyEntry: permissive (empty types map) never emits MSL-T003", ()
 
 Deno.test("classifyEntry: type without pattern doesn't participate in pattern match", () => {
   const profile = buildProfile([
-    buildType({ name: "generic", shape: "identified" }),
+    buildType({ name: "generic", shape: "Authored" }),
   ]);
-  const entry = buildEntry({ displayId: "FOO-001", shape: "identified" });
+  const entry = buildEntry({ displayId: "FOO-001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
   assertEquals(result.type, undefined);
   assertEquals(result.diagnostics[0].code, "MSL-T003");
@@ -231,13 +231,13 @@ Deno.test("classifyEntriesStage: sets entry.type on successful classification", 
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
   const entries = [
-    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
-    buildEntry({ displayId: "REQ-0002", shape: "identified" }),
+    buildEntry({ displayId: "REQ-0001", shape: "Authored" }),
+    buildEntry({ displayId: "REQ-0002", shape: "Authored" }),
   ];
   const result = classifyEntriesStage(entries, profile);
   assertEquals(result.diagnostics, []);
@@ -248,7 +248,7 @@ Deno.test("classifyEntriesStage: sets entry.type on successful classification", 
 Deno.test("classifyEntriesStage: preserves entries for un-classified (permissive mode)", () => {
   const profile = buildProfile([]);
   const entries = [
-    buildEntry({ displayId: "FOO-001", shape: "identified" }),
+    buildEntry({ displayId: "FOO-001", shape: "Authored" }),
   ];
   const result = classifyEntriesStage(entries, profile);
   assertEquals(result.diagnostics, []);
@@ -259,14 +259,14 @@ Deno.test("classifyEntriesStage: accumulates diagnostics across entries", () => 
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
   const entries = [
-    buildEntry({ displayId: "FOO-001", shape: "identified" }),
-    buildEntry({ displayId: "BAR-002", shape: "identified" }),
-    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+    buildEntry({ displayId: "FOO-001", shape: "Authored" }),
+    buildEntry({ displayId: "BAR-002", shape: "Authored" }),
+    buildEntry({ displayId: "REQ-0001", shape: "Authored" }),
   ];
   const result = classifyEntriesStage(entries, profile);
   const t003 = result.diagnostics.filter((d) => d.code === "MSL-T003");
@@ -277,7 +277,7 @@ Deno.test("classifyEntriesStage: MSL-T004 warn when enforcement=warn and pattern
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "warn",
     }),
@@ -285,7 +285,7 @@ Deno.test("classifyEntriesStage: MSL-T004 warn when enforcement=warn and pattern
   const entries = [
     buildEntry({
       displayId: "FOO-001",
-      shape: "identified",
+      shape: "Authored",
       typeAttribute: "requirement",
     }),
   ];
@@ -304,7 +304,7 @@ Deno.test("classifyEntriesStage: MSL-T004 error when enforcement=error", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "error",
     }),
@@ -312,7 +312,7 @@ Deno.test("classifyEntriesStage: MSL-T004 error when enforcement=error", () => {
   const entries = [
     buildEntry({
       displayId: "FOO-001",
-      shape: "identified",
+      shape: "Authored",
       typeAttribute: "requirement",
     }),
   ];
@@ -330,7 +330,7 @@ Deno.test("classifyEntriesStage: no MSL-T004 when enforcement=off", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "off",
     }),
@@ -338,7 +338,7 @@ Deno.test("classifyEntriesStage: no MSL-T004 when enforcement=off", () => {
   const entries = [
     buildEntry({
       displayId: "FOO-001",
-      shape: "identified",
+      shape: "Authored",
       typeAttribute: "requirement",
     }),
   ];
@@ -351,13 +351,13 @@ Deno.test("classifyEntriesStage: pattern-matched classification is never MSL-T00
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "error",
     }),
   ]);
   const entries = [
-    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+    buildEntry({ displayId: "REQ-0001", shape: "Authored" }),
   ];
   const result = classifyEntriesStage(entries, profile);
   assertEquals(result.diagnostics, []);

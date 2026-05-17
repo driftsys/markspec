@@ -41,7 +41,7 @@ const E1: Entry = {
   body: "",
   rawAttributes: [],
   typedAttributes: new Map(),
-  shape: "identified",
+  shape: "Authored",
   location: { file: "/proj/x.md", line: 1, column: 1 },
   source: "markdown",
 };

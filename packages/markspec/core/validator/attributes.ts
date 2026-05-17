@@ -62,7 +62,7 @@ export function effectiveScope(
   }
 
   // Shape scope.
-  const shapeScope = entry.shape === "identified"
+  const shapeScope = entry.shape === "Authored"
     ? profile.identified
     : profile.referenced;
   required.push(...shapeScope.required.value);
@@ -85,7 +85,7 @@ export function effectiveScope(
   // names that aren't explicitly declared as attributes. A trace rule IS an
   // id-list attribute by definition — profile authors shouldn't have to
   // declare it in both places.
-  const shapeTrace = entry.shape === "identified"
+  const shapeTrace = entry.shape === "Authored"
     ? profile.identified.traceability
     : profile.referenced.traceability;
   for (const [name] of shapeTrace) {

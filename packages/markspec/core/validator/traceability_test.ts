@@ -97,7 +97,7 @@ function entry(opts: { shape: EntryShape; type?: string }): Entry {
 }
 
 const derivedFromRule: TraceRule = {
-  target: [{ shape: "identified" }],
+  target: [{ shape: "Authored" }],
   cardinality: { lower: 0, upper: Infinity },
   required: false,
 };
@@ -114,7 +114,7 @@ Deno.test("effectiveTraceRules: identified shape scope only", () => {
       traceability: { "Derived-from": derivedFromRule },
     }),
   });
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 1);
   assertEquals(rules.get("Derived-from"), derivedFromRule);
@@ -126,7 +126,7 @@ Deno.test("effectiveTraceRules: referenced entry always returns empty map", () =
       traceability: { "Derived-from": derivedFromRule },
     }),
   });
-  const e = entry({ shape: "referenced" });
+  const e = entry({ shape: "Reference" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 0);
 });
@@ -138,11 +138,11 @@ Deno.test("effectiveTraceRules: classified entry adds type-scope rules", () => {
     }),
     types: [typeDef({
       name: "test",
-      shape: "identified",
+      shape: "Authored",
       traceability: { Verifies: verifiesRule },
     })],
   });
-  const e = entry({ shape: "identified", type: "test" });
+  const e = entry({ shape: "Authored", type: "test" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 2);
   assertEquals(rules.get("Derived-from"), derivedFromRule);
@@ -156,11 +156,11 @@ Deno.test("effectiveTraceRules: un-classified entry uses only shape scope", () =
     }),
     types: [typeDef({
       name: "test",
-      shape: "identified",
+      shape: "Authored",
       traceability: { Verifies: verifiesRule },
     })],
   });
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 1);
   assertEquals(rules.has("Verifies"), false);
@@ -179,11 +179,11 @@ Deno.test("effectiveTraceRules: type scope wins on link-name collision", () => {
     }),
     types: [typeDef({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       traceability: { "Derived-from": tightRule },
     })],
   });
-  const e = entry({ shape: "identified", type: "requirement" });
+  const e = entry({ shape: "Authored", type: "requirement" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.get("Derived-from"), tightRule);
 });
@@ -194,7 +194,7 @@ Deno.test("effectiveTraceRules: classified entry with unknown type falls back to
       traceability: { "Derived-from": derivedFromRule },
     }),
   });
-  const e = entry({ shape: "identified", type: "not-in-profile" });
+  const e = entry({ shape: "Authored", type: "not-in-profile" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 1);
   assertEquals(rules.get("Derived-from"), derivedFromRule);
@@ -220,32 +220,32 @@ function targetEntry(opts: {
 }
 
 Deno.test("matchesAnyTarget: string matcher accepts target with matching type", () => {
-  const t = targetEntry({ shape: "identified", type: "requirement" });
+  const t = targetEntry({ shape: "Authored", type: "requirement" });
   assertEquals(matchesAnyTarget(t, ["requirement"]), true);
 });
 
 Deno.test("matchesAnyTarget: string matcher rejects mismatched type", () => {
-  const t = targetEntry({ shape: "identified", type: "note" });
+  const t = targetEntry({ shape: "Authored", type: "note" });
   assertEquals(matchesAnyTarget(t, ["requirement"]), false);
 });
 
 Deno.test("matchesAnyTarget: string matcher rejects un-classified target", () => {
-  const t = targetEntry({ shape: "identified" });
+  const t = targetEntry({ shape: "Authored" });
   assertEquals(matchesAnyTarget(t, ["requirement"]), false);
 });
 
 Deno.test("matchesAnyTarget: shape matcher accepts matching shape", () => {
-  const t = targetEntry({ shape: "identified" });
-  assertEquals(matchesAnyTarget(t, [{ shape: "identified" }]), true);
+  const t = targetEntry({ shape: "Authored" });
+  assertEquals(matchesAnyTarget(t, [{ shape: "Authored" }]), true);
 });
 
 Deno.test("matchesAnyTarget: shape matcher rejects opposite shape", () => {
-  const t = targetEntry({ shape: "referenced" });
-  assertEquals(matchesAnyTarget(t, [{ shape: "identified" }]), false);
+  const t = targetEntry({ shape: "Reference" });
+  assertEquals(matchesAnyTarget(t, [{ shape: "Authored" }]), false);
 });
 
 Deno.test("matchesAnyTarget: multi-matcher uses OR — first match wins", () => {
-  const t = targetEntry({ shape: "identified", type: "requirement" });
+  const t = targetEntry({ shape: "Authored", type: "requirement" });
   assertEquals(
     matchesAnyTarget(t, ["stakeholder-requirement", "requirement"]),
     true,
@@ -253,23 +253,23 @@ Deno.test("matchesAnyTarget: multi-matcher uses OR — first match wins", () => 
 });
 
 Deno.test("matchesAnyTarget: multi-matcher all reject → false", () => {
-  const t = targetEntry({ shape: "identified", type: "other" });
-  assertEquals(matchesAnyTarget(t, ["a", "b", { shape: "referenced" }]), false);
+  const t = targetEntry({ shape: "Authored", type: "other" });
+  assertEquals(matchesAnyTarget(t, ["a", "b", { shape: "Reference" }]), false);
 });
 
 Deno.test("matchesAnyTarget: mixed string + shape matcher", () => {
-  const reqTarget = targetEntry({ shape: "identified", type: "requirement" });
-  const refTarget = targetEntry({ shape: "referenced", type: "citation" });
-  const otherIdentified = targetEntry({ shape: "identified", type: "note" });
+  const reqTarget = targetEntry({ shape: "Authored", type: "requirement" });
+  const refTarget = targetEntry({ shape: "Reference", type: "citation" });
+  const otherIdentified = targetEntry({ shape: "Authored", type: "note" });
 
-  const rule = ["requirement", { shape: "referenced" as const }];
+  const rule = ["requirement", { shape: "Reference" as const }];
   assertEquals(matchesAnyTarget(reqTarget, rule), true);
   assertEquals(matchesAnyTarget(refTarget, rule), true);
   assertEquals(matchesAnyTarget(otherIdentified, rule), false);
 });
 
 Deno.test("matchesAnyTarget: empty matcher list → always false", () => {
-  const t = targetEntry({ shape: "identified", type: "requirement" });
+  const t = targetEntry({ shape: "Authored", type: "requirement" });
   assertEquals(matchesAnyTarget(t, []), false);
 });
 
@@ -322,7 +322,7 @@ Deno.test("validateTraceabilityForEntry: required link missing → MSL-L001", ()
   const p = profile({
     identified: shapeScope({ traceability: { Verifies: requiredRule } }),
   });
-  const e = entryWithAttrs({ shape: "identified", type: "test" });
+  const e = entryWithAttrs({ shape: "Authored", type: "test" });
   const graph = graphOf([e]);
   const diags = validateTraceabilityForEntry(e, p, graph);
   const l001 = diags.find((d) => d.code === "MSL-L001");
@@ -338,7 +338,7 @@ Deno.test("validateTraceabilityForEntry: required link present → no MSL-L001",
   const target = entryWithAttrs({
     id: "01TARGET02TARGET03TARGET04",
     displayId: "REQ-9999",
-    shape: "identified",
+    shape: "Authored",
     type: "requirement",
   });
   const requiredRule: TraceRule = {
@@ -350,7 +350,7 @@ Deno.test("validateTraceabilityForEntry: required link present → no MSL-L001",
     identified: shapeScope({ traceability: { Verifies: requiredRule } }),
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: [target.id!] },
   });
@@ -363,7 +363,7 @@ Deno.test("validateTraceabilityForEntry: required link present → no MSL-L001",
 
 Deno.test("validateTraceabilityForEntry: upper cardinality exceeded → MSL-L002", () => {
   const rule: TraceRule = {
-    target: [{ shape: "identified" }],
+    target: [{ shape: "Authored" }],
     cardinality: { lower: 0, upper: 1 },
     required: false,
   };
@@ -372,16 +372,16 @@ Deno.test("validateTraceabilityForEntry: upper cardinality exceeded → MSL-L002
   });
   const target1 = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
-    shape: "identified",
+    shape: "Authored",
     type: "x",
   });
   const target2 = entryWithAttrs({
     id: "01T2T2T2T2T2T2T2T2T2T2T2T2",
-    shape: "identified",
+    shape: "Authored",
     type: "x",
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: [target1.id!, target2.id!] },
   });
@@ -395,7 +395,7 @@ Deno.test("validateTraceabilityForEntry: upper cardinality exceeded → MSL-L002
 
 Deno.test("validateTraceabilityForEntry: lower cardinality unmet → MSL-L003", () => {
   const rule: TraceRule = {
-    target: [{ shape: "identified" }],
+    target: [{ shape: "Authored" }],
     cardinality: { lower: 2, upper: Infinity },
     required: false,
   };
@@ -404,11 +404,11 @@ Deno.test("validateTraceabilityForEntry: lower cardinality unmet → MSL-L003", 
   });
   const target1 = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
-    shape: "identified",
+    shape: "Authored",
     type: "x",
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: [target1.id!] },
   });
@@ -422,14 +422,14 @@ Deno.test("validateTraceabilityForEntry: lower cardinality unmet → MSL-L003", 
 
 Deno.test("validateTraceabilityForEntry: required missing does not double-emit with cardinality", () => {
   const rule: TraceRule = {
-    target: [{ shape: "identified" }],
+    target: [{ shape: "Authored" }],
     cardinality: { lower: 1, upper: 5 },
     required: true,
   };
   const p = profile({
     identified: shapeScope({ traceability: { Verifies: rule } }),
   });
-  const e = entryWithAttrs({ shape: "identified", type: "test" });
+  const e = entryWithAttrs({ shape: "Authored", type: "test" });
   const graph = graphOf([e]);
   const diags = validateTraceabilityForEntry(e, p, graph);
   const codes = diags.map((d) => d.code);
@@ -452,11 +452,11 @@ Deno.test("validateTraceabilityForEntry: target type matches → no MSL-L004", (
   const target = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
     displayId: "REQ-0001",
-    shape: "identified",
+    shape: "Authored",
     type: "requirement",
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: [target.id!] },
   });
@@ -477,11 +477,11 @@ Deno.test("validateTraceabilityForEntry: target type mismatch → MSL-L004", () 
   const wrongTarget = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
     displayId: "NOTE-0001",
-    shape: "identified",
+    shape: "Authored",
     type: "note",
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: [wrongTarget.id!] },
   });
@@ -500,7 +500,7 @@ Deno.test("validateTraceabilityForEntry: target type mismatch → MSL-L004", () 
 
 Deno.test("validateTraceabilityForEntry: shape matcher accepts any identified target", () => {
   const rule: TraceRule = {
-    target: [{ shape: "identified" }],
+    target: [{ shape: "Authored" }],
     cardinality: { lower: 0, upper: Infinity },
     required: false,
   };
@@ -509,11 +509,11 @@ Deno.test("validateTraceabilityForEntry: shape matcher accepts any identified ta
   });
   const target = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
-    shape: "identified",
+    shape: "Authored",
     type: "note",
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Derived: [target.id!] },
   });
@@ -532,7 +532,7 @@ Deno.test("validateTraceabilityForEntry: target not in graph is silently skipped
     identified: shapeScope({ traceability: { Verifies: rule } }),
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: ["01MISSING000000000000000000"] },
   });
@@ -553,17 +553,17 @@ Deno.test("validateTraceabilityForEntry: one valid + one invalid target → sing
   const good = entryWithAttrs({
     id: "01GOOD0000000000000000000",
     displayId: "REQ-0001",
-    shape: "identified",
+    shape: "Authored",
     type: "requirement",
   });
   const bad = entryWithAttrs({
     id: "01BAD00000000000000000000",
     displayId: "NOTE-0001",
-    shape: "identified",
+    shape: "Authored",
     type: "note",
   });
   const e = entryWithAttrs({
-    shape: "identified",
+    shape: "Authored",
     type: "test",
     attrs: { Verifies: [good.id!, bad.id!] },
   });
@@ -587,7 +587,7 @@ Deno.test("validateTraceabilityForEntry: referenced entries are skipped entirely
   const p = profile({
     identified: shapeScope({ traceability: { Verifies: rule } }),
   });
-  const e = entryWithAttrs({ shape: "referenced", type: "citation" });
+  const e = entryWithAttrs({ shape: "Reference", type: "citation" });
   const graph = graphOf([e]);
   const diags = validateTraceabilityForEntry(e, p, graph);
   assertEquals(diags, []);
@@ -595,14 +595,14 @@ Deno.test("validateTraceabilityForEntry: referenced entries are skipped entirely
 
 Deno.test("validateTraceabilityForEntry: un-classified entry uses shape-scope rules only", () => {
   const rule: TraceRule = {
-    target: [{ shape: "identified" }],
+    target: [{ shape: "Authored" }],
     cardinality: { lower: 0, upper: Infinity },
     required: true,
   };
   const p = profile({
     identified: shapeScope({ traceability: { Link: rule } }),
   });
-  const e = entryWithAttrs({ shape: "identified" });
+  const e = entryWithAttrs({ shape: "Authored" });
   const graph = graphOf([e]);
   const diags = validateTraceabilityForEntry(e, p, graph);
   const l001 = diags.find((d) => d.code === "MSL-L001");

@@ -119,7 +119,7 @@ Deno.test("strawman: standard type has referenced shape", async () => {
   assertExists(result.chain);
   const standard = result.chain.effective.types.get("standard");
   assertExists(standard);
-  assertEquals(standard.value.shape, "referenced");
+  assertEquals(standard.value.shape, "Reference");
 });
 
 Deno.test("strawman: per-type color resolves through merged colors map", async () => {

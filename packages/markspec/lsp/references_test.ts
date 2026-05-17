@@ -22,7 +22,7 @@ function makeEntry(
     rawAttributes: attrs.map(([key, value]) => ({ key, value })),
     typedAttributes: new Map(),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     location: { file: "t.md", line, column: 1 },
     source: "markdown",
   };

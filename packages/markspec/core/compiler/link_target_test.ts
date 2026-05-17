@@ -17,7 +17,7 @@ function makeEntry(
     body: "",
     rawAttributes: opts.rawAttributes ?? [],
     typedAttributes: opts.typedAttributes ?? new Map(),
-    shape: "identified",
+    shape: "Authored",
     location: LOC,
     source: "markdown",
   };

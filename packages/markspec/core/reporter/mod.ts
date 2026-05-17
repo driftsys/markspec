@@ -174,7 +174,7 @@ function computeCoverage(
 
   for (const entry of entries) {
     // Bucket by profile-declared type when available, fall back to shape.
-    const t = entry.type ?? (entry.shape === "referenced" ? "ref" : "untyped");
+    const t = entry.type ?? (entry.shape === "Reference" ? "ref" : "untyped");
     byType[t] = (byType[t] ?? 0) + 1;
 
     const fwd = result.forward.get(entry.displayId) ?? [];
@@ -183,7 +183,7 @@ function computeCoverage(
 
     if (hasSatisfies) {
       withSatisfies++;
-    } else if (entry.shape === "identified") {
+    } else if (entry.shape === "Authored") {
       withoutSatisfies++;
       orphans.push(entry.displayId);
     }

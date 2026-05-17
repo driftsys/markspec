@@ -30,7 +30,7 @@ Deno.test("renderProfile: includes active profile id and version", () => {
     types: [
       {
         name: "stakeholder-requirement",
-        shape: "identified",
+        shape: "Authored",
         displayIdPattern: "STK_{DOMAIN}_{NNNN}",
         color: "blue",
         requiredAttributes: ["Id"],

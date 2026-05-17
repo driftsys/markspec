@@ -21,7 +21,7 @@ function entry(
     body: "",
     rawAttributes: opts.id ? [{ key: "Id", value: opts.id }] : [],
     id: opts.id,
-    shape: "identified",
+    shape: "Authored",
     location,
     source: "markdown",
     typedAttributes: new Map(),
