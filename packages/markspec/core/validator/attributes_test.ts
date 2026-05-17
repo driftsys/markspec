@@ -132,7 +132,7 @@ Deno.test("effectiveScope: universal only", () => {
     universalRequired: ["Status"],
     universalAttrs: [statusAttr],
   });
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.required, ["Status"]);
   assertEquals(scope.attributes.size, 1);
@@ -150,7 +150,7 @@ Deno.test("effectiveScope: universal + identified shape for identified entry", (
       attributes: [notesAttr],
     }),
   });
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.required, ["Rationale"]);
   assertEquals(scope.attributes.size, 2);
@@ -170,7 +170,7 @@ Deno.test("effectiveScope: universal + referenced shape for referenced entry", (
       attributes: [notesAttr],
     }),
   });
-  const e = entry({ shape: "referenced" });
+  const e = entry({ shape: "Reference" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.required, ["Notes"]);
   assertEquals(scope.attributes.size, 2);
@@ -192,12 +192,12 @@ Deno.test("effectiveScope: classified entry adds type-specific scope", () => {
     identified: shapeScope({ attributes: [textAttr] }),
     types: [typeDef({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       required: ["ASIL"],
       attributes: [asilAttr],
     })],
   });
-  const e = entry({ shape: "identified", type: "requirement" });
+  const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.required, ["ASIL"]);
   assertEquals(scope.attributes.size, 3);
@@ -217,11 +217,11 @@ Deno.test("effectiveScope: un-classified entry uses only universal + shape", () 
     identified: shapeScope({ attributes: [textAttr] }),
     types: [typeDef({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       attributes: [asilAttr],
     })],
   });
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.attributes.size, 2);
   assertEquals(scope.attributes.has("ASIL"), false);
@@ -237,7 +237,7 @@ Deno.test("effectiveScope: required lists concatenated in scope order", () => {
     }),
     types: [typeDef({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       required: ["ASIL"],
       attributes: [{
         name: "ASIL",
@@ -248,7 +248,7 @@ Deno.test("effectiveScope: required lists concatenated in scope order", () => {
       }],
     })],
   });
-  const e = entry({ shape: "identified", type: "requirement" });
+  const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.required, ["Status", "Rationale", "ASIL"]);
 });
@@ -271,11 +271,11 @@ Deno.test("effectiveScope: type-scope attr wins over shape-scope attr on name co
     identified: shapeScope({ attributes: [shapeStatus] }),
     types: [typeDef({
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       attributes: [typeStatus],
     })],
   });
-  const e = entry({ shape: "identified", type: "requirement" });
+  const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.attributes.get("Status"), typeStatus);
 });
@@ -285,7 +285,7 @@ Deno.test("validateAttributesForEntry: required missing → MSL-A001", () => {
     universalRequired: ["Status"],
     universalAttrs: [statusAttr],
   });
-  const e = entry({ shape: "identified", attrs: {} });
+  const e = entry({ shape: "Authored", attrs: {} });
   const diags = validateAttributesForEntry(e, p);
   const a001 = diags.find((d) => d.code === "MSL-A001");
   if (!a001) {
@@ -302,7 +302,7 @@ Deno.test("validateAttributesForEntry: required present → no MSL-A001", () => 
     universalAttrs: [statusAttr],
   });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Status: ["draft"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -318,7 +318,7 @@ Deno.test("validateAttributesForEntry: cardinality upper exceeded → MSL-A002",
   };
   const p = profile({ universalAttrs: [singleValAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Title: ["first", "second"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -337,7 +337,7 @@ Deno.test("validateAttributesForEntry: cardinality lower unmet when attribute pr
   };
   const p = profile({ universalAttrs: [listAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Labels: ["only-one"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -355,7 +355,7 @@ Deno.test("validateAttributesForEntry: cardinality lower with 0 values + not req
     cardinality: { lower: 1, upper: Infinity },
   };
   const p = profile({ universalAttrs: [listAttr] });
-  const e = entry({ shape: "identified", attrs: {} });
+  const e = entry({ shape: "Authored", attrs: {} });
   const diags = validateAttributesForEntry(e, p);
   assertEquals(diags.filter((d) => d.code === "MSL-A003"), []);
 });
@@ -363,7 +363,7 @@ Deno.test("validateAttributesForEntry: cardinality lower with 0 values + not req
 Deno.test("validateAttributesForEntry: unknown attribute → MSL-A005 warning", () => {
   const p = profile({ universalAttrs: [statusAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { UnknownThing: ["value"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -377,7 +377,7 @@ Deno.test("validateAttributesForEntry: unknown attribute → MSL-A005 warning", 
 Deno.test("validateAttributesForEntry: declared attributes do NOT emit MSL-A005", () => {
   const p = profile({ universalAttrs: [statusAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Status: ["draft"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -387,7 +387,7 @@ Deno.test("validateAttributesForEntry: declared attributes do NOT emit MSL-A005"
 Deno.test("validateAttributesForEntry: core-reserved attributes are never unknown", () => {
   const p = profile({});
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Id: ["01HGW2Q8MNP3RSTVWXYZABCDEF"], Type: ["requirement"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -404,7 +404,7 @@ Deno.test("validateAttributesForEntry: value-type mismatch → MSL-A004", () => 
   };
   const p = profile({ universalAttrs: [intAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Count: ["not-an-int"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -426,7 +426,7 @@ Deno.test("validateAttributesForEntry: all valid values → no MSL-A004", () => 
   };
   const p = profile({ universalAttrs: [intAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Count: ["1", "2", "3"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -442,7 +442,7 @@ Deno.test("validateAttributesForEntry: one bad value among good ones → single 
   };
   const p = profile({ universalAttrs: [intAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Count: ["1", "bad", "3"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -477,7 +477,7 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
   };
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
   const verifies = scope.attributes.get("Verifies");
   if (!verifies) throw new Error("expected synthesized Verifies attribute");
@@ -523,7 +523,7 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
   };
-  const e = entry({ shape: "identified" });
+  const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.attributes.get("Verifies"), explicitAttr);
 });
@@ -538,7 +538,7 @@ Deno.test("validateAttributesForEntry: enum value-type mismatch → MSL-A004", (
   };
   const p = profile({ universalAttrs: [enumAttr] });
   const e = entry({
-    shape: "identified",
+    shape: "Authored",
     attrs: { Status: ["rejected"] },
   });
   const diags = validateAttributesForEntry(e, p);

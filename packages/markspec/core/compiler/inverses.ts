@@ -65,7 +65,7 @@ export function generateInverses(
   const generated = new Map<string, Map<string, Set<string>>>();
 
   for (const source of entries) {
-    if (source.shape !== "identified" || source.id === undefined) continue;
+    if (source.shape !== "Authored" || source.id === undefined) continue;
 
     const applicableSpecs = resolveApplicableSpecs(
       inverseSpecs,

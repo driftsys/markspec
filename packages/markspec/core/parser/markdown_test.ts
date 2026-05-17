@@ -61,7 +61,7 @@ Deno.test("parseMarkdown: strips leading @ from display ID (Pandoc compat)", () 
   const { entries: [entry] } = parseMarkdown(md);
   assertExists(entry);
   assertEquals(entry.displayId, "ISO-26262-6");
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
 });
 
 Deno.test("parseMarkdown: free-form symbolic display ID accepted", () => {
@@ -74,7 +74,7 @@ Deno.test("parseMarkdown: free-form symbolic display ID accepted", () => {
   const { entries: [entry] } = parseMarkdown(md);
   assertExists(entry);
   assertEquals(entry.displayId, "braking_core::controller::debounce_input");
-  assertEquals(entry.shape, "identified");
+  assertEquals(entry.shape, "Authored");
 });
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ Deno.test("parseMarkdown: ULID Id → shape=identified", () => {
   Id: ${ULID}
 `;
   const { entries: [entry] } = parseMarkdown(md);
-  assertEquals(entry.shape, "identified");
+  assertEquals(entry.shape, "Authored");
   assertEquals(entry.id, ULID);
 });
 
@@ -101,7 +101,7 @@ Deno.test("parseMarkdown: URN URI → shape=referenced", () => {
   Id: urn:iso:std:iso:26262:-6:ed-2
 `;
   const { entries: [entry] } = parseMarkdown(md);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
   assertEquals(entry.id, "urn:iso:std:iso:26262:-6:ed-2");
 });
 
@@ -113,7 +113,7 @@ Deno.test("parseMarkdown: DOI URI → shape=referenced", () => {
   Id: doi:10.17487/RFC2119
 `;
   const { entries: [entry] } = parseMarkdown(md);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
 });
 
 Deno.test("parseMarkdown: purl URI → shape=referenced", () => {
@@ -124,7 +124,7 @@ Deno.test("parseMarkdown: purl URI → shape=referenced", () => {
   Id: pkg:cargo/serde@1.0.0
 `;
   const { entries: [entry] } = parseMarkdown(md);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
   assertEquals(entry.id, "pkg:cargo/serde@1.0.0");
 });
 
@@ -136,7 +136,7 @@ Deno.test("parseMarkdown: HTTPS URL → shape=referenced", () => {
   Id: https://www.rfc-editor.org/rfc/rfc2119
 `;
   const { entries: [entry] } = parseMarkdown(md);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
 });
 
 Deno.test("parseMarkdown: malformed Id still parses (validator surfaces error)", () => {
@@ -149,7 +149,7 @@ Deno.test("parseMarkdown: malformed Id still parses (validator surfaces error)",
   const { entries: [entry] } = parseMarkdown(md);
   assertExists(entry);
   // Parser accepts; shape falls back to identified so validator flags MSL-R004.
-  assertEquals(entry.shape, "identified");
+  assertEquals(entry.shape, "Authored");
   assertEquals(entry.id, "not-a-ulid-or-uri");
 });
 
@@ -164,7 +164,7 @@ Deno.test("parseMarkdown: slug-shaped display ID in references.md → shape=refe
 `;
   const { entries: [entry] } = parseMarkdown(md, { file: "references.md" });
   assertExists(entry);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
   assertEquals(entry.id, undefined);
 });
 
@@ -175,7 +175,7 @@ Deno.test("parseMarkdown: non-references doc without Id falls back to identified
 `;
   const { entries: [entry] } = parseMarkdown(md, { file: "requirements.md" });
   assertExists(entry);
-  assertEquals(entry.shape, "identified");
+  assertEquals(entry.shape, "Authored");
   assertEquals(entry.id, undefined);
 });
 
@@ -189,7 +189,7 @@ Deno.test("parseMarkdown: isReferencesDoc option overrides file-path detection",
     isReferencesDoc: true,
   });
   assertExists(entry);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
 });
 
 // ---------------------------------------------------------------------------
@@ -221,7 +221,7 @@ Deno.test("parseMarkdown: referenced entry body is optional", () => {
 `;
   const { entries: [entry] } = parseMarkdown(md);
   assertExists(entry);
-  assertEquals(entry.shape, "referenced");
+  assertEquals(entry.shape, "Reference");
 });
 
 // ---------------------------------------------------------------------------

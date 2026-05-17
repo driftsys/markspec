@@ -32,7 +32,7 @@ function buildCompiled(
       body: e.body ?? "",
       rawAttributes: e.attributes ?? [],
       id: e.id,
-      shape: e.entryType ? "identified" : "referenced",
+      shape: e.entryType ? "Authored" : "Reference",
       location: { file: "test.md", line: 1, column: 1 },
       source: "markdown",
       typedAttributes: new Map(),

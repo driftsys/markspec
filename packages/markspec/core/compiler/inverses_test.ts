@@ -23,7 +23,7 @@ function entry(
     title: "",
     body: "",
     rawAttributes: [],
-    shape: "identified",
+    shape: "Authored",
     location: LOC,
     source: "markdown",
     typedAttributes: new Map(),
@@ -69,7 +69,7 @@ function makeProfile(
     types.set(typeName, {
       value: {
         name: typeName,
-        shape: "identified",
+        shape: "Authored",
         displayIdPattern: { value: undefined, origin: "test-profile" },
         displayIdPatternEnforcement: { value: "off", origin: "test-profile" },
         color: { value: undefined, origin: "test-profile" },
@@ -255,7 +255,7 @@ Deno.test("generateInverses: referenced entries are skipped as sources", () => {
     displayId: "ISO-26262",
     id: "urn:iso:std:iso:26262",
     type: "test",
-    shape: "referenced",
+    shape: "Reference",
     typedAttributes: new Map([
       ["Verifies", ["01JJJJJJJJJJJJJJJJJJJJJJJJ1"]],
     ]),

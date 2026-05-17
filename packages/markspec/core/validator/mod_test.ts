@@ -17,7 +17,7 @@ function entry(partial: Partial<Entry> & { displayId: string }): Entry {
     body: partial.body ?? "Body.",
     rawAttributes: partial.rawAttributes ?? [],
     id: partial.id,
-    shape: partial.shape ?? "identified",
+    shape: partial.shape ?? "Authored",
     location: partial.location ??
       { file: "test.md", line: 1, column: 1 },
     source: partial.source ?? "markdown",
@@ -38,7 +38,7 @@ Deno.test("validate: entry with ULID Id passes", () => {
       displayId: "REQ-001",
       rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
-      shape: "identified",
+      shape: "Authored",
     }),
   ]);
   const structural = result.diagnostics.filter((d) =>
@@ -71,7 +71,7 @@ Deno.test("validate: URI Id on referenced entry passes", () => {
       displayId: "ISO-26262-6",
       rawAttributes: [{ key: "Id", value: "urn:iso:std:iso:26262:-6:ed-2" }],
       id: "urn:iso:std:iso:26262:-6:ed-2",
-      shape: "referenced",
+      shape: "Reference",
     }),
   ]);
   const structural = result.diagnostics.filter((d) =>
@@ -86,7 +86,7 @@ Deno.test("validate: ULID Id with shape=referenced → MSL-R004 mismatch", () =>
       displayId: "REQ-001",
       rawAttributes: [{ key: "Id", value: ULID_A }],
       id: ULID_A,
-      shape: "referenced",
+      shape: "Reference",
     }),
   ]);
   const r004 = result.diagnostics.filter((d) => d.code === "MSL-R004");
@@ -236,7 +236,7 @@ Deno.test("validate: References target is referenced entry → passes", () => {
         value: "urn:iso:std:iso:26262:-6:ed-2",
       }],
       id: "urn:iso:std:iso:26262:-6:ed-2",
-      shape: "referenced",
+      shape: "Reference",
     }),
     entry({
       displayId: "REQ-001",
@@ -306,7 +306,7 @@ Deno.test("validate: complete valid set → no error diagnostics", () => {
         value: "urn:iso:std:iso:26262:-6:ed-2",
       }],
       id: "urn:iso:std:iso:26262:-6:ed-2",
-      shape: "referenced",
+      shape: "Reference",
     }),
     entry({
       displayId: "REQ-001",

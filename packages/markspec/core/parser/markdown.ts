@@ -248,17 +248,17 @@ function extractEntry(
       // `Id:` is neither a ULID nor a scheme-qualified URI. Accept as an
       // identified entry so the validator can surface MSL-R004; missing
       // shape on a parsed entry is not useful downstream.
-      shape = "identified";
+      shape = "Authored";
     }
   } else {
     // No `Id:`. Fall back on display-ID shape + document context to decide
     // whether to admit the entry at all.
     if (isReferencesDoc && SLUG_RE.test(displayId)) {
-      shape = "referenced";
+      shape = "Reference";
     } else {
       // No identity attribute and no references-doc context — admit as
       // identified so the validator can surface the missing-`Id:` error.
-      shape = "identified";
+      shape = "Authored";
     }
   }
 
@@ -270,7 +270,7 @@ function extractEntry(
   // Body requirement: identified entries require a body; referenced entries
   // may omit it. If there's only one child (the title paragraph), admit
   // only referenced entries.
-  if (shape !== "referenced" && item.children.length < 2) return undefined;
+  if (shape !== "Reference" && item.children.length < 2) return undefined;
 
   // Source location
   const line = item.position?.start.line ?? 1;

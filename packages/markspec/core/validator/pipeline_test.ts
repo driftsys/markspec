@@ -45,7 +45,7 @@ function buildProfileWithRequirement(): EffectiveProfile {
   const reqType: ProvenancedMapEntry<EffectiveTypeDef> = {
     value: {
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: { value: "REQ-{n:04d}", origin },
       displayIdPatternEnforcement: { value: "off", origin },
       color: { value: undefined, origin },
@@ -77,7 +77,7 @@ function buildProfileWithRequirement(): EffectiveProfile {
 
 Deno.test("runPipeline: null profile runs Stage 1 only, entries pass through unchanged", () => {
   const entries = [
-    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+    buildEntry({ displayId: "REQ-0001", shape: "Authored" }),
   ];
   const result = runPipeline(entries, null);
   assertEquals(result.entries[0].type, undefined);
@@ -87,7 +87,7 @@ Deno.test("runPipeline: null profile runs Stage 1 only, entries pass through unc
 Deno.test("runPipeline: profile present runs Stage 2, entries classified", () => {
   const profile = buildProfileWithRequirement();
   const entries = [
-    buildEntry({ displayId: "REQ-0001", shape: "identified" }),
+    buildEntry({ displayId: "REQ-0001", shape: "Authored" }),
   ];
   const result = runPipeline(entries, profile);
   assertEquals(result.entries[0].type, "requirement");
@@ -100,7 +100,7 @@ Deno.test("runPipeline: Stage 1 error contributes to diagnostics + valid=false",
     title: "",
     body: "",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     rawAttributes: [],
     location: { file: "t.md", line: 1, column: 1 },
@@ -123,7 +123,7 @@ Deno.test("runPipeline: both stages contribute diagnostics independently", () =>
     title: "",
     body: "",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     rawAttributes: [],
     location: { file: "t.md", line: 1, column: 1 },
@@ -148,7 +148,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
     origin,
     value: {
       name: "requirement",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: { value: "REQ-{n:04d}", origin },
       displayIdPatternEnforcement: { value: "off", origin },
       color: { value: undefined, origin },
@@ -182,7 +182,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
   const e: Entry = {
     displayId: "REQ-0001",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     title: "",
     body: "",
@@ -235,7 +235,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
   const e: Entry = {
     displayId: "X-001",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     title: "",
     body: "",
@@ -280,7 +280,7 @@ Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () =
     documents: { types: new Map(), frontMatter: new Map() },
   };
   const entries = [
-    buildEntry({ displayId: "FOO-001", shape: "identified" }),
+    buildEntry({ displayId: "FOO-001", shape: "Authored" }),
   ];
   const result = runPipeline(entries, profile);
   const t003 = result.diagnostics.filter((d) => d.code === "MSL-T003");
@@ -299,7 +299,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
     origin,
     value: {
       name: "test",
-      shape: "identified",
+      shape: "Authored",
       displayIdPattern: { value: "TEST-{n:04d}", origin },
       displayIdPatternEnforcement: { value: "off", origin },
       color: { value: undefined, origin },
@@ -332,7 +332,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
   const e: Entry = {
     displayId: "TEST-0001",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     title: "",
     body: "",
@@ -387,7 +387,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
   const target1: Entry = {
     displayId: "REQ-0001",
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     title: "",
     body: "",
@@ -398,7 +398,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
   const target2: Entry = {
     displayId: "REQ-0002",
     id: "01T2T2T2T2T2T2T2T2T2T2T2T2",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     title: "",
     body: "",
@@ -409,7 +409,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
   const e: Entry = {
     displayId: "TEST-0001",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
-    shape: "identified",
+    shape: "Authored",
     source: "markdown",
     title: "",
     body: "",

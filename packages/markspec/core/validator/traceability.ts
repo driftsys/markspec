@@ -35,7 +35,7 @@ export function effectiveTraceRules(
   profile: EffectiveProfile,
 ): ReadonlyMap<string, TraceRule> {
   const out = new Map<string, TraceRule>();
-  if (entry.shape !== "identified") return out;
+  if (entry.shape !== "Authored") return out;
 
   // Shape scope.
   for (const [name, ruleEntry] of profile.identified.traceability) {
@@ -95,7 +95,7 @@ export function validateTraceabilityForEntry(
   graph: ReadonlyMap<string, Entry>,
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  if (entry.shape !== "identified") return diagnostics;
+  if (entry.shape !== "Authored") return diagnostics;
 
   const rules = effectiveTraceRules(entry, profile);
   const present = entry.typedAttributes;

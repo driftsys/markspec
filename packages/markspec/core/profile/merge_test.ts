@@ -113,7 +113,7 @@ profile:
   assertEquals(result.diagnostics, []);
   const req = result.effective!.types.get("requirement")!;
   assertEquals(req.origin, "@acme/single");
-  assertEquals(req.value.shape, "identified");
+  assertEquals(req.value.shape, "Authored");
   assertEquals(req.value.displayIdPattern.value, "REQ-{n:04d}");
   assertEquals(req.value.displayIdPattern.origin, "@acme/single");
   assertEquals(req.value.displayIdPatternEnforcement.value, "warn");

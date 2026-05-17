@@ -365,7 +365,7 @@ export function format(
     // when `Source:` is missing — synthesizing without a source pointer
     // makes no sense, but the formatter never fails a stamp.
     const hasIdentity = attrs.some((a) => a.key === IDENTITY_KEY);
-    if (!hasIdentity && entry.shape === "identified") {
+    if (!hasIdentity && entry.shape === "Authored") {
       const origin = attrs.find((a) => a.key === "Origin")?.value.trim();
       const source = attrs.find((a) => a.key === "Source")?.value.trim();
       const newId = origin === "synthesized" && source && source.length > 0

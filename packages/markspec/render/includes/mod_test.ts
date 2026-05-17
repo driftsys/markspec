@@ -19,7 +19,7 @@ function testEntry(overrides: Partial<Entry> = {}): Entry {
       { key: "Labels", value: "ASIL-B" },
     ],
     id: "SRS_00000000000000000000000001",
-    shape: "identified",
+    shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),

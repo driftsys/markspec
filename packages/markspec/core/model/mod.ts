@@ -178,7 +178,7 @@ export type EntrySource = "markdown" | "doc-comment";
  * (`requirement`, `test`, `unit`, `standard`, `dependency`, …) are declared
  * by the active profile, not by the core.
  */
-export type EntryShape = "identified" | "referenced";
+export type EntryShape = "Authored" | "Reference";
 
 /** Core-reserved identity attribute name. */
 export const IDENTITY_KEY = "Id" as const;
@@ -202,8 +202,8 @@ export const URI_SCHEME_RE = /^[A-Za-z][A-Za-z0-9+\-.]*:/;
  * scheme-qualified URI — the caller emits a validation error.
  */
 export function shapeFromIdValue(value: string): EntryShape | undefined {
-  if (ULID_RE.test(value)) return "identified";
-  if (URI_SCHEME_RE.test(value)) return "referenced";
+  if (ULID_RE.test(value)) return "Authored";
+  if (URI_SCHEME_RE.test(value)) return "Reference";
   return undefined;
 }
 
@@ -347,7 +347,7 @@ export interface Entry {
    * matches (e.g., free-form display ID with no `type:` attribute).
    */
   readonly type?: string;
-  /** Entry shape — `identified` or `referenced`. */
+  /** Entry shape — `Authored` or `Reference`. */
   readonly shape: EntryShape;
   /** Where the entry was found. */
   readonly location: SourceLocation;

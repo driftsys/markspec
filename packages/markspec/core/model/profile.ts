@@ -73,7 +73,7 @@ export interface AttrDecl {
 
 /** Target matcher: either a type name or a shape matcher object. */
 export type TargetMatcher = string | {
-  readonly shape: "identified" | "referenced";
+  readonly shape: "Authored" | "Reference";
 };
 
 /** Traceability rule declared on a shape or type scope. */

@@ -27,7 +27,7 @@ function makeEntry(
     bodyAst,
     rawAttributes: [],
     id: undefined,
-    shape: "identified",
+    shape: "Authored",
     location: { file: "test.md", line: 10, column: 1 },
     source: "markdown",
     typedAttributes: new Map(type ? [["Type", [type]]] : []),

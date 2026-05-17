@@ -16,7 +16,7 @@ function mkEntry(displayId: string, title: string, type?: string): Entry {
     rawAttributes: [],
     typedAttributes: new Map(),
     type,
-    shape: "identified",
+    shape: "Authored",
     location: { file: "/proj/x.md", line: 1, column: 1 },
     source: "markdown",
   };

@@ -21,7 +21,7 @@ const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 function makeEntry(opts: {
   attrs: Array<{ key: string; value: string }>;
   type?: string;
-  shape?: "identified" | "referenced";
+  shape?: "Authored" | "Reference";
   id?: string;
 }): Entry {
   return {
@@ -32,7 +32,7 @@ function makeEntry(opts: {
     typedAttributes: new Map(),
     id: opts.id ?? ULID,
     type: opts.type,
-    shape: opts.shape ?? "identified",
+    shape: opts.shape ?? "Authored",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
   };
@@ -95,7 +95,7 @@ Deno.test("resolvedCoreType: falls back to entry.type when explicit Type absent"
 Deno.test("resolvedCoreType: infers from URI scheme for Reference shape with no explicit Type", () => {
   const entry = makeEntry({
     attrs: [{ key: "Id", value: "pkg:cargo/serde@1.0.0" }],
-    shape: "referenced",
+    shape: "Reference",
     id: "pkg:cargo/serde@1.0.0",
   });
   assertEquals(resolvedCoreType(entry), "SoftwareComponent");
@@ -219,7 +219,7 @@ Deno.test("resolvedCoreTypeWithProvenance: step 4 — display-ID prefix", () => 
 Deno.test("resolvedCoreTypeWithProvenance: step 5 — URI scheme", () => {
   const entry = makeEntry({
     attrs: [{ key: "Id", value: "pkg:cargo/serde@1.0.0" }],
-    shape: "referenced",
+    shape: "Reference",
     id: "pkg:cargo/serde@1.0.0",
   });
   assertEquals(

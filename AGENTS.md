@@ -27,8 +27,8 @@ markspec/
 │       ├── core/
 │       │   ├── mod.ts               ← public API barrel (the library boundary)
 │       │   ├── mod_test.ts          ← unit test (colocated)
-│       │   ├── model/               ← types: Entry, EntryShape (identified |
-│       │   │   └── mod.ts             referenced), DisplayId, Ulid, Attribute,
+│       │   ├── model/               ← types: Entry, EntryShape (Authored |
+│       │   │   └── mod.ts             Reference), DisplayId, Ulid, Attribute,
 │       │   │                          SourceLocation, ProjectConfig
 │       │   ├── config/              ← project.yaml discovery + loading
 │       │   │   └── mod.ts

@@ -40,14 +40,14 @@ export interface AttributeSpec {
 // ---------------------------------------------------------------------------
 
 /** Both shapes. */
-const BOTH_SHAPES: readonly EntryShape[] = ["identified", "referenced"];
+const BOTH_SHAPES: readonly EntryShape[] = ["Authored", "Reference"];
 
 /**
  * Shapes that carry `References:` — identified entries only. A referenced
  * entry does not itself cite other referenced entries via `References:`
  * (the replacement relation is expressed via universal `Supersedes:`).
  */
-const CITING_SHAPES: readonly EntryShape[] = ["identified"];
+const CITING_SHAPES: readonly EntryShape[] = ["Authored"];
 
 /**
  * Full catalog of core built-in attributes.
@@ -104,14 +104,14 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
     key: "Reference-url",
     type: "url",
     origin: "authored",
-    shapes: ["referenced"],
+    shapes: ["Reference"],
     required: false,
   },
   {
     key: "Reference-document",
     type: "text",
     origin: "authored",
-    shapes: ["referenced"],
+    shapes: ["Reference"],
     required: false,
   },
 

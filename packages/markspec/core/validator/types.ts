@@ -56,7 +56,7 @@ const UNIT_DISPLAY_ID_RE = /(::|\/)/;
 export function inferTypeFromDisplayIdShape(
   entry: Entry,
 ): readonly Diagnostic[] {
-  if (entry.shape !== "identified") return [];
+  if (entry.shape !== "Authored") return [];
   if (resolvedCoreType(entry) !== undefined) return [];
   if (!UNIT_DISPLAY_ID_RE.test(entry.displayId)) return [];
   return [{
