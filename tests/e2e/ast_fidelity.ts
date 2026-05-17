@@ -211,6 +211,31 @@ export const CORPUS: readonly CorpusSample[] = [
     markdown:
       "See the table below.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nEnd of table.",
   },
+  // ── SP2: inline markup inside every prose-bearing node kind ───────────
+  {
+    name: "inline-in-list-item",
+    markdown: "- The driver _shall_ debounce **inputs**.\n- Plain item.",
+  },
+  {
+    name: "inline-in-note",
+    markdown: "> [!NOTE]\n> See _the spec_ and the [guide](docs/g.md).",
+  },
+  {
+    name: "inline-in-blockquote",
+    markdown: "> An excerpt with _emphasis_ and a [link](docs/x.md).",
+  },
+  {
+    name: "inline-in-table-cell",
+    markdown: "| A | B |\n|---|---|\n| _x_ | **y** |",
+  },
+  {
+    name: "inline-in-deflist",
+    markdown: "ASIL\n: _Automotive_ Safety **Integrity** Level",
+  },
+  {
+    name: "link-ref-definition-standalone",
+    markdown: "See [the spec][s].\n\n[s]: docs/specs/x.md",
+  },
 ] as const;
 
 // Stub exports — implemented in later tasks.

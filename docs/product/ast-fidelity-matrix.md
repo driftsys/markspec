@@ -9,13 +9,13 @@ production behaviour depends on this file. See the SP1 design:
 
 ## Summary
 
-- OK: 38
-- NORMALIZE: 10
-- LOSS: 1
-- UNOWNED: 1
-- UNREPRESENTABLE: 2
+- OK: 56
+- NORMALIZE: 2
+- LOSS: 0
+- UNOWNED: 0
+- UNREPRESENTABLE: 0
 
-Headline: surface = LOSS + UNREPRESENTABLE = 3 of 52 corpus samples.
+Headline: surface = LOSS + UNREPRESENTABLE = 0 of 58 corpus samples.
 
 ## Matrix
 
@@ -26,7 +26,7 @@ Headline: surface = LOSS + UNREPRESENTABLE = 3 of 52 corpus samples.
 | list-unordered-tight | OK | yes | yes | yes | — |
 | list-ordered-tight | OK | yes | yes | yes | — |
 | list-unordered-loose | OK | yes | yes | yes | — |
-| list-nested | NORMALIZE | no | yes | no | `"- outer one\\n  - inner a\\n  - inner b\\n- outer two" → "- outer one\\n\\n  - inner a\\n  - inner b\\n- outer two"` |
+| list-nested | OK | yes | yes | yes | — |
 | table-simple | OK | yes | yes | yes | — |
 | table-padded | OK | yes | yes | yes | — |
 | table-sep-wider | OK | yes | yes | yes | — |
@@ -49,27 +49,33 @@ Headline: surface = LOSS + UNREPRESENTABLE = 3 of 52 corpus samples.
 | blockquote-interior-blank | OK | yes | yes | yes | — |
 | caption-figure | OK | yes | yes | yes | — |
 | caption-table | OK | yes | yes | yes | — |
-| inline-emphasis | NORMALIZE | no | yes | no | `"The driver _shall_ debounce inputs." → "The driver shall debounce inputs."` |
-| inline-strong | NORMALIZE | no | yes | no | `"The driver **must** debounce inputs." → "The driver must debounce inputs."` |
-| inline-combined | NORMALIZE | no | yes | no | `"The driver **_must always_** debounce." → "The driver must always debounce."` |
+| inline-emphasis | OK | yes | yes | yes | — |
+| inline-strong | OK | yes | yes | yes | — |
+| inline-combined | OK | yes | yes | yes | — |
 | inline-code | OK | yes | yes | yes | — |
-| inline-link | NORMALIZE | no | yes | no | `"See [the spec](docs/specs/x.md) for detail." → "See the spec for detail."` |
-| inline-refstyle-link | UNREPRESENTABLE | no | no | no | `"See [the spec][s] for detail.\\n\\n[s]: docs/specs/x.md" → "See the spec for detail.\\n\\n"` |
-| inline-autolink | NORMALIZE | no | yes | no | `"Reference: <https://example.com/spec>." → "Reference: https://example.com/spec."` |
-| inline-hardbreak-spaces | NORMALIZE | no | yes | no | `"line one  \\nline two" → "line oneline two"` |
-| inline-hardbreak-backslash | NORMALIZE | no | yes | no | `"line one\\\\\\nline two" → "line oneline two"` |
+| inline-link | OK | yes | yes | yes | — |
+| inline-refstyle-link | OK | yes | yes | yes | — |
+| inline-autolink | OK | yes | yes | yes | — |
+| inline-hardbreak-spaces | OK | yes | yes | yes | — |
+| inline-hardbreak-backslash | OK | yes | yes | yes | — |
 | inline-entity-pascal | OK | yes | yes | yes | — |
 | inline-entity-camel | OK | yes | yes | yes | — |
 | inline-entity-screaming | OK | yes | yes | yes | — |
 | inline-modal-rfc2119 | OK | yes | yes | yes | — |
 | inline-modal-ears | OK | yes | yes | yes | — |
-| excluded-heading | UNOWNED | no | yes | no | `"# Not allowed in a body" → "Not allowed in a body"` |
-| excluded-thematic-break | UNREPRESENTABLE | no | no | no | `"before\\n\\n---\\n\\nafter" → "before\\n\\n\\n\\nafter"` |
-| excluded-task-list | LOSS | no | yes | no | `"- [ ] todo item\\n- [x] done item" → "- todo item\\n- done item"` |
+| excluded-heading | OK | yes | yes | yes | — |
+| excluded-thematic-break | OK | yes | yes | yes | — |
+| excluded-task-list | OK | yes | yes | yes | — |
 | excluded-raw-html | OK | yes | yes | yes | — |
 | edge-blank-line-runs | NORMALIZE | no | yes | yes | `"para one\\n\\n\\n\\npara two" → "para one\\n\\npara two"` |
 | edge-crlf | OK | yes | yes | yes | — |
 | edge-tabs | OK | yes | yes | yes | — |
-| edge-leading-trailing-ws | NORMALIZE | no | yes | no | `"   leading and trailing spaces   " → "leading and trailing spaces"` |
+| edge-leading-trailing-ws | NORMALIZE | no | yes | yes | `"   leading and trailing spaces   " → "leading and trailing spaces   "` |
 | edge-mixed-blocks | OK | yes | yes | yes | — |
 | edge-paragraph-then-table | OK | yes | yes | yes | — |
+| inline-in-list-item | OK | yes | yes | yes | — |
+| inline-in-note | OK | yes | yes | yes | — |
+| inline-in-blockquote | OK | yes | yes | yes | — |
+| inline-in-table-cell | OK | yes | yes | yes | — |
+| inline-in-deflist | OK | yes | yes | yes | — |
+| link-ref-definition-standalone | OK | yes | yes | yes | — |

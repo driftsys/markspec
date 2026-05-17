@@ -160,3 +160,51 @@ Deno.test("validateBodyBlocks: excluded construct inside fenced code block — N
   const diags = validateBodyBlocks(entry);
   assertEquals(diags, []);
 });
+
+Deno.test("MSL-B042: task list still flagged after checkbox round-trip", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateBodyBlocks } = await import("./body_blocks.ts");
+  const doc =
+    "- [TST_BB_0001] Probe\n\n  - [ ] todo item\n  - [x] done item\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const diags = validateBodyBlocks(entries[0]);
+  const b042 = diags.filter((d) => d.code === "MSL-B042");
+  assertEquals(b042.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// SP2 Task 7 — verbatim-content.text regression pins.
+//
+// After SP2, `InlineContent.text` stores VERBATIM source prose (markup like
+// `_emphasis_`, `**strong**`, `[links](u)` preserved) while marker
+// recognition runs on the flattened projection. MSL-B043 scans
+// `block.content.text` for forbidden inline HTML via `HTML_TAG_RE` /
+// `HTML_COMMENT_RE`, both anchored on a literal `<`. Markdown emphasis /
+// strong / link markup never introduces `<` or `>`, so the verbatim
+// superset cannot newly false-trigger HTML detection; real `<span>` is
+// still caught. These pins lock that behaviour.
+// ---------------------------------------------------------------------------
+
+Deno.test("MSL-B043: inline emphasis in a paragraph does NOT false-positive HTML", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateBodyBlocks } = await import("./body_blocks.ts");
+  const doc =
+    "- [TST_BB_0002] Probe\n\n  The driver _shall_ act and **must** stop.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const b043 = validateBodyBlocks(entries[0]).filter((d) =>
+    d.code === "MSL-B043"
+  );
+  assertEquals(b043.length, 0);
+});
+
+Deno.test("MSL-B043: real inline HTML is still flagged with markup present", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateBodyBlocks } = await import("./body_blocks.ts");
+  const doc =
+    "- [TST_BB_0003] Probe\n\n  The _driver_ <span>x</span> shall act.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const b043 = validateBodyBlocks(entries[0]).filter((d) =>
+    d.code === "MSL-B043"
+  );
+  assertEquals(b043.length, 1);
+});

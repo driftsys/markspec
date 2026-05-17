@@ -76,6 +76,10 @@ decisions, not left implicit in code comments.
   instead of regex.
 - The formatter cutover is safe by construction (gate-proven where the AST is
   load-bearing; proven string path everywhere else).
+- SP2 (faithful builder) materially widened the build/render inverse: §5.1
+  inline prose and §2.4.1-excluded constructs now round-trip. The
+  string-fallback guard remains as the safety net; its formal retirement is SP3,
+  not SP2.
 
 ### What shifts for existing code
 

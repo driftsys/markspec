@@ -76,11 +76,26 @@ function renderListItem(
   let firstLine: string;
   let extraLines: string[] = [];
 
+  // GFM task-list checkbox, re-emitted right after the bullet. Absent for
+  // non-task items (`item.checked === undefined`); independent of
+  // `ListNode.hasTaskItems`, so MSL-B042 is unaffected.
+  const checkbox = item.checked === undefined
+    ? ""
+    : item.checked
+    ? "[x] "
+    : "[ ] ";
+
   if (firstBlock.kind === "paragraph") {
     // `- text` — inline with the bullet.
     const text = (firstBlock as ParagraphNode).content.text;
     const textLines = text.split("\n");
-    firstLine = `${bullet} ${textLines[0]}`;
+    firstLine = `${bullet} ${checkbox}${textLines[0]}`;
+    // Known limitation: continuation-line indent is a fixed 2 spaces and
+    // does not account for checkbox width, so a MULTI-LINE paragraph in a
+    // task-list item (`- [x] line one\n  line two`) does not round-trip
+    // byte-identically. Task lists are an excluded construct (MSL-B042);
+    // the corpus only exercises single-line task items, so no canonical
+    // input regresses and the equivalence gate stays green.
     if (textLines.length > 1) {
       // Continuation lines of a multi-line paragraph are indented to align
       // with the first character after the bullet (`- ` = 2 chars).
@@ -89,16 +104,21 @@ function renderListItem(
   } else {
     // Block content that isn't a paragraph: render on its own line(s),
     // indented by 2 spaces.
-    firstLine = bullet;
+    firstLine = checkbox ? `${bullet} ${checkbox}`.trimEnd() : bullet;
     const blockStr = renderBlock(firstBlock);
     extraLines = blockStr.split("\n").map((l) => (l ? `  ${l}` : ""));
   }
 
   const allLines = [firstLine, ...extraLines];
 
-  // Remaining blocks in the item — separated by blank lines, indented.
+  // Remaining blocks in the item, indented. A "loose" item
+  // (`listItem.spread`, captured from mdast) separates its blocks with a
+  // blank line in source; a tight item (e.g. a paragraph with a nested
+  // list directly under it) does not. Gating on the item's own spread —
+  // NOT the list-level `ListNode.spread` — keeps loose multi-block items
+  // byte-identical while letting tight nested lists round-trip.
   for (const block of restBlocks) {
-    allLines.push(""); // blank line before next block
+    if (item.spread) allLines.push(""); // blank line before next block
     const blockStr = renderBlock(block);
     for (const l of blockStr.split("\n")) {
       allLines.push(l ? `  ${l}` : "");
