@@ -118,3 +118,27 @@ Deno.test("validateModalKeywords: non-Requirement type with no modal → no MSL-
   const m061 = diags.filter((d) => d.code === "MSL-M061");
   assertEquals(m061, []);
 });
+
+// ---------------------------------------------------------------------------
+// SP2 Task 7 — verbatim-content.text regression pin.
+//
+// MSL-M060 reads `InlineContent.markers` ONLY (the decoupled,
+// flattened-derived path), never `content.text`. So even though
+// post-SP2 `content.text` stores verbatim `_SHALL_`, the marker is
+// extracted from the flattened recognition text where `_SHALL_`
+// projects to `SHALL`; `marker.raw === "SHALL"` differs from
+// `marker.canonical === "shall"` → exactly one MSL-M060.
+// ---------------------------------------------------------------------------
+
+Deno.test("MSL-M060: emphasised modal keyword is still detected", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateModalKeywords } = await import("./modal_keywords.ts");
+  const doc =
+    "- [TST_MK_0001] Probe\n\n  The driver _SHALL_ act.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  // _SHALL_ flattens to SHALL for recognition → M060 (non-canonical case).
+  const m060 = validateModalKeywords(entries[0]).filter((d) =>
+    d.code === "MSL-M060"
+  );
+  assertEquals(m060.length, 1);
+});

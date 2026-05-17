@@ -6,7 +6,12 @@
  * (SP1 design §4.6), so it is pinned directly here.
  */
 
-import { assert, assertEquals, assertFalse } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertStringIncludes,
+} from "@std/assert";
 import { astEquivalent, type BodyBlock, buildBodyAst } from "./ast_fidelity.ts";
 
 /** Build the AST for a bare body string (helper). */
@@ -43,18 +48,19 @@ Deno.test("astEquivalent: dropped emphasis (structural difference) → not equiv
   assertFalse(astEquivalent(withEmphasis, dropped));
 });
 
-Deno.test("characterization: buildBodyAst erases inline emphasis (SP1 LOSS finding)", () => {
-  // FINDING (SP1): the builder drops Markdown emphasis/strong markup —
-  // `_shall_` and `shall` produce structurally identical ASTs (modulo
-  // SourceRange). Because this loss is stable across build→render→build
-  // (it happens IN buildBodyAst, not in the round-trip), the provisional
-  // Approach-A classifier records emphasis samples as NORMALIZE, not LOSS;
-  // the design (§4.7) already frames the headline surface as a lower bound.
-  // SP2 (faithful builder) must flip this — this test pins the current
-  // behaviour so SP2's fix visibly breaks it (a deliberate tripwire).
+Deno.test("buildBodyAst preserves inline emphasis (SP2 faithful builder)", () => {
+  // SP2 flipped the SP1 tripwire: the builder is now faithful. `_shall_`
+  // and `shall` must produce DIFFERENT ASTs (the markup is retained), and
+  // the paragraph's stored text must carry the verbatim emphasis source.
   const emphasised = ast("The driver _shall_ debounce inputs.");
   const plain = ast("The driver shall debounce inputs.");
-  assert(astEquivalent(emphasised, plain));
+  assertFalse(astEquivalent(emphasised, plain));
+  const p = emphasised[0];
+  assert(p.kind === "paragraph");
+  assertStringIncludes(
+    (p as { content: { text: string } }).content.text,
+    "_shall_",
+  );
 });
 
 Deno.test("astEquivalent: fused hard line break → not equivalent", () => {
@@ -110,12 +116,7 @@ Deno.test("astEquivalent: different block count → not equivalent", () => {
   assertFalse(astEquivalent(a, b));
 });
 
-import {
-  classifySample,
-  CORPUS,
-  type FidelityClass,
-  runMatrix,
-} from "./ast_fidelity.ts";
+import { classifySample, CORPUS, runMatrix } from "./ast_fidelity.ts";
 
 Deno.test("classifySample: plain prose round-trips → OK", async () => {
   const row = await classifySample({
@@ -128,22 +129,25 @@ Deno.test("classifySample: plain prose round-trips → OK", async () => {
   assertEquals(row.delta, "—");
 });
 
-Deno.test("classifySample: excluded heading is not destroyed (UNOWNED or LOSS, never silent drop)", async () => {
-  const row = await classifySample({
-    name: "t-heading",
-    markdown: "# heading in body",
-  });
-  // Whatever the class, the construct must be characterized, not lost
-  // silently: an excluded construct is either preserved verbatim as an
-  // Unknown node (UNOWNED) or it changes shape (LOSS/NORMALIZE). It must
-  // never classify OK by vanishing.
-  const allowed: FidelityClass[] = [
-    "UNOWNED",
-    "LOSS",
-    "NORMALIZE",
-    "UNREPRESENTABLE",
-  ];
-  assert(allowed.includes(row.cls), `unexpected class ${row.cls}`);
+Deno.test("classifySample: excluded heading round-trips verbatim and stays diagnosed (SP2 faithful builder)", async () => {
+  // SP1-era this characterised heading NON-round-trip (UNOWNED, never OK):
+  // `extractMdastText` flattened `# h` → `h`. SP2 (Task 6, verbatim
+  // Unknown.raw) makes the excluded heading round-trip BYTE-IDENTICALLY
+  // while staying MSL-B040-diagnosable (subkind preserved). This is the
+  // strictly stronger §5.4 guarantee — genuine verbatim preservation, the
+  // opposite of "OK by vanishing". A second SP1 tripwire SP2 legitimately
+  // flips (cf. the emphasis tripwire above).
+  const s = "# heading in body";
+  const row = await classifySample({ name: "t-heading", markdown: s });
+  assertEquals(row.cls, "OK"); // round-trips byte-identically (r === s)
+  assert(row.rEqualsS);
+  // OK is because of genuine verbatim preservation, NOT vanishing:
+  const blocks = buildBodyAst(s);
+  assertEquals(blocks.length, 1);
+  const u = blocks[0] as { kind: string; raw?: string; subkind?: string };
+  assertEquals(u.kind, "unknown");
+  assertEquals(u.raw, s); // verbatim source preserved (the `#` survives)
+  assertEquals(u.subkind, "heading"); // still MSL-B040-diagnosable
 });
 
 Deno.test("runMatrix: covers the whole corpus, deterministic order, counts sum", async () => {

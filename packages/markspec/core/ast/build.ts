@@ -144,10 +144,20 @@ function extractMarkersFromText(
   return markers;
 }
 
-/** Build an InlineContent from a prose text string. */
-function inlineContent(text: string, range: SourceRange): InlineContent {
-  const markers = extractMarkersFromText(text, range);
-  return { text, markers };
+/**
+ * Build an InlineContent. `storedText` is the verbatim source prose that
+ * `render` emits (§5.1 faithful); `recognitionText` is the flattened
+ * projection that modal / $Identifier recognition runs on (so `\bshall\b`
+ * still matches inside `_shall_`). For nodes whose text carries no inline
+ * markup the two are identical and behaviour is unchanged.
+ */
+function inlineContent(
+  storedText: string,
+  recognitionText: string,
+  range: SourceRange,
+): InlineContent {
+  const markers = extractMarkersFromText(recognitionText, range);
+  return { text: storedText, markers };
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +177,59 @@ function positionToRange(
     start: { line: pos.start.line, column: pos.start.column },
     end: { line: pos.end.line, column: pos.end.column },
   };
+}
+
+// ---------------------------------------------------------------------------
+// verbatimSlice — faithful capture helper (§5.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the exact source substring for an mdast node `position`, with
+ * list-continuation indentation normalised to column 0 so the slice is a
+ * self-contained, column-0-anchored string. This is the load-bearing
+ * mechanism for §5.1 faithful capture (ADR-014; spec §5.1): remark
+ * populates byte `offset` when a string is passed to `.parse()`; a
+ * line/column reconstruction is the defensive fallback. Extracted from
+ * the original inline `TableNode` logic — behaviour is identical.
+ */
+export function verbatimSlice(
+  body: string,
+  pos: {
+    start: { line: number; column: number; offset?: number };
+    end: { line: number; column: number; offset?: number };
+  } | undefined,
+): string {
+  if (!pos) return "";
+  let raw: string;
+  if (pos.start.offset !== undefined && pos.end.offset !== undefined) {
+    raw = body.slice(pos.start.offset, pos.end.offset);
+  } else {
+    const bodyLines = body.split("\n");
+    const startLine = pos.start.line - 1;
+    const endLine = pos.end.line - 1;
+    const startCol = pos.start.column - 1;
+    const endCol = pos.end.column - 1;
+    if (startLine === endLine) {
+      raw = bodyLines[startLine]?.slice(startCol, endCol) ?? "";
+    } else {
+      const firstPart = bodyLines[startLine]?.slice(startCol) ?? "";
+      const middleParts = bodyLines.slice(startLine + 1, endLine);
+      const lastPart = bodyLines[endLine]?.slice(0, endCol) ?? "";
+      raw = [firstPart, ...middleParts, lastPart].join("\n");
+    }
+  }
+  const listIndent = pos.start.column - 1; // 0 for top-level nodes
+  if (listIndent > 0) {
+    const prefix = " ".repeat(listIndent);
+    const rawLines = raw.split("\n");
+    raw = [
+      rawLines[0],
+      ...rawLines.slice(1).map((line) =>
+        line.startsWith(prefix) ? line.slice(listIndent) : line
+      ),
+    ].join("\n");
+  }
+  return raw;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +372,29 @@ function assignCaptionPositions(blocks: BodyBlock[]): BodyBlock[] {
 }
 
 // ---------------------------------------------------------------------------
+// Blockquote de-quote (§5.1 faithful)
+// ---------------------------------------------------------------------------
+
+/**
+ * De-quote a verbatim blockquote slice: strip the per-line `> ` (or bare
+ * `>` for blank quoted lines) marker, preserving inline markup and the
+ * interior-blank-line convention. CommonMark canonical quoting is `> `
+ * on content lines and `>` alone on blank lines; a defensive `>`-without
+ * -space strip handles non-canonical input.
+ */
+function deQuote(rawBlockquote: string): string {
+  return rawBlockquote
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("> ")) return line.slice(2);
+      if (line === ">") return "";
+      if (line.startsWith(">")) return line.slice(1);
+      return line;
+    })
+    .join("\n");
+}
+
+// ---------------------------------------------------------------------------
 // Main builder — mdast node → BodyBlock
 // ---------------------------------------------------------------------------
 
@@ -318,7 +404,8 @@ function mapMdastNode(node: any, body: string): BodyBlock {
 
   switch (node.type) {
     case "paragraph": {
-      const text = extractMdastText(node);
+      const text = extractMdastText(node); // flattened — detection + recognition
+      const verbatim = verbatimSlice(body, node.position);
 
       // Check for lone image → FigureNode
       if (
@@ -343,6 +430,14 @@ function mapMdastNode(node: any, body: string): BodyBlock {
       // Check for definition-list pattern `Term\n: def`
       const defList = tryDefinitionList(text);
       if (defList) {
+        // Verbatim term/definition: re-run the deflist split on the
+        // verbatim slice so inline markup in either side survives.
+        // TODO(SP2-Task5): if DEFLIST_RE doesn't match the verbatim slice,
+        // vTerm/vDef fall back to the flattened form (pre-SP2 behaviour).
+        // Task 5 pins and fixes full faithful definition-list capture.
+        const vm = DEFLIST_RE.exec(verbatim.trim());
+        const vTerm = vm ? vm[1].trim() : defList.term;
+        const vDef = vm ? vm[2].trim() : defList.definition;
         const termRange: SourceRange = {
           start: range.start,
           end: range.start,
@@ -355,8 +450,8 @@ function mapMdastNode(node: any, body: string): BodyBlock {
           kind: "definition-list",
           items: [
             {
-              term: inlineContent(defList.term, termRange),
-              definition: inlineContent(defList.definition, defRange),
+              term: inlineContent(vTerm, defList.term, termRange),
+              definition: inlineContent(vDef, defList.definition, defRange),
             },
           ],
           range,
@@ -376,10 +471,10 @@ function mapMdastNode(node: any, body: string): BodyBlock {
         } satisfies CaptionNode;
       }
 
-      // Plain paragraph with prose markers
+      // Plain paragraph: store verbatim source, recognise on flattened text.
       return {
         kind: "paragraph",
-        content: inlineContent(text, range),
+        content: inlineContent(verbatim, text, range),
         range,
       } satisfies ParagraphNode;
     }
@@ -398,7 +493,12 @@ function mapMdastNode(node: any, body: string): BodyBlock {
             // deno-lint-ignore no-explicit-any
             (child: any) => mapMdastNode(child, body),
           );
-          return { blocks: subBlocks, range: itemRange };
+          return {
+            blocks: subBlocks,
+            ...(item.checked != null ? { checked: item.checked } : {}),
+            ...(item.spread != null ? { spread: item.spread } : {}),
+            range: itemRange,
+          };
         },
       );
       return {
@@ -418,59 +518,12 @@ function mapMdastNode(node: any, body: string): BodyBlock {
         (row.children ?? []).map((cell: any) => {
           const cellText = extractMdastText(cell);
           const cellRange = positionToRange(cell.position);
-          return inlineContent(cellText, cellRange);
+          // stored == recognition (table cells render via TableNode.raw; Task 5 confirms)
+          return inlineContent(cellText, cellText, cellRange);
         })
       );
       const [header = [], ...dataRows] = rows;
-      // Extract verbatim source substring to preserve author column widths
-      // for byte-identical round-trip. remark populates offset on position
-      // when the input string is passed to .parse(); fall back to a
-      // line/column slice when offsets are absent (defensive).
-      let raw: string;
-      const pos = node.position;
-      if (
-        pos?.start?.offset !== undefined && pos?.end?.offset !== undefined
-      ) {
-        raw = body.slice(pos.start.offset, pos.end.offset);
-        // Normalize indentation: when a table is nested inside a list
-        // item, remark's start.offset points at the first `|` (column 0
-        // of raw), but continuation rows carry the list-continuation
-        // indent (e.g. "  ") because the source does.  Strip exactly
-        // `(pos.start.column - 1)` leading spaces from every line after
-        // the first so that `raw` is a self-contained, column-0-anchored
-        // table string.  `renderListItem` then re-adds a uniform "  "
-        // prefix to every line, reproducing the original source exactly.
-        // For top-level tables `pos.start.column` is 1, so no stripping
-        // occurs and existing behaviour is preserved.
-        const listIndent = pos.start.column - 1; // 0 for top-level tables
-        if (listIndent > 0) {
-          const prefix = " ".repeat(listIndent);
-          const rawLines = raw.split("\n");
-          raw = [
-            rawLines[0],
-            ...rawLines.slice(1).map((line) =>
-              line.startsWith(prefix) ? line.slice(listIndent) : line
-            ),
-          ].join("\n");
-        }
-      } else if (pos) {
-        // Fallback: reconstruct from 1-based line/column boundaries.
-        const bodyLines = body.split("\n");
-        const startLine = pos.start.line - 1; // 0-based
-        const endLine = pos.end.line - 1; // 0-based
-        const startCol = pos.start.column - 1; // 0-based
-        const endCol = pos.end.column - 1; // 0-based (exclusive)
-        if (startLine === endLine) {
-          raw = bodyLines[startLine]?.slice(startCol, endCol) ?? "";
-        } else {
-          const firstPart = bodyLines[startLine]?.slice(startCol) ?? "";
-          const middleParts = bodyLines.slice(startLine + 1, endLine);
-          const lastPart = bodyLines[endLine]?.slice(0, endCol) ?? "";
-          raw = [firstPart, ...middleParts, lastPart].join("\n");
-        }
-      } else {
-        raw = "";
-      }
+      const raw = verbatimSlice(body, node.position);
       return {
         kind: "table",
         header,
@@ -498,47 +551,55 @@ function mapMdastNode(node: any, body: string): BodyBlock {
     }
 
     case "blockquote": {
-      // Admonition heuristic: first text content starts with `[!KIND]`
+      const verbatim = deQuote(verbatimSlice(body, node.position));
       const firstChild = node.children?.[0];
+
       if (firstChild?.type === "paragraph") {
         const paraText = extractMdastText(firstChild);
         const admonMatch = ADMONITION_FIRST_LINE_RE.exec(paraText.trim());
         if (admonMatch) {
           const kind = admonMatch[1] as AdmonitionKind;
-          // Rest of the text after the admonition marker (may include
-          // embedded newlines when the first paragraph spans multiple
-          // quoted lines, e.g. `> [!NOTE]\n> a\n> b`).
+
+          // Flattened recognition text (unchanged from prior behaviour):
+          // marker-stripped first paragraph + remaining paragraphs.
           const rest = paraText.replace(ADMONITION_FIRST_LINE_RE, "").trim();
-          // Collect text from remaining paragraph children. Each child
-          // is a separate paragraph (separated by a blank quoted line
-          // `>` in the source), so join with "\n\n" so the renderer
-          // can reproduce the interior blank quoted lines byte-identically.
           const otherText = node.children
             .slice(1)
             // deno-lint-ignore no-explicit-any
             .map((c: any) => extractMdastText(c))
             .join("\n\n");
-          const fullText = [rest, otherText].filter(Boolean).join("\n\n");
-          const content = inlineContent(fullText, range);
+          const flattened = [rest, otherText].filter(Boolean).join("\n\n");
+
+          // Verbatim stored text: de-quoted slice with the `[!KIND]`
+          // token removed from the first line. Anything the author put
+          // after the marker on the same line is kept verbatim.
+          const vLines = verbatim.split("\n");
+          // `kind` is enum-constrained (NOTE|TIP|IMPORTANT|WARNING|CAUTION,
+          // captured by ADMONITION_FIRST_LINE_RE) — no regex metacharacters,
+          // so this dynamic RegExp is injection-safe (no escaping needed).
+          const markerRe = new RegExp(`^\\[!${kind}\\]`);
+          const afterMarker = (vLines[0] ?? "").replace(markerRe, "");
+          const bodyLines = vLines.slice(1);
+          const storedText = afterMarker.trim()
+            ? [afterMarker.trimStart(), ...bodyLines].join("\n")
+            : bodyLines.join("\n");
+
           return {
             kind: "note",
             admonition: kind,
-            content,
+            content: inlineContent(storedText, flattened, range),
             range,
           } satisfies NoteNode;
         }
       }
-      // Plain blockquote. Each mdast paragraph child corresponds to a
-      // separate paragraph in the source, separated by a blank quoted
-      // line (`>` alone). Join with "\n\n" so the renderer can reproduce
-      // interior blank quoted lines byte-identically.
-      const bqText = node.children
+
+      const bqFlattened = node.children
         // deno-lint-ignore no-explicit-any
         .map((c: any) => extractMdastText(c))
         .join("\n\n");
       return {
         kind: "blockquote",
-        content: inlineContent(bqText, range),
+        content: inlineContent(verbatim, bqFlattened, range),
         range,
       } satisfies BlockquoteNode;
     }
@@ -562,7 +623,7 @@ function mapMdastNode(node: any, body: string): BodyBlock {
       }
       return {
         kind: "unknown",
-        raw: extractMdastText(node),
+        raw: verbatimSlice(body, node.position),
         ...(subkind !== undefined ? { subkind } : {}),
         range,
       } satisfies UnknownNode;

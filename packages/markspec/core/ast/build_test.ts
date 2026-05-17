@@ -29,7 +29,8 @@ import type {
 // Helper — import lazily so tests can stub before loading (future).
 // For now just import at the top.
 // ----------------------------------------------------------------------------
-import { buildBodyAst } from "./build.ts";
+import { buildBodyAst, verbatimSlice } from "./build.ts";
+import { render } from "./render.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
 // ============================================================================
@@ -71,6 +72,31 @@ Deno.test("build: ordered list → ListNode with ordered=true", () => {
   const list = blocks[0] as ListNode;
   assertEquals(list.kind, "list");
   assertEquals(list.ordered, true);
+});
+
+Deno.test("build: nested list paragraph keeps emphasis and round-trips", () => {
+  const s = "- outer _one_\n  - inner **a**\n- outer two";
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("build: task-list checkbox is captured and round-trips", () => {
+  const s = "- [ ] todo item\n- [x] done item";
+  const list = buildBodyAst(s)[0] as ListNode;
+  assertEquals(list.kind, "list");
+  assertEquals(list.hasTaskItems, true); // B042 source unchanged
+  assertEquals(list.items[0].checked, false);
+  assertEquals(list.items[1].checked, true);
+  assertEquals(render(buildBodyAst(s)), s); // round-trips byte-identically
+});
+
+Deno.test("build: single loose item paragraph+code round-trips", () => {
+  const s = "- item one\n\n  ```rust\n  fn x(){}\n  ```";
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("build: single item paragraph+nested list round-trips", () => {
+  const s = "- outer\n\n  - inner";
+  assertEquals(render(buildBodyAst(s)), s);
 });
 
 Deno.test("build: GFM table → TableNode with raw field", () => {
@@ -156,6 +182,39 @@ Deno.test("build: plain blockquote → BlockquoteNode", () => {
   const bq = blocks[0] as BlockquoteNode;
   assertEquals(bq.kind, "blockquote");
   assertExists(bq.content.text);
+});
+
+Deno.test("build: note preserves inline emphasis and round-trips", () => {
+  const s = "> [!NOTE]\n> See _the spec_ for **detail**.";
+  const n = buildBodyAst(s)[0] as NoteNode;
+  assertEquals(n.kind, "note");
+  assertEquals(n.admonition, "NOTE");
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("build: blockquote preserves inline link and round-trips", () => {
+  const s = "> See [the spec](docs/x.md) for detail.";
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("build: note/blockquote canonical shapes still byte-exact", () => {
+  for (
+    const s of [
+      "> [!WARNING]\n> line one\n> line two",
+      "> [!NOTE]\n> a\n>\n> c",
+      "> line one\n> line two",
+      "> a\n>\n> b",
+      "> [!NOTE]\n> This is an informational note.",
+    ]
+  ) {
+    assertEquals(render(buildBodyAst(s)), s, `failed: ${JSON.stringify(s)}`);
+  }
+});
+
+Deno.test("build: emphasised modal in a note is still recognised", () => {
+  const n = buildBodyAst("> [!NOTE]\n> The driver _shall_ act.")[0] as NoteNode;
+  const modal = n.content.markers.find((m) => m.kind === "modal");
+  assertExists(modal);
 });
 
 Deno.test("build: definition-list pattern → DefinitionListNode", () => {
@@ -305,6 +364,46 @@ Deno.test("build: entity refs with different conventions", () => {
 });
 
 // ============================================================================
+// 2b. Faithful paragraph + decoupled marker recognition (SP2 Task 2)
+// ============================================================================
+
+Deno.test("build: paragraph preserves inline emphasis verbatim", () => {
+  const s = "The driver _shall_ debounce inputs.";
+  const blocks = buildBodyAst(s);
+  const p = blocks[0] as ParagraphNode;
+  assertEquals(p.kind, "paragraph");
+  assertEquals(p.content.text, s); // verbatim — markup NOT flattened
+  assertEquals(render(blocks), s); // round-trips byte-identically
+});
+
+Deno.test("build: emphasised modal keyword is still recognised (decoupled)", () => {
+  const blocks = buildBodyAst("The driver _shall_ debounce inputs.");
+  const p = blocks[0] as ParagraphNode;
+  const modal = p.content.markers.find((m) => m.kind === "modal");
+  assertExists(modal); // recognition runs on the FLATTENED projection
+  assertEquals(modal?.kind === "modal" ? modal.canonical : "", "shall");
+});
+
+Deno.test("build: strong / link / autolink / hardbreak preserved verbatim", () => {
+  for (
+    const s of [
+      "The driver **must** debounce inputs.",
+      "See [the spec](docs/specs/x.md) for detail.",
+      "Reference: <https://example.com/spec>.",
+      "line one  \nline two",
+      "line one\\\nline two",
+    ]
+  ) {
+    const blocks = buildBodyAst(s);
+    assertEquals(
+      render(blocks),
+      s,
+      `round-trip failed for ${JSON.stringify(s)}`,
+    );
+  }
+});
+
+// ============================================================================
 // 3. Characterisation tests — wiring into Entry.bodyAst
 // ============================================================================
 
@@ -340,4 +439,84 @@ Deno.test("build: file with no entries does not crash buildBodyAst", async () =>
   );
   const result = parseMarkdown(md, { file: "traceability-matrix.md" });
   assertEquals(result.entries.length, 0);
+});
+
+// ============================================================================
+// 4. verbatimSlice unit tests
+// ============================================================================
+
+Deno.test("verbatimSlice: top-level node returns exact source slice", () => {
+  const body = "alpha _beta_ gamma";
+  const pos = {
+    start: { line: 1, column: 1, offset: 0 },
+    end: { line: 1, column: 19, offset: 18 },
+  };
+  assertEquals(verbatimSlice(body, pos), "alpha _beta_ gamma");
+});
+
+Deno.test("verbatimSlice: nested node strips list-continuation indent", () => {
+  // Two-line slice whose continuation line carries a 2-space list indent.
+  const body = "- x\n\n  line a\n  line b";
+  const pos = {
+    start: { line: 3, column: 3, offset: 7 },
+    end: { line: 4, column: 9, offset: 22 },
+  };
+  // start.column 3 → strip 2 leading spaces from every line after the first.
+  assertEquals(verbatimSlice(body, pos), "line a\nline b");
+});
+
+Deno.test("verbatimSlice: no-offset pos uses line/column fallback", () => {
+  const body = "- x\n\n  line a\n  line b";
+  const pos = {
+    start: { line: 3, column: 3 }, // no offset
+    end: { line: 4, column: 9 },
+  };
+  assertEquals(verbatimSlice(body, pos), "line a\nline b");
+});
+
+Deno.test("verbatimSlice: undefined position → empty string", () => {
+  assertEquals(verbatimSlice("anything", undefined), "");
+});
+
+Deno.test("build: definition list preserves inline markup and round-trips", () => {
+  const s = "ASIL\n: _Automotive_ Safety **Integrity** Level";
+  const blocks = buildBodyAst(s);
+  const dl = blocks[0] as DefinitionListNode;
+  assertEquals(dl.kind, "definition-list");
+  assertEquals(dl.items.length, 1); // single-item deferral pinned (multi-item is deferred)
+  assertEquals(dl.items[0].term.text, "ASIL");
+  assertEquals(
+    dl.items[0].definition.text,
+    "_Automotive_ Safety **Integrity** Level",
+  );
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: table with inline markup in a cell round-trips via raw", () => {
+  const s = "| A | B |\n|---|---|\n| _x_ | **y** |";
+  assertEquals(render(buildBodyAst(s)), s); // raw passthrough — exact
+});
+
+Deno.test("build: thematic break preserved verbatim and round-trips", () => {
+  const s = "before\n\n---\n\nafter";
+  const blocks = buildBodyAst(s);
+  const tb = blocks.find((b) => b.kind === "unknown") as UnknownNode;
+  assertEquals(tb.subkind, "thematic-break");
+  assertEquals(tb.raw, "---");
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: heading preserved verbatim (# survives) and round-trips", () => {
+  const s = "# Not allowed in a body";
+  const blocks = buildBodyAst(s);
+  const h = blocks[0] as UnknownNode;
+  assertEquals(h.kind, "unknown");
+  assertEquals(h.subkind, "heading");
+  assertEquals(h.raw, s);
+  assertEquals(render(blocks), s);
+});
+
+Deno.test("build: link reference definition preserved verbatim", () => {
+  const s = "See [the spec][s] for detail.\n\n[s]: docs/specs/x.md";
+  assertEquals(render(buildBodyAst(s)), s);
 });

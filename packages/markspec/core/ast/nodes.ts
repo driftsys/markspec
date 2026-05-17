@@ -57,7 +57,15 @@ export interface EntityRefMarker {
 /** Inline marker union (spec §2.5). */
 export type InlineMarker = ModalMarker | EntityRefMarker;
 
-/** Prose text plus the inline markers recognised within it. */
+/**
+ * Prose text plus the inline markers recognised within it.
+ *
+ * `text` is the **verbatim source prose** (markup-preserving — emphasis,
+ * strong, links, autolinks, hard line breaks survive byte-identically per
+ * spec §5.1). `markers` are recognised from the flattened projection so
+ * modal / $Identifier detection is unaffected by surrounding markup.
+ * Marker `range` columns are best-effort relative to the verbatim text.
+ */
 export interface InlineContent {
   readonly text: string;
   readonly markers: readonly InlineMarker[];
@@ -66,6 +74,20 @@ export interface InlineContent {
 /** A list item: a sequence of blocks (spec §2.4 `List`). */
 export interface ListItemNode {
   readonly blocks: readonly BodyBlock[];
+  /**
+   * GFM task-list checkbox state for this item, when present:
+   * `false` = `[ ]`, `true` = `[x]`. Absent for non-task items.
+   * Round-tripped by the renderer; `ListNode.hasTaskItems` (used by
+   * MSL-B042) is derived independently and unaffected.
+   */
+  readonly checked?: boolean;
+  /**
+   * True when this item is "loose" (mdast `listItem.spread`): its blocks
+   * are separated by blank lines in source. Drives inter-block blank-line
+   * emission in the renderer. Distinct from `ListNode.spread`, which is
+   * the list-level item-separation signal.
+   */
+  readonly spread?: boolean;
   readonly range: SourceRange;
 }
 
@@ -198,6 +220,7 @@ export interface CaptionNode {
  * lost (spec §5.4). Excluded constructs still emit MSL-B040–B043. */
 export interface UnknownNode {
   readonly kind: "unknown";
+  /** Carries the verbatim source slice (spec §5.4 lossless preservation). */
   readonly raw: string;
   /**
    * Sub-kind for constructs the body-block exclusion validator (MSL-B040–B043)

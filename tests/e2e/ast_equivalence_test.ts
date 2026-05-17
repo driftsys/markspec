@@ -400,6 +400,26 @@ Deno.test("ast-equivalence: edge cases", async (t) => {
       "code: nested inside list item",
       "- item one\n\n  ```rust\n  fn main() {}\n  ```\n\n- item two",
     ],
+    [
+      "paragraph: inline emphasis/strong/link preserved",
+      "The driver _shall_ debounce **inputs** — see [spec](docs/x.md).",
+    ],
+    [
+      "paragraph: hard line break (two-space)",
+      "line one  \nline two",
+    ],
+    [
+      "note: inline markup in admonition body",
+      "> [!NOTE]\n> See _the spec_ and the [guide](docs/g.md).",
+    ],
+    [
+      "blockquote: inline markup excerpt",
+      "> An excerpt with _emphasis_ and a [link](docs/x.md).",
+    ],
+    [
+      "definition-list: inline markup in definition",
+      "ASIL\n: _Automotive_ Safety **Integrity** Level",
+    ],
   ];
 
   for (const [label, body] of cases) {
