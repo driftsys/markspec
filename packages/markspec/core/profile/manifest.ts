@@ -15,8 +15,12 @@ import {
   CORE_TYPES,
   type DocTypeDef,
   type EnforcementMode,
+  type LabelConcern,
+  type LabelConcernKind,
+  type LabelValue,
   LIST_VALUE_TYPES,
   PALETTE_HUES,
+  type ProfileConvention,
   type ProfileSpecifier,
   type TargetMatcher,
   type TraceRule,
@@ -41,6 +45,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "attributes",
   "labels",
   "colors",
+  "conventions",
   "types",
   "documents",
 ]);
@@ -66,11 +71,17 @@ const ALLOWED_ATTR_KEYS = new Set([
   "cardinality",
   "values",
   "inverse",
+  "description",
 ]);
 
 const ALLOWED_INVERSE_KEYS = new Set(["name", "category"]);
 
-const ALLOWED_TRACE_RULE_KEYS = new Set(["target", "cardinality", "required"]);
+const ALLOWED_TRACE_RULE_KEYS = new Set([
+  "target",
+  "cardinality",
+  "required",
+  "description",
+]);
 
 /** Result of parsing a profile manifest. */
 export interface ParseManifestResult {
@@ -346,7 +357,19 @@ function parseAttrDecl(
     inverse = { name: inv.name, category: inv.category };
   }
 
-  return { name, type: vtype, required, cardinality, values, inverse };
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+
+  return {
+    name,
+    type: vtype,
+    required,
+    cardinality,
+    values,
+    inverse,
+    description,
+  };
 }
 
 function parseAttrList(
@@ -466,7 +489,10 @@ function parseTraceRule(
     )
     : undefined;
   const required = r.required === true;
-  return { target: targets, cardinality, required };
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+  return { target: targets, cardinality, required, description };
 }
 
 function parseTraceabilityMap(
@@ -556,6 +582,234 @@ function parseColorsMap(
       continue;
     }
     out.set(name, value);
+  }
+  return out;
+}
+
+const KNOWN_CONVENTIONS = new Set(["modal-keywords"]);
+const MODAL_KEYWORDS_CASING_VALUES = new Set(["rfc2119", "iso", "preserve"]);
+
+function parseLabelConcerns(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): LabelConcern[] {
+  if (raw === undefined) return [];
+
+  // Form A: flat sequence of strings → each becomes a flag concern.
+  if (Array.isArray(raw)) {
+    const concerns: LabelConcern[] = [];
+    for (const item of raw) {
+      if (typeof item !== "string") {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message: "profile.labels: list form requires all-string entries",
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+        return [];
+      }
+      concerns.push({ name: item, kind: "flag", values: [] });
+    }
+    return concerns;
+  }
+
+  // Form B: mapping — each key is a concern name.
+  if (raw === null || typeof raw !== "object") {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "profile.labels: must be a list of strings or a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return [];
+  }
+
+  const concerns: LabelConcern[] = [];
+  for (
+    const [name, value] of Object.entries(raw as Record<string, unknown>)
+  ) {
+    const concern = parseLabelConcernEntry(
+      name,
+      value,
+      sourcePath,
+      diagnostics,
+    );
+    if (concern) concerns.push(concern);
+  }
+  return concerns;
+}
+
+function parseLabelConcernEntry(
+  name: string,
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): LabelConcern | undefined {
+  const ctx = `profile.labels.${name}`;
+
+  // Bare string → description shorthand, implies flag.
+  if (typeof raw === "string") {
+    return { name, kind: "flag", description: raw, values: [] };
+  }
+
+  // null/undefined → flag, no description.
+  if (raw === null || raw === undefined) {
+    return { name, kind: "flag", values: [] };
+  }
+
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${ctx}: value must be null, a string, or a mapping`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+
+  const r = raw as Record<string, unknown>;
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+
+  let kind: LabelConcernKind = "flag";
+  if (r.kind !== undefined) {
+    if (r.kind !== "enum" && r.kind !== "set" && r.kind !== "flag") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${ctx}: 'kind' must be 'enum', 'set', or 'flag'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    kind = r.kind as LabelConcernKind;
+  }
+
+  if (r.values !== undefined && kind === "flag") {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `${ctx}: 'values' is not valid for kind 'flag'`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+
+  const values: LabelValue[] = [];
+  if (r.values !== undefined) {
+    if (typeof r.values !== "object" || Array.isArray(r.values)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `${ctx}: 'values' must be a mapping of value names`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    for (
+      const [vName, vRaw] of Object.entries(
+        r.values as Record<string, unknown>,
+      )
+    ) {
+      if (vRaw === null || vRaw === undefined) {
+        values.push({ name: vName });
+      } else if (typeof vRaw === "string") {
+        values.push({ name: vName, description: vRaw });
+      } else if (typeof vRaw === "object" && !Array.isArray(vRaw)) {
+        const vr = vRaw as Record<string, unknown>;
+        const vDesc = typeof vr.description === "string"
+          ? vr.description
+          : undefined;
+        values.push({ name: vName, description: vDesc });
+      } else {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message:
+            `${ctx}.values.${vName}: must be null, a string, or {description: string}`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+      }
+    }
+  }
+
+  return { name, kind, description, values };
+}
+
+function parseConventions(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): ProfileConvention[] {
+  if (raw === undefined) return [];
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "profile.conventions: must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return [];
+  }
+  const out: ProfileConvention[] = [];
+  for (
+    const [name, value] of Object.entries(raw as Record<string, unknown>)
+  ) {
+    if (!KNOWN_CONVENTIONS.has(name)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "warning",
+        message:
+          `profile.conventions: unknown convention '${name}' (accepted for forward compatibility)`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    }
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.conventions.${name}: must be a mapping`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    const r = value as Record<string, unknown>;
+    const description = typeof r.description === "string"
+      ? r.description
+      : undefined;
+    const settings: Record<string, string> = {};
+    let valid = true;
+    for (const [k, v] of Object.entries(r)) {
+      if (k === "description") continue;
+      if (typeof v !== "string") {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message:
+            `profile.conventions.${name}.${k}: setting value must be a string`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+        valid = false;
+        continue;
+      }
+      if (name === "modal-keywords" && k === "casing") {
+        if (!MODAL_KEYWORDS_CASING_VALUES.has(v)) {
+          diagnostics.push({
+            code: "PROFILE-LOAD-003",
+            severity: "error",
+            message:
+              `profile.conventions.modal-keywords.casing: '${v}' not valid (expected: rfc2119, iso, preserve)`,
+            location: { file: sourcePath, line: 1, column: 1 },
+          });
+          valid = false;
+          continue;
+        }
+      }
+      settings[k] = v;
+    }
+    if (valid) out.push({ name, settings, description });
   }
   return out;
 }
@@ -655,6 +909,10 @@ function parseTypeDef(
     color = r.color;
   }
 
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+
   const required = parseStringList(
     r.required,
     `${ctx}.required`,
@@ -683,6 +941,7 @@ function parseTypeDef(
     attributes,
     traceability,
     color,
+    description,
   };
 }
 
@@ -926,9 +1185,8 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
-  const labels = parseStringList(
+  const labels = parseLabelConcerns(
     profileSection.labels,
-    "profile.labels",
     sourcePath,
     diagnostics,
   );
@@ -937,8 +1195,13 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
+  const conventions = parseConventions(
+    profileSection.conventions,
+    sourcePath,
+    diagnostics,
+  );
 
-  if (diagnostics.length > 0) {
+  if (diagnostics.some((d) => d.severity === "error")) {
     return { manifest: null, diagnostics };
   }
 
@@ -979,6 +1242,7 @@ export function parseManifest(
     extends: extendsSpec,
     universalAttributes,
     labels,
+    conventions,
     colors,
     types: types,
     documents: documents,

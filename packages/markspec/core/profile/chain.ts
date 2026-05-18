@@ -237,10 +237,11 @@ function stringifySpec(spec: ProfileSpecifier): string {
 function buildPlaceholderEffective(
   tiers: readonly LoadedProfile[],
 ): EffectiveProfile {
-  const leafOrigin = tiers[tiers.length - 1]?.id ?? "<unknown>";
+  const _leafOrigin = tiers[tiers.length - 1]?.id ?? "<unknown>";
   return {
     attributes: new Map(),
-    labels: { value: [], origin: leafOrigin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },

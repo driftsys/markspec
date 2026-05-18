@@ -56,6 +56,9 @@ function buildType(opts: {
       required: { value: [], origin },
       attributes: new Map(),
       traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
     },
     origin,
   };
@@ -64,13 +67,13 @@ function buildType(opts: {
 function buildProfile(
   types: ReadonlyArray<ProvenancedMapEntry<EffectiveTypeDef>>,
 ): EffectiveProfile {
-  const origin = "@test/profile";
   const typesMap = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
   for (const t of types) typesMap.set(t.value.name, t);
   return {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   };

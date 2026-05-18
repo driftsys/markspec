@@ -91,7 +91,10 @@ profile:
       required: false
 `);
   assertEquals(result.diagnostics.length, 0);
-  assertEquals(result.manifest?.labels, ["DRAFT", "INTERNAL"]);
+  assertEquals(result.manifest?.labels.length, 2);
+  assertEquals(result.manifest?.labels[0].name, "DRAFT");
+  assertEquals(result.manifest?.labels[0].kind, "flag");
+  assertEquals(result.manifest?.labels[1].name, "INTERNAL");
   assertEquals(result.manifest?.universalAttributes.length, 1);
   const attr = result.manifest?.universalAttributes[0];
   assertEquals(attr?.name, "Status");
@@ -827,4 +830,173 @@ profile:
   const d = result.diagnostics.find((d) => d.code === "PROFILE-TYPE-005");
   assertExists(d);
   assertEquals(d.severity, "error");
+});
+
+Deno.test("parseManifest: description on attribute decl parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  attributes:
+    - name: Safety-Class
+      type: enum
+      values: [ASIL-A, ASIL-B, QM]
+      description: ISO 26262 integrity level
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const attr = result.manifest?.universalAttributes[0];
+  assertEquals(attr?.description, "ISO 26262 integrity level");
+});
+
+Deno.test("parseManifest: description on trace rule parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    software-requirement:
+      extends: Requirement
+      traceability:
+        Satisfies:
+          target: [{shape: identified}]
+          description: Traces to higher-level requirement
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const type = result.manifest?.types.get("software-requirement");
+  const rule = type?.traceability.get("Satisfies");
+  assertEquals(rule?.description, "Traces to higher-level requirement");
+});
+
+Deno.test("parseManifest: description on type def parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    software-requirement:
+      extends: Requirement
+      description: A software-level requirement
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const type = result.manifest?.types.get("software-requirement");
+  assertEquals(type?.description, "A software-level requirement");
+});
+
+Deno.test("parseManifest: flat labels list → flag concerns", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  labels: [ASIL-A, ASIL-B, QM]
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  assertEquals(result.manifest?.labels.length, 3);
+  assertEquals(result.manifest?.labels[0].name, "ASIL-A");
+  assertEquals(result.manifest?.labels[0].kind, "flag");
+  assertEquals(result.manifest?.labels[0].values.length, 0);
+});
+
+Deno.test("parseManifest: structured labels with enum kind", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  labels:
+    asil:
+      kind: enum
+      description: ISO 26262 integrity level
+      values:
+        ASIL-D: Highest integrity
+        QM: Quality managed
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const asil = result.manifest?.labels.find((l) => l.name === "asil");
+  assertEquals(asil?.kind, "enum");
+  assertEquals(asil?.description, "ISO 26262 integrity level");
+  assertEquals(asil?.values.length, 2);
+  assertEquals(asil?.values[0].name, "ASIL-D");
+  assertEquals(asil?.values[0].description, "Highest integrity");
+});
+
+Deno.test("parseManifest: values on flag concern → PROFILE-LOAD-003", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  labels:
+    deprecated:
+      kind: flag
+      values:
+        yes: {}
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: conventions modal-keywords parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  conventions:
+    modal-keywords:
+      casing: iso
+      description: ISO verbal forms
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const conv = result.manifest?.conventions.find(
+    (c) => c.name === "modal-keywords",
+  );
+  assertEquals(conv?.settings["casing"], "iso");
+  assertEquals(conv?.description, "ISO verbal forms");
+});
+
+Deno.test("parseManifest: unknown casing value → PROFILE-LOAD-003 error", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  conventions:
+    modal-keywords:
+      casing: bad
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.manifest, null);
+  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: unknown convention name → PROFILE-LOAD-003 warning", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  conventions:
+    my-custom-thing:
+      foo: bar
+`;
+  const result = parseManifest(yaml);
+  // Warning but not error — convention is parsed and included.
+  assertEquals(result.manifest !== null, true);
+  assertEquals(
+    result.diagnostics.some((d) =>
+      d.code === "PROFILE-LOAD-003" && d.severity === "warning"
+    ),
+    true,
+  );
 });

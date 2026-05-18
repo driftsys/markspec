@@ -47,13 +47,17 @@ function makeProfile(
         required: { value: [], origin: "test" },
         attributes: new Map(),
         traceability: new Map(),
+        description: { value: undefined, origin: "test" },
+        attrDescriptions: new Map(),
+        relationDescriptions: new Map(),
       },
       origin: "test",
     }]),
   );
   return {
     attributes: new Map(),
-    labels: { value: [], origin: "test" },
+    labels: new Map(),
+    conventions: new Map(),
     colors: colorsMap,
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },

@@ -63,6 +63,7 @@ export interface AttrDecl {
   readonly cardinality: Cardinality; // inferred from type if unspecified
   readonly values?: readonly string[]; // required when type === "enum"
   readonly inverse?: InverseDecl; // only valid when type is "id" or "id-list"
+  readonly description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,35 @@ export interface TraceRule {
   readonly target: readonly TargetMatcher[];
   readonly cardinality?: Cardinality;
   readonly required: boolean;
+  readonly description?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Label concerns (profile.labels: dual-form)
+// ---------------------------------------------------------------------------
+
+export type LabelConcernKind = "enum" | "set" | "flag";
+
+export interface LabelValue {
+  readonly name: string;
+  readonly description?: string;
+}
+
+export interface LabelConcern {
+  readonly name: string;
+  readonly kind: LabelConcernKind;
+  readonly description?: string;
+  readonly values: readonly LabelValue[];
+}
+
+// ---------------------------------------------------------------------------
+// Conventions
+// ---------------------------------------------------------------------------
+
+export interface ProfileConvention {
+  readonly name: string;
+  readonly settings: Readonly<Record<string, string>>;
+  readonly description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +128,7 @@ export interface TypeDef {
   readonly traceability: ReadonlyMap<string, TraceRule>;
   /** Optional semantic color-role name (key into `ProfileManifest.colors`). */
   readonly color?: string;
+  readonly description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +174,8 @@ export interface ProfileManifest {
 
   // profile: content section
   readonly universalAttributes: readonly AttrDecl[];
-  readonly labels: readonly string[];
+  readonly labels: readonly LabelConcern[];
+  readonly conventions: readonly ProfileConvention[];
 
   /**
    * Semantic color-role bindings authored on this manifest.
@@ -232,6 +264,9 @@ export interface EffectiveTypeDef {
   readonly required: ProvenancedValue<readonly string[]>;
   readonly attributes: ProvenancedMap<AttrDecl>;
   readonly traceability: ProvenancedMap<TraceRule>;
+  readonly description: ProvenancedValue<string | undefined>;
+  readonly attrDescriptions: ProvenancedMap<string>;
+  readonly relationDescriptions: ProvenancedMap<string>;
 }
 
 /**
@@ -240,7 +275,8 @@ export interface EffectiveTypeDef {
  */
 export interface EffectiveProfile {
   readonly attributes: ProvenancedMap<AttrDecl>;
-  readonly labels: ProvenancedValue<readonly string[]>;
+  readonly labels: ProvenancedMap<LabelConcern>;
+  readonly conventions: ProvenancedMap<ProfileConvention>;
   /** Semantic color-role bindings merged across the chain. */
   readonly colors: ProvenancedMap<string>;
   readonly types: ProvenancedMap<EffectiveTypeDef>;

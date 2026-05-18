@@ -14,8 +14,10 @@ import type {
   DocTypeDef,
   EffectiveProfile,
   EffectiveTypeDef,
+  LabelConcern,
   LoadedProfile,
   ProfileChain,
+  ProfileConvention,
   ProfileId,
   ProvenancedMap,
   ProvenancedMapEntry,
@@ -102,7 +104,12 @@ function foldTier(
   const m = tier.manifest;
 
   // Universal additive.
-  const labels = unionList(base.labels, m.labels, origin);
+  const labels = unionLabelMap(base.labels, m.labels, origin, diagnostics);
+  const conventions = unionConventionsMap(
+    base.conventions,
+    m.conventions,
+    origin,
+  );
   const attributes = unionAttrMap(
     base.attributes,
     m.universalAttributes,
@@ -131,6 +138,9 @@ function foldTier(
         required: { value: td.required, origin },
         attributes: mapFromAttrList(td.attributes, origin),
         traceability: mapFromTrace(td.traceability, origin),
+        description: { value: td.description, origin },
+        attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
+        relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
       };
       types.set(name, { value: eff, origin });
     } else {
@@ -165,6 +175,7 @@ function foldTier(
   const result: EffectiveProfile = {
     attributes,
     labels,
+    conventions,
     colors,
     types,
     documents: {
@@ -372,6 +383,9 @@ function tightenAttr(
     cardinality: child.cardinality,
     values: parent.type === "enum" ? child.values : parent.values,
     inverse: child.inverse ?? parent.inverse,
+    description: child.description !== undefined
+      ? child.description
+      : parent.description,
   };
   const overrides = [
     ...(existing.overrides ?? []),
@@ -475,6 +489,27 @@ function tightenType(
     ? { value: child.color, origin: childOrigin }
     : effExisting.color;
 
+  // Description: child wins when set; else inherit parent provenance unchanged.
+  const description: ProvenancedValue<string | undefined> =
+    child.description !== undefined
+      ? { value: child.description, origin: childOrigin }
+      : effExisting.description;
+
+  const attrDescriptions = mergeDescriptionMap(
+    effExisting.attrDescriptions,
+    child.attributes.map((a) => ({ name: a.name, desc: a.description })),
+    childOrigin,
+  );
+
+  const relationDescriptions = mergeDescriptionMap(
+    effExisting.relationDescriptions,
+    [...child.traceability.entries()].map(([name, r]) => ({
+      name,
+      desc: r.description,
+    })),
+    childOrigin,
+  );
+
   const merged: EffectiveTypeDef = {
     name,
     extends: effExisting.extends,
@@ -484,6 +519,9 @@ function tightenType(
     required,
     attributes,
     traceability,
+    description,
+    attrDescriptions,
+    relationDescriptions,
   };
   const overrides = [
     ...(existing.overrides ?? []),
@@ -653,7 +691,8 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
 
   return {
     attributes: mapFromAttrList(m.universalAttributes, origin),
-    labels: { value: m.labels, origin },
+    labels: mapFromLabelConcerns(m.labels, origin),
+    conventions: mapFromConventions(m.conventions, origin),
     colors: mapFromColors(m.colors, origin),
     types: mapFromTypes(m.types, origin),
     documents: {
@@ -670,6 +709,95 @@ function mapFromColors(
   const out = new Map<string, ProvenancedMapEntry<string>>();
   for (const [name, hue] of colors) {
     out.set(name, { value: hue, origin });
+  }
+  return out;
+}
+
+function mapFromLabelConcerns(
+  concerns: readonly LabelConcern[],
+  origin: ProfileId,
+): ProvenancedMap<LabelConcern> {
+  const out = new Map<string, ProvenancedMapEntry<LabelConcern>>();
+  for (const c of concerns) {
+    out.set(c.name, { value: c, origin });
+  }
+  return out;
+}
+
+function mapFromConventions(
+  conventions: readonly ProfileConvention[],
+  origin: ProfileId,
+): ProvenancedMap<ProfileConvention> {
+  const out = new Map<string, ProvenancedMapEntry<ProfileConvention>>();
+  for (const c of conventions) {
+    out.set(c.name, { value: c, origin });
+  }
+  return out;
+}
+
+function unionLabelMap(
+  parent: ProvenancedMap<LabelConcern>,
+  childConcerns: readonly LabelConcern[],
+  childOrigin: ProfileId,
+  diagnostics: Diagnostic[],
+): ProvenancedMap<LabelConcern> {
+  if (childConcerns.length === 0) return parent;
+  const out = new Map(parent);
+  for (const c of childConcerns) {
+    const existing = out.get(c.name);
+    if (!existing) {
+      out.set(c.name, { value: c, origin: childOrigin });
+      continue;
+    }
+    if (existing.value.kind !== c.kind) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `label concern '${c.name}': kind '${c.kind}' (${childOrigin}) conflicts with '${existing.value.kind}' (${existing.origin})`,
+        location: { file: "<merge>", line: 1, column: 1 },
+      });
+      continue;
+    }
+    // Union values; child description wins when set.
+    const parentValueNames = new Set(existing.value.values.map((v) => v.name));
+    const mergedValues = [
+      ...existing.value.values,
+      ...c.values.filter((v) => !parentValueNames.has(v.name)),
+    ];
+    const merged: LabelConcern = {
+      name: c.name,
+      kind: c.kind,
+      description: c.description !== undefined
+        ? c.description
+        : existing.value.description,
+      values: mergedValues,
+    };
+    out.set(c.name, {
+      value: merged,
+      origin: childOrigin,
+      overrides: [...(existing.overrides ?? []), existing.origin],
+    });
+  }
+  return out;
+}
+
+function unionConventionsMap(
+  parent: ProvenancedMap<ProfileConvention>,
+  childConventions: readonly ProfileConvention[],
+  childOrigin: ProfileId,
+): ProvenancedMap<ProfileConvention> {
+  if (childConventions.length === 0) return parent;
+  const out = new Map(parent);
+  for (const c of childConventions) {
+    const existing = out.get(c.name);
+    out.set(c.name, {
+      value: c,
+      origin: childOrigin,
+      overrides: existing
+        ? [...(existing.overrides ?? []), existing.origin]
+        : undefined,
+    });
   }
   return out;
 }
@@ -696,6 +824,53 @@ function mapFromTrace(
   return out;
 }
 
+function mapFromAttrDescriptions(
+  attrs: readonly AttrDecl[],
+  origin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map<string, ProvenancedMapEntry<string>>();
+  for (const a of attrs) {
+    if (a.description !== undefined) {
+      out.set(a.name, { value: a.description, origin });
+    }
+  }
+  return out;
+}
+
+function mapFromTraceDescriptions(
+  trace: ReadonlyMap<string, TraceRule>,
+  origin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map<string, ProvenancedMapEntry<string>>();
+  for (const [name, rule] of trace) {
+    if (rule.description !== undefined) {
+      out.set(name, { value: rule.description, origin });
+    }
+  }
+  return out;
+}
+
+function mergeDescriptionMap(
+  parent: ProvenancedMap<string>,
+  childItems: readonly { name: string; desc: string | undefined }[],
+  childOrigin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map(parent);
+  for (const { name, desc } of childItems) {
+    if (desc !== undefined) {
+      const existing = out.get(name);
+      out.set(name, {
+        value: desc,
+        origin: childOrigin,
+        overrides: existing
+          ? [...(existing.overrides ?? []), existing.origin]
+          : undefined,
+      });
+    }
+  }
+  return out;
+}
+
 function mapFromTypes(
   types: ReadonlyMap<string, TypeDef>,
   origin: ProfileId,
@@ -714,6 +889,9 @@ function mapFromTypes(
       required: { value: td.required, origin },
       attributes: mapFromAttrList(td.attributes, origin),
       traceability: mapFromTrace(td.traceability, origin),
+      description: { value: td.description, origin },
+      attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
+      relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
     };
     out.set(name, { value: eff, origin });
   }

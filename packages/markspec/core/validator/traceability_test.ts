@@ -46,6 +46,9 @@ function typeDef(opts: {
       required: { value: [], origin: ORIGIN },
       attributes: new Map(),
       traceability: traceMap(opts.traceability ?? {}),
+      description: { value: undefined, origin: ORIGIN },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
     },
   };
 }
@@ -57,8 +60,9 @@ function profile(opts: {
   for (const t of opts.types ?? []) typesMap.set(t.value.name, t);
   return {
     attributes: new Map(),
-    labels: { value: [], origin: ORIGIN },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   };

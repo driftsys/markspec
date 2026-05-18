@@ -14,7 +14,7 @@ const MARKSPEC_YAML = `profiles:\n  - ./profiles/test\n`;
 // ── profile show ─────────────────────────────────────────────────────
 
 Deno.test("profile show: prints chain info", async () => {
-  const { code, stderr } = await markspec(["profile", "show"], {
+  const { code, stdout } = await markspec(["profile", "show"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": MARKSPEC_YAML,
@@ -22,9 +22,9 @@ Deno.test("profile show: prints chain info", async () => {
     },
   });
   assertEquals(code, 0);
-  assertStringIncludes(stderr, "@acme/test");
-  assertStringIncludes(stderr, "0.2.0");
-  assertStringIncludes(stderr, "Active profile chain:");
+  assertStringIncludes(stdout, "@acme/test");
+  assertStringIncludes(stdout, "0.2.0");
+  assertStringIncludes(stdout, "Active profile:");
 });
 
 Deno.test("profile show: --format json outputs structured data", async () => {
@@ -40,10 +40,10 @@ Deno.test("profile show: --format json outputs structured data", async () => {
   );
   assertEquals(code, 0);
   const data = JSON.parse(stdout);
-  assertEquals(Array.isArray(data.chain), true);
-  assertEquals(data.chain.length, 1);
-  assertEquals(data.chain[0].id, "@acme/test");
-  assertEquals(data.chain[0].version, "0.2.0");
+  assertEquals(Array.isArray(data.tiers), true);
+  assertEquals(data.tiers.length, 1);
+  assertEquals(data.tiers[0].id, "@acme/test");
+  assertEquals(data.tiers[0].version, "0.2.0");
 });
 
 Deno.test("profile show: no profile prints message", async () => {

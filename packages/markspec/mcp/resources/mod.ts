@@ -22,10 +22,17 @@ import {
   ENTRIES_URI,
   entryUri,
   isEntryUri,
+  isProfileDetailUri,
   parseEntryUri,
+  parseProfileDetailUri,
   PROFILE_URI,
+  profileDetailUri,
 } from "../uri.ts";
-import { buildProfileView, renderProfile } from "./profile.ts";
+import {
+  buildProfileView,
+  renderProfile,
+  renderProfileDetail,
+} from "./profile.ts";
 import { renderEntriesIndex } from "./entries.ts";
 import { renderEntry } from "./entry.ts";
 
@@ -50,14 +57,26 @@ export async function listResourceDescriptors(
         "Distilled profile manifest: declared entry types, attribute definitions, link relations, validation rules. Read once to understand the project's domain vocabulary.",
       mimeType: "text/markdown",
     },
-    {
-      uri: ENTRIES_URI,
-      name: "Entry index",
-      description:
-        "All entries grouped by type. Read for an overview of a small project (<50 entries); for larger projects use the entry_search tool instead.",
-      mimeType: "text/markdown",
-    },
   ];
+  // Profile detail URIs — one per element in the active profile.
+  const intro = buildProfileView(project.profileChain);
+  const overview = intro.overview();
+  for (const ref of overview.elements) {
+    const uri = profileDetailUri(ref.kind, ref.name);
+    out.push({
+      uri,
+      name: `${ref.kind}: ${ref.name}`,
+      description: ref.summary,
+      mimeType: "text/markdown",
+    });
+  }
+  out.push({
+    uri: ENTRIES_URI,
+    name: "Entry index",
+    description:
+      "All entries grouped by type. Read for an overview of a small project (<50 entries); for larger projects use the entry_search tool instead.",
+    mimeType: "text/markdown",
+  });
   const ids = [...result.entries.keys()].sort();
   for (const id of ids) {
     const entry = result.entries.get(id)!;
@@ -84,11 +103,27 @@ export async function readResource(
   project: Project,
 ): Promise<ReadResourceResult> {
   if (uri === PROFILE_URI) {
-    const view = buildProfileView(project.profileChain);
+    const intro = buildProfileView(project.profileChain);
     return {
       uri,
       mimeType: "text/markdown",
-      text: renderProfile(view),
+      text: renderProfile(intro),
+    };
+  }
+
+  if (isProfileDetailUri(uri)) {
+    const parsed = parseProfileDetailUri(uri)!;
+    const intro = buildProfileView(project.profileChain);
+    const detail = intro.describe(parsed.kind, parsed.name);
+    if (!detail) {
+      throw new Error(
+        `profile element not found: ${parsed.kind}/${parsed.name}`,
+      );
+    }
+    return {
+      uri,
+      mimeType: "text/markdown",
+      text: renderProfileDetail(detail),
     };
   }
 
