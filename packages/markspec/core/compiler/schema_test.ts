@@ -151,3 +151,51 @@ Deno.test("serializeCompileResult: round-trip via JSON.parse", () => {
   assertEquals(parsed.diagnostics.length, 1);
   assertEquals(parsed.diagnostics[0].code, "MSL-W001");
 });
+
+Deno.test("serializeCompileResult: strips sync.* from entry properties", () => {
+  const entry: Entry = {
+    ...makeEntry("STK_0001"),
+    properties: {
+      sync: { lastSyncedAt: "2026-01-01", remoteState: "clean" },
+      file: { path: "docs/req.md", line: 5 },
+    },
+  };
+  const result: CompileResult = {
+    entries: new Map([[entry.displayId, entry]]),
+    links: [],
+    forward: new Map(),
+    reverse: new Map(),
+    documents: new Map(),
+    diagnostics: [],
+  };
+
+  const serialized = serializeCompileResult(result);
+  const serializedEntry = serialized.entries["STK_0001"] as Entry;
+
+  // sync.* must be absent
+  assertEquals(serializedEntry.properties?.sync, undefined);
+  // other properties must be preserved
+  assertEquals(serializedEntry.properties?.file?.path, "docs/req.md");
+});
+
+Deno.test("serializeCompileResult: drops properties entirely when sync is the only key", () => {
+  const entry: Entry = {
+    ...makeEntry("STK_0002"),
+    properties: {
+      sync: { lastSyncedAt: "2026-01-01" },
+    },
+  };
+  const result: CompileResult = {
+    entries: new Map([[entry.displayId, entry]]),
+    links: [],
+    forward: new Map(),
+    reverse: new Map(),
+    documents: new Map(),
+    diagnostics: [],
+  };
+
+  const serialized = serializeCompileResult(result);
+  const serializedEntry = serialized.entries["STK_0002"] as Entry;
+
+  assertEquals(serializedEntry.properties, undefined);
+});

@@ -56,15 +56,26 @@ export function serializeCompileResult(
 
 /**
  * Convert an {@linkcode Entry} to a JSON-safe form by replacing
- * `typedAttributes` (a `ReadonlyMap`) with a plain object.
+ * `typedAttributes` (a `ReadonlyMap`) with a plain object, and stripping
+ * `properties.sync` (privacy rule — never publish connector state).
  */
 function serializeEntry(entry: Entry): Entry {
-  if (!entry.typedAttributes || entry.typedAttributes.size === 0) {
-    return entry;
+  let result: Entry = entry;
+
+  if (entry.typedAttributes && entry.typedAttributes.size > 0) {
+    const typedObj = Object.fromEntries(entry.typedAttributes);
+    result = {
+      ...result,
+      typedAttributes: typedObj as unknown as Entry["typedAttributes"],
+    };
   }
-  const typedObj = Object.fromEntries(entry.typedAttributes);
-  return {
-    ...entry,
-    typedAttributes: typedObj as unknown as Entry["typedAttributes"],
-  };
+
+  if (result.properties?.sync !== undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { sync: _sync, ...rest } = result.properties;
+    const strippedProperties = Object.keys(rest).length > 0 ? rest : undefined;
+    result = { ...result, properties: strippedProperties };
+  }
+
+  return result;
 }

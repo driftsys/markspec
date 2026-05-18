@@ -186,6 +186,8 @@ export type {
   GenerateInversesResult,
   SerializedCompileResult,
 } from "./compiler/mod.ts";
+export { buildManifest } from "./compiler/manifest.ts";
+export type { ManifestJson } from "./compiler/manifest.ts";
 
 // Reporter
 export { report } from "./reporter/mod.ts";
