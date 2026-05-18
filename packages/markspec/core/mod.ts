@@ -84,6 +84,7 @@ export {
 export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 export {
+  addProfileSpecifier,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,

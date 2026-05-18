@@ -497,7 +497,7 @@ profile:
     const { config: _config, projectRoot } = await requireProjectConfig();
 
     // Parse the specifier string to validate format.
-    const { parseMarkspecYaml } = await import("./core/config/markspec.ts");
+    const { parseMarkspecYaml } = await import("./core/mod.ts");
     const testYaml = `profiles:\n  - "${spec}"\n`;
     const parseResult = parseMarkspecYaml(testYaml, "<cli>");
 
@@ -531,7 +531,7 @@ profile:
     }
 
     // Record the specifier in .markspec.yaml.
-    const { addProfileSpecifier } = await import("./core/config/markspec.ts");
+    const { addProfileSpecifier } = await import("./core/mod.ts");
     await addProfileSpecifier(
       spec,
       readFile,
