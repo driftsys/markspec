@@ -991,3 +991,92 @@ profile:
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-012");
 });
+
+// ---------------------------------------------------------------------------
+// Label concern map + conventions merging
+// ---------------------------------------------------------------------------
+
+Deno.test("mergeChain: label concern flag — child description wins", () => {
+  const chain = multiTierChain([
+    `
+id: "@test/parent"
+version: 1.0.0
+profile:
+  labels:
+    deprecated:
+      kind: flag
+      description: Parent description
+`,
+    `
+id: "@test/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  labels:
+    deprecated:
+      kind: flag
+      description: Child description
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective !== null, true);
+  const dep = result.effective!.labels.get("deprecated");
+  assertEquals(dep?.value.description, "Child description");
+  assertEquals(dep?.origin, "@test/child");
+});
+
+Deno.test("mergeChain: label concern kind conflict emits PROFILE-LOAD-003", () => {
+  const chain = multiTierChain([
+    `
+id: "@test/parent"
+version: 1.0.0
+profile:
+  labels:
+    asil:
+      kind: enum
+      values:
+        ASIL-A: {}
+`,
+    `
+id: "@test/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  labels:
+    asil:
+      kind: flag
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "PROFILE-LOAD-003"),
+    true,
+  );
+});
+
+Deno.test("mergeChain: convention child overrides parent settings", () => {
+  const chain = multiTierChain([
+    `
+id: "@test/parent"
+version: 1.0.0
+profile:
+  conventions:
+    modal-keywords:
+      casing: rfc2119
+`,
+    `
+id: "@test/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  conventions:
+    modal-keywords:
+      casing: iso
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.effective !== null, true);
+  const conv = result.effective!.conventions.get("modal-keywords");
+  assertEquals(conv?.value.settings["casing"], "iso");
+  assertEquals(conv?.origin, "@test/child");
+});
