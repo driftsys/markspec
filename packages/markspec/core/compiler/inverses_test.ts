@@ -68,14 +68,18 @@ function makeProfile(
         required: { value: [], origin: "test-profile" },
         attributes: pm(attrs),
         traceability: new Map(),
+        description: { value: undefined, origin: "test-profile" },
+        attrDescriptions: new Map(),
+        relationDescriptions: new Map(),
       },
       origin: "test-profile",
     });
   }
   return {
     attributes: pm(universalAttrs),
-    labels: { value: [], origin: "test-profile" },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types,
     documents: { types: new Map(), frontMatter: new Map() },
   };

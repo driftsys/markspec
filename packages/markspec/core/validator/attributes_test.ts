@@ -41,6 +41,9 @@ function typeDef(opts: {
       required: { value: opts.required ?? [], origin: ORIGIN },
       attributes: provAttrs(opts.attributes ?? []),
       traceability: new Map(),
+      description: { value: undefined, origin: ORIGIN },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
     },
   };
 }
@@ -53,8 +56,9 @@ function profile(opts: {
   for (const t of opts.types ?? []) typesMap.set(t.value.name, t);
   return {
     attributes: provAttrs(opts.universalAttrs ?? []),
-    labels: { value: [], origin: ORIGIN },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -429,8 +433,9 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
   };
   const p: EffectiveProfile = {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: new Map([
       ["requirement", {
         origin,
@@ -445,6 +450,9 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
           traceability: new Map([
             ["Verifies", { value: traceRule, origin }],
           ]),
+          description: { value: undefined, origin },
+          attrDescriptions: new Map(),
+          relationDescriptions: new Map(),
         },
       }],
     ]),
@@ -479,8 +487,9 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
     attributes: new Map([
       ["Verifies", { value: explicitAttr, origin }],
     ]),
-    labels: { value: [], origin },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: new Map([
       ["requirement", {
         origin,
@@ -495,6 +504,9 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
           traceability: new Map([
             ["Verifies", { value: traceRule, origin }],
           ]),
+          description: { value: undefined, origin },
+          attrDescriptions: new Map(),
+          relationDescriptions: new Map(),
         },
       }],
     ]),
