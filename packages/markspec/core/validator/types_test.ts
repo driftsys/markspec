@@ -67,7 +67,6 @@ function buildType(opts: {
 function buildProfile(
   types: ReadonlyArray<ProvenancedMapEntry<EffectiveTypeDef>>,
 ): EffectiveProfile {
-  const origin = "@test/profile";
   const typesMap = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
   for (const t of types) typesMap.set(t.value.name, t);
   return {
