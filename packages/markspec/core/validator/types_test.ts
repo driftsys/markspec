@@ -362,3 +362,25 @@ Deno.test("classifyEntriesStage: pattern-matched classification is never MSL-T00
   const result = classifyEntriesStage(entries, profile);
   assertEquals(result.diagnostics, []);
 });
+
+// ─── Change 3: Authored-only pattern guard ────────────────────────────────────
+
+Deno.test("classifyEntry: Reference-shape entry is NOT classified by display-id-pattern", () => {
+  // A Reference type with a display-id-pattern. If the guard is missing,
+  // a Reference entry whose displayId matches the pattern would be
+  // classified — which is incorrect.
+  const profile = buildProfile([
+    buildType({
+      name: "external-ref",
+      shape: "Reference",
+      displayIdPattern: "EXT-{n:04d}",
+    }),
+  ]);
+  const entry = buildEntry({
+    displayId: "EXT-0001",
+    shape: "Reference",
+  });
+  const result = classifyEntry(entry, profile);
+  // Must not be classified via pattern for Reference entries.
+  assertEquals(result.type, undefined);
+});

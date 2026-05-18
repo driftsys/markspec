@@ -1,5 +1,6 @@
 id: "@acme/profile-complete"
 version: 1.2.3
+markspec-schema: "1"
 description: A complete fixture exercising every Phase 1 parser feature
 license: MIT
 extends: "./base"
