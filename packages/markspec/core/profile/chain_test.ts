@@ -21,7 +21,7 @@ Deno.test("loadChain: happy path returns a one-tier chain", async () => {
     "/project",
     mockReadFile({
       "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\n`,
+        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
   assertEquals(result.diagnostics, []);
@@ -68,9 +68,9 @@ Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
     "/project",
     mockReadFile({
       "/project/profiles/child/markspec.yaml":
-        `id: "@acme/child"\nversion: 1.0.0\nextends: "../base"\n`,
+        `id: "@acme/child"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../base"\n`,
       "/project/profiles/base/markspec.yaml":
-        `id: "@acme/base"\nversion: 1.0.0\n`,
+        `id: "@acme/base"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
   assertEquals(result.diagnostics, []);
@@ -87,11 +87,11 @@ Deno.test("loadChain: three-tier chain loads in order", async () => {
     "/project",
     mockReadFile({
       "/project/profiles/leaf/markspec.yaml":
-        `id: "@acme/leaf"\nversion: 1.0.0\nextends: "../mid"\n`,
+        `id: "@acme/leaf"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../mid"\n`,
       "/project/profiles/mid/markspec.yaml":
-        `id: "@acme/mid"\nversion: 1.0.0\nextends: "../base"\n`,
+        `id: "@acme/mid"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../base"\n`,
       "/project/profiles/base/markspec.yaml":
-        `id: "@acme/base"\nversion: 1.0.0\n`,
+        `id: "@acme/base"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
   assertEquals(result.diagnostics, []);
@@ -109,9 +109,9 @@ Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
     "/project",
     mockReadFile({
       "/project/profiles/a/markspec.yaml":
-        `id: "@acme/a"\nversion: 1.0.0\nextends: "../b"\n`,
+        `id: "@acme/a"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../b"\n`,
       "/project/profiles/b/markspec.yaml":
-        `id: "@acme/b"\nversion: 1.0.0\nextends: "../a"\n`,
+        `id: "@acme/b"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../a"\n`,
     }),
   );
   assertEquals(result.chain, null);
@@ -125,7 +125,7 @@ Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", async () => {
     "/project",
     mockReadFile({
       "/project/profiles/me/markspec.yaml":
-        `id: "@acme/me"\nversion: 1.0.0\nextends: "./"\n`,
+        `id: "@acme/me"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "./"\n`,
     }),
   );
   assertEquals(result.chain, null);
@@ -162,7 +162,7 @@ Deno.test("loadChain: extends of unresolvable parent propagates PROFILE-LOAD-001
     "/project",
     mockReadFile({
       "/project/profiles/leaf/markspec.yaml":
-        `id: "@acme/leaf"\nversion: 1.0.0\nextends: "../missing"\n`,
+        `id: "@acme/leaf"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../missing"\n`,
       // no file at /project/profiles/missing/markspec.yaml
     }),
   );
@@ -191,7 +191,7 @@ Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier
     "/project",
     "/project",
     mockReadFile({
-      [loc.manifestPath]: `id: "@acme/from-git"\nversion: 1.0.0\n`,
+      [loc.manifestPath]: `id: "@acme/from-git"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
     { runGit },
   );
@@ -220,9 +220,9 @@ Deno.test("loadChain: git specifier in extends chain is walked", async () => {
     "/project",
     mockReadFile({
       "/project/profiles/child/markspec.yaml":
-        `id: "@acme/child"\nversion: 1.0.0\n` +
+        `id: "@acme/child"\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
         `extends: "git+${parentSpec.repo}#${parentSpec.tag}"\n`,
-      [parentLoc.manifestPath]: `id: "@acme/git-parent"\nversion: 1.0.0\n`,
+      [parentLoc.manifestPath]: `id: "@acme/git-parent"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
     { runGit },
   );

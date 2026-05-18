@@ -33,7 +33,7 @@ Deno.test("loadProfileForCommand: single local profile loads end-to-end", async 
     mockReadFile({
       "/project/.markspec.yaml": `profiles:\n  - ./profiles/custom\n`,
       "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\n`,
+        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
   assertEquals(result.diagnostics, []);
@@ -72,7 +72,7 @@ Deno.test("loadProfileForCommand: unknown key warning does not block loading", a
       "/project/.markspec.yaml":
         `profiles:\n  - ./profiles/custom\nbogus: true\n`,
       "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\n`,
+        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
   // Loading succeeded despite the warning

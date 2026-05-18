@@ -136,6 +136,8 @@ export interface ProfileManifest {
   // top-level fields
   readonly id: string;
   readonly version: string;
+  /** The `markspec-schema:` pin declaring the core schema version targeted. */
+  readonly markspecSchema?: string;
   readonly description?: string;
   readonly license?: string;
   readonly extends?: ProfileSpecifier;

@@ -189,7 +189,10 @@ export function classifyEntry(
     return { type: undefined, diagnostics };
   }
 
-  // 2. Display-ID pattern match across same-shape types.
+  // 2. Display-ID pattern match across same-shape types (Authored only).
+  // Reference entries use URI scheme or explicit Type: for classification;
+  // matching display-id-patterns against their slug-style IDs is incorrect.
+  if (entry.shape !== "Authored") return { type: undefined, diagnostics };
   const matches: string[] = [];
   for (const [typeName, typeEntry] of profile.types) {
     if (typeEntry.value.shape !== entry.shape) continue;

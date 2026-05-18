@@ -159,3 +159,47 @@ Deno.test("profile loader e2e: unknown .markspec.yaml key warns but doesn't bloc
   assertStringIncludes(stderr, "MARKSPEC-YAML-001");
   assertStringIncludes(stderr, "bogus");
 });
+
+Deno.test('profile loader e2e: markspec-schema: "1" → no PROFILE-SCHEMA diagnostics', async () => {
+  const profile = `id: "@acme/pinned"\nversion: 0.1.0\nmarkspec-schema: "1"\n`;
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/pinned\n`,
+      "profiles/pinned/markspec.yaml": profile,
+      "req.md": REQ_MD,
+    },
+  });
+  assertEquals(code, 0);
+  const schemaLines = stderr.split("\n").filter((l) =>
+    l.includes("PROFILE-SCHEMA")
+  );
+  assertEquals(schemaLines, []);
+});
+
+Deno.test("profile loader e2e: markspec-schema absent → PROFILE-SCHEMA-002 warning", async () => {
+  const profile = `id: "@acme/no-pin"\nversion: 0.1.0\n`;
+  const { stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/no-pin\n`,
+      "profiles/no-pin/markspec.yaml": profile,
+      "req.md": REQ_MD,
+    },
+  });
+  assertStringIncludes(stderr, "PROFILE-SCHEMA-002");
+});
+
+Deno.test('profile loader e2e: markspec-schema: "2" → PROFILE-SCHEMA-001 error, exit 1', async () => {
+  const profile = `id: "@acme/wrong-pin"\nversion: 0.1.0\nmarkspec-schema: "2"\n`;
+  const { code, stderr } = await markspec(["validate", "req.md"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": `profiles:\n  - ./profiles/wrong-pin\n`,
+      "profiles/wrong-pin/markspec.yaml": profile,
+      "req.md": REQ_MD,
+    },
+  });
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "PROFILE-SCHEMA-001");
+});

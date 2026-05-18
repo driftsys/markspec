@@ -30,6 +30,7 @@ const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 const ALLOWED_ROOT_KEYS = new Set([
   "id",
   "version",
+  "markspec-schema",
   "description",
   "license",
   "extends",
@@ -620,7 +621,7 @@ function parseTypeDef(
   for (const key of Object.keys(r)) {
     if (!ALLOWED_TYPE_KEYS.has(key)) {
       diagnostics.push({
-        code: "PROFILE-LOAD-003",
+        code: "PROFILE-TYPE-005",
         severity: "error",
         message: `${ctx}: unknown key '${key}'`,
         location: { file: sourcePath, line: 1, column: 1 },
@@ -929,6 +930,21 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  // Parse markspec-schema: early so PROFILE-SCHEMA-001 errors out before
+  // deeper parsing. PROFILE-SCHEMA-002 (absent) is emitted later, on the
+  // completed manifest, so it doesn't clutter error-case output.
+  const rawSchema = root["markspec-schema"];
+  const markspecSchema = typeof rawSchema === "string" ? rawSchema : undefined;
+  if (rawSchema !== undefined && markspecSchema !== "1") {
+    diagnostics.push({
+      code: "PROFILE-SCHEMA-001",
+      severity: "error",
+      message: `profile targets core schema "${rawSchema}"; this MarkSpec implements "1"`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return { manifest: null, diagnostics };
+  }
+
   const extendsSpec = parseSpecifier(root.extends, sourcePath, diagnostics);
   if (root.extends !== undefined && extendsSpec === undefined) {
     return { manifest: null, diagnostics };
@@ -1062,9 +1078,22 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  // PROFILE-SCHEMA-002: emitted on the otherwise-complete manifest so it
+  // doesn't add noise to error-case output.
+  if (rawSchema === undefined) {
+    diagnostics.push({
+      code: "PROFILE-SCHEMA-002",
+      severity: "warning",
+      message:
+        'profile is missing markspec-schema pin; add `markspec-schema: "1"` to declare the core schema version this profile targets',
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+  }
+
   const manifest: ProfileManifest = {
     id,
     version,
+    markspecSchema,
     description: typeof root.description === "string"
       ? root.description
       : undefined,

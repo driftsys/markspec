@@ -12,6 +12,7 @@ Deno.test("parseManifest: minimal valid manifest", () => {
   const yaml = `
 id: "@acme/profile-minimal"
 version: 0.1.0
+markspec-schema: "1"
 `;
   const result = parseManifest(yaml);
   assertEquals(result.diagnostics.length, 0);
@@ -81,6 +82,7 @@ Deno.test("parseManifest: universal attributes + required + labels", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 profile:
   required: [Status]
   labels: [DRAFT, INTERNAL]
@@ -131,6 +133,7 @@ Deno.test("parseManifest: shape scopes parsed", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 profile:
   identified:
     required: [Rationale]
@@ -167,6 +170,7 @@ Deno.test("parseManifest: identified.traceability parsed", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 profile:
   identified:
     traceability:
@@ -218,6 +222,7 @@ Deno.test("parseManifest: types map parsed", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 profile:
   types:
     requirement:
@@ -298,6 +303,7 @@ Deno.test("parseManifest: documents section parsed", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 profile:
   documents:
     types:
@@ -336,6 +342,7 @@ Deno.test("parseManifest: extends local path", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 extends: "./base"
 `);
   assertEquals(result.diagnostics.length, 0);
@@ -346,6 +353,7 @@ Deno.test("parseManifest: extends git specifier", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 extends: "git+https://github.com/acme/repo.git/aspice#aspice/v1.0.0"
 `);
   assertEquals(result.diagnostics.length, 0);
@@ -381,6 +389,7 @@ Deno.test("parseManifest: extends npm scoped specifier parsed", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 extends: "npm:@acme/profile@1.0"
 `);
   assertEquals(result.diagnostics.length, 0);
@@ -408,6 +417,7 @@ Deno.test("parseManifest: attribute inverse parsed", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 profile:
   types:
     test:
@@ -581,6 +591,7 @@ Deno.test("parseManifest: extends git+file:// specifier", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
+markspec-schema: "1"
 extends: "git+file:///tmp/foo.git#v1.0"
 `);
   assertEquals(result.diagnostics.length, 0);
@@ -714,4 +725,73 @@ profile:
   assertEquals(warn.severity, "warning");
   // Manifest still loads — warning, not error.
   assertExists(result.manifest);
+});
+
+// ─── Change 1: markspec-schema: field ────────────────────────────────────────
+
+Deno.test("parseManifest: markspec-schema '1' is accepted silently", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.manifest?.id, "test");
+  assertEquals(result.diagnostics.length, 0);
+});
+
+Deno.test("parseManifest: absent markspec-schema emits PROFILE-SCHEMA-002 warning", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+`;
+  const result = parseManifest(yaml);
+  assertExists(result.manifest);
+  const warn = result.diagnostics.find((d) => d.code === "PROFILE-SCHEMA-002");
+  assertExists(warn);
+  assertEquals(warn.severity, "warning");
+});
+
+Deno.test("parseManifest: unknown markspec-schema emits PROFILE-SCHEMA-001 error", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "2"
+`;
+  const result = parseManifest(yaml);
+  const err = result.diagnostics.find((d) => d.code === "PROFILE-SCHEMA-001");
+  assertExists(err);
+  assertEquals(err.severity, "error");
+  assertEquals(result.manifest, null);
+});
+
+// ─── Change 2: PROFILE-TYPE-005 rename ───────────────────────────────────────
+
+Deno.test("parseManifest: unknown per-type key emits PROFILE-TYPE-005 not PROFILE-LOAD-003", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  attributes: []
+  labels: []
+  identified: { attributes: [] }
+  referenced: { attributes: [] }
+  types:
+    req:
+      shape: identified
+      display-id-pattern: "REQ-{n:04d}"
+      unknown-per-type-key: bad
+  documents: { types: [], frontMatter: [] }
+`;
+  const result = parseManifest(yaml);
+  const type005 = result.diagnostics.find((d) =>
+    d.code === "PROFILE-TYPE-005"
+  );
+  assertExists(type005);
+  assertEquals(type005.severity, "error");
+  const load003 = result.diagnostics.find((d) =>
+    d.code === "PROFILE-LOAD-003" && d.message.includes("unknown-per-type-key")
+  );
+  assertEquals(load003, undefined);
 });
