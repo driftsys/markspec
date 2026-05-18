@@ -10,6 +10,17 @@ import type { CompileResult } from "./mod.ts";
 import type { Diagnostic, Entry, Link } from "../model/mod.ts";
 
 /**
+ * JSON-serializable form of {@linkcode Entry}.
+ *
+ * Identical to `Entry` except `typedAttributes` is a plain
+ * `Record<string, readonly string[]>` instead of a `ReadonlyMap` — Maps are
+ * not JSON-serializable. All other fields are passed through unchanged.
+ */
+export type SerializedEntry = Omit<Entry, "typedAttributes"> & {
+  readonly typedAttributes?: Record<string, readonly string[]>;
+};
+
+/**
  * Serialized form of {@linkcode CompileResult}.
  *
  * All `ReadonlyMap` fields are converted to plain objects keyed by display ID.
@@ -17,7 +28,7 @@ import type { Diagnostic, Entry, Link } from "../model/mod.ts";
  */
 export interface SerializedCompileResult {
   /** Entries keyed by display ID. */
-  readonly entries: Record<string, Entry>;
+  readonly entries: Record<string, SerializedEntry>;
   /** All traceability links. */
   readonly links: readonly Link[];
   /** Outgoing links per entry (entry -> targets). */
@@ -40,9 +51,8 @@ export interface SerializedCompileResult {
 export function serializeCompileResult(
   result: CompileResult,
 ): SerializedCompileResult {
-  const rawEntries = Object.fromEntries(result.entries);
-  const entries: Record<string, Entry> = {};
-  for (const [key, entry] of Object.entries(rawEntries)) {
+  const entries: Record<string, SerializedEntry> = {};
+  for (const [key, entry] of result.entries) {
     entries[key] = serializeEntry(entry);
   }
   return {
@@ -55,27 +65,29 @@ export function serializeCompileResult(
 }
 
 /**
- * Convert an {@linkcode Entry} to a JSON-safe form by replacing
- * `typedAttributes` (a `ReadonlyMap`) with a plain object, and stripping
- * `properties.sync` (privacy rule — never publish connector state).
+ * Convert an {@linkcode Entry} to a JSON-safe {@linkcode SerializedEntry} by
+ * replacing `typedAttributes` (a `ReadonlyMap`) with a plain
+ * `Record<string, readonly string[]>`, and stripping `properties.sync`
+ * (privacy rule — never publish connector state).
  */
-export function serializeEntry(entry: Entry): Entry {
-  let result: Entry = entry;
+export function serializeEntry(entry: Entry): SerializedEntry {
+  // Replace the ReadonlyMap with a plain Record when populated; omit when empty
+  // so JSON output stays compact.
+  const typedAttributes: Record<string, readonly string[]> | undefined =
+    entry.typedAttributes && entry.typedAttributes.size > 0
+      ? Object.fromEntries(entry.typedAttributes)
+      : undefined;
 
-  if (entry.typedAttributes && entry.typedAttributes.size > 0) {
-    const typedObj = Object.fromEntries(entry.typedAttributes);
-    result = {
-      ...result,
-      typedAttributes: typedObj as unknown as Entry["typedAttributes"],
-    };
+  // Strip properties.sync (connector state must not be published).
+  let properties = entry.properties;
+  if (properties?.sync !== undefined) {
+    const { sync: _sync, ...rest } = properties;
+    properties = Object.keys(rest).length > 0 ? rest : undefined;
   }
 
-  if (result.properties?.sync !== undefined) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { sync: _sync, ...rest } = result.properties;
-    const strippedProperties = Object.keys(rest).length > 0 ? rest : undefined;
-    result = { ...result, properties: strippedProperties };
-  }
-
-  return result;
+  return {
+    ...entry,
+    typedAttributes,
+    properties,
+  };
 }

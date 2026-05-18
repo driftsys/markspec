@@ -57,8 +57,8 @@ function filterEntries(
   if (scope) {
     const scopeUpper = scope.toUpperCase();
     entries = entries.filter((e) => {
-      const parts = e.displayId.split("_");
-      return parts.length >= 2 && parts[1] === scopeUpper;
+      const parts = e.displayId.split(/[_-]/);
+      return parts.some((p) => p === scopeUpper);
     });
   }
 

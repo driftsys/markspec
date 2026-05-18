@@ -186,6 +186,7 @@ export type {
   CompileResult,
   GenerateInversesResult,
   SerializedCompileResult,
+  SerializedEntry,
 } from "./compiler/mod.ts";
 export { buildManifest } from "./compiler/manifest.ts";
 export type {
