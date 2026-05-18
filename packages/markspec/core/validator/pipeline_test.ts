@@ -52,12 +52,16 @@ function buildProfileWithRequirement(): EffectiveProfile {
       required: { value: [], origin },
       attributes: new Map(),
       traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
     },
     origin,
   };
   return {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map([["requirement", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
@@ -146,11 +150,15 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
         ["Rationale", { value: rationaleAttr, origin }],
       ]),
       traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
     },
   };
   const profile: EffectiveProfile = {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map([["requirement", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
@@ -193,7 +201,8 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
   };
   const profile: EffectiveProfile = {
     attributes: new Map([["Rationale", { value: rationaleAttr, origin }]]),
-    labels: { value: [], origin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
@@ -227,10 +236,10 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
 });
 
 Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () => {
-  const origin = "@test/p";
   const profile: EffectiveProfile = {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
@@ -264,11 +273,15 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
       traceability: new Map([
         ["Verifies", { value: requiredRule, origin }],
       ]),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
     },
   };
   const profile: EffectiveProfile = {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map([["test", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
@@ -312,7 +325,8 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     attributes: new Map([
       ["Verifies", { value: verifiesAttr, origin }],
     ]),
-    labels: { value: [], origin },
+    labels: new Map(),
+    conventions: new Map(),
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
