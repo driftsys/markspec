@@ -12,7 +12,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import process from "node:process";
-import { VERSION } from "../core/mod.ts";
+import { CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
 import { createProject, defaultEnv } from "./project.ts";
 import { registerResources } from "./resources/mod.ts";
 import { registerTools } from "./tools/mod.ts";
@@ -52,7 +52,11 @@ All resource bodies are Markdown with cross-references as markspec:// URIs you c
  */
 export async function startServer(): Promise<void> {
   const server = new Server(
-    { name: "markspec", version: VERSION },
+    {
+      name: "markspec",
+      version: VERSION,
+      coreSchemaVersion: CORE_SCHEMA_VERSION,
+    },
     {
       capabilities: {
         resources: { subscribe: true, listChanged: true },

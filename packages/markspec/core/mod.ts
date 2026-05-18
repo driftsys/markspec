@@ -9,6 +9,7 @@
  */
 
 export const VERSION = "0.4.0";
+export const CORE_SCHEMA_VERSION = 1;
 
 // Model types
 export {
