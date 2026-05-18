@@ -6,7 +6,12 @@
  * and idempotent output.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertStringIncludes,
+} from "@std/assert";
 import {
   format,
   isSentenceInitial,
@@ -339,4 +344,134 @@ Deno.test("normalizeModalKeywords: indented (code/trailer) lines left verbatim",
     normalizeModalKeywords("Prose SHALL lower.\n    SHALL stay\n\tMUST stay"),
     "Prose shall lower.\n    SHALL stay\n\tMUST stay",
   );
+});
+
+// ---------------------------------------------------------------------------
+// SP3 Task 5 — §5.2-via-AST: normalizeBodyAst + astEquivalent guard
+//
+// The body modal-keyword pass is now AST-native (normalizeBodyAst), not the
+// pre-parse whole-body string pass. These tests are characterization guards
+// for the cutover: they MUST stay green while the mechanism moves onto the
+// AST. They additionally pin idempotence + `changed` accuracy and the §2.5
+// verbatim improvement (modal-looking word in a fenced code block is NOT
+// lowercased — the new AST path respects verbatim boundaries; the old
+// whole-body string pass could get this wrong).
+// ---------------------------------------------------------------------------
+
+Deno.test("format: body modal keyword canonicalized via the AST", async () => {
+  const { format } = await import("./mod.ts");
+  const doc =
+    "- [TST_FM_0001] Probe\n\n  The driver SHALL debounce inputs.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const out = format(doc, { file: "t.md" }).output;
+  assert(out.includes("The driver shall debounce inputs."));
+  assertFalse(out.includes("SHALL"));
+});
+
+Deno.test("format: idempotent on non-canonical body (modal + blank runs)", async () => {
+  const { format } = await import("./mod.ts");
+  const doc =
+    "- [TST_FM_0002] Probe\n\n  The system MUST stop.\n\n\n\n  More prose.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const once = format(doc, { file: "t.md" }).output;
+  const twice = format(once, { file: "t.md" }).output;
+  assertEquals(twice, once);
+});
+
+Deno.test("format: same-line-marker note canonicalized + idempotent", async () => {
+  const { format } = await import("./mod.ts");
+  const doc =
+    "- [TST_FM_0003] Probe\n\n  > [!NOTE] inline body.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const once = format(doc, { file: "t.md" }).output;
+  assertEquals(format(once, { file: "t.md" }).output, once);
+});
+
+Deno.test("format: changed=true on uppercase-modal body, false on re-format", () => {
+  const doc =
+    "- [TST_FM_0004] Probe\n\n  The system SHALL stop.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const first = format(doc, { file: "t.md" });
+  assertEquals(first.changed, true);
+  const second = format(first.output, { file: "t.md" });
+  assertEquals(second.changed, false);
+});
+
+Deno.test("format: modal-looking word inside a fenced code block is NOT lowercased (§2.5 verbatim)", () => {
+  const doc = [
+    "- [TST_FM_0005] Probe",
+    "",
+    "  Prose with no modal here.",
+    "",
+    "  ```rust",
+    "  let SHALL = 1; // MUST stay verbatim",
+    "  ```",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  const once = format(doc, { file: "t.md" }).output;
+  assertStringIncludes(once, "let SHALL = 1; // MUST stay verbatim");
+  // Idempotent over the verbatim case.
+  assertEquals(format(once, { file: "t.md" }).output, once);
+});
+
+Deno.test("format: inter-entry blank runs are still collapsed", () => {
+  const doc = [
+    "- [TST_FM_0006] First",
+    "",
+    "  Body one.",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+    "",
+    "",
+    "- [TST_FM_0007] Second",
+    "",
+    "  Body two.",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAW",
+    "",
+  ].join("\n");
+  const out = format(doc, { file: "t.md" }).output;
+  assertFalse(/\n\n\n/.test(out));
+  // Idempotent.
+  assertEquals(format(out, { file: "t.md" }).output, out);
+});
+
+Deno.test("format: deflist with inline markup is canonicalized + idempotent", () => {
+  const doc = [
+    "- [TST_FM_0008] Probe",
+    "",
+    "  Term",
+    "  : The definition SHALL hold and uses `code`.",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  const once = format(doc, { file: "t.md" }).output;
+  const twice = format(once, { file: "t.md" }).output;
+  assertEquals(twice, once);
+});
+
+Deno.test("format: mixed multi-entry doc is idempotent across the AST cutover", () => {
+  const doc = [
+    "# Heading",
+    "",
+    "- [TST_FM_0009] Alpha",
+    "",
+    "  The driver MUST debounce When pressed.",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+    "- [TST_FM_0010] Beta",
+    "",
+    "  > [!NOTE] note body MAY be terse.",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAW",
+    "",
+  ].join("\n");
+  const once = format(doc, { file: "t.md" }).output;
+  const twice = format(once, { file: "t.md" }).output;
+  assertEquals(twice, once);
+  // RFC 2119 lowercased; sentence-initial EARS preserved is exercised
+  // elsewhere — here just confirm the body modal was canonicalized.
+  assertFalse(once.includes("MUST debounce"));
+  assertStringIncludes(once, "must debounce");
 });

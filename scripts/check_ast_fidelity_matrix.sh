@@ -1,7 +1,7 @@
 #!/bin/bash
 # Verify the committed AST fidelity matrix catalogue is up to date.
-# Exits non-zero if stale. SP1 — measurement only; this gate enforces
-# only catalogue freshness, never LOSS/NORMALIZE counts.
+# Exits non-zero if stale. SP3 — the success oracle; this gate enforces
+# only catalogue freshness, never the OK/UNOWNED/RESIDUAL counts.
 
 set -euo pipefail
 

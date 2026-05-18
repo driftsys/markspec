@@ -211,6 +211,21 @@ Deno.test("build: note/blockquote canonical shapes still byte-exact", () => {
   }
 });
 
+Deno.test("note: same-line marker body round-trips", () => {
+  const s = "> [!NOTE] inline body text.";
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("note: own-line marker body still round-trips", () => {
+  const s = "> [!NOTE]\n> own-line body text.";
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("note: same-line marker multi-line body round-trips", () => {
+  const s = "> [!WARNING] first line\n> second line";
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
 Deno.test("build: emphasised modal in a note is still recognised", () => {
   const n = buildBodyAst("> [!NOTE]\n> The driver _shall_ act.")[0] as NoteNode;
   const modal = n.content.markers.find((m) => m.kind === "modal");
@@ -490,6 +505,43 @@ Deno.test("build: definition list preserves inline markup and round-trips", () =
     "_Automotive_ Safety **Integrity** Level",
   );
   assertEquals(render(blocks), s);
+});
+
+Deno.test("deflist: verbatim term/def captured, never flattened", () => {
+  const s = "ASIL\n: _Automotive_ Safety **Integrity** Level";
+  const dl = buildBodyAst(s)[0] as DefinitionListNode;
+  assertEquals(dl.kind, "definition-list");
+  assertEquals(dl.items.length, 1);
+  assertEquals(dl.items[0].term.text, "ASIL");
+  assertEquals(
+    dl.items[0].definition.text,
+    "_Automotive_ Safety **Integrity** Level",
+  );
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("deflist: indented/edge form still verbatim (no flattened fallback)", () => {
+  // Probe the DEFLIST_RE-vs-verbatim-slice mismatch the SP2 TODO flagged.
+  const s = "$DEBOUNCE_WINDOW\n: between _1 ms_ and **100 ms**, default 10 ms.";
+  const dl = buildBodyAst(s)[0] as DefinitionListNode;
+  assertEquals(dl.items[0].term.text, "$DEBOUNCE_WINDOW");
+  assertEquals(
+    dl.items[0].definition.text,
+    "between _1 ms_ and **100 ms**, default 10 ms.",
+  );
+  assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("deflist: multi-line definition body round-trips (regression: DEFLIST_RE truncation)", () => {
+  // Old DEFLIST_RE.exec(verbatim) captured only "line one" — the (.+)$/m
+  // anchor stops at the embedded newline, silently dropping "still def".
+  // splitVerbatimDeflist takes the full remainder after the first \n:.
+  const s = "Term\n: line one\nstill def";
+  const dl = buildBodyAst(s)[0] as DefinitionListNode;
+  assertEquals(dl.kind, "definition-list");
+  assertEquals(dl.items[0].term.text, "Term");
+  assertEquals(dl.items[0].definition.text, "line one\nstill def");
+  assertEquals(render(buildBodyAst(s)), s);
 });
 
 Deno.test("build: table with inline markup in a cell round-trips via raw", () => {

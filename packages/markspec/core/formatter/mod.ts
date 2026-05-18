@@ -22,6 +22,8 @@ import { FENCE_RE, walkProseLines } from "../util/fence.ts";
 import { synthesizedUlid } from "./synth_ulid.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { render as renderBodyAst } from "../ast/render.ts";
+import { normalizeBodyAst } from "../ast/normalize.ts";
+import { astEquivalent } from "../ast/equivalence.ts";
 
 /**
  * Value types that accept CSV on input but must be emitted as multi-line
@@ -79,6 +81,13 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  *   - Lines indented by four or more spaces (or a tab) — conservatively
  *     captures indented code blocks and attribute trailers, both of which
  *     are not prose.
+ *
+ * @remarks Not called by `format()` as of SP3 Task 5 — body modal
+ * normalization moved to `normalizeBodyAst` in the AST pass (spec-correct
+ * verbatim-boundary handling). Retained as an exported symbol because
+ * `mod_test.ts` tests it directly and `core/ast/normalize.ts` documents
+ * the intentional duplication until a follow-up collapses the two. Do NOT
+ * delete — external callers may depend on this export.
  */
 export function normalizeModalKeywords(markdown: string): string {
   const lines = markdown.split("\n");
@@ -184,29 +193,51 @@ const CANONICAL_ORDER: readonly string[] = [
 ];
 
 /**
- * Post-pass: route each entry's canonical body through the AST.
+ * Post-pass: route each entry's body through the canonical body-AST
+ * (the load-bearing §5.2 emission path — SP3 Task 5 cutover).
  *
- * Called on the already-canonicalized `lines` array (after
- * `normalizeModalKeywords`, attribute-block splicing, and
- * `collapseBlankLines`). Re-parses the lines to get entries with
- * correct post-collapse line numbers, then for each entry:
+ * Called on the post-collapse `lines` array (after attribute-block
+ * splicing and `collapseBlankLines`). The body modal-keyword §3.4.1
+ * pass is NO LONGER applied as a pre-parse whole-body string pass; it
+ * is now AST-native via `normalizeBodyAst` here (more spec-correct:
+ * the AST pass respects §2.5 verbatim boundaries and per-node
+ * sentence-initial context that the whole-body string pass could get
+ * wrong inside Code/Math blocks). Re-parses the lines to get entries
+ * with correct post-collapse line numbers, then for each entry:
  *
- *   1. Takes `entry.body` — the canonical body string from the parser
+ *   1. Takes `entry.body` — the body string from the parser
  *      (indent-stripped, trimmed, attrs split off).
- *   2. Emits via `render(buildBodyAst(entry.body))` — byte-identical per
- *      the equivalence gate, but the AST is now the load-bearing path for
- *      body emission.
- *   3. Reconstructs the body segment in `lines` from the emitted string,
- *      preserving the leading/trailing blank-line delimiters that
- *      separate the body from the title and attr block.
+ *   2. Builds the body AST, applies `normalizeBodyAst` (the §3.4.1 /
+ *      §5.2 canonicalization pass), and emits via `render`.
+ *   3. Guards the emit with the formal §5 `astEquivalent` relation:
+ *      `render`-ing the emitted body and re-building must be AST-equal
+ *      to the canonical AST. If not, this is an SP3 residual — keep
+ *      the original body lines untouched and raise a LOUD diagnostic
+ *      (MSL-F900). This branch is RETAINED for safety; over the
+ *      idempotence corpus and real project docs it never fires.
+ *   4. Reconstructs the body segment in `lines` from the emitted
+ *      string, preserving the leading/trailing blank-line delimiters
+ *      that separate the body from the title and attr block.
  *
- * This is the PR 4 formatter cutover (Option A, user-approved).
+ * Returns `true` when any entry body was rewritten (so `format()` can
+ * keep `changed` accurate for `--check` mode); `false` when every body
+ * was already §5.2-canonical.
+ *
  * `Entry.body` stays `string`; no other module is affected.
+ * `normalizeBodyAst` is FORMATTER-ONLY — the validate/parse path must
+ * never call it.
  */
-function emitBodyViaAst(lines: string[], file: string): void {
-  // Diagnostics from this re-parse are intentionally discarded: the input is already canonical (post-collapse) output.
+function emitBodyViaAst(
+  lines: string[],
+  file: string,
+  diagnostics: Diagnostic[],
+): boolean {
+  // Diagnostics from this re-parse are intentionally discarded: the
+  // input is already canonical (post-collapse) output.
   const { entries } = parseMarkdown(lines.join("\n"), { file });
-  if (entries.length === 0) return;
+  if (entries.length === 0) return false;
+
+  let bodyChanged = false;
 
   // Process bottom-to-top so splices don't shift earlier entry positions.
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
@@ -228,33 +259,42 @@ function emitBodyViaAst(lines: string[], file: string): void {
 
     if (bodyEnd <= bodyStart) continue; // no body lines to replace
 
-    // Route the canonical body through the AST.
-    // Per the equivalence gate: renderBodyAst(buildBodyAst(body)) === body
-    // for every canonical body shape covered by the gate.
-    const emittedBody = renderBodyAst(buildBodyAst(entry.body));
+    // Route the body through the canonical AST: build → normalize
+    // (§3.4.1 / §5.2) → render. The §5 equivalence relation guards the
+    // emit; `render`+`build` is the inverse on canonical input for
+    // every body shape under the equivalence gate.
+    const ast0 = buildBodyAst(entry.body);
+    const canonical = normalizeBodyAst(ast0);
+    const emittedBody = renderBodyAst(canonical);
 
-    if (emittedBody !== entry.body) {
-      // Safe fallback: the AST round-trip is NOT total over all valid
-      // Markdown body constructs (thematic breaks `---`, setext headings,
-      // hard line breaks, link reference definitions, and other shapes not
-      // yet covered by the equivalence gate). For these shapes the rendered
-      // string differs from the source body, meaning we cannot yet guarantee
-      // lossless re-emission via the AST. Keep the original body lines
-      // exactly as-is — zero corruption, zero spurious errors, graceful
-      // degradation. PR 5/6 and future gate hardening will close this gap as
-      // each body shape is brought under equivalence-test coverage.
+    if (!astEquivalent(buildBodyAst(emittedBody), canonical)) {
+      // SP3 residual. The build/render inverse is not yet total over
+      // every valid Markdown body construct; for a body where the
+      // emitted form does not re-build AST-equivalent to the canonical
+      // AST we cannot guarantee a lossless §5.2 re-emission. Keep the
+      // original body lines EXACTLY as-is — zero corruption, zero
+      // spurious rewrites — and raise a LOUD diagnostic so the residual
+      // is visible (it never fires over the idempotence corpus or real
+      // project docs). This safe-fallback branch is RETAINED by design;
+      // only its criterion changed (byte-identity → astEquivalent) and
+      // it now diagnoses instead of silently degrading.
+      diagnostics.push({
+        code: "MSL-F900",
+        severity: "error",
+        message: `${entry.displayId}: body not AST-equivalent after ` +
+          `canonicalization (SP3 residual — formatter kept the ` +
+          `original body)`,
+        location: entry.location,
+      });
       continue;
     }
 
-    // AST round-trips this body byte-identically (the gate-covered majority).
-    // Splice `emittedBody` back into the document — the AST is now the
-    // load-bearing emission path for these shapes. Output is unchanged
-    // (emittedBody === entry.body by construction) but the value flowing to
-    // the document is the AST's render, proving the pipeline is wired end-to-end.
-    // Changing this splice to a bare `continue` would revert to the old string path and defeat the PR 4 cutover intent — do not.
-    // Reconstruct the body segment: re-add the continuation indent to each
-    // non-blank line, preserving the blank-line delimiters that separate the
-    // body from the title and attr block.
+    // The emitted body is the §5.2-canonical body and re-builds
+    // AST-equivalent to the canonical AST. Splice it back into the
+    // document — the AST is the load-bearing emission path.
+    // Reconstruct the body segment: re-add the continuation indent to
+    // each non-blank line, preserving the blank-line delimiters that
+    // separate the body from the title and attr block.
     const rawSegment = lines.slice(bodyStart, bodyEnd);
     // Preserve the blank delimiter lines at the start/end of the segment.
     const leadBlanks: string[] = [];
@@ -270,14 +310,20 @@ function emitBodyViaAst(lines: string[], file: string): void {
     const emittedLines = emittedBody.split("\n").map((l) =>
       l ? `${indentStr}${l}` : l
     );
-    lines.splice(
-      bodyStart,
-      bodyEnd - bodyStart,
-      ...leadBlanks,
-      ...emittedLines,
-      ...trailBlanks,
-    );
+    const newSegment = [...leadBlanks, ...emittedLines, ...trailBlanks];
+    // `changed` accuracy: only flag a body rewrite when the spliced
+    // segment actually differs from the original lines (a §5.2-canonical
+    // body splices back byte-identically — a pure no-op).
+    if (
+      newSegment.length !== rawSegment.length ||
+      newSegment.some((l, i) => l !== rawSegment[i])
+    ) {
+      bodyChanged = true;
+    }
+    lines.splice(bodyStart, bodyEnd - bodyStart, ...newSegment);
   }
+
+  return bodyChanged;
 }
 
 /** Options for {@linkcode format}. */
@@ -316,19 +362,21 @@ export function format(
   // body only (front-matter `---` could be confused with horizontal rules).
   const fm = extractFrontMatter(markdown, { file });
   const rawBody = fm.hadFrontMatter ? fm.markdown : markdown;
-  // Body-level canonical-form pass (§3.4.1 modal-keyword normalisation).
-  // Skips fenced code and indented code / trailers; case-only rewrite, so
-  // line/column positions are preserved for the entry-block pass below.
-  const body = normalizeModalKeywords(rawBody);
+  // The §3.4.1 modal-keyword pass is NO LONGER a pre-parse whole-body
+  // string pass. It is AST-native in `emitBodyViaAst` via
+  // `normalizeBodyAst` (more spec-correct: respects §2.5 verbatim
+  // boundaries and per-node sentence-initial context). `normalizeModalKeywords`
+  // stays exported/defined for other callers/tests but is not invoked here.
+  const body = rawBody;
   const { entries } = parseMarkdown(body, { file });
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
 
   if (entries.length === 0 && !fm.hadFrontMatter) {
-    return { output: markdown, diagnostics, changed: body !== rawBody };
+    return { output: markdown, diagnostics, changed: false };
   }
 
   const lines = body.split("\n");
-  let changed = body !== rawBody;
+  let changed = false;
 
   // Process bottom-to-top so line splicing doesn't shift earlier entries.
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
@@ -415,16 +463,16 @@ export function format(
   const collapsedLines = collapseBlankLines(lines);
   if (collapsedLines.length !== lines.length) changed = true;
 
-  // PR 4 formatter cutover (Option A): route each entry's canonical body
-  // through the AST — `render(buildBodyAst(canonicalBody))`. This makes
-  // the body-AST the load-bearing emission path. The call is byte-identical
-  // for all shapes covered by the equivalence gate; it is therefore a
-  // pure-canonicalization no-op that preserves all prior transforms
-  // (normalizeModalKeywords / collapseBlankLines / attr-block rewriting).
-  // emitBodyViaAst re-parses collapsedLines to get post-collapse entry
-  // positions, scoped only to the body segment (title/trailer/front-matter
-  // are untouched).
-  emitBodyViaAst(collapsedLines, file);
+  // SP3 §5.2-via-AST cutover: route each entry's body through the
+  // canonical AST — build → normalizeBodyAst (§3.4.1 / §5.2) → render,
+  // guarded by the formal §5 `astEquivalent` relation. This is the
+  // load-bearing body-emission path AND the body modal-keyword pass
+  // (the pre-parse whole-body string pass was removed above). It
+  // returns whether any body was rewritten so `changed` stays accurate
+  // for `--check`. emitBodyViaAst re-parses collapsedLines to get
+  // post-collapse entry positions, scoped only to the body segment
+  // (title/trailer/front-matter are untouched).
+  if (emitBodyViaAst(collapsedLines, file, diagnostics)) changed = true;
 
   const formattedBody = collapsedLines.join("\n");
 

@@ -188,6 +188,12 @@ export interface NoteNode {
   readonly kind: "note";
   readonly admonition: AdmonitionKind;
   readonly content: InlineContent;
+  /**
+   * True when the admonition body began on the marker line in source
+   * (`> [!NOTE] text`) rather than its own quoted line. Round-tripped by
+   * the renderer. Absent ⇒ own-line form (the canonical default).
+   */
+  readonly markerInline?: boolean;
   readonly range: SourceRange;
 }
 

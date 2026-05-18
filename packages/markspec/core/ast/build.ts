@@ -65,8 +65,13 @@ const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;
  * For multi-line text the SourceRange carries the first line's 1-based
  * column; this is best-effort for PR 2 (noted as DONE_WITH_CONCERNS:
  * multi-line paragraph ranges are approximated to the starting line).
+ *
+ * Exported so the AST-native §3.4.1 normalisation pass
+ * (`core/ast/normalize.ts`) re-derives `InlineContent.markers` from the
+ * normalised text with the SAME extraction the builder uses — no regex
+ * duplication.
  */
-function extractMarkersFromText(
+export function extractMarkersFromText(
   text: string,
   startRange: SourceRange,
 ): readonly InlineMarker[] {
@@ -300,6 +305,50 @@ function tryDefinitionList(
   return { term: m[1].trim(), definition: m[2].trim() };
 }
 
+/**
+ * Deterministically split a verbatim definition-list slice into its
+ * term and definition substrings.
+ *
+ * Detection still runs on the flattened text via {@linkcode
+ * tryDefinitionList} (markup-stripped recognition, mirroring caption /
+ * math detection). This function only governs what is *stored*: it
+ * returns the byte-exact verbatim term and definition so inline markup
+ * on either side survives.
+ *
+ * The split mirrors `renderDefinitionList` in `render.ts` exactly. That
+ * renderer emits `${term.text}\n: ${definition.text}` — one newline,
+ * then `: ` (colon + single space). The inverse is therefore: split on
+ * the first `\n:`, take everything before as the term, then consume the
+ * leading whitespace after the colon (the `\s+` that `DEFLIST_RE` and
+ * the canonical `: ` collapse). The remainder is the definition.
+ *
+ * Why this replaces `DEFLIST_RE.exec(verbatim.trim())`: that regex's
+ * `(.+)$` under the `/m` flag stops at the first newline, so a verbatim
+ * slice spanning multiple source lines silently lost everything after
+ * the first definition line and fell back to the flattened (markup-
+ * stripped) form. A deterministic first-`\n:` split never misses.
+ *
+ * Returns `undefined` only when the verbatim slice contains no `\n:`
+ * separator (cannot happen for a canonical single-item deflist that
+ * flattened-detection accepted, but kept total for safety).
+ */
+function splitVerbatimDeflist(
+  verbatim: string,
+): { term: string; definition: string } | undefined {
+  const sepIndex = verbatim.indexOf("\n:");
+  if (sepIndex < 0) return undefined;
+  const term = verbatim.slice(0, sepIndex);
+  // Skip the `\n:` then the leading whitespace the renderer re-emits
+  // as the single space in `: ` (same whitespace `DEFLIST_RE`'s `\s+`
+  // would have consumed).
+  let defStart = sepIndex + 2;
+  while (defStart < verbatim.length && /\s/.test(verbatim[defStart])) {
+    defStart++;
+  }
+  const definition = verbatim.slice(defStart);
+  return { term, definition };
+}
+
 // ---------------------------------------------------------------------------
 // mdast text extraction helper
 // ---------------------------------------------------------------------------
@@ -430,14 +479,20 @@ function mapMdastNode(node: any, body: string): BodyBlock {
       // Check for definition-list pattern `Term\n: def`
       const defList = tryDefinitionList(text);
       if (defList) {
-        // Verbatim term/definition: re-run the deflist split on the
-        // verbatim slice so inline markup in either side survives.
-        // TODO(SP2-Task5): if DEFLIST_RE doesn't match the verbatim slice,
-        // vTerm/vDef fall back to the flattened form (pre-SP2 behaviour).
-        // Task 5 pins and fixes full faithful definition-list capture.
-        const vm = DEFLIST_RE.exec(verbatim.trim());
-        const vTerm = vm ? vm[1].trim() : defList.term;
-        const vDef = vm ? vm[2].trim() : defList.definition;
+        // Detection ran on the flattened text (markup-stripped, like
+        // caption / math detection). The *stored* term and definition
+        // are the byte-exact verbatim substrings so inline markup on
+        // either side survives. The split is deterministic (first
+        // `\n:`) and mirrors `renderDefinitionList` exactly — it can
+        // never miss a multi-line verbatim slice the way the old
+        // `DEFLIST_RE.exec(verbatim.trim())` could, so there is no
+        // flattened fallback. `splitVerbatimDeflist` only returns
+        // `undefined` when there is no `\n:` at all (impossible here,
+        // since flattened detection already matched `\n:`); the
+        // `?? defList` keeps the expression total.
+        const split = splitVerbatimDeflist(verbatim) ?? defList;
+        const vTerm = split.term;
+        const vDef = split.definition;
         const termRange: SourceRange = {
           start: range.start,
           end: range.start,
@@ -580,7 +635,11 @@ function mapMdastNode(node: any, body: string): BodyBlock {
           const markerRe = new RegExp(`^\\[!${kind}\\]`);
           const afterMarker = (vLines[0] ?? "").replace(markerRe, "");
           const bodyLines = vLines.slice(1);
-          const storedText = afterMarker.trim()
+          // A non-empty `afterMarker` means the body began on the marker
+          // line (`> [!KIND] text`). Record it so the renderer reproduces
+          // the same-line form rather than rewriting to the own-line form.
+          const markerInline = afterMarker.trim().length > 0;
+          const storedText = markerInline
             ? [afterMarker.trimStart(), ...bodyLines].join("\n")
             : bodyLines.join("\n");
 
@@ -588,6 +647,7 @@ function mapMdastNode(node: any, body: string): BodyBlock {
             kind: "note",
             admonition: kind,
             content: inlineContent(storedText, flattened, range),
+            ...(markerInline ? { markerInline: true } : {}),
             range,
           } satisfies NoteNode;
         }

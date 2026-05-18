@@ -46,6 +46,8 @@ export type {
 
 // AST (canonical body-AST — spec docs/specs/markspec-core-data-model.md §2)
 // SourceRange is body-relative (no `file`); use SourceLocation for file-absolute positions.
+export { astEquivalent } from "./ast/equivalence.ts";
+export { normalizeBodyAst } from "./ast/normalize.ts";
 export { render } from "./ast/render.ts";
 export type {
   AdmonitionKind,
