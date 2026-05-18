@@ -9,7 +9,8 @@
  */
 
 import { Command } from "@cliffy/command";
-import { ConfigError, VERSION } from "./core/mod.ts";
+import { CompletionsCommand } from "@cliffy/command/completions";
+import { ConfigError, CORE_SCHEMA_VERSION, VERSION } from "./core/mod.ts";
 import type {
   CaptionConventions,
   CompileResult,
@@ -558,7 +559,7 @@ const deckCmd = new Command()
 
 const cli = new Command()
   .name("markspec")
-  .version(VERSION)
+  .version(`${VERSION} (core-schema ${CORE_SCHEMA_VERSION})`)
   .description(
     "Markdown flavor and toolchain for traceable industrial documentation",
   )
@@ -1454,8 +1455,10 @@ const cli = new Command()
   .command("version")
   .description("Print version")
   .action(() => {
-    console.log(`markspec ${VERSION}`);
+    console.log(`markspec ${VERSION} (core-schema ${CORE_SCHEMA_VERSION})`);
   })
+  // Shell completions (bash, zsh, fish)
+  .command("completions", new CompletionsCommand())
   // Help subcommand: enables `markspec help show`, etc. (clig.dev)
   .command("help [...command:string]")
   .description("Show help for a command")

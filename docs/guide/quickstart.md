@@ -5,21 +5,35 @@ install to a rendered HTML book with entry blocks and a traceability link.
 
 ## Step 1 — Install (2 min)
 
-Install MarkSpec globally from JSR:
+### Pre-compiled binary (recommended)
+
+Downloads a self-contained binary — no Deno or Node.js required at runtime:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/install.sh | sh
+```
+
+The installer detects your platform (macOS or Linux), downloads the release
+binary, verifies the SHA256 checksum, and places it in `~/.local/bin`. Add that
+directory to your `PATH` if it is not already there.
+
+### Deno runtime (for Deno developers)
+
+If you already have Deno installed and want to run MarkSpec from source:
 
 ```sh
 deno install -g jsr:@driftsys/markspec
 ```
 
-Verify the install:
+If `markspec` is not found after install, add `~/.deno/bin` to your `PATH`.
+
+> **Run without installing:** `deno run jsr:@driftsys/markspec --help`
+
+### Verify the install
 
 ```sh
 markspec --version
 ```
-
-If `markspec` is not found after install, add `~/.deno/bin` to your `PATH`.
-
-> **Run without installing:** `deno run jsr:@driftsys/markspec --help`
 
 ## Step 2 — Create a project (1 min)
 

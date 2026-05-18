@@ -2,6 +2,7 @@ import { assertEquals, assertMatch } from "@std/assert";
 import {
   compile,
   ConfigError,
+  CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   format,
   parse,
@@ -25,13 +26,18 @@ import type {
 } from "./mod.ts";
 
 // ---------------------------------------------------------------------------
-// VERSION
+// VERSION + CORE_SCHEMA_VERSION
 // ---------------------------------------------------------------------------
 
 Deno.test("version is set", () => {
   // Don't pin to a literal — the bump tooling rewrites this on every
   // release. Assert the shape (semver-ish) instead.
   assertMatch(VERSION, /^\d+\.\d+\.\d+(-[\w.]+)?$/);
+});
+
+Deno.test("CORE_SCHEMA_VERSION is exported and equals 1", () => {
+  assertEquals(typeof CORE_SCHEMA_VERSION, "number");
+  assertEquals(CORE_SCHEMA_VERSION, 1);
 });
 
 // ---------------------------------------------------------------------------

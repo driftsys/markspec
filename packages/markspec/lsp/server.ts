@@ -29,6 +29,7 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
 import {
+  CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   type Diagnostic as CoreDiagnostic,
   discoverProjectRoot,
@@ -36,6 +37,7 @@ import {
   loadConfig,
   loadProfileForCommand,
   type ProjectConfig,
+  VERSION,
 } from "../core/mod.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
@@ -66,8 +68,6 @@ import {
 } from "./context.ts";
 import { debounce, pathToUri, uriToPath } from "./util.ts";
 import { debugLog } from "./debug_log.ts";
-
-export const VERSION = "0.4.0";
 
 // ---------------------------------------------------------------------------
 // Connection and document manager
@@ -247,6 +247,10 @@ connection.onInitialize(
         documentHighlightProvider: true,
         codeActionProvider: { codeActionKinds: ["quickfix"] },
       },
+      serverInfo: {
+        name: "markspec",
+        version: `${VERSION} (core-schema ${CORE_SCHEMA_VERSION})`,
+      },
     };
   },
 );
@@ -295,6 +299,11 @@ connection.onInitialized(async () => {
     connection.sendNotification("markspec/indexed", {
       files: files.length,
       entries: index.getAllEntries().length,
+    });
+
+    connection.sendNotification("markspec/version", {
+      release: VERSION,
+      coreSchemaVersion: CORE_SCHEMA_VERSION,
     });
   } catch (err) {
     connection.console.error(`Indexing failed: ${err}`);
