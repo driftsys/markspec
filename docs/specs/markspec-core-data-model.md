@@ -1027,6 +1027,46 @@ The Prompt-3 e2e suite must include, at a minimum:
 4. ULID stability for `Origin: synthesized` across runs and platforms.
 5. Lossless preservation of unknown trailer keys when no profile is loaded.
 
+### 5.6 AST-equivalence contract (SP3)
+
+The round-trip invariant for body content is not byte-identity but
+**AST-equivalence** (ADR-015). The normative statement:
+
+```
+build(format(x)) ≈ normalizeBodyAst(build(x))
+```
+
+where:
+
+- `build` = `buildBodyAst` (mdast → `BodyBlock[]`).
+- `format` = `markspec fmt` applied to the entry's source.
+- `normalizeBodyAst` = the deterministic, formatter-only AST pass that applies
+  §3.4.1 modal-keyword case normalization (and any future §3.4 body rewrites) as
+  an AST→AST transform. It is **never called on the validate path**.
+- `≈` = `astEquivalent` — strict `BodyBlock[]` structural deep-equality ignoring
+  every `SourceRange` field. Defined in `core/ast/equivalence.ts` and exported
+  from `core/mod.ts`.
+
+**What this replaces.** ADR-014 Decision-2 gated body emission on byte-identity
+(`render(build(body)) === body`). That guard is retired by ADR-015: the
+formatter's gate is now
+`astEquivalent(buildBodyAst(format(x)), normalizeBodyAst(buildBodyAst(x)))`. A
+**defensive string-keep fallback** (diagnosed as `MSL-F900`) is retained but
+never fires over the corpus or project documents.
+
+**Scope.** This contract covers the body zone only. Title-line and trailer-block
+rewrites (§3.2, §3.3) are separate deterministic rules whose correctness is
+established by the §5.3 determinism guarantees and the §5.5 e2e obligations.
+
+**Fidelity matrix.** The end-state matrix
+(`docs/product/ast-fidelity-matrix.md`) shows `OK=56, UNOWNED=2, RESIDUAL=0`
+over 58 corpus samples. `UNOWNED` rows are all-Unknown-verbatim (excluded
+constructs preserved as-is per §2.4.1 and §5.4); they do not fail the contract.
+The staleness gate (`scripts/check_ast_fidelity_matrix.sh`) is a CI gate.
+
+See [ADR-015](../architecture/adr-015-ast-equivalence-formatting-contract.md)
+for the full decision record.
+
 ---
 
 ## 6. Open questions

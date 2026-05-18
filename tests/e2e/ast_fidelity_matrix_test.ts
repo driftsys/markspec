@@ -1,11 +1,12 @@
 /**
  * @module tests/e2e/ast_fidelity_matrix_test
  *
- * SP1 — the CI-runnable AST fidelity-matrix harness.
+ * SP3 — the CI-runnable AST fidelity-matrix harness.
  *
- * This is PURE CHARACTERIZATION. It deliberately does NOT assert that
- * LOSS / NORMALIZE / UNREPRESENTABLE counts are zero — those classes
- * exist today and are the baseline SP2/SP3 drive down (SP1 design §4.5).
+ * This is the epic SUCCESS ORACLE. It deliberately does NOT assert that
+ * the RESIDUAL count is zero here — that mandate is enforced by the SP3
+ * spec / Task-7 review gate, not by a self-fulfilling test assertion
+ * (the harness measures, it does not pin its own answer; SP1 design §4.5).
  *
  * The only assertion here is the in-test staleness guard: the committed
  * catalogue must byte-match what the harness regenerates. The shell gate
@@ -27,10 +28,9 @@ Deno.test("ast-fidelity-matrix: committed catalogue is not stale", async () => {
 
   // Visible baseline signal (informational, never an assertion).
   console.log(
-    `ast-fidelity surface = LOSS(${matrix.counts.LOSS}) + ` +
-      `UNREPRESENTABLE(${matrix.counts.UNREPRESENTABLE}) = ${matrix.surface} ` +
-      `of ${matrix.rows.length}; OK=${matrix.counts.OK} ` +
-      `NORMALIZE=${matrix.counts.NORMALIZE} UNOWNED=${matrix.counts.UNOWNED}`,
+    `ast-fidelity surface = RESIDUAL(${matrix.counts.RESIDUAL}) = ` +
+      `${matrix.surface} of ${matrix.rows.length}; ` +
+      `OK=${matrix.counts.OK} UNOWNED=${matrix.counts.UNOWNED}`,
   );
 
   assertEquals(

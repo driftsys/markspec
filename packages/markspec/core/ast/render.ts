@@ -171,8 +171,18 @@ function renderNote(node: NoteNode): string {
   // matching the canonical blank-quoted-line format.
   const text = node.content.text;
   if (!text) return `> [!${node.admonition}]`;
+  const lines = text.split("\n");
+  if (node.markerInline) {
+    // Body began on the marker line in source — reproduce that form:
+    // first content line stays on `> [!KIND] …`, the rest are quoted.
+    const [first, ...rest] = lines;
+    return `> [!${node.admonition}] ${first}` +
+      (rest.length
+        ? "\n" + rest.map((l) => l ? `> ${l}` : `>`).join("\n")
+        : "");
+  }
   return `> [!${node.admonition}]\n` +
-    text.split("\n").map((l) => l ? `> ${l}` : `>`).join("\n");
+    lines.map((l) => l ? `> ${l}` : `>`).join("\n");
 }
 
 function renderBlockquote(node: BlockquoteNode): string {

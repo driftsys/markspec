@@ -46,6 +46,13 @@ decisions, not left implicit in code comments.
    never _total_. Widening the inverse toward totality is future hardening (out
    of scope here).
 
+   > **Decision-2 is retired by
+   > [ADR-015](./adr-015-ast-equivalence-formatting-contract.md) (SP3 —
+   > AST-equivalence formatting contract).** The byte-identical guard is
+   > replaced by the `astEquivalent` gate; the string-keep fallback is retained
+   > as a loudly-diagnosed never-firing path (`MSL-F900`). The build/render
+   > inverse is now wide enough that RESIDUAL=0 over the corpus.
+
 3. **`MSL-B044` and `MSL-C072` ship now — a bounded exception to ADR-012.**
    These are `MSL-P/I/M/F`-scheme codes that ADR-012 deferred, but ADR-012
    §Decision-3 explicitly named them AST-gated and

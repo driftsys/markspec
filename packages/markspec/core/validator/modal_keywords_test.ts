@@ -142,3 +142,25 @@ Deno.test("MSL-M060: emphasised modal keyword is still detected", async () => {
   );
   assertEquals(m060.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// SP3 Task 6 — validator-safety pin: formatter-only normalization.
+//
+// `normalizeBodyAst` is called ONLY from `core/formatter/mod.ts`; the
+// parse/validate path uses `buildBodyAst` (no normalization). This pin
+// asserts MSL-M060 still fires on an uppercase `SHALL` when the entry is
+// produced by `parseFile` alone — proving the validate path never runs
+// the formatter's normalization pass.
+// ---------------------------------------------------------------------------
+
+Deno.test("MSL-M060: uppercase modal still flagged (validate does not normalize)", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const { validateModalKeywords } = await import("./modal_keywords.ts");
+  const doc =
+    "- [TST_MK_0002] Probe\n\n  The driver SHALL act.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const m060 = validateModalKeywords(entries[0]).filter((d) =>
+    d.code === "MSL-M060"
+  );
+  assertEquals(m060.length, 1);
+});

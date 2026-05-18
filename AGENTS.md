@@ -384,6 +384,10 @@ docs/
   model; formatter uses a safe string fallback where the build/render inverse
   isn't total; B044/C072 shipped (bounded ADR-012 exception), M050/M051
   deferred-by-dependency (entity-resolution spec not on `main`)
+- `adr-015-ast-equivalence-formatting-contract.md` — SP3 AST-equivalence
+  formatting contract: `build(format(x)) ≈ normalizeBodyAst(build(x))`; ratifies
+  `astEquivalent` into production; retires ADR-014 Decision-2's
+  non-total-inverse caveat; RESIDUAL=0/58
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

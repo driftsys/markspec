@@ -1,30 +1,38 @@
 /**
  * @module tests/e2e/ast_fidelity
  *
- * SP1 — Formatting Fidelity characterization util (pure; no `Deno.*`).
+ * SP3 — Formatting Fidelity success oracle (pure; no `Deno.*`).
  *
- * Owns: the data-driven corpus, the PROVISIONAL `astEquivalent` relation,
- * the per-sample classifier, and the deterministic catalogue renderer.
+ * Owns: the data-driven corpus, the per-sample classifier, and the
+ * deterministic catalogue renderer.
  *
- * `astEquivalent` is SP1-local and provisional. SP3 ratifies/hardens it as
- * the formal spec §5 contract relation. Do NOT import it into production
- * code.
+ * The relation lives in `core/ast/equivalence.ts` (`astEquivalent`,
+ * SP3-ratified, production-consumed by the formatter guard). This
+ * classifier measures the SP3 build/render/FORMAT contract: a sample is
+ * `OK` when the formatter canonicalizes it idempotently and that
+ * canonical body is `astEquivalent` to `normalizeBodyAst(buildBodyAst(s))`
+ * (Formalization A). Re-exported here so existing callers
+ * (`ast_fidelity_test.ts`) keep working without import changes.
  *
  * Import-boundary note: `core/mod.ts` is the library boundary, but it does
- * not export `buildBodyAst`. This characterization harness imports it from
- * the internal `core/ast/build.ts` path — an intentional, design-mandated
- * exception (SP1 design §4.3 names `buildBodyAst` explicitly), with
- * precedent: `tests/e2e/ast_equivalence_test.ts` already imports `render`
- * from the internal `core/ast/render.ts` path.
+ * not export `buildBodyAst` / `normalizeBodyAst`. This harness imports them
+ * from the internal `core/ast/build.ts` / `core/ast/normalize.ts` paths —
+ * an intentional, design-mandated exception (SP1 design §4.3 names
+ * `buildBodyAst` explicitly; `normalizeBodyAst` is pure SP3 Task-2 code),
+ * with precedent: `tests/e2e/ast_equivalence_test.ts` already imports
+ * `render` from the internal `core/ast/render.ts` path.
  */
 
 import {
+  astEquivalent,
   type BodyBlock,
   format,
   parseFile,
-  render,
 } from "../../packages/markspec/core/mod.ts";
 import { buildBodyAst } from "../../packages/markspec/core/ast/build.ts";
+import { normalizeBodyAst } from "../../packages/markspec/core/ast/normalize.ts";
+
+export { astEquivalent };
 
 /** A single corpus sample. `markdown` is the bare entry-body text. */
 export interface CorpusSample {
@@ -32,25 +40,32 @@ export interface CorpusSample {
   readonly markdown: string;
 }
 
-/** Fidelity class for a sample (SP1 design §4.3). */
-export type FidelityClass =
-  | "OK"
-  | "NORMALIZE"
-  | "LOSS"
-  | "UNOWNED"
-  | "UNREPRESENTABLE";
+/**
+ * Fidelity class for a sample under the SP3 build/render/FORMAT contract.
+ *
+ *   - `OK` — the formatter canonicalizes the sample idempotently AND its
+ *     canonical body is `astEquivalent` to
+ *     `normalizeBodyAst(buildBodyAst(s))` (Formalization A).
+ *   - `UNOWNED` — a §2.4.1-excluded construct kept verbatim as
+ *     `Unknown(raw)` (the model does not own it; faithfully preserved).
+ *   - `RESIDUAL` — neither: the SP3 contract does not hold. The SP3 spec
+ *     mandates zero of these; a non-zero count is a surface-to-owner
+ *     finding, never silently accepted.
+ */
+export type FidelityClass = "OK" | "UNOWNED" | "RESIDUAL";
 
 /** One classified matrix row. */
 export interface MatrixRow {
   readonly name: string;
   readonly cls: FidelityClass;
-  /** `render(buildBodyAst(s)) === s`. */
-  readonly rEqualsS: boolean;
-  /** `render(buildBodyAst(r)) === r`. */
-  readonly idempotent: boolean;
-  /** Approach-C signal: `render(ast0)` equals formatter's canonical body. */
-  readonly strFmtAgrees: boolean;
-  /** Stable, single-line encoding of the input→render delta. */
+  /** `format` is idempotent on the wrapped entry. */
+  readonly formatIdempotent: boolean;
+  /**
+   * `astEquivalent(buildBodyAst(cf), normalizeBodyAst(buildBodyAst(s)))`
+   * where `cf` is the formatter-canonical body.
+   */
+  readonly roundtrips: boolean;
+  /** Stable, single-line encoding of the input→canonical-body delta. */
   readonly delta: string;
 }
 
@@ -58,7 +73,7 @@ export interface MatrixRow {
 export interface Matrix {
   readonly rows: readonly MatrixRow[];
   readonly counts: Readonly<Record<FidelityClass, number>>;
-  /** Headline surface = LOSS + UNREPRESENTABLE. */
+  /** Headline surface = RESIDUAL. */
   readonly surface: number;
 }
 
@@ -240,58 +255,6 @@ export const CORPUS: readonly CorpusSample[] = [
 
 // Stub exports — implemented in later tasks.
 
-/**
- * PROVISIONAL structural equivalence of two `BodyBlock[]` (SP1 design
- * §4.3/§4.6). Recursively deletes every `range` key (the only
- * `SourceRange`-typed field name in the §2.4–2.6 taxonomy — see
- * `core/ast/nodes.ts`) then compares the remaining structure for deep
- * equality. Every other field (kind, text, canonical, raw, lang, alt,
- * path, tex, ordered, spread, admonition, keyword, position, marker
- * arrays in order, …) is compared exactly. Array order is significant.
- *
- * SP3 ratifies/hardens this as the formal §5 contract relation. Until
- * then it is deliberately strict: in the build→render→build harness
- * pipeline there is no formatter pass, so permitted §5.2 case
- * normalizations never occur between ast0 and ast1, and over-counting
- * LOSS is the safe direction for a lower-bound measurement.
- */
-export function astEquivalent(
-  a: readonly BodyBlock[],
-  b: readonly BodyBlock[],
-): boolean {
-  return deepEqualIgnoringRanges(a, b);
-}
-
-/** Deep structural equality with every `range` key elided at any depth. */
-function deepEqualIgnoringRanges(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== typeof b) return false;
-  if (a === null || b === null) return a === b;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b)) return false;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqualIgnoringRanges(a[i], b[i])) return false;
-    }
-    return true;
-  }
-  if (typeof a === "object" && typeof b === "object") {
-    const ao = a as Record<string, unknown>;
-    const bo = b as Record<string, unknown>;
-    const ak = Object.keys(ao).filter((k) => k !== "range").sort();
-    const bk = Object.keys(bo).filter((k) => k !== "range").sort();
-    if (ak.length !== bk.length) return false;
-    for (let i = 0; i < ak.length; i++) {
-      if (ak[i] !== bk[i]) return false;
-    }
-    for (const k of ak) {
-      if (!deepEqualIgnoringRanges(ao[k], bo[k])) return false;
-    }
-    return true;
-  }
-  return false;
-}
-
 /** Fixed ULID for deterministic wrapping (matches ast_equivalence_test.ts). */
 const FIXED_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
@@ -301,7 +264,7 @@ function allUnknownVerbatim(blocks: readonly BodyBlock[]): boolean {
     blocks.every((b) => b.kind === "unknown" && typeof b.raw === "string");
 }
 
-/** Stable, single-line, human-readable input→render delta. */
+/** Stable, single-line, human-readable input→canonical-body delta. */
 function encodeDelta(s: string, r: string): string {
   if (r === s) return "—";
   // JSON-escape (handles \n, \r, \t, quotes deterministically), keep it on
@@ -314,68 +277,88 @@ function encodeDelta(s: string, r: string): string {
   return `${cap(s)} → ${cap(r)}`;
 }
 
+/** Result of formatter-canonicalizing a wrapped sample. */
+interface FormatterCanonical {
+  /** The formatter-canonical entry body (`undefined` if it does not parse). */
+  readonly canonicalBody: string | undefined;
+  /** `format(format(doc)).output === format(doc).output`. */
+  readonly idempotent: boolean;
+}
+
 /**
- * Approach-C signal (§4.3 step 5; not the classifier): does
- * `render(buildBodyAst(s))` equal the formatter's canonical body for `s`?
- * Wrap `s` in a minimal entry with a fixed ULID, `format()`, re-parse, and
- * compare to the resulting `entry.body`.
+ * Run the SP3 build/render/FORMAT machinery on a sample: wrap `s` in a
+ * minimal entry with a fixed ULID, `format()` the document, check that a
+ * second `format()` is a no-op (idempotence on the wrapped entry), then
+ * re-parse the formatted document and return the resulting `entry.body`
+ * as the formatter-canonical body `cf`.
  */
-async function strFmtAgrees(
+async function formatterCanonical(
   sample: string,
-  renderedAst0: string,
-): Promise<boolean> {
+): Promise<FormatterCanonical> {
   const indented = sample.split("\n").join("\n  ");
   const doc =
     `- [TST_FM_0001] Fidelity probe\n\n  ${indented}\n\n      Id: ${FIXED_ULID}\n`;
-  const formatted = format(doc, { file: "fidelity.md" }).output;
-  const parsed = await parseFile(formatted, { file: "fidelity.md" });
-  if (parsed.entries.length === 0) return false;
-  return parsed.entries[0].body === renderedAst0;
+  const once = format(doc, { file: "fidelity.md" }).output;
+  const twice = format(once, { file: "fidelity.md" }).output;
+  const idempotent = twice === once;
+  const parsed = await parseFile(once, { file: "fidelity.md" });
+  if (parsed.entries.length === 0) {
+    return { canonicalBody: undefined, idempotent };
+  }
+  return { canonicalBody: parsed.entries[0].body, idempotent };
 }
 
-/** Classify one sample (Task 3). */
+/**
+ * Classify one sample under the SP3 build/render/FORMAT contract
+ * (Formalization A; SP3 Task 7).
+ *
+ *   - `UNOWNED` if `allUnknownVerbatim(buildBodyAst(s))` — an excluded
+ *     construct preserved verbatim (predicate unchanged from SP1).
+ *   - else `OK` if (a) `format` is idempotent on the wrapped entry AND
+ *     (b) `astEquivalent(buildBodyAst(cf), normalizeBodyAst(buildBodyAst(s)))`
+ *     where `cf` is the formatter-canonical body.
+ *   - else `RESIDUAL`.
+ */
 export async function classifySample(
   sample: CorpusSample,
 ): Promise<MatrixRow> {
   const s = sample.markdown;
   const ast0 = buildBodyAst(s);
-  const r = render(ast0);
-  const ast1 = buildBodyAst(r);
 
-  const rEqualsS = r === s;
-  const idempotent = render(ast1) === r;
-  const equivalent = astEquivalent(ast0, ast1);
+  const { canonicalBody: cf, idempotent: formatIdempotent } =
+    await formatterCanonical(s);
+
+  // (b): the formatter-canonical body's AST must be equivalent to the
+  // §5.2-normalized AST of the input. `astEquivalent` is the production
+  // relation from `core/ast/equivalence.ts` (no local copy).
+  const roundtrips = cf !== undefined &&
+    astEquivalent(buildBodyAst(cf), normalizeBodyAst(ast0));
 
   let cls: FidelityClass;
-  if (rEqualsS) {
-    cls = "OK";
-  } else if (allUnknownVerbatim(ast0)) {
+  if (allUnknownVerbatim(ast0)) {
     // Spec §5.4: a construct the model does not own, kept verbatim as
     // Unknown(raw). Acceptable.
     cls = "UNOWNED";
-  } else if (equivalent) {
-    // §5.2: representation differs, meaning preserved → SP3 territory.
-    cls = "NORMALIZE";
-  } else if (ast0.some((b) => b.kind === "unknown")) {
-    // Spec-permitted prose partially collapsed into an Unknown/raw
-    // fallback — residual SP3 must close or spec-record.
-    cls = "UNREPRESENTABLE";
+  } else if (formatIdempotent && roundtrips) {
+    // SP3 Formalization A: the formatter canonicalizes idempotently and
+    // the canonical body is AST-equivalent to the normalized input.
+    cls = "OK";
   } else {
-    // §5.1: the AST itself changed/lost information → SP2 territory.
-    cls = "LOSS";
+    // The build/render/FORMAT contract does not hold. The SP3 spec
+    // mandates zero of these — a surface-to-owner finding.
+    cls = "RESIDUAL";
   }
 
   return {
     name: sample.name,
     cls,
-    rEqualsS,
-    idempotent,
-    strFmtAgrees: await strFmtAgrees(s, r),
-    delta: encodeDelta(s, r),
+    formatIdempotent,
+    roundtrips,
+    delta: encodeDelta(s, cf ?? s),
   };
 }
 
-/** Run the full matrix over `CORPUS` (Task 3). */
+/** Run the full matrix over `CORPUS` (SP3 build/render/format contract). */
 export async function runMatrix(): Promise<Matrix> {
   const rows: MatrixRow[] = [];
   for (const sample of CORPUS) {
@@ -383,26 +366,22 @@ export async function runMatrix(): Promise<Matrix> {
   }
   const counts: Record<FidelityClass, number> = {
     OK: 0,
-    NORMALIZE: 0,
-    LOSS: 0,
     UNOWNED: 0,
-    UNREPRESENTABLE: 0,
+    RESIDUAL: 0,
   };
   for (const row of rows) counts[row.cls]++;
   return {
     rows,
     counts,
-    surface: counts.LOSS + counts.UNREPRESENTABLE,
+    surface: counts.RESIDUAL,
   };
 }
 
 /** Order classes appear in the summary block (stable). */
 const CLASS_ORDER: readonly FidelityClass[] = [
   "OK",
-  "NORMALIZE",
-  "LOSS",
   "UNOWNED",
-  "UNREPRESENTABLE",
+  "RESIDUAL",
 ];
 
 /**
@@ -441,16 +420,19 @@ export function renderCatalogue(matrix: Matrix): string {
   );
   lines.push("");
   lines.push(
-    "SP1 characterization of the canonical body-AST build/render surface",
+    "SP3 characterization of the canonical body-AST build/render/format",
   );
   lines.push(
-    "(`buildBodyAst` → `render` → `buildBodyAst`). Measurement only — no",
+    "contract. The equivalence relation lives in `core/ast/equivalence.ts`",
   );
   lines.push(
-    "production behaviour depends on this file. See the SP1 design:",
+    "(`astEquivalent`, production-consumed by the formatter guard); this",
   );
   lines.push(
-    "`docs/superpowers/specs/2026-05-16-formatting-fidelity-epic-design.md` §4.",
+    "classifier measures the SP3 build/render/format contract. See the",
+  );
+  lines.push(
+    "epic design: `docs/superpowers/specs/2026-05-16-formatting-fidelity-epic-design.md` §4.",
   );
   lines.push("");
   lines.push("## Summary");
@@ -460,22 +442,22 @@ export function renderCatalogue(matrix: Matrix): string {
   }
   lines.push("");
   lines.push(
-    `Headline: surface = LOSS + UNREPRESENTABLE = ${matrix.surface} of ${matrix.rows.length} corpus samples.`,
+    `Headline: surface = RESIDUAL = ${matrix.surface} of ${matrix.rows.length} corpus samples.`,
   );
   lines.push("");
   lines.push("## Matrix");
   lines.push("");
   lines.push(
-    "| Construct | Class | r==s | idempotent | str-fmt agrees | delta |",
+    "| Construct | Class | format-idempotent | roundtrips | delta |",
   );
   lines.push(
-    "| --------- | ----- | ---- | ---------- | -------------- | ----- |",
+    "| --------- | ----- | ----------------- | ---------- | ----- |",
   );
   for (const row of matrix.rows) {
     lines.push(
-      `| ${row.name} | ${row.cls} | ${row.rEqualsS ? "yes" : "no"} | ` +
-        `${row.idempotent ? "yes" : "no"} | ` +
-        `${row.strFmtAgrees ? "yes" : "no"} | ${cell(row.delta)} |`,
+      `| ${row.name} | ${row.cls} | ` +
+        `${row.formatIdempotent ? "yes" : "no"} | ` +
+        `${row.roundtrips ? "yes" : "no"} | ${cell(row.delta)} |`,
     );
   }
   lines.push("");
@@ -484,5 +466,5 @@ export function renderCatalogue(matrix: Matrix): string {
 
 // Re-export the core primitives the harness/generator compose, so callers
 // import them from one place.
-export { buildBodyAst, format, parseFile, render };
+export { buildBodyAst, format, parseFile };
 export type { BodyBlock };
