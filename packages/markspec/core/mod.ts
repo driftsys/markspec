@@ -34,11 +34,18 @@ export type {
   EntryShape,
   EntrySource,
   InlineRef,
+  LabelConcern,
+  LabelConcernKind,
+  LabelValue,
   Link,
   LinkKind,
   PaletteHue,
   ProfileChain,
+  ProfileConvention,
   ProjectConfig,
+  ProvenancedMap,
+  ProvenancedMapEntry,
+  ProvenancedValue,
   Severity,
   SourceLocation,
   Ulid,
@@ -120,6 +127,21 @@ export type {
   ResolveGitOptions,
   RunGit,
   RunGitResult,
+} from "./profile/mod.ts";
+
+export { buildProfileIntrospection } from "./profile/mod.ts";
+export type {
+  AttributeDetail,
+  ConventionDetail,
+  LabelConcernDetail,
+  ProfileElementDetail,
+  ProfileElementKind,
+  ProfileElementRef,
+  ProfileIntrospection,
+  ProfileOverview,
+  ProvenancedDescription,
+  RelationDetail,
+  TypeDetail,
 } from "./profile/mod.ts";
 
 // Parser

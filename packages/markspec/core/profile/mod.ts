@@ -42,3 +42,18 @@ export { defaultRunNpm, resolveNpmSpecifier } from "./npm.ts";
 export type { ResolveNpmOptions, RunNpm } from "./npm.ts";
 
 export { resolveEntryColor } from "./colors.ts";
+
+export { buildProfileIntrospection } from "./introspect.ts";
+export type {
+  AttributeDetail,
+  ConventionDetail,
+  LabelConcernDetail,
+  ProfileElementDetail,
+  ProfileElementKind,
+  ProfileElementRef,
+  ProfileIntrospection,
+  ProfileOverview,
+  ProvenancedDescription,
+  RelationDetail,
+  TypeDetail,
+} from "./introspect.ts";
