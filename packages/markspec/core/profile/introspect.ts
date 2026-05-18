@@ -19,6 +19,7 @@ import type {
 // Public types
 // ---------------------------------------------------------------------------
 
+/** Discriminant for the five kinds of profile elements. */
 export type ProfileElementKind =
   | "type"
   | "attribute"
@@ -26,12 +27,20 @@ export type ProfileElementKind =
   | "label-concern"
   | "convention";
 
+/**
+ * A human-readable description with provenance: which profile tier contributed
+ * it and which tiers it overrides.
+ */
 export interface ProvenancedDescription {
   readonly text?: string;
   readonly origin?: string;
   readonly overrides?: string[];
 }
 
+/**
+ * A lightweight reference to a profile element, used in overview lists and
+ * resolve results. `ref` is `"<kind>/<name>"`, e.g. `"type/software-requirement"`.
+ */
 export interface ProfileElementRef {
   readonly kind: ProfileElementKind;
   readonly name: string;
@@ -40,11 +49,16 @@ export interface ProfileElementRef {
   readonly ref: string;
 }
 
+/**
+ * High-level snapshot of the active profile chain: chain tiers and all
+ * declared elements as lightweight refs.
+ */
 export interface ProfileOverview {
   readonly tiers: readonly { id: string; version: string; summary: string }[];
   readonly elements: readonly ProfileElementRef[];
 }
 
+/** Detailed description of a profile-declared entry type. */
 export interface TypeDetail {
   readonly kind: "type";
   readonly name: string;
@@ -59,6 +73,7 @@ export interface TypeDetail {
   readonly incomingRelations: readonly ProfileElementRef[];
 }
 
+/** Detailed description of a universal or type-scoped attribute declaration. */
 export interface AttributeDetail {
   readonly kind: "attribute";
   readonly name: string;
@@ -71,6 +86,10 @@ export interface AttributeDetail {
   readonly declaredBy: readonly string[];
 }
 
+/**
+ * Detailed description of a traceability relation, aggregated across all types
+ * that declare it.
+ */
 export interface RelationDetail {
   readonly kind: "relation";
   readonly name: string;
@@ -81,6 +100,7 @@ export interface RelationDetail {
   readonly declaredBy: readonly string[];
 }
 
+/** Detailed description of a label concern (enum, set, or flag). */
 export interface LabelConcernDetail {
   readonly kind: "label-concern";
   readonly name: string;
@@ -89,6 +109,9 @@ export interface LabelConcernDetail {
   readonly values: readonly { name: string; description?: string }[];
 }
 
+/**
+ * Detailed description of a named profile convention (e.g. `modal-keywords`).
+ */
 export interface ConventionDetail {
   readonly kind: "convention";
   readonly name: string;
@@ -96,6 +119,10 @@ export interface ConventionDetail {
   readonly settings: Readonly<Record<string, string>>;
 }
 
+/**
+ * Discriminated union of all per-element detail types returned by
+ * `ProfileIntrospection.describe`.
+ */
 export type ProfileElementDetail =
   | TypeDetail
   | AttributeDetail
@@ -103,12 +130,24 @@ export type ProfileElementDetail =
   | LabelConcernDetail
   | ConventionDetail;
 
+/**
+ * Unified read-only view of a profile chain. Consumed by CLI, MCP, and LSP
+ * instead of walking `EffectiveProfile` directly.
+ */
 export interface ProfileIntrospection {
+  /** Return a lazily computed, cached overview of all profile elements. */
   overview(): ProfileOverview;
+  /**
+   * Return full detail for the named element, or `undefined` if not found.
+   */
   describe(
     kind: ProfileElementKind,
     name: string,
   ): ProfileElementDetail | undefined;
+  /**
+   * Return elements whose kind/name/summary contain all whitespace-separated
+   * query tokens (case-insensitive).
+   */
   resolve(query: string): ProfileElementRef[];
 }
 
