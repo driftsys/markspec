@@ -6,6 +6,13 @@
  * Levenshtein-based typo suggestion helper.
  */
 
+/** Result returned by every install adapter. */
+export interface AdapterResult {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode: number;
+}
+
 export type LspEditorId = "vscode" | "neovim" | "zed";
 export type McpClientId = "claude-desktop" | "cursor" | "vscode";
 

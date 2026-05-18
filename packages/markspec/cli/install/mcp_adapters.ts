@@ -8,7 +8,7 @@
  * status messages and file path hints.
  */
 
-import type { AdapterResult } from "./lsp_adapters.ts";
+import type { AdapterResult } from "./adapters.ts";
 
 /**
  * Return the JSON config block for Claude Desktop's
@@ -35,11 +35,9 @@ export function claudeDesktopAdapter(): AdapterResult {
 
 /**
  * Return the full JSON for Cursor's `~/.cursor/mcp.json`.
- * The header comment tells the user where to place the file.
  */
 export function cursorAdapter(): AdapterResult {
-  const stdout = `# Add to ~/.cursor/mcp.json
-{
+  const stdout = `{
   "mcpServers": {
     "markspec": {
       "command": "<BINARY_PATH>",

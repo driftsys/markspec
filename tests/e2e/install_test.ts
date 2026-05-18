@@ -14,14 +14,17 @@ Deno.test(
 );
 
 Deno.test(
-  "lsp install --editor=zed: exits 0, stdout contains settings.json",
+  "lsp install --editor=zed: exits 0, stdout is valid JSON with lsp key",
   async () => {
-    const { code, stdout } = await markspec(
+    const { code, stdout, stderr } = await markspec(
       ["lsp", "install", "--editor=zed"],
       { permissions: ["--allow-run"] },
     );
     assertEquals(code, 0);
-    assertStringIncludes(stdout, "settings.json");
+    assertStringIncludes(stdout, '"lsp"');
+    assertStringIncludes(stdout, "markspec");
+    // Instructions go to stderr
+    assertStringIncludes(stderr, "settings.json");
   },
 );
 
@@ -50,14 +53,15 @@ Deno.test(
 );
 
 Deno.test(
-  "mcp install --client=cursor: exits 0, stdout contains mcp.json",
+  "mcp install --client=cursor: exits 0, stdout contains mcpServers, stderr mentions mcp.json",
   async () => {
-    const { code, stdout } = await markspec(
+    const { code, stdout, stderr } = await markspec(
       ["mcp", "install", "--client=cursor"],
       { permissions: ["--allow-run"] },
     );
     assertEquals(code, 0);
-    assertStringIncludes(stdout, "mcp.json");
+    assertStringIncludes(stdout, "mcpServers");
+    assertStringIncludes(stderr, "mcp.json");
   },
 );
 
@@ -134,5 +138,19 @@ Deno.test(
     );
     assertEquals(code, 1);
     assertStringIncludes(stderr.toLowerCase(), "did you mean");
+  },
+);
+
+Deno.test(
+  "lsp install --editor=emacs: exits 1, no suggestion (too distant)",
+  async () => {
+    const { code, stderr } = await markspec(
+      ["lsp", "install", "--editor=emacs"],
+      { permissions: ["--allow-run"] },
+    );
+    assertEquals(code, 1);
+    assertStringIncludes(stderr, "unknown editor 'emacs'");
+    // No "did you mean" for a completely unrelated editor name
+    assertEquals(stderr.toLowerCase().includes("did you mean"), false);
   },
 );

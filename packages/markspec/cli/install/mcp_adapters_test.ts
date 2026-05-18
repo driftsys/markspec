@@ -27,9 +27,9 @@ Deno.test("cursor adapter: stdout contains mcpServers", () => {
   assertStringIncludes(stdout, "mcpServers");
 });
 
-Deno.test("cursor adapter: stdout contains mcp.json reference", () => {
-  const { stdout } = cursorAdapter();
-  assertStringIncludes(stdout, "mcp.json");
+Deno.test("cursor adapter: stderr mentions mcp.json", () => {
+  const { stderr } = cursorAdapter();
+  assertStringIncludes(stderr, "mcp.json");
 });
 
 Deno.test("cursor adapter: stdout contains args mcp", () => {

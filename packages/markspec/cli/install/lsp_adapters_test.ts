@@ -27,9 +27,14 @@ Deno.test("zed adapter: stdout contains lsp", () => {
   assertStringIncludes(stdout, "lsp");
 });
 
-Deno.test("zed adapter: stdout contains settings.json reference", () => {
+Deno.test("zed adapter: stdout contains file_types key", () => {
   const { stdout } = zedAdapter();
-  assertStringIncludes(stdout, "settings.json");
+  assertStringIncludes(stdout, "file_types");
+});
+
+Deno.test("zed adapter: stderr mentions settings.json", () => {
+  const { stderr } = zedAdapter();
+  assertStringIncludes(stderr, "settings.json");
 });
 
 Deno.test("zed adapter: stdout contains BINARY_PATH placeholder", () => {

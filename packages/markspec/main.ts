@@ -575,11 +575,9 @@ const lspCmd = new Command()
   .option("--editor <editor:string>", "Editor ID (vscode|neovim|zed)", {
     required: true,
   })
-  .option("--print", "Print config block to stdout (no file writes; default for this release)")
   .option("--scope <scope:string>", "Config scope: user|workspace (reserved for Tier 3)")
-  .option("--no-color", "Suppress color output (also reads NO_COLOR env)")
   .action(
-    async (options: { editor: string; print?: boolean; scope?: string }) => {
+    async (options: { editor: string; scope?: string }) => {
       const { LSP_EDITOR_IDS, suggestId } = await import(
         "./cli/install/adapters.ts"
       );
@@ -595,10 +593,11 @@ const lspCmd = new Command()
       const { neovimAdapter, vscodeAdapter, zedAdapter } = await import(
         "./cli/install/lsp_adapters.ts"
       );
-      let result;
-      if (editorId === "neovim") result = neovimAdapter();
-      else if (editorId === "zed") result = zedAdapter();
-      else result = await vscodeAdapter();
+      const result = editorId === "neovim"
+        ? neovimAdapter()
+        : editorId === "zed"
+        ? zedAdapter()
+        : await vscodeAdapter();
       if (result.stdout) console.log(result.stdout);
       if (result.stderr) console.error(result.stderr);
       Deno.exit(result.exitCode);
@@ -620,11 +619,9 @@ const mcpCmd = new Command()
     "Client ID (claude-desktop|cursor|vscode)",
     { required: true },
   )
-  .option("--print", "Print config block to stdout (no file writes; default for this release)")
   .option("--scope <scope:string>", "Config scope: user|workspace (reserved for Tier 3)")
-  .option("--no-color", "Suppress color output (also reads NO_COLOR env)")
   .action(
-    async (options: { client: string; print?: boolean; scope?: string }) => {
+    async (options: { client: string; scope?: string }) => {
       const { MCP_CLIENT_IDS, suggestId } = await import(
         "./cli/install/adapters.ts"
       );
@@ -643,10 +640,11 @@ const mcpCmd = new Command()
       }
       const { claudeDesktopAdapter, cursorAdapter, vscodeMcpAdapter } =
         await import("./cli/install/mcp_adapters.ts");
-      let result;
-      if (clientId === "claude-desktop") result = claudeDesktopAdapter();
-      else if (clientId === "cursor") result = cursorAdapter();
-      else result = await vscodeMcpAdapter();
+      const result = clientId === "claude-desktop"
+        ? claudeDesktopAdapter()
+        : clientId === "cursor"
+        ? cursorAdapter()
+        : await vscodeMcpAdapter();
       if (result.stdout) console.log(result.stdout);
       if (result.stderr) console.error(result.stderr);
       Deno.exit(result.exitCode);

@@ -11,12 +11,7 @@
  * stderr carries status messages, file paths, and instructions.
  */
 
-/** Result of an install adapter. */
-export interface AdapterResult {
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly exitCode: number;
-}
+import type { AdapterResult } from "./adapters.ts";
 
 /**
  * Return the canonical Lua snippet for nvim-lspconfig.
@@ -40,8 +35,7 @@ require('lspconfig').markspec.setup({
  * Replace `<BINARY_PATH>` with the absolute path to the markspec binary.
  */
 export function zedAdapter(): AdapterResult {
-  const stdout = `# Paste into ~/.config/zed/settings.json
-{
+  const stdout = `{
   "lsp": {
     "markspec": {
       "binary": { "path": "<BINARY_PATH>", "args": ["lsp", "--stdio"] }
@@ -52,7 +46,7 @@ export function zedAdapter(): AdapterResult {
   }
 }`;
   const stderr =
-    'Merge the JSON block above into your Zed settings.json (~/.config/zed/settings.json).';
+    "Merge the JSON block above into your Zed settings.json (~/.config/zed/settings.json).";
   return { stdout, stderr, exitCode: 0 };
 }
 
