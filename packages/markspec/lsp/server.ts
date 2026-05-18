@@ -687,6 +687,7 @@ async function* walkDirectory(dir: string): AsyncGenerator<string> {
     "target",
     "dist",
     "build",
+    "skills", // upskill SSOT — not MarkSpec requirement documents
   ]);
   try {
     for await (const entry of Deno.readDir(dir)) {
