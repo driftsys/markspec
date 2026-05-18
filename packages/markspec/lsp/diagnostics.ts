@@ -23,6 +23,8 @@ export interface LspDiagnostic {
   readonly source: string;
   readonly code: string;
   readonly message: string;
+  /** Link to rule documentation, populated for MSL-Q codes. */
+  readonly codeDescription?: { readonly href: string };
 }
 
 /** Map MarkSpec severity to LSP DiagnosticSeverity numeric values. */
@@ -44,10 +46,15 @@ export function toLspSeverity(severity: Severity): number {
  * the same line with a large character value — the editor will clamp to
  * end-of-line, producing an underline from the start position to EOL.
  */
+/** Build a rule documentation URL for MSL-Q lint codes. */
+function buildRuleDocUrl(code: string): string {
+  return `https://markspec.dev/lint/rules/${code.toLowerCase()}`;
+}
+
 export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
   const line = diagnostic.location ? diagnostic.location.line - 1 : 0;
   const character = diagnostic.location ? diagnostic.location.column - 1 : 0;
-  return {
+  const base: LspDiagnostic = {
     range: {
       start: { line, character },
       end: { line, character: Number.MAX_SAFE_INTEGER },
@@ -57,6 +64,10 @@ export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
     code: diagnostic.code,
     message: diagnostic.message,
   };
+  if (diagnostic.code.startsWith("MSL-Q")) {
+    return { ...base, codeDescription: { href: buildRuleDocUrl(diagnostic.code) } };
+  }
+  return base;
 }
 
 /**

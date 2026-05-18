@@ -261,6 +261,23 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
     shapes: BOTH_SHAPES,
     required: false,
   },
+
+  // Prose-analysis suppression (spec §MSL-Q900/Q901). Authored on any entry
+  // to silence specific lint rule codes; requires a companion Rationale:.
+  {
+    key: "Markspec-disable",
+    type: "text",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Rationale",
+    type: "text",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
 ];
 
 /** Canonical Title-Case attribute keys the core recognizes. */
