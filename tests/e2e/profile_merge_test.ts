@@ -50,6 +50,8 @@ const REQ_MD = `# Example
 
 - [REQ-0001] A requirement
 
+  Body text.
+
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
 

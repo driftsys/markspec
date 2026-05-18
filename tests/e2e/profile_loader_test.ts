@@ -15,7 +15,7 @@ const MINIMAL_PROFILE = `id: "@acme/phase2-minimal"\nversion: 0.1.0\n`;
 
 // Minimal markdown file for validate to process.
 const REQ_MD =
-  `# Example\n\n- [NOTE-001] A note\n\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\\n`;
+  `# Example\n\n- [NOTE-001] A note\n\n  Body text.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
 
 Deno.test("profile loader e2e: no .markspec.yaml — core-only mode, exit 0", async () => {
   const { code } = await markspec(["validate", "req.md"], {

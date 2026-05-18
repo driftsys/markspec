@@ -9,6 +9,7 @@ import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
 import { IDENTITY_KEY, shapeFromIdValue } from "../model/mod.ts";
 import {
+  ATTR_LINE_RE,
   collateAttributes,
   parseAttributes,
   splitBodyAndAttributes,
@@ -40,6 +41,12 @@ const SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 
 /** Match `[...]` at the start of a list item paragraph. Captures: [1] = display ID, [2] = title. */
 const ENTRY_START_RE = /^\[([^\]]+)\]\s*(.*)$/;
+
+/** Match `[]` at the start — empty brackets. */
+const EMPTY_BRACKET_RE = /^\[\]\s*(.*)$/;
+
+/** Match `[` at the start without a closing `]` on the same logical content — unterminated. */
+const UNTERMINATED_BRACKET_RE = /^\[[^\]]*$/;
 
 /**
  * Find the `Id:` attribute on an entry. Returns undefined when absent. If
@@ -169,10 +176,35 @@ function extractEntry(
 
   if (firstInline.type === "text") {
     // remark may parse `[ID] Title` as a single text node
-    const match = ENTRY_START_RE.exec((firstInline as Text).value);
+    const textValue = (firstInline as Text).value;
+    const match = ENTRY_START_RE.exec(textValue);
     if (match) {
       displayId = match[1];
       title = match[2].trim();
+    } else if (EMPTY_BRACKET_RE.test(textValue)) {
+      // MSL-P001: bracketed content is empty — `- [] Title`
+      const entryLine = item.position?.start.line ?? 1;
+      diagnostics.push({
+        code: "MSL-P001",
+        severity: "error",
+        message:
+          "list item starts with `[]` but the bracketed content is empty " +
+          "(spec section 4.1)",
+        location: { file, line: entryLine, column: 1 },
+      });
+      return undefined;
+    } else if (UNTERMINATED_BRACKET_RE.test(textValue)) {
+      // MSL-P003: display-ID brackets unterminated (missing `]`)
+      const entryLine = item.position?.start.line ?? 1;
+      diagnostics.push({
+        code: "MSL-P003",
+        severity: "error",
+        message:
+          "display-ID brackets unterminated -- missing `]` before end of " +
+          "title line (spec section 4.1)",
+        location: { file, line: entryLine, column: 1 },
+      });
+      return undefined;
     }
   }
 
@@ -214,11 +246,168 @@ function extractEntry(
   // citation compatibility. Canonical slug never contains `@`.
   if (displayId.startsWith("@")) displayId = displayId.slice(1);
 
+  // MSL-I005: Display ID is empty (after `@` stripping).
+  if (displayId.length === 0) {
+    const entryLine = item.position?.start.line ?? 1;
+    diagnostics.push({
+      code: "MSL-I005",
+      severity: "error",
+      message: "display ID is empty (spec section 4.2)",
+      location: { file, line: entryLine, column: 1 },
+    });
+    return undefined;
+  }
+
+  // MSL-P002: title text missing after `]`. The title capture is empty
+  // and was not populated from subsequent nodes (linkReference path sets
+  // title from rest nodes).
+  if (title !== undefined && title.length === 0) {
+    const entryLine = item.position?.start.line ?? 1;
+    diagnostics.push({
+      code: "MSL-P002",
+      severity: "error",
+      message:
+        `${displayId}: title line missing title text after ']' (spec section 4.1)`,
+      location: { file, line: entryLine, column: 1 },
+    });
+    // Continue parsing — entry is still structurally valid for downstream
+    // validation (MSL-P010 also fires from the validator for empty titles).
+  }
+
   // Extract body content and attributes.
   const bodyContent = extractBodyContent(item, markdown);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
   const bodyAst = buildBodyAst(body);
+
+  const entryLine = item.position?.start.line ?? 1;
+
+  // MSL-P020: trailers block is not the final indented code block.
+  // Detect `Key: Value` lines in the body that likely should be trailers
+  // but are not at the final position (body content follows them).
+  // Exclude caption keywords (Figure:, Table:, etc.) which are legitimate
+  // body content, not misplaced trailer attributes.
+  const CAPTION_KEYWORDS = new Set([
+    "Figure",
+    "Table",
+    "Listing",
+    "Feature",
+    "Equation",
+    "List",
+  ]);
+  if (body.length > 0) {
+    const bodyLines = body.split("\n");
+    let inFencedBlock = false;
+    for (let i = 0; i < bodyLines.length; i++) {
+      const trimmed = bodyLines[i].trim();
+      // Track fenced code blocks (``` or ~~~) to skip their contents
+      if (/^(`{3,}|~{3,})/.test(trimmed)) {
+        inFencedBlock = !inFencedBlock;
+        continue;
+      }
+      if (inFencedBlock) continue;
+      if (!ATTR_LINE_RE.test(trimmed)) continue;
+      // Extract the key portion to check against caption keywords
+      const keyMatch = trimmed.match(/^([A-Z][A-Za-z-]*):/);
+      if (keyMatch && CAPTION_KEYWORDS.has(keyMatch[1])) continue;
+      // Found a Key: Value line in the body — non-final position
+      diagnostics.push({
+        code: "MSL-P020",
+        severity: "error",
+        message:
+          `${displayId}: trailers block is not the final indented code ` +
+          `block of the entry -- content appears after trailer-like ` +
+          `lines (spec section 4.1)`,
+        location: { file, line: entryLine, column: 1 },
+      });
+      break; // One diagnostic per entry is sufficient
+    }
+  }
+
+  // MSL-P021 / MSL-P022: validate trailer lines for syntax correctness.
+  // The trailer block is the final indented code block. Lines within it
+  // should all match `Key: Value` syntax. We check both the parsed
+  // attrLines AND the trailing body lines that might be in a code block
+  // but failed ATTR_LINE_RE (thus stayed in the body).
+  const TRAILER_KEY_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
+  const COLON_SPLIT_RE = /^([^:]+):\s*(.*)$/;
+
+  // Check lines that DID end up in attrLines but might have key issues
+  for (const rawLine of attrLines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+    if (!ATTR_LINE_RE.test(trimmed)) {
+      const colonMatch = COLON_SPLIT_RE.exec(trimmed);
+      if (colonMatch) {
+        const key = colonMatch[1].trim();
+        if (!TRAILER_KEY_RE.test(key)) {
+          diagnostics.push({
+            code: "MSL-P022",
+            severity: "error",
+            message: `${displayId}: trailer key '${key}' contains characters ` +
+              `outside [A-Za-z][A-Za-z0-9-]* (spec section 4.1)`,
+            location: { file, line: entryLine, column: 1 },
+          });
+        } else {
+          diagnostics.push({
+            code: "MSL-P021",
+            severity: "error",
+            message: `${displayId}: trailer line does not match 'Key: Value' ` +
+              `syntax (spec section 4.1): "${trimmed}"`,
+            location: { file, line: entryLine, column: 1 },
+          });
+        }
+      } else {
+        diagnostics.push({
+          code: "MSL-P021",
+          severity: "error",
+          message: `${displayId}: trailer line does not match 'Key: Value' ` +
+            `syntax (spec section 4.1): "${trimmed}"`,
+          location: { file, line: entryLine, column: 1 },
+        });
+      }
+    }
+  }
+
+  // Also scan trailing body lines for suspected misplaced trailers.
+  // If the body's last non-empty lines look like they belong to an
+  // indented code block with colon-separated content that has invalid
+  // keys, emit P022. Lines without colons that appear in what looks
+  // like a trailer block emit P021.
+  if (body.length > 0) {
+    const bodyLines = body.split("\n");
+    // Walk backward from the end of the body to find lines in a trailing
+    // code-block-like region that have colons (suspected trailers).
+    for (let i = bodyLines.length - 1; i >= 0; i--) {
+      const trimmed = bodyLines[i].trim();
+      if (!trimmed) continue; // skip trailing blanks
+      const colonMatch = COLON_SPLIT_RE.exec(trimmed);
+      if (!colonMatch) break; // stop at non-colon line
+      const key = colonMatch[1].trim();
+      if (ATTR_LINE_RE.test(trimmed)) {
+        // Valid attr line in body → already caught by P020
+        continue;
+      }
+      if (!TRAILER_KEY_RE.test(key)) {
+        diagnostics.push({
+          code: "MSL-P022",
+          severity: "error",
+          message: `${displayId}: trailer key '${key}' contains characters ` +
+            `outside [A-Za-z][A-Za-z0-9-]* (spec section 4.1)`,
+          location: { file, line: entryLine, column: 1 },
+        });
+      } else if (colonMatch[2].trim().length === 0) {
+        diagnostics.push({
+          code: "MSL-P021",
+          severity: "error",
+          message: `${displayId}: trailer line does not match 'Key: Value' ` +
+            `syntax (spec section 4.1): "${trimmed}"`,
+          location: { file, line: entryLine, column: 1 },
+        });
+      }
+      break; // one diagnostic per trailing suspect line is sufficient
+    }
+  }
 
   // Detect legacy paragraph + trailing-backslash attribute form and warn.
   if (
@@ -267,6 +456,21 @@ function extractEntry(
   // this field when a profile is loaded.
   const type: string | undefined = undefined;
 
+  // MSL-P030: Authored entry has no body block (title + trailers only).
+  // For Reference shape, body is optional (ADR-002 section Part 3). For Authored,
+  // the body is required. We also emit P030 when the body is empty (all
+  // content was consumed as attributes).
+  if (shape === "Authored" && body.trim().length === 0) {
+    diagnostics.push({
+      code: "MSL-P030",
+      severity: "error",
+      message:
+        `${displayId}: Authored entry has no body block -- entries must ` +
+        `have body content between title and trailers (spec section 4.1)`,
+      location: { file, line: entryLine, column: 1 },
+    });
+  }
+
   // Body requirement: identified entries require a body; referenced entries
   // may omit it. If there's only one child (the title paragraph), admit
   // only referenced entries.
@@ -278,7 +482,7 @@ function extractEntry(
 
   const entryLocation = { file, line, column };
 
-  // Inline `$Identifier` entity references (spec §2.5.2). Resolution
+  // Inline `$Identifier` entity references (spec section 2.5.2). Resolution
   // into the project's entity registry is left to the validator's
   // marker pass; the parser only emits the lexical hits.
   // Pass the already-built bodyAst to avoid a redundant mdast parse.
