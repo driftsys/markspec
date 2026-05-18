@@ -12,9 +12,12 @@ import { attributeSpec } from "../model/attributes.ts";
 /**
  * Pattern matching a `Key: Value` attribute line.
  * Key must start with an uppercase letter, may contain lowercase letters and hyphens.
- * Value is everything after `: `, with optional trailing backslash stripped.
+ * Value is everything after `:` (with optional space), with optional trailing
+ * backslash stripped. The value group is optional so that `Key:` and `Key: \`
+ * are recognized (and subsequently skipped as empty-value lines) rather than
+ * silently ignored.
  */
-const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*): (.+?)\\?$/;
+const ATTRIBUTE_RE = /^([A-Z][A-Za-z-]*):\s*(.*?)\\?$/;
 
 /**
  * Parse an array of attribute lines into Attribute objects.
@@ -35,10 +38,9 @@ export function parseAttributes(lines: readonly string[]): Attribute[] {
 
     const match = ATTRIBUTE_RE.exec(trimmed);
     if (match) {
-      attributes.push({
-        key: match[1],
-        value: match[2].trim(),
-      });
+      const value = (match[2] ?? "").trim();
+      if (!value) continue; // skip empty-value lines — `Key:` or `Key: \`
+      attributes.push({ key: match[1], value });
     }
   }
 

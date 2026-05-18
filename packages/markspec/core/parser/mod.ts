@@ -37,6 +37,11 @@ export type { DetectInlineRefsOptions } from "./references.ts";
 
 export { parseSource } from "./source.ts";
 export type { ParseSourceOptions, ParseSourceResult } from "./source.ts";
+export {
+  stripBlockCommentPrefix,
+  stripLineCommentPrefix,
+  wrapAsListItem,
+} from "./source.ts";
 
 export { isSupportedExtension, loadGrammar } from "./grammars.ts";
 
