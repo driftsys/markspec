@@ -103,7 +103,9 @@ export async function checkFileStaleness(
 }
 
 /** Handler signature for invalidation subscribers. */
-export type InvalidationHandler = (result: CompileResult) => void;
+export type InvalidationHandler = (
+  result: CompileResult,
+) => void | Promise<void>;
 
 /** Project context handle returned by {@linkcode createProject}. */
 export interface Project {
@@ -246,11 +248,20 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       cached = result;
       // Fire handlers AFTER cache is committed but isolate handler errors so
       // one bad subscriber doesn't break others or abort the compile result.
+      // Async handlers are not awaited — their rejections are caught and logged.
       for (const h of handlers) {
-        try {
-          h(result);
-        } catch {
-          // Handler error — ignore.
+        const maybePromise = (() => {
+          try {
+            return h(result);
+          } catch (err) {
+            console.error(`InvalidationHandler sync error: ${err}`);
+            return undefined;
+          }
+        })();
+        if (maybePromise instanceof Promise) {
+          maybePromise.catch((err) => {
+            console.error(`InvalidationHandler async error: ${err}`);
+          });
         }
       }
       return result;
@@ -342,9 +353,15 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
             "Operations require project context.",
         );
       }
-      // Force-refresh joins an in-flight compile rather than firing a second
-      // one. What matters is that after this resolves, the cache reflects a
-      // fresh compile.
+      // Wait for any in-flight compile to settle so its finally-block can
+      // reset inFlight before we start a fresh one. Then clear the cache so
+      // ensureCompile unconditionally kicks off a new compile.
+      if (inFlight) {
+        try {
+          await inFlight;
+        } catch { /* ignore — errors surface on next getCompiled() */ }
+      }
+      cached = null;
       return await ensureCompile();
     },
     subscribeInvalidation(handler: InvalidationHandler): () => void {
