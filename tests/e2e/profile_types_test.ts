@@ -15,11 +15,11 @@ version: 0.1.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: error
     note:
-      shape: identified
+      extends: Item
       display-id-pattern: "NOTE-{n:03d}"
       display-id-pattern-enforcement: off
 `;

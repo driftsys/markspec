@@ -131,7 +131,7 @@ version: 0.1.0
 profile:
   types:
     Requirement:
-      shape: identified
+      extends: Item
 `;
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {

@@ -32,20 +32,9 @@ function singleTierChain(yaml: string): ProfileChain {
   return {
     tiers: [tier],
     effective: {
-      required: { value: [], origin: tier.id },
       attributes: new Map(),
       labels: { value: [], origin: tier.id },
       colors: new Map(),
-      identified: {
-        required: { value: [], origin: tier.id },
-        attributes: new Map(),
-        traceability: new Map(),
-      },
-      referenced: {
-        required: { value: [], origin: tier.id },
-        attributes: new Map(),
-        traceability: new Map(),
-      },
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
     },
@@ -59,14 +48,9 @@ Deno.test("mergeChain: single-tier empty profile produces empty effective profil
   const result = mergeChain(chain);
   assertEquals(result.diagnostics, []);
   const eff = result.effective!;
-  assertEquals(eff.required.value, []);
-  assertEquals(eff.required.origin, "@acme/single");
   assertEquals(eff.labels.value, []);
   assertEquals(eff.attributes.size, 0);
   assertEquals(eff.types.size, 0);
-  assertEquals(eff.identified.attributes.size, 0);
-  assertEquals(eff.identified.traceability.size, 0);
-  assertEquals(eff.referenced.attributes.size, 0);
   assertEquals(eff.documents.types.size, 0);
   assertEquals(eff.documents.frontMatter.size, 0);
 });
@@ -76,7 +60,6 @@ Deno.test("mergeChain: single-tier with universal attribute", () => {
 id: "@acme/single"
 version: 1.0.0
 profile:
-  required: [Status]
   attributes:
     - name: Status
       type: enum
@@ -85,8 +68,6 @@ profile:
   const result = mergeChain(chain);
   assertEquals(result.diagnostics, []);
   const eff = result.effective!;
-  assertEquals(eff.required.value, ["Status"]);
-  assertEquals(eff.required.origin, "@acme/single");
   assertEquals(eff.attributes.size, 1);
   const statusEntry = eff.attributes.get("Status")!;
   assertEquals(statusEntry.origin, "@acme/single");
@@ -101,7 +82,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: warn
       required: [Rationale]
@@ -113,7 +94,7 @@ profile:
   assertEquals(result.diagnostics, []);
   const req = result.effective!.types.get("requirement")!;
   assertEquals(req.origin, "@acme/single");
-  assertEquals(req.value.shape, "Authored");
+  assertEquals(req.value.extends, "Requirement");
   assertEquals(req.value.displayIdPattern.value, "REQ-{n:04d}");
   assertEquals(req.value.displayIdPattern.origin, "@acme/single");
   assertEquals(req.value.displayIdPatternEnforcement.value, "warn");
@@ -148,20 +129,9 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
   return {
     tiers,
     effective: {
-      required: { value: [], origin: tiers[0].id },
       attributes: new Map(),
       labels: { value: [], origin: tiers[0].id },
       colors: new Map(),
-      identified: {
-        required: { value: [], origin: tiers[0].id },
-        attributes: new Map(),
-        traceability: new Map(),
-      },
-      referenced: {
-        required: { value: [], origin: tiers[0].id },
-        attributes: new Map(),
-        traceability: new Map(),
-      },
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
     },
@@ -197,38 +167,6 @@ profile:
   assertEquals(eff.attributes.get("Owner")?.origin, "@acme/child");
 });
 
-Deno.test("mergeChain: additive — required is union", () => {
-  const chain = multiTierChain([
-    `
-id: "@acme/parent"
-version: 1.0.0
-profile:
-  required: [Status]
-  attributes:
-    - name: Status
-      type: enum
-      values: [draft, approved]
-`,
-    `
-id: "@acme/child"
-version: 1.0.0
-extends: "../parent"
-profile:
-  required: [Owner]
-  attributes:
-    - name: Owner
-      type: text
-`,
-  ]);
-  const result = mergeChain(chain);
-  assertEquals(result.diagnostics, []);
-  const eff = result.effective!;
-  // Order: parent entries come first, child's additions appended.
-  assertEquals(eff.required.value, ["Status", "Owner"]);
-  // required.origin points at the leaf child since it last modified the list.
-  assertEquals(eff.required.origin, "@acme/child");
-});
-
 Deno.test("mergeChain: additive — labels are union, deduplicated", () => {
   const chain = multiTierChain([
     `
@@ -259,7 +197,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
 `,
     `
 id: "@acme/child"
@@ -268,7 +206,7 @@ extends: "../parent"
 profile:
   types:
     test:
-      shape: identified
+      extends: Requirement
 `,
   ]);
   const result = mergeChain(chain);
@@ -287,7 +225,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Rationale
           type: text
@@ -299,7 +237,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Owner
           type: text
@@ -321,7 +259,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [{shape: identified}]
@@ -333,7 +271,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Allocates-to:
           target: [{shape: identified}]
@@ -376,7 +314,7 @@ profile:
   assertEquals(tags.origin, "@acme/child");
 });
 
-Deno.test("mergeChain: relax — child widens cardinality emits PROFILE-MERGE-001", () => {
+Deno.test("mergeChain: relax — child widens cardinality emits PROFILE-MERGE-010", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -400,7 +338,7 @@ profile:
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-010");
   const msg = result.diagnostics[0].message;
   if (!msg.includes("Tags") || !msg.includes("cardinality")) {
     throw new Error(`diagnostic message missing context: ${msg}`);
@@ -435,7 +373,7 @@ profile:
   assertEquals(status.value.values, ["draft", "approved"]);
 });
 
-Deno.test("mergeChain: relax — child adds enum value not in parent emits PROFILE-MERGE-001", () => {
+Deno.test("mergeChain: relax — child adds enum value not in parent emits PROFILE-MERGE-010", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -459,7 +397,7 @@ profile:
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-010");
 });
 
 Deno.test("mergeChain: tighten — child sets required:true", () => {
@@ -489,7 +427,7 @@ profile:
   assertEquals(rationale.value.required, true);
 });
 
-Deno.test("mergeChain: relax — child sets required:false when parent had true", () => {
+Deno.test("mergeChain: relax — child sets required:false when parent had true emits PROFILE-MERGE-010", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -513,10 +451,10 @@ profile:
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-010");
 });
 
-Deno.test("mergeChain: type mismatch — child changes attr type emits PROFILE-MERGE-001", () => {
+Deno.test("mergeChain: type mismatch — child changes attr type emits PROFILE-MERGE-011", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -538,10 +476,10 @@ profile:
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-011");
 });
 
-Deno.test("mergeChain: type shape mismatch across tiers emits PROFILE-MERGE-001", () => {
+Deno.test("mergeChain: type extends mismatch across tiers emits PROFILE-MERGE-012", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -549,7 +487,7 @@ version: 1.0.0
 profile:
   types:
     thing:
-      shape: identified
+      extends: Requirement
 `,
     `
 id: "@acme/child"
@@ -558,19 +496,19 @@ extends: "../parent"
 profile:
   types:
     thing:
-      shape: referenced
+      extends: Test
 `,
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-012");
   const msg = result.diagnostics[0].message;
-  if (!msg.includes("shape")) {
-    throw new Error(`expected 'shape' in message, got: ${msg}`);
+  if (!msg.includes("extends")) {
+    throw new Error(`expected 'extends' in message, got: ${msg}`);
   }
 });
 
-Deno.test("mergeChain: display-id-pattern differs between tiers emits PROFILE-MERGE-001", () => {
+Deno.test("mergeChain: display-id-pattern differs between tiers emits PROFILE-MERGE-010", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -578,7 +516,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
 `,
     `
@@ -588,13 +526,13 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:06d}"
 `,
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-010");
   const msg = result.diagnostics[0].message;
   if (!msg.includes("display-id-pattern")) {
     throw new Error(`expected 'display-id-pattern' in message, got: ${msg}`);
@@ -609,7 +547,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
 `,
     `
 id: "@acme/child"
@@ -618,7 +556,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
 `,
   ]);
@@ -637,7 +575,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: warn
 `,
@@ -648,7 +586,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: error
 `,
@@ -659,7 +597,7 @@ profile:
   assertEquals(req.displayIdPatternEnforcement.value, "error");
 });
 
-Deno.test("mergeChain: enforcement loosening error → warn emits PROFILE-MERGE-001", () => {
+Deno.test("mergeChain: enforcement loosening error → warn emits PROFILE-MERGE-010", () => {
   const chain = multiTierChain([
     `
 id: "@acme/parent"
@@ -667,7 +605,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: error
 `,
@@ -678,14 +616,14 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: warn
 `,
   ]);
   const result = mergeChain(chain);
   assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-001");
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-010");
 });
 
 Deno.test("mergeChain: traceability target narrows valid subset", () => {
@@ -696,7 +634,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [stakeholder-req, system-req]
@@ -708,7 +646,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [stakeholder-req]
@@ -730,7 +668,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [stakeholder-req]
@@ -742,66 +680,10 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [stakeholder-req, system-req]
-`,
-  ]);
-  const result = mergeChain(chain);
-  assertEquals(result.effective, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-002");
-});
-
-Deno.test("mergeChain: child narrows shape matcher to specific type is allowed", () => {
-  const chain = multiTierChain([
-    `
-id: "@acme/parent"
-version: 1.0.0
-profile:
-  identified:
-    traceability:
-      Derived-from:
-        target: [{shape: identified}]
-`,
-    `
-id: "@acme/child"
-version: 1.0.0
-extends: "../parent"
-profile:
-  identified:
-    traceability:
-      Derived-from:
-        target: [stakeholder-req]
-`,
-  ]);
-  const result = mergeChain(chain);
-  assertEquals(result.diagnostics, []);
-  const trace = result.effective!.identified.traceability
-    .get("Derived-from")!;
-  assertEquals(trace.value.target, ["stakeholder-req"]);
-});
-
-Deno.test("mergeChain: child adds shape matcher not in parent emits PROFILE-MERGE-002", () => {
-  const chain = multiTierChain([
-    `
-id: "@acme/parent"
-version: 1.0.0
-profile:
-  identified:
-    traceability:
-      Derived-from:
-        target: [{shape: identified}]
-`,
-    `
-id: "@acme/child"
-version: 1.0.0
-extends: "../parent"
-profile:
-  identified:
-    traceability:
-      Derived-from:
-        target: [{shape: identified}, {shape: referenced}]
 `,
   ]);
   const result = mergeChain(chain);
@@ -817,7 +699,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [stakeholder-req]
@@ -830,7 +712,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       traceability:
         Derived-from:
           target: [stakeholder-req]
@@ -889,7 +771,7 @@ profile:
     primary: blue
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: primary
 `);
   const result = mergeChain(chain);
@@ -908,7 +790,7 @@ profile:
     primary: blue
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: missing
 `);
   const result = mergeChain(chain);
@@ -936,7 +818,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: primary
 `,
   ]);
@@ -958,7 +840,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: primary
 `,
     `
@@ -989,7 +871,7 @@ profile:
     new: blue
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: new
 `,
     `
@@ -999,7 +881,7 @@ extends: "../parent"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: new
 `,
   ]);
@@ -1008,4 +890,101 @@ profile:
   const t = result.effective!.types.get("requirement")!;
   assertEquals(t.value.color.value, "new");
   assertEquals(t.value.color.origin, "@acme/child");
+});
+
+// ─── Tier 2: MERGE code reclassification ─────────────────────────────────────
+
+Deno.test("mergeChain (Tier 2): cardinality relaxation emits PROFILE-MERGE-010", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      required: true
+      cardinality: "1..1"
+      values: [Open, Closed]
+  types:
+    req:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Status
+      type: enum
+      cardinality: "0..1"
+      values: [Open]
+  types:
+    req:
+      extends: Requirement
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-010");
+});
+
+Deno.test("mergeChain (Tier 2): attribute type mismatch emits PROFILE-MERGE-011", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  attributes:
+    - name: Ref
+      type: id
+  types:
+    req:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  attributes:
+    - name: Ref
+      type: text
+  types:
+    req:
+      extends: Requirement
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-011");
+});
+
+Deno.test("mergeChain (Tier 2): conflicting extends: targets emits PROFILE-MERGE-012", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    req:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    req:
+      extends: Test
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "PROFILE-MERGE-012");
 });

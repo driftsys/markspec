@@ -19,11 +19,6 @@ profile:
     warning: orange
     danger: red
 
-  identified:
-    attributes: []
-  referenced:
-    attributes: []
-
   types: {}
 
   documents:

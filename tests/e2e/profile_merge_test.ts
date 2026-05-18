@@ -18,7 +18,7 @@ profile:
       values: [draft, approved, deprecated]
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
 `;
 
@@ -32,7 +32,7 @@ profile:
       values: [draft, approved]
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
 `;
 
@@ -72,7 +72,7 @@ Deno.test("profile merge e2e: valid two-tier chain loads cleanly", async () => {
   assertEquals(lines, []);
 });
 
-Deno.test("profile merge e2e: relaxation in child fails with PROFILE-MERGE-001", async () => {
+Deno.test("profile merge e2e: relaxation in child fails with PROFILE-MERGE-010", async () => {
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
@@ -83,7 +83,7 @@ Deno.test("profile merge e2e: relaxation in child fails with PROFILE-MERGE-001",
     },
   });
   assertEquals(code, 1);
-  assertStringIncludes(stderr, "PROFILE-MERGE-001");
+  assertStringIncludes(stderr, "PROFILE-MERGE-010");
 });
 
 Deno.test("profile merge e2e: direct extends cycle fails with PROFILE-LOAD-004", async () => {

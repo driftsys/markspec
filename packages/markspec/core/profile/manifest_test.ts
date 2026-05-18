@@ -68,7 +68,6 @@ Deno.test("parseManifest: profile section accepts only recognized keys", () => {
 id: "@acme/x"
 version: 1.0.0
 profile:
-  required: []
   nonsense: {}
 `);
   assertEquals(result.manifest, null);
@@ -78,13 +77,12 @@ profile:
   }
 });
 
-Deno.test("parseManifest: universal attributes + required + labels", () => {
+Deno.test("parseManifest: universal attributes + labels", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
 markspec-schema: "1"
 profile:
-  required: [Status]
   labels: [DRAFT, INTERNAL]
   attributes:
     - name: Status
@@ -93,7 +91,6 @@ profile:
       required: false
 `);
   assertEquals(result.diagnostics.length, 0);
-  assertEquals(result.manifest?.universalRequired, ["Status"]);
   assertEquals(result.manifest?.labels, ["DRAFT", "INTERNAL"]);
   assertEquals(result.manifest?.universalAttributes.length, 1);
   const attr = result.manifest?.universalAttributes[0];
@@ -129,30 +126,6 @@ profile:
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
 });
 
-Deno.test("parseManifest: shape scopes parsed", () => {
-  const result = parseManifest(`
-id: "@acme/x"
-version: 1.0.0
-markspec-schema: "1"
-profile:
-  identified:
-    required: [Rationale]
-    attributes:
-      - name: Rationale
-        type: text
-  referenced:
-    attributes:
-      - name: Description
-        type: text
-`);
-  assertEquals(result.diagnostics.length, 0);
-  assertEquals(result.manifest?.identified.required, ["Rationale"]);
-  assertEquals(result.manifest?.identified.attributes.length, 1);
-  assertEquals(result.manifest?.identified.attributes[0].name, "Rationale");
-  assertEquals(result.manifest?.referenced.attributes.length, 1);
-  assertEquals(result.manifest?.referenced.attributes[0].name, "Description");
-});
-
 Deno.test("parseManifest: referenced.traceability is not a recognized key", () => {
   const result = parseManifest(`
 id: "@acme/x"
@@ -164,30 +137,6 @@ profile:
 `);
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
-});
-
-Deno.test("parseManifest: identified.traceability parsed", () => {
-  const result = parseManifest(`
-id: "@acme/x"
-version: 1.0.0
-markspec-schema: "1"
-profile:
-  identified:
-    traceability:
-      Derived-from:
-        target: [{shape: identified}]
-        cardinality: 0..N
-        required: false
-`);
-  assertEquals(result.diagnostics.length, 0);
-  const trace = result.manifest?.identified.traceability;
-  assertEquals(trace?.size, 1);
-  const rule = trace?.get("Derived-from");
-  assertEquals(rule?.target.length, 1);
-  assertEquals(rule?.target[0], { shape: "Authored" });
-  assertEquals(rule?.required, false);
-  assertEquals(rule?.cardinality?.lower, 0);
-  assertEquals(rule?.cardinality?.upper, Infinity);
 });
 
 Deno.test("parseManifest: traceability rejects bad shape matcher", () => {
@@ -226,7 +175,7 @@ markspec-schema: "1"
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: error
       required: [Rationale]
@@ -239,13 +188,13 @@ profile:
           cardinality: 1..N
           required: true
     standard:
-      shape: referenced
+      extends: Specification
 `);
   assertEquals(result.diagnostics.length, 0);
   const types = result.manifest?.types;
   assertEquals(types?.size, 2);
   const req = types?.get("requirement");
-  assertEquals(req?.shape, "Authored");
+  assertEquals(req?.extends, "Requirement");
   assertEquals(req?.displayIdPattern, "REQ-{n:04d}");
   assertEquals(req?.displayIdPatternEnforcement, "error");
   assertEquals(req?.required, ["Rationale"]);
@@ -253,50 +202,27 @@ profile:
   const trace = req?.traceability.get("Derived-from");
   assertEquals(trace?.target, ["stakeholder-requirement"]);
   const std = types?.get("standard");
-  assertEquals(std?.shape, "Reference");
+  assertEquals(std?.extends, "Specification");
   assertEquals(std?.displayIdPatternEnforcement, "off");
 });
 
-Deno.test("parseManifest: type must declare shape", () => {
-  const result = parseManifest(`
-id: "@acme/x"
-version: 1.0.0
-profile:
-  types:
-    requirement:
-      attributes: []
-`);
-  assertEquals(result.manifest, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
-});
-
-Deno.test("parseManifest: type with bad shape errors", () => {
-  const result = parseManifest(`
-id: "@acme/x"
-version: 1.0.0
-profile:
-  types:
-    thing:
-      shape: sideways
-`);
-  assertEquals(result.manifest, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
-});
-
-Deno.test("parseManifest: referenced type with traceability errors", () => {
+Deno.test("parseManifest: Specification-extending type with traceability is valid in Tier 2", () => {
   const result = parseManifest(`
 id: "@acme/x"
 version: 1.0.0
 profile:
   types:
     standard:
-      shape: referenced
+      extends: Specification
       traceability:
         Something:
           target: [other]
 `);
-  assertEquals(result.manifest, null);
-  assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+  assertExists(result.manifest);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error"),
+    [],
+  );
 });
 
 Deno.test("parseManifest: documents section parsed", () => {
@@ -421,7 +347,7 @@ markspec-schema: "1"
 profile:
   types:
     test:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Verifies
           type: id-list
@@ -442,7 +368,7 @@ version: 1.0.0
 profile:
   types:
     x:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Foo
           type: text
@@ -461,7 +387,7 @@ version: 1.0.0
 profile:
   types:
     x:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Link
           type: id-list
@@ -486,10 +412,7 @@ Deno.test("parseManifest: complete fixture parses without diagnostics", async ()
   assertEquals(m.id, "@acme/profile-complete");
   assertEquals(m.version, "1.2.3");
   assertEquals(m.extends, { kind: "local", path: "./base" });
-  assertEquals(m.universalRequired, ["Status"]);
   assertEquals(m.universalAttributes.length, 1);
-  assertEquals(m.identified.traceability.get("Derived-from")?.target.length, 1);
-  assertEquals(m.referenced.attributes[0].name, "Description");
   assertEquals(m.types.size, 3);
   assertEquals(m.types.get("test")?.attributes[0].inverse?.name, "Verified-by");
   assertEquals(m.documents.types.length, 2);
@@ -526,7 +449,7 @@ version: 1.0.0
 profile:
   types:
     x:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Link
           type: id-list
@@ -559,7 +482,7 @@ version: 1.0.0
 profile:
   types:
     x:
-      shape: identified
+      extends: Requirement
       attributes:
         - name: Link
           type: id-list
@@ -577,11 +500,13 @@ Deno.test("parseManifest: unknown key on trace rule errors", () => {
 id: "@acme/x"
 version: 1.0.0
 profile:
-  identified:
-    traceability:
-      Bad:
-        target: [{shape: identified}]
-        garbage: 1
+  types:
+    req:
+      extends: Requirement
+      traceability:
+        Bad:
+          target: [stakeholder-req]
+          garbage: 1
 `);
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
@@ -613,8 +538,6 @@ profile:
     accent: red
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types: {}
   documents: { types: [], frontMatter: [] }
 `;
@@ -637,8 +560,6 @@ profile:
     primary: indigo
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types: {}
   documents: { types: [], frontMatter: [] }
 `;
@@ -659,8 +580,6 @@ profile:
     "Primary": blue
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types: {}
   documents: { types: [], frontMatter: [] }
 `;
@@ -681,11 +600,9 @@ profile:
     primary: blue
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: primary
   documents: { types: [], frontMatter: [] }
 `;
@@ -700,7 +617,7 @@ profile:
   assertEquals(reqType.color, "primary");
 });
 
-Deno.test("parseManifest: color on referenced type emits MSL-PROFILE-COLOR-001 warning", () => {
+Deno.test("parseManifest: Specification-extending type with color loads cleanly in Tier 2 (no MSL-PROFILE-COLOR-001)", () => {
   const yaml = `
 id: test
 version: 1.0.0
@@ -709,21 +626,18 @@ profile:
     primary: blue
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types:
     standard:
-      shape: referenced
+      extends: Specification
       color: primary
   documents: { types: [], frontMatter: [] }
 `;
   const result = parseManifest(yaml, "test.yaml");
-  const warn = result.diagnostics.find((d) =>
+  // MSL-PROFILE-COLOR-001 (color on referenced type) was removed in Tier 2.
+  const color001 = result.diagnostics.find((d) =>
     d.code === "MSL-PROFILE-COLOR-001"
   );
-  assertExists(warn);
-  assertEquals(warn.severity, "warning");
-  // Manifest still loads — warning, not error.
+  assertEquals(color001, undefined);
   assertExists(result.manifest);
 });
 
@@ -775,11 +689,9 @@ markspec-schema: "1"
 profile:
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types:
     req:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       unknown-per-type-key: bad
   documents: { types: [], frontMatter: [] }
@@ -792,4 +704,127 @@ profile:
     d.code === "PROFILE-LOAD-003" && d.message.includes("unknown-per-type-key")
   );
   assertEquals(load003, undefined);
+});
+
+// ─── Tier 2: extends: replaces shape:, scope sections removed ────────────────
+
+Deno.test("parseManifest (Tier 2): missing extends: in type emits PROFILE-TYPE-001", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    req:
+      display-id-pattern: "REQ-{n:04d}"
+`;
+  const result = parseManifest(yaml);
+  const d = result.diagnostics.find((d) => d.code === "PROFILE-TYPE-001");
+  assertExists(d);
+  assertEquals(d.severity, "error");
+  assertEquals(result.manifest, null);
+});
+
+Deno.test("parseManifest (Tier 2): extends: pointing to unknown core type emits PROFILE-TYPE-002", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    req:
+      extends: NotAType
+      display-id-pattern: "REQ-{n:04d}"
+`;
+  const result = parseManifest(yaml);
+  const d = result.diagnostics.find((d) => d.code === "PROFILE-TYPE-002");
+  assertExists(d);
+  assertEquals(d.severity, "error");
+  assertEquals(result.manifest, null);
+});
+
+Deno.test("parseManifest (Tier 2): extends: with valid core type is accepted", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    req:
+      extends: Requirement
+      display-id-pattern: "REQ-{n:04d}"
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  assertExists(result.manifest);
+  const req = result.manifest!.types.get("req");
+  assertExists(req);
+  assertEquals(req.extends, "Requirement");
+});
+
+Deno.test("parseManifest (Tier 2): identified: at profile root is unknown key", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  identified:
+    attributes: []
+`;
+  const result = parseManifest(yaml);
+  const d = result.diagnostics.find(
+    (d) => d.code === "PROFILE-LOAD-003" && d.message.includes("'identified'"),
+  );
+  assertExists(d);
+  assertEquals(d.severity, "error");
+});
+
+Deno.test("parseManifest (Tier 2): referenced: at profile root is unknown key", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  referenced:
+    attributes: []
+`;
+  const result = parseManifest(yaml);
+  const d = result.diagnostics.find(
+    (d) => d.code === "PROFILE-LOAD-003" && d.message.includes("'referenced'"),
+  );
+  assertExists(d);
+  assertEquals(d.severity, "error");
+});
+
+Deno.test("parseManifest (Tier 2): required: at profile root is unknown key", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  required: [Status]
+`;
+  const result = parseManifest(yaml);
+  const d = result.diagnostics.find(
+    (d) => d.code === "PROFILE-LOAD-003" && d.message.includes("'required'"),
+  );
+  assertExists(d);
+  assertEquals(d.severity, "error");
+});
+
+Deno.test("parseManifest (Tier 2): shape: in type def is unknown key (PROFILE-TYPE-005)", () => {
+  const yaml = `
+id: test
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    req:
+      extends: Requirement
+      shape: Authored
+`;
+  const result = parseManifest(yaml);
+  const d = result.diagnostics.find((d) => d.code === "PROFILE-TYPE-005");
+  assertExists(d);
+  assertEquals(d.severity, "error");
 });

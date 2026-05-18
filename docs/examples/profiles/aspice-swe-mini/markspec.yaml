@@ -4,6 +4,7 @@
 
 id: "@markspec/profile-aspice-swe-mini"
 version: 0.1.0
+markspec-schema: "1"
 description: Minimal ASPICE SWE vertical (design validation)
 license: MIT
 extends: "npm:@markspec/profile-default@^1.0"
@@ -11,7 +12,7 @@ extends: "npm:@markspec/profile-default@^1.0"
 profile:
 
   # ==========================================================================
-  # Universal — applies to every entry regardless of shape or type
+  # Universal — applies to every entry regardless of type
   # ==========================================================================
   attributes:
     - { name: External-id, type: external-id, cardinality: 0..1 }
@@ -29,33 +30,17 @@ profile:
     - manual
 
   # ==========================================================================
-  # Per-shape defaults (the two core shapes from ADR-009 §1)
-  # ==========================================================================
-  identified:
-    attributes:
-      - { name: Derived-from, type: id-list }
-      - { name: Realized-by,  type: id-list }
-      - { name: Verifies,     type: id-list }
-      - { name: Tests,        type: id-list }
-    traceability:
-      Derived-from: { target: [{ shape: identified }] }
-
-  referenced:
-    attributes:
-      - { name: Reference-url, type: url, cardinality: 0..1 }
-
-  # ==========================================================================
-  # Per-type — each type declares its shape and tightens rules
+  # Per-type — each type declares its core-type extension and tightens rules
   # ==========================================================================
   types:
     stakeholder-requirement:
-      shape: identified
+      extends: Requirement
       color: primary
       description: Stakeholder requirement (SWE.1 input)
       display-id-pattern: "STK_{scope}_{n:04d}"
 
     software-requirement:
-      shape: identified
+      extends: Requirement
       color: primary
       description: Software requirement (SWE.1 output)
       display-id-pattern: "SRS_{scope}_{n:04d}"
@@ -67,7 +52,7 @@ profile:
           required: true
 
     software-element:
-      shape: identified
+      extends: SoftwareComponent
       color: secondary
       description: Software element spec (SWE.2)
       display-id-pattern: "SWE_{scope}_{n:04d}"
@@ -83,7 +68,7 @@ profile:
           required: true
 
     unit:
-      shape: identified
+      extends: SoftwareUnit
       color: tertiary
       description: Source-code unit (function, method, module)
       # display-id-pattern-enforcement: off  # namespace-path IDs
@@ -91,7 +76,7 @@ profile:
         - { name: Element-kind, type: enum, values: [module, class, function, source] }
 
     unit-test:
-      shape: identified
+      extends: Test
       color: danger
       description: Software unit test (SWE.4)
       display-id-pattern: "SWT_{scope}_{n:04d}"
@@ -107,7 +92,7 @@ profile:
           required: true
 
     integration-test:
-      shape: identified
+      extends: Test
       color: danger
       description: Software integration test (SWE.5)
       display-id-pattern: "SIT_{scope}_{n:04d}"
@@ -119,7 +104,7 @@ profile:
           required: true
 
     standard:
-      shape: referenced
+      extends: Specification
       description: External normative standard (ISO, DO, IEC, RFC, …)
 
   # ==========================================================================

@@ -5,31 +5,15 @@ description: A complete fixture exercising every Phase 1 parser feature
 license: MIT
 extends: "./base"
 profile:
-  required: [Status]
   labels: [DRAFT, INTERNAL]
   attributes:
     - name: Status
       type: enum
       values: [draft, approved, deprecated]
       required: false
-  identified:
-    required: [Rationale]
-    attributes:
-      - name: Rationale
-        type: text
-    traceability:
-      Derived-from:
-        target: [{ shape: identified }]
-        cardinality: 0..N
-        required: false
-  referenced:
-    required: []
-    attributes:
-      - name: Description
-        type: text
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: warn
       required: [Rationale]
@@ -43,7 +27,7 @@ profile:
           cardinality: 1..N
           required: true
     test:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "TEST-{n:04d}"
       attributes:
         - name: Verifies
@@ -52,7 +36,7 @@ profile:
             name: Verified-by
             category: requirement
     standard:
-      shape: referenced
+      extends: Specification
   documents:
     types:
       - id: requirements-doc

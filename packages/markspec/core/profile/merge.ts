@@ -13,12 +13,10 @@ import type {
   Diagnostic,
   DocTypeDef,
   EffectiveProfile,
-  EffectiveShapeScope,
   EffectiveTypeDef,
   LoadedProfile,
   ProfileChain,
   ProfileId,
-  ProfileManifest,
   ProvenancedMap,
   ProvenancedMapEntry,
   ProvenancedValue,
@@ -104,7 +102,6 @@ function foldTier(
   const m = tier.manifest;
 
   // Universal additive.
-  const required = unionList(base.required, m.universalRequired, origin);
   const labels = unionList(base.labels, m.labels, origin);
   const attributes = unionAttrMap(
     base.attributes,
@@ -116,41 +113,6 @@ function foldTier(
   // Colors map: last-write-wins per key, additive across tiers.
   const colors = unionColorsMap(base.colors, m.colors, origin);
 
-  // Shape scopes — same additive pattern.
-  const identified: EffectiveShapeScope = {
-    required: unionList(
-      base.identified.required,
-      m.identified.required,
-      origin,
-    ),
-    attributes: unionAttrMap(
-      base.identified.attributes,
-      m.identified.attributes,
-      origin,
-      diagnostics,
-    ),
-    traceability: unionTraceMap(
-      base.identified.traceability,
-      m.identified.traceability,
-      origin,
-      diagnostics,
-    ),
-  };
-  const referenced: EffectiveShapeScope = {
-    required: unionList(
-      base.referenced.required,
-      m.referenced.required,
-      origin,
-    ),
-    attributes: unionAttrMap(
-      base.referenced.attributes,
-      m.referenced.attributes,
-      origin,
-      diagnostics,
-    ),
-    traceability: base.referenced.traceability, // always empty
-  };
-
   // Types — add new types, fold existing ones.
   const types = new Map(base.types);
   for (const [name, td] of m.types) {
@@ -159,7 +121,7 @@ function foldTier(
       // Fresh type contributed by this tier.
       const eff: EffectiveTypeDef = {
         name,
-        shape: td.shape,
+        extends: td.extends,
         displayIdPattern: { value: td.displayIdPattern, origin },
         displayIdPatternEnforcement: {
           value: td.displayIdPatternEnforcement,
@@ -201,12 +163,9 @@ function foldTier(
   );
 
   const result: EffectiveProfile = {
-    required,
     attributes,
     labels,
     colors,
-    identified,
-    referenced,
     types,
     documents: {
       types: docTypes,
@@ -352,6 +311,7 @@ function tightenAttr(
       "type",
       `${parent.type} (${existing.origin})`,
       `${child.type} (${childOrigin})`,
+      "PROFILE-MERGE-011",
     ));
     return undefined;
   }
@@ -436,13 +396,14 @@ function tightenType(
   const name = child.name;
   const effExisting = existing.value;
 
-  // Shape must match.
-  if (effExisting.shape !== child.shape) {
+  // extends: must match — conflicting core-type targets is a merge error.
+  if (effExisting.extends !== child.extends) {
     diagnostics.push(mergeRelaxation(
       `type '${name}'`,
-      "shape",
-      `${effExisting.shape} (${existing.origin})`,
-      `${child.shape} (${childOrigin})`,
+      "extends",
+      `${effExisting.extends} (${existing.origin})`,
+      `${child.extends} (${childOrigin})`,
+      "PROFILE-MERGE-012",
     ));
     return undefined;
   }
@@ -516,7 +477,7 @@ function tightenType(
 
   const merged: EffectiveTypeDef = {
     name,
-    shape: effExisting.shape,
+    extends: effExisting.extends,
     displayIdPattern,
     displayIdPatternEnforcement: enforcement,
     color,
@@ -536,9 +497,10 @@ function mergeRelaxation(
   field: string,
   parentView: string,
   childView: string,
+  code: string = "PROFILE-MERGE-010",
 ): Diagnostic {
   return {
-    code: "PROFILE-MERGE-001",
+    code,
     severity: "error",
     message:
       `${subject}: field '${field}' relaxed by child (parent: ${parentView}, child: ${childView})`,
@@ -690,16 +652,9 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
   const m = tier.manifest;
 
   return {
-    required: { value: m.universalRequired, origin },
     attributes: mapFromAttrList(m.universalAttributes, origin),
     labels: { value: m.labels, origin },
     colors: mapFromColors(m.colors, origin),
-    identified: buildShapeScope(m.identified, origin),
-    referenced: {
-      required: { value: m.referenced.required, origin },
-      attributes: mapFromAttrList(m.referenced.attributes, origin),
-      traceability: new Map(),
-    },
     types: mapFromTypes(m.types, origin),
     documents: {
       types: mapFromDocTypes(m.documents.types, origin),
@@ -717,17 +672,6 @@ function mapFromColors(
     out.set(name, { value: hue, origin });
   }
   return out;
-}
-
-function buildShapeScope(
-  raw: ProfileManifest["identified"],
-  origin: ProfileId,
-): EffectiveShapeScope {
-  return {
-    required: { value: raw.required, origin },
-    attributes: mapFromAttrList(raw.attributes, origin),
-    traceability: mapFromTrace(raw.traceability, origin),
-  };
 }
 
 function mapFromAttrList(
@@ -760,7 +704,7 @@ function mapFromTypes(
   for (const [name, td] of types) {
     const eff: EffectiveTypeDef = {
       name,
-      shape: td.shape,
+      extends: td.extends,
       displayIdPattern: { value: td.displayIdPattern, origin },
       displayIdPatternEnforcement: {
         value: td.displayIdPatternEnforcement,

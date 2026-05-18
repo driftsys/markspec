@@ -19,7 +19,7 @@ import type {
 /** Per-type distillation. */
 export interface ProfileTypeView {
   readonly name: string;
-  readonly shape: string;
+  readonly extends: string;
   readonly displayIdPattern: string | undefined;
   readonly color: string | undefined;
   readonly requiredAttributes: readonly string[];
@@ -59,24 +59,19 @@ export function buildProfileView(
     description: t.manifest.description ?? "",
   }));
 
-  const universalRequired = [...eff.required.value];
+  const universalRequired: string[] = [];
   const universalAllowed = [...eff.attributes.keys()];
 
   const types: ProfileTypeView[] = [];
   for (const [name, entry] of eff.types) {
     const tdef: EffectiveTypeDef = entry.value;
-    const shape = tdef.shape;
-    const shapeScope = shape === "Authored" ? eff.identified : eff.referenced;
 
     const allowed = new Set<string>([
       ...tdef.attributes.keys(),
-      ...shapeScope.attributes.keys(),
       ...eff.attributes.keys(),
     ]);
     const required = new Set<string>([
       ...tdef.required.value,
-      ...shapeScope.required.value,
-      ...eff.required.value,
     ]);
     for (const r of required) allowed.delete(r);
 
@@ -95,7 +90,7 @@ export function buildProfileView(
 
     types.push({
       name,
-      shape,
+      extends: tdef.extends,
       displayIdPattern: tdef.displayIdPattern.value,
       color: tdef.color.value,
       requiredAttributes: [...required],
@@ -152,7 +147,7 @@ export function renderProfile(view: ProfileView | null): string {
       if (t.displayIdPattern) {
         lines.push(`- **Display-ID pattern**: \`${t.displayIdPattern}\``);
       }
-      lines.push(`- **Shape**: ${t.shape}`);
+      lines.push(`- **Extends**: ${t.extends}`);
       if (t.color) lines.push(`- **Color**: ${t.color}`);
       if (t.requiredAttributes.length > 0) {
         lines.push(

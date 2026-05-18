@@ -39,7 +39,6 @@ function buildEntry(opts: {
 
 function buildType(opts: {
   name: string;
-  shape: EntryShape;
   displayIdPattern?: string;
   enforcement?: "off" | "warn" | "error";
 }): ProvenancedMapEntry<EffectiveTypeDef> {
@@ -47,7 +46,7 @@ function buildType(opts: {
   return {
     value: {
       name: opts.name,
-      shape: opts.shape,
+      extends: "Requirement",
       displayIdPattern: { value: opts.displayIdPattern, origin },
       displayIdPatternEnforcement: {
         value: opts.enforcement ?? "off",
@@ -69,20 +68,9 @@ function buildProfile(
   const typesMap = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
   for (const t of types) typesMap.set(t.value.name, t);
   return {
-    required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
     colors: new Map(),
-    identified: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    referenced: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -92,7 +80,6 @@ Deno.test("classifyEntry: unique pattern match classifies entry", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
@@ -106,7 +93,6 @@ Deno.test("classifyEntry: no match + strict mode emits MSL-T003", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
@@ -120,12 +106,10 @@ Deno.test("classifyEntry: ambiguous match emits MSL-T002", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n}",
     }),
     buildType({
       name: "req-extended",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
@@ -135,17 +119,17 @@ Deno.test("classifyEntry: ambiguous match emits MSL-T002", () => {
   assertEquals(result.diagnostics[0].code, "MSL-T002");
 });
 
-Deno.test("classifyEntry: only types with matching shape are considered", () => {
+Deno.test("classifyEntry: all types participate in pattern match regardless of extends", () => {
+  // Tier 2: types no longer have a 'shape' field; all participate in pattern
+  // matching. Only the entry's own shape guards classification (Authored only).
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
     buildType({
       name: "citation",
-      shape: "Reference",
-      displayIdPattern: "REQ-{n:04d}",
+      displayIdPattern: "CIT-{n:04d}",
     }),
   ]);
   const entry = buildEntry({ displayId: "REQ-0001", shape: "Authored" });
@@ -158,7 +142,6 @@ Deno.test("classifyEntry: explicit Type: trailer used when present", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
@@ -174,7 +157,7 @@ Deno.test("classifyEntry: explicit Type: trailer used when present", () => {
 
 Deno.test("classifyEntry: explicit Type: unknown value emits MSL-T001", () => {
   const profile = buildProfile([
-    buildType({ name: "requirement", shape: "Authored" }),
+    buildType({ name: "requirement" }),
   ]);
   const entry = buildEntry({
     displayId: "REQ-0001",
@@ -190,12 +173,10 @@ Deno.test("classifyEntry: explicit Type: overrides pattern inference", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n}",
     }),
     buildType({
       name: "note",
-      shape: "Authored",
       displayIdPattern: "NOTE-{n}",
     }),
   ]);
@@ -219,7 +200,7 @@ Deno.test("classifyEntry: permissive (empty types map) never emits MSL-T003", ()
 
 Deno.test("classifyEntry: type without pattern doesn't participate in pattern match", () => {
   const profile = buildProfile([
-    buildType({ name: "generic", shape: "Authored" }),
+    buildType({ name: "generic" }),
   ]);
   const entry = buildEntry({ displayId: "FOO-001", shape: "Authored" });
   const result = classifyEntry(entry, profile);
@@ -231,7 +212,6 @@ Deno.test("classifyEntriesStage: sets entry.type on successful classification", 
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
@@ -259,7 +239,6 @@ Deno.test("classifyEntriesStage: accumulates diagnostics across entries", () => 
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
     }),
   ]);
@@ -277,7 +256,6 @@ Deno.test("classifyEntriesStage: MSL-T004 warn when enforcement=warn and pattern
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "warn",
     }),
@@ -304,7 +282,6 @@ Deno.test("classifyEntriesStage: MSL-T004 error when enforcement=error", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "error",
     }),
@@ -330,7 +307,6 @@ Deno.test("classifyEntriesStage: no MSL-T004 when enforcement=off", () => {
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "off",
     }),
@@ -351,7 +327,6 @@ Deno.test("classifyEntriesStage: pattern-matched classification is never MSL-T00
   const profile = buildProfile([
     buildType({
       name: "requirement",
-      shape: "Authored",
       displayIdPattern: "REQ-{n:04d}",
       enforcement: "error",
     }),
@@ -372,7 +347,6 @@ Deno.test("classifyEntry: Reference-shape entry is NOT classified by display-id-
   const profile = buildProfile([
     buildType({
       name: "external-ref",
-      shape: "Reference",
       displayIdPattern: "EXT-{n:04d}",
     }),
   ]);

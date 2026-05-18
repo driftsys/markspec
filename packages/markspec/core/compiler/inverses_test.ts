@@ -3,7 +3,6 @@ import { generateInverses } from "./inverses.ts";
 import type {
   AttrDecl,
   EffectiveProfile,
-  EffectiveShapeScope,
   EffectiveTypeDef,
   Entry,
   ProvenancedMap,
@@ -53,23 +52,16 @@ function attrDecl(
   };
 }
 
-const emptyShapeScope: EffectiveShapeScope = {
-  required: { value: [], origin: "test-profile" },
-  attributes: new Map(),
-  traceability: new Map(),
-};
-
 function makeProfile(
   typeAttrs: Record<string, Record<string, AttrDecl>> = {},
   universalAttrs: Record<string, AttrDecl> = {},
-  identifiedAttrs: Record<string, AttrDecl> = {},
 ): EffectiveProfile {
   const types = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
   for (const [typeName, attrs] of Object.entries(typeAttrs)) {
     types.set(typeName, {
       value: {
         name: typeName,
-        shape: "Authored",
+        extends: "Item",
         displayIdPattern: { value: undefined, origin: "test-profile" },
         displayIdPatternEnforcement: { value: "off", origin: "test-profile" },
         color: { value: undefined, origin: "test-profile" },
@@ -81,15 +73,9 @@ function makeProfile(
     });
   }
   return {
-    required: { value: [], origin: "test-profile" },
     attributes: pm(universalAttrs),
     labels: { value: [], origin: "test-profile" },
     colors: new Map(),
-    identified: {
-      ...emptyShapeScope,
-      attributes: pm(identifiedAttrs),
-    },
-    referenced: emptyShapeScope,
     types,
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -386,16 +372,16 @@ Deno.test("generateInverses: inverse from universal-scope attribute", () => {
   );
 });
 
-Deno.test("generateInverses: inverse from identified-shape-scope attribute", () => {
+Deno.test("generateInverses: inverse from per-type scope attribute", () => {
   const profile = makeProfile(
-    { requirement: {} },
-    {},
     {
-      Satisfies: attrDecl({
-        name: "Satisfies",
-        type: "id-list",
-        inverse: { name: "Satisfied-by", category: "requirement" },
-      }),
+      requirement: {
+        Satisfies: attrDecl({
+          name: "Satisfies",
+          type: "id-list",
+          inverse: { name: "Satisfied-by", category: "requirement" },
+        }),
+      },
     },
   );
 
