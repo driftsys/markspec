@@ -33,7 +33,8 @@ function singleTierChain(yaml: string): ProfileChain {
     tiers: [tier],
     effective: {
       attributes: new Map(),
-      labels: { value: [], origin: tier.id },
+      labels: new Map(),
+      conventions: new Map(),
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
@@ -48,7 +49,7 @@ Deno.test("mergeChain: single-tier empty profile produces empty effective profil
   const result = mergeChain(chain);
   assertEquals(result.diagnostics, []);
   const eff = result.effective!;
-  assertEquals(eff.labels.value, []);
+  assertEquals(eff.labels.size, 0);
   assertEquals(eff.attributes.size, 0);
   assertEquals(eff.types.size, 0);
   assertEquals(eff.documents.types.size, 0);
@@ -130,7 +131,8 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
     tiers,
     effective: {
       attributes: new Map(),
-      labels: { value: [], origin: tiers[0].id },
+      labels: new Map(),
+      conventions: new Map(),
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
@@ -186,7 +188,8 @@ profile:
   const result = mergeChain(chain);
   assertEquals(result.diagnostics, []);
   // Union without duplicates, parent entries first.
-  assertEquals(result.effective!.labels.value, ["DRAFT", "INTERNAL", "PUBLIC"]);
+  const labelKeys = [...result.effective!.labels.keys()];
+  assertEquals(labelKeys, ["DRAFT", "INTERNAL", "PUBLIC"]);
 });
 
 Deno.test("mergeChain: additive — child adds a new type", () => {

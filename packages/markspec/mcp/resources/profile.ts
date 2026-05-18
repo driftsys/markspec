@@ -113,7 +113,7 @@ export function buildProfileView(
     universalRequired,
     universalAllowed,
     linkKinds: [...linkKinds].sort(),
-    labels: [...eff.labels.value],
+    labels: [...eff.labels.keys()],
   };
 }
 

@@ -174,7 +174,8 @@ export interface ProfileManifest {
 
   // profile: content section
   readonly universalAttributes: readonly AttrDecl[];
-  readonly labels: readonly string[];
+  readonly labels: readonly LabelConcern[];
+  readonly conventions: readonly ProfileConvention[];
 
   /**
    * Semantic color-role bindings authored on this manifest.
@@ -274,7 +275,8 @@ export interface EffectiveTypeDef {
  */
 export interface EffectiveProfile {
   readonly attributes: ProvenancedMap<AttrDecl>;
-  readonly labels: ProvenancedValue<readonly string[]>;
+  readonly labels: ProvenancedMap<LabelConcern>;
+  readonly conventions: ProvenancedMap<ProfileConvention>;
   /** Semantic color-role bindings merged across the chain. */
   readonly colors: ProvenancedMap<string>;
   readonly types: ProvenancedMap<EffectiveTypeDef>;

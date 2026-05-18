@@ -14,8 +14,10 @@ import type {
   DocTypeDef,
   EffectiveProfile,
   EffectiveTypeDef,
+  LabelConcern,
   LoadedProfile,
   ProfileChain,
+  ProfileConvention,
   ProfileId,
   ProvenancedMap,
   ProvenancedMapEntry,
@@ -102,7 +104,12 @@ function foldTier(
   const m = tier.manifest;
 
   // Universal additive.
-  const labels = unionList(base.labels, m.labels, origin);
+  const labels = unionLabelMap(base.labels, m.labels, origin, diagnostics);
+  const conventions = unionConventionsMap(
+    base.conventions,
+    m.conventions,
+    origin,
+  );
   const attributes = unionAttrMap(
     base.attributes,
     m.universalAttributes,
@@ -168,6 +175,7 @@ function foldTier(
   const result: EffectiveProfile = {
     attributes,
     labels,
+    conventions,
     colors,
     types,
     documents: {
@@ -683,7 +691,8 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
 
   return {
     attributes: mapFromAttrList(m.universalAttributes, origin),
-    labels: { value: m.labels, origin },
+    labels: mapFromLabelConcerns(m.labels, origin),
+    conventions: mapFromConventions(m.conventions, origin),
     colors: mapFromColors(m.colors, origin),
     types: mapFromTypes(m.types, origin),
     documents: {
@@ -700,6 +709,95 @@ function mapFromColors(
   const out = new Map<string, ProvenancedMapEntry<string>>();
   for (const [name, hue] of colors) {
     out.set(name, { value: hue, origin });
+  }
+  return out;
+}
+
+function mapFromLabelConcerns(
+  concerns: readonly LabelConcern[],
+  origin: ProfileId,
+): ProvenancedMap<LabelConcern> {
+  const out = new Map<string, ProvenancedMapEntry<LabelConcern>>();
+  for (const c of concerns) {
+    out.set(c.name, { value: c, origin });
+  }
+  return out;
+}
+
+function mapFromConventions(
+  conventions: readonly ProfileConvention[],
+  origin: ProfileId,
+): ProvenancedMap<ProfileConvention> {
+  const out = new Map<string, ProvenancedMapEntry<ProfileConvention>>();
+  for (const c of conventions) {
+    out.set(c.name, { value: c, origin });
+  }
+  return out;
+}
+
+function unionLabelMap(
+  parent: ProvenancedMap<LabelConcern>,
+  childConcerns: readonly LabelConcern[],
+  childOrigin: ProfileId,
+  diagnostics: Diagnostic[],
+): ProvenancedMap<LabelConcern> {
+  if (childConcerns.length === 0) return parent;
+  const out = new Map(parent);
+  for (const c of childConcerns) {
+    const existing = out.get(c.name);
+    if (!existing) {
+      out.set(c.name, { value: c, origin: childOrigin });
+      continue;
+    }
+    if (existing.value.kind !== c.kind) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `label concern '${c.name}': kind '${c.kind}' (${childOrigin}) conflicts with '${existing.value.kind}' (${existing.origin})`,
+        location: { file: "<merge>", line: 1, column: 1 },
+      });
+      continue;
+    }
+    // Union values; child description wins when set.
+    const parentValueNames = new Set(existing.value.values.map((v) => v.name));
+    const mergedValues = [
+      ...existing.value.values,
+      ...c.values.filter((v) => !parentValueNames.has(v.name)),
+    ];
+    const merged: LabelConcern = {
+      name: c.name,
+      kind: c.kind,
+      description: c.description !== undefined
+        ? c.description
+        : existing.value.description,
+      values: mergedValues,
+    };
+    out.set(c.name, {
+      value: merged,
+      origin: childOrigin,
+      overrides: [...(existing.overrides ?? []), existing.origin],
+    });
+  }
+  return out;
+}
+
+function unionConventionsMap(
+  parent: ProvenancedMap<ProfileConvention>,
+  childConventions: readonly ProfileConvention[],
+  childOrigin: ProfileId,
+): ProvenancedMap<ProfileConvention> {
+  if (childConventions.length === 0) return parent;
+  const out = new Map(parent);
+  for (const c of childConventions) {
+    const existing = out.get(c.name);
+    out.set(c.name, {
+      value: c,
+      origin: childOrigin,
+      overrides: existing
+        ? [...(existing.overrides ?? []), existing.origin]
+        : undefined,
+    });
   }
   return out;
 }

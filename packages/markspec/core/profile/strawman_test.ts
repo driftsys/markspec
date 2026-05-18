@@ -97,8 +97,8 @@ Deno.test("strawman: effective profile has all 7 types", async () => {
 Deno.test("strawman: effective profile has ASIL labels", async () => {
   const result = await loadStrawmanChain();
   assertExists(result.chain);
-  const labels = result.chain.effective.labels.value;
-  const asilLabels = labels.filter((l: string) =>
+  const labelKeys = [...result.chain.effective.labels.keys()];
+  const asilLabels = labelKeys.filter((l) =>
     l === "QM" || l.startsWith("ASIL-")
   );
   assertEquals(asilLabels.length, 5); // QM, ASIL-A, ASIL-B, ASIL-C, ASIL-D

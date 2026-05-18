@@ -56,7 +56,8 @@ function makeProfile(
   );
   return {
     attributes: new Map(),
-    labels: { value: [], origin: "test" },
+    labels: new Map(),
+    conventions: new Map(),
     colors: colorsMap,
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
