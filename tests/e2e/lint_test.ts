@@ -17,7 +17,8 @@ version: 0.0.1
 `;
 
 /** A clean requirement with no lint issues. */
-const CLEAN_FIXTURE = `- [REQ-001] System shall process sensor data within 100 milliseconds
+const CLEAN_FIXTURE =
+  `- [REQ-001] System shall process sensor data within 100 milliseconds
 
   The system shall receive sensor readings from all active channels and
   process each reading within the required latency budget for real-time

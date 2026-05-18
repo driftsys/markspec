@@ -33,7 +33,8 @@ export function runStructRules(entry: Entry): LintDiagnostic[] {
       severity: "info",
       scoreContribution: 1,
       group: "struct",
-      message: `struct-title-length: title is ${dir} (${titleLen} chars; expected ${TITLE_MIN_LENGTH}–${TITLE_MAX_LENGTH})`,
+      message:
+        `struct-title-length: title is ${dir} (${titleLen} chars; expected ${TITLE_MIN_LENGTH}–${TITLE_MAX_LENGTH})`,
       location,
     });
   }
@@ -49,7 +50,8 @@ export function runStructRules(entry: Entry): LintDiagnostic[] {
       severity: "info",
       scoreContribution: 1,
       group: "struct",
-      message: `struct-body-length: body is ${dir} (${wordCount} words; expected ${BODY_MIN_WORDS}–${BODY_MAX_WORDS})`,
+      message:
+        `struct-body-length: body is ${dir} (${wordCount} words; expected ${BODY_MIN_WORDS}–${BODY_MAX_WORDS})`,
       location,
     });
   }

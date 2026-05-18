@@ -20,7 +20,10 @@ function makeEntry(overrides: Partial<Entry> = {}): Entry {
     bodyAst: [
       {
         kind: "paragraph",
-        content: { text: "The system shall process data correctly.", markers: [] },
+        content: {
+          text: "The system shall process data correctly.",
+          markers: [],
+        },
         range: {
           start: { line: 1, column: 1 },
           end: { line: 1, column: 40 },
@@ -107,7 +110,10 @@ Deno.test("runLint: MSL-Q302 fires for 'some' in body", () => {
       {
         kind: "paragraph",
         content: { text, markers: [] },
-        range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
       },
     ],
   });
@@ -124,7 +130,10 @@ Deno.test("runLint: MSL-Q303 fires for 'as appropriate' in body", () => {
       {
         kind: "paragraph",
         content: { text, markers: [] },
-        range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
       },
     ],
   });
@@ -152,7 +161,10 @@ Deno.test("runLint: MSL-Q401 fires when body has fewer than 5 words", () => {
       {
         kind: "paragraph",
         content: { text, markers: [] },
-        range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
       },
     ],
   });
@@ -215,7 +227,10 @@ Deno.test("runLint: valid Markspec-disable suppresses MSL-Q302", () => {
       {
         kind: "paragraph",
         content: { text, markers: [] },
-        range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
       },
     ],
     rawAttributes: [
@@ -248,7 +263,10 @@ Deno.test("runLint: diagnostics include slug, group, scoreContribution fields", 
       {
         kind: "paragraph",
         content: { text, markers: [] },
-        range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
       },
     ],
   });
@@ -274,7 +292,10 @@ Deno.test("runLint: output is deterministic for same input", () => {
       {
         kind: "paragraph",
         content: { text, markers: [] },
-        range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
       },
     ],
   });

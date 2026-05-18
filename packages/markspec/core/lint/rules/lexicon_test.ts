@@ -17,7 +17,10 @@ function makeParagraph(text: string): BodyBlock {
   return {
     kind: "paragraph",
     content: { text, markers: [] },
-    range: { start: { line: 1, column: 1 }, end: { line: 1, column: text.length } },
+    range: {
+      start: { line: 1, column: 1 },
+      end: { line: 1, column: text.length },
+    },
   };
 }
 
@@ -49,22 +52,30 @@ function makeEntry(text: string): Entry {
 // ---------------------------------------------------------------------------
 
 Deno.test("lexicon Q302: fires for 'some'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall use some mechanism."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall use some mechanism."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q302"), true);
 });
 
 Deno.test("lexicon Q302: fires for 'several'", () => {
-  const diags = runLexiconRules(makeEntry("The system handles several sensors."));
+  const diags = runLexiconRules(
+    makeEntry("The system handles several sensors."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q302"), true);
 });
 
 Deno.test("lexicon Q302: fires for 'adequate'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall provide adequate cooling."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall provide adequate cooling."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q302"), true);
 });
 
 Deno.test("lexicon Q302: does not fire on clean text", () => {
-  const diags = runLexiconRules(makeEntry("The system shall process all input data within 100ms."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall process all input data within 100ms."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q302"), false);
 });
 
@@ -78,22 +89,30 @@ Deno.test("lexicon Q302: is case-insensitive ('Some' fires)", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("lexicon Q303: fires for 'as appropriate'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall respond as appropriate."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall respond as appropriate."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q303"), true);
 });
 
 Deno.test("lexicon Q303: fires for 'where possible'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall retry where possible."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall retry where possible."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q303"), true);
 });
 
 Deno.test("lexicon Q303: fires for 'if practicable'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall log events if practicable."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall log events if practicable."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q303"), true);
 });
 
 Deno.test("lexicon Q303: does not fire on clean text", () => {
-  const diags = runLexiconRules(makeEntry("The system shall always respond within 100ms."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall always respond within 100ms."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q303"), false);
 });
 
@@ -102,12 +121,16 @@ Deno.test("lexicon Q303: does not fire on clean text", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("lexicon Q304: fires for 'etc.'", () => {
-  const diags = runLexiconRules(makeEntry("The system handles sensors, actuators, etc."));
+  const diags = runLexiconRules(
+    makeEntry("The system handles sensors, actuators, etc."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q304"), true);
 });
 
 Deno.test("lexicon Q304: fires for 'and/or'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall start and/or stop on command."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall start and/or stop on command."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q304"), true);
 });
 
@@ -119,7 +142,9 @@ Deno.test("lexicon Q304: fires for 'including but not limited to'", () => {
 });
 
 Deno.test("lexicon Q304: does not fire on clean text", () => {
-  const diags = runLexiconRules(makeEntry("The system shall handle sensor input."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall handle sensor input."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q304"), false);
 });
 
@@ -128,17 +153,23 @@ Deno.test("lexicon Q304: does not fire on clean text", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("lexicon Q305: fires for 'be able to'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall be able to process data."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall be able to process data."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q305"), true);
 });
 
 Deno.test("lexicon Q305: fires for 'be capable of'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall be capable of handling 100 requests."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall be capable of handling 100 requests."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q305"), true);
 });
 
 Deno.test("lexicon Q305: fires for 'in order to'", () => {
-  const diags = runLexiconRules(makeEntry("In order to start, the system shall check the clock."));
+  const diags = runLexiconRules(
+    makeEntry("In order to start, the system shall check the clock."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q305"), true);
 });
 
@@ -152,22 +183,30 @@ Deno.test("lexicon Q305: does not fire on clean text", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("lexicon Q310: fires for 'always'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall always respond within 100ms."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall always respond within 100ms."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q310"), true);
 });
 
 Deno.test("lexicon Q310: fires for 'never'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall never drop a safety message."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall never drop a safety message."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q310"), true);
 });
 
 Deno.test("lexicon Q310: fires for 'complete'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall provide complete coverage."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall provide complete coverage."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q310"), true);
 });
 
 Deno.test("lexicon Q310: does not fire on clean text", () => {
-  const diags = runLexiconRules(makeEntry("The system shall respond within 100ms."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall respond within 100ms."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q310"), false);
 });
 
@@ -176,17 +215,23 @@ Deno.test("lexicon Q310: does not fire on clean text", () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("lexicon Q313: fires for standalone 'not'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall not exceed the memory limit."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall not exceed the memory limit."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q313"), true);
 });
 
 Deno.test("lexicon Q313: does not fire on clean text without 'not'", () => {
-  const diags = runLexiconRules(makeEntry("The system shall process all data."));
+  const diags = runLexiconRules(
+    makeEntry("The system shall process all data."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q313"), false);
 });
 
 Deno.test("lexicon Q313: 'not' does not match 'note'", () => {
-  const diags = runLexiconRules(makeEntry("Note: the system shall process sensor data."));
+  const diags = runLexiconRules(
+    makeEntry("Note: the system shall process sensor data."),
+  );
   assertEquals(diags.some((d) => d.code === "MSL-Q313"), false);
 });
 

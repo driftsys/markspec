@@ -59,7 +59,8 @@ export function runSuppressionRules(entry: Entry): LintDiagnostic[] {
       severity: "warning",
       scoreContribution: 3,
       group: "disable",
-      message: "disable-without-rationale: 'Markspec-disable' requires a companion 'Rationale' attribute",
+      message:
+        "disable-without-rationale: 'Markspec-disable' requires a companion 'Rationale' attribute",
       location,
     });
   }
@@ -74,7 +75,8 @@ export function runSuppressionRules(entry: Entry): LintDiagnostic[] {
         severity: "warning",
         scoreContribution: 3,
         group: "disable",
-        message: `disable-unknown-rule: '${token}' is not a known lint rule code`,
+        message:
+          `disable-unknown-rule: '${token}' is not a known lint rule code`,
         location,
       });
     }
