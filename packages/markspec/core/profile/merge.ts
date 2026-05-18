@@ -131,6 +131,9 @@ function foldTier(
         required: { value: td.required, origin },
         attributes: mapFromAttrList(td.attributes, origin),
         traceability: mapFromTrace(td.traceability, origin),
+        description: { value: td.description, origin },
+        attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
+        relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
       };
       types.set(name, { value: eff, origin });
     } else {
@@ -372,6 +375,9 @@ function tightenAttr(
     cardinality: child.cardinality,
     values: parent.type === "enum" ? child.values : parent.values,
     inverse: child.inverse ?? parent.inverse,
+    description: child.description !== undefined
+      ? child.description
+      : parent.description,
   };
   const overrides = [
     ...(existing.overrides ?? []),
@@ -475,6 +481,27 @@ function tightenType(
     ? { value: child.color, origin: childOrigin }
     : effExisting.color;
 
+  // Description: child wins when set; else inherit parent provenance unchanged.
+  const description: ProvenancedValue<string | undefined> =
+    child.description !== undefined
+      ? { value: child.description, origin: childOrigin }
+      : effExisting.description;
+
+  const attrDescriptions = mergeDescriptionMap(
+    effExisting.attrDescriptions,
+    child.attributes.map((a) => ({ name: a.name, desc: a.description })),
+    childOrigin,
+  );
+
+  const relationDescriptions = mergeDescriptionMap(
+    effExisting.relationDescriptions,
+    [...child.traceability.entries()].map(([name, r]) => ({
+      name,
+      desc: r.description,
+    })),
+    childOrigin,
+  );
+
   const merged: EffectiveTypeDef = {
     name,
     extends: effExisting.extends,
@@ -484,6 +511,9 @@ function tightenType(
     required,
     attributes,
     traceability,
+    description,
+    attrDescriptions,
+    relationDescriptions,
   };
   const overrides = [
     ...(existing.overrides ?? []),
@@ -696,6 +726,53 @@ function mapFromTrace(
   return out;
 }
 
+function mapFromAttrDescriptions(
+  attrs: readonly AttrDecl[],
+  origin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map<string, ProvenancedMapEntry<string>>();
+  for (const a of attrs) {
+    if (a.description !== undefined) {
+      out.set(a.name, { value: a.description, origin });
+    }
+  }
+  return out;
+}
+
+function mapFromTraceDescriptions(
+  trace: ReadonlyMap<string, TraceRule>,
+  origin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map<string, ProvenancedMapEntry<string>>();
+  for (const [name, rule] of trace) {
+    if (rule.description !== undefined) {
+      out.set(name, { value: rule.description, origin });
+    }
+  }
+  return out;
+}
+
+function mergeDescriptionMap(
+  parent: ProvenancedMap<string>,
+  childItems: readonly { name: string; desc: string | undefined }[],
+  childOrigin: ProfileId,
+): ProvenancedMap<string> {
+  const out = new Map(parent);
+  for (const { name, desc } of childItems) {
+    if (desc !== undefined) {
+      const existing = out.get(name);
+      out.set(name, {
+        value: desc,
+        origin: childOrigin,
+        overrides: existing
+          ? [...(existing.overrides ?? []), existing.origin]
+          : undefined,
+      });
+    }
+  }
+  return out;
+}
+
 function mapFromTypes(
   types: ReadonlyMap<string, TypeDef>,
   origin: ProfileId,
@@ -714,6 +791,9 @@ function mapFromTypes(
       required: { value: td.required, origin },
       attributes: mapFromAttrList(td.attributes, origin),
       traceability: mapFromTrace(td.traceability, origin),
+      description: { value: td.description, origin },
+      attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
+      relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
     };
     out.set(name, { value: eff, origin });
   }

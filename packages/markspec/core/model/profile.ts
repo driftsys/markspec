@@ -63,6 +63,7 @@ export interface AttrDecl {
   readonly cardinality: Cardinality; // inferred from type if unspecified
   readonly values?: readonly string[]; // required when type === "enum"
   readonly inverse?: InverseDecl; // only valid when type is "id" or "id-list"
+  readonly description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,7 @@ export interface TraceRule {
   readonly target: readonly TargetMatcher[];
   readonly cardinality?: Cardinality;
   readonly required: boolean;
+  readonly description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +128,7 @@ export interface TypeDef {
   readonly traceability: ReadonlyMap<string, TraceRule>;
   /** Optional semantic color-role name (key into `ProfileManifest.colors`). */
   readonly color?: string;
+  readonly description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +263,9 @@ export interface EffectiveTypeDef {
   readonly required: ProvenancedValue<readonly string[]>;
   readonly attributes: ProvenancedMap<AttrDecl>;
   readonly traceability: ProvenancedMap<TraceRule>;
+  readonly description: ProvenancedValue<string | undefined>;
+  readonly attrDescriptions: ProvenancedMap<string>;
+  readonly relationDescriptions: ProvenancedMap<string>;
 }
 
 /**

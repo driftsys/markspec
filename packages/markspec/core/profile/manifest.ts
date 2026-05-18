@@ -66,11 +66,17 @@ const ALLOWED_ATTR_KEYS = new Set([
   "cardinality",
   "values",
   "inverse",
+  "description",
 ]);
 
 const ALLOWED_INVERSE_KEYS = new Set(["name", "category"]);
 
-const ALLOWED_TRACE_RULE_KEYS = new Set(["target", "cardinality", "required"]);
+const ALLOWED_TRACE_RULE_KEYS = new Set([
+  "target",
+  "cardinality",
+  "required",
+  "description",
+]);
 
 /** Result of parsing a profile manifest. */
 export interface ParseManifestResult {
@@ -346,7 +352,19 @@ function parseAttrDecl(
     inverse = { name: inv.name, category: inv.category };
   }
 
-  return { name, type: vtype, required, cardinality, values, inverse };
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+
+  return {
+    name,
+    type: vtype,
+    required,
+    cardinality,
+    values,
+    inverse,
+    description,
+  };
 }
 
 function parseAttrList(
@@ -466,7 +484,10 @@ function parseTraceRule(
     )
     : undefined;
   const required = r.required === true;
-  return { target: targets, cardinality, required };
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+  return { target: targets, cardinality, required, description };
 }
 
 function parseTraceabilityMap(
@@ -655,6 +676,10 @@ function parseTypeDef(
     color = r.color;
   }
 
+  const description = typeof r.description === "string"
+    ? r.description
+    : undefined;
+
   const required = parseStringList(
     r.required,
     `${ctx}.required`,
@@ -683,6 +708,7 @@ function parseTypeDef(
     attributes,
     traceability,
     color,
+    description,
   };
 }
 

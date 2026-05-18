@@ -828,3 +828,59 @@ profile:
   assertExists(d);
   assertEquals(d.severity, "error");
 });
+
+Deno.test("parseManifest: description on attribute decl parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  attributes:
+    - name: Safety-Class
+      type: enum
+      values: [ASIL-A, ASIL-B, QM]
+      description: ISO 26262 integrity level
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const attr = result.manifest?.universalAttributes[0];
+  assertEquals(attr?.description, "ISO 26262 integrity level");
+});
+
+Deno.test("parseManifest: description on trace rule parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    software-requirement:
+      extends: Requirement
+      traceability:
+        Satisfies:
+          target: [{shape: identified}]
+          description: Traces to higher-level requirement
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const type = result.manifest?.types.get("software-requirement");
+  const rule = type?.traceability.get("Satisfies");
+  assertEquals(rule?.description, "Traces to higher-level requirement");
+});
+
+Deno.test("parseManifest: description on type def parsed", () => {
+  const yaml = `
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    software-requirement:
+      extends: Requirement
+      description: A software-level requirement
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics.length, 0);
+  const type = result.manifest?.types.get("software-requirement");
+  assertEquals(type?.description, "A software-level requirement");
+});
