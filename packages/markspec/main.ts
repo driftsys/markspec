@@ -555,6 +555,104 @@ const deckCmd = new Command()
   .description("Live preview")
   .action(notImplemented("deck dev"));
 
+// ── LSP command group ─────────────────────────────────────────────────
+
+const lspCmd = new Command()
+  .description("Start LSP server or install its configuration")
+  // LSP clients (e.g. vscode-languageclient) append a transport flag to args.
+  // We always use stdio, so accept and ignore these.
+  .option("--stdio", "Transport flag (no-op; stdio is always used)")
+  .option("--node-ipc", "Transport flag (no-op; stdio is always used)")
+  .option(
+    "--socket=<port:number>",
+    "Transport flag (no-op; stdio is always used)",
+  )
+  .action(async () => {
+    await import("./lsp/server.ts");
+  })
+  .command("install")
+  .description("Print LSP server configuration for an editor")
+  .option("--editor <editor:string>", "Editor ID (vscode|neovim|zed)", {
+    required: true,
+  })
+  .option("--print", "Print config block to stdout (no file writes; default for this release)")
+  .option("--scope <scope:string>", "Config scope: user|workspace (reserved for Tier 3)")
+  .option("--no-color", "Suppress color output (also reads NO_COLOR env)")
+  .action(
+    async (options: { editor: string; print?: boolean; scope?: string }) => {
+      const { LSP_EDITOR_IDS, suggestId } = await import(
+        "./cli/install/adapters.ts"
+      );
+      const editorId = options.editor;
+      if (!LSP_EDITOR_IDS.includes(editorId as "vscode" | "neovim" | "zed")) {
+        const suggestion = suggestId(editorId, LSP_EDITOR_IDS);
+        const hint = suggestion ? `\n  did you mean: ${suggestion}` : "";
+        console.error(
+          `error: unknown editor '${editorId}' (known: ${LSP_EDITOR_IDS.join(", ")})${hint}`,
+        );
+        Deno.exit(1);
+      }
+      const { neovimAdapter, vscodeAdapter, zedAdapter } = await import(
+        "./cli/install/lsp_adapters.ts"
+      );
+      let result;
+      if (editorId === "neovim") result = neovimAdapter();
+      else if (editorId === "zed") result = zedAdapter();
+      else result = await vscodeAdapter();
+      if (result.stdout) console.log(result.stdout);
+      if (result.stderr) console.error(result.stderr);
+      Deno.exit(result.exitCode);
+    },
+  );
+
+// ── MCP command group ─────────────────────────────────────────────────
+
+const mcpCmd = new Command()
+  .description("Start MCP server or install its configuration")
+  .action(async () => {
+    const { startServer } = await import("./mcp/server.ts");
+    await startServer();
+  })
+  .command("install")
+  .description("Print MCP server configuration for a client")
+  .option(
+    "--client <client:string>",
+    "Client ID (claude-desktop|cursor|vscode)",
+    { required: true },
+  )
+  .option("--print", "Print config block to stdout (no file writes; default for this release)")
+  .option("--scope <scope:string>", "Config scope: user|workspace (reserved for Tier 3)")
+  .option("--no-color", "Suppress color output (also reads NO_COLOR env)")
+  .action(
+    async (options: { client: string; print?: boolean; scope?: string }) => {
+      const { MCP_CLIENT_IDS, suggestId } = await import(
+        "./cli/install/adapters.ts"
+      );
+      const clientId = options.client;
+      if (
+        !MCP_CLIENT_IDS.includes(
+          clientId as "claude-desktop" | "cursor" | "vscode",
+        )
+      ) {
+        const suggestion = suggestId(clientId, MCP_CLIENT_IDS);
+        const hint = suggestion ? `\n  did you mean: ${suggestion}` : "";
+        console.error(
+          `error: unknown client '${clientId}' (known: ${MCP_CLIENT_IDS.join(", ")})${hint}`,
+        );
+        Deno.exit(1);
+      }
+      const { claudeDesktopAdapter, cursorAdapter, vscodeMcpAdapter } =
+        await import("./cli/install/mcp_adapters.ts");
+      let result;
+      if (clientId === "claude-desktop") result = claudeDesktopAdapter();
+      else if (clientId === "cursor") result = cursorAdapter();
+      else result = await vscodeMcpAdapter();
+      if (result.stdout) console.log(result.stdout);
+      if (result.stderr) console.error(result.stderr);
+      Deno.exit(result.exitCode);
+    },
+  );
+
 // ── Root command ──────────────────────────────────────────────────────
 
 const cli = new Command()
@@ -1432,25 +1530,8 @@ const cli = new Command()
   .command("book", bookCmd)
   .command("deck", deckCmd)
   // Server commands
-  .command("lsp")
-  .description("Start LSP server (stdio JSON-RPC)")
-  // LSP clients (e.g. vscode-languageclient) append a transport flag to args.
-  // We always use stdio, so accept and ignore these.
-  .option("--stdio", "Transport flag (no-op; stdio is always used)")
-  .option("--node-ipc", "Transport flag (no-op; stdio is always used)")
-  .option(
-    "--socket=<port:number>",
-    "Transport flag (no-op; stdio is always used)",
-  )
-  .action(async () => {
-    await import("./lsp/server.ts");
-  })
-  .command("mcp")
-  .description("Start MCP server (stdio JSON-RPC)")
-  .action(async () => {
-    const { startServer } = await import("./mcp/server.ts");
-    await startServer();
-  })
+  .command("lsp", lspCmd)
+  .command("mcp", mcpCmd)
   // Version subcommand (alias for --version)
   .command("version")
   .description("Print version")
