@@ -22,8 +22,11 @@
  * copy of `core/formatter/mod.ts`. The string pass cannot be imported:
  * `core/formatter/` already depends on `core/ast/`, so an `ast →
  * formatter` import would invert the one-directional dependency flow and
- * create a cycle. SP3 Task 5 makes the formatter delegate to THIS module
- * (the correct direction), removing the duplication then.
+ * create a cycle. The formatter now delegates to THIS module for the AST
+ * path (SP3 Task 5), but `normalizeModalKeywords` in `formatter/mod.ts`
+ * is retained for the title/trailer string paths. Full deduplication is
+ * deferred to a future sprint (TODO SP4: unify the two implementations
+ * once all prose paths migrate to the AST path).
  *
  * Invariants (HARD — never weaken):
  *   - Pure: no `Deno.*`, no I/O.
@@ -257,7 +260,10 @@ function normalizeBlocks(
  * (Code / Feature / Math) and Figure / Caption / Unknown are returned
  * unchanged (spec §2.5 — no modal recognition inside verbatim content).
  *
- * NOT wired into the formatter — that is SP3 Task 5. Pure addition.
+ * Called exclusively from the formatter path (`core/formatter/mod.ts`);
+ * never called from the parser or validator. The §3.4.1 case rule must
+ * NOT be applied during parse/validate — `MSL-M060` still fires on
+ * uppercase modals seen by the validator.
  *
  * @param blocks - The `BodyBlock[]` produced by `buildBodyAst` (or any
  *   prior `normalizeBodyAst` output — idempotence holds).
