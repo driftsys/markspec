@@ -785,9 +785,7 @@ profile:
   documents: { types: [], frontMatter: [] }
 `;
   const result = parseManifest(yaml);
-  const type005 = result.diagnostics.find((d) =>
-    d.code === "PROFILE-TYPE-005"
-  );
+  const type005 = result.diagnostics.find((d) => d.code === "PROFILE-TYPE-005");
   assertExists(type005);
   assertEquals(type005.severity, "error");
   const load003 = result.diagnostics.find((d) =>

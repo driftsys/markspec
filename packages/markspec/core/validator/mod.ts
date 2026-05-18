@@ -500,6 +500,9 @@ export function findAttr(
 export { runPipeline } from "./pipeline.ts";
 export type { PipelineResult } from "./pipeline.ts";
 
+export { validateListingDocuments } from "./listing.ts";
+export type { ListingFileContext, ListingKind } from "./listing.ts";
+
 export { classifyEntriesStage, classifyEntry } from "./types.ts";
 export type { ClassifyResult, ClassifyStageResult } from "./types.ts";
 

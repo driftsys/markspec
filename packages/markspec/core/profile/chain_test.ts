@@ -191,7 +191,8 @@ Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier
     "/project",
     "/project",
     mockReadFile({
-      [loc.manifestPath]: `id: "@acme/from-git"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+      [loc.manifestPath]:
+        `id: "@acme/from-git"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
     { runGit },
   );
@@ -222,7 +223,8 @@ Deno.test("loadChain: git specifier in extends chain is walked", async () => {
       "/project/profiles/child/markspec.yaml":
         `id: "@acme/child"\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
         `extends: "git+${parentSpec.repo}#${parentSpec.tag}"\n`,
-      [parentLoc.manifestPath]: `id: "@acme/git-parent"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+      [parentLoc.manifestPath]:
+        `id: "@acme/git-parent"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
     { runGit },
   );

@@ -682,10 +682,17 @@ const cli = new Command()
         }
       }
 
-      const { parseFile, runPipeline } = await import("./core/mod.ts");
+      const {
+        detectDirectives,
+        parseFile,
+        runPipeline,
+        validateListingDocuments,
+      } = await import("./core/mod.ts");
 
       const allEntries = [];
       const parseDiagnostics: Diagnostic[] = [];
+      // deno-lint-ignore no-explicit-any
+      const listingContexts: any[] = [];
       for (const filePath of files) {
         let content: string;
         try {
@@ -697,6 +704,12 @@ const cli = new Command()
         const result = await parseFile(content, { file: filePath });
         allEntries.push(...result.entries);
         parseDiagnostics.push(...result.diagnostics);
+        listingContexts.push({
+          file: filePath,
+          content,
+          entries: result.entries,
+          directives: detectDirectives(content, { file: filePath }),
+        });
       }
 
       const result = runPipeline(
@@ -705,8 +718,14 @@ const cli = new Command()
         captionConventions,
       );
 
-      // Merge parse-level diagnostics (MSL-P0xx) with pipeline diagnostics.
-      const allDiagnostics = [...parseDiagnostics, ...result.diagnostics];
+      const listingDiagnostics = validateListingDocuments(listingContexts);
+
+      // Merge parse-level (MSL-P0xx), pipeline, and listing diagnostics.
+      const allDiagnostics = [
+        ...parseDiagnostics,
+        ...result.diagnostics,
+        ...listingDiagnostics,
+      ];
 
       // Apply --strict: promote warnings to errors.
       const diagnostics = options.strict
