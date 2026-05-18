@@ -89,5 +89,5 @@ export async function markspec(
 function isMarkspecOptions(
   v: Record<string, string> | MarkspecOptions,
 ): v is MarkspecOptions {
-  return "files" in v || "cwd" in v;
+  return "files" in v || "cwd" in v || "permissions" in v;
 }
