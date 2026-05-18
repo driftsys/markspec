@@ -1,9 +1,5 @@
 import { assertEquals } from "@std/assert";
-import {
-  LSP_EDITOR_IDS,
-  MCP_CLIENT_IDS,
-  suggestId,
-} from "./adapters.ts";
+import { LSP_EDITOR_IDS, MCP_CLIENT_IDS, suggestId } from "./adapters.ts";
 
 Deno.test("LSP_EDITOR_IDS contains expected editors", () => {
   assertEquals(LSP_EDITOR_IDS.includes("vscode"), true);

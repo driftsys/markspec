@@ -575,7 +575,10 @@ const lspCmd = new Command()
   .option("--editor <editor:string>", "Editor ID (vscode|neovim|zed)", {
     required: true,
   })
-  .option("--scope <scope:string>", "Config scope: user|workspace (reserved for Tier 3)")
+  .option(
+    "--scope <scope:string>",
+    "Config scope: user|workspace (reserved for Tier 3)",
+  )
   .action(
     async (options: { editor: string; scope?: string }) => {
       const { LSP_EDITOR_IDS, suggestId } = await import(
@@ -586,7 +589,9 @@ const lspCmd = new Command()
         const suggestion = suggestId(editorId, LSP_EDITOR_IDS);
         const hint = suggestion ? `\n  did you mean: ${suggestion}` : "";
         console.error(
-          `error: unknown editor '${editorId}' (known: ${LSP_EDITOR_IDS.join(", ")})${hint}`,
+          `error: unknown editor '${editorId}' (known: ${
+            LSP_EDITOR_IDS.join(", ")
+          })${hint}`,
         );
         Deno.exit(1);
       }
@@ -619,7 +624,10 @@ const mcpCmd = new Command()
     "Client ID (claude-desktop|cursor|vscode)",
     { required: true },
   )
-  .option("--scope <scope:string>", "Config scope: user|workspace (reserved for Tier 3)")
+  .option(
+    "--scope <scope:string>",
+    "Config scope: user|workspace (reserved for Tier 3)",
+  )
   .action(
     async (options: { client: string; scope?: string }) => {
       const { MCP_CLIENT_IDS, suggestId } = await import(
@@ -634,7 +642,9 @@ const mcpCmd = new Command()
         const suggestion = suggestId(clientId, MCP_CLIENT_IDS);
         const hint = suggestion ? `\n  did you mean: ${suggestion}` : "";
         console.error(
-          `error: unknown client '${clientId}' (known: ${MCP_CLIENT_IDS.join(", ")})${hint}`,
+          `error: unknown client '${clientId}' (known: ${
+            MCP_CLIENT_IDS.join(", ")
+          })${hint}`,
         );
         Deno.exit(1);
       }
