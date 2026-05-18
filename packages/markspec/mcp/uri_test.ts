@@ -9,8 +9,11 @@ import {
   ENTRIES_URI,
   entryUri,
   isEntryUri,
+  isProfileDetailUri,
   parseEntryUri,
+  parseProfileDetailUri,
   PROFILE_URI,
+  profileDetailUri,
 } from "./uri.ts";
 
 Deno.test("PROFILE_URI is the canonical constant", () => {
@@ -58,4 +61,42 @@ Deno.test("isEntryUri: false for other URIs", () => {
   assertEquals(isEntryUri("markspec://profile"), false);
   assertEquals(isEntryUri("markspec://entries"), false);
   assertEquals(isEntryUri("markspec://entry/"), false);
+});
+
+Deno.test("profileDetailUri: builds correct URI", () => {
+  assertEquals(
+    profileDetailUri("type", "software-requirement"),
+    "markspec://profile/type/software-requirement",
+  );
+  assertEquals(
+    profileDetailUri("label-concern", "asil"),
+    "markspec://profile/label/asil",
+  );
+});
+
+Deno.test("parseProfileDetailUri: parses type URI", () => {
+  const parsed = parseProfileDetailUri(
+    "markspec://profile/type/software-requirement",
+  );
+  assertEquals(parsed?.kind, "type");
+  assertEquals(parsed?.name, "software-requirement");
+});
+
+Deno.test("parseProfileDetailUri: label-concern uses short form 'label'", () => {
+  const parsed = parseProfileDetailUri("markspec://profile/label/asil");
+  assertEquals(parsed?.kind, "label-concern");
+  assertEquals(parsed?.name, "asil");
+});
+
+Deno.test("parseProfileDetailUri: overview URI returns undefined", () => {
+  assertEquals(parseProfileDetailUri(PROFILE_URI), undefined);
+});
+
+Deno.test("isProfileDetailUri: correctly identifies detail URIs", () => {
+  assertEquals(
+    isProfileDetailUri("markspec://profile/type/software-requirement"),
+    true,
+  );
+  assertEquals(isProfileDetailUri(PROFILE_URI), false);
+  assertEquals(isProfileDetailUri("markspec://entry/SRS_0001"), false);
 });
