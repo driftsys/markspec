@@ -4,10 +4,10 @@ description: Phase 7 e2e — profile with traceability rules
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
     test:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "TEST-{n:04d}"
       traceability:
         Verifies:

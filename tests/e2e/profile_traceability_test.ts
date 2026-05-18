@@ -15,10 +15,10 @@ version: 0.1.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
     test:
-      shape: identified
+      extends: Test
       display-id-pattern: "TEST-{n:04d}"
       traceability:
         Verifies:

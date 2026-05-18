@@ -8,7 +8,7 @@ profile:
       values: [draft, approved]
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       required: [Rationale]
       attributes:

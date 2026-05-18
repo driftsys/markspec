@@ -5,8 +5,6 @@
  * schema. Used by the profile loader, merger, and validator.
  */
 
-import type { EntryShape } from "./mod.ts";
-
 // ---------------------------------------------------------------------------
 // Value types (ADR-002 Annex C)
 // ---------------------------------------------------------------------------
@@ -91,7 +89,8 @@ export type EnforcementMode = "off" | "warn" | "error";
 
 export interface TypeDef {
   readonly name: string;
-  readonly shape: EntryShape;
+  /** The core type this profile type extends (e.g., "Requirement", "Test"). */
+  readonly extends: string;
   readonly displayIdPattern?: string;
   readonly displayIdPatternEnforcement: EnforcementMode;
   readonly required: readonly string[];
@@ -143,7 +142,6 @@ export interface ProfileManifest {
   readonly extends?: ProfileSpecifier;
 
   // profile: content section
-  readonly universalRequired: readonly string[];
   readonly universalAttributes: readonly AttrDecl[];
   readonly labels: readonly string[];
 
@@ -154,16 +152,6 @@ export interface ProfileManifest {
    * Empty when the manifest does not declare `profile.colors:`.
    */
   readonly colors: ReadonlyMap<string, string>;
-
-  readonly identified: {
-    readonly required: readonly string[];
-    readonly attributes: readonly AttrDecl[];
-    readonly traceability: ReadonlyMap<string, TraceRule>;
-  };
-  readonly referenced: {
-    readonly required: readonly string[];
-    readonly attributes: readonly AttrDecl[];
-  };
 
   readonly types: ReadonlyMap<string, TypeDef>;
 
@@ -232,19 +220,11 @@ export interface ProvenancedMapEntry<V> {
 /** Map with per-entry provenance. Keys are always strings (attr/type/link names). */
 export type ProvenancedMap<V> = ReadonlyMap<string, ProvenancedMapEntry<V>>;
 
-/** Shape-scope rules after merging (identified or referenced). */
-export interface EffectiveShapeScope {
-  readonly required: ProvenancedValue<readonly string[]>;
-  readonly attributes: ProvenancedMap<AttrDecl>;
-  /** Referenced scope's traceability is always empty (referenced entries don't originate links). */
-  readonly traceability: ProvenancedMap<TraceRule>;
-}
-
 /** Type-scope rules after merging. */
 export interface EffectiveTypeDef {
   readonly name: string;
-  /** Shape is frozen at the type's declaration — never changes across the chain. */
-  readonly shape: EntryShape;
+  /** The core type this profile type extends — frozen at declaration, never changes across the chain. */
+  readonly extends: string;
   readonly displayIdPattern: ProvenancedValue<string | undefined>;
   readonly displayIdPatternEnforcement: ProvenancedValue<EnforcementMode>;
   /** Resolved semantic color-role name, or `undefined` when unset. */
@@ -259,13 +239,10 @@ export interface EffectiveTypeDef {
  * per-rule provenance so a diagnostic can blame the right tier.
  */
 export interface EffectiveProfile {
-  readonly required: ProvenancedValue<readonly string[]>;
   readonly attributes: ProvenancedMap<AttrDecl>;
   readonly labels: ProvenancedValue<readonly string[]>;
   /** Semantic color-role bindings merged across the chain. */
   readonly colors: ProvenancedMap<string>;
-  readonly identified: EffectiveShapeScope;
-  readonly referenced: EffectiveShapeScope;
   readonly types: ProvenancedMap<EffectiveTypeDef>;
   readonly documents: {
     readonly types: ProvenancedMap<DocTypeDef>;

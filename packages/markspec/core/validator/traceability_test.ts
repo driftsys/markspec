@@ -12,7 +12,6 @@ import {
 } from "./traceability.ts";
 import type {
   EffectiveProfile,
-  EffectiveShapeScope,
   EffectiveTypeDef,
   Entry,
   EntryShape,
@@ -32,26 +31,15 @@ function traceMap(
   return out;
 }
 
-function shapeScope(opts: {
-  traceability?: Record<string, TraceRule>;
-}): EffectiveShapeScope {
-  return {
-    required: { value: [], origin: ORIGIN },
-    attributes: new Map(),
-    traceability: traceMap(opts.traceability ?? {}),
-  };
-}
-
 function typeDef(opts: {
   name: string;
-  shape: EntryShape;
   traceability?: Record<string, TraceRule>;
 }): ProvenancedMapEntry<EffectiveTypeDef> {
   return {
     origin: ORIGIN,
     value: {
       name: opts.name,
-      shape: opts.shape,
+      extends: "Requirement",
       displayIdPattern: { value: undefined, origin: ORIGIN },
       displayIdPatternEnforcement: { value: "off", origin: ORIGIN },
       color: { value: undefined, origin: ORIGIN },
@@ -63,19 +51,14 @@ function typeDef(opts: {
 }
 
 function profile(opts: {
-  identified?: EffectiveShapeScope;
-  referenced?: EffectiveShapeScope;
   types?: ReadonlyArray<ProvenancedMapEntry<EffectiveTypeDef>>;
 }): EffectiveProfile {
   const typesMap = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
   for (const t of opts.types ?? []) typesMap.set(t.value.name, t);
   return {
-    required: { value: [], origin: ORIGIN },
     attributes: new Map(),
     labels: { value: [], origin: ORIGIN },
     colors: new Map(),
-    identified: opts.identified ?? shapeScope({}),
-    referenced: opts.referenced ?? shapeScope({}),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -108,38 +91,36 @@ const verifiesRule: TraceRule = {
   required: true,
 };
 
-Deno.test("effectiveTraceRules: identified shape scope only", () => {
+Deno.test("effectiveTraceRules: classified entry gets type-scope rules", () => {
   const p = profile({
-    identified: shapeScope({
+    types: [typeDef({
+      name: "test",
       traceability: { "Derived-from": derivedFromRule },
-    }),
+    })],
   });
-  const e = entry({ shape: "Authored" });
+  const e = entry({ shape: "Authored", type: "test" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 1);
   assertEquals(rules.get("Derived-from"), derivedFromRule);
 });
 
-Deno.test("effectiveTraceRules: referenced entry always returns empty map", () => {
+Deno.test("effectiveTraceRules: Reference entry always returns empty map", () => {
   const p = profile({
-    identified: shapeScope({
+    types: [typeDef({
+      name: "citation",
       traceability: { "Derived-from": derivedFromRule },
-    }),
+    })],
   });
   const e = entry({ shape: "Reference" });
   const rules = effectiveTraceRules(e, p);
   assertEquals(rules.size, 0);
 });
 
-Deno.test("effectiveTraceRules: classified entry adds type-scope rules", () => {
+Deno.test("effectiveTraceRules: classified entry gets all type rules", () => {
   const p = profile({
-    identified: shapeScope({
-      traceability: { "Derived-from": derivedFromRule },
-    }),
     types: [typeDef({
       name: "test",
-      shape: "Authored",
-      traceability: { Verifies: verifiesRule },
+      traceability: { Verifies: verifiesRule, "Derived-from": derivedFromRule },
     })],
   });
   const e = entry({ shape: "Authored", type: "test" });
@@ -149,37 +130,29 @@ Deno.test("effectiveTraceRules: classified entry adds type-scope rules", () => {
   assertEquals(rules.get("Verifies"), verifiesRule);
 });
 
-Deno.test("effectiveTraceRules: un-classified entry uses only shape scope", () => {
+Deno.test("effectiveTraceRules: un-classified Authored entry returns empty map", () => {
+  // Tier 2: no shape scope — unclassified entries get no traceability rules.
   const p = profile({
-    identified: shapeScope({
-      traceability: { "Derived-from": derivedFromRule },
-    }),
     types: [typeDef({
       name: "test",
-      shape: "Authored",
       traceability: { Verifies: verifiesRule },
     })],
   });
   const e = entry({ shape: "Authored" });
   const rules = effectiveTraceRules(e, p);
-  assertEquals(rules.size, 1);
+  assertEquals(rules.size, 0);
   assertEquals(rules.has("Verifies"), false);
-  assertEquals(rules.has("Derived-from"), true);
 });
 
-Deno.test("effectiveTraceRules: type scope wins on link-name collision", () => {
+Deno.test("effectiveTraceRules: type rules are used for classified entry", () => {
   const tightRule: TraceRule = {
     target: ["stakeholder-requirement"],
     cardinality: { lower: 1, upper: Infinity },
     required: true,
   };
   const p = profile({
-    identified: shapeScope({
-      traceability: { "Derived-from": derivedFromRule },
-    }),
     types: [typeDef({
       name: "requirement",
-      shape: "Authored",
       traceability: { "Derived-from": tightRule },
     })],
   });
@@ -188,16 +161,17 @@ Deno.test("effectiveTraceRules: type scope wins on link-name collision", () => {
   assertEquals(rules.get("Derived-from"), tightRule);
 });
 
-Deno.test("effectiveTraceRules: classified entry with unknown type falls back to shape scope", () => {
+Deno.test("effectiveTraceRules: classified with unknown type returns empty map", () => {
+  // Tier 2: no shape scope fallback — unknown type → no rules.
   const p = profile({
-    identified: shapeScope({
+    types: [typeDef({
+      name: "test",
       traceability: { "Derived-from": derivedFromRule },
-    }),
+    })],
   });
   const e = entry({ shape: "Authored", type: "not-in-profile" });
   const rules = effectiveTraceRules(e, p);
-  assertEquals(rules.size, 1);
-  assertEquals(rules.get("Derived-from"), derivedFromRule);
+  assertEquals(rules.size, 0);
 });
 
 function targetEntry(opts: {
@@ -320,7 +294,9 @@ Deno.test("validateTraceabilityForEntry: required link missing → MSL-L001", ()
     required: true,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: requiredRule } }),
+    types: [
+      typeDef({ name: "test", traceability: { Verifies: requiredRule } }),
+    ],
   });
   const e = entryWithAttrs({ shape: "Authored", type: "test" });
   const graph = graphOf([e]);
@@ -347,7 +323,9 @@ Deno.test("validateTraceabilityForEntry: required link present → no MSL-L001",
     required: true,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: requiredRule } }),
+    types: [
+      typeDef({ name: "test", traceability: { Verifies: requiredRule } }),
+    ],
   });
   const e = entryWithAttrs({
     shape: "Authored",
@@ -368,7 +346,7 @@ Deno.test("validateTraceabilityForEntry: upper cardinality exceeded → MSL-L002
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const target1 = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
@@ -400,7 +378,7 @@ Deno.test("validateTraceabilityForEntry: lower cardinality unmet → MSL-L003", 
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const target1 = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
@@ -427,7 +405,7 @@ Deno.test("validateTraceabilityForEntry: required missing does not double-emit w
     required: true,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const e = entryWithAttrs({ shape: "Authored", type: "test" });
   const graph = graphOf([e]);
@@ -447,7 +425,7 @@ Deno.test("validateTraceabilityForEntry: target type matches → no MSL-L004", (
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const target = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
@@ -472,7 +450,7 @@ Deno.test("validateTraceabilityForEntry: target type mismatch → MSL-L004", () 
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const wrongTarget = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
@@ -505,7 +483,7 @@ Deno.test("validateTraceabilityForEntry: shape matcher accepts any identified ta
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Derived: rule } }),
+    types: [typeDef({ name: "test", traceability: { Derived: rule } })],
   });
   const target = entryWithAttrs({
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
@@ -529,7 +507,7 @@ Deno.test("validateTraceabilityForEntry: target not in graph is silently skipped
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const e = entryWithAttrs({
     shape: "Authored",
@@ -548,7 +526,7 @@ Deno.test("validateTraceabilityForEntry: one valid + one invalid target → sing
     required: false,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
   });
   const good = entryWithAttrs({
     id: "01GOOD0000000000000000000",
@@ -578,14 +556,14 @@ Deno.test("validateTraceabilityForEntry: one valid + one invalid target → sing
 
 // Scope gating
 
-Deno.test("validateTraceabilityForEntry: referenced entries are skipped entirely", () => {
+Deno.test("validateTraceabilityForEntry: Reference entries are skipped entirely", () => {
   const rule: TraceRule = {
     target: ["requirement"],
     cardinality: { lower: 1, upper: Infinity },
     required: true,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Verifies: rule } }),
+    types: [typeDef({ name: "citation", traceability: { Verifies: rule } })],
   });
   const e = entryWithAttrs({ shape: "Reference", type: "citation" });
   const graph = graphOf([e]);
@@ -593,20 +571,19 @@ Deno.test("validateTraceabilityForEntry: referenced entries are skipped entirely
   assertEquals(diags, []);
 });
 
-Deno.test("validateTraceabilityForEntry: un-classified entry uses shape-scope rules only", () => {
+Deno.test("validateTraceabilityForEntry: un-classified Authored entry gets no rules", () => {
+  // Tier 2: only type-scope rules exist. An un-classified entry has no type,
+  // so no traceability rules apply → no diagnostics.
   const rule: TraceRule = {
     target: [{ shape: "Authored" }],
     cardinality: { lower: 0, upper: Infinity },
     required: true,
   };
   const p = profile({
-    identified: shapeScope({ traceability: { Link: rule } }),
+    types: [typeDef({ name: "test", traceability: { Link: rule } })],
   });
   const e = entryWithAttrs({ shape: "Authored" });
   const graph = graphOf([e]);
   const diags = validateTraceabilityForEntry(e, p, graph);
-  const l001 = diags.find((d) => d.code === "MSL-L001");
-  if (!l001) {
-    throw new Error(`expected MSL-L001, got: ${diags.map((d) => d.code)}`);
-  }
+  assertEquals(diags, []);
 });

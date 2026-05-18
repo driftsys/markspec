@@ -9,7 +9,7 @@ profile:
       values: [draft, approved] # narrowed
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
       display-id-pattern-enforcement: error # tightened
       traceability:

@@ -24,11 +24,10 @@ import type {
 } from "../model/mod.ts";
 
 /**
- * Effective trace rules for an entry: union of identified-shape-scope rules
- * and (when classified) type-scope rules. Type-scope rules win on
- * link-attribute-name collision.
+ * Effective trace rules for an entry: type-scope rules only.
+ * Type-scope rules are applied only when the entry is classified.
  *
- * Referenced entries always return an empty map.
+ * Reference entries (shape !== "Authored") always return an empty map.
  */
 export function effectiveTraceRules(
   entry: Entry,
@@ -36,11 +35,6 @@ export function effectiveTraceRules(
 ): ReadonlyMap<string, TraceRule> {
   const out = new Map<string, TraceRule>();
   if (entry.shape !== "Authored") return out;
-
-  // Shape scope.
-  for (const [name, ruleEntry] of profile.identified.traceability) {
-    out.set(name, ruleEntry.value);
-  }
 
   // Type scope (only when classified AND type is declared in the profile).
   if (entry.type !== undefined) {

@@ -239,20 +239,9 @@ function buildPlaceholderEffective(
 ): EffectiveProfile {
   const leafOrigin = tiers[tiers.length - 1]?.id ?? "<unknown>";
   return {
-    required: { value: [], origin: leafOrigin },
     attributes: new Map(),
     labels: { value: [], origin: leafOrigin },
     colors: new Map(),
-    identified: {
-      required: { value: [], origin: leafOrigin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    referenced: {
-      required: { value: [], origin: leafOrigin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
   };

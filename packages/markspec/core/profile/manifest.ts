@@ -12,9 +12,9 @@ import {
   type AttrDecl,
   type Cardinality,
   COLOR_NAME_RE,
+  CORE_TYPES,
   type DocTypeDef,
   type EnforcementMode,
-  type EntryShape,
   LIST_VALUE_TYPES,
   PALETTE_HUES,
   type ProfileSpecifier,
@@ -38,25 +38,15 @@ const ALLOWED_ROOT_KEYS = new Set([
 ]);
 
 const ALLOWED_PROFILE_KEYS = new Set([
-  "required",
   "attributes",
   "labels",
   "colors",
-  "identified",
-  "referenced",
   "types",
   "documents",
 ]);
 
-const ALLOWED_IDENTIFIED_KEYS = new Set([
-  "required",
-  "attributes",
-  "traceability",
-]);
-const ALLOWED_REFERENCED_KEYS = new Set(["required", "attributes"]);
-
 const ALLOWED_TYPE_KEYS = new Set([
-  "shape",
+  "extends",
   "description",
   "display-id-pattern",
   "display-id-pattern-enforcement",
@@ -81,37 +71,6 @@ const ALLOWED_ATTR_KEYS = new Set([
 const ALLOWED_INVERSE_KEYS = new Set(["name", "category"]);
 
 const ALLOWED_TRACE_RULE_KEYS = new Set(["target", "cardinality", "required"]);
-
-function parseShapeScope(
-  raw: unknown,
-  allowedKeys: Set<string>,
-  context: string,
-  sourcePath: string,
-  diagnostics: Diagnostic[],
-): Record<string, unknown> | undefined {
-  if (raw === undefined) return {};
-  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    diagnostics.push({
-      code: "PROFILE-LOAD-003",
-      severity: "error",
-      message: `${context}: must be a mapping`,
-      location: { file: sourcePath, line: 1, column: 1 },
-    });
-    return undefined;
-  }
-  const r = raw as Record<string, unknown>;
-  for (const key of Object.keys(r)) {
-    if (!allowedKeys.has(key)) {
-      diagnostics.push({
-        code: "PROFILE-LOAD-003",
-        severity: "error",
-        message: `${context}: unknown key '${key}'`,
-        location: { file: sourcePath, line: 1, column: 1 },
-      });
-    }
-  }
-  return r;
-}
 
 /** Result of parsing a profile manifest. */
 export interface ParseManifestResult {
@@ -629,38 +588,28 @@ function parseTypeDef(
     }
   }
 
-  // The profile-manifest `shape:` vocabulary is the authored
-  // `identified`/`referenced` surface (profile-schema §1.3 marks it
-  // obsolete — its removal is the profile-schema reconciliation slice,
-  // not this one). Map it one-directionally onto the internal EntryShape.
-  // NOT a backward-compat dual-accept: the new names are deliberately not
-  // accepted in authored YAML.
-  const rawShape = r.shape;
-  const shape: "Authored" | "Reference" | undefined = rawShape === "identified"
-    ? "Authored"
-    : rawShape === "referenced"
-    ? "Reference"
-    : undefined;
-  if (shape === undefined) {
+  const rawExtends = r.extends;
+  if (rawExtends === undefined) {
     diagnostics.push({
-      code: "PROFILE-LOAD-003",
-      severity: "error",
-      message: `${ctx}: 'shape' must be 'identified' or 'referenced'`,
-      location: { file: sourcePath, line: 1, column: 1 },
-    });
-    return undefined;
-  }
-
-  if (shape === "Reference" && r.traceability !== undefined) {
-    diagnostics.push({
-      code: "PROFILE-LOAD-003",
+      code: "PROFILE-TYPE-001",
       severity: "error",
       message:
-        `${ctx}: referenced types cannot declare traceability (referenced entries don't originate links)`,
+        `${ctx}: missing required field 'extends' (must be a core type name)`,
       location: { file: sourcePath, line: 1, column: 1 },
     });
     return undefined;
   }
+  if (typeof rawExtends !== "string" || !CORE_TYPES.has(rawExtends)) {
+    diagnostics.push({
+      code: "PROFILE-TYPE-002",
+      severity: "error",
+      message:
+        `${ctx}: 'extends' value '${rawExtends}' is not a recognised core type`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  const extendsValue = rawExtends;
 
   let displayIdPattern: string | undefined;
   if (r["display-id-pattern"] !== undefined) {
@@ -704,15 +653,6 @@ function parseTypeDef(
       return undefined;
     }
     color = r.color;
-    if (shape === "Reference") {
-      diagnostics.push({
-        code: "MSL-PROFILE-COLOR-001",
-        severity: "warning",
-        message:
-          `${ctx}: 'color' on a referenced-shape type is ignored at render time`,
-        location: { file: sourcePath, line: 1, column: 1 },
-      });
-    }
   }
 
   const required = parseStringList(
@@ -727,18 +667,16 @@ function parseTypeDef(
     sourcePath,
     diagnostics,
   );
-  const traceability = shape === "Authored"
-    ? parseTraceabilityMap(
-      r.traceability,
-      `${ctx}.traceability`,
-      sourcePath,
-      diagnostics,
-    )
-    : new Map<string, TraceRule>();
+  const traceability = parseTraceabilityMap(
+    r.traceability,
+    `${ctx}.traceability`,
+    sourcePath,
+    diagnostics,
+  );
 
   return {
     name,
-    shape: shape as EntryShape,
+    extends: extendsValue,
     displayIdPattern,
     displayIdPatternEnforcement: enforcement,
     required,
@@ -939,7 +877,8 @@ export function parseManifest(
     diagnostics.push({
       code: "PROFILE-SCHEMA-001",
       severity: "error",
-      message: `profile targets core schema "${rawSchema}"; this MarkSpec implements "1"`,
+      message:
+        `profile targets core schema "${rawSchema}"; this MarkSpec implements "1"`,
       location: { file: sourcePath, line: 1, column: 1 },
     });
     return { manifest: null, diagnostics };
@@ -981,12 +920,6 @@ export function parseManifest(
 
   const profileSection = (rawProfile ?? {}) as Record<string, unknown>;
 
-  const universalRequired = parseStringList(
-    profileSection.required,
-    "profile.required",
-    sourcePath,
-    diagnostics,
-  );
   const universalAttributes = parseAttrList(
     profileSection.attributes,
     "profile.attributes",
@@ -1001,61 +934,6 @@ export function parseManifest(
   );
   const colors = parseColorsMap(
     profileSection.colors,
-    sourcePath,
-    diagnostics,
-  );
-
-  if (diagnostics.length > 0) {
-    return { manifest: null, diagnostics };
-  }
-
-  const idRaw = parseShapeScope(
-    profileSection.identified,
-    ALLOWED_IDENTIFIED_KEYS,
-    "profile.identified",
-    sourcePath,
-    diagnostics,
-  );
-  const refRaw = parseShapeScope(
-    profileSection.referenced,
-    ALLOWED_REFERENCED_KEYS,
-    "profile.referenced",
-    sourcePath,
-    diagnostics,
-  );
-
-  if (idRaw === undefined || refRaw === undefined || diagnostics.length > 0) {
-    return { manifest: null, diagnostics };
-  }
-
-  const identifiedRequired = parseStringList(
-    idRaw.required,
-    "profile.identified.required",
-    sourcePath,
-    diagnostics,
-  );
-  const identifiedAttributes = parseAttrList(
-    idRaw.attributes,
-    "profile.identified.attributes",
-    sourcePath,
-    diagnostics,
-  );
-  const identifiedTraceability = parseTraceabilityMap(
-    idRaw.traceability,
-    "profile.identified.traceability",
-    sourcePath,
-    diagnostics,
-  );
-
-  const referencedRequired = parseStringList(
-    refRaw.required,
-    "profile.referenced.required",
-    sourcePath,
-    diagnostics,
-  );
-  const referencedAttributes = parseAttrList(
-    refRaw.attributes,
-    "profile.referenced.attributes",
     sourcePath,
     diagnostics,
   );
@@ -1099,19 +977,9 @@ export function parseManifest(
       : undefined,
     license: typeof root.license === "string" ? root.license : undefined,
     extends: extendsSpec,
-    universalRequired,
     universalAttributes,
     labels,
     colors,
-    identified: {
-      required: identifiedRequired,
-      attributes: identifiedAttributes,
-      traceability: identifiedTraceability,
-    },
-    referenced: {
-      required: referencedRequired,
-      attributes: referencedAttributes,
-    },
     types: types,
     documents: documents,
   };

@@ -166,17 +166,6 @@ function collectInverseSpecs(profile: EffectiveProfile): InverseSpec[] {
     }
   }
 
-  // Identified shape scope
-  for (const [, entry] of profile.identified.attributes) {
-    if (entry.value.inverse) {
-      specs.push({
-        attrName: entry.value.name,
-        inverse: entry.value.inverse,
-        sourceType: null,
-      });
-    }
-  }
-
   // Type scopes
   for (const [typeName, typeEntry] of profile.types) {
     for (const [, attrEntry] of typeEntry.value.attributes) {

@@ -4,5 +4,5 @@ description: Minimal profile used by Phase 2 e2e tests
 profile:
   types:
     note:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "NOTE-{n:03d}"

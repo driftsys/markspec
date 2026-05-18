@@ -395,13 +395,7 @@ profile:
   attributes: []
   labels: []
 
-  # Per-shape scope
-  identified:
-    attributes: []
-  referenced:
-    attributes: []
-
-  # Per-type scope
+  # Per-type scope (use extends: to link to a core type, e.g. extends: Requirement)
   types: {}
 
   # Document scope

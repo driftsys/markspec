@@ -9,7 +9,6 @@ import { effectiveScope, validateAttributesForEntry } from "./attributes.ts";
 import type {
   AttrDecl,
   EffectiveProfile,
-  EffectiveShapeScope,
   EffectiveTypeDef,
   Entry,
   EntryShape,
@@ -26,20 +25,8 @@ function provAttrs(
   return out;
 }
 
-function shapeScope(opts: {
-  required?: readonly string[];
-  attributes?: readonly AttrDecl[];
-}): EffectiveShapeScope {
-  return {
-    required: { value: opts.required ?? [], origin: ORIGIN },
-    attributes: provAttrs(opts.attributes ?? []),
-    traceability: new Map(),
-  };
-}
-
 function typeDef(opts: {
   name: string;
-  shape: EntryShape;
   required?: readonly string[];
   attributes?: readonly AttrDecl[];
 }): ProvenancedMapEntry<EffectiveTypeDef> {
@@ -47,7 +34,7 @@ function typeDef(opts: {
     origin: ORIGIN,
     value: {
       name: opts.name,
-      shape: opts.shape,
+      extends: "Requirement",
       displayIdPattern: { value: undefined, origin: ORIGIN },
       displayIdPatternEnforcement: { value: "off", origin: ORIGIN },
       color: { value: undefined, origin: ORIGIN },
@@ -59,21 +46,15 @@ function typeDef(opts: {
 }
 
 function profile(opts: {
-  universalRequired?: readonly string[];
   universalAttrs?: readonly AttrDecl[];
-  identified?: EffectiveShapeScope;
-  referenced?: EffectiveShapeScope;
   types?: ReadonlyArray<ProvenancedMapEntry<EffectiveTypeDef>>;
 }): EffectiveProfile {
   const typesMap = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
   for (const t of opts.types ?? []) typesMap.set(t.value.name, t);
   return {
-    required: { value: opts.universalRequired ?? [], origin: ORIGIN },
     attributes: provAttrs(opts.universalAttrs ?? []),
     labels: { value: [], origin: ORIGIN },
     colors: new Map(),
-    identified: opts.identified ?? shapeScope({}),
-    referenced: opts.referenced ?? shapeScope({}),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -129,54 +110,45 @@ const notesAttr: AttrDecl = {
 
 Deno.test("effectiveScope: universal only", () => {
   const p = profile({
-    universalRequired: ["Status"],
     universalAttrs: [statusAttr],
   });
   const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
-  assertEquals(scope.required, ["Status"]);
+  assertEquals(scope.required, []);
   assertEquals(scope.attributes.size, 1);
   assertEquals(scope.attributes.get("Status"), statusAttr);
 });
 
-Deno.test("effectiveScope: universal + identified shape for identified entry", () => {
+Deno.test("effectiveScope: Authored entry without type uses only universal scope", () => {
   const p = profile({
     universalAttrs: [statusAttr],
-    identified: shapeScope({
-      required: ["Rationale"],
+    types: [typeDef({
+      name: "requirement",
       attributes: [textAttr],
-    }),
-    referenced: shapeScope({
-      attributes: [notesAttr],
-    }),
+    })],
   });
   const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
-  assertEquals(scope.required, ["Rationale"]);
-  assertEquals(scope.attributes.size, 2);
+  assertEquals(scope.required, []);
+  assertEquals(scope.attributes.size, 1);
   assertEquals(scope.attributes.has("Status"), true);
-  assertEquals(scope.attributes.has("Rationale"), true);
-  assertEquals(scope.attributes.has("Notes"), false);
+  assertEquals(scope.attributes.has("Rationale"), false);
 });
 
-Deno.test("effectiveScope: universal + referenced shape for referenced entry", () => {
+Deno.test("effectiveScope: Reference entry without type uses only universal scope", () => {
   const p = profile({
     universalAttrs: [statusAttr],
-    identified: shapeScope({
-      attributes: [textAttr],
-    }),
-    referenced: shapeScope({
-      required: ["Notes"],
+    types: [typeDef({
+      name: "requirement",
       attributes: [notesAttr],
-    }),
+    })],
   });
   const e = entry({ shape: "Reference" });
   const scope = effectiveScope(e, p);
-  assertEquals(scope.required, ["Notes"]);
-  assertEquals(scope.attributes.size, 2);
+  assertEquals(scope.required, []);
+  assertEquals(scope.attributes.size, 1);
   assertEquals(scope.attributes.has("Status"), true);
-  assertEquals(scope.attributes.has("Notes"), true);
-  assertEquals(scope.attributes.has("Rationale"), false);
+  assertEquals(scope.attributes.has("Notes"), false);
 });
 
 Deno.test("effectiveScope: classified entry adds type-specific scope", () => {
@@ -189,10 +161,8 @@ Deno.test("effectiveScope: classified entry adds type-specific scope", () => {
   };
   const p = profile({
     universalAttrs: [statusAttr],
-    identified: shapeScope({ attributes: [textAttr] }),
     types: [typeDef({
       name: "requirement",
-      shape: "Authored",
       required: ["ASIL"],
       attributes: [asilAttr],
     })],
@@ -200,11 +170,11 @@ Deno.test("effectiveScope: classified entry adds type-specific scope", () => {
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.required, ["ASIL"]);
-  assertEquals(scope.attributes.size, 3);
+  assertEquals(scope.attributes.size, 2);
   assertEquals(scope.attributes.has("ASIL"), true);
 });
 
-Deno.test("effectiveScope: un-classified entry uses only universal + shape", () => {
+Deno.test("effectiveScope: un-classified entry uses only universal scope", () => {
   const asilAttr: AttrDecl = {
     name: "ASIL",
     type: "enum",
@@ -214,30 +184,22 @@ Deno.test("effectiveScope: un-classified entry uses only universal + shape", () 
   };
   const p = profile({
     universalAttrs: [statusAttr],
-    identified: shapeScope({ attributes: [textAttr] }),
     types: [typeDef({
       name: "requirement",
-      shape: "Authored",
       attributes: [asilAttr],
     })],
   });
   const e = entry({ shape: "Authored" });
   const scope = effectiveScope(e, p);
-  assertEquals(scope.attributes.size, 2);
+  assertEquals(scope.attributes.size, 1);
   assertEquals(scope.attributes.has("ASIL"), false);
 });
 
-Deno.test("effectiveScope: required lists concatenated in scope order", () => {
+Deno.test("effectiveScope: required comes from type scope only", () => {
   const p = profile({
-    universalRequired: ["Status"],
     universalAttrs: [statusAttr],
-    identified: shapeScope({
-      required: ["Rationale"],
-      attributes: [textAttr],
-    }),
     types: [typeDef({
       name: "requirement",
-      shape: "Authored",
       required: ["ASIL"],
       attributes: [{
         name: "ASIL",
@@ -250,11 +212,11 @@ Deno.test("effectiveScope: required lists concatenated in scope order", () => {
   });
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
-  assertEquals(scope.required, ["Status", "Rationale", "ASIL"]);
+  assertEquals(scope.required, ["ASIL"]);
 });
 
-Deno.test("effectiveScope: type-scope attr wins over shape-scope attr on name collision", () => {
-  const shapeStatus: AttrDecl = {
+Deno.test("effectiveScope: type-scope attr wins over universal attr on name collision", () => {
+  const universalStatus: AttrDecl = {
     name: "Status",
     type: "text",
     required: false,
@@ -268,10 +230,9 @@ Deno.test("effectiveScope: type-scope attr wins over shape-scope attr on name co
     values: ["draft", "approved"],
   };
   const p = profile({
-    identified: shapeScope({ attributes: [shapeStatus] }),
+    universalAttrs: [universalStatus],
     types: [typeDef({
       name: "requirement",
-      shape: "Authored",
       attributes: [typeStatus],
     })],
   });
@@ -282,10 +243,14 @@ Deno.test("effectiveScope: type-scope attr wins over shape-scope attr on name co
 
 Deno.test("validateAttributesForEntry: required missing → MSL-A001", () => {
   const p = profile({
-    universalRequired: ["Status"],
     universalAttrs: [statusAttr],
+    types: [typeDef({
+      name: "requirement",
+      required: ["Status"],
+      attributes: [statusAttr],
+    })],
   });
-  const e = entry({ shape: "Authored", attrs: {} });
+  const e = entry({ shape: "Authored", type: "requirement", attrs: {} });
   const diags = validateAttributesForEntry(e, p);
   const a001 = diags.find((d) => d.code === "MSL-A001");
   if (!a001) {
@@ -298,11 +263,16 @@ Deno.test("validateAttributesForEntry: required missing → MSL-A001", () => {
 
 Deno.test("validateAttributesForEntry: required present → no MSL-A001", () => {
   const p = profile({
-    universalRequired: ["Status"],
     universalAttrs: [statusAttr],
+    types: [typeDef({
+      name: "requirement",
+      required: ["Status"],
+      attributes: [statusAttr],
+    })],
   });
   const e = entry({
     shape: "Authored",
+    type: "requirement",
     attrs: { Status: ["draft"] },
   });
   const diags = validateAttributesForEntry(e, p);
@@ -458,26 +428,29 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
     required: true,
   };
   const p: EffectiveProfile = {
-    required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
     colors: new Map(),
-    identified: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map([
-        ["Verifies", { value: traceRule, origin }],
-      ]),
-    },
-    referenced: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    types: new Map(),
+    types: new Map([
+      ["requirement", {
+        origin,
+        value: {
+          name: "requirement",
+          extends: "Requirement",
+          displayIdPattern: { value: undefined, origin },
+          displayIdPatternEnforcement: { value: "off", origin },
+          color: { value: undefined, origin },
+          required: { value: [], origin },
+          attributes: new Map(),
+          traceability: new Map([
+            ["Verifies", { value: traceRule, origin }],
+          ]),
+        },
+      }],
+    ]),
     documents: { types: new Map(), frontMatter: new Map() },
   };
-  const e = entry({ shape: "Authored" });
+  const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
   const verifies = scope.attributes.get("Verifies");
   if (!verifies) throw new Error("expected synthesized Verifies attribute");
@@ -487,8 +460,9 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
 });
 
 Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule synthesis", () => {
-  // If the profile declares both the attribute AND the trace rule,
-  // the explicit attr wins (not synthesized).
+  // If the profile declares the attribute explicitly at universal scope AND the
+  // type has a trace rule for the same key, the explicit attr wins — synthesis
+  // only fires when the key is not already in the scope map.
   const origin = ORIGIN;
   const explicitAttr: AttrDecl = {
     name: "Verifies",
@@ -502,28 +476,31 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
     required: false,
   };
   const p: EffectiveProfile = {
-    required: { value: [], origin },
     attributes: new Map([
       ["Verifies", { value: explicitAttr, origin }],
     ]),
     labels: { value: [], origin },
     colors: new Map(),
-    identified: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map([
-        ["Verifies", { value: traceRule, origin }],
-      ]),
-    },
-    referenced: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    types: new Map(),
+    types: new Map([
+      ["requirement", {
+        origin,
+        value: {
+          name: "requirement",
+          extends: "Requirement",
+          displayIdPattern: { value: undefined, origin },
+          displayIdPatternEnforcement: { value: "off", origin },
+          color: { value: undefined, origin },
+          required: { value: [], origin },
+          attributes: new Map(),
+          traceability: new Map([
+            ["Verifies", { value: traceRule, origin }],
+          ]),
+        },
+      }],
+    ]),
     documents: { types: new Map(), frontMatter: new Map() },
   };
-  const e = entry({ shape: "Authored" });
+  const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
   assertEquals(scope.attributes.get("Verifies"), explicitAttr);
 });

@@ -140,8 +140,6 @@ function checkReservedRedefinitions(chain: ProfileChain): Diagnostic[] {
   }
 
   checkAttrMap(effective.attributes, "universal");
-  checkAttrMap(effective.identified.attributes, "identified");
-  checkAttrMap(effective.referenced.attributes, "referenced");
   for (const [typeName, typeEntry] of effective.types) {
     checkAttrMap(typeEntry.value.attributes, `type '${typeName}'`);
     if (CORE_TYPES.has(typeName)) {

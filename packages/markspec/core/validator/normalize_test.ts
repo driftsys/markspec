@@ -28,20 +28,9 @@ function profile(opts: {
   universalAttrs?: readonly AttrDecl[];
 }): EffectiveProfile {
   return {
-    required: { value: [], origin: ORIGIN },
     attributes: provAttrs(opts.universalAttrs ?? []),
     labels: { value: [], origin: ORIGIN },
     colors: new Map(),
-    identified: {
-      required: { value: [], origin: ORIGIN },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    referenced: {
-      required: { value: [], origin: ORIGIN },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -199,25 +188,14 @@ Deno.test("normalizeListValues: entry with no typedAttributes is returned as-is"
 Deno.test("normalizeListValues: type-scope declarations are considered", () => {
   const origin = ORIGIN;
   const p: EffectiveProfile = {
-    required: { value: [], origin },
     attributes: new Map(),
     labels: { value: [], origin },
     colors: new Map(),
-    identified: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    referenced: {
-      required: { value: [], origin },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
     types: new Map([
       ["requirement", {
         value: {
           name: "requirement",
-          shape: "Authored",
+          extends: "Requirement",
           displayIdPattern: { value: undefined, origin },
           displayIdPatternEnforcement: { value: "off", origin },
           color: { value: undefined, origin },

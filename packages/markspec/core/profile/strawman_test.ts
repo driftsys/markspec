@@ -114,12 +114,12 @@ Deno.test("strawman: software-requirement has Derived-from traceability rule", a
   assertEquals(derivedFrom.value.required, true);
 });
 
-Deno.test("strawman: standard type has referenced shape", async () => {
+Deno.test("strawman: standard type extends Specification", async () => {
   const result = await loadStrawmanChain();
   assertExists(result.chain);
   const standard = result.chain.effective.types.get("standard");
   assertExists(standard);
-  assertEquals(standard.value.shape, "Reference");
+  assertEquals(standard.value.extends, "Specification");
 });
 
 Deno.test("strawman: per-type color resolves through merged colors map", async () => {

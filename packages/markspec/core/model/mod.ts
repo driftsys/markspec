@@ -670,7 +670,6 @@ export type {
   Cardinality,
   DocTypeDef,
   EffectiveProfile,
-  EffectiveShapeScope,
   EffectiveTypeDef,
   EnforcementMode,
   InverseDecl,

@@ -177,8 +177,5 @@ function collectAllProfileAttributes(
     // so Stage 1's MSL-R010 doesn't flag them before Stage 2 classifies.
     for (const name of typeEntry.value.traceability.keys()) out.add(name);
   }
-  // Shape-level trace rule link names too.
-  for (const name of profile.identified.traceability.keys()) out.add(name);
-  for (const name of profile.referenced.traceability.keys()) out.add(name);
   return out;
 }

@@ -18,7 +18,7 @@ version: 1.0.0
 profile:
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       display-id-pattern: "REQ-{n:04d}"
 `;
 

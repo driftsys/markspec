@@ -195,7 +195,6 @@ export function classifyEntry(
   if (entry.shape !== "Authored") return { type: undefined, diagnostics };
   const matches: string[] = [];
   for (const [typeName, typeEntry] of profile.types) {
-    if (typeEntry.value.shape !== entry.shape) continue;
     const pattern = typeEntry.value.displayIdPattern.value;
     if (pattern === undefined) continue;
     const regex = compileDisplayIdPattern(pattern);

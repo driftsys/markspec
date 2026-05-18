@@ -40,7 +40,7 @@ function makeProfile(
     Object.entries(typeColors).map(([name, color]) => [name, {
       value: {
         name,
-        shape: "Authored" as const,
+        extends: "Item",
         displayIdPattern: { value: undefined, origin: "test" },
         displayIdPatternEnforcement: { value: "off" as const, origin: "test" },
         color: { value: color, origin: "test" },
@@ -52,20 +52,9 @@ function makeProfile(
     }]),
   );
   return {
-    required: { value: [], origin: "test" },
     attributes: new Map(),
     labels: { value: [], origin: "test" },
     colors: colorsMap,
-    identified: {
-      required: { value: [], origin: "test" },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
-    referenced: {
-      required: { value: [], origin: "test" },
-      attributes: new Map(),
-      traceability: new Map(),
-    },
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
   } as EffectiveProfile;
@@ -172,14 +161,12 @@ profile:
     danger: red
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types:
     requirement:
-      shape: identified
+      extends: Requirement
       color: primary
     test:
-      shape: identified
+      extends: Test
       color: danger
   documents: { types: [], frontMatter: [] }
 `;
@@ -204,11 +191,9 @@ profile:
     primary: teal
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types:
     requirement:
-      shape: identified
+      extends: Requirement
   documents: { types: [], frontMatter: [] }
 `;
   const profile = loadEffective(yaml);
@@ -222,9 +207,9 @@ profile:
   );
 });
 
-Deno.test("integration: referenced-shape type stays uncolored even with color authored", () => {
-  // Manifest will emit MSL-PROFILE-COLOR-001 (warning) — manifest still
-  // loads, merge succeeds, and the renderer must return null.
+Deno.test("integration: referenced-shape entry stays uncolored even with type color declared", () => {
+  // A Reference-shape entry returns null regardless of what color the
+  // type declares — the renderer gates on entry.shape, not the profile.
   const yaml = `
 id: "@acme/profile"
 version: 1.0.0
@@ -233,11 +218,9 @@ profile:
     primary: blue
   attributes: []
   labels: []
-  identified: { attributes: [] }
-  referenced: { attributes: [] }
   types:
     standard:
-      shape: referenced
+      extends: Specification
       color: primary
   documents: { types: [], frontMatter: [] }
 `;

@@ -29,10 +29,10 @@ const CORE_RESERVED_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * Effective attribute declarations and required list for an entry, derived
- * from the profile's universal, shape, and (when classified) type scopes.
+ * from the profile's universal and (when classified) type scopes.
  *
  * Scope layering (outer → inner):
- *   universal → shape.identified/referenced → types.<T>
+ *   universal → types.<T>
  *
  * Name collisions: inner scope wins. Required lists are concatenated in
  * scope order (universal first, type last) preserving duplicates across
@@ -45,7 +45,7 @@ export interface EffectiveAttrScope {
 
 /**
  * Compute the effective attribute scope for a given entry against the
- * profile. Uses universal + shape scope always; adds type scope only when
+ * profile. Uses universal scope always; adds type scope only when
  * `entry.type` is set and the type is declared in the profile.
  */
 export function effectiveScope(
@@ -56,18 +56,8 @@ export function effectiveScope(
   const attributes = new Map<string, AttrDecl>();
 
   // Universal scope.
-  required.push(...profile.required.value);
   for (const [name, attrEntry] of profile.attributes) {
     attributes.set(name, attrEntry.value);
-  }
-
-  // Shape scope.
-  const shapeScope = entry.shape === "Authored"
-    ? profile.identified
-    : profile.referenced;
-  required.push(...shapeScope.required.value);
-  for (const [name, e] of shapeScope.attributes) {
-    attributes.set(name, e.value);
   }
 
   // Type scope (only when classified).
@@ -85,14 +75,6 @@ export function effectiveScope(
   // names that aren't explicitly declared as attributes. A trace rule IS an
   // id-list attribute by definition — profile authors shouldn't have to
   // declare it in both places.
-  const shapeTrace = entry.shape === "Authored"
-    ? profile.identified.traceability
-    : profile.referenced.traceability;
-  for (const [name] of shapeTrace) {
-    if (!attributes.has(name)) {
-      attributes.set(name, synthesizedLinkAttr(name));
-    }
-  }
   if (entry.type !== undefined) {
     const typeEntry = profile.types.get(entry.type);
     if (typeEntry !== undefined) {
