@@ -33,6 +33,7 @@
     "npm:unified@*": "11.0.5",
     "npm:unified@11": "11.0.5",
     "npm:vscode-languageserver-textdocument@1": "1.0.12",
+    "npm:vscode-languageserver@*": "9.0.1",
     "npm:vscode-languageserver@9": "9.0.1",
     "npm:web-tree-sitter@0.24": "0.24.7"
   },

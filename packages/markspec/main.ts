@@ -13,6 +13,7 @@ import { ConfigError, VERSION } from "./core/mod.ts";
 import type {
   CaptionConventions,
   CompileResult,
+  Diagnostic,
   ProfileChain,
   ReadFile,
 } from "./core/mod.ts";
@@ -684,6 +685,7 @@ const cli = new Command()
       const { parseFile, runPipeline } = await import("./core/mod.ts");
 
       const allEntries = [];
+      const parseDiagnostics: Diagnostic[] = [];
       for (const filePath of files) {
         let content: string;
         try {
@@ -694,6 +696,7 @@ const cli = new Command()
         }
         const result = await parseFile(content, { file: filePath });
         allEntries.push(...result.entries);
+        parseDiagnostics.push(...result.diagnostics);
       }
 
       const result = runPipeline(
@@ -702,12 +705,15 @@ const cli = new Command()
         captionConventions,
       );
 
+      // Merge parse-level diagnostics (MSL-P0xx) with pipeline diagnostics.
+      const allDiagnostics = [...parseDiagnostics, ...result.diagnostics];
+
       // Apply --strict: promote warnings to errors.
       const diagnostics = options.strict
-        ? result.diagnostics.map((d) =>
+        ? allDiagnostics.map((d) =>
           d.severity === "warning" ? { ...d, severity: "error" as const } : d
         )
-        : result.diagnostics;
+        : allDiagnostics;
 
       const hasErrors = diagnostics.some((d) => d.severity === "error");
       const hasWarnings = diagnostics.some((d) => d.severity === "warning");

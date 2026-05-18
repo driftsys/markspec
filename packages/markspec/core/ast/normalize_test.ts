@@ -48,11 +48,15 @@ Deno.test("normalizeBodyAst: already-canonical body is a no-op", () => {
 });
 
 Deno.test("normalizeBodyAst: modal inside a list item normalized", () => {
-  assertEquals(rt("- The driver SHALL act.\n- Plain item."),
-    "- The driver shall act.\n- Plain item.");
+  assertEquals(
+    rt("- The driver SHALL act.\n- Plain item."),
+    "- The driver shall act.\n- Plain item.",
+  );
 });
 
 Deno.test("normalizeBodyAst: modal inside a definition-list definition normalized", () => {
-  assertEquals(rt("Term\n: The system MUST stop."),
-    "Term\n: The system must stop.");
+  assertEquals(
+    rt("Term\n: The system MUST stop."),
+    "Term\n: The system must stop.",
+  );
 });

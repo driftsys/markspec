@@ -48,6 +48,8 @@ Deno.test("profile attributes e2e: happy path — all required present, types va
 
 - [REQ-0001] A requirement
 
+  Body text.
+
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Rationale: Needed for safety
       Count: 42
@@ -73,6 +75,8 @@ Deno.test("profile attributes e2e: missing required → MSL-A001", async () => {
 
 - [REQ-0001] Missing rationale
 
+  Body text.
+
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `,
     },
@@ -89,6 +93,8 @@ Deno.test("profile attributes e2e: cardinality upper exceeded → MSL-A002", asy
       "req.md": `# Example
 
 - [REQ-0001] Too many owners
+
+  Body text.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Rationale: needed
@@ -111,6 +117,8 @@ Deno.test("profile attributes e2e: cardinality lower unmet → MSL-A003", async 
 
 - [REQ-0001] Too few owners
 
+  Body text.
+
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Rationale: needed
       Owners: single
@@ -129,6 +137,8 @@ Deno.test("profile attributes e2e: value-type mismatch → MSL-A004", async () =
 
 - [REQ-0001] Count must be integer
 
+  Body text.
+
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Rationale: needed
       Count: not-an-integer
@@ -146,6 +156,8 @@ Deno.test("profile attributes e2e: unknown attribute → MSL-A005 warning", asyn
       "req.md": `# Example
 
 - [REQ-0001] Unknown attribute
+
+  Body text.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Rationale: needed
@@ -169,6 +181,8 @@ Deno.test("profile attributes e2e: enum type-mismatch → MSL-A004 on Status", a
 
 - [REQ-0001] Bad status
 
+  Body text.
+
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Rationale: needed
       Status: rejected
@@ -186,6 +200,8 @@ Deno.test("profile attributes e2e: no profile → no MSL-A diagnostics (core-onl
       "req.md": `# Example
 
 - [REQ-0001] No profile
+
+  Body text.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `,

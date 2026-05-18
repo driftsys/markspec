@@ -11,7 +11,7 @@ import { setupGitFixture } from "./helpers_git.ts";
 const PROJECT_YAML = `name: phase4-e2e\nversion: 0.1.0\n`;
 
 const REQ_MD =
-  `# Example\n\n- [REQ-0001] A requirement\n\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\\\n`;
+  `# Example\n\n- [REQ-0001] A requirement\n\n  Body text.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
 
 const BASE_PROFILE_YAML = `id: "@acme/phase4-base"
 version: 1.0.0

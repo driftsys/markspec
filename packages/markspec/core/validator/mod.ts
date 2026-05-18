@@ -83,6 +83,8 @@ function checkStructural(
 
   for (const entry of entries) {
     // MSL-R003: exactly one `Id:` attribute per entry.
+    // Dual-emit: MSL-I002 (Reference missing Id), MSL-I003 (Authored missing
+    // Id), MSL-I004 (multiple Id) — nextgen §4.2 codes alongside legacy.
     const idAttrs = entry.rawAttributes.filter((a) => a.key === IDENTITY_KEY);
     if (idAttrs.length === 0) {
       diagnostics.push({
@@ -91,6 +93,24 @@ function checkStructural(
         message: `${entry.displayId}: missing Id: attribute`,
         location: entry.location,
       });
+      // Dual-emit: shape-specific nextgen code
+      if (entry.shape === "Reference") {
+        diagnostics.push({
+          code: "MSL-I002",
+          severity: "error",
+          message: `${entry.displayId}: Reference-shape entry without Id: ` +
+            `fmt cannot mint URIs (spec section 4.2)`,
+          location: entry.location,
+        });
+      } else {
+        diagnostics.push({
+          code: "MSL-I003",
+          severity: "error",
+          message: `${entry.displayId}: Authored-shape entry without Id: ` +
+            `run fmt to mint a ULID (spec section 4.2)`,
+          location: entry.location,
+        });
+      }
     } else if (idAttrs.length > 1) {
       diagnostics.push({
         code: "MSL-R003",
@@ -99,9 +119,18 @@ function checkStructural(
           `${entry.displayId}: multiple Id: attributes (${idAttrs.length}) — exactly one is required`,
         location: entry.location,
       });
+      // Dual-emit: MSL-I004
+      diagnostics.push({
+        code: "MSL-I004",
+        severity: "error",
+        message: `${entry.displayId}: multiple Id: trailers ` +
+          `(${idAttrs.length}) on the same entry (spec section 4.2)`,
+        location: entry.location,
+      });
     }
 
     // MSL-R004: `Id:` value must be a ULID or a scheme-qualified URI.
+    // Dual-emit: MSL-I001 — nextgen §4.2 code alongside legacy.
     if (idAttrs.length > 0) {
       const value = idAttrs[0].value;
       const isUlid = ULID_RE.test(value);
@@ -112,6 +141,14 @@ function checkStructural(
           severity: "error",
           message:
             `${entry.displayId}: Id: value '${value}' is neither a bare ULID nor a scheme-qualified URI`,
+          location: entry.location,
+        });
+        diagnostics.push({
+          code: "MSL-I001",
+          severity: "error",
+          message:
+            `${entry.displayId}: Id: value '${value}' is neither a ULID ` +
+            `(^[0-9A-HJKMNP-TV-Z]{26}$) nor an RFC 3986 URI (spec section 4.2)`,
           location: entry.location,
         });
       }
@@ -152,6 +189,7 @@ function checkStructural(
     }
 
     // MSL-R006: Display ID unique across all entries.
+    // Dual-emit: MSL-I008 (warning) — nextgen §4.2.
     const existingDisplay = displayIds.get(entry.displayId);
     if (existingDisplay) {
       diagnostics.push({
@@ -161,11 +199,21 @@ function checkStructural(
           `duplicate display ID '${entry.displayId}' (also at ${existingDisplay.location.file}:${existingDisplay.location.line})`,
         location: entry.location,
       });
+      diagnostics.push({
+        code: "MSL-I008",
+        severity: "warning",
+        message: `duplicate display ID '${entry.displayId}' within the same ` +
+          `shape (also at ${existingDisplay.location.file}:` +
+          `${existingDisplay.location.line}) -- cross-references resolve ` +
+          `by Id:, so this is style-only (spec section 4.2)`,
+        location: entry.location,
+      });
     } else {
       displayIds.set(entry.displayId, entry);
     }
 
     // MSL-R005: identity value unique across all entries.
+    // Dual-emit: MSL-I007 — nextgen §4.2.
     if (entry.id) {
       const existingId = ids.get(entry.id);
       if (existingId) {
@@ -174,6 +222,15 @@ function checkStructural(
           severity: "error",
           message:
             `duplicate Id '${entry.id}' (also at ${existingId.location.file}:${existingId.location.line})`,
+          location: entry.location,
+        });
+        diagnostics.push({
+          code: "MSL-I007",
+          severity: "error",
+          message:
+            `duplicate Id: value '${entry.id}' across the project (also ` +
+            `at ${existingId.location.file}:${existingId.location.line}) ` +
+            `(spec section 4.2)`,
           location: entry.location,
         });
       } else {
