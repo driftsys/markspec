@@ -752,19 +752,52 @@ const cli = new Command()
   .option("--format <format:string>", "Output format (json|text)", {
     default: "text",
   })
-  .action(async (_options: { format?: string }, ...paths: string[]) => {
-    const { result, chain: _chain } = await compileProject(paths);
+  .option("--output <dir:string>", "Write /api/ directory to <dir>")
+  .action(
+    async (
+      _options: { format?: string; output?: string },
+      ...paths: string[]
+    ) => {
+      const { result, chain } = await compileProject(paths);
 
-    if (_options.format === "json") {
-      const { serializeCompileResult } = await import("./core/mod.ts");
-      const output = serializeCompileResult(result);
-      console.log(JSON.stringify(output, null, 2));
-    } else {
-      console.log(
-        `${result.entries.size} entries, ${result.links.length} links from ${paths.length} files`,
-      );
-    }
-  })
+      if (_options.output) {
+        const { buildManifest, serializeCompileResult } = await import(
+          "./core/mod.ts"
+        );
+        const configResult = await requireProjectConfig();
+        const manifestJson = buildManifest(
+          result,
+          configResult.config,
+          configResult.projectRoot,
+          chain?.effective,
+          VERSION,
+        );
+        await Deno.mkdir(_options.output, { recursive: true });
+        await Deno.writeTextFile(
+          `${_options.output}/manifest.json`,
+          JSON.stringify(manifestJson, null, 2),
+        );
+        const compiled = serializeCompileResult(result);
+        await Deno.writeTextFile(
+          `${_options.output}/compiled.json`,
+          JSON.stringify(compiled, null, 2),
+        );
+        console.error(`wrote ${_options.output}/manifest.json`);
+        console.error(`wrote ${_options.output}/compiled.json`);
+        return;
+      }
+
+      if (_options.format === "json") {
+        const { serializeCompileResult } = await import("./core/mod.ts");
+        const output = serializeCompileResult(result);
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        console.log(
+          `${result.entries.size} entries, ${result.links.length} links from ${paths.length} files`,
+        );
+      }
+    },
+  )
   .command("export <format:string> <paths...:string>")
   .description(
     "Emit the compiled traceability graph in json, yaml, or csv (reqif pending)",
