@@ -353,3 +353,33 @@ Deno.test("mcp: file edit + markspec_refresh fires resources/updated", async () 
     await Deno.remove(cwd, { recursive: true });
   }
 });
+
+Deno.test("mcp: touching a file without changing content does not break results", async () => {
+  const { proc, cwd } = await setup();
+  try {
+    // Warm up the cache.
+    const r1 = await proc.request("tools/call", {
+      name: "entry_search",
+      arguments: { query: "collision" },
+    });
+    // deno-lint-ignore no-explicit-any
+    const c1 = (r1.result as any).content as Array<{ text: string }>;
+    assertStringIncludes(c1[0].text, "STK_E2E_0001");
+
+    // Touch the file: write same content back → mtime bumped, hash unchanged.
+    const content = await Deno.readTextFile(`${cwd}/req.md`);
+    await Deno.writeTextFile(`${cwd}/req.md`, content);
+
+    // SHA256 gate: next search should still return the same entry.
+    const r2 = await proc.request("tools/call", {
+      name: "entry_search",
+      arguments: { query: "collision" },
+    });
+    // deno-lint-ignore no-explicit-any
+    const c2 = (r2.result as any).content as Array<{ text: string }>;
+    assertStringIncludes(c2[0].text, "STK_E2E_0001");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
