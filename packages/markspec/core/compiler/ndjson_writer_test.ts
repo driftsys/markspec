@@ -4,10 +4,7 @@
  * Unit tests for the NDJSON stream builder functions.
  */
 
-import {
-  assertEquals,
-  assertGreater,
-} from "@std/assert";
+import { assertEquals, assertGreater } from "@std/assert";
 import type { Entry, Link } from "../model/mod.ts";
 import {
   buildEdgesNdjson,
@@ -33,7 +30,12 @@ function makeEntry(displayId: string, body = "Body."): Entry {
 }
 
 function makeAuthoredLink(from: string, to: string): Link {
-  return { from, to, kind: "satisfies", location: { file: "test.md", line: 1, column: 1 } };
+  return {
+    from,
+    to,
+    kind: "satisfies",
+    location: { file: "test.md", line: 1, column: 1 },
+  };
 }
 
 function makeGeneratedLink(from: string, to: string): Link {

@@ -13,7 +13,11 @@ import type { CompileResult } from "./mod.ts";
 /** Entries block in `manifest.json` — inline (Tier 1) or NDJSON (Tier 2). */
 export type ManifestEntriesBlock =
   | { readonly format: "inline"; readonly file: string }
-  | { readonly format: "ndjson"; readonly file: string; readonly index: string };
+  | {
+    readonly format: "ndjson";
+    readonly file: string;
+    readonly index: string;
+  };
 
 /** Edges block in `manifest.json` — inline (Tier 1) or NDJSON (Tier 2). */
 export type ManifestEdgesBlock =
