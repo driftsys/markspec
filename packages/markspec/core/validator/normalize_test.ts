@@ -29,8 +29,9 @@ function profile(opts: {
 }): EffectiveProfile {
   return {
     attributes: provAttrs(opts.universalAttrs ?? []),
-    labels: { value: [], origin: ORIGIN },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
   };
@@ -189,8 +190,9 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
   const origin = ORIGIN;
   const p: EffectiveProfile = {
     attributes: new Map(),
-    labels: { value: [], origin },
+    labels: new Map(),
     colors: new Map(),
+    conventions: new Map(),
     types: new Map([
       ["requirement", {
         value: {
@@ -202,6 +204,9 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
           required: { value: [], origin },
           attributes: provAttrs([idListAttr]),
           traceability: new Map(),
+          description: { value: undefined, origin },
+          attrDescriptions: new Map(),
+          relationDescriptions: new Map(),
         },
         origin,
       }],
