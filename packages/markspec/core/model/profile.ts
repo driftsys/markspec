@@ -82,6 +82,34 @@ export interface TraceRule {
 }
 
 // ---------------------------------------------------------------------------
+// Label concerns (profile.labels: dual-form)
+// ---------------------------------------------------------------------------
+
+export type LabelConcernKind = "enum" | "set" | "flag";
+
+export interface LabelValue {
+  readonly name: string;
+  readonly description?: string;
+}
+
+export interface LabelConcern {
+  readonly name: string;
+  readonly kind: LabelConcernKind;
+  readonly description?: string;
+  readonly values: readonly LabelValue[];
+}
+
+// ---------------------------------------------------------------------------
+// Conventions
+// ---------------------------------------------------------------------------
+
+export interface ProfileConvention {
+  readonly name: string;
+  readonly settings: Readonly<Record<string, string>>;
+  readonly description?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Type definition
 // ---------------------------------------------------------------------------
 
