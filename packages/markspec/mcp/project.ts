@@ -61,10 +61,45 @@ export interface ProjectEnv {
   walk(root: string): AsyncIterable<string>;
 }
 
-/** Per-tracked-file mtime snapshot. */
+/** Per-tracked-file mtime + content-hash snapshot. */
 interface TrackedFile {
   path: string;
   mtime: number;
+  /** SHA-256 hex digest of file content. `undefined` → no hash stored (treat as stale on mtime change). */
+  contentHash?: string;
+}
+
+/** Compute SHA-256 hex digest of UTF-8 text using the Web Crypto global. */
+async function sha256(content: string): Promise<string> {
+  const data = new TextEncoder().encode(content);
+  const buf = await globalThis.crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(buf);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Two-step staleness gate for a single file.
+ *
+ * - **Fast gate**: if `currentMtime === storedMtime`, the file is unchanged → not stale.
+ *   `readContent` is never called.
+ * - **Truth gate**: if mtime changed, compute the content hash. If `storedHash` is
+ *   `undefined` (no hash recorded yet), treat as stale. Otherwise compare hashes —
+ *   content-identical files (e.g. after `git checkout`) are not stale.
+ *
+ * Exported for unit testing.
+ */
+export async function checkFileStaleness(
+  storedMtime: number,
+  storedHash: string | undefined,
+  currentMtime: number,
+  readContent: () => Promise<string | undefined>,
+): Promise<boolean> {
+  if (currentMtime === storedMtime) return false; // fast path
+  if (!storedHash) return true; // no stored hash → always stale
+  const content = await readContent();
+  if (content === undefined) return true; // file gone
+  const currentHash = await sha256(content);
+  return currentHash !== storedHash;
 }
 
 /** Handler signature for invalidation subscribers. */
@@ -193,12 +228,16 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         profile: profileChain?.effective ?? undefined,
       });
 
-      // Snapshot mtimes for next invalidation check.
+      // Snapshot mtime + SHA256 hash for the next invalidation check.
       const snapshot: TrackedFile[] = [];
       for (const path of paths) {
         try {
           const { mtime } = await env.stat(path);
-          snapshot.push({ path, mtime });
+          const content = await env.readFile(path);
+          const contentHash = content !== undefined
+            ? await sha256(content)
+            : undefined;
+          snapshot.push({ path, mtime, contentHash });
         } catch {
           // File disappeared during compile — ignore.
         }
@@ -237,11 +276,17 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   /** Detect any change in the tracked file set since the last compile. */
   async function isStale(): Promise<boolean> {
     if (!projectRoot) return false;
-    // 1) Any tracked file with newer mtime, or missing?
+    // 1) Any tracked file that is stale (mtime fast path → SHA256 truth gate)?
     for (const t of tracked) {
       try {
         const { mtime } = await env.stat(t.path);
-        if (mtime !== t.mtime) return true;
+        const stale = await checkFileStaleness(
+          t.mtime,
+          t.contentHash,
+          mtime,
+          () => env.readFile(t.path),
+        );
+        if (stale) return true;
       } catch {
         return true; // file disappeared
       }

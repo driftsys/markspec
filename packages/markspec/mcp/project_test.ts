@@ -7,7 +7,11 @@
  */
 
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
-import { createProject, type ProjectEnv } from "./project.ts";
+import {
+  checkFileStaleness,
+  createProject,
+  type ProjectEnv,
+} from "./project.ts";
 
 /** Build a ProjectEnv that serves a fixed file map. */
 function makeEnv(files: Record<string, { content: string; mtime: number }>): {
@@ -199,4 +203,86 @@ Deno.test("subscribeInvalidation: fires handlers after recompile", async () => {
   await proj.getCompiled();
 
   assertEquals(fired, 2);
+});
+
+// ---------------------------------------------------------------------------
+// SHA256 content-hash gate tests
+// ---------------------------------------------------------------------------
+
+/** Compute SHA-256 hex using the same Web Crypto global the production code uses. */
+async function testSha256(content: string): Promise<string> {
+  const data = new TextEncoder().encode(content);
+  const buf = await globalThis.crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(buf);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+Deno.test("checkFileStaleness: same content, mtime bumped → NOT stale", async () => {
+  const storedHash = await testSha256(REQ_DOC);
+
+  const result = await checkFileStaleness(
+    1,
+    storedHash,
+    2, // mtime changed
+    () => Promise.resolve(REQ_DOC), // same content
+  );
+  assertEquals(result, false);
+});
+
+Deno.test("checkFileStaleness: different content, mtime bumped → stale", async () => {
+  const storedHash = await testSha256(REQ_DOC);
+
+  const result = await checkFileStaleness(
+    1,
+    storedHash,
+    2, // mtime changed
+    () => Promise.resolve(REQ_DOC + "\n# extra content"), // different
+  );
+  assertEquals(result, true);
+});
+
+Deno.test("checkFileStaleness: same mtime → NOT stale (fast path, no read)", async () => {
+  let readCalled = false;
+  const result = await checkFileStaleness(
+    1,
+    "somehash",
+    1, // mtime unchanged
+    () => {
+      readCalled = true;
+      return Promise.resolve(REQ_DOC);
+    },
+  );
+  assertEquals(result, false);
+  assertEquals(
+    readCalled,
+    false,
+    "readContent must not be called on mtime fast path",
+  );
+});
+
+Deno.test("checkFileStaleness: no stored hash → stale", async () => {
+  const result = await checkFileStaleness(
+    1,
+    undefined, // no stored hash (first run / legacy cache)
+    2, // mtime changed
+    () => Promise.resolve(REQ_DOC),
+  );
+  assertEquals(result, true);
+});
+
+Deno.test("getCompiled: same content, mtime bumped → NOT stale (SHA256 gate)", async () => {
+  const { env, bumpMtime } = makeEnv({
+    "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
+    "/proj/req.md": { content: REQ_DOC, mtime: 1 },
+  });
+  const proj = await createProject(env);
+  const r1 = await proj.getCompiled();
+  assertEquals(r1.entries.size, 1);
+
+  // Bump mtime but keep same content (simulates `git checkout` touching mtime).
+  bumpMtime("/proj/req.md", REQ_DOC, Date.now() + 1000);
+
+  const r2 = await proj.getCompiled();
+  assertEquals(r2.entries.size, 1);
+  assertEquals(r2, r1, "cached result returned — no recompile triggered");
 });
