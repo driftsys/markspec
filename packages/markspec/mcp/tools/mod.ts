@@ -29,6 +29,11 @@ import {
   VALIDATE_DESCRIPTOR,
 } from "./validate.ts";
 import { REFRESH_DESCRIPTOR, renderRefresh } from "./refresh.ts";
+import {
+  dispatchProfileDescribe,
+  PROFILE_DESCRIBE_DESCRIPTOR,
+} from "./profile_describe.ts";
+import { buildProfileView } from "../resources/profile.ts";
 
 /** All tool descriptors, in `tools/list` order. */
 export const TOOL_DESCRIPTORS = [
@@ -36,6 +41,7 @@ export const TOOL_DESCRIPTORS = [
   ENTRY_CONTEXT_DESCRIPTOR,
   VALIDATE_DESCRIPTOR,
   REFRESH_DESCRIPTOR,
+  PROFILE_DESCRIBE_DESCRIPTOR,
 ];
 
 /** Tool dispatch entry — takes raw arguments and the project context. */
@@ -94,6 +100,12 @@ const HANDLERS: Record<string, ToolHandler> = {
   markspec_refresh: async (_args, project) => {
     const result = await project.forceRefresh();
     return renderRefresh(result.entries.size, result.links.length);
+  },
+
+  // deno-lint-ignore no-explicit-any
+  profile_describe: (args: any, project) => {
+    const intro = buildProfileView(project.profileChain);
+    return Promise.resolve(dispatchProfileDescribe(intro, args));
   },
 };
 
