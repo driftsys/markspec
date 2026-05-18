@@ -253,7 +253,11 @@ Deno.test("checkFileStaleness: same mtime → NOT stale (fast path, no read)", a
     },
   );
   assertEquals(result, false);
-  assertEquals(readCalled, false, "readContent must not be called on mtime fast path");
+  assertEquals(
+    readCalled,
+    false,
+    "readContent must not be called on mtime fast path",
+  );
 });
 
 Deno.test("checkFileStaleness: no stored hash → stale", async () => {
