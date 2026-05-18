@@ -187,7 +187,20 @@ export type {
   SerializedCompileResult,
 } from "./compiler/mod.ts";
 export { buildManifest } from "./compiler/manifest.ts";
-export type { ManifestJson } from "./compiler/manifest.ts";
+export type {
+  ManifestEdgesBlock,
+  ManifestEntriesBlock,
+  ManifestJson,
+} from "./compiler/manifest.ts";
+export {
+  buildEdgesNdjson,
+  buildEntriesNdjson,
+  indexToJson,
+} from "./compiler/ndjson_writer.ts";
+export type {
+  EntriesNdjsonResult,
+  EntryOffset,
+} from "./compiler/ndjson_writer.ts";
 
 // Reporter
 export { report } from "./reporter/mod.ts";

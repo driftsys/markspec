@@ -10,6 +10,20 @@
 import type { EffectiveProfile, ProjectConfig } from "../model/mod.ts";
 import type { CompileResult } from "./mod.ts";
 
+/** Entries block in `manifest.json` — inline (Tier 1) or NDJSON (Tier 2). */
+export type ManifestEntriesBlock =
+  | { readonly format: "inline"; readonly file: string }
+  | {
+    readonly format: "ndjson";
+    readonly file: string;
+    readonly index: string;
+  };
+
+/** Edges block in `manifest.json` — inline (Tier 1) or NDJSON (Tier 2). */
+export type ManifestEdgesBlock =
+  | { readonly format: "inline"; readonly file: string }
+  | { readonly format: "ndjson"; readonly file: string };
+
 /** `manifest.json` schema (spec §4.2). */
 export interface ManifestJson {
   readonly markspecSchemaVersion: 1;
@@ -26,14 +40,8 @@ export interface ManifestJson {
     readonly edges: number;
     readonly byType: Readonly<Record<string, number>>;
   };
-  readonly entries: {
-    readonly format: "inline";
-    readonly file: string;
-  };
-  readonly edges: {
-    readonly format: "inline";
-    readonly file: string;
-  };
+  readonly entries: ManifestEntriesBlock;
+  readonly edges: ManifestEdgesBlock;
   readonly sqliteMirror: null;
   readonly federation: readonly string[];
   readonly reserved: Readonly<Record<string, never>>;
@@ -42,8 +50,10 @@ export interface ManifestJson {
 /**
  * Build the `manifest.json` object for a compiled project.
  *
- * Tier 1 always emits the small-project degenerate form: both `entries` and
- * `edges` point at `compiled.json` with `format: "inline"`.
+ * When `streaming` is false (default): emits the Tier 1 inline form —
+ * both `entries` and `edges` point at `compiled.json`.
+ * When `streaming` is true: emits the Tier 2 NDJSON form —
+ * entries → `entries.ndjson` + `entries.idx`, edges → `edges.ndjson`.
  */
 export function buildManifest(
   result: CompileResult,
@@ -51,12 +61,17 @@ export function buildManifest(
   projectRoot: string,
   _profile: EffectiveProfile | undefined,
   version: string,
+  streaming = false,
 ): ManifestJson {
   const byType: Record<string, number> = {};
   for (const entry of result.entries.values()) {
     const typeName = entry.type ?? "unknown";
     byType[typeName] = (byType[typeName] ?? 0) + 1;
   }
+
+  const generatedEdgeCount = result.links.filter(
+    (l) => l.origin === "generated",
+  ).length;
 
   return {
     markspecSchemaVersion: 1,
@@ -70,17 +85,15 @@ export function buildManifest(
     },
     counts: {
       entries: result.entries.size,
-      edges: result.links.length,
+      edges: streaming ? generatedEdgeCount : result.links.length,
       byType,
     },
-    entries: {
-      format: "inline",
-      file: "compiled.json",
-    },
-    edges: {
-      format: "inline",
-      file: "compiled.json",
-    },
+    entries: streaming
+      ? { format: "ndjson", file: "entries.ndjson", index: "entries.idx" }
+      : { format: "inline", file: "compiled.json" },
+    edges: streaming
+      ? { format: "ndjson", file: "edges.ndjson" }
+      : { format: "inline", file: "compiled.json" },
     sqliteMirror: null,
     federation: config.parents ?? [],
     reserved: {},

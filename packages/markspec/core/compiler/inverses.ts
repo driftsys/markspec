@@ -11,11 +11,14 @@ import type {
   EffectiveProfile,
   Entry,
   InverseDecl,
+  Link,
+  LinkKind,
 } from "../model/mod.ts";
 
 /** Result of inverse generation. */
 export interface GenerateInversesResult {
   readonly entries: readonly Entry[];
+  readonly links: readonly Link[];
   readonly diagnostics: readonly Diagnostic[];
 }
 
@@ -38,18 +41,37 @@ interface InverseSpec {
  * an `inverse:` declaration in the effective profile, then accumulates
  * back-links on target entries.
  */
+/**
+ * Attribute-name → LinkKind for forward-link attributes that may carry
+ * inverse declarations. Used to tag generated back-link edges with the
+ * forward relationship kind so consumers can reconstruct the full graph.
+ */
+const ATTR_TO_LINK_KIND: Readonly<Record<string, LinkKind>> = {
+  "Satisfies": "satisfies",
+  "Derived-from": "derived-from",
+  "References": "references",
+  "Allocated-to": "allocated-to",
+  "Realizes": "realizes",
+  "Verifies": "verifies",
+  "Tests": "tests",
+  "Depends-on": "depends-on",
+  "Part-of": "part-of",
+  "Generated-from": "generated-from",
+  "Supersedes": "supersedes",
+};
+
 export function generateInverses(
   entries: readonly Entry[],
   profile: EffectiveProfile,
 ): GenerateInversesResult {
   if (entries.length === 0) {
-    return { entries: [], diagnostics: [] };
+    return { entries: [], links: [], diagnostics: [] };
   }
 
   // Step 1: Collect all inverse declarations from the profile
   const inverseSpecs = collectInverseSpecs(profile);
   if (inverseSpecs.length === 0) {
-    return { entries: [...entries], diagnostics: [] };
+    return { entries: [...entries], links: [], diagnostics: [] };
   }
 
   // Step 2: Index entries by id
@@ -63,6 +85,13 @@ export function generateInverses(
   // Step 3–5: Walk entries, accumulate back-links
   // Map: targetId → Map<inverseAttrName, Set<sourceId>>
   const generated = new Map<string, Map<string, Set<string>>>();
+
+  // Parallel list of raw generated-edge data for Link emission.
+  const generatedEdges: Array<{
+    targetUlid: string;
+    sourceUlid: string;
+    attrName: string;
+  }> = [];
 
   for (const source of entries) {
     if (source.shape !== "Authored" || source.id === undefined) continue;
@@ -90,7 +119,15 @@ export function generateInverses(
           idSet = new Set();
           targetMap.set(spec.inverse.name, idSet);
         }
+        const wasNew = !idSet.has(source.id!);
         idSet.add(source.id!);
+        if (wasNew) {
+          generatedEdges.push({
+            targetUlid: targetId,
+            sourceUlid: source.id!,
+            attrName: spec.attrName,
+          });
+        }
       }
     }
   }
@@ -148,7 +185,24 @@ export function generateInverses(
     }
   }
 
-  return { entries: result, diagnostics };
+  // Resolve generated edges to displayId-based Link objects.
+  const links: Link[] = [];
+  for (const { targetUlid, sourceUlid, attrName } of generatedEdges) {
+    const kind = ATTR_TO_LINK_KIND[attrName];
+    if (!kind) continue;
+    const target = byId.get(targetUlid);
+    const source = byId.get(sourceUlid);
+    if (!target || !source) continue;
+    links.push({
+      from: target.displayId,
+      to: source.displayId,
+      kind,
+      location: source.location,
+      origin: "generated",
+    });
+  }
+
+  return { entries: result, links, diagnostics };
 }
 
 /** Collect all inverse-bearing attribute declarations from the profile. */

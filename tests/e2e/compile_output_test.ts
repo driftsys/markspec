@@ -1,8 +1,10 @@
 /**
  * @module tests/e2e/compile_output_test
  *
- * E2E tests for `markspec compile --output <dir>` — the Tier 1 manifest
- * writer that produces `manifest.json` + `compiled.json` in the target dir.
+ * E2E tests for `markspec compile --output <dir>`:
+ *   - Tier 1 (below split threshold): manifest.json + compiled.json
+ *   - Tier 2 (at/above threshold): manifest.json + entries.ndjson +
+ *     entries.idx + edges.ndjson
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -186,3 +188,211 @@ Deno.test("compile without --output: stdout json path unchanged", async () => {
   assertEquals(typeof parsed.entries, "object");
   assertEquals(parsed.entries["STK_0001"].displayId, "STK_0001");
 });
+
+// ---------------------------------------------------------------------------
+// Tier 2: NDJSON streaming output (--split-threshold 1 forces the path)
+// ---------------------------------------------------------------------------
+
+/** Run markspec with --output and --split-threshold 1 (forces NDJSON). */
+async function compileWithOutputStreaming(
+  files: Record<string, string>,
+): Promise<{
+  code: number;
+  stdout: string;
+  stderr: string;
+  manifestJson: string | null;
+  entriesNdjson: string | null;
+  entriesIdx: string | null;
+  edgesNdjson: string | null;
+}> {
+  const dir = await Deno.makeTempDir();
+  try {
+    for (const [name, content] of Object.entries(files)) {
+      const parts = name.split("/");
+      if (parts.length > 1) {
+        await Deno.mkdir(`${dir}/${parts.slice(0, -1).join("/")}`, {
+          recursive: true,
+        }).catch(() => {});
+      }
+      await Deno.writeTextFile(`${dir}/${name}`, content);
+    }
+
+    const parentEnv = Deno.env.toObject();
+    const safeEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parentEnv)) {
+      if (!k.startsWith("GIT_")) safeEnv[k] = v;
+    }
+
+    const cmd = new Deno.Command("deno", {
+      args: [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        CLI_ENTRY,
+        "compile",
+        "--output",
+        "out",
+        "--split-threshold",
+        "1",
+        "req.md",
+      ],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+      clearEnv: true,
+      env: safeEnv,
+    });
+    const result = await cmd.output();
+
+    let manifestJson: string | null = null;
+    let entriesNdjson: string | null = null;
+    let entriesIdx: string | null = null;
+    let edgesNdjson: string | null = null;
+    try {
+      manifestJson = await Deno.readTextFile(`${dir}/out/manifest.json`);
+    } catch { /* file may not exist */ }
+    try {
+      entriesNdjson = await Deno.readTextFile(`${dir}/out/entries.ndjson`);
+    } catch { /* file may not exist */ }
+    try {
+      entriesIdx = await Deno.readTextFile(`${dir}/out/entries.idx`);
+    } catch { /* file may not exist */ }
+    try {
+      edgesNdjson = await Deno.readTextFile(`${dir}/out/edges.ndjson`);
+    } catch { /* file may not exist */ }
+
+    return {
+      code: result.code,
+      stdout: new TextDecoder().decode(result.stdout),
+      stderr: new TextDecoder().decode(result.stderr),
+      manifestJson,
+      entriesNdjson,
+      entriesIdx,
+      edgesNdjson,
+    };
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+}
+
+Deno.test(
+  "compile --output --split-threshold 1: exits 0 and writes NDJSON files",
+  async () => {
+    const { code, manifestJson, entriesNdjson, entriesIdx, edgesNdjson } =
+      await compileWithOutputStreaming({
+        "project.yaml": PROJECT_YAML,
+        "req.md": SAMPLE_MD,
+      });
+    assertEquals(code, 0);
+    assertEquals(typeof manifestJson, "string");
+    assertEquals(typeof entriesNdjson, "string");
+    assertEquals(typeof entriesIdx, "string");
+    assertEquals(typeof edgesNdjson, "string");
+  },
+);
+
+Deno.test(
+  "compile --output --split-threshold 1: manifest entries block is ndjson format",
+  async () => {
+    const { manifestJson } = await compileWithOutputStreaming({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    const manifest = JSON.parse(manifestJson!);
+    assertEquals(manifest.entries.format, "ndjson");
+    assertEquals(manifest.entries.file, "entries.ndjson");
+    assertEquals(manifest.entries.index, "entries.idx");
+  },
+);
+
+Deno.test(
+  "compile --output --split-threshold 1: manifest edges block is ndjson format",
+  async () => {
+    const { manifestJson } = await compileWithOutputStreaming({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    const manifest = JSON.parse(manifestJson!);
+    assertEquals(manifest.edges.format, "ndjson");
+    assertEquals(manifest.edges.file, "edges.ndjson");
+  },
+);
+
+Deno.test(
+  "compile --output --split-threshold 1: entries.ndjson has one valid JSON line per entry",
+  async () => {
+    const { entriesNdjson } = await compileWithOutputStreaming({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    const lines = entriesNdjson!.split("\n").filter((l) => l.trim().length > 0);
+    assertEquals(lines.length, 1);
+    const entry = JSON.parse(lines[0]);
+    assertEquals(entry.displayId, "STK_0001");
+  },
+);
+
+Deno.test(
+  "compile --output --split-threshold 1: entries.idx byte offsets enable seek-and-compare",
+  async () => {
+    const { entriesNdjson, entriesIdx } = await compileWithOutputStreaming({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    const index = JSON.parse(entriesIdx!) as Record<
+      string,
+      { offset: number; length: number }
+    >;
+    const ndjsonBytes = new TextEncoder().encode(entriesNdjson!);
+    for (const [displayId, slot] of Object.entries(index)) {
+      const sliceBytes = ndjsonBytes.slice(
+        slot.offset,
+        slot.offset + slot.length,
+      );
+      const line = new TextDecoder().decode(sliceBytes).trimEnd();
+      const entry = JSON.parse(line);
+      assertEquals(entry.displayId, displayId);
+    }
+  },
+);
+
+Deno.test(
+  "compile --output --split-threshold 1: edges.ndjson is empty when no profile generates inverses",
+  async () => {
+    const { edgesNdjson } = await compileWithOutputStreaming({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    // No profile → no generated inverses → edges.ndjson is an empty file.
+    assertEquals(edgesNdjson!.trim(), "");
+  },
+);
+
+Deno.test(
+  "compile --output --split-threshold 1: prints wrote messages for NDJSON files to stderr",
+  async () => {
+    const { stderr } = await compileWithOutputStreaming({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    assertStringIncludes(stderr, "entries.ndjson");
+    assertStringIncludes(stderr, "entries.idx");
+    assertStringIncludes(stderr, "edges.ndjson");
+  },
+);
+
+Deno.test(
+  "compile --output: below threshold (default 1000) writes compiled.json not NDJSON files",
+  async () => {
+    // 1 entry with default threshold of 1000 → Tier 1 path.
+    const { code, compiledJson, manifestJson } = await compileWithOutput({
+      "project.yaml": PROJECT_YAML,
+      "req.md": SAMPLE_MD,
+    });
+    assertEquals(code, 0);
+    assertEquals(typeof compiledJson, "string");
+    const manifest = JSON.parse(manifestJson!);
+    assertEquals(manifest.entries.format, "inline");
+    assertEquals(manifest.edges.format, "inline");
+  },
+);

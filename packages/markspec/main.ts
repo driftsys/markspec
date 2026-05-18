@@ -753,37 +753,64 @@ const cli = new Command()
     default: "text",
   })
   .option("--output <dir:string>", "Write /api/ directory to <dir>")
+  .option(
+    "--split-threshold <n:number>",
+    "Entry count at which to switch to NDJSON streaming output",
+    { default: 1000 },
+  )
   .action(
     async (
-      _options: { format?: string; output?: string },
+      _options: { format?: string; output?: string; splitThreshold: number },
       ...paths: string[]
     ) => {
       const { result, chain } = await compileProject(paths);
 
       if (_options.output) {
-        const { buildManifest, serializeCompileResult } = await import(
-          "./core/mod.ts"
-        );
+        const {
+          buildManifest,
+          buildEdgesNdjson,
+          buildEntriesNdjson,
+          indexToJson,
+          serializeCompileResult,
+        } = await import("./core/mod.ts");
         const configResult = await requireProjectConfig();
+        const streaming = result.entries.size >= _options.splitThreshold;
+
         const manifestJson = buildManifest(
           result,
           configResult.config,
           configResult.projectRoot,
           chain?.effective,
           VERSION,
+          streaming,
         );
         await Deno.mkdir(_options.output, { recursive: true });
         await Deno.writeTextFile(
           `${_options.output}/manifest.json`,
           JSON.stringify(manifestJson, null, 2),
         );
-        const compiled = serializeCompileResult(result);
-        await Deno.writeTextFile(
-          `${_options.output}/compiled.json`,
-          JSON.stringify(compiled, null, 2),
-        );
         console.error(`wrote ${_options.output}/manifest.json`);
-        console.error(`wrote ${_options.output}/compiled.json`);
+
+        if (streaming) {
+          const { ndjson, index } = buildEntriesNdjson(result.entries);
+          await Deno.writeFile(`${_options.output}/entries.ndjson`, ndjson);
+          console.error(`wrote ${_options.output}/entries.ndjson`);
+          await Deno.writeTextFile(
+            `${_options.output}/entries.idx`,
+            indexToJson(index),
+          );
+          console.error(`wrote ${_options.output}/entries.idx`);
+          const edgesBytes = buildEdgesNdjson(result.links);
+          await Deno.writeFile(`${_options.output}/edges.ndjson`, edgesBytes);
+          console.error(`wrote ${_options.output}/edges.ndjson`);
+        } else {
+          const compiled = serializeCompileResult(result);
+          await Deno.writeTextFile(
+            `${_options.output}/compiled.json`,
+            JSON.stringify(compiled, null, 2),
+          );
+          console.error(`wrote ${_options.output}/compiled.json`);
+        }
         return;
       }
 
