@@ -65,7 +65,10 @@ export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
     message: diagnostic.message,
   };
   if (diagnostic.code.startsWith("MSL-Q")) {
-    return { ...base, codeDescription: { href: buildRuleDocUrl(diagnostic.code) } };
+    return {
+      ...base,
+      codeDescription: { href: buildRuleDocUrl(diagnostic.code) },
+    };
   }
   return base;
 }
