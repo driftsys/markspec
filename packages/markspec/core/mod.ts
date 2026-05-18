@@ -159,6 +159,7 @@ export {
   runPipeline,
   validate,
   validateAttributesForEntry,
+  validateListingDocuments,
   validateTraceabilityForEntry,
   validateValue,
 } from "./validator/mod.ts";
@@ -166,6 +167,8 @@ export type {
   ClassifyResult,
   ClassifyStageResult,
   EffectiveAttrScope,
+  ListingFileContext,
+  ListingKind,
   PipelineResult,
   ValidateResult,
   ValueValidator,

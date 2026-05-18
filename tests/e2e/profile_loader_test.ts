@@ -191,7 +191,8 @@ Deno.test("profile loader e2e: markspec-schema absent → PROFILE-SCHEMA-002 war
 });
 
 Deno.test('profile loader e2e: markspec-schema: "2" → PROFILE-SCHEMA-001 error, exit 1', async () => {
-  const profile = `id: "@acme/wrong-pin"\nversion: 0.1.0\nmarkspec-schema: "2"\n`;
+  const profile =
+    `id: "@acme/wrong-pin"\nversion: 0.1.0\nmarkspec-schema: "2"\n`;
   const { code, stderr } = await markspec(["validate", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,

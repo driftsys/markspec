@@ -939,7 +939,8 @@ export function parseManifest(
     diagnostics.push({
       code: "PROFILE-SCHEMA-001",
       severity: "error",
-      message: `profile targets core schema "${rawSchema}"; this MarkSpec implements "1"`,
+      message:
+        `profile targets core schema "${rawSchema}"; this MarkSpec implements "1"`,
       location: { file: sourcePath, line: 1, column: 1 },
     });
     return { manifest: null, diagnostics };
