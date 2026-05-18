@@ -35,6 +35,18 @@ Deno.test("pathToUri: encodes spaces", () => {
   );
 });
 
+Deno.test("pathToUri: preserves valid URI characters like parentheses", () => {
+  assertEquals(
+    pathToUri("/foo/bar(1).md"),
+    "file:///foo/bar(1).md",
+  );
+});
+
+Deno.test("pathToUri/uriToPath round-trip", () => {
+  const path = "/Users/dev/project/foo.md";
+  assertEquals(uriToPath(pathToUri(path)), path);
+});
+
 Deno.test("debounce: calls function after delay", async () => {
   let callCount = 0;
   const fn = debounce(() => {
