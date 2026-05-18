@@ -15,6 +15,7 @@ import type {
   CompileResult,
   Diagnostic,
   ProfileChain,
+  ProfileElementKind,
   ReadFile,
 } from "./core/mod.ts";
 import type { BookStructure, Chapter } from "./book/mod.ts";
@@ -325,34 +326,40 @@ const profileCmd = new Command()
   .action(async (options: { format?: string }) => {
     const { config: _config, projectRoot } = await requireProjectConfig();
     const chain = await loadActiveProfile(projectRoot);
+    const { buildProfileIntrospection } = await import("./core/mod.ts");
+    const intro = buildProfileIntrospection(chain);
+    const overview = intro.overview();
 
     if (options.format === "json") {
-      const output = {
-        chain: chain
-          ? chain.tiers.map((tier) => ({
-            id: tier.id,
-            version: tier.version,
-            specifier: tier.specifier,
-            sourcePath: tier.sourcePath,
-          }))
-          : [],
-      };
-      console.log(JSON.stringify(output, null, 2));
+      console.log(JSON.stringify(overview, null, 2));
     } else {
       if (!chain) {
         console.error("no profile configured for this project");
       } else {
-        console.error("Active profile chain:");
-        for (const tier of chain.tiers) {
-          const spec = tier.specifier.kind === "local"
-            ? tier.specifier.path
-            : tier.specifier.kind === "git"
-            ? `${tier.specifier.repo}@${tier.specifier.tag}`
-            : `npm:${
-              tier.specifier.scope ? `${tier.specifier.scope}/` : ""
-            }${tier.specifier.name}@${tier.specifier.range}`;
-          console.error(`  ${tier.id}@${tier.version}  (${spec})`);
-          console.error(`    source: ${tier.sourcePath}`);
+        const active = overview.tiers[0];
+        console.log(`Active profile: ${active.id}@${active.version}`);
+        if (active.summary && active.summary !== active.id) {
+          console.log(active.summary);
+        }
+        console.log("");
+
+        const groups: Array<
+          { label: string; kind: string }
+        > = [
+          { label: "Entry types", kind: "type" },
+          { label: "Attributes", kind: "attribute" },
+          { label: "Relations", kind: "relation" },
+          { label: "Label concerns", kind: "label-concern" },
+          { label: "Conventions", kind: "convention" },
+        ];
+        for (const { label, kind } of groups) {
+          const items = overview.elements.filter((e) => e.kind === kind);
+          if (items.length === 0) continue;
+          console.log(`${label} (${items.length}):`);
+          for (const item of items) {
+            console.log(`  - ${item.name}: ${item.summary}`);
+          }
+          console.log("");
         }
       }
     }
@@ -543,7 +550,74 @@ profile:
     } else {
       console.error(`added profile: ${spec}`);
     }
-  });
+  })
+  .command("describe <kind:string> <name:string>")
+  .description(
+    "Show full details for a profile element (type, attribute, relation, label, convention)",
+  )
+  .option("--format <format:string>", "Output format (text|json)", {
+    default: "text",
+  })
+  .action(
+    async (options: { format?: string }, kind: string, name: string) => {
+      const { projectRoot } = await requireProjectConfig();
+      const chain = await loadActiveProfile(projectRoot);
+      const { buildProfileIntrospection } = await import("./core/mod.ts");
+      const intro = buildProfileIntrospection(chain);
+
+      // Normalize "label" → "label-concern" for CLI ergonomics.
+      const VALID_KINDS = [
+        "type",
+        "attribute",
+        "relation",
+        "label",
+        "convention",
+      ] as const;
+      type CliKind = (typeof VALID_KINDS)[number];
+      const KIND_MAP: Record<CliKind, ProfileElementKind> = {
+        type: "type",
+        attribute: "attribute",
+        relation: "relation",
+        label: "label-concern",
+        convention: "convention",
+      };
+      if (!VALID_KINDS.includes(kind as CliKind)) {
+        console.error(
+          `error: unknown kind '${kind}' (valid: ${VALID_KINDS.join(", ")})`,
+        );
+        Deno.exit(1);
+      }
+      const elementKind = KIND_MAP[kind as CliKind];
+      const detail = intro.describe(elementKind, name);
+
+      if (!detail) {
+        const candidates = intro.resolve(name).filter((c) =>
+          c.kind === elementKind
+        );
+        if (candidates.length > 0) {
+          console.error(`error: no '${kind}' element named '${name}'`);
+          console.error("  did you mean:");
+          for (const c of candidates) {
+            console.error(`    ${c.name} (${c.kind})`);
+          }
+        } else {
+          console.error(
+            `error: no '${kind}' element named '${name}' in the active profile`,
+          );
+        }
+        Deno.exit(1);
+      }
+
+      if (options.format === "json") {
+        console.log(JSON.stringify(detail, null, 2));
+      } else {
+        const { renderProfileDetail } = await import(
+          "./mcp/resources/profile.ts"
+        );
+        console.log(renderProfileDetail(detail));
+      }
+    },
+  );
 
 const deckCmd = new Command()
   .description("Presentation generation")

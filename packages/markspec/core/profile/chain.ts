@@ -237,7 +237,7 @@ function stringifySpec(spec: ProfileSpecifier): string {
 function buildPlaceholderEffective(
   tiers: readonly LoadedProfile[],
 ): EffectiveProfile {
-  const leafOrigin = tiers[tiers.length - 1]?.id ?? "<unknown>";
+  const _leafOrigin = tiers[tiers.length - 1]?.id ?? "<unknown>";
   return {
     attributes: new Map(),
     labels: new Map(),
