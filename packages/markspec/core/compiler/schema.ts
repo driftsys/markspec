@@ -59,7 +59,7 @@ export function serializeCompileResult(
  * `typedAttributes` (a `ReadonlyMap`) with a plain object, and stripping
  * `properties.sync` (privacy rule — never publish connector state).
  */
-function serializeEntry(entry: Entry): Entry {
+export function serializeEntry(entry: Entry): Entry {
   let result: Entry = entry;
 
   if (entry.typedAttributes && entry.typedAttributes.size > 0) {

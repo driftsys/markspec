@@ -102,12 +102,14 @@ export async function compile(
   }
 
   // Phase 3.5: Generate inverse attributes from profile declarations.
+  let generatedLinks: readonly Link[] = [];
   if (options.profile) {
     const inverseResult = generateInverses(
       [...entries.values()],
       options.profile,
     );
     parseDiagnostics.push(...inverseResult.diagnostics);
+    generatedLinks = inverseResult.links;
     entries.clear();
     for (const entry of inverseResult.entries) {
       if (!entries.has(entry.displayId)) {
@@ -116,7 +118,8 @@ export async function compile(
     }
   }
 
-  const links = extractLinks([...entries.values()]);
+  const authoredLinks = extractLinks([...entries.values()]);
+  const links = [...authoredLinks, ...generatedLinks];
 
   // MSL-T013: check link targets for draft/retired state.
   const linkTargetDiags = checkLinkTargets(entries, links);

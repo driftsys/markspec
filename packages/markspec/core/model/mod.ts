@@ -585,6 +585,8 @@ export interface Link {
   readonly to: DisplayId;
   readonly kind: LinkKind;
   readonly location: SourceLocation;
+  /** How this link was produced. Absent means authored (default). */
+  readonly origin?: "authored" | "generated";
 }
 
 // ---------------------------------------------------------------------------
