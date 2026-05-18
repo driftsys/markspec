@@ -30,10 +30,10 @@ concrete rewrite suggestion.
 
 - [ ] Subject performs the action: "The `<module>` shall `<verb>`…"
 - [ ] No passive constructions: "shall be computed by", "is handled", "will be
-  provided".
+      provided".
 
-**Flag:** "The brake pressure shall be monitored by the safety module." →
-"The safety module shall monitor the brake pressure."
+**Flag:** "The brake pressure shall be monitored by the safety module." → "The
+safety module shall monitor the brake pressure."
 
 ---
 
@@ -41,7 +41,7 @@ concrete rewrite suggestion.
 
 - [ ] Every performance claim has a unit and a numeric threshold or tolerance.
 - [ ] No bare adjectives: "fast", "reliable", "accurate", "sufficient",
-  "appropriate", "user-friendly".
+      "appropriate", "user-friendly".
 - [ ] Time bounds use SI units or ms/s: "within 200 ms", not "quickly".
 - [ ] Percentages are explicit: "≥ 99.9 %", not "high availability".
 
@@ -53,11 +53,11 @@ concrete rewrite suggestion.
 ### 4. Unambiguity
 
 - [ ] No pronoun references without clear antecedents: "it", "this", "they",
-  "the aforementioned".
+      "the aforementioned".
 - [ ] All abbreviations are defined in a glossary or expanded on first use.
 - [ ] No vague quantifiers: "several", "a number of", "some", "many".
 - [ ] Modal keywords are lowercase RFC 2119: `shall` (mandatory), `should`
-  (recommended), `may` (optional). No bare "will" or "must".
+      (recommended), `may` (optional). No bare "will" or "must".
 
 **Flag:** "It shall process them within the defined timeout." → name the subject
 and define both referents explicitly.
@@ -67,27 +67,27 @@ and define both referents explicitly.
 ### 5. Independent verifiability
 
 - [ ] A tester unfamiliar with the author can write a pass/fail test from this
-  entry alone.
+      entry alone.
 - [ ] No implicit context required ("as described in the design doc", "per
-  §3.2").
+      §3.2").
 - [ ] The acceptance condition is observable, not internal: "the system shall
-  assert the fault flag on CAN bus 0x1A0" not "the system shall detect the
-  fault internally".
+      assert the fault flag on CAN bus 0x1A0" not "the system shall detect the
+      fault internally".
 
 ---
 
 ### 6. EARS correctness (if EARS style is used)
 
 - [ ] Exactly one EARS keyword opens the sentence: When / While / Where / If /
-  _(none for ubiquitous)_.
-- [ ] Event-driven: "When `<single discrete event>`, the `<subject>` shall…"
-  — trigger is a single observable event, not a state.
+      _(none for ubiquitous)_.
+- [ ] Event-driven: "When `<single discrete event>`, the `<subject>` shall…" —
+      trigger is a single observable event, not a state.
 - [ ] State-driven: "While `<persistent state>`, the `<subject>` shall…" —
-  condition is a mode or state, not an event.
+      condition is a mode or state, not an event.
 - [ ] Optional: "Where `<feature>` is enabled, the `<subject>` shall…" — gated
-  on a configuration flag or variant, not a runtime event.
+      on a configuration flag or variant, not a runtime event.
 - [ ] Unwanted: "If `<fault/condition>`, the `<subject>` shall `<response>`
-  within `<time>`." — response time is mandatory.
+      within `<time>`." — response time is mandatory.
 - [ ] No more than two patterns combined in one sentence.
 
 ---
@@ -97,10 +97,10 @@ and define both referents explicitly.
 - [ ] Each scenario has exactly one `When` step (one triggering action).
 - [ ] `Given` describes observable pre-conditions, not implementation setup.
 - [ ] `Then` assertions are independently verifiable outcomes, not internal
-  state.
+      state.
 - [ ] No pronoun references across steps ("it", "the result").
 - [ ] `Verified-by:` trailer on the requirement entry links to the test entry
-  that implements these scenarios.
+      that implements these scenarios.
 
 ---
 

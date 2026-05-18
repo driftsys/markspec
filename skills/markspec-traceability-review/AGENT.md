@@ -45,12 +45,12 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
 
 3. **Identify gaps.** Classify every entry into one of these states:
 
-   | State | Condition |
-   | ----- | --------- |
-   | **Fully traced** | Has at least one upstream link AND at least one downstream link (or is a leaf type with no downstream expectation) |
-   | **Missing upstream** | No `Satisfies:` / `Derived-from:` link — orphaned from the requirement chain |
-   | **Missing downstream** | No `Verified-by:` / `Tests:` link — untested requirement |
-   | **Isolated** | Neither upstream nor downstream links — completely unconnected |
+   | State                  | Condition                                                                                                          |
+   | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+   | **Fully traced**       | Has at least one upstream link AND at least one downstream link (or is a leaf type with no downstream expectation) |
+   | **Missing upstream**   | No `Satisfies:` / `Derived-from:` link — orphaned from the requirement chain                                       |
+   | **Missing downstream** | No `Verified-by:` / `Tests:` link — untested requirement                                                           |
+   | **Isolated**           | Neither upstream nor downstream links — completely unconnected                                                     |
 
    Leaf types (STK entries at the top of the chain) are expected to have no
    upstream link — do not flag them as "missing upstream".
@@ -64,10 +64,10 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
 
 5. **Check for cross-file consistency.**
 
-   Entries referencing a display ID that does not appear in the corpus
-   will already be flagged by `markspec validate` (broken reference diagnostic).
-   Confirm all such errors are present in your Step 1 output and include them
-   in the report.
+   Entries referencing a display ID that does not appear in the corpus will
+   already be flagged by `markspec validate` (broken reference diagnostic).
+   Confirm all such errors are present in your Step 1 output and include them in
+   the report.
 
 6. **Emit the findings report** in this structure:
 
