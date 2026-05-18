@@ -1,221 +1,268 @@
 /**
  * @module mcp/resources/profile
  *
- * Renders the `markspec://profile` resource — a Markdown distillation of
- * the active profile chain. The renderer takes a typed view (see
- * {@linkcode ProfileView}) rather than the raw `EffectiveProfile` so it
- * stays decoupled from internal core types.
- *
- * The {@linkcode buildProfileView} helper produces a `ProfileView` from a
- * `ProfileChain | null`.
+ * Renders the `markspec://profile` overview resource and individual
+ * profile element detail resources. All rendering is driven by
+ * {@linkcode ProfileIntrospection}; this module never re-walks
+ * EffectiveProfile directly.
  */
 
 import type {
-  EffectiveProfile,
-  EffectiveTypeDef,
+  AttributeDetail,
+  ConventionDetail,
+  LabelConcernDetail,
   ProfileChain,
+  ProfileElementDetail,
+  ProfileIntrospection,
+  RelationDetail,
+  TypeDetail,
 } from "../../core/mod.ts";
+import { buildProfileIntrospection } from "../../core/mod.ts";
+import { profileDetailUri } from "../uri.ts";
 
-/** Per-type distillation. */
-export interface ProfileTypeView {
-  readonly name: string;
-  readonly extends: string;
-  readonly displayIdPattern: string | undefined;
-  readonly color: string | undefined;
-  readonly requiredAttributes: readonly string[];
-  readonly allowedAttributes: readonly string[];
-  readonly outgoingLinks: readonly string[];
-  readonly incomingLinks: readonly string[];
-  readonly description: string;
-}
+export { buildProfileIntrospection };
 
-/** Per-tier descriptor. */
-export interface ProfileTierView {
-  readonly id: string;
-  readonly version: string;
-  readonly description: string;
-}
-
-/** Renderer input — typed view of the profile chain. */
-export interface ProfileView {
-  readonly tiers: readonly ProfileTierView[];
-  readonly types: readonly ProfileTypeView[];
-  readonly universalRequired: readonly string[];
-  readonly universalAllowed: readonly string[];
-  readonly linkKinds: readonly string[];
-  readonly labels: readonly string[];
-}
-
-/** Build a {@linkcode ProfileView} from a {@linkcode ProfileChain}. */
+/** Build a {@linkcode ProfileIntrospection} from a chain (convenience wrapper). */
 export function buildProfileView(
   chain: ProfileChain | null,
-): ProfileView | null {
-  if (!chain) return null;
-  const eff: EffectiveProfile = chain.effective;
-
-  const tiers: ProfileTierView[] = chain.tiers.map((t) => ({
-    id: t.id,
-    version: t.version,
-    description: t.manifest.description ?? "",
-  }));
-
-  const universalRequired: string[] = [];
-  const universalAllowed = [...eff.attributes.keys()];
-
-  const types: ProfileTypeView[] = [];
-  for (const [name, entry] of eff.types) {
-    const tdef: EffectiveTypeDef = entry.value;
-
-    const allowed = new Set<string>([
-      ...tdef.attributes.keys(),
-      ...eff.attributes.keys(),
-    ]);
-    const required = new Set<string>([
-      ...tdef.required.value,
-    ]);
-    for (const r of required) allowed.delete(r);
-
-    const outgoing = new Set<string>(tdef.traceability.keys());
-    // Incoming links: walk every other type's traceability and pick rules
-    // whose target list contains this type's name as a string matcher.
-    const incoming = new Set<string>();
-    for (const [otherName, otherEntry] of eff.types) {
-      if (otherName === name) continue;
-      for (const [linkKind, rule] of otherEntry.value.traceability) {
-        if (targetIncludesType(rule.value.target, name)) {
-          incoming.add(linkKind);
-        }
-      }
-    }
-
-    types.push({
-      name,
-      extends: tdef.extends,
-      displayIdPattern: tdef.displayIdPattern.value,
-      color: tdef.color.value,
-      requiredAttributes: [...required],
-      allowedAttributes: [...allowed],
-      outgoingLinks: [...outgoing],
-      incomingLinks: [...incoming],
-      description: "",
-    });
-  }
-  types.sort((a, b) => a.name.localeCompare(b.name));
-
-  const linkKinds = new Set<string>();
-  for (const [, entry] of eff.types) {
-    for (const k of entry.value.traceability.keys()) linkKinds.add(k);
-  }
-
-  return {
-    tiers,
-    types,
-    universalRequired,
-    universalAllowed,
-    linkKinds: [...linkKinds].sort(),
-    labels: [...eff.labels.keys()],
-  };
+): ProfileIntrospection {
+  return buildProfileIntrospection(chain);
 }
 
-/** Render the profile view to Markdown. */
-export function renderProfile(view: ProfileView | null): string {
+/** Render the overview `markspec://profile` resource body as Markdown. */
+export function renderProfile(intro: ProfileIntrospection): string {
+  const overview = intro.overview();
   const lines: string[] = ["# MarkSpec Profile", ""];
 
-  if (!view || view.tiers.length === 0) {
+  if (overview.tiers[0].id === "(none)") {
     lines.push("No profile configured for this project.");
     return lines.join("\n") + "\n";
   }
 
-  const active = view.tiers[0];
+  const active = overview.tiers[0];
   lines.push(`**Active**: ${active.id}@${active.version}`);
-  if (view.tiers.length > 1) {
-    const inherits = view.tiers
-      .slice(1)
-      .map((t) => `${t.id}@${t.version}`)
+  if (active.summary) {
+    lines.push("", active.summary);
+  }
+  if (overview.tiers.length > 1) {
+    const inherits = overview.tiers.slice(1).map((t) => `${t.id}@${t.version}`)
       .join(", ");
     lines.push(`**Inherits**: ${inherits}`);
   }
-  if (active.description) {
-    lines.push("");
-    lines.push(active.description);
-  }
+  lines.push("");
 
-  if (view.types.length > 0) {
-    lines.push("", "## Entry types", "");
-    for (const t of view.types) {
-      lines.push(`### ${t.name}`, "");
-      if (t.displayIdPattern) {
-        lines.push(`- **Display-ID pattern**: \`${t.displayIdPattern}\``);
-      }
-      lines.push(`- **Extends**: ${t.extends}`);
-      if (t.color) lines.push(`- **Color**: ${t.color}`);
-      if (t.requiredAttributes.length > 0) {
-        lines.push(
-          `- **Required attributes**: ${t.requiredAttributes.join(", ")}`,
-        );
-      }
-      if (t.allowedAttributes.length > 0) {
-        lines.push(
-          `- **Allowed attributes**: ${t.allowedAttributes.join(", ")}`,
-        );
-      }
-      if (t.outgoingLinks.length > 0) {
-        lines.push(`- **Outgoing links**: ${t.outgoingLinks.join(", ")}`);
-      }
-      if (t.incomingLinks.length > 0) {
-        lines.push(`- **Incoming links**: ${t.incomingLinks.join(", ")}`);
-      }
-      if (t.description) {
-        lines.push("", t.description);
-      }
-      lines.push("");
-    }
-  }
-
-  if (view.universalRequired.length > 0 || view.universalAllowed.length > 0) {
-    lines.push("## Universal attributes", "");
-    if (view.universalRequired.length > 0) {
-      lines.push(`- **Required**: ${view.universalRequired.join(", ")}`);
-    }
-    if (view.universalAllowed.length > 0) {
-      lines.push(`- **Allowed**: ${view.universalAllowed.join(", ")}`);
+  // Group elements by kind and render each group.
+  const kinds = [
+    "type",
+    "attribute",
+    "relation",
+    "label-concern",
+    "convention",
+  ] as const;
+  const kindLabel: Record<string, string> = {
+    "type": "Entry types",
+    "attribute": "Attributes",
+    "relation": "Relations",
+    "label-concern": "Label concerns",
+    "convention": "Conventions",
+  };
+  for (const kind of kinds) {
+    const group = overview.elements.filter((e) => e.kind === kind);
+    if (group.length === 0) continue;
+    lines.push(`## ${kindLabel[kind]} (${group.length})`, "");
+    for (const ref of group) {
+      const detailUri = profileDetailUri(ref.kind, ref.name);
+      lines.push(
+        `- [${ref.kind} · **${ref.name}**](${detailUri}) — ${ref.summary}`,
+      );
     }
     lines.push("");
   }
 
-  if (view.linkKinds.length > 0) {
-    lines.push("## Link kinds", "");
-    lines.push("| Kind | Used by |");
-    lines.push("| --- | --- |");
-    for (const kind of view.linkKinds) {
-      const sources = view.types
-        .filter((t) => t.outgoingLinks.includes(kind))
-        .map((t) => t.name);
-      lines.push(`| ${kind} | ${sources.join(", ") || "—"} |`);
-    }
-    lines.push("");
-  }
-
-  if (view.labels.length > 0) {
-    lines.push("## Labels", "");
-    lines.push(view.labels.join(", "));
-    lines.push("");
-  }
-
-  return lines.join("\n");
+  lines.push(
+    "*Use `markspec profile describe <kind> <name>` for full details.*",
+  );
+  return lines.join("\n") + "\n";
 }
 
-/**
- * Whether a {@linkcode TraceRule}'s target list contains a string matcher
- * equal to the given type name. Shape-based matchers (`{ shape: ... }`)
- * are skipped — they don't pin a single named type.
- */
-function targetIncludesType(
-  target: readonly (string | { readonly shape: string })[],
-  typeName: string,
-): boolean {
-  for (const matcher of target) {
-    if (typeof matcher === "string" && matcher === typeName) return true;
+/** Render a profile element detail as Markdown. */
+export function renderProfileDetail(detail: ProfileElementDetail): string {
+  switch (detail.kind) {
+    case "type":
+      return renderTypeDetail(detail);
+    case "attribute":
+      return renderAttributeDetail(detail);
+    case "relation":
+      return renderRelationDetail(detail);
+    case "label-concern":
+      return renderLabelConcernDetail(detail);
+    case "convention":
+      return renderConventionDetail(detail);
   }
-  return false;
+}
+
+function provenanceLine(
+  label: string,
+  text?: string,
+  origin?: string,
+  overrides?: readonly string[],
+): string[] {
+  const lines: string[] = [];
+  if (text) lines.push("", text);
+  if (origin) {
+    const overridesStr = overrides && overrides.length > 0
+      ? ` (overrides: ${overrides.join(", ")})`
+      : "";
+    lines.push(``, `*${label}: ${origin}${overridesStr}*`);
+  }
+  return lines;
+}
+
+function renderTypeDetail(detail: TypeDetail): string {
+  const lines: string[] = [
+    `# type · ${detail.name}`,
+    "",
+    `- **Extends**: ${detail.extendsTarget}`,
+  ];
+  if (detail.displayIdPattern) {
+    lines.push(`- **Display-ID pattern**: \`${detail.displayIdPattern}\``);
+  }
+  if (detail.color) lines.push(`- **Color**: ${detail.color}`);
+  if (detail.requiredAttributes.length > 0) {
+    lines.push(
+      `- **Required attributes**: ${
+        detail.requiredAttributes.map((r) => r.name).join(", ")
+      }`,
+    );
+  }
+  if (detail.allowedAttributes.length > 0) {
+    lines.push(
+      `- **Allowed attributes**: ${
+        detail.allowedAttributes.map((r) => r.name).join(", ")
+      }`,
+    );
+  }
+  if (detail.outgoingRelations.length > 0) {
+    lines.push(
+      `- **Outgoing relations**: ${
+        detail.outgoingRelations.map((r) =>
+          `[${r.name}](${profileDetailUri("relation", r.name)})`
+        ).join(", ")
+      }`,
+    );
+  }
+  if (detail.incomingRelations.length > 0) {
+    lines.push(
+      `- **Incoming relations**: ${
+        detail.incomingRelations.map((r) => r.name).join(", ")
+      }`,
+    );
+  }
+  lines.push(
+    ...provenanceLine(
+      "Described by",
+      detail.description.text,
+      detail.description.origin,
+    ),
+  );
+  return lines.join("\n") + "\n";
+}
+
+function renderAttributeDetail(detail: AttributeDetail): string {
+  const lines: string[] = [
+    `# attribute · ${detail.name}`,
+    "",
+    `- **Type**: ${detail.valueType}, ${detail.cardinality}`,
+    `- **Required**: ${detail.required}`,
+  ];
+  if (detail.enumValues) {
+    lines.push(`- **Values**: ${detail.enumValues.join(", ")}`);
+  }
+  if (detail.inverse) {
+    lines.push(
+      `- **Inverse**: ${detail.inverse.name} (on ${detail.inverse.category})`,
+    );
+  }
+  if (detail.declaredBy.length > 0) {
+    lines.push(`- **Declared by**: ${detail.declaredBy.join(", ")}`);
+  }
+  lines.push(
+    ...provenanceLine(
+      "Described by",
+      detail.description.text,
+      detail.description.origin,
+    ),
+  );
+  return lines.join("\n") + "\n";
+}
+
+function renderRelationDetail(detail: RelationDetail): string {
+  const lines: string[] = [
+    `# relation · ${detail.name}`,
+    "",
+    `- **Targets**: ${detail.targets.join(", ")}`,
+    `- **Required**: ${detail.required}`,
+  ];
+  if (detail.cardinality) {
+    lines.push(`- **Cardinality**: ${detail.cardinality}`);
+  }
+  if (detail.declaredBy.length > 0) {
+    lines.push(`- **Declared by**: ${detail.declaredBy.join(", ")}`);
+  }
+  lines.push(
+    ...provenanceLine(
+      "Described by",
+      detail.description.text,
+      detail.description.origin,
+    ),
+  );
+  return lines.join("\n") + "\n";
+}
+
+function renderLabelConcernDetail(detail: LabelConcernDetail): string {
+  const lines: string[] = [
+    `# label-concern · ${detail.name}`,
+    "",
+    `- **Kind**: ${detail.concernKind}`,
+  ];
+  if (detail.values.length > 0) {
+    lines.push("", "**Values:**", "");
+    for (const v of detail.values) {
+      lines.push(
+        v.description
+          ? `- \`${v.name}\` — ${v.description}`
+          : `- \`${v.name}\``,
+      );
+    }
+  }
+  lines.push(
+    ...provenanceLine(
+      "Described by",
+      detail.description.text,
+      detail.description.origin,
+      detail.description.overrides,
+    ),
+  );
+  return lines.join("\n") + "\n";
+}
+
+function renderConventionDetail(detail: ConventionDetail): string {
+  const lines: string[] = [
+    `# convention · ${detail.name}`,
+    "",
+  ];
+  if (Object.keys(detail.settings).length > 0) {
+    lines.push("**Settings:**", "");
+    for (const [k, v] of Object.entries(detail.settings)) {
+      lines.push(`- \`${k}\`: ${v}`);
+    }
+  }
+  lines.push(
+    ...provenanceLine(
+      "Described by",
+      detail.description.text,
+      detail.description.origin,
+    ),
+  );
+  return lines.join("\n") + "\n";
 }
