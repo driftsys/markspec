@@ -125,8 +125,8 @@ No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
   stroke: 0.4pt + luma(180),
   inset: 3pt,
   table.header[*Shape*][*`Id:` value*],
-  [Identified], [Bare ULID, assigned by `format`],
-  [Referenced], [URI w/ scheme: `urn:` `doi:` `pkg:` `https:`],
+  [Authored], [Bare ULID, assigned by `format`],
+  [Reference], [URI w/ scheme: `urn:` `doi:` `pkg:` `https:`],
 )
 
 #code[```text
@@ -135,19 +135,29 @@ Id: urn:iso:std:iso:26262:-6:ed-2
 Id: pkg:cargo/serde@1.0.0
 ```]
 
-Types are profile-declared.
+== EARS patterns (requirement body)
 
-== Display ID
+#table(
+  columns: (auto, 1fr),
+  stroke: 0.4pt + luma(180),
+  inset: 3pt,
+  table.header[*Form*][*Template*],
+  [Ubiquitous], [_The system_ `shall` _…_],
+  [State], [`While` _state,_ _system_ `shall` _…_],
+  [Event], [`When` _event,_ _system_ `shall` _…_],
+  [Unwanted], [`If` _condition,_ _system_ `shall` _…_],
+  [Optional], [`Where` _feature,_ _system_ `shall` _…_],
+)
 
-Profile-controlled. Identified: `SRS_BRK_0107`, `REQ-042`,
-`braking::debounce`. Referenced (slug): `ISO-26262-6`, `serde`.
-`[@slug]` accepted; `@` stripped.
+== GWT pattern (test body)
 
-== Retirement
+#code[```markdown
+- [SWT_BRK_0030] Debounce rejects short pulses
 
-- `Supersedes: <id>` → generated `Superseded-by:` (intra-shape).
-- `Deprecated: "<reason>"` for non-replacement retirement.
-- `Labels: DRAFT` for work-in-progress.
+  Given the debounce threshold is 10 ms,
+  When a pulse of 5 ms arrives,
+  Then the output shall remain unchanged.
+```]
 
 #colbreak()
 
@@ -183,16 +193,18 @@ Body optional. `Reference-*` are default-profile, not core.
 
 = Profile layer
 
-Core has no types/relations/domain attrs — all profile-declared.
+Core defines 15 concrete types (`Requirement`, `Test`, `Contract`, `Record`,
+`Risk`, `SoftwareComponent`, `HardwareComponent`, `SoftwareInterface`,
+`HardwareInterface`, `SoftwareUnit`, `HardwareUnit`, `Definition`, …).
+Profiles extend via `extends:` — adding subtypes, attributes, relations.
 
-- *Types* — `requirement`, `test`, `unit`, `standard`, …
+- *Subtypes* — `requirement extends Requirement`, `hazard extends Risk`, …
 - *Relations* — `Derived-from`, `Satisfies`, `Verifies`, `Tests`,
   `Realizes`, `Allocated-to`, `Depends-on`, `Part-of`, …
-- *Domain* — `Test-level`, `Element-kind`, `ASIL`, `License`, …
+- *Domain attrs* — `Test-level`, `ASIL`, `License`, …
 
-Patterns infer type. *Default profile* bundles `requirement`
-(RFC 2119), `note`, `term`, `reference`. Disable via
-`default-profile: false`.
+Profiles chain: `default → compliance → org → project`. Active chain
+set via `.markspec.yaml`. No profile = core-only mode.
 
 = In-code entries
 

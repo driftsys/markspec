@@ -1069,7 +1069,77 @@ for the full decision record.
 
 ---
 
-## 6. Open questions
+## 6. Profiles and extensions
+
+Profiles are the MarkSpec extension mechanism: a versioned, distributable
+package that layers domain-specific concrete types, attributes, and rules on top
+of the frozen core. This section is a conceptual overview; the normative
+definition is in [markspec-profile-schema.md](markspec-profile-schema.md).
+
+### 6.1 What a profile declares
+
+A profile is a `markspec.yaml` manifest (plus any referenced files) that may
+declare:
+
+- **Concrete types** — subtypes of any core type, via `extends:`. Convention:
+  lowercase-with-hyphens (e.g., `requirement` extending `Requirement`, `hazard`
+  extending `Risk`). Profile types participate in the type-resolution chain at
+  step 2 (§1.3.1) — before all core inference steps.
+- **Attributes** — new trailer keys scoped to a specific type or to all entries.
+  Must not shadow any core-reserved key (§1.4–§1.6); violations are `MSL-A040`.
+- **Relations** — additional trace-attribute names and their allowed target-type
+  constraints.
+- **Label concerns** — label values with defined semantics (e.g., `ASIL-B`,
+  `safety`, `DRAFT`).
+- **Conventions** — project-level rules that promote existing `warning`
+  diagnostics to `error`, or add domain-specific style rules.
+
+### 6.2 Extends chain
+
+Profiles compose via `extends:` in the manifest, forming a linear inheritance
+chain:
+
+```
+default → compliance → org → team → project
+```
+
+Each tier inherits everything from its parent and may add or narrow — never
+remove. The **effective profile** is the single merged view produced by
+collapsing the whole chain. The validator and compiler consume only the
+effective profile.
+
+A project binds to the chain via `.markspec.yaml` in the project root. The
+binding is optional — without it, only the core vocabulary is active (core-only
+mode, §6.4). `markspec profile show` displays the active chain and effective
+configuration.
+
+### 6.3 What profiles cannot do
+
+The core taxonomy and universal attribute set are **reserved**:
+
+- Profiles cannot redefine `Id`, `Type`, `Title`, or any of the 15 core concrete
+  type names. Violation: `MSL-A040`.
+- Profiles cannot remove core-defined attributes from a type's attribute set.
+- Profiles cannot demote a core-defined `error` severity to `warning` or `info`.
+- Profiles cannot alter shape discrimination (§1.2) — shape is always decided by
+  the `Id:` value format alone, not by any profile rule.
+
+### 6.4 Core-only mode
+
+The toolchain operates correctly without any profile loaded. In core-only mode:
+
+- Only the 4 abstract and 15 concrete core types are recognised.
+- Any unrecognised `Type:` value is `MSL-T020` (error).
+- Any unrecognised trailer key is `MSL-A020` (warning, preserved verbatim by
+  `fmt`).
+- Label-concern and convention rules are inactive.
+
+This is the mode used by `markspec validate` and `markspec compile` when no
+`.markspec.yaml` is found by walking up from the working directory.
+
+---
+
+## 7. Open questions
 
 Capped at five per the prompt's constraints.
 
@@ -1240,3 +1310,98 @@ trace requirements back to these anchors.
 - Display ID contains `::`, so step 8 would infer `Unit` even without explicit
   `Type:` — here explicit `Type: SoftwareUnit` upgrades to the concrete subtype.
 - `Source:` drives step 3 fallback for synthesized entries (ADR-003 §Part 5).
+
+---
+
+## Annex C — Serialized form (compile output)
+
+`markspec compile --output <dir>` writes the item model to disk as static files.
+This annexe is the normative schema for that output.
+[markspec-compile-output.md](markspec-compile-output.md) is retired; its
+rationale and options analysis remain available there for historical reference.
+
+### C.1 Directory layout
+
+```text
+<dir>/
+├── manifest.json     # always JSON; always small (no entry bodies)
+├── compiled.json     # small projects: < split-threshold entries (§C.4)
+├── entries.ndjson    # large projects: one entry record per line
+├── entries.idx       # byte-offset index: displayId/Id → (offset, length)
+└── edges.ndjson      # generated inverse edges, one per line
+```
+
+The directory is static-servable (GitHub/GitLab Pages, S3, a file path). No
+server or runtime is required. A consumer reads `manifest.json` first and
+branches on `entries.format`.
+
+### C.2 Manifest (`manifest.json`)
+
+Always JSON, always small (target < 100 KB at 100k entries — holds no bodies):
+
+```jsonc
+{
+  "markspecSchemaVersion": 1,
+  "generator": { "release": "0.6.0", "coreSchema": 1 },
+  "project": { "name": "...", "root": "urn:markspec:project:<id>" },
+  "counts": {
+    "entries": 1234,
+    "edges": 5678,
+    "byType": { "Requirement": 900 },
+  },
+  "entries": {
+    "format": "ndjson",
+    "file": "entries.ndjson",
+    "index": "entries.idx",
+  },
+  "edges": { "format": "ndjson", "file": "edges.ndjson" },
+  "sqliteMirror": null,
+  "federation": [],
+  "reserved": {},
+}
+```
+
+The manifest is deterministic: byte-identical for identical input. No timestamps
+or run metadata unless `--with-run-metadata` is passed.
+
+### C.3 Entry record (one NDJSON line)
+
+Each line is one JSON object carrying:
+
+- `displayId`, `id` (ULID or URI), `shape` (`Authored` | `Reference`)
+- `type` — resolved type (§1.3), `null` when unresolvable
+- `title`, `body` — the entry's authoring content
+- `rawAttributes` — trailer key/value pairs in source order
+- `location` — `{ file, line, column }`
+- `properties` — observed facts: `file.*`, `git.*`, `source.*` (ADR-006).
+  `sync.*` is **never** included (§C.5 privacy).
+
+Generated inverse edges are **not** inlined on the entry record — they live in
+`edges.ndjson` so a hub entry's large reverse-edge list never bloats the record.
+Unknown trailer keys are preserved verbatim (§5.4 lossless guarantee).
+
+### C.4 Small-project degenerate form
+
+Below `--split-threshold` (default 1000 entries), `compile` writes a single
+`compiled.json` instead of `entries.ndjson` + `entries.idx`. The manifest points
+at it via `"entries": { "format": "inline", "file": "compiled.json" }`.
+Consumers branch on `entries.format`; both paths are equivalent.
+
+### C.5 Privacy
+
+- `sync.*` properties (external-system state, ADR-006) are **never** in the
+  compile output. Hard exclusion enforced at serialization.
+- `git.contributors` is included only with `--with-contributors` (default off).
+- No credentials or `.markspec/sync/**` content ever enters the output
+  directory.
+
+### C.6 Versioning
+
+`markspecSchemaVersion` (manifest root) is the integer core-schema contract
+version. Consumers refuse a version they do not implement. Within one version,
+changes are **additive-only**: new keys may appear; existing keys never change
+type or disappear. Consumers **must** ignore unknown keys.
+
+Pre-1.0 there is no cross-version compatibility guarantee — the compile output
+is a derived artifact; recompile from source is the upgrade path. The
+additive-only rule becomes binding at 1.0.

@@ -1,10 +1,29 @@
 # Summary
 
+# Getting started
+
+- [Installation](installation.md)
 - [Quickstart](quickstart.md)
 - [Concepts](concepts.md)
-- [Authoring guide](authoring.md)
-- [CLI guide](cli.md)
-- [Profile guide](profiles.md)
-- [Examples gallery](examples.md)
+
+# Authoring
+
+- [Entry blocks](authoring.md)
+- [Profiles](profiles.md)
+
+# Tools
+
+- [CLI reference](cli.md)
+- [VS Code extension](editor-vscode.md)
+- [AI agents and skillset](ai-agents.md)
+
+# Recipes
+
+- [Pre-commit hook](recipes/git-hooks.md)
+- [CI traceability gate](recipes/ci.md)
+- [ISO 26262 / ASPICE workflow](recipes/iso26262.md)
+
+---
+
 - [FAQ](faq.md)
 - [Migration guide](migration.md)

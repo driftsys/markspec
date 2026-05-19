@@ -1,0 +1,124 @@
+# AI agents and skillset
+
+MarkSpec integrates with AI assistants at two levels:
+
+- **MCP server** — exposes the compiled entry graph to any MCP-capable agent so
+  it can query entries, search by display ID, and read traceability context.
+- **Skillset** — teaches the agent MarkSpec's authoring conventions so it can
+  write and review entries correctly without constant guidance.
+
+## MCP server
+
+The MCP server runs as a subcommand of the same `markspec` binary:
+
+```sh
+markspec mcp
+```
+
+It speaks the Model Context Protocol over stdio JSON-RPC and exposes the
+following tools:
+
+| Tool               | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| `entry_search`     | Fuzzy search entries by display ID or title      |
+| `entry_context`    | Walk the `Satisfies` chain upward from an entry  |
+| `markspec_refresh` | Re-index the workspace after file changes        |
+| `validate`         | Run validation and return structured diagnostics |
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
+or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "markspec": {
+      "command": "markspec",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Generate the snippet automatically:
+
+```sh
+markspec mcp install --client claude-desktop
+```
+
+### Cursor
+
+```sh
+markspec mcp install --client cursor
+```
+
+### VS Code (Copilot / Claude)
+
+The VS Code extension registers the MCP server automatically — no extra
+configuration needed. See [VS Code extension](editor-vscode.md#mcp-server).
+
+## Skillset
+
+The skillset is a bundle of Claude Code skills that teach AI assistants
+MarkSpec-specific authoring conventions. Install it once per project; the skills
+activate automatically when Claude Code opens the directory.
+
+### Install with upskill
+
+```sh
+upskill add markspec:markspec-core.bundle.md
+```
+
+This writes skill definitions into `.claude/plugins/` in your project. The
+bundle includes:
+
+| Skill                               | Activates on                    | What it does                                                   |
+| ----------------------------------- | ------------------------------- | -------------------------------------------------------------- |
+| `markspec-entry-authoring`          | Any entry authoring request     | Guides the agent through correct block syntax and attributes   |
+| `markspec-core-rules`               | Diagnostic triage               | Maps `MSL-` codes to their fix, suppression, and rationale     |
+| `markspec-write-loop`               | File modification tasks         | Enforces the `insert → format → validate` agent write loop     |
+| `markspec-gherkin`                  | Test entry authoring            | Applies GWT / Gherkin structure to `test` entries              |
+| `markspec-traceability-review`      | PR reviews, traceability audits | Walks the graph, checks coverage, flags orphaned entries       |
+| `markspec-profile-bundle-authoring` | Profile manifest writing        | Validates manifest fields, extends chains, display-ID patterns |
+
+### Manual install (without upskill)
+
+If your team does not use upskill, download the bundle from the repository and
+place it in `.claude/plugins/`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/skills/markspec-core.bundle.md \
+  -o .claude/plugins/markspec-core.bundle.md
+```
+
+### Invoking skills from Claude Code
+
+Skills activate automatically when the task matches. You can also invoke them
+explicitly:
+
+```
+/markspec-write-loop
+/markspec-traceability-review
+```
+
+## Agent write loop
+
+The canonical pattern for AI-assisted requirement authoring is:
+
+```text
+markspec insert <type> <file>    # scaffold a new entry
+markspec format <file>           # assign ULID, normalize indentation
+markspec validate <file>         # confirm no broken references
+```
+
+Each step produces structured output the agent can parse:
+
+```sh
+markspec insert requirement docs/requirements.md --print
+markspec format docs/requirements.md
+markspec validate docs/requirements.md --format json
+```
+
+The `markspec-write-loop` skill enforces this sequence so agents don't skip the
+format or validate steps.

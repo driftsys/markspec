@@ -13,11 +13,13 @@ LSP ground truth: `lsp/workspace.ts` (`WorkspaceIndex`), `lsp/server.ts`,
 `lsp/completions.ts`
 
 One of four sibling Prompt-7 specs
-([compile-output](markspec-compile-output.md), [lockfile](markspec-lockfile.md),
+([compile-output](markspec-core-data-model.md#annex-c--serialized-form-compile-output),
+[lockfile](markspec-lockfile.md),
 [external-sync-model](markspec-external-sync-model.md)). **Not unified with
 them** (compile-output §1.2). This spec freezes the local index; it is **not**
-the published `/api/` output (that is the compile-output spec — different
-durability and audience: this is disposable and never published).
+the published `/api/` output (that is compile-output — Annex C of the core data
+model spec — different durability and audience: this is disposable and never
+published).
 
 ---
 
