@@ -1,5 +1,12 @@
 # ADR-010: Default Profile — RFC 2119 Hygiene and Generic Types
 
+> **Status note (2026-05-19):** The bundling + auto-registration mechanism and
+> the `default-profile: false` opt-out shipped as a mechanism-only slice. The §2
+> four-type vocabulary is superseded by the 15-type core taxonomy; the bundled
+> default is the thin identity profile of profile-schema §7. §7.1 display-ID
+> pattern bindings, RFC 2119 hygiene (`MSL-M061`), and the `{{def.}}` glossary
+> remain deferred (they need a core-type-binding schema construct).
+
 ## Context
 
 ADR-009 moves the four-family taxonomy out of the core into the profile layer
