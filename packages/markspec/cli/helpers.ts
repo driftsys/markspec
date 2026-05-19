@@ -83,20 +83,94 @@ export async function loadActiveProfile(projectRoot: string) {
 }
 
 /**
+ * Run `git` with the given args and return non-empty, trimmed stdout
+ * lines. Returns `[]` on any failure (non-zero exit, `git` absent,
+ * permission denied) so callers degrade gracefully instead of throwing.
+ * Keeping git I/O here keeps `core/` Node-safe.
+ */
+async function gitLines(args: string[]): Promise<string[]> {
+  try {
+    const { code, stdout } = await new Deno.Command("git", {
+      args,
+      stdout: "piped",
+      stderr: "null",
+    }).output();
+    if (code !== 0) return [];
+    return new TextDecoder()
+      .decode(stdout)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Build a `gitFile` callback for {@linkcode compileProject}. Reads a
+ * file's git history with `git log --follow`. `createdAt` is the oldest
+ * commit's author date, `modifiedAt` the newest, `revision` the short
+ * SHA of the most recent commit (git logs newest-first by default).
+ * Contributor names are fetched only when `withContributors` is true
+ * (PII-adjacent, ADR-006); the compiler deduplicates and sorts them. An
+ * untracked file or unavailable `git` yields undefined so
+ * `properties.git` stays unset.
+ */
+export function makeGitFile(withContributors: boolean) {
+  return async (path: string) => {
+    const dates = await gitLines([
+      "log",
+      "--follow",
+      "--format=%aI",
+      "--",
+      path,
+    ]);
+    if (dates.length === 0) return undefined;
+    const modifiedAt = dates[0];
+    const createdAt = dates[dates.length - 1];
+    const revLine = await gitLines([
+      "log",
+      "--follow",
+      "--format=%h",
+      "-1",
+      "--",
+      path,
+    ]);
+    const revision = revLine[0];
+    let contributors: readonly string[] | undefined;
+    if (withContributors) {
+      const names = await gitLines([
+        "log",
+        "--follow",
+        "--format=%aN",
+        "--",
+        path,
+      ]);
+      if (names.length > 0) contributors = names;
+    }
+    return { createdAt, modifiedAt, revision, contributors };
+  };
+}
+
+/**
  * Compile project files and return the result alongside the loaded profile chain.
  * Shared helper for commands that need the compiled graph.
  */
 export async function compileProject(
   paths: string[],
+  opts: { withContributors?: boolean } = {},
 ): Promise<{ result: CompileResult; chain: ProfileChain | null }> {
   const configResult = await requireProjectConfig();
   const chain = await loadActiveProfile(configResult.projectRoot);
   const { compile } = await import("../core/mod.ts");
+  const withContributors = opts.withContributors ?? false;
   const result = await compile(paths, {
     readFile: (p) => Deno.readTextFile(p),
     profile: chain?.effective ?? undefined,
     statFile: (p) =>
       Deno.stat(p).then((s) => ({ mtime: s.mtime })).catch(() => undefined),
+    gitFile: makeGitFile(withContributors),
+    withContributors,
   });
 
   for (const diag of result.diagnostics) {

@@ -22,13 +22,24 @@ export const compileCmd = new Command()
     "Entry count at which to switch to NDJSON streaming output",
     { default: 1000 },
   )
+  .option(
+    "--with-contributors",
+    "Include git contributor names in properties.git (PII-adjacent, ADR-006; off by default)",
+  )
   .arguments("<paths...:string>")
   .action(
     async (
-      _options: { format?: string; output?: string; splitThreshold: number },
+      _options: {
+        format?: string;
+        output?: string;
+        splitThreshold: number;
+        withContributors?: boolean;
+      },
       ...paths: string[]
     ) => {
-      const { result, chain } = await compileProject(paths);
+      const { result, chain } = await compileProject(paths, {
+        withContributors: _options.withContributors,
+      });
 
       if (_options.output) {
         const {

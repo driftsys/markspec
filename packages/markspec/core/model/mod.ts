@@ -295,11 +295,15 @@ export interface EntryProperties {
     /** ISO 8601 last-modified timestamp from the filesystem. */
     readonly mtime?: string;
   };
-  /** Version-control observations. */
+  /** Version-control observations from the file's git history. */
   readonly git?: {
+    /** ISO 8601 — author date of the first commit that touched the file. */
     readonly createdAt?: string;
+    /** ISO 8601 — author date of the last commit that touched the file. */
     readonly modifiedAt?: string;
+    /** Distinct commit-author names, sorted. PII-adjacent — opt-in only. */
     readonly contributors?: readonly string[];
+    /** Short SHA of the last commit that touched the file. */
     readonly revision?: string;
   };
   /** External connector state. */

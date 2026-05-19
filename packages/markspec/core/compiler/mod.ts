@@ -11,6 +11,7 @@ import type {
   Document,
   EffectiveProfile,
   Entry,
+  EntryProperties,
   Link,
   SourceLocation,
 } from "../model/mod.ts";
@@ -35,6 +36,68 @@ export interface CompileOptions {
   readonly statFile?: (
     path: string,
   ) => Promise<{ mtime: Date | null } | undefined>;
+  /**
+   * Optional. Called once per source file to obtain its version-control
+   * history. Returns undefined when git is unavailable, the file is
+   * untracked, or the host is non-Deno. When absent — or when it returns
+   * undefined — `entry.properties.git` is left undefined.
+   *
+   * The callback keeps git I/O out of `core/` so the compiler stays
+   * Node-safe. Contributor names are PII-adjacent (ADR-006) and only
+   * retained when {@linkcode CompileOptions.withContributors} is true.
+   */
+  readonly gitFile?: (
+    path: string,
+  ) => Promise<
+    {
+      createdAt?: string;
+      modifiedAt?: string;
+      contributors?: readonly string[];
+      revision?: string;
+    } | undefined
+  >;
+  /**
+   * Opt-in retention of `git.contributors`. Default false: contributor
+   * names are dropped even when {@linkcode CompileOptions.gitFile}
+   * returns them, because they are PII-adjacent (ADR-006). When true the
+   * list is deduplicated and sorted for deterministic output.
+   */
+  readonly withContributors?: boolean;
+}
+
+/**
+ * Shape the raw git observations from {@linkcode CompileOptions.gitFile}
+ * into an entry's `properties.git`. Enforces the PII gate (contributors
+ * dropped unless `withContributors`) and makes the contributor list
+ * deterministic (deduplicated + sorted). Returns undefined when there is
+ * no git data, so absent history leaves `properties.git` unset rather
+ * than emitting an empty object.
+ */
+function resolveGit(
+  raw:
+    | {
+      createdAt?: string;
+      modifiedAt?: string;
+      contributors?: readonly string[];
+      revision?: string;
+    }
+    | undefined,
+  withContributors: boolean,
+): NonNullable<EntryProperties["git"]> | undefined {
+  if (!raw) return undefined;
+  const git: {
+    createdAt?: string;
+    modifiedAt?: string;
+    contributors?: readonly string[];
+    revision?: string;
+  } = {};
+  if (raw.createdAt) git.createdAt = raw.createdAt;
+  if (raw.modifiedAt) git.modifiedAt = raw.modifiedAt;
+  if (raw.revision) git.revision = raw.revision;
+  if (withContributors && raw.contributors && raw.contributors.length > 0) {
+    git.contributors = [...new Set(raw.contributors)].sort();
+  }
+  return Object.keys(git).length > 0 ? git : undefined;
 }
 
 /** Compiled project output with resolved traceability graph. */
@@ -133,6 +196,10 @@ export async function compile(
           ? await options.statFile(filePath)
           : undefined;
         const mtimeStr = stat?.mtime ? stat.mtime.toISOString() : undefined;
+        const git = resolveGit(
+          options.gitFile ? await options.gitFile(filePath) : undefined,
+          options.withContributors ?? false,
+        );
         const annotatedEntries = result.entries.map((entry) => ({
           ...entry,
           properties: {
@@ -143,6 +210,7 @@ export async function compile(
               column: entry.location.column,
               mtime: mtimeStr,
             },
+            ...(git ? { git } : {}),
           },
         }));
         return {
