@@ -9,6 +9,7 @@ import { Command } from "@cliffy/command";
 import type { BookStructure, Chapter } from "../../book/mod.ts";
 import {
   loadActiveProfile,
+  makeGitFile,
   notImplemented,
   requireProjectConfig,
 } from "../helpers.ts";
@@ -58,6 +59,7 @@ export const bookCmd = new Command()
       profile: bookChain?.effective ?? undefined,
       statFile: (p) =>
         Deno.stat(p).then((s) => ({ mtime: s.mtime })).catch(() => undefined),
+      gitFile: makeGitFile(false),
     });
 
     const result = buildBook(structure, {

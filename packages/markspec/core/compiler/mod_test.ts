@@ -346,3 +346,92 @@ Deno.test("compile: statFile returning undefined → mtime absent, no crash", as
   assertEquals(entry.properties?.file?.path, "req.md");
   assertEquals(entry.properties?.file?.mtime, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// git.* properties population
+// ---------------------------------------------------------------------------
+
+const GIT_FIXTURE_MD = `- [REQ-001] Title
+
+  Body.
+
+      Id: ${ULID_A}
+`;
+
+Deno.test("compile: properties.git populated from gitFile callback", async () => {
+  const files = { "req.md": GIT_FIXTURE_MD };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    gitFile: () =>
+      Promise.resolve({
+        createdAt: "2026-01-02T08:00:00.000Z",
+        modifiedAt: "2026-05-19T10:23:00.000Z",
+        revision: "abc1234",
+      }),
+  });
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
+  assertExists(entry);
+  assertEquals(entry.properties?.git?.createdAt, "2026-01-02T08:00:00.000Z");
+  assertEquals(entry.properties?.git?.modifiedAt, "2026-05-19T10:23:00.000Z");
+  assertEquals(entry.properties?.git?.revision, "abc1234");
+  // contributors are off by default — PII-adjacent (ADR-006).
+  assertEquals(entry.properties?.git?.contributors, undefined);
+});
+
+Deno.test("compile: properties.git absent when no gitFile provided", async () => {
+  const files = { "req.md": GIT_FIXTURE_MD };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
+  assertExists(entry);
+  assertEquals(entry.properties?.git, undefined);
+});
+
+Deno.test("compile: gitFile returning undefined → git absent, no crash", async () => {
+  const files = { "req.md": GIT_FIXTURE_MD };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    gitFile: () => Promise.resolve(undefined),
+  });
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
+  assertExists(entry);
+  assertEquals(entry.properties?.git, undefined);
+  // file.* still populated — git absence must not disturb other properties.
+  assertEquals(entry.properties?.file?.path, "req.md");
+});
+
+Deno.test("compile: withContributors true → contributors deduped and sorted", async () => {
+  const files = { "req.md": GIT_FIXTURE_MD };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    withContributors: true,
+    gitFile: () =>
+      Promise.resolve({
+        createdAt: "2026-01-02T08:00:00.000Z",
+        modifiedAt: "2026-05-19T10:23:00.000Z",
+        revision: "abc1234",
+        contributors: ["Zoe", "Ada", "Zoe", "Ada", "Bo"],
+      }),
+  });
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
+  assertExists(entry);
+  assertEquals(entry.properties?.git?.contributors, ["Ada", "Bo", "Zoe"]);
+});
+
+Deno.test("compile: withContributors false strips contributors from callback", async () => {
+  const files = { "req.md": GIT_FIXTURE_MD };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    gitFile: () =>
+      Promise.resolve({
+        createdAt: "2026-01-02T08:00:00.000Z",
+        modifiedAt: "2026-05-19T10:23:00.000Z",
+        revision: "abc1234",
+        contributors: ["Ada", "Bo"],
+      }),
+  });
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
+  assertExists(entry);
+  assertEquals(entry.properties?.git?.contributors, undefined);
+  // Non-PII git fields are still populated.
+  assertEquals(entry.properties?.git?.revision, "abc1234");
+});
