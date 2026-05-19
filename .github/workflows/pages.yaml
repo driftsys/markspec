@@ -45,6 +45,9 @@ jobs:
       - name: Build typography book
         run: mdbook build docs/spec/typography
 
+      - name: Build model reference book
+        run: mdbook build docs/spec/model
+
       - name: Build guide book
         run: mdbook build docs/guide
 
