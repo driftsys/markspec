@@ -171,7 +171,7 @@ function isOuterDocComment(node: SyntaxNode): boolean {
  * Strip the `///` prefix from a line comment node.
  * Uses the `doc_comment` child if available, otherwise strips manually.
  */
-function stripLineCommentPrefix(node: SyntaxNode): string {
+export function stripLineCommentPrefix(node: SyntaxNode): string {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)!;
     if (child.type === "doc_comment") {
@@ -192,7 +192,7 @@ function stripLineCommentPrefix(node: SyntaxNode): string {
  * Strip block comment delimiters and leading ` * ` prefixes.
  * Returns cleaned lines.
  */
-function stripBlockCommentPrefix(text: string): string[] {
+export function stripBlockCommentPrefix(text: string): string[] {
   const rawLines = text.split("\n");
   const result: string[] = [];
 
@@ -234,7 +234,7 @@ function stripBlockCommentPrefix(text: string): string[] {
  * This wraps to `- [DISPLAY_ID] Title\n\n  body...` which parseMarkdown
  * recognizes as an entry block.
  */
-function wrapAsListItem(lines: string[]): string {
+export function wrapAsListItem(lines: string[]): string {
   if (lines.length === 0) return "";
   const first = `- ${lines[0]}`;
   const rest = lines.slice(1).map((line) => line === "" ? "" : `  ${line}`);
