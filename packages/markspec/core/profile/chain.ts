@@ -120,6 +120,18 @@ export async function loadChain(
           readFile,
         },
       );
+    } else if (cursorSpec.kind === "builtin") {
+      // Explicit branch so a builtin specifier returns a clear diagnostic
+      // instead of falling through to the local-path resolver (which would
+      // emit a confusing "no markspec.yaml" error). Replaced by the real
+      // embedded-manifest resolver in a later task.
+      diagnostics.push({
+        code: "PROFILE-LOAD-007",
+        severity: "error",
+        message: "builtin default-profile resolver not yet implemented",
+        location: { file: "<specifier>", line: 1, column: 1 },
+      });
+      return { chain: null, diagnostics };
     } else {
       resolved = await resolveLocalSpecifier(
         cursorSpec,
@@ -208,6 +220,9 @@ function specifierKey(
     const pkg = spec.scope ? `${spec.scope}/${spec.name}` : spec.name;
     return `npm:${pkg}@${spec.range}`;
   }
+  if (spec.kind === "builtin") {
+    return "builtin:@markspec/profile-default";
+  }
   const _exhaustive: never = spec;
   throw new Error(`Unknown specifier kind`);
 }
@@ -223,6 +238,9 @@ function stringifySpec(spec: ProfileSpecifier): string {
   if (spec.kind === "npm") {
     const pkg = spec.scope ? `${spec.scope}/${spec.name}` : spec.name;
     return `npm:${pkg}@${spec.range}`;
+  }
+  if (spec.kind === "builtin") {
+    return "@markspec/profile-default (bundled)";
   }
   const _exhaustive: never = spec;
   throw new Error(`Unknown specifier kind`);
