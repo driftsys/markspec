@@ -12,8 +12,8 @@ import type {
   Entry,
   InverseDecl,
   Link,
-  LinkKind,
 } from "../model/mod.ts";
+import { ATTR_TO_LINK_KIND } from "./constants.ts";
 
 /** Result of inverse generation. */
 export interface GenerateInversesResult {
@@ -41,25 +41,6 @@ interface InverseSpec {
  * an `inverse:` declaration in the effective profile, then accumulates
  * back-links on target entries.
  */
-/**
- * Attribute-name → LinkKind for forward-link attributes that may carry
- * inverse declarations. Used to tag generated back-link edges with the
- * forward relationship kind so consumers can reconstruct the full graph.
- */
-const ATTR_TO_LINK_KIND: Readonly<Record<string, LinkKind>> = {
-  "Satisfies": "satisfies",
-  "Derived-from": "derived-from",
-  "References": "references",
-  "Allocated-to": "allocated-to",
-  "Realizes": "realizes",
-  "Verifies": "verifies",
-  "Tests": "tests",
-  "Depends-on": "depends-on",
-  "Part-of": "part-of",
-  "Generated-from": "generated-from",
-  "Supersedes": "supersedes",
-};
-
 export function generateInverses(
   entries: readonly Entry[],
   profile: EffectiveProfile,

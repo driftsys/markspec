@@ -12,6 +12,7 @@ import type { BodyBlock } from "../ast/nodes.ts";
 export {
   ATTRIBUTE_CATALOG,
   attributeSpec,
+  CSV_SPLITTABLE_TYPES,
   UNIVERSAL_ATTRIBUTE_KEYS,
 } from "./attributes.ts";
 export type { AttributeSpec } from "./attributes.ts";

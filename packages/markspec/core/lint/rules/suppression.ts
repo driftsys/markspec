@@ -36,7 +36,7 @@ function getDisableValue(entry: Entry): string | undefined {
 }
 
 /** Return whether the entry has a non-empty Rationale attribute. */
-function hasRationale(entry: Entry): boolean {
+export function hasRationale(entry: Entry): boolean {
   for (const attr of entry.rawAttributes) {
     if (attr.key === "Rationale" && attr.value.trim().length > 0) return true;
   }

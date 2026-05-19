@@ -7,7 +7,7 @@
  */
 
 import type { Attribute, TypedAttributes } from "../model/mod.ts";
-import { attributeSpec } from "../model/attributes.ts";
+import { attributeSpec, CSV_SPLITTABLE_TYPES } from "../model/attributes.ts";
 
 /**
  * Pattern matching a `Key: Value` attribute line.
@@ -52,16 +52,6 @@ export function parseAttributes(lines: readonly string[]): Attribute[] {
  * Used to detect attribute blocks at the end of entry bodies.
  */
 export const ATTR_LINE_RE = /^[A-Z][A-Za-z-]*: .+\\?$/;
-
-/**
- * Types whose values may be CSV-split on input per ADR-002 §2.6.
- * `citation` is deliberately excluded because locators may contain commas.
- */
-const CSV_SPLITTABLE_TYPES = new Set([
-  "id-list",
-  "tag-list",
-  "external-id",
-]);
 
 /**
  * Collate a flat list of parsed attributes into a typed, keyed map per

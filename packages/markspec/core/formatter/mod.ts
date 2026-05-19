@@ -14,11 +14,20 @@ import type {
   DocumentAttributes,
   Entry,
 } from "../model/mod.ts";
-import { attributeSpec, IDENTITY_KEY } from "../model/mod.ts";
+import {
+  attributeSpec,
+  CSV_SPLITTABLE_TYPES,
+  IDENTITY_KEY,
+} from "../model/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { FENCE_RE, walkProseLines } from "../util/fence.ts";
+import {
+  EARS_KEYWORD_RE,
+  isSentenceInitial as _isSentenceInitial,
+  RFC2119_MODAL_RE,
+} from "../util/modals.ts";
 import { synthesizedUlid } from "./synth_ulid.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { render as renderBodyAst } from "../ast/render.ts";
@@ -26,44 +35,13 @@ import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
 
 /**
- * Value types that accept CSV on input but must be emitted as multi-line
- * per ADR-002 §2.6. `citation` is deliberately excluded because locators
- * may contain commas.
- */
-const CSV_SPLITTABLE_TYPES: ReadonlySet<string> = new Set([
-  "id-list",
-  "tag-list",
-  "external-id",
-]);
-
-/**
- * RFC 2119 modal keywords in uppercase form, with optional ` NOT` suffix.
- * Captured for canonical-form normalisation per spec §3.4.1: uppercase
- * input is accepted but emitted lowercase, unconditionally.
- */
-const RFC2119_MODAL_RE = /\b(SHALL|SHOULD|MAY|MUST)(\s+NOT)?\b/g;
-
-/**
- * EARS keywords subject to the sentence-initial rule of spec §3.4.1:
- * lowercased when mid-sentence, preserved when starting a sentence.
- * `If…then` is deferred to a later slice because its multi-token form
- * needs separate handling.
- */
-const EARS_KEYWORD_RE = /\b(When|While|Where|Unless)\b/g;
-
-/**
  * Decide whether the EARS keyword at `offset` in `line` is at sentence
- * start (return value true). Walks left over whitespace and reports true
- * when it hits the beginning of the line or a sentence-terminating
- * punctuation character (`.`, `!`, `?`).
+ * start (return value true). Delegates to the shared implementation in
+ * `core/util/modals.ts`; re-exported here for backward compatibility with
+ * existing callers and tests that import from `formatter/mod.ts`.
  */
 export function isSentenceInitial(line: string, offset: number): boolean {
-  if (offset === 0) return true;
-  let i = offset - 1;
-  while (i >= 0 && (line[i] === " " || line[i] === "\t")) i--;
-  if (i < 0) return true;
-  const prev = line[i];
-  return prev === "." || prev === "!" || prev === "?";
+  return _isSentenceInitial(line, offset);
 }
 
 /**

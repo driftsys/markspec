@@ -162,7 +162,10 @@ Deno.test("parseMarkdown: slug-shaped display ID in references.md → shape=refe
 
   Body.
 `;
-  const { entries: [entry] } = parseMarkdown(md, { file: "references.md" });
+  const { entries: [entry] } = parseMarkdown(md, {
+    file: "references.md",
+    isReferencesDoc: true,
+  });
   assertExists(entry);
   assertEquals(entry.shape, "Reference");
   assertEquals(entry.id, undefined);

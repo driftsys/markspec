@@ -126,18 +126,17 @@ export function parseMarkdown(
 }
 
 /**
- * Detect if a file is a references document.
- * References context enables recognition of reference entries (slugs).
- * @param file - File path
- * @param explicit - Explicit override (undefined = auto-detect)
+ * Resolve whether this is a references document.
+ *
+ * The caller (`parseFile` in `parser/mod.ts`) always passes an explicit
+ * value computed via the canonical `isReferencesDocument` helper, so the
+ * auto-detection fallback is never needed here.
  */
 function detectReferencesDocument(
-  file: string,
+  _file: string,
   explicit: boolean | undefined,
 ): boolean {
-  if (explicit !== undefined) return explicit;
-  const basename = file.split("/").pop() ?? "";
-  return basename === "references.md" || file.includes("/references/");
+  return explicit ?? false;
 }
 
 /**
