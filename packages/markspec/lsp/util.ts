@@ -15,11 +15,11 @@ export function uriToPath(uri: string): string {
 
 /**
  * Convert a filesystem path to a `file://` URI.
- * Encodes special characters for URI safety.
+ * Uses the URL constructor so valid URI characters like `()`, `@`, `!`
+ * are preserved rather than percent-encoded by `encodeURIComponent`.
  */
 export function pathToUri(path: string): string {
-  const encoded = path.split("/").map(encodeURIComponent).join("/");
-  return `file://${encoded}`;
+  return new URL(`file://${path}`).href;
 }
 
 /** A debounced function with a `cancel()` method. */

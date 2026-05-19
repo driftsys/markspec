@@ -66,7 +66,12 @@ import {
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
-import { debounce, pathToUri, uriToPath } from "./util.ts";
+import {
+  debounce,
+  type DebouncedFunction,
+  pathToUri,
+  uriToPath,
+} from "./util.ts";
 import { debugLog } from "./debug_log.ts";
 
 // ---------------------------------------------------------------------------
@@ -169,6 +174,12 @@ function publishAllDiagnostics(): void {
 
 // Debounced cross-file validation (1000ms)
 const debouncedValidateAll = debounce(publishAllDiagnostics, 1000);
+
+// Per-file debounced parse — serializes rapid edits and prevents stale
+// index writes from concurrent async parse calls (B2).
+const pendingContent = new Map<string, string>();
+// deno-lint-ignore no-explicit-any
+const debouncedFileParses = new Map<string, DebouncedFunction<any>>();
 
 // ---------------------------------------------------------------------------
 // Completions
@@ -316,27 +327,58 @@ connection.onInitialized(async () => {
 // Document sync
 // ---------------------------------------------------------------------------
 
-documents.onDidChangeContent(async (change) => {
+documents.onDidChangeContent((change) => {
   const filePath = uriToPath(change.document.uri);
   if (!isMarkspecFile(filePath)) return;
 
-  // Re-parse the changed file
-  const parseDiags = await index.parseAndUpdateFile(
-    filePath,
-    change.document.getText(),
-  );
+  // Stash latest content so the debounced parse always uses the most
+  // recent snapshot, even if multiple edits arrive before the timer fires.
+  pendingContent.set(filePath, change.document.getText());
 
-  // Publish file-local diagnostics immediately
-  publishFileDiagnostics(filePath, parseDiags);
-
-  // Schedule cross-file validation
-  debouncedValidateAll();
+  let debouncedParse = debouncedFileParses.get(filePath);
+  if (!debouncedParse) {
+    debouncedParse = debounce(async () => {
+      const content = pendingContent.get(filePath);
+      if (content === undefined) return;
+      const parseDiags = await index.parseAndUpdateFile(filePath, content);
+      publishFileDiagnostics(filePath, parseDiags);
+      debouncedValidateAll();
+    }, 50);
+    debouncedFileParses.set(filePath, debouncedParse);
+  }
+  debouncedParse();
 });
 
 documents.onDidSave(() => {
   // Force cross-file validation on save
   debouncedValidateAll.cancel();
   publishAllDiagnostics();
+});
+
+documents.onDidClose((event) => {
+  const filePath = uriToPath(event.document.uri);
+  if (!isMarkspecFile(filePath)) return;
+  // Remove the file from the index and clear its diagnostics so stale
+  // entries don't affect cross-file validation after the buffer closes.
+  index.removeFile(filePath);
+  pendingContent.delete(filePath);
+  debouncedFileParses.delete(filePath);
+  connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+  debouncedValidateAll();
+});
+
+documents.onDidOpen(async (event) => {
+  const filePath = uriToPath(event.document.uri);
+  if (!isMarkspecFile(filePath)) return;
+  // Index newly opened files immediately so rename and other workspace
+  // operations cover them even before the first edit event fires.
+  if (index.getFilePaths().includes(filePath)) return; // already indexed
+  const parseDiags = await index.parseAndUpdateFile(
+    filePath,
+    event.document.getText(),
+  );
+  publishFileDiagnostics(filePath, parseDiags);
+  debouncedValidateAll();
 });
 
 // ---------------------------------------------------------------------------
