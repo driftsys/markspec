@@ -9,12 +9,13 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { CaptionConventions, Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { validateCaptionConvention } from "./caption_convention.ts";
 
 function makeEntry(displayId: string, body: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: "Test entry",
     body,
     bodyAst: buildBodyAst(body),
@@ -146,7 +147,7 @@ Deno.test("validateCaptionConvention: Figure keyword not in conventions → no M
 
 Deno.test("validateCaptionConvention: no bodyAst → no MSL-C072", () => {
   const entry: Entry = {
-    displayId: "REQ-008",
+    displayId: makeDisplayId("REQ-008"),
     title: "Test",
     body: "Figure: Caption\n\n![x](y.svg)",
     bodyAst: undefined,

@@ -6,11 +6,12 @@
 
 import { assertStringIncludes } from "@std/assert";
 import type { Entry } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import { renderEntriesIndex } from "./entries.ts";
 
 function mkEntry(displayId: string, title: string, type?: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title,
     body: "",
     rawAttributes: [],

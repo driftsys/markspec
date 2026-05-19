@@ -6,10 +6,11 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Entry, Link } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import { renderEntry } from "./entry.ts";
 
 const ENTRY: Entry = {
-  displayId: "STK_AEB_0001",
+  displayId: makeDisplayId("STK_AEB_0001"),
   title: "Stop on imminent collision",
   body:
     "When the system detects an imminent collision with a stationary object,\nit shall command emergency braking.",
@@ -31,8 +32,8 @@ const ENTRY: Entry = {
 
 const FORWARD: Link[] = [
   {
-    from: "STK_AEB_0001",
-    to: "SYS_AEB_0012",
+    from: makeDisplayId("STK_AEB_0001"),
+    to: makeDisplayId("SYS_AEB_0012"),
     kind: "satisfies",
     location: {
       file: "/proj/docs/product/stakeholder-requirements.md",
@@ -44,8 +45,8 @@ const FORWARD: Link[] = [
 
 const REVERSE: Link[] = [
   {
-    from: "VAL_AEB_0001",
-    to: "STK_AEB_0001",
+    from: makeDisplayId("VAL_AEB_0001"),
+    to: makeDisplayId("STK_AEB_0001"),
     kind: "verifies",
     location: { file: "/proj/tests/val_aeb.rs", line: 12, column: 1 },
   },

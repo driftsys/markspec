@@ -5,6 +5,7 @@ import {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   format,
+  makeDisplayId,
   parse,
   REFHUB_URL,
   report,
@@ -60,7 +61,7 @@ Deno.test("model types are constructible", () => {
   assertEquals(diag.severity, "error");
 
   const entry: Entry = {
-    displayId: "SRS_BRK_0001",
+    displayId: makeDisplayId("SRS_BRK_0001"),
     title: "Sensor debouncing",
     body: "The sensor driver shall debounce raw inputs.",
     rawAttributes: [attr],

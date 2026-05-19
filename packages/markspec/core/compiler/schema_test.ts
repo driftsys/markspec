@@ -2,12 +2,13 @@ import { assertEquals } from "@std/assert";
 import { serializeCompileResult } from "./schema.ts";
 import type { SerializedEntry } from "./schema.ts";
 import type { CompileResult } from "./mod.ts";
-import type { Entry, Link } from "../model/mod.ts";
+import type { DisplayId, Entry, Link } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 /** Build a minimal Entry for testing. */
 function makeEntry(displayId: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: `Title for ${displayId}`,
     body: "",
     rawAttributes: [],
@@ -22,8 +23,8 @@ function makeEntry(displayId: string): Entry {
 /** Build a minimal Link for testing. */
 function makeLink(from: string, to: string): Link {
   return {
-    from,
-    to,
+    from: makeDisplayId(from),
+    to: makeDisplayId(to),
     kind: "satisfies",
     location: { file: "test.md", line: 1, column: 1 },
   };
@@ -33,8 +34,12 @@ Deno.test("serializeCompileResult: converts Maps to plain objects", () => {
   const entry = makeEntry("SRS_BRK_0001");
   const entries = new Map([[entry.displayId, entry]]);
   const link = makeLink("SRS_BRK_0001", "SYS_BRK_0042");
-  const forward = new Map([["SRS_BRK_0001", [link]]]);
-  const reverse = new Map([["SYS_BRK_0042", [link]]]);
+  const forward = new Map<DisplayId, Link[]>([[makeDisplayId("SRS_BRK_0001"), [
+    link,
+  ]]]);
+  const reverse = new Map<DisplayId, Link[]>([[makeDisplayId("SYS_BRK_0042"), [
+    link,
+  ]]]);
 
   const result: CompileResult = {
     entries,
@@ -114,8 +119,12 @@ Deno.test("serializeCompileResult: round-trip via JSON.parse", () => {
   const result: CompileResult = {
     entries: new Map([[entry.displayId, entry]]),
     links: [link],
-    forward: new Map([["SRS_BRK_0001", [link]]]),
-    reverse: new Map([["SYS_BRK_0042", [link]]]),
+    forward: new Map<DisplayId, Link[]>([[makeDisplayId("SRS_BRK_0001"), [
+      link,
+    ]]]),
+    reverse: new Map<DisplayId, Link[]>([[makeDisplayId("SYS_BRK_0042"), [
+      link,
+    ]]]),
     documents: new Map(),
     diagnostics: [
       {

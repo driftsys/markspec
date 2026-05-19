@@ -14,6 +14,7 @@ import type {
   Link,
   SourceLocation,
 } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
 import { classifyEntriesStage, validate } from "../validator/mod.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
@@ -261,7 +262,7 @@ function extractLinksFromAttribute(
     // Format: "ID §section" — extract ID part only.
     const idPart = value.split(/\s/)[0];
     if (idPart) {
-      return [{ from, to: idPart, kind, location }];
+      return [{ from, to: makeDisplayId(idPart), kind, location }];
     }
     return [];
   }
@@ -271,7 +272,7 @@ function extractLinksFromAttribute(
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
-    .map((to) => ({ from, to, kind, location }));
+    .map((to) => ({ from, to: makeDisplayId(to), kind, location }));
 }
 
 /** Build an adjacency map from links using a key selector. */

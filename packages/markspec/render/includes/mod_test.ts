@@ -2,15 +2,20 @@ import { assertEquals } from "@std/assert";
 import { processIncludes } from "./mod.ts";
 import type { IncludeOptions } from "./mod.ts";
 import type { CompileResult, Entry } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /** Build a minimal Entry for testing. */
-function testEntry(overrides: Partial<Entry> = {}): Entry {
+function testEntry(
+  { displayId, ...overrides }: Partial<Omit<Entry, "displayId">> & {
+    displayId?: string;
+  } = {},
+): Entry {
   return {
-    displayId: "SRS_BRK_0001",
+    displayId: makeDisplayId(displayId ?? "SRS_BRK_0001"),
     title: "Sensor debouncing",
     body: "The sensor driver shall debounce raw inputs.",
     rawAttributes: [

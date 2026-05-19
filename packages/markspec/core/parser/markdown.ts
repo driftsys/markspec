@@ -7,7 +7,7 @@
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
-import { IDENTITY_KEY, shapeFromIdValue } from "../model/mod.ts";
+import { IDENTITY_KEY, makeDisplayId, shapeFromIdValue } from "../model/mod.ts";
 import {
   ATTR_LINE_RE,
   collateAttributes,
@@ -498,7 +498,7 @@ function extractEntry(
   }, bodyAst);
 
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: title ?? "",
     body,
     bodyAst,

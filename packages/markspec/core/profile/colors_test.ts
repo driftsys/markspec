@@ -6,11 +6,12 @@
 import { assertEquals } from "@std/assert";
 import { resolveEntryColor } from "./colors.ts";
 import type { EffectiveProfile, Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 function makeIdentifiedEntry(type: string | undefined): Entry {
   return {
     shape: "Authored",
-    displayId: "TST_AAA_0001",
+    displayId: makeDisplayId("TST_AAA_0001"),
     title: "t",
     body: "",
     rawAttributes: [],

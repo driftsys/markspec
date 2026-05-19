@@ -47,8 +47,21 @@ export { inferTypeFromDiscriminatingAttr } from "./discriminating_attr.ts";
  * For referenced entries the display ID is a slug (pandoc/BibTeX cite-key
  * convention, e.g., `ISO-26262-6`, `serde`, `smith2021`). The leading `@`
  * in `[@slug]` is accepted as Pandoc sugar and stripped during parsing.
+ *
+ * Branded so a `Ulid` cannot be accidentally passed where a `DisplayId`
+ * is expected, and vice versa. Use {@linkcode makeDisplayId} to construct.
  */
-export type DisplayId = string;
+export type DisplayId = string & { readonly __brand: "DisplayId" };
+
+/**
+ * Cast a plain string to a branded `DisplayId`.
+ *
+ * This is a zero-cost assertion — no validation is performed. The caller
+ * asserts that `s` is a syntactically valid display ID.
+ */
+export function makeDisplayId(s: string): DisplayId {
+  return s as DisplayId;
+}
 
 // ---------------------------------------------------------------------------
 // ULID
@@ -59,8 +72,22 @@ export type DisplayId = string;
  *
  * Used as the `Id:` attribute value for identified entries. Assigned by
  * tooling, never hand-authored, immutable once assigned.
+ *
+ * Branded so a `DisplayId` cannot be accidentally passed where a `Ulid`
+ * is expected, and vice versa. Use {@linkcode makeUlid} to construct.
  */
-export type Ulid = string;
+export type Ulid = string & { readonly __brand: "Ulid" };
+
+/**
+ * Cast a plain string to a branded `Ulid`.
+ *
+ * This is a zero-cost assertion — no validation is performed. The caller
+ * asserts that `s` is a syntactically valid 26-character Crockford base32
+ * ULID.
+ */
+export function makeUlid(s: string): Ulid {
+  return s as Ulid;
+}
 
 // ---------------------------------------------------------------------------
 // Source location
@@ -564,23 +591,32 @@ export interface EntityRef {
  * Kind of directional link between entries — relation name lifted from the
  * source attribute.
  *
- * The core bakes in only `supersedes` (universal retirement). All other
- * relation names listed here are conventions recognized by shipped profile
- * packages; in a profile-aware pipeline, link kinds come from the active
- * profile's `traceability:` declarations rather than this closed union.
+ * Open `string` so profile-declared relation names (e.g., from a profile's
+ * `traceability:` declarations) can be used without changing core. The
+ * canonical built-in kinds are enumerated in {@linkcode KNOWN_LINK_KINDS}.
  */
-export type LinkKind =
-  | "satisfies"
-  | "derived-from"
-  | "references"
-  | "allocated-to"
-  | "realizes"
-  | "verifies"
-  | "tests"
-  | "depends-on"
-  | "part-of"
-  | "generated-from"
-  | "supersedes";
+export type LinkKind = string;
+
+/**
+ * Built-in link kinds recognized by the core compiler and shipped profiles.
+ *
+ * Consumers that need to validate or enumerate the core-defined relation
+ * vocabulary should use this constant rather than hard-coding string literals.
+ * Profile-declared kinds extend this set at runtime.
+ */
+export const KNOWN_LINK_KINDS: readonly string[] = [
+  "satisfies",
+  "derived-from",
+  "references",
+  "allocated-to",
+  "realizes",
+  "verifies",
+  "tests",
+  "depends-on",
+  "part-of",
+  "generated-from",
+  "supersedes",
+] as const;
 
 /** A directional link between two entries in the traceability graph. */
 export interface Link {

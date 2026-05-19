@@ -5,6 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import { makeDisplayId } from "../../core/mod.ts";
 import { compileProject } from "../helpers.ts";
 
 export const showCmd = new Command()
@@ -16,15 +17,16 @@ export const showCmd = new Command()
   .action(
     async (options: { format?: string }, id: string, ...paths: string[]) => {
       const { result, chain: _chain } = await compileProject(paths);
-      const entry = result.entries.get(id);
+      const displayId = makeDisplayId(id);
+      const entry = result.entries.get(displayId);
 
       if (!entry) {
         console.error(`error: entry not found: ${id}`);
         Deno.exit(1);
       }
 
-      const forwardLinks = result.forward.get(id) ?? [];
-      const reverseLinks = result.reverse.get(id) ?? [];
+      const forwardLinks = result.forward.get(displayId) ?? [];
+      const reverseLinks = result.reverse.get(displayId) ?? [];
 
       if (options.format === "json") {
         const output = {

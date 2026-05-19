@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { generateInverses } from "./inverses.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import type {
   AttrDecl,
   EffectiveProfile,
@@ -16,7 +17,9 @@ import type {
 const LOC = { file: "test.md", line: 1, column: 1 } as const;
 
 function entry(
-  overrides: Partial<Entry> & { displayId: string },
+  { displayId, ...overrides }: Partial<Omit<Entry, "displayId">> & {
+    displayId: string;
+  },
 ): Entry {
   return {
     title: "",
@@ -27,6 +30,7 @@ function entry(
     source: "markdown",
     typedAttributes: new Map(),
     ...overrides,
+    displayId: makeDisplayId(displayId),
   };
 }
 

@@ -11,6 +11,7 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { validateModalKeywords } from "./modal_keywords.ts";
 
@@ -21,7 +22,7 @@ function makeEntry(
 ): Entry {
   const bodyAst = buildBodyAst(body);
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: "Test entry",
     body,
     bodyAst,

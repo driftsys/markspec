@@ -15,6 +15,7 @@ import {
   resolvedCoreTypeWithProvenance,
 } from "./type_resolution.ts";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 
@@ -25,7 +26,7 @@ function makeEntry(opts: {
   id?: string;
 }): Entry {
   return {
-    displayId: "TEST-001",
+    displayId: makeDisplayId("TEST-001"),
     title: "Test entry",
     body: "Body.",
     rawAttributes: opts.attrs,
@@ -159,7 +160,7 @@ Deno.test("resolvedCoreType: step 4 falls back to prefix when no explicit Type a
 
   const reqEntry = {
     ...entry,
-    displayId: "REQ-001",
+    displayId: makeDisplayId("REQ-001"),
   };
   assertEquals(resolvedCoreType(reqEntry), "Requirement");
 });
@@ -208,7 +209,7 @@ Deno.test("resolvedCoreTypeWithProvenance: step 3 — Source: introspection", ()
 Deno.test("resolvedCoreTypeWithProvenance: step 4 — display-ID prefix", () => {
   const entry = {
     ...makeEntry({ attrs: [{ key: "Id", value: ULID }] }),
-    displayId: "REQ-001",
+    displayId: makeDisplayId("REQ-001"),
   };
   assertEquals(
     resolvedCoreTypeWithProvenance(entry),

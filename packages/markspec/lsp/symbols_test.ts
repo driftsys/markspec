@@ -7,6 +7,7 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
+import { makeDisplayId } from "../core/model/mod.ts";
 import {
   entriesToDocumentSymbols,
   entriesToWorkspaceSymbols,
@@ -22,7 +23,7 @@ function makeEntry(opts: {
   shape?: "Authored" | "Reference";
 }): Entry {
   return {
-    displayId: opts.displayId,
+    displayId: makeDisplayId(opts.displayId),
     title: opts.title,
     body: "",
     rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],

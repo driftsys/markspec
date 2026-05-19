@@ -5,12 +5,13 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import type { CompileResult, Entry, Link } from "../../core/mod.ts";
+import type { CompileResult, DisplayId, Entry, Link } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import { renderContext, walkContext } from "./context.ts";
 
 function mk(displayId: string, title: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title,
     body: "",
     rawAttributes: [],
@@ -25,17 +26,17 @@ function buildResult(
   entries: Entry[],
   edges: { from: string; to: string; kind: Link["kind"] }[],
 ): CompileResult {
-  const entryMap = new Map<string, Entry>();
+  const entryMap = new Map<DisplayId, Entry>();
   for (const e of entries) entryMap.set(e.displayId, e);
 
   const links: Link[] = edges.map((e) => ({
-    from: e.from,
-    to: e.to,
+    from: makeDisplayId(e.from),
+    to: makeDisplayId(e.to),
     kind: e.kind,
     location: { file: "/x", line: 1, column: 1 },
   }));
 
-  const forward = new Map<string, Link[]>();
+  const forward = new Map<DisplayId, Link[]>();
   for (const link of links) {
     const list = forward.get(link.from) ?? [];
     list.push(link);

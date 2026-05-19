@@ -8,12 +8,18 @@
  */
 
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
-import type { CompileResult, Entry, ProfileChain } from "../../core/mod.ts";
+import type {
+  CompileResult,
+  DisplayId,
+  Entry,
+  ProfileChain,
+} from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import type { Project } from "../project.ts";
 import { listResourceDescriptors, readResource } from "./mod.ts";
 
 function mkProject(entries: Entry[]): Project {
-  const entriesMap = new Map<string, Entry>();
+  const entriesMap = new Map<DisplayId, Entry>();
   for (const e of entries) entriesMap.set(e.displayId, e);
   const result: CompileResult = {
     entries: entriesMap,
@@ -36,7 +42,7 @@ function mkProject(entries: Entry[]): Project {
 }
 
 const E1: Entry = {
-  displayId: "STK_TEST_0001",
+  displayId: makeDisplayId("STK_TEST_0001"),
   title: "First entry",
   body: "",
   rawAttributes: [],

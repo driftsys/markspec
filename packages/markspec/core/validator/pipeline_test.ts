@@ -13,6 +13,7 @@ import type {
   EntryShape,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 function buildEntry(opts: {
   displayId: string;
@@ -28,7 +29,7 @@ function buildEntry(opts: {
     attributes.push({ key: "Type", value: opts.typeAttribute });
   }
   return {
-    displayId: opts.displayId,
+    displayId: makeDisplayId(opts.displayId),
     title: opts.displayId,
     body: "",
     id: opts.id ?? "01HGW2Q8MNP3RSTVWXYZABCDEF",
@@ -89,7 +90,7 @@ Deno.test("runPipeline: profile present runs Stage 2, entries classified", () =>
 
 Deno.test("runPipeline: Stage 1 error contributes to diagnostics + valid=false", () => {
   const entry: Entry = {
-    displayId: "REQ-0001",
+    displayId: makeDisplayId("REQ-0001"),
     title: "",
     body: "",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
@@ -112,7 +113,7 @@ Deno.test("runPipeline: Stage 1 error contributes to diagnostics + valid=false",
 Deno.test("runPipeline: both stages contribute diagnostics independently", () => {
   const profile = buildProfileWithRequirement();
   const entry: Entry = {
-    displayId: "FOO-001",
+    displayId: makeDisplayId("FOO-001"),
     title: "",
     body: "",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
@@ -166,7 +167,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
 
   // Entry classified as requirement but missing Rationale.
   const e: Entry = {
-    displayId: "REQ-0001",
+    displayId: makeDisplayId("REQ-0001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: "Authored",
     source: "markdown",
@@ -209,7 +210,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
   };
 
   const e: Entry = {
-    displayId: "X-001",
+    displayId: makeDisplayId("X-001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: "Authored",
     source: "markdown",
@@ -288,7 +289,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
   };
 
   const e: Entry = {
-    displayId: "TEST-0001",
+    displayId: makeDisplayId("TEST-0001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: "Authored",
     source: "markdown",
@@ -333,7 +334,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
   };
 
   const target1: Entry = {
-    displayId: "REQ-0001",
+    displayId: makeDisplayId("REQ-0001"),
     id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
     shape: "Authored",
     source: "markdown",
@@ -344,7 +345,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     location: { file: "t.md", line: 1, column: 1 },
   };
   const target2: Entry = {
-    displayId: "REQ-0002",
+    displayId: makeDisplayId("REQ-0002"),
     id: "01T2T2T2T2T2T2T2T2T2T2T2T2",
     shape: "Authored",
     source: "markdown",
@@ -355,7 +356,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     location: { file: "t.md", line: 1, column: 1 },
   };
   const e: Entry = {
-    displayId: "TEST-0001",
+    displayId: makeDisplayId("TEST-0001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: "Authored",
     source: "markdown",

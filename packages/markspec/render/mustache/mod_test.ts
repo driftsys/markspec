@@ -8,6 +8,7 @@ import { assertEquals } from "@std/assert";
 import type { MustacheContext } from "./mod.ts";
 import { resolveMustache } from "./mod.ts";
 import type { CompileResult, Entry, ProjectConfig } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import type { CaptionRegistry } from "../captions/mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -32,7 +33,7 @@ function makeConfig(
 /** Build a minimal Entry for testing. */
 function makeEntry(displayId: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: `Title for ${displayId}`,
     body: "",
     rawAttributes: [],

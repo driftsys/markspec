@@ -8,11 +8,12 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
+import { makeDisplayId } from "../core/model/mod.ts";
 import { entryToLspLocation } from "./definition.ts";
 
 function makeEntry(file: string, line: number, column: number): Entry {
   return {
-    displayId: "REQ-001",
+    displayId: makeDisplayId("REQ-001"),
     title: "Test",
     body: "",
     rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],

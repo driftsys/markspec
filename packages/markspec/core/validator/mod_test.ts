@@ -8,11 +8,14 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { validate } from "./mod.ts";
 
-function entry(partial: Partial<Entry> & { displayId: string }): Entry {
+function entry(
+  partial: Partial<Omit<Entry, "displayId">> & { displayId: string },
+): Entry {
   return {
-    displayId: partial.displayId,
+    displayId: makeDisplayId(partial.displayId),
     title: partial.title ?? "Test entry",
     body: partial.body ?? "Body.",
     rawAttributes: partial.rawAttributes ?? [],

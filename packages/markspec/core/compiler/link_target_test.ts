@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { checkLinkTargets } from "./link_target.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import type { DisplayId, Entry, Link, SourceLocation } from "../model/mod.ts";
 
 const LOC: SourceLocation = { file: "test.md", line: 1, column: 1 };
@@ -12,7 +13,7 @@ function makeEntry(
   } = {},
 ): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: displayId,
     body: "",
     rawAttributes: opts.rawAttributes ?? [],
@@ -24,13 +25,18 @@ function makeEntry(
 }
 
 function makeLink(from: string, to: string): Link {
-  return { from, to, kind: "satisfies", location: LOC };
+  return {
+    from: makeDisplayId(from),
+    to: makeDisplayId(to),
+    kind: "satisfies",
+    location: LOC,
+  };
 }
 
 Deno.test("checkLinkTargets: active target produces no diagnostic", () => {
   const entries = new Map<DisplayId, Entry>([
-    ["REQ-001", makeEntry("REQ-001")],
-    ["REQ-002", makeEntry("REQ-002")],
+    [makeDisplayId("REQ-001"), makeEntry("REQ-001")],
+    [makeDisplayId("REQ-002"), makeEntry("REQ-002")],
   ]);
   const links = [makeLink("REQ-002", "REQ-001")];
   const diagnostics = checkLinkTargets(entries, links);
@@ -40,12 +46,12 @@ Deno.test("checkLinkTargets: active target produces no diagnostic", () => {
 Deno.test("checkLinkTargets: DRAFT target produces info", () => {
   const entries = new Map<DisplayId, Entry>([
     [
-      "REQ-001",
+      makeDisplayId("REQ-001"),
       makeEntry("REQ-001", {
         typedAttributes: new Map([["Labels", ["DRAFT"]]]),
       }),
     ],
-    ["REQ-002", makeEntry("REQ-002")],
+    [makeDisplayId("REQ-002"), makeEntry("REQ-002")],
   ]);
   const links = [makeLink("REQ-002", "REQ-001")];
   const diagnostics = checkLinkTargets(entries, links);
@@ -57,12 +63,12 @@ Deno.test("checkLinkTargets: DRAFT target produces info", () => {
 Deno.test("checkLinkTargets: Deprecated target produces warning", () => {
   const entries = new Map<DisplayId, Entry>([
     [
-      "REQ-001",
+      makeDisplayId("REQ-001"),
       makeEntry("REQ-001", {
         rawAttributes: [{ key: "Deprecated", value: "replaced by REQ-003" }],
       }),
     ],
-    ["REQ-002", makeEntry("REQ-002")],
+    [makeDisplayId("REQ-002"), makeEntry("REQ-002")],
   ]);
   const links = [makeLink("REQ-002", "REQ-001")];
   const diagnostics = checkLinkTargets(entries, links);
@@ -74,12 +80,12 @@ Deno.test("checkLinkTargets: Deprecated target produces warning", () => {
 Deno.test("checkLinkTargets: Superseded-by target produces warning", () => {
   const entries = new Map<DisplayId, Entry>([
     [
-      "REQ-001",
+      makeDisplayId("REQ-001"),
       makeEntry("REQ-001", {
         typedAttributes: new Map([["Superseded-by", ["REQ-003"]]]),
       }),
     ],
-    ["REQ-002", makeEntry("REQ-002")],
+    [makeDisplayId("REQ-002"), makeEntry("REQ-002")],
   ]);
   const links = [makeLink("REQ-002", "REQ-001")];
   const diagnostics = checkLinkTargets(entries, links);
@@ -90,7 +96,7 @@ Deno.test("checkLinkTargets: Superseded-by target produces warning", () => {
 
 Deno.test("checkLinkTargets: unresolved target is skipped (handled by MSL-T005)", () => {
   const entries = new Map<DisplayId, Entry>([
-    ["REQ-002", makeEntry("REQ-002")],
+    [makeDisplayId("REQ-002"), makeEntry("REQ-002")],
   ]);
   const links = [makeLink("REQ-002", "NONEXISTENT")];
   const diagnostics = checkLinkTargets(entries, links);

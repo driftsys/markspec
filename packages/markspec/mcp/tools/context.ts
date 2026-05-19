@@ -6,6 +6,7 @@
  */
 
 import type { CompileResult } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import { entryUri } from "../uri.ts";
 
 /** One entry in the context chain. */
@@ -26,18 +27,19 @@ export function walkContext(
   startId: string,
   maxDepth: number,
 ): ContextNode[] {
-  const start = result.entries.get(startId);
+  const brandedStart = makeDisplayId(startId);
+  const start = result.entries.get(brandedStart);
   if (!start) return [];
 
   const out: ContextNode[] = [
     { displayId: startId, title: start.title, depth: 0 },
   ];
   const visited = new Set<string>([startId]);
-  let frontier: string[] = [startId];
+  let frontier = [brandedStart];
   let depth = 0;
 
   while (depth < maxDepth && frontier.length > 0) {
-    const next: string[] = [];
+    const next: typeof frontier = [];
     for (const id of frontier) {
       const links = result.forward.get(id) ?? [];
       for (const link of links) {

@@ -36,6 +36,7 @@ import {
   type EffectiveProfile,
   loadConfig,
   loadProfileForCommand,
+  makeDisplayId,
   type ProjectConfig,
   VERSION,
 } from "../core/mod.ts";
@@ -471,7 +472,7 @@ connection.onHover((params) => {
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
-  const entry = index.getEntryByDisplayId(id);
+  const entry = index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
 
   return {
@@ -504,7 +505,7 @@ connection.onDefinition((params) => {
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
-  const entry = index.getEntryByDisplayId(id);
+  const entry = index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
 
   return entryToLspLocation(entry);
@@ -539,7 +540,7 @@ connection.onReferences((params) => {
 
   // includeDeclaration: prepend the declaration's location when asked.
   if (params.context?.includeDeclaration) {
-    const decl = index.getEntryByDisplayId(id);
+    const decl = index.getEntryByDisplayId(makeDisplayId(id));
     if (decl) locations.unshift(entryToLspLocation(decl));
   }
 
