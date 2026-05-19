@@ -187,9 +187,9 @@ A circuit, sub-assembly, or other fine-grained hardware element.
 
 ### Definition
 
-A glossary term. Used in `GLOSSARY.md` or equivalent. The glossary cross-check
-lint rule (`MSL-Q020`) flags entries that use a term defined in the glossary
-without a `References:` link to the `Definition` entry.
+A glossary term. Used in `GLOSSARY.md` or equivalent. A planned lint rule
+(`MSL-Q020`) will flag entries that use a term defined in the glossary without a
+`References:` link to the `Definition` entry.
 
 ### Objective
 
@@ -259,9 +259,9 @@ relative to the active profile, not to the core type list.
 The `Id:` trailer value determines an entry's **shape**, independently of its
 type. Type and shape are fully orthogonal:
 
-```markdown
-Id: 01HGW2Q8MNP3RSTVWXYZABCDEF ← Authored (bare ULID) Id:
-urn:iso:std:iso:26262:-6:ed-2 ← Reference (URI with scheme)
+```text
+Id: 01HGW2Q8MNP3RSTVWXYZABCDEF     ← Authored (bare ULID)
+Id: urn:iso:std:iso:26262:-6:ed-2  ← Reference (URI with scheme)
 ```
 
 Shape affects serialization, which attributes are meaningful (e.g., `Supersedes`
