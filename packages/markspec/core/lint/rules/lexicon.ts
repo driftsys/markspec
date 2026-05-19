@@ -43,7 +43,7 @@ const Q302_TERMS = [
   "effective",
   "effectively",
   "as needed",
-  "as required",
+  // "as required" belongs exclusively to Q303 (INCOSE R8 escape clause)
 ];
 
 const Q303_TERMS = [

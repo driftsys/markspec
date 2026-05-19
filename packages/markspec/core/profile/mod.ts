@@ -35,11 +35,10 @@ export type { LoadProfileForCommandResult } from "./load.ts";
 export { mergeChain } from "./merge.ts";
 export type { MergeResult } from "./merge.ts";
 
-export { cacheDir } from "./cache.ts";
-export type { CacheEnv } from "./cache.ts";
-
-export { defaultRunNpm, resolveNpmSpecifier } from "./npm.ts";
-export type { ResolveNpmOptions, RunNpm } from "./npm.ts";
+// cacheDir, CacheEnv, defaultRunNpm, resolveNpmSpecifier, ResolveNpmOptions,
+// and RunNpm are internal implementation details of the NPM resolver — they
+// are not part of the public profile API and are not re-exported from
+// core/mod.ts. Consumers use loadChain / loadProfileForCommand instead.
 
 export { resolveEntryColor } from "./colors.ts";
 
