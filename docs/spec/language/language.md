@@ -24,8 +24,8 @@ MarkSpec splits responsibility between a **core** — this specification — and
 **profile** — an external vocabulary pack that names concrete entry types and
 declares their attributes, relation names, and rules.
 
-- The core defines **two entry shapes** (identified and referenced), the syntax
-  for authoring entries, a single identity attribute (`Id:`), a small universal
+- The core defines **two entry shapes** (Authored and Reference), the syntax for
+  authoring entries, a single identity attribute (`Id:`), a small universal
   attribute set, and the rules for discriminating shape from `Id:` value format.
   It contains no type vocabulary.
 - A profile declares concrete types (`requirement`, `test`, `unit`, `standard`,
@@ -297,7 +297,7 @@ No indented body. Normal list item.
 Emphasis (`_text_`) must not appear inside entry blocks. Strong (`**text**`) and
 inline code are allowed.
 
-Part 2 defines the two entry shapes (identified, referenced), the rule that
+Part 2 defines the two entry shapes (Authored, Reference), the rule that
 discriminates them, the universal attributes that apply to both, and the
 profile-declared extensions layered on top.
 
@@ -552,19 +552,19 @@ core and profile-declared type vocabulary.
 
 MarkSpec recognizes two shapes:
 
-| Shape          | Intent                                | `Id:` value                  | Display ID role               |
-| -------------- | ------------------------------------- | ---------------------------- | ----------------------------- |
-| **identified** | Content the project authors and owns  | ULID (26-char Crockford b32) | Human-readable alias          |
-| **referenced** | Citation pointing to an external work | URI (RFC 3986, scheme req.)  | Slug (pandoc/BibTeX cite-key) |
+| Shape         | Intent                                | `Id:` value                  | Display ID role               |
+| ------------- | ------------------------------------- | ---------------------------- | ----------------------------- |
+| **Authored**  | Content the project authors and owns  | ULID (26-char Crockford b32) | Human-readable alias          |
+| **Reference** | Citation pointing to an external work | URI (RFC 3986, scheme req.)  | Slug (pandoc/BibTeX cite-key) |
 
 Every entry carries exactly one `Id:` attribute. Its **value format** determines
 the shape:
 
 ```text
-Id: 01HGW2P4KFR7ABCDEFGHJKMNPQ        # ULID → identified
-Id: urn:iso:std:iso:26262:-6:ed-2     # URI → referenced
-Id: pkg:cargo/serde@1.0.0             # URI (purl) → referenced
-Id: doi:10.1109/IEEESTD.2008.4610935  # URI → referenced
+Id: 01HGW2P4KFR7ABCDEFGHJKMNPQ        # ULID → Authored
+Id: urn:iso:std:iso:26262:-6:ed-2     # URI → Reference
+Id: pkg:cargo/serde@1.0.0             # URI (purl) → Reference
+Id: doi:10.1109/IEEESTD.2008.4610935  # URI → Reference
 ```
 
 The two value formats are visually disjoint — a ULID has no scheme; a URI must
@@ -604,22 +604,21 @@ An entry is **retired** when either signal is present. The two are complementary
 Tooling emits severity-tiered diagnostics when a relation target is retired or
 draft: `DRAFT` target → info, retired target → warning, unresolved target →
 error. There is no `DEPRECATED` / `WITHDRAWN` label — retirement lives in
-`Supersedes` and `Deprecated`. `Supersedes` operates within a shape: an
-identified entry supersedes an identified entry; a referenced entry supersedes a
-referenced entry.
+`Supersedes` and `Deprecated`. `Supersedes` operates within a shape: an Authored
+entry supersedes an Authored entry; a Reference entry supersedes a Reference
+entry.
 
 See §2.5 for attribute value types (multi-line repeat vs CSV, canonical form).
 
-### 2.2 Identified entries
+### 2.2 Authored entries
 
-An identified entry is a content unit the project authors and owns: a
-requirement, a test, a rule, a component, a code unit, a hardware part, a
-glossary term, a hazard, a design decision. Its identity is project-local and
-machine-generated.
+An Authored entry is a content unit the project authors and owns: a requirement,
+a test, a rule, a component, a code unit, a hardware part, a glossary term, a
+hazard, a design decision. Its identity is project-local and machine-generated.
 
 **Display ID:** any non-empty, project-unique string. The core does not
 constrain format. Profiles tighten by declaring per-type `display-id-pattern:`
-templates; the active profile determines what shape identified-entry display IDs
+templates; the active profile determines what shape Authored-entry display IDs
 take in a given project. Common conventions:
 
 ```text
@@ -683,9 +682,9 @@ The author writes `type: unit` because no `display-id-pattern` matches a
 symbolic namespace path. `Realizes:` references the upstream entry by its ULID
 identity (the stable handle), not by display ID.
 
-### 2.3 Referenced entries
+### 2.3 Reference entries
 
-A referenced entry is a bibliographic citation of an external artifact: a
+A Reference entry is a bibliographic citation of an external artifact: a
 standard, a regulation, a paper, an RFC, a corporate specification, a package
 dependency, a hardware part from an external catalog.
 
@@ -704,7 +703,7 @@ smith2021          ← academic citation
 
 Both `[@ISO-26262-6]` and `[ISO-26262-6]` are accepted in the entry header; the
 leading `@` is pandoc-citation sugar and is stripped during parsing. Inline
-pandoc citations `[@ISO-26262-6]` in prose resolve to the matching referenced
+pandoc citations `[@ISO-26262-6]` in prose resolve to the matching Reference
 entry.
 
 **Identity:** `Id:` carries a URI per RFC 3986 — any scheme, but the scheme is
@@ -725,16 +724,16 @@ an `Id:` value — the slug lives in the display ID, not in `Id:`.
 scheme or the display ID (`Id: pkg:cargo/...` → `type: dependency`;
 `Id: urn:iso:...` → `type: standard`). An explicit `type:` overrides inference.
 
-**Body is optional** for referenced entries — a minimal entry may consist of
+**Body is optional** for Reference entries — a minimal entry may consist of
 display ID, title, and `Id:` only.
 
 **Universal attributes** (§2.1) apply, except that `References:` is **not
-applicable** to referenced entries (a referenced entry does not itself cite
-other referenced entries via `References:`; the replacement relation is
-expressed via the universal `Supersedes`).
+applicable** to Reference entries (a Reference entry does not itself cite other
+Reference entries via `References:`; the replacement relation is expressed via
+the universal `Supersedes`).
 
 **Profile-declared attributes:** profiles may declare convenience attributes for
-referenced entries — `Reference-url:` (HTTPS navigation link when different from
+Reference entries — `Reference-url:` (HTTPS navigation link when different from
 the canonical `Id:`), `Reference-document:` (canonical citation string),
 `License:` (SPDX license expression for dependencies), etc.
 
@@ -766,8 +765,8 @@ The shape of an entry is determined by the **value format** of its `Id:`
 attribute. An entry has exactly one `Id:`.
 
 ```text
-if Id matches ULID regex (^[0-9A-HJKMNP-TV-Z]{26}$)  → identified
-if Id is a scheme-qualified URI (RFC 3986)            → referenced
+if Id matches ULID regex (^[0-9A-HJKMNP-TV-Z]{26}$)  → Authored
+if Id is a scheme-qualified URI (RFC 3986)            → Reference
 otherwise                                             → validation error
 ```
 
@@ -786,8 +785,8 @@ Properties of this rule:
 
 When a new entry is authored without an `Id:` attribute, `markspec format`
 classifies it using a heuristic on the display ID and the document directive
-(see Part 3), then either mints a fresh ULID (identified) or prompts for a URI
-(referenced). Once `Id:` is assigned, the shape is fixed by the value's format.
+(see Part 3), then either mints a fresh ULID (Authored) or prompts for a URI
+(Reference). Once `Id:` is assigned, the shape is fixed by the value's format.
 
 ### 2.5 Attribute value types
 
@@ -1363,13 +1362,13 @@ via `labels:` and/or `deprecated:` via front matter. Replacement is via
 | `doc`        | default                      | Any Markdown file                 |
 | `glossary`   | `GLOSSARY.md` or directive   | Heading-based term definitions    |
 | `summary`    | `SUMMARY.md` or directive    | Book table of contents            |
-| `references` | `references.md` or directive | Referenced-entry collection       |
+| `references` | `references.md` or directive | Reference-entry collection        |
 | `deck`       | directive only               | Slide deck (`---` = slide breaks) |
 | `code`       | file extension               | Source files with doc comments    |
 
 Profiles may declare additional document types and bind them to per-type
 collections (e.g., `requirements.md`, `tests.md` mapped to specific
-profile-declared identified types). The core ships only the generic types above.
+profile-declared Authored types). The core ships only the generic types above.
 
 **Heading rules by type:**
 
@@ -1385,16 +1384,16 @@ profile-declared identified types). The core ships only the generic types above.
 
 ### 6.4 Content entities
 
-| Entity         | Source                                    | ID         |
-| -------------- | ----------------------------------------- | ---------- |
-| **identified** | Identified entry blocks (ULID-valued Id:) | Display ID |
-| **referenced** | Referenced entry blocks (URI-valued Id:)  | Slug       |
-| **fig**        | Figure captions, alt text                 | Slug       |
-| **tbl**        | Table captions                            | Slug       |
-| **h**          | Headings                                  | GFM anchor |
+| Entity        | Source                                  | ID         |
+| ------------- | --------------------------------------- | ---------- |
+| **Authored**  | Authored entry blocks (ULID-valued Id:) | Display ID |
+| **Reference** | Reference entry blocks (URI-valued Id:) | Slug       |
+| **fig**       | Figure captions, alt text               | Slug       |
+| **tbl**       | Table captions                          | Slug       |
+| **h**         | Headings                                | GFM anchor |
 
-The active profile classifies identified and referenced entries into specific
-types (`requirement`, `test`, `unit`, `standard`, `dependency`, …). The core
+The active profile classifies Authored and Reference entries into specific types
+(`requirement`, `test`, `unit`, `standard`, `dependency`, …). The core
 distinguishes only the two shapes; everything finer is profile-declared.
 
 ### 6.5 References
@@ -1468,21 +1467,21 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 
 ### 8.2 Entry format (MSL-R)
 
-| ID         | Severity | Rule                                                                                                                                            |
-| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (referenced-entry body is optional).                                                           |
-| `MSL-R002` | error    | Display ID is non-empty; matches the active profile's `display-id-pattern:` for its inferred type when one applies.                             |
-| `MSL-R003` | error    | Exactly one `Id:` attribute per entry.                                                                                                          |
-| `MSL-R004` | error    | `Id:` value well-formed: bare ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) for identified entries; scheme-qualified URI (RFC 3986) for referenced entries. |
-| `MSL-R005` | error    | ULID unique across repository.                                                                                                                  |
-| `MSL-R006` | error    | Display ID unique within project and registry chain.                                                                                            |
-| `MSL-R007` | warning  | When a profile declares a `display-id-pattern:` for the entry's inferred type, the display ID matches it.                                       |
-| `MSL-R008` | error    | Slug-shaped display ID (no scheme, not a ULID) on a referenced entry must match the slug regex.                                                 |
-| `MSL-R009` | warning  | Sequence number > 0 in patterned display IDs.                                                                                                   |
-| `MSL-R010` | warning  | Unknown attributes (not in core universal set, not declared by active profile). Generated attributes must not appear in source.                 |
-| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                                                                |
-| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                                                                          |
-| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                                                                   |
+| ID         | Severity | Rule                                                                                                                                         |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (Reference-entry body is optional).                                                         |
+| `MSL-R002` | error    | Display ID is non-empty; matches the active profile's `display-id-pattern:` for its inferred type when one applies.                          |
+| `MSL-R003` | error    | Exactly one `Id:` attribute per entry.                                                                                                       |
+| `MSL-R004` | error    | `Id:` value well-formed: bare ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) for Authored entries; scheme-qualified URI (RFC 3986) for Reference entries. |
+| `MSL-R005` | error    | ULID unique across repository.                                                                                                               |
+| `MSL-R006` | error    | Display ID unique within project and registry chain.                                                                                         |
+| `MSL-R007` | warning  | When a profile declares a `display-id-pattern:` for the entry's inferred type, the display ID matches it.                                    |
+| `MSL-R008` | error    | Slug-shaped display ID (no scheme, not a ULID) on a Reference entry must match the slug regex.                                               |
+| `MSL-R009` | warning  | Sequence number > 0 in patterned display IDs.                                                                                                |
+| `MSL-R010` | warning  | Unknown attributes (not in core universal set, not declared by active profile). Generated attributes must not appear in source.              |
+| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                                                             |
+| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                                                                       |
+| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                                                                |
 
 MSL-R001 and MSL-R011 apply to all entry blocks. MSL-R002–R010 apply to entries
 carrying an `Id:` attribute.

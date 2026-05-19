@@ -251,6 +251,135 @@ markspec report traceability --output matrix.md "docs/**/*.md"
 markspec report traceability --label ASIL-B "docs/**/*.md"
 ```
 
+#### export
+
+Emit the compiled traceability graph in a portable format.
+
+```sh
+markspec export <format> <paths...>
+```
+
+Supported formats: `json`, `yaml`, `csv`.
+
+**Examples:**
+
+```sh
+# JSON export
+markspec export json "docs/**/*.md" > compiled.json
+
+# CSV — one row per entry with display ID, title, type, shape, id, file, line
+markspec export csv "docs/**/*.md" > entries.csv
+
+# YAML
+markspec export yaml "docs/**/*.md"
+```
+
+#### insert
+
+Append a scaffolded entry block to a file. This is the agent write path — use it
+from scripts or AI agents rather than hand-authoring new blocks.
+
+```sh
+markspec insert <type> <file>
+```
+
+| Flag      | Type | Default | Description                               |
+| --------- | ---- | ------- | ----------------------------------------- |
+| `--print` | bool | false   | Echo the inserted block to stdout as well |
+
+The command:
+
+1. Finds the highest existing display ID for `<type>` in `<file>`.
+2. Computes the next sequential display ID.
+3. Generates a fresh ULID.
+4. Appends the block with a blank separator.
+
+**Example:**
+
+```sh
+markspec insert requirement docs/requirements.md --print
+# → appends SRS_PRJ_0003, prints block to stdout
+```
+
+Follow with `markspec format` to normalize indentation and `markspec validate`
+to confirm no broken references.
+
+#### create
+
+Print a scaffolded entry block without writing it to any file.
+
+```sh
+markspec create <type> <paths...>
+```
+
+**Example:**
+
+```sh
+markspec create requirement "docs/**/*.md"
+```
+
+#### next-id
+
+Print the next available display ID for a profile-declared type without creating
+an entry.
+
+```sh
+markspec next-id <type> <paths...>
+```
+
+| Flag       | Type   | Default | Description                   |
+| ---------- | ------ | ------- | ----------------------------- |
+| `--format` | string | `text`  | Output format: `json`, `text` |
+
+**Example:**
+
+```sh
+markspec next-id requirement "docs/**/*.md"
+# → SRS_PRJ_0004
+
+markspec next-id requirement "docs/**/*.md" --format json
+# → {"type":"requirement","displayId":"SRS_PRJ_0004"}
+```
+
+#### lint
+
+Run prose-quality analysis on entries (INCOSE lexicon, modal keywords,
+structural checks). Returns `MSL-Q` and `MSL-M` codes.
+
+```sh
+markspec lint <paths...>
+```
+
+| Flag       | Type   | Default | Description                   |
+| ---------- | ------ | ------- | ----------------------------- |
+| `--format` | string | `text`  | Output format: `json`, `text` |
+| `--strict` | bool   | false   | Promote warnings to errors    |
+
+Lint does **not** run as part of `validate` or the pre-commit hook. It is a
+review-time quality gate.
+
+**Examples:**
+
+```sh
+markspec lint docs/requirements.md
+markspec lint --strict "docs/**/*.md"
+markspec lint --format json "docs/**/*.md"
+```
+
+#### hook
+
+Run `format --check` and `validate` on a list of files. Designed as a pre-commit
+hook entry point.
+
+```sh
+markspec hook [files...]
+```
+
+Exits `0` when no files are given (nothing staged). Exits `1` if any file needs
+formatting or has validation errors.
+
+See [Pre-commit hook](recipes/git-hooks.md) for setup instructions.
+
 ### Documents
 
 #### doc build
@@ -307,6 +436,68 @@ markspec profile show
 | Flag       | Type   | Default | Description                   |
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
+
+#### profile new
+
+Scaffold a new profile directory with a starter manifest.
+
+```sh
+markspec profile new <id>
+```
+
+`<id>` must be lowercase alphanumeric with hyphens, optionally scoped
+(`@org/name`).
+
+```sh
+markspec profile new my-profile
+markspec profile new @acme/iso26262
+```
+
+Creates `<id>/markspec.yaml` and `<id>/README.md`.
+
+#### profile add
+
+Add a profile to the project's `.markspec.yaml`.
+
+```sh
+markspec profile add <spec>
+```
+
+`<spec>` is a local path or a scoped package name.
+
+```sh
+markspec profile add ./profiles/my-profile
+markspec profile add @driftsys/iso26262
+```
+
+#### profile publish
+
+Validate a profile manifest for publishability and print any issues.
+
+```sh
+markspec profile publish [--dir <dir>] [--format json|text]
+```
+
+Checks required fields (`id`, `version`), warns about missing `description` and
+`license`, and reports any manifest validation errors. Exits `0` when the
+manifest is publish-ready.
+
+#### profile describe
+
+Show full details for a profile element (type, attribute, relation, label, or
+convention).
+
+```sh
+markspec profile describe <kind> <name>
+```
+
+`kind` is one of: `type`, `attribute`, `relation`, `label`, `convention`.
+
+```sh
+markspec profile describe type requirement
+markspec profile describe attribute ASIL
+markspec profile describe relation Satisfies
+```
 
 #### doctor
 
@@ -400,20 +591,46 @@ Copilot does not support MCP resource subscriptions today, but the `markspec://`
 resources still work — the server runs a fresh staleness check on every read, so
 a re-read after an edit returns up-to-date content.
 
+#### mcp install
+
+Print MCP server configuration for a client.
+
+```sh
+markspec mcp install --client <client>
+```
+
+Supported clients: `claude-desktop`, `cursor`, `vscode`.
+
+```sh
+markspec mcp install --client claude-desktop
+markspec mcp install --client cursor
+markspec mcp install --client vscode
+```
+
+#### lsp install
+
+Print LSP server configuration for an editor.
+
+```sh
+markspec lsp install --editor <editor>
+```
+
+Supported editors: `vscode`, `neovim`, `zed`.
+
+```sh
+markspec lsp install --editor neovim
+markspec lsp install --editor zed
+```
+
 ### Not yet implemented
 
 These commands are registered but print an error and exit:
 
-| Command            | Intended purpose                                         |
-| ------------------ | -------------------------------------------------------- |
-| `markspec export`  | Compiled JSON → json, csv, reqif, yaml                   |
-| `markspec insert`  | Agent write path: insert a requirement block into a file |
-| `markspec create`  | Scaffold a new requirement block                         |
-| `markspec next-id` | Print the next available display ID for a type           |
-| `markspec hook`    | Run format + validate as a pre-commit hook               |
-| `book dev`         | Live preview with hot reload                             |
-| `deck build`       | Slides → PDF via Touying/Typst                           |
-| `deck dev`         | Live slide preview                                       |
+| Command      | Intended purpose               |
+| ------------ | ------------------------------ |
+| `book dev`   | Live preview with hot reload   |
+| `deck build` | Slides → PDF via Touying/Typst |
+| `deck dev`   | Live slide preview             |
 
 ---
 

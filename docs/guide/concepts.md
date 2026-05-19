@@ -25,5 +25,5 @@ This chapter will explain:
   that generate structured listing documents from the entry graph.
 
 Until this chapter ships, the canonical source is
-[docs/specs/markspec-core-data-model.md](../specs/markspec-core-data-model.md)
+[docs/spec/internal/markspec-core-data-model.md](../spec/internal/markspec-core-data-model.md)
 (§1 — the two-layer model and type system).

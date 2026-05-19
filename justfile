@@ -41,6 +41,7 @@ diagrams:
 book: tokens
     mdbook build docs/spec/language
     mdbook build docs/spec/typography
+    mdbook build docs/spec/model
     mdbook build docs/guide
     typst compile --font-path packages/markspec-typst/fonts docs/cheatsheet/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
     mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css

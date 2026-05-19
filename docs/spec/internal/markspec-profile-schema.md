@@ -1,5 +1,19 @@
 # MarkSpec — Profile Schema
 
+> **Retired.** The normative profile manifest schema has moved to
+> [Model Reference — Annex B](../model/annex-profile-schema.md).
+>
+> This file is kept for historical reference only. Its reconciliation stance
+> (§1), options analyses, and open questions remain below unchanged.
+
+---
+
+Status: **Retired** (Prompt 2 of the next-gen refactor)\
+Superseded by: [Model Reference — Annex B](../model/annex-profile-schema.md)\
+Scope: historical rationale and options analyses only
+
+---
+
 Status: Draft (Prompt 2 of the next-gen refactor)\
 Date: 2026-05-16\
 Scope: MarkSpec profile layer — how profiles declare concrete types, inherit the

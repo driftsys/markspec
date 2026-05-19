@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220"
+     style="max-width:500px;width:100%"
+     role="img" aria-labelledby="layers-title">
+  <title id="layers-title">
+    MarkSpec two-layer architecture: Profile layer (subtypes, domain attrs,
+    domain relations, display-ID patterns, label concerns) built on top of Core
+    layer (4 abstract types, 15 concrete types, universal attributes, generated
+    inverses, shape discrimination, type-resolution chain)
+  </title>
+
+  <defs>
+    <clipPath id="outer-clip">
+      <rect width="500" height="220" rx="4"/>
+    </clipPath>
+  </defs>
+
+  <!-- Section background fills (clipped to rounded outer border) -->
+  <g clip-path="url(#outer-clip)">
+    <rect width="500" height="109" fill="#eef2fb"/>
+    <rect y="109" width="500" height="111" fill="#f4f5f6"/>
+  </g>
+
+  <!-- Outer border -->
+  <rect x=".75" y=".75" width="498.5" height="218.5" rx="3.5"
+        fill="none" stroke="#c5cdd8" stroke-width="1.5"/>
+
+  <!-- Layer separator -->
+  <line x1="0" y1="109" x2="500" y2="109"
+        stroke="#c5cdd8" stroke-width="1.5"/>
+
+  <!-- Profile layer -->
+  <text x="250" y="32" text-anchor="middle"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="13" font-weight="bold" fill="#1d2d44">Profile layer</text>
+  <text x="20" y="59"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="11.5" fill="#4a5568">subtypes · domain attrs · domain relations</text>
+  <text x="20" y="81"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="11.5" fill="#4a5568">display-ID patterns · label concerns</text>
+
+  <!-- Core layer -->
+  <text x="250" y="138" text-anchor="middle"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="13" font-weight="bold" fill="#1d2d44">Core layer</text>
+  <text x="20" y="163"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="11.5" fill="#4a5568">4 abstract types · 15 concrete types</text>
+  <text x="20" y="185"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="11.5" fill="#4a5568">universal attributes · generated inverses</text>
+  <text x="20" y="207"
+        font-family="'IBM Plex Mono', ui-monospace, monospace"
+        font-size="11.5" fill="#4a5568">shape discrimination · type-resolution chain</text>
+</svg>
