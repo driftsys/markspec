@@ -66,12 +66,22 @@ activate automatically when Claude Code opens the directory.
 
 ### Install with upskill
 
+Install into the current project (writes per-client output under `.claude/`,
+`.github/`, `.opencode/`, and `.agents/` and records the install in
+`.upskill-lock.json`):
+
 ```sh
-upskill add markspec:markspec-core.bundle.md
+upskill add driftsys/markspec:skills/markspec-core.bundle.md
 ```
 
-This writes skill definitions into `.claude/plugins/` in your project. The
-bundle includes:
+Install globally into `$HOME` instead, so the skills are available in every
+project for the current user:
+
+```sh
+upskill add --global driftsys/markspec:skills/markspec-core.bundle.md
+```
+
+The bundle includes:
 
 | Skill                               | Activates on                    | What it does                                                   |
 | ----------------------------------- | ------------------------------- | -------------------------------------------------------------- |
