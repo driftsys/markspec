@@ -10,6 +10,7 @@
 import { assertEquals } from "@std/assert";
 import { validateTraceTargetTypes } from "./trace_types.ts";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -22,7 +23,7 @@ function entry(opts: {
 }): Entry {
   const id = opts.id ?? ULID_A;
   return {
-    displayId: opts.displayId,
+    displayId: makeDisplayId(opts.displayId),
     title: "Test",
     body: "Body.",
     rawAttributes: opts.rawAttributes ?? [{ key: "Id", value: id }],

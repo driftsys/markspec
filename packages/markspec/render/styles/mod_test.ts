@@ -6,8 +6,9 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { styleRequirementBlocks } from "./mod.ts";
-import type { CompileResult } from "../../core/mod.ts";
+import type { CompileResult, DisplayId } from "../../core/mod.ts";
 import type { Entry } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,10 +25,10 @@ function buildCompiled(
     id?: string;
   }>,
 ): CompileResult {
-  const map = new Map<string, Entry>();
+  const map = new Map<DisplayId, Entry>();
   for (const e of entries) {
     const entry: Entry = {
-      displayId: e.displayId,
+      displayId: makeDisplayId(e.displayId),
       title: e.title,
       body: e.body ?? "",
       rawAttributes: e.attributes ?? [],
@@ -37,7 +38,7 @@ function buildCompiled(
       source: "markdown",
       typedAttributes: new Map(),
     };
-    map.set(e.displayId, entry);
+    map.set(entry.displayId, entry);
   }
   return {
     entries: map,

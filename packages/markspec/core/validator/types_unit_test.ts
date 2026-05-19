@@ -10,6 +10,7 @@
 import { assertEquals } from "@std/assert";
 import { inferTypeFromDisplayIdShape } from "./types.ts";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 
@@ -19,7 +20,7 @@ function authoredEntry(opts: {
   rawAttributes?: Array<{ key: string; value: string }>;
 }): Entry {
   return {
-    displayId: opts.displayId,
+    displayId: makeDisplayId(opts.displayId),
     title: "Test entry",
     body: "Body.",
     rawAttributes: opts.rawAttributes ?? [{ key: "Id", value: ULID }],

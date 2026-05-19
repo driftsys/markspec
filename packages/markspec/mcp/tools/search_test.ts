@@ -6,11 +6,12 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Entry } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 import { renderSearchResults, scoreEntries } from "./search.ts";
 
 function mk(displayId: string, title: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title,
     body: "",
     rawAttributes: [],

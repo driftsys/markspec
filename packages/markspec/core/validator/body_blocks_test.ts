@@ -9,12 +9,13 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { validateBodyBlocks } from "./body_blocks.ts";
 
 function makeEntry(displayId: string, body: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: "Test entry",
     body,
     bodyAst: buildBodyAst(body),

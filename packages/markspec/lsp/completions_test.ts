@@ -15,6 +15,7 @@ import {
   isTypeAttributeTrigger,
 } from "./completions.ts";
 import type { DisplayIdEntry } from "./workspace.ts";
+import { makeDisplayId } from "../core/mod.ts";
 
 // --- Trigger detection ---
 
@@ -70,8 +71,8 @@ Deno.test("extractRelationName: extracts 'Derived-from'", () => {
 
 Deno.test("buildIdReferenceItems: returns items for all display IDs", () => {
   const ids: DisplayIdEntry[] = [
-    { displayId: "STK_AEB_0001", title: "Braking" },
-    { displayId: "SAD_AEB_0001", title: "Architecture" },
+    { displayId: makeDisplayId("STK_AEB_0001"), title: "Braking" },
+    { displayId: makeDisplayId("SAD_AEB_0001"), title: "Architecture" },
   ];
   const items = buildIdReferenceItems(ids);
   assertEquals(items.length, 2);

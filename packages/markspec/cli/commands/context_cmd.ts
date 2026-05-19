@@ -7,6 +7,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import { type DisplayId, makeDisplayId } from "../../core/mod.ts";
 import { compileProject } from "../helpers.ts";
 
 export const contextCmd = new Command()
@@ -23,7 +24,8 @@ export const contextCmd = new Command()
       ...paths: string[]
     ) => {
       const { result, chain: _profileChain } = await compileProject(paths);
-      const entry = result.entries.get(id);
+      const startId = makeDisplayId(id);
+      const entry = result.entries.get(startId);
 
       if (!entry) {
         console.error(`error: entry not found: ${id}`);
@@ -34,15 +36,15 @@ export const contextCmd = new Command()
       const chain: Array<{ displayId: string; title: string; depth: number }> =
         [];
       const visited = new Set<string>();
-      let currentIds = [id];
+      let currentIds: DisplayId[] = [startId];
       let depth = 0;
 
       // Add the starting entry at depth 0.
       chain.push({ displayId: entry.displayId, title: entry.title, depth: 0 });
-      visited.add(id);
+      visited.add(startId);
 
       while (depth < options.depth && currentIds.length > 0) {
-        const nextIds: string[] = [];
+        const nextIds: DisplayId[] = [];
         for (const currentId of currentIds) {
           const links = result.forward.get(currentId) ?? [];
           for (const link of links) {

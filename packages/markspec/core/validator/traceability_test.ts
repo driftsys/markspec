@@ -18,6 +18,7 @@ import type {
   ProvenancedMapEntry,
   TraceRule,
 } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 const ORIGIN = "@test/p";
 
@@ -70,7 +71,7 @@ function profile(opts: {
 
 function entry(opts: { shape: EntryShape; type?: string }): Entry {
   return {
-    displayId: "X-001",
+    displayId: makeDisplayId("X-001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape,
     type: opts.type,
@@ -184,7 +185,7 @@ function targetEntry(opts: {
   displayId?: string;
 }): Entry {
   return {
-    displayId: opts.displayId ?? "Y-001",
+    displayId: makeDisplayId(opts.displayId ?? "Y-001"),
     id: "01TARGET02TARGET03TARGET04",
     shape: opts.shape,
     type: opts.type,
@@ -274,7 +275,7 @@ function entryWithAttrs(opts: {
     for (const v of vs) attributes.push({ key: k, value: v });
   }
   return {
-    displayId: opts.displayId ?? "REQ-0001",
+    displayId: makeDisplayId(opts.displayId ?? "REQ-0001"),
     id: opts.id ?? "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape,
     type: opts.type,

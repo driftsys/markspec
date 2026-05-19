@@ -6,6 +6,7 @@
 
 import { assertEquals, assertGreater } from "@std/assert";
 import type { Entry, Link } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import {
   buildEdgesNdjson,
   buildEntriesNdjson,
@@ -18,7 +19,7 @@ import {
 
 function makeEntry(displayId: string, body = "Body."): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: `Title ${displayId}`,
     body,
     rawAttributes: [],
@@ -31,8 +32,8 @@ function makeEntry(displayId: string, body = "Body."): Entry {
 
 function makeAuthoredLink(from: string, to: string): Link {
   return {
-    from,
-    to,
+    from: makeDisplayId(from),
+    to: makeDisplayId(to),
     kind: "satisfies",
     location: { file: "test.md", line: 1, column: 1 },
   };
@@ -40,8 +41,8 @@ function makeAuthoredLink(from: string, to: string): Link {
 
 function makeGeneratedLink(from: string, to: string): Link {
   return {
-    from,
-    to,
+    from: makeDisplayId(from),
+    to: makeDisplayId(to),
     kind: "satisfies",
     location: { file: "test.md", line: 1, column: 1 },
     origin: "generated",
@@ -54,9 +55,9 @@ function makeGeneratedLink(from: string, to: string): Link {
 
 Deno.test("buildEntriesNdjson: 3 entries produce 3 newline-terminated lines", () => {
   const entries = new Map([
-    ["C_0001", makeEntry("C_0001")],
-    ["A_0001", makeEntry("A_0001")],
-    ["B_0001", makeEntry("B_0001")],
+    [makeDisplayId("C_0001"), makeEntry("C_0001")],
+    [makeDisplayId("A_0001"), makeEntry("A_0001")],
+    [makeDisplayId("B_0001"), makeEntry("B_0001")],
   ]);
   const { ndjson } = buildEntriesNdjson(entries);
   const text = new TextDecoder().decode(ndjson);
@@ -68,8 +69,8 @@ Deno.test("buildEntriesNdjson: 3 entries produce 3 newline-terminated lines", ()
 
 Deno.test("buildEntriesNdjson: each line is valid JSON with correct displayId", () => {
   const entries = new Map([
-    ["STK_0001", makeEntry("STK_0001")],
-    ["STK_0002", makeEntry("STK_0002")],
+    [makeDisplayId("STK_0001"), makeEntry("STK_0001")],
+    [makeDisplayId("STK_0002"), makeEntry("STK_0002")],
   ]);
   const { ndjson } = buildEntriesNdjson(entries);
   const text = new TextDecoder().decode(ndjson);
@@ -81,9 +82,9 @@ Deno.test("buildEntriesNdjson: each line is valid JSON with correct displayId", 
 
 Deno.test("buildEntriesNdjson: lines are sorted by displayId", () => {
   const entries = new Map([
-    ["C_0003", makeEntry("C_0003")],
-    ["A_0001", makeEntry("A_0001")],
-    ["B_0002", makeEntry("B_0002")],
+    [makeDisplayId("C_0003"), makeEntry("C_0003")],
+    [makeDisplayId("A_0001"), makeEntry("A_0001")],
+    [makeDisplayId("B_0002"), makeEntry("B_0002")],
   ]);
   const { ndjson } = buildEntriesNdjson(entries);
   const text = new TextDecoder().decode(ndjson);
@@ -94,19 +95,22 @@ Deno.test("buildEntriesNdjson: lines are sorted by displayId", () => {
 
 Deno.test("buildEntriesNdjson: index has correct byte offsets and lengths", () => {
   const entries = new Map([
-    ["B_0001", makeEntry("B_0001")],
-    ["A_0001", makeEntry("A_0001")],
+    [makeDisplayId("B_0001"), makeEntry("B_0001")],
+    [makeDisplayId("A_0001"), makeEntry("A_0001")],
   ]);
   const { ndjson, index } = buildEntriesNdjson(entries);
 
   assertEquals(index.size, 2);
-  assertGreater(index.get("A_0001")!.length, 0);
-  assertGreater(index.get("B_0001")!.length, 0);
+  assertGreater(index.get(makeDisplayId("A_0001"))!.length, 0);
+  assertGreater(index.get(makeDisplayId("B_0001"))!.length, 0);
 
   // A_0001 comes first (sorted), so its offset is 0
-  assertEquals(index.get("A_0001")!.offset, 0);
+  assertEquals(index.get(makeDisplayId("A_0001"))!.offset, 0);
   // B_0001 offset is A's length
-  assertEquals(index.get("B_0001")!.offset, index.get("A_0001")!.length);
+  assertEquals(
+    index.get(makeDisplayId("B_0001"))!.offset,
+    index.get(makeDisplayId("A_0001"))!.length,
+  );
 
   // Verify seek-and-compare: read the bytes at the declared position and
   // confirm they match the original line.
@@ -121,10 +125,10 @@ Deno.test("buildEntriesNdjson: index has correct byte offsets and lengths", () =
 Deno.test("buildEntriesNdjson: byte lengths use UTF-8 encoding, not JS string .length", () => {
   // "😀" is 4 bytes in UTF-8 but 2 code units in JS (surrogate pair).
   const entries = new Map([
-    ["X_0001", makeEntry("X_0001", "Body with emoji 😀")],
+    [makeDisplayId("X_0001"), makeEntry("X_0001", "Body with emoji 😀")],
   ]);
   const { ndjson, index } = buildEntriesNdjson(entries);
-  const { offset, length } = index.get("X_0001")!;
+  const { offset, length } = index.get(makeDisplayId("X_0001"))!;
   const slice = ndjson.slice(offset, offset + length);
   const decoded = new TextDecoder().decode(slice);
   const parsed = JSON.parse(decoded);
@@ -139,14 +143,14 @@ Deno.test("buildEntriesNdjson: byte lengths use UTF-8 encoding, not JS string .l
 
 Deno.test("buildEntriesNdjson: output is byte-identical regardless of Map insertion order", () => {
   const a = new Map([
-    ["C_0001", makeEntry("C_0001")],
-    ["A_0001", makeEntry("A_0001")],
-    ["B_0001", makeEntry("B_0001")],
+    [makeDisplayId("C_0001"), makeEntry("C_0001")],
+    [makeDisplayId("A_0001"), makeEntry("A_0001")],
+    [makeDisplayId("B_0001"), makeEntry("B_0001")],
   ]);
   const b = new Map([
-    ["A_0001", makeEntry("A_0001")],
-    ["B_0001", makeEntry("B_0001")],
-    ["C_0001", makeEntry("C_0001")],
+    [makeDisplayId("A_0001"), makeEntry("A_0001")],
+    [makeDisplayId("B_0001"), makeEntry("B_0001")],
+    [makeDisplayId("C_0001"), makeEntry("C_0001")],
   ]);
   const { ndjson: na } = buildEntriesNdjson(a);
   const { ndjson: nb } = buildEntriesNdjson(b);
@@ -159,8 +163,8 @@ Deno.test("buildEntriesNdjson: output is byte-identical regardless of Map insert
 
 Deno.test("indexToJson: produces compact single-line JSON", () => {
   const index = new Map([
-    ["B_0001", { offset: 100, length: 50 }],
-    ["A_0001", { offset: 0, length: 100 }],
+    [makeDisplayId("B_0001"), { offset: 100, length: 50 }],
+    [makeDisplayId("A_0001"), { offset: 0, length: 100 }],
   ]);
   const json = indexToJson(index);
   // Must be parseable
@@ -173,9 +177,9 @@ Deno.test("indexToJson: produces compact single-line JSON", () => {
 
 Deno.test("indexToJson: keys are sorted lexicographically", () => {
   const index = new Map([
-    ["Z_0001", { offset: 200, length: 30 }],
-    ["A_0001", { offset: 0, length: 100 }],
-    ["M_0001", { offset: 100, length: 100 }],
+    [makeDisplayId("Z_0001"), { offset: 200, length: 30 }],
+    [makeDisplayId("A_0001"), { offset: 0, length: 100 }],
+    [makeDisplayId("M_0001"), { offset: 100, length: 100 }],
   ]);
   const json = indexToJson(index);
   const keys = Object.keys(JSON.parse(json));

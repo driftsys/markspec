@@ -7,6 +7,7 @@
 import { assertEquals } from "@std/assert";
 import type { BodyBlock } from "../../ast/nodes.ts";
 import type { Entry } from "../../model/mod.ts";
+import { makeDisplayId } from "../../model/mod.ts";
 import { runLexiconRules } from "./lexicon.ts";
 
 // ---------------------------------------------------------------------------
@@ -27,7 +28,7 @@ function makeParagraph(text: string): BodyBlock {
 function makeEntry(text: string): Entry {
   const bodyAst: BodyBlock[] = [makeParagraph(text)];
   return {
-    displayId: "REQ-001",
+    displayId: makeDisplayId("REQ-001"),
     title: "Test entry with body",
     body: text,
     bodyAst,

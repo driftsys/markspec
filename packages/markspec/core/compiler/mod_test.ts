@@ -7,6 +7,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { compile } from "./mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -38,7 +39,7 @@ Deno.test("compile: extracts entries from a single file", async () => {
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
   assertEquals(result.entries.size, 1);
-  const entry = result.entries.get("REQ-001");
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
   assertExists(entry);
   assertEquals(entry.shape, "Authored");
   assertEquals(entry.id, ULID_A);
@@ -61,8 +62,8 @@ Deno.test("compile: merges entries across multiple files", async () => {
   };
   const result = await compile(["a.md", "b.md"], { readFile: reader(files) });
   assertEquals(result.entries.size, 2);
-  assertExists(result.entries.get("REQ-001"));
-  assertExists(result.entries.get("REQ-002"));
+  assertExists(result.entries.get(makeDisplayId("REQ-001")));
+  assertExists(result.entries.get(makeDisplayId("REQ-002")));
 });
 
 Deno.test("compile: mixed identified + referenced entries", async () => {
@@ -81,8 +82,11 @@ Deno.test("compile: mixed identified + referenced entries", async () => {
   const result = await compile(["requirements.md", "references.md"], {
     readFile: reader(files),
   });
-  assertEquals(result.entries.get("REQ-001")?.shape, "Authored");
-  assertEquals(result.entries.get("ISO-26262-6")?.shape, "Reference");
+  assertEquals(result.entries.get(makeDisplayId("REQ-001"))?.shape, "Authored");
+  assertEquals(
+    result.entries.get(makeDisplayId("ISO-26262-6"))?.shape,
+    "Reference",
+  );
 });
 
 Deno.test("compile: missing file emits MSL-E000 error", async () => {
@@ -193,7 +197,7 @@ Deno.test("compile: forward map carries outgoing links per entry", async () => {
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
-  const out = result.forward.get("REQ-002") ?? [];
+  const out = result.forward.get(makeDisplayId("REQ-002")) ?? [];
   assertEquals(out.length, 1);
   assertEquals(out[0].kind, "supersedes");
 });
@@ -215,7 +219,7 @@ Deno.test("compile: reverse map carries incoming links per target", async () => 
 `,
   };
   const result = await compile(["req.md"], { readFile: reader(files) });
-  const incoming = result.reverse.get("REQ-001") ?? [];
+  const incoming = result.reverse.get(makeDisplayId("REQ-001")) ?? [];
   assertEquals(incoming.length, 1);
   assertEquals(incoming[0].from, "REQ-002");
 });
@@ -316,7 +320,7 @@ Deno.test("compile: properties.file.path set when statFile provided", async () =
     readFile: reader(files),
     statFile: () => Promise.resolve({ mtime: fakeMtime }),
   });
-  const entry = result.entries.get("REQ-001");
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
   assertExists(entry);
   assertEquals(entry.properties?.file?.path, "req.md");
   assertEquals(entry.properties?.file?.mtime, "2026-05-19T10:23:00.000Z");
@@ -325,7 +329,7 @@ Deno.test("compile: properties.file.path set when statFile provided", async () =
 Deno.test("compile: properties.file.path set without statFile; mtime absent", async () => {
   const files = { "req.md": FIXTURE_MD };
   const result = await compile(["req.md"], { readFile: reader(files) });
-  const entry = result.entries.get("REQ-001");
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
   assertExists(entry);
   assertEquals(entry.properties?.file?.path, "req.md");
   assertEquals(entry.properties?.file?.mtime, undefined);
@@ -337,7 +341,7 @@ Deno.test("compile: statFile returning undefined → mtime absent, no crash", as
     readFile: reader(files),
     statFile: () => Promise.resolve(undefined),
   });
-  const entry = result.entries.get("REQ-001");
+  const entry = result.entries.get(makeDisplayId("REQ-001"));
   assertExists(entry);
   assertEquals(entry.properties?.file?.path, "req.md");
   assertEquals(entry.properties?.file?.mtime, undefined);

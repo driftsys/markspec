@@ -10,6 +10,7 @@
  */
 
 import type { CompileResult, Diagnostic } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -99,7 +100,7 @@ export function styleRequirementBlocks(
 
     // Only transform if the ID is a known entry and matches valid format.
     if (
-      !knownIds.has(displayId) ||
+      !knownIds.has(makeDisplayId(displayId)) ||
       (!TYPED_ID_RE.test(displayId) && !REF_ID_RE.test(displayId))
     ) {
       outputLines.push(lines[i]);

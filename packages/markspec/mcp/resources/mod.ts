@@ -35,6 +35,7 @@ import {
 } from "./profile.ts";
 import { renderEntriesIndex } from "./entries.ts";
 import { renderEntry } from "./entry.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 
 /** A resource descriptor as returned by resources/list. */
 export interface ResourceDescriptor {
@@ -137,11 +138,12 @@ export async function readResource(
   }
 
   if (isEntryUri(uri)) {
-    const displayId = parseEntryUri(uri)!;
+    const rawDisplayId = parseEntryUri(uri)!;
+    const displayId = makeDisplayId(rawDisplayId);
     const result = await project.getCompiled();
     const entry = result.entries.get(displayId);
     if (!entry) {
-      throw new Error(`entry not found: ${displayId}`);
+      throw new Error(`entry not found: ${rawDisplayId}`);
     }
     const titles = new Map<string, string>();
     for (const [id, e] of result.entries) titles.set(id, e.title);

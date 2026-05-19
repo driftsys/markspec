@@ -9,11 +9,12 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
+import { makeDisplayId } from "../core/model/mod.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 
 function makeEntry(displayId: string, line: number): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: displayId,
     body: "",
     rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],

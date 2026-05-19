@@ -16,6 +16,8 @@ export {
   ConfigError,
   DEFAULT_PROJECT_CONFIG,
   KNOWN_LINK_KINDS,
+  makeDisplayId,
+  makeUlid,
   PALETTE_HUES,
   REFHUB_URL,
 } from "./model/mod.ts";

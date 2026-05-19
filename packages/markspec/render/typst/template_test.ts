@@ -2,6 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { generateTypstDocument } from "./template.ts";
 import type { DocumentMetadata } from "./template.ts";
 import type { Entry } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 
 Deno.test("generateTypstDocument: imports markspec-doc and cmarker", () => {
   const result = generateTypstDocument("Hello world");
@@ -115,9 +116,13 @@ Deno.test("generateTypstDocument: no ms-image binding when imageBasePrefix empty
 // ---------------------------------------------------------------------------
 
 /** Minimal identified entry fixture for template tests. */
-function makeIdentifiedEntry(overrides: Partial<Entry> = {}): Entry {
+function makeIdentifiedEntry(
+  { displayId, ...overrides }: Partial<Omit<Entry, "displayId">> & {
+    displayId?: string;
+  } = {},
+): Entry {
   return {
-    displayId: "STK_0001",
+    displayId: makeDisplayId(displayId ?? "STK_0001"),
     title: "Test requirement",
     body: "The system shall do something.",
     rawAttributes: [],
@@ -131,9 +136,13 @@ function makeIdentifiedEntry(overrides: Partial<Entry> = {}): Entry {
 }
 
 /** Minimal referenced entry fixture. */
-function makeReferencedEntry(overrides: Partial<Entry> = {}): Entry {
+function makeReferencedEntry(
+  { displayId, ...overrides }: Partial<Omit<Entry, "displayId">> & {
+    displayId?: string;
+  } = {},
+): Entry {
   return {
-    displayId: "EXT_0001",
+    displayId: makeDisplayId(displayId ?? "EXT_0001"),
     title: "External reference",
     body: "",
     rawAttributes: [],

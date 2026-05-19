@@ -8,6 +8,7 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
+import { makeDisplayId } from "../core/model/mod.ts";
 import { findReferencingEntries } from "./references.ts";
 
 function makeEntry(
@@ -16,7 +17,7 @@ function makeEntry(
   line = 1,
 ): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: displayId,
     body: "",
     rawAttributes: attrs.map(([key, value]) => ({ key, value })),

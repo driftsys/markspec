@@ -6,15 +6,20 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { isProseScope, runLint } from "./runner.ts";
 
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
-function makeEntry(overrides: Partial<Entry> = {}): Entry {
+function makeEntry(
+  { displayId, ...overrides }: Partial<Omit<Entry, "displayId">> & {
+    displayId?: string;
+  } = {},
+): Entry {
   return {
-    displayId: "REQ-001",
+    displayId: makeDisplayId(displayId ?? "REQ-001"),
     title: "Test requirement title",
     body: "The system shall process data correctly.",
     bodyAst: [

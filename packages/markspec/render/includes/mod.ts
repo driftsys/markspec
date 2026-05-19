@@ -8,6 +8,7 @@
  */
 
 import type { CompileResult, Diagnostic, Entry } from "../../core/mod.ts";
+import { makeDisplayId } from "../../core/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -213,7 +214,7 @@ function resolveEntryRef(
   filter: string | undefined,
   options: IncludeOptions,
 ): ResolveResult {
-  const entry = options.compiled.entries.get(ref);
+  const entry = options.compiled.entries.get(makeDisplayId(ref));
 
   if (!entry) {
     return {

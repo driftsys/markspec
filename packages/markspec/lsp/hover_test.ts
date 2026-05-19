@@ -7,6 +7,7 @@
 
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
+import { makeDisplayId } from "../core/model/mod.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
@@ -18,7 +19,7 @@ function makeEntry(opts: {
   body?: string;
 }): Entry {
   return {
-    displayId: opts.displayId,
+    displayId: makeDisplayId(opts.displayId),
     title: opts.title,
     body: opts.body ?? "",
     rawAttributes: [{ key: "Id", value: ULID }],

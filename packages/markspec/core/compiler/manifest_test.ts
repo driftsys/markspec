@@ -1,11 +1,12 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { buildManifest } from "./manifest.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import type { CompileResult } from "./mod.ts";
-import type { Entry, Link, ProjectConfig } from "../model/mod.ts";
+import type { DisplayId, Entry, Link, ProjectConfig } from "../model/mod.ts";
 
 function makeEntry(displayId: string, type?: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: `Title for ${displayId}`,
     body: "",
     rawAttributes: [],
@@ -20,8 +21,8 @@ function makeEntry(displayId: string, type?: string): Entry {
 
 function makeLink(from: string, to: string): Link {
   return {
-    from,
-    to,
+    from: makeDisplayId(from),
+    to: makeDisplayId(to),
     kind: "satisfies",
     location: { file: "test.md", line: 1, column: 1 },
   };
@@ -41,8 +42,8 @@ function makeResult(
   links: Link[],
 ): CompileResult {
   const entryMap = new Map(entries.map((e) => [e.displayId, e]));
-  const forward = new Map<string, Link[]>();
-  const reverse = new Map<string, Link[]>();
+  const forward = new Map<DisplayId, Link[]>();
+  const reverse = new Map<DisplayId, Link[]>();
   for (const link of links) {
     if (!forward.has(link.from)) forward.set(link.from, []);
     forward.get(link.from)!.push(link);

@@ -9,12 +9,13 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 import { buildBodyAst } from "../ast/build.ts";
 import { validateFeatureAc } from "./feature_ac.ts";
 
 function makeEntry(displayId: string, body: string): Entry {
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: "Test entry",
     body,
     bodyAst: buildBodyAst(body),
@@ -180,7 +181,7 @@ Deno.test("validateFeatureAc: Feature + list whose first item begins with 'Accep
 
 Deno.test("validateFeatureAc: no bodyAst → no MSL-B044", () => {
   const entry: Entry = {
-    displayId: "REQ-007",
+    displayId: makeDisplayId("REQ-007"),
     title: "Test",
     body: "```gherkin\nFeature: X\n```\n\nAcceptance criteria\n\n- A",
     bodyAst: undefined,

@@ -7,6 +7,7 @@
 import { assertEquals } from "@std/assert";
 import { WorkspaceIndex } from "./workspace.ts";
 import type { Entry, SourceLocation } from "../core/mod.ts";
+import { makeDisplayId } from "../core/mod.ts";
 
 /** Helper to create a minimal identified entry. */
 function entry(
@@ -16,7 +17,7 @@ function entry(
   const file = opts.file ?? "test.md";
   const location: SourceLocation = { file, line: 1, column: 1 };
   return {
-    displayId,
+    displayId: makeDisplayId(displayId),
     title: opts.title ?? displayId,
     body: "",
     rawAttributes: opts.id ? [{ key: "Id", value: opts.id }] : [],
@@ -41,8 +42,14 @@ Deno.test("WorkspaceIndex: updateFile adds entries to index", () => {
   index.updateFile("reqs.md", entries);
 
   assertEquals(index.getAllEntries().length, 2);
-  assertEquals(index.getEntryByDisplayId("STK_AEB_0001")?.title, "Braking");
-  assertEquals(index.getEntryByDisplayId("STK_AEB_0002")?.title, "Steering");
+  assertEquals(
+    index.getEntryByDisplayId(makeDisplayId("STK_AEB_0001"))?.title,
+    "Braking",
+  );
+  assertEquals(
+    index.getEntryByDisplayId(makeDisplayId("STK_AEB_0002"))?.title,
+    "Steering",
+  );
 });
 
 Deno.test("WorkspaceIndex: updateFile replaces entries for same file", () => {
@@ -55,8 +62,11 @@ Deno.test("WorkspaceIndex: updateFile replaces entries for same file", () => {
     entry("STK_003", { file: "reqs.md" }),
   ]);
   assertEquals(index.getAllEntries().length, 2);
-  assertEquals(index.getEntryByDisplayId("STK_001"), undefined);
-  assertEquals(index.getEntryByDisplayId("STK_002")?.displayId, "STK_002");
+  assertEquals(index.getEntryByDisplayId(makeDisplayId("STK_001")), undefined);
+  assertEquals(
+    index.getEntryByDisplayId(makeDisplayId("STK_002"))?.displayId,
+    makeDisplayId("STK_002"),
+  );
 });
 
 Deno.test("WorkspaceIndex: removeFile removes entries", () => {
@@ -67,8 +77,11 @@ Deno.test("WorkspaceIndex: removeFile removes entries", () => {
 
   index.removeFile("a.md");
   assertEquals(index.getAllEntries().length, 1);
-  assertEquals(index.getEntryByDisplayId("STK_001"), undefined);
-  assertEquals(index.getEntryByDisplayId("STK_002")?.displayId, "STK_002");
+  assertEquals(index.getEntryByDisplayId(makeDisplayId("STK_001")), undefined);
+  assertEquals(
+    index.getEntryByDisplayId(makeDisplayId("STK_002"))?.displayId,
+    makeDisplayId("STK_002"),
+  );
 });
 
 Deno.test("WorkspaceIndex: getEntriesForFile returns file-scoped entries", () => {
@@ -77,7 +90,10 @@ Deno.test("WorkspaceIndex: getEntriesForFile returns file-scoped entries", () =>
   index.updateFile("b.md", [entry("STK_002", { file: "b.md" })]);
 
   assertEquals(index.getEntriesForFile("a.md").length, 1);
-  assertEquals(index.getEntriesForFile("a.md")[0].displayId, "STK_001");
+  assertEquals(
+    index.getEntriesForFile("a.md")[0].displayId,
+    makeDisplayId("STK_001"),
+  );
   assertEquals(index.getEntriesForFile("c.md").length, 0);
 });
 
@@ -133,7 +149,7 @@ Deno.test("WorkspaceIndex: updateFile promotes survivor when owner loses a displ
   index.updateFile("b.md", [entry("STK_0001", { file: "b.md" })]);
 
   assertEquals(
-    index.getEntryByDisplayId("STK_0001")?.location.file,
+    index.getEntryByDisplayId(makeDisplayId("STK_0001"))?.location.file,
     "a.md",
   );
 
@@ -141,7 +157,7 @@ Deno.test("WorkspaceIndex: updateFile promotes survivor when owner loses a displ
   index.updateFile("a.md", []);
 
   assertEquals(
-    index.getEntryByDisplayId("STK_0001")?.location.file,
+    index.getEntryByDisplayId(makeDisplayId("STK_0001"))?.location.file,
     "b.md",
   );
 });
@@ -154,7 +170,7 @@ Deno.test("WorkspaceIndex: removeFile promotes survivor when removed file owned 
   index.updateFile("b.md", [entry("STK_0001", { file: "b.md" })]);
 
   assertEquals(
-    index.getEntryByDisplayId("STK_0001")?.location.file,
+    index.getEntryByDisplayId(makeDisplayId("STK_0001"))?.location.file,
     "a.md",
   );
 
@@ -162,7 +178,7 @@ Deno.test("WorkspaceIndex: removeFile promotes survivor when removed file owned 
   index.removeFile("a.md");
 
   assertEquals(
-    index.getEntryByDisplayId("STK_0001")?.location.file,
+    index.getEntryByDisplayId(makeDisplayId("STK_0001"))?.location.file,
     "b.md",
   );
 });

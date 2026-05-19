@@ -13,6 +13,7 @@ import type {
   EntryShape,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 function buildEntry(opts: {
   displayId: string;
@@ -24,7 +25,7 @@ function buildEntry(opts: {
     ? [{ key: "Type", value: opts.typeAttribute }]
     : [];
   return {
-    displayId: opts.displayId,
+    displayId: makeDisplayId(opts.displayId),
     title: "",
     body: "",
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",

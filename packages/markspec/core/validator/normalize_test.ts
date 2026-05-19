@@ -13,6 +13,7 @@ import type {
   EntryShape,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
+import { makeDisplayId } from "../model/mod.ts";
 
 const ORIGIN = "@test/p";
 
@@ -47,7 +48,7 @@ function entry(opts: {
     for (const v of vs) attributes.push({ key: k, value: v });
   }
   return {
-    displayId: "X-001",
+    displayId: makeDisplayId("X-001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape,
     source: "markdown",
