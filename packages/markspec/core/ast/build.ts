@@ -13,7 +13,17 @@
  * This module is pure library code: no `Deno.*` APIs.
  */
 
-import type { Root } from "mdast";
+import type {
+  Blockquote,
+  List,
+  ListItem,
+  Nodes,
+  Root,
+  RootContent,
+  Table,
+  TableCell,
+  TableRow,
+} from "mdast";
 import { processor } from "../parser/remark.ts";
 import { classifyConvention } from "../parser/entity_refs.ts";
 import type {
@@ -353,15 +363,14 @@ function splitVerbatimDeflist(
 // mdast text extraction helper
 // ---------------------------------------------------------------------------
 
-// deno-lint-ignore no-explicit-any
-function extractMdastText(node: any): string {
+function extractMdastText(node: Nodes | undefined): string {
   if (!node) return "";
   // Inline code nodes carry their value without delimiters in mdast;
   // re-add the backtick delimiters so the round-trip is byte-identical.
   if (node.type === "inlineCode") return `\`${node.value}\``;
-  if (typeof node.value === "string") return node.value;
-  if (Array.isArray(node.children)) {
-    return node.children.map(extractMdastText).join("");
+  if ("value" in node && typeof node.value === "string") return node.value;
+  if ("children" in node) {
+    return node.children.map((c) => extractMdastText(c as Nodes)).join("");
   }
   return "";
 }
@@ -447,8 +456,7 @@ function deQuote(rawBlockquote: string): string {
 // Main builder — mdast node → BodyBlock
 // ---------------------------------------------------------------------------
 
-// deno-lint-ignore no-explicit-any
-function mapMdastNode(node: any, body: string): BodyBlock {
+function mapMdastNode(node: RootContent, body: string): BodyBlock {
   const range = positionToRange(node.position);
 
   switch (node.type) {
@@ -535,18 +543,16 @@ function mapMdastNode(node: any, body: string): BodyBlock {
     }
 
     case "list": {
+      const listNode = node as List;
       // Detect GFM task-list items (remark-gfm sets `checked` to true/false).
-      // deno-lint-ignore no-explicit-any
-      const hasTaskItems = node.children.some((item: any) =>
+      const hasTaskItems = listNode.children.some((item: ListItem) =>
         item.checked != null
       );
-      const items: ListItemNode[] = node.children.map(
-        // deno-lint-ignore no-explicit-any
-        (item: any): ListItemNode => {
+      const items: ListItemNode[] = listNode.children.map(
+        (item: ListItem): ListItemNode => {
           const itemRange = positionToRange(item.position);
           const subBlocks: BodyBlock[] = (item.children ?? []).map(
-            // deno-lint-ignore no-explicit-any
-            (child: any) => mapMdastNode(child, body),
+            (child) => mapMdastNode(child as RootContent, body),
           );
           return {
             blocks: subBlocks,
@@ -558,8 +564,8 @@ function mapMdastNode(node: any, body: string): BodyBlock {
       );
       return {
         kind: "list",
-        ordered: node.ordered ?? false,
-        spread: node.spread ?? false,
+        ordered: listNode.ordered ?? false,
+        spread: listNode.spread ?? false,
         items,
         ...(hasTaskItems ? { hasTaskItems: true } : {}),
         range,
@@ -567,15 +573,18 @@ function mapMdastNode(node: any, body: string): BodyBlock {
     }
 
     case "table": {
-      // deno-lint-ignore no-explicit-any
-      const rows: (readonly InlineContent[])[] = node.children.map((row: any) =>
-        // deno-lint-ignore no-explicit-any
-        (row.children ?? []).map((cell: any) => {
-          const cellText = extractMdastText(cell);
-          const cellRange = positionToRange(cell.position);
-          // stored == recognition (table cells render via TableNode.raw; Task 5 confirms)
-          return inlineContent(cellText, cellText, cellRange);
-        })
+      const tableNode = node as Table;
+      const rows: (readonly InlineContent[])[] = tableNode.children.map(
+        (row: TableRow) =>
+          row.children.map((cell: TableCell) => {
+            // TableCell children are PhrasingContent ⊂ RootContent ⊂ Nodes.
+            const cellText = cell.children
+              .map((c) => extractMdastText(c as unknown as Nodes))
+              .join("");
+            const cellRange = positionToRange(cell.position);
+            // stored == recognition (table cells render via TableNode.raw; Task 5 confirms)
+            return inlineContent(cellText, cellText, cellRange);
+          }),
       );
       const [header = [], ...dataRows] = rows;
       const raw = verbatimSlice(body, node.position);
@@ -606,11 +615,12 @@ function mapMdastNode(node: any, body: string): BodyBlock {
     }
 
     case "blockquote": {
-      const verbatim = deQuote(verbatimSlice(body, node.position));
-      const firstChild = node.children?.[0];
+      const bqNode = node as Blockquote;
+      const verbatim = deQuote(verbatimSlice(body, bqNode.position));
+      const firstChild = bqNode.children?.[0];
 
       if (firstChild?.type === "paragraph") {
-        const paraText = extractMdastText(firstChild);
+        const paraText = extractMdastText(firstChild as unknown as Nodes);
         const admonMatch = ADMONITION_FIRST_LINE_RE.exec(paraText.trim());
         if (admonMatch) {
           const kind = admonMatch[1] as AdmonitionKind;
@@ -618,10 +628,9 @@ function mapMdastNode(node: any, body: string): BodyBlock {
           // Flattened recognition text (unchanged from prior behaviour):
           // marker-stripped first paragraph + remaining paragraphs.
           const rest = paraText.replace(ADMONITION_FIRST_LINE_RE, "").trim();
-          const otherText = node.children
+          const otherText = bqNode.children
             .slice(1)
-            // deno-lint-ignore no-explicit-any
-            .map((c: any) => extractMdastText(c))
+            .map((c) => extractMdastText(c as unknown as Nodes))
             .join("\n\n");
           const flattened = [rest, otherText].filter(Boolean).join("\n\n");
 
@@ -653,9 +662,8 @@ function mapMdastNode(node: any, body: string): BodyBlock {
         }
       }
 
-      const bqFlattened = node.children
-        // deno-lint-ignore no-explicit-any
-        .map((c: any) => extractMdastText(c))
+      const bqFlattened = bqNode.children
+        .map((c) => extractMdastText(c as unknown as Nodes))
         .join("\n\n");
       return {
         kind: "blockquote",
@@ -671,10 +679,7 @@ function mapMdastNode(node: any, body: string): BodyBlock {
       // without re-scanning the body string.
       type SubKind = "heading" | "thematic-break" | "html" | undefined;
       let subkind: SubKind;
-      if (
-        node.type === "heading" ||
-        node.type === "setextHeading"
-      ) {
+      if (node.type === "heading") {
         subkind = "heading";
       } else if (node.type === "thematicBreak") {
         subkind = "thematic-break";
