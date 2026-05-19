@@ -84,11 +84,11 @@ const HANDLERS: Record<string, ToolHandler> = {
       files,
       project.projectRoot ?? "",
     );
-    const profileLabel = project.profileChain
-      ? `${project.profileChain.tiers[0].id}@${
-        project.profileChain.tiers[0].version
-      }`
+    const leafTier = project.profileChain
+      ? project.profileChain
+        .tiers[project.profileChain.tiers.length - 1]
       : null;
+    const profileLabel = leafTier ? `${leafTier.id}@${leafTier.version}` : null;
     return renderDiagnosticsReport(
       filtered,
       profileLabel,
