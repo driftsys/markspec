@@ -95,6 +95,10 @@ export function parseMarkdown(
   const entries: Entry[] = [];
   const diagnostics: Diagnostic[] = [];
 
+  // Pre-split once so every extractBodyContent call shares the same array
+  // instead of re-splitting for each list item (O(N×L) → O(N+L)).
+  const markdownLines = markdown.split("\n");
+
   // Collect link definition identifiers for shortcut reference exclusion.
   const definitions = new Set(
     tree.children
@@ -112,7 +116,7 @@ export function parseMarkdown(
     for (const item of list.children) {
       const entry = extractEntry(
         item,
-        markdown,
+        markdownLines,
         file,
         definitions,
         isReferencesDoc,
@@ -146,7 +150,7 @@ function detectReferencesDocument(
  */
 function extractEntry(
   item: ListItem,
-  markdown: string,
+  markdownLines: string[],
   file: string,
   definitions: Set<string>,
   isReferencesDoc: boolean,
@@ -274,7 +278,7 @@ function extractEntry(
   }
 
   // Extract body content and attributes.
-  const bodyContent = extractBodyContent(item, markdown);
+  const bodyContent = extractBodyContent(item, markdownLines);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
   const bodyAst = buildBodyAst(body);
@@ -515,12 +519,11 @@ function extractEntry(
  * which contains the display ID and title).
  *
  * Reconstructs the text content from the source markdown using position info.
+ * Accepts a pre-split lines array to avoid redundant splits across entries.
  */
-function extractBodyContent(item: ListItem, markdown: string): string {
+function extractBodyContent(item: ListItem, lines: string[]): string {
   const children = item.children.slice(1); // Skip title paragraph
   if (!children.length) return "";
-
-  const lines = markdown.split("\n");
 
   // Get the range from the second child's start to the last child's end
   const startLine = children[0].position?.start.line;

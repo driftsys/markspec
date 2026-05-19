@@ -124,3 +124,45 @@ Deno.test("WorkspaceIndex: getNextDisplayIdNumber returns 1 for empty prefix", (
   const index = new WorkspaceIndex();
   assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 1);
 });
+
+Deno.test("WorkspaceIndex: updateFile promotes survivor when owner loses a display ID", () => {
+  const index = new WorkspaceIndex();
+
+  // Index both files — a.md wins the display ID (indexed first).
+  index.updateFile("a.md", [entry("STK_0001", { file: "a.md" })]);
+  index.updateFile("b.md", [entry("STK_0001", { file: "b.md" })]);
+
+  assertEquals(
+    index.getEntryByDisplayId("STK_0001")?.location.file,
+    "a.md",
+  );
+
+  // Update file A to remove STK_0001 — file B's entry should be promoted.
+  index.updateFile("a.md", []);
+
+  assertEquals(
+    index.getEntryByDisplayId("STK_0001")?.location.file,
+    "b.md",
+  );
+});
+
+Deno.test("WorkspaceIndex: removeFile promotes survivor when removed file owned a display ID", () => {
+  const index = new WorkspaceIndex();
+
+  // Index both files — a.md wins the display ID (indexed first).
+  index.updateFile("a.md", [entry("STK_0001", { file: "a.md" })]);
+  index.updateFile("b.md", [entry("STK_0001", { file: "b.md" })]);
+
+  assertEquals(
+    index.getEntryByDisplayId("STK_0001")?.location.file,
+    "a.md",
+  );
+
+  // Remove file A entirely — file B's entry should be promoted.
+  index.removeFile("a.md");
+
+  assertEquals(
+    index.getEntryByDisplayId("STK_0001")?.location.file,
+    "b.md",
+  );
+});
