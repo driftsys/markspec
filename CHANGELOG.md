@@ -1,5 +1,321 @@
 # Changelog
 
+## [0.5.0] (2026-05-19)
+
+### Bug Fixes
+
+- **core:** export source helpers for formatter, fix attribute regex edge cases
+  ([bd7c1f9]), closes [#367], #378. Part of #366.
+- **lsp:** serialize file parse, fix URI encoding, add close/open handlers
+  ([c55f871]), closes [#368], [#369], [#372], #373. Part of #366.
+- **core:** remove duplicate Q302 term; fix profile barrel exports ([c010f0c]),
+  closes [#377], #379. Part of #366.
+- **core:** SerializedEntry type, all edges in streaming, hyphen-aware scope
+  filter ([c5e124c]), closes [#370], [#371], #376. Part of #366.
+- **mcp:** forceRefresh always recompiles, async handler errors logged
+  ([428673d]), closes [#374], #375. Part of #366.
+- **mcp:** add SHA256 content-hash gate to project staleness check ([c1494dd])
+- **core:** surface caption-conventions config errors; correct ADR-014; pin Path
+  A invariants ([a2cdd14])
+- **core:** track multi-line $$ math blocks; name C071 Listing/Feature ambiguity
+  ([461337a])
+- **core:** MSL-T021 over-fire + MSL-B043 message/code mismatch ([c3b8a6e])
+- **repo:** teach git-std bump about non-root version files ([0f629ce])
+
+### Refactoring
+
+- **core:** rename EntryShape identified|referenced -> Authored|Reference
+  ([#352]) ([1202d94])
+- **core:** finish FENCE_RE dedup via shared walkProseLines/FENCE_RE ([4344a51])
+- **core:** tighten Caused-by + empty-Type diagnostic quality ([2f2c1eb])
+- **core:** consolidate ATTRIBUTE_CATALOG + dedupe URL regex ([5d13903])
+- **core:** extract walkProseLines helper, dedupe FENCE_RE copies ([c094644])
+- **core:** share type-resolution between trace and per-type passes ([b95b605])
+
+### Documentation
+
+- **docs:** restructure guide/ to 8-chapter layout per markspec-user-docs.md
+  spec ([1bd8ae2])
+- **spec:** compile output, lockfile, indexing & external sync (Prompt 7)
+  ([ecd65af])
+- **spec:** prose analysis & requirement-quality lint (Prompt 5) ([6868191])
+- **spec:** Stage-1 user documentation spec (Prompt 4) ([22a9aaf])
+- **spec:** toolchain distribution & e2e test strategy (Prompt 3) ([f7ac9b4])
+- **spec:** profile schema & listing directives (Prompt 2) ([b7cbe30])
+- **repo:** design — Formatting Fidelity epic (honor spec §5 via the AST)
+  ([3322cb6])
+- **repo:** ADR-014 canonical body-AST + ADR-012 amendment (Path A PR 7)
+  ([53a4747])
+- **repo:** canonical body-AST implementation plan (Prompt-1 Path A) ([1b26768])
+- **repo:** design spec for canonical body-AST (Prompt-1 review Path A)
+  ([9179d31])
+- **repo:** ADR-013 — document directive is a formatter concern, not step 7
+  ([87e2197])
+- **repo:** ADR-012 phased adoption of nextgen diagnostic-code scheme
+  ([fd19103])
+- **repo:** sync AGENTS.md LSP section with current modules ([7195338])
+- **spec:** land Prompt 1 — markspec core data model ([d48d65e])
+- **docs:** rewrite cheatsheet for two-shape entry model (ADR-009) ([cf893f0])
+- **repo:** escape inline-HTML-looking CSS class names in v0.4.0 changelog
+  ([9cd2c9e])
+
+### Features
+
+- **core:** populate file.* properties on compiled entries ([d986786])
+- **core:** profile descriptions & progressive discovery ([#390]) ([d3f20be])
+- **skills:** add markspec-core upskill bundle ([#365]) ([f090255])
+- **core:** toolchain Tier 2 — lsp/mcp install --print-only, adapter registry
+  ([#364]) ([8f076ce])
+- **core:** prose-analysis PA-1 — lint subcommand, MSL-Q
+  lexicon/struct/suppression rules ([#362]) ([b97779a])
+- **core:** toolchain Tier 1 — CORE_SCHEMA_VERSION, LSP serverInfo,
+  completions ([#363]) ([42cb5c9])
+- **core:** compile-output Tier 2 — NDJSON streams, entries.idx, split
+  threshold ([b5a09a9])
+- **core:** compile-output Tier 1 — manifest.json writer, --output flag,
+  sync.* strip guard ([#359]) ([4b679e9])
+- **core:** profile-schema Tier 2 — extends replaces shape, remove
+  identified/referenced scope ([6b05f8c])
+- **core:** listing-directives — glossary, Id schemes, validation
+  (MSL-L010-050) ([#357]) ([0249d49])
+- **core:** profile-schema Tier 1 — markspec-schema pin, PROFILE-TYPE-005,
+  Authored-only pattern guard ([#356]) ([5b46d74])
+- **core:** implement spec section 4.1/4.2 parser and identity diagnostics
+  (MSL-P0xx/I0xx) ([#354]) ([a095e5a])
+- **core:** SP3 AST-equivalence formatting contract — RESIDUAL=0/58 ([#353])
+  ([4b5dac5])
+- **core:** faithful body-AST builder — preserve §5.1 inline prose (SP2)
+  ([#351]) ([3501b1c])
+- **repo:** SP1 — AST fidelity-matrix harness, catalogue, and staleness gate
+  ([a69448f])
+- **core:** MSL-B044 + MSL-C072 on the body AST (Path A PR 6) ([6c5042e])
+- **core:** migrate body-consuming validators to entry.bodyAst (PR 5)
+  ([f54e844])
+- **core:** route formatter body emission through the AST (Path A PR 4)
+  ([ebb74d5])
+- **core:** body-AST renderer + byte-identical equivalence gate (Path A PR 3)
+  ([71da900])
+- **core:** mdast → BodyBlock[] builder; additive Entry.bodyAst (Path A PR 2)
+  ([7b4f35b])
+- **core:** canonical body-AST node type contract (Path A PR 1) ([5baac00])
+- **core:** MSL-T024 — type-specific attr on an unresolved-type entry
+  ([9125a00])
+- **lsp:** code action quick fix for MSL-A012 ([9fce224])
+- **lsp:** code action quick fix for MSL-A011 ([8c6872d])
+- **lsp:** code action quick fix for MSL-A013 ([5255341])
+- **lsp:** code action quick fix for MSL-T020 ([5124ef5])
+- **lsp:** code action quick fix for MSL-A030 ([77f2c49])
+- **lsp:** code action quick fix for MSL-M060 ([957a53c])
+- **lsp:** document highlights for display IDs ([98e591c])
+- **lsp:** folding ranges for entry blocks ([37d98fb])
+- **lsp:** prepareRename for tighter rename UX ([eaa1dd1])
+- **cli:** markspec export csv ([47f8008])
+- **cli:** implement markspec insert <type> <file> ([26a5110])
+- **cli:** implement markspec export <format> for json + yaml ([a025ada])
+- **cli:** implement markspec create <type> <paths...> ([9d8ad2f])
+- **cli:** implement markspec hook [...files] for pre-commit use ([6246855])
+- **lsp:** workspace rename for display IDs ([1659983])
+- **lsp:** workspace symbol search ([0233bbd])
+- **lsp:** document symbols for outline view ([a5b9991])
+- **lsp:** find-references for display IDs ([17ea64b])
+- **lsp:** go-to-definition for display IDs ([fce0576])
+- **lsp:** hover support for display IDs ([561a6fb])
+- **lsp:** completion for Type: attribute values ([f38849e])
+- **core:** MSL-A050 — validate enum-typed core attributes (Origin)
+  ([5120487])
+- **cli:** implement markspec next-id <type> <paths...> ([0a6fe73])
+- **core:** MSL-P010 — entry title is empty after trimming (spec §4.2)
+  ([5503de4])
+- **core:** MSL-A040 — profile must not redefine reserved core keys/types
+  ([175759a])
+- **core:** MSL-A011 — citation attribute used CSV form (spec §2.3.2)
+  ([684a595])
+- **core:** MSL-A012 — empty repeatable attribute value list (spec §1.8)
+  ([552cf9b])
+- **core:** MSL-M061 — Requirement entry without modal keyword (info)
+  ([325a5fc])
+- **core:** MSL-M060 — uppercase modal keyword warning (spec §3.4.1)
+  ([c459f55])
+- **core:** MSL-A013 — single-cardinality attribute used more than once
+  ([167d2fe])
+- **core:** deterministic synthesized-ULID derivation (spec §3.5) ([ab00c0b])
+- **core:** broaden MSL-T021 to fire at steps 5/6 (spec §1.3.2) ([152264b])
+- **core:** discriminating-attribute inference (spec §1.3.1 step 6) ([4cad7a5])
+- **core:** Source: introspection (spec §1.3.1 step 3) ([274bc3a])
+- **core:** blank-line collapse in body (spec §3.4.3 / §5.2) ([c29ce05])
+- **core:** canonicalise trailer keys to TitleCase-Hyphenated (spec §3.3.4)
+  ([459cbe2])
+- **core:** canonical bullet character on entry title lines (spec §3.2)
+  ([04a0aa5])
+- **core:** display-ID prefix → core type inference (spec §1.3.1 step 4)
+  ([af6f01d])
+- **core:** MSL-C071 for caption / block-type mismatch ([4e6e974])
+- **core:** full ADR-003 §Part 3 inverse list in catalog ([fcbf755])
+- **core:** per-subtype attribute exclusions in CORE_TYPE_HIERARCHY ([88e848f])
+- **core:** body block exclusions (MSL-B040-B043) ([701347f])
+- **core:** MSL-A050 for non-http(s) Reference-url values ([a727f60])
+- **core:** MSL-R085 for References targeting a non-Reference entry ([3fa79d1])
+- **core:** MSL-I006 for Reference-shape display-ID slug grammar ([661afb0])
+- **core:** URI scheme → core type inference (ADR-003 §Part 6) ([528f6c9])
+- **core:** MSL-R081 / MSL-R082 for retired and DRAFT link targets ([b8aa8ee])
+- **core:** MSL-R084 for Supersedes crossing the Authored↔Reference boundary
+  ([05eb671])
+- **core:** cross-file trace target-type compatibility with MSL-R083 ([49059f9])
+- **core:** per-type attribute compatibility check with MSL-T022 ([4309224])
+- **core:** caption-adjacency validation with MSL-C070 ([84c68b3])
+- **core:** parse $Identifier entity refs in entry body prose ([8c590ce])
+- **core:** lowercase EARS keywords mid-sentence per spec §3.4.1 ([9ad54e9])
+- **core:** lowercase RFC 2119 modal keywords in body prose ([684434c])
+- **core:** MSL-T021 late-stage Type inference from display-ID shape ([5e2faa9])
+- **core:** MSL-T023 for profile-shaped Type: in core-only mode ([75cc7ab])
+- **core:** reject generated-origin attributes in source with MSL-A030
+  ([15acf22])
+- **core:** canonical trailer ordering follows spec §3.3.2 six-group rule
+  ([b783c39])
+- **core:** recognize 16-type core taxonomy in Type: validation ([0453858])
+- **mcp:** teach agents discovery via server instructions and tool annotations
+  ([ca57148])
+- **mcp:** register MCP server in VS Code extension alongside LSP ([7965397]),
+  closes [#268]
+
+[0.5.0]: https://github.com/driftsys/markspec/compare/v0.4.0...v0.5.0
+[bd7c1f9]: https://github.com/driftsys/markspec/commit/bd7c1f9
+[#367]: https://github.com/driftsys/markspec/issues/367
+[c55f871]: https://github.com/driftsys/markspec/commit/c55f871
+[#368]: https://github.com/driftsys/markspec/issues/368
+[#369]: https://github.com/driftsys/markspec/issues/369
+[#372]: https://github.com/driftsys/markspec/issues/372
+[c010f0c]: https://github.com/driftsys/markspec/commit/c010f0c
+[#377]: https://github.com/driftsys/markspec/issues/377
+[c5e124c]: https://github.com/driftsys/markspec/commit/c5e124c
+[#370]: https://github.com/driftsys/markspec/issues/370
+[#371]: https://github.com/driftsys/markspec/issues/371
+[428673d]: https://github.com/driftsys/markspec/commit/428673d
+[#374]: https://github.com/driftsys/markspec/issues/374
+[c1494dd]: https://github.com/driftsys/markspec/commit/c1494dd
+[a2cdd14]: https://github.com/driftsys/markspec/commit/a2cdd14
+[461337a]: https://github.com/driftsys/markspec/commit/461337a
+[c3b8a6e]: https://github.com/driftsys/markspec/commit/c3b8a6e
+[0f629ce]: https://github.com/driftsys/markspec/commit/0f629ce
+[1202d94]: https://github.com/driftsys/markspec/commit/1202d94
+[#352]: https://github.com/driftsys/markspec/issues/352
+[4344a51]: https://github.com/driftsys/markspec/commit/4344a51
+[2f2c1eb]: https://github.com/driftsys/markspec/commit/2f2c1eb
+[5d13903]: https://github.com/driftsys/markspec/commit/5d13903
+[c094644]: https://github.com/driftsys/markspec/commit/c094644
+[b95b605]: https://github.com/driftsys/markspec/commit/b95b605
+[1bd8ae2]: https://github.com/driftsys/markspec/commit/1bd8ae2
+[ecd65af]: https://github.com/driftsys/markspec/commit/ecd65af
+[6868191]: https://github.com/driftsys/markspec/commit/6868191
+[22a9aaf]: https://github.com/driftsys/markspec/commit/22a9aaf
+[f7ac9b4]: https://github.com/driftsys/markspec/commit/f7ac9b4
+[b7cbe30]: https://github.com/driftsys/markspec/commit/b7cbe30
+[3322cb6]: https://github.com/driftsys/markspec/commit/3322cb6
+[53a4747]: https://github.com/driftsys/markspec/commit/53a4747
+[1b26768]: https://github.com/driftsys/markspec/commit/1b26768
+[9179d31]: https://github.com/driftsys/markspec/commit/9179d31
+[87e2197]: https://github.com/driftsys/markspec/commit/87e2197
+[fd19103]: https://github.com/driftsys/markspec/commit/fd19103
+[7195338]: https://github.com/driftsys/markspec/commit/7195338
+[d48d65e]: https://github.com/driftsys/markspec/commit/d48d65e
+[cf893f0]: https://github.com/driftsys/markspec/commit/cf893f0
+[9cd2c9e]: https://github.com/driftsys/markspec/commit/9cd2c9e
+[d986786]: https://github.com/driftsys/markspec/commit/d986786
+[d3f20be]: https://github.com/driftsys/markspec/commit/d3f20be
+[#390]: https://github.com/driftsys/markspec/issues/390
+[f090255]: https://github.com/driftsys/markspec/commit/f090255
+[#365]: https://github.com/driftsys/markspec/issues/365
+[8f076ce]: https://github.com/driftsys/markspec/commit/8f076ce
+[#364]: https://github.com/driftsys/markspec/issues/364
+[b97779a]: https://github.com/driftsys/markspec/commit/b97779a
+[#362]: https://github.com/driftsys/markspec/issues/362
+[42cb5c9]: https://github.com/driftsys/markspec/commit/42cb5c9
+[#363]: https://github.com/driftsys/markspec/issues/363
+[b5a09a9]: https://github.com/driftsys/markspec/commit/b5a09a9
+[4b679e9]: https://github.com/driftsys/markspec/commit/4b679e9
+[#359]: https://github.com/driftsys/markspec/issues/359
+[6b05f8c]: https://github.com/driftsys/markspec/commit/6b05f8c
+[0249d49]: https://github.com/driftsys/markspec/commit/0249d49
+[#357]: https://github.com/driftsys/markspec/issues/357
+[5b46d74]: https://github.com/driftsys/markspec/commit/5b46d74
+[#356]: https://github.com/driftsys/markspec/issues/356
+[a095e5a]: https://github.com/driftsys/markspec/commit/a095e5a
+[#354]: https://github.com/driftsys/markspec/issues/354
+[4b5dac5]: https://github.com/driftsys/markspec/commit/4b5dac5
+[#353]: https://github.com/driftsys/markspec/issues/353
+[3501b1c]: https://github.com/driftsys/markspec/commit/3501b1c
+[#351]: https://github.com/driftsys/markspec/issues/351
+[a69448f]: https://github.com/driftsys/markspec/commit/a69448f
+[6c5042e]: https://github.com/driftsys/markspec/commit/6c5042e
+[f54e844]: https://github.com/driftsys/markspec/commit/f54e844
+[ebb74d5]: https://github.com/driftsys/markspec/commit/ebb74d5
+[71da900]: https://github.com/driftsys/markspec/commit/71da900
+[7b4f35b]: https://github.com/driftsys/markspec/commit/7b4f35b
+[5baac00]: https://github.com/driftsys/markspec/commit/5baac00
+[9125a00]: https://github.com/driftsys/markspec/commit/9125a00
+[9fce224]: https://github.com/driftsys/markspec/commit/9fce224
+[8c6872d]: https://github.com/driftsys/markspec/commit/8c6872d
+[5255341]: https://github.com/driftsys/markspec/commit/5255341
+[5124ef5]: https://github.com/driftsys/markspec/commit/5124ef5
+[77f2c49]: https://github.com/driftsys/markspec/commit/77f2c49
+[957a53c]: https://github.com/driftsys/markspec/commit/957a53c
+[98e591c]: https://github.com/driftsys/markspec/commit/98e591c
+[37d98fb]: https://github.com/driftsys/markspec/commit/37d98fb
+[eaa1dd1]: https://github.com/driftsys/markspec/commit/eaa1dd1
+[47f8008]: https://github.com/driftsys/markspec/commit/47f8008
+[26a5110]: https://github.com/driftsys/markspec/commit/26a5110
+[a025ada]: https://github.com/driftsys/markspec/commit/a025ada
+[9d8ad2f]: https://github.com/driftsys/markspec/commit/9d8ad2f
+[6246855]: https://github.com/driftsys/markspec/commit/6246855
+[1659983]: https://github.com/driftsys/markspec/commit/1659983
+[0233bbd]: https://github.com/driftsys/markspec/commit/0233bbd
+[a5b9991]: https://github.com/driftsys/markspec/commit/a5b9991
+[17ea64b]: https://github.com/driftsys/markspec/commit/17ea64b
+[fce0576]: https://github.com/driftsys/markspec/commit/fce0576
+[561a6fb]: https://github.com/driftsys/markspec/commit/561a6fb
+[f38849e]: https://github.com/driftsys/markspec/commit/f38849e
+[5120487]: https://github.com/driftsys/markspec/commit/5120487
+[0a6fe73]: https://github.com/driftsys/markspec/commit/0a6fe73
+[5503de4]: https://github.com/driftsys/markspec/commit/5503de4
+[175759a]: https://github.com/driftsys/markspec/commit/175759a
+[684a595]: https://github.com/driftsys/markspec/commit/684a595
+[552cf9b]: https://github.com/driftsys/markspec/commit/552cf9b
+[325a5fc]: https://github.com/driftsys/markspec/commit/325a5fc
+[c459f55]: https://github.com/driftsys/markspec/commit/c459f55
+[167d2fe]: https://github.com/driftsys/markspec/commit/167d2fe
+[ab00c0b]: https://github.com/driftsys/markspec/commit/ab00c0b
+[152264b]: https://github.com/driftsys/markspec/commit/152264b
+[4cad7a5]: https://github.com/driftsys/markspec/commit/4cad7a5
+[274bc3a]: https://github.com/driftsys/markspec/commit/274bc3a
+[c29ce05]: https://github.com/driftsys/markspec/commit/c29ce05
+[459cbe2]: https://github.com/driftsys/markspec/commit/459cbe2
+[04a0aa5]: https://github.com/driftsys/markspec/commit/04a0aa5
+[af6f01d]: https://github.com/driftsys/markspec/commit/af6f01d
+[4e6e974]: https://github.com/driftsys/markspec/commit/4e6e974
+[fcbf755]: https://github.com/driftsys/markspec/commit/fcbf755
+[88e848f]: https://github.com/driftsys/markspec/commit/88e848f
+[701347f]: https://github.com/driftsys/markspec/commit/701347f
+[a727f60]: https://github.com/driftsys/markspec/commit/a727f60
+[3fa79d1]: https://github.com/driftsys/markspec/commit/3fa79d1
+[661afb0]: https://github.com/driftsys/markspec/commit/661afb0
+[528f6c9]: https://github.com/driftsys/markspec/commit/528f6c9
+[b8aa8ee]: https://github.com/driftsys/markspec/commit/b8aa8ee
+[05eb671]: https://github.com/driftsys/markspec/commit/05eb671
+[49059f9]: https://github.com/driftsys/markspec/commit/49059f9
+[4309224]: https://github.com/driftsys/markspec/commit/4309224
+[84c68b3]: https://github.com/driftsys/markspec/commit/84c68b3
+[8c590ce]: https://github.com/driftsys/markspec/commit/8c590ce
+[9ad54e9]: https://github.com/driftsys/markspec/commit/9ad54e9
+[684434c]: https://github.com/driftsys/markspec/commit/684434c
+[5e2faa9]: https://github.com/driftsys/markspec/commit/5e2faa9
+[75cc7ab]: https://github.com/driftsys/markspec/commit/75cc7ab
+[15acf22]: https://github.com/driftsys/markspec/commit/15acf22
+[b783c39]: https://github.com/driftsys/markspec/commit/b783c39
+[0453858]: https://github.com/driftsys/markspec/commit/0453858
+[ca57148]: https://github.com/driftsys/markspec/commit/ca57148
+[7965397]: https://github.com/driftsys/markspec/commit/7965397
+[#268]: https://github.com/driftsys/markspec/issues/268
+
 ## [0.4.0] (2026-05-10)
 
 ### Bug Fixes
