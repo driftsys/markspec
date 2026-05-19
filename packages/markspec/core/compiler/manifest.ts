@@ -69,10 +69,6 @@ export function buildManifest(
     byType[typeName] = (byType[typeName] ?? 0) + 1;
   }
 
-  const generatedEdgeCount = result.links.filter(
-    (l) => l.origin === "generated",
-  ).length;
-
   return {
     markspecSchemaVersion: 1,
     generator: {
@@ -85,7 +81,7 @@ export function buildManifest(
     },
     counts: {
       entries: result.entries.size,
-      edges: streaming ? generatedEdgeCount : result.links.length,
+      edges: result.links.length,
       byType,
     },
     entries: streaming

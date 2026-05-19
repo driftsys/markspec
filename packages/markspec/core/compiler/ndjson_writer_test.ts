@@ -186,7 +186,7 @@ Deno.test("indexToJson: keys are sorted lexicographically", () => {
 // buildEdgesNdjson
 // ---------------------------------------------------------------------------
 
-Deno.test("buildEdgesNdjson: writes only generated links, not authored", () => {
+Deno.test("buildEdgesNdjson: writes all links (authored and generated)", () => {
   const links: Link[] = [
     makeAuthoredLink("A_0001", "B_0001"),
     makeGeneratedLink("B_0001", "A_0001"),
@@ -195,33 +195,49 @@ Deno.test("buildEdgesNdjson: writes only generated links, not authored", () => {
   const ndjson = buildEdgesNdjson(links);
   const text = new TextDecoder().decode(ndjson);
   const lines = text.split("\n").filter((l) => l.length > 0);
-  assertEquals(lines.length, 1);
-  const edge = JSON.parse(lines[0]);
-  assertEquals(edge.from, "B_0001");
-  assertEquals(edge.to, "A_0001");
+  assertEquals(lines.length, 3);
 });
 
-Deno.test("buildEdgesNdjson: edge records have from, to, kind only", () => {
+Deno.test("buildEdgesNdjson: edge records have from, to, kind, origin", () => {
   const links: Link[] = [makeGeneratedLink("X_0001", "Y_0001")];
   const ndjson = buildEdgesNdjson(links);
   const text = new TextDecoder().decode(ndjson);
   const edge = JSON.parse(text.trim());
-  assertEquals(Object.keys(edge).sort(), ["from", "kind", "to"]);
+  assertEquals(Object.keys(edge).sort(), ["from", "kind", "origin", "to"]);
 });
 
-Deno.test("buildEdgesNdjson: empty result when no generated links", () => {
+Deno.test("buildEdgesNdjson: authored link preserves origin undefined", () => {
   const links: Link[] = [
     makeAuthoredLink("A_0001", "B_0001"),
   ];
   const ndjson = buildEdgesNdjson(links);
   const text = new TextDecoder().decode(ndjson);
+  const edge = JSON.parse(text.trim());
+  assertEquals(edge.from, "A_0001");
+  assertEquals(edge.to, "B_0001");
+  // authored links have no origin field — JSON.stringify omits undefined
+  assertEquals(edge.origin, undefined);
+});
+
+Deno.test("buildEdgesNdjson: generated link preserves origin field", () => {
+  const links: Link[] = [makeGeneratedLink("B_0001", "A_0001")];
+  const ndjson = buildEdgesNdjson(links);
+  const text = new TextDecoder().decode(ndjson);
+  const edge = JSON.parse(text.trim());
+  assertEquals(edge.origin, "generated");
+});
+
+Deno.test("buildEdgesNdjson: empty result when no links", () => {
+  const links: Link[] = [];
+  const ndjson = buildEdgesNdjson(links);
+  const text = new TextDecoder().decode(ndjson);
   assertEquals(text.trim(), "");
 });
 
-Deno.test("buildEdgesNdjson: multiple generated links each on own line", () => {
+Deno.test("buildEdgesNdjson: multiple links each on own line", () => {
   const links: Link[] = [
     makeGeneratedLink("B_0001", "A_0001"),
-    makeGeneratedLink("C_0001", "A_0001"),
+    makeAuthoredLink("C_0001", "A_0001"),
   ];
   const ndjson = buildEdgesNdjson(links);
   const text = new TextDecoder().decode(ndjson);

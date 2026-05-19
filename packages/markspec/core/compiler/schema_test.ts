@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { serializeCompileResult } from "./schema.ts";
+import type { SerializedEntry } from "./schema.ts";
 import type { CompileResult } from "./mod.ts";
 import type { Entry, Link } from "../model/mod.ts";
 
@@ -79,11 +80,11 @@ Deno.test("serializeCompileResult: entries keyed by displayId", () => {
     "SRS_BRK_0002",
   ]);
   assertEquals(
-    (serialized.entries["SRS_BRK_0001"] as Entry).displayId,
+    serialized.entries["SRS_BRK_0001"].displayId,
     "SRS_BRK_0001",
   );
   assertEquals(
-    (serialized.entries["SRS_BRK_0002"] as Entry).displayId,
+    serialized.entries["SRS_BRK_0002"].displayId,
     "SRS_BRK_0002",
   );
 });
@@ -170,7 +171,7 @@ Deno.test("serializeCompileResult: strips sync.* from entry properties", () => {
   };
 
   const serialized = serializeCompileResult(result);
-  const serializedEntry = serialized.entries["STK_0001"] as Entry;
+  const serializedEntry: SerializedEntry = serialized.entries["STK_0001"];
 
   // sync.* must be absent
   assertEquals(serializedEntry.properties?.sync, undefined);
@@ -195,7 +196,7 @@ Deno.test("serializeCompileResult: drops properties entirely when sync is the on
   };
 
   const serialized = serializeCompileResult(result);
-  const serializedEntry = serialized.entries["STK_0002"] as Entry;
+  const serializedEntry: SerializedEntry = serialized.entries["STK_0002"];
 
   assertEquals(serializedEntry.properties, undefined);
 });

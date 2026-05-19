@@ -5,7 +5,7 @@
  *
  * Three pure, Deno-free functions — callers perform the actual file I/O:
  *   - {@linkcode buildEntriesNdjson}: entries sorted by displayId
- *   - {@linkcode buildEdgesNdjson}: generated-only links
+ *   - {@linkcode buildEdgesNdjson}: all links (authored + generated)
  *   - {@linkcode indexToJson}: compact byte-offset index JSON
  */
 
@@ -78,15 +78,19 @@ export function indexToJson(
 /**
  * Build the `edges.ndjson` byte stream.
  *
- * Only links with `origin === "generated"` are written. Each line is a
- * compact JSON object with `from`, `to`, and `kind` only — `origin` and
- * `location` are derivable and not persisted.
+ * All links (both authored and generated) are written. Each line is a
+ * compact JSON object with `from`, `to`, `kind`, and `origin` — the
+ * `location` field is omitted as it is not needed for interchange.
  */
 export function buildEdgesNdjson(links: readonly Link[]): Uint8Array {
   const chunks: Uint8Array[] = [];
   for (const link of links) {
-    if (link.origin !== "generated") continue;
-    const record = { from: link.from, to: link.to, kind: link.kind };
+    const record = {
+      from: link.from,
+      to: link.to,
+      kind: link.kind,
+      origin: link.origin,
+    };
     chunks.push(enc.encode(JSON.stringify(record) + "\n"));
   }
   return concat(chunks);

@@ -258,7 +258,7 @@ function buildAdjacency(
 
 // Re-export serialization helper.
 export { serializeCompileResult } from "./schema.ts";
-export type { SerializedCompileResult } from "./schema.ts";
+export type { SerializedCompileResult, SerializedEntry } from "./schema.ts";
 
 // Re-export inverse generation.
 export { generateInverses } from "./inverses.ts";
