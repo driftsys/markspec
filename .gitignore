@@ -34,3 +34,6 @@ Thumbs.db
 
 # Superpowers handoff documents (per-developer, regenerated)
 docs/superpowers/
+
+# Scratch files (per-developer, temporary)
+.scratch/
