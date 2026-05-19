@@ -25,6 +25,11 @@ import type { AppendFile, RunGit } from "./git-cache.ts";
 import { parseManifest } from "./manifest.ts";
 import { mergeChain } from "./merge.ts";
 import {
+  BUILTIN_DEFAULT_SOURCE_PATH,
+  BUILTIN_DEFAULT_SPECIFIER,
+  DEFAULT_PROFILE_MANIFEST,
+} from "./default_profile.ts";
+import {
   type ResolvedProfileSource,
   resolveGitSpecifier,
   resolveLocalSpecifier,
@@ -43,6 +48,14 @@ export interface LoadChainResult {
 export interface LoadChainOptions {
   readonly runGit?: RunGit;
   readonly appendFile?: AppendFile;
+  /**
+   * When true, the bundled default profile is spliced as the implicit
+   * root of the chain (the ultimate `extends:` parent of any tier that
+   * declares none). Default false — only `loadProfileForCommand` enables
+   * it, so direct `loadChain` callers (e.g. `profile add` validation)
+   * keep core-only behaviour.
+   */
+  readonly bundledDefault?: boolean;
 }
 
 /**
@@ -121,17 +134,11 @@ export async function loadChain(
         },
       );
     } else if (cursorSpec.kind === "builtin") {
-      // Explicit branch so a builtin specifier returns a clear diagnostic
-      // instead of falling through to the local-path resolver (which would
-      // emit a confusing "no markspec.yaml" error). Replaced by the real
-      // embedded-manifest resolver in a later task.
-      diagnostics.push({
-        code: "PROFILE-LOAD-007",
-        severity: "error",
-        message: "builtin default-profile resolver not yet implemented",
-        location: { file: "<specifier>", line: 1, column: 1 },
-      });
-      return { chain: null, diagnostics };
+      resolved = {
+        rawYaml: DEFAULT_PROFILE_MANIFEST,
+        sourcePath: BUILTIN_DEFAULT_SOURCE_PATH,
+        baseDir: BUILTIN_DEFAULT_SOURCE_PATH,
+      };
     } else {
       resolved = await resolveLocalSpecifier(
         cursorSpec,
@@ -160,9 +167,14 @@ export async function loadChain(
     };
     tiersLeafFirst.push(tier);
 
-    // Advance cursor to the parent, if any.
+    // Advance cursor to the parent, if any. When the tier declares no
+    // explicit parent, splice the bundled default as the implicit root
+    // (once — never below the builtin itself).
     if (parsed.manifest.extends !== undefined) {
       cursorSpec = parsed.manifest.extends;
+      cursorDir = resolved.baseDir;
+    } else if (opts.bundledDefault && cursorSpec.kind !== "builtin") {
+      cursorSpec = BUILTIN_DEFAULT_SPECIFIER;
       cursorDir = resolved.baseDir;
     } else {
       cursorSpec = undefined;

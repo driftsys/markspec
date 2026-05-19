@@ -8,6 +8,7 @@ import { assertEquals } from "@std/assert";
 import { loadChain } from "./chain.ts";
 import type { RunGit } from "./git-cache.ts";
 import { computeCacheLocation } from "./git-cache.ts";
+import { BUILTIN_DEFAULT_SPECIFIER } from "./default_profile.ts";
 
 function mockReadFile(map: Record<string, string>) {
   return (path: string): Promise<string | undefined> =>
@@ -263,4 +264,72 @@ Deno.test("loadChain: git clone failure propagates PROFILE-LOAD-001", async () =
 
   assertEquals(result.chain, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
+});
+
+Deno.test("loadChain: bundledDefault splices builtin as root of an extends-less leaf", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/custom" },
+    "/project",
+    "/project",
+    mockReadFile({
+      "/project/profiles/custom/markspec.yaml":
+        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+    }),
+    { bundledDefault: true },
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.length, 2);
+  assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
+  assertEquals(result.chain?.tiers[1].id, "@acme/custom");
+});
+
+Deno.test("loadChain: bundledDefault disabled does not splice", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/custom" },
+    "/project",
+    "/project",
+    mockReadFile({
+      "/project/profiles/custom/markspec.yaml":
+        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+    }),
+    { bundledDefault: false },
+  );
+  assertEquals(result.chain?.tiers.length, 1);
+  assertEquals(result.chain?.tiers[0].id, "@acme/custom");
+});
+
+Deno.test("loadChain: builtin leaf with bundledDefault yields exactly one tier (no self-splice)", async () => {
+  const result = await loadChain(
+    BUILTIN_DEFAULT_SPECIFIER,
+    "/project",
+    "/project",
+    mockReadFile({}),
+    { bundledDefault: true },
+  );
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error"),
+    [],
+  );
+  assertEquals(result.chain?.tiers.length, 1);
+  assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
+});
+
+Deno.test("loadChain: builtin spliced below a multi-tier local chain", async () => {
+  const result = await loadChain(
+    { kind: "local", path: "./profiles/leaf" },
+    "/project",
+    "/project",
+    mockReadFile({
+      "/project/profiles/leaf/markspec.yaml":
+        `id: "@acme/leaf"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../root"\n`,
+      "/project/profiles/root/markspec.yaml":
+        `id: "@acme/root"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+    }),
+    { bundledDefault: true },
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.chain?.tiers.length, 3);
+  assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
+  assertEquals(result.chain?.tiers[1].id, "@acme/root");
+  assertEquals(result.chain?.tiers[2].id, "@acme/leaf");
 });
