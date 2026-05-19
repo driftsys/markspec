@@ -31,3 +31,6 @@ Thumbs.db
 
 # Claude Code local state (per-developer worktrees and settings)
 .claude/
+
+# Superpowers handoff documents (per-developer, regenerated)
+docs/superpowers/
