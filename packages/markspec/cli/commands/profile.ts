@@ -32,10 +32,15 @@ export const profileCmd = new Command()
       if (!chain) {
         console.error("no profile configured for this project");
       } else {
-        const active = overview.tiers[0];
+        const active = overview.tiers[overview.tiers.length - 1];
         console.log(`Active profile: ${active.id}@${active.version}`);
         if (active.summary && active.summary !== active.id) {
           console.log(active.summary);
+        }
+        if (overview.tiers.length > 1) {
+          console.log(
+            `Profile chain: ${overview.tiers.map((t) => t.id).join(" → ")}`,
+          );
         }
         console.log("");
 

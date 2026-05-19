@@ -100,7 +100,10 @@ Deno.test(
     assert(Array.isArray(data.tiers), "tiers must be an array");
     assert(Array.isArray(data.elements), "elements must be an array");
     assert(data.tiers.length > 0, "tiers must be non-empty");
-    assertStringIncludes(data.tiers[0].id, "my-profile");
+    assertStringIncludes(
+      data.tiers[data.tiers.length - 1].id,
+      "my-profile",
+    );
   },
 );
 

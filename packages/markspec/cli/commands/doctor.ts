@@ -23,6 +23,9 @@ export const doctorCmd = new Command()
       { severity: string; code: string; message: string }
     > = [];
 
+    const leaf = chain ? chain.tiers[chain.tiers.length - 1] : null;
+    const tierCount = chain ? chain.tiers.length : 0;
+
     if (options.format === "json") {
       const output = {
         project: {
@@ -30,11 +33,11 @@ export const doctorCmd = new Command()
           version: config.version,
           root: projectRoot,
         },
-        profile: chain
+        profile: leaf
           ? {
-            id: chain.tiers[0].id,
-            version: chain.tiers[0].version,
-            tiers: chain.tiers.length,
+            id: leaf.id,
+            version: leaf.version,
+            tiers: tierCount,
           }
           : null,
         diagnostics,
@@ -43,11 +46,9 @@ export const doctorCmd = new Command()
     } else {
       console.error(`Project: ${config.name} (${config.version})`);
       console.error(`Root: ${projectRoot}`);
-      if (chain) {
+      if (leaf) {
         console.error(
-          `Profile: ${chain.tiers[0].id}@${
-            chain.tiers[0].version
-          } (${chain.tiers.length} tier(s))`,
+          `Profile: ${leaf.id}@${leaf.version} (${tierCount} tier(s))`,
         );
       } else {
         console.error("Profile: no profile configured");

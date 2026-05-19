@@ -41,19 +41,30 @@ Deno.test("profile show: --format json outputs structured data", async () => {
   assertEquals(code, 0);
   const data = JSON.parse(stdout);
   assertEquals(Array.isArray(data.tiers), true);
-  assertEquals(data.tiers.length, 1);
-  assertEquals(data.tiers[0].id, "@acme/test");
-  assertEquals(data.tiers[0].version, "0.2.0");
+  assertEquals(data.tiers.length, 2);
+  assertEquals(data.tiers[data.tiers.length - 1].id, "@acme/test");
+  assertEquals(data.tiers[data.tiers.length - 1].version, "0.2.0");
 });
 
-Deno.test("profile show: no profile prints message", async () => {
+Deno.test("profile show: opted-out project prints no-profile message", async () => {
   const { code, stderr } = await markspec(["profile", "show"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": "default-profile: false\n",
+    },
+  });
+  assertEquals(code, 0);
+  assertStringIncludes(stderr, "no profile");
+});
+
+Deno.test("profile show: bundled default shown when no .markspec.yaml", async () => {
+  const { code, stdout } = await markspec(["profile", "show"], {
     files: {
       "project.yaml": PROJECT_YAML,
     },
   });
   assertEquals(code, 0);
-  assertStringIncludes(stderr, "no profile");
+  assertStringIncludes(stdout, "@markspec/profile-default");
 });
 
 // ── doctor ───────────────────────────────────────────────────────────
@@ -85,7 +96,7 @@ Deno.test("doctor: --format json outputs structured data", async () => {
   assertEquals(data.project.version, "0.1.0");
   assertEquals(data.profile.id, "@acme/test");
   assertEquals(data.profile.version, "0.2.0");
-  assertEquals(data.profile.tiers, 1);
+  assertEquals(data.profile.tiers, 2);
   assertEquals(Array.isArray(data.diagnostics), true);
 });
 
@@ -108,12 +119,23 @@ Deno.test("doctor: bad .markspec.yaml exits 1", async () => {
   assertStringIncludes(stderr, "MARKSPEC-YAML");
 });
 
-Deno.test("doctor: no profile still exits 0", async () => {
+Deno.test("doctor: opted-out project still exits 0 with no-profile message", async () => {
+  const { code, stderr } = await markspec(["doctor"], {
+    files: {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": "default-profile: false\n",
+    },
+  });
+  assertEquals(code, 0);
+  assertStringIncludes(stderr, "no profile");
+});
+
+Deno.test("doctor: bundled default shown when no .markspec.yaml", async () => {
   const { code, stderr } = await markspec(["doctor"], {
     files: {
       "project.yaml": PROJECT_YAML,
     },
   });
   assertEquals(code, 0);
-  assertStringIncludes(stderr, "no profile");
+  assertStringIncludes(stderr, "@markspec/profile-default");
 });
