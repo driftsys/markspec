@@ -564,23 +564,32 @@ export interface EntityRef {
  * Kind of directional link between entries — relation name lifted from the
  * source attribute.
  *
- * The core bakes in only `supersedes` (universal retirement). All other
- * relation names listed here are conventions recognized by shipped profile
- * packages; in a profile-aware pipeline, link kinds come from the active
- * profile's `traceability:` declarations rather than this closed union.
+ * Open `string` so profile-declared relation names (e.g., from a profile's
+ * `traceability:` declarations) can be used without changing core. The
+ * canonical built-in kinds are enumerated in {@linkcode KNOWN_LINK_KINDS}.
  */
-export type LinkKind =
-  | "satisfies"
-  | "derived-from"
-  | "references"
-  | "allocated-to"
-  | "realizes"
-  | "verifies"
-  | "tests"
-  | "depends-on"
-  | "part-of"
-  | "generated-from"
-  | "supersedes";
+export type LinkKind = string;
+
+/**
+ * Built-in link kinds recognized by the core compiler and shipped profiles.
+ *
+ * Consumers that need to validate or enumerate the core-defined relation
+ * vocabulary should use this constant rather than hard-coding string literals.
+ * Profile-declared kinds extend this set at runtime.
+ */
+export const KNOWN_LINK_KINDS: readonly string[] = [
+  "satisfies",
+  "derived-from",
+  "references",
+  "allocated-to",
+  "realizes",
+  "verifies",
+  "tests",
+  "depends-on",
+  "part-of",
+  "generated-from",
+  "supersedes",
+] as const;
 
 /** A directional link between two entries in the traceability graph. */
 export interface Link {
