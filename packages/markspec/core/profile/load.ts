@@ -17,6 +17,7 @@ import type { ReadFile } from "../config/mod.ts";
 import type { Diagnostic, ProfileChain } from "../model/mod.ts";
 import { CORE_TYPES } from "../model/mod.ts";
 import { loadChain } from "./chain.ts";
+import { BUILTIN_DEFAULT_SPECIFIER } from "./default_profile.ts";
 
 /** Result of `loadProfileForCommand`. */
 export interface LoadProfileForCommandResult {
@@ -30,7 +31,9 @@ export interface LoadProfileForCommandResult {
  * Load the active profile chain for the project at `projectRoot`.
  *
  * Discovery: looks for `.markspec.yaml` at the project root (sibling of
- * `project.yaml`). Absent or empty → `chain: null` (core-only mode).
+ * `project.yaml`). Absent or empty → the bundled default profile is the
+ * sole chain tier, unless `.markspec.yaml` sets `default-profile: false`
+ * (then `chain: null`, core-only mode).
  *
  * v1 constraint: at most **one** content-bearing profile per project. Two or
  * more entries in `profiles:` produces `PROFILE-LOAD-006` and no chain.
@@ -43,7 +46,8 @@ export async function loadProfileForCommand(
 
   const rawYaml = await readMarkspecYaml(projectRoot, readFile);
   if (rawYaml === null) {
-    return { chain: null, diagnostics };
+    // No .markspec.yaml — the default is active (no file to opt out in).
+    return await loadBuiltinOnlyChain(projectRoot, readFile, diagnostics);
   }
 
   const sourcePath = join(projectRoot, MARKSPEC_YAML_FILENAME);
@@ -53,9 +57,12 @@ export async function loadProfileForCommand(
     return { chain: null, diagnostics };
   }
 
-  const { profiles } = parsed.config;
+  const { profiles, defaultProfile } = parsed.config;
+  const bundledDefault = defaultProfile !== false;
   if (profiles.length === 0) {
-    return { chain: null, diagnostics };
+    return bundledDefault
+      ? await loadBuiltinOnlyChain(projectRoot, readFile, diagnostics)
+      : { chain: null, diagnostics };
   }
 
   if (profiles.length > 1) {
@@ -74,10 +81,34 @@ export async function loadProfileForCommand(
     projectRoot,
     projectRoot,
     readFile,
+    { bundledDefault },
   );
   diagnostics.push(...chainResult.diagnostics);
 
   // MSL-A040 — profile must not redefine reserved core keys / types.
+  if (chainResult.chain) {
+    diagnostics.push(...checkReservedRedefinitions(chainResult.chain));
+  }
+  return { chain: chainResult.chain, diagnostics };
+}
+
+/**
+ * Build a chain containing only the bundled default profile. Used when no
+ * project profile is declared but the default is not opted out.
+ */
+async function loadBuiltinOnlyChain(
+  projectRoot: string,
+  readFile: ReadFile,
+  diagnostics: Diagnostic[],
+): Promise<LoadProfileForCommandResult> {
+  const chainResult = await loadChain(
+    BUILTIN_DEFAULT_SPECIFIER,
+    projectRoot,
+    projectRoot,
+    readFile,
+    { bundledDefault: true },
+  );
+  diagnostics.push(...chainResult.diagnostics);
   if (chainResult.chain) {
     diagnostics.push(...checkReservedRedefinitions(chainResult.chain));
   }

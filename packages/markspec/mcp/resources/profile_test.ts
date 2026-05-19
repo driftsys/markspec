@@ -93,6 +93,53 @@ profile:
   assertStringIncludes(text, "Lowest ASIL");
 });
 
+Deno.test("renderProfile: two-tier chain shows leaf as Active and root under Inherits", () => {
+  // Build root tier (the bundled default)
+  const rootResult = parseManifest(
+    `id: "@markspec/profile-default"\nversion: 1.0.0\nmarkspec-schema: "1"\nprofile:\n  types: {}\n`,
+    "<root>",
+  );
+  if (!rootResult.manifest) throw new Error("root parse failed");
+  const rootTier: LoadedProfile = {
+    id: rootResult.manifest.id,
+    version: rootResult.manifest.version,
+    specifier: { kind: "local", path: "./root" },
+    manifest: rootResult.manifest,
+    sourcePath: "<root>",
+    baseDir: "/tmp",
+  };
+
+  // Build leaf tier (the user's own profile)
+  const leafResult = parseManifest(
+    `id: "@acme/leaf"\nversion: 0.1.0\nmarkspec-schema: "1"\nprofile:\n  types: {}\n`,
+    "<leaf>",
+  );
+  if (!leafResult.manifest) throw new Error("leaf parse failed");
+  const leafTier: LoadedProfile = {
+    id: leafResult.manifest.id,
+    version: leafResult.manifest.version,
+    specifier: { kind: "local", path: "./leaf" },
+    manifest: leafResult.manifest,
+    sourcePath: "<leaf>",
+    baseDir: "/tmp",
+  };
+
+  const twoTierChain: ProfileChain = {
+    tiers: [rootTier, leafTier],
+    // deno-lint-ignore no-explicit-any
+    effective: null as any,
+  };
+  const merge = mergeChain(twoTierChain);
+  const chain: ProfileChain = {
+    tiers: [rootTier, leafTier],
+    effective: merge.effective!,
+  };
+
+  const text = renderProfile(buildProfileIntrospection(chain));
+  assertStringIncludes(text, "**Active**: @acme/leaf@0.1.0");
+  assertStringIncludes(text, "**Inherits**: @markspec/profile-default@1.0.0");
+});
+
 // Verify buildProfileView is a thin wrapper re-exporting buildProfileIntrospection.
 Deno.test("buildProfileView: wraps buildProfileIntrospection", () => {
   const chain = makeChain(`

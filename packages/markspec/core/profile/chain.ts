@@ -25,6 +25,11 @@ import type { AppendFile, RunGit } from "./git-cache.ts";
 import { parseManifest } from "./manifest.ts";
 import { mergeChain } from "./merge.ts";
 import {
+  BUILTIN_DEFAULT_SOURCE_PATH,
+  BUILTIN_DEFAULT_SPECIFIER,
+  DEFAULT_PROFILE_MANIFEST,
+} from "./default_profile.ts";
+import {
   type ResolvedProfileSource,
   resolveGitSpecifier,
   resolveLocalSpecifier,
@@ -43,6 +48,14 @@ export interface LoadChainResult {
 export interface LoadChainOptions {
   readonly runGit?: RunGit;
   readonly appendFile?: AppendFile;
+  /**
+   * When true, the bundled default profile is spliced as the implicit
+   * root of the chain (the ultimate `extends:` parent of any tier that
+   * declares none). Default false — only `loadProfileForCommand` enables
+   * it, so direct `loadChain` callers (e.g. `profile add` validation)
+   * keep core-only behaviour.
+   */
+  readonly bundledDefault?: boolean;
 }
 
 /**
@@ -120,6 +133,12 @@ export async function loadChain(
           readFile,
         },
       );
+    } else if (cursorSpec.kind === "builtin") {
+      resolved = {
+        rawYaml: DEFAULT_PROFILE_MANIFEST,
+        sourcePath: BUILTIN_DEFAULT_SOURCE_PATH,
+        baseDir: BUILTIN_DEFAULT_SOURCE_PATH,
+      };
     } else {
       resolved = await resolveLocalSpecifier(
         cursorSpec,
@@ -148,9 +167,14 @@ export async function loadChain(
     };
     tiersLeafFirst.push(tier);
 
-    // Advance cursor to the parent, if any.
+    // Advance cursor to the parent, if any. When the tier declares no
+    // explicit parent, splice the bundled default as the implicit root
+    // (once — never below the builtin itself).
     if (parsed.manifest.extends !== undefined) {
       cursorSpec = parsed.manifest.extends;
+      cursorDir = resolved.baseDir;
+    } else if (opts.bundledDefault && cursorSpec.kind !== "builtin") {
+      cursorSpec = BUILTIN_DEFAULT_SPECIFIER;
       cursorDir = resolved.baseDir;
     } else {
       cursorSpec = undefined;
@@ -208,6 +232,9 @@ function specifierKey(
     const pkg = spec.scope ? `${spec.scope}/${spec.name}` : spec.name;
     return `npm:${pkg}@${spec.range}`;
   }
+  if (spec.kind === "builtin") {
+    return "builtin:@markspec/profile-default";
+  }
   const _exhaustive: never = spec;
   throw new Error(`Unknown specifier kind`);
 }
@@ -223,6 +250,9 @@ function stringifySpec(spec: ProfileSpecifier): string {
   if (spec.kind === "npm") {
     const pkg = spec.scope ? `${spec.scope}/${spec.name}` : spec.name;
     return `npm:${pkg}@${spec.range}`;
+  }
+  if (spec.kind === "builtin") {
+    return "@markspec/profile-default (bundled)";
   }
   const _exhaustive: never = spec;
   throw new Error(`Unknown specifier kind`);

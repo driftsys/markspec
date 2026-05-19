@@ -39,14 +39,15 @@ export function renderProfile(intro: ProfileIntrospection): string {
     return lines.join("\n") + "\n";
   }
 
-  const active = overview.tiers[0];
+  const active = overview.tiers[overview.tiers.length - 1];
   lines.push(`**Active**: ${active.id}@${active.version}`);
   if (active.summary) {
     lines.push("", active.summary);
   }
   if (overview.tiers.length > 1) {
-    const inherits = overview.tiers.slice(1).map((t) => `${t.id}@${t.version}`)
-      .join(", ");
+    const inherits = overview.tiers.slice(0, -1).map((t) =>
+      `${t.id}@${t.version}`
+    ).join(", ");
     lines.push(`**Inherits**: ${inherits}`);
   }
   lines.push("");

@@ -39,6 +39,11 @@ export async function readMarkspecYaml(
 /** The parsed content of a `.markspec.yaml`. */
 export interface MarkspecYaml {
   readonly profiles: readonly ProfileSpecifier[];
+  /**
+   * Opt out of the bundled default profile when explicitly `false`.
+   * `undefined` (key absent) means the default is active.
+   */
+  readonly defaultProfile?: boolean;
 }
 
 /** Result of parsing a `.markspec.yaml` string. */
@@ -47,7 +52,7 @@ export interface ParseMarkspecYamlResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-const ALLOWED_MARKSPEC_YAML_KEYS = new Set(["profiles"]);
+const ALLOWED_MARKSPEC_YAML_KEYS = new Set(["profiles", "default-profile"]);
 
 /**
  * Parse and validate a `.markspec.yaml` string.
@@ -130,13 +135,29 @@ export function parseMarkspecYaml(
     }
   }
 
+  // default-profile: optional boolean opt-out for the bundled default.
+  let defaultProfile: boolean | undefined;
+  const rawDefaultProfile = root["default-profile"];
+  if (rawDefaultProfile !== undefined) {
+    if (typeof rawDefaultProfile !== "boolean") {
+      diagnostics.push({
+        code: "MARKSPEC-YAML-003",
+        severity: "error",
+        message: ".markspec.yaml: 'default-profile' must be a boolean",
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return { config: null, diagnostics };
+    }
+    defaultProfile = rawDefaultProfile;
+  }
+
   // If any specifier failed to parse, treat the whole file as invalid.
   const hasErrors = diagnostics.some((d) => d.severity === "error");
   if (hasErrors) {
     return { config: null, diagnostics };
   }
 
-  return { config: { profiles }, diagnostics };
+  return { config: { profiles, defaultProfile }, diagnostics };
 }
 
 /**

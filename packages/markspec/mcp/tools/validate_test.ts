@@ -5,8 +5,18 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import type { Diagnostic } from "../../core/mod.ts";
+import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { mergeChain, parseManifest } from "../../core/mod.ts";
+import type {
+  CompileResult,
+  Diagnostic,
+  ProfileChain,
+} from "../../core/mod.ts";
+import type { LoadedProfile } from "../../core/model/mod.ts";
+import type { Project } from "../project.ts";
 import { filterDiagnostics, renderDiagnosticsReport } from "./validate.ts";
+import { registerTools } from "./mod.ts";
 
 const ERR: Diagnostic = {
   code: "MSL-R004",
@@ -83,3 +93,115 @@ Deno.test("filterDiagnostics: absolute path match", () => {
   const out = filterDiagnostics([ERR], ["/proj/docs/req.md"], "/proj");
   assertStringIncludes(out.length.toString(), "1");
 });
+
+// ---------------------------------------------------------------------------
+// validate tool: profile label is the LEAF tier, not the bundled-default root
+// ---------------------------------------------------------------------------
+
+/** Build one chain tier from a manifest YAML, mirroring the makeChain
+ * helper in profile_describe_test.ts. */
+function makeTier(yaml: string): LoadedProfile {
+  const result = parseManifest(yaml, "<test>");
+  if (!result.manifest) throw new Error("parse failed");
+  return {
+    id: result.manifest.id,
+    version: result.manifest.version,
+    specifier: { kind: "local", path: "./test" },
+    manifest: result.manifest,
+    sourcePath: "<test>",
+    baseDir: "/tmp",
+  };
+}
+
+/** Assemble a multi-tier ProfileChain (root -> leaf) and merge it.
+ * mergeChain reads only `.tiers`; the placeholder effective is ignored. */
+function makeMultiTierChain(...tiers: LoadedProfile[]): ProfileChain {
+  // deno-lint-ignore no-explicit-any
+  const merge = mergeChain({ tiers, effective: null as any });
+  return { tiers, effective: merge.effective! };
+}
+
+const ROOT_DEFAULT_YAML = `
+id: "@markspec/profile-default"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      description: A baseline requirement
+`;
+
+const LEAF_ACME_YAML = `
+id: "@acme/leaf"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  types:
+    acme-requirement:
+      extends: Requirement
+      description: An ACME requirement
+`;
+
+/** Minimal CompileResult with no diagnostics -- produces the clean report
+ * path `OK All N entries pass validation under <profileLabel>.`. */
+function emptyCompileResult(): CompileResult {
+  return {
+    entries: new Map(),
+    links: [],
+    forward: new Map(),
+    reverse: new Map(),
+    documents: new Map(),
+    diagnostics: [],
+  };
+}
+
+/** Stub Project exposing only what the validate handler reads:
+ * `profileChain`, `projectRoot`, and `getCompiled()`. */
+function stubProject(profileChain: ProfileChain): Project {
+  return {
+    projectRoot: "/proj",
+    config: undefined,
+    profileChain,
+    profile: profileChain.effective,
+    getCompiled: () => Promise.resolve(emptyCompileResult()),
+    forceRefresh: () => Promise.resolve(emptyCompileResult()),
+    subscribeInvalidation: () => () => {},
+  };
+}
+
+/** Invoke the `validate` tool through registerTools + a Server stub that
+ * captures the tools/call handler, returning the rendered report text. */
+async function invokeValidate(project: Project): Promise<string> {
+  // deno-lint-ignore no-explicit-any
+  let callHandler: ((req: any) => Promise<any>) | undefined;
+  const serverStub = {
+    // deno-lint-ignore no-explicit-any
+    setRequestHandler(schema: unknown, handler: (req: any) => Promise<any>) {
+      if (schema === CallToolRequestSchema) callHandler = handler;
+    },
+  } as unknown as Server;
+  registerTools(serverStub, project);
+  if (!callHandler) throw new Error("tools/call handler not registered");
+  const res = await callHandler({
+    params: { name: "validate", arguments: {} },
+  });
+  return res.content[0].text as string;
+}
+
+Deno.test(
+  "validate tool: profile label is the leaf tier, not the bundled default root",
+  async () => {
+    const root = makeTier(ROOT_DEFAULT_YAML);
+    const leaf = makeTier(LEAF_ACME_YAML);
+    const chain = makeMultiTierChain(root, leaf);
+    // Sanity-check the chain is ordered root -> leaf as the loader produces.
+    assertEquals(chain.tiers[0].id, "@markspec/profile-default");
+    assertEquals(chain.tiers[chain.tiers.length - 1].id, "@acme/leaf");
+
+    const report = await invokeValidate(stubProject(chain));
+
+    assertStringIncludes(report, "under @acme/leaf@0.1.0");
+    assertEquals(report.includes("@markspec/profile-default"), false);
+  },
+);

@@ -159,7 +159,8 @@ export type ProfileSpecifier =
     readonly scope?: string;
     readonly name: string;
     readonly range: string;
-  };
+  }
+  | { readonly kind: "builtin" };
 
 /** Parsed `markspec.yaml` content — the manifest authored in a profile. */
 export interface ProfileManifest {

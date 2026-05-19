@@ -250,3 +250,57 @@ Deno.test("addProfileSpecifier: adds profiles key when missing", async () => {
   assertStringIncludes(written, "profiles:");
   assertStringIncludes(written, "./my-profile");
 });
+
+Deno.test("parseMarkspecYaml: default-profile false parsed", () => {
+  const result = parseMarkspecYaml(
+    "profiles: []\ndefault-profile: false\n",
+    "/p/.markspec.yaml",
+  );
+  assertExists(result.config);
+  assertEquals(result.config.defaultProfile, false);
+  assertEquals(result.diagnostics, []);
+});
+
+Deno.test("parseMarkspecYaml: default-profile true parsed", () => {
+  const result = parseMarkspecYaml(
+    "default-profile: true\n",
+    "/p/.markspec.yaml",
+  );
+  assertExists(result.config);
+  assertEquals(result.config.defaultProfile, true);
+});
+
+Deno.test("parseMarkspecYaml: default-profile absent leaves field undefined", () => {
+  const result = parseMarkspecYaml(
+    "profiles:\n  - ./profiles/x\n",
+    "/p/.markspec.yaml",
+  );
+  assertExists(result.config);
+  assertEquals(result.config.defaultProfile, undefined);
+});
+
+Deno.test("parseMarkspecYaml: non-boolean default-profile emits MARKSPEC-YAML-003", () => {
+  const result = parseMarkspecYaml(
+    'default-profile: "no"\n',
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+});
+
+Deno.test("addProfileSpecifier: preserves an existing default-profile key", async () => {
+  const store: Record<string, string> = {
+    "/p/.markspec.yaml": "default-profile: false\nprofiles:\n  - ./a\n",
+  };
+  await addProfileSpecifier(
+    "./b",
+    (path: string) => Promise.resolve(store[path]),
+    (path: string, content: string) => {
+      store[path] = content;
+      return Promise.resolve();
+    },
+    "/p",
+  );
+  assertStringIncludes(store["/p/.markspec.yaml"], "default-profile: false");
+  assertStringIncludes(store["/p/.markspec.yaml"], '- "./b"');
+});

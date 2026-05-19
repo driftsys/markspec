@@ -491,6 +491,16 @@ Profiles do not reorder the core chain; they only populate steps 2, 5, and 6
 
 ## 7. The default profile
 
+> **Implementation status (2026-05-19):** §2.2 bundling + auto-registration
+>
+> - `default-profile: false` opt-out shipped (identity/minimal manifest). §7.1
+>   pattern bindings, §7 RFC 2119 hygiene, and the glossary `{{def.}}` binding
+>   remain deferred — blocked on a core-type-binding construct. CLI
+>   `profile show`/`doctor` and the MCP `markspec://profile` resource headline
+>   the leaf (user) profile; `profile show` additionally prints the full
+>   root→leaf chain while the MCP resource lists strict ancestors under
+>   **Inherits** — this presentation difference is intentional.
+
 ### 7.1 Contents — thin, by construction
 
 Under the 15-type core taxonomy the default profile is **much smaller** than

@@ -7,7 +7,6 @@ version: 0.1.0
 markspec-schema: "1"
 description: Minimal ASPICE SWE vertical (design validation)
 license: MIT
-extends: "npm:@markspec/profile-default@^1.0"
 
 profile:
 
