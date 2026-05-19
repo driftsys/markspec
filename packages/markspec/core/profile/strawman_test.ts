@@ -25,44 +25,21 @@ const PROFILES_DIR = resolve(
 );
 
 /**
- * The strawman uses `extends: npm:@markspec/profile-default@^1.0`.
- * For testing, we create a modified version that extends the local default.
+ * The strawman declares no `extends:`. The bundled default profile is
+ * auto-spliced as the implicit root when `bundledDefault: true`, exactly
+ * as `loadProfileForCommand` does for real projects.
  */
 async function loadStrawmanChain(): Promise<{
   chain: ProfileChain | null;
   diagnostics: readonly { severity: string; code: string; message: string }[];
 }> {
-  const originalPath = resolve(PROFILES_DIR, "aspice-swe-mini/markspec.yaml");
-  const original = await Deno.readTextFile(originalPath);
-  const rewritten = original.replace(
-    /extends:.*$/m,
-    'extends: "../default"',
-  );
-
-  const tmpDir = await Deno.makeTempDir({ prefix: "markspec-strawman-" });
-  const profileDir = `${tmpDir}/aspice-swe-mini`;
-  const defaultDir = `${tmpDir}/default`;
-
-  await Deno.mkdir(profileDir, { recursive: true });
-  await Deno.mkdir(defaultDir, { recursive: true });
-
-  await Deno.writeTextFile(`${profileDir}/markspec.yaml`, rewritten);
-
-  const defaultManifest = await Deno.readTextFile(
-    resolve(PROFILES_DIR, "default/markspec.yaml"),
-  );
-  await Deno.writeTextFile(`${defaultDir}/markspec.yaml`, defaultManifest);
-
   const specifier: ProfileSpecifier = {
     kind: "local",
     path: "./aspice-swe-mini",
   };
-
-  try {
-    return await loadChain(specifier, tmpDir, tmpDir, readFile);
-  } finally {
-    await Deno.remove(tmpDir, { recursive: true }).catch(() => {});
-  }
+  return await loadChain(specifier, PROFILES_DIR, PROFILES_DIR, readFile, {
+    bundledDefault: true,
+  });
 }
 
 Deno.test("strawman: chain resolves with 2 tiers", async () => {
@@ -127,6 +104,12 @@ Deno.test("strawman: per-type color resolves through merged colors map", async (
   assertExists(result.chain);
   const types = result.chain.effective.types;
   const colors = result.chain.effective.colors;
+
+  // The colour-role → hue values (primary=blue, …) originate from the
+  // bundled default profile (the root tier). These lines confirm the
+  // merge pipeline propagates them into the effective colours map. The
+  // per-type `color.value` assertions below are the meaningful cross-tier
+  // checks: the role name comes from the strawman, its hue from the default.
 
   // Default profile colors are inherited.
   assertEquals(colors.get("primary")?.value, "blue");
