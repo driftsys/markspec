@@ -264,6 +264,8 @@ export interface EntryProperties {
     readonly path: string;
     readonly line?: number;
     readonly column?: number;
+    /** ISO 8601 last-modified timestamp from the filesystem. */
+    readonly mtime?: string;
   };
   /** Version-control observations. */
   readonly git?: {

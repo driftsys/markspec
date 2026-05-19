@@ -10,6 +10,28 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { parse as parseYaml } from "@std/yaml";
 import { markspec } from "./helpers.ts";
 
+/** Strip `properties.file.mtime` from every entry so cross-run comparisons
+ * aren't sensitive to filesystem timestamps from separate temp dirs. */
+function stripMtime(result: Record<string, unknown>): Record<string, unknown> {
+  const entries = result.entries as Record<string, Record<string, unknown>>;
+  const stripped: Record<string, Record<string, unknown>> = {};
+  for (const [id, entry] of Object.entries(entries)) {
+    const props = entry.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    if (props?.file) {
+      const { mtime: _mtime, ...fileRest } = props.file;
+      stripped[id] = {
+        ...entry,
+        properties: { ...props, file: fileRest },
+      };
+    } else {
+      stripped[id] = entry;
+    }
+  }
+  return { ...result, entries: stripped };
+}
+
 const PROJECT_YAML = `name: phase5-e2e\nversion: 0.1.0\n`;
 
 const SAMPLE_MD = `# Example
@@ -114,9 +136,12 @@ Deno.test("export json: matches the compile --format json output", async () => {
   );
   assertEquals(exportRun.code, 0);
   assertEquals(compileRun.code, 0);
+  // Strip properties.file.mtime before comparing — both commands stat the
+  // same files but in separate temp dirs created at different times, so
+  // mtime values differ between invocations. The structural graph is what matters.
   assertEquals(
-    JSON.parse(exportRun.stdout),
-    JSON.parse(compileRun.stdout),
+    stripMtime(JSON.parse(exportRun.stdout)),
+    stripMtime(JSON.parse(compileRun.stdout)),
     "export json and compile --format json should produce identical output",
   );
 });

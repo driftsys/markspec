@@ -297,3 +297,48 @@ Deno.test("compile: no front matter → document absent", async () => {
   const result = await compile(["req.md"], { readFile: reader(files) });
   assertEquals(result.documents.has("req.md"), false);
 });
+
+// ---------------------------------------------------------------------------
+// file.* properties population
+// ---------------------------------------------------------------------------
+
+const FIXTURE_MD = `- [REQ-001] Title
+
+  Body.
+
+      Id: ${ULID_A}
+`;
+
+Deno.test("compile: properties.file.path set when statFile provided", async () => {
+  const files = { "req.md": FIXTURE_MD };
+  const fakeMtime = new Date("2026-05-19T10:23:00.000Z");
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    statFile: () => Promise.resolve({ mtime: fakeMtime }),
+  });
+  const entry = result.entries.get("REQ-001");
+  assertExists(entry);
+  assertEquals(entry.properties?.file?.path, "req.md");
+  assertEquals(entry.properties?.file?.mtime, "2026-05-19T10:23:00.000Z");
+});
+
+Deno.test("compile: properties.file.path set without statFile; mtime absent", async () => {
+  const files = { "req.md": FIXTURE_MD };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const entry = result.entries.get("REQ-001");
+  assertExists(entry);
+  assertEquals(entry.properties?.file?.path, "req.md");
+  assertEquals(entry.properties?.file?.mtime, undefined);
+});
+
+Deno.test("compile: statFile returning undefined → mtime absent, no crash", async () => {
+  const files = { "req.md": FIXTURE_MD };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    statFile: () => Promise.resolve(undefined),
+  });
+  const entry = result.entries.get("REQ-001");
+  assertExists(entry);
+  assertEquals(entry.properties?.file?.path, "req.md");
+  assertEquals(entry.properties?.file?.mtime, undefined);
+});

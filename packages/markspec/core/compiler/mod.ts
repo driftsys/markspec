@@ -26,6 +26,14 @@ export interface CompileOptions {
   readonly readFile: (path: string) => Promise<string>;
   /** Active profile for inverse attribute generation. Optional — when absent, inverses are skipped. */
   readonly profile?: EffectiveProfile;
+  /**
+   * Optional. Called once per source file to obtain its mtime.
+   * Returns undefined when stat is unavailable (remote, test mock, etc.).
+   * When absent, `entry.properties.file.mtime` is left undefined.
+   */
+  readonly statFile?: (
+    path: string,
+  ) => Promise<{ mtime: Date | null } | undefined>;
 }
 
 /** Compiled project output with resolved traceability graph. */
@@ -76,7 +84,23 @@ export async function compile(
       continue;
     }
     const result = await parseFile(content, { file: filePath });
-    allEntries.push(...result.entries);
+    const stat = options.statFile
+      ? await options.statFile(filePath)
+      : undefined;
+    const mtimeStr = stat?.mtime ? stat.mtime.toISOString() : undefined;
+    const annotatedEntries = result.entries.map((entry) => ({
+      ...entry,
+      properties: {
+        ...entry.properties,
+        file: {
+          path: filePath,
+          line: entry.location.line,
+          column: entry.location.column,
+          mtime: mtimeStr,
+        },
+      },
+    }));
+    allEntries.push(...annotatedEntries);
     parseDiagnostics.push(...result.diagnostics);
     if (result.document) documents.set(filePath, result.document);
   }
