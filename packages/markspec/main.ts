@@ -104,6 +104,8 @@ async function compileProject(
   const result = await compile(paths, {
     readFile: (p) => Deno.readTextFile(p),
     profile: chain?.effective ?? undefined,
+    statFile: (p) =>
+      Deno.stat(p).then((s) => ({ mtime: s.mtime })).catch(() => undefined),
   });
 
   for (const diag of result.diagnostics) {
@@ -199,6 +201,8 @@ const bookCmd = new Command()
     const compiled = await compile([...files.keys()], {
       readFile: (p) => Deno.readTextFile(p),
       profile: bookChain?.effective ?? undefined,
+      statFile: (p) =>
+        Deno.stat(p).then((s) => ({ mtime: s.mtime })).catch(() => undefined),
     });
 
     const result = buildBook(structure, {
