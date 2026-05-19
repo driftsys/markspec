@@ -284,6 +284,17 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
 export const UNIVERSAL_ATTRIBUTE_KEYS: readonly string[] = ATTRIBUTE_CATALOG
   .map((spec) => spec.key);
 
+/**
+ * Attribute value types that accept CSV on input but must be emitted as
+ * multi-line per ADR-002 §2.6. `citation` is excluded — locators may contain
+ * commas.
+ */
+export const CSV_SPLITTABLE_TYPES: ReadonlySet<string> = new Set([
+  "id-list",
+  "tag-list",
+  "external-id",
+]);
+
 // ---------------------------------------------------------------------------
 // Lookup helpers
 // ---------------------------------------------------------------------------

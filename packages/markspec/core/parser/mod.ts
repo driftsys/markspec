@@ -62,7 +62,11 @@ export function parse(
   markdown: string,
   options?: ParseOptions,
 ): Entry[] {
-  return parseMarkdown(markdown, options).entries;
+  const file = options?.file;
+  return parseMarkdown(markdown, {
+    ...options,
+    isReferencesDoc: file !== undefined ? isReferencesDocument(file) : false,
+  }).entries;
 }
 
 /** Result of parsing a file (entries + optional document + diagnostics). */

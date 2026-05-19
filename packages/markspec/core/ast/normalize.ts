@@ -9,24 +9,18 @@
  * the normalised text via the SAME extraction the builder uses
  * (`extractMarkersFromText`, re-exported from `core/ast/build.ts`).
  *
- * §3.4.1 rule (`docs/specs/markspec-core-data-model.md` §3.4.1), ported
- * verbatim from the string pass `normalizeModalKeywords` in
- * `core/formatter/mod.ts`:
+ * §3.4.1 rule (`docs/specs/markspec-core-data-model.md` §3.4.1):
  *
  *   - RFC 2119 (`SHALL`, `SHOULD`, `MAY`, `MUST`, optionally `… NOT`) —
  *     always lowercased.
  *   - EARS (`When`, `While`, `Where`, `Unless`) — lowercased
  *     mid-sentence, capitalisation preserved when sentence-initial.
  *
- * The regexes and `isSentenceInitial` logic are intentionally a faithful
- * copy of `core/formatter/mod.ts`. The string pass cannot be imported:
- * `core/formatter/` already depends on `core/ast/`, so an `ast →
- * formatter` import would invert the one-directional dependency flow and
- * create a cycle. The formatter now delegates to THIS module for the AST
- * path (SP3 Task 5), but `normalizeModalKeywords` in `formatter/mod.ts`
- * is retained for the title/trailer string paths. Full deduplication is
- * deferred to a future sprint (TODO SP4: unify the two implementations
- * once all prose paths migrate to the AST path).
+ * The shared `RFC2119_MODAL_RE`, `EARS_KEYWORD_RE`, and `isSentenceInitial`
+ * helpers are imported from `core/util/modals.ts` (D11 consolidation).
+ * They cannot be imported from `formatter/mod.ts` because `formatter/`
+ * depends on `ast/`, making an `ast → formatter` import a dependency cycle.
+ * `core/util/` is the base level that both modules can import from.
  *
  * Invariants (HARD — never weaken):
  *   - Pure: no `Deno.*`, no I/O.
@@ -43,6 +37,11 @@
  */
 
 import { walkProseLines } from "../util/fence.ts";
+import {
+  EARS_KEYWORD_RE,
+  isSentenceInitial,
+  RFC2119_MODAL_RE,
+} from "../util/modals.ts";
 import { extractMarkersFromText } from "./build.ts";
 import type {
   BlockquoteNode,
@@ -58,43 +57,9 @@ import type {
 } from "./nodes.ts";
 
 // ---------------------------------------------------------------------------
-// §3.4.1 string helper — faithful port of formatter/mod.ts
-// (RFC2119_MODAL_RE, EARS_KEYWORD_RE, isSentenceInitial,
-//  normalizeModalKeywords). Kept byte-for-byte equivalent so the AST
-//  port matches the string pass exactly; Task 5 collapses the two.
+// §3.4.1 string helper — uses shared RFC2119_MODAL_RE, EARS_KEYWORD_RE,
+// and isSentenceInitial from core/util/modals.ts (D11 consolidation).
 // ---------------------------------------------------------------------------
-
-/**
- * RFC 2119 modal keywords in uppercase form, with optional ` NOT` suffix.
- * Captured for canonical-form normalisation per spec §3.4.1: uppercase
- * input is accepted but emitted lowercase, unconditionally.
- */
-const RFC2119_MODAL_RE = /\b(SHALL|SHOULD|MAY|MUST)(\s+NOT)?\b/g;
-
-/**
- * EARS keywords subject to the sentence-initial rule of spec §3.4.1:
- * lowercased when mid-sentence, preserved when starting a sentence.
- * `If…then` is deferred to a later slice because its multi-token form
- * needs separate handling.
- */
-const EARS_KEYWORD_RE = /\b(When|While|Where|Unless)\b/g;
-
-/**
- * Decide whether the EARS keyword at `offset` in `line` is at sentence
- * start (return value true). Walks left over whitespace and reports true
- * when it hits the beginning of the line or a sentence-terminating
- * punctuation character (`.`, `!`, `?`).
- *
- * Faithful copy of `isSentenceInitial` in `core/formatter/mod.ts`.
- */
-function isSentenceInitial(line: string, offset: number): boolean {
-  if (offset === 0) return true;
-  let i = offset - 1;
-  while (i >= 0 && (line[i] === " " || line[i] === "\t")) i--;
-  if (i < 0) return true;
-  const prev = line[i];
-  return prev === "." || prev === "!" || prev === "?";
-}
 
 /**
  * Apply the §3.4.1 modal-keyword case rule to a prose string.

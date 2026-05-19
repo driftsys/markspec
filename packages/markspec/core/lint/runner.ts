@@ -12,7 +12,11 @@ import { resolvedCoreType } from "../validator/type_resolution.ts";
 import type { LintDiagnostic } from "./types.ts";
 import { runLexiconRules } from "./rules/lexicon.ts";
 import { runStructRules } from "./rules/struct.ts";
-import { parseDisableValue, runSuppressionRules } from "./rules/suppression.ts";
+import {
+  hasRationale,
+  parseDisableValue,
+  runSuppressionRules,
+} from "./rules/suppression.ts";
 
 // ---------------------------------------------------------------------------
 // In-scope predicate
@@ -66,14 +70,6 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
     }
   }
   return new Set();
-}
-
-/** Return whether the entry has a non-empty Rationale attribute. */
-function hasRationale(entry: Entry): boolean {
-  for (const attr of entry.rawAttributes) {
-    if (attr.key === "Rationale" && attr.value.trim().length > 0) return true;
-  }
-  return false;
 }
 
 // ---------------------------------------------------------------------------
