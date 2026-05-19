@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.2] (2026-05-19)
+
+### Documentation
+
+- **book:** fix upskill install command and document global flag ([ce442da])
+
+[0.5.2]: https://github.com/driftsys/markspec/compare/v0.5.1...v0.5.2
+[ce442da]: https://github.com/driftsys/markspec/commit/ce442da
+
 ## [0.5.1] (2026-05-19)
 
 ### Bug Fixes
