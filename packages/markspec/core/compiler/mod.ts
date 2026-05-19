@@ -53,6 +53,32 @@ export interface CompileResult {
 }
 
 /**
+ * Semaphore for bounded concurrency — limits simultaneous file reads to
+ * avoid exhausting OS file-descriptor limits on large projects.
+ *
+ * Private to this module; not exported.
+ */
+class Semaphore {
+  private queue: Array<() => void> = [];
+  constructor(private maxConcurrent: number) {}
+  async acquire(): Promise<void> {
+    if (this.maxConcurrent > 0) {
+      this.maxConcurrent--;
+      return;
+    }
+    await new Promise<void>((resolve) => this.queue.push(resolve));
+  }
+  release(): void {
+    const next = this.queue.shift();
+    if (next) {
+      next();
+    } else {
+      this.maxConcurrent++;
+    }
+  }
+}
+
+/**
  * Compile MarkSpec files from the given paths into a resolved
  * traceability graph.
  *
@@ -69,40 +95,72 @@ export async function compile(
   const parseDiagnostics: Diagnostic[] = [];
   const documents = new Map<string, Document>();
 
-  // Phase 1: Read and parse all files.
-  for (const filePath of paths) {
-    let content: string;
-    try {
-      content = await read(filePath);
-    } catch {
-      parseDiagnostics.push({
-        code: "MSL-E000",
-        severity: "error",
-        message: `failed to read file: ${filePath}`,
-        location: undefined,
-      });
-      continue;
-    }
-    const result = await parseFile(content, { file: filePath });
-    const stat = options.statFile
-      ? await options.statFile(filePath)
-      : undefined;
-    const mtimeStr = stat?.mtime ? stat.mtime.toISOString() : undefined;
-    const annotatedEntries = result.entries.map((entry) => ({
-      ...entry,
-      properties: {
-        ...entry.properties,
-        file: {
-          path: filePath,
-          line: entry.location.line,
-          column: entry.location.column,
-          mtime: mtimeStr,
-        },
-      },
-    }));
-    allEntries.push(...annotatedEntries);
-    parseDiagnostics.push(...result.diagnostics);
-    if (result.document) documents.set(filePath, result.document);
+  // Phase 1: Read and parse all files with bounded concurrency (16 slots).
+  // Using Promise.all avoids sequential I/O latency on large projects while
+  // the semaphore prevents exhausting OS file-descriptor limits.
+  const sem = new Semaphore(16);
+
+  type FileResult = {
+    filePath: string;
+    entries: Entry[];
+    diagnostics: Diagnostic[];
+    document: Document | undefined;
+  } | null;
+
+  const fileResults = await Promise.all(
+    [...paths].map(async (filePath): Promise<FileResult> => {
+      await sem.acquire();
+      try {
+        let content: string;
+        try {
+          content = await read(filePath);
+        } catch {
+          return {
+            filePath,
+            entries: [],
+            diagnostics: [{
+              code: "MSL-E000",
+              severity: "error",
+              message: `failed to read file: ${filePath}`,
+              location: undefined,
+            }],
+            document: undefined,
+          };
+        }
+        const result = await parseFile(content, { file: filePath });
+        const stat = options.statFile
+          ? await options.statFile(filePath)
+          : undefined;
+        const mtimeStr = stat?.mtime ? stat.mtime.toISOString() : undefined;
+        const annotatedEntries = result.entries.map((entry) => ({
+          ...entry,
+          properties: {
+            ...entry.properties,
+            file: {
+              path: filePath,
+              line: entry.location.line,
+              column: entry.location.column,
+              mtime: mtimeStr,
+            },
+          },
+        }));
+        return {
+          filePath,
+          entries: annotatedEntries,
+          diagnostics: [...result.diagnostics],
+          document: result.document,
+        };
+      } finally {
+        sem.release();
+      }
+    }),
+  );
+
+  for (const res of fileResults) {
+    if (!res) continue;
+    allEntries.push(...res.entries);
+    parseDiagnostics.push(...res.diagnostics);
+    if (res.document) documents.set(res.filePath, res.document);
   }
 
   // Phase 2: Validate all entries.

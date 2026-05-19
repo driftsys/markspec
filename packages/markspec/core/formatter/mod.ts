@@ -231,10 +231,21 @@ function emitBodyViaAst(
   lines: string[],
   file: string,
   diagnostics: Diagnostic[],
+  cachedEntries: Entry[] | undefined,
 ): boolean {
-  // Diagnostics from this re-parse are intentionally discarded: the
-  // input is already canonical (post-collapse) output.
-  const { entries } = parseMarkdown(lines.join("\n"), { file });
+  // When the caller supplies pre-parsed entries whose line numbers are still
+  // valid in `lines` (i.e., no line-count-changing operations occurred before
+  // this call), skip the re-parse entirely — the common hot path for files
+  // that are already in canonical form. When the caller passes undefined the
+  // re-parse is performed as before.
+  let entries: Entry[];
+  if (cachedEntries !== undefined) {
+    entries = cachedEntries;
+  } else {
+    // Diagnostics from this re-parse are intentionally discarded: the
+    // input is already canonical (post-collapse) output.
+    ({ entries } = parseMarkdown(lines.join("\n"), { file }));
+  }
   if (entries.length === 0) return false;
 
   let bodyChanged = false;
@@ -469,10 +480,22 @@ export function format(
   // load-bearing body-emission path AND the body modal-keyword pass
   // (the pre-parse whole-body string pass was removed above). It
   // returns whether any body was rewritten so `changed` stays accurate
-  // for `--check`. emitBodyViaAst re-parses collapsedLines to get
-  // post-collapse entry positions, scoped only to the body segment
-  // (title/trailer/front-matter are untouched).
-  if (emitBodyViaAst(collapsedLines, file, diagnostics)) changed = true;
+  // for `--check`.
+  //
+  // D6 optimization: when neither attribute-block splicing nor blank-line
+  // collapse altered any line positions, the first-parse entry line numbers
+  // are still valid in `collapsedLines` — pass the cached entries so
+  // emitBodyViaAst skips its re-parse (the hot path for already-formatted
+  // files). When `changed` is true, any splicing or collapse may have
+  // shifted positions, so pass undefined to trigger the normal re-parse.
+  if (
+    emitBodyViaAst(
+      collapsedLines,
+      file,
+      diagnostics,
+      changed ? undefined : entries,
+    )
+  ) changed = true;
 
   const formattedBody = collapsedLines.join("\n");
 
