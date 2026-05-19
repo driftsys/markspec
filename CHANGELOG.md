@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.5.1] (2026-05-19)
+
+### Bug Fixes
+
+- **mcp:** validate tool labels the leaf profile, not the bundled default
+  ([ac5d389])
+- **mcp:** present leaf profile as active; reconcile suite for bundled default
+  ([c10b374])
+- **cli:** profile show/doctor headline the leaf tier, list the chain
+  ([39bf6bf])
+- **spec:** correct Id: code example and qualify MSL-Q020 as planned ([ff530f3])
+
+### Documentation
+
+- **docs:** note bundled-default mechanism shipped; §7.1 deferred ([95955af])
+- **docs:** implementation plan for bundled default profile ([693dada])
+- **docs:** design for bundled default profile auto-registration ([3d1e2ed])
+- **spec:** add Model Reference book, overhaul guide, retire compile-output spec
+  ([da59107])
+- **repo:** escape CLI argument placeholders in CHANGELOG to fix MD033
+  ([8d5ceb0])
+
+### Performance
+
+- **lsp:** incremental workspace index update ([904f673])
+- **core:** pre-split parser lines, eliminate double-parse, bound compiler reads
+  ([5171d0d])
+
+### Features
+
+- **core:** populate git.* properties on compiled entries ([d79bcfb])
+- **core:** activate bundled default profile in loadProfileForCommand
+  ([8885e20])
+- **core:** parse default-profile opt-out key in .markspec.yaml ([2f0fe9d])
+- **core:** splice bundled default as implicit chain root in loadChain
+  ([9604e57])
+- **core:** add embedded default-profile manifest and builtin specifier
+  ([db4466b])
+- **core:** open LinkKind for profile extension ([fa90cc1])
+
+### Refactoring
+
+- **core:** brand DisplayId and Ulid types ([764e598])
+- **core:** type ast/build.ts mdast nodes ([5f941f8])
+- **cli:** extract per-command files from main.ts ([bbb997d])
+- **core:** consolidate duplicated constants and helpers ([01269a4])
+
+[0.5.1]: https://github.com/driftsys/markspec/compare/v0.5.0...v0.5.1
+[ac5d389]: https://github.com/driftsys/markspec/commit/ac5d389
+[c10b374]: https://github.com/driftsys/markspec/commit/c10b374
+[39bf6bf]: https://github.com/driftsys/markspec/commit/39bf6bf
+[ff530f3]: https://github.com/driftsys/markspec/commit/ff530f3
+[95955af]: https://github.com/driftsys/markspec/commit/95955af
+[693dada]: https://github.com/driftsys/markspec/commit/693dada
+[3d1e2ed]: https://github.com/driftsys/markspec/commit/3d1e2ed
+[da59107]: https://github.com/driftsys/markspec/commit/da59107
+[8d5ceb0]: https://github.com/driftsys/markspec/commit/8d5ceb0
+[904f673]: https://github.com/driftsys/markspec/commit/904f673
+[5171d0d]: https://github.com/driftsys/markspec/commit/5171d0d
+[d79bcfb]: https://github.com/driftsys/markspec/commit/d79bcfb
+[8885e20]: https://github.com/driftsys/markspec/commit/8885e20
+[2f0fe9d]: https://github.com/driftsys/markspec/commit/2f0fe9d
+[9604e57]: https://github.com/driftsys/markspec/commit/9604e57
+[db4466b]: https://github.com/driftsys/markspec/commit/db4466b
+[fa90cc1]: https://github.com/driftsys/markspec/commit/fa90cc1
+[764e598]: https://github.com/driftsys/markspec/commit/764e598
+[5f941f8]: https://github.com/driftsys/markspec/commit/5f941f8
+[bbb997d]: https://github.com/driftsys/markspec/commit/bbb997d
+[01269a4]: https://github.com/driftsys/markspec/commit/01269a4
+
 ## [0.5.0] (2026-05-19)
 
 ### Bug Fixes
