@@ -11,7 +11,7 @@
  * `validator/mod.ts`.
  */
 
-import type { Diagnostic, Entry } from "../model/mod.ts";
+import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
 import {
   attributesForType,
   CORE_TYPE_SCOPED_ATTRS,
@@ -46,8 +46,9 @@ const UNIVERSAL_KEYS: ReadonlySet<string> = new Set<string>(
  */
 export function validatePerTypeAttributes(
   entry: Entry,
+  profile?: EffectiveProfile,
 ): readonly Diagnostic[] {
-  const type = resolvedCoreType(entry);
+  const type = resolvedCoreType(entry, profile);
   if (type === undefined) {
     const diagnostics: Diagnostic[] = [];
     for (const attr of entry.rawAttributes) {

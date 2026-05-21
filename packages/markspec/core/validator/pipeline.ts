@@ -91,7 +91,7 @@ export function runPipeline(
     diagnostics.push(...validateCaptionConvention(entry, captionConventions));
     diagnostics.push(...validateBodyBlocks(entry));
     diagnostics.push(...validateFeatureAc(entry));
-    diagnostics.push(...validatePerTypeAttributes(entry));
+    diagnostics.push(...validatePerTypeAttributes(entry, profile ?? undefined));
     diagnostics.push(...validateModalKeywords(entry));
   }
 

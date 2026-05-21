@@ -14,7 +14,12 @@ import {
   resolvedCoreType,
   resolvedCoreTypeWithProvenance,
 } from "./type_resolution.ts";
-import type { Entry } from "../model/mod.ts";
+import type {
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  ProvenancedMapEntry,
+} from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
@@ -261,4 +266,56 @@ Deno.test("resolvedCoreTypeWithProvenance: earliest step wins (explicit Type bea
     resolvedCoreTypeWithProvenance(entry),
     { type: "Requirement", step: 1 },
   );
+});
+
+Deno.test("resolvedCoreType: profile type resolves to its core parent via extends", () => {
+  const origin = "@test/p";
+  const sysReq: ProvenancedMapEntry<EffectiveTypeDef> = {
+    value: {
+      name: "system-requirement",
+      extends: "Requirement",
+      displayIdPattern: { value: "FREQ-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+    },
+    origin,
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["system-requirement", sysReq]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+
+  // Step 1 — explicit `Type:` naming a profile type.
+  const explicit = makeEntry({
+    attrs: [{ key: "Type", value: "system-requirement" }],
+  });
+  assertEquals(resolvedCoreType(explicit), undefined); // no profile: unresolvable
+  assertEquals(resolvedCoreType(explicit, profile), "Requirement");
+  assertEquals(
+    resolvedCoreTypeWithProvenance(explicit, profile),
+    { type: "Requirement", step: 1 },
+  );
+
+  // Step 2 — profile-classified entry.type.
+  const classified = makeEntry({ attrs: [], type: "system-requirement" });
+  assertEquals(resolvedCoreType(classified), undefined);
+  assertEquals(resolvedCoreType(classified, profile), "Requirement");
+  assertEquals(
+    resolvedCoreTypeWithProvenance(classified, profile),
+    { type: "Requirement", step: 2 },
+  );
+
+  // An unknown profile type (not in the profile) stays unresolved.
+  const unknown = makeEntry({ attrs: [], type: "mystery-type" });
+  assertEquals(resolvedCoreType(unknown, profile), undefined);
 });
