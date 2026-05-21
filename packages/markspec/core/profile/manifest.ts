@@ -230,6 +230,39 @@ function parseCardinality(
   return { lower, upper };
 }
 
+/**
+ * Flatten a (possibly grouped) value list to its leaf value names. Accepts
+ * items that are bare strings, `{name, description?}` objects, or
+ * `{group, description?, values: [...]}` group objects (recursed). Group
+ * labels and descriptions are documentation-only and dropped — markspec
+ * validates against the value names. Returns `null` when any item matches
+ * none of these shapes.
+ */
+function flattenGroupedNames(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item === "string") {
+      out.push(item);
+      continue;
+    }
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      return null;
+    }
+    const o = item as Record<string, unknown>;
+    if (typeof o.name === "string") {
+      out.push(o.name);
+    } else if (Array.isArray(o.values)) {
+      const nested = flattenGroupedNames(o.values);
+      if (nested === null) return null;
+      out.push(...nested);
+    } else {
+      return null;
+    }
+  }
+  return out;
+}
+
 function parseAttrDecl(
   raw: unknown,
   context: string,
@@ -288,22 +321,19 @@ function parseAttrDecl(
   );
   let values: readonly string[] | undefined;
   if (vtype === "enum") {
-    const rawValues = r.values;
-    if (
-      !Array.isArray(rawValues) ||
-      rawValues.some((v) => typeof v !== "string") ||
-      rawValues.length === 0
-    ) {
+    const flat = flattenGroupedNames(r.values);
+    if (flat === null || flat.length === 0) {
       diagnostics.push({
         code: "PROFILE-LOAD-003",
         severity: "error",
         message:
-          `${context}: enum attribute '${name}' requires a non-empty 'values' list of strings`,
+          `${context}: enum attribute '${name}' requires a non-empty 'values' list ` +
+          `(strings, {name, description?}, or {group, values: [...]})`,
         location: { file: sourcePath, line: 1, column: 1 },
       });
       return undefined;
     }
-    values = rawValues as string[];
+    values = flat;
   }
   let inverse: { name: string; category: string } | undefined;
   if (r.inverse !== undefined) {
@@ -596,22 +626,23 @@ function parseLabelConcerns(
 ): LabelConcern[] {
   if (raw === undefined) return [];
 
-  // Form A: flat sequence of strings → each becomes a flag concern.
+  // Form A: sequence of label names → each becomes a flag concern. Entries
+  // may be bare strings or grouped objects ({group, values: [{name}, ...]});
+  // groups and descriptions are documentation-only and flattened away.
   if (Array.isArray(raw)) {
-    const concerns: LabelConcern[] = [];
-    for (const item of raw) {
-      if (typeof item !== "string") {
-        diagnostics.push({
-          code: "PROFILE-LOAD-003",
-          severity: "error",
-          message: "profile.labels: list form requires all-string entries",
-          location: { file: sourcePath, line: 1, column: 1 },
-        });
-        return [];
-      }
-      concerns.push({ name: item, kind: "flag", values: [] });
+    const names = flattenGroupedNames(raw);
+    if (names === null) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          "profile.labels: list entries must be strings, {name, description?}, " +
+          "or {group, values: [...]}",
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return [];
     }
-    return concerns;
+    return names.map((name) => ({ name, kind: "flag" as const, values: [] }));
   }
 
   // Form B: mapping — each key is a concern name.
