@@ -67,18 +67,9 @@ export function runPipeline(
   // warnings for attributes the profile actually declares (Stage 3's scope
   // validates them directly — the core-only R010 check would be noise).
   const stage1 = validate(entries);
-  const profileDeclaredAttrs = profile !== null
-    ? collectAllProfileAttributes(entries, profile)
-    : null;
-  const filteredStage1 = profileDeclaredAttrs === null
-    ? stage1.diagnostics
-    : stage1.diagnostics.filter((d) => {
-      if (d.code !== "MSL-R010") return true;
-      const match = /attribute '([^']+)'/.exec(d.message);
-      if (!match) return true;
-      return !profileDeclaredAttrs.has(match[1]);
-    });
-  diagnostics.push(...filteredStage1);
+  diagnostics.push(
+    ...suppressDeclaredAttrR010(stage1.diagnostics, entries, profile),
+  );
 
   // Stage 1.5 — core type-attribute check. Runs always (core-only mode
   // included) so unknown `Type:` values fail fast regardless of profile.
@@ -148,6 +139,31 @@ export function runPipeline(
 
   const valid = !diagnostics.some((d) => d.severity === "error");
   return { entries: finalEntries, diagnostics, valid };
+}
+
+/**
+ * Drop core Stage 1 `MSL-R010` ("unknown attribute") warnings for attributes
+ * the loaded profile declares — Stage 3 validates those directly, so the
+ * core-only check would be noise. Returns `diagnostics` unchanged when no
+ * profile is loaded.
+ *
+ * Exported so callers that run only Stage 1 (e.g. the compiler's diagnostic
+ * pass) suppress the same false positives the full {@linkcode runPipeline}
+ * does, keeping LSP/MCP diagnostics consistent with the `validate` command.
+ */
+export function suppressDeclaredAttrR010(
+  diagnostics: readonly Diagnostic[],
+  entries: readonly Entry[],
+  profile: EffectiveProfile | null,
+): readonly Diagnostic[] {
+  if (profile === null) return diagnostics;
+  const declared = collectAllProfileAttributes(entries, profile);
+  return diagnostics.filter((d) => {
+    if (d.code !== "MSL-R010") return true;
+    const match = /attribute '([^']+)'/.exec(d.message);
+    if (!match) return true;
+    return !declared.has(match[1]);
+  });
 }
 
 /**

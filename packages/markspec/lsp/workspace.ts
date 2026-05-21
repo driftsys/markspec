@@ -6,8 +6,13 @@
  * diagnostics, completions, and future go-to-definition.
  */
 
-import type { Diagnostic, DisplayId, Entry } from "../core/mod.ts";
-import { parseFile, validate } from "../core/mod.ts";
+import type {
+  Diagnostic,
+  DisplayId,
+  EffectiveProfile,
+  Entry,
+} from "../core/mod.ts";
+import { parseFile, suppressDeclaredAttrR010, validate } from "../core/mod.ts";
 
 /** A display ID paired with its entry title, for completion items. */
 export interface DisplayIdEntry {
@@ -204,11 +209,15 @@ export class WorkspaceIndex {
   /**
    * Run cross-file validation on all indexed entries.
    * Returns the full set of validation diagnostics.
+   *
+   * When `profile` is supplied, core-only MSL-R010 "unknown attribute"
+   * warnings are suppressed for attributes the profile declares — matching
+   * the `validate` command so the editor doesn't flood with false positives.
    */
-  validateAll(): readonly Diagnostic[] {
+  validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();
     const result = validate(allEntries);
-    return result.diagnostics;
+    return suppressDeclaredAttrR010(result.diagnostics, allEntries, profile);
   }
 
   // -----------------------------------------------------------------------

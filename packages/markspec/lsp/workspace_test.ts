@@ -6,8 +6,8 @@
 
 import { assertEquals } from "@std/assert";
 import { WorkspaceIndex } from "./workspace.ts";
-import type { Entry, SourceLocation } from "../core/mod.ts";
-import { makeDisplayId } from "../core/mod.ts";
+import type { EffectiveProfile, Entry, SourceLocation } from "../core/mod.ts";
+import { makeDisplayId, parseFile } from "../core/mod.ts";
 
 /** Helper to create a minimal identified entry. */
 function entry(
@@ -181,4 +181,46 @@ Deno.test("WorkspaceIndex: removeFile promotes survivor when removed file owned 
     index.getEntryByDisplayId(makeDisplayId("STK_0001"))?.location.file,
     "b.md",
   );
+});
+
+Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared attributes", async () => {
+  const ulid = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+  const md = `- [REQ-001] Title
+
+  Body.
+
+  Id: ${ulid}
+  Foo: hello
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const profile: EffectiveProfile = {
+    attributes: new Map([[
+      "Foo",
+      {
+        value: {
+          name: "Foo",
+          type: "text",
+          required: false,
+          cardinality: { lower: 0, upper: 1 },
+        },
+        origin: "@test/p",
+      },
+    ]]),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+
+  // Without a profile the core check still flags the unknown attribute.
+  const bare = index.validateAll();
+  assertEquals(bare.some((d) => d.code === "MSL-R010"), true);
+
+  // With the profile loaded, the declared attribute is suppressed.
+  const withProfile = index.validateAll(profile);
+  assertEquals(withProfile.some((d) => d.code === "MSL-R010"), false);
 });

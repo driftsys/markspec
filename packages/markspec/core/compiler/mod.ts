@@ -17,7 +17,11 @@ import type {
 } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
-import { classifyEntriesStage, validate } from "../validator/mod.ts";
+import {
+  classifyEntriesStage,
+  suppressDeclaredAttrR010,
+  validate,
+} from "../validator/mod.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
 import { generateInverses } from "./inverses.ts";
 import { checkLinkTargets } from "./link_target.ts";
@@ -232,8 +236,16 @@ export async function compile(
     if (res.document) documents.set(res.filePath, res.document);
   }
 
-  // Phase 2: Validate all entries.
+  // Phase 2: Validate all entries. When a profile is loaded, suppress the
+  // core-only MSL-R010 "unknown attribute" warnings for attributes the profile
+  // declares — mirrors runPipeline's Stage 1 so LSP/MCP diagnostics match the
+  // `validate` command instead of flooding the editor with false positives.
   const validationResult = validate(allEntries);
+  const validationDiagnostics = suppressDeclaredAttrR010(
+    validationResult.diagnostics,
+    allEntries,
+    options.profile ?? null,
+  );
 
   // Phase 2.5: Classify entries when a profile is loaded.
   let classifiedEntries: readonly Entry[] = allEntries;
@@ -280,7 +292,7 @@ export async function compile(
 
   const diagnostics = [
     ...parseDiagnostics,
-    ...validationResult.diagnostics,
+    ...validationDiagnostics,
     ...linkTargetDiags,
   ];
 

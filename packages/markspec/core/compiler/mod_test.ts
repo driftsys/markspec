@@ -8,6 +8,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { compile } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
+import type { EffectiveProfile } from "../model/mod.ts";
 
 const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -434,4 +435,71 @@ Deno.test("compile: withContributors false strips contributors from callback", a
   assertEquals(entry.properties?.git?.contributors, undefined);
   // Non-PII git fields are still populated.
   assertEquals(entry.properties?.git?.revision, "abc1234");
+});
+
+// ---------------------------------------------------------------------------
+// Profile-aware diagnostics (MSL-R010 suppression)
+// ---------------------------------------------------------------------------
+
+/** Minimal profile declaring a single custom `Foo` text attribute. */
+function profileWithFoo(): EffectiveProfile {
+  return {
+    attributes: new Map([[
+      "Foo",
+      {
+        value: {
+          name: "Foo",
+          type: "text" as const,
+          required: false,
+          cardinality: { lower: 0, upper: 1 },
+        },
+        origin: "@test/p",
+      },
+    ]]),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+  };
+}
+
+Deno.test("compile: suppresses MSL-R010 for profile-declared attributes", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Title
+
+  Body.
+
+  Id: ${ULID_A}
+  Foo: hello
+`,
+  };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    profile: profileWithFoo(),
+  });
+  const r010 = result.diagnostics.find((d) => d.code === "MSL-R010");
+  assertEquals(
+    r010,
+    undefined,
+    `expected no MSL-R010 for profile-declared 'Foo', got: ${r010?.message}`,
+  );
+});
+
+Deno.test("compile: still flags MSL-R010 for undeclared attributes", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Title
+
+  Body.
+
+  Id: ${ULID_A}
+  Bogus: nope
+`,
+  };
+  const result = await compile(["req.md"], {
+    readFile: reader(files),
+    profile: profileWithFoo(),
+  });
+  const r010 = result.diagnostics.find((d) => d.code === "MSL-R010");
+  assertExists(r010, "expected MSL-R010 for undeclared 'Bogus'");
 });
