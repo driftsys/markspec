@@ -28,7 +28,7 @@ line-length:
   headings: false
 blanks-around-fences: false # → dprint
 fenced-code-language: true
-code-block-style: { style: fenced }
+code-block-style: false # MarkSpec entry trailers (6-space-indented `Id:` / `Satisfies:` lines) are parsed as indented code blocks; markdownlint cannot distinguish them from real indented code, so the style rule is disabled.
 code-fence-style: { style: backtick }
 no-emphasis-as-heading: false
 no-space-in-emphasis: true
