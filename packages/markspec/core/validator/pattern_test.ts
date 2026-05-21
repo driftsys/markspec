@@ -71,3 +71,24 @@ Deno.test("compileDisplayIdPattern: invalid padding spec throws", () => {
     }
   }
 });
+
+Deno.test("compileDisplayIdPattern: named {scope} segment matches any token", () => {
+  const r = compileDisplayIdPattern("XREQ_{scope}_{n:04d}");
+  assertEquals(r.test("XREQ_IMMER_0010"), true);
+  assertEquals(r.test("XREQ_WELCOME_0001"), true);
+  assertEquals(r.test("XREQ__0010"), false); // empty scope
+  assertEquals(r.test("XREQ_IMMER_10"), false); // wrong padding
+  assertEquals(r.test("XREQ_IMMER_FOO_0010"), false); // extra segment
+});
+
+Deno.test("compileDisplayIdPattern: named segment without {n} still requires a counter", () => {
+  try {
+    compileDisplayIdPattern("XREQ_{scope}");
+    throw new Error("expected compileDisplayIdPattern to throw");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.toLowerCase().includes("{n}")) {
+      throw new Error(`expected '{n}' in error message, got: ${msg}`);
+    }
+  }
+});
