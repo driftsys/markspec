@@ -339,12 +339,14 @@ function extractLinksFromAttribute(
   if (!kind) return [];
 
   if (LOCATOR_BEARING_ATTRS.has(key)) {
-    // Format: "ID §section" — extract ID part only.
-    const idPart = value.split(/\s/)[0];
-    if (idPart) {
-      return [{ from, to: makeDisplayId(idPart), kind, location }];
-    }
-    return [];
+    // Comma-separated targets, each "ID §section": split the list (these
+    // attributes are 0..N), then take the leading ID token of each value,
+    // dropping the optional free-text locator.
+    return value
+      .split(",")
+      .map((s) => s.trim().split(/\s/)[0])
+      .filter((s) => s.length > 0)
+      .map((to) => ({ from, to: makeDisplayId(to), kind, location }));
   }
 
   // Comma-separated targets for id-list attributes.

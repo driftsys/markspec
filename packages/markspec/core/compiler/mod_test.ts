@@ -177,6 +177,33 @@ Deno.test("compile: id-list attr value splits into multiple links", async () => 
   assertEquals(sat.map((l) => l.to).sort(), ["REQ-PARENT-A", "REQ-PARENT-B"]);
 });
 
+Deno.test("compile: multi-value Derived-from splits into one link per target", async () => {
+  // Derived-from is locator-bearing ("ID §section") AND 0..N: a comma-separated
+  // list must yield one clean link per target, with no trailing comma and the
+  // per-value locator dropped.
+  const files = {
+    "req.md": `- [REQ-PARENT-A] A
+
+  Id: ${ULID_A}
+
+- [REQ-PARENT-B] B
+
+  Id: ${ULID_B}
+
+- [REQ-CHILD] Child
+
+      Id: ${ULID_C}
+      Derived-from: REQ-PARENT-A §1.1, REQ-PARENT-B §2.3
+`,
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  const df = result.links.filter((l) => l.kind === "derived-from");
+  assertEquals(df.length, 2);
+  assertEquals(df.map((l) => l.to).sort(), ["REQ-PARENT-A", "REQ-PARENT-B"]);
+  // No target retains the comma separator.
+  assertEquals(df.every((l) => !l.to.includes(",")), true);
+});
+
 // ---------------------------------------------------------------------------
 // Forward / reverse adjacency maps
 // ---------------------------------------------------------------------------
