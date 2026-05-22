@@ -60,6 +60,24 @@ jobs:
           deno-version: v2.x
       - run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
 
+  test-summary:
+    # Umbrella status for the `test` matrix. Branch protection on `main`
+    # requires a check literally named `Test`; the matrix expansion posts
+    # `Test (ubuntu-latest)` / `(macos-latest)` / `(windows-latest)`, so
+    # this aggregator is what satisfies the required-check rule. Adding
+    # or removing matrix legs needs no branch-protection change.
+    name: Test
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+      - name: Verify matrix succeeded
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "test matrix did not succeed: ${{ needs.test.result }}"
+            exit 1
+          fi
+
   tokens:
     name: Design tokens
     runs-on: ubuntu-latest
