@@ -1,13 +1,9 @@
 ---
 schema: 1
 name: markspec-prose-review
-description: >
-  Use when reviewing MarkSpec entry bodies for prose quality — checks
-  single-responsibility, active voice, measurability, ambiguity, EARS pattern
-  correctness, and Gherkin scenario completeness.
+description: |
+  Use when reviewing MarkSpec entry bodies for prose quality — checks single-responsibility, active voice, measurability, ambiguity, EARS pattern correctness, and Gherkin scenario completeness.
 ---
-
-# markspec-prose-review
 
 ## Overview
 
@@ -108,7 +104,7 @@ and define both referents explicitly.
 
 For each finding:
 
-```
+```text
 [DISPLAY_ID] <criterion violated>
   Found:   "<verbatim offending text>"
   Issue:   <one-sentence explanation>

@@ -1,14 +1,9 @@
 ---
 schema: 1
 name: markspec-diagnostics
-description: >
-  Use when `markspec validate` or `markspec hook` output contains MSL- codes —
-  covers all diagnostic families (P0xx parse, I0xx identity, M0xx modal, A0xx
-  attribute, T0xx type, B0xx body, C0xx caption), severity levels, and
-  common fixes.
+description: |
+  Use when `markspec validate` or `markspec hook` output contains MSL- codes — covers all diagnostic families (P0xx parse, I0xx identity, M0xx modal, A0xx attribute, T0xx type, B0xx body, C0xx caption), severity levels, and common fixes.
 ---
-
-# markspec-diagnostics
 
 ## Overview
 
@@ -97,7 +92,7 @@ Emitted for figure/table caption convention violations.
 
 ## Reading the output
 
-```
+```text
 error[MSL-I010]: docs/requirements.md:42 duplicate display ID: SWE_0007
 warning[MSL-M060]: docs/requirements.md:17 modal keyword 'SHALL' must be lowercase
 ```

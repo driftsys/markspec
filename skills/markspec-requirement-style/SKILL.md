@@ -1,13 +1,9 @@
 ---
 schema: 1
 name: markspec-requirement-style
-description: >
-  Use when choosing how to write requirement body text — overview of EARS vs
-  Gherkin vs plain prose, selection criteria, and pointers to the
-  `markspec-ears` and `markspec-gherkin` deep-dive skills.
+description: |
+  Use when choosing how to write requirement body text — overview of EARS vs Gherkin vs plain prose, selection criteria, and pointers to the `markspec-ears` and `markspec-gherkin` deep-dive skills.
 ---
-
-# markspec-requirement-style
 
 ## Overview
 
@@ -18,7 +14,7 @@ following a single style across all entries.
 
 ## Selection guide
 
-```
+```text
 Is the requirement testable by running a scenario (UI, API, integration)?
   YES → Gherkin (Given/When/Then)  →  markspec-gherkin
 

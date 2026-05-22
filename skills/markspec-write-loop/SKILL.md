@@ -1,20 +1,16 @@
 ---
 schema: 1
 name: markspec-write-loop
-description: >
-  Use when writing new entries to a MarkSpec file — teaches the canonical
-  `markspec insert → markspec format → markspec validate` agent write path
-  and explains what each step produces.
+description: |
+  Use when writing new entries to a MarkSpec file — teaches the canonical `markspec insert → markspec format → markspec validate` agent write path and explains what each step produces.
 ---
-
-# markspec-write-loop
 
 ## Overview
 
 The canonical agent write path for adding a new entry to a MarkSpec document is
 a three-command sequence. Run each step and check its output before proceeding.
 
-```
+```text
 markspec insert <type> <file>
 markspec format <file>
 markspec validate <file>

@@ -71,14 +71,14 @@ Install into the current project (writes per-client output under `.claude/`,
 `.upskill-lock.json`):
 
 ```sh
-upskill add driftsys/markspec:skills/markspec-core.bundle.md
+upskill add driftsys/markspec:skills/markspec-core.bundle.yaml
 ```
 
 Install globally into `$HOME` instead, so the skills are available in every
 project for the current user:
 
 ```sh
-upskill add --global driftsys/markspec:skills/markspec-core.bundle.md
+upskill add --global driftsys/markspec:skills/markspec-core.bundle.yaml
 ```
 
 The bundle includes:
@@ -98,8 +98,8 @@ If your team does not use upskill, download the bundle from the repository and
 place it in `.claude/plugins/`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/skills/markspec-core.bundle.md \
-  -o .claude/plugins/markspec-core.bundle.md
+curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/skills/markspec-core.bundle.yaml \
+  -o .claude/plugins/markspec-core.bundle.yaml
 ```
 
 ### Invoking skills from Claude Code

@@ -1,13 +1,9 @@
 ---
 schema: 1
 name: markspec-entry-authoring
-description: >
-  Use when writing, editing, or reviewing a MarkSpec entry block — the
-  `- [TYPE_NNNN] Title` list-item format, body prose, and trailer attributes
-  (Id, Type, Satisfies, Labels, Verified-by, and other trace keys).
+description: |
+  Use when writing, editing, or reviewing a MarkSpec entry block — the `- [TYPE_NNNN] Title` list-item format, body prose, and trailer attributes (Id, Type, Satisfies, Labels, Verified-by, and other trace keys).
 ---
-
-# markspec-entry-authoring
 
 ## Overview
 
