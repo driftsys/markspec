@@ -1,20 +1,18 @@
 ---
 schema: 1
 name: markspec-traceability-review
-description: >
-  Use when auditing a MarkSpec project for traceability gaps, missing
-  derivations, untested requirements, and orphaned entries — runs CLI commands
-  and interprets the coverage and validation output.
+description: |
+  Use when auditing a MarkSpec project for traceability gaps, missing derivations, untested requirements, and orphaned entries — runs CLI commands and interprets the coverage and validation output.
 license: MIT
 mode: subagent
 model: sonnet
 tools:
-  - bash
-  - read
+- bash
+- read
 preload-skills:
-  - markspec-diagnostics
+- markspec-diagnostics
 metadata:
-  version: "0.1.0"
+  version: 0.1.0
   author: driftsys
 ---
 
@@ -71,7 +69,7 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
 
 6. **Emit the findings report** in this structure:
 
-   ```
+   ```text
    ## Traceability Review — <date>
 
    ### Summary

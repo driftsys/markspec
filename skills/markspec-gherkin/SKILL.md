@@ -1,13 +1,9 @@
 ---
 schema: 1
 name: markspec-gherkin
-description: >
-  Use when writing Gherkin acceptance criteria — Given/When/Then structure,
-  Scenario Outline, Background, do/don't examples in MarkSpec entry format,
-  and how scenarios map to the `Verified-by:` attribute.
+description: |
+  Use when writing Gherkin acceptance criteria — Given/When/Then structure, Scenario Outline, Background, do/don't examples in MarkSpec entry format, and how scenarios map to the `Verified-by:` attribute.
 ---
-
-# markspec-gherkin
 
 ## Overview
 

@@ -1,13 +1,9 @@
 ---
 schema: 1
 name: markspec-ears
-description: >
-  Use when writing EARS-style requirements — all five patterns (ubiquitous,
-  event-driven, state-driven, optional, unwanted) with do/don't examples in
-  MarkSpec entry format.
+description: |
+  Use when writing EARS-style requirements — all five patterns (ubiquitous, event-driven, state-driven, optional, unwanted) with do/don't examples in MarkSpec entry format.
 ---
-
-# markspec-ears
 
 ## Overview
 

@@ -91,7 +91,7 @@ and traceability review.
 Install it with [upskill](https://github.com/driftsys/upskill):
 
 ```sh
-upskill add markspec:markspec-core.bundle.md
+upskill add markspec:markspec-core.bundle.yaml
 ```
 
 This registers the following skills in your project's `.claude/plugins/`:

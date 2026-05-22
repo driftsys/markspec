@@ -1,13 +1,9 @@
 ---
 schema: 1
 name: markspec-profile-bundle-authoring
-description: >
-  Use when creating or extending a MarkSpec profile's upskill bundle — teaches
-  the `skills/` slot layout, deriving `requires:` from the profile's `extends:`
-  field, and registering SKILL.md / RULE.md items in the bundle manifest.
+description: |
+  Use when creating or extending a MarkSpec profile's upskill bundle — teaches the `skills/` slot layout, deriving `requires:` from the profile's `extends:` field, and registering SKILL.md / RULE.md items in the bundle manifest.
 ---
-
-# markspec-profile-bundle-authoring
 
 ## Overview
 
@@ -24,13 +20,14 @@ profile `extends:` chain — one `requires:` entry per parent profile bundle.
 
 ```text
 <profile-dir>/
-├── markspec.yaml              ← profile manifest (extends:, types:, etc.)
+├── markspec.yaml                  ← profile manifest (extends:, types:, etc.)
 ├── skills/
-│   ├── <profile-id>.bundle.md ← bundle manifest
+│   ├── README.md                  ← brief overview of items in this registry
+│   ├── <profile-id>.bundle.yaml   ← bundle manifest (pure YAML)
 │   ├── <profile-id>-rules/
-│   │   └── RULE.md            ← always-on authoring rules
+│   │   └── RULE.md                ← always-on authoring rules
 │   └── <skill-name>/
-│       └── SKILL.md           ← one skill per concept
+│       └── SKILL.md               ← one skill per concept
 └── README.md
 ```
 
@@ -61,8 +58,14 @@ The bundle's own `name:` = the profile's `id:` with `@scope/` stripped.
 
 ### 3. Create the bundle manifest
 
+The bundle manifest is a **pure YAML file** (no `---` frontmatter delimiters, no
+Markdown body). The filename stem must match `name:`.
+
+`skills/<profile-id>.bundle.yaml`:
+
 ```yaml
----
+# upskill bundle manifest — pure YAML (format-spec §2.2).
+
 schema: 1
 name: <profile-id>          # profile id with @scope/ stripped
 description: <one line>
@@ -80,7 +83,6 @@ requires:
 
 metadata:
   markspec-profile: "<profile-id>"
----
 ```
 
 ### 4. Author RULE.md items
@@ -129,10 +131,11 @@ version: "0.1.0"
 extends: "npm:@markspec/profile-default@^1.0"
 ```
 
-`skills/aspice-4.bundle.md`:
+`skills/aspice-4.bundle.yaml`:
 
 ```yaml
----
+# upskill bundle manifest — pure YAML (format-spec §2.2).
+
 schema: 1
 name: aspice-4
 description: ASPICE 4.0 authoring rules and skills for MarkSpec projects
@@ -150,15 +153,14 @@ requires:
 
 metadata:
   markspec-profile: "aspice-4"
----
 ```
 
 ## Chain resolution
 
-A consumer running `upskill add <registry>:aspice-4.bundle.md` gets all three
+A consumer running `upskill add <registry>:aspice-4.bundle.yaml` gets all three
 tiers of skills automatically via transitive `requires:` resolution:
 
-```
+```text
 aspice-4
   → profile-default
       → markspec-core
@@ -173,7 +175,7 @@ A one-liner asserts the mirror invariant for npm/git specifiers:
 ```bash
 EXTENDS=$(grep '^extends:' markspec.yaml \
   | sed 's/.*@\([^@/]*\)\/.*/\1/; s/.*\///; s/@.*//')
-grep -q "name: \"$EXTENDS\"" skills/*.bundle.md || exit 1
+grep -q "name: \"$EXTENDS\"" skills/*.bundle.yaml || exit 1
 ```
 
 Add this to your profile package's CI pipeline.

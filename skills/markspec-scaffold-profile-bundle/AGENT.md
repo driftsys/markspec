@@ -1,21 +1,19 @@
 ---
 schema: 1
 name: markspec-scaffold-profile-bundle
-description: >
-  Use when creating a new MarkSpec profile package that needs an upskill bundle
-  — reads the profile's markspec.yaml, derives the bundle manifest from the
-  extends: field, and scaffolds the skills/ directory structure.
+description: |
+  Use when creating a new MarkSpec profile package that needs an upskill bundle — reads the profile's markspec.yaml, derives the bundle manifest from the extends: field, and scaffolds the skills/ directory structure.
 license: MIT
 mode: subagent
 model: sonnet
 tools:
-  - read
-  - write
-  - bash
+- read
+- write
+- bash
 preload-skills:
-  - markspec-profile-bundle-authoring
+- markspec-profile-bundle-authoring
 metadata:
-  version: "0.1.0"
+  version: 0.1.0
   author: driftsys
 ---
 
@@ -45,11 +43,13 @@ are already working inside it).
 
 4. **Create `skills/` directory** if it does not exist.
 
-5. **Write `skills/<bundle-name>.bundle.md`** using this template, substituting
-   the values derived above:
+5. **Write `skills/<bundle-name>.bundle.yaml`** as a pure YAML file (no `---`
+   frontmatter delimiters, no Markdown body), substituting the values derived
+   above:
 
    ```yaml
-   ---
+   # upskill bundle manifest — pure YAML (format-spec §2.2).
+
    schema: 1
    name: <bundle-name>
    description: <one-line description — ask the user if not obvious>
@@ -65,7 +65,6 @@ are already working inside it).
 
    metadata:
      markspec-profile: "<profile-id>"
-   ---
    ```
 
 6. **Report what was created.** List the bundle manifest path and the derived
@@ -79,7 +78,9 @@ are already working inside it).
 ### Invariants to enforce
 
 - Bundle `name:` must equal the profile `id:` with `@scope/` stripped.
+- The bundle filename stem must equal `name:` (e.g. `name: aspice-4` →
+  `aspice-4.bundle.yaml`).
 - `requires:` must contain exactly one entry per parent in the `extends:` chain.
 - Do not create RULE.md or SKILL.md stubs — those are the author's job.
-- Do not overwrite an existing `skills/<bundle-name>.bundle.md` without explicit
-  user confirmation.
+- Do not overwrite an existing `skills/<bundle-name>.bundle.yaml` without
+  explicit user confirmation.
