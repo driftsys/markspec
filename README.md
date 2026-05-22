@@ -119,6 +119,13 @@ fn swt_brk_0001_debounce_filters_noise() {
 **Mustache variables** — `{{project.name}}` substitution from `project.yaml`,
 resolved at build time.
 
+## Install
+
+See [`docs/guide/installation.md`](docs/guide/installation.md) for the VS Code
+extension, the macOS / Linux install script, the
+[Windows PowerShell install script](docs/guide/installation.md#windows-powershell-install-script),
+manual binary downloads, and the Deno install path.
+
 ## License
 
 [MIT](LICENSE)

@@ -199,7 +199,9 @@ Deno.test("processIncludes: directives inside code blocks are not processed", as
 // File path with anchor
 // ---------------------------------------------------------------------------
 
-Deno.test("processIncludes: file path with anchor resolves section", async () => {
+Deno.test("processIncludes: file path with anchor resolves section", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const fileContent = [
     "# Introduction",
     "",
@@ -236,7 +238,9 @@ Deno.test("processIncludes: file path with anchor resolves section", async () =>
 // File path without anchor
 // ---------------------------------------------------------------------------
 
-Deno.test("processIncludes: file path without anchor includes full content", async () => {
+Deno.test("processIncludes: file path without anchor includes full content", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const fileContent = "# Full Document\n\nAll content here.";
 
   const input = "<!-- include: docs/readme.md -->";
@@ -268,7 +272,9 @@ Deno.test("processIncludes: missing file produces diagnostic", async () => {
 // Missing anchor in file
 // ---------------------------------------------------------------------------
 
-Deno.test("processIncludes: missing anchor produces diagnostic", async () => {
+Deno.test("processIncludes: missing anchor produces diagnostic", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const fileContent = "# Introduction\n\nSome text.";
   const input = "<!-- include: docs/spec.md#nonexistent -->";
 

@@ -67,7 +67,7 @@ Headline: surface = RESIDUAL = 0 of 58 corpus samples.
 | excluded-task-list | OK | yes | yes | — |
 | excluded-raw-html | UNOWNED | yes | yes | — |
 | edge-blank-line-runs | OK | yes | yes | `"para one\\n\\n\\n\\npara two" → "para one\\n\\npara two"` |
-| edge-crlf | OK | yes | yes | — |
+| edge-crlf | OK | yes | yes | `"line one\\r\\nline two" → "line one\\nline two"` |
 | edge-tabs | OK | yes | yes | — |
 | edge-leading-trailing-ws | OK | yes | yes | `"   leading and trailing spaces   " → "leading and trailing spaces   "` |
 | edge-mixed-blocks | OK | yes | yes | — |

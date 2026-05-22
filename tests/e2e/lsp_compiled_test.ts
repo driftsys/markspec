@@ -7,11 +7,11 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 
-const COMPILED_BINARY = new URL(
-  "../../dist/markspec",
-  import.meta.url,
-).pathname;
+const COMPILED_BINARY = fromFileUrl(
+  new URL("../../dist/markspec", import.meta.url),
+);
 
 const compiledExists = await Deno.stat(COMPILED_BINARY)
   .then(() => true)

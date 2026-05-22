@@ -5,10 +5,11 @@
  * the CLI binary via Deno.Command in a temporary directory.
  */
 
-const CLI_ENTRY = new URL(
-  "../../packages/markspec/main.ts",
-  import.meta.url,
-).pathname;
+import { fromFileUrl } from "@std/path";
+
+const CLI_ENTRY = fromFileUrl(
+  new URL("../../packages/markspec/main.ts", import.meta.url),
+);
 
 /** Options for the markspec test helper. */
 export interface MarkspecOptions {

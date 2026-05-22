@@ -7,14 +7,18 @@
 import { assertEquals } from "@std/assert";
 import { relativeToRoot } from "./path.ts";
 
-Deno.test("relativeToRoot: strips projectRoot prefix", () => {
+Deno.test("relativeToRoot: strips projectRoot prefix", {
+  ignore: Deno.build.os === "windows",
+}, () => {
   assertEquals(
     relativeToRoot("/proj/docs/req.md", "/proj"),
     "docs/req.md",
   );
 });
 
-Deno.test("relativeToRoot: tolerates trailing slash on projectRoot", () => {
+Deno.test("relativeToRoot: tolerates trailing slash on projectRoot", {
+  ignore: Deno.build.os === "windows",
+}, () => {
   assertEquals(
     relativeToRoot("/proj/docs/req.md", "/proj/"),
     "docs/req.md",

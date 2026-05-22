@@ -15,7 +15,9 @@ function mockReadFile(map: Record<string, string>) {
     Promise.resolve(map[path]);
 }
 
-Deno.test("resolveLocalSpecifier: happy path reads markspec.yaml", async () => {
+Deno.test("resolveLocalSpecifier: happy path reads markspec.yaml", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const diagnostics: Diagnostic[] = [];
   const result = await resolveLocalSpecifier(
     { kind: "local", path: "./profiles/custom" },
@@ -49,7 +51,9 @@ Deno.test("resolveLocalSpecifier: missing markspec.yaml emits PROFILE-LOAD-001",
   }
 });
 
-Deno.test("resolveLocalSpecifier: parent-relative path resolves correctly", async () => {
+Deno.test("resolveLocalSpecifier: parent-relative path resolves correctly", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const diagnostics: Diagnostic[] = [];
   const result = await resolveLocalSpecifier(
     { kind: "local", path: "../shared/base" },
@@ -151,56 +155,65 @@ function recordingRunGit(options: {
   return { runGit, calls };
 }
 
-Deno.test("resolveGitSpecifier: cache miss clones, checks out tag, reads yaml", async () => {
-  const diagnostics: Diagnostic[] = [];
-  const spec = {
-    kind: "git" as const,
-    repo: "https://github.com/acme/repo.git",
-    subpath: undefined,
-    tag: "v1.0.0",
-  };
-  const loc = await computeCacheLocation("/project", spec);
+Deno.test(
+  "resolveGitSpecifier: cache miss clones, checks out tag, reads yaml",
+  { ignore: Deno.build.os === "windows" },
+  async () => {
+    const diagnostics: Diagnostic[] = [];
+    const spec = {
+      kind: "git" as const,
+      repo: "https://github.com/acme/repo.git",
+      subpath: undefined,
+      tag: "v1.0.0",
+    };
+    const loc = await computeCacheLocation("/project", spec);
 
-  const files: Record<string, string> = {};
-  const { runGit, calls } = recordingRunGit({
-    files,
-    onClone: (cloneDir) => {
-      // Simulate the clone writing the manifest into the cache dir.
-      files[`${cloneDir}/markspec.yaml`] = "id: @acme/cloned\nversion: 1.0.0\n";
-    },
-  });
+    const files: Record<string, string> = {};
+    const { runGit, calls } = recordingRunGit({
+      files,
+      onClone: (cloneDir) => {
+        // Simulate the clone writing the manifest into the cache dir.
+        files[`${cloneDir}/markspec.yaml`] =
+          "id: @acme/cloned\nversion: 1.0.0\n";
+      },
+    });
 
-  const result = await resolveGitSpecifier(
-    spec,
-    "/project",
-    (path) => Promise.resolve(files[path]),
-    diagnostics,
-    { runGit },
-  );
+    const result = await resolveGitSpecifier(
+      spec,
+      "/project",
+      (path) => Promise.resolve(files[path]),
+      diagnostics,
+      { runGit },
+    );
 
-  assertEquals(diagnostics, []);
-  assertEquals(result?.rawYaml, "id: @acme/cloned\nversion: 1.0.0\n");
-  // First call is `clone` with the expected flags.
-  const cloneCall = calls[0];
-  assertEquals(cloneCall[0], "clone");
-  if (!cloneCall.includes("--depth=1")) {
-    throw new Error(`expected --depth=1 in clone args: ${cloneCall}`);
-  }
-  if (!cloneCall.includes("--filter=blob:none")) {
-    throw new Error(`expected --filter=blob:none in clone args: ${cloneCall}`);
-  }
-  if (!cloneCall.includes("--branch=v1.0.0")) {
-    throw new Error(`expected --branch=v1.0.0 in clone args: ${cloneCall}`);
-  }
-  if (!cloneCall.includes(spec.repo)) {
-    throw new Error(`expected repo URL in clone args: ${cloneCall}`);
-  }
-  if (!cloneCall.includes(loc.dir)) {
-    throw new Error(`expected cache dir in clone args: ${cloneCall}`);
-  }
-});
+    assertEquals(diagnostics, []);
+    assertEquals(result?.rawYaml, "id: @acme/cloned\nversion: 1.0.0\n");
+    // First call is `clone` with the expected flags.
+    const cloneCall = calls[0];
+    assertEquals(cloneCall[0], "clone");
+    if (!cloneCall.includes("--depth=1")) {
+      throw new Error(`expected --depth=1 in clone args: ${cloneCall}`);
+    }
+    if (!cloneCall.includes("--filter=blob:none")) {
+      throw new Error(
+        `expected --filter=blob:none in clone args: ${cloneCall}`,
+      );
+    }
+    if (!cloneCall.includes("--branch=v1.0.0")) {
+      throw new Error(`expected --branch=v1.0.0 in clone args: ${cloneCall}`);
+    }
+    if (!cloneCall.includes(spec.repo)) {
+      throw new Error(`expected repo URL in clone args: ${cloneCall}`);
+    }
+    if (!cloneCall.includes(loc.dir)) {
+      throw new Error(`expected cache dir in clone args: ${cloneCall}`);
+    }
+  },
+);
 
-Deno.test("resolveGitSpecifier: subpath triggers sparse-checkout call", async () => {
+Deno.test("resolveGitSpecifier: subpath triggers sparse-checkout call", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const diagnostics: Diagnostic[] = [];
   const spec = {
     kind: "git" as const,

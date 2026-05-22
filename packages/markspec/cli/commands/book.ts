@@ -6,6 +6,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import { join } from "@std/path";
 import type { BookStructure, Chapter } from "../../book/mod.ts";
 import {
   loadActiveProfile,
@@ -77,7 +78,7 @@ export const bookCmd = new Command()
     await Deno.mkdir(options.output, { recursive: true });
     for (const chapter of result.chapters) {
       const slug = chapter.path.replace(/\.md$/, "").replace(/\//g, "-");
-      const outPath = `${options.output}/${slug}.html`;
+      const outPath = join(options.output, `${slug}.html`);
       await Deno.writeTextFile(outPath, _wrapHtml(chapter.title, chapter.html));
       console.error(`wrote ${outPath}`);
     }
@@ -90,8 +91,9 @@ export const bookCmd = new Command()
         slug: c.path.replace(/\.md$/, "").replace(/\//g, "-"),
       })),
     );
-    await Deno.writeTextFile(`${options.output}/index.html`, indexHtml);
-    console.error(`wrote ${options.output}/index.html`);
+    const indexPath = join(options.output, "index.html");
+    await Deno.writeTextFile(indexPath, indexHtml);
+    console.error(`wrote ${indexPath}`);
   })
   .command("dev")
   .description("Live preview with hot reload")

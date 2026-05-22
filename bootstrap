@@ -37,7 +37,7 @@ detect_target() {
       esac
       ;;
     *)
-      die "unsupported OS: $os (use WSL on Windows)"
+      die "unsupported OS for bootstrap: $os (bootstrap is for contributors and needs bash; on Windows use WSL to develop, or install the released CLI with: irm https://raw.githubusercontent.com/driftsys/markspec/main/install.ps1 | iex)"
       ;;
   esac
 }

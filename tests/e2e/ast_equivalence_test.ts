@@ -29,6 +29,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { format, parseFile } from "../../packages/markspec/core/mod.ts";
 import { render } from "../../packages/markspec/core/ast/render.ts";
 
@@ -70,7 +71,7 @@ async function checkBodyEquivalence(
 // Corpus: fixture files
 // ---------------------------------------------------------------------------
 
-const FIXTURES_DIR = new URL("../fixtures", import.meta.url).pathname;
+const FIXTURES_DIR = fromFileUrl(new URL("../fixtures", import.meta.url));
 
 Deno.test("ast-equivalence: corpus files", async (t) => {
   // Walk all .md files under tests/fixtures/
@@ -150,7 +151,7 @@ async function collectMdFiles(dir: string): Promise<string[]> {
   return result.sort();
 }
 
-const REPO_ROOT = new URL("../../", import.meta.url).pathname;
+const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 
 Deno.test("ast-equivalence: broadened corpus (docs/product + docs/examples)", async (t) => {
   // Collect all .md files under the two real-project directories.

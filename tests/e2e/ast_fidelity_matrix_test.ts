@@ -16,15 +16,21 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { renderCatalogue, runMatrix } from "./ast_fidelity.ts";
 
-const REPO_ROOT = new URL("../../", import.meta.url).pathname;
+const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 const CATALOGUE_PATH = `${REPO_ROOT}docs/product/ast-fidelity-matrix.md`;
 
 Deno.test("ast-fidelity-matrix: committed catalogue is not stale", async () => {
   const matrix = await runMatrix();
   const expected = renderCatalogue(matrix);
-  const committed = await Deno.readTextFile(CATALOGUE_PATH);
+  // Normalise CRLF → LF on read so a Windows checkout with mixed
+  // line endings still compares equal to the generator's LF output.
+  // `.gitattributes` also pins the file to LF; the normalisation here
+  // is belt-and-braces.
+  const committed = (await Deno.readTextFile(CATALOGUE_PATH))
+    .replace(/\r\n/g, "\n");
 
   // Visible baseline signal (informational, never an assertion).
   console.log(

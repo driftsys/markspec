@@ -7,7 +7,8 @@
  * entry blocks, pills, and alerts (closes #182).
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { markspec } from "./helpers.ts";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
@@ -86,7 +87,9 @@ Deno.test("book build: identified entry without profile gets hue-blue fallback",
         "run",
         "--allow-read",
         "--allow-write",
-        new URL("../../packages/markspec/main.ts", import.meta.url).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "book",
         "build",
       ],
@@ -121,7 +124,9 @@ Deno.test("book build: prefix heuristic is gone — ARC entries do NOT auto-colo
         "run",
         "--allow-read",
         "--allow-write",
-        new URL("../../packages/markspec/main.ts", import.meta.url).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "book",
         "build",
       ],
@@ -155,7 +160,9 @@ Deno.test("book build: emits pill elements for Labels", async () => {
         "run",
         "--allow-read",
         "--allow-write",
-        new URL("../../packages/markspec/main.ts", import.meta.url).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "book",
         "build",
       ],
@@ -185,7 +192,9 @@ Deno.test("book build: emits alert div for GFM [!WARNING] alert", async () => {
         "run",
         "--allow-read",
         "--allow-write",
-        new URL("../../packages/markspec/main.ts", import.meta.url).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "book",
         "build",
       ],
@@ -214,7 +223,9 @@ Deno.test("book build: emits caption paragraph for Figure caption", async () => 
         "run",
         "--allow-read",
         "--allow-write",
-        new URL("../../packages/markspec/main.ts", import.meta.url).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "book",
         "build",
       ],
@@ -243,7 +254,9 @@ Deno.test("book build: HTML shell links markspec.css", async () => {
         "run",
         "--allow-read",
         "--allow-write",
-        new URL("../../packages/markspec/main.ts", import.meta.url).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "book",
         "build",
       ],
@@ -266,5 +279,6 @@ Deno.test("book build: --output flag writes to custom directory", async () => {
     { files: FIXTURE },
   );
   assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
-  assertStringIncludes(stderr, "out/index.html");
+  // `wrote out/index.html` on POSIX; `wrote out\index.html` on Windows.
+  assertMatch(stderr, /out[\\/]index\.html/);
 });

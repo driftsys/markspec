@@ -10,6 +10,7 @@
  * without filesystem access.
  */
 
+import { join } from "@std/path";
 import {
   compile,
   type CompileResult,
@@ -154,7 +155,7 @@ export function defaultEnv(): ProjectEnv {
 async function* walkFs(dir: string): AsyncGenerator<string> {
   try {
     for await (const entry of Deno.readDir(dir)) {
-      const path = `${dir}/${entry.name}`;
+      const path = join(dir, entry.name);
       if (entry.isDirectory) {
         if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
           yield* walkFs(path);

@@ -10,6 +10,7 @@
  */
 
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import type {
   BlockquoteNode,
   CaptionNode,
@@ -423,13 +424,15 @@ Deno.test("build: strong / link / autolink / hardbreak preserved verbatim", () =
 // ============================================================================
 
 Deno.test("characterisation: requirement-block.md entries all have bodyAst", async () => {
-  const fixtureUrl = new URL(
-    "../../../../tests/fixtures/requirement-block.md",
-    import.meta.url,
+  const fixturePath = fromFileUrl(
+    new URL(
+      "../../../../tests/fixtures/requirement-block.md",
+      import.meta.url,
+    ),
   );
-  const content = await Deno.readTextFile(fixtureUrl.pathname);
+  const content = await Deno.readTextFile(fixturePath);
   const result = parseMarkdown(content, {
-    file: fixtureUrl.pathname,
+    file: fixturePath,
   });
   assertEquals(result.entries.length > 0, true, "fixture should have entries");
   for (const entry of result.entries) {

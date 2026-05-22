@@ -7,6 +7,7 @@
  * project root).
  */
 
+import { isAbsolute, join } from "@std/path";
 import type { Diagnostic } from "../../core/mod.ts";
 import { relativeToRoot } from "../path.ts";
 
@@ -19,8 +20,8 @@ export function filterDiagnostics(
   if (!files || files.length === 0) return diagnostics;
   const absolute = new Set<string>();
   for (const f of files) {
-    if (f.startsWith("/")) absolute.add(f);
-    else absolute.add(`${projectRoot}/${f}`);
+    if (isAbsolute(f)) absolute.add(f);
+    else absolute.add(join(projectRoot, f));
   }
   return diagnostics.filter(
     (d) => d.location && absolute.has(d.location.file),

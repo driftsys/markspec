@@ -5,6 +5,7 @@
  */
 
 import { assert, assertExists } from "@std/assert";
+import { join, toFileUrl } from "@std/path";
 import { LspTestClient } from "./lsp_helpers.ts";
 
 Deno.test("lsp completions: block scaffold on '- ['", async () => {
@@ -19,7 +20,7 @@ Deno.test("lsp completions: block scaffold on '- ['", async () => {
   try {
     await client.initialize();
 
-    const fileUri = `file://${client.workDir}/reqs.md`;
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
     await client.notify("textDocument/didOpen", {
       textDocument: {
         uri: fileUri,
@@ -70,7 +71,7 @@ Deno.test("lsp completions: ID reference on 'Satisfies:'", async () => {
   try {
     await client.initialize();
 
-    const fileUri = `file://${client.workDir}/reqs.md`;
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
     await client.notify("textDocument/didOpen", {
       textDocument: {
         uri: fileUri,

@@ -8,7 +8,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { loadChain } from "./chain.ts";
 import type { ProfileChain, ProfileSpecifier } from "../model/mod.ts";
-import { resolve } from "@std/path";
+import { fromFileUrl, resolve } from "@std/path";
 
 const readFile = async (path: string): Promise<string | undefined> => {
   try {
@@ -20,7 +20,7 @@ const readFile = async (path: string): Promise<string | undefined> => {
 
 /** Absolute path to the examples/profiles directory. */
 const PROFILES_DIR = resolve(
-  new URL(".", import.meta.url).pathname,
+  fromFileUrl(new URL(".", import.meta.url)),
   "../../../../docs/examples/profiles",
 );
 

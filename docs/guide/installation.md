@@ -47,19 +47,56 @@ Add `~/.local/bin` to your `PATH` if it is not already there:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+### Windows (PowerShell install script)
+
+Run in PowerShell 5.1 (ships with Windows 10/11) or PowerShell 7+:
+
+```powershell
+irm https://raw.githubusercontent.com/driftsys/markspec/main/install.ps1 | iex
+```
+
+The script:
+
+1. Verifies the host is x86_64. ARM Windows is not supported yet.
+2. Downloads `markspec-x86_64-pc-windows-msvc.tar.gz` and its SHA-256.
+3. Verifies the checksum with `Get-FileHash`.
+4. Extracts `markspec.exe` with `tar` (bundled on Windows 10 1803+).
+5. Places the binary in `%USERPROFILE%\.local\bin` (override with the
+   `MARKSPEC_INSTALL_DIR` environment variable).
+
+The installer does not modify your `PATH` automatically. If `markspec` is not on
+your `PATH`, the script prints both a session-scope and user-scope command. To
+make the install permanent:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  'Path',
+  "$HOME\.local\bin;" + [Environment]::GetEnvironmentVariable('Path', 'User'),
+  'User'
+)
+```
+
+Open a new terminal and run `markspec --version` to verify.
+
+> **Antivirus / SmartScreen.** On the first run a freshly downloaded
+> `markspec.exe` may trigger a SmartScreen or AV prompt because the binary is
+> not yet Authenticode-signed
+> ([#403](https://github.com/driftsys/markspec/issues/403) tracks code signing).
+> Allow it once and the prompt does not return.
+
 ### Manual download
 
 Pre-built binaries are attached to every GitHub Release. Download the archive
 for your platform, extract the `markspec` binary, and place it anywhere on your
 `PATH`.
 
-| Platform         | File                            |
-| ---------------- | ------------------------------- |
-| macOS (Apple)    | `markspec-macos-aarch64.tar.gz` |
-| macOS (Intel)    | `markspec-macos-x86_64.tar.gz`  |
-| Linux (x86_64)   | `markspec-linux-x86_64.tar.gz`  |
-| Linux (aarch64)  | `markspec-linux-aarch64.tar.gz` |
-| Windows (x86_64) | `markspec-windows-x86_64.zip`   |
+| Platform         | File                                     |
+| ---------------- | ---------------------------------------- |
+| macOS (Apple)    | `markspec-macos-aarch64.tar.gz`          |
+| macOS (Intel)    | `markspec-macos-x86_64.tar.gz`           |
+| Linux (x86_64)   | `markspec-linux-x86_64.tar.gz`           |
+| Linux (aarch64)  | `markspec-linux-aarch64.tar.gz`          |
+| Windows (x86_64) | `markspec-x86_64-pc-windows-msvc.tar.gz` |
 
 ### Deno (from source)
 

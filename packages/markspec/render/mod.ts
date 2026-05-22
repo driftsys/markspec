@@ -21,7 +21,14 @@ import { generateTypstDocument } from "./typst/template.ts";
 import type { DocumentMetadata } from "./typst/template.ts";
 import { compileTypst } from "./typst/mod.ts";
 import type { TypstDiagnostic } from "./typst/mod.ts";
-import { dirname, isAbsolute, join, relative, resolve } from "@std/path";
+import {
+  common,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "@std/path";
 
 /** Options for rendering a Markdown document. */
 export interface RenderOptions {
@@ -189,24 +196,15 @@ function typstToDiagnostic(d: TypstDiagnostic): Diagnostic {
 /**
  * Longest-common-directory of two absolute paths. Used to compute a
  * Typst workspace that includes both the markspec-typst package and
- * an arbitrary source document's directory.
+ * an arbitrary source document's directory. Delegates to `@std/path`'s
+ * `common`, which uses the host platform's separator (so Windows paths
+ * with backslashes are handled correctly).
  */
 function longestCommonDirectory(a: string, b: string): string {
   if (!isAbsolute(a) || !isAbsolute(b)) {
     throw new Error("longestCommonDirectory requires absolute paths");
   }
-  const aParts = a.replace(/\/+$/, "").split("/");
-  const bParts = b.replace(/\/+$/, "").split("/");
-  const shared: string[] = [];
-  const len = Math.min(aParts.length, bParts.length);
-  for (let i = 0; i < len; i++) {
-    if (aParts[i] === bParts[i]) {
-      shared.push(aParts[i]);
-    } else {
-      break;
-    }
-  }
-  const result = shared.join("/");
+  const result = common([a, b]);
   return result === "" ? "/" : result;
 }
 

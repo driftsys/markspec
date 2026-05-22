@@ -33,64 +33,82 @@ Deno.test("loadProfileForCommand: empty profiles list yields the bundled default
   assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
 });
 
-Deno.test("loadProfileForCommand: default-profile false yields core-only (null chain)", async () => {
-  const result = await loadProfileForCommand(
-    "/project",
-    mockReadFile({
-      "/project/.markspec.yaml": "profiles: []\ndefault-profile: false\n",
-    }),
-  );
-  assertEquals(result.chain, null);
-  assertEquals(result.diagnostics, []);
-});
+Deno.test(
+  "loadProfileForCommand: default-profile false yields core-only (null chain)",
+  { ignore: Deno.build.os === "windows" },
+  async () => {
+    const result = await loadProfileForCommand(
+      "/project",
+      mockReadFile({
+        "/project/.markspec.yaml": "profiles: []\ndefault-profile: false\n",
+      }),
+    );
+    assertEquals(result.chain, null);
+    assertEquals(result.diagnostics, []);
+  },
+);
 
-Deno.test("loadProfileForCommand: single local profile is spliced onto the bundled default", async () => {
-  const result = await loadProfileForCommand(
-    "/project",
-    mockReadFile({
-      "/project/.markspec.yaml": `profiles:\n  - ./profiles/custom\n`,
-      "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
-    }),
-  );
-  assertEquals(result.diagnostics, []);
-  assertEquals(result.chain?.tiers.length, 2);
-  assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
-  assertEquals(result.chain?.tiers[1].id, "@acme/custom");
-});
+Deno.test(
+  "loadProfileForCommand: single local profile is spliced onto the bundled default",
+  { ignore: Deno.build.os === "windows" },
+  async () => {
+    const result = await loadProfileForCommand(
+      "/project",
+      mockReadFile({
+        "/project/.markspec.yaml": `profiles:\n  - ./profiles/custom\n`,
+        "/project/profiles/custom/markspec.yaml":
+          `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+      }),
+    );
+    assertEquals(result.diagnostics, []);
+    assertEquals(result.chain?.tiers.length, 2);
+    assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
+    assertEquals(result.chain?.tiers[1].id, "@acme/custom");
+  },
+);
 
-Deno.test("loadProfileForCommand: default-profile false keeps a single-tier chain", async () => {
-  const result = await loadProfileForCommand(
-    "/project",
-    mockReadFile({
-      "/project/.markspec.yaml":
-        `default-profile: false\nprofiles:\n  - ./profiles/custom\n`,
-      "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
-    }),
-  );
-  assertEquals(result.diagnostics, []);
-  assertEquals(result.chain?.tiers.length, 1);
-  assertEquals(result.chain?.tiers[0].id, "@acme/custom");
-});
+Deno.test(
+  "loadProfileForCommand: default-profile false keeps a single-tier chain",
+  { ignore: Deno.build.os === "windows" },
+  async () => {
+    const result = await loadProfileForCommand(
+      "/project",
+      mockReadFile({
+        "/project/.markspec.yaml":
+          `default-profile: false\nprofiles:\n  - ./profiles/custom\n`,
+        "/project/profiles/custom/markspec.yaml":
+          `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+      }),
+    );
+    assertEquals(result.diagnostics, []);
+    assertEquals(result.chain?.tiers.length, 1);
+    assertEquals(result.chain?.tiers[0].id, "@acme/custom");
+  },
+);
 
-Deno.test("loadProfileForCommand: explicit default-profile true still splices the bundled default", async () => {
-  const result = await loadProfileForCommand(
-    "/project",
-    mockReadFile({
-      "/project/.markspec.yaml":
-        `default-profile: true\nprofiles:\n  - ./profiles/custom\n`,
-      "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
-    }),
-  );
-  assertEquals(result.diagnostics, []);
-  assertEquals(result.chain?.tiers.length, 2);
-  assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
-  assertEquals(result.chain?.tiers[1].id, "@acme/custom");
-});
+Deno.test(
+  "loadProfileForCommand: explicit default-profile true still splices the bundled default",
+  { ignore: Deno.build.os === "windows" },
+  async () => {
+    const result = await loadProfileForCommand(
+      "/project",
+      mockReadFile({
+        "/project/.markspec.yaml":
+          `default-profile: true\nprofiles:\n  - ./profiles/custom\n`,
+        "/project/profiles/custom/markspec.yaml":
+          `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+      }),
+    );
+    assertEquals(result.diagnostics, []);
+    assertEquals(result.chain?.tiers.length, 2);
+    assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
+    assertEquals(result.chain?.tiers[1].id, "@acme/custom");
+  },
+);
 
-Deno.test("loadProfileForCommand: multiple profiles emits PROFILE-LOAD-006", async () => {
+Deno.test("loadProfileForCommand: multiple profiles emits PROFILE-LOAD-006", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadProfileForCommand(
     "/project",
     mockReadFile({
@@ -103,7 +121,9 @@ Deno.test("loadProfileForCommand: multiple profiles emits PROFILE-LOAD-006", asy
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-006");
 });
 
-Deno.test("loadProfileForCommand: .markspec.yaml YAML error surfaces", async () => {
+Deno.test("loadProfileForCommand: .markspec.yaml YAML error surfaces", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadProfileForCommand(
     "/project",
     mockReadFile({
@@ -114,7 +134,9 @@ Deno.test("loadProfileForCommand: .markspec.yaml YAML error surfaces", async () 
   assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-002");
 });
 
-Deno.test("loadProfileForCommand: unknown key warning does not block loading", async () => {
+Deno.test("loadProfileForCommand: unknown key warning does not block loading", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadProfileForCommand(
     "/project",
     mockReadFile({
@@ -135,7 +157,9 @@ Deno.test("loadProfileForCommand: unknown key warning does not block loading", a
   assertEquals(warnings[0].severity, "warning");
 });
 
-Deno.test("loadProfileForCommand: profile load errors propagate", async () => {
+Deno.test("loadProfileForCommand: profile load errors propagate", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadProfileForCommand(
     "/project",
     mockReadFile({

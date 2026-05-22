@@ -10,8 +10,9 @@
  * - source: doc comment extraction from Rust, Kotlin, C, C++, Java
  */
 
-import { extname } from "@std/path";
+import { basename as pathBasename, extname } from "@std/path";
 import type { Caption, Diagnostic, Document, Entry } from "../model/mod.ts";
+import { normalizeLineEndings } from "../util/line_endings.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { isSupportedExtension, loadGrammar } from "./grammars.ts";
 import { parseSource } from "./source.ts";
@@ -63,7 +64,8 @@ export function parse(
   options?: ParseOptions,
 ): Entry[] {
   const file = options?.file;
-  return parseMarkdown(markdown, {
+  const normalised = normalizeLineEndings(markdown);
+  return parseMarkdown(normalised, {
     ...options,
     isReferencesDoc: file !== undefined ? isReferencesDocument(file) : false,
   }).entries;
@@ -93,8 +95,11 @@ export interface ParseFileResult {
  * @param file - File path
  */
 function isReferencesDocument(file: string): boolean {
-  const basename = file.split("/").pop() ?? "";
-  return basename === "references.md" || file.includes("/references/");
+  if (pathBasename(file) === "references.md") return true;
+  // Detect a `/references/` (or `\references\`) directory anywhere in the
+  // path, in a separator-agnostic way so Windows checkouts behave the
+  // same as POSIX.
+  return /[\\/]references[\\/]/.test(file);
 }
 
 /**
@@ -110,18 +115,19 @@ export async function parseFile(
   options: { readonly file: string },
 ): Promise<ParseFileResult> {
   const ext = extname(options.file);
+  const normalised = normalizeLineEndings(content);
 
   if (isSupportedExtension(ext)) {
     const language = await loadGrammar(ext);
-    const result = parseSource(content, {
+    const result = parseSource(normalised, {
       file: options.file,
       language,
     });
     return { entries: result.entries, diagnostics: [] };
   }
 
-  const fm = extractFrontMatter(content, { file: options.file });
-  const body = fm.hadFrontMatter ? fm.markdown : content;
+  const fm = extractFrontMatter(normalised, { file: options.file });
+  const body = fm.hadFrontMatter ? fm.markdown : normalised;
   const isReferencesDoc = isReferencesDocument(options.file);
   const { entries, diagnostics: parseDiagnostics } = parseMarkdown(body, {
     file: options.file,

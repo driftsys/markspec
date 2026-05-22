@@ -24,6 +24,11 @@ import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { FENCE_RE, walkProseLines } from "../util/fence.ts";
 import {
+  applyLineEnding,
+  detectLineEnding,
+  normalizeLineEndings,
+} from "../util/line_endings.ts";
+import {
   EARS_KEYWORD_RE,
   isSentenceInitial as _isSentenceInitial,
   RFC2119_MODAL_RE,
@@ -347,10 +352,19 @@ export function format(
 ): FormatResult {
   const file = options?.file ?? "<unknown>";
 
+  // Detect the source file's line-ending convention up front so we can
+  // restore it on write-back. The rest of the formatter operates on a
+  // pure-LF buffer; any `\r` characters from a CRLF (or legacy Mac CR)
+  // source would otherwise leak into trailers and AST nodes.
+  const sourceLineEnding = detectLineEnding(markdown);
+  const normalisedMarkdown = sourceLineEnding === "lf"
+    ? markdown
+    : normalizeLineEndings(markdown);
+
   // Extract any YAML front matter first so entries are parsed against the
   // body only (front-matter `---` could be confused with horizontal rules).
-  const fm = extractFrontMatter(markdown, { file });
-  const rawBody = fm.hadFrontMatter ? fm.markdown : markdown;
+  const fm = extractFrontMatter(normalisedMarkdown, { file });
+  const rawBody = fm.hadFrontMatter ? fm.markdown : normalisedMarkdown;
   // The §3.4.1 modal-keyword pass is NO LONGER a pre-parse whole-body
   // string pass. It is AST-native in `emitBodyViaAst` via
   // `normalizeBodyAst` (more spec-correct: respects §2.5 verbatim
@@ -361,6 +375,9 @@ export function format(
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
 
   if (entries.length === 0 && !fm.hadFrontMatter) {
+    // No entries and no front matter — nothing to format. Returning the
+    // original `markdown` preserves the source's exact byte sequence,
+    // including its line-ending convention.
     return { output: markdown, diagnostics, changed: false };
   }
 
@@ -479,12 +496,14 @@ export function format(
 
   if (fm.hadFrontMatter) {
     const canonicalFm = renderFrontMatter(fm.attributes);
-    const output = canonicalFm + formattedBody;
-    if (output !== markdown) changed = true;
+    const outputLf = canonicalFm + formattedBody;
+    if (outputLf !== normalisedMarkdown) changed = true;
+    const output = applyLineEnding(outputLf, sourceLineEnding);
     return { output, diagnostics, changed };
   }
 
-  return { output: formattedBody, diagnostics, changed };
+  const output = applyLineEnding(formattedBody, sourceLineEnding);
+  return { output, diagnostics, changed };
 }
 
 /**

@@ -7,6 +7,7 @@
  * `| filter` syntax for title-only and body-only variants.
  */
 
+import { isAbsolute, join } from "@std/path";
 import type { CompileResult, Diagnostic, Entry } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 
@@ -244,9 +245,9 @@ async function resolveFileRef(
   const filePath = hashIndex >= 0 ? ref.slice(0, hashIndex) : ref;
   const anchor = hashIndex >= 0 ? ref.slice(hashIndex + 1) : undefined;
 
-  const resolvedPath = filePath.startsWith("/")
+  const resolvedPath = isAbsolute(filePath)
     ? filePath
-    : `${options.basePath}/${filePath}`;
+    : join(options.basePath, filePath);
 
   let content: string;
   try {

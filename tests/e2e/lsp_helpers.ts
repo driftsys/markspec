@@ -5,16 +5,15 @@
  * Spawns the server as a subprocess and communicates over stdin/stdout.
  */
 
-const LSP_ENTRY = new URL(
-  "../../packages/markspec/lsp/server.ts",
-  import.meta.url,
-).pathname;
+import { fromFileUrl, toFileUrl } from "@std/path";
+
+const LSP_ENTRY = fromFileUrl(
+  new URL("../../packages/markspec/lsp/server.ts", import.meta.url),
+);
 
 /** Workspace root — two levels up from tests/e2e/. */
-const WORKSPACE_ROOT = new URL("../../", import.meta.url).pathname.replace(
-  /\/$/,
-  "",
-);
+const WORKSPACE_ROOT = fromFileUrl(new URL("../../", import.meta.url))
+  .replace(/[\\/]$/, "");
 
 /** A JSON-RPC message (request or notification). */
 interface JsonRpcMessage {
@@ -188,7 +187,7 @@ export class LspTestClient {
   async initialize(
     options: { processId?: number | null } = {},
   ): Promise<unknown> {
-    const rootUri = `file://${this.workDir}`;
+    const rootUri = toFileUrl(this.workDir).href;
     const result = await this.request("initialize", {
       processId: options.processId === undefined ? Deno.pid : options.processId,
       rootUri,

@@ -8,6 +8,8 @@
  * specifier. Caller is responsible for cleaning up the provided workspaceDir.
  */
 
+import { toFileUrl } from "@std/path";
+
 /** What you get back from `setupGitFixture`. */
 export interface GitFixture {
   /** `file:///...` URL pointing at the bare repo. Safe to use in a specifier. */
@@ -88,7 +90,7 @@ export async function setupGitFixture(
   ]);
 
   return {
-    url: `file://${bareDir}`,
+    url: toFileUrl(bareDir).href,
     tag: opts.tag,
   };
 }
