@@ -150,7 +150,7 @@ function publishFileDiagnostics(
 
 /** Run cross-file validation and publish diagnostics for all files. */
 function publishAllDiagnostics(): void {
-  const allDiags = index.validateAll();
+  const allDiags = index.validateAll(profile ?? null);
   const grouped = groupDiagnosticsByFile(allDiags);
 
   // Send diagnostics for files that have issues

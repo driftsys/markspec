@@ -1000,3 +1000,79 @@ profile:
     true,
   );
 });
+
+Deno.test("parseManifest: enum and label values accept grouped {group, values} format", () => {
+  const yaml = `
+id: "@acme/profile-grouped"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  attributes:
+    - name: System
+      type: enum
+      description: grouped enum with nested groups
+      values:
+        - group: A
+          description: group a
+          values:
+            - name: S1
+              description: one
+            - name: S2
+        - group: B
+          values:
+            - S3
+    - name: Method
+      type: enum
+      values:
+        - name: Test
+        - name: Review
+  labels:
+    - group: safety
+      description: ISO 26262
+      values:
+        - name: ASIL-A
+        - name: ASIL-B
+    - group: cyber
+      values:
+        - CAL-1
+`;
+  const result = parseManifest(yaml);
+  assertEquals(result.diagnostics, []);
+  const attrs = result.manifest?.universalAttributes ?? [];
+  assertEquals(attrs.find((a) => a.name === "System")?.values, [
+    "S1",
+    "S2",
+    "S3",
+  ]);
+  assertEquals(attrs.find((a) => a.name === "Method")?.values, [
+    "Test",
+    "Review",
+  ]);
+  // Grouped labels flatten to one flag concern per leaf value name.
+  assertEquals(result.manifest?.labels.map((c) => c.name), [
+    "ASIL-A",
+    "ASIL-B",
+    "CAL-1",
+  ]);
+});
+
+Deno.test("parseManifest: malformed grouped values still fail PROFILE-LOAD-003", () => {
+  const yaml = `
+id: "@acme/profile-bad"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  attributes:
+    - name: System
+      type: enum
+      values:
+        - group: A
+          values:
+            - 42
+`;
+  const result = parseManifest(yaml);
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "PROFILE-LOAD-003"),
+    true,
+  );
+});

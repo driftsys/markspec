@@ -20,7 +20,7 @@
  * `validator/types.ts` (`inferTypeFromDisplayIdShape`).
  */
 
-import type { Entry } from "../model/mod.ts";
+import type { EffectiveProfile, Entry } from "../model/mod.ts";
 import {
   CORE_TYPE_HIERARCHY,
   inferTypeFromDiscriminatingAttr,
@@ -104,6 +104,22 @@ export interface ResolvedTypeWithProvenance {
 }
 
 /**
+ * Map a profile-declared type name to the core type it `extends`. In the
+ * effective (merged) profile every type's `extends` is frozen to a core type
+ * (spec §1.3.1 step 2 / profile schema), so a single lookup — no chain walk —
+ * yields the core parent. Returns `undefined` when no profile is supplied, the
+ * name is not a profile type, or its `extends` is not a known core type.
+ */
+function profileTypeToCore(
+  typeName: string,
+  profile: EffectiveProfile | undefined,
+): string | undefined {
+  if (!profile) return undefined;
+  const core = profile.types.get(typeName)?.value.extends;
+  return core && CORE_TYPE_HIERARCHY[core] ? core : undefined;
+}
+
+/**
  * Resolve an entry's effective core type and report which step of the
  * spec §1.3.1 chain matched. First match wins. Returns `undefined` when
  * no step in {1..6} resolves to a known core type — callers may then
@@ -112,15 +128,21 @@ export interface ResolvedTypeWithProvenance {
  */
 export function resolvedCoreTypeWithProvenance(
   entry: Entry,
+  profile?: EffectiveProfile,
 ): ResolvedTypeWithProvenance | undefined {
-  // Step 1: explicit Type:
+  // Step 1: explicit Type: — a core type directly, or a profile type whose
+  // `extends:` resolves to a core type (frozen at declaration).
   const explicit = explicitType(entry);
-  if (explicit && CORE_TYPE_HIERARCHY[explicit]) {
-    return { type: explicit, step: 1 };
+  if (explicit) {
+    if (CORE_TYPE_HIERARCHY[explicit]) return { type: explicit, step: 1 };
+    const core = profileTypeToCore(explicit, profile);
+    if (core) return { type: core, step: 1 };
   }
-  // Step 2: profile-classified entry.type
-  if (entry.type && CORE_TYPE_HIERARCHY[entry.type]) {
-    return { type: entry.type, step: 2 };
+  // Step 2: profile-classified entry.type — same core/profile resolution.
+  if (entry.type) {
+    if (CORE_TYPE_HIERARCHY[entry.type]) return { type: entry.type, step: 2 };
+    const core = profileTypeToCore(entry.type, profile);
+    if (core) return { type: core, step: 2 };
   }
   // Step 3: Source: introspection
   const source = sourceValue(entry);
@@ -162,6 +184,9 @@ export function resolvedCoreTypeWithProvenance(
  * type. The caller decides whether to skip validation, fall back to a
  * less specific check, or report on the unclassified state.
  */
-export function resolvedCoreType(entry: Entry): string | undefined {
-  return resolvedCoreTypeWithProvenance(entry)?.type;
+export function resolvedCoreType(
+  entry: Entry,
+  profile?: EffectiveProfile,
+): string | undefined {
+  return resolvedCoreTypeWithProvenance(entry, profile)?.type;
 }
