@@ -488,7 +488,7 @@ connection.onCompletion((params): CompletionItem[] => {
     });
   }
 
-  // Trigger 1.5: Trailer attribute key — indented blank or partial key.
+  // Trigger 2: Trailer attribute key — indented blank or partial key.
   if (isTrailerKeyContext(line)) {
     const items = buildTrailerKeyItems();
     return items.map((item) => ({
@@ -499,7 +499,7 @@ connection.onCompletion((params): CompletionItem[] => {
     }));
   }
 
-  // Trigger 2: ID reference
+  // Trigger 3: ID reference
   if (isTraceAttributeTrigger(line)) {
     const displayIds = index.getAllDisplayIds();
     const items = buildIdReferenceItems(displayIds);
@@ -510,7 +510,7 @@ connection.onCompletion((params): CompletionItem[] => {
     }));
   }
 
-  // Trigger 3: Type: attribute value — core types + profile types.
+  // Trigger 4: Type: attribute value — core types + profile types.
   if (isTypeAttributeTrigger(line)) {
     const profileTypeNames = profile ? [...profile.types.keys()] : [];
     const items = buildTypeAttributeItems(profileTypeNames);

@@ -203,6 +203,7 @@ Deno.test("renderScaffoldSnippet: formats display ID and ULID", () => {
 // --- Trailer key trigger ---
 
 Deno.test("TRAILER_KEYS: includes the documented trace + label + type keys", () => {
+  assertEquals(TRAILER_KEYS.length, 13);
   // Trace attribute keys.
   assertEquals(TRAILER_KEYS.includes("Satisfies"), true);
   assertEquals(TRAILER_KEYS.includes("Derived-from"), true);
@@ -221,7 +222,8 @@ Deno.test("TRAILER_KEYS: includes the documented trace + label + type keys", () 
 });
 
 Deno.test("isTrailerKeyContext: blank indented line matches", () => {
-  assertEquals(isTrailerKeyContext("      "), true);
+  assertEquals(isTrailerKeyContext("    "), true); // exactly 4 spaces (boundary)
+  assertEquals(isTrailerKeyContext("      "), true); // 6 spaces (canonical)
 });
 
 Deno.test("isTrailerKeyContext: indented partial uppercase key matches", () => {

@@ -52,7 +52,7 @@ export const TRAILER_KEYS: readonly string[] = [
   "Type",
 ] as const;
 
-/** Trailer-region context: indent ≥4 spaces, optional partial capitalized key. */
+/** Trailer-region context: indent ≥4 whitespace chars (matches the parser's lenient leading-whitespace acceptance; formatter canonicalises to 6 spaces), optional partial capitalized key. */
 const TRAILER_KEY_CONTEXT_RE = /^\s{4,}([A-Z][A-Za-z-]*)?$/;
 
 /**
@@ -186,6 +186,7 @@ export function buildTypeAttributeItems(
  * entry in {@linkcode TRAILER_KEYS}, each inserting `<Key>: ` with
  * the cursor placed after the colon.
  */
+// Kept as a zero-arg function (rather than a precomputed constant) for naming symmetry with the other `build*Items` helpers and so future profile-aware filtering can be added without changing the API.
 export function buildTrailerKeyItems(): CompletionItemData[] {
   return TRAILER_KEYS.map((key) => ({
     label: key,
