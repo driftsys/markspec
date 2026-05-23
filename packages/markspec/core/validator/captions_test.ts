@@ -26,6 +26,7 @@ function makeEntry(displayId: string, body: string): Entry {
     location: { file: "test.md", line: 10, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
 }
 

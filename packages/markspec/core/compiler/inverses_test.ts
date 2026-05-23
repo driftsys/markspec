@@ -29,6 +29,7 @@ function entry(
     location: LOC,
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
     ...overrides,
     displayId: makeDisplayId(displayId),
   };

@@ -33,6 +33,7 @@ function makeEntry(
     source: "markdown",
     typedAttributes: new Map(type ? [["Type", [type]]] : []),
     type,
+    bodyTokens: [],
   };
 }
 

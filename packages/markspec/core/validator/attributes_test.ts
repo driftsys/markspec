@@ -88,6 +88,7 @@ function entry(opts: {
       Object.entries(attrs).map(([k, vs]) => [k, vs]),
     ),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 }
 

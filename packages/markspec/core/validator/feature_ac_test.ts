@@ -25,6 +25,7 @@ function makeEntry(displayId: string, body: string): Entry {
     location: { file: "test.md", line: 10, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
 }
 
@@ -191,6 +192,7 @@ Deno.test("validateFeatureAc: no bodyAst → no MSL-B044", () => {
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
   const diags = validateFeatureAc(entry);
   assertEquals(diags.filter((d) => d.code === "MSL-B044").length, 0);

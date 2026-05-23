@@ -25,6 +25,7 @@ function makeEntry(displayId: string, body: string): Entry {
     location: { file: "test.md", line: 10, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
 }
 
@@ -157,6 +158,7 @@ Deno.test("validateCaptionConvention: no bodyAst → no MSL-C072", () => {
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
   const conventions: CaptionConventions = { Figure: "below" };
   const diags = validateCaptionConvention(entry, conventions);

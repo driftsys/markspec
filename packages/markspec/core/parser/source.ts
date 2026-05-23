@@ -72,6 +72,11 @@ export function parseSource(
         ...entry,
         source: "doc-comment",
         location,
+        // Story 3 (LineMap, ADR-016 Decision 6) will replace this with
+        // the file-relative token stream. For now, source-file entries
+        // get an empty array so the Entry schema is satisfied without
+        // emitting wrong-coordinate tokens.
+        bodyTokens: [],
         properties: {
           file: {
             path: file,

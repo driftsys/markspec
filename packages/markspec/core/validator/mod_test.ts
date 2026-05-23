@@ -25,6 +25,7 @@ function entry(
       { file: "test.md", line: 1, column: 1 },
     source: partial.source ?? "markdown",
     typedAttributes: partial.typedAttributes ?? new Map(),
+    bodyTokens: partial.bodyTokens ?? [],
   };
 }
 

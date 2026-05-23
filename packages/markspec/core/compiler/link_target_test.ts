@@ -21,6 +21,7 @@ function makeEntry(
     shape: "Authored",
     location: LOC,
     source: "markdown",
+    bodyTokens: [],
   };
 }
 

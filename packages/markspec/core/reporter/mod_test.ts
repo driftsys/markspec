@@ -34,6 +34,7 @@ function makeEntry(
     rawAttributes,
     typedAttributes: new Map(),
     type: opts.type,
+    bodyTokens: [],
   };
 }
 
