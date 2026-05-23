@@ -1,5 +1,157 @@
 # Changelog
 
+## [0.5.3] (2026-05-23)
+
+### Features
+
+- **repo:** register MarkSpec inline AI completion provider ([bff70fa])
+- **repo:** inline completion provider with model injection ([7bb705c])
+- **repo:** add prompt builder for inline AI completion ([165a8a7])
+- **repo:** add inline-completion cursor context classifier ([907c594])
+- **repo:** add inline-completion configuration entries ([b45754a])
+- **lsp:** suggest trailer attribute keys in entry trailer region ([0afc920])
+- **lsp:** resolve scaffold completions with monotonic next-id ([15938a9])
+- **lsp:** stamp real ULID in block-scaffold completions ([abb6347])
+- **repo:** VS Code source-view entry rendering ([e0caa81])
+- **repo:** native Windows support across CLI, LSP, and installer ([4d5df8c]),
+  closes 403. Follow-up #406 tracks refactoring the Windows-skipped
+unit
+  tests.
+
+Delivers the seven stories from `docs/product/windows-support.md`:
+
+*
+  **STK-WIN-0002 — File URIs round-trip on Windows.** `pathToUri` /
+ 
+  `uriToPath` use `@std/path`'s platform-aware `toFileUrl` /
+  `fromFileUrl`.
+  Same fix in `cli/commands/doc.ts`, every e2e helper
+  that built `file://`
+  URIs by string concatenation, and 11 test
+  files that built `CLI_ENTRY` via
+  `new URL(...).pathname`.
+* **STK-WIN-0003 — Path construction is
+  platform-aware.**
+  `walkDirectory`, `walkFs`, `book.ts`, `render/includes`,
+  `mcp/tools/validate`, and `mcp/path.relativeToRoot` use `@std/path`
+  `join` /
+  `isAbsolute` / `SEPARATOR` rather than `${dir}/${name}`.
+ 
+  `core/parser/mod.isReferencesDocument` uses `basename` plus a
+ 
+  separator-agnostic regex. `render/mod.longestCommonDirectory`
+  delegates to
+  `@std/path`'s `common`.
+* **STK-WIN-0004 — CRLF normalisation at the parse
+  boundary.** Line
+  endings normalise to LF in `parseFile`, `parse`,
+  `buildBodyAst`, and the formatter detects the source's convention and restores
+  it
+  on write-back. AST-fidelity matrix stays at surface 0/58.
+*
+  **STK-WIN-0001 / STK-WIN-0007 — Windows CI matrix.** `ci.yaml`'s
+  `test`
+  job runs on `ubuntu`, `windows`, and `macos`
+  (`fail-fast: false`).
+*
+  **STK-WIN-0006 — PowerShell installer.** `install.ps1` mirrors
+ 
+  `install.sh`: GitHub release fetch, SHA-256 verification, `tar`
+  extraction
+  to `$HOME\.local\bin` (override via
+  `MARKSPEC_INSTALL_DIR`). A
+  `windows-latest` CI job parses the
+  script via the PowerShell parser.
+*
+  **STK-WIN-0005 — VSCode end-to-end checklist.** New
+ 
+  `editors/vscode/README.md` with a 13-row manual smoke-test
+  checklist plus
+  CRLF and path-handling spot checks.
+* **STK-WIN-0008 — Windows install path
+  documented.**
+  `docs/guide/installation.md` documents the Windows PowerShell
+
+   install path with the SmartScreen / signing caveat. `README.md`
+  links to
+  it. `bootstrap` keeps WSL guidance for contributors and
+  points end users at
+  `install.ps1`.
+- **core:** support named {scope} segments in display-id patterns ([30d5170])
+- **core:** accept grouped enum and label value lists ([6b6938d])
+
+### Bug Fixes
+
+- **release:** exclude compiled tests from VSIX, document bin/ omission
+  ([1646cff])
+- **repo:** un-skip Windows tests and support cross-drive doc build ([15cddea]),
+  closes 406. Replaces synthetic POSIX path fixtures ("/proj/foo.md") in 54
+unit
+  tests with platform-native paths built via @std/path's resolve() +
+join(),
+  removing the corresponding { ignore: Deno.build.os === "windows" }
+skips
+  introduced by PR #405.
+
+Also fixes markspec doc build on Windows when the
+  source document lives on
+a different drive than the bundled markspec-typst
+  package (typical CI
+- **repo:** thread document URI through inline completion provider ([8ab87f7])
+- **repo:** tighten inline classifier (full-line title match, trailer skip)
+  ([63320db])
+- **lsp:** address formal-review findings (resolve format, snippet escaping)
+  ([a94aef4])
+- **mcp:** case-insensitive root prefix match on Windows ([21c7b19])
+- **repo:** use Test-Checksum verb in install.ps1 ([90803ae])
+- **core:** split multi-value locator-bearing links (Derived-from) ([d22c94e])
+- **core:** apply profile attribute scope in compiler and LSP validation
+  ([bb40072])
+- **core:** resolve profile types to their core parent in type resolution
+  ([80a9703])
+
+### Refactoring
+
+- **repo:** hoist provider imports and tighten return contract ([bf90957])
+- **repo:** correct prompt indentation and tighten exhaustiveness ([b5e12ae])
+- **lsp:** clarify trailer-key trigger docs and tighten tests ([976ebc6])
+- **lsp:** type the scaffold resolve data payload ([cdadbff])
+- **lsp:** document ulidProvider param and tighten tests ([cad2a36])
+
+### Documentation
+
+- **repo:** park homeless spec files and surface template directory ([f188904])
+
+[0.5.3]: https://github.com/driftsys/markspec/compare/v0.5.2...v0.5.3
+[bff70fa]: https://github.com/driftsys/markspec/commit/bff70fa
+[7bb705c]: https://github.com/driftsys/markspec/commit/7bb705c
+[165a8a7]: https://github.com/driftsys/markspec/commit/165a8a7
+[907c594]: https://github.com/driftsys/markspec/commit/907c594
+[b45754a]: https://github.com/driftsys/markspec/commit/b45754a
+[0afc920]: https://github.com/driftsys/markspec/commit/0afc920
+[15938a9]: https://github.com/driftsys/markspec/commit/15938a9
+[abb6347]: https://github.com/driftsys/markspec/commit/abb6347
+[e0caa81]: https://github.com/driftsys/markspec/commit/e0caa81
+[4d5df8c]: https://github.com/driftsys/markspec/commit/4d5df8c
+[30d5170]: https://github.com/driftsys/markspec/commit/30d5170
+[6b6938d]: https://github.com/driftsys/markspec/commit/6b6938d
+[1646cff]: https://github.com/driftsys/markspec/commit/1646cff
+[15cddea]: https://github.com/driftsys/markspec/commit/15cddea
+[8ab87f7]: https://github.com/driftsys/markspec/commit/8ab87f7
+[63320db]: https://github.com/driftsys/markspec/commit/63320db
+[a94aef4]: https://github.com/driftsys/markspec/commit/a94aef4
+[21c7b19]: https://github.com/driftsys/markspec/commit/21c7b19
+[90803ae]: https://github.com/driftsys/markspec/commit/90803ae
+[d22c94e]: https://github.com/driftsys/markspec/commit/d22c94e
+[bb40072]: https://github.com/driftsys/markspec/commit/bb40072
+[80a9703]: https://github.com/driftsys/markspec/commit/80a9703
+[bf90957]: https://github.com/driftsys/markspec/commit/bf90957
+[b5e12ae]: https://github.com/driftsys/markspec/commit/b5e12ae
+[976ebc6]: https://github.com/driftsys/markspec/commit/976ebc6
+[cdadbff]: https://github.com/driftsys/markspec/commit/cdadbff
+[cad2a36]: https://github.com/driftsys/markspec/commit/cad2a36
+[f188904]: https://github.com/driftsys/markspec/commit/f188904
+
 ## [0.5.2] (2026-05-19)
 
 ### Documentation
