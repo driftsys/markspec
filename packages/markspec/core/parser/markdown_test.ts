@@ -337,14 +337,14 @@ Deno.test("parseMarkdown: typedAttributes collates repeatable values", () => {
 // Body tokens (ADR-016)
 // ---------------------------------------------------------------------------
 
-Deno.test("parseMarkdown: populates Entry.bodyTokens", async () => {
+Deno.test("parseMarkdown: populates Entry.bodyTokens", () => {
   const md = `- [REQ-1] Title
 
   The driver shall debounce $Sensor inputs.
 
       Id: ${ULID}
 `;
-  const { entries } = await Promise.resolve(parseMarkdown(md, { file: "test.md" }));
+  const { entries } = parseMarkdown(md, { file: "test.md" });
   assertEquals(entries.length, 1);
   const tokens = entries[0].bodyTokens;
   const kinds = tokens.map((t) => t.kind);
