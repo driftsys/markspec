@@ -160,7 +160,7 @@ export interface CodeNode {
   readonly range: SourceRange;
 }
 
-/** Fenced code with info-string `gherkin`. Gherkin is kept verbatim
+/** Fenced code with info-string `gherkin` or `feature`. Content is kept verbatim
  * for now; structured scenario parsing is deferred to a later PR
  * (see the canonical-body-AST plan). */
 export interface FeatureNode {
