@@ -163,7 +163,9 @@ export type ModelInvoker = (
 /** Constructor dependencies for {@linkcode MarkspecInlineCompletionProvider}. */
 export interface InlineProviderDeps {
   readonly modelInvoker: ModelInvoker;
-  readonly listDocumentSymbols: () => Promise<readonly EntryRef[]>;
+  readonly listDocumentSymbols: (
+    document: TextDocument,
+  ) => Promise<readonly EntryRef[]>;
   readonly listWorkspaceSymbols: (
     query: string,
   ) => Promise<readonly EntryRef[]>;
@@ -203,7 +205,7 @@ export class MarkspecInlineCompletionProvider {
 
     const localWindow = readLocalWindow(document, position);
     const [currentFileEntries, workspaceEntries] = await Promise.all([
-      this.deps.listDocumentSymbols(),
+      this.deps.listDocumentSymbols(document),
       this.deps.listWorkspaceSymbols(""),
     ]);
 

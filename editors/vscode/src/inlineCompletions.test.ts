@@ -237,7 +237,7 @@ test("MarkspecInlineCompletionProvider: returns null for skip context", async ()
   };
   const provider = new MarkspecInlineCompletionProvider({
     modelInvoker: invoker,
-    listDocumentSymbols: async () => [],
+    listDocumentSymbols: async (_doc) => [],
     listWorkspaceSymbols: async () => [],
     maxWorkspaceEntries: 200,
   });
@@ -265,7 +265,7 @@ test("MarkspecInlineCompletionProvider: forwards model output as the completion 
   };
   const provider = new MarkspecInlineCompletionProvider({
     modelInvoker: invoker,
-    listDocumentSymbols: async () => [],
+    listDocumentSymbols: async (_doc) => [],
     listWorkspaceSymbols: async () => [],
     maxWorkspaceEntries: 200,
   });
@@ -299,7 +299,7 @@ test("MarkspecInlineCompletionProvider: caps workspace symbols at maxWorkspaceEn
   };
   const provider = new MarkspecInlineCompletionProvider({
     modelInvoker: invoker,
-    listDocumentSymbols: async () => [],
+    listDocumentSymbols: async (_doc) => [],
     listWorkspaceSymbols: async () => workspaceSymbols,
     maxWorkspaceEntries: 200,
   });
@@ -334,7 +334,7 @@ test("MarkspecInlineCompletionProvider: aborts when the cancellation token fires
   };
   const provider = new MarkspecInlineCompletionProvider({
     modelInvoker: invoker,
-    listDocumentSymbols: async () => [],
+    listDocumentSymbols: async (_doc) => [],
     listWorkspaceSymbols: async () => [],
     maxWorkspaceEntries: 200,
   });
@@ -356,7 +356,7 @@ test("MarkspecInlineCompletionProvider: entry-body context surfaces current-file
   };
   const provider = new MarkspecInlineCompletionProvider({
     modelInvoker: invoker,
-    listDocumentSymbols: async () => [
+    listDocumentSymbols: async (_doc) => [
       { displayId: "STK_AEB_0001", title: "Sensor debouncing" },
       { displayId: "STK_AEB_0002", title: "Range gating" },
     ],

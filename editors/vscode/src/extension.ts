@@ -32,7 +32,6 @@ import {
 import {
   MarkspecInlineCompletionProvider,
   type ModelInvoker,
-  type RawInlineCompletionItem,
 } from "./inlineCompletions";
 import type { EntryRef } from "./prompts";
 import { resolveServerOptions } from "./serverOptions";
@@ -75,13 +74,27 @@ function symbolsToEntryRefs(symbols: unknown): EntryRef[] {
   return symbols.flatMap((s) => {
     const name = typeof s?.name === "string" ? s.name : undefined;
     if (!name) return [];
-    const detail = typeof s?.detail === "string" ? s.detail : undefined;
+    const rawDetail = typeof s?.detail === "string" ? s.detail : undefined;
     const containerName = typeof s?.containerName === "string"
       ? s.containerName
       : undefined;
+    // Document symbols carry the title in `detail` as either
+    // "<type> — <title>" (when a profile assigns a type) or just
+    // "<title>" (no type). Workspace symbols carry the title in
+    // `containerName`. Strip the optional type prefix from `detail`
+    // so the prompt sees only the entry title.
+    const detail = stripTypePrefix(rawDetail);
     const title = detail ?? containerName ?? name;
     return [{ displayId: name, title }];
   });
+}
+
+/** Remove a leading "<type> — " segment if present. */
+function stripTypePrefix(detail: string | undefined): string | undefined {
+  if (!detail) return undefined;
+  const idx = detail.indexOf(" — ");
+  if (idx < 0) return detail;
+  return detail.slice(idx + 3);
 }
 
 export function activate(context: ExtensionContext): void {
@@ -187,12 +200,14 @@ export function activate(context: ExtensionContext): void {
       }
     };
 
-    const listDocumentSymbols = async () =>
+    const listDocumentSymbols = async (document: TextDocument) =>
       symbolsToEntryRefs(
-        await commands.executeCommand(
-          "vscode.executeDocumentSymbolProvider",
-          window.activeTextEditor?.document.uri,
-        ),
+        await commands
+          .executeCommand(
+            "vscode.executeDocumentSymbolProvider",
+            document.uri,
+          )
+          .then((v) => v, () => undefined),
       );
     const listWorkspaceSymbols = async (query: string) =>
       symbolsToEntryRefs(
@@ -211,7 +226,7 @@ export function activate(context: ExtensionContext): void {
 
     context.subscriptions.push(
       languages.registerInlineCompletionItemProvider(
-        { language: "markdown" },
+        { scheme: "file", language: "markdown" },
         {
           provideInlineCompletionItems: async (
             document,
@@ -226,10 +241,7 @@ export function activate(context: ExtensionContext): void {
               token,
             );
             if (!raw) return null;
-            return raw.map(
-              (r: RawInlineCompletionItem) =>
-                new InlineCompletionItem(r.insertText),
-            );
+            return raw.map((r) => new InlineCompletionItem(r.insertText));
           },
         },
       ),
