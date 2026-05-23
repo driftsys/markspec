@@ -69,6 +69,8 @@ import {
   isTraceAttributeTrigger,
   isTypeAttributeTrigger,
   renderScaffoldSnippet,
+  SCAFFOLD_COMPLETION_KIND,
+  type ScaffoldCompletionData,
 } from "./completions.ts";
 import {
   isDocCommentContext,
@@ -474,7 +476,11 @@ connection.onCompletion((params): CompletionItem[] => {
           ? CompletionItemKind.Snippet
           : CompletionItemKind.Reference,
         data: type
-          ? { kind: "scaffold", typeName: type.name, prefix: type.prefix }
+          ? {
+            kind: SCAFFOLD_COMPLETION_KIND,
+            typeName: type.name,
+            prefix: type.prefix,
+          } satisfies ScaffoldCompletionData
           : undefined,
       };
     });
@@ -506,10 +512,8 @@ connection.onCompletion((params): CompletionItem[] => {
 });
 
 connection.onCompletionResolve((item): CompletionItem => {
-  const data = item.data as
-    | { kind?: string; typeName?: string; prefix?: string }
-    | undefined;
-  if (data?.kind !== "scaffold" || !data.typeName || !data.prefix) {
+  const data = item.data as ScaffoldCompletionData | undefined;
+  if (data?.kind !== SCAFFOLD_COMPLETION_KIND) {
     return item;
   }
   const nextNumber = index.getNextDisplayIdNumber(data.prefix);

@@ -150,11 +150,28 @@ export interface ScaffoldSnippetInput {
   readonly ulid: string;
 }
 
+/** Discriminator value for scaffold completions' resolve-time `data` payload. */
+export const SCAFFOLD_COMPLETION_KIND = "scaffold";
+
+/**
+ * `data` payload attached to scaffold completion items so the
+ * `completionItem/resolve` handler can re-query the workspace index
+ * and regenerate the snippet with the freshest display ID + ULID.
+ */
+export interface ScaffoldCompletionData {
+  readonly kind: typeof SCAFFOLD_COMPLETION_KIND;
+  readonly typeName: string;
+  readonly prefix: string;
+}
+
 /**
  * Render the label + snippet text for one scaffold completion. Shared
  * by the build-time path (`buildBlockScaffoldItems`) and the resolve-
  * time path (`onCompletionResolve` in `server.ts`) so both render the
  * same shape from the same primitives.
+ *
+ * @returns An object with `label` and `insertText`. The `insertText`
+ *   field uses LSP snippet syntax with `${}` placeholders for tab stops.
  */
 export function renderScaffoldSnippet(
   input: ScaffoldSnippetInput,

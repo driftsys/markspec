@@ -183,6 +183,37 @@ Deno.test("WorkspaceIndex: removeFile promotes survivor when removed file owned 
   );
 });
 
+Deno.test("getNextDisplayIdNumber: advances after parseAndUpdateFile", async () => {
+  const index = new WorkspaceIndex();
+  await index.parseAndUpdateFile(
+    "/tmp/test.md",
+    `- [STK_AEB_0001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+  );
+  assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 2);
+
+  await index.parseAndUpdateFile(
+    "/tmp/test.md",
+    `- [STK_AEB_0001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [STK_AEB_0002] Second
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+  );
+  assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 3);
+});
+
 Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared attributes", async () => {
   const ulid = "01HGW2Q8MNP3RSTVWXYZABCDEF";
   const md = `- [REQ-001] Title
