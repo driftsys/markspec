@@ -5,6 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { loadChain } from "./chain.ts";
 import type { RunGit } from "./git-cache.ts";
 import { computeCacheLocation } from "./git-cache.ts";
@@ -15,15 +16,16 @@ function mockReadFile(map: Record<string, string>) {
     Promise.resolve(map[path]);
 }
 
-Deno.test("loadChain: happy path returns a one-tier chain", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: happy path returns a one-tier chain", async () => {
+  const project = resolve("/project");
+  const customDir = join(project, "profiles", "custom");
+  const customYaml = join(customDir, "markspec.yaml");
   const result = await loadChain(
     { kind: "local", path: "./profiles/custom" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/custom/markspec.yaml":
+      [customYaml]:
         `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
@@ -33,15 +35,16 @@ Deno.test("loadChain: happy path returns a one-tier chain", {
   assertEquals(tier?.id, "@acme/custom");
   assertEquals(tier?.version, "1.0.0");
   assertEquals(tier?.specifier, { kind: "local", path: "./profiles/custom" });
-  assertEquals(tier?.sourcePath, "/project/profiles/custom/markspec.yaml");
-  assertEquals(tier?.baseDir, "/project/profiles/custom");
+  assertEquals(tier?.sourcePath, customYaml);
+  assertEquals(tier?.baseDir, customDir);
 });
 
 Deno.test("loadChain: unresolvable specifier propagates PROFILE-LOAD-001", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/missing" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({}),
   );
   assertEquals(result.chain, null);
@@ -49,15 +52,14 @@ Deno.test("loadChain: unresolvable specifier propagates PROFILE-LOAD-001", async
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
 });
 
-Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/broken" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/broken/markspec.yaml": `no_id: true\n`,
+      [join(project, "profiles", "broken", "markspec.yaml")]: `no_id: true\n`,
     }),
   );
   assertEquals(result.chain, null);
@@ -66,17 +68,16 @@ Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", {
   assertEquals(codes[0], "PROFILE-LOAD-003");
 });
 
-Deno.test("loadChain: two-tier chain loads in root→leaf order", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/child" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/child/markspec.yaml":
+      [join(project, "profiles", "child", "markspec.yaml")]:
         `id: "@acme/child"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../base"\n`,
-      "/project/profiles/base/markspec.yaml":
+      [join(project, "profiles", "base", "markspec.yaml")]:
         `id: "@acme/base"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
@@ -87,19 +88,18 @@ Deno.test("loadChain: two-tier chain loads in root→leaf order", {
   assertEquals(result.chain?.tiers[1].id, "@acme/child");
 });
 
-Deno.test("loadChain: three-tier chain loads in order", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: three-tier chain loads in order", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/leaf/markspec.yaml":
+      [join(project, "profiles", "leaf", "markspec.yaml")]:
         `id: "@acme/leaf"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../mid"\n`,
-      "/project/profiles/mid/markspec.yaml":
+      [join(project, "profiles", "mid", "markspec.yaml")]:
         `id: "@acme/mid"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../base"\n`,
-      "/project/profiles/base/markspec.yaml":
+      [join(project, "profiles", "base", "markspec.yaml")]:
         `id: "@acme/base"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
   );
@@ -111,17 +111,16 @@ Deno.test("loadChain: three-tier chain loads in order", {
   ]);
 });
 
-Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/a" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/a/markspec.yaml":
+      [join(project, "profiles", "a", "markspec.yaml")]:
         `id: "@acme/a"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../b"\n`,
-      "/project/profiles/b/markspec.yaml":
+      [join(project, "profiles", "b", "markspec.yaml")]:
         `id: "@acme/b"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../a"\n`,
     }),
   );
@@ -129,15 +128,14 @@ Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", {
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-004");
 });
 
-Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/me" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/me/markspec.yaml":
+      [join(project, "profiles", "me", "markspec.yaml")]:
         `id: "@acme/me"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "./"\n`,
     }),
   );
@@ -145,21 +143,20 @@ Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", {
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-004");
 });
 
-Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", async () => {
+  const project = resolve("/project");
   const files: Record<string, string> = {};
   // Build a 22-tier chain (leaf + 21 ancestors)
   for (let i = 0; i < 22; i++) {
     const id = `@acme/t${i}`;
     const extendsLine = i < 21 ? `\nextends: "../t${i + 1}"` : "";
-    files[`/project/profiles/t${i}/markspec.yaml`] =
+    files[join(project, "profiles", `t${i}`, "markspec.yaml")] =
       `id: "${id}"\nversion: 1.0.0${extendsLine}\n`;
   }
   const result = await loadChain(
     { kind: "local", path: "./profiles/t0" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile(files),
   );
   assertEquals(result.chain, null);
@@ -171,14 +168,15 @@ Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", {
 });
 
 Deno.test("loadChain: extends of unresolvable parent propagates PROFILE-LOAD-001", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/leaf/markspec.yaml":
+      [join(project, "profiles", "leaf", "markspec.yaml")]:
         `id: "@acme/leaf"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../missing"\n`,
-      // no file at /project/profiles/missing/markspec.yaml
+      // no file at <project>/profiles/missing/markspec.yaml
     }),
   );
   assertEquals(result.chain, null);
@@ -186,13 +184,14 @@ Deno.test("loadChain: extends of unresolvable parent propagates PROFILE-LOAD-001
 });
 
 Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier", async () => {
+  const project = resolve("/project");
   const spec = {
     kind: "git" as const,
     repo: "https://github.com/acme/repo.git",
     subpath: undefined,
     tag: "v1.0.0",
   };
-  const loc = await computeCacheLocation("/project", spec);
+  const loc = await computeCacheLocation(project, spec);
 
   const gitCalls: string[][] = [];
   const runGit: RunGit = (args) => {
@@ -203,8 +202,8 @@ Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier
   // Cache hit: markspec.yaml is already at the cache location.
   const result = await loadChain(
     spec,
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
       [loc.manifestPath]:
         `id: "@acme/from-git"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
@@ -218,26 +217,25 @@ Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier
   assertEquals(gitCalls.length, 0); // hit — no git calls
 });
 
-Deno.test("loadChain: git specifier in extends chain is walked", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: git specifier in extends chain is walked", async () => {
+  const project = resolve("/project");
   const parentSpec = {
     kind: "git" as const,
     repo: "https://github.com/acme/parent.git",
     subpath: undefined,
     tag: "v1.0.0",
   };
-  const parentLoc = await computeCacheLocation("/project", parentSpec);
+  const parentLoc = await computeCacheLocation(project, parentSpec);
 
   const runGit: RunGit = () =>
     Promise.resolve({ code: 0, stdout: "", stderr: "" });
 
   const result = await loadChain(
     { kind: "local", path: "./profiles/child" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/child/markspec.yaml":
+      [join(project, "profiles", "child", "markspec.yaml")]:
         `id: "@acme/child"\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
         `extends: "git+${parentSpec.repo}#${parentSpec.tag}"\n`,
       [parentLoc.manifestPath]:
@@ -254,6 +252,7 @@ Deno.test("loadChain: git specifier in extends chain is walked", {
 });
 
 Deno.test("loadChain: git clone failure propagates PROFILE-LOAD-001", async () => {
+  const project = resolve("/project");
   const failingRunGit: RunGit = (args) => {
     if (args[0] === "clone") {
       return Promise.resolve({
@@ -272,8 +271,8 @@ Deno.test("loadChain: git clone failure propagates PROFILE-LOAD-001", async () =
       subpath: undefined,
       tag: "v1.0.0",
     },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({}),
     { runGit: failingRunGit },
   );
@@ -284,14 +283,14 @@ Deno.test("loadChain: git clone failure propagates PROFILE-LOAD-001", async () =
 
 Deno.test(
   "loadChain: bundledDefault splices builtin as root of an extends-less leaf",
-  { ignore: Deno.build.os === "windows" },
   async () => {
+    const project = resolve("/project");
     const result = await loadChain(
       { kind: "local", path: "./profiles/custom" },
-      "/project",
-      "/project",
+      project,
+      project,
       mockReadFile({
-        "/project/profiles/custom/markspec.yaml":
+        [join(project, "profiles", "custom", "markspec.yaml")]:
           `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
       }),
       { bundledDefault: true },
@@ -303,15 +302,14 @@ Deno.test(
   },
 );
 
-Deno.test("loadChain: bundledDefault disabled does not splice", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: bundledDefault disabled does not splice", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/custom" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/custom/markspec.yaml":
+      [join(project, "profiles", "custom", "markspec.yaml")]:
         `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
     { bundledDefault: false },
@@ -321,10 +319,11 @@ Deno.test("loadChain: bundledDefault disabled does not splice", {
 });
 
 Deno.test("loadChain: builtin leaf with bundledDefault yields exactly one tier (no self-splice)", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     BUILTIN_DEFAULT_SPECIFIER,
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({}),
     { bundledDefault: true },
   );
@@ -336,17 +335,16 @@ Deno.test("loadChain: builtin leaf with bundledDefault yields exactly one tier (
   assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
 });
 
-Deno.test("loadChain: builtin spliced below a multi-tier local chain", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadChain: builtin spliced below a multi-tier local chain", async () => {
+  const project = resolve("/project");
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
-    "/project",
-    "/project",
+    project,
+    project,
     mockReadFile({
-      "/project/profiles/leaf/markspec.yaml":
+      [join(project, "profiles", "leaf", "markspec.yaml")]:
         `id: "@acme/leaf"\nversion: 1.0.0\nmarkspec-schema: "1"\nextends: "../root"\n`,
-      "/project/profiles/root/markspec.yaml":
+      [join(project, "profiles", "root", "markspec.yaml")]:
         `id: "@acme/root"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
     }),
     { bundledDefault: true },

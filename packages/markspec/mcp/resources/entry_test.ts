@@ -5,9 +5,14 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { join, resolve } from "@std/path";
 import type { Entry, Link } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import { renderEntry } from "./entry.ts";
+
+const PROJ = resolve("/proj");
+const STK_FILE = join(PROJ, "docs", "product", "stakeholder-requirements.md");
+const VAL_FILE = join(PROJ, "tests", "val_aeb.rs");
 
 const ENTRY: Entry = {
   displayId: makeDisplayId("STK_AEB_0001"),
@@ -23,7 +28,7 @@ const ENTRY: Entry = {
   type: "stakeholder-requirement",
   shape: "Authored",
   location: {
-    file: "/proj/docs/product/stakeholder-requirements.md",
+    file: STK_FILE,
     line: 42,
     column: 1,
   },
@@ -36,7 +41,7 @@ const FORWARD: Link[] = [
     to: makeDisplayId("SYS_AEB_0012"),
     kind: "satisfies",
     location: {
-      file: "/proj/docs/product/stakeholder-requirements.md",
+      file: STK_FILE,
       line: 47,
       column: 1,
     },
@@ -48,7 +53,7 @@ const REVERSE: Link[] = [
     from: makeDisplayId("VAL_AEB_0001"),
     to: makeDisplayId("STK_AEB_0001"),
     kind: "verifies",
-    location: { file: "/proj/tests/val_aeb.rs", line: 12, column: 1 },
+    location: { file: VAL_FILE, line: 12, column: 1 },
   },
 ];
 
@@ -70,16 +75,16 @@ Deno.test("renderEntry: includes ULID and location", () => {
   assertStringIncludes(md, "stakeholder-requirements.md:42");
 });
 
-Deno.test("renderEntry: renders location relative to projectRoot", {
-  ignore: Deno.build.os === "windows",
-}, () => {
-  const md = renderEntry(ENTRY, [], [], TITLES, "/proj");
+Deno.test("renderEntry: renders location relative to projectRoot", () => {
+  const md = renderEntry(ENTRY, [], [], TITLES, PROJ);
   assertStringIncludes(
     md,
-    "**Location**: docs/product/stakeholder-requirements.md:42",
+    `**Location**: ${
+      join("docs", "product", "stakeholder-requirements.md")
+    }:42`,
   );
   assertEquals(
-    md.includes("/proj/docs/product/stakeholder-requirements.md"),
+    md.includes(STK_FILE),
     false,
   );
 });

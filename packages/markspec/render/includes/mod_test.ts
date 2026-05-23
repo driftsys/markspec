@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { processIncludes } from "./mod.ts";
 import type { IncludeOptions } from "./mod.ts";
 import type { CompileResult, Entry } from "../../core/mod.ts";
@@ -45,6 +46,9 @@ function compiled(...entries: Entry[]): CompileResult {
   };
 }
 
+/** Platform-native base path for include resolution. */
+const BASE_PATH = resolve("/project");
+
 /** Build IncludeOptions with an in-memory file system. */
 function options(
   entries: Entry[] = [],
@@ -55,7 +59,7 @@ function options(
       if (path in files) return Promise.resolve(files[path]);
       return Promise.reject(new Error(`file not found: ${path}`));
     },
-    basePath: "/project",
+    basePath: BASE_PATH,
     compiled: compiled(...entries),
   };
 }
@@ -199,9 +203,7 @@ Deno.test("processIncludes: directives inside code blocks are not processed", as
 // File path with anchor
 // ---------------------------------------------------------------------------
 
-Deno.test("processIncludes: file path with anchor resolves section", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("processIncludes: file path with anchor resolves section", async () => {
   const fileContent = [
     "# Introduction",
     "",
@@ -220,7 +222,7 @@ Deno.test("processIncludes: file path with anchor resolves section", {
 
   const result = await processIncludes(
     input,
-    options([], { "/project/docs/spec.md": fileContent }),
+    options([], { [join(BASE_PATH, "docs", "spec.md")]: fileContent }),
   );
 
   assertEquals(result.diagnostics.length, 0);
@@ -238,16 +240,14 @@ Deno.test("processIncludes: file path with anchor resolves section", {
 // File path without anchor
 // ---------------------------------------------------------------------------
 
-Deno.test("processIncludes: file path without anchor includes full content", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("processIncludes: file path without anchor includes full content", async () => {
   const fileContent = "# Full Document\n\nAll content here.";
 
   const input = "<!-- include: docs/readme.md -->";
 
   const result = await processIncludes(
     input,
-    options([], { "/project/docs/readme.md": fileContent }),
+    options([], { [join(BASE_PATH, "docs", "readme.md")]: fileContent }),
   );
 
   assertEquals(result.diagnostics.length, 0);
@@ -272,15 +272,13 @@ Deno.test("processIncludes: missing file produces diagnostic", async () => {
 // Missing anchor in file
 // ---------------------------------------------------------------------------
 
-Deno.test("processIncludes: missing anchor produces diagnostic", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("processIncludes: missing anchor produces diagnostic", async () => {
   const fileContent = "# Introduction\n\nSome text.";
   const input = "<!-- include: docs/spec.md#nonexistent -->";
 
   const result = await processIncludes(
     input,
-    options([], { "/project/docs/spec.md": fileContent }),
+    options([], { [join(BASE_PATH, "docs", "spec.md")]: fileContent }),
   );
 
   assertEquals(result.diagnostics.length, 1);
