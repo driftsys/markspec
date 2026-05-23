@@ -529,6 +529,14 @@ connection.onCompletionResolve((item): CompletionItem => {
   if (data?.kind !== SCAFFOLD_COMPLETION_KIND) {
     return item;
   }
+  // Defend against tampered or malformed resolve payloads from a hostile or
+  // buggy LSP client. The typed cast above does not validate at runtime.
+  if (
+    typeof data.prefix !== "string" || data.prefix.length > 64 ||
+    typeof data.typeName !== "string" || data.typeName.length > 128
+  ) {
+    return item;
+  }
   const nextNumber = index.getNextDisplayIdNumber(data.prefix);
   const rendered = renderScaffoldSnippet({
     typeName: data.typeName,
@@ -540,6 +548,7 @@ connection.onCompletionResolve((item): CompletionItem => {
     ...item,
     label: rendered.label,
     insertText: rendered.insertText,
+    insertTextFormat: InsertTextFormat.Snippet,
   };
 });
 
