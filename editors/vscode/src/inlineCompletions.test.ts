@@ -135,3 +135,84 @@ test("classifyContext: skip when cursor is on a Type: trailer value line", () =>
 // Suppress unused-variable warning for the type-only import.
 const _typeProbe: InlineContext = { kind: "skip" };
 void _typeProbe;
+
+import { buildUserPrompt, type PromptContext, SYSTEM_PROMPT } from "./prompts";
+
+test("SYSTEM_PROMPT: mentions entry block syntax and EARS pattern", () => {
+  assert.match(SYSTEM_PROMPT, /entry block/i);
+  assert.match(SYSTEM_PROMPT, /EARS/i);
+  assert.match(SYSTEM_PROMPT, /\bId:/);
+});
+
+test("buildUserPrompt: title-after-bracket includes display ID and asks for a title", () => {
+  const ctx: PromptContext = {
+    cursorContext: {
+      kind: "title-after-bracket",
+      displayId: "STK_AEB_0042",
+    },
+    localWindow:
+      "# Emergency braking\n\nAuthor stakeholder requirements here.\n",
+    currentFileEntries: [],
+    workspaceEntries: [],
+  };
+  const prompt = buildUserPrompt(ctx);
+  assert.match(prompt, /STK_AEB_0042/);
+  assert.match(prompt, /Emergency braking/);
+  assert.match(prompt, /title/i);
+});
+
+test("buildUserPrompt: trace-attribute includes workspace entry list as candidates", () => {
+  const ctx: PromptContext = {
+    cursorContext: {
+      kind: "trace-attribute",
+      attribute: "Satisfies",
+      entryTitle: "Sensor debouncing",
+    },
+    localWindow: "      Satisfies: ",
+    currentFileEntries: [],
+    workspaceEntries: [
+      { displayId: "SYS_AEB_0010", title: "Object threat assessment" },
+      { displayId: "SYS_AEB_0011", title: "Brake actuation" },
+    ],
+  };
+  const prompt = buildUserPrompt(ctx);
+  assert.match(prompt, /Sensor debouncing/);
+  assert.match(prompt, /Satisfies/);
+  assert.match(prompt, /SYS_AEB_0010/);
+  assert.match(prompt, /SYS_AEB_0011/);
+});
+
+test("buildUserPrompt: entry-body includes the current file entries but not the workspace", () => {
+  const ctx: PromptContext = {
+    cursorContext: {
+      kind: "entry-body",
+      entryLine: 0,
+      entryTitle: "Sensor debouncing",
+    },
+    localWindow: "- [STK_AEB_0001] Sensor debouncing\n\n  |\n",
+    currentFileEntries: [
+      { displayId: "STK_AEB_0001", title: "Sensor debouncing" },
+    ],
+    workspaceEntries: [
+      { displayId: "SYS_AEB_0010", title: "Should not appear" },
+    ],
+  };
+  const prompt = buildUserPrompt(ctx);
+  assert.match(prompt, /Sensor debouncing/);
+  assert.match(prompt, /STK_AEB_0001/);
+  assert.equal(prompt.includes("SYS_AEB_0010"), false);
+});
+
+test("buildUserPrompt: doc-prose includes only the local window", () => {
+  const ctx: PromptContext = {
+    cursorContext: { kind: "doc-prose" },
+    localWindow: "Some prose around the cursor.",
+    currentFileEntries: [
+      { displayId: "STK_AEB_0001", title: "Should not appear in prose prompt" },
+    ],
+    workspaceEntries: [],
+  };
+  const prompt = buildUserPrompt(ctx);
+  assert.match(prompt, /Some prose around the cursor/);
+  assert.equal(prompt.includes("STK_AEB_0001"), false);
+});
