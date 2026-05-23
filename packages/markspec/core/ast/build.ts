@@ -600,7 +600,7 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
 
     case "code": {
       const lang = node.lang ?? undefined; // empty string → undefined
-      if (lang === "gherkin") {
+      if (lang === "gherkin" || lang === "feature") {
         return {
           kind: "feature",
           source: node.value ?? "",

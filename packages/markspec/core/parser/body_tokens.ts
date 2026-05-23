@@ -27,6 +27,64 @@ const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
 /** `$Identifier` entity reference (spec §2.5.2). */
 const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;
 
+/** Gherkin section headers — class-like tokens. */
+const GHERKIN_SECTION_RE =
+  /\b(Feature|Background|Rule|Scenario Outline|Scenario Template|Scenarios|Examples|Scenario)\b/g;
+
+/** Gherkin step keywords. */
+const GHERKIN_STEP_RE = /\b(Given|When|Then|And|But)\b/g;
+
+/**
+ * Walk `bodyAst` for `feature` nodes. For each, scan its source text for
+ * Gherkin section + step keywords. Positions are body-relative based on
+ * the node's `range.start.line`.
+ */
+function emitGherkin(
+  blocks: readonly BodyBlock[],
+  out: BodyToken[],
+  baseLocation: SourceLocation,
+): void {
+  for (const block of blocks) {
+    if (block.kind === "feature") {
+      const startLine = block.range.start.line;
+      const lines = block.source.split("\n");
+      for (let li = 0; li < lines.length; li++) {
+        const line = lines[li];
+        // Body-relative line; feature fence's opening ``` line is at startLine,
+        // content begins at startLine + 1.
+        const lineNo = baseLocation.line + (startLine - 1) + (li + 1);
+        let m: RegExpExecArray | null;
+        GHERKIN_SECTION_RE.lastIndex = 0;
+        while ((m = GHERKIN_SECTION_RE.exec(line)) !== null) {
+          out.push({
+            kind: "gherkin-section",
+            text: m[1],
+            location: {
+              file: baseLocation.file,
+              line: lineNo,
+              column: m.index + 1,
+            },
+          });
+        }
+        GHERKIN_STEP_RE.lastIndex = 0;
+        while ((m = GHERKIN_STEP_RE.exec(line)) !== null) {
+          out.push({
+            kind: "gherkin-step",
+            text: m[1],
+            location: {
+              file: baseLocation.file,
+              line: lineNo,
+              column: m.index + 1,
+            },
+          });
+        }
+      }
+    } else if (block.kind === "list") {
+      for (const item of block.items) emitGherkin(item.blocks, out, baseLocation);
+    }
+  }
+}
+
 /**
  * Walk the mdast for the body and emit one `inline-code` token per
  * `inlineCode` node. Markdown line/column positions translate directly
@@ -77,9 +135,6 @@ export function extractBodyTokens(
   bodyAst: readonly BodyBlock[],
   baseLocation: SourceLocation,
 ): readonly BodyToken[] {
-  // bodyAst will drive verbatim-region exclusion in a later task.
-  void bodyAst;
-
   const tokens: BodyToken[] = [];
   const lines = body.split("\n");
   for (let li = 0; li < lines.length; li++) {
@@ -137,6 +192,7 @@ export function extractBodyTokens(
     }
   }
 
+  emitGherkin(bodyAst, tokens, baseLocation);
   emitInlineCode(body, tokens, baseLocation);
 
   tokens.sort((a, b) =>

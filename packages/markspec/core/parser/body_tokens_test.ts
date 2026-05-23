@@ -97,3 +97,14 @@ Deno.test("inline-code: backtick spans emit one token per span", () => {
     assertEquals(codes[0].text, "`foo`"); // includes backticks
   }
 });
+
+Deno.test("gherkin-section + gherkin-step: extracted inside feature fence", () => {
+  const body = "Spec:\n\n```feature\nFeature: Brake\n  Scenario: Stop\n" +
+    "    Given the car is moving\n    When the brake is pressed\n" +
+    "    Then the car stops\n```\n";
+  const tokens = tokensOf(body);
+  const sections = tokens.filter((t) => t.kind === "gherkin-section");
+  const steps = tokens.filter((t) => t.kind === "gherkin-step");
+  assertEquals(sections.map((t) => t.text), ["Feature", "Scenario"]);
+  assertEquals(steps.map((t) => t.text), ["Given", "When", "Then"]);
+});
