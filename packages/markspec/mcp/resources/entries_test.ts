@@ -20,6 +20,7 @@ function mkEntry(displayId: string, title: string, type?: string): Entry {
     shape: "Authored",
     location: { file: "/proj/x.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
 }
 

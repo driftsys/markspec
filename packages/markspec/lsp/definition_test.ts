@@ -22,6 +22,7 @@ function makeEntry(file: string, line: number, column: number): Entry {
     shape: "Authored",
     location: { file, line, column },
     source: "markdown",
+    bodyTokens: [],
   };
 }
 

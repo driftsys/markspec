@@ -32,6 +32,7 @@ function makeEntry(): Entry {
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
 }
 
@@ -192,6 +193,7 @@ Deno.test("buildSemanticTokens: multi-entry file scopes trailer tokens to each e
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const entry2: Entry = {
     displayId: makeDisplayId("REQ-002"),
@@ -202,6 +204,7 @@ Deno.test("buildSemanticTokens: multi-entry file scopes trailer tokens to each e
     shape: "Authored",
     location: { file: "t.md", line: 6, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
     [entry1, entry2],
@@ -247,6 +250,7 @@ Deno.test("buildSemanticTokens: plain-text attribute value gets a single string 
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
     [entry],
@@ -277,6 +281,7 @@ Deno.test("buildSemanticTokens: title with lowercase-hyphenated display ID still
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
     [entry],
@@ -305,6 +310,7 @@ Deno.test("buildSemanticTokens: title with dotted display ID still highlights", 
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
     [entry],
@@ -329,6 +335,7 @@ Deno.test("buildSemanticTokens: title with slashed display ID still highlights",
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
     [entry],
@@ -405,6 +412,7 @@ Deno.test("buildSemanticTokens: trailer-line keywords are NOT tokenized as body 
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
     [entry],
@@ -531,6 +539,7 @@ Deno.test("buildSemanticTokens: inter-entry prose after trailer is NOT scanned f
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
   const entry2: Entry = {
     ...entry1,

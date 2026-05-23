@@ -26,6 +26,7 @@ function entry(
     location,
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
 }
 

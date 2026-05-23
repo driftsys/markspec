@@ -29,6 +29,7 @@ function testEntry(
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
     typedAttributes: new Map(),
+    bodyTokens: [],
     ...overrides,
   };
 }
