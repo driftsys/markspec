@@ -3,9 +3,14 @@
  *
  * Completion providers for MarkSpec entry blocks and ID references.
  *
- * Two triggers:
+ * Four triggers:
  * 1. Block scaffold — `- [` at line start → full entry block snippet
- * 2. ID reference — trace attribute keyword (e.g., `Satisfies:`) → display ID list
+ * 2. Trailer attribute key — indented blank or partial capitalized key → key list
+ * 3. ID reference — trace attribute keyword (e.g., `Satisfies:`) → display ID list
+ * 4. Type: attribute value — `Type:` keyword → core and profile type list
+ *
+ * Block-scaffold items receive a fresh ULID from a `ulidProvider` callback so
+ * insertions don't need a follow-up `markspec format` pass.
  *
  * All functions in this module are pure and testable without LSP connection.
  * The server module calls these and wraps results in LSP CompletionItem.
@@ -23,6 +28,42 @@ const TRACE_ATTR_RE =
 
 /** Pattern matching the `Type:` attribute keyword at line start. */
 const TYPE_ATTR_RE = /^\s*Type\s*:/;
+
+/**
+ * Trailer attribute keys offered as completions inside an entry's
+ * trailer region. Includes the eleven trace-link keys (whose pattern
+ * also appears in `TRACE_ATTR_RE` and in `TRACE_KEYWORDS_RE` in
+ * `context.ts`), plus the cardinal `Labels:` and `Type:` keys. When
+ * the trace-keyword set changes here, also update those two regexes.
+ */
+export const TRAILER_KEYS: readonly string[] = [
+  "Satisfies",
+  "Derived-from",
+  "Verified-by",
+  "References",
+  "Tests",
+  "Depends-on",
+  "Part-of",
+  "Allocated-to",
+  "Realizes",
+  "Generated-from",
+  "Supersedes",
+  "Labels",
+  "Type",
+] as const;
+
+/** Trailer-region context: indent ≥4 whitespace chars (matches the parser's lenient leading-whitespace acceptance; formatter canonicalises to 6 spaces), optional partial capitalized key. */
+const TRAILER_KEY_CONTEXT_RE = /^\s{4,}([A-Z][A-Za-z-]*)?$/;
+
+/**
+ * Check whether the text before the cursor is in an entry's trailer
+ * region and ready to receive an attribute key. Matches a line that
+ * starts with at least 4 spaces of indent and contains nothing or a
+ * partial capitalized key.
+ */
+export function isTrailerKeyContext(textBefore: string): boolean {
+  return TRAILER_KEY_CONTEXT_RE.test(textBefore);
+}
 
 /**
  * Check if the text before cursor triggers a block scaffold completion.
@@ -73,6 +114,8 @@ export interface CompletionItemData {
 /** CompletionItemKind.Snippet = 15, CompletionItemKind.Reference = 18 */
 const KIND_SNIPPET = 15;
 const KIND_REFERENCE = 18;
+/** LSP `CompletionItemKind.Property` numeric value (10). */
+const KIND_PROPERTY = 10;
 
 /** Entry type info for block scaffold completion. */
 export interface EntryTypeInfo {
@@ -101,13 +144,6 @@ export function buildIdReferenceItems(
   }));
 }
 
-/**
- * Build completion items for the entry block scaffold trigger.
- *
- * If entry types are provided (from profile), returns one item per type
- * with pre-filled display ID and attribute skeleton. Otherwise returns
- * a single generic scaffold item.
- */
 /**
  * Build completion items for a `Type:` attribute trigger. Lists the
  * 16 core types (4 abstract + 12 concrete) followed by any
@@ -145,10 +181,95 @@ export function buildTypeAttributeItems(
   return items;
 }
 
+/**
+ * Build completion items for the trailer-key trigger. One item per
+ * entry in {@linkcode TRAILER_KEYS}, each inserting `<Key>: ` with
+ * the cursor placed after the colon.
+ */
+// Kept as a zero-arg function (rather than a precomputed constant) for naming symmetry with the other `build*Items` helpers and so future profile-aware filtering can be added without changing the API.
+export function buildTrailerKeyItems(): CompletionItemData[] {
+  return TRAILER_KEYS.map((key) => ({
+    label: key,
+    detail: "trailer attribute",
+    insertText: `${key}: `,
+    isSnippet: false,
+    kind: KIND_PROPERTY,
+  }));
+}
+
+/** Inputs to {@linkcode renderScaffoldSnippet}. */
+export interface ScaffoldSnippetInput {
+  readonly typeName: string;
+  readonly prefix: string;
+  readonly nextNumber: number;
+  readonly ulid: string;
+}
+
+/** Discriminator value for scaffold completions' resolve-time `data` payload. */
+export const SCAFFOLD_COMPLETION_KIND = "scaffold";
+
+/**
+ * `data` payload attached to scaffold completion items so the
+ * `completionItem/resolve` handler can re-query the workspace index
+ * and regenerate the snippet with the freshest display ID + ULID.
+ */
+export interface ScaffoldCompletionData {
+  readonly kind: typeof SCAFFOLD_COMPLETION_KIND;
+  readonly typeName: string;
+  readonly prefix: string;
+}
+
+/**
+ * Render the label + snippet text for one scaffold completion. Shared
+ * by the build-time path (`buildBlockScaffoldItems`) and the resolve-
+ * time path (`onCompletionResolve` in `server.ts`) so both render the
+ * same shape from the same primitives.
+ *
+ * @returns An object with `label` and `insertText`. The `insertText`
+ *   field uses LSP snippet syntax with `${}` placeholders for tab stops.
+ */
+export function renderScaffoldSnippet(
+  input: ScaffoldSnippetInput,
+): { label: string; insertText: string } {
+  const displayId = `${input.prefix}${padNumber(input.nextNumber)}`;
+  return {
+    label: `New ${input.typeName} (${displayId})`,
+    insertText:
+      `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${input.ulid}\n      \${3:Satisfies: }`,
+  };
+}
+
+/**
+ * Build completion items for the entry block scaffold trigger.
+ *
+ * @param types - Entry types declared by the active profile. Each element
+ *   carries the type `name`, its display-ID `prefix`, and the `nextNumber`
+ *   to use for the pre-filled display ID.
+ * @param ulidProvider - Zero-argument callback that returns a fresh ULID
+ *   string. Called once per item when `types` is non-empty; the returned
+ *   string is baked directly into the snippet so the author does not need
+ *   to run a follow-up `markspec format` pass.
+ *
+ * When `types` is non-empty, returns one snippet item per type with a
+ * pre-filled display ID and attribute skeleton. The typed-profile path
+ * calls `ulidProvider()` once per item and bakes the real ULID into the
+ * snippet text.
+ *
+ * When `types` is empty (no profile loaded), returns a single generic
+ * scaffold item that retains the literal `${ULID}` placeholder. The
+ * `ulidProvider` is accepted but unused in the zero-types branch — there
+ * is no profile context to anchor a real ULID against, so the user must
+ * run `markspec format` afterwards.
+ */
 export function buildBlockScaffoldItems(
   types: readonly EntryTypeInfo[],
+  ulidProvider: () => string,
 ): CompletionItemData[] {
   if (types.length === 0) {
+    // The fallback intentionally keeps the literal `${ULID}` placeholder —
+    // there is no profile context to anchor a real ULID against, so the user
+    // must run `markspec format` afterwards. The `ulidProvider` is accepted
+    // but unused in this branch.
     return [
       {
         label: "New entry",
@@ -161,12 +282,16 @@ export function buildBlockScaffoldItems(
   }
 
   return types.map((type) => {
-    const displayId = `${type.prefix}${padNumber(type.nextNumber)}`;
+    const rendered = renderScaffoldSnippet({
+      typeName: type.name,
+      prefix: type.prefix,
+      nextNumber: type.nextNumber,
+      ulid: ulidProvider(),
+    });
     return {
-      label: `New ${type.name} (${displayId})`,
+      label: rendered.label,
       detail: type.name,
-      insertText:
-        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: \\$\{ULID}\n      \${3:Satisfies: }`,
+      insertText: rendered.insertText,
       isSnippet: true,
       kind: KIND_SNIPPET,
     };

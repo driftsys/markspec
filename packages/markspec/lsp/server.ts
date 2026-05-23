@@ -29,6 +29,7 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
 import { join } from "@std/path";
+import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
@@ -62,11 +63,16 @@ import {
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildTrailerKeyItems,
   buildTypeAttributeItems,
   type EntryTypeInfo,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
+  isTrailerKeyContext,
   isTypeAttributeTrigger,
+  renderScaffoldSnippet,
+  SCAFFOLD_COMPLETION_KIND,
+  type ScaffoldCompletionData,
 } from "./completions.ts";
 import {
   isDocCommentContext,
@@ -289,6 +295,7 @@ connection.onInitialize(
         textDocumentSync: TextDocumentSyncKind.Full,
         completionProvider: {
           triggerCharacters: ["[", ":"],
+          resolveProvider: true,
         },
         hoverProvider: true,
         definitionProvider: true,
@@ -457,21 +464,42 @@ connection.onCompletion((params): CompletionItem[] => {
   // Trigger 1: Block scaffold
   if (isBlockScaffoldTrigger(line)) {
     const types = getEntryTypes();
-    const items = buildBlockScaffoldItems(types);
+    const items = buildBlockScaffoldItems(types, ulid);
+    return items.map((item, i) => {
+      const type = types[i];
+      return {
+        label: item.label,
+        detail: item.detail,
+        insertText: item.insertText,
+        insertTextFormat: item.isSnippet
+          ? InsertTextFormat.Snippet
+          : InsertTextFormat.PlainText,
+        kind: item.isSnippet
+          ? CompletionItemKind.Snippet
+          : CompletionItemKind.Reference,
+        data: type
+          ? {
+            kind: SCAFFOLD_COMPLETION_KIND,
+            typeName: type.name,
+            prefix: type.prefix,
+          } satisfies ScaffoldCompletionData
+          : undefined,
+      };
+    });
+  }
+
+  // Trigger 2: Trailer attribute key — indented blank or partial key.
+  if (isTrailerKeyContext(line)) {
+    const items = buildTrailerKeyItems();
     return items.map((item) => ({
       label: item.label,
       detail: item.detail,
       insertText: item.insertText,
-      insertTextFormat: item.isSnippet
-        ? InsertTextFormat.Snippet
-        : InsertTextFormat.PlainText,
-      kind: item.isSnippet
-        ? CompletionItemKind.Snippet
-        : CompletionItemKind.Reference,
+      kind: CompletionItemKind.Property,
     }));
   }
 
-  // Trigger 2: ID reference
+  // Trigger 3: ID reference
   if (isTraceAttributeTrigger(line)) {
     const displayIds = index.getAllDisplayIds();
     const items = buildIdReferenceItems(displayIds);
@@ -482,7 +510,7 @@ connection.onCompletion((params): CompletionItem[] => {
     }));
   }
 
-  // Trigger 3: Type: attribute value — core types + profile types.
+  // Trigger 4: Type: attribute value — core types + profile types.
   if (isTypeAttributeTrigger(line)) {
     const profileTypeNames = profile ? [...profile.types.keys()] : [];
     const items = buildTypeAttributeItems(profileTypeNames);
@@ -494,6 +522,25 @@ connection.onCompletion((params): CompletionItem[] => {
   }
 
   return [];
+});
+
+connection.onCompletionResolve((item): CompletionItem => {
+  const data = item.data as ScaffoldCompletionData | undefined;
+  if (data?.kind !== SCAFFOLD_COMPLETION_KIND) {
+    return item;
+  }
+  const nextNumber = index.getNextDisplayIdNumber(data.prefix);
+  const rendered = renderScaffoldSnippet({
+    typeName: data.typeName,
+    prefix: data.prefix,
+    nextNumber,
+    ulid: ulid(),
+  });
+  return {
+    ...item,
+    label: rendered.label,
+    insertText: rendered.insertText,
+  };
 });
 
 // ---------------------------------------------------------------------------
