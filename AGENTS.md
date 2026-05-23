@@ -388,6 +388,11 @@ docs/
   formatting contract: `build(format(x)) ≈ normalizeBodyAst(build(x))`; ratifies
   `astEquivalent` into production; retires ADR-014 Decision-2's
   non-total-inverse caveat; RESIDUAL=0/58
+- `adr-016-body-token-ast.md` — flat `Entry.bodyTokens` stream as the single
+  extraction layer for modal verbs, EARS triggers, Gherkin keywords,
+  `$Identifier` entity refs and inline code; supersedes ADR-014's
+  `InlineContent.markers`; `LineMap` carries file-relative positions through
+  source-file doc-comment parsing
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
