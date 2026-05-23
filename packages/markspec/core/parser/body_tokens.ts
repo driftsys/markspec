@@ -111,7 +111,9 @@ function emitGherkin(
         }
       }
     } else if (block.kind === "list") {
-      for (const item of block.items) emitGherkin(item.blocks, out, baseLocation);
+      for (const item of block.items) {
+        emitGherkin(item.blocks, out, baseLocation);
+      }
     }
   }
 }

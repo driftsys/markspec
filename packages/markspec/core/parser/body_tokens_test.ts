@@ -64,7 +64,8 @@ Deno.test("ears-trigger: lowercase 'when' is NOT a trigger", () => {
 });
 
 Deno.test("entity-ref: three case conventions classified correctly", () => {
-  const body = "The $BrakeController polls $rawPressure every $DEBOUNCE_WINDOW ms.";
+  const body =
+    "The $BrakeController polls $rawPressure every $DEBOUNCE_WINDOW ms.";
   const refs = tokensOf(body).filter((t) => t.kind === "entity-ref");
   assertEquals(refs.length, 3);
   if (
@@ -110,7 +111,8 @@ Deno.test("gherkin-section + gherkin-step: extracted inside feature fence", () =
 });
 
 Deno.test("scope: modal inside ```rust code fence is NOT emitted", () => {
-  const body = "Prose with shall.\n\n```rust\nfn check() { /* shall */ }\n```\n";
+  const body =
+    "Prose with shall.\n\n```rust\nfn check() { /* shall */ }\n```\n";
   const modals = tokensOf(body).filter((t) => t.kind === "modal");
   // Only the prose modal counts; the comment inside the fence is verbatim.
   assertEquals(modals.length, 1);
@@ -146,12 +148,17 @@ Deno.test("sort: tokens returned sorted by (line, column)", () => {
     const cur = tokens[i].location;
     const before = prev.line < cur.line ||
       (prev.line === cur.line && prev.column <= cur.column);
-    assertEquals(before, true, `token ${i} not sorted: ${prev.column} vs ${cur.column}`);
+    assertEquals(
+      before,
+      true,
+      `token ${i} not sorted: ${prev.column} vs ${cur.column}`,
+    );
   }
 });
 
 Deno.test("mixed prose: modal + EARS + entity-ref on one line", () => {
-  const body = "When the $brake fires, the controller shall debounce $rawInput.";
+  const body =
+    "When the $brake fires, the controller shall debounce $rawInput.";
   const tokens = tokensOf(body);
   const kinds = tokens.map((t) => t.kind);
   assertEquals(kinds, [
