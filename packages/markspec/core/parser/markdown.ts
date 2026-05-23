@@ -508,7 +508,6 @@ function extractEntry(
     source: "markdown",
     properties: { file: { path: file, line, column } },
     bodyTokens,
-    entityRefs: undefined,
   };
 }
 
