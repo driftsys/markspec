@@ -23,6 +23,8 @@ export {
 } from "./model/mod.ts";
 export type {
   Attribute,
+  BodyToken,
+  BodyTokenKind,
   Caption,
   CaptionConventions,
   CaptionPosition,
@@ -30,6 +32,7 @@ export type {
   Diagnostic,
   Directive,
   DisplayId,
+  EarsTrigger,
   EffectiveProfile,
   EffectiveTypeDef,
   EntityRef,
@@ -43,6 +46,7 @@ export type {
   LabelValue,
   Link,
   LinkKind,
+  ModalCase,
   PaletteHue,
   ProfileChain,
   ProfileConvention,
