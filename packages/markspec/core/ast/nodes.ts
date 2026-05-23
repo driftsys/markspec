@@ -3,14 +3,17 @@
  *
  * Canonical body-AST node taxonomy. Authoritative spec:
  * `docs/specs/markspec-core-data-model.md` §2.4 (closed 10-block
- * catalogue), §2.5 (inline markers), §2.6 (captions).
+ * catalogue), §2.6 (captions).
  *
  * PR 1 of the canonical-body-AST plan: pure type contract, zero
  * behaviour. The builder (`build.ts`) and renderer (`render.ts`)
  * land in later PRs.
+ *
+ * ADR-016: inline-construct extraction (modal keywords, EARS triggers,
+ * entity refs, Gherkin tokens) has moved to `Entry.bodyTokens` —
+ * see `core/parser/body_tokens.ts`. `InlineContent` now carries only
+ * verbatim source text.
  */
-
-import type { EntityRefConvention } from "../model/mod.ts";
 
 /** Body-relative source span. 1-based line/column, matching the
  * codebase's {@link SourceLocation} convention. No `file`: that
@@ -20,55 +23,15 @@ export interface SourceRange {
   readonly end: { readonly line: number; readonly column: number };
 }
 
-/** RFC 2119 vs EARS modal class (spec §2.5.1). */
-export type ModalMarkerClass = "rfc2119" | "ears";
-
-/** A recognised modal keyword occurrence in prose (spec §2.5.1). */
-export interface ModalMarker {
-  readonly kind: "modal";
-  readonly cls: ModalMarkerClass;
-  /** Canonical (lowercased RFC 2119 / case-preserved EARS) form. */
-  readonly canonical: string;
-  /**
-   * Original source text as it appears in the body (may differ from
-   * `canonical` for RFC 2119 keywords written in uppercase, e.g.
-   * `"SHALL"` vs `canonical = "shall"`). Used by the MSL-M060 validator
-   * to report the exact uppercase form in the diagnostic message and to
-   * detect whether the keyword deviates from canonical form.
-   *
-   * Populated by {@link extractMarkersFromText} in `core/ast/build.ts`.
-   * Absent only for `ModalMarker` values constructed outside the builder
-   * (e.g. in tests that predate this field).
-   */
-  readonly raw?: string;
-  readonly range: SourceRange;
-}
-
-/** An inline `$Identifier` entity reference (spec §2.5.2). Reuses
- * the existing {@link EntityRefConvention}. */
-export interface EntityRefMarker {
-  readonly kind: "entity";
-  /** Identifier including the leading `$`. */
-  readonly ident: string;
-  readonly convention: EntityRefConvention;
-  readonly range: SourceRange;
-}
-
-/** Inline marker union (spec §2.5). */
-export type InlineMarker = ModalMarker | EntityRefMarker;
-
-/**
- * Prose text plus the inline markers recognised within it.
+/** Prose text. Verbatim source (markup-preserving per spec §5.1).
  *
  * `text` is the **verbatim source prose** (markup-preserving — emphasis,
  * strong, links, autolinks, hard line breaks survive byte-identically per
- * spec §5.1). `markers` are recognised from the flattened projection so
- * modal / $Identifier detection is unaffected by surrounding markup.
- * Marker `range` columns are best-effort relative to the verbatim text.
+ * spec §5.1). Inline-construct extraction (modal keywords, EARS triggers,
+ * entity refs) has moved to `Entry.bodyTokens` (ADR-016 Decision 5).
  */
 export interface InlineContent {
   readonly text: string;
-  readonly markers: readonly InlineMarker[];
 }
 
 /** A list item: a sequence of blocks (spec §2.4 `List`). */
@@ -105,7 +68,7 @@ export type AdmonitionKind =
   | "WARNING"
   | "CAUTION";
 
-/** CommonMark paragraph; carries inline markers (spec §2.4). */
+/** CommonMark paragraph (spec §2.4). */
 export interface ParagraphNode {
   readonly kind: "paragraph";
   readonly content: InlineContent;

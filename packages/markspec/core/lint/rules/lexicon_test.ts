@@ -17,7 +17,7 @@ import { runLexiconRules } from "./lexicon.ts";
 function makeParagraph(text: string): BodyBlock {
   return {
     kind: "paragraph",
-    content: { text, markers: [] },
+    content: { text },
     range: {
       start: { line: 1, column: 1 },
       end: { line: 1, column: text.length },

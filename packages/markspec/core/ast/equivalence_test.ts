@@ -4,7 +4,7 @@ import type { BodyBlock } from "./nodes.ts";
 
 const para = (text: string, line = 1): BodyBlock[] => [{
   kind: "paragraph",
-  content: { text, markers: [] },
+  content: { text },
   range: { start: { line, column: 1 }, end: { line, column: 1 } },
 }];
 

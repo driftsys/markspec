@@ -3,9 +3,7 @@ import type {
   BodyBlock,
   CaptionNode,
   CodeNode,
-  EntityRefMarker,
   InlineContent,
-  ModalMarker,
   ParagraphNode,
   SourceRange,
 } from "./nodes.ts";
@@ -15,32 +13,17 @@ const R: SourceRange = {
   end: { line: 1, column: 2 },
 };
 
-Deno.test("nodes: InlineContent carries text + typed markers", () => {
-  const modal: ModalMarker = {
-    kind: "modal",
-    cls: "rfc2119",
-    canonical: "shall",
-    range: R,
-  };
-  const ent: EntityRefMarker = {
-    kind: "entity",
-    ident: "$Sensor",
-    convention: "type",
-    range: R,
-  };
+Deno.test("nodes: InlineContent carries verbatim text", () => {
   const ic: InlineContent = {
     text: "The system shall read $Sensor.",
-    markers: [modal, ent],
   };
-  assertEquals(ic.markers.length, 2);
-  assertEquals(ic.markers[0].kind, "modal");
-  assertEquals(ic.markers[1].kind, "entity");
+  assertEquals(ic.text, "The system shall read $Sensor.");
 });
 
 Deno.test("nodes: block union is discriminated and exhaustive", () => {
   const para: ParagraphNode = {
     kind: "paragraph",
-    content: { text: "x", markers: [] },
+    content: { text: "x" },
     range: R,
   };
   const code: CodeNode = {
