@@ -1,14 +1,23 @@
 .vscode/**
 .vscode-test/**
 
-# TypeScript sources — compiled output ships from out/.
+# TypeScript sources and type definitions — VS Code only needs the
+# compiled .js from out/ at runtime.
 src/**
 **/*.ts
-!out/**/*.d.ts
 **/*.map
 tsconfig.json
 
-# Build-time scripts (only run during VSIX packaging, never at runtime).
+# Compiled test artifacts — tsc emits these into out/ alongside the
+# runtime modules; they are inert at runtime and just bloat the VSIX.
+out/**/*.test.js
+out/test-setup.js
+
+# Build-time scripts. release.yaml invokes scripts/bundleBinary.ts via
+# `deno run` to drop the per-platform binary into bin/ before `vsce
+# package`; nothing in scripts/ is needed at extension runtime.
+# (Note: bin/ is intentionally NOT ignored — bundleBinary.ts populates
+# it at package time and the binary must ship in the VSIX.)
 scripts/**
 
 # Dev dependencies that never need to ship to users.
