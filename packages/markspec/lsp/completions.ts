@@ -3,9 +3,13 @@
  *
  * Completion providers for MarkSpec entry blocks and ID references.
  *
- * Two triggers:
+ * Three triggers:
  * 1. Block scaffold — `- [` at line start → full entry block snippet
  * 2. ID reference — trace attribute keyword (e.g., `Satisfies:`) → display ID list
+ * 3. Type: attribute value — `Type:` keyword → core and profile type list
+ *
+ * Block-scaffold items receive a fresh ULID from a `ulidProvider` callback so
+ * insertions don't need a follow-up `markspec format` pass.
  *
  * All functions in this module are pure and testable without LSP connection.
  * The server module calls these and wraps results in LSP CompletionItem.
@@ -102,13 +106,6 @@ export function buildIdReferenceItems(
 }
 
 /**
- * Build completion items for the entry block scaffold trigger.
- *
- * If entry types are provided (from profile), returns one item per type
- * with pre-filled display ID and attribute skeleton. Otherwise returns
- * a single generic scaffold item.
- */
-/**
  * Build completion items for a `Type:` attribute trigger. Lists the
  * 16 core types (4 abstract + 12 concrete) followed by any
  * profile-declared type names. Core types come first so authors see
@@ -145,11 +142,37 @@ export function buildTypeAttributeItems(
   return items;
 }
 
+/**
+ * Build completion items for the entry block scaffold trigger.
+ *
+ * @param types - Entry types declared by the active profile. Each element
+ *   carries the type `name`, its display-ID `prefix`, and the `nextNumber`
+ *   to use for the pre-filled display ID.
+ * @param ulidProvider - Zero-argument callback that returns a fresh ULID
+ *   string. Called once per item when `types` is non-empty; the returned
+ *   string is baked directly into the snippet so the author does not need
+ *   to run a follow-up `markspec format` pass.
+ *
+ * When `types` is non-empty, returns one snippet item per type with a
+ * pre-filled display ID and attribute skeleton. The typed-profile path
+ * calls `ulidProvider()` once per item and bakes the real ULID into the
+ * snippet text.
+ *
+ * When `types` is empty (no profile loaded), returns a single generic
+ * scaffold item that retains the literal `${ULID}` placeholder. The
+ * `ulidProvider` is accepted but unused in the zero-types branch — there
+ * is no profile context to anchor a real ULID against, so the user must
+ * run `markspec format` afterwards.
+ */
 export function buildBlockScaffoldItems(
   types: readonly EntryTypeInfo[],
   ulidProvider: () => string,
 ): CompletionItemData[] {
   if (types.length === 0) {
+    // The fallback intentionally keeps the literal `${ULID}` placeholder —
+    // there is no profile context to anchor a real ULID against, so the user
+    // must run `markspec format` afterwards. The `ulidProvider` is accepted
+    // but unused in this branch.
     return [
       {
         label: "New entry",
@@ -163,12 +186,12 @@ export function buildBlockScaffoldItems(
 
   return types.map((type) => {
     const displayId = `${type.prefix}${padNumber(type.nextNumber)}`;
-    const ulid = ulidProvider();
+    const stampedUlid = ulidProvider();
     return {
       label: `New ${type.name} (${displayId})`,
       detail: type.name,
       insertText:
-        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${ulid}\n      \${3:Satisfies: }`,
+        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${stampedUlid}\n      \${3:Satisfies: }`,
       isSnippet: true,
       kind: KIND_SNIPPET,
     };

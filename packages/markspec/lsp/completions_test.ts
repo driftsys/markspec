@@ -4,7 +4,7 @@
  * Unit tests for entry block scaffold and ID reference completions.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
@@ -113,22 +113,21 @@ Deno.test("buildBlockScaffoldItems: bakes provided ULID into snippet", () => {
   assertEquals(text.includes("\\${ULID}"), false);
 });
 
-Deno.test("buildBlockScaffoldItems: emits a different ULID per call", () => {
+Deno.test("buildBlockScaffoldItems: calls provider once per item", () => {
   let counter = 0;
   const provider = () =>
     `01HGW2Q8MNP3RSTVWXYZ${(counter++).toString().padStart(6, "0")}`;
-  const first = buildBlockScaffoldItems(
-    [{ name: "stakeholder-requirement", prefix: "STK_", nextNumber: 1 }],
-    provider,
-  );
-  const second = buildBlockScaffoldItems(
-    [{ name: "stakeholder-requirement", prefix: "STK_", nextNumber: 2 }],
-    provider,
-  );
-  assertEquals(first[0].insertText !== second[0].insertText, true);
+  const types = [
+    { name: "stakeholder-requirement", prefix: "STK_", nextNumber: 1 },
+    { name: "architecture", prefix: "SAD_", nextNumber: 1 },
+  ];
+  const items = buildBlockScaffoldItems(types, provider);
+  assertEquals(items.length, 2);
+  assertNotEquals(items[0].insertText, items[1].insertText);
+  assertEquals(counter, 2);
 });
 
-Deno.test("buildBlockScaffoldItems: zero-types fallback uses provider", () => {
+Deno.test("buildBlockScaffoldItems: zero-types fallback keeps literal placeholder", () => {
   const items = buildBlockScaffoldItems([], () => "01HGW2Q8MNP3RSTVWXYZABCDEF");
   // Zero-types fallback intentionally keeps the literal ${ULID}
   // placeholder — no profile context to anchor a real ULID. Documented
