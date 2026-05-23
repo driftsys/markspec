@@ -157,6 +157,17 @@ Deno.test("build: gherkin fence → FeatureNode", () => {
   assertEquals(feat.source, "Feature: braking\n  Scenario: stop");
 });
 
+Deno.test("build: feature fence → FeatureNode", () => {
+  const body = "```feature\nFeature: braking\n  Scenario: stop\n```";
+  const blocks = buildBodyAst(body);
+  assertEquals(blocks.length, 1);
+  const feat = blocks[0];
+  assertEquals(feat.kind, "feature");
+  if (feat.kind === "feature") {
+    assertEquals(feat.source, "Feature: braking\n  Scenario: stop");
+  }
+});
+
 Deno.test("build: $$ math block → MathNode", () => {
   const body = "$$\nE = mc^2\n$$";
   const blocks = buildBodyAst(body);
