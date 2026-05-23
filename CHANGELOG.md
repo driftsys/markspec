@@ -1,5 +1,41 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **core:** `Entry.bodyTokens` — flat parser-emitted token stream for inline
+  constructs (modal verbs, EARS triggers, Gherkin section/step keywords,
+  `$Identifier` entity refs, inline code). Always present, sorted by source
+  position. See ADR-016. (#409)
+
+### Changed
+
+- **core:** MSL-M060 validator reads `Entry.bodyTokens` directly; the previous
+  bodyAst-marker walk is removed. (#409)
+
+### Removed
+
+- **core:** `Entry.entityRefs` field and `EntityRef` interface. Replaced by
+  `Entry.bodyTokens.filter(t => t.kind === "entity-ref")`. No compatibility
+  shim per the pre-1.0 no-backward-compat policy.
+- **core:** `InlineContent.markers` field and `ModalMarker` / `EntityRefMarker`
+  / `InlineMarker` / `ModalMarkerClass` types. `InlineContent` is now
+  `{ readonly text: string }`. (Partial supersede of ADR-014.)
+- **core:** `core/parser/entity_refs.ts` module — folded into the new
+  `core/parser/body_tokens.ts`.
+
+### Known limitations
+
+- **core:** Source-file (`.rs`, `.kt`, `.java`, `.c`, `.cpp`) doc-comment entries
+  have `bodyTokens: []` until story 3 of #409 lands (`LineMap` for
+  file-relative position translation).
+- **core:** Inline-emphasis-wrapped modals (e.g. `_SHALL_`) are no longer
+  detected by MSL-M060. Pre-ADR-016 marker extraction ran on a flattened-text
+  projection that stripped emphasis; the new scanner runs on the raw body.
+  Authors using emphasis around modal verbs will not get the lint warning.
+  Plain `SHALL` and `MUST NOT` are detected correctly.
+
 ## [0.5.3] (2026-05-23)
 
 ### Features
