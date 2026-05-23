@@ -43,7 +43,7 @@ export type InlineContext =
   | { readonly kind: "doc-prose" }
   | { readonly kind: "skip" };
 
-/** Lines scanned either side of the cursor when looking for the enclosing entry. */
+/** Lines scanned backward from the cursor when looking for the enclosing entry opener. */
 const ENTRY_SEARCH_RADIUS = 50;
 
 /** Entry-block opener: `- [DISPLAY_ID] Title` (trailing content optional). */
@@ -81,9 +81,9 @@ export function classifyContext(
     return { kind: "skip" };
   }
 
-  // Title slot: line matches `- [DISPLAY_ID] ` and cursor is at end of line.
-  const titleMatch = TITLE_SLOT_RE.exec(beforeCursor);
-  if (titleMatch && position.character === beforeCursor.length) {
+  // Title slot: full line matches `- [DISPLAY_ID] ` with nothing after.
+  const titleMatch = TITLE_SLOT_RE.exec(line);
+  if (titleMatch) {
     return { kind: "title-after-bracket", displayId: titleMatch[1] };
   }
 
@@ -98,6 +98,14 @@ export function classifyContext(
         entryTitle: enclosing.title,
       };
     }
+  }
+
+  // Trailer region (indent ≥ 4) with a non-trace attribute key: skip.
+  // The eleven trace-link keys are already handled above; this guard
+  // covers `Labels:`, `Type:`, and any unknown trailer key so we don't
+  // send the AI a prose prompt on an attribute-value line.
+  if (/^\s{4,}[A-Z][A-Za-z-]*\s*:/.test(line)) {
+    return { kind: "skip" };
   }
 
   // Entry body: scan backward for an entry opener within the search radius;

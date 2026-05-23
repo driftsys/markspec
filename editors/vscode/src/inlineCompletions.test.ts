@@ -10,14 +10,12 @@ interface FakePosition {
 interface FakeDocument {
   readonly lineCount: number;
   lineAt(line: number): { text: string };
-  getText(range?: unknown): string;
 }
 
 function makeDoc(lines: readonly string[]): FakeDocument {
   return {
     lineCount: lines.length,
     lineAt: (line: number) => ({ text: lines[line] ?? "" }),
-    getText: () => lines.join("\n"),
   };
 }
 
@@ -89,10 +87,49 @@ test("classifyContext: doc-prose when cursor is on plain markdown outside any en
   assert.equal(ctx.kind, "doc-prose");
 });
 
-test("classifyContext: skip when cursor is at start of empty document", () => {
+test("classifyContext: doc-prose when cursor is at start of empty document", () => {
   const doc = makeDoc([""]);
   const ctx = classifyContext(doc as never, pos(0, 0) as never);
   assert.equal(ctx.kind, "doc-prose");
+});
+
+test("classifyContext: doc-prose when cursor mid-title on an existing title line", () => {
+  // Regression for the `TITLE_SLOT_RE`-against-`beforeCursor` false positive.
+  // Cursor at column 13 of `- [STK_001] Existing Title` — there is real
+  // title text after the cursor, so this is NOT a title-slot completion.
+  const doc = makeDoc([
+    "- [STK_001] Existing Title",
+  ]);
+  const ctx = classifyContext(doc as never, pos(0, 13) as never);
+  assert.notEqual(ctx.kind, "title-after-bracket");
+});
+
+test("classifyContext: skip when cursor is on a Labels: trailer value line", () => {
+  // Regression: trailer attribute keys that are not trace-link keys must
+  // skip, not fall through to doc-prose.
+  const doc = makeDoc([
+    "- [STK_AEB_0001] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "      Labels: ASIL-",
+  ]);
+  const ctx = classifyContext(doc as never, pos(5, 19) as never);
+  assert.equal(ctx.kind, "skip");
+});
+
+test("classifyContext: skip when cursor is on a Type: trailer value line", () => {
+  const doc = makeDoc([
+    "- [STK_AEB_0001] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "      Type: stakeholder-requ",
+  ]);
+  const ctx = classifyContext(doc as never, pos(5, 27) as never);
+  assert.equal(ctx.kind, "skip");
 });
 
 // Suppress unused-variable warning for the type-only import.
