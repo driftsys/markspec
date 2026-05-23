@@ -20,9 +20,9 @@ unit
 
 Delivers the seven stories from `docs/product/windows-support.md`:
 
-*
+-
   **STK-WIN-0002 — File URIs round-trip on Windows.** `pathToUri` /
- 
+
   `uriToPath` use `@std/path`'s platform-aware `toFileUrl` /
   `fromFileUrl`.
   Same fix in `cli/commands/doc.ts`, every e2e helper
@@ -30,45 +30,45 @@ Delivers the seven stories from `docs/product/windows-support.md`:
   URIs by string concatenation, and 11 test
   files that built `CLI_ENTRY` via
   `new URL(...).pathname`.
-* **STK-WIN-0003 — Path construction is
+- **STK-WIN-0003 — Path construction is
   platform-aware.**
   `walkDirectory`, `walkFs`, `book.ts`, `render/includes`,
   `mcp/tools/validate`, and `mcp/path.relativeToRoot` use `@std/path`
   `join` /
   `isAbsolute` / `SEPARATOR` rather than `${dir}/${name}`.
- 
+
   `core/parser/mod.isReferencesDocument` uses `basename` plus a
- 
+
   separator-agnostic regex. `render/mod.longestCommonDirectory`
   delegates to
   `@std/path`'s `common`.
-* **STK-WIN-0004 — CRLF normalisation at the parse
+- **STK-WIN-0004 — CRLF normalisation at the parse
   boundary.** Line
   endings normalise to LF in `parseFile`, `parse`,
   `buildBodyAst`, and the formatter detects the source's convention and restores
   it
   on write-back. AST-fidelity matrix stays at surface 0/58.
-*
+-
   **STK-WIN-0001 / STK-WIN-0007 — Windows CI matrix.** `ci.yaml`'s
   `test`
   job runs on `ubuntu`, `windows`, and `macos`
   (`fail-fast: false`).
-*
+-
   **STK-WIN-0006 — PowerShell installer.** `install.ps1` mirrors
- 
+
   `install.sh`: GitHub release fetch, SHA-256 verification, `tar`
   extraction
   to `$HOME\.local\bin` (override via
   `MARKSPEC_INSTALL_DIR`). A
   `windows-latest` CI job parses the
   script via the PowerShell parser.
-*
+-
   **STK-WIN-0005 — VSCode end-to-end checklist.** New
- 
+
   `editors/vscode/README.md` with a 13-row manual smoke-test
   checklist plus
   CRLF and path-handling spot checks.
-* **STK-WIN-0008 — Windows install path
+- **STK-WIN-0008 — Windows install path
   documented.**
   `docs/guide/installation.md` documents the Windows PowerShell
 

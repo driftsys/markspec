@@ -22,8 +22,8 @@ references — are extracted today in three independent places:
    or (2) at all.
 
 Each consumer re-discovers the same lexical constructs from raw or
-semi-processed text. The drift this produces showed up in two ways during PR
-#408:
+semi-processed text. The drift this produces showed up in two ways during
+[PR #408](https://github.com/driftsys/markspec/pull/408):
 
 - The LSP regex for entity refs paints `$x` inside math blocks where the
   parser-emitted refs (correctly) do not. Two systems, two answers, no single
