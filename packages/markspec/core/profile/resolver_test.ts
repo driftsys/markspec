@@ -5,6 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { resolveGitSpecifier, resolveLocalSpecifier } from "./resolver.ts";
 import { computeCacheLocation } from "./git-cache.ts";
 import type { RunGit } from "./git-cache.ts";
@@ -15,22 +16,23 @@ function mockReadFile(map: Record<string, string>) {
     Promise.resolve(map[path]);
 }
 
-Deno.test("resolveLocalSpecifier: happy path reads markspec.yaml", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("resolveLocalSpecifier: happy path reads markspec.yaml", async () => {
+  const project = resolve("/project");
+  const customDir = join(project, "profiles", "custom");
+  const customYaml = join(customDir, "markspec.yaml");
   const diagnostics: Diagnostic[] = [];
   const result = await resolveLocalSpecifier(
     { kind: "local", path: "./profiles/custom" },
-    "/project",
+    project,
     mockReadFile({
-      "/project/profiles/custom/markspec.yaml": "id: @acme/x\nversion: 1.0.0\n",
+      [customYaml]: "id: @acme/x\nversion: 1.0.0\n",
     }),
     diagnostics,
   );
   assertEquals(diagnostics, []);
   assertEquals(result?.rawYaml, "id: @acme/x\nversion: 1.0.0\n");
-  assertEquals(result?.sourcePath, "/project/profiles/custom/markspec.yaml");
-  assertEquals(result?.baseDir, "/project/profiles/custom");
+  assertEquals(result?.sourcePath, customYaml);
+  assertEquals(result?.baseDir, customDir);
 });
 
 Deno.test("resolveLocalSpecifier: missing markspec.yaml emits PROFILE-LOAD-001", async () => {
@@ -51,22 +53,23 @@ Deno.test("resolveLocalSpecifier: missing markspec.yaml emits PROFILE-LOAD-001",
   }
 });
 
-Deno.test("resolveLocalSpecifier: parent-relative path resolves correctly", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("resolveLocalSpecifier: parent-relative path resolves correctly", async () => {
+  const workspace = resolve("/workspace");
+  const project = join(workspace, "project");
+  const baseDir = join(workspace, "shared", "base");
+  const baseYaml = join(baseDir, "markspec.yaml");
   const diagnostics: Diagnostic[] = [];
   const result = await resolveLocalSpecifier(
     { kind: "local", path: "../shared/base" },
-    "/workspace/project",
+    project,
     mockReadFile({
-      "/workspace/shared/base/markspec.yaml":
-        "id: @acme/base\nversion: 1.0.0\n",
+      [baseYaml]: "id: @acme/base\nversion: 1.0.0\n",
     }),
     diagnostics,
   );
   assertEquals(diagnostics, []);
-  assertEquals(result?.sourcePath, "/workspace/shared/base/markspec.yaml");
-  assertEquals(result?.baseDir, "/workspace/shared/base");
+  assertEquals(result?.sourcePath, baseYaml);
+  assertEquals(result?.baseDir, baseDir);
 });
 
 // A RunGit that records what it would have done without touching the
@@ -157,8 +160,8 @@ function recordingRunGit(options: {
 
 Deno.test(
   "resolveGitSpecifier: cache miss clones, checks out tag, reads yaml",
-  { ignore: Deno.build.os === "windows" },
   async () => {
+    const project = resolve("/project");
     const diagnostics: Diagnostic[] = [];
     const spec = {
       kind: "git" as const,
@@ -166,21 +169,21 @@ Deno.test(
       subpath: undefined,
       tag: "v1.0.0",
     };
-    const loc = await computeCacheLocation("/project", spec);
+    const loc = await computeCacheLocation(project, spec);
 
     const files: Record<string, string> = {};
     const { runGit, calls } = recordingRunGit({
       files,
       onClone: (cloneDir) => {
         // Simulate the clone writing the manifest into the cache dir.
-        files[`${cloneDir}/markspec.yaml`] =
+        files[join(cloneDir, "markspec.yaml")] =
           "id: @acme/cloned\nversion: 1.0.0\n";
       },
     });
 
     const result = await resolveGitSpecifier(
       spec,
-      "/project",
+      project,
       (path) => Promise.resolve(files[path]),
       diagnostics,
       { runGit },
@@ -211,9 +214,8 @@ Deno.test(
   },
 );
 
-Deno.test("resolveGitSpecifier: subpath triggers sparse-checkout call", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("resolveGitSpecifier: subpath triggers sparse-checkout call", async () => {
+  const project = resolve("/project");
   const diagnostics: Diagnostic[] = [];
   const spec = {
     kind: "git" as const,
@@ -221,20 +223,20 @@ Deno.test("resolveGitSpecifier: subpath triggers sparse-checkout call", {
     subpath: "aspice",
     tag: "v1.0.0",
   };
-  const loc = await computeCacheLocation("/project", spec);
+  const loc = await computeCacheLocation(project, spec);
 
   const files: Record<string, string> = {};
   const { runGit, calls } = recordingRunGit({
     files,
     onClone: (cloneDir) => {
-      files[`${cloneDir}/aspice/markspec.yaml`] =
+      files[join(cloneDir, "aspice", "markspec.yaml")] =
         "id: @acme/sub\nversion: 1.0.0\n";
     },
   });
 
   const result = await resolveGitSpecifier(
     spec,
-    "/project",
+    project,
     (path) => Promise.resolve(files[path]),
     diagnostics,
     { runGit },

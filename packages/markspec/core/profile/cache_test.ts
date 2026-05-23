@@ -1,31 +1,30 @@
 import { assertEquals } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { cacheDir } from "./cache.ts";
 
-Deno.test("cacheDir: uses XDG_CACHE_HOME when set", {
-  ignore: Deno.build.os === "windows",
-}, () => {
-  const dir = cacheDir({ XDG_CACHE_HOME: "/custom/cache" });
-  assertEquals(dir, "/custom/cache/markspec");
+Deno.test("cacheDir: uses XDG_CACHE_HOME when set", () => {
+  const xdg = resolve("/custom/cache");
+  const dir = cacheDir({ XDG_CACHE_HOME: xdg });
+  assertEquals(dir, join(xdg, "markspec"));
 });
 
 Deno.test(
   "cacheDir: falls back to platform default when XDG_CACHE_HOME unset",
-  { ignore: Deno.build.os === "windows" },
   () => {
+    const home = resolve("/Users/test");
     const dir = cacheDir(
-      { XDG_CACHE_HOME: undefined, HOME: "/Users/test" },
+      { XDG_CACHE_HOME: undefined, HOME: home },
       "darwin",
     );
-    assertEquals(dir, "/Users/test/Library/Caches/markspec");
+    assertEquals(dir, join(home, "Library", "Caches", "markspec"));
   },
 );
 
-Deno.test("cacheDir: uses ~/.cache/markspec on linux without XDG", {
-  ignore: Deno.build.os === "windows",
-}, () => {
+Deno.test("cacheDir: uses ~/.cache/markspec on linux without XDG", () => {
+  const home = resolve("/home/user");
   const dir = cacheDir(
-    { XDG_CACHE_HOME: undefined, HOME: "/home/user" },
+    { XDG_CACHE_HOME: undefined, HOME: home },
     "linux",
   );
-  assertEquals(dir, "/home/user/.cache/markspec");
+  assertEquals(dir, join(home, ".cache", "markspec"));
 });

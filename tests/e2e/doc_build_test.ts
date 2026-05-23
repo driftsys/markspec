@@ -22,14 +22,11 @@ A second section with a list:
 - Item three
 `;
 
-// `markspec doc build` on Windows requires the Typst workspace to
-// contain both the markspec-typst package and the source document.
-// On cross-drive setups (typical: repo on D:, temp dir on C:) there
-// is no common ancestor and the Typst loader cannot resolve `lib.typ`.
-// Tracked in #406; tests skipped on Windows until that lands.
-Deno.test("doc build: produces PDF from Markdown", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+// `markspec doc build` works on Windows even when the source document
+// lives on a different drive than the bundled markspec-typst package
+// (e.g., installed CLI on C:, docs on D:) — see `stageTypstPackage` in
+// cli/commands/doc.ts for the cross-drive staging behaviour.
+Deno.test("doc build: produces PDF from Markdown", async () => {
   const { code, stderr } = await markspec(["doc", "build", "doc.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
@@ -42,9 +39,7 @@ Deno.test("doc build: produces PDF from Markdown", {
   assertStringIncludes(stderr, "wrote");
 });
 
-Deno.test("doc build: output file has PDF magic bytes", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("doc build: output file has PDF magic bytes", async () => {
   // Create a temp dir manually to inspect the output file
   const dir = await Deno.makeTempDir();
   try {
@@ -90,9 +85,7 @@ Deno.test("doc build: output file has PDF magic bytes", {
   }
 });
 
-Deno.test("doc build: --output flag writes to custom path", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("doc build: --output flag writes to custom path", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await Deno.writeTextFile(`${dir}/project.yaml`, PROJECT_YAML);

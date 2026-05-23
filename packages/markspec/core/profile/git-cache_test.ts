@@ -5,6 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { computeCacheKey, computeCacheLocation } from "./git-cache.ts";
 import type { RunGitResult } from "./git-cache.ts";
 import { defaultRunGit } from "./git-cache.ts";
@@ -56,11 +57,10 @@ Deno.test("computeCacheKey: subpath differentiates keys", async () => {
   }
 });
 
-Deno.test("computeCacheLocation: returns absolute cache dir + manifest path", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("computeCacheLocation: returns absolute cache dir + manifest path", async () => {
+  const project = resolve("/project");
   const loc = await computeCacheLocation(
-    "/project",
+    project,
     {
       repo: "https://github.com/acme/repo.git",
       subpath: undefined,
@@ -68,26 +68,26 @@ Deno.test("computeCacheLocation: returns absolute cache dir + manifest path", {
     },
   );
   // cache dir: <project-root>/.markspec/cache/<key>/
-  if (!loc.dir.startsWith("/project/.markspec/cache/")) {
+  const cacheRoot = join(project, ".markspec", "cache");
+  if (!loc.dir.startsWith(cacheRoot)) {
     throw new Error(
-      `expected cache dir under /project/.markspec/cache/, got ${loc.dir}`,
+      `expected cache dir under ${cacheRoot}, got ${loc.dir}`,
     );
   }
-  assertEquals(loc.manifestPath, `${loc.dir}/markspec.yaml`);
+  assertEquals(loc.manifestPath, join(loc.dir, "markspec.yaml"));
 });
 
-Deno.test("computeCacheLocation: subpath appears in manifest path", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("computeCacheLocation: subpath appears in manifest path", async () => {
+  const project = resolve("/project");
   const loc = await computeCacheLocation(
-    "/project",
+    project,
     {
       repo: "https://github.com/acme/repo.git",
       subpath: "aspice",
       tag: "v1.0.0",
     },
   );
-  assertEquals(loc.manifestPath, `${loc.dir}/aspice/markspec.yaml`);
+  assertEquals(loc.manifestPath, join(loc.dir, "aspice", "markspec.yaml"));
 });
 
 Deno.test("defaultRunGit: captures stdout/stderr from a trivial git command", async () => {
@@ -134,13 +134,13 @@ function fsStub(initial: Record<string, string> = {}): FsStub {
   };
 }
 
-Deno.test("ensureCacheGitignored: appends entry when missing", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
-  const fs = fsStub({ "/project/.gitignore": "node_modules/\n" });
-  await ensureCacheGitignored("/project", fs.read, fs.append);
+Deno.test("ensureCacheGitignored: appends entry when missing", async () => {
+  const project = resolve("/project");
+  const gitignore = join(project, ".gitignore");
+  const fs = fsStub({ [gitignore]: "node_modules/\n" });
+  await ensureCacheGitignored(project, fs.read, fs.append);
   assertEquals(fs.writes.length, 1);
-  assertEquals(fs.writes[0].path, "/project/.gitignore");
+  assertEquals(fs.writes[0].path, gitignore);
   if (!fs.writes[0].content.includes(".markspec/cache/")) {
     throw new Error(
       `expected .markspec/cache/ in appended content: ${fs.writes[0].content}`,
@@ -149,21 +149,26 @@ Deno.test("ensureCacheGitignored: appends entry when missing", {
 });
 
 Deno.test("ensureCacheGitignored: idempotent when entry already present", async () => {
+  const project = resolve("/project");
+  const gitignore = join(project, ".gitignore");
   const fs = fsStub({
-    "/project/.gitignore": "node_modules/\n.markspec/cache/\n",
+    [gitignore]: "node_modules/\n.markspec/cache/\n",
   });
-  await ensureCacheGitignored("/project", fs.read, fs.append);
+  await ensureCacheGitignored(project, fs.read, fs.append);
   assertEquals(fs.writes.length, 0);
 });
 
 Deno.test("ensureCacheGitignored: idempotent when broader .markspec/ is present", async () => {
-  const fs = fsStub({ "/project/.gitignore": ".markspec/\n" });
-  await ensureCacheGitignored("/project", fs.read, fs.append);
+  const project = resolve("/project");
+  const gitignore = join(project, ".gitignore");
+  const fs = fsStub({ [gitignore]: ".markspec/\n" });
+  await ensureCacheGitignored(project, fs.read, fs.append);
   assertEquals(fs.writes.length, 0);
 });
 
 Deno.test("ensureCacheGitignored: no-op when .gitignore absent", async () => {
+  const project = resolve("/project");
   const fs = fsStub({});
-  await ensureCacheGitignored("/project", fs.read, fs.append);
+  await ensureCacheGitignored(project, fs.read, fs.append);
   assertEquals(fs.writes.length, 0);
 });

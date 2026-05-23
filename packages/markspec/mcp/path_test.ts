@@ -5,23 +5,22 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join, resolve, SEPARATOR } from "@std/path";
 import { relativeToRoot } from "./path.ts";
 
-Deno.test("relativeToRoot: strips projectRoot prefix", {
-  ignore: Deno.build.os === "windows",
-}, () => {
+Deno.test("relativeToRoot: strips projectRoot prefix", () => {
+  const proj = resolve("/proj");
   assertEquals(
-    relativeToRoot("/proj/docs/req.md", "/proj"),
-    "docs/req.md",
+    relativeToRoot(join(proj, "docs", "req.md"), proj),
+    join("docs", "req.md"),
   );
 });
 
-Deno.test("relativeToRoot: tolerates trailing slash on projectRoot", {
-  ignore: Deno.build.os === "windows",
-}, () => {
+Deno.test("relativeToRoot: tolerates trailing slash on projectRoot", () => {
+  const proj = resolve("/proj");
   assertEquals(
-    relativeToRoot("/proj/docs/req.md", "/proj/"),
-    "docs/req.md",
+    relativeToRoot(join(proj, "docs", "req.md"), proj + SEPARATOR),
+    join("docs", "req.md"),
   );
 });
 

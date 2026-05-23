@@ -1,4 +1,5 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
+import { join, resolve } from "@std/path";
 import {
   ConfigError,
   DEFAULT_PROJECT_CONFIG,
@@ -167,26 +168,27 @@ Deno.test("parseProjectConfig: numeric version emits coercion warning", () => {
 // discoverProjectRoot
 // ---------------------------------------------------------------------------
 
-Deno.test("discoverProjectRoot: finds project.yaml in current directory", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("discoverProjectRoot: finds project.yaml in current directory", async () => {
+  const a = resolve("/a");
+  const yamlPath = join(a, "project.yaml");
   const readFile = (path: string) =>
     Promise.resolve(
-      path.endsWith("project.yaml") && path === "/a/project.yaml"
+      path.endsWith("project.yaml") && path === yamlPath
         ? "name: test"
         : undefined,
     );
-  const root = await discoverProjectRoot("/a", readFile);
-  assertEquals(root, "/a");
+  const root = await discoverProjectRoot(a, readFile);
+  assertEquals(root, a);
 });
 
-Deno.test("discoverProjectRoot: finds project.yaml two levels up", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("discoverProjectRoot: finds project.yaml two levels up", async () => {
+  const a = resolve("/a");
+  const yamlPath = join(a, "project.yaml");
+  const deep = join(a, "b", "c");
   const readFile = (path: string) =>
-    Promise.resolve(path === "/a/project.yaml" ? "name: test" : undefined);
-  const root = await discoverProjectRoot("/a/b/c", readFile);
-  assertEquals(root, "/a");
+    Promise.resolve(path === yamlPath ? "name: test" : undefined);
+  const root = await discoverProjectRoot(deep, readFile);
+  assertEquals(root, a);
 });
 
 Deno.test("discoverProjectRoot: returns undefined when not found", async () => {
@@ -199,16 +201,15 @@ Deno.test("discoverProjectRoot: returns undefined when not found", async () => {
 // loadConfig
 // ---------------------------------------------------------------------------
 
-Deno.test("loadConfig: discovers and returns valid config", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadConfig: discovers and returns valid config", async () => {
+  const proj = resolve("/proj");
   const files: Record<string, string> = {
-    "/proj/project.yaml": "name: my-project\n",
+    [join(proj, "project.yaml")]: "name: my-project\n",
   };
   const readFile = (path: string) => Promise.resolve(files[path]);
-  const result = await loadConfig("/proj/src/deep", readFile);
+  const result = await loadConfig(join(proj, "src", "deep"), readFile);
   assertEquals(result?.config.name, "my-project");
-  assertEquals(result?.projectRoot, "/proj");
+  assertEquals(result?.projectRoot, proj);
 });
 
 Deno.test("loadConfig: returns undefined when no project.yaml found", async () => {
@@ -217,15 +218,14 @@ Deno.test("loadConfig: returns undefined when no project.yaml found", async () =
   assertEquals(result, undefined);
 });
 
-Deno.test("loadConfig: throws ConfigError on invalid project.yaml", {
-  ignore: Deno.build.os === "windows",
-}, async () => {
+Deno.test("loadConfig: throws ConfigError on invalid project.yaml", async () => {
+  const proj = resolve("/proj");
   const files: Record<string, string> = {
-    "/proj/project.yaml": "domain: bad\n",
+    [join(proj, "project.yaml")]: "domain: bad\n",
   };
   const readFile = (path: string) => Promise.resolve(files[path]);
   try {
-    await loadConfig("/proj", readFile);
+    await loadConfig(proj, readFile);
     throw new Error("should have thrown");
   } catch (err) {
     assertEquals(err instanceof ConfigError, true);

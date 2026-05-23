@@ -5,6 +5,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { join, resolve } from "@std/path";
 import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { mergeChain, parseManifest } from "../../core/mod.ts";
@@ -54,11 +55,20 @@ Deno.test("renderDiagnosticsReport: errors and warnings sections", () => {
 
 Deno.test(
   "renderDiagnosticsReport: renders locations relative to projectRoot",
-  { ignore: Deno.build.os === "windows" },
   () => {
-    const md = renderDiagnosticsReport([ERR, WARN], null, 1, "/proj");
-    assertStringIncludes(md, "docs/req.md:128:3");
-    assertStringIncludes(md.split("\n").join(" "), " docs/req.md:128:3");
+    const proj = resolve("/proj");
+    const err: Diagnostic = {
+      ...ERR,
+      location: { ...ERR.location!, file: join(proj, "docs", "req.md") },
+    };
+    const warn: Diagnostic = {
+      ...WARN,
+      location: { ...WARN.location!, file: join(proj, "docs", "req.md") },
+    };
+    const md = renderDiagnosticsReport([err, warn], null, 1, proj);
+    const expected = `${join("docs", "req.md")}:128:3`;
+    assertStringIncludes(md, expected);
+    assertStringIncludes(md.split("\n").join(" "), ` ${expected}`);
   },
 );
 
@@ -83,10 +93,17 @@ Deno.test("filterDiagnostics: passes all when files undefined", () => {
   assertStringIncludes(out.length.toString(), "2");
 });
 
-Deno.test("filterDiagnostics: keeps matching relative path", {
-  ignore: Deno.build.os === "windows",
-}, () => {
-  const out = filterDiagnostics([ERR, WARN], ["docs/req.md"], "/proj");
+Deno.test("filterDiagnostics: keeps matching relative path", () => {
+  const proj = resolve("/proj");
+  const err: Diagnostic = {
+    ...ERR,
+    location: { ...ERR.location!, file: join(proj, "docs", "req.md") },
+  };
+  const warn: Diagnostic = {
+    ...WARN,
+    location: { ...WARN.location!, file: join(proj, "docs", "req.md") },
+  };
+  const out = filterDiagnostics([err, warn], [join("docs", "req.md")], proj);
   assertStringIncludes(out.length.toString(), "2");
 });
 
