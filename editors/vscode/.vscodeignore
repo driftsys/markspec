@@ -1,0 +1,28 @@
+.vscode/**
+.vscode-test/**
+
+# TypeScript sources — compiled output ships from out/.
+src/**
+**/*.ts
+!out/**/*.d.ts
+**/*.map
+tsconfig.json
+
+# Build-time scripts (only run during VSIX packaging, never at runtime).
+scripts/**
+
+# Dev dependencies that never need to ship to users.
+node_modules/typescript/**
+node_modules/@types/**
+node_modules/@vscode/**
+node_modules/**/*.md
+node_modules/**/*.ts
+node_modules/**/*.map
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/.bin/**
+
+# Package metadata that VS Code does not consume.
+.gitignore
+.vscodeignore
+package-lock.json
