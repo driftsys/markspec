@@ -495,9 +495,7 @@ Deno.test("validate: uppercase MUST NOT in body fires MSL-M060", async () => {
     `expected exit 2 (warning), got ${code}; stderr: ${stderr}`,
   );
   assertStringIncludes(stderr, "MSL-M060");
-  // bodyTokens scanner emits 'MUST' as a single-word token; 'NOT' is not a
-  // modal verb and is not separately tracked.
-  assertStringIncludes(stderr, "MUST");
+  assertStringIncludes(stderr, "MUST NOT");
 });
 
 Deno.test("validate: lowercase modal in body does NOT fire MSL-M060", async () => {

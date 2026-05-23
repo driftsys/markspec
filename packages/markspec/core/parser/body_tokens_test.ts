@@ -43,7 +43,7 @@ Deno.test("modal: all five RFC-2119 verbs recognised", () => {
     "It may emit warnings; it must not crash. The driver will retry.";
   const tokens = tokensOf(body).filter((t) => t.kind === "modal");
   const texts = tokens.map((t) => t.text);
-  assertEquals(texts, ["shall", "should", "may", "must", "will"]);
+  assertEquals(texts, ["shall", "should", "may", "must not", "will"]);
 });
 
 Deno.test("ears-trigger: all five triggers recognised in prose", () => {
@@ -167,4 +167,18 @@ Deno.test("mixed prose: modal + EARS + entity-ref on one line", () => {
     "modal",
     "entity-ref",
   ]);
+});
+
+Deno.test("modal: multi-word forms (SHALL NOT, MUST NOT) emit single tokens", () => {
+  const body = "The system MUST NOT crash and shall not retry.";
+  const modals = tokensOf(body).filter((t) => t.kind === "modal");
+  assertEquals(modals.length, 2);
+  if (modals[0].kind === "modal") {
+    assertEquals(modals[0].text, "MUST NOT");
+    assertEquals(modals[0].case, "upper");
+  }
+  if (modals[1].kind === "modal") {
+    assertEquals(modals[1].text, "shall not");
+    assertEquals(modals[1].case, "lower");
+  }
 });

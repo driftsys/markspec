@@ -18,8 +18,10 @@ import { classifyConvention } from "./entity_refs.ts";
 import { processor } from "./remark.ts";
 import type { Root, RootContent } from "mdast";
 
-/** RFC 2119 modal verbs — matched case-insensitively as whole words. */
-const MODAL_RE = /\b(shall|should|may|must|will)\b/gi;
+/** RFC 2119 modal verbs — matched case-insensitively as whole words.
+ * Multi-word compounds (shall not, should not, must not) come first
+ * so the leftmost-eager JS regex engine picks them before the bare verb. */
+const MODAL_RE = /\b(shall not|should not|must not|shall|should|may|must|will)\b/gi;
 
 /** EARS pattern triggers — capital-initial, whole word, case-sensitive. */
 const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
