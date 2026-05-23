@@ -5,11 +5,6 @@
  * (post-`splitBodyAndAttributes`) with the shared remark processor and
  * maps each mdast block child to the §2.4-2.6 node taxonomy.
  *
- * Inline markers (modal + $Identifier) are extracted for prose-bearing
- * nodes: Paragraph, List items, Table cells, Note bodies, Blockquotes,
- * and DefinitionList term/definitions. They are NOT extracted inside
- * Code, Feature, or Math blocks (spec §2.5).
- *
  * This module is pure library code: no `Deno.*` APIs.
  */
 
@@ -25,7 +20,6 @@ import type {
   TableRow,
 } from "mdast";
 import { processor } from "../parser/remark.ts";
-import { classifyConvention } from "../parser/entity_refs.ts";
 import { normalizeLineEndings } from "../util/line_endings.ts";
 import type {
   AdmonitionKind,
@@ -34,16 +28,12 @@ import type {
   CaptionNode,
   CodeNode,
   DefinitionListNode,
-  EntityRefMarker,
   FeatureNode,
   FigureNode,
   InlineContent,
-  InlineMarker,
   ListItemNode,
   ListNode,
   MathNode,
-  ModalMarker,
-  ModalMarkerClass,
   NoteNode,
   ParagraphNode,
   SourceRange,
@@ -51,129 +41,19 @@ import type {
   UnknownNode,
 } from "./nodes.ts";
 
-// ---------------------------------------------------------------------------
-// Inline marker recognition — modal keywords
-// ---------------------------------------------------------------------------
-
 /**
- * RFC 2119 tokens (lowercase canonical; matched case-insensitively in prose).
- * Multi-word forms listed first so the alternation greedily matches them.
- */
-const RFC2119_RE =
-  /\b(shall not|should not|must not|shall|should|must|may)\b/gi;
-
-// EARS keywords recognised: When, While, Where, Unless.
-const EARS_RE = /\b(When|While|Where|Unless)\b/g;
-
-/** `$Identifier` entity reference — must not be preceded by another `$`. */
-const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;
-
-/**
- * Extract all inline markers from a prose text string.
- * `lineOffset` is the 0-based line index of the text within the body
- * (used for SourceRange line numbers).
- *
- * For multi-line text the SourceRange carries the first line's 1-based
- * column; this is best-effort for PR 2 (noted as DONE_WITH_CONCERNS:
- * multi-line paragraph ranges are approximated to the starting line).
- *
- * Exported so the AST-native §3.4.1 normalisation pass
- * (`core/ast/normalize.ts`) re-derives `InlineContent.markers` from the
- * normalised text with the SAME extraction the builder uses — no regex
- * duplication.
- */
-export function extractMarkersFromText(
-  text: string,
-  startRange: SourceRange,
-): readonly InlineMarker[] {
-  const markers: InlineMarker[] = [];
-  const lines = text.split("\n");
-
-  for (let li = 0; li < lines.length; li++) {
-    const line = lines[li];
-    const lineNo = startRange.start.line + li;
-
-    // ---- RFC 2119 ---------------------------------------------------
-    RFC2119_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = RFC2119_RE.exec(line)) !== null) {
-      const raw = m[1];
-      const canonical = raw.toLowerCase() as string;
-      const col = m.index + 1;
-      markers.push(
-        {
-          kind: "modal",
-          cls: "rfc2119" as ModalMarkerClass,
-          canonical,
-          raw, // preserve source form for uppercase-keyword detection (MSL-M060)
-          range: {
-            start: { line: lineNo, column: col },
-            end: { line: lineNo, column: col + raw.length },
-          },
-        } satisfies ModalMarker,
-      );
-    }
-
-    // ---- EARS -------------------------------------------------------
-    EARS_RE.lastIndex = 0;
-    while ((m = EARS_RE.exec(line)) !== null) {
-      const raw = m[1];
-      const col = m.index + 1;
-      markers.push(
-        {
-          kind: "modal",
-          cls: "ears" as ModalMarkerClass,
-          canonical: raw, // EARS: source form is canonical
-          raw, // same as canonical for EARS
-          range: {
-            start: { line: lineNo, column: col },
-            end: { line: lineNo, column: col + raw.length },
-          },
-        } satisfies ModalMarker,
-      );
-    }
-
-    // ---- $Identifier ------------------------------------------------
-    ENTITY_REF_RE.lastIndex = 0;
-    while ((m = ENTITY_REF_RE.exec(line)) !== null) {
-      // Discard if preceded by another `$` (math fence `$$…$$`)
-      if (m.index > 0 && line[m.index - 1] === "$") continue;
-      // Discard if preceded by `\` (escaped)
-      if (m.index > 0 && line[m.index - 1] === "\\") continue;
-      const ident = m[0]; // includes leading `$`
-      const bare = m[1];
-      const col = m.index + 1;
-      markers.push(
-        {
-          kind: "entity",
-          ident,
-          convention: classifyConvention(bare),
-          range: {
-            start: { line: lineNo, column: col },
-            end: { line: lineNo, column: col + ident.length },
-          },
-        } satisfies EntityRefMarker,
-      );
-    }
-  }
-
-  return markers;
-}
-
-/**
- * Build an InlineContent. `storedText` is the verbatim source prose that
- * `render` emits (§5.1 faithful); `recognitionText` is the flattened
- * projection that modal / $Identifier recognition runs on (so `\bshall\b`
- * still matches inside `_shall_`). For nodes whose text carries no inline
- * markup the two are identical and behaviour is unchanged.
+ * Build an InlineContent from verbatim source prose.
+ * `storedText` is the verbatim source prose that `render` emits (§5.1
+ * faithful). The `_recognitionText` and `_range` parameters are kept for
+ * call-site compatibility but are intentionally unused — inline-construct
+ * extraction has moved to `Entry.bodyTokens` (ADR-016).
  */
 function inlineContent(
   storedText: string,
-  recognitionText: string,
-  range: SourceRange,
+  _recognitionText: string,
+  _range: SourceRange,
 ): InlineContent {
-  const markers = extractMarkersFromText(recognitionText, range);
-  return { text: storedText, markers };
+  return { text: storedText };
 }
 
 // ---------------------------------------------------------------------------
