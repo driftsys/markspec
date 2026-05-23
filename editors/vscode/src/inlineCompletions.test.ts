@@ -226,3 +226,130 @@ test("buildUserPrompt: doc-prose includes only the local window", () => {
   assert.match(prompt, /Some prose around the cursor/);
   assert.equal(prompt.includes("STK_AEB_0001"), false);
 });
+
+import {
+  MarkspecInlineCompletionProvider,
+  type ModelInvoker,
+} from "./inlineCompletions";
+
+test("MarkspecInlineCompletionProvider: returns null for skip context", async () => {
+  const invoker: ModelInvoker = async function* () {
+    yield "should-not-appear";
+  };
+  const provider = new MarkspecInlineCompletionProvider({
+    modelInvoker: invoker,
+    listDocumentSymbols: async () => [],
+    listWorkspaceSymbols: async () => [],
+    maxWorkspaceEntries: 200,
+  });
+  const doc = makeDoc([
+    "- [STK_AEB_0001] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  ]);
+  const fakeToken = { isCancellationRequested: false } as never;
+  const items = await provider.provideInlineCompletionItems(
+    doc as never,
+    pos(4, 41) as never,
+    {} as never,
+    fakeToken,
+  );
+  assert.equal(items, null);
+});
+
+test("MarkspecInlineCompletionProvider: forwards model output as the completion item text", async () => {
+  const invoker: ModelInvoker = async function* () {
+    yield "Sensor ";
+    yield "debouncing";
+  };
+  const provider = new MarkspecInlineCompletionProvider({
+    modelInvoker: invoker,
+    listDocumentSymbols: async () => [],
+    listWorkspaceSymbols: async () => [],
+    maxWorkspaceEntries: 200,
+  });
+  const doc = makeDoc([
+    "- [STK_AEB_0042] ",
+  ]);
+  const fakeToken = { isCancellationRequested: false } as never;
+  const items = await provider.provideInlineCompletionItems(
+    doc as never,
+    pos(0, 17) as never,
+    {} as never,
+    fakeToken,
+  );
+  assert.notEqual(items, null);
+  if (items && Array.isArray(items)) {
+    assert.equal(items.length, 1);
+    assert.equal(
+      (items[0] as { insertText: string }).insertText,
+      "Sensor debouncing",
+    );
+  }
+});
+
+test("MarkspecInlineCompletionProvider: caps workspace symbols at maxWorkspaceEntries", async () => {
+  const workspaceSymbols = Array.from(
+    { length: 500 },
+    (_, i) => ({
+      displayId: `SYS_${i.toString().padStart(4, "0")}`,
+      title: `Title ${i}`,
+    }),
+  );
+  let promptSeen = "";
+  const invoker: ModelInvoker = async function* (messages) {
+    promptSeen = messages.join("\n");
+    yield "ok";
+  };
+  const provider = new MarkspecInlineCompletionProvider({
+    modelInvoker: invoker,
+    listDocumentSymbols: async () => [],
+    listWorkspaceSymbols: async () => workspaceSymbols,
+    maxWorkspaceEntries: 200,
+  });
+  const doc = makeDoc([
+    "- [STK_AEB_0001] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "      Satisfies: ",
+  ]);
+  const fakeToken = { isCancellationRequested: false } as never;
+  await provider.provideInlineCompletionItems(
+    doc as never,
+    pos(5, 17) as never,
+    {} as never,
+    fakeToken,
+  );
+  assert.equal(promptSeen.includes("SYS_0000"), true);
+  assert.equal(promptSeen.includes("SYS_0199"), true);
+  assert.equal(promptSeen.includes("SYS_0200"), false);
+});
+
+test("MarkspecInlineCompletionProvider: aborts when the cancellation token fires mid-stream", async () => {
+  const fakeToken = { isCancellationRequested: false } as {
+    isCancellationRequested: boolean;
+  };
+  const invoker: ModelInvoker = async function* () {
+    yield "first";
+    fakeToken.isCancellationRequested = true;
+    yield "should-not-appear";
+  };
+  const provider = new MarkspecInlineCompletionProvider({
+    modelInvoker: invoker,
+    listDocumentSymbols: async () => [],
+    listWorkspaceSymbols: async () => [],
+    maxWorkspaceEntries: 200,
+  });
+  const doc = makeDoc(["- [STK_AEB_0042] "]);
+  const items = await provider.provideInlineCompletionItems(
+    doc as never,
+    pos(0, 17) as never,
+    {} as never,
+    fakeToken as never,
+  );
+  assert.equal(items, null);
+});
