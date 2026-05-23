@@ -175,11 +175,12 @@ Deno.test("MSL-B042: task list still flagged after checkbox round-trip", async (
 });
 
 // ---------------------------------------------------------------------------
-// SP2 Task 7 — verbatim-content.text regression pins.
+// ADR-016 — verbatim-content.text regression pins.
 //
-// After SP2, `InlineContent.text` stores VERBATIM source prose (markup like
-// `_emphasis_`, `**strong**`, `[links](u)` preserved) while marker
-// recognition runs on the flattened projection. MSL-B043 scans
+// After ADR-016, `InlineContent.text` stores verbatim source prose
+// (markup like `_emphasis_`, `**strong**`, `[links](u)` preserved).
+// Inline-construct extraction has moved to `Entry.bodyTokens`
+// (see core/parser/body_tokens.ts). MSL-B043 scans
 // `block.content.text` for forbidden inline HTML via `HTML_TAG_RE` /
 // `HTML_COMMENT_RE`, both anchored on a literal `<`. Markdown emphasis /
 // strong / link markup never introduces `<` or `>`, so the verbatim
