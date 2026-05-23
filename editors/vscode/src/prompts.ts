@@ -37,13 +37,13 @@ export const SYSTEM_PROMPT =
 
 MarkSpec is a Markdown flavor for traceable requirements. A typical entry block looks like:
 
-  - [STK_AEB_0001] Sensor debouncing
+- [STK_AEB_0001] Sensor debouncing
 
-    The sensor driver shall debounce raw inputs within 20 ms.
+  The sensor driver shall debounce raw inputs within 20 ms.
 
-        Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-        Satisfies: SYS_AEB_0001
-        Labels: ASIL-B
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_AEB_0001
+      Labels: ASIL-B
 
 Authoring conventions:
 - One requirement per entry block. Single responsibility. Active voice.
@@ -78,9 +78,7 @@ export function buildUserPrompt(ctx: PromptContext): string {
       sections.push(`# Surrounding markdown\n${ctx.localWindow}`);
       if (ctx.currentFileEntries.length > 0) {
         sections.push(
-          `# Other entries in this file\n${
-            formatEntryList(ctx.currentFileEntries)
-          }`,
+          `# Entries in this file\n${formatEntryList(ctx.currentFileEntries)}`,
         );
       }
       break;
@@ -105,13 +103,22 @@ export function buildUserPrompt(ctx: PromptContext): string {
       break;
     }
     case "skip":
-      sections.push(`# Task\nNo completion.`);
-      break;
+      throw new Error(
+        "buildUserPrompt: called with 'skip' context — caller must guard against this",
+      );
+    default: {
+      const _exhaustive: never = ctx.cursorContext;
+      throw new Error(
+        `buildUserPrompt: unhandled context kind: ${
+          JSON.stringify(_exhaustive)
+        }`,
+      );
+    }
   }
 
   return sections.join("\n\n");
 }
 
-function formatEntryList(entries: readonly EntryRef[]): string {
+export function formatEntryList(entries: readonly EntryRef[]): string {
   return entries.map((e) => `- ${e.displayId} — ${e.title}`).join("\n");
 }

@@ -177,7 +177,7 @@ test("buildUserPrompt: trace-attribute includes workspace entry list as candidat
   };
   const prompt = buildUserPrompt(ctx);
   assert.match(prompt, /Sensor debouncing/);
-  assert.match(prompt, /Satisfies/);
+  assert.match(prompt, /`Satisfies:`/);
   assert.match(prompt, /SYS_AEB_0010/);
   assert.match(prompt, /SYS_AEB_0011/);
 });
@@ -201,6 +201,16 @@ test("buildUserPrompt: entry-body includes the current file entries but not the 
   assert.match(prompt, /Sensor debouncing/);
   assert.match(prompt, /STK_AEB_0001/);
   assert.equal(prompt.includes("SYS_AEB_0010"), false);
+});
+
+test("buildUserPrompt: throws when called with skip context", () => {
+  const ctx: PromptContext = {
+    cursorContext: { kind: "skip" },
+    localWindow: "",
+    currentFileEntries: [],
+    workspaceEntries: [],
+  };
+  assert.throws(() => buildUserPrompt(ctx), /skip/);
 });
 
 test("buildUserPrompt: doc-prose includes only the local window", () => {
