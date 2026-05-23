@@ -398,6 +398,12 @@ export interface Entry {
    * Resolution into the project's entity registry happens downstream.
    */
   readonly entityRefs?: readonly EntityRef[];
+  /**
+   * Inline-construct tokens recognised in the entry body prose
+   * (ADR-016). Eager, sorted by `(line, column)`, file-relative.
+   * Always present — empty array when no constructs are recognised.
+   */
+  readonly bodyTokens: readonly BodyToken[];
 }
 
 // ---------------------------------------------------------------------------
