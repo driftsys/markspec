@@ -43,6 +43,10 @@ Squash work into one conventional commit per task.
 6. Every PR ships implementation, tests, and documentation together.
 7. Merge with `--merge`, not `--squash`.
 
+For new ADRs and SAD documents, start from the templates in
+[`docs/templates/`](docs/templates/) — `adr-nnn-topic.md` for architecture
+decision records and `sad-nnn-topic.md` for software architecture descriptions.
+
 For the planning model, issue types, and severity/priority matrix, see
 [PROCESS.md](PROCESS.md).
 
