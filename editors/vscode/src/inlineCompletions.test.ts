@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { classifyContext, type InlineContext } from "./inlineCompletions";
+import {
+  classifyContext,
+  type InlineContext,
+  MarkspecInlineCompletionProvider,
+  type ModelInvoker,
+} from "./inlineCompletions";
+import { buildUserPrompt, type PromptContext, SYSTEM_PROMPT } from "./prompts";
 
 interface FakePosition {
   readonly line: number;
@@ -136,8 +142,6 @@ test("classifyContext: skip when cursor is on a Type: trailer value line", () =>
 const _typeProbe: InlineContext = { kind: "skip" };
 void _typeProbe;
 
-import { buildUserPrompt, type PromptContext, SYSTEM_PROMPT } from "./prompts";
-
 test("SYSTEM_PROMPT: mentions entry block syntax and EARS pattern", () => {
   assert.match(SYSTEM_PROMPT, /entry block/i);
   assert.match(SYSTEM_PROMPT, /EARS/i);
@@ -227,11 +231,6 @@ test("buildUserPrompt: doc-prose includes only the local window", () => {
   assert.equal(prompt.includes("STK_AEB_0001"), false);
 });
 
-import {
-  MarkspecInlineCompletionProvider,
-  type ModelInvoker,
-} from "./inlineCompletions";
-
 test("MarkspecInlineCompletionProvider: returns null for skip context", async () => {
   const invoker: ModelInvoker = async function* () {
     yield "should-not-appear";
@@ -280,14 +279,9 @@ test("MarkspecInlineCompletionProvider: forwards model output as the completion 
     {} as never,
     fakeToken,
   );
-  assert.notEqual(items, null);
-  if (items && Array.isArray(items)) {
-    assert.equal(items.length, 1);
-    assert.equal(
-      (items[0] as { insertText: string }).insertText,
-      "Sensor debouncing",
-    );
-  }
+  assert.ok(items);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].insertText, "Sensor debouncing");
 });
 
 test("MarkspecInlineCompletionProvider: caps workspace symbols at maxWorkspaceEntries", async () => {
@@ -352,4 +346,36 @@ test("MarkspecInlineCompletionProvider: aborts when the cancellation token fires
     fakeToken as never,
   );
   assert.equal(items, null);
+});
+
+test("MarkspecInlineCompletionProvider: entry-body context surfaces current-file entries in the prompt", async () => {
+  let promptSeen = "";
+  const invoker: ModelInvoker = async function* (messages) {
+    promptSeen = messages.join("\n");
+    yield "ok";
+  };
+  const provider = new MarkspecInlineCompletionProvider({
+    modelInvoker: invoker,
+    listDocumentSymbols: async () => [
+      { displayId: "STK_AEB_0001", title: "Sensor debouncing" },
+      { displayId: "STK_AEB_0002", title: "Range gating" },
+    ],
+    listWorkspaceSymbols: async () => [],
+    maxWorkspaceEntries: 200,
+  });
+  const doc = makeDoc([
+    "- [STK_AEB_0001] Sensor debouncing",
+    "",
+    "  ",
+  ]);
+  const fakeToken = { isCancellationRequested: false } as never;
+  await provider.provideInlineCompletionItems(
+    doc as never,
+    pos(2, 2) as never,
+    {} as never,
+    fakeToken,
+  );
+  assert.equal(promptSeen.includes("STK_AEB_0001"), true);
+  assert.equal(promptSeen.includes("STK_AEB_0002"), true);
+  assert.equal(promptSeen.includes("Range gating"), true);
 });

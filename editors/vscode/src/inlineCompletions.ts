@@ -12,17 +12,16 @@
 import type {
   CancellationToken,
   InlineCompletionContext,
-  InlineCompletionItem,
   Position,
   TextDocument,
 } from "vscode";
+import { buildUserPrompt, type EntryRef, SYSTEM_PROMPT } from "./prompts";
 
 // Re-export the vscode types so downstream files can import them from
 // this module without duplicating the dependency declaration.
 export type {
   CancellationToken,
   InlineCompletionContext,
-  InlineCompletionItem,
   Position,
   TextDocument,
 };
@@ -150,8 +149,6 @@ function findEnclosingEntry(
   return undefined;
 }
 
-import { buildUserPrompt, type EntryRef, SYSTEM_PROMPT } from "./prompts";
-
 /**
  * Lazy producer of model output. Each yielded string is a fresh chunk.
  * The provider concatenates chunks and aborts when the cancellation
@@ -166,13 +163,22 @@ export type ModelInvoker = (
 /** Constructor dependencies for {@linkcode MarkspecInlineCompletionProvider}. */
 export interface InlineProviderDeps {
   readonly modelInvoker: ModelInvoker;
-  readonly listDocumentSymbols: (
-    uri: unknown,
-  ) => Promise<readonly EntryRef[]>;
+  readonly listDocumentSymbols: () => Promise<readonly EntryRef[]>;
   readonly listWorkspaceSymbols: (
     query: string,
   ) => Promise<readonly EntryRef[]>;
   readonly maxWorkspaceEntries: number;
+}
+
+/**
+ * Raw completion item shape produced by the provider. The production
+ * registration site in `extension.ts` converts each into a real
+ * `vscode.InlineCompletionItem` before returning to VSCode. Tests
+ * assert against this plain shape, so the cast at the registration
+ * boundary is the only place the VSCode class is constructed.
+ */
+export interface RawInlineCompletionItem {
+  readonly insertText: string;
 }
 
 /**
@@ -191,13 +197,13 @@ export class MarkspecInlineCompletionProvider {
     position: Position,
     _context: InlineCompletionContext,
     token: CancellationToken,
-  ): Promise<readonly InlineCompletionItem[] | null> {
+  ): Promise<readonly RawInlineCompletionItem[] | null> {
     const cursorContext = classifyContext(document, position);
     if (cursorContext.kind === "skip") return null;
 
     const localWindow = readLocalWindow(document, position);
     const [currentFileEntries, workspaceEntries] = await Promise.all([
-      this.deps.listDocumentSymbols(undefined),
+      this.deps.listDocumentSymbols(),
       this.deps.listWorkspaceSymbols(""),
     ]);
 
@@ -225,10 +231,7 @@ export class MarkspecInlineCompletionProvider {
     if (token.isCancellationRequested) return null;
     if (text.length === 0) return null;
 
-    // Return a plain object the production registration site converts
-    // to `vscode.InlineCompletionItem`. Tests assert on the
-    // `insertText` shape directly.
-    return [{ insertText: text } as unknown as InlineCompletionItem];
+    return [{ insertText: text }];
   }
 }
 
@@ -236,11 +239,17 @@ function readLocalWindow(
   document: TextDocument,
   position: Position,
 ): string {
-  const start = Math.max(0, position.line - LOCAL_WINDOW_RADIUS);
-  const end = Math.min(
-    document.lineCount - 1,
-    position.line + LOCAL_WINDOW_RADIUS,
+  if (document.lineCount === 0) return "";
+  // Clamp the cursor line so an out-of-range position can't index past
+  // the last line. The VSCode runtime guarantees in-range positions in
+  // practice, but the function is unit-tested and may be called with
+  // arbitrary fixtures.
+  const safeLine = Math.min(
+    position.line,
+    Math.max(0, document.lineCount - 1),
   );
+  const start = Math.max(0, safeLine - LOCAL_WINDOW_RADIUS);
+  const end = Math.min(document.lineCount - 1, safeLine + LOCAL_WINDOW_RADIUS);
   const lines: string[] = [];
   for (let i = start; i <= end; i++) {
     lines.push(document.lineAt(i).text);
