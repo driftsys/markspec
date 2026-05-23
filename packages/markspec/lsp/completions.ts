@@ -3,10 +3,11 @@
  *
  * Completion providers for MarkSpec entry blocks and ID references.
  *
- * Three triggers:
+ * Four triggers:
  * 1. Block scaffold — `- [` at line start → full entry block snippet
- * 2. ID reference — trace attribute keyword (e.g., `Satisfies:`) → display ID list
- * 3. Type: attribute value — `Type:` keyword → core and profile type list
+ * 2. Trailer attribute key — indented blank or partial capitalized key → key list
+ * 3. ID reference — trace attribute keyword (e.g., `Satisfies:`) → display ID list
+ * 4. Type: attribute value — `Type:` keyword → core and profile type list
  *
  * Block-scaffold items receive a fresh ULID from a `ulidProvider` callback so
  * insertions don't need a follow-up `markspec format` pass.
@@ -27,6 +28,42 @@ const TRACE_ATTR_RE =
 
 /** Pattern matching the `Type:` attribute keyword at line start. */
 const TYPE_ATTR_RE = /^\s*Type\s*:/;
+
+/**
+ * Trailer attribute keys offered as completions inside an entry's
+ * trailer region. Includes the eleven trace-link keys (whose pattern
+ * also appears in `TRACE_ATTR_RE` and in `TRACE_KEYWORDS_RE` in
+ * `context.ts`), plus the cardinal `Labels:` and `Type:` keys. When
+ * the trace-keyword set changes here, also update those two regexes.
+ */
+export const TRAILER_KEYS: readonly string[] = [
+  "Satisfies",
+  "Derived-from",
+  "Verified-by",
+  "References",
+  "Tests",
+  "Depends-on",
+  "Part-of",
+  "Allocated-to",
+  "Realizes",
+  "Generated-from",
+  "Supersedes",
+  "Labels",
+  "Type",
+] as const;
+
+/** Trailer-region context: indent ≥4 spaces, optional partial capitalized key. */
+const TRAILER_KEY_CONTEXT_RE = /^\s{4,}([A-Z][A-Za-z-]*)?$/;
+
+/**
+ * Check whether the text before the cursor is in an entry's trailer
+ * region and ready to receive an attribute key. Matches a line that
+ * starts with at least 4 spaces of indent and contains nothing or a
+ * partial capitalized key.
+ */
+export function isTrailerKeyContext(textBefore: string): boolean {
+  return TRAILER_KEY_CONTEXT_RE.test(textBefore);
+}
 
 /**
  * Check if the text before cursor triggers a block scaffold completion.
@@ -77,6 +114,8 @@ export interface CompletionItemData {
 /** CompletionItemKind.Snippet = 15, CompletionItemKind.Reference = 18 */
 const KIND_SNIPPET = 15;
 const KIND_REFERENCE = 18;
+/** LSP `CompletionItemKind.Property` numeric value (10). */
+const KIND_PROPERTY = 10;
 
 /** Entry type info for block scaffold completion. */
 export interface EntryTypeInfo {
@@ -140,6 +179,21 @@ export function buildTypeAttributeItems(
     });
   }
   return items;
+}
+
+/**
+ * Build completion items for the trailer-key trigger. One item per
+ * entry in {@linkcode TRAILER_KEYS}, each inserting `<Key>: ` with
+ * the cursor placed after the colon.
+ */
+export function buildTrailerKeyItems(): CompletionItemData[] {
+  return TRAILER_KEYS.map((key) => ({
+    label: key,
+    detail: "trailer attribute",
+    insertText: `${key}: `,
+    isSnippet: false,
+    kind: KIND_PROPERTY,
+  }));
 }
 
 /** Inputs to {@linkcode renderScaffoldSnippet}. */

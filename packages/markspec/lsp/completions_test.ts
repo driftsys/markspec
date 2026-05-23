@@ -8,12 +8,15 @@ import { assertEquals, assertNotEquals } from "@std/assert";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildTrailerKeyItems,
   buildTypeAttributeItems,
   extractRelationName,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
+  isTrailerKeyContext,
   isTypeAttributeTrigger,
   renderScaffoldSnippet,
+  TRAILER_KEYS,
 } from "./completions.ts";
 import type { DisplayIdEntry } from "./workspace.ts";
 import { makeDisplayId } from "../core/mod.ts";
@@ -195,4 +198,62 @@ Deno.test("renderScaffoldSnippet: formats display ID and ULID", () => {
     snippet.insertText.includes(`Id: 01HGW2Q8MNP3RSTVWXYZABCDEF`),
     true,
   );
+});
+
+// --- Trailer key trigger ---
+
+Deno.test("TRAILER_KEYS: includes the documented trace + label + type keys", () => {
+  // Trace attribute keys.
+  assertEquals(TRAILER_KEYS.includes("Satisfies"), true);
+  assertEquals(TRAILER_KEYS.includes("Derived-from"), true);
+  assertEquals(TRAILER_KEYS.includes("Verified-by"), true);
+  assertEquals(TRAILER_KEYS.includes("References"), true);
+  assertEquals(TRAILER_KEYS.includes("Tests"), true);
+  assertEquals(TRAILER_KEYS.includes("Depends-on"), true);
+  assertEquals(TRAILER_KEYS.includes("Part-of"), true);
+  assertEquals(TRAILER_KEYS.includes("Allocated-to"), true);
+  assertEquals(TRAILER_KEYS.includes("Realizes"), true);
+  assertEquals(TRAILER_KEYS.includes("Generated-from"), true);
+  assertEquals(TRAILER_KEYS.includes("Supersedes"), true);
+  // Non-trace keys we also suggest.
+  assertEquals(TRAILER_KEYS.includes("Labels"), true);
+  assertEquals(TRAILER_KEYS.includes("Type"), true);
+});
+
+Deno.test("isTrailerKeyContext: blank indented line matches", () => {
+  assertEquals(isTrailerKeyContext("      "), true);
+});
+
+Deno.test("isTrailerKeyContext: indented partial uppercase key matches", () => {
+  assertEquals(isTrailerKeyContext("      Sa"), true);
+  assertEquals(isTrailerKeyContext("      Der"), true);
+});
+
+Deno.test("isTrailerKeyContext: less than 4 spaces of indent rejected", () => {
+  assertEquals(isTrailerKeyContext("  "), false);
+  assertEquals(isTrailerKeyContext("   S"), false);
+});
+
+Deno.test("isTrailerKeyContext: lowercase first letter rejected", () => {
+  assertEquals(isTrailerKeyContext("      satisfies"), false);
+});
+
+Deno.test("isTrailerKeyContext: completed key (colon present) rejected", () => {
+  assertEquals(isTrailerKeyContext("      Satisfies:"), false);
+});
+
+Deno.test("buildTrailerKeyItems: returns one item per key", () => {
+  const items = buildTrailerKeyItems();
+  assertEquals(items.length, TRAILER_KEYS.length);
+  for (const item of items) {
+    assertEquals(item.insertText?.endsWith(": "), true);
+    assertEquals(item.isSnippet, false);
+  }
+});
+
+Deno.test("buildTrailerKeyItems: each label matches a TRAILER_KEYS entry", () => {
+  const labels = buildTrailerKeyItems().map((i) => i.label);
+  for (const key of TRAILER_KEYS) {
+    assertEquals(labels.includes(key), true);
+  }
 });

@@ -63,10 +63,12 @@ import {
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildTrailerKeyItems,
   buildTypeAttributeItems,
   type EntryTypeInfo,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
+  isTrailerKeyContext,
   isTypeAttributeTrigger,
   renderScaffoldSnippet,
   SCAFFOLD_COMPLETION_KIND,
@@ -484,6 +486,17 @@ connection.onCompletion((params): CompletionItem[] => {
           : undefined,
       };
     });
+  }
+
+  // Trigger 1.5: Trailer attribute key — indented blank or partial key.
+  if (isTrailerKeyContext(line)) {
+    const items = buildTrailerKeyItems();
+    return items.map((item) => ({
+      label: item.label,
+      detail: item.detail,
+      insertText: item.insertText,
+      kind: CompletionItemKind.Property,
+    }));
   }
 
   // Trigger 2: ID reference
