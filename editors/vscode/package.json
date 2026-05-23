@@ -90,6 +90,18 @@
             "mcp"
           ],
           "description": "Arguments passed to the markspec binary to start the MCP server. Mirrors 'markspec.server.args' but for the MCP subcommand."
+        },
+        "markspec.inlineCompletion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Register the MarkSpec inline AI completion provider. When false, the provider is not registered and Copilot's default inline completion is used as-is."
+        },
+        "markspec.inlineCompletion.maxWorkspaceEntries": {
+          "type": "integer",
+          "default": 200,
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Maximum number of workspace entries (display ID + title) packed into the AI prompt context. Higher values give the model more workspace awareness but consume more tokens."
         }
       }
     },
