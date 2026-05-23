@@ -170,17 +170,11 @@ export function extractBodyTokens(
 ): readonly BodyToken[] {
   const tokens: BodyToken[] = [];
   const verbatimLines = collectVerbatimLines(bodyAst);
-  let inMathFence = false;
   const lines = body.split("\n");
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const lineNo = baseLocation.line + li;
     if (verbatimLines.has(li + 1)) continue;
-    if (line.trim() === "$$") {
-      inMathFence = !inMathFence;
-      continue;
-    }
-    if (inMathFence) continue;
     MODAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = MODAL_RE.exec(line)) !== null) {
