@@ -588,6 +588,75 @@ export interface EntityRef {
 }
 
 // ---------------------------------------------------------------------------
+// Body tokens (ADR-016)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inline-construct token kinds recognised in entry body prose (ADR-016).
+ *
+ * Split where at least one consumer fans out behaviour at the kind level
+ * (`gherkin-section` → LSP `class` token vs `gherkin-step` → `keyword`),
+ * collapsed elsewhere into discriminator fields on the token variant
+ * (`modal.case`, `entity-ref.convention`).
+ */
+export type BodyTokenKind =
+  | "modal" // shall, should, may, must, will (RFC 2119 lowercase canonical)
+  | "ears-trigger" // When, While, If, Where, Then (in prose, outside feature fences)
+  | "gherkin-section" // Feature, Background, Rule, Scenario, Examples (inside feature fences)
+  | "gherkin-step" // Given, When, Then, And, But (inside feature fences)
+  | "entity-ref" // $Identifier (any case convention, spec §2.5.2)
+  | "inline-code"; // `…` span (mdast InlineCode projection)
+
+/** Case form of a modal token — MSL-M060 targets `"upper"`. */
+export type ModalCase = "lower" | "upper";
+
+/** EARS trigger word — captured as a discriminator on `ears-trigger` tokens. */
+export type EarsTrigger = "When" | "While" | "If" | "Where" | "Then";
+
+/**
+ * One inline-construct token emitted by the parser at extraction time.
+ *
+ * Discriminated union; consumers `switch` on `kind` for fan-out and read
+ * the discriminator field (`case`, `trigger`, `convention`) when more
+ * precision is needed. Locations are file-relative 1-based, matching
+ * every other {@linkcode SourceLocation} in the model.
+ */
+export type BodyToken =
+  | {
+    readonly kind: "modal";
+    readonly text: string;
+    readonly case: ModalCase;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "ears-trigger";
+    readonly text: string;
+    readonly trigger: EarsTrigger;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "gherkin-section";
+    readonly text: string;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "gherkin-step";
+    readonly text: string;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "entity-ref";
+    readonly text: string;
+    readonly convention: EntityRefConvention;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "inline-code";
+    readonly text: string;
+    readonly location: SourceLocation;
+  };
+
+// ---------------------------------------------------------------------------
 // Traceability graph
 // ---------------------------------------------------------------------------
 
