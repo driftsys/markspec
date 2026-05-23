@@ -15,6 +15,8 @@
 import type { BodyToken, SourceLocation } from "../model/mod.ts";
 import type { BodyBlock } from "../ast/nodes.ts";
 import { classifyConvention } from "./entity_refs.ts";
+import { processor } from "./remark.ts";
+import type { Root, RootContent } from "mdast";
 
 /** RFC 2119 modal verbs — matched case-insensitively as whole words. */
 const MODAL_RE = /\b(shall|should|may|must|will)\b/gi;
@@ -24,6 +26,40 @@ const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
 
 /** `$Identifier` entity reference (spec §2.5.2). */
 const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;
+
+/**
+ * Walk the mdast for the body and emit one `inline-code` token per
+ * `inlineCode` node. Markdown line/column positions translate directly
+ * to body-relative line/column.
+ */
+function emitInlineCode(
+  body: string,
+  out: BodyToken[],
+  baseLocation: SourceLocation,
+): void {
+  const tree = processor.parse(body) as Root;
+  const visit = (node: RootContent | Root): void => {
+    if (
+      node.type === "inlineCode" && node.position &&
+      node.value !== undefined
+    ) {
+      out.push({
+        kind: "inline-code",
+        text: `\`${node.value}\``,
+        location: {
+          file: baseLocation.file,
+          line: baseLocation.line + node.position.start.line - 1,
+          column: node.position.start.column,
+        },
+      });
+      return;
+    }
+    if ("children" in node && Array.isArray(node.children)) {
+      for (const child of node.children) visit(child as RootContent);
+    }
+  };
+  visit(tree);
+}
 
 /**
  * Extract body-token stream from an entry body.
@@ -100,5 +136,13 @@ export function extractBodyTokens(
       });
     }
   }
+
+  emitInlineCode(body, tokens, baseLocation);
+
+  tokens.sort((a, b) =>
+    a.location.line !== b.location.line
+      ? a.location.line - b.location.line
+      : a.location.column - b.location.column
+  );
   return tokens;
 }

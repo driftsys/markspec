@@ -88,3 +88,12 @@ Deno.test("entity-ref: escaped \\$ is NOT emitted", () => {
     assertEquals(refs[0].text, "$Vehicle");
   }
 });
+
+Deno.test("inline-code: backtick spans emit one token per span", () => {
+  const body = "Use `foo` and then call `bar()`.";
+  const codes = tokensOf(body).filter((t) => t.kind === "inline-code");
+  assertEquals(codes.length, 2);
+  if (codes[0].kind === "inline-code") {
+    assertEquals(codes[0].text, "`foo`"); // includes backticks
+  }
+});
