@@ -13,6 +13,9 @@ import {
   commands,
   EventEmitter,
   type ExtensionContext,
+  InlineCompletionItem,
+  LanguageModelChatMessage,
+  languages,
   lm,
   McpStdioServerDefinition,
   type OutputChannel,
@@ -26,6 +29,12 @@ import {
   LanguageClient,
   type LanguageClientOptions,
 } from "vscode-languageclient/node";
+import {
+  MarkspecInlineCompletionProvider,
+  type ModelInvoker,
+  type RawInlineCompletionItem,
+} from "./inlineCompletions";
+import type { EntryRef } from "./prompts";
 import { resolveServerOptions } from "./serverOptions";
 import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
@@ -52,6 +61,27 @@ function debounce<T extends (...args: never[]) => void>(
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(() => fn(...args), delayMs);
   };
+}
+
+/**
+ * Project the result of `vscode.executeDocumentSymbolProvider` /
+ * `vscode.executeWorkspaceSymbolProvider` to the plain `EntryRef[]`
+ * shape the inline-completion provider consumes. Discards any item
+ * without a string `name`; pulls the title from `detail` (document
+ * symbol convention) or `containerName` (workspace symbol convention).
+ */
+function symbolsToEntryRefs(symbols: unknown): EntryRef[] {
+  if (!Array.isArray(symbols)) return [];
+  return symbols.flatMap((s) => {
+    const name = typeof s?.name === "string" ? s.name : undefined;
+    if (!name) return [];
+    const detail = typeof s?.detail === "string" ? s.detail : undefined;
+    const containerName = typeof s?.containerName === "string"
+      ? s.containerName
+      : undefined;
+    const title = detail ?? containerName ?? name;
+    return [{ displayId: name, title }];
+  });
 }
 
 export function activate(context: ExtensionContext): void {
@@ -136,6 +166,75 @@ export function activate(context: ExtensionContext): void {
   }
 
   registerMcpProvider(context);
+
+  // Inline AI completion provider. Gated by `markspec.inlineCompletion.enabled`.
+  if (config.get<boolean>("inlineCompletion.enabled", true)) {
+    const maxWorkspaceEntries = config.get<number>(
+      "inlineCompletion.maxWorkspaceEntries",
+      200,
+    );
+
+    const modelInvoker: ModelInvoker = async function* (messages, token) {
+      const [model] = await lm.selectChatModels({ vendor: "copilot" });
+      if (!model) return;
+      const chatMessages = messages.map((m) =>
+        LanguageModelChatMessage.User(m)
+      );
+      const response = await model.sendRequest(chatMessages, {}, token);
+      for await (const chunk of response.text) {
+        if (token.isCancellationRequested) return;
+        yield chunk;
+      }
+    };
+
+    const listDocumentSymbols = async () =>
+      symbolsToEntryRefs(
+        await commands.executeCommand(
+          "vscode.executeDocumentSymbolProvider",
+          window.activeTextEditor?.document.uri,
+        ),
+      );
+    const listWorkspaceSymbols = async (query: string) =>
+      symbolsToEntryRefs(
+        await commands.executeCommand(
+          "vscode.executeWorkspaceSymbolProvider",
+          query,
+        ),
+      );
+
+    const provider = new MarkspecInlineCompletionProvider({
+      modelInvoker,
+      listDocumentSymbols,
+      listWorkspaceSymbols,
+      maxWorkspaceEntries,
+    });
+
+    context.subscriptions.push(
+      languages.registerInlineCompletionItemProvider(
+        { language: "markdown" },
+        {
+          provideInlineCompletionItems: async (
+            document,
+            position,
+            ctx,
+            token,
+          ) => {
+            const raw = await provider.provideInlineCompletionItems(
+              document,
+              position,
+              ctx,
+              token,
+            );
+            if (!raw) return null;
+            return raw.map(
+              (r: RawInlineCompletionItem) =>
+                new InlineCompletionItem(r.insertText),
+            );
+          },
+        },
+      ),
+    );
+  }
 
   context.subscriptions.push({
     dispose: () => {
