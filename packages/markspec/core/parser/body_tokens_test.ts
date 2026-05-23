@@ -62,3 +62,29 @@ Deno.test("ears-trigger: lowercase 'when' is NOT a trigger", () => {
   const ears = tokensOf(body).filter((t) => t.kind === "ears-trigger");
   assertEquals(ears.length, 0);
 });
+
+Deno.test("entity-ref: three case conventions classified correctly", () => {
+  const body = "The $BrakeController polls $rawPressure every $DEBOUNCE_WINDOW ms.";
+  const refs = tokensOf(body).filter((t) => t.kind === "entity-ref");
+  assertEquals(refs.length, 3);
+  if (
+    refs[0].kind === "entity-ref" && refs[1].kind === "entity-ref" &&
+    refs[2].kind === "entity-ref"
+  ) {
+    assertEquals(refs[0].convention, "type");
+    assertEquals(refs[0].text, "$BrakeController");
+    assertEquals(refs[1].convention, "instance");
+    assertEquals(refs[1].text, "$rawPressure");
+    assertEquals(refs[2].convention, "constant");
+    assertEquals(refs[2].text, "$DEBOUNCE_WINDOW");
+  }
+});
+
+Deno.test("entity-ref: escaped \\$ is NOT emitted", () => {
+  const body = "Literal \\$Vehicle and real $Vehicle here.";
+  const refs = tokensOf(body).filter((t) => t.kind === "entity-ref");
+  assertEquals(refs.length, 1);
+  if (refs[0].kind === "entity-ref") {
+    assertEquals(refs[0].text, "$Vehicle");
+  }
+});

@@ -14,12 +14,16 @@
 
 import type { BodyToken, SourceLocation } from "../model/mod.ts";
 import type { BodyBlock } from "../ast/nodes.ts";
+import { classifyConvention } from "./entity_refs.ts";
 
 /** RFC 2119 modal verbs — matched case-insensitively as whole words. */
 const MODAL_RE = /\b(shall|should|may|must|will)\b/gi;
 
 /** EARS pattern triggers — capital-initial, whole word, case-sensitive. */
 const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
+
+/** `$Identifier` entity reference (spec §2.5.2). */
+const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;
 
 /**
  * Extract body-token stream from an entry body.
@@ -68,6 +72,26 @@ export function extractBodyTokens(
         kind: "ears-trigger",
         text,
         trigger: text,
+        location: {
+          file: baseLocation.file,
+          line: lineNo,
+          column: m.index + 1,
+        },
+      });
+    }
+
+    ENTITY_REF_RE.lastIndex = 0;
+    while ((m = ENTITY_REF_RE.exec(line)) !== null) {
+      // Skip second half of `$$…$$` math fence
+      if (m.index > 0 && line[m.index - 1] === "$") continue;
+      // Skip escaped `\$`
+      if (m.index > 0 && line[m.index - 1] === "\\") continue;
+      const ident = m[0]; // includes leading `$`
+      const bare = m[1];
+      tokens.push({
+        kind: "entity-ref",
+        text: ident,
+        convention: classifyConvention(bare),
         location: {
           file: baseLocation.file,
           line: lineNo,
