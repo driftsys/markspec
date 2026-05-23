@@ -91,6 +91,21 @@ test("resolveServerOptions: debugLogPath sets MARKSPEC_LSP_DEBUG_LOG env", () =>
   );
 });
 
+test("resolveServerOptions: ${workspaceFolder} is expanded in debugLogPath", () => {
+  const opts = resolveServerOptions({
+    extensionPath: EXT_PATH,
+    workspaceFolder: WORKSPACE,
+    configuredServerPath: undefined,
+    configuredServerArgs: undefined,
+    debugLogPath: "${workspaceFolder}/.markspec-lsp.log",
+    platform: "linux",
+  }) as { options: { env: Record<string, string | undefined> } };
+  assert.equal(
+    opts.options.env.MARKSPEC_LSP_DEBUG_LOG,
+    `${WORKSPACE}/.markspec-lsp.log`,
+  );
+});
+
 test("expandVariables: leaves args untouched when workspaceFolder is undefined", () => {
   const result = expandVariables(
     ["${workspaceFolder}/main.ts"],

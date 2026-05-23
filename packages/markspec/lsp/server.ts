@@ -51,6 +51,11 @@ import { findOccurrencesInFile } from "./highlights.ts";
 import { findReferencingEntries } from "./references.ts";
 import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
 import {
+  buildSemanticTokens,
+  SEMANTIC_TOKEN_LEGEND,
+} from "./semantic_tokens.ts";
+import { buildEntryRanges, type EntryRangesResponse } from "./entry_ranges.ts";
+import {
   entriesToDocumentSymbols,
   entriesToWorkspaceSymbols,
 } from "./symbols.ts";
@@ -116,6 +121,10 @@ let projectRoot: string | undefined;
 let _config: ProjectConfig = DEFAULT_PROJECT_CONFIG;
 let profile: EffectiveProfile | undefined;
 const index = new WorkspaceIndex();
+// Cached cross-file validation result. Updated by publishAllDiagnostics
+// and read by request handlers (e.g. markspec/entryRanges) so they
+// don't re-run validateAll() on every keystroke.
+let lastDiagnostics: readonly CoreDiagnostic[] = [];
 
 // ---------------------------------------------------------------------------
 // File reader for core functions (uses Deno APIs — allowed in entry points)
@@ -152,6 +161,7 @@ function publishFileDiagnostics(
 /** Run cross-file validation and publish diagnostics for all files. */
 function publishAllDiagnostics(): void {
   const allDiags = index.validateAll(profile ?? null);
+  lastDiagnostics = allDiags;
   const grouped = groupDiagnosticsByFile(allDiags);
 
   // Send diagnostics for files that have issues
@@ -203,6 +213,36 @@ function getEntryTypes(): EntryTypeInfo[] {
     types.push({ name, prefix, nextNumber });
   }
   return types;
+}
+
+/**
+ * Encode the intermediate semantic-token shape to the LSP wire
+ * format — a flat number array where each token contributes 5 ints:
+ * deltaLine, deltaStart, length, tokenType, tokenModifiers (bitmask).
+ *
+ * Input tokens MUST be sorted by (line, startChar). `buildSemanticTokens`
+ * returns them sorted.
+ */
+function encodeSemanticTokens(
+  tokens: ReturnType<typeof buildSemanticTokens>,
+): number[] {
+  const data: number[] = [];
+  let prevLine = 0;
+  let prevChar = 0;
+  for (const t of tokens) {
+    const deltaLine = t.line - prevLine;
+    const deltaStart = deltaLine === 0 ? t.startChar - prevChar : t.startChar;
+    const typeIndex = SEMANTIC_TOKEN_LEGEND.tokenTypes.indexOf(t.tokenType);
+    let modMask = 0;
+    for (const m of t.tokenModifiers) {
+      const idx = SEMANTIC_TOKEN_LEGEND.tokenModifiers.indexOf(m);
+      if (idx >= 0) modMask |= 1 << idx;
+    }
+    data.push(deltaLine, deltaStart, t.length, typeIndex, modMask);
+    prevLine = t.line;
+    prevChar = t.startChar;
+  }
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +299,14 @@ connection.onInitialize(
         foldingRangeProvider: true,
         documentHighlightProvider: true,
         codeActionProvider: { codeActionKinds: ["quickfix"] },
+        semanticTokensProvider: {
+          legend: {
+            tokenTypes: [...SEMANTIC_TOKEN_LEGEND.tokenTypes],
+            tokenModifiers: [...SEMANTIC_TOKEN_LEGEND.tokenModifiers],
+          },
+          range: false,
+          full: true,
+        },
       },
       serverInfo: {
         name: "markspec",
@@ -704,6 +752,43 @@ connection.onFoldingRanges((params) => {
   // deno-lint-ignore no-explicit-any
   return entriesToFoldingRanges(entries, totalLines) as any;
 });
+
+// ---------------------------------------------------------------------------
+// Semantic tokens
+// ---------------------------------------------------------------------------
+
+connection.languages.semanticTokens.on((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return { data: [] };
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return { data: [] };
+  const entries = index.getEntriesForFile(filePath);
+  const lines = document.getText().split("\n");
+  const tokens = buildSemanticTokens(entries, profile, lines);
+  return { data: encodeSemanticTokens(tokens) };
+});
+
+// ---------------------------------------------------------------------------
+// markspec/entryRanges — custom request driving VS Code decorations
+// ---------------------------------------------------------------------------
+
+connection.onRequest(
+  "markspec/entryRanges",
+  (params: { uri: string }): EntryRangesResponse => {
+    const document = documents.get(params.uri);
+    if (!document) return { entries: [] };
+    const filePath = uriToPath(params.uri);
+    if (!isMarkspecFile(filePath)) return { entries: [] };
+    const entries = index.getEntriesForFile(filePath);
+    // Reuse the cached cross-file validation result that
+    // publishAllDiagnostics maintains, so we don't re-run validateAll()
+    // on every keystroke (the handler is invoked per-edit by the
+    // VS Code DecorationManager).
+    const diagnostics = lastDiagnostics;
+    const lines = document.getText().split("\n");
+    return buildEntryRanges(entries, profile, diagnostics, lines);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Shutdown

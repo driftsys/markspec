@@ -34,13 +34,17 @@ export interface ResolveInput {
  * If `configuredServerPath` is set, use it (developer mode). Otherwise fall
  * back to the bundled binary at `<extensionPath>/bin/markspec(.exe)`.
  *
- * `${workspaceFolder}` is substituted in `configuredServerArgs`.
+ * `${workspaceFolder}` is substituted in `configuredServerArgs` and in
+ * `debugLogPath`.
  */
 export function resolveServerOptions(input: ResolveInput): ServerOptions {
   const { command, args } = resolveCommand(input);
   const env = { ...process.env };
   if (input.debugLogPath) {
-    env.MARKSPEC_LSP_DEBUG_LOG = input.debugLogPath;
+    env.MARKSPEC_LSP_DEBUG_LOG = expandVariables(
+      [input.debugLogPath],
+      input.workspaceFolder,
+    )[0];
   }
   return {
     command,

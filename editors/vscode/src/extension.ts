@@ -16,6 +16,7 @@ import {
   lm,
   McpStdioServerDefinition,
   type OutputChannel,
+  type TextDocument,
   Uri,
   window,
   workspace,
@@ -28,6 +29,7 @@ import {
 import { resolveServerOptions } from "./serverOptions";
 import { resolveMcpDefinition } from "./mcpDefinition";
 import { createStatusBar } from "./statusBar";
+import { DecorationManager } from "./decorations";
 
 let client: LanguageClient | undefined;
 let outputChannel: OutputChannel | undefined;
@@ -40,6 +42,17 @@ const MCP_SETTING_KEYS = [
   "markspec.mcp.args",
   "markspec.server.path",
 ];
+
+function debounce<T extends (...args: never[]) => void>(
+  fn: T,
+  delayMs: number,
+): (...args: Parameters<T>) => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return (...args: Parameters<T>) => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delayMs);
+  };
+}
 
 export function activate(context: ExtensionContext): void {
   const config = workspace.getConfiguration("markspec");
@@ -93,6 +106,34 @@ export function activate(context: ExtensionContext): void {
   client.start();
 
   createStatusBar(context, client);
+
+  const decorations = new DecorationManager(client);
+  context.subscriptions.push(decorations);
+
+  context.subscriptions.push(
+    window.onDidChangeActiveTextEditor((ed) => {
+      if (ed) void decorations.refresh(ed);
+    }),
+  );
+
+  const debouncedRefresh = debounce((doc: TextDocument) => {
+    const ed = window.activeTextEditor;
+    if (ed && ed.document === doc) void decorations.refresh(ed);
+  }, 100);
+  context.subscriptions.push(
+    workspace.onDidChangeTextDocument((ev) => debouncedRefresh(ev.document)),
+  );
+
+  // Refresh after the server finishes initial indexing.
+  client.onNotification("markspec/indexed", () => {
+    const ed = window.activeTextEditor;
+    if (ed) void decorations.refresh(ed);
+  });
+
+  // Initial paint for whatever is open at activation.
+  if (window.activeTextEditor) {
+    void decorations.refresh(window.activeTextEditor);
+  }
 
   registerMcpProvider(context);
 
