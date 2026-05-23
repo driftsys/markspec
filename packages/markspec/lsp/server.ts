@@ -29,6 +29,7 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
 import { join } from "@std/path";
+import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
@@ -457,7 +458,7 @@ connection.onCompletion((params): CompletionItem[] => {
   // Trigger 1: Block scaffold
   if (isBlockScaffoldTrigger(line)) {
     const types = getEntryTypes();
-    const items = buildBlockScaffoldItems(types);
+    const items = buildBlockScaffoldItems(types, ulid);
     return items.map((item) => ({
       label: item.label,
       detail: item.detail,

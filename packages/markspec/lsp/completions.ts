@@ -147,6 +147,7 @@ export function buildTypeAttributeItems(
 
 export function buildBlockScaffoldItems(
   types: readonly EntryTypeInfo[],
+  ulidProvider: () => string,
 ): CompletionItemData[] {
   if (types.length === 0) {
     return [
@@ -162,11 +163,12 @@ export function buildBlockScaffoldItems(
 
   return types.map((type) => {
     const displayId = `${type.prefix}${padNumber(type.nextNumber)}`;
+    const ulid = ulidProvider();
     return {
       label: `New ${type.name} (${displayId})`,
       detail: type.name,
       insertText:
-        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: \\$\{ULID}\n      \${3:Satisfies: }`,
+        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${ulid}\n      \${3:Satisfies: }`,
       isSnippet: true,
       kind: KIND_SNIPPET,
     };

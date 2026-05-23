@@ -82,7 +82,7 @@ Deno.test("buildIdReferenceItems: returns items for all display IDs", () => {
 });
 
 Deno.test("buildBlockScaffoldItems: returns generic item when no types", () => {
-  const items = buildBlockScaffoldItems([]);
+  const items = buildBlockScaffoldItems([], () => "01HGW2Q8MNP3RSTVWXYZABCDEF");
   assertEquals(items.length, 1);
   assertEquals(items[0].label, "New entry");
 });
@@ -92,10 +92,49 @@ Deno.test("buildBlockScaffoldItems: returns one item per type", () => {
     { name: "stakeholder-requirement", prefix: "STK_AEB_", nextNumber: 4 },
     { name: "architecture", prefix: "SAD_AEB_", nextNumber: 2 },
   ];
-  const items = buildBlockScaffoldItems(types);
+  const items = buildBlockScaffoldItems(
+    types,
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
   assertEquals(items.length, 2);
   assertEquals(items[0].label, "New stakeholder-requirement (STK_AEB_0004)");
   assertEquals(items[1].label, "New architecture (SAD_AEB_0002)");
+});
+
+Deno.test("buildBlockScaffoldItems: bakes provided ULID into snippet", () => {
+  const items = buildBlockScaffoldItems(
+    [{ name: "stakeholder-requirement", prefix: "STK_AEB_", nextNumber: 1 }],
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
+  assertEquals(items.length, 1);
+  const text = items[0].insertText ?? "";
+  assertEquals(text.includes("01HGW2Q8MNP3RSTVWXYZABCDEF"), true);
+  assertEquals(text.includes("${ULID}"), false);
+  assertEquals(text.includes("\\${ULID}"), false);
+});
+
+Deno.test("buildBlockScaffoldItems: emits a different ULID per call", () => {
+  let counter = 0;
+  const provider = () =>
+    `01HGW2Q8MNP3RSTVWXYZ${(counter++).toString().padStart(6, "0")}`;
+  const first = buildBlockScaffoldItems(
+    [{ name: "stakeholder-requirement", prefix: "STK_", nextNumber: 1 }],
+    provider,
+  );
+  const second = buildBlockScaffoldItems(
+    [{ name: "stakeholder-requirement", prefix: "STK_", nextNumber: 2 }],
+    provider,
+  );
+  assertEquals(first[0].insertText !== second[0].insertText, true);
+});
+
+Deno.test("buildBlockScaffoldItems: zero-types fallback uses provider", () => {
+  const items = buildBlockScaffoldItems([], () => "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  // Zero-types fallback intentionally keeps the literal ${ULID}
+  // placeholder — no profile context to anchor a real ULID. Documented
+  // so the behavior change is intentional.
+  assertEquals(items.length, 1);
+  assertEquals(items[0].insertText?.includes("${ULID}"), true);
 });
 
 // --- Type-attribute completion ---
