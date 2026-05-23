@@ -15,6 +15,9 @@
 import type { BodyToken, SourceLocation } from "../model/mod.ts";
 import type { BodyBlock } from "../ast/nodes.ts";
 
+/** RFC 2119 modal verbs — matched case-insensitively as whole words. */
+const MODAL_RE = /\b(shall|should|may|must|will)\b/gi;
+
 /**
  * Extract body-token stream from an entry body.
  *
@@ -31,9 +34,29 @@ export function extractBodyTokens(
   bodyAst: readonly BodyBlock[],
   baseLocation: SourceLocation,
 ): readonly BodyToken[] {
-  void body;
+  // bodyAst will drive verbatim-region exclusion in a later task.
   void bodyAst;
-  void baseLocation;
-  // TODO: implement in subsequent tasks (T4-T10)
-  return [];
+
+  const tokens: BodyToken[] = [];
+  const lines = body.split("\n");
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const lineNo = baseLocation.line + li;
+    MODAL_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = MODAL_RE.exec(line)) !== null) {
+      const text = m[1];
+      tokens.push({
+        kind: "modal",
+        text,
+        case: text === text.toLowerCase() ? "lower" : "upper",
+        location: {
+          file: baseLocation.file,
+          line: lineNo,
+          column: m.index + 1,
+        },
+      });
+    }
+  }
+  return tokens;
 }
