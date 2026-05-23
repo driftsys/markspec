@@ -35,6 +35,37 @@ const GHERKIN_SECTION_RE =
 const GHERKIN_STEP_RE = /\b(Given|When|Then|And|But)\b/g;
 
 /**
+ * Collect body-relative 1-based line numbers that fall inside verbatim
+ * blocks: fenced code, fenced feature, math. Lines in this set are
+ * skipped by the modal / EARS / entity-ref scanner.
+ *
+ * Recurses through list items so nested verbatim blocks (e.g., a code
+ * fence inside a list item) are also captured.
+ */
+function collectVerbatimLines(blocks: readonly BodyBlock[]): Set<number> {
+  const lines = new Set<number>();
+  for (const block of blocks) {
+    if (
+      block.kind === "code" || block.kind === "feature" ||
+      block.kind === "math"
+    ) {
+      for (
+        let ln = block.range.start.line;
+        ln <= block.range.end.line;
+        ln++
+      ) {
+        lines.add(ln);
+      }
+    } else if (block.kind === "list") {
+      for (const item of block.items) {
+        for (const ln of collectVerbatimLines(item.blocks)) lines.add(ln);
+      }
+    }
+  }
+  return lines;
+}
+
+/**
  * Walk `bodyAst` for `feature` nodes. For each, scan its source text for
  * Gherkin section + step keywords. Positions are body-relative based on
  * the node's `range.start.line`.
@@ -136,10 +167,18 @@ export function extractBodyTokens(
   baseLocation: SourceLocation,
 ): readonly BodyToken[] {
   const tokens: BodyToken[] = [];
+  const verbatimLines = collectVerbatimLines(bodyAst);
+  let inMathFence = false;
   const lines = body.split("\n");
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const lineNo = baseLocation.line + li;
+    if (verbatimLines.has(li + 1)) continue;
+    if (line.trim() === "$$") {
+      inMathFence = !inMathFence;
+      continue;
+    }
+    if (inMathFence) continue;
     MODAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = MODAL_RE.exec(line)) !== null) {

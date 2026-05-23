@@ -108,3 +108,32 @@ Deno.test("gherkin-section + gherkin-step: extracted inside feature fence", () =
   assertEquals(sections.map((t) => t.text), ["Feature", "Scenario"]);
   assertEquals(steps.map((t) => t.text), ["Given", "When", "Then"]);
 });
+
+Deno.test("scope: modal inside ```rust code fence is NOT emitted", () => {
+  const body = "Prose with shall.\n\n```rust\nfn check() { /* shall */ }\n```\n";
+  const modals = tokensOf(body).filter((t) => t.kind === "modal");
+  // Only the prose modal counts; the comment inside the fence is verbatim.
+  assertEquals(modals.length, 1);
+  if (modals[0].kind === "modal") {
+    assertEquals(modals[0].location.line, 1);
+  }
+});
+
+Deno.test("scope: entity-ref inside $$ math block is NOT emitted", () => {
+  const body = "Use $Vehicle here.\n\n$$\n$x = 1$\n$$\n";
+  const refs = tokensOf(body).filter((t) => t.kind === "entity-ref");
+  assertEquals(refs.length, 1);
+  if (refs[0].kind === "entity-ref") {
+    assertEquals(refs[0].text, "$Vehicle");
+  }
+});
+
+Deno.test("scope: modal/EARS suppressed inside feature fence (gherkin owns it)", () => {
+  const body = "```feature\nScenario: x\n  When the brake is pressed\n```\n";
+  const tokens = tokensOf(body);
+  // Should emit gherkin-section + gherkin-step only; no ears-trigger,
+  // no modal, even though "When" appears.
+  assertEquals(tokens.filter((t) => t.kind === "modal").length, 0);
+  assertEquals(tokens.filter((t) => t.kind === "ears-trigger").length, 0);
+  assertEquals(tokens.filter((t) => t.kind === "gherkin-step").length, 1);
+});
