@@ -35,7 +35,6 @@ export type {
   EarsTrigger,
   EffectiveProfile,
   EffectiveTypeDef,
-  EntityRef,
   EntityRefConvention,
   Entry,
   EntryShape,
