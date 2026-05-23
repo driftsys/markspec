@@ -198,6 +198,23 @@ Deno.test("renderScaffoldSnippet: formats display ID and ULID", () => {
     snippet.insertText.includes(`Id: 01HGW2Q8MNP3RSTVWXYZABCDEF`),
     true,
   );
+  // Tab-stop ordering must match the inserted-snippet contract.
+  assertEquals(snippet.insertText.includes("${1:Title}"), true);
+  assertEquals(snippet.insertText.includes("${2:Body.}"), true);
+  assertEquals(snippet.insertText.includes("${3:Satisfies: }"), true);
+});
+
+Deno.test("renderScaffoldSnippet: escapes $ in profile-provided prefix and typeName", () => {
+  const snippet = renderScaffoldSnippet({
+    typeName: "type-with-$",
+    prefix: "STK_$_",
+    nextNumber: 1,
+    ulid: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  });
+  // The $ characters must be escaped as \$ so the editor's snippet parser
+  // does not interpret them as tab stops.
+  assertEquals(snippet.insertText.includes("STK_\\$_0001"), true);
+  assertEquals(snippet.label.includes("type-with-\\$"), true);
 });
 
 // --- Trailer key trigger ---
@@ -242,6 +259,11 @@ Deno.test("isTrailerKeyContext: lowercase first letter rejected", () => {
 
 Deno.test("isTrailerKeyContext: completed key (colon present) rejected", () => {
   assertEquals(isTrailerKeyContext("      Satisfies:"), false);
+});
+
+Deno.test("isTrailerKeyContext: tab-indented line matches (≥4 whitespace chars)", () => {
+  assertEquals(isTrailerKeyContext("\t\t\t\t"), true); // 4 tabs
+  assertEquals(isTrailerKeyContext("\t   "), true); // tab + 3 spaces = 4 ws chars
 });
 
 Deno.test("buildTrailerKeyItems: returns one item per key", () => {

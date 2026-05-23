@@ -35,6 +35,9 @@ const TYPE_ATTR_RE = /^\s*Type\s*:/;
  * also appears in `TRACE_ATTR_RE` and in `TRACE_KEYWORDS_RE` in
  * `context.ts`), plus the cardinal `Labels:` and `Type:` keys. When
  * the trace-keyword set changes here, also update those two regexes.
+ *
+ * `Id:` is intentionally excluded — the formatter stamps it
+ * automatically, and hand-written ULIDs fail validation.
  */
 export const TRAILER_KEYS: readonly string[] = [
   "Satisfies",
@@ -52,7 +55,11 @@ export const TRAILER_KEYS: readonly string[] = [
   "Type",
 ] as const;
 
-/** Trailer-region context: indent ≥4 whitespace chars (matches the parser's lenient leading-whitespace acceptance; formatter canonicalises to 6 spaces), optional partial capitalized key. */
+/**
+ * Trailer-region context: indent ≥4 whitespace chars (matches the
+ * parser's lenient leading-whitespace acceptance; the formatter
+ * canonicalises to 6 spaces), optional partial capitalized key.
+ */
 const TRAILER_KEY_CONTEXT_RE = /^\s{4,}([A-Z][A-Za-z-]*)?$/;
 
 /**
@@ -185,8 +192,11 @@ export function buildTypeAttributeItems(
  * Build completion items for the trailer-key trigger. One item per
  * entry in {@linkcode TRAILER_KEYS}, each inserting `<Key>: ` with
  * the cursor placed after the colon.
+ *
+ * Kept as a zero-arg function (rather than a precomputed constant) for
+ * naming symmetry with the other `build*Items` helpers and so future
+ * profile-aware filtering can be added without changing the API.
  */
-// Kept as a zero-arg function (rather than a precomputed constant) for naming symmetry with the other `build*Items` helpers and so future profile-aware filtering can be added without changing the API.
 export function buildTrailerKeyItems(): CompletionItemData[] {
   return TRAILER_KEYS.map((key) => ({
     label: key,
@@ -205,18 +215,37 @@ export interface ScaffoldSnippetInput {
   readonly ulid: string;
 }
 
-/** Discriminator value for scaffold completions' resolve-time `data` payload. */
+/**
+ * Discriminator value for scaffold completions' resolve-time `data` payload.
+ *
+ * @internal Exported only so `server.ts` can attach and recognise the
+ *   payload across the `onCompletion` / `onCompletionResolve` boundary.
+ */
 export const SCAFFOLD_COMPLETION_KIND = "scaffold";
 
 /**
  * `data` payload attached to scaffold completion items so the
  * `completionItem/resolve` handler can re-query the workspace index
  * and regenerate the snippet with the freshest display ID + ULID.
+ *
+ * @internal Exported only so `server.ts` can attach and recognise the
+ *   payload across the `onCompletion` / `onCompletionResolve` boundary.
  */
 export interface ScaffoldCompletionData {
   readonly kind: typeof SCAFFOLD_COMPLETION_KIND;
   readonly typeName: string;
   readonly prefix: string;
+}
+
+/**
+ * Escape user-provided text for inclusion in LSP snippet syntax. `$` and
+ * `\` are the only metacharacters in the LSP snippet grammar (§Snippet
+ * Syntax). Profile-declared prefixes / type names flow in from user-edited
+ * `project.yaml` and must not be able to inject tab stops or placeholders
+ * into the rendered snippet.
+ */
+function escapeSnippet(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/\$/g, "\\$");
 }
 
 /**
@@ -231,9 +260,11 @@ export interface ScaffoldCompletionData {
 export function renderScaffoldSnippet(
   input: ScaffoldSnippetInput,
 ): { label: string; insertText: string } {
-  const displayId = `${input.prefix}${padNumber(input.nextNumber)}`;
+  const safePrefix = escapeSnippet(input.prefix);
+  const safeTypeName = escapeSnippet(input.typeName);
+  const displayId = `${safePrefix}${padNumber(input.nextNumber)}`;
   return {
-    label: `New ${input.typeName} (${displayId})`,
+    label: `New ${safeTypeName} (${displayId})`,
     insertText:
       `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${input.ulid}\n      \${3:Satisfies: }`,
   };
