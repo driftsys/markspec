@@ -14,7 +14,7 @@ import {
   parseAttributes,
   splitBodyAndAttributes,
 } from "./attributes.ts";
-import { extractEntityRefs } from "./entity_refs.ts";
+import { extractBodyTokens } from "./body_tokens.ts";
 import { processor } from "./remark.ts";
 import { buildBodyAst } from "../ast/build.ts";
 
@@ -485,17 +485,14 @@ function extractEntry(
 
   const entryLocation = { file, line, column };
 
-  // Inline `$Identifier` entity references (spec section 2.5.2). Resolution
-  // into the project's entity registry is left to the validator's
-  // marker pass; the parser only emits the lexical hits.
-  // Pass the already-built bodyAst to avoid a redundant mdast parse.
-  const entityRefs = extractEntityRefs(body, {
+  // Inline-construct tokens (ADR-016). Reuses the already-built bodyAst to
+  // avoid a redundant mdast parse. Tokens are file-relative: body starts
+  // on the line after the title (+1 keeps line numbers 1-based).
+  const bodyTokens = extractBodyTokens(body, bodyAst, {
     file,
-    // Body content starts on the line after the title; +1 keeps
-    // emitted line numbers 1-based relative to the file.
     line: line + 1,
     column: 1,
-  }, bodyAst);
+  });
 
   return {
     displayId: makeDisplayId(displayId),
@@ -510,7 +507,8 @@ function extractEntry(
     location: entryLocation,
     source: "markdown",
     properties: { file: { path: file, line, column } },
-    entityRefs: entityRefs.length > 0 ? entityRefs : undefined,
+    bodyTokens,
+    entityRefs: undefined,
   };
 }
 
