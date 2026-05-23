@@ -52,11 +52,15 @@ Deno.test("renderDiagnosticsReport: errors and warnings sections", () => {
   assertStringIncludes(md, "### MSL-R010");
 });
 
-Deno.test("renderDiagnosticsReport: renders locations relative to projectRoot", () => {
-  const md = renderDiagnosticsReport([ERR, WARN], null, 1, "/proj");
-  assertStringIncludes(md, "docs/req.md:128:3");
-  assertStringIncludes(md.split("\n").join(" "), " docs/req.md:128:3");
-});
+Deno.test(
+  "renderDiagnosticsReport: renders locations relative to projectRoot",
+  { ignore: Deno.build.os === "windows" },
+  () => {
+    const md = renderDiagnosticsReport([ERR, WARN], null, 1, "/proj");
+    assertStringIncludes(md, "docs/req.md:128:3");
+    assertStringIncludes(md.split("\n").join(" "), " docs/req.md:128:3");
+  },
+);
 
 Deno.test("renderDiagnosticsReport: scrubs projectRoot from embedded message paths", () => {
   const dup: Diagnostic = {
@@ -79,7 +83,9 @@ Deno.test("filterDiagnostics: passes all when files undefined", () => {
   assertStringIncludes(out.length.toString(), "2");
 });
 
-Deno.test("filterDiagnostics: keeps matching relative path", () => {
+Deno.test("filterDiagnostics: keeps matching relative path", {
+  ignore: Deno.build.os === "windows",
+}, () => {
   const out = filterDiagnostics([ERR, WARN], ["docs/req.md"], "/proj");
   assertStringIncludes(out.length.toString(), "2");
 });

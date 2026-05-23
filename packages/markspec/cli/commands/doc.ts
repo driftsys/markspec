@@ -5,6 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import { fromFileUrl, resolve } from "@std/path";
 import { compileProject, requireProjectConfig } from "../helpers.ts";
 
 export const docCmd = new Command()
@@ -18,11 +19,10 @@ export const docCmd = new Command()
     const { renderPdf } = await import("../../render/mod.ts");
 
     const markdown = await Deno.readTextFile(file);
-    const typstPackagePath = new URL(
-      "../../../markspec-typst/",
-      import.meta.url,
-    ).pathname;
-    const sourceFilePath = new URL(file, `file://${Deno.cwd()}/`).pathname;
+    const typstPackagePath = fromFileUrl(
+      new URL("../../../markspec-typst/", import.meta.url),
+    );
+    const sourceFilePath = resolve(Deno.cwd(), file);
     const result = renderPdf(markdown, {
       compiled,
       config,

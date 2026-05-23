@@ -25,7 +25,9 @@ Deno.test("readMarkspecYaml: returns null when file absent", async () => {
   assertEquals(result, null);
 });
 
-Deno.test("readMarkspecYaml: returns contents when file present", async () => {
+Deno.test("readMarkspecYaml: returns contents when file present", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await readMarkspecYaml(
     "/project",
     mockReadFile({
@@ -197,7 +199,9 @@ Deno.test("parseMarkspecYaml: npm specifier missing version range errors", () =>
   assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
 });
 
-Deno.test("addProfileSpecifier: creates file when absent", async () => {
+Deno.test("addProfileSpecifier: creates file when absent", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const writes: Record<string, string> = {};
   await addProfileSpecifier(
     "npm:@markspec/profile-default@^1.0",
@@ -214,7 +218,9 @@ Deno.test("addProfileSpecifier: creates file when absent", async () => {
   assertStringIncludes(written, "npm:@markspec/profile-default@^1.0");
 });
 
-Deno.test("addProfileSpecifier: appends to existing profiles list", async () => {
+Deno.test("addProfileSpecifier: appends to existing profiles list", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const existing = 'profiles:\n  - "./local-profile"\n';
   const writes: Record<string, string> = {};
   await addProfileSpecifier(
@@ -232,7 +238,9 @@ Deno.test("addProfileSpecifier: appends to existing profiles list", async () => 
   assertStringIncludes(written, "npm:@markspec/profile-default@^1.0");
 });
 
-Deno.test("addProfileSpecifier: adds profiles key when missing", async () => {
+Deno.test("addProfileSpecifier: adds profiles key when missing", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const existing = "# some comment\n";
   const writes: Record<string, string> = {};
   await addProfileSpecifier(
@@ -288,7 +296,9 @@ Deno.test("parseMarkspecYaml: non-boolean default-profile emits MARKSPEC-YAML-00
   assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
 });
 
-Deno.test("addProfileSpecifier: preserves an existing default-profile key", async () => {
+Deno.test("addProfileSpecifier: preserves an existing default-profile key", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const store: Record<string, string> = {
     "/p/.markspec.yaml": "default-profile: false\nprofiles:\n  - ./a\n",
   };

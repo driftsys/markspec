@@ -31,7 +31,7 @@ function makeEntry(opts: {
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape ?? "Authored",
     type: opts.type,
-    location: { file: "t.md", line: opts.line, column: opts.column ?? 1 },
+    location: { file: "/t.md", line: opts.line, column: opts.column ?? 1 },
     source: "markdown",
   };
 }

@@ -5,10 +5,11 @@
  * the CLI binary via Deno.Command in a temporary directory.
  */
 
-const CLI_ENTRY = new URL(
-  "../../packages/markspec/main.ts",
-  import.meta.url,
-).pathname;
+import { fromFileUrl, join } from "@std/path";
+
+const CLI_ENTRY = fromFileUrl(
+  new URL("../../packages/markspec/main.ts", import.meta.url),
+);
 
 /** Options for the markspec test helper. */
 export interface MarkspecOptions {
@@ -34,14 +35,14 @@ export async function markspec(
     for (const [name, content] of Object.entries(opts.files ?? {})) {
       const parts = name.split("/");
       if (parts.length > 1) {
-        await Deno.mkdir(`${dir}/${parts.slice(0, -1).join("/")}`, {
+        await Deno.mkdir(join(dir, ...parts.slice(0, -1)), {
           recursive: true,
         }).catch(() => {});
       }
-      await Deno.writeTextFile(`${dir}/${name}`, content);
+      await Deno.writeTextFile(join(dir, ...parts), content);
     }
 
-    const cwd = opts.cwd ? `${dir}/${opts.cwd}` : dir;
+    const cwd = opts.cwd ? join(dir, ...opts.cwd.split("/")) : dir;
     if (opts.cwd) {
       await Deno.mkdir(cwd, { recursive: true }).catch(() => {});
     }

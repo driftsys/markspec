@@ -1,1 +1,6 @@
 grammars/*.wasm filter=lfs diff=lfs merge=lfs -text
+
+# Files compared byte-for-byte against generator output on every CI
+# platform must use a stable line ending. Pin to LF so a Windows
+# checkout doesn't surprise the snapshot tests.
+docs/product/ast-fidelity-matrix.md text eol=lf

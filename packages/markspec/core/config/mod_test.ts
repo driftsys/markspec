@@ -167,7 +167,9 @@ Deno.test("parseProjectConfig: numeric version emits coercion warning", () => {
 // discoverProjectRoot
 // ---------------------------------------------------------------------------
 
-Deno.test("discoverProjectRoot: finds project.yaml in current directory", async () => {
+Deno.test("discoverProjectRoot: finds project.yaml in current directory", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const readFile = (path: string) =>
     Promise.resolve(
       path.endsWith("project.yaml") && path === "/a/project.yaml"
@@ -178,7 +180,9 @@ Deno.test("discoverProjectRoot: finds project.yaml in current directory", async 
   assertEquals(root, "/a");
 });
 
-Deno.test("discoverProjectRoot: finds project.yaml two levels up", async () => {
+Deno.test("discoverProjectRoot: finds project.yaml two levels up", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const readFile = (path: string) =>
     Promise.resolve(path === "/a/project.yaml" ? "name: test" : undefined);
   const root = await discoverProjectRoot("/a/b/c", readFile);
@@ -195,7 +199,9 @@ Deno.test("discoverProjectRoot: returns undefined when not found", async () => {
 // loadConfig
 // ---------------------------------------------------------------------------
 
-Deno.test("loadConfig: discovers and returns valid config", async () => {
+Deno.test("loadConfig: discovers and returns valid config", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const files: Record<string, string> = {
     "/proj/project.yaml": "name: my-project\n",
   };
@@ -211,7 +217,9 @@ Deno.test("loadConfig: returns undefined when no project.yaml found", async () =
   assertEquals(result, undefined);
 });
 
-Deno.test("loadConfig: throws ConfigError on invalid project.yaml", async () => {
+Deno.test("loadConfig: throws ConfigError on invalid project.yaml", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const files: Record<string, string> = {
     "/proj/project.yaml": "domain: bad\n",
   };

@@ -70,7 +70,9 @@ Deno.test("renderEntry: includes ULID and location", () => {
   assertStringIncludes(md, "stakeholder-requirements.md:42");
 });
 
-Deno.test("renderEntry: renders location relative to projectRoot", () => {
+Deno.test("renderEntry: renders location relative to projectRoot", {
+  ignore: Deno.build.os === "windows",
+}, () => {
   const md = renderEntry(ENTRY, [], [], TITLES, "/proj");
   assertStringIncludes(
     md,

@@ -13,6 +13,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join, toFileUrl } from "@std/path";
 import { LspTestClient } from "./lsp_helpers.ts";
 
 // ---------------------------------------------------------------------------
@@ -160,7 +161,7 @@ Deno.test(
     try {
       await client.initialize();
 
-      const fileUri = `file://${client.workDir}/reqs.md`;
+      const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
       await client.notify("textDocument/didOpen", {
         textDocument: {
           uri: fileUri,
@@ -203,7 +204,7 @@ Deno.test(
     try {
       await client.initialize();
 
-      const fileUri = `file://${client.workDir}/reqs.md`;
+      const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
 
       // Open the file with the missing Id attribute
       await client.notify("textDocument/didOpen", {
@@ -263,8 +264,8 @@ Deno.test(
       // Give the initial indexing time to settle (includes cross-file validation)
       await new Promise((r) => setTimeout(r, 1500));
 
-      const aUri = `file://${client.workDir}/a.md`;
-      const bUri = `file://${client.workDir}/b.md`;
+      const aUri = toFileUrl(join(client.workDir, "a.md")).href;
+      const bUri = toFileUrl(join(client.workDir, "b.md")).href;
 
       // Open both files so the LSP tracks them
       await client.notify("textDocument/didOpen", {
@@ -324,7 +325,7 @@ Deno.test(
     try {
       await client.initialize();
 
-      const fileUri = `file://${client.workDir}/reqs.md`;
+      const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
 
       // Open file with missing Id → wait for the error diagnostic
       await client.notify("textDocument/didOpen", {

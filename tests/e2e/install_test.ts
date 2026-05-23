@@ -1,4 +1,5 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { markspec } from "./helpers.ts";
 
 Deno.test(
@@ -70,10 +71,9 @@ Deno.test(
   async () => {
     // Spawn the LSP server with stdin closed immediately. The server
     // should start and then exit cleanly when stdin reaches EOF.
-    const CLI_ENTRY = new URL(
-      "../../packages/markspec/main.ts",
-      import.meta.url,
-    ).pathname;
+    const CLI_ENTRY = fromFileUrl(
+      new URL("../../packages/markspec/main.ts", import.meta.url),
+    );
     const cmd = new Deno.Command("deno", {
       args: [
         "run",
@@ -102,10 +102,9 @@ Deno.test(
 Deno.test(
   "mcp (bare): exits 0 — MCP server still starts (regression)",
   async () => {
-    const CLI_ENTRY = new URL(
-      "../../packages/markspec/main.ts",
-      import.meta.url,
-    ).pathname;
+    const CLI_ENTRY = fromFileUrl(
+      new URL("../../packages/markspec/main.ts", import.meta.url),
+    );
     const cmd = new Deno.Command("deno", {
       args: [
         "run",

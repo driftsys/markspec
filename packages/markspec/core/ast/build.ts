@@ -26,6 +26,7 @@ import type {
 } from "mdast";
 import { processor } from "../parser/remark.ts";
 import { classifyConvention } from "../parser/entity_refs.ts";
+import { normalizeLineEndings } from "../util/line_endings.ts";
 import type {
   AdmonitionKind,
   BlockquoteNode,
@@ -718,11 +719,17 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
  *   only for single-line paragraphs.
  */
 export function buildBodyAst(body: string): BodyBlock[] {
-  if (!body.trim()) return [];
+  // Line-ending normalisation is a §3.4 spec-permitted transformation:
+  // every AST is built from LF-canonical text so `\r` never reaches a
+  // node's text or markers. Without this, `buildBodyAst("a\r\nb")` and
+  // `buildBodyAst("a\nb")` would produce different ASTs, breaking the
+  // build/render/format contract for CRLF-bearing inputs.
+  const normalised = normalizeLineEndings(body);
+  if (!normalised.trim()) return [];
 
-  const tree = processor.parse(body) as Root;
+  const tree = processor.parse(normalised) as Root;
   const blocks: BodyBlock[] = tree.children.map((node) =>
-    mapMdastNode(node, body)
+    mapMdastNode(node, normalised)
   );
 
   // Post-pass: assign caption positions

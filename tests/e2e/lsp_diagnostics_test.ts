@@ -5,6 +5,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
+import { join, toFileUrl } from "@std/path";
 import { LspTestClient } from "./lsp_helpers.ts";
 
 Deno.test("lsp diagnostics: missing Id attribute reported", async () => {
@@ -19,7 +20,7 @@ Deno.test("lsp diagnostics: missing Id attribute reported", async () => {
   try {
     await client.initialize();
 
-    const fileUri = `file://${client.workDir}/reqs.md`;
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
     await client.notify("textDocument/didOpen", {
       textDocument: {
         uri: fileUri,

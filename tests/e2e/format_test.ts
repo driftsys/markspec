@@ -5,11 +5,11 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fromFileUrl, join } from "@std/path";
 
-const CLI_ENTRY = new URL(
-  "../../packages/markspec/main.ts",
-  import.meta.url,
-).pathname;
+const CLI_ENTRY = fromFileUrl(
+  new URL("../../packages/markspec/main.ts", import.meta.url),
+);
 
 /** Run markspec format in a temp dir, return result + file contents. */
 async function runFormat(
@@ -25,7 +25,7 @@ async function runFormat(
   const filePaths: string[] = [];
 
   for (const [name, content] of Object.entries(files)) {
-    const fullPath = `${dir}/${name}`;
+    const fullPath = join(dir, name);
     await Deno.writeTextFile(fullPath, content);
     filePaths.push(fullPath);
   }
@@ -50,7 +50,7 @@ async function runFormat(
     code: result.code,
     stdout: new TextDecoder().decode(result.stdout),
     stderr: new TextDecoder().decode(result.stderr),
-    readFile: (name: string) => Deno.readTextFile(`${dir}/${name}`),
+    readFile: (name: string) => Deno.readTextFile(join(dir, name)),
   };
 }
 
@@ -836,5 +836,103 @@ Deno.test(
       out2,
       "format must be idempotent on a body containing a hard line break",
     );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Line-ending tests — STK-WIN-0004.
+//
+// A CRLF source file must remain CRLF after `markspec format`; the
+// formatter normalises `\r\n` → `\n` internally so entry bodies and
+// AST nodes never carry a `\r`, then restores the original ending on
+// write-back. A pure-LF file is never silently converted to CRLF.
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "format: CRLF file round-trips byte-stable through format",
+  async () => {
+    const lfInput = [
+      "# CRLF round-trip",
+      "",
+      "- [REQ-001] Sample requirement",
+      "",
+      "  The system shall preserve CRLF line endings on write-back.",
+      "",
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "",
+    ].join("\n");
+    const crlfInput = lfInput.replace(/\n/g, "\r\n");
+
+    const { code, readFile } = await runFormat({ "req.md": crlfInput });
+    assertEquals(code, 0);
+
+    const out = await readFile("req.md");
+    // The file remains CRLF — no lone \n introduced, no \r dropped.
+    assertEquals(
+      out.includes("\r\n"),
+      true,
+      `output must keep CRLF line endings; got:\n${JSON.stringify(out)}`,
+    );
+    assertEquals(
+      /(?<!\r)\n/.test(out),
+      false,
+      `output must not contain bare LF (would mix line endings); got:\n${
+        JSON.stringify(out)
+      }`,
+    );
+  },
+);
+
+Deno.test(
+  "format: LF file is not silently converted to CRLF",
+  async () => {
+    const lfInput = [
+      "# LF preservation",
+      "",
+      "- [REQ-002] LF-only requirement",
+      "",
+      "  The formatter shall not introduce carriage returns into a pure-LF file.",
+      "",
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+      "",
+    ].join("\n");
+
+    const { code, readFile } = await runFormat({ "req.md": lfInput });
+    assertEquals(code, 0);
+
+    const out = await readFile("req.md");
+    assertEquals(
+      out.includes("\r"),
+      false,
+      `LF input must never grow a CR on output; got:\n${JSON.stringify(out)}`,
+    );
+  },
+);
+
+Deno.test(
+  "format: CRLF file with missing ULID — stamped Id stays on its own CRLF-terminated line",
+  async () => {
+    // The formatter stamps a fresh ULID into the trailer. The new line
+    // must use the source file's ending; without that, the line would
+    // be CRLF...CRLF...LF...CRLF — mixed.
+    const lfInput = [
+      "- [REQ-003] Needs a ULID",
+      "",
+      "  The formatter shall stamp a ULID.",
+      "",
+      "      Id:",
+      "",
+    ].join("\n");
+    const crlfInput = lfInput.replace(/\n/g, "\r\n");
+
+    const { code, readFile } = await runFormat({ "req.md": crlfInput });
+    assertEquals(code, 0);
+
+    const out = await readFile("req.md");
+    assertEquals(out.includes("\r\n"), true);
+    assertEquals(/(?<!\r)\n/.test(out), false);
+    // The stamped Id must be a valid ULID — i.e. format actually wrote
+    // one rather than passing through the empty `Id:` line.
+    assertStringIncludes(out, "Id: 01");
   },
 );

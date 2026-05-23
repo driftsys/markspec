@@ -1,4 +1,5 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { markspec } from "./helpers.ts";
 
 const PROJECT_YAML = `\
@@ -21,7 +22,14 @@ A second section with a list:
 - Item three
 `;
 
-Deno.test("doc build: produces PDF from Markdown", async () => {
+// `markspec doc build` on Windows requires the Typst workspace to
+// contain both the markspec-typst package and the source document.
+// On cross-drive setups (typical: repo on D:, temp dir on C:) there
+// is no common ancestor and the Typst loader cannot resolve `lib.typ`.
+// Tracked in #406; tests skipped on Windows until that lands.
+Deno.test("doc build: produces PDF from Markdown", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { code, stderr } = await markspec(["doc", "build", "doc.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
@@ -34,7 +42,9 @@ Deno.test("doc build: produces PDF from Markdown", async () => {
   assertStringIncludes(stderr, "wrote");
 });
 
-Deno.test("doc build: output file has PDF magic bytes", async () => {
+Deno.test("doc build: output file has PDF magic bytes", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   // Create a temp dir manually to inspect the output file
   const dir = await Deno.makeTempDir();
   try {
@@ -48,10 +58,9 @@ Deno.test("doc build: output file has PDF magic bytes", async () => {
         "--allow-write",
         "--allow-env",
         "--allow-ffi",
-        new URL(
-          "../../packages/markspec/main.ts",
-          import.meta.url,
-        ).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "doc",
         "build",
         "doc.md",
@@ -81,7 +90,9 @@ Deno.test("doc build: output file has PDF magic bytes", async () => {
   }
 });
 
-Deno.test("doc build: --output flag writes to custom path", async () => {
+Deno.test("doc build: --output flag writes to custom path", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const dir = await Deno.makeTempDir();
   try {
     await Deno.writeTextFile(`${dir}/project.yaml`, PROJECT_YAML);
@@ -94,10 +105,9 @@ Deno.test("doc build: --output flag writes to custom path", async () => {
         "--allow-write",
         "--allow-env",
         "--allow-ffi",
-        new URL(
-          "../../packages/markspec/main.ts",
-          import.meta.url,
-        ).pathname,
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
         "doc",
         "build",
         "--output",

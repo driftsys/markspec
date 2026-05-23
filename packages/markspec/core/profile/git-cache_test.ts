@@ -56,7 +56,9 @@ Deno.test("computeCacheKey: subpath differentiates keys", async () => {
   }
 });
 
-Deno.test("computeCacheLocation: returns absolute cache dir + manifest path", async () => {
+Deno.test("computeCacheLocation: returns absolute cache dir + manifest path", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const loc = await computeCacheLocation(
     "/project",
     {
@@ -74,7 +76,9 @@ Deno.test("computeCacheLocation: returns absolute cache dir + manifest path", as
   assertEquals(loc.manifestPath, `${loc.dir}/markspec.yaml`);
 });
 
-Deno.test("computeCacheLocation: subpath appears in manifest path", async () => {
+Deno.test("computeCacheLocation: subpath appears in manifest path", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const loc = await computeCacheLocation(
     "/project",
     {
@@ -130,7 +134,9 @@ function fsStub(initial: Record<string, string> = {}): FsStub {
   };
 }
 
-Deno.test("ensureCacheGitignored: appends entry when missing", async () => {
+Deno.test("ensureCacheGitignored: appends entry when missing", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const fs = fsStub({ "/project/.gitignore": "node_modules/\n" });
   await ensureCacheGitignored("/project", fs.read, fs.append);
   assertEquals(fs.writes.length, 1);

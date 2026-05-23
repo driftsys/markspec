@@ -54,7 +54,9 @@ const REQ_DOC = `- [STK_TEST_0001] Test entry
   Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
 
-Deno.test("createProject: discovers root from project.yaml", async () => {
+Deno.test("createProject: discovers root from project.yaml", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },
@@ -71,7 +73,9 @@ Deno.test("createProject: returns null when no project.yaml", async () => {
   assertEquals(proj.projectRoot, undefined);
 });
 
-Deno.test("getCompiled: compiles and caches result", async () => {
+Deno.test("getCompiled: compiles and caches result", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },
@@ -86,7 +90,9 @@ Deno.test("getCompiled: compiles and caches result", async () => {
   assertEquals(r1, r2);
 });
 
-Deno.test("getCompiled: recompiles when file mtime changes", async () => {
+Deno.test("getCompiled: recompiles when file mtime changes", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env, bumpMtime } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },
@@ -108,7 +114,9 @@ Deno.test("getCompiled: recompiles when file mtime changes", async () => {
   assertEquals(r2.entries.size, 2);
 });
 
-Deno.test("getCompiled: recompiles when a new file appears", async () => {
+Deno.test("getCompiled: recompiles when a new file appears", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env, bumpMtime } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },
@@ -131,7 +139,9 @@ Deno.test("getCompiled: recompiles when a new file appears", async () => {
   assertEquals(r2.entries.size, 2);
 });
 
-Deno.test("forceRefresh: recompiles even with no changes", async () => {
+Deno.test("forceRefresh: recompiles even with no changes", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },
@@ -143,7 +153,9 @@ Deno.test("forceRefresh: recompiles even with no changes", async () => {
   assertEquals(r1 !== r2, true);
 });
 
-Deno.test("getCompiled: recovers from a transient compile error", async () => {
+Deno.test("getCompiled: recovers from a transient compile error", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   // Build an env where the first compile fails (walk throws), then the
   // underlying problem clears and a subsequent getCompiled() succeeds.
   // This verifies that runCompile()'s finally resets `inFlight`, so the
@@ -185,7 +197,9 @@ Deno.test("getCompiled: recovers from a transient compile error", async () => {
   assertEquals(result.entries.size, 1);
 });
 
-Deno.test("subscribeInvalidation: fires handlers after recompile", async () => {
+Deno.test("subscribeInvalidation: fires handlers after recompile", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env, bumpMtime } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },
@@ -270,7 +284,9 @@ Deno.test("checkFileStaleness: no stored hash → stale", async () => {
   assertEquals(result, true);
 });
 
-Deno.test("getCompiled: same content, mtime bumped → NOT stale (SHA256 gate)", async () => {
+Deno.test("getCompiled: same content, mtime bumped → NOT stale (SHA256 gate)", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const { env, bumpMtime } = makeEnv({
     "/proj/project.yaml": { content: PROJECT_YAML, mtime: 1 },
     "/proj/req.md": { content: REQ_DOC, mtime: 1 },

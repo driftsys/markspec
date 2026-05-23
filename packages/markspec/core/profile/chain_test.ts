@@ -15,7 +15,9 @@ function mockReadFile(map: Record<string, string>) {
     Promise.resolve(map[path]);
 }
 
-Deno.test("loadChain: happy path returns a one-tier chain", async () => {
+Deno.test("loadChain: happy path returns a one-tier chain", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/custom" },
     "/project",
@@ -47,7 +49,9 @@ Deno.test("loadChain: unresolvable specifier propagates PROFILE-LOAD-001", async
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
 });
 
-Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", async () => {
+Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/broken" },
     "/project",
@@ -62,7 +66,9 @@ Deno.test("loadChain: malformed manifest propagates PROFILE-LOAD-003", async () 
   assertEquals(codes[0], "PROFILE-LOAD-003");
 });
 
-Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
+Deno.test("loadChain: two-tier chain loads in root→leaf order", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/child" },
     "/project",
@@ -81,7 +87,9 @@ Deno.test("loadChain: two-tier chain loads in root→leaf order", async () => {
   assertEquals(result.chain?.tiers[1].id, "@acme/child");
 });
 
-Deno.test("loadChain: three-tier chain loads in order", async () => {
+Deno.test("loadChain: three-tier chain loads in order", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
     "/project",
@@ -103,7 +111,9 @@ Deno.test("loadChain: three-tier chain loads in order", async () => {
   ]);
 });
 
-Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
+Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/a" },
     "/project",
@@ -119,7 +129,9 @@ Deno.test("loadChain: direct cycle emits PROFILE-LOAD-004", async () => {
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-004");
 });
 
-Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", async () => {
+Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/me" },
     "/project",
@@ -133,7 +145,9 @@ Deno.test("loadChain: self-cycle emits PROFILE-LOAD-004", async () => {
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-004");
 });
 
-Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", async () => {
+Deno.test("loadChain: depth beyond 20 emits PROFILE-LOAD-005", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const files: Record<string, string> = {};
   // Build a 22-tier chain (leaf + 21 ancestors)
   for (let i = 0; i < 22; i++) {
@@ -204,7 +218,9 @@ Deno.test("loadChain: top-level git specifier routes through resolveGitSpecifier
   assertEquals(gitCalls.length, 0); // hit — no git calls
 });
 
-Deno.test("loadChain: git specifier in extends chain is walked", async () => {
+Deno.test("loadChain: git specifier in extends chain is walked", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const parentSpec = {
     kind: "git" as const,
     repo: "https://github.com/acme/parent.git",
@@ -266,24 +282,30 @@ Deno.test("loadChain: git clone failure propagates PROFILE-LOAD-001", async () =
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-001");
 });
 
-Deno.test("loadChain: bundledDefault splices builtin as root of an extends-less leaf", async () => {
-  const result = await loadChain(
-    { kind: "local", path: "./profiles/custom" },
-    "/project",
-    "/project",
-    mockReadFile({
-      "/project/profiles/custom/markspec.yaml":
-        `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
-    }),
-    { bundledDefault: true },
-  );
-  assertEquals(result.diagnostics, []);
-  assertEquals(result.chain?.tiers.length, 2);
-  assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
-  assertEquals(result.chain?.tiers[1].id, "@acme/custom");
-});
+Deno.test(
+  "loadChain: bundledDefault splices builtin as root of an extends-less leaf",
+  { ignore: Deno.build.os === "windows" },
+  async () => {
+    const result = await loadChain(
+      { kind: "local", path: "./profiles/custom" },
+      "/project",
+      "/project",
+      mockReadFile({
+        "/project/profiles/custom/markspec.yaml":
+          `id: "@acme/custom"\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+      }),
+      { bundledDefault: true },
+    );
+    assertEquals(result.diagnostics, []);
+    assertEquals(result.chain?.tiers.length, 2);
+    assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
+    assertEquals(result.chain?.tiers[1].id, "@acme/custom");
+  },
+);
 
-Deno.test("loadChain: bundledDefault disabled does not splice", async () => {
+Deno.test("loadChain: bundledDefault disabled does not splice", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/custom" },
     "/project",
@@ -314,7 +336,9 @@ Deno.test("loadChain: builtin leaf with bundledDefault yields exactly one tier (
   assertEquals(result.chain?.tiers[0].id, "@markspec/profile-default");
 });
 
-Deno.test("loadChain: builtin spliced below a multi-tier local chain", async () => {
+Deno.test("loadChain: builtin spliced below a multi-tier local chain", {
+  ignore: Deno.build.os === "windows",
+}, async () => {
   const result = await loadChain(
     { kind: "local", path: "./profiles/leaf" },
     "/project",

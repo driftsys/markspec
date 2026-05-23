@@ -8,12 +8,12 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { markspec } from "./helpers.ts";
 
-const CLI_ENTRY = new URL(
-  "../../packages/markspec/main.ts",
-  import.meta.url,
-).pathname;
+const CLI_ENTRY = fromFileUrl(
+  new URL("../../packages/markspec/main.ts", import.meta.url),
+);
 
 const PROJECT_YAML = `name: test-project\nversion: 0.1.0\n`;
 

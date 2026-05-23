@@ -1,15 +1,14 @@
 import { assert, assertEquals } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import { compileTypst } from "./mod.ts";
 
-const WORKSPACE = new URL(
-  "../../../markspec-typst/",
-  import.meta.url,
-).pathname;
+const WORKSPACE = fromFileUrl(
+  new URL("../../../markspec-typst/", import.meta.url),
+);
 
-const FONT_PATH = new URL(
-  "../../../markspec-typst/fonts/",
-  import.meta.url,
-).pathname;
+const FONT_PATH = fromFileUrl(
+  new URL("../../../markspec-typst/fonts/", import.meta.url),
+);
 
 Deno.test("compileTypst: compiles simple Typst to PDF", () => {
   const source = `#set page(width: 210mm, height: 297mm)

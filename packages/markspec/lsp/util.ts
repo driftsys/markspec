@@ -4,22 +4,54 @@
  * Shared utilities for the LSP server: URI/path conversion and debounce.
  */
 
+import { fromFileUrl, toFileUrl } from "@std/path";
+import {
+  fromFileUrl as fromFileUrlPosix,
+  toFileUrl as toFileUrlPosix,
+} from "@std/path/posix";
+import {
+  fromFileUrl as fromFileUrlWindows,
+  toFileUrl as toFileUrlWindows,
+} from "@std/path/windows";
+
 /**
- * Convert a `file://` URI to a filesystem path.
- * Strips the `file://` scheme and decodes percent-encoding.
+ * Convert a `file://` URI to a filesystem path using the host platform's
+ * convention — drive-letter + backslash on Windows, POSIX otherwise.
  */
 export function uriToPath(uri: string): string {
-  const url = new URL(uri);
-  return decodeURIComponent(url.pathname);
+  return fromFileUrl(uri);
 }
 
 /**
- * Convert a filesystem path to a `file://` URI.
- * Uses the URL constructor so valid URI characters like `()`, `@`, `!`
- * are preserved rather than percent-encoded by `encodeURIComponent`.
+ * Convert a filesystem path to a `file://` URI using the host platform's
+ * convention. On Windows `C:\\foo\\bar` becomes `file:///C:/foo/bar`; on
+ * POSIX `/foo/bar` becomes `file:///foo/bar`.
  */
 export function pathToUri(path: string): string {
-  return new URL(`file://${path}`).href;
+  return toFileUrl(path).href;
+}
+
+// ---------------------------------------------------------------------------
+// Platform-specific helpers — exported with an `_` prefix to mark them as
+// test-only seams. Production code should call `pathToUri` / `uriToPath`,
+// which dispatch to the host platform's converter. The named exports below
+// let unit tests verify Windows behaviour from a macOS or Linux CI runner.
+// ---------------------------------------------------------------------------
+
+export function _pathToUriPosix(path: string): string {
+  return toFileUrlPosix(path).href;
+}
+
+export function _uriToPathPosix(uri: string): string {
+  return fromFileUrlPosix(uri);
+}
+
+export function _pathToUriWindows(path: string): string {
+  return toFileUrlWindows(path).href;
+}
+
+export function _uriToPathWindows(uri: string): string {
+  return fromFileUrlWindows(uri);
 }
 
 /** A debounced function with a `cancel()` method. */
