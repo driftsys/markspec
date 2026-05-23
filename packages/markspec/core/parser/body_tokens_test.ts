@@ -137,3 +137,27 @@ Deno.test("scope: modal/EARS suppressed inside feature fence (gherkin owns it)",
   assertEquals(tokens.filter((t) => t.kind === "ears-trigger").length, 0);
   assertEquals(tokens.filter((t) => t.kind === "gherkin-step").length, 1);
 });
+
+Deno.test("sort: tokens returned sorted by (line, column)", () => {
+  const body = "When the $sensor fires, the system shall react.";
+  const tokens = tokensOf(body);
+  for (let i = 1; i < tokens.length; i++) {
+    const prev = tokens[i - 1].location;
+    const cur = tokens[i].location;
+    const before = prev.line < cur.line ||
+      (prev.line === cur.line && prev.column <= cur.column);
+    assertEquals(before, true, `token ${i} not sorted: ${prev.column} vs ${cur.column}`);
+  }
+});
+
+Deno.test("mixed prose: modal + EARS + entity-ref on one line", () => {
+  const body = "When the $brake fires, the controller shall debounce $rawInput.";
+  const tokens = tokensOf(body);
+  const kinds = tokens.map((t) => t.kind);
+  assertEquals(kinds, [
+    "ears-trigger",
+    "entity-ref",
+    "modal",
+    "entity-ref",
+  ]);
+});
