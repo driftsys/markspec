@@ -5,7 +5,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { fromFileUrl } from "@std/path";
+import { fromFileUrl, join } from "@std/path";
 
 const CLI_ENTRY = fromFileUrl(
   new URL("../../packages/markspec/main.ts", import.meta.url),
@@ -25,7 +25,7 @@ async function runFormat(
   const filePaths: string[] = [];
 
   for (const [name, content] of Object.entries(files)) {
-    const fullPath = `${dir}/${name}`;
+    const fullPath = join(dir, name);
     await Deno.writeTextFile(fullPath, content);
     filePaths.push(fullPath);
   }
@@ -50,7 +50,7 @@ async function runFormat(
     code: result.code,
     stdout: new TextDecoder().decode(result.stdout),
     stderr: new TextDecoder().decode(result.stderr),
-    readFile: (name: string) => Deno.readTextFile(`${dir}/${name}`),
+    readFile: (name: string) => Deno.readTextFile(join(dir, name)),
   };
 }
 

@@ -8,7 +8,7 @@
  * specifier. Caller is responsible for cleaning up the provided workspaceDir.
  */
 
-import { toFileUrl } from "@std/path";
+import { join, toFileUrl } from "@std/path";
 
 /** What you get back from `setupGitFixture`. */
 export interface GitFixture {
@@ -38,8 +38,8 @@ export interface GitFixtureOptions {
 export async function setupGitFixture(
   opts: GitFixtureOptions,
 ): Promise<GitFixture> {
-  const bareDir = `${opts.workspaceDir}/_gitfixtures/${opts.name}.git`;
-  const workDir = `${opts.workspaceDir}/_gitwork/${opts.name}`;
+  const bareDir = join(opts.workspaceDir, "_gitfixtures", `${opts.name}.git`);
+  const workDir = join(opts.workspaceDir, "_gitwork", opts.name);
 
   await Deno.mkdir(bareDir, { recursive: true });
   // Ensure workDir is truly fresh — uncaught errors from other test files
@@ -56,15 +56,14 @@ export async function setupGitFixture(
   await runOrThrow(["git", "-C", workDir, "config", "commit.gpgsign", "false"]);
 
   for (const [relPath, content] of Object.entries(opts.files)) {
-    const abs = `${workDir}/${relPath}`;
     const parts = relPath.split("/");
     if (parts.length > 1) {
       await Deno.mkdir(
-        `${workDir}/${parts.slice(0, -1).join("/")}`,
+        join(workDir, ...parts.slice(0, -1)),
         { recursive: true },
       );
     }
-    await Deno.writeTextFile(abs, content);
+    await Deno.writeTextFile(join(workDir, ...parts), content);
   }
 
   await runOrThrow(["git", "-C", workDir, "add", "."]);

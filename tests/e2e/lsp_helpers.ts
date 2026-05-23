@@ -5,7 +5,7 @@
  * Spawns the server as a subprocess and communicates over stdin/stdout.
  */
 
-import { fromFileUrl, toFileUrl } from "@std/path";
+import { fromFileUrl, join, toFileUrl } from "@std/path";
 
 const LSP_ENTRY = fromFileUrl(
   new URL("../../packages/markspec/lsp/server.ts", import.meta.url),
@@ -74,11 +74,11 @@ export class LspTestClient {
     for (const [name, content] of Object.entries(files)) {
       const parts = name.split("/");
       if (parts.length > 1) {
-        await Deno.mkdir(`${dir}/${parts.slice(0, -1).join("/")}`, {
+        await Deno.mkdir(join(dir, ...parts.slice(0, -1)), {
           recursive: true,
         }).catch(() => {});
       }
-      await Deno.writeTextFile(`${dir}/${name}`, content);
+      await Deno.writeTextFile(join(dir, ...parts), content);
     }
 
     const cmd = new Deno.Command("deno", {

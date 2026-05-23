@@ -16,11 +16,16 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { fromFileUrl } from "@std/path";
+import { fromFileUrl, join } from "@std/path";
 import { renderCatalogue, runMatrix } from "./ast_fidelity.ts";
 
 const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
-const CATALOGUE_PATH = `${REPO_ROOT}docs/product/ast-fidelity-matrix.md`;
+const CATALOGUE_PATH = join(
+  REPO_ROOT,
+  "docs",
+  "product",
+  "ast-fidelity-matrix.md",
+);
 
 Deno.test("ast-fidelity-matrix: committed catalogue is not stale", async () => {
   const matrix = await runMatrix();
