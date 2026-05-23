@@ -43,7 +43,7 @@ function Get-Version {
     return $release.tag_name
 }
 
-function Verify-Checksum {
+function Test-Checksum {
     param([string]$File, [string]$ChecksumFile)
     # The .sha256 file format is "<hash>  <basename>" (two-space separator
     # produced by sha256sum / shasum -a 256 in the release workflow).
@@ -73,7 +73,7 @@ function Main {
         Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath -UseBasicParsing
 
         Write-Host 'Verifying checksum...'
-        Verify-Checksum -File $tarballPath -ChecksumFile $checksumPath
+        Test-Checksum -File $tarballPath -ChecksumFile $checksumPath
 
         # Windows 10 1803+ and Windows 11 ship bsdtar as `tar`. Extract in
         # place; the tarball contains a single `markspec.exe`.
