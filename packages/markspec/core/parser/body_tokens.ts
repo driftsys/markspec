@@ -18,6 +18,9 @@ import type { BodyBlock } from "../ast/nodes.ts";
 /** RFC 2119 modal verbs — matched case-insensitively as whole words. */
 const MODAL_RE = /\b(shall|should|may|must|will)\b/gi;
 
+/** EARS pattern triggers — capital-initial, whole word, case-sensitive. */
+const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
+
 /**
  * Extract body-token stream from an entry body.
  *
@@ -50,6 +53,21 @@ export function extractBodyTokens(
         kind: "modal",
         text,
         case: text === text.toLowerCase() ? "lower" : "upper",
+        location: {
+          file: baseLocation.file,
+          line: lineNo,
+          column: m.index + 1,
+        },
+      });
+    }
+
+    EARS_RE.lastIndex = 0;
+    while ((m = EARS_RE.exec(line)) !== null) {
+      const text = m[1] as "When" | "While" | "If" | "Where" | "Then";
+      tokens.push({
+        kind: "ears-trigger",
+        text,
+        trigger: text,
         location: {
           file: baseLocation.file,
           line: lineNo,

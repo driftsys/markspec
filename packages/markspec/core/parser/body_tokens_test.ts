@@ -45,3 +45,20 @@ Deno.test("modal: all five RFC-2119 verbs recognised", () => {
   const texts = tokens.map((t) => t.text);
   assertEquals(texts, ["shall", "should", "may", "must", "will"]);
 });
+
+Deno.test("ears-trigger: all five triggers recognised in prose", () => {
+  const body = "When the brake is pressed, the system shall react. " +
+    "While the engine runs, sensors poll. If pressure drops, alert. " +
+    "Where applicable, log it. Then the controller resets.";
+  const tokens = tokensOf(body).filter((t) => t.kind === "ears-trigger");
+  const triggers = tokens.map((t) =>
+    t.kind === "ears-trigger" ? t.trigger : ""
+  );
+  assertEquals(triggers, ["When", "While", "If", "Where", "Then"]);
+});
+
+Deno.test("ears-trigger: lowercase 'when' is NOT a trigger", () => {
+  const body = "The driver shall react when the brake is pressed.";
+  const ears = tokensOf(body).filter((t) => t.kind === "ears-trigger");
+  assertEquals(ears.length, 0);
+});
