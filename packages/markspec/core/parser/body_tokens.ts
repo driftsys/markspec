@@ -12,16 +12,39 @@
  * `Entry.entityRefs` field.
  */
 
-import type { BodyToken, SourceLocation } from "../model/mod.ts";
+import type {
+  BodyToken,
+  EntityRefConvention,
+  SourceLocation,
+} from "../model/mod.ts";
 import type { BodyBlock } from "../ast/nodes.ts";
-import { classifyConvention } from "./entity_refs.ts";
 import { processor } from "./remark.ts";
 import type { Root, RootContent } from "mdast";
+
+/**
+ * Decide the case convention of an entity-reference identifier per spec
+ * §2.5.2:
+ *
+ *   - `constant` — all-uppercase letters/digits/underscores, contains at
+ *     least one underscore or digit, ends with `[A-Z0-9]`. Distinguishes
+ *     `$DEBOUNCE_WINDOW` from a single-segment PascalCase like `$ASIL`.
+ *   - `type` — starts with an uppercase letter (PascalCase / single
+ *     uppercase segment).
+ *   - `instance` — starts with a lowercase letter (camelCase).
+ */
+function classifyConvention(ident: string): EntityRefConvention {
+  if (/^[A-Z][A-Z0-9_]*[A-Z0-9]$/.test(ident) && /[_0-9]/.test(ident)) {
+    return "constant";
+  }
+  if (/^[A-Z]/.test(ident)) return "type";
+  return "instance";
+}
 
 /** RFC 2119 modal verbs — matched case-insensitively as whole words.
  * Multi-word compounds (shall not, should not, must not) come first
  * so the leftmost-eager JS regex engine picks them before the bare verb. */
-const MODAL_RE = /\b(shall not|should not|must not|shall|should|may|must|will)\b/gi;
+const MODAL_RE =
+  /\b(shall not|should not|must not|shall|should|may|must|will)\b/gi;
 
 /** EARS pattern triggers — capital-initial, whole word, case-sensitive. */
 const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
