@@ -53,13 +53,21 @@
         },
         "markspec.server.args": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["lsp"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "lsp"
+          ],
           "description": "Arguments passed to the markspec binary to start the LSP server."
         },
         "markspec.trace.server": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
           "description": "Trace communication between VS Code and the MarkSpec LSP server."
         },
@@ -75,12 +83,188 @@
         },
         "markspec.mcp.args": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["mcp"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "mcp"
+          ],
           "description": "Arguments passed to the markspec binary to start the MCP server. Mirrors 'markspec.server.args' but for the MCP subcommand."
         }
       }
-    }
+    },
+    "colors": [
+      {
+        "id": "markspec.label.background",
+        "description": "Background colour for label pills in MarkSpec entries.",
+        "defaults": {
+          "dark": "#0077BB22",
+          "light": "#4477AA1A",
+          "highContrast": "#0077BB33",
+          "highContrastLight": "#4477AA1A"
+        }
+      },
+      {
+        "id": "markspec.label.foreground",
+        "description": "Foreground (text) colour for label pills.",
+        "defaults": {
+          "dark": "editorForeground",
+          "light": "editorForeground",
+          "highContrast": "editorForeground",
+          "highContrastLight": "editorForeground"
+        }
+      },
+      {
+        "id": "markspec.label.border",
+        "description": "Border colour for valid label pills.",
+        "defaults": {
+          "dark": "#0077BB",
+          "light": "#4477AA",
+          "highContrast": "#0077BB",
+          "highContrastLight": "#4477AA"
+        }
+      },
+      {
+        "id": "markspec.label.invalidBorder",
+        "description": "Border colour for label pills whose value is not in the active profile catalog.",
+        "defaults": {
+          "dark": "errorForeground",
+          "light": "errorForeground",
+          "highContrast": "errorForeground",
+          "highContrastLight": "errorForeground"
+        }
+      },
+      {
+        "id": "markspec.admonition.note.border",
+        "description": "Border colour for note admonitions (> [!NOTE]) in MarkSpec entries.",
+        "defaults": {
+          "dark": "#0077BB",
+          "light": "#4477AA",
+          "highContrast": "#0077BB",
+          "highContrastLight": "#4477AA"
+        }
+      },
+      {
+        "id": "markspec.admonition.note.background",
+        "description": "Background tint for note admonitions in MarkSpec entries.",
+        "defaults": {
+          "dark": "#0077BB1A",
+          "light": "#f0f4f8",
+          "highContrast": "#0077BB33",
+          "highContrastLight": "#f0f4f8"
+        }
+      },
+      {
+        "id": "markspec.admonition.tip.border",
+        "description": "Border colour for tip admonitions (> [!TIP]) in MarkSpec entries.",
+        "defaults": {
+          "dark": "#009988",
+          "light": "#228833",
+          "highContrast": "#009988",
+          "highContrastLight": "#228833"
+        }
+      },
+      {
+        "id": "markspec.admonition.tip.background",
+        "description": "Background tint for tip admonitions in MarkSpec entries.",
+        "defaults": {
+          "dark": "#0099881A",
+          "light": "#f0f8f2",
+          "highContrast": "#00998833",
+          "highContrastLight": "#f0f8f2"
+        }
+      },
+      {
+        "id": "markspec.admonition.important.border",
+        "description": "Border colour for important admonitions (> [!IMPORTANT]) in MarkSpec entries.",
+        "defaults": {
+          "dark": "#EE3377",
+          "light": "#AA3377",
+          "highContrast": "#EE3377",
+          "highContrastLight": "#AA3377"
+        }
+      },
+      {
+        "id": "markspec.admonition.important.background",
+        "description": "Background tint for important admonitions in MarkSpec entries.",
+        "defaults": {
+          "dark": "#EE33771A",
+          "light": "#f8f0f6",
+          "highContrast": "#EE337733",
+          "highContrastLight": "#f8f0f6"
+        }
+      },
+      {
+        "id": "markspec.admonition.warning.border",
+        "description": "Border colour for warning admonitions (> [!WARNING]) in MarkSpec entries.",
+        "defaults": {
+          "dark": "#EE7733",
+          "light": "#CCBB44",
+          "highContrast": "#EE7733",
+          "highContrastLight": "#CCBB44"
+        }
+      },
+      {
+        "id": "markspec.admonition.warning.background",
+        "description": "Background tint for warning admonitions in MarkSpec entries.",
+        "defaults": {
+          "dark": "#EE77331A",
+          "light": "#f8f6f0",
+          "highContrast": "#EE773333",
+          "highContrastLight": "#f8f6f0"
+        }
+      },
+      {
+        "id": "markspec.admonition.caution.border",
+        "description": "Border colour for caution admonitions (> [!CAUTION]) in MarkSpec entries.",
+        "defaults": {
+          "dark": "#CC3311",
+          "light": "#EE6677",
+          "highContrast": "#CC3311",
+          "highContrastLight": "#EE6677"
+        }
+      },
+      {
+        "id": "markspec.admonition.caution.background",
+        "description": "Background tint for caution admonitions in MarkSpec entries.",
+        "defaults": {
+          "dark": "#CC33111A",
+          "light": "#f8f0f0",
+          "highContrast": "#CC331133",
+          "highContrastLight": "#f8f0f0"
+        }
+      },
+      {
+        "id": "markspec.admonition.plain.border",
+        "description": "Border colour for plain blockquotes (no [!KIND] marker).",
+        "defaults": {
+          "dark": "editorLineNumber.foreground",
+          "light": "editorLineNumber.foreground",
+          "highContrast": "editorLineNumber.foreground",
+          "highContrastLight": "editorLineNumber.foreground"
+        }
+      },
+      {
+        "id": "markspec.admonition.plain.background",
+        "description": "Background tint for plain blockquotes.",
+        "defaults": {
+          "dark": "#BBBBBB14",
+          "light": "#88888814",
+          "highContrast": "#BBBBBB22",
+          "highContrastLight": "#88888822"
+        }
+      },
+      {
+        "id": "markspec.entry.border",
+        "description": "Colour of the 3px left-bar that marks each MarkSpec entry block.",
+        "defaults": {
+          "dark": "editorIndentGuide.activeBackground",
+          "light": "editorIndentGuide.activeBackground",
+          "highContrast": "editorIndentGuide.activeBackground",
+          "highContrastLight": "editorIndentGuide.activeBackground"
+        }
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p tsconfig.json",

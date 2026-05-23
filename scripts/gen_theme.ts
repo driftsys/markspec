@@ -323,3 +323,158 @@ for (const [path, content] of writes) {
   const rel = path.replace(ROOT + "/", "");
   console.log(`  wrote ${rel}`);
 }
+
+// ── Generate VS Code workbench colors ───────────────────────────────────
+
+const VSCODE_PACKAGE = join(ROOT, "editors/vscode/package.json");
+
+interface VscodeColorDef {
+  id: string;
+  description: string;
+  defaults: {
+    dark: string;
+    light: string;
+    highContrast: string;
+    highContrastLight: string;
+  };
+}
+
+function genVscodeColors(): VscodeColorDef[] {
+  const blue = tokens.diagram.blue;
+  const labelColors: VscodeColorDef[] = [
+    {
+      id: "markspec.label.background",
+      description: "Background colour for label pills in MarkSpec entries.",
+      defaults: {
+        dark: `${blue.screen}22`,
+        light: `${blue.print}1A`,
+        highContrast: `${blue.screen}33`,
+        highContrastLight: `${blue.print}1A`,
+      },
+    },
+    {
+      id: "markspec.label.foreground",
+      description: "Foreground (text) colour for label pills.",
+      defaults: {
+        dark: "editorForeground",
+        light: "editorForeground",
+        highContrast: "editorForeground",
+        highContrastLight: "editorForeground",
+      },
+    },
+    {
+      id: "markspec.label.border",
+      description: "Border colour for valid label pills.",
+      defaults: {
+        dark: blue.screen,
+        light: blue.print,
+        highContrast: blue.screen,
+        highContrastLight: blue.print,
+      },
+    },
+    {
+      id: "markspec.label.invalidBorder",
+      description:
+        "Border colour for label pills whose value is not in the active profile catalog.",
+      defaults: {
+        dark: "errorForeground",
+        light: "errorForeground",
+        highContrast: "errorForeground",
+        highContrastLight: "errorForeground",
+      },
+    },
+  ];
+
+  // Admonition colours sourced from the existing tokens.alerts palette
+  // (Paul Tol bright for light themes, vibrant for dark themes). On
+  // dark themes the alert.bg is too bright for an editor background,
+  // so we use the border hue with a low alpha tint instead.
+  const admonitionKinds = [
+    "note",
+    "tip",
+    "important",
+    "warning",
+    "caution",
+  ] as const;
+  const admonitionColors: VscodeColorDef[] = [];
+  for (const kind of admonitionKinds) {
+    const alert = tokens.alerts[kind];
+    admonitionColors.push({
+      id: `markspec.admonition.${kind}.border`,
+      description:
+        `Border colour for ${kind} admonitions (> [!${kind.toUpperCase()}]) in MarkSpec entries.`,
+      defaults: {
+        dark: alert.screen.border,
+        light: alert.print.border,
+        highContrast: alert.screen.border,
+        highContrastLight: alert.print.border,
+      },
+    });
+    admonitionColors.push({
+      id: `markspec.admonition.${kind}.background`,
+      description:
+        `Background tint for ${kind} admonitions in MarkSpec entries.`,
+      defaults: {
+        dark: `${alert.screen.border}1A`,
+        light: alert.print.bg,
+        highContrast: `${alert.screen.border}33`,
+        highContrastLight: alert.print.bg,
+      },
+    });
+  }
+  admonitionColors.push({
+    id: "markspec.admonition.plain.border",
+    description: "Border colour for plain blockquotes (no [!KIND] marker).",
+    defaults: {
+      dark: "editorLineNumber.foreground",
+      light: "editorLineNumber.foreground",
+      highContrast: "editorLineNumber.foreground",
+      highContrastLight: "editorLineNumber.foreground",
+    },
+  });
+  admonitionColors.push({
+    id: "markspec.admonition.plain.background",
+    description: "Background tint for plain blockquotes.",
+    defaults: {
+      dark: "#BBBBBB14",
+      light: "#88888814",
+      highContrast: "#BBBBBB22",
+      highContrastLight: "#88888822",
+    },
+  });
+
+  // Left-bar colour painted at column 0 of every entry line (title
+  // through last trailer line). Materialises the entry boundary
+  // without an intrusive background fill. Neutral by default; users
+  // can override per-theme via workbench.colorCustomizations.
+  const entryColors: VscodeColorDef[] = [
+    {
+      id: "markspec.entry.border",
+      description:
+        "Colour of the 3px left-bar that marks each MarkSpec entry block.",
+      defaults: {
+        dark: "editorIndentGuide.activeBackground",
+        light: "editorIndentGuide.activeBackground",
+        highContrast: "editorIndentGuide.activeBackground",
+        highContrastLight: "editorIndentGuide.activeBackground",
+      },
+    },
+  ];
+
+  return [...labelColors, ...admonitionColors, ...entryColors];
+}
+
+async function writeVscodeColors(): Promise<void> {
+  const existing = await Deno.readTextFile(VSCODE_PACKAGE);
+  const pkg = JSON.parse(existing) as {
+    contributes?: { colors?: VscodeColorDef[] };
+  };
+  if (!pkg.contributes) pkg.contributes = {};
+  pkg.contributes.colors = genVscodeColors();
+  const text = JSON.stringify(pkg, null, 2) + "\n";
+  if (text !== existing) {
+    await Deno.writeTextFile(VSCODE_PACKAGE, text);
+  }
+}
+
+await writeVscodeColors();
