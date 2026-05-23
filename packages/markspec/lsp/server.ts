@@ -68,6 +68,7 @@ import {
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
   isTypeAttributeTrigger,
+  renderScaffoldSnippet,
 } from "./completions.ts";
 import {
   isDocCommentContext,
@@ -290,6 +291,7 @@ connection.onInitialize(
         textDocumentSync: TextDocumentSyncKind.Full,
         completionProvider: {
           triggerCharacters: ["[", ":"],
+          resolveProvider: true,
         },
         hoverProvider: true,
         definitionProvider: true,
@@ -459,17 +461,23 @@ connection.onCompletion((params): CompletionItem[] => {
   if (isBlockScaffoldTrigger(line)) {
     const types = getEntryTypes();
     const items = buildBlockScaffoldItems(types, ulid);
-    return items.map((item) => ({
-      label: item.label,
-      detail: item.detail,
-      insertText: item.insertText,
-      insertTextFormat: item.isSnippet
-        ? InsertTextFormat.Snippet
-        : InsertTextFormat.PlainText,
-      kind: item.isSnippet
-        ? CompletionItemKind.Snippet
-        : CompletionItemKind.Reference,
-    }));
+    return items.map((item, i) => {
+      const type = types[i];
+      return {
+        label: item.label,
+        detail: item.detail,
+        insertText: item.insertText,
+        insertTextFormat: item.isSnippet
+          ? InsertTextFormat.Snippet
+          : InsertTextFormat.PlainText,
+        kind: item.isSnippet
+          ? CompletionItemKind.Snippet
+          : CompletionItemKind.Reference,
+        data: type
+          ? { kind: "scaffold", typeName: type.name, prefix: type.prefix }
+          : undefined,
+      };
+    });
   }
 
   // Trigger 2: ID reference
@@ -495,6 +503,27 @@ connection.onCompletion((params): CompletionItem[] => {
   }
 
   return [];
+});
+
+connection.onCompletionResolve((item): CompletionItem => {
+  const data = item.data as
+    | { kind?: string; typeName?: string; prefix?: string }
+    | undefined;
+  if (data?.kind !== "scaffold" || !data.typeName || !data.prefix) {
+    return item;
+  }
+  const nextNumber = index.getNextDisplayIdNumber(data.prefix);
+  const rendered = renderScaffoldSnippet({
+    typeName: data.typeName,
+    prefix: data.prefix,
+    nextNumber,
+    ulid: ulid(),
+  });
+  return {
+    ...item,
+    label: rendered.label,
+    insertText: rendered.insertText,
+  };
 });
 
 // ---------------------------------------------------------------------------

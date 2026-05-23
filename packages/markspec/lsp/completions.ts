@@ -142,6 +142,31 @@ export function buildTypeAttributeItems(
   return items;
 }
 
+/** Inputs to {@linkcode renderScaffoldSnippet}. */
+export interface ScaffoldSnippetInput {
+  readonly typeName: string;
+  readonly prefix: string;
+  readonly nextNumber: number;
+  readonly ulid: string;
+}
+
+/**
+ * Render the label + snippet text for one scaffold completion. Shared
+ * by the build-time path (`buildBlockScaffoldItems`) and the resolve-
+ * time path (`onCompletionResolve` in `server.ts`) so both render the
+ * same shape from the same primitives.
+ */
+export function renderScaffoldSnippet(
+  input: ScaffoldSnippetInput,
+): { label: string; insertText: string } {
+  const displayId = `${input.prefix}${padNumber(input.nextNumber)}`;
+  return {
+    label: `New ${input.typeName} (${displayId})`,
+    insertText:
+      `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${input.ulid}\n      \${3:Satisfies: }`,
+  };
+}
+
 /**
  * Build completion items for the entry block scaffold trigger.
  *
@@ -185,13 +210,16 @@ export function buildBlockScaffoldItems(
   }
 
   return types.map((type) => {
-    const displayId = `${type.prefix}${padNumber(type.nextNumber)}`;
-    const stampedUlid = ulidProvider();
+    const rendered = renderScaffoldSnippet({
+      typeName: type.name,
+      prefix: type.prefix,
+      nextNumber: type.nextNumber,
+      ulid: ulidProvider(),
+    });
     return {
-      label: `New ${type.name} (${displayId})`,
+      label: rendered.label,
       detail: type.name,
-      insertText:
-        `${displayId}] \${1:Title}\n\n  \${2:Body.}\n\n      Id: ${stampedUlid}\n      \${3:Satisfies: }`,
+      insertText: rendered.insertText,
       isSnippet: true,
       kind: KIND_SNIPPET,
     };

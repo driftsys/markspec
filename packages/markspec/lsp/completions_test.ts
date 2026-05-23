@@ -176,3 +176,54 @@ Deno.test("buildTypeAttributeItems: appends profile-declared types after core", 
   assertEquals(items[16].label, "requirement");
   assertEquals(items[17].label, "test");
 });
+
+// --- renderScaffoldSnippet helper ---
+
+import { renderScaffoldSnippet } from "./completions.ts";
+
+Deno.test("renderScaffoldSnippet: formats display ID and ULID", () => {
+  const snippet = renderScaffoldSnippet({
+    typeName: "stakeholder-requirement",
+    prefix: "STK_AEB_",
+    nextNumber: 42,
+    ulid: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  });
+  assertEquals(snippet.label, "New stakeholder-requirement (STK_AEB_0042)");
+  assertEquals(snippet.insertText.includes("STK_AEB_0042"), true);
+  assertEquals(snippet.insertText.includes("01HGW2Q8MNP3RSTVWXYZABCDEF"), true);
+});
+
+// --- resolve flow integration test ---
+
+import { WorkspaceIndex } from "./workspace.ts";
+
+Deno.test("resolve flow: getNextDisplayIdNumber advances after each insert", async () => {
+  const index = new WorkspaceIndex();
+  await index.parseAndUpdateFile(
+    "/tmp/test.md",
+    `- [STK_AEB_0001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+  );
+  assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 2);
+
+  await index.parseAndUpdateFile(
+    "/tmp/test.md",
+    `- [STK_AEB_0001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [STK_AEB_0002] Second
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`,
+  );
+  assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 3);
+});
