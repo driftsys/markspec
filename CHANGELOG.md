@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Breaking (wire format)
+
+- **core:** `Entry.source` in compile-output JSON changes from a string
+  (`"source": "markdown"`) to a tagged-union object (`"source": {"kind":
+  "markdown"}` or `{"kind":"doc-comment","language":"rust","function":"foo",
+  "rule":"outer-doc-comment"}`). Downstream consumers of `markspec compile
+  --format json` must migrate. Per pre-1.0 no-backward-compat policy, no
+  shim is provided. Consumers needing only "markdown vs code" can read the
+  duplicated `properties.source.type` string instead. (#nextgen-v1)
+
 ### Added
 
 - **core:** `Entry.bodyTokens` — flat parser-emitted token stream for inline
@@ -20,6 +30,24 @@
   `ParseMarkdownOptions` gains `lineMap?: LineMap`. (#409)
 - **core:** Per-grammar doc-comment dispatch table
   (`core/parser/language_spec.ts`) driving the tree-sitter walker. (#409)
+- **core:** `properties.source` populated on every compiled entry. Surfaces
+  `type` (markdown/code), `adapter` (tree-sitter for code), `language`
+  (rust/kotlin/java/cpp), `function` (enclosing item name from tree-sitter
+  cursor walk), and `rule` (outer-doc-comment / inner-doc-comment /
+  block-doc-comment). See ADR-006 §1. (#nextgen-v1)
+- **core:** `EntrySource` tagged union type in `core/model/mod.ts`
+  replacing the previous `"markdown" | "doc-comment"` string discriminator.
+  Carries language, function name, and rule for doc-comment entries.
+  (#nextgen-v1)
+- **core:** `ExtractorRule` named type (`"outer-doc-comment" |
+  "inner-doc-comment" | "block-doc-comment"`) exported from `core/mod.ts`.
+  (#nextgen-v1)
+- **core:** `SupportedLanguage` type moved from `core/parser/language_spec.ts`
+  to `core/model/mod.ts` (re-exported from the parser module for backwards
+  compatibility with existing import sites). (#nextgen-v1)
+- **core:** Per-language `enclosingItemTypes`, `attributeSkipTypes`, and
+  `itemName` extractors added to `LANGUAGE_SPECS` for Rust/Java/Kotlin/C++.
+  C row present but blocked by #427. (#nextgen-v1)
 
 ### Changed
 

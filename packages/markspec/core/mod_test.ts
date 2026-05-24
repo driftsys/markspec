@@ -68,7 +68,7 @@ Deno.test("model types are constructible", () => {
     id: "SRS_00000000000000000000000001",
     shape: "Authored",
     location: loc,
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
   };

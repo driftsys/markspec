@@ -8,7 +8,7 @@
 
 import type { SyntaxNode } from "web-tree-sitter";
 import Parser from "web-tree-sitter";
-import type { Entry } from "../model/mod.ts";
+import type { Entry, ExtractorRule } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap } from "./line_map.ts";
 import type {
@@ -49,6 +49,13 @@ interface DocCommentBlock {
   /** One value per cleaned line — bytes stripped from source to produce
    * the line. Length equals `lines.length`. */
   readonly prefixWidths: readonly number[];
+  /** Which extractor rule produced this block. */
+  readonly rule: ExtractorRule;
+  /** Name of the enclosing function/class/struct/impl/mod/trait extracted
+   * via `spec.itemName` from the immediately-following item node. Undefined
+   * when no enclosing item is found, the item is anonymous, or the
+   * extractor failed to extract a name. */
+  readonly itemName?: string;
 }
 
 /**
@@ -91,7 +98,12 @@ export function parseSource(
       // the translated entry.location.
       entries.push({
         ...entry,
-        source: "doc-comment",
+        source: {
+          kind: "doc-comment",
+          language: options.languageId,
+          function: block.itemName,
+          rule: block.rule,
+        },
         properties: {
           file: {
             path: file,
@@ -108,6 +120,34 @@ export function parseSource(
   return { entries };
 }
 
+/** Maximum sibling-walk length before giving up. Generous for typical
+ * attribute stacks; bounds pathological inputs. */
+const ENCLOSING_ITEM_LOOKAHEAD = 10;
+
+/** Search the doc-comment's siblings for an enclosing item, skipping
+ * attribute/annotation/comment nodes per the language spec. Returns
+ * the item-name string or undefined. */
+function findItemName(
+  commentNode: SyntaxNode,
+  spec: LanguageDocCommentSpec,
+): string | undefined {
+  let sibling = commentNode.nextSibling;
+  let examined = 0;
+  while (sibling !== null && examined < ENCLOSING_ITEM_LOOKAHEAD) {
+    examined++;
+    if (spec.enclosingItemTypes.includes(sibling.type)) {
+      return spec.itemName(sibling);
+    }
+    if (!spec.attributeSkipTypes.includes(sibling.type)) {
+      // Hit something that isn't an item AND isn't a skippable attribute —
+      // structural surprise. Give up rather than walk forever.
+      return undefined;
+    }
+    sibling = sibling.nextSibling;
+  }
+  return undefined;
+}
+
 function walkForDocComments(
   node: SyntaxNode,
   blocks: DocCommentBlock[],
@@ -117,18 +157,28 @@ function walkForDocComments(
   let currentPrefixWidths: number[] = [];
   let currentStartLine = 0;
   let currentStartColumn = 0;
+  let currentRule: "outer-doc-comment" | "inner-doc-comment" =
+    "outer-doc-comment";
   let lastRow = -2;
+  let currentLastCommentNode: SyntaxNode | null = null;
 
   function flushLineBlock() {
     if (currentLines.length > 0) {
+      const itemName = currentLastCommentNode
+        ? findItemName(currentLastCommentNode, spec)
+        : undefined;
       blocks.push({
         lines: currentLines,
         startLine: currentStartLine,
         startColumn: currentStartColumn,
         prefixWidths: currentPrefixWidths,
+        rule: currentRule,
+        itemName,
       });
       currentLines = [];
       currentPrefixWidths = [];
+      currentRule = "outer-doc-comment";
+      currentLastCommentNode = null;
       lastRow = -2;
     }
   }
@@ -147,9 +197,13 @@ function walkForDocComments(
         currentStartLine = row + 1;
         currentStartColumn = child.startPosition.column + 1;
       }
-      const { text, prefixWidth } = stripLineCommentPrefix(child);
+      const { text, prefixWidth, rule } = stripLineCommentPrefix(child);
+      if (currentLines.length === 0) {
+        currentRule = rule;
+      }
       currentLines.push(text);
       currentPrefixWidths.push(prefixWidth);
+      currentLastCommentNode = child;
       lastRow = row;
       continue;
     }
@@ -163,11 +217,14 @@ function walkForDocComments(
       );
       if (lines.length === 0) continue;
       const startRow = child.startPosition.row + (openerSkipped ? 1 : 0);
+      const itemName = findItemName(child, spec);
       blocks.push({
         lines,
         startLine: startRow + 1,
         startColumn: child.startPosition.column + 1,
         prefixWidths,
+        rule: "block-doc-comment",
+        itemName,
       });
       continue;
     }
@@ -187,6 +244,9 @@ interface PrefixStripResult {
   readonly text: string;
   /** Number of source characters stripped to produce `text`. */
   readonly prefixWidth: number;
+  /** Which rule the line-comment strip helper matched: "outer-doc-comment"
+   * for `///`, "inner-doc-comment" for `//!`. */
+  readonly rule: "outer-doc-comment" | "inner-doc-comment";
 }
 
 /**
@@ -208,16 +268,26 @@ export function stripLineCommentPrefix(node: SyntaxNode): PrefixStripResult {
         text = text.slice(1);
         prefixWidth += 1;
       }
-      return { text, prefixWidth };
+      const rule: "outer-doc-comment" | "inner-doc-comment" =
+        node.text.startsWith("//!") ? "inner-doc-comment" : "outer-doc-comment";
+      return { text, prefixWidth, rule };
     }
   }
   // Fallback: manual prefix stripping
   const raw = node.text.replace(/\n$/, "");
-  if (raw.startsWith("/// ")) return { text: raw.slice(4), prefixWidth: 4 };
-  if (raw.startsWith("///")) return { text: raw.slice(3), prefixWidth: 3 };
-  if (raw.startsWith("//! ")) return { text: raw.slice(4), prefixWidth: 4 };
-  if (raw.startsWith("//!")) return { text: raw.slice(3), prefixWidth: 3 };
-  return { text: raw, prefixWidth: 0 };
+  if (raw.startsWith("/// ")) {
+    return { text: raw.slice(4), prefixWidth: 4, rule: "outer-doc-comment" };
+  }
+  if (raw.startsWith("///")) {
+    return { text: raw.slice(3), prefixWidth: 3, rule: "outer-doc-comment" };
+  }
+  if (raw.startsWith("//! ")) {
+    return { text: raw.slice(4), prefixWidth: 4, rule: "inner-doc-comment" };
+  }
+  if (raw.startsWith("//!")) {
+    return { text: raw.slice(3), prefixWidth: 3, rule: "inner-doc-comment" };
+  }
+  return { text: raw, prefixWidth: 0, rule: "outer-doc-comment" };
 }
 
 /** Result of stripping a block comment. */

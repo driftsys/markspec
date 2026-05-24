@@ -31,7 +31,7 @@ function makeEntry(): Entry {
     ]),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
 }
@@ -192,7 +192,7 @@ Deno.test("buildSemanticTokens: multi-entry file scopes trailer tokens to each e
     typedAttributes: new Map([["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]]]),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const entry2: Entry = {
@@ -203,7 +203,7 @@ Deno.test("buildSemanticTokens: multi-entry file scopes trailer tokens to each e
     typedAttributes: new Map([["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEG"]]]),
     shape: "Authored",
     location: { file: "t.md", line: 6, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
@@ -249,7 +249,7 @@ Deno.test("buildSemanticTokens: plain-text attribute value gets a single string 
     typedAttributes: new Map([["Note", ["ok"]]]),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
@@ -280,7 +280,7 @@ Deno.test("buildSemanticTokens: title with lowercase-hyphenated display ID still
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
@@ -309,7 +309,7 @@ Deno.test("buildSemanticTokens: title with dotted display ID still highlights", 
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
@@ -334,7 +334,7 @@ Deno.test("buildSemanticTokens: title with slashed display ID still highlights",
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
@@ -430,7 +430,7 @@ Deno.test("buildSemanticTokens: trailer-line keywords are NOT tokenized as body 
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
   const tokens = buildSemanticTokens(
@@ -616,7 +616,7 @@ Deno.test("buildSemanticTokens: inter-entry prose after trailer is NOT scanned f
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [
       {
         kind: "modal",
@@ -695,7 +695,7 @@ function entryWithBodyTokens(
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens,
   };
 }

@@ -28,7 +28,7 @@ function makeEntry(
     displayId: id as DisplayId,
     title,
     shape: "Authored" as const,
-    source: "markdown" as const,
+    source: { kind: "markdown" } as const,
     location: { file: opts.file ?? "test.md", line: 1, column: 1 },
     body: "",
     rawAttributes,

@@ -15,7 +15,7 @@ function makeEntry(displayId: string): Entry {
     id: undefined,
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
   };

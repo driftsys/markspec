@@ -178,7 +178,7 @@ function _buildRegions(
   const regions: _Region[] = [];
 
   for (const entry of entries) {
-    if (entry.source !== "markdown") continue;
+    if (entry.source.kind !== "markdown") continue;
     const start = entry.location.line - 1; // 0-based
     const end = _findEntryEnd(lines, start);
     regions.push({ kind: "entry", start, end, entry });

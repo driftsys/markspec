@@ -189,8 +189,40 @@ export type TypedAttributes = ReadonlyMap<string, readonly string[]>;
 // Entry shape and identity
 // ---------------------------------------------------------------------------
 
-/** The origin format of the entry. */
-export type EntrySource = "markdown" | "doc-comment";
+/** Supported source-file languages for doc-comment extraction. */
+export type SupportedLanguage = "rust" | "kotlin" | "java" | "c" | "cpp";
+
+/** Which extractor rule produced a doc-comment entry. Distinguishes the
+ * three lexical doc-comment styles MarkSpec recognises across grammars. */
+export type ExtractorRule =
+  | "outer-doc-comment" // Rust `///`
+  | "inner-doc-comment" // Rust `//!`
+  | "block-doc-comment"; // Javadoc-style `/** … */` (Rust, Java, Kotlin, C, C++)
+
+/**
+ * Tagged union describing what produced an entry. Replaces the previous
+ * string discriminator ("markdown" | "doc-comment") to carry per-entry
+ * source metadata (language, enclosing function name, extractor rule) for
+ * code-extracted entries. See ADR-006 §1 and the source-properties spec.
+ */
+export type EntrySource =
+  | { readonly kind: "markdown" }
+  | {
+    readonly kind: "doc-comment";
+    readonly language: SupportedLanguage;
+    /**
+     * Name of the enclosing function / class / struct / impl / mod /
+     * trait at the doc comment's source location. Absent means the
+     * extractor returned undefined for any reason — covers both
+     * "no enclosing item exists" (e.g., crate-root `//!` block) AND
+     * "extractor could not extract a name from the item it found"
+     * (anonymous structures, operator overloads, lambdas). Consumers
+     * must NOT treat absence as proof the entry is at file scope.
+     */
+    readonly function?: string;
+    /** Which extractor rule matched. */
+    readonly rule: ExtractorRule;
+  };
 
 /**
  * Entry shape — one of two semantics-free categories the core recognizes.
@@ -326,6 +358,16 @@ export interface EntryProperties {
     readonly type: string;
     readonly adapter?: string;
     readonly language?: string;
+    /**
+     * Name of the enclosing function / class / struct / impl / mod /
+     * trait at the doc comment's source location. Absent means the
+     * extractor returned undefined — covers BOTH "no enclosing item
+     * exists" (crate-root `//!` block) AND "extractor could not extract
+     * a name from the item it found" (anonymous structures, operator
+     * overloads, lambdas). Consumers must NOT treat absence as proof
+     * the entry is at file scope.
+     */
+    readonly function?: string;
     readonly rule?: string;
     readonly extractedAt?: string;
   };

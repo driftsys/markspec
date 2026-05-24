@@ -24,7 +24,7 @@ function entry(
     id: opts.id,
     shape: "Authored",
     location,
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
   };

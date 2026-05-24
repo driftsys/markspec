@@ -104,6 +104,35 @@ function resolveGit(
   return Object.keys(git).length > 0 ? git : undefined;
 }
 
+/**
+ * Project `Entry.source` onto `EntryProperties.source`. Always returns a
+ * non-empty object — every entry has a known source category. Markdown
+ * entries get `{ type: "markdown" }`; doc-comment entries get the full
+ * code-source fan-out (adapter, language, function, rule).
+ */
+function resolveSource(
+  source: Entry["source"],
+): NonNullable<EntryProperties["source"]> {
+  if (source.kind === "markdown") {
+    return { type: "markdown" };
+  }
+  if (source.kind === "doc-comment") {
+    return {
+      type: "code",
+      adapter: "tree-sitter",
+      language: source.language,
+      function: source.function,
+      rule: source.rule,
+    };
+  }
+  // Exhaustiveness check — adding a third EntrySource variant becomes a
+  // compile-time error here, forcing a deliberate decision about its
+  // properties.source projection rather than silently inheriting the
+  // tree-sitter branch's defaults.
+  const _exhaustive: never = source;
+  throw new Error(`unhandled EntrySource: ${JSON.stringify(_exhaustive)}`);
+}
+
 /** Compiled project output with resolved traceability graph. */
 export interface CompileResult {
   /** All entries keyed by display ID. */
@@ -215,6 +244,7 @@ export async function compile(
               mtime: mtimeStr,
             },
             ...(git ? { git } : {}),
+            source: resolveSource(entry.source), // NEW — always set
           },
         }));
         return {

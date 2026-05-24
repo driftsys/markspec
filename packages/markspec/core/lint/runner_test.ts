@@ -46,7 +46,7 @@ function makeEntry(
     type: "Requirement",
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
     ...overrides,
   };

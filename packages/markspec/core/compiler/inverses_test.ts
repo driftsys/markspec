@@ -27,7 +27,7 @@ function entry(
     rawAttributes: [],
     shape: "Authored",
     location: LOC,
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
     ...overrides,

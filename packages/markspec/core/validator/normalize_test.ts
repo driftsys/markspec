@@ -51,7 +51,7 @@ function entry(opts: {
     displayId: makeDisplayId("X-001"),
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     shape: opts.shape,
-    source: "markdown",
+    source: { kind: "markdown" },
     title: "",
     body: "",
     rawAttributes: attributes,

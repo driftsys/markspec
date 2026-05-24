@@ -35,7 +35,7 @@ function buildCompiled(
       id: e.id,
       shape: e.entryType ? "Authored" : "Reference",
       location: { file: "test.md", line: 1, column: 1 },
-      source: "markdown",
+      source: { kind: "markdown" },
       typedAttributes: new Map(),
       bodyTokens: [],
     };

@@ -20,7 +20,7 @@ function makeEntry(
     typedAttributes: opts.typedAttributes ?? new Map(),
     shape: "Authored",
     location: LOC,
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
 }

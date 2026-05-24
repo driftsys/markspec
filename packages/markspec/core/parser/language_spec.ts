@@ -11,7 +11,9 @@
  * {@linkcode languageIdForExtension}.
  */
 
-export type SupportedLanguage = "rust" | "kotlin" | "java" | "c" | "cpp";
+import type { SyntaxNode } from "web-tree-sitter";
+import type { SupportedLanguage } from "../model/mod.ts";
+export type { SupportedLanguage }; // re-export for parser-internal consumers
 
 export interface LanguageDocCommentSpec {
   /** Tree-sitter node type(s) for block (multi-line) comments. */
@@ -22,6 +24,17 @@ export interface LanguageDocCommentSpec {
   isDocBlock(text: string): boolean;
   /** Predicate: this line-comment node text is a doc-line comment. */
   isDocLine(text: string): boolean;
+  /** Tree-sitter node types that an enclosing "item" (function, class,
+   * struct, impl, mod, etc.) might be. Walker searches the doc comment's
+   * next sibling for one of these. */
+  readonly enclosingItemTypes: readonly string[];
+  /** Tree-sitter node types to skip during the enclosing-item walk
+   * (attributes, annotations, comments). */
+  readonly attributeSkipTypes: readonly string[];
+  /** Extract a name from an enclosing-item node. Each grammar uses a
+   * different convention. Returns undefined for anonymous items or
+   * extraction failures (operator overloads, destructors, etc.). */
+  itemName(node: SyntaxNode): string | undefined;
 }
 
 const isJavadocBlock = (t: string): boolean =>
@@ -31,6 +44,92 @@ const isRustDocLine = (t: string): boolean =>
   t.startsWith("///") || t.startsWith("//!");
 
 const noDocLine = (): boolean => false;
+
+/** Read a node's `name` field as text, or undefined if absent. */
+function nameField(node: SyntaxNode): string | undefined {
+  return node.childForFieldName("name")?.text;
+}
+
+/** Rust: function/struct/enum/trait/mod/const/static/type use `name` field;
+ * impl_item uses `type` field (the target type, not the trait being
+ * implemented). Probe-verified: for `impl Display for MyType`, the `type`
+ * field returns "MyType", not "Display". */
+function rustItemName(node: SyntaxNode): string | undefined {
+  if (node.type === "impl_item") {
+    return node.childForFieldName("type")?.text;
+  }
+  return nameField(node);
+}
+
+/** Java: all declarations use `name` field. */
+function javaItemName(node: SyntaxNode): string | undefined {
+  return nameField(node);
+}
+
+/** Kotlin: probe-verified strategies.
+ *   - class_declaration / object_declaration: first `type_identifier` child
+ *     (these nodes have no `name` field).
+ *   - function_declaration: last `simple_identifier` child appearing BEFORE
+ *     the first `function_value_parameters` child. Handles regular funs,
+ *     extension funs (receiver=user_type), generic funs, suspended funs. */
+function kotlinItemName(node: SyntaxNode): string | undefined {
+  if (
+    node.type === "class_declaration" || node.type === "object_declaration"
+  ) {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)!;
+      if (child.type === "type_identifier") return child.text;
+    }
+    return undefined;
+  }
+  // function_declaration
+  let lastIdent: string | undefined;
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)!;
+    if (child.type === "function_value_parameters") break;
+    if (child.type === "simple_identifier") lastIdent = child.text;
+  }
+  return lastIdent;
+}
+
+/** C++: class/struct use `name` field; function_definition uses recursive
+ * declarator walk (drops qualified prefixes like `Foo::`; returns undefined
+ * for operator overloads and destructors). */
+function cppItemName(node: SyntaxNode): string | undefined {
+  if (node.type === "class_specifier" || node.type === "struct_specifier") {
+    return nameField(node);
+  }
+  if (node.type === "function_definition") {
+    const declarator = node.childForFieldName("declarator");
+    if (!declarator) return undefined;
+    return cppDeclaratorName(declarator);
+  }
+  return undefined;
+}
+
+/** Recursively walk a C++ declarator subtree for the innermost name.
+ * For `qualified_identifier`, returns the trailing component name
+ * ("Foo::method" → "method"). For `operator_name` / `destructor_name`,
+ * returns undefined — those don't have a plain identifier to extract.
+ * Probe-verified. */
+function cppDeclaratorName(node: SyntaxNode): string | undefined {
+  switch (node.type) {
+    case "identifier":
+    case "field_identifier":
+      return node.text;
+    case "operator_name":
+    case "destructor_name":
+      return undefined;
+    case "qualified_identifier": {
+      const nameNode = node.childForFieldName("name");
+      return nameNode ? cppDeclaratorName(nameNode) : undefined;
+    }
+    default: {
+      const inner = node.childForFieldName("declarator");
+      return inner ? cppDeclaratorName(inner) : undefined;
+    }
+  }
+}
 
 /**
  * Closed-form table indexed by {@linkcode SupportedLanguage}. The walker in
@@ -44,30 +143,96 @@ export const LANGUAGE_SPECS: Record<SupportedLanguage, LanguageDocCommentSpec> =
       lineCommentTypes: ["line_comment"],
       isDocBlock: isJavadocBlock,
       isDocLine: isRustDocLine,
+      enclosingItemTypes: [
+        "function_item",
+        "struct_item",
+        "enum_item",
+        "impl_item",
+        "trait_item",
+        "mod_item",
+        "const_item",
+        "static_item",
+        "type_item",
+      ],
+      attributeSkipTypes: [
+        "attribute_item",
+        "inner_attribute_item",
+        "line_comment",
+        "block_comment",
+      ],
+      itemName: rustItemName,
     },
     java: {
       blockCommentTypes: ["block_comment"],
       lineCommentTypes: ["line_comment"],
       isDocBlock: isJavadocBlock,
       isDocLine: noDocLine,
+      enclosingItemTypes: [
+        "method_declaration",
+        "constructor_declaration",
+        "class_declaration",
+        "interface_declaration",
+        "enum_declaration",
+      ],
+      attributeSkipTypes: [
+        "annotation",
+        "marker_annotation",
+        "line_comment",
+        "block_comment",
+      ],
+      itemName: javaItemName,
     },
     kotlin: {
       blockCommentTypes: ["multiline_comment"],
       lineCommentTypes: ["line_comment"],
       isDocBlock: isJavadocBlock,
       isDocLine: noDocLine,
+      enclosingItemTypes: [
+        "function_declaration",
+        "class_declaration",
+        "object_declaration",
+      ],
+      attributeSkipTypes: [
+        "annotation",
+        "modifiers",
+        "line_comment",
+        "multiline_comment",
+      ],
+      itemName: kotlinItemName,
     },
     cpp: {
       blockCommentTypes: ["comment"],
       lineCommentTypes: ["comment"],
       isDocBlock: isJavadocBlock,
       isDocLine: isRustDocLine,
+      enclosingItemTypes: [
+        "function_definition",
+        "class_specifier",
+        "struct_specifier",
+      ],
+      attributeSkipTypes: [
+        "attribute_declaration",
+        "attribute_specifier",
+        "comment",
+      ],
+      itemName: cppItemName,
     },
     c: {
       blockCommentTypes: ["comment"],
       lineCommentTypes: ["comment"],
       isDocBlock: isJavadocBlock,
       isDocLine: isRustDocLine,
+      enclosingItemTypes: [
+        "function_definition",
+        "class_specifier",
+        "struct_specifier",
+      ],
+      attributeSkipTypes: [
+        "attribute_declaration",
+        "attribute_specifier",
+        "comment",
+      ],
+      itemName: cppItemName,
     },
   };
 

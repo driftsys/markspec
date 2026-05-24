@@ -29,7 +29,7 @@ function authoredEntry(opts: {
     type: opts.type,
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
 }

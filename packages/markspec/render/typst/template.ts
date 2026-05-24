@@ -109,7 +109,7 @@ function spliceEntries(
 
   // Sort entries by line number
   const sorted = [...entries]
-    .filter((e) => e.source === "markdown")
+    .filter((e) => e.source.kind === "markdown")
     .sort((a, b) => a.location.line - b.location.line);
 
   if (sorted.length === 0) {

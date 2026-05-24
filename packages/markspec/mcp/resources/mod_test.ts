@@ -49,7 +49,7 @@ const E1: Entry = {
   typedAttributes: new Map(),
   shape: "Authored",
   location: { file: "/proj/x.md", line: 1, column: 1 },
-  source: "markdown",
+  source: { kind: "markdown" },
   bodyTokens: [],
 };
 

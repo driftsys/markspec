@@ -27,7 +27,7 @@ function testEntry(
     id: "SRS_00000000000000000000000001",
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
     ...overrides,

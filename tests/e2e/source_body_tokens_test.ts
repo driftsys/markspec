@@ -52,6 +52,12 @@ Deno.test(
     assertEquals(modals[0].text, "shall");
     assertEquals(modals[0].location.line, 3);
     assertEquals(modals[0].location.file, "lib.rs");
+    // NEW: properties.source populated.
+    assertEquals(entry.properties.source.type, "code");
+    assertEquals(entry.properties.source.adapter, "tree-sitter");
+    assertEquals(entry.properties.source.language, "rust");
+    assertEquals(entry.properties.source.function, "dummy"); // matches `fn dummy()` in RUST_SRC
+    assertEquals(entry.properties.source.rule, "outer-doc-comment");
   },
 );
 
@@ -76,5 +82,11 @@ Deno.test(
     assertEquals(modals.length, 1);
     assertEquals(modals[0].location.line, 4);
     assertEquals(modals[0].location.file, "Foo.java");
+    // NEW: properties.source populated.
+    assertEquals(entry.properties.source.type, "code");
+    assertEquals(entry.properties.source.adapter, "tree-sitter");
+    assertEquals(entry.properties.source.language, "java");
+    assertEquals(entry.properties.source.function, "Dummy"); // matches `class Dummy {}` in JAVA_SRC
+    assertEquals(entry.properties.source.rule, "block-doc-comment");
   },
 );
