@@ -36,7 +36,7 @@ Today MarkSpec ships SW/HW vocabulary only on `Component`, `Interface`, and
 `Unit` (see [ADR-003 §Part 1](adr-003-diagram-authoring.md) and
 [`core/model/mod.ts:132-149`](../../packages/markspec/core/model/mod.ts)):
 
-```
+```text
 Component
 ├── SoftwareComponent
 ├── HardwareComponent
@@ -236,8 +236,74 @@ the taxonomy choice:
    is already typed `SoftwareRequirement` or `HardwareRequirement`, so the rule
    is moot — it only protects flat profiles where the discipline is derived from
    the allocation.
+4. **`discipline_mode: flat | tiered | none`** in `markspec.yaml` _(Path A
+   only)_. Profile declares whether it tiers requirements by discipline. The
+   value drives mode-aware behaviour across the toolchain:
+   - **Completions / scaffolds.** A `flat` profile offers a `SystemRequirement`
+     scaffold; a `tiered` profile offers `SoftwareRequirement` and
+     `HardwareRequirement` scaffolds in parallel. A `none` profile offers bare
+     `Requirement`.
+   - **Reporter defaults.** `flat` triggers `--group-by discipline` by default
+     in coverage and traceability matrices; `tiered` groups by type instead;
+     `none` does neither.
+   - **Conditional rules.** The mixed-allocation rule from bullet 3 activates
+     only when `discipline_mode: flat` — in tiered profiles it's moot, in `none`
+     profiles it doesn't apply.
+   - **Doctor output.** `markspec doctor` reports the resolved mode and the
+     count of components classified per discipline, so authors see what core
+     inferred.
 
-These three pieces become the implementation backlog once this ADR is Accepted.
+   In Path B the flag is moot: discipline mode is implicit in which types the
+   profile declares (a profile declaring `SoftwareComponent` is tiered; omitting
+   it makes the profile flat or none). The flag is therefore a Path A enabler —
+   it gives flat profiles an explicit, declarative way to opt into
+   discipline-aware UX that Path B obtains structurally.
+
+These four pieces become the implementation backlog once this ADR is Accepted
+(item 4 in Path A only).
+
+## Other follow-up candidates
+
+Candidates surfaced during the brainstorm that don't materially affect the Path
+A / Path B decision but are worth tracking. Mentioned here so the second-phase
+reviewer sees the full envelope of work Path A enables.
+
+1. **Resolved target type on graph edges.** The compiled graph carries each
+   trace edge's target display ID; it should also carry the target's resolved
+   type. Eliminates a re-lookup for any classifier that branches on target type
+   (not just discipline). Path-independent.
+2. **`isSoftwareFamily(entry) / isHardwareFamily(entry)` helpers in
+   `core/mod.ts`.** Library helpers exposing the discipline classifier so
+   profile-author report scripts get a tested function instead of
+   re-implementing the type-hierarchy walk. Path-independent.
+3. **Profile-declared type families.** A `families:` block in the profile
+   manifest letting profiles group types into named families
+   (`software_components: [SoftwareComponent, SoftwareUnit, SoftwareInterface]`)
+   and reference families in trace rules or derived-attribute rules. Generalises
+   the hardcoded SW/HW logic and lets future profiles declare new disciplines
+   (firmware, mechanical, FPGA) without core changes. Path A benefit; in Path B
+   this becomes the _primary_ way profiles express discipline, not an optional
+   one.
+4. **Reserve `Discipline:` as a known attribute name (terminology only).**
+   Reserve the keyword so no profile or author uses it for an unrelated purpose;
+   the compiled-output field, hover text, and reports all speak the same word
+   (`discipline`). Path-independent; trivially cheap. **Explicitly out of
+   scope:** authoring overrides. Letting authors write
+   `Discipline: software | hardware` to override the derived value would weaken
+   Invariant 1 (derived, never authored) and introduce two sources of truth. The
+   use cases that would motivate an override (pre-allocation scaffolding,
+   generic-`Component` allocations, migration aids, cross-functional concerns)
+   are real but speculative; none currently blocks work. If a concrete need
+   surfaces, lift the invariant in a future ADR — at that point no migration of
+   authored data is needed because no one will have authored the attribute under
+   the rule we're shipping now.
+5. **`markspec doctor` discipline summary line.** Beyond bullet 4 above, even
+   without the `discipline_mode` flag the doctor command could report a count of
+   components and requirements per discipline as a first-run sanity check.
+   Path-independent.
+
+None of these are scoped into this ADR; they are recorded for the writing-plans
+phase that follows Acceptance.
 
 ## Open for second-phase review
 
