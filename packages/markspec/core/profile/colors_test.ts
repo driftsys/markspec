@@ -20,6 +20,7 @@ function makeIdentifiedEntry(type: string | undefined): Entry {
     type,
     source: "markdown" as const,
     location: { file: "f.md", line: 1, column: 1 },
+    bodyTokens: [],
   } as Entry;
 }
 

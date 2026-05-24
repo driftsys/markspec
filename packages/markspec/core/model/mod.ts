@@ -393,11 +393,11 @@ export interface Entry {
    */
   readonly properties?: EntryProperties;
   /**
-   * Inline `$Identifier` entity references discovered in the entry body
-   * prose (spec §2.5.2). Empty when the body contains no references.
-   * Resolution into the project's entity registry happens downstream.
+   * Inline-construct tokens recognised in the entry body prose
+   * (ADR-016). Eager, sorted by `(line, column)`, file-relative.
+   * Always present — empty array when no constructs are recognised.
    */
-  readonly entityRefs?: readonly EntityRef[];
+  readonly bodyTokens: readonly BodyToken[];
 }
 
 // ---------------------------------------------------------------------------
@@ -566,26 +566,74 @@ export interface InlineRef {
  */
 export type EntityRefConvention = "type" | "instance" | "constant";
 
+// ---------------------------------------------------------------------------
+// Body tokens (ADR-016)
+// ---------------------------------------------------------------------------
+
 /**
- * An inline `$Identifier` token found in entry body prose (spec §2.5.2).
+ * Inline-construct token kinds recognised in entry body prose (ADR-016).
  *
- * `ident` carries the leading `$`. `convention` is derived from the
- * identifier's case shape:
- *
- *   - `type` — PascalCase (`$BrakeController`).
- *   - `instance` — camelCase (`$rawPressure`).
- *   - `constant` — SCREAMING_SNAKE (`$DEBOUNCE_WINDOW`). Requires at
- *     least one underscore or digit to distinguish from a single-segment
- *     PascalCase identifier like `$ASIL`.
- *
- * Resolution to an entity in the project's RIDL types / code symbols /
- * constants registry is performed by the validator's marker pass.
+ * Split where at least one consumer fans out behaviour at the kind level
+ * (`gherkin-section` → LSP `class` token vs `gherkin-step` → `keyword`),
+ * collapsed elsewhere into discriminator fields on the token variant
+ * (`modal.case`, `entity-ref.convention`).
  */
-export interface EntityRef {
-  readonly ident: string;
-  readonly convention: EntityRefConvention;
-  readonly location: SourceLocation;
-}
+export type BodyTokenKind =
+  | "modal" // shall, should, may, must, will (RFC 2119 lowercase canonical)
+  | "ears-trigger" // When, While, If, Where, Then (in prose, outside feature fences)
+  | "gherkin-section" // Feature, Background, Rule, Scenario, Examples (inside feature fences)
+  | "gherkin-step" // Given, When, Then, And, But (inside feature fences)
+  | "entity-ref" // $Identifier (any case convention, spec §2.5.2)
+  | "inline-code"; // `…` span (mdast InlineCode projection)
+
+/** Case form of a modal token — MSL-M060 targets `"upper"`. */
+export type ModalCase = "lower" | "upper";
+
+/** EARS trigger word — captured as a discriminator on `ears-trigger` tokens. */
+export type EarsTrigger = "When" | "While" | "If" | "Where" | "Then";
+
+/**
+ * One inline-construct token emitted by the parser at extraction time.
+ *
+ * Discriminated union; consumers `switch` on `kind` for fan-out and read
+ * the discriminator field (`case`, `trigger`, `convention`) when more
+ * precision is needed. Locations are file-relative 1-based, matching
+ * every other {@linkcode SourceLocation} in the model.
+ */
+export type BodyToken =
+  | {
+    readonly kind: "modal";
+    readonly text: string;
+    readonly case: ModalCase;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "ears-trigger";
+    readonly text: string;
+    readonly trigger: EarsTrigger;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "gherkin-section";
+    readonly text: string;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "gherkin-step";
+    readonly text: string;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "entity-ref";
+    readonly text: string;
+    readonly convention: EntityRefConvention;
+    readonly location: SourceLocation;
+  }
+  | {
+    readonly kind: "inline-code";
+    readonly text: string;
+    readonly location: SourceLocation;
+  };
 
 // ---------------------------------------------------------------------------
 // Traceability graph

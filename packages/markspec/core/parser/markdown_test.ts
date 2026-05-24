@@ -25,8 +25,11 @@ Deno.test("parseMarkdown: extracts $Identifier entity refs with conventions", ()
 `;
   const { entries: [entry] } = parseMarkdown(md);
   assertExists(entry);
-  const refs = entry.entityRefs ?? [];
-  const byIdent = new Map(refs.map((r) => [r.ident, r.convention]));
+  // Since ADR-016, entity refs are surfaced via bodyTokens (entity-ref kind).
+  const refs = entry.bodyTokens.filter((t) => t.kind === "entity-ref") as Array<
+    { kind: "entity-ref"; text: string; convention: string }
+  >;
+  const byIdent = new Map(refs.map((r) => [r.text, r.convention]));
   assertEquals(byIdent.get("$sensorDriver"), "instance");
   assertEquals(byIdent.get("$rawPressure"), "instance");
   assertEquals(byIdent.get("$DEBOUNCE_WINDOW"), "constant");
@@ -328,4 +331,24 @@ Deno.test("parseMarkdown: typedAttributes collates repeatable values", () => {
   const { entries: [entry] } = parseMarkdown(md);
   const labels = entry.typedAttributes?.get("Labels");
   assertEquals(labels, ["one", "two"]);
+});
+
+// ---------------------------------------------------------------------------
+// Body tokens (ADR-016)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: populates Entry.bodyTokens", () => {
+  const md = `- [REQ-1] Title
+
+  The driver shall debounce $Sensor inputs.
+
+      Id: ${ULID}
+`;
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  const tokens = entries[0].bodyTokens;
+  const kinds = tokens.map((t) => t.kind);
+  // Body contains: shall (modal), $Sensor (entity-ref)
+  assertEquals(kinds.includes("modal"), true);
+  assertEquals(kinds.includes("entity-ref"), true);
 });

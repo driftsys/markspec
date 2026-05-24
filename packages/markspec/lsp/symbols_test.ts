@@ -33,6 +33,7 @@ function makeEntry(opts: {
     type: opts.type,
     location: { file: "/t.md", line: opts.line, column: opts.column ?? 1 },
     source: "markdown",
+    bodyTokens: [],
   };
 }
 

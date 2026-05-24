@@ -33,6 +33,7 @@ function entry(opts: {
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
 }
 

@@ -81,6 +81,7 @@ function entry(opts: { shape: EntryShape; type?: string }): Entry {
     rawAttributes: [],
     typedAttributes: new Map(),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 }
 
@@ -195,6 +196,7 @@ function targetEntry(opts: {
     rawAttributes: [],
     typedAttributes: new Map(),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 }
 
@@ -287,6 +289,7 @@ function entryWithAttrs(opts: {
       Object.entries(attrs).map(([k, vs]) => [k, vs]),
     ),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 }
 

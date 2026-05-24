@@ -33,6 +33,7 @@ const ENTRY: Entry = {
     column: 1,
   },
   source: "markdown",
+  bodyTokens: [],
 };
 
 const FORWARD: Link[] = [

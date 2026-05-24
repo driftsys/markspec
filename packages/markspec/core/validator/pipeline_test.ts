@@ -38,6 +38,7 @@ function buildEntry(opts: {
     rawAttributes: attributes,
     location: { file: "t.md", line: 1, column: 1 },
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
 }
 
@@ -99,6 +100,7 @@ Deno.test("runPipeline: Stage 1 error contributes to diagnostics + valid=false",
     rawAttributes: [],
     location: { file: "t.md", line: 1, column: 1 },
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
   const result = runPipeline([entry], null);
   const msl_r003 = result.diagnostics.find((d) => d.code === "MSL-R003");
@@ -122,6 +124,7 @@ Deno.test("runPipeline: both stages contribute diagnostics independently", () =>
     rawAttributes: [],
     location: { file: "t.md", line: 1, column: 1 },
     typedAttributes: new Map(),
+    bodyTokens: [],
   };
   const result = runPipeline([entry], profile);
   const codes = new Set(result.diagnostics.map((d) => d.code));
@@ -180,6 +183,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
       ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
     ]),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 
   const result = runPipeline([e], profile);
@@ -225,6 +229,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
       ["Rationale", ["because"]],
     ]),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 
   const result = runPipeline([e], profile);
@@ -302,6 +307,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
       ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
     ]),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 
   const result = runPipeline([e], profile);
@@ -343,6 +349,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     rawAttributes: [],
     typedAttributes: new Map([["Id", ["01T1T1T1T1T1T1T1T1T1T1T1T1"]]]),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
   const target2: Entry = {
     displayId: makeDisplayId("REQ-0002"),
@@ -354,6 +361,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     rawAttributes: [],
     typedAttributes: new Map([["Id", ["01T2T2T2T2T2T2T2T2T2T2T2T2"]]]),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
   const e: Entry = {
     displayId: makeDisplayId("TEST-0001"),
@@ -374,6 +382,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
       ["Verifies", ["01T1T1T1T1T1T1T1T1T1T1T1T1, 01T2T2T2T2T2T2T2T2T2T2T2T2"]],
     ]),
     location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
   };
 
   const result = runPipeline([e, target1, target2], profile);

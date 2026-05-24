@@ -131,6 +131,7 @@ function makeIdentifiedEntry(
     shape: "Authored",
     source: "markdown",
     location: { file: "test.md", line: 1, column: 1 },
+    bodyTokens: [],
     ...overrides,
   };
 }
@@ -151,6 +152,7 @@ function makeReferencedEntry(
     shape: "Reference",
     source: "markdown",
     location: { file: "test.md", line: 1, column: 1 },
+    bodyTokens: [],
     ...overrides,
   };
 }

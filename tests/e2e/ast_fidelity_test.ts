@@ -37,12 +37,12 @@ Deno.test("astEquivalent: dropped emphasis (structural difference) → not equiv
   // property of the relation itself, independent of builder fidelity.
   const withEmphasis: BodyBlock[] = [{
     kind: "paragraph",
-    content: { text: "The driver _shall_ debounce inputs.", markers: [] },
+    content: { text: "The driver _shall_ debounce inputs." },
     range: { start: { line: 1, column: 1 }, end: { line: 1, column: 1 } },
   }];
   const dropped: BodyBlock[] = [{
     kind: "paragraph",
-    content: { text: "The driver shall debounce inputs.", markers: [] },
+    content: { text: "The driver shall debounce inputs." },
     range: { start: { line: 9, column: 9 }, end: { line: 9, column: 9 } },
   }];
   assertFalse(astEquivalent(withEmphasis, dropped));

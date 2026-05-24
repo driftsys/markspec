@@ -157,6 +157,17 @@ Deno.test("build: gherkin fence → FeatureNode", () => {
   assertEquals(feat.source, "Feature: braking\n  Scenario: stop");
 });
 
+Deno.test("build: feature fence → FeatureNode", () => {
+  const body = "```feature\nFeature: braking\n  Scenario: stop\n```";
+  const blocks = buildBodyAst(body);
+  assertEquals(blocks.length, 1);
+  const feat = blocks[0];
+  assertEquals(feat.kind, "feature");
+  if (feat.kind === "feature") {
+    assertEquals(feat.source, "Feature: braking\n  Scenario: stop");
+  }
+});
+
 Deno.test("build: $$ math block → MathNode", () => {
   const body = "$$\nE = mc^2\n$$";
   const blocks = buildBodyAst(body);
@@ -227,10 +238,9 @@ Deno.test("note: same-line marker multi-line body round-trips", () => {
   assertEquals(render(buildBodyAst(s)), s);
 });
 
-Deno.test("build: emphasised modal in a note is still recognised", () => {
+Deno.test("build: emphasised modal in a note has content text", () => {
   const n = buildBodyAst("> [!NOTE]\n> The driver _shall_ act.")[0] as NoteNode;
-  const modal = n.content.markers.find((m) => m.kind === "modal");
-  assertExists(modal);
+  assertExists(n.content.text);
 });
 
 Deno.test("build: definition-list pattern → DefinitionListNode", () => {
@@ -280,107 +290,49 @@ Deno.test("build: SourceRange is body-relative 1-based", () => {
 });
 
 // ============================================================================
-// 2. Marker tests
+// 2. Verbatim text tests (ADR-016: markers moved to Entry.bodyTokens)
 // ============================================================================
 
-Deno.test("build: paragraph with RFC2119 modal + entity ref → markers extracted", () => {
+Deno.test("build: paragraph with modal and entity ref stores verbatim text", () => {
   const body = "The system shall read $Sensor.";
   const blocks = buildBodyAst(body);
   assertEquals(blocks.length, 1);
   const p = blocks[0] as ParagraphNode;
   assertEquals(p.kind, "paragraph");
-
-  const modalMarkers = p.content.markers.filter((m) => m.kind === "modal");
-  const entityMarkers = p.content.markers.filter((m) => m.kind === "entity");
-
-  assertEquals(modalMarkers.length, 1);
-  assertEquals(modalMarkers[0].kind, "modal");
-  if (modalMarkers[0].kind === "modal") {
-    assertEquals(modalMarkers[0].cls, "rfc2119");
-    assertEquals(modalMarkers[0].canonical, "shall");
-  }
-
-  assertEquals(entityMarkers.length, 1);
-  assertEquals(entityMarkers[0].kind, "entity");
-  if (entityMarkers[0].kind === "entity") {
-    assertEquals(entityMarkers[0].ident, "$Sensor");
-    assertEquals(entityMarkers[0].convention, "type");
-  }
+  assertEquals(p.content.text, body);
 });
 
-Deno.test("build: 'shall not' recognised as single RFC2119 modal", () => {
-  const body = "The system shall not fail.";
-  const blocks = buildBodyAst(body);
-  const p = blocks[0] as ParagraphNode;
-  const modals = p.content.markers.filter((m) => m.kind === "modal");
-  assertEquals(modals.length, 1);
-  if (modals[0].kind === "modal") {
-    assertEquals(modals[0].canonical, "shall not");
-  }
-});
-
-Deno.test("build: EARS 'When' recognised as ears modal", () => {
-  const body = "When the sensor fails, the system shall stop.";
-  const blocks = buildBodyAst(body);
-  const p = blocks[0] as ParagraphNode;
-  const modals = p.content.markers.filter((m) => m.kind === "modal");
-  // At least a "When" EARS marker and a "shall" RFC2119 marker
-  const ears = modals.filter((m) => m.kind === "modal" && m.cls === "ears");
-  const rfc = modals.filter((m) => m.kind === "modal" && m.cls === "rfc2119");
-  assertEquals(ears.length >= 1, true);
-  assertEquals(rfc.length >= 1, true);
-});
-
-Deno.test("build: markers NOT extracted inside code fence", () => {
+Deno.test("build: code fence content stored verbatim; no content field on CodeNode", () => {
   const body = "```\nshall $Sensor\n```";
   const blocks = buildBodyAst(body);
   assertEquals(blocks.length, 1);
   const code = blocks[0] as CodeNode;
   assertEquals(code.kind, "code");
   assertEquals(code.text, "shall $Sensor");
-  assertEquals("markers" in code, false);
   assertEquals("content" in code, false);
 });
 
-Deno.test("build: markers NOT extracted inside $$ math block", () => {
+Deno.test("build: $$ math block content stored verbatim; no content field on MathNode", () => {
   const body = "$$\nshall $Sensor\n$$";
   const blocks = buildBodyAst(body);
   assertEquals(blocks.length, 1);
   const math = blocks[0] as MathNode;
   assertEquals(math.kind, "math");
-  assertEquals("markers" in math, false);
   assertEquals("content" in math, false);
   assertStringIncludes(math.tex, "shall $Sensor");
 });
 
-Deno.test("build: markers NOT extracted inside gherkin Feature fence", () => {
+Deno.test("build: gherkin Feature fence → FeatureNode (no content field)", () => {
   const body = "```gherkin\nGiven the sensor shall read $Sensor\n```";
   const blocks = buildBodyAst(body);
   assertEquals(blocks.length, 1);
   const feat = blocks[0] as FeatureNode;
   assertEquals(feat.kind, "feature");
-  // FeatureNode has no markers field
-});
-
-Deno.test("build: entity refs with different conventions", () => {
-  const body = "Use $BrakeController for $rawPressure and $DEBOUNCE_WINDOW.";
-  const blocks = buildBodyAst(body);
-  const p = blocks[0] as ParagraphNode;
-  const entities = p.content.markers.filter((m) => m.kind === "entity");
-  assertEquals(entities.length, 3);
-  if (entities[0].kind === "entity") {
-    assertEquals(entities[0].convention, "type");
-  }
-  if (entities[1].kind === "entity") {
-    assertEquals(entities[1].convention, "instance");
-  }
-  if (entities[2].kind === "entity") {
-    assertEquals(entities[2].convention, "constant");
-  }
+  assertEquals("content" in feat, false);
 });
 
 // ============================================================================
-// 2b. Faithful paragraph + decoupled marker recognition (SP2 Task 2)
+// 2b. Faithful paragraph (SP2 verbatim-text contract)
 // ============================================================================
 
 Deno.test("build: paragraph preserves inline emphasis verbatim", () => {
@@ -390,14 +342,6 @@ Deno.test("build: paragraph preserves inline emphasis verbatim", () => {
   assertEquals(p.kind, "paragraph");
   assertEquals(p.content.text, s); // verbatim — markup NOT flattened
   assertEquals(render(blocks), s); // round-trips byte-identically
-});
-
-Deno.test("build: emphasised modal keyword is still recognised (decoupled)", () => {
-  const blocks = buildBodyAst("The driver _shall_ debounce inputs.");
-  const p = blocks[0] as ParagraphNode;
-  const modal = p.content.markers.find((m) => m.kind === "modal");
-  assertExists(modal); // recognition runs on the FLATTENED projection
-  assertEquals(modal?.kind === "modal" ? modal.canonical : "", "shall");
 });
 
 Deno.test("build: strong / link / autolink / hardbreak preserved verbatim", () => {

@@ -50,6 +50,7 @@ const E1: Entry = {
   shape: "Authored",
   location: { file: "/proj/x.md", line: 1, column: 1 },
   source: "markdown",
+  bodyTokens: [],
 };
 
 Deno.test("listResourceDescriptors: includes profile + entries + per-entry", async () => {

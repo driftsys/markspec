@@ -5,9 +5,7 @@
  *
  * `normalizeBodyAst` is a deterministic, total, pure AST→AST transform
  * that applies the §3.4.1 modal-keyword case rule to every prose-bearing
- * node's `InlineContent.text` and re-derives `InlineContent.markers` from
- * the normalised text via the SAME extraction the builder uses
- * (`extractMarkersFromText`, re-exported from `core/ast/build.ts`).
+ * node's `InlineContent.text`.
  *
  * §3.4.1 rule (`docs/specs/markspec-core-data-model.md` §3.4.1):
  *
@@ -42,7 +40,6 @@ import {
   isSentenceInitial,
   RFC2119_MODAL_RE,
 } from "../util/modals.ts";
-import { extractMarkersFromText } from "./build.ts";
 import type {
   BlockquoteNode,
   BodyBlock,
@@ -96,30 +93,15 @@ function normalizeModalsInText(text: string): string {
 
 /**
  * Return a NEW `InlineContent` whose `text` has every modal keyword
- * normalised per §3.4.1 and whose `markers` are RE-DERIVED from the
- * normalised text via the builder's `extractMarkersFromText` (so the
- * marker set never goes stale relative to the text).
- *
- * The marker `range` start is anchored at the original content's first
- * marker line when available, else (1,1); this mirrors the builder's
- * best-effort, body-relative range convention and is irrelevant to the
- * equivalence relation (which elides every `range`).
+ * normalised per §3.4.1.
  *
  * If the normalised text equals the original, the original node is
- * returned UNCHANGED (preserves the builder's exact ranges / markers and
- * makes the no-op case allocation-free).
+ * returned UNCHANGED (makes the no-op case allocation-free).
  */
 function normalizeInline(content: InlineContent): InlineContent {
   const normalizedText = normalizeModalsInText(content.text);
   if (normalizedText === content.text) return content;
-  const startRange = {
-    start: { line: 1, column: 1 },
-    end: { line: 1, column: 1 },
-  };
-  return {
-    text: normalizedText,
-    markers: extractMarkersFromText(normalizedText, startRange),
-  };
+  return { text: normalizedText };
 }
 
 // ---------------------------------------------------------------------------
@@ -216,8 +198,7 @@ function normalizeBlocks(
 
 /**
  * Apply the §3.4.1 modal-keyword case rule to every prose-bearing node
- * in a body AST, re-deriving `InlineContent.markers` from the normalised
- * text.
+ * in a body AST.
  *
  * Pure, deterministic, total (never throws; unknown shapes pass
  * through), idempotent, and non-mutating: a fresh top-level array is

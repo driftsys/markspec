@@ -26,6 +26,7 @@ function makeEntry(
     shape: "Authored",
     location: { file: "t.md", line, column: 1 },
     source: "markdown",
+    bodyTokens: [],
   };
 }
 
