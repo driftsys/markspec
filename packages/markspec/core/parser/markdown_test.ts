@@ -8,6 +8,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
+import type { LineMap } from "./line_map.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 
@@ -351,4 +352,41 @@ Deno.test("parseMarkdown: populates Entry.bodyTokens", () => {
   // Body contains: shall (modal), $Sensor (entity-ref)
   assertEquals(kinds.includes("modal"), true);
   assertEquals(kinds.includes("entity-ref"), true);
+});
+
+// ---------------------------------------------------------------------------
+// LineMap option (ADR-016 Decision 6)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: applies lineMap to entry.location and bodyTokens", () => {
+  const md = `- [STK_0001] Title
+
+  The system shall do something.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  // Identity LineMap shifted by (+10, +0)
+  const lineMap: LineMap = {
+    translate: (l, c) => ({ line: l + 10, column: c }),
+  };
+  const { entries } = parseMarkdown(md, { file: "t.md", lineMap });
+  assertEquals(entries.length, 1);
+  // Entry was on buffer line 1 → file line 11
+  assertEquals(entries[0].location.line, 11);
+  // Body paragraph is at buffer line 3 (blank line separates title and body
+  // in a CommonMark loose list) → file line 13.
+  const modals = entries[0].bodyTokens.filter((t) => t.kind === "modal");
+  assertEquals(modals.length, 1);
+  assertEquals(modals[0].location.line, 13);
+});
+
+Deno.test("parseMarkdown: without lineMap, locations stay buffer-relative", () => {
+  const md = `- [STK_0001] Title
+
+  The system shall do something.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const { entries } = parseMarkdown(md, { file: "t.md" });
+  assertEquals(entries[0].location.line, 1);
 });

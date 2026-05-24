@@ -163,10 +163,14 @@ export type {
   DetectCaptionsOptions,
   DetectDirectivesOptions,
   DetectInlineRefsOptions,
+  DocCommentBlockMeta,
+  LanguageDocCommentSpec,
+  LineMap,
   ParseFileResult,
   ParseOptions,
   ParseSourceOptions,
   ParseSourceResult,
+  SupportedLanguage,
 } from "./parser/mod.ts";
 
 // Formatter

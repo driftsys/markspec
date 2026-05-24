@@ -99,6 +99,7 @@ function emitGherkin(
   blocks: readonly BodyBlock[],
   out: BodyToken[],
   baseLocation: SourceLocation,
+  columnOffset: number,
 ): void {
   for (const block of blocks) {
     if (block.kind === "feature") {
@@ -118,7 +119,7 @@ function emitGherkin(
             location: {
               file: baseLocation.file,
               line: lineNo,
-              column: m.index + 1,
+              column: m.index + 1 + columnOffset,
             },
           });
         }
@@ -130,14 +131,14 @@ function emitGherkin(
             location: {
               file: baseLocation.file,
               line: lineNo,
-              column: m.index + 1,
+              column: m.index + 1 + columnOffset,
             },
           });
         }
       }
     } else if (block.kind === "list") {
       for (const item of block.items) {
-        emitGherkin(item.blocks, out, baseLocation);
+        emitGherkin(item.blocks, out, baseLocation, columnOffset);
       }
     }
   }
@@ -152,6 +153,7 @@ function emitInlineCode(
   body: string,
   out: BodyToken[],
   baseLocation: SourceLocation,
+  columnOffset: number,
 ): void {
   const tree = processor.parse(body) as Root;
   const visit = (node: RootContent | Root): void => {
@@ -165,7 +167,7 @@ function emitInlineCode(
         location: {
           file: baseLocation.file,
           line: baseLocation.line + node.position.start.line - 1,
-          column: node.position.start.column,
+          column: node.position.start.column + columnOffset,
         },
       });
       return;
@@ -185,6 +187,12 @@ function emitInlineCode(
  *   code/math/feature fence detection)
  * @param baseLocation - `SourceLocation` of the body's first line; the
  *   `file` field is propagated to every emitted token
+ * @param columnOffset - Number of source characters stripped from the
+ *   start of each body line before the body string was built. Added to
+ *   every emitted column value so columns are relative to the containing
+ *   buffer line, not the stripped body text. Defaults to 0. Source-file
+ *   callers (via parseMarkdown's lineMap path) supply the list-item
+ *   indent width so the LineMap receives buffer-relative columns.
  * @returns tokens sorted by `(line, column)`. Empty when no constructs
  *   are recognised.
  */
@@ -192,6 +200,7 @@ export function extractBodyTokens(
   body: string,
   bodyAst: readonly BodyBlock[],
   baseLocation: SourceLocation,
+  columnOffset = 0,
 ): readonly BodyToken[] {
   const tokens: BodyToken[] = [];
   const verbatimLines = collectVerbatimLines(bodyAst);
@@ -211,7 +220,7 @@ export function extractBodyTokens(
         location: {
           file: baseLocation.file,
           line: lineNo,
-          column: m.index + 1,
+          column: m.index + 1 + columnOffset,
         },
       });
     }
@@ -226,7 +235,7 @@ export function extractBodyTokens(
         location: {
           file: baseLocation.file,
           line: lineNo,
-          column: m.index + 1,
+          column: m.index + 1 + columnOffset,
         },
       });
     }
@@ -246,14 +255,14 @@ export function extractBodyTokens(
         location: {
           file: baseLocation.file,
           line: lineNo,
-          column: m.index + 1,
+          column: m.index + 1 + columnOffset,
         },
       });
     }
   }
 
-  emitGherkin(bodyAst, tokens, baseLocation);
-  emitInlineCode(body, tokens, baseLocation);
+  emitGherkin(bodyAst, tokens, baseLocation, columnOffset);
+  emitInlineCode(body, tokens, baseLocation, columnOffset);
 
   tokens.sort((a, b) =>
     a.location.line !== b.location.line

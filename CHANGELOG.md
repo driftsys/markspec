@@ -8,6 +8,18 @@
   constructs (modal verbs, EARS triggers, Gherkin section/step keywords,
   `$Identifier` entity refs, inline code). Always present, sorted by source
   position. See ADR-016. (#409)
+- **core:** Source-file (`.rs`/`.kt`/`.java`/`.cpp`) doc-comment entries now
+  emit file-relative `Entry.bodyTokens`. LSP semantic-token rendering on doc
+  comments now reflects the same modal / EARS / Gherkin / entity-ref /
+  inline-code highlighting that Markdown entries get — closing the PR #408
+  source-file rendering regression. Closes ADR-016 acceptance criterion #6
+  and the last open story of epic #409. (#409)
+- **core:** `LineMap` interface + `buildBlockLineMap` factory in
+  `core/parser/line_map.ts` for buffer→file coordinate translation; reusable
+  for future source-format expansion (Python docstrings, AsciiDoc).
+  `ParseMarkdownOptions` gains `lineMap?: LineMap`. (#409)
+- **core:** Per-grammar doc-comment dispatch table
+  (`core/parser/language_spec.ts`) driving the tree-sitter walker. (#409)
 
 ### Changed
 
@@ -17,9 +29,16 @@
   via a thin `BodyTokenKind` to `SemanticTokenType` switch. The duplicated
   per-line regex scanner (`BODY_KEYWORD_RE`, `GHERKIN_SECTION_RE`,
   `GHERKIN_STEP_RE`, `ENTITY_REF_RE`, `FEATURE_FENCE_OPEN_RE`,
-  `FENCE_CLOSE_RE`) and the `insideFeatureBlock` state machine are deleted.
-  Source-file rendering becomes correct as a side effect once story 3 of
-  #409 lands. (#409)
+  `FENCE_CLOSE_RE`) and the `insideFeatureBlock` state machine are
+  deleted. (#409)
+
+### Fixed
+
+- **core:** Kotlin (`multiline_comment`) and C++ (`comment`) doc comments
+  are now recognised by the tree-sitter walker — they previously produced
+  zero entries due to grammar-specific node-type names being missed. (#409)
+- **core:** Rust `//!` inner doc comments now parse alongside `///` outer
+  doc comments. Both can carry MarkSpec entry blocks. (#409)
 
 ### Removed
 
@@ -34,14 +53,15 @@
 
 ### Known limitations
 
-- **core:** Source-file (`.rs`, `.kt`, `.java`, `.c`, `.cpp`) doc-comment entries
-  have `bodyTokens: []` until story 3 of #409 lands (`LineMap` for
-  file-relative position translation).
 - **core:** Inline-emphasis-wrapped modals (e.g. `_SHALL_`) are no longer
   detected by MSL-M060. Pre-ADR-016 marker extraction ran on a flattened-text
   projection that stripped emphasis; the new scanner runs on the raw body.
   Authors using emphasis around modal verbs will not get the lint warning.
   Plain `SHALL` and `MUST NOT` are detected correctly.
+- **grammars:** The bundled `grammars/tree-sitter-c.wasm` is compiled against
+  tree-sitter ABI v15 while the installed `web-tree-sitter` accepts v13–v14.
+  C source files therefore fail to load grammars at runtime — independent
+  of #409 and tracked separately.
 
 ## [0.5.3] (2026-05-23)
 
