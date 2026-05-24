@@ -196,3 +196,16 @@ shall reduce hydraulic pressure by 30 % within 20 ms."_
 
 Do not combine more than two patterns in one sentence. If a third condition is
 needed, split into two entries.
+
+## Toolchain support
+
+The parser emits one `ears-trigger` token for each `When` / `While` / `If` /
+`Where` keyword that opens a clause in entry body prose. Tokens are sorted by
+source position and exposed on `Entry.bodyTokens` (ADR-016); the LSP highlights
+them as keywords, and profile or project rules can scan them without re-parsing.
+
+Scanning is suppressed inside fenced code blocks (`` ``` `` / `~~~`), inside
+display- and inline-math (`$$`), inside inline `` `code` `` spans, and inside
+`` ```gherkin `` / `` ```feature `` fences — there, `When` is recognised as a
+Gherkin step instead. Plain prose outside any fence is the canonical place to
+write EARS sentences.

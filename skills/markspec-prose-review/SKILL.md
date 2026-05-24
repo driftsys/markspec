@@ -54,6 +54,10 @@ safety module shall monitor the brake pressure."
 - [ ] No vague quantifiers: "several", "a number of", "some", "many".
 - [ ] Modal keywords are lowercase RFC 2119: `shall` (mandatory), `should`
       (recommended), `may` (optional). No bare "will" or "must".
+- [ ] No emphasis around modal verbs (`_shall_`, `**must**`). MSL-M060 scans the
+      parser's body-token stream and does not see modals wrapped in `_…_` or
+      `**…**`; plain `shall` / `must` is the only form that gets both the
+      warning and the `format` lowercase normalisation.
 
 **Flag:** "It shall process them within the defined timeout." → name the subject
 and define both referents explicitly.

@@ -14,16 +14,16 @@ the scenario.
 
 ## Basic structure
 
-An entry with Gherkin scenarios looks like this (outer block shows the full
-MarkSpec entry; the inner `gherkin` block holds the scenarios):
+An entry with Gherkin scenarios looks like this (outer fence shows the full
+MarkSpec entry; the inner `gherkin` fence holds the scenarios):
 
-```text
+````text
 - [SWE_0060] Speed display rounds to nearest integer
 
   The instrument cluster shall display vehicle speed rounded to the nearest
   integer value in the configured unit.
 
-  ` ` `gherkin
+  ```gherkin
   Scenario: Round half-up
     Given vehicle speed is 42.5 km/h
     When the cluster updates the display
@@ -33,16 +33,16 @@ MarkSpec entry; the inner `gherkin` block holds the scenarios):
     Given vehicle speed is 100.0 km/h
     When the cluster updates the display
     Then the displayed value is 100 km/h
-  ` ` `
+  ```
 
       Id:
       Type: requirement
       Satisfies: STK_0002
       Verified-by: SWT_0060
-```
+````
 
-_(Remove the spaces in `` ` above — they are present only to prevent nesting
-issues in documentation.)_
+The fence language must be `gherkin` or `feature` — see _Toolchain support_
+below.
 
 ### Rules
 
@@ -165,3 +165,24 @@ The `Tests:` attribute on the test entry is the reverse link;
 | Implementation detail in `Given`        | Describe observable state, not code internals           |
 | Missing `Verified-by:` on requirement   | Add the link so the traceability report shows coverage  |
 | Duplicate scenario name within an entry | Names must be unique — the validator flags duplicates   |
+| Steps written in unfenced prose         | Wrap them in a `gherkin` or `feature` fence (see below) |
+
+---
+
+## Toolchain support
+
+Gherkin steps must live inside a `` ```gherkin `` or `` ```feature `` fenced
+code block to be recognised by the toolchain. The parser emits one
+`gherkin-section` token per `Feature` / `Background` / `Rule` / `Scenario` /
+`Examples` keyword and one `gherkin-step` token per `Given` / `When` / `Then` /
+`And` / `But` keyword on `Entry.bodyTokens` (ADR-016). The LSP paints sections
+as `class` and steps as `keyword`; profile and project rules can scan the same
+stream.
+
+Inside a `gherkin` / `feature` fence, modal (`shall`, `should`, …) and
+EARS-trigger scans are suppressed. That is what makes `When` a Gherkin step here
+even though the same word in plain body prose is an EARS trigger.
+
+Steps written in unfenced prose are ignored: they will not appear on
+`Entry.bodyTokens`, will not be highlighted, and will not be checked by
+profile-driven rules. Always fence your scenarios.
