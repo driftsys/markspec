@@ -62,17 +62,38 @@ vocabulary lives.
 
 ## Invariants (true in both paths)
 
-These three constraints hold regardless of which path is chosen. They form the
-design context for the comparison.
+These constraints hold regardless of which path is chosen. They form the design
+context for the comparison.
 
-1. **Discipline is derived from `Allocated-to`, never authored.** A requirement
-   carries no `Discipline:` attribute. The classifier is a pure function of the
-   allocation graph at compile time.
-2. **`Type:` is not author-written for requirements in flat profiles.** The type
+1. **Discipline is resolved via four channels in precedence order, never
+   directly authored as a kind name.** The author's only direct inputs are the
+   display-ID prefix (which determines the Type) and the `Allocated-to` value.
+   The classifier resolves discipline by trying, in order:
+   1. **Override** (`Discipline: <kind>` attribute) — author asserts a specific
+      kind. Takes precedence; validators flag conflicts with channels 3 and 4.
+   2. **Freeze** (`Discipline-frozen: <kind> @ <date>` attribute) — cached
+      snapshot of a past derivation. Wins when no override is set; validator
+      warns if current derivation diverges.
+   3. **Type-based** — the entry's Type, looked up in the discipline registry.
+      Used when no override and no freeze. Covers _tiered profiles_ where types
+      like `SoftwareRequirement` are registered as discipline-bearing.
+   4. **Allocation-based** — walk `Allocated-to` to a discipline-bearing target
+      whose Type is registered. Covers _flat profiles_ where the requirement
+      Type is not discipline-bearing but the allocation target is.
+
+   When none of the four channels yields a kind, the discipline defaults to
+   `system`.
+2. **Kinds are extensible by profiles.** Core ships the built-in kind set
+   (`system`, `software`, `hardware`) and the built-in type-to-kind mappings for
+   core SW/HW Component / Interface / Unit subtypes. Profiles can extend the
+   discipline registry with new kinds (e.g. `firmware`, `mechanical`,
+   `electrical`, `avionics`, `clinical`) and with their own discipline-bearing
+   type subtypes (e.g. `SoftwareRequirement → software`).
+3. **`Type:` is not author-written for requirements in flat profiles.** The type
    is resolved by the display-ID prefix (`SYS_NNNN` → `SystemRequirement`)
    through the existing type-resolution chain. The prefix is the author-visible
    identity of the layer.
-3. **No change to `Requirement` semantics or to the `Allocated-to` attribute.**
+4. **No change to `Requirement` semantics or to the `Allocated-to` attribute.**
    Both paths preserve the current entry model, the trace target-type rule, and
    the compiled-graph edge format.
 
@@ -83,12 +104,15 @@ The current shape. Core retains `SoftwareComponent`, `HardwareComponent`,
 profiles use bare `Component` / `Interface` if they prefer; the SW/HW subtypes
 are opt-in vocabulary that profiles never have to surface to authors.
 
-**Classification mechanism.** The compiler walks each requirement's
-`Allocated-to` edges, reads each target's resolved type, and groups targets by
-their SW/HW ancestor (`SoftwareComponent` ⊂ `Component`, `HardwareComponent` ⊂
-`Component`). Output: a derived
-`Entry.derivedDiscipline: "software" | "hardware" | "system" | "mixed"` field in
-the compiled JSON. No author input; no schema change at the entry level.
+**Classification mechanism.** The four-channel classifier from Invariant 1 runs
+against the discipline registry, which under Path A is seeded with the core
+SW/HW Component / Interface / Unit subtypes and the built-in kinds (`system`,
+`software`, `hardware`). The type-based channel (channel 3) reads discipline
+directly off the core type name; the allocation-based channel (channel 4) walks
+`Allocated-to` to a core SW/HW target and reads its registered discipline.
+Override and freeze (channels 1 and 2) work uniformly on top, independent of
+Path A's specifics. Output: a derived `Entry.derivedDiscipline` field in the
+compiled JSON.
 
 **What stays "free" in this path.** Four core mechanisms keep working without
 redesign because they currently dispatch on the four type names:
@@ -217,26 +241,44 @@ recover what they had.
    inference mechanisms leaves the boundary half-drawn; doing both turns this
    into a substantially larger refactor than this ADR contemplates.
 
-## What ships regardless of path
+## Implementation backlog
 
-Three pieces of work follow from this ADR's invariants and are independent of
-the taxonomy choice:
+These pieces follow from this ADR's invariants and become the implementation
+backlog once Accepted. They realise the four-channel classifier (Invariant 1)
+and the extensible kinds (Invariant 2). Items marked _(Path A only)_ apply only
+if the joint criteria-weighting review with ADR-018 settles on R1 or R3; under
+R2 the design space is reshaped (see ADR-018).
 
-1. **`Entry.derivedDiscipline` in compiled JSON.** Computed by the compiler from
-   `Allocated-to`. Always present; one of `"software"`, `"hardware"`,
-   `"system"`, or `"mixed"`. In Path A read directly from target type; in Path B
-   read via whichever recovery mechanism the path adopts.
-2. **Reporter `--group-by discipline` flag.** Splits coverage and
-   traceability-matrix output into SW / HW / system columns.
-3. **Validator rule against mixed allocation.** A requirement may not
-   `Allocated-to` targets of more than one discipline. If both a SW and an HW
-   dimension are needed for the same concern, the requirement is split into two
-   with `Derived-from` linking each child to the system parent. This is a
-   profile-level rule, not a core one: in tiered profiles a single requirement
-   is already typed `SoftwareRequirement` or `HardwareRequirement`, so the rule
-   is moot — it only protects flat profiles where the discipline is derived from
-   the allocation.
-4. **`discipline_mode: flat | tiered | none`** in `markspec.yaml` _(Path A
+1. **Discipline registry in core.** A single data structure mapping types to
+   kinds, plus the built-in kind set (`system`, `software`, `hardware`). Loaded
+   at compile time. Consumed by the classifier, the reporter, the validator, and
+   `markspec doctor`.
+2. **Profile extension of the discipline registry.** Profile manifest gains a
+   `kinds:` block (declare new kinds — `firmware`, `mechanical`, …) and a
+   per-type `discipline:` field on type declarations (assign existing or
+   profile-declared kinds to profile-declared types — e.g.
+   `SoftwareRequirement: software`).
+3. **Four-channel classifier.** Implements Invariant 1's precedence order
+   (override → freeze → type-based → allocation-based → default `system`). Emits
+   `Entry.derivedDiscipline` in the compiled JSON. Always present.
+4. **`Discipline:` override attribute.** Parser + validator support. Author's
+   explicit assertion of a kind; takes precedence over derivation. Validator
+   rules:
+   - Override vs Type-based conflict — warn (e.g. `Discipline: hardware` on a
+     `SoftwareRequirement`).
+   - Override vs Allocation-based conflict — warn (e.g. `Discipline: hardware`
+     on an entry `Allocated-to` a `SoftwareComponent`).
+5. **`Discipline-frozen:` freeze attribute.** Parser + validator support. Cached
+   derivation with a date stamp (`<kind> @ <date>`). Validator rule: freeze
+   divergence — warn when current derivation differs from the frozen value.
+6. **Mixed-allocation validator rule.** A flat-profile requirement may not
+   `Allocated-to` targets of more than one discipline. Error in flat profiles;
+   moot in tiered profiles (the Type already disambiguates) and in profiles that
+   set an explicit override.
+7. **Reporter `--group-by discipline` flag.** Splits coverage and
+   traceability-matrix output by the resolved discipline. Default grouping
+   behaviour gated by `discipline_mode` (see item 8).
+8. **`discipline_mode: flat | tiered | none`** in `markspec.yaml` _(Path A
    only)_. Profile declares whether it tiers requirements by discipline. The
    value drives mode-aware behaviour across the toolchain:
    - **Completions / scaffolds.** A `flat` profile offers a `SystemRequirement`
@@ -246,21 +288,13 @@ the taxonomy choice:
    - **Reporter defaults.** `flat` triggers `--group-by discipline` by default
      in coverage and traceability matrices; `tiered` groups by type instead;
      `none` does neither.
-   - **Conditional rules.** The mixed-allocation rule from bullet 3 activates
-     only when `discipline_mode: flat` — in tiered profiles it's moot, in `none`
-     profiles it doesn't apply.
+   - **Conditional rules.** The mixed-allocation rule (item 6) activates only
+     when `discipline_mode: flat`.
    - **Doctor output.** `markspec doctor` reports the resolved mode and the
-     count of components classified per discipline, so authors see what core
-     inferred.
+     count of entries classified per discipline.
 
-   In Path B the flag is moot: discipline mode is implicit in which types the
-   profile declares (a profile declaring `SoftwareComponent` is tiered; omitting
-   it makes the profile flat or none). The flag is therefore a Path A enabler —
-   it gives flat profiles an explicit, declarative way to opt into
-   discipline-aware UX that Path B obtains structurally.
-
-These four pieces become the implementation backlog once this ADR is Accepted
-(item 4 in Path A only).
+   Under R2 (Path B) the flag is moot: discipline mode is implicit in which
+   types the profile declares.
 
 ## Other follow-up candidates
 
@@ -284,21 +318,8 @@ reviewer sees the full envelope of work Path A enables.
    (firmware, mechanical, FPGA) without core changes. Path A benefit; in Path B
    this becomes the _primary_ way profiles express discipline, not an optional
    one.
-4. **Reserve `Discipline:` as a known attribute name (terminology only).**
-   Reserve the keyword so no profile or author uses it for an unrelated purpose;
-   the compiled-output field, hover text, and reports all speak the same word
-   (`discipline`). Path-independent; trivially cheap. **Explicitly out of
-   scope:** authoring overrides. Letting authors write
-   `Discipline: software | hardware` to override the derived value would weaken
-   Invariant 1 (derived, never authored) and introduce two sources of truth. The
-   use cases that would motivate an override (pre-allocation scaffolding,
-   generic-`Component` allocations, migration aids, cross-functional concerns)
-   are real but speculative; none currently blocks work. If a concrete need
-   surfaces, lift the invariant in a future ADR — at that point no migration of
-   authored data is needed because no one will have authored the attribute under
-   the rule we're shipping now.
-5. **`markspec doctor` discipline summary line.** Beyond bullet 4 above, even
-   without the `discipline_mode` flag the doctor command could report a count of
+4. **`markspec doctor` discipline summary line.** Beyond the `discipline_mode`
+   reporting in backlog item 8, the doctor command could also report a count of
    components and requirements per discipline as a first-run sanity check.
    Path-independent.
 
