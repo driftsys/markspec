@@ -23,6 +23,48 @@ R2, R3) for the same criteria-weighting review that ADR-017 is awaiting, so the
 review weighs the taxonomy choice and the SSOT shape together as one decision
 package.
 
+## Required use cases
+
+Both of the following must be supported by whichever option lands. The cost
+comparison below treats failure to support either as a disqualifier, not a
+trade-off.
+
+### Use case A — Tiered profile (discipline-encoded prefixes)
+
+A profile declares discipline-bearing requirement subtypes with prefix-encoded
+disciplines:
+
+- `SystemRequirement` with prefix `SYS_NNNN`
+- `SoftwareRequirement` with prefix `SWE_NNNN`
+- `HardwareRequirement` with prefix `HWE_NNNN`
+
+The author selects discipline implicitly by choosing the prefix. The classifier
+sees the resolved Type and reads its discipline from the registry. Discipline is
+encoded in the Type itself; no allocation walk is needed (though one would yield
+the same answer when allocation is present).
+
+### Use case B — Flat profile (the most-used profile shape)
+
+A profile declares only `Requirement` (or a single `SystemRequirement` alias).
+The author writes a requirement and an `Allocated-to` value. The classifier
+walks `Allocated-to` to a discipline-bearing target (typically a core
+`SoftwareComponent` or `HardwareComponent`) and reads its discipline.
+
+### Use case C — Extensible kinds (non-automotive domains)
+
+Domains beyond automotive (medical, aerospace, industrial control, …) need
+discipline categories beyond `software / hardware / system` — for example
+`firmware`, `mechanical`, `electrical`, `avionics`, `clinical`. Profiles must be
+able to register new kinds and bind their own types to them without core
+changes.
+
+### Cross-cutting constraint
+
+The author never types a kind name directly. Their inputs are the display-ID
+prefix and the `Allocated-to` value. (An optional `Discipline:` override
+attribute exists as an escape hatch — see ADR-017 Invariant 1 — but
+discipline-by-derivation is the dominant path.)
+
 ## The SSOT-in-Path-B Problem
 
 Path B (move SW/HW subtypes out of core) introduces three structural problems
@@ -264,15 +306,17 @@ concrete types.
 - Auto-classification of introspected components requires running the profile
   registry; "core works without a profile" property weakens.
 
-## Option R3 — Path A++ (consolidated core registry)
+## Option R3 — Path A++ (extensible discipline registry)
 
 Keep the four SW/HW Component / Interface / Unit subtypes in core. Introduce a
-**single internal registry** that maps type names to their discipline
-classification:
+**single discipline registry** that maps type names to kinds AND declares the
+set of valid kinds. Both core and profiles write into the registry. The registry
+powers the four-channel classifier from ADR-017 Invariant 1.
 
 ```typescript
-// hypothetical
-const CORE_DISCIPLINE_REGISTRY = new Map([
+// hypothetical core seed
+const CORE_KINDS = new Set(["system", "software", "hardware"]);
+const CORE_TYPE_TO_KIND = new Map([
   ["SoftwareComponent", "software"],
   ["HardwareComponent", "hardware"],
   ["SoftwareInterface", "software"],
@@ -280,53 +324,90 @@ const CORE_DISCIPLINE_REGISTRY = new Map([
   ["SoftwareUnit",      "software"],
   ["HardwareUnit",      "hardware"],
 ]);
+
+// profiles extend, e.g. an aerospace profile:
+//   kinds:
+//     - avionics
+//     - structural
+//   types:
+//     AvionicsRequirement:  { extends: Requirement, discipline: avionics }
+//     StructuralRequirement: { extends: Requirement, discipline: structural }
 ```
 
-The four mechanisms keep their tables, but the tables don't need to encode
-discipline directly — they emit type names, and any consumer that wants
-discipline calls the registry. Discipline derivation (per ADR-017's "ships
-regardless" backlog) becomes a pure registry lookup.
+The four mechanism tables (source introspection, PURL, discriminating attrs,
+trace rules) keep their tables and continue to emit core type names. Any
+consumer that wants discipline calls the registry. Profiles registering their
+own types extend the registry via the profile manifest schema.
 
-**SSOT shape.** Two SSOTs: the four mechanism tables own _type assignment_; the
-registry owns _type → discipline classification_. They're orthogonal — neither
-has authority over the other's domain.
+**How the required use cases land in R3:**
+
+- **Use case A (tiered profile)** — profile registers
+  `SoftwareRequirement: software`, `HardwareRequirement: hardware`,
+  `SystemRequirement: system` in its manifest. Channel 3 (type-based) of the
+  classifier resolves directly.
+- **Use case B (flat profile)** — profile registers nothing; classifier falls
+  through to channel 4 (allocation-based), walking `Allocated-to` to a core
+  SW/HW Component target and reading its registered discipline.
+- **Use case C (extensible kinds)** — profile adds kinds to its `kinds:` block
+  and binds its own types via the `discipline:` field. New kinds appear in
+  `Entry.derivedDiscipline`, reporter grouping, and `markspec doctor` without
+  core changes.
+
+**SSOT shape.** One SSOT for type → kind (the registry, with core and profile
+contributions in a defined merge order); one SSOT for kind validity (the union
+of `CORE_KINDS` and profile-declared `kinds:`). Both the override and freeze
+channels (ADR-017 backlog items 4 and 5) reference the registry to validate that
+the asserted kind is registered.
 
 **Pros.**
 
 - Addresses the latent coordination issue in Path A: the discipline classifier
-  for a type name is now declared exactly once.
+  for a type name is declared exactly once per source (core or profile).
 - All three structural problems (multi-step chains, load order, validation
-  autonomy) remain absent — the registry is internal to core and immutable per
-  release.
+  autonomy) remain absent — profile contributions are merged into a single
+  registry at load time, not consulted dynamically during validation.
+- Supports all three required use cases with one mechanism.
 - Path A's free auto-classification, free trace-rule constraints, and
   `core works without a profile` property all preserved.
-- The classifier (`derivedDiscipline`) ADR-017 puts on the "ships regardless"
-  list becomes a one-line lookup against the registry.
+- The four-channel classifier (ADR-017 backlog item 3) reduces to a small
+  function over the registry.
+- Profiles that want their own discipline vocabulary (tiered profiles,
+  domain-specific profiles) extend the registry instead of re-implementing
+  classification logic.
 
 **Cons.**
 
-- Small refactor (~10–30 lines) to introduce the registry and migrate the four
-  mechanisms' consumers to use it.
-- The registry must be maintained when a new core SW/HW subtype is added — but
-  this is the single place, not four.
-- Doesn't help profiles that want to declare _their own_ SW/HW vocabulary (R2
-  territory). For those profiles, the registry stays a core-only fact.
+- Registry + profile-manifest-schema change is bigger than the original "10–30
+  line" estimate of the consolidated-registry-without-extensibility variant.
+  Realistic scope: ~100–200 lines plus schema work plus tests.
+- Profile manifest schema gains `kinds:` and per-type `discipline:`. Profiles
+  that don't need either pay zero cost; profiles that do need a one-time
+  registration step.
+- Load-time merge order matters when multiple profiles register the same type
+  (last write wins, errors on conflict, or both? — to be settled at
+  implementation).
 
 ## Comparison
 
-| Criterion                                         | R1 — Path A as-is       | R3 — Path A++           | R2 — Path B (single SSOT)              |
-| ------------------------------------------------- | ----------------------- | ----------------------- | -------------------------------------- |
-| Code surface change                               | None                    | Small (~10–30 lines)    | Large (~230 refs across 26 files)      |
-| SSOTs for SW/HW classification                    | 4 implicit              | 2 explicit, orthogonal  | 1 explicit, distributed                |
-| Multi-step lookup chains                          | Absent                  | Absent                  | Present (permanent)                    |
-| Profile load-order sensitivity for type inference | Absent                  | Absent                  | Present (permanent)                    |
-| Trace-validation autonomy                         | Preserved               | Preserved               | Lost (validation queries profile)      |
-| Core works without a profile                      | Yes                     | Yes                     | Degraded (auto-classify needs profile) |
-| ADR-009 boundary strictness                       | Loose (opinion in core) | Loose (opinion in core) | Strict (opinion in profile)            |
-| ASPICE/26262 vocabulary alignment in core         | Direct                  | Direct                  | Via profile                            |
-| Test churn                                        | None                    | Small                   | ~70 assertions to rewrite              |
-| Future flexibility (new disciplines)              | Requires core change    | Requires core change    | Profile-only                           |
-| Coordination across the 4 mechanisms              | Manual                  | Automatic via registry  | N/A (mechanisms become abstract)       |
+| Criterion                                         | R1 — Path A as-is                             | R3 — Path A++                                | R2 — Path B (single SSOT)                          |
+| ------------------------------------------------- | --------------------------------------------- | -------------------------------------------- | -------------------------------------------------- |
+| Code surface change                               | None                                          | Small (~10–30 lines)                         | Large (~230 refs across 26 files)                  |
+| SSOTs for SW/HW classification                    | 4 implicit                                    | 1 explicit registry                          | 1 explicit, distributed                            |
+| Multi-step lookup chains                          | Absent                                        | Absent                                       | Present (permanent)                                |
+| Profile load-order sensitivity for type inference | Absent                                        | Absent                                       | Present (permanent)                                |
+| Trace-validation autonomy                         | Preserved                                     | Preserved                                    | Lost (validation queries profile)                  |
+| Core works without a profile                      | Yes                                           | Yes                                          | Degraded (auto-classify needs profile)             |
+| **Use case A (tiered profile)**                   | Partial — manual coordination across 4 tables | Direct — profile registers types in registry | Forced — profile re-declares core SW/HW vocabulary |
+| **Use case B (flat profile)**                     | Free                                          | Free                                         | Requires profile to opt into SW/HW vocabulary      |
+| **Use case C (extensible kinds)**                 | Requires core change for every new kind       | Profile-declared via `kinds:` block          | Profile-declared (the path's main affordance)      |
+| Author work to add new requirement                | Pick prefix or allocate                       | Pick prefix or allocate                      | Pick prefix or allocate                            |
+| Profile work for tiered profile                   | Declare types in 4 tables manually            | Declare types + bind kind in manifest        | Declare types + component subtypes + bind kind     |
+| Profile work for flat profile                     | Zero                                          | Zero                                         | Substantial (opt into SW/HW)                       |
+| ADR-009 boundary strictness                       | Loose (opinion in core)                       | Loose (opinion in core)                      | Strict (opinion in profile)                        |
+| ASPICE/26262 vocabulary alignment in core         | Direct                                        | Direct                                       | Via profile                                        |
+| Test churn                                        | None                                          | Moderate (~100–200 lines + tests)            | ~70 assertions to rewrite                          |
+| Future flexibility (new disciplines)              | Requires core change                          | Profile extends registry                     | Profile-only                                       |
+| Coordination across the 4 mechanisms              | Manual                                        | Automatic via registry                       | N/A (mechanisms become abstract)                   |
 
 ## Open for criteria-weighting review (joint with ADR-017)
 
