@@ -13,6 +13,13 @@
 
 - **core:** MSL-M060 validator reads `Entry.bodyTokens` directly; the previous
   bodyAst-marker walk is removed. (#409)
+- **lsp:** semantic-tokens body-keyword path now consumes `Entry.bodyTokens`
+  via a thin `BodyTokenKind` to `SemanticTokenType` switch. The duplicated
+  per-line regex scanner (`BODY_KEYWORD_RE`, `GHERKIN_SECTION_RE`,
+  `GHERKIN_STEP_RE`, `ENTITY_REF_RE`, `FEATURE_FENCE_OPEN_RE`,
+  `FENCE_CLOSE_RE`) and the `insideFeatureBlock` state machine are deleted.
+  Source-file rendering becomes correct as a side effect once story 3 of
+  #409 lands. (#409)
 
 ### Removed
 

@@ -2,8 +2,15 @@
  * @module lsp/semantic_tokens
  *
  * Produce LSP semantic tokens for an entry's title, embedded display
- * IDs, trailer attribute keys/values, and labels (with a validity
- * modifier sourced from the active profile's `labels` catalog).
+ * IDs, trailer attribute keys/values, labels (with a validity modifier
+ * sourced from the active profile's `labels` catalog), and body
+ * inline constructs (modal verbs, EARS triggers, Gherkin keywords,
+ * `$Identifier` entity refs).
+ *
+ * Per ADR-016 Decision 8, body inline constructs are not rediscovered
+ * here. The parser emits them on each `Entry.bodyTokens` with
+ * file-relative {@linkcode SourceLocation}; this builder is a thin
+ * switch from {@linkcode BodyTokenKind} to {@linkcode SemanticTokenType}.
  *
  * The builder returns an intermediate `SemanticToken[]` shape that
  * the LSP server encodes into the LSP wire format. Keeping the
@@ -15,7 +22,11 @@
  * catalog is non-empty AND the label is not in it.
  */
 
-import type { EffectiveProfile, Entry } from "../core/model/mod.ts";
+import type {
+  BodyTokenKind,
+  EffectiveProfile,
+  Entry,
+} from "../core/model/mod.ts";
 import { scanEntryTrailer } from "./entry_trailer.ts";
 
 /** LSP semantic-token legend exported by the server's capabilities. */
@@ -69,6 +80,22 @@ const TITLE_LINE_RE =
   /^(\s*-\s+\[)(@?[A-Za-z0-9][A-Za-z0-9._/-]{2,})(\]\s*)(.*)$/;
 
 /**
+ * Map each {@linkcode BodyTokenKind} to its LSP semantic-token type.
+ * `inline-code` is intentionally absent — the TextMate grammar already
+ * paints backtick spans, per ADR-016 Decision 8.
+ */
+const BODY_TOKEN_TYPE: Readonly<
+  Partial<Record<BodyTokenKind, SemanticTokenType>>
+> = {
+  "modal": "keyword",
+  "ears-trigger": "keyword",
+  "gherkin-section": "class",
+  "gherkin-step": "keyword",
+  "entity-ref": "string",
+  // "inline-code": no emission
+};
+
+/**
  * Build semantic tokens for every entry in `entries`. Tokens are
  * returned sorted by (line, startChar) — encoding to the LSP wire
  * format requires sorted input.
@@ -93,7 +120,7 @@ export function buildSemanticTokens(
       : lines.length;
 
     addTitleTokens(tokens, entry, lines);
-    addBodyKeywordTokens(tokens, entry, lines, endLineExclusive);
+    addBodyTokens(tokens, entry);
     addTrailerTokens(tokens, entry, lines, endLineExclusive, allowedLabels);
   }
 
@@ -149,159 +176,21 @@ function addTitleTokens(
 }
 
 /**
- * RFC 2119 modal verbs (lowercase canonical form) and the five EARS
- * pattern triggers. Matched case-insensitively as whole words inside
- * entry body prose, then emitted as `keyword` tokens so themes paint
- * them prominently — the same treatment language keywords get.
- *
- * `not` is intentionally not in the set; negation reads as part of
- * the modal phrase (e.g., `shall not`) and highlighting only the modal
- * verb is enough to anchor the eye.
+ * Emit semantic tokens for the entry's body inline constructs by mapping
+ * each {@linkcode BodyToken} to its LSP token type per ADR-016 Decision 8.
+ * Token locations are file-relative 1-based; converted here to LSP's
+ * 0-based line/character.
  */
-const BODY_KEYWORD_RE =
-  /\b(shall|should|may|must|will|when|while|if|where|then)\b/gi;
-
-/**
- * Gherkin section keywords — section headers, not steps. Rendered as
- * `class` semantic tokens to mirror GitHub Linguist's
- * `entity.name.section.*` and Rouge's `Generic::Heading` scoping;
- * themes paint these like type/heading names.
- *
- * Multi-word keywords (`Scenario Outline`, `Scenario Template`) are
- * matched as single units; bare `Scenario` matches when the longer
- * form isn't present.
- */
-const GHERKIN_SECTION_RE =
-  /\b(Feature|Background|Rule|Scenario Outline|Scenario Template|Scenarios|Examples|Scenario)\b/g;
-
-/**
- * Gherkin step keywords — rendered as `keyword` semantic tokens to
- * mirror `keyword.control.cucumber` / Rouge `Keyword`. Themes paint
- * these with a strong colour + bold, the same treatment programming-
- * language keywords get.
- */
-const GHERKIN_STEP_RE = /\b(Given|When|Then|And|But)\b/g;
-
-/** Detect a fenced code block opener with a `feature` or `gherkin` language tag. */
-const FEATURE_FENCE_OPEN_RE = /^\s*(```+|~~~+)\s*(feature|gherkin)\b/i;
-
-/** Detect a fenced code block closer using the same fence character set. */
-const FENCE_CLOSE_RE = /^\s*(```+|~~~+)\s*$/;
-
-/**
- * Inline `$Identifier` entity reference (spec §2.5.2). Matched directly
- * against body lines for highlighting; the full parser also tracks
- * `$$…$$` math fences and `\$` escapes, but for visual rendering a
- * straight regex is good enough and avoids relying on parser-emitted
- * positions that are body-relative.
- */
-const ENTITY_REF_RE = /\$[A-Za-z][A-Za-z0-9_]*/g;
-
-/**
- * Emit `keyword` tokens for modal verbs and EARS triggers in entry
- * body prose, and for Gherkin keywords inside fenced `feature` /
- * `gherkin` blocks. The scan covers lines between the entry's title
- * line and the next entry (or document end), excluding trailer lines.
- */
-function addBodyKeywordTokens(
-  out: SemanticToken[],
-  entry: Entry,
-  lines: readonly string[],
-  endLineExclusive: number,
-): void {
-  const trailerLines = scanEntryTrailer(entry, lines, endLineExclusive);
-  // Body ends at the first trailer line. Lines AFTER the trailer block
-  // (and up to the next entry's title) are inter-entry prose, not the
-  // entry's body — they must not be tokenized as part of this entry.
-  const bodyEndExclusive = trailerLines.length > 0
-    ? trailerLines[0].lineIndex
-    : endLineExclusive;
-  // Body starts on the line after the title (1-based location.line is
-  // the title line; 0-based body starts at location.line).
-  const startIndex = entry.location.line;
-  let insideFeatureBlock = false;
-  for (let i = startIndex; i < bodyEndExclusive && i < lines.length; i++) {
-    const line = lines[i];
-
-    // Track fenced feature/gherkin blocks. The fence delimiters
-    // themselves are not tokenized; lines inside emit Gherkin section
-    // keywords (Feature/Scenario/...) as `class` and step keywords
-    // (Given/When/Then/...) as `keyword`, matching the GitHub Linguist
-    // and Rouge conventions for Cucumber.
-    if (insideFeatureBlock) {
-      if (FENCE_CLOSE_RE.test(line)) {
-        insideFeatureBlock = false;
-        continue;
-      }
-      emitTypedMatches(out, GHERKIN_SECTION_RE, line, i, "class", []);
-      emitKeywordMatches(out, GHERKIN_STEP_RE, line, i);
-      continue;
-    }
-    if (FEATURE_FENCE_OPEN_RE.test(line)) {
-      insideFeatureBlock = true;
-      continue;
-    }
-    if (line.trim() === "") continue;
-    emitKeywordMatches(out, BODY_KEYWORD_RE, line, i);
-    emitEntityRefMatches(out, line, i);
-  }
-}
-
-/** Scan a body line for `$Identifier` tokens and emit `string` tokens. */
-function emitEntityRefMatches(
-  out: SemanticToken[],
-  line: string,
-  lineIndex: number,
-): void {
-  ENTITY_REF_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = ENTITY_REF_RE.exec(line)) !== null) {
-    // Skip the second half of a `$$…$$` math fence.
-    if (match.index > 0 && line[match.index - 1] === "$") continue;
-    // Skip escaped `\$`.
-    if (match.index > 0 && line[match.index - 1] === "\\") continue;
+function addBodyTokens(out: SemanticToken[], entry: Entry): void {
+  for (const token of entry.bodyTokens) {
+    const tokenType = BODY_TOKEN_TYPE[token.kind];
+    if (!tokenType) continue;
     out.push({
-      line: lineIndex,
-      startChar: match.index,
-      length: match[0].length,
-      tokenType: "string",
-      tokenModifiers: [],
-    });
-  }
-}
-
-/** Run a `g`-flag regex across `line` and push a `keyword` token per match. */
-function emitKeywordMatches(
-  out: SemanticToken[],
-  re: RegExp,
-  line: string,
-  lineIndex: number,
-): void {
-  emitTypedMatches(out, re, line, lineIndex, "keyword", []);
-}
-
-/**
- * Run a `g`-flag regex across `line` and push a token of the given
- * type/modifiers per match. Shared by the modal/EARS scanner (keyword)
- * and the Gherkin section scanner (class).
- */
-function emitTypedMatches(
-  out: SemanticToken[],
-  re: RegExp,
-  line: string,
-  lineIndex: number,
-  tokenType: SemanticTokenType,
-  tokenModifiers: readonly SemanticTokenModifier[],
-): void {
-  re.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(line)) !== null) {
-    out.push({
-      line: lineIndex,
-      startChar: match.index,
-      length: match[0].length,
+      line: token.location.line - 1,
+      startChar: token.location.column - 1,
+      length: token.text.length,
       tokenType,
-      tokenModifiers,
+      tokenModifiers: [],
     });
   }
 }

@@ -350,52 +350,71 @@ Deno.test("buildSemanticTokens: title with slashed display ID still highlights",
 });
 
 Deno.test("buildSemanticTokens: body modal verbs emit keyword tokens", () => {
+  // bodyTokens are populated by the parser (body_tokens.ts). The LSP
+  // builder consumes them and maps `modal` -> `keyword`.
   const text = [
     "- [REQ-001] Title",
     "",
-    "  The system shall respond when the brake pedal must trigger.",
+    "  The system shall respond and must trigger.",
   ].join("\n");
+  const entry = entryWithBodyTokens([
+    {
+      kind: "modal",
+      text: "shall",
+      case: "lower",
+      location: { file: "t.md", line: 3, column: 14 },
+    },
+    {
+      kind: "modal",
+      text: "must",
+      case: "lower",
+      location: { file: "t.md", line: 3, column: 32 },
+    },
+  ]);
   const tokens = buildSemanticTokens(
-    [makeEntry()],
+    [entry],
     makeProfile([]),
     text.split("\n"),
   );
   const keywords = tokens.filter((t) => t.tokenType === "keyword");
-  // Expected: "shall", "when", "must" — three keyword matches on line 2.
-  assertEquals(keywords.length, 3);
+  assertEquals(keywords.length, 2);
   assertEquals(keywords.every((t) => t.line === 2), true);
-  // First match is "shall" at the position of "shall " in the body line.
   const line = text.split("\n")[2];
   assertEquals(keywords[0].startChar, line.indexOf("shall"));
   assertEquals(keywords[0].length, "shall".length);
+  assertEquals(keywords[1].startChar, line.indexOf("must"));
 });
 
-Deno.test("buildSemanticTokens: EARS triggers (When/While/If/Where) emit keyword tokens", () => {
+Deno.test("buildSemanticTokens: EARS triggers emit keyword tokens", () => {
+  // bodyTokens populated by the parser; LSP maps `ears-trigger` -> `keyword`.
   const text = [
     "- [REQ-001] Title",
     "",
-    "  When the trigger fires, while the state holds,",
-    "  if the guard passes, where the feature is on, then act.",
+    "  When the trigger fires, the system acts.",
   ].join("\n");
+  const entry = entryWithBodyTokens([
+    {
+      kind: "ears-trigger",
+      text: "When",
+      trigger: "When",
+      location: { file: "t.md", line: 3, column: 3 },
+    },
+  ]);
   const tokens = buildSemanticTokens(
-    [makeEntry()],
+    [entry],
     makeProfile([]),
     text.split("\n"),
   );
   const keywords = tokens.filter((t) => t.tokenType === "keyword");
-  // Expected matches: When, while, if, where, then — five EARS triggers
-  // spread across two body lines.
-  assertEquals(keywords.length, 5);
-  const matched = keywords.map((t) =>
-    text.split("\n")[t.line].slice(t.startChar, t.startChar + t.length)
-      .toLowerCase()
-  );
-  assertEquals(matched, ["when", "while", "if", "where", "then"]);
+  assertEquals(keywords.length, 1);
+  assertEquals(keywords[0].line, 2);
+  assertEquals(keywords[0].startChar, 2);
+  assertEquals(keywords[0].length, "When".length);
 });
 
 Deno.test("buildSemanticTokens: trailer-line keywords are NOT tokenized as body keywords", () => {
-  // A trailer value containing "shall" or "when" must not produce a
-  // keyword token — trailer values already get their own treatment.
+  // bodyTokens contain only body tokens — the parser does not emit
+  // bodyTokens for words appearing inside trailer attribute values.
   const text = [
     "- [REQ-001] Title",
     "",
@@ -419,20 +438,42 @@ Deno.test("buildSemanticTokens: trailer-line keywords are NOT tokenized as body 
     makeProfile([]),
     text.split("\n"),
   );
-  // Only the body line (line index 2) had no modal/EARS words, so
-  // zero keyword tokens.
   const keywords = tokens.filter((t) => t.tokenType === "keyword");
   assertEquals(keywords.length, 0);
 });
 
 Deno.test("buildSemanticTokens: $Identifier entity refs in body emit string tokens", () => {
+  // bodyTokens populated by the parser; LSP maps `entity-ref` -> `string`.
   const text = [
     "- [REQ-001] Title",
     "",
     "  Uses $BrakeController to read $rawPressure.",
   ].join("\n");
+  const line = text.split("\n")[2];
+  const entry = entryWithBodyTokens([
+    {
+      kind: "entity-ref",
+      text: "$BrakeController",
+      convention: "type",
+      location: {
+        file: "t.md",
+        line: 3,
+        column: line.indexOf("$BrakeController") + 1,
+      },
+    },
+    {
+      kind: "entity-ref",
+      text: "$rawPressure",
+      convention: "instance",
+      location: {
+        file: "t.md",
+        line: 3,
+        column: line.indexOf("$rawPressure") + 1,
+      },
+    },
+  ]);
   const tokens = buildSemanticTokens(
-    [makeEntry()],
+    [entry],
     makeProfile([]),
     text.split("\n"),
   );
@@ -440,7 +481,6 @@ Deno.test("buildSemanticTokens: $Identifier entity refs in body emit string toke
     (t) => t.tokenType === "string" && t.line === 2,
   );
   assertEquals(stringTokens.length, 2);
-  const line = text.split("\n")[2];
   assertEquals(stringTokens[0].startChar, line.indexOf("$BrakeController"));
   assertEquals(stringTokens[0].length, "$BrakeController".length);
   assertEquals(stringTokens[1].startChar, line.indexOf("$rawPressure"));
@@ -448,20 +488,27 @@ Deno.test("buildSemanticTokens: $Identifier entity refs in body emit string toke
 });
 
 Deno.test("buildSemanticTokens: $$math$$ fence interior is not tokenized as entity refs", () => {
+  // The parser excludes `$$..$$` math interior from entity-ref tokens;
+  // only `$foo` outside math is emitted. The LSP just consumes the result.
   const text = [
     "- [REQ-001] Title",
     "",
     "  See $$a + b$$ and $foo.",
   ].join("\n");
+  const line = text.split("\n")[2];
+  const entry = entryWithBodyTokens([
+    {
+      kind: "entity-ref",
+      text: "$foo",
+      convention: "instance",
+      location: { file: "t.md", line: 3, column: line.indexOf("$foo") + 1 },
+    },
+  ]);
   const tokens = buildSemanticTokens(
-    [makeEntry()],
+    [entry],
     makeProfile([]),
     text.split("\n"),
   );
-  // Only `$foo` should be tokenized; the `$a` and `$b` inside `$$..$$`
-  // are math, not entity refs. The trailing-`$` guard discards `$b`,
-  // but `$a` immediately after `$$` is also discarded by the same
-  // guard (the preceding char is `$`).
   const stringTokens = tokens.filter(
     (t) => t.tokenType === "string" && t.line === 2,
   );
@@ -470,6 +517,8 @@ Deno.test("buildSemanticTokens: $$math$$ fence interior is not tokenized as enti
 });
 
 Deno.test("buildSemanticTokens: Gherkin sections emit class tokens, steps emit keyword tokens", () => {
+  // The parser emits gherkin-section/gherkin-step inside ```feature
+  // fences and `modal` outside; LSP maps these per ADR-016 Decision 8.
   const text = [
     "- [REQ-001] Title",
     "",
@@ -485,23 +534,52 @@ Deno.test("buildSemanticTokens: Gherkin sections emit class tokens, steps emit k
     "",
     "  After the block, shall is still highlighted.",
   ].join("\n");
+  const entry = entryWithBodyTokens([
+    {
+      kind: "gherkin-section",
+      text: "Feature",
+      location: { file: "t.md", line: 6, column: 3 },
+    },
+    {
+      kind: "gherkin-section",
+      text: "Scenario",
+      location: { file: "t.md", line: 7, column: 5 },
+    },
+    {
+      kind: "gherkin-step",
+      text: "Given",
+      location: { file: "t.md", line: 8, column: 7 },
+    },
+    {
+      kind: "gherkin-step",
+      text: "When",
+      location: { file: "t.md", line: 9, column: 7 },
+    },
+    {
+      kind: "gherkin-step",
+      text: "Then",
+      location: { file: "t.md", line: 10, column: 7 },
+    },
+    {
+      kind: "modal",
+      text: "shall",
+      case: "lower",
+      location: { file: "t.md", line: 13, column: 21 },
+    },
+  ]);
   const tokens = buildSemanticTokens(
-    [makeEntry()],
+    [entry],
     makeProfile([]),
     text.split("\n"),
   );
-  // Sections (Feature, Scenario) → class tokens — matches GitHub
-  // Linguist / Rouge convention of section-heading scope.
   const blockSectionTokens = tokens.filter(
     (t) => t.tokenType === "class" && t.line >= 5 && t.line <= 9,
   );
   assertEquals(blockSectionTokens.length, 2);
-  // Steps (Given, When, Then) → keyword tokens.
   const blockStepTokens = tokens.filter(
     (t) => t.tokenType === "keyword" && t.line >= 5 && t.line <= 9,
   );
   assertEquals(blockStepTokens.length, 3);
-  // Body modal verb after the block: "shall" on line 12.
   const modalTokens = tokens.filter(
     (t) => t.tokenType === "keyword" && t.line === 12,
   );
@@ -509,9 +587,9 @@ Deno.test("buildSemanticTokens: Gherkin sections emit class tokens, steps emit k
 });
 
 Deno.test("buildSemanticTokens: inter-entry prose after trailer is NOT scanned for keywords", () => {
-  // After an entry's trailer block, lines belong to inter-entry prose
-  // (section headers, intro text for the next section) — not to the
-  // entry's body. Keywords there must not be tokenized.
+  // Inter-entry prose lives between entries — the parser never emits
+  // bodyTokens for it because it does not belong to any entry's body.
+  // Each entry only carries bodyTokens for its own body content.
   const text = [
     "- [REQ-001] First entry",
     "",
@@ -539,14 +617,34 @@ Deno.test("buildSemanticTokens: inter-entry prose after trailer is NOT scanned f
     shape: "Authored",
     location: { file: "t.md", line: 1, column: 1 },
     source: "markdown",
-    bodyTokens: [],
+    bodyTokens: [
+      {
+        kind: "modal",
+        text: "shall",
+        case: "lower",
+        location: { file: "t.md", line: 3, column: 14 },
+      },
+    ],
   };
   const entry2: Entry = {
     ...entry1,
     displayId: makeDisplayId("REQ-002"),
     title: "Second entry",
-    // 1-based line 12 maps to 0-based index 11 — the "- [REQ-002] ..." line.
     location: { file: "t.md", line: 12, column: 1 },
+    bodyTokens: [
+      {
+        kind: "modal",
+        text: "may",
+        case: "lower",
+        location: { file: "t.md", line: 14, column: 22 },
+      },
+      {
+        kind: "modal",
+        text: "should",
+        case: "lower",
+        location: { file: "t.md", line: 14, column: 30 },
+      },
+    ],
   };
   const tokens = buildSemanticTokens(
     [entry1, entry2],
@@ -554,8 +652,6 @@ Deno.test("buildSemanticTokens: inter-entry prose after trailer is NOT scanned f
     text.split("\n"),
   );
   const keywords = tokens.filter((t) => t.tokenType === "keyword");
-  // Expected: "shall" on line 2 (entry 1 body) and "may"+"should" on
-  // line 13 (entry 2 body). NOT the words on line 8 (inter-entry prose).
   const onLine2 = keywords.filter((t) => t.line === 2);
   const onLine8 = keywords.filter((t) => t.line === 8);
   const onLine13 = keywords.filter((t) => t.line === 13);
@@ -581,4 +677,243 @@ Deno.test("buildSemanticTokens: outside feature blocks, Gherkin-only words are N
   const keywords = tokens.filter((t) => t.tokenType === "keyword");
   // No modal verbs / EARS triggers in this sentence — zero keywords.
   assertEquals(keywords.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-016 Decision 8 — body tokens come from entry.bodyTokens, not from
+// regex-scanning line text. The builder is a thin switch on BodyTokenKind.
+// ---------------------------------------------------------------------------
+
+function entryWithBodyTokens(
+  bodyTokens: Entry["bodyTokens"],
+): Entry {
+  return {
+    displayId: makeDisplayId("REQ-001"),
+    title: "Title",
+    body: "",
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    shape: "Authored",
+    location: { file: "t.md", line: 1, column: 1 },
+    source: "markdown",
+    bodyTokens,
+  };
+}
+
+Deno.test("buildSemanticTokens: body keywords come from entry.bodyTokens, not regex scan", () => {
+  // Body text has no modal/EARS words — a regex scanner would emit
+  // nothing. The new implementation reads bodyTokens directly, so a
+  // token placed by the parser still shows up.
+  const text = [
+    "- [REQ-001] Title",
+    "",
+    "  Plain prose without any keywords.",
+  ].join("\n");
+  const entry = entryWithBodyTokens([
+    {
+      kind: "modal",
+      text: "shall",
+      case: "lower",
+      location: { file: "t.md", line: 3, column: 5 },
+    },
+  ]);
+  const tokens = buildSemanticTokens(
+    [entry],
+    makeProfile([]),
+    text.split("\n"),
+  );
+  const keywords = tokens.filter((t) => t.tokenType === "keyword");
+  assertEquals(keywords.length, 1);
+  assertEquals(keywords[0].line, 2);
+  assertEquals(keywords[0].startChar, 4);
+  assertEquals(keywords[0].length, "shall".length);
+});
+
+Deno.test("buildSemanticTokens: BodyTokenKind 'modal' maps to 'keyword'", () => {
+  const entry = entryWithBodyTokens([
+    {
+      kind: "modal",
+      text: "shall",
+      case: "lower",
+      location: { file: "t.md", line: 3, column: 3 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "  shall be x.",
+  ]);
+  const body = tokens.filter((t) => t.line === 2);
+  assertEquals(body.length, 1);
+  assertEquals(body[0].tokenType, "keyword");
+});
+
+Deno.test("buildSemanticTokens: BodyTokenKind 'ears-trigger' maps to 'keyword'", () => {
+  const entry = entryWithBodyTokens([
+    {
+      kind: "ears-trigger",
+      text: "When",
+      trigger: "When",
+      location: { file: "t.md", line: 3, column: 3 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "  When the trigger fires.",
+  ]);
+  const body = tokens.filter((t) => t.line === 2);
+  assertEquals(body.length, 1);
+  assertEquals(body[0].tokenType, "keyword");
+});
+
+Deno.test("buildSemanticTokens: BodyTokenKind 'gherkin-section' maps to 'class'", () => {
+  // Wrap the Gherkin line in a feature fence so the trailer scanner
+  // (which would otherwise treat "    Scenario: stops" as a trailer
+  // attribute) skips it; the body token still emits a class token.
+  const entry = entryWithBodyTokens([
+    {
+      kind: "gherkin-section",
+      text: "Scenario",
+      location: { file: "t.md", line: 4, column: 5 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "  ```feature",
+    "    Scenario: stops",
+    "  ```",
+  ]);
+  const body = tokens.filter((t) => t.line === 3);
+  assertEquals(body.length, 1);
+  assertEquals(body[0].tokenType, "class");
+  assertEquals(body[0].length, "Scenario".length);
+});
+
+Deno.test("buildSemanticTokens: BodyTokenKind 'gherkin-step' maps to 'keyword'", () => {
+  const entry = entryWithBodyTokens([
+    {
+      kind: "gherkin-step",
+      text: "Given",
+      location: { file: "t.md", line: 3, column: 7 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "      Given the speed is 60",
+  ]);
+  const body = tokens.filter((t) => t.line === 2);
+  assertEquals(body.length, 1);
+  assertEquals(body[0].tokenType, "keyword");
+  assertEquals(body[0].length, "Given".length);
+});
+
+Deno.test("buildSemanticTokens: BodyTokenKind 'entity-ref' maps to 'string'", () => {
+  const entry = entryWithBodyTokens([
+    {
+      kind: "entity-ref",
+      text: "$BrakeController",
+      convention: "type",
+      location: { file: "t.md", line: 3, column: 8 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "  Uses $BrakeController.",
+  ]);
+  const body = tokens.filter((t) => t.line === 2);
+  assertEquals(body.length, 1);
+  assertEquals(body[0].tokenType, "string");
+  assertEquals(body[0].length, "$BrakeController".length);
+});
+
+Deno.test("buildSemanticTokens: BodyTokenKind 'inline-code' emits NO token (TextMate paints it)", () => {
+  const entry = entryWithBodyTokens([
+    {
+      kind: "inline-code",
+      text: "`x`",
+      location: { file: "t.md", line: 3, column: 3 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "  `x` is a thing.",
+  ]);
+  const body = tokens.filter((t) => t.line === 2);
+  assertEquals(body.length, 0);
+});
+
+Deno.test("buildSemanticTokens: multiple bodyTokens on one line preserve relative positions", () => {
+  const entry = entryWithBodyTokens([
+    {
+      kind: "modal",
+      text: "shall",
+      case: "lower",
+      location: { file: "t.md", line: 3, column: 5 },
+    },
+    {
+      kind: "entity-ref",
+      text: "$obj",
+      convention: "instance",
+      location: { file: "t.md", line: 3, column: 18 },
+    },
+    {
+      kind: "modal",
+      text: "must",
+      case: "lower",
+      location: { file: "t.md", line: 3, column: 27 },
+    },
+  ]);
+  const tokens = buildSemanticTokens([entry], makeProfile([]), [
+    "- [REQ-001] Title",
+    "",
+    "    shall read $obj and must.",
+  ]);
+  const body = tokens.filter((t) => t.line === 2);
+  assertEquals(body.length, 3);
+  assertEquals(body[0].startChar, 4);
+  assertEquals(body[0].tokenType, "keyword");
+  assertEquals(body[1].startChar, 17);
+  assertEquals(body[1].tokenType, "string");
+  assertEquals(body[2].startChar, 26);
+  assertEquals(body[2].tokenType, "keyword");
+});
+
+// ---------------------------------------------------------------------------
+// Integration — parser → bodyTokens → LSP. Catches drift between the
+// parser's emitted token shape and the LSP's consumer mapping.
+// ---------------------------------------------------------------------------
+
+import { parseFile } from "../core/mod.ts";
+
+Deno.test("integration: parser bodyTokens drive LSP body keyword tokens (Markdown)", async () => {
+  // End-to-end: parser emits bodyTokens; buildSemanticTokens consumes
+  // them and emits LSP tokens of matching type. Positions are whatever
+  // the parser computes; we assert the kind→type mapping holds across
+  // the whole pipeline.
+  const md = [
+    "- [REQ-001] Brake response",
+    "",
+    "  The system shall debounce $Sensor inputs and must report.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  ].join("\n");
+  const result = await parseFile(md, { file: "t.md" });
+  assertEquals(result.entries.length, 1);
+  const entry = result.entries[0];
+  const kinds = entry.bodyTokens.map((t) => t.kind).sort();
+  assertEquals(kinds, ["entity-ref", "modal", "modal"]);
+
+  const tokens = buildSemanticTokens([entry], makeProfile([]), md.split("\n"));
+  const bodyTokenLine = entry.bodyTokens[0].location.line - 1;
+  const onBody = tokens.filter((t) => t.line === bodyTokenLine);
+  const keywords = onBody.filter((t) => t.tokenType === "keyword");
+  const strings = onBody.filter((t) => t.tokenType === "string");
+  assertEquals(keywords.length, 2);
+  assertEquals(strings.length, 1);
+  assertEquals(strings[0].length, "$Sensor".length);
 });
