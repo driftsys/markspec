@@ -14,7 +14,11 @@ import { basename as pathBasename, extname } from "@std/path";
 import type { Caption, Diagnostic, Document, Entry } from "../model/mod.ts";
 import { normalizeLineEndings } from "../util/line_endings.ts";
 import { parseMarkdown } from "./markdown.ts";
-import { isSupportedExtension, loadGrammar } from "./grammars.ts";
+import {
+  isSupportedExtension,
+  languageIdForExtension,
+  loadGrammar,
+} from "./grammars.ts";
 import { parseSource } from "./source.ts";
 import { extractFrontMatter } from "./frontmatter.ts";
 import {
@@ -45,6 +49,14 @@ export {
 } from "./source.ts";
 
 export { isSupportedExtension, loadGrammar } from "./grammars.ts";
+
+export type { DocCommentBlockMeta, LineMap } from "./line_map.ts";
+export { buildBlockLineMap } from "./line_map.ts";
+export type {
+  LanguageDocCommentSpec,
+  SupportedLanguage,
+} from "./language_spec.ts";
+export { LANGUAGE_SPECS, languageIdForExtension } from "./language_spec.ts";
 
 /** Options for {@linkcode parse}. */
 export interface ParseOptions {
@@ -119,9 +131,20 @@ export async function parseFile(
 
   if (isSupportedExtension(ext)) {
     const language = await loadGrammar(ext);
+    const languageId = languageIdForExtension(ext);
+    if (!languageId) {
+      // Defensive — isSupportedExtension and languageIdForExtension are kept
+      // in sync via their shared extension lists, so this branch should be
+      // unreachable. Throwing surfaces the drift immediately rather than
+      // silently falling through to wrong grammar dispatch.
+      throw new Error(
+        `internal: no languageId for supported extension '${ext}'`,
+      );
+    }
     const result = parseSource(normalised, {
       file: options.file,
       language,
+      languageId,
     });
     return { entries: result.entries, diagnostics: [] };
   }

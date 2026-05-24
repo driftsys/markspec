@@ -24,3 +24,12 @@
 fn swt_brk_0001_debounce_filters_noise() {
     // test implementation
 }
+
+//! [SRS_BRK_0002] Module-level sensor debouncing policy
+//!
+//! All sensor drivers in this module must apply at least a 5 ms
+//! debounce window.
+//!
+//!     Id: 01HGW2R9QLP4ABCDEFGHJKMNPQ
+//!     Satisfies: SYS_BRK_0042
+//!     Labels: ASIL-B

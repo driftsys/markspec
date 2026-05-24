@@ -17,6 +17,8 @@ import {
 import { extractBodyTokens } from "./body_tokens.ts";
 import { processor } from "./remark.ts";
 import { buildBodyAst } from "../ast/build.ts";
+import type { LineMap } from "./line_map.ts";
+import { translateEntryLocations } from "./translate.ts";
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
@@ -28,6 +30,14 @@ export interface ParseMarkdownOptions {
    * as referenced-entry candidates (the validator flags the missing `Id:`).
    */
   readonly isReferencesDoc?: boolean;
+  /**
+   * When supplied, every `SourceLocation` emitted by this parse — on
+   * entries, on `bodyAst` ranges, on `bodyTokens` — is translated through
+   * this map before being returned. Used by `parseSource` to convert
+   * doc-comment-buffer coordinates to file coordinates. See ADR-016
+   * Decision 6.
+   */
+  readonly lineMap?: LineMap;
 }
 
 /**
@@ -121,12 +131,16 @@ export function parseMarkdown(
         definitions,
         isReferencesDoc,
         diagnostics,
+        !!options?.lineMap,
       );
       if (entry) entries.push(entry);
     }
   }
 
-  return { entries, diagnostics };
+  const finalEntries = options?.lineMap
+    ? translateEntryLocations(entries, options.lineMap)
+    : entries;
+  return { entries: finalEntries, diagnostics };
 }
 
 /**
@@ -155,6 +169,7 @@ function extractEntry(
   definitions: Set<string>,
   isReferencesDoc: boolean,
   diagnostics: Diagnostic[],
+  hasLineMap = false,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -486,13 +501,34 @@ function extractEntry(
   const entryLocation = { file, line, column };
 
   // Inline-construct tokens (ADR-016). Reuses the already-built bodyAst to
-  // avoid a redundant mdast parse. Tokens are file-relative: body starts
-  // on the line after the title (+1 keeps line numbers 1-based).
+  // avoid a redundant mdast parse.
+  //
+  // bodyStartLine: when a lineMap is present (source-file path), use the
+  // mdast position of the second child (the body paragraph) — the actual
+  // buffer line where the body starts. CommonMark loose lists have a blank
+  // line between title and body, so the body is at (entry_line + 2), not
+  // (entry_line + 1). Without a lineMap we keep the legacy (entry_line + 1)
+  // behaviour to avoid shifting existing markdown-file token locations.
+  //
+  // columnOffset: when a lineMap is present, body text has been stripped of
+  // the list-item indent (e.g., "  " for column-1 items), so each token
+  // column must be bumped by that indent width for the LineMap to translate
+  // to the correct source column. Without a lineMap, no offset is applied
+  // (legacy behaviour unchanged).
+  const bodyIndent = hasLineMap
+    // + 2 = the "  " continuation indent prepended by wrapAsListItem to
+    // every non-title line. Mirrors the indent computation in
+    // extractBodyContent below.
+    ? (item.position?.start.column ?? 1) - 1 + 2
+    : 0;
+  const bodyStartLine = hasLineMap
+    ? (item.children[1]?.position?.start.line ?? (line + 1))
+    : line + 1;
   const bodyTokens = extractBodyTokens(body, bodyAst, {
     file,
-    line: line + 1,
+    line: bodyStartLine,
     column: 1,
-  });
+  }, bodyIndent);
 
   return {
     displayId: makeDisplayId(displayId),

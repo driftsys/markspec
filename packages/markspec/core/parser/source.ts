@@ -10,6 +10,12 @@ import type { SyntaxNode } from "web-tree-sitter";
 import Parser from "web-tree-sitter";
 import type { Entry } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
+import { buildBlockLineMap } from "./line_map.ts";
+import type {
+  LanguageDocCommentSpec,
+  SupportedLanguage,
+} from "./language_spec.ts";
+import { LANGUAGE_SPECS } from "./language_spec.ts";
 
 /** Options for {@linkcode parseSource}. */
 export interface ParseSourceOptions {
@@ -17,6 +23,13 @@ export interface ParseSourceOptions {
   readonly file?: string;
   /** Pre-loaded tree-sitter language grammar. */
   readonly language: Parser.Language;
+  /**
+   * Language id for the active grammar — used by the walker to look up
+   * the doc-comment dispatch row in `LANGUAGE_SPECS`. The caller maps
+   * file extension → languageId via `languageIdForExtension` before
+   * calling `parseSource`.
+   */
+  readonly languageId: SupportedLanguage;
 }
 
 /** Result of parsing a source file. */
@@ -33,6 +46,9 @@ interface DocCommentBlock {
   readonly startLine: number;
   /** 1-based column of the first comment line. */
   readonly startColumn: number;
+  /** One value per cleaned line — bytes stripped from source to produce
+   * the line. Length equals `lines.length`. */
+  readonly prefixWidths: readonly number[];
 }
 
 /**
@@ -50,38 +66,37 @@ export function parseSource(
   options: ParseSourceOptions,
 ): ParseSourceResult {
   const file = options.file ?? "<unknown>";
+  const spec = LANGUAGE_SPECS[options.languageId];
   const parser = new Parser();
   parser.setLanguage(options.language);
   const tree = parser.parse(content);
 
   const blocks: DocCommentBlock[] = [];
-  walkForDocComments(tree.rootNode, blocks);
+  walkForDocComments(tree.rootNode, blocks, spec);
   const entries: Entry[] = [];
 
   for (const block of blocks) {
     const markdown = wrapAsListItem(block.lines);
-    const { entries: parsed } = parseMarkdown(markdown, { file });
+    const lineMap = buildBlockLineMap({
+      startLine: block.startLine,
+      startColumn: block.startColumn,
+      prefixWidths: block.prefixWidths,
+    });
+    const { entries: parsed } = parseMarkdown(markdown, { file, lineMap });
 
     for (const entry of parsed) {
-      const location = {
-        file,
-        line: block.startLine,
-        column: block.startColumn,
-      };
+      // entry.location, bodyAst ranges, and bodyTokens are already
+      // file-relative thanks to the lineMap post-pass inside parseMarkdown.
+      // Source files have no front matter; properties.file is derived from
+      // the translated entry.location.
       entries.push({
         ...entry,
         source: "doc-comment",
-        location,
-        // Story 3 (LineMap, ADR-016 Decision 6) will replace this with
-        // the file-relative token stream. For now, source-file entries
-        // get an empty array so the Entry schema is satisfied without
-        // emitting wrong-coordinate tokens.
-        bodyTokens: [],
         properties: {
           file: {
             path: file,
-            line: block.startLine,
-            column: block.startColumn,
+            line: entry.location.line,
+            column: entry.location.column,
           },
         },
       });
@@ -93,20 +108,13 @@ export function parseSource(
   return { entries };
 }
 
-/**
- * Recursively walk the tree-sitter AST and collect doc comment blocks.
- *
- * At each level, consecutive `line_comment` nodes with
- * `outer_doc_comment_marker` are grouped into a single block.
- * `block_comment` nodes starting with `/**` become individual blocks.
- * Non-comment children are recursed into so that doc comments inside
- * `mod`, `impl`, and other nested scopes are discovered.
- */
 function walkForDocComments(
   node: SyntaxNode,
   blocks: DocCommentBlock[],
+  spec: LanguageDocCommentSpec,
 ): void {
   let currentLines: string[] = [];
+  let currentPrefixWidths: number[] = [];
   let currentStartLine = 0;
   let currentStartColumn = 0;
   let lastRow = -2;
@@ -117,8 +125,10 @@ function walkForDocComments(
         lines: currentLines,
         startLine: currentStartLine,
         startColumn: currentStartColumn,
+        prefixWidths: currentPrefixWidths,
       });
       currentLines = [];
+      currentPrefixWidths = [];
       lastRow = -2;
     }
   }
@@ -126,30 +136,38 @@ function walkForDocComments(
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)!;
 
-    if (child.type === "line_comment" && isOuterDocComment(child)) {
+    const isLineComment = spec.lineCommentTypes.includes(child.type) &&
+      spec.isDocLine(child.text);
+    if (isLineComment) {
       const row = child.startPosition.row;
-
-      // Not consecutive — flush previous block
       if (currentLines.length > 0 && row !== lastRow + 1) {
         flushLineBlock();
       }
-
       if (currentLines.length === 0) {
-        currentStartLine = row + 1; // 1-based
-        currentStartColumn = child.startPosition.column + 1; // 1-based
+        currentStartLine = row + 1;
+        currentStartColumn = child.startPosition.column + 1;
       }
-
-      currentLines.push(stripLineCommentPrefix(child));
+      const { text, prefixWidth } = stripLineCommentPrefix(child);
+      currentLines.push(text);
+      currentPrefixWidths.push(prefixWidth);
       lastRow = row;
       continue;
     }
 
-    if (child.type === "block_comment" && child.text.startsWith("/**")) {
+    const isBlockComment = spec.blockCommentTypes.includes(child.type) &&
+      spec.isDocBlock(child.text);
+    if (isBlockComment) {
       flushLineBlock();
+      const { lines, prefixWidths, openerSkipped } = stripBlockCommentPrefix(
+        child.text,
+      );
+      if (lines.length === 0) continue;
+      const startRow = child.startPosition.row + (openerSkipped ? 1 : 0);
       blocks.push({
-        lines: stripBlockCommentPrefix(child.text),
-        startLine: child.startPosition.row + 1,
+        lines,
+        startLine: startRow + 1,
         startColumn: child.startPosition.column + 1,
+        prefixWidths,
       });
       continue;
     }
@@ -157,78 +175,123 @@ function walkForDocComments(
     // Non-comment node — flush pending line comments, then recurse.
     flushLineBlock();
     if (child.childCount > 0) {
-      walkForDocComments(child, blocks);
+      walkForDocComments(child, blocks, spec);
     }
   }
 
   flushLineBlock();
 }
 
-/** Check if a line_comment node is a `///` outer doc comment. */
-function isOuterDocComment(node: SyntaxNode): boolean {
-  for (let i = 0; i < node.childCount; i++) {
-    if (node.child(i)!.type === "outer_doc_comment_marker") return true;
-  }
-  return false;
+/** Result of stripping a prefix from one source line. */
+interface PrefixStripResult {
+  readonly text: string;
+  /** Number of source characters stripped to produce `text`. */
+  readonly prefixWidth: number;
 }
 
 /**
- * Strip the `///` prefix from a line comment node.
+ * Strip the `///` or `//!` prefix from a line comment node.
  * Uses the `doc_comment` child if available, otherwise strips manually.
  */
-export function stripLineCommentPrefix(node: SyntaxNode): string {
+export function stripLineCommentPrefix(node: SyntaxNode): PrefixStripResult {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)!;
     if (child.type === "doc_comment") {
       let text = child.text.replace(/\n$/, "");
-      // Strip one leading space (convention: `/// text`)
-      if (text.startsWith(" ")) text = text.slice(1);
-      return text;
+      // The line_comment node's text starts with `///` (or `//!`); the
+      // doc_comment child is the substring after the marker. Compute
+      // prefixWidth as (line_comment_text_length - doc_comment_text_length)
+      // before stripping the conventional leading space.
+      const rawDoc = child.text.replace(/\n$/, "");
+      let prefixWidth = node.text.replace(/\n$/, "").length - rawDoc.length;
+      if (text.startsWith(" ")) {
+        text = text.slice(1);
+        prefixWidth += 1;
+      }
+      return { text, prefixWidth };
     }
   }
   // Fallback: manual prefix stripping
-  const text = node.text.replace(/\n$/, "");
-  if (text.startsWith("/// ")) return text.slice(4);
-  if (text.startsWith("///")) return text.slice(3);
-  return text;
+  const raw = node.text.replace(/\n$/, "");
+  if (raw.startsWith("/// ")) return { text: raw.slice(4), prefixWidth: 4 };
+  if (raw.startsWith("///")) return { text: raw.slice(3), prefixWidth: 3 };
+  if (raw.startsWith("//! ")) return { text: raw.slice(4), prefixWidth: 4 };
+  if (raw.startsWith("//!")) return { text: raw.slice(3), prefixWidth: 3 };
+  return { text: raw, prefixWidth: 0 };
+}
+
+/** Result of stripping a block comment. */
+interface BlockStripResult {
+  readonly lines: string[];
+  /** One value per element of `lines` — chars stripped per emitted line. */
+  readonly prefixWidths: number[];
+  /**
+   * True when the block's opener line (`/**`) had no content after the
+   * marker and was therefore not emitted into `lines`. Used by the walker
+   * to advance `startLine` by 1.
+   */
+  readonly openerSkipped: boolean;
 }
 
 /**
- * Strip block comment delimiters and leading ` * ` prefixes.
- * Returns cleaned lines.
+ * Strip block-comment delimiters and leading ` * ` prefixes.
+ * Returns cleaned lines, per-line prefix widths, and a flag indicating
+ * whether the opener was skipped (bare `/**\n`).
  */
-export function stripBlockCommentPrefix(text: string): string[] {
+export function stripBlockCommentPrefix(text: string): BlockStripResult {
   const rawLines = text.split("\n");
-  const result: string[] = [];
+  const lines: string[] = [];
+  const prefixWidths: number[] = [];
+  let openerSkipped = false;
 
   for (let i = 0; i < rawLines.length; i++) {
-    const trimmed = rawLines[i].trim();
+    const raw = rawLines[i];
+    const trimmed = raw.trim();
 
-    // Skip opening `/**` line (may have content after it)
+    // Opening `/**` line. May have content after it.
     if (i === 0) {
-      const afterOpening = trimmed.slice(3).trim();
-      if (afterOpening && afterOpening !== "/") {
-        result.push(afterOpening);
+      // Locate the `/**` marker; for canonical javadoc it's at the line
+      // start, but be defensive.
+      const markerIdx = raw.indexOf("/**");
+      const afterMarker = markerIdx >= 0
+        ? raw.slice(markerIdx + 3).replace(/^\s+/, "")
+        : "";
+      if (afterMarker && afterMarker !== "/") {
+        // Compute prefixWidth so that for "/** Title", afterMarker="Title"
+        // and prefixWidth = (raw.length - afterMarker.length) = 4 if
+        // raw="/** Title", which matches the spec table.
+        const prefixWidth = raw.length - afterMarker.length;
+        lines.push(afterMarker);
+        prefixWidths.push(prefixWidth);
+      } else {
+        openerSkipped = true;
       }
       continue;
     }
 
-    // Skip closing `*/`
-    if (i === rawLines.length - 1 && trimmed === "*/") {
-      continue;
-    }
+    // Closing `*/` line — skip.
+    if (i === rawLines.length - 1 && trimmed === "*/") continue;
 
-    // Strip leading ` * ` or ` *`
+    // Strip leading ` * ` or ` *` or bare prose.
     if (trimmed.startsWith("* ")) {
-      result.push(trimmed.slice(2));
+      // Strip up through "* " — find leading-whitespace + "* "
+      const starIdx = raw.indexOf("* ");
+      const stripped = raw.slice(starIdx + 2);
+      lines.push(stripped);
+      prefixWidths.push(starIdx + 2);
     } else if (trimmed === "*") {
-      result.push("");
+      lines.push("");
+      prefixWidths.push(raw.indexOf("*") + 1);
+    } else if (trimmed === "") {
+      lines.push("");
+      prefixWidths.push(0);
     } else {
-      result.push(trimmed);
+      lines.push(trimmed);
+      prefixWidths.push(raw.length - trimmed.length);
     }
   }
 
-  return result;
+  return { lines, prefixWidths, openerSkipped };
 }
 
 /**

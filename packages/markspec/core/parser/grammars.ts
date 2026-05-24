@@ -82,3 +82,6 @@ async function doLoad(grammarName: string): Promise<Parser.Language> {
     return Parser.Language.load(join(GRAMMARS_DIR, `${grammarName}.wasm`));
   }
 }
+
+export { languageIdForExtension } from "./language_spec.ts";
+export type { SupportedLanguage } from "./language_spec.ts";
