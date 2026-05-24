@@ -23,7 +23,7 @@ function makeEntry(displayId: string, body: string): Entry {
     id: undefined,
     shape: "Authored",
     location: { file: "test.md", line: 10, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
   };
@@ -190,7 +190,7 @@ Deno.test("validateFeatureAc: no bodyAst → no MSL-B044", () => {
     id: undefined,
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     typedAttributes: new Map(),
     bodyTokens: [],
   };

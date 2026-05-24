@@ -40,7 +40,7 @@ function makeEntry(opts: {
     type: opts.type,
     shape: opts.shape ?? "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
 }

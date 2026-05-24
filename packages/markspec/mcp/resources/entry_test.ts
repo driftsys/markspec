@@ -32,7 +32,7 @@ const ENTRY: Entry = {
     line: 42,
     column: 1,
   },
-  source: "markdown",
+  source: { kind: "markdown" },
   bodyTokens: [],
 };
 

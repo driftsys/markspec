@@ -39,6 +39,7 @@ export type {
   Entry,
   EntryShape,
   EntrySource,
+  ExtractorRule,
   InlineRef,
   LabelConcern,
   LabelConcernKind,

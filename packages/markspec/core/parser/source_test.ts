@@ -92,7 +92,7 @@ fn swt_brk_0001() {}
   assertEquals(result.entries[0].title, "Sensor input debouncing");
   assertEquals(result.entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
   assertEquals(result.entries[0].shape, "Authored");
-  assertEquals(result.entries[0].source, "doc-comment");
+  assertEquals(result.entries[0].source.kind, "doc-comment");
   assertEquals(result.entries[0].location.file, "src/braking.rs");
   assertEquals(result.entries[0].location.line, 1);
   assertEquals(result.entries[0].location.column, 1);
@@ -347,7 +347,7 @@ Deno.test("parseSource: fixture — in-code-rust.rs", async () => {
   assertEquals(first.displayId, "SRS_BRK_0001");
   assertEquals(first.title, "Sensor input debouncing");
   assertEquals(first.id, "SRS_01HGW2Q8MNP3");
-  assertEquals(first.source, "doc-comment");
+  assertEquals(first.source.kind, "doc-comment");
   assertStringIncludes(first.body, "debounce window");
   assertEquals(first.rawAttributes.length, 3);
 });
@@ -625,6 +625,201 @@ Deno.test("parseSource: extracts Kotlin /** */ doc comment entry", async () => {
 // ---------------------------------------------------------------------------
 // C++: /** */ doc comment
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Rule detection: outer-doc-comment, inner-doc-comment, block-doc-comment
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: Rust /// → rule outer-doc-comment", async () => {
+  const language = await getRustLanguage();
+  const source =
+    `/// [SRS_BRK_0001] Title\n///\n/// Body.\n///\n///     Id: SRS_01HGW2Q8MNP3\nfn foo() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.rule, "outer-doc-comment");
+  assertEquals(entries[0].source.language, "rust");
+});
+
+Deno.test("parseSource: Rust //! → rule inner-doc-comment", async () => {
+  const language = await getRustLanguage();
+  const source =
+    `//! [SRS_BRK_0001] Title\n//!\n//! Body.\n//!\n//!     Id: SRS_01HGW2Q8MNP3\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.rule, "inner-doc-comment");
+});
+
+Deno.test("parseSource: Java /** */ → rule block-doc-comment", async () => {
+  const language = await getJavaLanguage();
+  const source =
+    `/**\n * [SRS_BRK_0001] Title\n *\n * Body.\n *\n *     Id: SRS_01HGW2Q8MNP3\n */\nclass Foo {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.java",
+    language,
+    languageId: "java",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.rule, "block-doc-comment");
+});
+
+// ---------------------------------------------------------------------------
+// source.function: enclosing item name capture
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: Rust /// → function captures enclosing fn name", async () => {
+  const language = await getRustLanguage();
+  const source =
+    `/// [SRS_BRK_0001] Title\n///\n/// Body.\n///\n///     Id: SRS_01HGW2Q8MNP3\nfn debounce_sensor() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "debounce_sensor");
+});
+
+Deno.test("parseSource: Rust /// → function captures struct name", async () => {
+  const language = await getRustLanguage();
+  const source =
+    `/// [SRS_BRK_0001] Title\n///\n/// Body.\n///\n///     Id: SRS_01HGW2Q8MNP3\nstruct SensorState { x: u32 }\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "SensorState");
+});
+
+Deno.test("parseSource: Rust /// → impl_item returns target type (not trait)", async () => {
+  const language = await getRustLanguage();
+  // Trait impl: target type is MyType, trait is Display. itemName must return MyType.
+  const source =
+    `struct MyType;\n/// [SRS_BRK_0001] Title\n///\n/// Body.\n///\n///     Id: SRS_01HGW2Q8MNP3\nimpl Display for MyType { fn fmt() {} }\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  const target = entries.find((e) => e.displayId === "SRS_BRK_0001")!;
+  if (target.source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(target.source.function, "MyType");
+});
+
+Deno.test("parseSource: Rust function with 3 attributes → function name still captured", async () => {
+  const language = await getRustLanguage();
+  const source =
+    `/// [SRS_BRK_0001] Title\n///\n/// Body.\n///\n///     Id: SRS_01HGW2Q8MNP3\n#[derive(Debug)]\n#[cfg(test)]\n#[allow(dead_code)]\nfn foo() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "foo");
+});
+
+Deno.test("parseSource: Rust //! at file scope → function undefined", async () => {
+  const language = await getRustLanguage();
+  const source =
+    `//! [SRS_BRK_0001] Title\n//!\n//! Body.\n//!\n//!     Id: SRS_01HGW2Q8MNP3\n\nuse std::collections::HashMap;\n`;
+  const { entries } = parseSource(source, {
+    file: "t.rs",
+    language,
+    languageId: "rust",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, undefined);
+});
+
+Deno.test("parseSource: Java /** */ → function captures class name", async () => {
+  const language = await getJavaLanguage();
+  const source =
+    `/**\n * [SRS_BRK_0001] Title\n *\n * Body.\n *\n *     Id: SRS_01HGW2Q8MNP3\n */\nclass Foo {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.java",
+    language,
+    languageId: "java",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: Kotlin /** */ → function captures fun name", async () => {
+  const language = await getKotlinLanguage();
+  const source =
+    `/**\n * [SRS_BRK_0001] Title\n *\n * Body.\n *\n *     Id: SRS_01HGW2Q8MNP3\n */\nfun debounce() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.kt",
+    language,
+    languageId: "kotlin",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "debounce");
+});
+
+Deno.test("parseSource: Kotlin extension function → function captures fun name (not receiver type)", async () => {
+  const language = await getKotlinLanguage();
+  // Extension function: `fun List<Int>.foo()` — must return "foo" NOT "List".
+  const source =
+    `/**\n * [SRS_BRK_0001] Title\n *\n * Body.\n *\n *     Id: SRS_01HGW2Q8MNP3\n */\nfun List<Int>.foo(): Int = 0\n`;
+  const { entries } = parseSource(source, {
+    file: "t.kt",
+    language,
+    languageId: "kotlin",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "foo");
+});
+
+Deno.test("parseSource: C++ /** */ → function captures function name", async () => {
+  const language = await getCppLanguage();
+  const source =
+    `/**\n * [SRS_BRK_0001] Title\n *\n * Body.\n *\n *     Id: SRS_01HGW2Q8MNP3\n */\nvoid debounce_sensor() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.cpp",
+    language,
+    languageId: "cpp",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "debounce_sensor");
+});
 
 Deno.test("parseSource: extracts C++ /** */ doc comment entry", async () => {
   const language = await getCppLanguage();

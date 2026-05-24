@@ -530,3 +530,40 @@ Deno.test("compile: still flags MSL-R010 for undeclared attributes", async () =>
   const r010 = result.diagnostics.find((d) => d.code === "MSL-R010");
   assertExists(r010, "expected MSL-R010 for undeclared 'Bogus'");
 });
+
+// ---------------------------------------------------------------------------
+// source.* properties population
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "compile: properties.source.type set to 'markdown' for md entries",
+  async () => {
+    const files = { "req.md": FIXTURE_MD };
+    const result = await compile(["req.md"], { readFile: reader(files) });
+    const entry = result.entries.get(makeDisplayId("REQ-001"));
+    assertExists(entry);
+    assertEquals(entry.properties?.source?.type, "markdown");
+    assertEquals(entry.properties?.source?.adapter, undefined);
+  },
+);
+
+Deno.test(
+  "compile: properties.source determinism — two runs over identical input produce byte-identical output",
+  async () => {
+    const md =
+      `- [STK_0001] Title\n\n  The system shall do something.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
+    const files = { "t.md": md };
+    const result1 = await compile(["t.md"], { readFile: reader(files) });
+    const result2 = await compile(["t.md"], { readFile: reader(files) });
+    const entry1 = result1.entries.get(makeDisplayId("STK_0001"));
+    const entry2 = result2.entries.get(makeDisplayId("STK_0001"));
+    assertExists(entry1);
+    assertExists(entry2);
+    // Stable JSON projection — if any field contains a wall-clock timestamp
+    // or run-specific token, this assertion fails.
+    assertEquals(
+      JSON.stringify(entry1.properties?.source),
+      JSON.stringify(entry2.properties?.source),
+    );
+  },
+);

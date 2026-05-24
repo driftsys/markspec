@@ -18,7 +18,7 @@ function makeIdentifiedEntry(type: string | undefined): Entry {
     typedAttributes: new Map(),
     id: "TST_00000000000000000000000001",
     type,
-    source: "markdown" as const,
+    source: { kind: "markdown" } as const,
     location: { file: "f.md", line: 1, column: 1 },
     bodyTokens: [],
   } as Entry;

@@ -28,7 +28,7 @@ function makeEntry(opts: {
     shape: "Authored",
     type: opts.type,
     location: { file: "t.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
 }

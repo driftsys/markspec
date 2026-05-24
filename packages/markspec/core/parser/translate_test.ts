@@ -36,7 +36,7 @@ function minimalEntry(overrides: Partial<Entry> = {}): Entry {
     type: undefined,
     shape: "Authored",
     location: loc(5, 1),
-    source: "markdown",
+    source: { kind: "markdown" },
     properties: { file: { path: "t.md", line: 5, column: 1 } },
     bodyTokens: [],
     ...overrides,

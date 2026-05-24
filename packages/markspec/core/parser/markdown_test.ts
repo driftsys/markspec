@@ -312,7 +312,7 @@ Deno.test("parseMarkdown: source location carries file path", () => {
   const { entries: [entry] } = parseMarkdown(md, { file: "src/req.md" });
   assertEquals(entry.location.file, "src/req.md");
   assertEquals(entry.location.line, 1);
-  assertEquals(entry.source, "markdown");
+  assertEquals(entry.source, { kind: "markdown" });
   assertEquals(entry.properties?.file?.path, "src/req.md");
 });
 

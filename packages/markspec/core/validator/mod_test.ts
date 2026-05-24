@@ -23,7 +23,7 @@ function entry(
     shape: partial.shape ?? "Authored",
     location: partial.location ??
       { file: "test.md", line: 1, column: 1 },
-    source: partial.source ?? "markdown",
+    source: partial.source ?? { kind: "markdown" },
     typedAttributes: partial.typedAttributes ?? new Map(),
     bodyTokens: partial.bodyTokens ?? [],
   };

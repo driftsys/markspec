@@ -26,7 +26,7 @@ function makeEntry(displayId: string, body = "Body."): Entry {
     typedAttributes: new Map(),
     shape: "Authored",
     location: { file: "test.md", line: 1, column: 1 },
-    source: "markdown",
+    source: { kind: "markdown" },
     bodyTokens: [],
   };
 }

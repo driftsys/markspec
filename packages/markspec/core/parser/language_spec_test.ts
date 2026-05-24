@@ -86,3 +86,60 @@ Deno.test("LANGUAGE_SPECS.c: same shape as cpp", () => {
   assertEquals(spec.isDocLine("//! inner"), true);
   assertEquals(spec.isDocLine("/* block */"), false);
 });
+
+Deno.test(
+  "LANGUAGE_SPECS: each row has enclosingItemTypes + attributeSkipTypes + itemName",
+  () => {
+    const ids: SupportedLanguage[] = ["rust", "kotlin", "java", "c", "cpp"];
+    for (const id of ids) {
+      const spec = LANGUAGE_SPECS[id];
+      assert(
+        spec.enclosingItemTypes.length > 0,
+        `${id}: empty enclosingItemTypes`,
+      );
+      assert(
+        spec.attributeSkipTypes.length > 0,
+        `${id}: empty attributeSkipTypes`,
+      );
+      assert(typeof spec.itemName === "function", `${id}: missing itemName`);
+    }
+  },
+);
+
+Deno.test(
+  "LANGUAGE_SPECS.rust: enclosingItemTypes covers struct/impl/trait/fn",
+  () => {
+    const t = LANGUAGE_SPECS.rust.enclosingItemTypes;
+    assert(t.includes("function_item"));
+    assert(t.includes("struct_item"));
+    assert(t.includes("impl_item"));
+    assert(t.includes("trait_item"));
+  },
+);
+
+Deno.test(
+  "LANGUAGE_SPECS.kotlin: enclosingItemTypes covers function/class/object",
+  () => {
+    const t = LANGUAGE_SPECS.kotlin.enclosingItemTypes;
+    assert(t.includes("function_declaration"));
+    assert(t.includes("class_declaration"));
+    assert(t.includes("object_declaration"));
+  },
+);
+
+Deno.test(
+  "LANGUAGE_SPECS.cpp: enclosingItemTypes covers function_definition + class_specifier",
+  () => {
+    const spec = LANGUAGE_SPECS.cpp;
+    assert(spec.enclosingItemTypes.includes("function_definition"));
+    assert(spec.enclosingItemTypes.includes("class_specifier"));
+    assert(spec.enclosingItemTypes.includes("struct_specifier"));
+  },
+);
+
+Deno.test(
+  "LANGUAGE_SPECS: rust attribute_item is in rust attributeSkipTypes",
+  () => {
+    assert(LANGUAGE_SPECS.rust.attributeSkipTypes.includes("attribute_item"));
+  },
+);
