@@ -8,6 +8,7 @@
 
 import type { CompileResult } from "./mod.ts";
 import type { Diagnostic, Entry, Link } from "../model/mod.ts";
+import type { RegistryBinding, RegistryTypedef } from "../typl/mod.ts";
 
 /**
  * JSON-serializable form of {@linkcode Entry}.
@@ -19,6 +20,19 @@ import type { Diagnostic, Entry, Link } from "../model/mod.ts";
 export type SerializedEntry = Omit<Entry, "typedAttributes"> & {
   readonly typedAttributes?: Record<string, readonly string[]>;
 };
+
+/**
+ * Serialized form of the {@linkcode TypeRegistry}.
+ *
+ * `ReadonlyMap` fields are converted to plain objects so the result is
+ * JSON-serializable.
+ */
+export interface SerializedTypeRegistry {
+  /** Keyed by $Name (including leading `$`). */
+  readonly bindings: Record<string, readonly RegistryBinding[]>;
+  /** Keyed by typedef name (no `$`). */
+  readonly typedefs: Record<string, readonly RegistryTypedef[]>;
+}
 
 /**
  * Serialized form of {@linkcode CompileResult}.
@@ -37,6 +51,8 @@ export interface SerializedCompileResult {
   readonly reverse: Record<string, readonly Link[]>;
   /** Diagnostics from parsing and validation. */
   readonly diagnostics: readonly Diagnostic[];
+  /** Corpus-wide typl type registry. */
+  readonly typeRegistry: SerializedTypeRegistry;
 }
 
 /**
@@ -61,6 +77,21 @@ export function serializeCompileResult(
     forward: Object.fromEntries(result.forward),
     reverse: Object.fromEntries(result.reverse),
     diagnostics: result.diagnostics,
+    typeRegistry: serializeTypeRegistry(result.typeRegistry),
+  };
+}
+
+/**
+ * Convert the {@linkcode TypeRegistry} Maps to plain objects for
+ * JSON serialization. `ReadonlyMap` serializes as `{}` in `JSON.stringify`,
+ * so explicit conversion is required.
+ */
+function serializeTypeRegistry(
+  registry: CompileResult["typeRegistry"],
+): SerializedTypeRegistry {
+  return {
+    bindings: Object.fromEntries(registry.bindings),
+    typedefs: Object.fromEntries(registry.typedefs),
   };
 }
 

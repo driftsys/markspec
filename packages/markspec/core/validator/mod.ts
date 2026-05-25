@@ -24,6 +24,7 @@ import {
   URI_SCHEME_RE,
 } from "../model/mod.ts";
 import { HTTP_URL_RE } from "./value_types.ts";
+import { validateTypl } from "../typl/mod.ts";
 
 /** Universal attribute keys the core recognizes. */
 const UNIVERSAL_KEYS = new Set(UNIVERSAL_ATTRIBUTE_KEYS);
@@ -68,6 +69,12 @@ export function validate(entries: readonly Entry[]): ValidateResult {
 
   checkStructural(entries, diagnostics);
   checkReferences(entries, diagnostics);
+
+  // Typl cross-entry collisions (TYPL-002/003) and undefined-typedef-refs
+  // (TYPL-005). Per-block diagnostics (TYPL-001/004/006/007/008) already
+  // fired during parse via the bridge.
+  const typlResult = validateTypl(entries);
+  diagnostics.push(...typlResult.diagnostics);
 
   const valid = !diagnostics.some((d) => d.severity === "error");
   return { diagnostics, valid };

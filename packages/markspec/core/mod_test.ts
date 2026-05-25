@@ -176,6 +176,7 @@ Deno.test("report produces traceability output", () => {
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: { bindings: new Map(), typedefs: new Map() },
   };
   const opts: ReportOptions = { kind: "traceability", format: "md" };
   const output = report(emptyResult, opts);

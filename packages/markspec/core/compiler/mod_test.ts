@@ -610,3 +610,46 @@ Deno.test(
     );
   },
 );
+
+// ---------------------------------------------------------------------------
+// typeRegistry
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: typeRegistry is present and empty for entries without typl", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Title
+
+  Body.
+
+      Id: ${ULID_A}
+`,
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  // Registry must be present (no undefined)
+  assertEquals(typeof result.typeRegistry, "object");
+  assertEquals(result.typeRegistry.bindings instanceof Map, true);
+  assertEquals(result.typeRegistry.typedefs instanceof Map, true);
+  assertEquals(result.typeRegistry.bindings.size, 0);
+  assertEquals(result.typeRegistry.typedefs.size, 0);
+});
+
+Deno.test("compile: typeRegistry collects $Name bindings from typl fences", async () => {
+  const files = {
+    "req.md": `- [REQ-001] Speed signal
+
+  Body.
+
+  \`\`\`typl
+  $Speed : signal float[0..300]
+  \`\`\`
+
+      Id: ${ULID_A}
+`,
+  };
+  const result = await compile(["req.md"], { readFile: reader(files) });
+  assertEquals(result.typeRegistry.bindings.size, 1);
+  const speedDecls = result.typeRegistry.bindings.get("$Speed");
+  assertEquals(Array.isArray(speedDecls), true);
+  assertEquals(speedDecls?.length, 1);
+  assertEquals(speedDecls?.[0].binding.kind, "signal");
+});

@@ -22,6 +22,7 @@ import {
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
+import { type TypeRegistry, validateTypl } from "../typl/mod.ts";
 import { CORE_DISCIPLINE_REGISTRY } from "../model/mod.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
 import { classifyDiscipline } from "./discipline_classifier.ts";
@@ -149,6 +150,11 @@ export interface CompileResult {
   readonly documents: ReadonlyMap<string, Document>;
   /** Diagnostics from parsing and validation. */
   readonly diagnostics: readonly Diagnostic[];
+  /**
+   * Corpus-wide index of typl bindings and typedefs across all entries.
+   * See ADR-019. Built by validateTypl during compile.
+   */
+  readonly typeRegistry: TypeRegistry;
 }
 
 /**
@@ -342,13 +348,28 @@ export async function compile(
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 
+  // Build the corpus typl registry. validateTypl is also called inside
+  // validate() (via validationDiagnostics) for the cross-entry TYPL
+  // diagnostics. Here we call it again only to capture the registry — the
+  // diagnostics are already included in validationDiagnostics, so we discard
+  // them to avoid duplicates in the output.
+  const { registry: typeRegistry } = validateTypl([...entries.values()]);
+
   const diagnostics = [
     ...parseDiagnostics,
     ...validationDiagnostics,
     ...linkTargetDiags,
   ];
 
-  return { entries, links, forward, reverse, documents, diagnostics };
+  return {
+    entries,
+    links,
+    forward,
+    reverse,
+    documents,
+    diagnostics,
+    typeRegistry,
+  };
 }
 
 /** Extract traceability links from entry attributes. */
@@ -429,7 +450,11 @@ function buildAdjacency(
 
 // Re-export serialization helper.
 export { serializeCompileResult } from "./schema.ts";
-export type { SerializedCompileResult, SerializedEntry } from "./schema.ts";
+export type {
+  SerializedCompileResult,
+  SerializedEntry,
+  SerializedTypeRegistry,
+} from "./schema.ts";
 
 // Re-export inverse generation.
 export { generateInverses } from "./inverses.ts";
