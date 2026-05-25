@@ -5,7 +5,7 @@
  * grammar WASM files and caches loaded languages for reuse.
  */
 
-import Parser from "web-tree-sitter";
+import { Language, Parser } from "web-tree-sitter";
 import { join } from "@std/path";
 
 /** Map file extensions to grammar WASM file names. */
@@ -41,7 +41,7 @@ const GRAMMARS_DIR = join(
 );
 
 let initialized = false;
-const cache = new Map<string, Promise<Parser.Language>>();
+const cache = new Map<string, Promise<Language>>();
 
 /** Check whether a file extension has a supported grammar. */
 export function isSupportedExtension(ext: string): boolean {
@@ -53,13 +53,13 @@ export function isSupportedExtension(ext: string): boolean {
  *
  * Initializes the Parser WASM runtime on first call. Grammar languages
  * are cached — repeated calls with the same extension return the
- * same `Parser.Language` instance. Concurrent-safe: stores the loading
+ * same `Language` instance. Concurrent-safe: stores the loading
  * promise so parallel calls await the same load.
  *
  * @param ext - File extension including the dot (e.g., `.rs`, `.java`)
  * @throws If the extension is unsupported or the WASM file cannot be loaded
  */
-export function loadGrammar(ext: string): Promise<Parser.Language> {
+export function loadGrammar(ext: string): Promise<Language> {
   const grammarName = EXT_TO_GRAMMAR[ext];
   if (!grammarName) {
     throw new Error(`unsupported file extension: ${ext}`);
@@ -73,7 +73,7 @@ export function loadGrammar(ext: string): Promise<Parser.Language> {
   return pending;
 }
 
-async function doLoad(grammarName: string): Promise<Parser.Language> {
+async function doLoad(grammarName: string): Promise<Language> {
   if (!initialized) {
     await Parser.init();
     initialized = true;
@@ -84,9 +84,9 @@ async function doLoad(grammarName: string): Promise<Parser.Language> {
   const binPath = join(GRAMMARS_DIR, `${grammarName}.wasm.bin`);
   try {
     await Deno.stat(binPath);
-    return Parser.Language.load(binPath);
+    return Language.load(binPath);
   } catch {
-    return Parser.Language.load(join(GRAMMARS_DIR, `${grammarName}.wasm`));
+    return Language.load(join(GRAMMARS_DIR, `${grammarName}.wasm`));
   }
 }
 

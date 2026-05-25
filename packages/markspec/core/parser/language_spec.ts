@@ -11,7 +11,7 @@
  * {@linkcode languageIdForExtension}.
  */
 
-import type { SyntaxNode } from "web-tree-sitter";
+import type { Node as SyntaxNode } from "web-tree-sitter";
 import type { SupportedLanguage } from "../model/mod.ts";
 export type { SupportedLanguage }; // re-export for parser-internal consumers
 
