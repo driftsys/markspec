@@ -328,13 +328,21 @@ for requirement quality than half the GtWR catalog"), maps to **GtWR v4 R4
   `Definition` slugs (listing-directives §4.2 R4-c slug derivation) →
   `$Identifier` registry → profile-declared `Aliases` (listing-directives §4.3
   R4-g). First hit wins; no hit → diagnostic.
-- It defaults to `warning`, not `error`, and ships with a non-empty allowlist
-  (common English capitalized words, project nouns) so the false-positive rate
-  is bounded. The precision/recall trade and the default-severity question are
-  §8 open question 5.
-- It depends on glossary/`$Identifier` resolution, which is
-  deferred-by-dependency on `main` (§2.2 dependency note). The Stage-2 subset
-  (glossary-only resolver, no code-symbol/RIDL) is §8 open question 4.
+- It defaults to `warning`, not `error`. Core ships an **English-baseline
+  allowlist** at `packages/markspec/core/lexicons/capitalized-allow.txt`
+  (calendar terms, country and language names, common English proper nouns — no
+  domain terms). Profiles extend via `prose.lexicons.capitalized-allow` (§4.1)
+  for domain vocabulary (ASIL, ECU, CAN, …). The baseline file is versioned,
+  capped, and published as a separate auditable artifact so users can see
+  exactly what core treats as universally-defined (§8 OQ5 resolved).
+- It depends on glossary/`$Identifier` resolution. Core ships the **subset
+  resolver** for glossary `Definition` slugs (listing-directives §4.2 R4-c) +
+  in-entry `DefinitionList` terms in Stage-2; `$Identifier` code-symbol and RIDL
+  resolution stay deferred-by-dependency on the ADR-016 marker pass and the
+  rules that consume them degrade-to-silent (§5.4) until that resolver lands.
+  The rule's behaviour across the resolver-completion boundary is **additive
+  enrichment, never new false positives** — more tokens resolve as the resolver
+  grows, so the rule can only fire less, never more (§8 OQ4 resolved).
 
 ### 2.9 Suppression hygiene (`disable-*`)
 
@@ -422,7 +430,8 @@ prose:
   lexicons: # list-additive across tiers (§5.1)
     vague-terms: [snappy, blazing-fast] # extends the canonical R7 list
     escape-clauses: [best-effort] # extends the canonical R8 list
-    capitalized-allow: [ASIL, ECU, CAN]
+    capitalized-allow: [ASIL, ECU, CAN] # extends core English-baseline (§2.8)
+    sentence-abbrev: [Bzgl., Sog.] # extends core abbreviation list (§5.2)
   weights:
     xref-glossary-undefined: 5
   score:
@@ -524,9 +533,18 @@ This section constrains the Stage-2 build prompt; it is **not** implementation.
   resolution (§1.3.1), over in-scope entries (§1.1). It is **off the `fmt` path
   entirely** (AGENTS.md formatters/linters split; core-data-model §3).
 - Inputs are the **existing AST**: `ModalMarker`, `EntityRef` (core-data-model
-  §2.5), body-block types (§2.4), resolved `Type:`. Sentence segmentation uses
-  the tree-sitter Markdown grammar already in the stack (00-context-overview
-  "tree-sitter for local fact extraction"). No new parser.
+  §2.5), body-block types (§2.4), resolved `Type:`. Paragraph-level segmentation
+  reuses the tree-sitter Markdown grammar already in the stack
+  (00-context-overview "tree-sitter for local fact extraction"); no new parser.
+  **Sub-paragraph sentence segmentation is rule-based** — splits on `.`/`?`/`!`
+  followed by whitespace + an uppercase character, with an abbreviation list
+  (`Mr.`, `Dr.`, `e.g.`, `i.e.`, `etc.`, `vs.`, `No.`, `Fig.`, …) maintained as
+  the **`prose.lexicons.sentence-abbrev`** lexicon (extended list-additive by
+  profiles per §5.1). Rule-based segmentation matches §5.1's "deterministic,
+  citable, fast, offline" stance: requirement prose is short and structured, so
+  a hand-rolled tokenizer beats `Intl.Segmenter` (cross-V8-version drift would
+  silently break snapshot tests) and external NLP libs (new dependency, variable
+  determinism).
 - `$Identifier` / glossary resolution is **consumed, not re-implemented**
   (§2.2): it reuses the marker pass's resolver (`MSL-M050/M051`, core-data-model
   §2.5.2). Where that resolver is deferred-by-dependency on `main` (ADR-012 §6),
@@ -694,14 +712,53 @@ Capped at seven (cross-cutting constraint).
    these ship gated behind that resolver, or with a **glossary-only subset
    resolver** (no code-symbol/RIDL) as a Stage-2 partial?
 
+   **Resolved (2026-05-25): glossary-only subset resolver ships now;
+   `$Identifier` / RIDL rules degrade-to-silent until ADR-016's marker pass
+   lands.** The flagship rule (§2.8) is the value proposition of this stage;
+   gating the whole xref group on the deferred marker pass would defer all
+   user-visible payoff. The subset resolver handles glossary `Definition` slugs
+   and in-entry `DefinitionList` terms — both already-parsed structures on
+   `main` after listing-directives shipped in v0.5.0. The transition across the
+   resolver-completion boundary is **additive enrichment, never new false
+   positives** (§2.8): more tokens resolve as the resolver grows, so the rule
+   only fires _less_ over time, never more — the §5.4 "degrade-to-silent, never
+   false-positive" invariant is preserved.
+
 5. **Flagship precision / default severity.** Is `xref-glossary-undefined`
    `warning` or `info` by core default, and does core ship a curated
    capitalized-word allowlist lexicon, or is the allowlist profile-only (risking
    a high false-positive rate for profile-less projects)?
 
+   **Resolved (2026-05-25): default severity is `warning`; core ships an
+   English-baseline allowlist at
+   `packages/markspec/core/lexicons/capitalized-allow.txt`.** Warning is
+   consistent with the existing §2.8 posture and the §3.2 weight table (which
+   already buckets the rule at weight 3 = warn). Severity is decoupled from exit
+   code (§3.4) — warning is a triage signal, not a CI gate. The baseline
+   allowlist scope is **universally-true English only** (calendar terms, country
+   and language names, common English proper nouns — Monday, December, France,
+   NATO, …), explicitly _not_ domain vocabulary; ASIL/ECU/CAN-style additions
+   belong in a profile or `.markspec/lint.yaml` via
+   `prose.lexicons.capitalized-allow` (§4.1). The file is versioned and capped
+   so the implicit-policy footprint of the baseline stays bounded.
+
 6. **Score roll-up semantics.** Is the project roll-up a mean, a count-by-band,
    or both — and is any non-gating _trend_ (e.g. a CI PR comment) surfaced at
    all, given that even a visible trend can become a de-facto target (§3.3)?
+
+   **Resolved (2026-05-25): both (count-by-band as primary, mean as quick-look
+   secondary); core ships no trend artifact.** The dual roll-up matches the
+   existing §3.1 commitment ("count of entries by score band plus the mean —
+   never a single project number"); band counts are the honest signal (improving
+   one band can worsen another, so the histogram resists gaming) and the mean is
+   for at-a-glance. Trend artifacts (PR comments, dashboards, score-delta
+   integrations) are **explicitly out of scope for core** — they're the most
+   aggressive way to turn the score into a Goodhart target (§3.3 anti-pattern is
+   normative: "the score is a smoke detector, not a KPI"). The CLI/JSON output
+   emits the score so teams can compute trends in their own CI if they want;
+   core stays out of the trend-output business by design, not by omission. This
+   is a deliberate non-feature and is called out in CHANGELOG so it doesn't
+   accrete as "missing functionality" pressure later.
 
 7. **Vale merge boundary.** Is merging Vale diagnostics into the MarkSpec
    reporter under `--include-vale` (companion guide §8) in scope for the Stage-2

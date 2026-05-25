@@ -191,25 +191,82 @@ read caches an upstream's _public_ `/api/` data only.
 
 ## 9. Open questions
 
-Capped at five.
+Capped at five. All five were resolved on 2026-05-25; the original questions are
+preserved so the rationale stays in the spec.
 
 1. **Stale-index trust for `validate`/`compile`.** §4 says correctness commands
    don't trust a stale index. Do they (a) always full-parse (simple, slower CI),
    (b) trust the index iff a fast whole-project hash matches, or (c)
    verify-then-use? The CI-time cost of (a) at 100k entries may be unacceptable.
+
+   **Resolved (2026-05-25): (c) verify-then-use, with `mtime + size` as the
+   default per-file verification and a `--verify=content` flag selecting full
+   content-hash verification.** Per-file granularity localises the trust
+   decision — unchanged files are trusted from the index (one `stat` syscall
+   each), changed files are re-parsed from disk, and cross-file validation runs
+   on the merged set. This is faster than (a) at scale and safer than (b)
+   because a single corrupted entry can't shadow the whole project. Content-hash
+   fallback covers environments where `mtime` is unreliable (some sync tools
+   touch every file's `mtime` on pull) — invoked explicitly via the flag so the
+   default stays cheap.
+
 2. **Watch vs on-demand incremental.** §3.2 warm mode — file-watcher (instant,
    OS-specific, flaky on network FS) vs lazy on-query staleness check (portable,
    a small first-query latency). Which is canonical, which optional?
+
+   **Resolved (2026-05-25): on-demand canonical; no filesystem watcher in v1.**
+   CLI commands (`validate`, `compile`, `show`, `report`, …) are one-shot —
+   on-demand `mtime` check is the natural fit and a watcher would be wasted
+   overhead. The LSP already receives change notifications from the editor (LSP
+   `didChange` / `didSave`) — the editor _is_ the watcher, so a separate FS
+   watcher would be redundant. A standalone watcher only matters for a
+   hypothetical `markspec serve` / `markspec watch` mode that doesn't exist
+   today. Avoiding FS watchers as the canonical mechanism dodges the well-known
+   fragility on network filesystems, container bind-mounts, and
+   save-via-temp-rename editor patterns.
+
 3. **Federated-read cache lifetime.** §3.2 read-through cache of an upstream
    `/api/` — TTL like the sync cache (sync spec §5), or pinned strictly by the
    lockfile hash (lockfile spec §3) and only refreshed on `lock --update`?
+
+   **Resolved (2026-05-25): lockfile-pinned; refreshed only on
+   `lock --update`.** Same reasoning that gave us lockfiles in the first place:
+   a TTL on federated entries means "your CI passes today, fails next Tuesday
+   because upstream silently changed" — the exact failure mode lockfiles were
+   invented to prevent (cargo, npm, pnpm, bundler all converged here). Builds
+   must be reproducible from `(source-tree +
+   lockfile)`; a wall-clock-driven
+   cache breaks that.
+
 4. **Index sharing across worktrees.** A repo with multiple git worktrees (this
    project uses them — `.worktrees/`) — one `index.db` per worktree (isolation,
    N rebuilds) or a shared keyed store (one build, harder invalidation §5)?
+
+   **Resolved (2026-05-25): one `index.db` per worktree.** Worktrees in
+   MarkSpec's typical workflow are short-lived feature branches, so the sharing
+   benefit is small (each worktree's index is mostly the same as `main`'s, but
+   the diverged subset is exactly what needs re-indexing anyway). The sharing
+   _cost_ is large: a shared store needs content-addressed
+   `(file_path, content_hash) → entries` rather than the simpler
+   `file_path → entries`, and invalidation has to defend against "two worktrees
+   touched the same path with different content". SQLite is small at our entry
+   counts; the duplication overhead is real but manageable. Per-worktree
+   isolation also avoids cross-worktree leakage of sandbox-overlay state (an
+   existing hazard with agent-driven sessions in `.claude/worktrees/`). Revisit
+   if rebuild times become a complaint.
+
 5. **Cross-file invalidation cost ceiling.** §5.2's reverse-edge closure is
    bounded but a hub entry (compile-output §2 worst case) has a huge reverse
    set; a rename there is O(huge). Cap the closure and fall back to cold above a
    threshold, or always pay it?
+
+   **Resolved (2026-05-25): cap at a configurable threshold (default ≈ 200
+   affected entries); fall back to a full single-pass re-validate when the cap
+   is exceeded.** Below the cap, the surgical reverse-edge walk wins. Above the
+   cap, a single full pass is more cache-friendly than walking a huge dependency
+   graph, and the constant-factor difference dominates. Threshold tunable via
+   `index.invalidation-cap` (numeric; default 200) — empirical value, expected
+   to change once we have project-scale measurements from the SQLite eval epic.
 
 ## Annex — Cross-reference summary
 
