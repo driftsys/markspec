@@ -24,4 +24,5 @@ export { nextIdCmd } from "./next_id.ts";
 export { profileCmd } from "./profile.ts";
 export { reportCmd } from "./report.ts";
 export { showCmd } from "./show.ts";
+export { syncCmd } from "./sync.ts";
 export { validateCmd } from "./validate.ts";

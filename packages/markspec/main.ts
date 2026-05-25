@@ -32,6 +32,7 @@ import {
   profileCmd,
   reportCmd,
   showCmd,
+  syncCmd,
   validateCmd,
 } from "./cli/commands/mod.ts";
 
@@ -55,6 +56,7 @@ const cli = new Command()
   .command("report", reportCmd)
   .command("lint", lintCmd)
   .command("lock", lockCmd)
+  .command("sync", syncCmd)
   .command("hook", hookCmd)
   .command("insert", insertCmd)
   .command("create", createCmd)
