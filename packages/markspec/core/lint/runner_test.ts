@@ -311,3 +311,167 @@ Deno.test("runLint: output is deterministic for same input", async () => {
     r2.diagnostics.map((d) => d.code),
   );
 });
+
+// ---------------------------------------------------------------------------
+// Q902: disable-unused (runner integration)
+// ---------------------------------------------------------------------------
+
+Deno.test("runLint: MSL-Q902 fires when Markspec-disable code did not match any diagnostic", async () => {
+  // "incose-r7-vague-term" → MSL-Q302 (vague-term). Body has no vague term → Q302 won't fire.
+  const text = "The system shall process the request within 200 ms.";
+  const entry = makeEntry({
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Type", value: "Requirement" },
+      { key: "Markspec-disable", value: "MSL-Q302" },
+      { key: "Rationale", value: "Reviewed and accepted." },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Type", ["Requirement"]],
+      ["Markspec-disable", ["MSL-Q302"]],
+      ["Rationale", ["Reviewed and accepted."]],
+    ]),
+  });
+  const result = await runLint({ entries: [entry] });
+  const codes = result.diagnostics.map((d) => d.code);
+  assertEquals(codes.includes("MSL-Q902"), true);
+});
+
+Deno.test("runLint: MSL-Q902 silent when Markspec-disable code did match a suppressed diagnostic", async () => {
+  // Body contains "some" → Q302 fires, gets suppressed → no Q902.
+  const text = "The system should use some processing mechanism.";
+  const entry = makeEntry({
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Type", value: "Requirement" },
+      { key: "Markspec-disable", value: "MSL-Q302" },
+      { key: "Rationale", value: "Reviewed and accepted." },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Type", ["Requirement"]],
+      ["Markspec-disable", ["MSL-Q302"]],
+      ["Rationale", ["Reviewed and accepted."]],
+    ]),
+  });
+  const result = await runLint({ entries: [entry] });
+  const codes = result.diagnostics.map((d) => d.code);
+  // Q302 was suppressed and actually matched → Q902 must NOT fire.
+  assertEquals(codes.includes("MSL-Q902"), false);
+  // Q302 itself must not appear (it was suppressed).
+  assertEquals(codes.includes("MSL-Q302"), false);
+});
+
+Deno.test("runLint: MSL-Q902 silent when entry has no Markspec-disable", async () => {
+  const text = "The system shall process the request within 200 ms.";
+  const entry = makeEntry({
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+  });
+  const result = await runLint({ entries: [entry] });
+  const codes = result.diagnostics.map((d) => d.code);
+  assertEquals(codes.includes("MSL-Q902"), false);
+});
+
+Deno.test("runLint: MSL-Q902 emits one diagnostic per unused code", async () => {
+  // Disable three codes; body triggers none of them.
+  const text = "The system shall process the request within 200 ms.";
+  const entry = makeEntry({
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Type", value: "Requirement" },
+      // Q302 (vague-term), Q303 (subjective), Q304 (weak-imperative) — none fire on this body.
+      { key: "Markspec-disable", value: "MSL-Q302, MSL-Q303, MSL-Q304" },
+      { key: "Rationale", value: "Reviewed and accepted." },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Type", ["Requirement"]],
+      ["Markspec-disable", ["MSL-Q302", "MSL-Q303", "MSL-Q304"]],
+      ["Rationale", ["Reviewed and accepted."]],
+    ]),
+  });
+  const result = await runLint({ entries: [entry] });
+  const q902s = result.diagnostics.filter((d) => d.code === "MSL-Q902");
+  // One Q902 per unused code → 3 total.
+  assertEquals(q902s.length, 3);
+});
+
+Deno.test("runLint: MSL-Q902 has correct fields (info, score 0, group disable)", async () => {
+  const text = "The system shall process the request within 200 ms.";
+  const entry = makeEntry({
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Type", value: "Requirement" },
+      { key: "Markspec-disable", value: "MSL-Q302" },
+      { key: "Rationale", value: "Reviewed and accepted." },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Type", ["Requirement"]],
+      ["Markspec-disable", ["MSL-Q302"]],
+      ["Rationale", ["Reviewed and accepted."]],
+    ]),
+  });
+  const result = await runLint({ entries: [entry] });
+  const d = result.diagnostics.find((x) => x.code === "MSL-Q902");
+  assertEquals(d !== undefined, true);
+  assertEquals(d!.severity, "info");
+  assertEquals(d!.scoreContribution, 0);
+  assertEquals(d!.group, "disable");
+  assertEquals(d!.slug, "disable-unused");
+});

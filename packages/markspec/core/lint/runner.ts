@@ -17,6 +17,7 @@ import {
   hasRationale,
   parseDisableValue,
   runSuppressionRules,
+  runUnusedSuppressionCheck,
 } from "./rules/suppression.ts";
 import { buildGlossaryIndex } from "./glossary.ts";
 import type { FileReader, GlossaryIndex } from "./glossary.ts";
@@ -25,6 +26,7 @@ import type { IsIdentifierHook } from "./rules/xref.ts";
 import { runEarsRules } from "./rules/ears.ts";
 import { runModalSentenceRules } from "./rules/modal_sentence.ts";
 import { runIncoseSentenceRules } from "./rules/incose_sentence.ts";
+import { runPassiveRules } from "./rules/passive.ts";
 import { loadLexicon } from "../lexicons/mod.ts";
 import { computeScoreRollup } from "./score.ts";
 import type { ScoreRollup } from "./score.ts";
@@ -106,13 +108,17 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
  *   6. Run EARS rules (Q100–Q104) on each in-scope entry.
  *   7. Run modal sentence rules (Q200–Q201) on each in-scope entry.
  *   8. Run INCOSE sentence rules (Q306–Q312, Q402) on each in-scope entry.
- *   9. Run suppression hygiene on ALL Authored entries.
- *  10. Apply suppression: drop in-scope diagnostics where the entry's
+ *   9. Run passive-voice rules (Q300–Q301) on each in-scope entry.
+ *  10. Run suppression hygiene on ALL Authored entries.
+ *  11. Apply suppression: drop in-scope diagnostics where the entry's
  *      Markspec-disable list includes the rule's code and the entry
- *      has a Rationale. Suppression-hygiene diagnostics (Q900/Q901)
- *      are never suppressed.
- *  11. Compute score roll-up (per-entry scores, band-counts, mean).
- *  12. Return diagnostics and score.
+ *      has a Rationale. Track which codes were actually suppressed.
+ *      Suppression-hygiene diagnostics (Q900/Q901/Q902) are never
+ *      suppressed.
+ *  12. Run Q902 (disable-unused): emit one info diagnostic per disabled
+ *      code that did not match any diagnostic this run (stale escape hatch).
+ *  13. Compute score roll-up (per-entry scores, band-counts, mean).
+ *  14. Return diagnostics and score.
  */
 export async function runLint(options: LintOptions): Promise<LintResult> {
   const { entries } = options;
@@ -124,44 +130,67 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   );
   const isIdHook: IsIdentifierHook = () => false;
 
-  // Steps 1–8: collect diagnostics keyed by entry
+  // Steps 1–9: collect diagnostics keyed by entry
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
     if (!isProseScope(entry)) continue;
     const diags: LintDiagnostic[] = [];
+    // Step 3: lexicon rules
     diags.push(...runLexiconRules(entry));
+    // Step 4: structural rules
     diags.push(...runStructRules(entry));
+    // Step 5: xref rules (Q500)
     diags.push(...runXrefRules(entry, glossary, allow, isIdHook));
+    // Step 6: EARS rules (Q100–Q104)
     diags.push(...runEarsRules(entry));
+    // Step 7: modal sentence rules (Q200–Q201)
     diags.push(...runModalSentenceRules(entry));
     // Step 8: INCOSE sentence rules (Q306–Q312, Q402)
     diags.push(...runIncoseSentenceRules(entry));
+    // Step 9: passive-voice rules (Q300–Q301)
+    diags.push(...runPassiveRules(entry));
     inScopeDiags.set(entry, diags);
   }
 
-  // Step 9: suppression hygiene on all Authored entries
+  // Step 10: suppression hygiene on all Authored entries
   const hygieneDiags: LintDiagnostic[] = [];
   for (const entry of entries) {
     if (entry.shape !== "Authored") continue;
     hygieneDiags.push(...runSuppressionRules(entry));
   }
 
-  // Step 10: apply suppression to in-scope diagnostics
+  // Step 11: apply suppression to in-scope diagnostics; track matched codes
+  // per entry so Step 12 can detect unused suppressions (Q902).
   const out: LintDiagnostic[] = [];
   for (const [entry, diags] of inScopeDiags) {
     const disabled = disabledCodes(entry);
     const entryHasRationale = hasRationale(entry);
+    const matched = new Set<string>();
     for (const diag of diags) {
       // Suppression requires both a matching code AND a Rationale.
-      if (entryHasRationale && disabled.has(diag.code)) continue;
+      if (entryHasRationale && disabled.has(diag.code)) {
+        matched.add(diag.code);
+        continue;
+      }
       out.push(diag);
+    }
+    // Step 12: Q902 — emit one info diagnostic per disabled code that
+    // did not suppress any diagnostic during this run.
+    if (disabled.size > 0) {
+      out.push(
+        ...runUnusedSuppressionCheck({
+          entry,
+          disabledCodes: disabled,
+          matchedCodes: matched,
+        }),
+      );
     }
   }
 
-  // Step 11: append hygiene diagnostics (never suppressed)
+  // Append hygiene diagnostics (Q900/Q901 — never suppressed)
   out.push(...hygieneDiags);
 
-  // Step 12: compute score roll-up across all entries (including 0-score ones).
+  // Step 13: compute score roll-up across all entries (including 0-score ones).
   const score = computeScoreRollup(out, entries);
 
   return { diagnostics: out, score };
