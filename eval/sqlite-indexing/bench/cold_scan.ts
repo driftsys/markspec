@@ -25,7 +25,7 @@ import {
   SCALE_10K,
   SCALE_1K,
 } from "../corpus/generator.ts";
-import { createAdapter, type PragmaSet } from "./adapter.ts";
+import { createAdapter, type PragmaSet, resolveDriverName } from "./adapter.ts";
 import { measure, record, summarise } from "./harness.ts";
 
 const ITERATIONS = 5;
@@ -130,7 +130,7 @@ export async function runColdScan(
     const result = summarise({
       bench: `cold_scan-${name}`,
       scale,
-      driver: "sqlite3",
+      driver: resolveDriverName(),
       pragmas: pragmasToRecord(pragmas),
       iterations: ITERATIONS,
       warmup: WARMUP,

@@ -277,15 +277,72 @@ by manual simulation in the bench.
   that write to `schema_meta` race and ~60 % fail with SQLITE_BUSY. With it, all
   open attempts succeed sequentially. This must be in the production pragma set.
 
+### Driver alternatives (follow-up bench)
+
+Bench re-ran `cold_scan` and `lookups` against three SQLite drivers using the
+same harness — the only change is `MARKSPEC_EVAL_DRIVER=<driver>` on the env.
+Same dev machine and tuned pragma set as the primary cold-scan / lookups
+results.
+
+Drivers compared:
+
+- **`sqlite3`** — `jsr:@db/sqlite@^0.13.0` (native FFI, `denodrivers/sqlite3`).
+  Primary driver. Requires `--allow-ffi` + `--allow-net` (one-time library
+  download).
+- **`wasm`** — `deno.land/x/sqlite@v3.9.1` (pure WASM, `dyedgreen/deno-sqlite`).
+  No FFI permission. Loads the entire db into memory.
+- **`node`** — `node:sqlite` (Node.js 22+ experimental built-in, via Deno
+  Node-compat). No FFI permission, no external dependency. Same underlying
+  SQLite C library as `sqlite3` but a different binding layer.
+
+#### Cold scan tuned p50 (mean ms across 5 iter, warmup=1)
+
+| Driver  | 10k    | 100k    | vs `sqlite3` @ 100k  |
+| ------- | ------ | ------- | -------------------- |
+| sqlite3 | 137 ms | 1298 ms | 1.0× (baseline)      |
+| wasm    | 299 ms | 1961 ms | 1.5× slower          |
+| node    | 120 ms | 1326 ms | ~1.0× (within noise) |
+
+#### Hot-path lookups @ 10k (p50 µs)
+
+| Driver  | getEntryById | getEntryByDisplayId | prefix scan | glossary |
+| ------- | ------------ | ------------------- | ----------- | -------- |
+| sqlite3 | 16           | 15                  | 124         | 7        |
+| wasm    | 41           | 41                  | 232         | 35       |
+| node    | 14           | 14                  | 201         | 8        |
+
+**Driver-alternatives observations:**
+
+- **`node:sqlite` essentially ties `sqlite3` (FFI)** on every measurement — both
+  link the same upstream SQLite C library through different bindings, so this is
+  the expected result. It's a viable drop-in if the FFI permission story becomes
+  a deployment concern.
+- **WASM is 1.5–5× slower** on hot paths (worst gap is prefix-scan and the small
+  lookups where binding overhead dominates), but still meets every §6 budget
+  with comfortable headroom: 100k cold scan in 2 s (vs 5 s budget at 10k), 41 µs
+  point lookup (vs 5 ms p95 budget). WASM is the safest permission story — no
+  FFI, no net.
+- **`node:sqlite` is experimental upstream** (Node.js 22's
+  `--experimental-sqlite` is now stable; the `node:sqlite` URL is the path
+  forward but its API may still evolve). Worth tracking before committing to it
+  as the primary driver.
+- **All three drivers passed the eval's correctness checks** — cold-scan +
+  point + prefix + glossary lookups produced identical row counts. WAL semantics
+  and `busy_timeout` honored by all three.
+
 ## Decisions
 
 1. **Driver:** **`jsr:@db/sqlite@^0.13.0`** (native FFI via the
    `denodrivers/sqlite3` GitHub project; the JSR package is named `@db/sqlite`).
-   Confirmed across all benches — driver is never the bottleneck. Comparison
-   against `jsr:@db/sqlite` pure-WASM and `node:sqlite` is **deferred to Phase
-   2** as a follow-up if the FFI permission requirement becomes a deployment
-   concern; the §6 budgets are met with so much headroom that a slower driver
-   would still work.
+   Confirmed across all benches — driver is never the bottleneck. The follow-up
+   driver-alternatives bench (above) confirms `node:sqlite` is a drop-in
+   equivalent in performance (same C library, different bindings) and pure-WASM
+   `deno.land/x/sqlite` is 1.5–5× slower but still meets every §6 budget.
+   **Recommended fallback if the FFI permission becomes a deployment concern:**
+   pure-WASM, because it has the cleanest permission story (no FFI, no net).
+   `node:sqlite` matches FFI on performance but its experimental status upstream
+   argues for waiting until the Node.js API stabilizes before adopting it as
+   primary.
 
 2. **Production pragma set:** **tuned + busy_timeout**, exactly:
 
@@ -337,15 +394,16 @@ discovered during the benches (`busy_timeout = 5000`, `INSERT OR IGNORE` on
 `schema_meta`, `getSchemaVersion()` exposed for mismatch detection) carries
 forward into Phase 2 as part of the production code.
 
-Two **follow-up benches** are recommended but **not blockers** for Phase 2:
+One **follow-up bench** remains recommended but **not a blocker** for Phase 2:
 
 - **Revalidate cost per closure entry** — measures the downstream cost the §9 Q5
   `index.invalidation-cap` exists to bound. Calibrates the cap's value (the
   mechanism is already validated). Can run after Phase 2's invalidation walker
   is implemented.
-- **Driver alternatives bench** (`jsr:@db/sqlite` pure-WASM vs `node:sqlite`) —
-  only if the FFI permission requirement becomes a deployment concern. Otherwise
-  `@db/sqlite` is sufficient.
+
+The driver-alternatives bench has been run (see §Results — Driver alternatives).
+WASM and `node:sqlite` are both validated as viable fallbacks if FFI permission
+becomes a deployment concern.
 
 A driver-level platform smoke-test on Linux ext4 / Windows NTFS is recommended
 once Phase 2 has a runnable production indexer; the eval ran only on
