@@ -1,6 +1,6 @@
 # ADR-018: Single Source of Truth for SW/HW Discipline Classification in Core
 
-**Status:** Proposed
+**Status:** Accepted (2026-05-25) — R3 (Path A++) selected
 
 ## Context
 
@@ -409,34 +409,58 @@ the asserted kind is registered.
 | Future flexibility (new disciplines)              | Requires core change                          | Profile extends registry                     | Profile-only                                       |
 | Coordination across the 4 mechanisms              | Manual                                        | Automatic via registry                       | N/A (mechanisms become abstract)                   |
 
-## Open for criteria-weighting review (joint with ADR-017)
+## Resolution
 
-This ADR's three options feed into the same criteria-weighting review that
-ADR-017 is awaiting. The two ADRs together form one decision package: the review
-picks exactly one of R1, R2, R3, and that pick simultaneously decides ADR-017's
-Path A / Path B question.
+The joint criteria-weighting review with
+[ADR-017](adr-017-discipline-classification.md) concluded on 2026-05-25 with
+**R3 — Path A++ (extensible discipline registry)** selected.
 
-The mapping is not orthogonal — each option bundles a taxonomy choice with an
-SSOT shape:
+### Why R3 over R2
 
-- **R1 = Path A unchanged.** Status quo. Defer all consolidation.
-- **R3 = Path A with internal SSOT consolidation.** Keep the core types; tighten
-  internal coordination via the discipline registry. The lowest-cost incremental
-  improvement.
-- **R2 = Path B with single-SSOT mechanism.** Pay the migration and structural
-  costs to achieve a strict ADR-009 boundary.
+R2 (Path B) was ruled out by the required-use-cases analysis. The "minimal
+profile-side work" constraint disqualifies it on two counts:
 
-The reviewer should weigh:
+- **Use case A (tiered profile)** — Path B forces every tiered profile to
+  redeclare core SW/HW Component / Interface vocabulary it currently inherits
+  for free.
+- **Use case B (flat profile)** — Path B forces flat profiles to opt into the
+  SW/HW vocabulary they currently never encounter. Flat profiles get
+  classification for free today via core types; Path B removes that.
 
-1. **Code-surface change** — willingness to pay refactor cost now.
-2. **Structural design cost** — willingness to carry the three permanent costs
-   of Path B.
-3. **ADR-009 boundary strictness** — how strictly the core/profile boundary
-   should be drawn.
-4. **Future flexibility** — how often new discipline categories are expected
-   (firmware, mechanical, FPGA, …).
-5. **Manual vs automated coordination** — preference for a single internal
-   registry vs. four hand-coordinated tables.
+In addition, the three structural costs (multi-step lookup chains, profile
+load-order sensitivity for type inference, validation-autonomy loss) are
+permanent — not migration-time costs that can be amortised.
+
+### Why R3 over R1
+
+R1 (Path A unchanged) was viable when the unified model was three-channel (Type
+→ Allocation → default). After ADR-017's amendment adopted a four-channel
+classifier with extensible kinds (Invariants 1 and 2), R1 became inconsistent
+with the model it was meant to support:
+
+- The four-channel classifier needs a `disciplineOfType(typeName) → kind`
+  lookup. R1 has nowhere central for this lookup, leaving it ad-hoc per profile
+  and per consumer.
+- **Use case C (extensible kinds for non-automotive domains)** is blocked in R1:
+  every new kind requires a core release.
+- Override and freeze validation (ADR-017 backlog items 4 and 5) need a central
+  kind set to validate authored values against. R1 has none.
+
+R3 factors the lookup out as a registry that profiles can extend. The
+implementation cost (~100–200 LOC + manifest-schema work + tests) is bounded and
+additive; the alternative (build the same lookup inline in R1, then backfill
+extensibility later) costs at least as much over time.
+
+### Risks accepted with R3
+
+- **Profile-manifest schema becomes a stable API.** Once `kinds:` and per-type
+  `discipline:` ship, breaking changes are expensive. To be designed
+  conservatively.
+- **Profile-conflict merge rules need a defined semantics** when multiple
+  profiles register the same type. Implementation question to settle in
+  writing-plans: last-write-wins, error-on-conflict, or namespace-per-profile.
+- **Registry maintenance** when new core SW/HW types are added — but this
+  becomes a single-file edit instead of four-file coordination.
 
 ## Dependencies
 
@@ -450,4 +474,6 @@ The reviewer should weigh:
 
 ## Status
 
-Proposed.
+Accepted (2026-05-25) — R3 (Path A++) selected. See the Resolution section above
+for the joint criteria-weighting review outcome with
+[ADR-017](adr-017-discipline-classification.md).
