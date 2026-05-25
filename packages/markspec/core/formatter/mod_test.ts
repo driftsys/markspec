@@ -475,3 +475,55 @@ Deno.test("format: mixed multi-entry doc is idempotent across the AST cutover", 
   assertFalse(once.includes("MUST debounce"));
   assertStringIncludes(once, "must debounce");
 });
+
+Deno.test("Slice 3 formatter: stamps today's date when Discipline-frozen: is bare kind", () => {
+  const input = `# Test
+
+- [REQ_001] Title
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Discipline-frozen: software
+`;
+  const { output, changed } = format(input, {
+    today: () => "2026-05-25",
+  });
+  assertEquals(changed, true);
+  assertEquals(
+    output.includes("Discipline-frozen: software @ 2026-05-25"),
+    true,
+  );
+});
+
+Deno.test("Slice 3 formatter: leaves already-dated Discipline-frozen: alone (idempotent)", () => {
+  const input = `# Test
+
+- [REQ_001] Title
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Discipline-frozen: software @ 2026-03-12
+`;
+  const { output } = format(input, {
+    today: () => "2026-05-25",
+  });
+  assertEquals(
+    output.includes("Discipline-frozen: software @ 2026-03-12"),
+    true,
+  );
+  assertEquals(output.includes("2026-05-25"), false);
+});
+
+Deno.test("Slice 3 formatter: malformed Discipline-frozen: value is untouched (validator handles it)", () => {
+  const input = `# Test
+
+- [REQ_001] Title
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Discipline-frozen: Software
+`;
+  const { output } = format(input, {
+    today: () => "2026-05-25",
+  });
+  // Uppercase 'S' — doesn't match the bare-kind regex; formatter punts.
+  assertEquals(output.includes("Discipline-frozen: Software"), true);
+  assertEquals(output.includes("@ 2026-05-25"), false);
+});

@@ -90,3 +90,13 @@ Deno.test("isDocCommentContext: returns false for plain code", () => {
   ];
   assertEquals(isDocCommentContext(lines, 1), false);
 });
+
+Deno.test("Slice 3 LSP context: Discipline: keyword triggers doc-comment context", () => {
+  const lines = ["/// Some prose", "/// Discipline: software"];
+  assertEquals(isDocCommentContext(lines, 1), true);
+});
+
+Deno.test("Slice 3 LSP context: Discipline-frozen: keyword triggers doc-comment context", () => {
+  const lines = ["/// Some prose", "/// Discipline-frozen: software"];
+  assertEquals(isDocCommentContext(lines, 1), true);
+});

@@ -358,6 +358,29 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
   assertEquals(result.valid, false);
 });
 
+Deno.test("Slice 3 pipeline: validateDiscipline runs and emits MSL-T025 on unknown override", () => {
+  const entry: Entry = {
+    shape: "Authored",
+    displayId: makeDisplayId("REQ_001"),
+    title: "x",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Discipline", value: "nonsense" },
+    ],
+    typedAttributes: new Map(),
+    type: undefined,
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    location: { file: "x.md", line: 1, column: 1 },
+    bodyTokens: [],
+    source: { kind: "markdown" as const },
+    derivedDiscipline: "system",
+  };
+
+  const { diagnostics } = runPipeline([entry], null);
+  assertEquals(diagnostics.some((d) => d.code === "MSL-T025"), true);
+});
+
 Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {
   const origin = "@test/p";
   const verifiesAttr = {

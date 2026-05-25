@@ -326,6 +326,12 @@ export interface FormatOptions {
   readonly file?: string;
   /** ULID generator override (for testing). */
   readonly generateUlid?: () => string;
+  /**
+   * Override the "today" date used by the Discipline-frozen: stamper.
+   * Returned value must be a `YYYY-MM-DD` string in UTC. Default: today.
+   * Injectable for deterministic tests.
+   */
+  readonly today?: () => string;
 }
 
 /** Result of a format operation. */
@@ -336,6 +342,31 @@ export interface FormatResult {
   readonly diagnostics: readonly Diagnostic[];
   /** Whether any changes were made. */
   readonly changed: boolean;
+}
+
+/**
+ * UTC `YYYY-MM-DD` for today. Used as the default for the
+ * Discipline-frozen: stamper.
+ */
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * If `value` is a bare discipline kind (no `@`), return
+ * `<kind> @ <today>`. Otherwise return the value unchanged. Used by
+ * `format()` to auto-stamp `Discipline-frozen:` lines per ADR-017 Slice 3.
+ *
+ * The bare-kind regex deliberately matches the same shape the validator
+ * accepts in {@linkcode parseFrozenValue}; anything that doesn't match
+ * (e.g. uppercase kinds, already-dated forms) is left alone — the
+ * validator handles malformed values via MSL-T026.
+ */
+function stampDisciplineFrozen(value: string, today: string): string {
+  if (/^[a-z][a-z0-9-]*\s*$/.test(value)) {
+    return `${value.trim()} @ ${today}`;
+  }
+  return value;
 }
 
 /**
@@ -432,6 +463,32 @@ export function format(
         message: `assigned Id: ${newId} to ${entry.displayId}`,
         location: entry.location,
       });
+    }
+
+    // Discipline-frozen: date stamping (ADR-017 Slice 3). Walk attrs;
+    // if any Discipline-frozen: value is a bare kind, rewrite it with
+    // today's UTC date. Idempotent on already-dated values.
+    const todayFn = options?.today ?? todayUtc;
+    const todayStr = todayFn();
+    let stampedCount = 0;
+    attrs = attrs.map((a) => {
+      if (a.key !== "Discipline-frozen") return a;
+      const newValue = stampDisciplineFrozen(a.value, todayStr);
+      if (newValue !== a.value) {
+        stampedCount++;
+        return { key: a.key, value: newValue };
+      }
+      return a;
+    });
+    if (stampedCount > 0) {
+      diagnostics.push({
+        code: "MSL-F001",
+        severity: "info",
+        message:
+          `stamped Discipline-frozen: with ${todayStr} on ${entry.displayId}`,
+        location: entry.location,
+      });
+      changed = true;
     }
 
     if (attrs.length === 0) continue;

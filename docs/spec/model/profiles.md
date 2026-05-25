@@ -204,6 +204,20 @@ semantics but produces a `PROFILE-DISCIPLINE-003` warning (the declaration is
 idempotent and ignored). Declare a new kind name to introduce additional
 disciplines such as `firmware`, `mechanical`, or `avionics`.
 
+### Discipline override and freeze
+
+Profiles that declare additional kinds via `profile.kinds:` extend the
+**effective kind set** consulted by the universal `Discipline:` and
+`Discipline-frozen:` attributes (see ADR-017 Implementation backlog items 4 and
+5). When an author writes `Discipline: firmware` on an entry, the classifier
+accepts the value (channel 1, lenient) and the validator
+([MSL-T025](../language/language.md#section-8)) succeeds when `firmware` is in
+the effective kind set — i.e., declared by the active profile chain or one of
+the core `system` / `software` / `hardware` kinds.
+
+The freeze attribute follows the same rule for its kind component; see ADR-017
+for the full lexical grammar and validator interaction matrix.
+
 ## What profiles cannot change
 
 Profiles extend core — they cannot weaken or redefine it:

@@ -14,6 +14,7 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
+import { CORE_DISCIPLINE_REGISTRY, makeDisplayId } from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import {
   classifyEntriesStage,
@@ -31,6 +32,8 @@ import { normalizeListValues } from "./normalize.ts";
 import { validateTraceabilityForEntry } from "./traceability.ts";
 import { validateFeatureAc } from "./feature_ac.ts";
 import { validateCaptionConvention } from "./caption_convention.ts";
+import { validateDiscipline } from "./discipline.ts";
+import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
@@ -90,6 +93,20 @@ export function runPipeline(
   // Runs project-wide because targets may live in any entry; needs the
   // whole batch indexed.
   diagnostics.push(...validateTraceTargetTypes(entries));
+
+  // Stage 1.7 — discipline attribute validation (ADR-017 Slice 3).
+  // Runs in both core-only and profile modes. In core-only mode the
+  // registry is CORE_DISCIPLINE_REGISTRY (kinds: system/software/hardware
+  // only) so T025/T027 only accept core kinds.
+  const disciplineRegistry = profile !== null
+    ? buildEffectiveDisciplineRegistry(profile)
+    : CORE_DISCIPLINE_REGISTRY;
+  const entriesByDisplayId = new Map(
+    entries.map((e) => [makeDisplayId(e.displayId), e] as const),
+  );
+  diagnostics.push(
+    ...validateDiscipline(entries, entriesByDisplayId, disciplineRegistry),
+  );
 
   // Stage 2 — classification (only when a profile is loaded).
   let finalEntries: readonly Entry[] = entries;

@@ -579,14 +579,16 @@ no TYPE vocabulary and no family enum.
 
 The following attributes apply to every family:
 
-| Attribute       | Type          | Required | Description                                   |
-| --------------- | ------------- | -------- | --------------------------------------------- |
-| `Labels`        | `tag-list`    | no       | Classification tags (includes `DRAFT` marker) |
-| `References`    | `citation`    | no       | External reference citations with locator     |
-| `External-id`   | `external-id` | no       | Cross-system identifier(s)                    |
-| `Supersedes`    | `id`          | no       | Same-shape entry this one replaces            |
-| `Superseded-by` | `id`          | —        | Generated inverse of `Supersedes`             |
-| `Deprecated`    | `string`      | no       | Retirement reason (non-replacement case)      |
+| Attribute           | Type          | Required | Description                                                                                                                                                                  |
+| ------------------- | ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Labels`            | `tag-list`    | no       | Classification tags (includes `DRAFT` marker)                                                                                                                                |
+| `Discipline`        | `text`        | no       | ADR-017 Slice 3 — author-asserted discipline kind. Value matches `/^[a-z][a-z0-9-]*$/`. Takes precedence over the classifier's type/allocation channels. Single-cardinality. |
+| `Discipline-frozen` | `text`        | no       | ADR-017 Slice 3 — cached snapshot of a past derivation: `<kind>` or `<kind> @ <YYYY-MM-DD>`. The formatter stamps today's UTC date when written bare. Single-cardinality.    |
+| `References`        | `citation`    | no       | External reference citations with locator                                                                                                                                    |
+| `External-id`       | `external-id` | no       | Cross-system identifier(s)                                                                                                                                                   |
+| `Supersedes`        | `id`          | no       | Same-shape entry this one replaces                                                                                                                                           |
+| `Superseded-by`     | `id`          | —        | Generated inverse of `Supersedes`                                                                                                                                            |
+| `Deprecated`        | `string`      | no       | Retirement reason (non-replacement case)                                                                                                                                     |
 
 **Draft state** is carried by the `DRAFT` label — a plain universal tag with no
 exclusive-group semantics. Authors set `Labels: DRAFT` on entries that are
@@ -1514,13 +1516,20 @@ carrying an `Id:` attribute.
 
 Type resolution and per-type attribute validation (spec §1.3, §1.6):
 
-| ID         | Severity | Rule                                                                                                                           |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `MSL-T020` | error    | `Type:` value is neither a core type nor a profile-declared type.                                                              |
-| `MSL-T021` | warning  | Core type inferred (display-ID prefix, URI scheme, or discriminating attribute); declare `Type:` explicitly to silence.        |
-| `MSL-T022` | warning  | Attribute is core-known but not valid on the entry's resolved type.                                                            |
-| `MSL-T023` | error    | `Type:` value looks like a profile-declared type but no profile is loaded (core-only mode).                                    |
-| `MSL-T024` | warning  | Entry carries a type-specific attribute but its core type could not be resolved (no `Type:`, no profile, no inferable signal). |
+| ID         | Severity | Rule                                                                                                                                                       |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-T020` | error    | `Type:` value is neither a core type nor a profile-declared type.                                                                                          |
+| `MSL-T021` | warning  | Core type inferred (display-ID prefix, URI scheme, or discriminating attribute); declare `Type:` explicitly to silence.                                    |
+| `MSL-T022` | warning  | Attribute is core-known but not valid on the entry's resolved type.                                                                                        |
+| `MSL-T023` | error    | `Type:` value looks like a profile-declared type but no profile is loaded (core-only mode).                                                                |
+| `MSL-T024` | warning  | Entry carries a type-specific attribute but its core type could not be resolved (no `Type:`, no profile, no inferable signal).                             |
+| `MSL-T025` | error    | `Discipline:` value is not a known kind (core or profile-declared) — ADR-017 Slice 3.                                                                      |
+| `MSL-T026` | error    | `Discipline-frozen:` value is malformed (expected `<kind>` or `<kind> @ YYYY-MM-DD`, calendar-valid date) — ADR-017 Slice 3.                               |
+| `MSL-T027` | error    | `Discipline-frozen:` parses but its kind is not in the effective kind set — ADR-017 Slice 3.                                                               |
+| `MSL-T028` | warning  | `Discipline:` override conflicts with the type-based derivation (channel 3) — ADR-017 Slice 3.                                                             |
+| `MSL-T029` | warning  | `Discipline:` override conflicts with the allocation-based derivation (channel 4) — ADR-017 Slice 3.                                                       |
+| `MSL-T030` | warning  | `Discipline-frozen:` kind differs from the current channels-3/4 derivation. Not suppressed when current derivation defaults to `system` — ADR-017 Slice 3. |
+| `MSL-T031` | warning  | `Discipline:` and `Discipline-frozen:` both well-formed and reference known kinds, but disagree — ADR-017 Slice 3.                                         |
 
 Profile-declared enum attributes (e.g., `ASIL`, `Test-level`, `Element-kind`)
 are validated against the vocabulary declared in the active profile's manifest.
