@@ -35,7 +35,7 @@ const ENTRY_MARKER_RE = /\[[A-Z]{2,}_[A-Z0-9_]+\]/;
 
 /** Trace attribute keywords that indicate a MarkSpec context. */
 const TRACE_KEYWORDS_RE =
-  /\b(Id|Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes|Labels)\s*:/;
+  /\b(Id|Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes|Labels|Discipline-frozen|Discipline)\s*:/;
 
 /**
  * Check whether a file path has a MarkSpec-relevant extension.

@@ -15,7 +15,11 @@ import type {
   ProfileManifest,
   TypeDef,
 } from "./mod.ts";
-import { makeDisplayId } from "./mod.ts";
+import {
+  attributeSpec,
+  makeDisplayId,
+  UNIVERSAL_ATTRIBUTE_KEYS,
+} from "./mod.ts";
 
 Deno.test("BodyToken: discriminated union exhaustiveness", () => {
   const modal: BodyToken = {
@@ -139,4 +143,21 @@ Deno.test("Slice 2 model: KindDecl + kinds/discipline fields type-check", () => 
     discipline: { value: "software", origin: "x" },
   };
   if (etd.discipline.value !== "software") throw new Error("unreachable");
+});
+
+Deno.test("Slice 3 model: Discipline and Discipline-frozen are in the universal catalog", () => {
+  assertEquals(UNIVERSAL_ATTRIBUTE_KEYS.includes("Discipline"), true);
+  assertEquals(UNIVERSAL_ATTRIBUTE_KEYS.includes("Discipline-frozen"), true);
+
+  const d = attributeSpec("Discipline");
+  assertEquals(d?.type, "text");
+  assertEquals(d?.origin, "authored");
+  assertEquals(d?.required, false);
+  assertEquals(d?.shapes.length, 2); // both shapes
+
+  const df = attributeSpec("Discipline-frozen");
+  assertEquals(df?.type, "text");
+  assertEquals(df?.origin, "authored");
+  assertEquals(df?.required, false);
+  assertEquals(df?.shapes.length, 2);
 });

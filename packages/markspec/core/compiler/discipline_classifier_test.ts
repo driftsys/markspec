@@ -14,7 +14,17 @@ import {
   makeDisplayId,
   MIXED_DISCIPLINE,
 } from "../mod.ts";
-import { classifyDiscipline } from "./discipline_classifier.ts";
+import {
+  classifyDerivationOnly,
+  classifyDiscipline,
+} from "./discipline_classifier.ts";
+
+const TEST_REGISTRY = new Map<string, Discipline>([
+  ["SoftwareComponent", "software"],
+  ["HardwareComponent", "hardware"],
+  ["SoftwareRequirement", "software"],
+  ["HardwareRequirement", "hardware"],
+]);
 
 function fixture(overrides: Partial<Entry>): Entry {
   return {
@@ -260,5 +270,176 @@ Deno.test(
       classifyDiscipline(req, map, extendedRegistry),
       "software",
     );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Slice 3: channels 1 (override) and 2 (freeze)
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "Slice 3 classifier: channel 1 (override) beats channel 3 (type-based)",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      type: "SoftwareRequirement",
+      rawAttributes: [{ key: "Discipline", value: "hardware" }],
+    });
+    const d = classifyDiscipline(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "hardware");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 1 (override) beats channel 4 (allocation-based)",
+  () => {
+    const sw = fixture({
+      displayId: makeDisplayId("COMP_SW"),
+      type: "SoftwareComponent",
+    });
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      rawAttributes: [
+        { key: "Allocated-to", value: "COMP_SW" },
+        { key: "Discipline", value: "hardware" },
+      ],
+    });
+    const map = new Map<DisplayId, Entry>([[sw.displayId, sw]]);
+    const d = classifyDiscipline(e, map, TEST_REGISTRY);
+    assertEquals(d, "hardware");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 1 with unknown kind is lenient (emits value verbatim)",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      type: "SoftwareRequirement",
+      rawAttributes: [{ key: "Discipline", value: "firmware" }],
+    });
+    const d = classifyDiscipline(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "firmware");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 2 (freeze) beats channel 3 (type-based)",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      type: "SoftwareRequirement",
+      rawAttributes: [
+        { key: "Discipline-frozen", value: "hardware @ 2026-01-15" },
+      ],
+    });
+    const d = classifyDiscipline(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "hardware");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 2 (freeze) beats channel 4 (allocation-based)",
+  () => {
+    const sw = fixture({
+      displayId: makeDisplayId("COMP_SW"),
+      type: "SoftwareComponent",
+    });
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      rawAttributes: [
+        { key: "Allocated-to", value: "COMP_SW" },
+        { key: "Discipline-frozen", value: "hardware @ 2026-01-15" },
+      ],
+    });
+    const map = new Map<DisplayId, Entry>([[sw.displayId, sw]]);
+    const d = classifyDiscipline(e, map, TEST_REGISTRY);
+    assertEquals(d, "hardware");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 1 (override) beats channel 2 (freeze)",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      rawAttributes: [
+        { key: "Discipline", value: "software" },
+        { key: "Discipline-frozen", value: "hardware @ 2026-01-15" },
+      ],
+    });
+    const d = classifyDiscipline(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "software");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 2 with bare-kind form parses correctly",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      rawAttributes: [{ key: "Discipline-frozen", value: "software" }],
+    });
+    const d = classifyDiscipline(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "software");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: channel 2 with malformed value falls through to channel 3",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      type: "SoftwareRequirement",
+      rawAttributes: [
+        { key: "Discipline-frozen", value: "GARBAGE @ not-a-date" },
+      ],
+    });
+    const d = classifyDiscipline(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "software");
+  },
+);
+
+Deno.test(
+  "Slice 3 classifier: classifyDerivationOnly skips channels 1 + 2",
+  () => {
+    const e = fixture({
+      displayId: makeDisplayId("REQ_001"),
+      type: "SoftwareRequirement",
+      rawAttributes: [
+        { key: "Discipline", value: "hardware" },
+        { key: "Discipline-frozen", value: "hardware @ 2026-01-15" },
+      ],
+    });
+    const d = classifyDerivationOnly(
+      e,
+      new Map<DisplayId, Entry>(),
+      TEST_REGISTRY,
+    );
+    assertEquals(d, "software");
   },
 );

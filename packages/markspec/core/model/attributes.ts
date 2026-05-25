@@ -278,6 +278,34 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
     shapes: BOTH_SHAPES,
     required: false,
   },
+
+  // Discipline classification per ADR-017 Slice 3.
+  // - `Discipline:` is an author-asserted kind that takes precedence over
+  //   the classifier's type-based and allocation-based channels.
+  //   Lenient on unknown kinds — the value is emitted verbatim and
+  //   MSL-T025 warns separately.
+  // - `Discipline-frozen:` is a dated snapshot of a past derivation in
+  //   the form `<kind>` or `<kind> @ <YYYY-MM-DD>`. The formatter stamps
+  //   today's UTC date when only `<kind>` is written. MSL-T026 catches
+  //   malformed values; MSL-T030 warns when the freeze diverges from the
+  //   current derivation.
+  // Both are text-typed (the value space is dynamic — kinds come from the
+  // effective registry built per ADR-017 Slice 2). Single-cardinality
+  // follows automatically because `text` is not in `REPEATABLE_VALUE_TYPES`.
+  {
+    key: "Discipline",
+    type: "text",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
+    key: "Discipline-frozen",
+    type: "text",
+    origin: "authored",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
 ];
 
 /** Canonical Title-Case attribute keys the core recognizes. */
