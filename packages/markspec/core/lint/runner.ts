@@ -23,6 +23,7 @@ import type { FileReader, GlossaryIndex } from "./glossary.ts";
 import { runXrefRules } from "./rules/xref.ts";
 import type { IsIdentifierHook } from "./rules/xref.ts";
 import { runEarsRules } from "./rules/ears.ts";
+import { runModalSentenceRules } from "./rules/modal_sentence.ts";
 import { loadLexicon } from "../lexicons/mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -99,12 +100,13 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
  *   4. Run structural rules on each in-scope entry.
  *   5. Run Q500 xref rules on each in-scope entry.
  *   6. Run EARS rules (Q100–Q104) on each in-scope entry.
- *   7. Run suppression hygiene on ALL Authored entries.
- *   8. Apply suppression: drop in-scope diagnostics where the entry's
+ *   7. Run modal sentence rules (Q200–Q201) on each in-scope entry.
+ *   8. Run suppression hygiene on ALL Authored entries.
+ *   9. Apply suppression: drop in-scope diagnostics where the entry's
  *      Markspec-disable list includes the rule's code and the entry
  *      has a Rationale. Suppression-hygiene diagnostics (Q900/Q901)
  *      are never suppressed.
- *   9. Return remaining diagnostics.
+ *  10. Return remaining diagnostics.
  */
 export async function runLint(options: LintOptions): Promise<LintResult> {
   const { entries } = options;
@@ -116,7 +118,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   );
   const isIdHook: IsIdentifierHook = () => false;
 
-  // Steps 1–6: collect diagnostics keyed by entry
+  // Steps 1–7: collect diagnostics keyed by entry
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
     if (!isProseScope(entry)) continue;
@@ -125,17 +127,18 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     diags.push(...runStructRules(entry));
     diags.push(...runXrefRules(entry, glossary, allow, isIdHook));
     diags.push(...runEarsRules(entry));
+    diags.push(...runModalSentenceRules(entry));
     inScopeDiags.set(entry, diags);
   }
 
-  // Step 7: suppression hygiene on all Authored entries
+  // Step 8: suppression hygiene on all Authored entries
   const hygieneDiags: LintDiagnostic[] = [];
   for (const entry of entries) {
     if (entry.shape !== "Authored") continue;
     hygieneDiags.push(...runSuppressionRules(entry));
   }
 
-  // Step 8: apply suppression to in-scope diagnostics
+  // Step 9: apply suppression to in-scope diagnostics
   const out: LintDiagnostic[] = [];
   for (const [entry, diags] of inScopeDiags) {
     const disabled = disabledCodes(entry);
@@ -147,7 +150,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     }
   }
 
-  // Step 9: append hygiene diagnostics (never suppressed)
+  // Step 10: append hygiene diagnostics (never suppressed)
   out.push(...hygieneDiags);
 
   return { diagnostics: out };
