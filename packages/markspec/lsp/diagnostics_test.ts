@@ -69,6 +69,11 @@ Deno.test("toLspDiagnostic: prefers range when present", () => {
   assertEquals(lsp.range.start.character, 9);
   assertEquals(lsp.range.end.line, 4);
   assertEquals(lsp.range.end.character, 24);
+  // codeDescription must still be populated for MSL-Q* on the range path.
+  assertEquals(
+    lsp.codeDescription?.href,
+    "https://markspec.dev/lint/rules/msl-q302",
+  );
 });
 
 Deno.test("toLspDiagnostic: falls back to location when range absent", () => {

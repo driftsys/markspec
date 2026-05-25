@@ -18,9 +18,15 @@ export interface LintDiagnostic extends Diagnostic {
   readonly group: "ears" | "modal" | "incose" | "struct" | "xref" | "disable";
   /** Entry-level score contribution for this firing. */
   readonly scoreContribution: number;
-  /** Sentence- or token-span range within the source file. When present,
-   * the LSP bridge uses this for precise highlighting; when absent, the
-   * entry-level `location` is used as a degenerate EOL-clamped range.
-   * Positions are 1-based (matching {@linkcode SourceRange} convention). */
+  /** Sentence- or token-span range. When present, the LSP bridge uses
+   * this for precise highlighting; when absent, the entry-level
+   * `location` is used as a degenerate EOL-clamped range.
+   *
+   * Positions are **1-based and file-absolute** — i.e. the same
+   * convention as {@linkcode Diagnostic.location}, NOT the body-relative
+   * convention {@linkcode SourceRange} carries when used on body-AST
+   * nodes. The structural shape is re-used; the semantics differ. Rules
+   * populating this field must convert body-relative offsets to
+   * file-absolute line/column before emitting. */
   readonly range?: SourceRange;
 }

@@ -6,7 +6,11 @@
  * diagnostics by file for per-document publishing.
  */
 
-import type { Diagnostic as CoreDiagnostic, Severity } from "../core/mod.ts";
+import type {
+  Diagnostic as CoreDiagnostic,
+  Severity,
+  SourceRange,
+} from "../core/mod.ts";
 
 /**
  * LSP Diagnostic — a subset of the full LSP type.
@@ -55,12 +59,7 @@ export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
   // Prefer range when the diagnostic carries one (LintDiagnostic from
   // prose analysis); else fall back to a 1-line range starting at
   // location and ending at EOL (existing behaviour).
-  const ext = diagnostic as CoreDiagnostic & {
-    range?: {
-      start: { line: number; column: number };
-      end: { line: number; column: number };
-    };
-  };
+  const ext = diagnostic as CoreDiagnostic & { range?: SourceRange };
   let lspRange: LspDiagnostic["range"];
   if (ext.range) {
     lspRange = {
