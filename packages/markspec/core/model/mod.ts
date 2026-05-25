@@ -341,6 +341,8 @@ export interface EntryProperties {
   /** External connector state. */
   readonly sync?: {
     readonly lastSyncedAt?: string;
+    /** RFC 3339 timestamp of the most recent conflict event for any binding on this entry (ADR-019). */
+    readonly lastConflictAt?: string;
     readonly remoteState?: string;
     readonly externalSource?: string;
   };
@@ -348,6 +350,8 @@ export interface EntryProperties {
   readonly build?: {
     readonly resolutionSource?: string;
     readonly registryOrigin?: string;
+    /** sha256:* hash recorded in markspec.lock for this entry's locked-attribute set at last lock (ADR-019). */
+    readonly lockHash?: string;
   };
   /**
    * Entry-source provenance — set when an entry is produced by an adapter
