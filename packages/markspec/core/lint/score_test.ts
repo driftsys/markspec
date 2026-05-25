@@ -96,7 +96,7 @@ Deno.test("score: occurrences counts repeated firings", () => {
 });
 
 Deno.test("score: bandCounts cover all 5 bands always", () => {
-  // 5 entries with scores 0, 2, 5, 9, 20 → bands 0:1, 1-3:1, 4-7:1, 8-15:1, 16+:1.
+  // 5 entries with scores 0, 2, 5, 9, 21 → bands 0:1, 1-3:1, 4-7:1, 8-15:1, 16+:1.
   const entries = ["STK_0001", "STK_0002", "STK_0003", "STK_0004", "STK_0005"]
     .map((id, i) => fakeEntry(id, `/${i}.md`));
   const diags: LintDiagnostic[] = [];
@@ -188,4 +188,86 @@ Deno.test("score: band keys present in canonical order", () => {
     "8-15",
     "16+",
   ]);
+});
+
+// Band-boundary regression tests — guards against off-by-one if the
+// band predicates are ever edited. The values 1, 3, 4, 7, 8, 15, 16
+// sit exactly on the band boundaries per ADR-021 Decision 4.
+Deno.test("score: boundary — score=1 lands in '1-3'", () => {
+  const entry = fakeEntry("STK_0001");
+  const diags = [fakeDiag("MSL-Q304", "incose-r9-open-ended", 1, "/x.md")];
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["1-3"], 1);
+  assertEquals(roll.rollup.bandCounts["0"], 0);
+});
+
+Deno.test("score: boundary — score=3 lands in '1-3' (upper edge)", () => {
+  const entry = fakeEntry("STK_0001");
+  const diags = [fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md")];
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["1-3"], 1);
+  assertEquals(roll.rollup.bandCounts["4-7"], 0);
+});
+
+Deno.test("score: boundary — score=4 lands in '4-7' (lower edge)", () => {
+  const entry = fakeEntry("STK_0001");
+  const diags = [
+    fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"),
+    fakeDiag("MSL-Q304", "incose-r9-open-ended", 1, "/x.md"),
+  ];
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["4-7"], 1);
+  assertEquals(roll.rollup.bandCounts["1-3"], 0);
+});
+
+Deno.test("score: boundary — score=7 lands in '4-7' (upper edge)", () => {
+  const entry = fakeEntry("STK_0001");
+  // 2×3 + 1 = 7
+  const diags = [
+    fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"),
+    fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"),
+    fakeDiag("MSL-Q304", "incose-r9-open-ended", 1, "/x.md"),
+  ];
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["4-7"], 1);
+  assertEquals(roll.rollup.bandCounts["8-15"], 0);
+});
+
+Deno.test("score: boundary — score=8 lands in '8-15' (lower edge)", () => {
+  const entry = fakeEntry("STK_0001");
+  // 2×3 + 2×1 = 8
+  const diags = [
+    fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"),
+    fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"),
+    fakeDiag("MSL-Q304", "incose-r9-open-ended", 1, "/x.md"),
+    fakeDiag("MSL-Q304", "incose-r9-open-ended", 1, "/x.md"),
+  ];
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["8-15"], 1);
+  assertEquals(roll.rollup.bandCounts["4-7"], 0);
+});
+
+Deno.test("score: boundary — score=15 lands in '8-15' (upper edge)", () => {
+  const entry = fakeEntry("STK_0001");
+  // 5×3 = 15
+  const diags: LintDiagnostic[] = [];
+  for (let k = 0; k < 5; k++) {
+    diags.push(fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"));
+  }
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["8-15"], 1);
+  assertEquals(roll.rollup.bandCounts["16+"], 0);
+});
+
+Deno.test("score: boundary — score=16 lands in '16+' (lower edge)", () => {
+  const entry = fakeEntry("STK_0001");
+  // 5×3 + 1 = 16
+  const diags: LintDiagnostic[] = [];
+  for (let k = 0; k < 5; k++) {
+    diags.push(fakeDiag("MSL-Q302", "incose-r7-vague-term", 3, "/x.md"));
+  }
+  diags.push(fakeDiag("MSL-Q304", "incose-r9-open-ended", 1, "/x.md"));
+  const roll = computeScoreRollup(diags, [entry]);
+  assertEquals(roll.rollup.bandCounts["16+"], 1);
+  assertEquals(roll.rollup.bandCounts["8-15"], 0);
 });
