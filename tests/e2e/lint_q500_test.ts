@@ -32,8 +32,10 @@ Deno.test("Q500 e2e: undefined PascalCase fires", async () => {
       },
     },
   );
-  const parsed = JSON.parse(stdout) as Array<{ code: string; message: string }>;
-  const q500 = parsed.find((d) => d.code === "MSL-Q500");
+  const parsed = JSON.parse(stdout) as {
+    diagnostics: Array<{ code: string; message: string }>;
+  };
+  const q500 = parsed.diagnostics.find((d) => d.code === "MSL-Q500");
   assertEquals(q500 !== undefined, true);
   assertStringIncludes(q500!.message, "BrakeController");
 });
@@ -61,8 +63,8 @@ Deno.test("Q500 e2e: silent when DefinitionList defines it", async () => {
       },
     },
   );
-  const parsed = JSON.parse(stdout) as Array<{ code: string }>;
-  const q500s = parsed.filter((d) => d.code === "MSL-Q500");
+  const parsed = JSON.parse(stdout) as { diagnostics: Array<{ code: string }> };
+  const q500s = parsed.diagnostics.filter((d) => d.code === "MSL-Q500");
   assertEquals(q500s.length, 0);
 });
 
