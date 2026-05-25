@@ -27,6 +27,7 @@ const SOURCE_EXTENSIONS = new Set([
   ".js",
   ".mjs",
   ".cjs",
+  ".cs",
 ]);
 
 /** Entry marker pattern: `[TYPE_XXX_NNNN]` in any context. */

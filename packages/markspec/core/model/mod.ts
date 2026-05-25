@@ -208,7 +208,8 @@ export type SupportedLanguage =
   | "cpp"
   | "typescript"
   | "tsx"
-  | "javascript";
+  | "javascript"
+  | "csharp";
 
 /** Which extractor rule produced a doc-comment entry. Distinguishes the
  * three lexical doc-comment styles MarkSpec recognises across grammars. */

@@ -98,6 +98,17 @@ async function getJavascriptLanguage(): Promise<Parser.Language> {
   return javascriptLanguage;
 }
 
+let csharpLanguage: Parser.Language;
+
+async function getCsharpLanguage(): Promise<Parser.Language> {
+  if (csharpLanguage) return csharpLanguage;
+  await Parser.init();
+  csharpLanguage = await Parser.Language.load(
+    join(grammarsDir, "tree-sitter-c-sharp.wasm"),
+  );
+  return csharpLanguage;
+}
+
 // ---------------------------------------------------------------------------
 // Rust: basic entry extraction
 // ---------------------------------------------------------------------------
@@ -1242,4 +1253,37 @@ Deno.test("parseSource: TypeScript /** */ → method_definition inside a class e
     throw new Error("expected doc-comment");
   }
   assertEquals(entries[0].source.function, "myMethod");
+});
+
+// C#: basic entry extraction
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: extracts C# /// doc comment entry", async () => {
+  const language = await getCsharpLanguage();
+  const source = `/// [SRS_BRK_0001] Sensor input debouncing
+///
+/// The sensor driver shall reject transient noise.
+///
+///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+///     Satisfies: SYS_BRK_0042
+///     Labels: ASIL-B
+public class BrakingSensor {}
+`;
+
+  const result = parseSource(source, {
+    file: "BrakingSensor.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(result.entries.length, 1);
+  const entry = result.entries[0];
+  assertEquals(entry.displayId, "SRS_BRK_0001");
+  assertEquals(entry.title, "Sensor input debouncing");
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entry.source.kind, "doc-comment");
+  if (entry.source.kind === "doc-comment") {
+    assertEquals(entry.source.language, "csharp");
+    assertEquals(entry.source.rule, "outer-doc-comment");
+    assertEquals(entry.source.function, "BrakingSensor");
+  }
 });
