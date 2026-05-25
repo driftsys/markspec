@@ -10,6 +10,7 @@ import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import { validate } from "./mod.ts";
+import type { TyplBlock } from "../typl/mod.ts";
 
 function entry(
   partial: Partial<Omit<Entry, "displayId">> & { displayId: string },
@@ -26,6 +27,7 @@ function entry(
     source: partial.source ?? { kind: "markdown" },
     typedAttributes: partial.typedAttributes ?? new Map(),
     bodyTokens: partial.bodyTokens ?? [],
+    types: partial.types,
   };
 }
 
@@ -337,4 +339,66 @@ Deno.test("validate: complete valid set → no error diagnostics", () => {
     result.diagnostics.filter((d) => d.severity === "error"),
     [],
   );
+});
+
+// ---------------------------------------------------------------------------
+// Typl cross-entry collision detection (TYPL-002/TYPL-003)
+// ---------------------------------------------------------------------------
+
+/** Build a minimal TyplBlock with a single binding for testing. */
+function typlBlock(
+  name: string,
+  kind: TyplBlock["bindings"][0]["kind"],
+): TyplBlock {
+  return {
+    bindings: [{
+      statementKind: "binding",
+      name,
+      kind,
+      shape: undefined,
+      position: { line: 1, column: 1 },
+    }],
+    typedefs: [],
+  };
+}
+
+Deno.test("validate: same $Name + same kind across entries → no TYPL-002", () => {
+  const entryA = entry({
+    displayId: "REQ-001",
+    rawAttributes: [{ key: "Id", value: ULID_A }],
+    id: ULID_A,
+    location: { file: "a.md", line: 1, column: 1 },
+    types: typlBlock("$Speed", "signal"),
+  });
+  const entryB = entry({
+    displayId: "REQ-002",
+    rawAttributes: [{ key: "Id", value: ULID_B }],
+    id: ULID_B,
+    location: { file: "b.md", line: 1, column: 1 },
+    types: typlBlock("$Speed", "signal"),
+  });
+  const result = validate([entryA, entryB]);
+  const typl002 = result.diagnostics.filter((d) => d.code === "TYPL-002");
+  assertEquals(typl002, []);
+});
+
+Deno.test("validate: $Name with different kinds across entries → TYPL-002", () => {
+  const entryA = entry({
+    displayId: "REQ-001",
+    rawAttributes: [{ key: "Id", value: ULID_A }],
+    id: ULID_A,
+    location: { file: "a.md", line: 1, column: 1 },
+    types: typlBlock("$Speed", "signal"),
+  });
+  const entryB = entry({
+    displayId: "REQ-002",
+    rawAttributes: [{ key: "Id", value: ULID_B }],
+    id: ULID_B,
+    location: { file: "b.md", line: 1, column: 1 },
+    types: typlBlock("$Speed", "event"),
+  });
+  const result = validate([entryA, entryB]);
+  const typl002 = result.diagnostics.filter((d) => d.code === "TYPL-002");
+  assertEquals(typl002.length, 1);
+  assertEquals(result.valid, false);
 });

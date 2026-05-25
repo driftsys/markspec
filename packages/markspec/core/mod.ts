@@ -223,6 +223,7 @@ export type {
   GenerateInversesResult,
   SerializedCompileResult,
   SerializedEntry,
+  SerializedTypeRegistry,
 } from "./compiler/mod.ts";
 export { buildManifest } from "./compiler/manifest.ts";
 export type {

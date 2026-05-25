@@ -5,6 +5,13 @@ import type { SerializedEntry } from "./schema.ts";
 import type { CompileResult } from "./mod.ts";
 import type { DisplayId, Entry, Link } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
+import type { TypeRegistry } from "../typl/mod.ts";
+
+/** An empty TypeRegistry for use in test fixtures. */
+const EMPTY_REGISTRY: TypeRegistry = {
+  bindings: new Map(),
+  typedefs: new Map(),
+};
 
 /** Build a minimal Entry for testing. */
 function makeEntry(displayId: string): Entry {
@@ -50,6 +57,7 @@ Deno.test("serializeCompileResult: converts Maps to plain objects", () => {
     reverse,
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: EMPTY_REGISTRY,
   };
 
   const serialized = serializeCompileResult(result);
@@ -78,6 +86,7 @@ Deno.test("serializeCompileResult: entries keyed by displayId", () => {
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: EMPTY_REGISTRY,
   };
 
   const serialized = serializeCompileResult(result);
@@ -106,6 +115,7 @@ Deno.test("serializeCompileResult: links preserved as-is", () => {
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: EMPTY_REGISTRY,
   };
 
   const serialized = serializeCompileResult(result);
@@ -136,6 +146,7 @@ Deno.test("serializeCompileResult: round-trip via JSON.parse", () => {
         location: undefined,
       },
     ],
+    typeRegistry: EMPTY_REGISTRY,
   };
 
   const serialized = serializeCompileResult(result);
@@ -179,6 +190,7 @@ Deno.test("serializeCompileResult: strips sync.* from entry properties", () => {
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: EMPTY_REGISTRY,
   };
 
   const serialized = serializeCompileResult(result);
@@ -204,12 +216,54 @@ Deno.test("serializeCompileResult: drops properties entirely when sync is the on
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: EMPTY_REGISTRY,
   };
 
   const serialized = serializeCompileResult(result);
   const serializedEntry: SerializedEntry = serialized.entries["STK_0002"];
 
   assertEquals(serializedEntry.properties, undefined);
+});
+
+Deno.test("serializeCompileResult: typeRegistry Maps are converted to plain objects", () => {
+  const result: CompileResult = {
+    entries: new Map(),
+    links: [],
+    forward: new Map(),
+    reverse: new Map(),
+    documents: new Map(),
+    diagnostics: [],
+    typeRegistry: {
+      bindings: new Map([
+        ["$Speed", [{
+          entryDisplayId: "REQ-001",
+          entryFile: "req.md",
+          binding: {
+            statementKind: "binding",
+            name: "$Speed",
+            kind: "signal",
+            shape: undefined,
+            position: { line: 1, column: 1 },
+          },
+        }]],
+      ]),
+      typedefs: new Map(),
+    },
+  };
+
+  const serialized = serializeCompileResult(result);
+
+  // typeRegistry must be a plain object (not a Map)
+  assertEquals(serialized.typeRegistry instanceof Map, false);
+  assertEquals(typeof serialized.typeRegistry.bindings, "object");
+  assertEquals(serialized.typeRegistry.bindings instanceof Map, false);
+
+  // Content must round-trip via JSON
+  const json = JSON.stringify(serialized);
+  const parsed = JSON.parse(json);
+  assertEquals(Array.isArray(parsed.typeRegistry.bindings["$Speed"]), true);
+  assertEquals(parsed.typeRegistry.bindings["$Speed"][0].binding.kind, "signal");
+  assertEquals(typeof parsed.typeRegistry.typedefs, "object");
 });
 
 Deno.test("serializeCompileResult propagates derivedDiscipline to JSON entries", async () => {
