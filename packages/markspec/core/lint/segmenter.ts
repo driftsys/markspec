@@ -6,7 +6,7 @@
  * whitespace + an uppercase character, honoring an abbreviation
  * lexicon. Deterministic; no I/O.
  *
- * ADR-020 Decision 3 pins the rule-based approach: Intl.Segmenter
+ * ADR-021 Decision 3 pins the rule-based approach: Intl.Segmenter
  * drift across V8 versions silently breaks snapshot tests, and
  * external NLP libraries add non-deterministic dependencies. Reach
  * for the prose.lexicons.sentence-abbrev lexicon to extend coverage,
