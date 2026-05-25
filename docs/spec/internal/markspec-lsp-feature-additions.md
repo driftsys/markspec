@@ -207,23 +207,36 @@ interface ProfileType {
   /** Type name (e.g. "stakeholder-requirement", "software-architecture-description"). */
   readonly name: string;
 
-  /** Display-ID prefix (e.g. "STK_AEB_", "SAD_"). */
+  /** Display-ID prefix derived from the type's `displayIdPattern`
+   * (placeholder stripped). Empty string when no pattern is declared. */
   readonly prefix: string;
 
-  /** Category bucket for coloring — "req" / "spec" / "test" / etc. */
-  readonly category: string;
-
-  /** Color metadata, per palette. */
-  readonly color: {
-    readonly print: string;  // hex e.g. "#4477AA"
-    readonly screen: string; // hex e.g. "#0077BB"
-  };
+  /** Palette hue name resolved from the type's color role through
+   * `EffectiveProfile.colors`. `null` when no role is declared or the
+   * value is not a member of `PALETTE_HUES`. */
+  readonly color: PaletteHue | null;
 }
+
+type PaletteHue =
+  | "blue" | "cyan" | "teal" | "orange" | "red" | "purple" | "grey";
 ```
 
-The shapes match the existing `EffectiveProfile` returned by
-`core/profile/mod.ts`. The LSP wrapper serializes the in-memory representation
-to JSON; no additional metadata.
+The shape derives directly from `core/profile`'s in-memory model: `prefix` comes
+from `EffectiveTypeDef.displayIdPattern` with the `{...}` placeholder stripped,
+and `color` resolves the type's role through `EffectiveProfile.colors` to a
+palette hue.
+
+**Hex / category derivation: out of scope for v1.** Clients map hue → hex
+through their own design-token bundle (the VS Code extension already ships
+`theme/markspec.css` + `package.json` `contributes.colors`). The legacy
+prefix→bucket mapping in CLAUDE.md is being retired per ADR-011; profile-
+declared category buckets land in a follow-up once ADR-011 ships. A future
+additive `role?: string` field on `ProfileType` can surface the profile's
+semantic color role when a consumer needs it — clients ignore unknown fields.
+
+See `docs/superpowers/specs/2026-05-25-lsp-profile-request-design.md` §1, §3.4
+for the resolution rationale and `packages/markspec/lsp/profile_request.ts` for
+the implementation.
 
 ### 4.4 Caching and invalidation
 
@@ -231,8 +244,8 @@ The server caches the response from the last `core/profile` load. It MUST
 invalidate the cache when:
 
 - The profile chain changes (`.markspec.yaml` or `project.yaml` modified —
-  detected via `workspace/didChangeWatchedFiles` or the existing periodic
-  reload).
+  detected via the server's dynamic `workspace/didChangeWatchedFiles`
+  registration, debounced 500ms server-side).
 - The workspace root changes (typically only on editor restart).
 
 On cache invalidation, the server fires a `markspec/profileChanged` notification
