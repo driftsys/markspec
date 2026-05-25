@@ -323,7 +323,7 @@ profile (ASPICE, ISO 26262) would declare additional types
 - **Language:** TypeScript (strict mode)
 - **Markdown parsing:** unified / remark / mdast ecosystem
 - **Source file parsing:** tree-sitter (for doc comment extraction from Rust,
-  Kotlin, Java, C, C++, TypeScript, TSX, JavaScript)
+  Kotlin, Java, C, C++, TypeScript, TSX, JavaScript, C#)
 - **PDF rendering:** Typst via typst.ts WASM embedding
 - **Book rendering:** custom static site generator (`book/` module)
 - **Presentations:** Touying (Typst presentation framework)
