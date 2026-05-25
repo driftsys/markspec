@@ -44,7 +44,7 @@ cross-references are flagged inline.
 | **adapter**             | A per-target module that knows one editor's or client's config location, format, and managed-region convention.                                      |
 | **managed block**       | A delimited, idempotent region the installer owns inside an otherwise user-owned config file (§6).                                                   |
 | **core-schema version** | The core-data-model contract version the binary implements (core-data-model §3.1/§5; [markspec-profile-schema.md §8.2](markspec-profile-schema.md)). |
-| **scope**               | Where config is written: `user` (the editor's per-user config) or `workspace` (the project, next to `markspec.yaml`).                                |
+| **scope**               | Where config is written: `user` (the editor's per-user config) or `workspace` (the project, next to a workspace marker — see §4.4).                  |
 
 ---
 
@@ -175,7 +175,7 @@ markspec lsp install --editor=<id> [--scope=user|workspace]
 | Flag                   | Meaning                                                                                                                                                                                                                                                                                                                                 |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--editor=<id>`        | Required. One of the first-class adapter ids (§4.2). An unknown id errors with the list of known ids + a typo suggestion (clig.dev "suggest corrections").                                                                                                                                                                              |
-| `--scope`              | `workspace` (default when a `markspec.yaml`/`.markspec.yaml` is found by walking up, §4.4) or `user`. Explicit flag overrides detection.                                                                                                                                                                                                |
+| `--scope`              | `workspace` (default when a workspace marker — `markspec.yaml`, `.markspec.yaml`, or `project.yaml` — is found by walking up, §4.4) or `user`. Explicit flag overrides detection.                                                                                                                                                       |
 | `--binary-path=<path>` | Override the binary path written into the adapter's managed block. Default is the invoked name `markspec` (relying on `PATH`), which survives package-manager upgrades — see §8 Q3 resolution. Use the flag for isolated builds (e.g. `./dist/markspec`) or Nix-store / asdf-shim layouts where pinning a resolved path is intentional. |
 | `--print`              | Write nothing; print the exact config block to **stdout** and the target path to **stderr** (clig.dev stream split). The universal fallback for any editor without an adapter.                                                                                                                                                          |
 | `--force`              | Apply the change without the interactive confirm (and the only way to write in a non-TTY context — §6.4).                                                                                                                                                                                                                               |
@@ -211,11 +211,26 @@ binary the user installed, never a divergent bundled copy (§2.2 last row).
 ### 4.4 Workspace detection
 
 `--scope=workspace` resolves the project root by walking up from the working
-directory for `markspec.yaml` / `.markspec.yaml` (the same discovery the profile
-loader uses — [markspec-profile-schema.md §2.2](markspec-profile-schema.md)). No
-project marker found and `--scope` not given explicitly → the installer selects
-`user` scope and says so on stderr (it never silently writes a workspace file
-into a non-project directory — clig.dev "explicit over implicit").
+directory for any of three workspace markers, in priority order:
+
+1. `markspec.yaml` (typed configuration)
+2. `.markspec.yaml` (dotfile configuration)
+3. `project.yaml` (legacy / mid-adoption convention)
+
+The first two match the profile loader's discovery rule
+([markspec-profile-schema.md §2.2](markspec-profile-schema.md)). `project.yaml`
+is accepted in addition so repos that have a project descriptor but have not yet
+adopted `.markspec.yaml` are still treated as workspaces for install purposes
+(§8 Q2 resolution). The installer does not parse the contents of any marker —
+its presence is the signal; the actual schema is the profile loader's concern.
+
+No marker found and `--scope` not given explicitly → the installer selects
+`user` scope and prints
+`markspec lsp install: no workspace marker found,
+using --scope=user` to stderr
+(it never silently writes a workspace file into a non-project directory —
+clig.dev "explicit over implicit"). The exact stderr phrasing is fixed here so
+automation can rely on it.
 
 ---
 
@@ -371,6 +386,18 @@ decisions are recorded inline so the rationale stays with the question.
    `project.yaml` but no `.markspec.yaml`, is that still a workspace for
    install-scope purposes? (Touches
    [markspec-profile-schema.md §2.2](markspec-profile-schema.md) discovery.)
+
+   **Resolved (2026-05-25): `project.yaml` also counts as a workspace marker for
+   `markspec lsp install` / `markspec mcp install`.** §4.4 now accepts any of
+   `markspec.yaml`, `.markspec.yaml`, or `project.yaml` as the workspace signal.
+   Rationale: repos mid-adoption frequently have a `project.yaml` (the legacy /
+   cross-tool descriptor) but have not yet added `.markspec.yaml`; treating
+   those as `--scope=user` by default forces an explicit flag for the common
+   case. The looser rule does **not** change profile loading — the profile
+   loader still uses only the first two
+   ([markspec-profile-schema.md §2.2](markspec-profile-schema.md)). The install
+   command is the only consumer that reads `project.yaml` as a workspace signal;
+   its presence is checked, its contents are not parsed.
 3. **Binary self-path resolution.** Adapters must write the path to _this_
    binary. Under `deno compile` that is `Deno.execPath()`, but a symlinked /
    PATH-shimmed install may resolve to the shim. Should the installer write the
