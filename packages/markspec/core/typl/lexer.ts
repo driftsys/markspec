@@ -113,7 +113,7 @@ export function tokenize(source: string): Token[] {
     if (ch === "#") {
       const startCol = column;
       let value = "";
-      while (i < source.length && source[i] !== "\n") {
+      while (i < source.length && source[i] !== "\n" && source[i] !== "\r") {
         value += source[i];
         i++;
         column++;
@@ -123,6 +123,8 @@ export function tokenize(source: string): Token[] {
     }
 
     // ── Dollar-prefixed identifier — `$Speed` ────────────────────────
+    // $ identifier — body uses IDENT_BODY_RE (allows digits) intentionally;
+    // names like $1st are lexically valid and rejected by the parser
     if (ch === "$") {
       const startCol = column;
       let value = "$";
@@ -162,13 +164,14 @@ export function tokenize(source: string): Token[] {
       }
       push("REGEX", regex, startCol);
       // Optional flags after the closing `/`.
+      const flagsStartCol = column;
       let flags = "";
       while (i < source.length && /[a-z]/.test(source[i])) {
         flags += source[i];
         i++;
         column++;
       }
-      if (flags) push("REGEX_FLAGS", flags, startCol);
+      if (flags) push("REGEX_FLAGS", flags, flagsStartCol);
       continue;
     }
 

@@ -50,3 +50,31 @@ Deno.test("tokenize: comment line", () => {
   const tokens = tokenize("# this is ignored");
   assertEquals(tokens.map((t) => t.kind), ["COMMENT", "EOF"]);
 });
+
+Deno.test("tokenize: positions are 1-based; line increments on \\n", () => {
+  const tokens = tokenize("$X\n$Y");
+  // $X on line 1 col 1, $Y on line 2 col 1
+  assertEquals(tokens[0].position, { line: 1, column: 1 });
+  assertEquals(tokens[1].position, { line: 2, column: 1 });
+});
+
+Deno.test("tokenize: empty source emits only EOF at line 1 col 1", () => {
+  const tokens = tokenize("");
+  assertEquals(tokens.length, 1);
+  assertEquals(tokens[0].kind, "EOF");
+  assertEquals(tokens[0].position, { line: 1, column: 1 });
+});
+
+Deno.test("tokenize: REGEX_FLAGS position points at the flags, not the opening /", () => {
+  const tokens = tokenize("/abc/i");
+  const flags = tokens.find((t) => t.kind === "REGEX_FLAGS");
+  // Opening / is at col 1; pattern abc is cols 2-4; closing / at col 5; flag i at col 6
+  assertEquals(flags?.position, { line: 1, column: 6 });
+});
+
+Deno.test("tokenize: string with escape preserves the escaped char (backslash stripped)", () => {
+  const tokens = tokenize("'\\n'");
+  const str = tokens.find((t) => t.kind === "STRING");
+  // Documents the design: backslash is consumed, next char taken verbatim
+  assertEquals(str?.value, "n");
+});
