@@ -390,3 +390,97 @@ Deno.test("parseMarkdown: without lineMap, locations stay buffer-relative", () =
   const { entries } = parseMarkdown(md, { file: "t.md" });
   assertEquals(entries[0].location.line, 1);
 });
+
+// ---------------------------------------------------------------------------
+// typl fence extraction (ADR-019)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: entry with typl fence populates entry.types", () => {
+  const md = [
+    "- [REQ_0001] Brake on close approach",
+    "",
+    "  When TTC drops below threshold the system shall brake.",
+    "",
+    "  ```typl",
+    "  $Speed : signal float[0..300]",
+    "  $Brake : command BrakeReq",
+    "  type BrakeReq = { force_N: float[0..12000] }",
+    "  ```",
+    "",
+    "      Id: 01HZZZ0000000000000000000A",
+  ].join("\n");
+
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  const entry = entries[0];
+
+  assertExists(entry.types);
+  assertEquals(entry.types?.bindings.length, 2);
+  assertEquals(entry.types?.bindings[0].name, "$Speed");
+  assertEquals(entry.types?.bindings[0].kind, "signal");
+  assertEquals(entry.types?.bindings[1].name, "$Brake");
+  assertEquals(entry.types?.bindings[1].kind, "command");
+  assertEquals(entry.types?.typedefs.length, 1);
+  assertEquals(entry.types?.typedefs[0].name, "BrakeReq");
+});
+
+Deno.test("parseMarkdown: entry without typl fence leaves entry.types undefined", () => {
+  const md = [
+    "- [REQ_0002] Simple requirement",
+    "",
+    "  Body text here.",
+    "",
+    "      Id: 01HZZZ0000000000000000000B",
+  ].join("\n");
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries[0].types, undefined);
+});
+
+Deno.test("parseMarkdown: typl parse error is bridged to file-relative diagnostic", () => {
+  const md = [
+    "- [REQ_0003] Bad typl",
+    "",
+    "  Body.",
+    "",
+    "  ```typl",
+    "  $X : blah int[0..]",
+    "  ```",
+    "",
+    "      Id: 01HZZZ0000000000000000000C",
+  ].join("\n");
+  const { diagnostics } = parseMarkdown(md, { file: "test.md" });
+  const typlDiag = diagnostics.find((d) => d.code === "TYPL-007");
+  assertExists(typlDiag);
+  assertEquals(typlDiag.location?.file, "test.md");
+  // Don't assert the exact line — the test would couple to indentation
+  // details. The bridge correctness is unit-tested in bridge_test.ts; here
+  // we just assert that a file is attached and the line is >= 1.
+  assertEquals((typlDiag.location?.line ?? 0) >= 1, true);
+});
+
+Deno.test("parseMarkdown: multiple typl fences in one entry aggregate", () => {
+  const md = [
+    "- [REQ_0004] Two fences",
+    "",
+    "  Some prose.",
+    "",
+    "  ```typl",
+    "  $A : signal",
+    "  ```",
+    "",
+    "  More prose.",
+    "",
+    "  ```typl",
+    "  $B : event",
+    "  type T = int",
+    "  ```",
+    "",
+    "      Id: 01HZZZ0000000000000000000D",
+  ].join("\n");
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  const entry = entries[0];
+  assertExists(entry.types);
+  assertEquals(entry.types?.bindings.map((b) => b.name), ["$A", "$B"]);
+  assertEquals(entry.types?.typedefs.length, 1);
+  assertEquals(entry.types?.typedefs[0].name, "T");
+});

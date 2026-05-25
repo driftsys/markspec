@@ -24,3 +24,5 @@ export { parseTyplBlock } from "./grammar.ts";
 
 export type { TyplFenceExtraction } from "./fence.ts";
 export { extractTyplFences } from "./fence.ts";
+
+export { bridgeTyplDiagnostic } from "./bridge.ts";
