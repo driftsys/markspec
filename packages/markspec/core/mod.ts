@@ -252,8 +252,20 @@ export type {
 } from "./reporter/mod.ts";
 
 // Lint (prose-analysis)
-export { isProseScope, runLint } from "./lint/mod.ts";
-export type { LintDiagnostic, LintOptions, LintResult } from "./lint/mod.ts";
+export {
+  ANTI_PATTERN_NOTE,
+  computeScoreRollup,
+  isProseScope,
+  runLint,
+} from "./lint/mod.ts";
+export type {
+  EntryScore,
+  LintDiagnostic,
+  LintOptions,
+  LintResult,
+  RuleContribution,
+  ScoreRollup,
+} from "./lint/mod.ts";
 
 export * as typl from "./typl/mod.ts";
 

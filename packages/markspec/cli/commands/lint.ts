@@ -41,12 +41,28 @@ export const lintCmd = new Command()
       const hasWarnings = diagnostics.some((d) => d.severity === "warning");
 
       if (options.format === "json") {
-        console.log(JSON.stringify(diagnostics, null, 2));
+        const output = { diagnostics, score: lintResult.score };
+        console.log(JSON.stringify(output, null, 2));
       } else {
         for (const d of diagnostics) {
-          const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
-          console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
+          const loc = d.location
+            ? `${d.location.file}:${d.location.line}:${d.location.column}`
+            : "";
+          console.error(
+            `${loc} ${d.severity} ${d.slug} [${d.code}]: ${d.message}`,
+          );
         }
+        const { bandCounts, mean } = lintResult.score.rollup;
+        const { antiPatternNote } = lintResult.score;
+        const bandSummary = [
+          `${bandCounts["0"]} entries in band 0`,
+          `${bandCounts["1-3"]} in 1-3`,
+          `${bandCounts["4-7"]} in 4-7`,
+          `${bandCounts["8-15"]} in 8-15`,
+          `${bandCounts["16+"]} in 16+`,
+        ].join(", ");
+        console.error(`\nScore: ${bandSummary}. Mean: ${mean}.`);
+        console.error(`Note: ${antiPatternNote}`);
       }
 
       if (hasErrors) {

@@ -26,6 +26,8 @@ import { runEarsRules } from "./rules/ears.ts";
 import { runModalSentenceRules } from "./rules/modal_sentence.ts";
 import { runIncoseSentenceRules } from "./rules/incose_sentence.ts";
 import { loadLexicon } from "../lexicons/mod.ts";
+import { computeScoreRollup } from "./score.ts";
+import type { ScoreRollup } from "./score.ts";
 
 // ---------------------------------------------------------------------------
 // In-scope predicate
@@ -71,6 +73,7 @@ export interface LintOptions {
 
 export interface LintResult {
   readonly diagnostics: readonly LintDiagnostic[];
+  readonly score: ScoreRollup;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +111,8 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
  *      Markspec-disable list includes the rule's code and the entry
  *      has a Rationale. Suppression-hygiene diagnostics (Q900/Q901)
  *      are never suppressed.
- *  11. Return remaining diagnostics.
+ *  11. Compute score roll-up (per-entry scores, band-counts, mean).
+ *  12. Return diagnostics and score.
  */
 export async function runLint(options: LintOptions): Promise<LintResult> {
   const { entries } = options;
@@ -157,5 +161,8 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   // Step 11: append hygiene diagnostics (never suppressed)
   out.push(...hygieneDiags);
 
-  return { diagnostics: out };
+  // Step 12: compute score roll-up across all entries (including 0-score ones).
+  const score = computeScoreRollup(out, entries);
+
+  return { diagnostics: out, score };
 }
