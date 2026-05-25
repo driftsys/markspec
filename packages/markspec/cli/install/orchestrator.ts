@@ -84,15 +84,17 @@ export async function runLspInstall(
   }
   const editorId = options.editor as LspEditorId;
 
-  // 2. Legacy print-only fallback for vscode/zed (Slice B/C migrates them).
+  // 2. VS Code — verify-and-report (Slice B). Reads the user settings.json
+  //    and compares `markspec.server.path` against the supplied binary path.
   if (editorId === "vscode") {
-    const r = await vscodeAdapter();
+    const r = await vscodeAdapter({ binaryPath: options.binaryPath });
     return {
       stdout: r.stdout ? `${r.stdout}\n` : "",
       stderr: r.stderr ? `${r.stderr}\n` : "",
       exitCode: r.exitCode,
     };
   }
+  // Legacy print-only fallback for zed (Slice C migrates it).
   if (editorId === "zed") {
     const r = zedAdapter();
     return {
