@@ -57,3 +57,13 @@ Deno.test("parseTyplBlock: unknown kind emits TYPL-007", () => {
   assertEquals(diagnostics.length, 1);
   assertEquals(diagnostics[0].code, "TYPL-007");
 });
+
+Deno.test("parseTyplBlock: multi-line block — every statement parsed", () => {
+  const { ast, diagnostics } = parseTyplBlock(
+    "$A : signal\n$B : event\n$C : state",
+  );
+  assertEquals(diagnostics, []);
+  assertEquals(ast.bindings.length, 3);
+  assertEquals(ast.bindings.map((b) => b.name), ["$A", "$B", "$C"]);
+  assertEquals(ast.bindings.map((b) => b.kind), ["signal", "event", "state"]);
+});

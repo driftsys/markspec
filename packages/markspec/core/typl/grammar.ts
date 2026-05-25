@@ -53,12 +53,21 @@ class Parser {
     const bindings: Binding[] = [];
     const typedefs: Typedef[] = [];
     while (this.peek().kind !== "EOF") {
+      const lineBefore = this.peek().position.line;
       const stmt = this.parseStatement();
       if (stmt) {
         if (stmt.statementKind === "binding") bindings.push(stmt);
         else typedefs.push(stmt);
       }
-      this.skipToNextLine();
+      // Only skip remaining tokens on the same line. If the cursor has
+      // already advanced past lineBefore (parseStatement consumed the whole
+      // line), we're already at the next statement — don't eat into it.
+      if (
+        this.peek().kind !== "EOF" &&
+        this.peek().position.line === lineBefore
+      ) {
+        this.skipToNextLine();
+      }
     }
     return { ast: { bindings, typedefs }, diagnostics: this.diagnostics };
   }
@@ -99,7 +108,10 @@ class Parser {
         // that are not known primitives are likely mistyped kind keywords.
         // PascalCase tokens are typedef references and are left for the
         // shape parser.
-        if (next.value[0] && next.value[0] === next.value[0].toLowerCase()) {
+        const firstChar = next.value[0];
+        if (firstChar >= "a" && firstChar <= "z") {
+          // Lowercase non-primitive non-kind → likely a typo on a kind keyword.
+          // _-prefixed identifiers are typedef references, not kind keywords.
           this.diagnostics.push(
             typlDiagnostic(
               "TYPL-007",
@@ -110,7 +122,7 @@ class Parser {
           // Consume the bad keyword so the shape parser does not trip on it.
           this.advance();
         }
-        // PascalCase identifier: typedef ref — leave for parseShapeOptional.
+        // PascalCase or _-prefixed identifier: typedef ref — leave for parseShapeOptional.
       }
     }
 
@@ -145,7 +157,7 @@ class Parser {
   // -----------------------------------------------------------------------
 
   /** Parse a mandatory shape expression. Returns `undefined` when absent. */
-  protected parseShape(): Shape | undefined {
+  private parseShape(): Shape | undefined {
     return undefined;
   }
 
@@ -153,7 +165,7 @@ class Parser {
    * Parse an optional shape expression. Returns `undefined` when no shape
    * token follows (e.g. `$Idle : state` with no payload).
    */
-  protected parseShapeOptional(): Shape | undefined {
+  private parseShapeOptional(): Shape | undefined {
     return undefined;
   }
 
