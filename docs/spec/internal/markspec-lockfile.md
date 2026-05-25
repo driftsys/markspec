@@ -161,6 +161,10 @@ Only `markspec lock` (and `--update`) mutate the file. This mirrors the
 
 ## 6. Vendoring
 
+**Status: Deferred post-1.0.** `markspec lock --vendor` is not implemented in
+the v1.0 cycle. The design below is retained for reference; revisit when a
+concrete archival-project consumer asks for it.
+
 `markspec lock --vendor` mirrors every resolved upstream's canonical bytes into
 `.markspec/vendor/<scheme>/<id>/` and records the mirror path in the lockfile.
 Rationale: a regulator audit years later must not depend on `iso.org` still
@@ -187,30 +191,45 @@ availability (project choice; the lockfile is the source of truth either way).
   one re-lock; no `markspec migrate` is needed. The cross-version-read guarantee
   binds at 1.0.
 
-## 8. Open questions
+## 8. Resolved decisions
 
-Capped at five.
+1. **Reference version resolution: pin exactly, do not auto-discover.** Lock
+   records what the author cited (`urn:iso:…:ed-2` → `ed-2`) and hashes the
+   bytes when `Reference-url:` supplies a fetch URL. Discovery is registry
+   territory (compile-output §5), out of scope.
+2. **Hash canonicalization: defer per-scheme rules, ship raw `sha256:`.** The
+   HTTP re-render false-positive case is a known limitation documented in
+   CHANGELOG. Per-scheme canonicalizers (PDF text-extract, HTML DOM normalize,
+   purl tarball) ship as separate ADRs post-MVP.
+3. **Vendor mirror default: deferred post-1.0** (see §6 above).
+4. **Edge-hash coupling: canonical edge model, not file bytes.** Sorted
+   `(source, relation, target, provenance)` quad list, RFC-8785-style canonical
+   JSON, sha256 of canonical serialization. Decouples lockfile from
+   compile-output NDJSON format.
+5. **Profile `extends:` chain: each tier its own row.** Every tier in the
+   `extends:` chain becomes an `[[upstream.profile]]` row with an `extends`
+   field referencing its parent. Verbose but auditable per-tier diffs.
 
-1. **Reference version resolution source.** §2.2 records a `resolved` version
-   for a cited standard, but a `urn:iso:…:ed-2` is only as precise as the author
-   wrote it. Does `lock` attempt to _discover_ the latest edition (needs a
-   per-scheme resolver — registry territory), or only pin exactly what the
-   author cited and hash _that_?
-2. **Hash canonicalization for non-byte-stable upstreams.** An HTTPS page
-   re-rendered server-side changes bytes without changing content. §5's
-   "canonical bytes" needs a per-scheme canonicalization rule (PDF? HTML? purl
-   tarball?) — own it here or defer to a resolver ADR?
-3. **Vendor mirror in git vs not (default).** §6 leaves it a project choice.
-   Should the _default_ be ignore-and-rebuild (lean repo, trusts upstream) or
-   commit (true archival)? The safety-critical default may differ from the
-   general one.
-4. **Lockfile vs compile-output edge hash coupling.** §3 hashes `edges.ndjson`
-   (compile-output §4.6). If compile-output changes its edge serialization, the
-   lock hash churns with no semantic change. Hash a canonical edge _model_
-   instead of the file bytes?
-5. **Profile-pin interaction with `extends:` chains.** profile-schema §5 chains
-   profiles; `lock` pins each tier. Is a transitive `extends:` parent an
-   `[[upstream.profile]]` row of its own, or folded into the child's resolution?
+## 9. Diagnostic codes
+
+The lockfile family is `MSL-L###`. See ADR-012 for the full catalogue.
+
+| Sub-range | Concern                   |
+| --------- | ------------------------- |
+| L0xx      | Lockfile parse + schema   |
+| L1xx      | Upstream resolution       |
+| L2xx      | Drift (locked vs current) |
+
+## 10. CLI surface
+
+| Command                         | Behaviour                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| `markspec lock`                 | Resolve, write/refresh `markspec.lock`. Idempotent.                       |
+| `markspec lock --check`         | CI: resolve, compare to committed lockfile, never write. Exit 1 on drift. |
+| `markspec lock --update[=<id>]` | Force re-resolve all upstreams, or one by id/slug.                        |
+| `markspec compile --frozen`     | Require lockfile, fail on drift before compiling.                         |
+| `markspec fmt`                  | Reads lockfile (stale-pin warning); never writes.                         |
+| `markspec hook`                 | Runs `lock --check` alongside `format --check` + `validate`.              |
 
 ## Annex — Cross-reference summary
 
