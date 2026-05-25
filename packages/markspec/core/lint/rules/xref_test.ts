@@ -28,8 +28,18 @@ function makeParagraph(text: string, line = 1, column = 1): BodyBlock {
   };
 }
 
-function makeEntry(body: string, displayId = "STK_0001"): Entry {
+interface MakeEntryOpts {
+  location?: { file: string; line: number; column: number };
+  bodyStartLine?: number;
+}
+
+function makeEntry(
+  body: string,
+  displayId = "STK_0001",
+  opts: MakeEntryOpts = {},
+): Entry {
   const bodyAst: BodyBlock[] = [makeParagraph(body)];
+  const location = opts.location ?? { file: "test.md", line: 1, column: 1 };
   return {
     displayId: makeDisplayId(displayId),
     title: "Test requirement",
@@ -46,7 +56,10 @@ function makeEntry(body: string, displayId = "STK_0001"): Entry {
     id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
     type: "Requirement",
     shape: "Authored",
-    location: { file: "test.md", line: 1, column: 1 },
+    location,
+    ...(opts.bodyStartLine !== undefined
+      ? { bodyStartLine: opts.bodyStartLine }
+      : {}),
     source: { kind: "markdown" },
     bodyTokens: [],
   };
@@ -176,4 +189,64 @@ Deno.test("Q500: fires once per unique phrase, not per occurrence", () => {
   const diags = runXrefRules(entry, EMPTY_GLOSSARY, ALLOW, () => false);
   // Both occurrences fire (the rule fires per-occurrence, not per unique phrase)
   assertEquals(diags.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Bug A regression: protected keywords must not be absorbed into phrases
+// ---------------------------------------------------------------------------
+
+Deno.test("Q500: protected keyword terminates phrase extension (Bug A)", () => {
+  // 'When' mid-sentence is an EARS protected keyword. The extension loop
+  // must stop at 'When' so "Brake When System" is never emitted as a
+  // single phrase. 'Brake' fires alone (single-token phrase); 'When' is
+  // skipped entirely; 'System' may fire on its own.
+  const entry = makeEntry("The Brake When System shall apply.");
+  const idx = { has: (_: string) => false, size: () => 0 };
+  const diags = runXrefRules(entry, idx, ALLOW, () => false);
+  // The phrase "Brake When System" must NEVER appear in any diagnostic.
+  assertEquals(
+    diags.find((d) => d.message.includes("Brake When System")),
+    undefined,
+  );
+  // 'When' itself must NOT appear in any diagnostic message.
+  assertEquals(
+    diags.find((d) => d.message.includes("'When'")),
+    undefined,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Bug B regression: LintDiagnostic.range must be file-absolute
+// ---------------------------------------------------------------------------
+
+Deno.test("Q500: range.start.line is file-absolute (Bug B)", () => {
+  // Entry whose body sits at file line 32 (title at line 30, blank at 31).
+  // The paragraph in bodyAst starts at body-relative line 1, column 1.
+  // The diagnostic range.start.line must reflect the file-absolute line.
+  const entry = makeEntry("The BrakeController shall apply.", "STK_0001", {
+    location: { file: "/x.md", line: 30, column: 1 },
+    bodyStartLine: 32,
+  });
+  const idx = { has: (_: string) => false, size: () => 0 };
+  const diags = runXrefRules(entry, idx, ALLOW, () => false);
+  assertEquals(diags.length, 1);
+  // body-relative line 1 + bodyStartLine 32 - 1 = 32 (file-absolute)
+  assertEquals(diags[0].range!.start.line, 32);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-021 Decision 2 req 4d: "Brake of the Vehicle System" is one phrase
+// ---------------------------------------------------------------------------
+
+Deno.test("Q500: 'Brake of the Vehicle System' is one phrase (ADR-021 Decision 2, req 4d)", () => {
+  // 'Brake of the Vehicle System' has exactly 2 connectors ('of', 'the')
+  // and 3 Capitalized tokens. Per ADR-021 Decision 2, ≤2 connectors is
+  // within budget → this IS a single phrase.
+  const entry = makeEntry("The Brake of the Vehicle System shall apply.");
+  const idx = { has: (_: string) => false, size: () => 0 };
+  const diags = runXrefRules(entry, idx, ALLOW, () => false);
+  // Exactly one diagnostic emitting the full phrase.
+  const q500 = diags.filter((d) => d.code === "MSL-Q500");
+  assertEquals(q500.length, 1);
+  assertEquals(q500[0].message.includes("Brake of the Vehicle System"), true);
 });

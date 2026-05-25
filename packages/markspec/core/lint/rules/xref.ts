@@ -153,6 +153,10 @@ function scanPhrases(
       const cur = words[j];
 
       if (isCapitalized(cur.word)) {
+        // Protected keywords (RFC 2119 / EARS) must never be absorbed into
+        // a phrase — even mid-extension. "Brake When System" must not emit
+        // a single phrase "Brake When System".
+        if (PROTECTED_KEYWORDS.has(cur.word)) break;
         // Consume the Capitalized word — extends the phrase.
         phraseWords.push(cur);
         j++;
@@ -311,11 +315,19 @@ export function runXrefRules(
         if (tokenSlug.length > 0 && glossary.has(tokenSlug)) continue;
       }
 
+      // Convert body-relative paragraph range to file-absolute line.
+      // `p.range.start.line` is body-relative (line 1 = first body line).
+      // `entry.bodyStartLine` is the file-absolute line where the body
+      // begins (slice 3 LintDiagnostic.range contract). Fall back to
+      // `entry.location.line + 1` when the field is absent (test fixtures).
+      const absBodyStart = entry.bodyStartLine ??
+        (entry.location.line + 1);
+      const absLine = absBodyStart + p.range.start.line - 1;
       const range = offsetToRange(
         text,
         ph.offset,
         ph.phrase.length,
-        p.range.start.line,
+        absLine,
         p.range.start.column,
       );
       out.push({

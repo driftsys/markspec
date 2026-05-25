@@ -47,7 +47,9 @@ INCOSE sentence-level rules, and the score roll-up emitter.
    - `Brake Controller Unit` → one phrase.
    - `Active Distance Sensor` → one phrase.
    - `Brake Controller of the Unit` → one phrase (two connectors).
-   - `Brake of the Vehicle System` → not a phrase (three connectors).
+   - `Brake of the Vehicle System` → one phrase (2 connectors, 3 Capitalized
+     tokens).
+   - `Brake of the Vehicle of System` → not a phrase (three connectors).
 
    Drift in this grammar changes which entries fire. The rule is locked here so
    it is not silently renegotiated in a later refactor.
