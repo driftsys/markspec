@@ -168,3 +168,30 @@ Deno.test("shape: string and bytes lengths still work", () => {
     max: 4096,
   });
 });
+
+Deno.test("shape: malformed shapes emit TYPL-006 (not silent undefined)", () => {
+  // Helper that returns both shape and diagnostics
+  const result1 = parseTyplBlock("$X : string[3 4]");
+  // Missing DOTDOT after first number in length body
+  assertEquals(
+    result1.diagnostics.some((d) => d.code === "TYPL-006"),
+    true,
+    "string[3 4] should emit TYPL-006",
+  );
+
+  const result2 = parseTyplBlock("$X : float[bad]");
+  // Non-number content inside array length brackets
+  assertEquals(
+    result2.diagnostics.some((d) => d.code === "TYPL-006"),
+    true,
+    "float[bad] should emit TYPL-006",
+  );
+
+  const result3 = parseTyplBlock("$X : int[0..");
+  // Unclosed bracket
+  assertEquals(
+    result3.diagnostics.length > 0,
+    true,
+    "int[0.. should emit some diagnostic",
+  );
+});

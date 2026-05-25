@@ -307,7 +307,16 @@ class Parser {
     let min: number | undefined;
     let max: number | undefined;
     if (this.peek().kind === "NUMBER") min = Number(this.advance().value);
-    if (this.peek().kind !== "DOTDOT") return undefined;
+    if (this.peek().kind !== "DOTDOT") {
+      this.diagnostics.push(
+        typlDiagnostic(
+          "TYPL-006",
+          { detail: "expected '..'" },
+          this.peek().position,
+        ),
+      );
+      return undefined;
+    }
     this.advance();
     if (this.peek().kind === "NUMBER") max = Number(this.advance().value);
     if (!this.expect("RBRACKET")) return undefined;
@@ -422,6 +431,15 @@ class Parser {
           const exact = Number(this.advance().value);
           this.expect("RBRACKET");
           s = { kind: "array", element: s, exact };
+        } else {
+          this.diagnostics.push(
+            typlDiagnostic(
+              "TYPL-006",
+              { detail: `unexpected token ${this.peek().kind} inside '['` },
+              this.peek().position,
+            ),
+          );
+          break;
         }
       } else if (this.peek().kind === "QUESTION") {
         this.advance();
