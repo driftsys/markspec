@@ -34,13 +34,21 @@ Deno.test("segmenter: two sentences split on period + space + uppercase", () => 
   assertEquals(s[1].offset, 23);
 });
 
-Deno.test("segmenter: does not split on abbreviation 'e.g.'", () => {
+Deno.test("segmenter: abbreviation guard suppresses split before uppercase", () => {
+  // 'e.g.' is followed by space + uppercase 'A'. Without the abbrev guard,
+  // the .?!+whitespace+uppercase rule would split before 'Active'.
+  // The lexicon entry for 'e.g.' suppresses the split. This is the
+  // dedicated unit test for the guard logic; remove the guard and this
+  // test fails while the corpus snapshot also fails on 'vol. II'.
   const s = segmentSentences(
-    "Sensors e.g. radar shall debounce. The system shall log.",
+    "Use sensors e.g. Active radar shall debounce inputs.",
     ABBREVS,
   );
-  assertEquals(s.length, 2);
-  assertEquals(s[0].text, "Sensors e.g. radar shall debounce.");
+  assertEquals(s.length, 1);
+  assertEquals(
+    s[0].text,
+    "Use sensors e.g. Active radar shall debounce inputs.",
+  );
 });
 
 Deno.test("segmenter: ? and ! terminate sentences", () => {
