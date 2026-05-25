@@ -153,6 +153,34 @@ Deno.test(
 );
 
 Deno.test(
+  "lsp install vscode: never suggests `code --install-extension` (spec §8 Q5)",
+  async () => {
+    // The vscode adapter is verify-only and branches on whether the `code`
+    // CLI is on PATH and the markspec-ide extension is installed. Only one
+    // assertion is universally true across every branch — and it is the
+    // load-bearing one: §8 Q5 forbids any `code --install-extension`
+    // suggestion in any branch. Branch-specific message shapes are
+    // covered by the unit tests in lsp_adapters_test.ts.
+    const { code, stderr } = await markspec(
+      [
+        "lsp",
+        "install",
+        "--editor=vscode",
+        "--binary-path=/opt/markspec/markspec",
+      ],
+      { permissions: ["--allow-env", "--allow-run"] },
+    );
+    assertEquals(code, 0);
+    assertStringIncludes(stderr, "driftsys.markspec-ide");
+    assertEquals(
+      stderr.includes("code --install-extension"),
+      false,
+      "stderr must never suggest `code --install-extension`",
+    );
+  },
+);
+
+Deno.test(
   "lsp install neovim: --remove with no existing block → exit 0 already-removed",
   async () => {
     const { code, stderr } = await markspec(
