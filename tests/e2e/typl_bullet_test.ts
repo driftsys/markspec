@@ -15,7 +15,8 @@ const PROJECT_YAML = "name: test-project\nversion: 0.1.0\n";
 // Fixture: two entries in one file — fence vs bullet surface, same payload
 // ---------------------------------------------------------------------------
 
-const FENCE_AND_BULLET_MD = `- [STK_FENCE_0001] Brake when target stops (fence form)
+const FENCE_AND_BULLET_MD =
+  `- [STK_FENCE_0001] Brake when target stops (fence form)
 
   When the lead vehicle stops the system shall apply braking.
 
@@ -105,23 +106,31 @@ Deno.test(
 
     if (!fenceEntry.types) {
       throw new Error(
-        `fenceEntry.types is absent; full entry: ${JSON.stringify(fenceEntry, null, 2)}`,
+        `fenceEntry.types is absent; full entry: ${
+          JSON.stringify(fenceEntry, null, 2)
+        }`,
       );
     }
     if (!bulletEntry.types) {
       throw new Error(
-        `bulletEntry.types is absent; full entry: ${JSON.stringify(bulletEntry, null, 2)}`,
+        `bulletEntry.types is absent; full entry: ${
+          JSON.stringify(bulletEntry, null, 2)
+        }`,
       );
     }
 
-    const fenceBindings: Array<{ name: string; kind: string; shape?: unknown; position: unknown }> =
-      fenceEntry.types.bindings;
-    const bulletBindings: Array<{ name: string; kind: string; shape?: unknown; position: unknown }> =
-      bulletEntry.types.bindings;
-    const fenceTypedefs: Array<{ name: string; shape: unknown; position: unknown }> =
-      fenceEntry.types.typedefs;
-    const bulletTypedefs: Array<{ name: string; shape: unknown; position: unknown }> =
-      bulletEntry.types.typedefs;
+    const fenceBindings: Array<
+      { name: string; kind: string; shape?: unknown; position: unknown }
+    > = fenceEntry.types.bindings;
+    const bulletBindings: Array<
+      { name: string; kind: string; shape?: unknown; position: unknown }
+    > = bulletEntry.types.bindings;
+    const fenceTypedefs: Array<
+      { name: string; shape: unknown; position: unknown }
+    > = fenceEntry.types.typedefs;
+    const bulletTypedefs: Array<
+      { name: string; shape: unknown; position: unknown }
+    > = bulletEntry.types.typedefs;
 
     // Both surfaces must yield the same number of bindings and typedefs.
     assertEquals(
@@ -208,21 +217,29 @@ Deno.test(
     assertEquals(
       bindings.length,
       2,
-      `expected 2 typl bindings but got ${bindings.length}: ${JSON.stringify(bindings.map((b: { name: string }) => b.name))}`,
+      `expected 2 typl bindings but got ${bindings.length}: ${
+        JSON.stringify(bindings.map((b: { name: string }) => b.name))
+      }`,
     );
 
     const names: string[] = bindings.map((b: { name: string }) => b.name);
     if (!names.includes("$Vehicle")) {
-      throw new Error(`$Vehicle binding missing; got: ${JSON.stringify(names)}`);
+      throw new Error(
+        `$Vehicle binding missing; got: ${JSON.stringify(names)}`,
+      );
     }
     if (!names.includes("$Driver")) {
       throw new Error(`$Driver binding missing; got: ${JSON.stringify(names)}`);
     }
 
     // Verify kinds
-    const vehicleB = bindings.find((b: { name: string }) => b.name === "$Vehicle");
+    const vehicleB = bindings.find((b: { name: string }) =>
+      b.name === "$Vehicle"
+    );
     assertEquals(vehicleB.kind, "signal");
-    const driverB = bindings.find((b: { name: string }) => b.name === "$Driver");
+    const driverB = bindings.find((b: { name: string }) =>
+      b.name === "$Driver"
+    );
     assertEquals(driverB.kind, "signal");
   },
 );

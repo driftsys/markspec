@@ -538,7 +538,10 @@ Deno.test("parseMarkdown: bullet list with mixed typl and prose only extracts ty
 
   assertExists(entry.types);
   assertEquals(entry.types?.bindings.length, 2);
-  assertEquals(entry.types?.bindings.map((b) => b.name), ["$Vehicle", "$Driver"]);
+  assertEquals(entry.types?.bindings.map((b) => b.name), [
+    "$Vehicle",
+    "$Driver",
+  ]);
 });
 
 Deno.test("parseMarkdown: entry combining fence AND bullet typl aggregates both", async () => {
@@ -561,7 +564,10 @@ Deno.test("parseMarkdown: entry combining fence AND bullet typl aggregates both"
 
   assertExists(entry.types);
   assertEquals(entry.types?.bindings.length, 2);
-  assertEquals(entry.types?.bindings.map((b) => b.name), ["$InFence", "$InBullet"]);
+  assertEquals(entry.types?.bindings.map((b) => b.name), [
+    "$InFence",
+    "$InBullet",
+  ]);
 });
 
 Deno.test("parseMarkdown: bullet typl parse error is bridged to file-relative diagnostic", async () => {

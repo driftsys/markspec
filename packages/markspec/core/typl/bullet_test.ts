@@ -116,7 +116,10 @@ Deno.test("extractTyplBullets: recurses into nested list-in-item", () => {
   ];
   const result = extractTyplBullets(blocks);
   assertEquals(result.length, 2);
-  assertEquals(result.map((r) => r.source), ["$Outer : signal", "$Inner : event"]);
+  assertEquals(result.map((r) => r.source), [
+    "$Outer : signal",
+    "$Inner : event",
+  ]);
 });
 
 Deno.test("extractTyplBullets: ignores `$` not followed by colon (not a binding)", () => {
