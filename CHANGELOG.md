@@ -131,10 +131,6 @@
   projection that stripped emphasis; the new scanner runs on the raw body.
   Authors using emphasis around modal verbs will not get the lint warning.
   Plain `SHALL` and `MUST NOT` are detected correctly.
-- **grammars:** The bundled `grammars/tree-sitter-c.wasm` is compiled against
-  tree-sitter ABI v15 while the installed `web-tree-sitter` accepts v13–v14.
-  C source files therefore fail to load grammars at runtime — independent
-  of #409 and tracked separately.
 
 ## [0.5.3] (2026-05-23)
 

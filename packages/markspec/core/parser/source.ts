@@ -6,8 +6,8 @@
  * content to the markdown parser for entry extraction.
  */
 
-import type { SyntaxNode } from "web-tree-sitter";
-import Parser from "web-tree-sitter";
+import type { Node as SyntaxNode } from "web-tree-sitter";
+import { type Language, Parser } from "web-tree-sitter";
 import type { Entry, ExtractorRule } from "../model/mod.ts";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap } from "./line_map.ts";
@@ -22,7 +22,7 @@ export interface ParseSourceOptions {
   /** File path used in source locations. */
   readonly file?: string;
   /** Pre-loaded tree-sitter language grammar. */
-  readonly language: Parser.Language;
+  readonly language: Language;
   /**
    * Language id for the active grammar — used by the walker to look up
    * the doc-comment dispatch row in `LANGUAGE_SPECS`. The caller maps
@@ -77,6 +77,7 @@ export function parseSource(
   const parser = new Parser();
   parser.setLanguage(options.language);
   const tree = parser.parse(content);
+  if (!tree) return { entries: [] };
 
   const blocks: DocCommentBlock[] = [];
   walkForDocComments(tree.rootNode, blocks, spec);

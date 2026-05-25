@@ -5,7 +5,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import Parser from "web-tree-sitter";
+import { Language, Parser } from "web-tree-sitter";
 import { join } from "@std/path";
 import { parseSource } from "./source.ts";
 
@@ -21,89 +21,89 @@ const grammarsDir = join(
   "..",
   "grammars",
 );
-let rustLanguage: Parser.Language;
+let rustLanguage: Language;
 
-async function getRustLanguage(): Promise<Parser.Language> {
+async function getRustLanguage(): Promise<Language> {
   if (rustLanguage) return rustLanguage;
   await Parser.init();
-  rustLanguage = await Parser.Language.load(
+  rustLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-rust.wasm"),
   );
   return rustLanguage;
 }
 
-let javaLanguage: Parser.Language;
+let javaLanguage: Language;
 
-async function getJavaLanguage(): Promise<Parser.Language> {
+async function getJavaLanguage(): Promise<Language> {
   if (javaLanguage) return javaLanguage;
   await Parser.init();
-  javaLanguage = await Parser.Language.load(
+  javaLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-java.wasm"),
   );
   return javaLanguage;
 }
 
-let kotlinLanguage: Parser.Language;
+let kotlinLanguage: Language;
 
-async function getKotlinLanguage(): Promise<Parser.Language> {
+async function getKotlinLanguage(): Promise<Language> {
   if (kotlinLanguage) return kotlinLanguage;
   await Parser.init();
-  kotlinLanguage = await Parser.Language.load(
+  kotlinLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-kotlin.wasm"),
   );
   return kotlinLanguage;
 }
 
-let cppLanguage: Parser.Language;
+let cppLanguage: Language;
 
-async function getCppLanguage(): Promise<Parser.Language> {
+async function getCppLanguage(): Promise<Language> {
   if (cppLanguage) return cppLanguage;
   await Parser.init();
-  cppLanguage = await Parser.Language.load(
+  cppLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-cpp.wasm"),
   );
   return cppLanguage;
 }
 
-let typescriptLanguage: Parser.Language;
+let typescriptLanguage: Language;
 
-async function getTypescriptLanguage(): Promise<Parser.Language> {
+async function getTypescriptLanguage(): Promise<Language> {
   if (typescriptLanguage) return typescriptLanguage;
   await Parser.init();
-  typescriptLanguage = await Parser.Language.load(
+  typescriptLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-typescript.wasm"),
   );
   return typescriptLanguage;
 }
 
-let tsxLanguage: Parser.Language;
+let tsxLanguage: Language;
 
-async function getTsxLanguage(): Promise<Parser.Language> {
+async function getTsxLanguage(): Promise<Language> {
   if (tsxLanguage) return tsxLanguage;
   await Parser.init();
-  tsxLanguage = await Parser.Language.load(
+  tsxLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-tsx.wasm"),
   );
   return tsxLanguage;
 }
 
-let javascriptLanguage: Parser.Language;
+let javascriptLanguage: Language;
 
-async function getJavascriptLanguage(): Promise<Parser.Language> {
+async function getJavascriptLanguage(): Promise<Language> {
   if (javascriptLanguage) return javascriptLanguage;
   await Parser.init();
-  javascriptLanguage = await Parser.Language.load(
+  javascriptLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-javascript.wasm"),
   );
   return javascriptLanguage;
 }
 
-let csharpLanguage: Parser.Language;
+let csharpLanguage: Language;
 
-async function getCsharpLanguage(): Promise<Parser.Language> {
+async function getCsharpLanguage(): Promise<Language> {
   if (csharpLanguage) return csharpLanguage;
   await Parser.init();
-  csharpLanguage = await Parser.Language.load(
+  csharpLanguage = await Language.load(
     join(grammarsDir, "tree-sitter-c-sharp.wasm"),
   );
   return csharpLanguage;

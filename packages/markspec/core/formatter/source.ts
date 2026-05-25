@@ -6,8 +6,8 @@
  * with appropriate comment prefixes.
  */
 
-import type { SyntaxNode } from "web-tree-sitter";
-import Parser from "web-tree-sitter";
+import type { Node as SyntaxNode } from "web-tree-sitter";
+import { type Language, Parser } from "web-tree-sitter";
 import { format } from "./mod.ts";
 import type { FormatOptions } from "./mod.ts";
 import {
@@ -19,7 +19,7 @@ import {
 /** Options for {@linkcode formatSource}. */
 export interface FormatSourceOptions extends FormatOptions {
   /** Pre-loaded tree-sitter language grammar. */
-  readonly language: Parser.Language;
+  readonly language: Language;
 }
 
 /** Result of a source file format operation. */
@@ -63,11 +63,12 @@ export interface DocCommentBlockInfo {
  */
 export function extractDocCommentBlocks(
   content: string,
-  language: Parser.Language,
+  language: Language,
 ): DocCommentBlockInfo[] {
   const parser = new Parser();
   parser.setLanguage(language);
   const tree = parser.parse(content);
+  if (!tree) return [];
 
   const blocks: DocCommentBlockInfo[] = [];
   walkForDocCommentInfo(tree.rootNode, blocks);
