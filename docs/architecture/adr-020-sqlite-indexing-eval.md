@@ -74,12 +74,11 @@ alternative — that's an early Phase 1 sub-decision.
 
 ## Results
 
-> **Cold scan complete; warm / lookups / size / concurrency pending.** Numbers
-> below are from
-> [`eval/sqlite-indexing/bench/cold_scan.ts`](../../eval/sqlite-indexing/bench/cold_scan.ts)
-> at iterations=5, warmup=1, on a single dev machine (Apple Silicon
-> aarch64-darwin, APFS, local disk). All times are mean across 5 post-warmup
-> samples; per-entry µs is mean / entryCount.
+> **Cold scan + warm incremental complete; lookups / size / concurrency
+> pending.** All numbers below are from the bench scripts under
+> [`eval/sqlite-indexing/bench/`](../../eval/sqlite-indexing/bench/) on a single
+> dev machine (Apple Silicon aarch64-darwin, APFS, local disk). Iteration /
+> warmup counts and target selection are per-bench (see each section).
 
 ### Cold scan (§6 budget: 10k < 5 s)
 
@@ -115,13 +114,45 @@ alternative — that's an early Phase 1 sub-decision.
 
 ### Warm incremental (§6 budget: < 50 ms per change)
 
-| Scale | Change type    | p50Ms | p95Ms | p99Ms | closure size (mean / max) |
-| ----- | -------------- | ----- | ----- | ----- | ------------------------- |
-| 1k    | body-edit      | _TBD_ | _TBD_ | _TBD_ | 1 / 1                     |
-| 1k    | non-hub-rename | _TBD_ | _TBD_ | _TBD_ | _TBD_                     |
-| 1k    | hub-rename     | _TBD_ | _TBD_ | _TBD_ | _TBD_                     |
-| 10k   | (same three)   | _TBD_ | _TBD_ | _TBD_ | _TBD_                     |
-| 100k  | (same three)   | _TBD_ | _TBD_ | _TBD_ | _TBD_                     |
+Same dev machine and tuned pragma set as cold scan. `iterations=20`, `warmup=2`.
+Each iteration: `adapter.updateEntry(target, edges)` followed by
+`adapter.reverseEdgeClosure(target.id, cap=10000)`. Target picked
+deterministically — entry index `entryCount/2` for body-edit, `entryCount * 0.6`
+for non-hub-rename, entry index 0 (always a hub) for hub-rename. Closure-size
+distribution measured by walking every hub once.
+
+| Scale | Change type    | p50 Ms | p95 Ms | p99 Ms | closure size (mean / p95 / max) |
+| ----- | -------------- | ------ | ------ | ------ | ------------------------------- |
+| 1k    | body-edit      | 0.08   | 0.15   | 0.15   | 1 / 1 / 1                       |
+| 1k    | non-hub-rename | 0.07   | 0.08   | 0.08   | ~1 (non-hub)                    |
+| 1k    | hub-rename     | 0.36   | 0.45   | 0.45   | 412 / 434 / 434 (5 hubs)        |
+| 10k   | body-edit      | 0.06   | 0.09   | 0.09   | 1 / 1 / 1                       |
+| 10k   | non-hub-rename | 0.08   | 0.09   | 0.09   | ~1 (non-hub)                    |
+| 10k   | hub-rename     | 0.39   | 0.55   | 0.55   | 423 / 460 / 470 (50 hubs)       |
+| 100k  | body-edit      | 0.05   | 0.09   | 0.09   | 1 / 1 / 1                       |
+| 100k  | non-hub-rename | 0.15   | 0.70   | 0.70   | ~1 (non-hub)                    |
+| 100k  | hub-rename     | 0.40   | 0.61   | 0.61   | 422 / 456 / 489 (500 hubs)      |
+
+**Warm-incremental observations:**
+
+- **§6 budget (< 50 ms per change) is met with > 100× headroom** for every
+  change type at every scale. Even the worst case (100k hub-rename p99 = 0.61
+  ms) is ~80× under budget. SQLite is not the warm-path bottleneck.
+- **Closure size is scale-invariant in this corpus** (mean ≈ 420 at every scale)
+  because the generator holds `hubRatio = 0.005` constant — so hubCount scales
+  with entryCount, keeping per-hub in-degree constant at
+  ~`edgeDensity × hubTargetProbability / hubRatio` = ~420. Real projects may or
+  may not scale this way; the bench documents the shape of one realistic
+  synthetic distribution.
+- **§9 Q5's ≈200 cap is well below the observed hub closure size** (every hub in
+  this corpus has > 200 reverse edges). **Important caveat:** the walk itself is
+  fast (~0.4 ms even with a 500-row closure) — the cap exists to bound the
+  _downstream re-validation_ cost of touching every entry in the closure, which
+  is **not yet measured by this bench**. Cap calibration should re-run once the
+  re-validation cost-per-entry is measured.
+- **Body-edit and non-hub-rename are essentially free** at every scale (< 1 ms).
+  The interesting cost is concentrated in hub changes — exactly where §5.2
+  designed the closure walk.
 
 ### Hot-path lookups (§6 budgets: < 5 ms p95 for point queries)
 
@@ -163,8 +194,13 @@ alternative — that's an early Phase 1 sub-decision.
    Hits the §6 budget with massive headroom (1.3 s at 100k vs 5 s budget at
    10k). `mmap=256MB` adds < 2 %, not worth the platform edge cases. `sync=off`
    ties tuned and is correctness-unsafe.
-3. **`index.invalidation-cap` default:** _TBD._ Awaits warm-incremental
-   hub-rename bench (§5.2 closure-size distribution at 100k).
+3. **`index.invalidation-cap` default:** _Preliminary observation_ — the spec's
+   ≈200 guess is below the observed hub closure size at every scale in the
+   synthetic corpus (mean ≈ 420). The closure walk itself is fast (~0.4 ms even
+   at the 500-row max). Whether the cap should be raised depends on the
+   **revalidation cost per closure entry**, which this bench does not yet
+   measure. Hold the ≈200 default until a re-validate bench produces a per-entry
+   cost number.
 4. **Driver-level WAL caveats discovered:** _TBD._ Awaits concurrency benches.
    macOS APFS aarch64-darwin observed so far: no anomalies in cold scan.
 
