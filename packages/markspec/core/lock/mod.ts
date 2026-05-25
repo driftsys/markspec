@@ -24,6 +24,8 @@ export { serializeLockfile } from "./serializer.ts";
 export { parseLockfile } from "./parser.ts";
 export type { ParseLockfileResult } from "./parser.ts";
 
+export { checkDrift } from "./check.ts";
+
 export { sha256Bytes, sha256String } from "./hash.ts";
 
 export { canonicalEdgeJson, hashCanonicalEdges } from "./canonical_edges.ts";
