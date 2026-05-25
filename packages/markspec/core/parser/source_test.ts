@@ -1287,3 +1287,134 @@ public class BrakingSensor {}
     assertEquals(entry.source.function, "BrakingSensor");
   }
 });
+
+Deno.test("parseSource: C# /// → function captures enclosing name for every item type", async () => {
+  const language = await getCsharpLanguage();
+  // One entry per node type, each carrying a distinct display ID so we
+  // can assert function-name attribution per row.
+  const source = `namespace Foo.Bar {
+    /// [REQ_0001] On namespace
+    ///
+    ///     Id: 01HGW0000000000000000001AA
+    /// dummy line so the parser stops searching for siblings on namespace
+    class _NamespaceCarrier {}
+
+    /// [REQ_0002] On class
+    ///
+    ///     Id: 01HGW0000000000000000002AA
+    public class Cls {}
+
+    /// [REQ_0003] On struct
+    ///
+    ///     Id: 01HGW0000000000000000003AA
+    public struct Strct {}
+
+    /// [REQ_0004] On interface
+    ///
+    ///     Id: 01HGW0000000000000000004AA
+    public interface IThing {}
+
+    /// [REQ_0005] On record
+    ///
+    ///     Id: 01HGW0000000000000000005AA
+    public record Rec(int X);
+
+    /// [REQ_0006] On record struct
+    ///
+    ///     Id: 01HGW0000000000000000006AA
+    public record struct RecStruct(int X);
+
+    /// [REQ_0007] On enum
+    ///
+    ///     Id: 01HGW0000000000000000007AA
+    public enum Col { Red, Green }
+
+    /// [REQ_0008] On delegate
+    ///
+    ///     Id: 01HGW0000000000000000008AA
+    public delegate void Del();
+
+    public class Holder {
+        /// [REQ_0009] On method
+        ///
+        ///     Id: 01HGW0000000000000000009AA
+        public void DoThing() {}
+
+        /// [REQ_0010] On property
+        ///
+        ///     Id: 01HGW000000000000000000AAA
+        public int Prop { get; set; }
+
+        /// [REQ_0011] On constructor
+        ///
+        ///     Id: 01HGW000000000000000000BAA
+        public Holder() {}
+
+        /// [REQ_0012] On local function
+        ///
+        ///     Id: 01HGW000000000000000000CAA
+        public void Wrapper() {
+            /// [REQ_0013] On nested local function
+            ///
+            ///     Id: 01HGW000000000000000000DAA
+            void Local() {}
+            Local();
+        }
+    }
+}
+
+/// [REQ_0014] On file-scoped namespace
+///
+///     Id: 01HGW000000000000000000EAA
+namespace Baz;
+
+class TopLevel {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Coverage.cs",
+    language,
+    languageId: "csharp",
+  });
+
+  const fnByDisplayId = new Map<string, string | undefined>();
+  for (const e of entries) {
+    if (e.source.kind === "doc-comment") {
+      fnByDisplayId.set(e.displayId, e.source.function);
+    }
+  }
+  // Skip REQ_0001 (carrier-only — the next sibling after the comment
+  // is the dummy class, not the namespace itself; namespace attribution
+  // is checked separately in the traditional-namespace test below).
+  assertEquals(fnByDisplayId.get("REQ_0002"), "Cls");
+  assertEquals(fnByDisplayId.get("REQ_0003"), "Strct");
+  assertEquals(fnByDisplayId.get("REQ_0004"), "IThing");
+  assertEquals(fnByDisplayId.get("REQ_0005"), "Rec");
+  assertEquals(fnByDisplayId.get("REQ_0006"), "RecStruct");
+  assertEquals(fnByDisplayId.get("REQ_0007"), "Col");
+  assertEquals(fnByDisplayId.get("REQ_0008"), "Del");
+  assertEquals(fnByDisplayId.get("REQ_0009"), "DoThing");
+  assertEquals(fnByDisplayId.get("REQ_0010"), "Prop");
+  assertEquals(fnByDisplayId.get("REQ_0011"), "Holder");
+  assertEquals(fnByDisplayId.get("REQ_0012"), "Wrapper");
+  assertEquals(fnByDisplayId.get("REQ_0013"), "Local");
+  assertEquals(fnByDisplayId.get("REQ_0014"), "Baz");
+});
+
+Deno.test("parseSource: C# /// → function captures traditional namespace name", async () => {
+  const language = await getCsharpLanguage();
+  const source = `/// [REQ_0100] Doc on a top-level namespace
+///
+///     Id: 01HGW0000000000000000100AA
+namespace Foo.Bar {}
+`;
+  const { entries } = parseSource(source, {
+    file: "NsAttr.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind === "doc-comment") {
+    // qualified_name; nameField returns the full `Foo.Bar` text.
+    assertEquals(entries[0].source.function, "Foo.Bar");
+  }
+});
