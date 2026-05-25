@@ -287,7 +287,7 @@ title line:
 | Lens                      | Displayed              | Click action                                   |
 | ------------------------- | ---------------------- | ---------------------------------------------- |
 | `↑ N dependents`          | when N > 0             | Opens the LSP `references` view for the entry. |
-| `↓ Satisfies: ID (Title)` | per `Satisfies:` value | Opens the LSP `definition` for the target.     |
+| `↓ Satisfies: ID — Title` | per `Satisfies:` value | Opens the LSP `definition` for the target.     |
 
 Backing: the server already has the workspace index (`lsp/workspace.ts`).
 Dependent counts are computed via the same scan that powers
