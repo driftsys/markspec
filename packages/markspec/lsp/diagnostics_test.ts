@@ -53,6 +53,50 @@ Deno.test("toLspDiagnostic: handles undefined location", () => {
   assertEquals(lsp.range.start.character, 0);
 });
 
+Deno.test("toLspDiagnostic: prefers range when present", () => {
+  const d = {
+    code: "MSL-Q302",
+    severity: "warning" as const,
+    message: "vague",
+    location: { file: "x.md", line: 5, column: 1 },
+    range: {
+      start: { line: 5, column: 10 },
+      end: { line: 5, column: 25 },
+    },
+  };
+  const lsp = toLspDiagnostic(d);
+  assertEquals(lsp.range.start.line, 4); // 1-based → 0-based
+  assertEquals(lsp.range.start.character, 9);
+  assertEquals(lsp.range.end.line, 4);
+  assertEquals(lsp.range.end.character, 24);
+});
+
+Deno.test("toLspDiagnostic: falls back to location when range absent", () => {
+  const d = {
+    code: "MSL-Q302",
+    severity: "warning" as const,
+    message: "vague",
+    location: { file: "x.md", line: 5, column: 1 },
+  };
+  const lsp = toLspDiagnostic(d);
+  assertEquals(lsp.range.start.line, 4);
+  assertEquals(lsp.range.start.character, 0);
+  // Existing behaviour: end is MAX_SAFE_INTEGER (clamped to EOL).
+  assertEquals(lsp.range.end.character, Number.MAX_SAFE_INTEGER);
+});
+
+Deno.test("toLspDiagnostic: PA-1 diagnostic without range still works", () => {
+  const d = {
+    code: "MSL-Q302",
+    severity: "warning" as const,
+    message: "found 'some' in entry body",
+    location: { file: "x.md", line: 10, column: 1 },
+  };
+  const lsp = toLspDiagnostic(d);
+  assertEquals(lsp.range.start.line, 9);
+  assertEquals(lsp.range.end.character, Number.MAX_SAFE_INTEGER);
+});
+
 Deno.test("groupDiagnosticsByFile: groups diagnostics by file path", () => {
   const diagnostics: CoreDiagnostic[] = [
     {
