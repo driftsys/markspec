@@ -454,17 +454,20 @@ relevant disciplines:
 
 ## 10. Open questions
 
-Capped at five. None blocks v1 implementation.
+Capped at five; four remain open after v1 implementation. None blocks v1.
 
 1. **`markspec/profileChanged` notification cadence.** §4.4 fires on every
    profile reload. If a future workspace watcher fires on _every_
    `.markspec.yaml` keystroke, clients re-render colors on every char. Debounce
    on the server side, debounce in clients, or both?
 
-2. **Inlay-hint vs. code-lens overlap policy.** §5.2's "dependents count" hint
-   is suppressed when the code lens for the same data is enabled. Is that
-   suppression server-side (server omits the hint) or client-side (server emits
-   both, client picks)? Server-side is simpler but less flexible.
+2. **Inlay-hint vs. code-lens overlap policy** — _Resolved (Cap 4, PR #507):
+   client-side suppression._ §5.2's "dependents count" hint duplicates the
+   code-lens "↑ N dependents" entry. The server emits both unconditionally; the
+   client suppresses whichever it doesn't want via its own settings (in VS Code:
+   `markspec.lsp.codeLens.dependents`). The alternative — server-side
+   suppression — would have been simpler but less flexible, and would have
+   coupled the server to a per-client preference it has no way to discover.
 
 3. **Document-link line-number heuristic.** §5.3 matches `path:line:col`
    patterns. Some languages use other separators (`.rs#L42`). Is the pattern
