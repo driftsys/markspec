@@ -1,9 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { KINDS, parseTyplBlock, TYPL_CODES, VERSION } from "./mod.ts";
-
-Deno.test("typl module exports VERSION", () => {
-  assertEquals(typeof VERSION, "string");
-});
+import { KINDS, parseTyplBlock, TYPL_CODES } from "./mod.ts";
 
 Deno.test("typl module exposes parseTyplBlock", () => {
   const { ast, diagnostics } = parseTyplBlock("$Speed : signal float[0..300]");

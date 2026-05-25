@@ -169,6 +169,12 @@ Deno.test("shape: string and bytes lengths still work", () => {
   });
 });
 
+Deno.test("shape: single literal (single value, no pipe)", () => {
+  assertEquals(shapeOf("'fixed'"), { kind: "literal", value: "fixed" });
+  assertEquals(shapeOf("42"), { kind: "literal", value: 42 });
+  assertEquals(shapeOf("true"), { kind: "literal", value: true });
+});
+
 Deno.test("shape: malformed shapes emit TYPL-006 (not silent undefined)", () => {
   // Helper that returns both shape and diagnostics
   const result1 = parseTyplBlock("$X : string[3 4]");

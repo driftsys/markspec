@@ -43,12 +43,31 @@ class Parser {
   parseBlock(): { ast: TyplBlock; diagnostics: TyplDiagnostic[] } {
     const bindings: Binding[] = [];
     const typedefs: Typedef[] = [];
+    const seenBindingNames = new Set<string>();
+    const seenTypedefNames = new Set<string>();
     while (this.peek().kind !== "EOF") {
       const lineBefore = this.peek().position.line;
       const stmt = this.parseStatement();
       if (stmt) {
-        if (stmt.statementKind === "binding") bindings.push(stmt);
-        else typedefs.push(stmt);
+        if (stmt.statementKind === "binding") {
+          if (seenBindingNames.has(stmt.name)) {
+            this.diagnostics.push(
+              typlDiagnostic("TYPL-001", { name: stmt.name }, stmt.position),
+            );
+          } else {
+            seenBindingNames.add(stmt.name);
+            bindings.push(stmt);
+          }
+        } else {
+          if (seenTypedefNames.has(stmt.name)) {
+            this.diagnostics.push(
+              typlDiagnostic("TYPL-004", { name: stmt.name }, stmt.position),
+            );
+          } else {
+            seenTypedefNames.add(stmt.name);
+            typedefs.push(stmt);
+          }
+        }
       }
       // Only skip remaining tokens on the same line. If the cursor has
       // already advanced past lineBefore (parseStatement consumed the whole

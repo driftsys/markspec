@@ -67,3 +67,31 @@ Deno.test("parseTyplBlock: multi-line block — every statement parsed", () => {
   assertEquals(ast.bindings.map((b) => b.name), ["$A", "$B", "$C"]);
   assertEquals(ast.bindings.map((b) => b.kind), ["signal", "event", "state"]);
 });
+
+Deno.test("parseTyplBlock: TYPL-001 on duplicate $Name in same block", () => {
+  const { ast, diagnostics } = parseTyplBlock(
+    "$Speed : signal float[0..300]\n$Speed : event",
+  );
+  assertEquals(ast.bindings.length, 1);
+  assertEquals(ast.bindings[0].kind, "signal"); // first wins
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "TYPL-001");
+});
+
+Deno.test("parseTyplBlock: TYPL-004 on duplicate typedef in same block", () => {
+  const { ast, diagnostics } = parseTyplBlock(
+    "type Frame = int[0..255]\ntype Frame = float[0.0..1.0]",
+  );
+  assertEquals(ast.typedefs.length, 1);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "TYPL-004");
+});
+
+Deno.test("parseTyplBlock: binding without shape (e.g. $Idle : state)", () => {
+  const { ast, diagnostics } = parseTyplBlock("$Idle : state");
+  assertEquals(diagnostics, []);
+  assertEquals(ast.bindings.length, 1);
+  assertEquals(ast.bindings[0].name, "$Idle");
+  assertEquals(ast.bindings[0].kind, "state");
+  assertEquals(ast.bindings[0].shape, undefined);
+});

@@ -6,8 +6,6 @@
  * (docs/architecture/adr-017-typl-type-dsl.md) for the language spec.
  */
 
-export const VERSION = "0.1.0";
-
 export type {
   Binding,
   Kind,
