@@ -47,8 +47,8 @@ export type Shape =
     max?: number;
     exact?: number;
   }
-  | { kind: "enum"; values: (string | number | boolean)[] }
-  | { kind: "record"; fields: Record<string, Shape> }
+  | { kind: "enum"; values: readonly (string | number | boolean)[] }
+  | { kind: "record"; fields: Readonly<Record<string, Shape>> }
   | { kind: "literal"; value: string | number | boolean }
   | { kind: "ref"; name: string }
   | { kind: "optional"; inner: Shape };
@@ -66,6 +66,10 @@ export interface Binding {
   readonly statementKind: "binding";
   readonly name: string; // includes leading "$"
   readonly kind: Kind;
+  /**
+   * Optional. Absent when the binding declares only a role with no payload
+   * (e.g. `$Idle : state`, or `$Click : event` with no carried data).
+   */
   readonly shape?: Shape;
   readonly position: Position;
 }
