@@ -30,6 +30,7 @@ export { canonicalEdgeJson, hashCanonicalEdges } from "./canonical_edges.ts";
 export type { EdgeQuad } from "./canonical_edges.ts";
 
 export {
+  extractEdgeQuads,
   resolveBoundEntries,
   resolveProfileChain,
   resolveReferences,

@@ -369,3 +369,82 @@ Deno.test(
     assertEquals(titleHash, expected);
   },
 );
+
+// ---------------------------------------------------------------------------
+// resolveUpstreams composition tests (Task 18)
+// ---------------------------------------------------------------------------
+
+import { resolveUpstreams } from "./resolve.ts";
+
+Deno.test(
+  "resolveUpstreams: composes all sub-resolvers + canonical edge hash",
+  async () => {
+    const config = {
+      name: "p",
+      version: "0",
+      labels: [],
+      parents: [],
+      parentFallback: "",
+      captionConventions: {},
+    };
+    const result = await resolveUpstreams({
+      entries: [],
+      profileChain: [],
+      config,
+      mappings: [],
+      fetchUrl: () => Promise.resolve({ error: "no fetch needed" }),
+      readFile: () => Promise.resolve({ error: "no read needed" }),
+      now: () => new Date("2026-05-25T12:00:00Z"),
+    });
+    assertEquals(result.references.length, 0);
+    assertEquals(result.profiles.length, 0);
+    assertEquals(result.registries.length, 0);
+    assertEquals(result.boundEntries.length, 0);
+    assertEquals(result.canonicalEdgeCount, 0);
+    // hash of empty edge list (canonical JSON "[]" → known SHA-256)
+    assertEquals(
+      result.canonicalEdgeHash,
+      "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    );
+    assertEquals(result.lockedAt, "2026-05-25T12:00:00.000Z");
+    assertEquals(result.diagnostics.length, 0);
+  },
+);
+
+Deno.test(
+  "resolveUpstreams: extractEdgeQuads pulls trace links from authored attributes",
+  async () => {
+    const { extractEdgeQuads } = await import("./resolve.ts");
+    const entry: Entry = {
+      displayId: makeDisplayId("REQ-1"),
+      title: "t",
+      body: "",
+      rawAttributes: [
+        { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+        { key: "Satisfies", value: "STK-1, STK-2" },
+        { key: "Verified-by", value: "TST-1" },
+      ],
+      typedAttributes: new Map() as never,
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      shape: "Authored",
+      location: { file: "x.md", line: 1, column: 1 },
+      source: { kind: "markdown" },
+      bodyTokens: [],
+    };
+    const edges = extractEdgeQuads([entry]);
+    assertEquals(edges.length, 3);
+    // Each edge is sourced from REQ-1; all are local-provenance.
+    assertEquals(
+      edges.every(
+        (e: { source: string; provenance: string }) => e.source === "REQ-1",
+      ),
+      true,
+    );
+    assertEquals(
+      edges.every(
+        (e: { source: string; provenance: string }) => e.provenance === "local",
+      ),
+      true,
+    );
+  },
+);

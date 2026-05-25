@@ -27,6 +27,7 @@ import type {
   UpstreamRegistry,
 } from "./model.ts";
 import { sha256Bytes } from "./hash.ts";
+import { type EdgeQuad, hashCanonicalEdges } from "./canonical_edges.ts";
 
 /**
  * Callback to fetch a URL. Returns the bytes on success, or an
@@ -201,19 +202,90 @@ export async function resolveReferences(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve every upstream in `opts` to a `ResolvedUpstreams` payload.
- *
- * Implementation arrives in Tasks 15–18 (Reference, profile + registry,
- * bound-entry, composition + canonical edges). This stub exists so
- * the type surface and barrel can ship first; downstream tasks fill
- * in behaviour.
+ * Project an entry list to canonical edge quads. Walks the eleven core
+ * trace-link attributes (Satisfies, Derived-from, Verified-by, …) and
+ * emits one quad per resolved target ID, splitting CSV values on `,`
+ * or whitespace. Every quad is provenance `"local"` — externally
+ * sourced edges are folded in later (post-MVP).
  */
-export function resolveUpstreams(
-  _opts: ResolveUpstreamsOptions,
+export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
+  const TRACE_KEYS: readonly string[] = [
+    "Satisfies",
+    "Derived-from",
+    "Verified-by",
+    "References",
+    "Tests",
+    "Depends-on",
+    "Part-of",
+    "Allocated-to",
+    "Realizes",
+    "Generated-from",
+    "Supersedes",
+  ];
+  const out: EdgeQuad[] = [];
+  for (const entry of entries) {
+    for (const a of entry.rawAttributes) {
+      if (!TRACE_KEYS.includes(a.key)) continue;
+      const targets = a.value.split(/[\s,]+/).filter((t) => t.length > 0);
+      for (const target of targets) {
+        out.push({
+          source: entry.displayId,
+          relation: a.key,
+          target,
+          provenance: "local",
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve every upstream the lockfile needs: References, profile chain
+ * tiers, federated registries, and bound entries. Computes the
+ * canonical edge hash from the same entry set. Returns the aggregate
+ * `ResolvedUpstreams` payload ready for {@link serializeLockfile}.
+ *
+ * The four sub-resolvers run sequentially (not concurrently) because
+ * (a) the callbacks they share — `fetchUrl`, `readFile` — may themselves
+ * serialize work, and (b) the diagnostics output is easier to reason
+ * about with a deterministic order. Wrap inside `Promise.all` only when
+ * profiling shows a clear win.
+ */
+export async function resolveUpstreams(
+  opts: ResolveUpstreamsOptions,
 ): Promise<ResolvedUpstreams> {
-  return Promise.reject(
-    new Error("resolveUpstreams: not yet implemented (Tasks 15–18)"),
+  const now = (opts.now ?? (() => new Date()))();
+  const lockedAt = now.toISOString();
+
+  const refResults = await resolveReferences(opts.entries, opts.fetchUrl);
+  const profResults = await resolveProfileChain(
+    opts.profileChain,
+    opts.readFile,
   );
+  const regResults = await resolveRegistries(opts.config, opts.fetchUrl);
+  const boundResults = await resolveBoundEntries(opts.entries, opts.mappings);
+
+  const edges = extractEdgeQuads(opts.entries);
+  const canonicalEdgeHash = await hashCanonicalEdges(edges);
+
+  const diagnostics: Diagnostic[] = [
+    ...refResults.flatMap((r) => r.diagnostics),
+    ...profResults.flatMap((r) => r.diagnostics),
+    ...regResults.flatMap((r) => r.diagnostics),
+    ...boundResults.flatMap((r) => r.diagnostics),
+  ];
+
+  return {
+    references: refResults,
+    profiles: profResults,
+    registries: regResults,
+    boundEntries: boundResults,
+    canonicalEdgeHash,
+    canonicalEdgeCount: edges.length,
+    lockedAt,
+    diagnostics,
+  };
 }
 
 // ---------------------------------------------------------------------------
