@@ -1418,3 +1418,51 @@ namespace Foo.Bar {}
     assertEquals(entries[0].source.function, "Foo.Bar");
   }
 });
+
+Deno.test("parseSource: C# destructor → function captures class name (deviates from C++)", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Outer {
+    /// [REQ_0200] On destructor
+    ///
+    ///     Id: 01HGW0000000000000000200AA
+    ~Outer() {}
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "Dtor.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "Outer");
+  }
+});
+
+Deno.test("parseSource: C# operator and indexer → function undefined (anonymous)", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Outer {
+    /// [REQ_0201] On operator
+    ///
+    ///     Id: 01HGW0000000000000000201AA
+    public static Outer operator +(Outer a, Outer b) => a;
+
+    /// [REQ_0202] On indexer
+    ///
+    ///     Id: 01HGW0000000000000000202AA
+    public int this[int i] => i;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "OpIdx.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 2);
+  for (const id of ["REQ_0201", "REQ_0202"]) {
+    const e = entries.find((entry) => entry.displayId === id)!;
+    if (e.source.kind === "doc-comment") {
+      assertEquals(e.source.function, undefined, `${id} should be anonymous`);
+    }
+  }
+});
