@@ -34,6 +34,20 @@ function encode(message: JsonRpcMessage): Uint8Array {
   return new TextEncoder().encode(header + body);
 }
 
+/** Locate `\r\n\r\n` in a byte buffer. Returns the index of the first
+ * `\r` byte, or -1 when the sequence isn't present. */
+function findCrlfCrlf(buf: Uint8Array): number {
+  for (let i = 0; i + 3 < buf.length; i++) {
+    if (
+      buf[i] === 0x0D && buf[i + 1] === 0x0A &&
+      buf[i + 2] === 0x0D && buf[i + 3] === 0x0A
+    ) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /**
  * Minimal LSP test client. Spawns the LSP server and provides
  * request/notification methods.
@@ -42,7 +56,12 @@ export class LspTestClient {
   private process: Deno.ChildProcess;
   private writer: WritableStreamDefaultWriter<Uint8Array>;
   private reader: ReadableStreamDefaultReader<Uint8Array>;
-  private buffer = "";
+  // Buffer must be bytes, not a string: `Content-Length` is a byte count
+  // and the LSP server may emit multi-byte UTF-8 sequences (e.g. the `↑`
+  // / `↓` / `—` glyphs in the code-lens payload). A char-indexed buffer
+  // would mis-slice multi-byte responses and hang waiting for chars that
+  // never arrive.
+  private buffer = new Uint8Array(0);
   private nextId = 1;
   private pendingRequests = new Map<number, {
     resolve: (value: unknown) => void;
@@ -230,12 +249,15 @@ export class LspTestClient {
 
   /** Read messages from stdout in a background loop. */
   private async startReading(): Promise<void> {
-    const decoder = new TextDecoder();
     try {
       while (true) {
         const { value, done } = await this.reader.read();
         if (done) break;
-        this.buffer += decoder.decode(value, { stream: true });
+        // Append raw bytes — see the `buffer` field comment for why.
+        const next = new Uint8Array(this.buffer.length + value.length);
+        next.set(this.buffer, 0);
+        next.set(value, this.buffer.length);
+        this.buffer = next;
         this.processBuffer();
       }
     } catch {
@@ -244,11 +266,14 @@ export class LspTestClient {
   }
 
   private processBuffer(): void {
+    const decoder = new TextDecoder();
     while (true) {
-      const headerEnd = this.buffer.indexOf("\r\n\r\n");
+      const headerEnd = findCrlfCrlf(this.buffer);
       if (headerEnd < 0) return;
 
-      const header = this.buffer.slice(0, headerEnd);
+      // Headers are ASCII-only per the LSP spec, so decoding them as
+      // UTF-8 is safe (ASCII is a UTF-8 subset).
+      const header = decoder.decode(this.buffer.subarray(0, headerEnd));
       const match = /Content-Length:\s*(\d+)/i.exec(header);
       if (!match) return;
 
@@ -258,7 +283,9 @@ export class LspTestClient {
 
       if (this.buffer.length < bodyEnd) return;
 
-      const body = this.buffer.slice(bodyStart, bodyEnd);
+      const body = decoder.decode(this.buffer.subarray(bodyStart, bodyEnd));
+      // `slice` (not `subarray`) so the residual buffer owns its bytes
+      // and the consumed prefix can be garbage-collected.
       this.buffer = this.buffer.slice(bodyEnd);
 
       try {

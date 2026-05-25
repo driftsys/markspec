@@ -49,6 +49,7 @@ import {
   VERSION,
 } from "../core/mod.ts";
 import { WorkspaceIndex } from "./workspace.ts";
+import { buildCodeLenses } from "./code_lens.ts";
 import { buildFormattingEdits } from "./formatting.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildCodeActions } from "./code_actions.ts";
@@ -364,6 +365,7 @@ connection.onInitialize(
         foldingRangeProvider: true,
         documentHighlightProvider: true,
         documentFormattingProvider: true,
+        codeLensProvider: { resolveProvider: false },
         codeActionProvider: { codeActionKinds: ["quickfix"] },
         semanticTokensProvider: {
           legend: {
@@ -938,6 +940,19 @@ connection.onDocumentFormatting((params) => {
   // an empty TextEdit[] is the spec-conforming "no edits to apply" reply.
   // deno-lint-ignore no-explicit-any
   return buildFormattingEdits(currentText, result.output) as any;
+});
+
+// ---------------------------------------------------------------------------
+// Code lenses — "↑ N dependents" and "↓ Satisfies: ID — Title" per entry
+// ---------------------------------------------------------------------------
+
+connection.onCodeLens((params) => {
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return [];
+  const entries = index.getEntriesForFile(filePath);
+  const allEntries = index.getAllEntries();
+  // deno-lint-ignore no-explicit-any
+  return buildCodeLenses(entries, allEntries, pathToUri) as any;
 });
 
 // ---------------------------------------------------------------------------
