@@ -13,6 +13,7 @@
  */
 
 import type { Position } from "./ast.ts";
+import { type TyplDiagnostic, typlDiagnostic } from "./diagnostics.ts";
 
 /** All token kinds produced by the typl tokenizer. */
 export type TokenKind =
@@ -80,8 +81,11 @@ const DIGIT_RE = /[0-9]/;
  * 1-based (line 1, column 1 is the first character of the source). The
  * stream always ends with exactly one `EOF` token.
  */
-export function tokenize(source: string): Token[] {
+export function tokenize(
+  source: string,
+): { tokens: Token[]; diagnostics: TyplDiagnostic[] } {
   const tokens: Token[] = [];
+  const diagnostics: TyplDiagnostic[] = [];
   let line = 1;
   let column = 1;
   let i = 0;
@@ -161,6 +165,14 @@ export function tokenize(source: string): Token[] {
       if (i < source.length && source[i] === "/") {
         i++;
         column++;
+      } else {
+        diagnostics.push(
+          typlDiagnostic(
+            "TYPL-006",
+            { detail: "unterminated regex literal" },
+            { line, column: startCol },
+          ),
+        );
       }
       push("REGEX", regex, startCol);
       // Optional flags after the closing `/`.
@@ -278,5 +290,5 @@ export function tokenize(source: string): Token[] {
   }
 
   tokens.push({ kind: "EOF", value: "", position: { line, column } });
-  return tokens;
+  return { tokens, diagnostics };
 }

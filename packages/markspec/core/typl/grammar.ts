@@ -527,6 +527,8 @@ class Parser {
 export function parseTyplBlock(
   source: string,
 ): { ast: TyplBlock; diagnostics: readonly TyplDiagnostic[] } {
-  const tokens = tokenize(source);
-  return new Parser(tokens).parseBlock();
+  const { tokens, diagnostics: lexDiagnostics } = tokenize(source);
+  const { ast, diagnostics: parseDiagnostics } = new Parser(tokens)
+    .parseBlock();
+  return { ast, diagnostics: [...lexDiagnostics, ...parseDiagnostics] };
 }
