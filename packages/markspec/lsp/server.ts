@@ -48,6 +48,7 @@ import {
   type ProjectConfig,
   VERSION,
 } from "../core/mod.ts";
+import { extendsTransitively } from "../core/profile/discipline_mode.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildFormattingEdits } from "./formatting.ts";
@@ -238,6 +239,7 @@ const debouncedFileParses = new Map<string, DebouncedFunction<any>>();
 /** Build EntryTypeInfo array from the active profile. */
 function getEntryTypes(): EntryTypeInfo[] {
   if (!profile) return [];
+  const mode = profile.disciplineMode.value;
   const types: EntryTypeInfo[] = [];
   for (const [name, typeDef] of profile.types) {
     const pattern = typeDef.value.displayIdPattern.value;
@@ -248,7 +250,19 @@ function getEntryTypes(): EntryTypeInfo[] {
     if (placeholderIndex < 0) continue;
     const prefix = pattern.slice(0, placeholderIndex);
     const nextNumber = index.getNextDisplayIdNumber(prefix);
-    types.push({ name, prefix, nextNumber });
+
+    // ADR-017 Slice 5: mark mode-relevant types as recommended.
+    const isRequirementShaped = extendsTransitively(
+      name,
+      "Requirement",
+      profile,
+    );
+    const hasDiscipline = typeDef.value.discipline.value !== undefined;
+    const modeRecommended = (mode === "tiered" && hasDiscipline) ||
+      (mode === "flat" && isRequirementShaped && !hasDiscipline) ||
+      (mode === "none" && isRequirementShaped);
+
+    types.push({ name, prefix, nextNumber, modeRecommended });
   }
   return types;
 }

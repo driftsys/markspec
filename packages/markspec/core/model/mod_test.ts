@@ -8,6 +8,7 @@ import { assertEquals } from "@std/assert";
 import type {
   BodyToken,
   BodyTokenKind,
+  DisciplineMode,
   EffectiveProfile,
   EffectiveTypeDef,
   Entry,
@@ -124,6 +125,7 @@ Deno.test("Slice 2 model: KindDecl + kinds/discipline fields type-check", () => 
         "sentence-abbrev": { value: [], origin: "x" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
   if (ep.kinds.size !== 0) throw new Error("unreachable");
 
@@ -143,6 +145,47 @@ Deno.test("Slice 2 model: KindDecl + kinds/discipline fields type-check", () => 
     discipline: { value: "software", origin: "x" },
   };
   if (etd.discipline.value !== "software") throw new Error("unreachable");
+});
+
+Deno.test("Slice 5 model: DisciplineMode + disciplineMode fields type-check", () => {
+  // DisciplineMode is a closed union.
+  const m: DisciplineMode = "flat";
+  if (m !== "flat") throw new Error("unreachable");
+
+  // ProfileManifest.disciplineMode is optional.
+  const manifest: ProfileManifest = {
+    id: "x",
+    version: "0",
+    universalAttributes: [],
+    labels: [],
+    conventions: [],
+    colors: new Map(),
+    types: new Map(),
+    documents: { types: [], frontMatter: [] },
+    kinds: new Map(),
+    prose: { lexicons: { "capitalized-allow": [], "sentence-abbrev": [] } },
+    // disciplineMode intentionally omitted — must compile
+  };
+  if (manifest.id !== "x") throw new Error("unreachable");
+
+  // EffectiveProfile.disciplineMode is required (always populated).
+  const ep: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "x" },
+        "sentence-abbrev": { value: [], origin: "x" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+  if (ep.disciplineMode.value !== "none") throw new Error("unreachable");
 });
 
 Deno.test("Slice 3 model: Discipline and Discipline-frozen are in the universal catalog", () => {

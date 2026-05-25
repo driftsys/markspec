@@ -495,6 +495,7 @@ function profileWithFoo(): EffectiveProfile {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 
@@ -691,6 +692,7 @@ function syntheticProfile(): EffectiveProfile {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 

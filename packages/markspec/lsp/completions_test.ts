@@ -281,3 +281,52 @@ Deno.test("buildTrailerKeyItems: each label matches a TRAILER_KEYS entry", () =>
     assertEquals(labels.includes(key), true);
   }
 });
+
+// --- Slice 5: mode-recommended ordering and detail suffix ---
+
+Deno.test("Slice 5 LSP: buildBlockScaffoldItems sorts modeRecommended items first", () => {
+  const types = [
+    { name: "Aaa", prefix: "AAA_", nextNumber: 1, modeRecommended: false },
+    { name: "Bbb", prefix: "BBB_", nextNumber: 1, modeRecommended: true },
+    { name: "Ccc", prefix: "CCC_", nextNumber: 1, modeRecommended: true },
+    { name: "Ddd", prefix: "DDD_", nextNumber: 1, modeRecommended: false },
+  ];
+  const items = buildBlockScaffoldItems(
+    types,
+    () => "01HFAKEULID00000000000000",
+  );
+  // Order: Bbb, Ccc (recommended, stable), then Aaa, Ddd (stable).
+  assertEquals(items[0].detail, "Bbb (recommended)");
+  assertEquals(items[1].detail, "Ccc (recommended)");
+  assertEquals(items[2].detail, "Aaa");
+  assertEquals(items[3].detail, "Ddd");
+});
+
+Deno.test("Slice 5 LSP: buildBlockScaffoldItems leaves order unchanged when modeRecommended is absent", () => {
+  const types = [
+    { name: "Aaa", prefix: "AAA_", nextNumber: 1 },
+    { name: "Bbb", prefix: "BBB_", nextNumber: 1 },
+  ];
+  const items = buildBlockScaffoldItems(
+    types,
+    () => "01HFAKEULID00000000000000",
+  );
+  // No modeRecommended set anywhere → all treated equally → input order preserved.
+  assertEquals(items[0].detail, "Aaa");
+  assertEquals(items[1].detail, "Bbb");
+});
+
+Deno.test("Slice 5 LSP: '(recommended)' suffix appears only on modeRecommended items", () => {
+  const types = [
+    { name: "Yes", prefix: "YES_", nextNumber: 1, modeRecommended: true },
+    { name: "No", prefix: "NO_", nextNumber: 1, modeRecommended: false },
+  ];
+  const items = buildBlockScaffoldItems(
+    types,
+    () => "01HFAKEULID00000000000000",
+  );
+  const yes = items.find((i) => i.detail?.startsWith("Yes"));
+  const no = items.find((i) => i.detail?.startsWith("No"));
+  assertEquals(yes?.detail, "Yes (recommended)");
+  assertEquals(no?.detail, "No");
+});

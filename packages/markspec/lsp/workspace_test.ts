@@ -250,6 +250,7 @@ Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared 
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   const index = new WorkspaceIndex();

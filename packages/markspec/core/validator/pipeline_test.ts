@@ -75,6 +75,7 @@ function buildProfileWithRequirement(): EffectiveProfile {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 
@@ -182,6 +183,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   // Entry classified as requirement but missing Rationale.
@@ -234,6 +236,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   const e: Entry = {
@@ -279,6 +282,7 @@ Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () =
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
   const entries = [
     buildEntry({ displayId: "FOO-001", shape: "Authored" }),
@@ -329,6 +333,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   const e: Entry = {
@@ -405,6 +410,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   const target1: Entry = {

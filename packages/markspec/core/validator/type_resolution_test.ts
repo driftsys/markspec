@@ -302,6 +302,7 @@ Deno.test("resolvedCoreType: profile type resolves to its core parent via extend
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   // Step 1 — explicit `Type:` naming a profile type.

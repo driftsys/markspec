@@ -72,6 +72,7 @@ function fakeEffective(
         "sentence-abbrev": pv([]),
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 

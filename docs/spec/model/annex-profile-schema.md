@@ -26,7 +26,7 @@ attributes, relations, labels).
 | `description`     | No       | string | Human-readable summary; recommended for publishing      |
 | `license`         | No       | string | SPDX identifier (e.g. `MIT`, `Apache-2.0`); recommended |
 | `extends`         | No       | string | Parent profile specifier — local path or scoped ID      |
-| `markspec-schema` | No       | string | Core schema version pin (e.g. `"1"`); see §B.9          |
+| `markspec-schema` | No       | string | Core schema version pin (e.g. `"1"`); see §B.10         |
 
 Complete example:
 
@@ -283,7 +283,43 @@ The full set of type fields (extending §B.3):
 | `PROFILE-DISCIPLINE-004` | error    | `discipline:` names a kind not found in core-declared kinds ∪ chain-declared kinds               |
 | `PROFILE-DISCIPLINE-005` | error    | `discipline:` value is present but is not a non-empty string (empty string, null, or wrong type) |
 
-## B.9 Versioning and compatibility
+## B.9 Profile-level `discipline-mode` (`profile.discipline-mode`)
+
+A profile may declare the optional `profile.discipline-mode:` scalar to make its
+intent about discipline tiering explicit. The value is one of `flat`, `tiered`,
+or `none`. When omitted, the mode is inferred from the profile's type graph:
+`tiered` when any profile-declared requirement-shaped type carries
+`discipline:`; `flat` when the profile contributes any discipline-bearing types
+but no per-type assignment; otherwise `none`. See ADR-017 Slice 5.
+
+```yaml
+profile:
+  discipline-mode: tiered   # optional; flat | tiered | none
+```
+
+### Field
+
+| Field             | Required | Type   | Notes                                                              |
+| ----------------- | -------- | ------ | ------------------------------------------------------------------ |
+| `discipline-mode` | No       | string | Scalar enum: `flat`, `tiered`, or `none`. Case-sensitive lowercase |
+
+### Rules
+
+- The value must be a scalar string (`PROFILE-DISCIPLINE-007`).
+- The value must be one of the three legal enum members `flat`, `tiered`, `none`
+  (`PROFILE-DISCIPLINE-006`). Matching is case-sensitive.
+- When omitted, the engine infers the mode from the profile's type graph; the
+  inferred value is reported by `markspec doctor` and consumed by the LSP
+  block-scaffold completion and `markspec create` recommendation hint.
+
+**Diagnostics:**
+
+| Code                     | Severity | Trigger                                                                                   |
+| ------------------------ | -------- | ----------------------------------------------------------------------------------------- |
+| `PROFILE-DISCIPLINE-006` | error    | `profile.discipline-mode:` value is not one of `flat`, `tiered`, `none` — ADR-017 Slice 5 |
+| `PROFILE-DISCIPLINE-007` | error    | `profile.discipline-mode:` value is not a scalar string — ADR-017 Slice 5                 |
+
+## B.10 Versioning and compatibility
 
 ### Core schema pin (`markspec-schema`)
 
@@ -313,7 +349,7 @@ A consumer project pins profile versions in `.markspec.yaml`. The toolchain
 supports the declared version only — no implicit upgrade, no downgrade. Run
 `markspec profile add <spec>@<version>` to pin explicitly.
 
-## B.10 Distribution and specifiers
+## B.11 Distribution and specifiers
 
 Profiles are referenced in `.markspec.yaml` using a specifier string:
 
@@ -328,7 +364,7 @@ Vendoring: `markspec profile add <spec>` downloads the profile and writes it
 into `profiles/` under the project root. Vendored profiles are committed to
 version control — the project owns a reproducible copy.
 
-## B.11 Extends chain and conflict resolution
+## B.12 Extends chain and conflict resolution
 
 When multiple profiles are active (the `.markspec.yaml` `profiles:` list), they
 are merged into a single **effective profile**. Resolution order: later entries
@@ -354,7 +390,7 @@ Conflict rules:
 | Relations  | Child relation overrides parent relation of same `key`   |
 | Labels     | Union; duplicate `name` keeps child `description`        |
 
-## B.12 Validation and publishing
+## B.13 Validation and publishing
 
 Validate a profile manifest before distributing it:
 

@@ -45,6 +45,7 @@ function singleTierChain(yaml: string): ProfileChain {
           "sentence-abbrev": { value: [], origin: "" },
         },
       },
+      disciplineMode: { value: "none", origin: "inferred" },
     },
   };
 }
@@ -150,6 +151,7 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
           "sentence-abbrev": { value: [], origin: "" },
         },
       },
+      disciplineMode: { value: "none", origin: "inferred" },
     },
   };
 }
@@ -1412,4 +1414,88 @@ profile:
     effective?.types.get("MyType")?.value.discipline.value,
     "software",
   );
+});
+
+// ---------------------------------------------------------------------------
+// ADR-017 Slice 5 — disciplineMode merge + resolution
+// ---------------------------------------------------------------------------
+
+Deno.test("merge: disciplineMode declared in a single tier is honoured", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: flat
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  assertEquals(effective?.disciplineMode.value, "flat");
+  assertEquals(effective?.disciplineMode.origin, "declared");
+});
+
+Deno.test("merge: disciplineMode LWW — child tier overrides parent", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: tiered
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: flat
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  assertEquals(effective?.disciplineMode.value, "flat");
+  assertEquals(effective?.disciplineMode.origin, "declared");
+});
+
+Deno.test("merge: disciplineMode falls back to inference when no tier declared", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software
+`);
+  const { effective } = mergeChain(chain);
+  // Inferred from the profile's tiered requirement type.
+  assertEquals(effective?.disciplineMode.value, "tiered");
+  assertEquals(effective?.disciplineMode.origin, "inferred");
+});
+
+Deno.test("merge: empty profile chain → disciplineMode 'none' inferred", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile: {}
+`);
+  const { effective } = mergeChain(chain);
+  assertEquals(effective?.disciplineMode.value, "none");
+  assertEquals(effective?.disciplineMode.origin, "inferred");
+});
+
+Deno.test("merge: child tier with no disciplineMode does NOT overwrite parent's declaration", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: flat
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile: {}
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  // Parent's declaration survives — child has no opinion.
+  assertEquals(effective?.disciplineMode.value, "flat");
+  assertEquals(effective?.disciplineMode.origin, "declared");
 });

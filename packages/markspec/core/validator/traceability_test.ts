@@ -74,6 +74,7 @@ function profile(opts: {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 

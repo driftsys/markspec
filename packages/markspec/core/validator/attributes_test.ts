@@ -70,6 +70,7 @@ function profile(opts: {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 
@@ -475,6 +476,7 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
@@ -537,6 +539,7 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);

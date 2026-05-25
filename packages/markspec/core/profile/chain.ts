@@ -282,5 +282,6 @@ function buildPlaceholderEffective(
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
