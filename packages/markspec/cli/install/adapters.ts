@@ -79,6 +79,40 @@ export interface LspAdapter {
   renderBlock(input: RenderBlockInput): string;
 }
 
+/**
+ * Adapter descriptor consumed by the MCP install orchestrator. Each
+ * adapter exposes pure functions (no I/O) for path resolution and block
+ * rendering; the orchestrator handles file reads, diff/preview, backup,
+ * and writes.
+ *
+ * The `renderBlock` return type is `Record<string, unknown>` — the JSON
+ * object placed under `mcpServers.<name>` in the target config file.
+ */
+export interface McpAdapter {
+  readonly id: McpClientId;
+  /**
+   * Resolve the config file path for the given scope.
+   * - `home` is `Deno.env.get("HOME")` (POSIX) or equivalent.
+   * - `appData` is `Deno.env.get("APPDATA")` on Windows (undefined on POSIX).
+   * - `workspaceRoot` is the directory containing the workspace marker;
+   *   required when `scope === "workspace"`, ignored otherwise.
+   *
+   * MAY throw when `scope === "workspace"` is meaningless for the
+   * client (e.g. Claude Desktop is per-user only). The orchestrator
+   * rejects unsupported scopes before calling this, so a throw here
+   * is a defensive guard, not a documented surface.
+   */
+  resolveConfigPath(
+    scope: "user" | "workspace",
+    cwd: string,
+    home: string,
+    appData?: string,
+    workspaceRoot?: string,
+  ): string;
+  /** Render the JSON object for the `mcpServers.<name>` key. */
+  renderBlock(input: RenderBlockInput): Record<string, unknown>;
+}
+
 /** Iterative O(n·m) Levenshtein distance with a single row buffer. */
 function levenshtein(a: string, b: string): number {
   if (a === b) return 0;

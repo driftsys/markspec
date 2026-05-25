@@ -34,6 +34,7 @@
     "npm:@modelcontextprotocol/sdk@1": "1.29.0_zod@4.4.3",
     "npm:@myriaddreamin/typst-ts-node-compiler@0.6": "0.6.0",
     "npm:@types/mdast@4": "4.0.4",
+    "npm:jsonc-parser@3": "3.3.1",
     "npm:rehype-stringify@10": "10.0.1",
     "npm:remark-gfm@4": "4.0.1",
     "npm:remark-parse@11": "11.0.0",
@@ -649,6 +650,9 @@
     },
     "json-schema-typed@8.0.2": {
       "integrity": "sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA=="
+    },
+    "jsonc-parser@3.3.1": {
+      "integrity": "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="
     },
     "longest-streak@3.1.0": {
       "integrity": "sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g=="
@@ -1405,6 +1409,7 @@
           "npm:@modelcontextprotocol/sdk@1",
           "npm:@myriaddreamin/typst-ts-node-compiler@0.6",
           "npm:@types/mdast@4",
+          "npm:jsonc-parser@3",
           "npm:rehype-stringify@10",
           "npm:remark-gfm@4",
           "npm:remark-parse@11",
