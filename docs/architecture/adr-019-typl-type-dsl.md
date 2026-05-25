@@ -43,7 +43,19 @@ v2.
 - Required named types (RIDL-style) — deferred to a strict-mode profile setting
   in v2.
 
+## Implementation status
+
+All eight implementation slices are merged:
+
+- Parser (`core/typl/`) — lexer, grammar, AST, diagnostics, validator
+- Three Markdown surfaces (fence, bullet glossary, inline) populating
+  `Entry.types`
+- Cross-entry validation and corpus `typeRegistry` in compile output
+- LSP hover, completion, and diagnostic reporting over the registry
+- Language reference, user guide, and example showcase in `docs/`
+
 ## See also
 
 - Design history: brainstorming output (not in repo — local design folder).
-- Plan: PR series of 8 incremental slices; PR 1 (this) ships the pure parser.
+- [Language reference: typl](../spec/language/typl.md)
+- [Guide: Using typl in your entries](../guide/typl.md)

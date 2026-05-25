@@ -10,6 +10,7 @@
 
 - [Entry blocks](authoring.md)
 - [Profiles](profiles.md)
+- [Type declarations (typl)](typl.md)
 
 # Tools
 
