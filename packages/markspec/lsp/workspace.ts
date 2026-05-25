@@ -13,6 +13,7 @@ import type {
   Entry,
 } from "../core/mod.ts";
 import { parseFile, suppressDeclaredAttrR010, validate } from "../core/mod.ts";
+import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
 
 /** A display ID paired with its entry title, for completion items. */
 export interface DisplayIdEntry {
@@ -187,6 +188,18 @@ export class WorkspaceIndex {
   /** Return all tracked file paths. */
   getFilePaths(): string[] {
     return [...this.fileEntries.keys()];
+  }
+
+  /**
+   * Build the corpus type registry from all currently-indexed entries.
+   *
+   * Rebuilt on every call — no stale-cache bugs. For large projects with
+   * frequent edits this is fast enough because `getAllEntries()` is O(n)
+   * and the registry scan is O(bindings). A cached + invalidated variant
+   * can be added later when profiling shows it necessary.
+   */
+  getTypeRegistry(): TypeRegistry {
+    return buildTypeRegistry(this.getAllEntries());
   }
 
   // -----------------------------------------------------------------------
