@@ -7,10 +7,11 @@
  */
 
 import type { Entry } from "../../model/mod.ts";
-import type { ParagraphNode, SourceRange } from "../../ast/nodes.ts";
+import type { ParagraphNode } from "../../ast/nodes.ts";
 import type { LintDiagnostic } from "../types.ts";
 import type { GlossaryIndex } from "../glossary.ts";
 import { deriveTermSlug } from "../../parser/glossary.ts";
+import { offsetToRange } from "../range_util.ts";
 
 /** Hook signature for the deferred $Identifier registry leg. Returns
  * true when the token is a resolvable $Identifier (i.e. should be
@@ -226,46 +227,6 @@ function scanPhrases(
   }
 
   return phrases;
-}
-
-/**
- * Compute byte-offset → file-absolute (line, column) for a paragraph
- * whose text begins at `baseLine`, `baseCol`. Newlines in the
- * paragraph text advance the line; column resets to 1. Returns a
- * file-absolute SourceRange suitable for LintDiagnostic.range (see
- * slice 3 doc comment on the field — file-absolute, 1-based).
- */
-function offsetToRange(
-  text: string,
-  offset: number,
-  length: number,
-  baseLine: number,
-  baseCol: number,
-): SourceRange {
-  let line = baseLine;
-  let col = baseCol;
-  for (let i = 0; i < offset; i++) {
-    if (text[i] === "\n") {
-      line++;
-      col = 1;
-    } else {
-      col++;
-    }
-  }
-  const startLine = line;
-  const startCol = col;
-  for (let i = offset; i < offset + length; i++) {
-    if (text[i] === "\n") {
-      line++;
-      col = 1;
-    } else {
-      col++;
-    }
-  }
-  return {
-    start: { line: startLine, column: startCol },
-    end: { line, column: col },
-  };
 }
 
 /** Public entry point: run Q500 against an entry's paragraph bodies. */
