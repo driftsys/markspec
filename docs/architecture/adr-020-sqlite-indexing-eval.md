@@ -1,7 +1,6 @@
 # ADR-020 — SQLite Indexing Eval (Phase 1 of Background Indexing epic)
 
-**Status:** Draft (Phase 1 in progress) **Date:** 2026-05-25 **Supersedes:** —
-**Related:**
+**Status:** Accepted **Date:** 2026-05-25 **Supersedes:** — **Related:**
 [markspec-background-indexing.md](../spec/internal/markspec-background-indexing.md)
 (spec, all decisions ratified in PR #430 + amended in PR #434)
 
@@ -278,37 +277,79 @@ by manual simulation in the bench.
   that write to `schema_meta` race and ~60 % fail with SQLITE_BUSY. With it, all
   open attempts succeed sequentially. This must be in the production pragma set.
 
-## Decisions (filled in as Phase 1 progresses)
+## Decisions
 
-1. **Driver:** _Preliminary:_ `jsr:@db/sqlite@^0.13.0` (native FFI via the
-   `denodrivers/sqlite3` GitHub project; despite the GitHub repo name, the JSR
-   package is `@db/sqlite`). Cold-scan numbers confirm the driver is not a
-   bottleneck — 100k rows inserted in ~1.3 s with tuned pragmas. Comparison
-   against `jsr:@db/sqlite` pure-WASM and `node:sqlite` still pending.
-2. **Production pragma set:** _Preliminary recommendation:_ **tuned** —
-   `journal_mode=WAL, synchronous=NORMAL, cache_size=64MB, mmap_size=0,
-   temp_store=MEMORY`.
-   Hits the §6 budget with massive headroom (1.3 s at 100k vs 5 s budget at
-   10k). `mmap=256MB` adds < 2 %, not worth the platform edge cases. `sync=off`
-   ties tuned and is correctness-unsafe.
-3. **`index.invalidation-cap` default:** _Preliminary observation_ — the spec's
-   ≈200 guess is below the observed hub closure size at every scale in the
-   synthetic corpus (mean ≈ 420). The closure walk itself is fast (~0.4 ms even
-   at the 500-row max). Whether the cap should be raised depends on the
-   **revalidation cost per closure entry**, which this bench does not yet
-   measure. Hold the ≈200 default until a re-validate bench produces a per-entry
-   cost number.
-4. **Driver-level WAL caveats discovered:** _TBD._ Awaits concurrency benches.
-   macOS APFS aarch64-darwin observed so far: no anomalies in cold scan.
+1. **Driver:** **`jsr:@db/sqlite@^0.13.0`** (native FFI via the
+   `denodrivers/sqlite3` GitHub project; the JSR package is named `@db/sqlite`).
+   Confirmed across all benches — driver is never the bottleneck. Comparison
+   against `jsr:@db/sqlite` pure-WASM and `node:sqlite` is **deferred to Phase
+   2** as a follow-up if the FFI permission requirement becomes a deployment
+   concern; the §6 budgets are met with so much headroom that a slower driver
+   would still work.
 
-## Recommendations (filled in at the end of Phase 1)
+2. **Production pragma set:** **tuned + busy_timeout**, exactly:
 
-> One of:
->
-> - **Design confirmed.** Proceed to Phase 2 (production indexer) with the
->   chosen pragmas + cap + driver.
-> - **Gap found at $X.** Spec must change at §N before Phase 2 starts; proposed
->   change attached.
+   ```text
+   PRAGMA journal_mode  = WAL
+   PRAGMA synchronous   = NORMAL
+   PRAGMA cache_size    = -64000      -- 64 MB (negative = KB)
+   PRAGMA mmap_size     = 0
+   PRAGMA temp_store    = MEMORY
+   PRAGMA busy_timeout  = 5000        -- 5 s
+   ```
+
+   Hits §6's 10k < 5 s cold-scan budget with 37× headroom; 100k cold scan
+   finishes in 1.3 s. `mmap=256MB` adds < 2 % and isn't worth the platform edge
+   cases. `synchronous=OFF` ties tuned at large scale and is correctness-unsafe.
+   `busy_timeout=5000` is **required for multi-process safety** — without it,
+   concurrent opens that write to `schema_meta` race and ~60 % fail with
+   SQLITE_BUSY (discovered during the WAL contention bench).
+
+3. **`index.invalidation-cap` default:** **Hold the spec's ≈200 as the v1
+   default; revisit in a follow-up revalidate bench.** The observed hub closure
+   size in the synthetic corpus is mean ≈ 420 at every scale, so this default
+   will fall back to a full re-validate on most hub-renames. That's acceptable
+   because (a) the closure walk itself is fast (~0.4 ms even at 500 rows), so
+   the cap exists to bound the **downstream re-validation cost** (touching every
+   closure entry's prose / trace links) which this eval does not yet measure,
+   and (b) full re-validate is also fast at our scales. The cap value is
+   empirical, expected to change once the revalidate cost per entry is known.
+
+4. **Driver-level WAL caveats discovered:**
+
+   - **`busy_timeout` is required** for multi-process access (folded into the
+     pragma set above). Discovered during wal_contention.
+   - **SIGKILL recovery is automatic.** SQLite's WAL recovery on next-open
+     handles abrupt termination; the §7 "delete + cold rebuild" path is reserved
+     for actual corruption (truncated WAL, disk-level damage), not SIGKILL.
+   - **macOS APFS aarch64-darwin** is the eval platform; no anomalies observed.
+     Linux ext4 / Windows NTFS not benchmarked — expected to behave the same per
+     SQLite documentation, but a brief smoke-test on each is recommended during
+     Phase 2 platform validation.
+
+## Recommendations
+
+**Design confirmed. Proceed to Phase 2 (production indexer)** with the pragma
+set and adapter shape validated by this eval.
+
+Phase 1 produced no gaps requiring a spec change. The single adapter hardening
+discovered during the benches (`busy_timeout = 5000`, `INSERT OR IGNORE` on
+`schema_meta`, `getSchemaVersion()` exposed for mismatch detection) carries
+forward into Phase 2 as part of the production code.
+
+Two **follow-up benches** are recommended but **not blockers** for Phase 2:
+
+- **Revalidate cost per closure entry** — measures the downstream cost the §9 Q5
+  `index.invalidation-cap` exists to bound. Calibrates the cap's value (the
+  mechanism is already validated). Can run after Phase 2's invalidation walker
+  is implemented.
+- **Driver alternatives bench** (`jsr:@db/sqlite` pure-WASM vs `node:sqlite`) —
+  only if the FFI permission requirement becomes a deployment concern. Otherwise
+  `@db/sqlite` is sufficient.
+
+A driver-level platform smoke-test on Linux ext4 / Windows NTFS is recommended
+once Phase 2 has a runnable production indexer; the eval ran only on
+aarch64-darwin / APFS.
 
 ## Alternatives considered (driver layer)
 
