@@ -606,6 +606,7 @@ function extractEntry(
     type,
     shape,
     location: entryLocation,
+    bodyStartLine,
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
     bodyTokens,

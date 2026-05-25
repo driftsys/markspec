@@ -2,8 +2,9 @@
  * @module core/lint/runner
  *
  * Lint pipeline entry point. Filters entries to in-scope prose targets,
- * runs lexicon and structural rules, runs suppression hygiene on all
- * Authored entries, applies suppression, and returns the final diagnostics.
+ * runs lexicon and structural rules, runs Q500 xref rules, runs
+ * suppression hygiene on all Authored entries, applies suppression, and
+ * returns the final diagnostics.
  */
 
 import type { Entry } from "../model/mod.ts";
@@ -17,6 +18,11 @@ import {
   parseDisableValue,
   runSuppressionRules,
 } from "./rules/suppression.ts";
+import { buildGlossaryIndex } from "./glossary.ts";
+import type { FileReader, GlossaryIndex } from "./glossary.ts";
+import { runXrefRules } from "./rules/xref.ts";
+import type { IsIdentifierHook } from "./rules/xref.ts";
+import { loadLexicon } from "../lexicons/mod.ts";
 
 // ---------------------------------------------------------------------------
 // In-scope predicate
@@ -52,6 +58,12 @@ export function isProseScope(entry: Entry): boolean {
 
 export interface LintOptions {
   readonly entries: readonly Entry[];
+  /** Profile-extended capitalized-allow lexicon. Defaults to core baseline. */
+  readonly capitalizedAllow?: ReadonlySet<string>;
+  /** Glossary file paths discovered by the listing-directive validator. */
+  readonly glossaryFilePaths?: readonly string[];
+  /** File reader for glossary index construction. */
+  readonly readFile?: FileReader;
 }
 
 export interface LintResult {
@@ -77,40 +89,50 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * Run the PA-1 lint pipeline on a set of entries.
+ * Run the lint pipeline on a set of entries.
  *
  * Pipeline:
  *   1. Filter to in-scope entries (Specification subtypes, Authored shape).
- *   2. Run lexicon rules on each in-scope entry's prose blocks.
- *   3. Run structural rules on each in-scope entry.
- *   4. Run suppression hygiene on ALL Authored entries.
- *   5. Apply suppression: drop in-scope diagnostics where the entry's
+ *   2. Build glossary index from DefinitionList nodes and glossary files.
+ *   3. Run lexicon rules on each in-scope entry's prose blocks.
+ *   4. Run structural rules on each in-scope entry.
+ *   5. Run Q500 xref rules on each in-scope entry.
+ *   6. Run suppression hygiene on ALL Authored entries.
+ *   7. Apply suppression: drop in-scope diagnostics where the entry's
  *      Markspec-disable list includes the rule's code and the entry
  *      has a Rationale. Suppression-hygiene diagnostics (Q900/Q901)
  *      are never suppressed.
- *   6. Return remaining diagnostics.
+ *   8. Return remaining diagnostics.
  */
-export function runLint(options: LintOptions): LintResult {
+export async function runLint(options: LintOptions): Promise<LintResult> {
   const { entries } = options;
+  const allow = options.capitalizedAllow ?? loadLexicon("capitalized-allow");
+  const glossary: GlossaryIndex = await buildGlossaryIndex(
+    entries,
+    options.readFile ?? (() => Promise.resolve(undefined)),
+    options.glossaryFilePaths ?? [],
+  );
+  const isIdHook: IsIdentifierHook = () => false;
 
-  // Step 1–3: collect diagnostics keyed by entry
+  // Steps 1–5: collect diagnostics keyed by entry
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
     if (!isProseScope(entry)) continue;
     const diags: LintDiagnostic[] = [];
     diags.push(...runLexiconRules(entry));
     diags.push(...runStructRules(entry));
+    diags.push(...runXrefRules(entry, glossary, allow, isIdHook));
     inScopeDiags.set(entry, diags);
   }
 
-  // Step 4: suppression hygiene on all Authored entries
+  // Step 6: suppression hygiene on all Authored entries
   const hygieneDiags: LintDiagnostic[] = [];
   for (const entry of entries) {
     if (entry.shape !== "Authored") continue;
     hygieneDiags.push(...runSuppressionRules(entry));
   }
 
-  // Step 5: apply suppression to in-scope diagnostics
+  // Step 7: apply suppression to in-scope diagnostics
   const out: LintDiagnostic[] = [];
   for (const [entry, diags] of inScopeDiags) {
     const disabled = disabledCodes(entry);
@@ -122,7 +144,7 @@ export function runLint(options: LintOptions): LintResult {
     }
   }
 
-  // Step 6: append hygiene diagnostics (never suppressed)
+  // Step 8: append hygiene diagnostics (never suppressed)
   out.push(...hygieneDiags);
 
   return { diagnostics: out };

@@ -445,6 +445,24 @@ export interface Entry {
   readonly shape: EntryShape;
   /** Where the entry was found. */
   readonly location: SourceLocation;
+  /**
+   * File-absolute 1-based line where the entry's body begins.
+   *
+   * Used by prose-analysis rules (MSL-Q500) to convert body-relative
+   * paragraph ranges (as produced by `buildBodyAst`) to file-absolute
+   * `LintDiagnostic.range` positions — the contract from slice 3.
+   *
+   * For `.md` entries this is `location.line + 1` (legacy convention
+   * shared with `bodyTokens`); for doc-comment entries it is the
+   * file-absolute line of the first non-title child after lineMap
+   * translation.
+   *
+   * Optional so existing test fixtures and pre-compiler pipeline
+   * stages that do not set this field can remain unchanged. Prose-analysis
+   * rules that need a file-absolute base line fall back to
+   * `location.line + 1` when absent.
+   */
+  readonly bodyStartLine?: number;
   /** Whether this came from a Markdown file or a doc comment. */
   readonly source: EntrySource;
   /**
