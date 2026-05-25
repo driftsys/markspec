@@ -86,6 +86,12 @@ import {
   uriToPath,
 } from "./util.ts";
 import { debugLog } from "./debug_log.ts";
+import {
+  buildDollarNameCompletions,
+  dollarNameAtPosition,
+  formatTyplHoverContent,
+  isDollarNameTrigger,
+} from "./typl.ts";
 
 // ---------------------------------------------------------------------------
 // Connection and document manager
@@ -521,6 +527,18 @@ connection.onCompletion((params): CompletionItem[] => {
     }));
   }
 
+  // Trigger 5: $Name identifier — typl binding names from the corpus registry.
+  if (isDollarNameTrigger(line)) {
+    const registry = index.getTypeRegistry();
+    const items = buildDollarNameCompletions(registry);
+    return items.map((item) => ({
+      label: item.label,
+      detail: item.detail,
+      documentation: item.documentation,
+      kind: CompletionItemKind.Variable,
+    }));
+  }
+
   return [];
 });
 
@@ -574,6 +592,16 @@ connection.onHover((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
+
+  // Try typl $Name token first — it takes priority over display-ID lookup.
+  const dollarName = dollarNameAtPosition(line, params.position.character);
+  if (dollarName) {
+    const registry = index.getTypeRegistry();
+    const hoverContent = formatTyplHoverContent(dollarName, registry);
+    if (hoverContent) {
+      return { contents: { kind: "markdown", value: hoverContent } };
+    }
+  }
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
