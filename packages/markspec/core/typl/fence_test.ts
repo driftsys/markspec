@@ -1,5 +1,10 @@
 import { assertEquals } from "@std/assert";
-import type { BodyBlock, CodeNode, ListItemNode, ListNode } from "../ast/nodes.ts";
+import type {
+  BodyBlock,
+  CodeNode,
+  ListItemNode,
+  ListNode,
+} from "../ast/nodes.ts";
 import { extractTyplFences } from "./fence.ts";
 
 function code(lang: string | undefined, text: string, line = 1): CodeNode {
