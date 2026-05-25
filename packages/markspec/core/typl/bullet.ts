@@ -61,10 +61,14 @@ export function extractTyplBullets(
           }
         }
         // Recurse into nested blocks (the item may itself contain a list)
-        if (item.blocks.length > 1) {
-          results.push(...extractTyplBullets(item.blocks.slice(1)));
-        } else if (first.kind === "list") {
-          results.push(...extractTyplBullets([first]));
+        for (
+          const block of item.blocks.slice(
+            first.kind === "paragraph" ? 1 : 0,
+          )
+        ) {
+          if (block.kind === "list") {
+            results.push(...extractTyplBullets([block]));
+          }
         }
       }
     }
