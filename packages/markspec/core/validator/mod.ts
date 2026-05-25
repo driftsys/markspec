@@ -18,6 +18,7 @@ import type { Attribute, Diagnostic, Entry } from "../model/mod.ts";
 import {
   attributeSpec,
   CORE_TYPE_SCOPED_ATTRS,
+  CSV_SPLITTABLE_TYPES,
   IDENTITY_KEY,
   ULID_RE,
   UNIVERSAL_ATTRIBUTE_KEYS,
@@ -406,6 +407,25 @@ function checkStructural(
             `${entry.displayId}: unknown attribute '${attr.key}' (not in core universal set; profile-declared attributes are permitted when a profile is loaded)`,
           location: entry.location,
         });
+      }
+
+      // MSL-A006: empty element in CSV attribute value (e.g. "A,,B").
+      const csvSpec = attributeSpec(attr.key);
+      if (
+        csvSpec && CSV_SPLITTABLE_TYPES.has(csvSpec.type) &&
+        attr.value.includes(",")
+      ) {
+        const parts = attr.value.split(",").map((s) => s.trim());
+        const emptyCount = parts.filter((s) => s.length === 0).length;
+        if (emptyCount > 0) {
+          diagnostics.push({
+            code: "MSL-A006",
+            severity: "warning",
+            message:
+              `${entry.displayId}: attribute '${attr.key}' contains ${emptyCount} empty element(s) in CSV value "${attr.value}"`,
+            location: entry.location,
+          });
+        }
       }
     }
   }
