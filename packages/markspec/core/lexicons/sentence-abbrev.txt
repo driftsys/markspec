@@ -1,0 +1,45 @@
+# MarkSpec core sentence-abbrev lexicon
+#
+# Tokens on this list are treated as non-sentence-ending when the
+# segmenter encounters them followed by whitespace + uppercase. See
+# `docs/spec/internal/markspec-prose-analysis.md` §5.2.
+#
+# Scope: universally-English abbreviations. Domain abbreviations
+# belong in a profile via `prose.lexicons.sentence-abbrev`.
+#
+# Format: one token per line including its trailing period. Lookup is
+# case-sensitive. Blank lines and `#` comments are ignored.
+#
+
+# Titles
+Mr.
+Mrs.
+Ms.
+Dr.
+Prof.
+
+# Latin discourse markers
+e.g.
+i.e.
+etc.
+cf.
+vs.
+
+# Common abbreviations
+No.
+Fig.
+vol.
+Vol.
+ed.
+Ed.
+pp.
+p.
+ch.
+Ch.
+St.
+Inc.
+Ltd.
+Co.
+Corp.
+Jr.
+Sr.

@@ -38,6 +38,12 @@ function singleTierChain(yaml: string): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      prose: {
+        lexicons: {
+          "capitalized-allow": { value: [], origin: "" },
+          "sentence-abbrev": { value: [], origin: "" },
+        },
+      },
     },
   };
 }
@@ -136,6 +142,12 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      prose: {
+        lexicons: {
+          "capitalized-allow": { value: [], origin: "" },
+          "sentence-abbrev": { value: [], origin: "" },
+        },
+      },
     },
   };
 }
@@ -1079,4 +1091,106 @@ profile:
   const conv = result.effective!.conventions.get("modal-keywords");
   assertEquals(conv?.value.settings["casing"], "iso");
   assertEquals(conv?.origin, "@test/child");
+});
+
+// ---------------------------------------------------------------------------
+// prose.lexicons merge tests (Slice 1)
+// ---------------------------------------------------------------------------
+
+Deno.test("mergeChain: prose.lexicons.capitalized-allow seeds from root tier", () => {
+  const chain = singleTierChain(`
+id: "@test/root"
+version: 1.0.0
+profile:
+  prose:
+    lexicons:
+      capitalized-allow:
+        - ASIL
+        - IEC
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  assertEquals(
+    eff.prose.lexicons["capitalized-allow"].value,
+    ["ASIL", "IEC"],
+  );
+  assertEquals(eff.prose.lexicons["capitalized-allow"].origin, "@test/root");
+});
+
+Deno.test("mergeChain: prose.lexicons.sentence-abbrev seeds from root tier", () => {
+  const chain = singleTierChain(`
+id: "@test/root"
+version: 1.0.0
+profile:
+  prose:
+    lexicons:
+      sentence-abbrev:
+        - Fig.
+        - Sec.
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  assertEquals(
+    eff.prose.lexicons["sentence-abbrev"].value,
+    ["Fig.", "Sec."],
+  );
+});
+
+Deno.test("mergeChain: prose lexicons are list-additive across tiers", () => {
+  const chain = multiTierChain([
+    `
+id: "@test/parent"
+version: 1.0.0
+profile:
+  prose:
+    lexicons:
+      capitalized-allow:
+        - ASIL
+        - IEC
+      sentence-abbrev:
+        - Fig.
+`,
+    `
+id: "@test/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  prose:
+    lexicons:
+      capitalized-allow:
+        - NATO
+        - ASIL
+      sentence-abbrev:
+        - Sec.
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  // ASIL is a duplicate — deduplicated; NATO is new; parent order preserved.
+  assertEquals(
+    eff.prose.lexicons["capitalized-allow"].value,
+    ["ASIL", "IEC", "NATO"],
+  );
+  assertEquals(eff.prose.lexicons["capitalized-allow"].origin, "@test/child");
+  // sentence-abbrev: Fig. from parent, Sec. added by child.
+  assertEquals(
+    eff.prose.lexicons["sentence-abbrev"].value,
+    ["Fig.", "Sec."],
+  );
+  assertEquals(eff.prose.lexicons["sentence-abbrev"].origin, "@test/child");
+});
+
+Deno.test("mergeChain: prose lexicons default to empty when absent", () => {
+  const chain = singleTierChain(`
+id: "@test/no-prose"
+version: 1.0.0
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  assertEquals(eff.prose.lexicons["capitalized-allow"].value, []);
+  assertEquals(eff.prose.lexicons["sentence-abbrev"].value, []);
 });

@@ -243,6 +243,12 @@ Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared 
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 
   const index = new WorkspaceIndex();

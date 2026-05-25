@@ -67,6 +67,12 @@ function buildProfileWithRequirement(): EffectiveProfile {
     colors: new Map(),
     types: new Map([["requirement", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 }
 
@@ -166,6 +172,12 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
     colors: new Map(),
     types: new Map([["requirement", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 
   // Entry classified as requirement but missing Rationale.
@@ -211,6 +223,12 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 
   const e: Entry = {
@@ -249,6 +267,12 @@ Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () =
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
   const entries = [
     buildEntry({ displayId: "FOO-001", shape: "Authored" }),
@@ -291,6 +315,12 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
     colors: new Map(),
     types: new Map([["test", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 
   const e: Entry = {
@@ -337,6 +367,12 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 
   const target1: Entry = {

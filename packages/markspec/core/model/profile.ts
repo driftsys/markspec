@@ -192,6 +192,20 @@ export interface ProfileManifest {
     readonly types: readonly DocTypeDef[];
     readonly frontMatter: readonly AttrDecl[];
   };
+
+  /**
+   * Prose-analysis configuration. All lexicon lists are additive across
+   * the profile chain (parent entries first, child entries appended,
+   * duplicates dropped).
+   */
+  readonly prose: {
+    readonly lexicons: {
+      /** Extra tokens that are never flagged as undefined capitalized terms. */
+      readonly "capitalized-allow": readonly string[];
+      /** Extra abbreviation tokens that suppress false sentence-end detection. */
+      readonly "sentence-abbrev": readonly string[];
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -284,5 +298,16 @@ export interface EffectiveProfile {
   readonly documents: {
     readonly types: ProvenancedMap<DocTypeDef>;
     readonly frontMatter: ProvenancedMap<AttrDecl>;
+  };
+  /**
+   * Prose-analysis configuration merged across the chain. Each lexicon list
+   * is list-additive: parent entries first, child entries appended, duplicates
+   * dropped (profile-schema §5.1).
+   */
+  readonly prose: {
+    readonly lexicons: {
+      readonly "capitalized-allow": ProvenancedValue<readonly string[]>;
+      readonly "sentence-abbrev": ProvenancedValue<readonly string[]>;
+    };
   };
 }
