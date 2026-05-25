@@ -129,3 +129,67 @@ review's largest section cannot be closed.
 - The contents of the old → new alias/mapping table.
 - The dual-emit deprecation-window mechanism and its duration.
 - Downstream-consumer (suppression comments, CI, `refhub`) migration tooling.
+
+## Amendment (ADR-019): MSL-L and MSL-S diagnostic families
+
+ADR-019 (lockfile + external sync) introduces two new code families that extend
+the `language.md` §8 scheme without conflicting with existing families. They are
+recorded here as a bounded addition — the same pattern as the bounded exception
+for `MSL-B044`/`MSL-C072` in §Decision-6. The families follow the existing
+naming convention and are stable from their first emission.
+
+### Family overview (ADR-019 additions)
+
+| Family     | Concern                                                                | Authority |
+| ---------- | ---------------------------------------------------------------------- | --------- |
+| `MSL-L###` | Lockfile (parse / resolution / drift)                                  | ADR-019   |
+| `MSL-S###` | External sync (mapping schema / locked-attr lint / cross-system / I/O) | ADR-019   |
+
+### MSL-L (Lockfile, ADR-019)
+
+| Sub-range | Concern                                                        |
+| --------- | -------------------------------------------------------------- |
+| L0xx      | Lockfile parse + schema                                        |
+| L1xx      | Upstream resolution (fetch failures, identity-only References) |
+| L2xx      | Drift detection (locked vs current)                            |
+
+Individual codes shipped to `main`:
+
+| Code     | Severity | Concern                                                 |
+| -------- | -------- | ------------------------------------------------------- |
+| MSL-L001 | error    | Malformed lockfile / missing required scalar            |
+| MSL-L002 | error    | Lockfile schema newer than supported                    |
+| MSL-L003 | error    | Lockfile schema unrecognised (< 1)                      |
+| MSL-L010 | info     | Reference without `Reference-url:` (identity-only lock) |
+| MSL-L011 | info     | Stale-pin warning (lockfile > 60 days old)              |
+| MSL-L101 | warning  | Fetch failure (registry manifest / Reference-url)       |
+| MSL-L102 | warning  | Profile manifest read failure                           |
+| MSL-L201 | error    | `markspec.lock` missing under `--check` / `--frozen`    |
+| MSL-L202 | error    | Upstream present in resolved but missing from lockfile  |
+| MSL-L203 | error    | Upstream present in lockfile but missing from resolved  |
+| MSL-L210 | error    | Hash mismatch (same identity, different bytes)          |
+| MSL-L211 | error    | Profile resolved-version drift                          |
+| MSL-L212 | error    | Canonical edge hash drift                               |
+
+### MSL-S (External sync, ADR-019)
+
+| Sub-range | Concern                           |
+| --------- | --------------------------------- |
+| S0xx      | mapping.yaml schema + load errors |
+| S01x      | Locked-attribute lints            |
+| S02x      | Cross-system validation           |
+| S03x      | NDJSON log I/O                    |
+
+Individual codes shipped to `main`:
+
+| Code     | Severity       | Concern                                                              |
+| -------- | -------------- | -------------------------------------------------------------------- |
+| MSL-S001 | error          | Malformed mapping.yaml / unsupported schema / missing required field |
+| MSL-S002 | error          | `locked: true` + outbound direction contradiction                    |
+| MSL-S003 | error          | Unknown conflict policy (`newest-wins` removed pre-1.0)              |
+| MSL-S004 | error          | `system` ≠ `identity.external-id-scheme`                             |
+| MSL-S005 | error          | Unparseable `cache.ttl`                                              |
+| MSL-S010 | info / warning | Locked attribute edited locally (interactive)                        |
+| MSL-S011 | error          | Locked attribute edited locally (CI)                                 |
+| MSL-S020 | error          | Multi-system local-write conflict on same attribute                  |
+| MSL-S021 | error          | External-id scheme has no matching mapping.yaml                      |
