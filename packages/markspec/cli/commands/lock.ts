@@ -1,17 +1,19 @@
 /**
  * @module cli/commands/lock
  *
- * `markspec lock` — generate or refresh `markspec.lock` (basic write).
+ * `markspec lock` — generate or refresh `markspec.lock`.
  *
- * Flags shipped in this task:
+ * Flags:
+ *   --check         CI mode: read-only, exit 1 on drift
  *   --format json   Machine-readable output (default: human-readable)
  *
- * `--check` and `--update[=<id>]` are added in Tasks 22 + 23.
+ * `--update[=<id>]` is added in Task 23.
  */
 
 import { Command } from "@cliffy/command";
 import { join } from "@std/path";
 import {
+  checkDrift,
   discoverProjectRoot,
   loadConfig,
   loadProfileForCommand,
@@ -19,6 +21,7 @@ import {
   LOCKFILE_SCHEMA_VERSION,
   type Mapping,
   parseFile,
+  parseLockfile,
   parseMapping,
   resolveUpstreams,
   serializeLockfile,
@@ -26,11 +29,13 @@ import {
 } from "../../core/mod.ts";
 
 interface LockOptions {
+  check?: boolean;
   format?: string;
 }
 
 export const lockCmd = new Command()
   .description("Generate or refresh markspec.lock")
+  .option("--check", "CI mode: read-only, exit 1 on drift")
   .option("--format <format:string>", "Output format: json")
   .action(async (options: LockOptions) => {
     await runLock(options);
@@ -72,6 +77,42 @@ async function runLock(options: LockOptions): Promise<void> {
     fetchUrl: defaultFetchUrl,
     readFile: defaultReadFile,
   });
+
+  if (options.check) {
+    const lockPath = join(projectRoot, "markspec.lock");
+    const tomlRaw = await readFileOrUndefined(lockPath);
+    if (tomlRaw === undefined) {
+      console.error(
+        "error: MSL-L201: markspec.lock is missing under --check (run `markspec lock` to generate)",
+      );
+      Deno.exit(1);
+    }
+    const parsed = parseLockfile(tomlRaw);
+    if (!parsed.lockfile) {
+      for (const d of parsed.diagnostics) {
+        console.error(`${d.severity}: ${d.code}: ${d.message}`);
+      }
+      Deno.exit(1);
+    }
+    const driftDiags = checkDrift(parsed.lockfile, resolved);
+    for (const d of driftDiags) {
+      console.error(`${d.severity}: ${d.code}: ${d.message}`);
+    }
+    if (options.format === "json") {
+      console.log(JSON.stringify({
+        command: "lock-check",
+        drift: driftDiags.length > 0,
+        diagnostics: driftDiags.map((d) => ({
+          code: d.code,
+          severity: d.severity,
+          message: d.message,
+        })),
+      }));
+    } else if (driftDiags.length === 0) {
+      console.error("ok: markspec.lock is in sync with current state");
+    }
+    Deno.exit(driftDiags.length > 0 ? 1 : 0);
+  }
 
   for (const d of resolved.diagnostics) {
     console.error(`${d.severity}: ${d.code}: ${d.message}`);
