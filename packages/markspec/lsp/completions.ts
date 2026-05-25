@@ -129,6 +129,13 @@ export interface EntryTypeInfo {
   readonly name: string;
   readonly prefix: string;
   readonly nextNumber: number;
+  /**
+   * `true` when this type is the recommended scaffold for the active
+   * profile's discipline mode (ADR-017 Slice 5). `buildBlockScaffoldItems`
+   * sorts recommended items first and appends ' (recommended)' to their
+   * `detail` field. `undefined` or `false` → no special treatment.
+   */
+  readonly modeRecommended?: boolean;
 }
 
 /** Pad a number with leading zeros to at least 4 digits. */
@@ -312,16 +319,32 @@ export function buildBlockScaffoldItems(
     ];
   }
 
-  return types.map((type) => {
+  // ADR-017 Slice 5: sort modeRecommended first, stable within each
+  // group (don't re-alphabetize — preserve caller's order so
+  // server.ts/getEntryTypes can control overall ordering).
+  const sorted = [...types]
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => {
+      const aRec = a.t.modeRecommended === true ? 1 : 0;
+      const bRec = b.t.modeRecommended === true ? 1 : 0;
+      if (aRec !== bRec) return bRec - aRec; // recommended first
+      return a.i - b.i; // stable within group
+    })
+    .map(({ t }) => t);
+
+  return sorted.map((type) => {
     const rendered = renderScaffoldSnippet({
       typeName: type.name,
       prefix: type.prefix,
       nextNumber: type.nextNumber,
       ulid: ulidProvider(),
     });
+    const detail = type.modeRecommended === true
+      ? `${type.name} (recommended)`
+      : type.name;
     return {
       label: rendered.label,
-      detail: type.name,
+      detail,
       insertText: rendered.insertText,
       isSnippet: true,
       kind: KIND_SNIPPET,

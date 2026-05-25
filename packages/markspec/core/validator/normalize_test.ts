@@ -42,6 +42,7 @@ function profile(opts: {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 
@@ -229,6 +230,7 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
         "sentence-abbrev": { value: [], origin: "" },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
   const e = entry({
     shape: "Authored",

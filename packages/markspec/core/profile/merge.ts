@@ -12,6 +12,7 @@ import { CORE_KINDS } from "../model/mod.ts";
 import type {
   AttrDecl,
   Diagnostic,
+  DisciplineMode,
   DocTypeDef,
   EffectiveProfile,
   EffectiveTypeDef,
@@ -28,6 +29,7 @@ import type {
   TraceRule,
   TypeDef,
 } from "../model/mod.ts";
+import { resolveDisciplineMode } from "./discipline_mode.ts";
 
 /** Result of merging a {@linkcode ProfileChain}. */
 export interface MergeResult {
@@ -72,8 +74,30 @@ export function mergeChain(chain: ProfileChain): MergeResult {
 
   // Start from root, fold each subsequent tier.
   let effective = seedFromTier(tiers[0]);
+
+  // ADR-017 Slice 5: LWW accumulator for declared discipline-mode across
+  // tiers. Initialized from the seed tier; updated on each subsequent tier
+  // that supplies a value. Resolved post-fold via resolveDisciplineMode().
+  let declaredMode:
+    | { value: DisciplineMode; origin: ProfileId }
+    | undefined;
+  const seedMode = tiers[0].manifest.disciplineMode;
+  if (seedMode !== undefined) {
+    declaredMode = {
+      value: seedMode,
+      origin: tiers[0].manifest.id as ProfileId,
+    };
+  }
+
   for (let i = 1; i < tiers.length; i++) {
     effective = foldTier(effective, tiers[i], diagnostics);
+    const tierMode = tiers[i].manifest.disciplineMode;
+    if (tierMode !== undefined) {
+      declaredMode = {
+        value: tierMode,
+        origin: tiers[i].manifest.id as ProfileId,
+      };
+    }
   }
 
   // Validate per-type color references against the FINAL merged colors map.
@@ -89,6 +113,14 @@ export function mergeChain(chain: ProfileChain): MergeResult {
     diagnostics,
     tiers[tiers.length - 1].sourcePath,
   );
+
+  // ADR-017 Slice 5: resolve disciplineMode AFTER the full chain has folded
+  // so inference sees the final type graph. The accumulator `declaredMode`
+  // (set above) carries the LWW-declared value across tiers.
+  effective = {
+    ...effective,
+    disciplineMode: resolveDisciplineMode(effective, declaredMode),
+  };
 
   // If any merge error was recorded, drop the effective profile.
   const hasError = diagnostics.some((d) => d.severity === "error");
@@ -212,6 +244,7 @@ function foldTier(
         "sentence-abbrev": sentAbbrev,
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 
   return result;
@@ -776,6 +809,7 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
         },
       },
     },
+    disciplineMode: { value: "none", origin: "inferred" },
   };
 }
 

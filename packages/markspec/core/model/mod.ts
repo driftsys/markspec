@@ -874,6 +874,7 @@ export interface Document {
 export type {
   AttrDecl,
   Cardinality,
+  DisciplineMode,
   DocTypeDef,
   EffectiveProfile,
   EffectiveTypeDef,

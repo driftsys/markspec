@@ -112,6 +112,17 @@ export interface ProfileConvention {
 }
 
 // ---------------------------------------------------------------------------
+// Discipline mode (ADR-017 Slice 5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolved discipline mode per ADR-017 Slice 5. The mode shapes
+ * downstream behaviour (Doctor reporting, LSP scaffold ordering,
+ * Slice 4 mixed-allocation rule activation).
+ */
+export type DisciplineMode = "flat" | "tiered" | "none";
+
+// ---------------------------------------------------------------------------
 // Discipline kind declaration
 // ---------------------------------------------------------------------------
 
@@ -228,6 +239,13 @@ export interface ProfileManifest {
       readonly "sentence-abbrev": readonly string[];
     };
   };
+
+  /**
+   * Author-declared discipline mode (ADR-017 Slice 5). `undefined` when
+   * the manifest does not declare `profile.discipline-mode:`; the merge
+   * layer then runs inference to populate `EffectiveProfile.disciplineMode`.
+   */
+  readonly disciplineMode?: DisciplineMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,4 +358,11 @@ export interface EffectiveProfile {
       readonly "sentence-abbrev": ProvenancedValue<readonly string[]>;
     };
   };
+  /**
+   * Resolved discipline mode after the chain folds (ADR-017 Slice 5).
+   * Always defined — `origin` is `"declared"` when at least one tier
+   * supplied a value, otherwise `"inferred"` (computed from the
+   * effective type graph by `inferDisciplineMode()`).
+   */
+  readonly disciplineMode: ProvenancedValue<DisciplineMode>;
 }

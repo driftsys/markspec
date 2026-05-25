@@ -218,6 +218,25 @@ the core `system` / `software` / `hardware` kinds.
 The freeze attribute follows the same rule for its kind component; see ADR-017
 for the full lexical grammar and validator interaction matrix.
 
+### Discipline mode
+
+The optional `profile.discipline-mode:` field declares whether the profile tiers
+requirements by discipline (`tiered`), keeps them flat with discipline derived
+via allocation (`flat`), or doesn't use discipline at all (`none`). When
+omitted, MarkSpec infers the mode from the profile's type graph — see the
+[Slice 5 design spec](../../superpowers/specs/2026-05-25-discipline-mode-flag-and-ux-design.md)
+for the full inference algorithm.
+
+The resolved mode shapes three behaviours today:
+
+- `markspec doctor` reports the mode and per-discipline entry counts.
+- The LSP entry-block scaffold completion lists mode-recommended types first.
+- `markspec create` prints a hint when the requested type isn't recommended for
+  the active mode.
+
+ADR-017 Slice 4 will additionally gate the mixed-allocation validator rule and
+the reporter `--group-by discipline` default on this flag.
+
 ## What profiles cannot change
 
 Profiles extend core — they cannot weaken or redefine it:

@@ -44,6 +44,11 @@ export { resolveEntryColor } from "./colors.ts";
 
 export { buildEffectiveDisciplineRegistry } from "./discipline_registry.ts";
 
+export {
+  inferDisciplineMode,
+  resolveDisciplineMode,
+} from "./discipline_mode.ts";
+
 export { buildProfileIntrospection } from "./introspect.ts";
 export type {
   AttributeDetail,

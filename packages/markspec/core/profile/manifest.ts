@@ -14,6 +14,7 @@ import {
   COLOR_NAME_RE,
   CORE_KINDS,
   CORE_TYPES,
+  type DisciplineMode,
   type DocTypeDef,
   type EnforcementMode,
   type KindDecl,
@@ -53,6 +54,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "documents",
   "kinds",
   "prose",
+  "discipline-mode",
 ]);
 
 const ALLOWED_TYPE_KEYS = new Set([
@@ -718,6 +720,52 @@ function parseKindsMap(
     out.set(name, description !== undefined ? { description } : {});
   }
   return out;
+}
+
+/** Closed enum of valid discipline-mode values (ADR-017 Slice 5). */
+const DISCIPLINE_MODE_VALUES: ReadonlySet<string> = new Set([
+  "flat",
+  "tiered",
+  "none",
+]);
+
+/**
+ * Parse the `profile.discipline-mode:` field. Must be a scalar string in
+ * {flat, tiered, none}. Returns `undefined` when the field is absent.
+ *
+ * Validation:
+ *   - PROFILE-DISCIPLINE-006 (error): value is a scalar string but not
+ *     in the allowed enum.
+ *   - PROFILE-DISCIPLINE-007 (error): value is not a scalar string
+ *     (mapping, list, etc.).
+ */
+function parseDisciplineMode(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): DisciplineMode | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string") {
+    diagnostics.push({
+      code: "PROFILE-DISCIPLINE-007",
+      severity: "error",
+      message:
+        `profile.discipline-mode: must be a scalar string (one of flat / tiered / none)`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  if (!DISCIPLINE_MODE_VALUES.has(raw)) {
+    diagnostics.push({
+      code: "PROFILE-DISCIPLINE-006",
+      severity: "error",
+      message:
+        `profile.discipline-mode: '${raw}' is not a valid mode (must be one of: flat, tiered, none)`,
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return undefined;
+  }
+  return raw as DisciplineMode;
 }
 
 const KNOWN_CONVENTIONS = new Set(["modal-keywords"]);
@@ -1405,6 +1453,11 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
+  const disciplineMode = parseDisciplineMode(
+    profileSection["discipline-mode"],
+    sourcePath,
+    diagnostics,
+  );
   const conventions = parseConventions(
     profileSection.conventions,
     sourcePath,
@@ -1463,6 +1516,7 @@ export function parseManifest(
     documents: documents,
     kinds,
     prose,
+    disciplineMode,
   };
 
   return { manifest, diagnostics };

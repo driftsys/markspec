@@ -1250,3 +1250,94 @@ profile:
   const td = manifest?.types.get("SomeType");
   assertEquals(td?.discipline, undefined);
 });
+
+Deno.test("manifest: parses discipline-mode: flat", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: flat
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  assertEquals(manifest?.disciplineMode, "flat");
+});
+
+Deno.test("manifest: parses discipline-mode: tiered", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: tiered
+`;
+  const { manifest } = parseManifest(yaml);
+  assertEquals(manifest?.disciplineMode, "tiered");
+});
+
+Deno.test("manifest: parses discipline-mode: none", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: none
+`;
+  const { manifest } = parseManifest(yaml);
+  assertEquals(manifest?.disciplineMode, "none");
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-006 on unknown discipline-mode value", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: dual
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-006"),
+    true,
+  );
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-006 on capitalized variant", () => {
+  // The enum is case-sensitive; 'Flat' is not 'flat'.
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode: Flat
+`;
+  const { diagnostics } = parseManifest(yaml);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-006"),
+    true,
+  );
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-007 when discipline-mode is not a scalar", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  discipline-mode:
+    value: flat
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-007"),
+    true,
+  );
+});
+
+Deno.test("manifest: discipline-mode is optional (absent → undefined)", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile: {}
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  assertEquals(manifest?.disciplineMode, undefined);
+});
