@@ -74,7 +74,7 @@ alternative — that's an early Phase 1 sub-decision.
 
 ## Results
 
-> **Cold scan + warm incremental complete; lookups / size / concurrency
+> **Cold scan + warm incremental + lookups complete; size / concurrency
 > pending.** All numbers below are from the bench scripts under
 > [`eval/sqlite-indexing/bench/`](../../eval/sqlite-indexing/bench/) on a single
 > dev machine (Apple Silicon aarch64-darwin, APFS, local disk). Iteration /
@@ -156,14 +156,41 @@ distribution measured by walking every hub once.
 
 ### Hot-path lookups (§6 budgets: < 5 ms p95 for point queries)
 
-| Scale | Query shape                        | p50Ms | p95Ms | p99Ms |
-| ----- | ---------------------------------- | ----- | ----- | ----- |
-| 1k    | getEntryById                       | _TBD_ | _TBD_ | _TBD_ |
-| 1k    | getEntryByDisplayId                | _TBD_ | _TBD_ | _TBD_ |
-| 1k    | getEntriesByDisplayIdPrefix (n=10) | _TBD_ | _TBD_ | _TBD_ |
-| 1k    | getGlossaryBySlug                  | _TBD_ | _TBD_ | _TBD_ |
-| 10k   | (same four)                        | _TBD_ | _TBD_ | _TBD_ |
-| 100k  | (same four)                        | _TBD_ | _TBD_ | _TBD_ |
+Same dev machine and tuned pragma set. `iterations=500`, `warmup=50`,
+`keySet=64` random pre-picked target keys per shape (deterministic seed per
+shape). Prefix scan uses `LIKE 'REQ_0%' LIMIT 100`.
+
+| Scale | Query shape                 | p50 µs | p95 µs | p99 µs | max µs |
+| ----- | --------------------------- | ------ | ------ | ------ | ------ |
+| 1k    | getEntryById                | 15     | 24     | 83     | 122    |
+| 1k    | getEntryByDisplayId         | 15     | 18     | 29     | 233    |
+| 1k    | getEntriesByDisplayIdPrefix | 119    | 140    | 205    | 239    |
+| 1k    | getGlossaryBySlug           | 7      | 9      | 32     | 56     |
+| 10k   | getEntryById                | 16     | 53     | 97     | 762    |
+| 10k   | getEntryByDisplayId         | 16     | 32     | 73     | 139    |
+| 10k   | getEntriesByDisplayIdPrefix | 127    | 294    | 782    | 2_902  |
+| 10k   | getGlossaryBySlug           | 7      | 9      | 15     | 27     |
+| 100k  | getEntryById                | 16     | 23     | 35     | 174    |
+| 100k  | getEntryByDisplayId         | 17     | 22     | 75     | 268    |
+| 100k  | getEntriesByDisplayIdPrefix | 121    | 159    | 293    | 1_369  |
+| 100k  | getGlossaryBySlug           | 7      | 9      | 15     | 58     |
+
+(All times reported in **µs** — point-lookup p95 sits around 20 µs across all
+scales, hundreds of times under §6's 5 ms budget.)
+
+**Lookups observations:**
+
+- **§6 point-lookup budget (< 5 ms p95) is met with ~150–300× headroom** across
+  all scales. p95 of every shape at every scale is < 800 µs.
+- **Lookups are essentially scale-invariant** — the B-tree primary key and
+  secondary indices keep cost constant from 1k to 100k. SQLite is the textbook
+  case for this workload.
+- **Glossary lookup (the prose-analysis flagship's < 5 ms budget) sits at 7 µs
+  p50, 9 µs p95.** ~550× under budget; this rule will never be bottlenecked by
+  the index.
+- **Prefix scan is bounded by `LIMIT 100`** at ~120 µs p50, with p99
+  occasionally spiking (max 2.9 ms at 10k — likely page-cache miss on a cold
+  range). Still 5–40× under any reasonable budget.
 
 ### Index file size
 
