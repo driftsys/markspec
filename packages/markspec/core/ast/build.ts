@@ -599,13 +599,26 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
  *   only for single-line paragraphs.
  */
 export function buildBodyAst(body: string): BodyBlock[] {
+  return buildBodyAstWithTree(body).blocks;
+}
+
+/**
+ * Like {@linkcode buildBodyAst} but also returns the intermediate mdast
+ * `Root` so callers that need it (e.g. body-token extraction) avoid
+ * re-parsing.
+ */
+export function buildBodyAstWithTree(
+  body: string,
+): { blocks: BodyBlock[]; tree: Root } {
   // Line-ending normalisation is a §3.4 spec-permitted transformation:
   // every AST is built from LF-canonical text so `\r` never reaches a
   // node's text or markers. Without this, `buildBodyAst("a\r\nb")` and
   // `buildBodyAst("a\nb")` would produce different ASTs, breaking the
   // build/render/format contract for CRLF-bearing inputs.
   const normalised = normalizeLineEndings(body);
-  if (!normalised.trim()) return [];
+  if (!normalised.trim()) {
+    return { blocks: [], tree: { type: "root", children: [] } };
+  }
 
   const tree = processor.parse(normalised) as Root;
   const blocks: BodyBlock[] = tree.children.map((node) =>
@@ -613,5 +626,5 @@ export function buildBodyAst(body: string): BodyBlock[] {
   );
 
   // Post-pass: assign caption positions
-  return assignCaptionPositions(blocks);
+  return { blocks: assignCaptionPositions(blocks), tree };
 }
