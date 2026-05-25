@@ -1526,3 +1526,39 @@ Deno.test("parseSource: C# multi-name field → function captures first declarat
     assertEquals(entries[0].source.function, "multi1");
   }
 });
+
+Deno.test("parseSource: C# regular // comments are not extracted", async () => {
+  const language = await getCsharpLanguage();
+  const source = `// [REQ_0400] This looks like an entry but uses // not ///
+//     Id: 01HGW0000000000000000400AA
+public class NotAnEntry {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Negative.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseSource: C# /** */ block doc comment is recognised", async () => {
+  const language = await getCsharpLanguage();
+  const source = `/**
+ * [REQ_0401] Javadoc-style block in C#
+ *
+ *     Id: 01HGW0000000000000000401AA
+ */
+public class JavadocStyle {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Javadoc.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "REQ_0401");
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.rule, "block-doc-comment");
+    assertEquals(entries[0].source.function, "JavadocStyle");
+  }
+});
