@@ -42,6 +42,8 @@ export type { MergeResult } from "./merge.ts";
 
 export { resolveEntryColor } from "./colors.ts";
 
+export { buildEffectiveDisciplineRegistry } from "./discipline_registry.ts";
+
 export { buildProfileIntrospection } from "./introspect.ts";
 export type {
   AttributeDetail,

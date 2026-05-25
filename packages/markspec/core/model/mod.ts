@@ -856,6 +856,7 @@ export type {
   EffectiveTypeDef,
   EnforcementMode,
   InverseDecl,
+  KindDecl,
   LabelConcern,
   LabelConcernKind,
   LabelValue,

@@ -46,6 +46,7 @@ export type {
   EntrySource,
   ExtractorRule,
   InlineRef,
+  KindDecl,
   LabelConcern,
   LabelConcernKind,
   LabelValue,
@@ -139,6 +140,7 @@ export type {
   RunGitResult,
 } from "./profile/mod.ts";
 
+export { buildEffectiveDisciplineRegistry } from "./profile/mod.ts";
 export { buildProfileIntrospection } from "./profile/mod.ts";
 export type {
   AttributeDetail,
