@@ -13,11 +13,16 @@ import type { Entry, SourceLocation } from "../../model/mod.ts";
 import type { LintDiagnostic } from "../types.ts";
 import { LEXICON_RULE_CODES } from "./lexicon.ts";
 import { STRUCT_RULE_CODES } from "./struct.ts";
+import { EARS_RULE_CODES } from "./ears.ts";
 
-/** All rule codes shipped in PA-1. MSL-Q900/Q901 are self-referential. */
+/** All rule codes shipped in PA-1 through PA-3 (slices 1–6).
+ * MSL-Q900/Q901 are self-referential. */
 export const PA1_KNOWN_RULE_CODES: ReadonlySet<string> = new Set([
   ...LEXICON_RULE_CODES,
   ...STRUCT_RULE_CODES,
+  ...EARS_RULE_CODES,
+  // Q500: xref-glossary-undefined (slice 5)
+  "MSL-Q500",
   "MSL-Q900",
   "MSL-Q901",
 ]);

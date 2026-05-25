@@ -22,6 +22,7 @@ import { buildGlossaryIndex } from "./glossary.ts";
 import type { FileReader, GlossaryIndex } from "./glossary.ts";
 import { runXrefRules } from "./rules/xref.ts";
 import type { IsIdentifierHook } from "./rules/xref.ts";
+import { runEarsRules } from "./rules/ears.ts";
 import { loadLexicon } from "../lexicons/mod.ts";
 
 // ---------------------------------------------------------------------------
@@ -97,12 +98,13 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
  *   3. Run lexicon rules on each in-scope entry's prose blocks.
  *   4. Run structural rules on each in-scope entry.
  *   5. Run Q500 xref rules on each in-scope entry.
- *   6. Run suppression hygiene on ALL Authored entries.
- *   7. Apply suppression: drop in-scope diagnostics where the entry's
+ *   6. Run EARS rules (Q100–Q104) on each in-scope entry.
+ *   7. Run suppression hygiene on ALL Authored entries.
+ *   8. Apply suppression: drop in-scope diagnostics where the entry's
  *      Markspec-disable list includes the rule's code and the entry
  *      has a Rationale. Suppression-hygiene diagnostics (Q900/Q901)
  *      are never suppressed.
- *   8. Return remaining diagnostics.
+ *   9. Return remaining diagnostics.
  */
 export async function runLint(options: LintOptions): Promise<LintResult> {
   const { entries } = options;
@@ -114,7 +116,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   );
   const isIdHook: IsIdentifierHook = () => false;
 
-  // Steps 1–5: collect diagnostics keyed by entry
+  // Steps 1–6: collect diagnostics keyed by entry
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
     if (!isProseScope(entry)) continue;
@@ -122,6 +124,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     diags.push(...runLexiconRules(entry));
     diags.push(...runStructRules(entry));
     diags.push(...runXrefRules(entry, glossary, allow, isIdHook));
+    diags.push(...runEarsRules(entry));
     inScopeDiags.set(entry, diags);
   }
 
