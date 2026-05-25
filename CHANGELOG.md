@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Specs (decisions)
+
+- **toolchain-distribution:** §8 D1 (binary self-path), D2 (backup retention),
+  and D3 (VS Code verify-only-vs-offer-to-fix) resolved. Adapter list narrowed
+  to two LSP (`vscode`, `neovim`) + two MCP (`claude-desktop`, `vscode`); Zed
+  and Cursor remain `--print`-only. New `--binary-path=<path>` flag on
+  `markspec lsp install` and `markspec mcp install` for explicit binary-path
+  pinning (default writes the invoked name, surviving package-manager
+  upgrades).
+- **prose-analysis:** §8 OQ4 (xref dependency gating), OQ5 (flagship default
+  severity + allowlist ownership), and OQ6 (score roll-up + trend policy)
+  resolved. Flagship rule `xref-glossary-undefined` ships with a glossary-only
+  subset resolver in Stage-2 (`$Identifier`/RIDL rules degrade-to-silent until
+  ADR-016 marker pass lands); defaults to `warning` severity; core ships an
+  English-baseline allowlist (calendar / geography / languages) at
+  `packages/markspec/core/lexicons/capitalized-allow.txt`. Project roll-up is
+  band-counts + mean. **No trend artifact (PR comments, deltas, dashboards)
+  ships in core — this is a deliberate non-feature**, motivated by the §3.3
+  Goodhart's-law constraint that "the score is a smoke detector, not a KPI".
+  Teams that want trend output build it on top of `markspec lint --format
+  json` themselves.
+- **prose-analysis:** PA-2 sentence segmenter pick recorded — rule-based, with
+  a `prose.lexicons.sentence-abbrev` lexicon (list-additive across tiers) for
+  the abbreviation exceptions. Chosen over `Intl.Segmenter` and external NLP
+  libs for snapshot-test determinism across V8 versions.
+- **background-indexing:** all five §9 open questions resolved — verify-then-
+  use with `mtime + size` (content-hash via `--verify=content`); on-demand
+  canonical, no FS watcher; lockfile-pinned federated cache; one `index.db`
+  per worktree; surgical invalidation capped at ≈ 200 affected entries with
+  full-pass fallback above the cap. SQLite engineering eval (10–15 d) is
+  scoped as the first phase of the implementation epic rather than a
+  pre-design gate.
+
 ### Breaking (wire format)
 
 - **core:** `Entry.source` in compile-output JSON changes from a string
@@ -14,6 +47,12 @@
 
 ### Added
 
+- **core:** Core capitalized-allow lexicon at
+  `packages/markspec/core/lexicons/capitalized-allow.txt` — universally-true
+  English baseline (days, months, countries, languages) consumed by the
+  Stage-2 `xref-glossary-undefined` rule. Versioned, capped, explicitly
+  excludes domain vocabulary and standards-body acronyms (per prose-analysis
+  §2.8 / §8 OQ5 resolution).
 - **core:** `Entry.bodyTokens` — flat parser-emitted token stream for inline
   constructs (modal verbs, EARS triggers, Gherkin section/step keywords,
   `$Identifier` entity refs, inline code). Always present, sorted by source
