@@ -16,7 +16,7 @@ import {
 } from "./attributes.ts";
 import { extractBodyTokens } from "./body_tokens.ts";
 import { processor } from "./remark.ts";
-import { buildBodyAst } from "../ast/build.ts";
+import { buildBodyAstWithTree } from "../ast/build.ts";
 import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
 import {
@@ -304,7 +304,7 @@ function extractEntry(
   const bodyContent = extractBodyContent(item, markdownLines);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
-  const bodyAst = buildBodyAst(body);
+  const { blocks: bodyAst, tree: mdastTree } = buildBodyAstWithTree(body);
 
   const entryLine = item.position?.start.line ?? 1;
 
@@ -532,11 +532,17 @@ function extractEntry(
   const bodyStartLine = hasLineMap
     ? (item.children[1]?.position?.start.line ?? (line + 1))
     : line + 1;
-  const bodyTokens = extractBodyTokens(body, bodyAst, {
-    file,
-    line: bodyStartLine,
-    column: 1,
-  }, bodyIndent);
+  const bodyTokens = extractBodyTokens(
+    body,
+    bodyAst,
+    {
+      file,
+      line: bodyStartLine,
+      column: 1,
+    },
+    bodyIndent,
+    mdastTree,
+  );
 
   // Extract typl declarations from all three surfaces in the body:
   // (1) ```typl fences, (2) bullet-glossary items, (3) inline code spans.
