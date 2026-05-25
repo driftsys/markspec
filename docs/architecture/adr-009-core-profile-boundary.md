@@ -231,8 +231,9 @@ IDs, resolvable cross-references, well-formed `Id:` values).
 
 The core defines an **entry-source abstraction**: an interface over places
 entries come from. The Markdown parser is one implementation. Other adapters
-(tree-sitter-backed doc-comment extractors for Rust/Kotlin/C/C++/Java/etc., SBOM
-ingesters, ECAD/PLM connectors) plug in via the same interface.
+(tree-sitter-backed doc-comment extractors for Rust, Kotlin, Java, C, C++,
+TypeScript, TSX, JavaScript, etc., SBOM ingesters, ECAD/PLM connectors) plug in
+via the same interface.
 
 Once extracted, an entry is shape-indistinguishable from a Markdown-authored
 one. Provenance captures the source ("extracted from `src/foo.rs:42`", "ingested
