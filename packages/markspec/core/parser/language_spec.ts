@@ -43,6 +43,11 @@ const isJavadocBlock = (t: string): boolean =>
 const isRustDocLine = (t: string): boolean =>
   t.startsWith("///") || t.startsWith("//!");
 
+/** C# uses `///` for XML doc comments. Unlike Rust, there is no
+ * inner-doc form (`//!`), so this predicate is intentionally
+ * narrower than `isRustDocLine`. */
+const isCsharpXmlDocLine = (t: string): boolean => t.startsWith("///");
+
 const noDocLine = (): boolean => false;
 
 /** Read a node's `name` field as text, or undefined if absent. */
@@ -255,6 +260,41 @@ const javascriptSpec: LanguageDocCommentSpec = {
   itemName: jsLikeItemName,
 };
 
+/** C#: most declarations use the `name` field. Three exceptions
+ * deviate from the simple path:
+ *   - field_declaration / event_field_declaration nest the name inside
+ *     `variable_declaration → first variable_declarator → name` field.
+ *     Multi-name decls (`int a, b, c;`) return the first name.
+ *   - operator_declaration / indexer_declaration have no plain
+ *     identifier (return undefined).
+ * Note destructor_declaration is NOT special-cased here: the C#
+ * grammar exposes the class identifier as the destructor's name
+ * field (so `~Outer()` yields "Outer"). This differs from cppItemName
+ * because the grammars are shaped differently. Probe-verified at
+ * grammar v0.23.1. */
+function csharpItemName(node: SyntaxNode): string | undefined {
+  switch (node.type) {
+    case "operator_declaration":
+    case "indexer_declaration":
+      return undefined;
+    case "field_declaration":
+    case "event_field_declaration": {
+      for (let i = 0; i < node.childCount; i++) {
+        const child = node.child(i);
+        if (child?.type !== "variable_declaration") continue;
+        for (let j = 0; j < child.childCount; j++) {
+          const grand = child.child(j);
+          if (grand?.type !== "variable_declarator") continue;
+          return grand.childForFieldName("name")?.text;
+        }
+      }
+      return undefined;
+    }
+    default:
+      return nameField(node);
+  }
+}
+
 /**
  * Closed-form table indexed by {@linkcode SupportedLanguage}. The walker in
  * `parser/source.ts` consults this map to know which AST node types to
@@ -361,6 +401,33 @@ export const LANGUAGE_SPECS: Record<SupportedLanguage, LanguageDocCommentSpec> =
     typescript: typescriptSpec,
     tsx: typescriptSpec,
     javascript: javascriptSpec,
+    csharp: {
+      blockCommentTypes: ["comment"],
+      lineCommentTypes: ["comment"],
+      isDocBlock: isJavadocBlock,
+      isDocLine: isCsharpXmlDocLine,
+      enclosingItemTypes: [
+        "class_declaration",
+        "struct_declaration",
+        "interface_declaration",
+        "record_declaration", // covers `record X` AND `record struct X`
+        "enum_declaration",
+        "method_declaration",
+        "constructor_declaration",
+        "destructor_declaration",
+        "property_declaration",
+        "field_declaration",
+        "event_field_declaration",
+        "delegate_declaration",
+        "operator_declaration",
+        "indexer_declaration",
+        "local_function_statement",
+        "namespace_declaration",
+        "file_scoped_namespace_declaration",
+      ],
+      attributeSkipTypes: ["comment", "attribute_list", "modifier"],
+      itemName: csharpItemName,
+    },
   };
 
 /** Map a file extension (including the dot) to its language id. */
@@ -393,6 +460,8 @@ export function languageIdForExtension(
     case ".mjs":
     case ".cjs":
       return "javascript";
+    case ".cs":
+      return "csharp";
     default:
       return undefined;
   }

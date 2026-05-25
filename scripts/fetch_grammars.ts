@@ -14,6 +14,14 @@ interface NpmGrammar {
   source: "npm";
   pkg: string;
   version: string;
+  /**
+   * Filename inside the npm package, if it differs from the on-disk
+   * name used as the GRAMMARS map key. Upstream tree-sitter-c-sharp
+   * ships its WASM as `tree-sitter-c_sharp.wasm` (C-identifier form
+   * of "c#"); we save it as `tree-sitter-c-sharp.wasm` for naming
+   * consistency with the other grammars.
+   */
+  urlFile?: string;
 }
 
 interface GithubGrammar {
@@ -81,13 +89,25 @@ const GRAMMARS: Record<string, Grammar> = {
     pkg: "tree-sitter-javascript",
     version: "0.23.1",
   },
+  "tree-sitter-c-sharp.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-c-sharp",
+    version: "0.23.1",
+    // Upstream package ships its WASM with an underscore
+    // (tree-sitter-c_sharp.wasm); we save it with a hyphen to match
+    // the naming of the other grammars. Pinned to 0.23.1 because the
+    // newer 0.23.5 requires tree-sitter language ABI v15 while
+    // web-tree-sitter@0.24 only loads up to v14.
+    urlFile: "tree-sitter-c_sharp.wasm",
+  },
 };
 
 const GRAMMARS_DIR = new URL("../grammars", import.meta.url).pathname;
 
 function grammarUrl(file: string, grammar: Grammar): string {
   if (grammar.source === "npm") {
-    return `https://cdn.jsdelivr.net/npm/${grammar.pkg}@${grammar.version}/${file}`;
+    const urlFile = grammar.urlFile ?? file;
+    return `https://cdn.jsdelivr.net/npm/${grammar.pkg}@${grammar.version}/${urlFile}`;
   }
   return `https://github.com/${grammar.repo}/releases/download/${grammar.tag}/${file}`;
 }

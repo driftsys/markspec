@@ -21,6 +21,7 @@ Supported grammars:
 | `tree-sitter-typescript.wasm` | TypeScript             |
 | `tree-sitter-tsx.wasm`        | TSX (TypeScript + JSX) |
 | `tree-sitter-javascript.wasm` | JavaScript             |
+| `tree-sitter-c-sharp.wasm`    | C#                     |
 
 ## Lockfile
 

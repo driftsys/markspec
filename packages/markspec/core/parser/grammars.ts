@@ -27,6 +27,7 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   ".js": "tree-sitter-javascript",
   ".mjs": "tree-sitter-javascript",
   ".cjs": "tree-sitter-javascript",
+  ".cs": "tree-sitter-c-sharp",
 };
 
 /** Directory containing grammar WASM files. */

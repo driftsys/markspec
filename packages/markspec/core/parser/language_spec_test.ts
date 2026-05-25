@@ -30,6 +30,7 @@ Deno.test("languageIdForExtension: maps every supported extension", () => {
   assertEquals(languageIdForExtension(".js"), "javascript");
   assertEquals(languageIdForExtension(".mjs"), "javascript");
   assertEquals(languageIdForExtension(".cjs"), "javascript");
+  assertEquals(languageIdForExtension(".cs"), "csharp");
 });
 
 Deno.test("languageIdForExtension: returns undefined for unknown extension", () => {
@@ -49,6 +50,7 @@ Deno.test("LANGUAGE_SPECS: every SupportedLanguage has a row", () => {
     "typescript",
     "tsx",
     "javascript",
+    "csharp",
   ] as const satisfies readonly SupportedLanguage[];
   const actual = Object.keys(LANGUAGE_SPECS).sort();
   assertEquals(actual, [...expected].sort());
@@ -114,6 +116,18 @@ Deno.test("LANGUAGE_SPECS.c: same shape as cpp", () => {
   assertEquals(spec.isDocLine("/* block */"), false);
 });
 
+Deno.test("LANGUAGE_SPECS.csharp: shared 'comment' node type with XML doc-line", () => {
+  const spec = LANGUAGE_SPECS.csharp;
+  assertEquals(spec.blockCommentTypes, ["comment"]);
+  assertEquals(spec.lineCommentTypes, ["comment"]);
+  assertEquals(spec.isDocBlock("/** javadoc-ish */"), true);
+  assertEquals(spec.isDocBlock("// not block"), false);
+  assertEquals(spec.isDocLine("/// xml doc"), true);
+  // C# has no //! inner-doc form (Rust-only).
+  assertEquals(spec.isDocLine("//! inner"), false);
+  assertEquals(spec.isDocLine("/* block */"), false);
+});
+
 Deno.test(
   "LANGUAGE_SPECS: each row has enclosingItemTypes + attributeSkipTypes + itemName",
   () => {
@@ -161,6 +175,20 @@ Deno.test(
     assert(spec.enclosingItemTypes.includes("function_definition"));
     assert(spec.enclosingItemTypes.includes("class_specifier"));
     assert(spec.enclosingItemTypes.includes("struct_specifier"));
+  },
+);
+
+Deno.test(
+  "LANGUAGE_SPECS.csharp: enclosingItemTypes covers class/struct/interface/record/method",
+  () => {
+    const t = LANGUAGE_SPECS.csharp.enclosingItemTypes;
+    assert(t.includes("class_declaration"));
+    assert(t.includes("struct_declaration"));
+    assert(t.includes("interface_declaration"));
+    assert(t.includes("record_declaration"));
+    assert(t.includes("method_declaration"));
+    assert(t.includes("namespace_declaration"));
+    assert(t.includes("file_scoped_namespace_declaration"));
   },
 );
 
