@@ -74,11 +74,16 @@ export interface IndexAdapter {
 
 /**
  * Factory the bench code uses to obtain an adapter. Lets the orchestrator
- * pick the driver via env var without touching call sites.
- *
- * TODO(phase-1): wire to driver implementations. Default to sqlite_adapter.ts
- * (jsr:@db/sqlite3, native FFI); alternative drivers added behind a switch.
+ * pick the driver via env var without touching call sites. Default is
+ * the jsr:@db/sqlite3 native-FFI binding; alternative drivers can be wired
+ * here without touching any bench code.
  */
-export function createAdapter(_driver = "sqlite3"): IndexAdapter {
-  throw new Error("createAdapter: not yet implemented (Phase 1)");
+export async function createAdapter(
+  driver: string = "sqlite3",
+): Promise<IndexAdapter> {
+  if (driver === "sqlite3") {
+    const { SqliteAdapter } = await import("./sqlite_adapter.ts");
+    return new SqliteAdapter();
+  }
+  throw new Error(`createAdapter: unknown driver '${driver}'`);
 }

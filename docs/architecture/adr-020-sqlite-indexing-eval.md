@@ -16,8 +16,9 @@ invalidation-closure cap at ≈200 (§9 Q5). Performance budgets are normative
 
 What the spec does **not** answer (and was never going to without measurements):
 
-- Which SQLite driver wins on Deno (`jsr:@db/sqlite3` native FFI vs
-  `jsr:@db/sqlite` pure WASM vs `node:sqlite` via Node compat).
+- Which SQLite driver wins on Deno (`jsr:@db/sqlite` native FFI via
+  `denodrivers/sqlite3` vs a pure-WASM alternative vs `node:sqlite` via Node
+  compat).
 - Which pragma set hits §6's cold-scan budget without over-trading correctness
   for speed.
 - Whether WAL holds up under sustained 1-writer + 8-reader load matching the
@@ -63,27 +64,54 @@ orchestrator collects them and `report.ts` renders the tables below.
 
 ### Driver
 
-Default: `jsr:@db/sqlite3` (native FFI, well-maintained, `better-sqlite3`
-bindings). The bench layer talks through an abstract `IndexAdapter` interface
-(see [bench/adapter.ts](../../eval/sqlite-indexing/bench/adapter.ts)) so an
+Default: `jsr:@db/sqlite@^0.13.0` (native FFI; the JSR package is named
+`@db/sqlite` even though the upstream GitHub repo is `denodrivers/sqlite3`). The
+bench layer talks through an abstract `IndexAdapter` interface (see
+[bench/adapter.ts](../../eval/sqlite-indexing/bench/adapter.ts)) so an
 alternative driver can be swapped without changing call sites. The eval will
-either confirm `@db/sqlite3` is the right pick or replace it with a benched
+either confirm `@db/sqlite` is the right pick or replace it with a benched
 alternative — that's an early Phase 1 sub-decision.
 
 ## Results
 
-> **Placeholder.** Tables below are populated as Phase 1 measurements complete.
+> **Cold scan complete; warm / lookups / size / concurrency pending.** Numbers
+> below are from
+> [`eval/sqlite-indexing/bench/cold_scan.ts`](../../eval/sqlite-indexing/bench/cold_scan.ts)
+> at iterations=5, warmup=1, on a single dev machine (Apple Silicon
+> aarch64-darwin, APFS, local disk). All times are mean across 5 post-warmup
+> samples; per-entry µs is mean / entryCount.
 
 ### Cold scan (§6 budget: 10k < 5 s)
 
-| Scale | Pragma set                                  | totalMs | per-entry µs |
-| ----- | ------------------------------------------- | ------- | ------------ |
-| 1k    | baseline                                    | _TBD_   | _TBD_        |
-| 1k    | WAL + sync=normal + cache=64MB              | _TBD_   | _TBD_        |
-| 1k    | WAL + sync=normal + cache=64MB + mmap=256MB | _TBD_   | _TBD_        |
-| 1k    | WAL + sync=off (upper bound, unsafe)        | _TBD_   | _TBD_        |
-| 10k   | (same four)                                 | _TBD_   | _TBD_        |
-| 100k  | (same four)                                 | _TBD_   | _TBD_        |
+| Scale | Pragma set                                | mean Ms | per-entry µs |
+| ----- | ----------------------------------------- | ------- | ------------ |
+| 1k    | baseline (sync=full, cache=2MB, no mmap)  | 17.9    | 17.9         |
+| 1k    | tuned (sync=normal, cache=64MB, no mmap)  | 16.7    | 16.7         |
+| 1k    | tuned + mmap=256MB                        | 16.3    | 16.3         |
+| 1k    | unsafe (sync=off, cache=64MB, mmap=256MB) | 14.7    | 14.7         |
+| 10k   | baseline                                  | 132.5   | 13.3         |
+| 10k   | tuned                                     | 133.5   | 13.4         |
+| 10k   | tuned + mmap                              | 131.9   | 13.2         |
+| 10k   | unsafe                                    | 131.5   | 13.2         |
+| 100k  | baseline                                  | 2180.5  | 21.8         |
+| 100k  | tuned                                     | 1292.4  | 12.9         |
+| 100k  | tuned + mmap                              | 1271.5  | 12.7         |
+| 100k  | unsafe                                    | 1292.8  | 12.9         |
+
+**Cold-scan observations:**
+
+- **§6 budget is met with massive headroom.** 10k cold scan completes in ~132 ms
+  regardless of pragma — 37× under the 5 s budget. 100k completes in 1.3 s with
+  tuned pragmas; even baseline at 2.2 s extrapolates well beyond the spec's
+  targeted scale.
+- **Pragma tuning matters at 100k, not at 10k.** Below 10k the workload is small
+  enough that the single-transaction fsync amortizes any pragma difference. At
+  100k, baseline is **1.7× slower** than tuned because `synchronous=full` + the
+  smaller 2 MB cache start to bite during the large transaction.
+- **`mmap` adds < 2 % over tuned.** Not worth the platform-specific edge cases
+  it introduces.
+- **`sync=off` ties tuned at 100k** — the cache_size pragma is the actual lever;
+  correctness-unsafe sync gains nothing in production.
 
 ### Warm incremental (§6 budget: < 50 ms per change)
 
@@ -122,15 +150,23 @@ alternative — that's an early Phase 1 sub-decision.
 | Kill recovery   | _TBD_  | _TBD_ |
 | Schema mismatch | _TBD_  | _TBD_ |
 
-## Decisions (filled in at the end of Phase 1)
+## Decisions (filled in as Phase 1 progresses)
 
-1. **Driver:** _TBD._ Default candidate: `jsr:@db/sqlite3`.
-2. **Production pragma set:** _TBD._ Will be the cheapest of the §6-meeting
-   sets; `sync=off` is never the answer regardless of speed.
-3. **`index.invalidation-cap` default:** _TBD._ Spec lists ≈200 as a guess; eval
-   produces the empirical hub-rename closure-size distribution at 100k.
-4. **Driver-level WAL caveats discovered:** _TBD._ Any platform-specific
-   findings (e.g., macOS APFS quirks, Windows WAL behavior) get documented here.
+1. **Driver:** _Preliminary:_ `jsr:@db/sqlite@^0.13.0` (native FFI via the
+   `denodrivers/sqlite3` GitHub project; despite the GitHub repo name, the JSR
+   package is `@db/sqlite`). Cold-scan numbers confirm the driver is not a
+   bottleneck — 100k rows inserted in ~1.3 s with tuned pragmas. Comparison
+   against `jsr:@db/sqlite` pure-WASM and `node:sqlite` still pending.
+2. **Production pragma set:** _Preliminary recommendation:_ **tuned** —
+   `journal_mode=WAL, synchronous=NORMAL, cache_size=64MB, mmap_size=0,
+   temp_store=MEMORY`.
+   Hits the §6 budget with massive headroom (1.3 s at 100k vs 5 s budget at
+   10k). `mmap=256MB` adds < 2 %, not worth the platform edge cases. `sync=off`
+   ties tuned and is correctness-unsafe.
+3. **`index.invalidation-cap` default:** _TBD._ Awaits warm-incremental
+   hub-rename bench (§5.2 closure-size distribution at 100k).
+4. **Driver-level WAL caveats discovered:** _TBD._ Awaits concurrency benches.
+   macOS APFS aarch64-darwin observed so far: no anomalies in cold scan.
 
 ## Recommendations (filled in at the end of Phase 1)
 

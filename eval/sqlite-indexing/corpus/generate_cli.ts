@@ -1,17 +1,24 @@
 /**
  * @module corpus/generate_cli
  *
- * CLI front-end for the synthetic project generator. Writes the generated
- * project to disk as NDJSON (one entity per line, typed) so the bench
- * scripts can read it without re-generating each run.
+ * Sanity-check CLI for the synthetic project generator. Generates the
+ * project in-memory and prints entity counts + a few sample rows to
+ * stderr. Not the bench path — benches generate their own corpus inline
+ * to avoid NDJSON serialization overhead on the timing measurement.
  *
  * Usage:
- *   deno task gen                  # 1k scale (default)
- *   deno task gen -- --scale 10k
- *   deno task gen -- --scale 100k --seed 42
+ *   deno task eval:gen                         # 1k scale (default)
+ *   deno task eval:gen -- --scale 10k
+ *   deno task eval:gen -- --scale 100k --seed 42
  */
 
-import { SCALE_100K, SCALE_10K, SCALE_1K } from "./generator.ts";
+import {
+  generateProject,
+  type GenOptions,
+  SCALE_100K,
+  SCALE_10K,
+  SCALE_1K,
+} from "./generator.ts";
 
 function parseArgs(
   args: string[],
@@ -34,17 +41,35 @@ function parseArgs(
 
 function main() {
   const { scale, seed } = parseArgs(Deno.args);
-  const opts = scale === "100k"
+  const baseOpts = scale === "100k"
     ? SCALE_100K
     : scale === "10k"
     ? SCALE_10K
     : SCALE_1K;
-  console.error(
-    `gen: scale=${scale} seed=${seed} (entries=${opts.entryCount})`,
-  );
-  // TODO(phase-1): call generateProject({...opts, seed}), write NDJSON to
-  // results/corpus-<scale>-<seed>.ndjson.
-  throw new Error("generate_cli: not yet implemented");
+  const opts: GenOptions = { ...baseOpts, seed };
+
+  const t0 = performance.now();
+  const project = generateProject(opts);
+  const tMs = performance.now() - t0;
+
+  console.error(`gen: scale=${scale} seed=${seed}`);
+  console.error(`  entries:    ${project.entries.length}`);
+  console.error(`  edges:      ${project.edges.length}`);
+  console.error(`  glossary:   ${project.glossary.length}`);
+  console.error(`  references: ${project.references.length}`);
+  console.error(`  components: ${project.components.length}`);
+  console.error(`  elapsed:    ${tMs.toFixed(1)} ms`);
+
+  console.error(`\nsample entries:`);
+  for (const e of project.entries.slice(0, 3)) {
+    console.error(`  ${e.displayId} (${e.shape}, type=${e.type}) ${e.id}`);
+  }
+  console.error(`\nsample edges (out of ${project.edges.length}):`);
+  for (const edge of project.edges.slice(0, 3)) {
+    console.error(
+      `  ${edge.from.slice(0, 8)} -[${edge.kind}]-> ${edge.to.slice(0, 8)}`,
+    );
+  }
 }
 
 if (import.meta.main) main();
