@@ -20,7 +20,7 @@ import type {
 } from "../corpus/generator.ts";
 
 /** Internal db schema version. Mismatch ⇒ rebuild per spec §7. */
-const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 1;
 
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_meta (
@@ -68,11 +68,25 @@ export class SqliteAdapter implements IndexAdapter {
     this.db = new Database(path);
     this.applyPragmas(pragmas);
     this.db.exec(SCHEMA_SQL);
+    // Only stamp the version when the db is fresh — preserve a stale
+    // value so callers can detect schema_meta mismatch per §7. The
+    // production indexer would then delete + cold-rebuild; the eval
+    // surfaces this via the schema_mismatch bench.
     this.db.exec(
-      "INSERT OR REPLACE INTO schema_meta(key, value) VALUES ('schema_version', ?1)",
+      "INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', ?1)",
       String(SCHEMA_VERSION),
     );
     return Promise.resolve();
+  }
+
+  getSchemaVersion(): Promise<number | undefined> {
+    const db = this.requireDb();
+    const row = db
+      .prepare("SELECT value FROM schema_meta WHERE key = 'schema_version'")
+      .get<{ value: string }>();
+    if (!row) return Promise.resolve(undefined);
+    const parsed = Number(row.value);
+    return Promise.resolve(Number.isFinite(parsed) ? parsed : undefined);
   }
 
   private applyPragmas(p: PragmaSet): void {
@@ -82,6 +96,10 @@ export class SqliteAdapter implements IndexAdapter {
     this.db.exec(`PRAGMA cache_size = -${p.cacheSizeKb}`); // negative = KB
     this.db.exec(`PRAGMA mmap_size = ${p.mmapSizeMb * 1024 * 1024}`);
     this.db.exec(`PRAGMA temp_store = ${p.tempStore}`);
+    // 5 s busy timeout — concurrent open() and write contention waits
+    // rather than erroring with SQLITE_BUSY. This is the standard
+    // SQLite production setting for multi-process access.
+    this.db.exec(`PRAGMA busy_timeout = 5000`);
   }
 
   bulkInsertEntries(entries: readonly SyntheticEntry[]): Promise<void> {
