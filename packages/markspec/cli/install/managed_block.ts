@@ -100,3 +100,130 @@ export function removeLuaBlock(currentContent: string): string {
   const trimmed = before.endsWith("\n\n") ? before.slice(0, -1) : before;
   return `${trimmed}${after}`;
 }
+
+// ---------------------------------------------------------------------------
+// JSON-key managed block (Claude Desktop JSONC config and similar targets)
+// ---------------------------------------------------------------------------
+
+import { applyEdits, type Edit, modify, parse } from "jsonc-parser";
+
+/** Default formatting options applied to inserted JSON regions. */
+const JSONC_FORMAT_OPTIONS = {
+  tabSize: 2,
+  insertSpaces: true,
+  eol: "\n",
+} as const;
+
+/** Default modify options — keep formatting close to surrounding code. */
+const JSONC_MODIFY_OPTIONS = {
+  formattingOptions: JSONC_FORMAT_OPTIONS,
+} as const;
+
+/**
+ * Set the value at `jsonPath` inside `currentContent`. Preserves
+ * sibling keys, key order, line + block comments, and trailing
+ * commas outside the modified region. Empty input is treated as
+ * `{}` — the function will create the necessary intermediate
+ * structures.
+ *
+ * Idempotent: if the existing value at `jsonPath` deep-equals
+ * `value`, returns `currentContent` byte-identical (no formatting
+ * normalisation). This is load-bearing for the
+ * `markspec mcp install` no-op-re-run contract (spec §6.2).
+ *
+ * Pure: no I/O.
+ */
+export function applyJsonBlock(
+  currentContent: string,
+  jsonPath: readonly (string | number)[],
+  value: unknown,
+): string {
+  const text = currentContent.trim().length === 0 ? "{}" : currentContent;
+  const existing = parse(text, undefined, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  }) as unknown;
+  if (
+    jsonValueAt(existing, jsonPath) !== undefined &&
+    deepEqual(jsonValueAt(existing, jsonPath), value)
+  ) {
+    return currentContent;
+  }
+  const edits: Edit[] = modify(
+    text,
+    [...jsonPath],
+    value,
+    JSONC_MODIFY_OPTIONS,
+  );
+  return applyEdits(text, edits);
+}
+
+/**
+ * Remove the key at `jsonPath` from `currentContent`. Preserves
+ * everything else. Idempotent: if the path is absent, returns
+ * `currentContent` byte-identical.
+ *
+ * Pure: no I/O.
+ */
+export function removeJsonBlock(
+  currentContent: string,
+  jsonPath: readonly (string | number)[],
+): string {
+  if (currentContent.trim().length === 0) return currentContent;
+  const existing = parse(currentContent, undefined, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  }) as unknown;
+  if (jsonValueAt(existing, jsonPath) === undefined) return currentContent;
+  const edits: Edit[] = modify(
+    currentContent,
+    [...jsonPath],
+    undefined,
+    JSONC_MODIFY_OPTIONS,
+  );
+  return applyEdits(currentContent, edits);
+}
+
+/** Walk a parsed JSON value following `path`; return undefined on miss. */
+function jsonValueAt(
+  value: unknown,
+  path: readonly (string | number)[],
+): unknown {
+  let cur: unknown = value;
+  for (const segment of path) {
+    if (cur === null || cur === undefined) return undefined;
+    if (typeof segment === "string") {
+      if (typeof cur !== "object" || Array.isArray(cur)) return undefined;
+      cur = (cur as Record<string, unknown>)[segment];
+    } else {
+      if (!Array.isArray(cur)) return undefined;
+      cur = cur[segment];
+    }
+  }
+  return cur;
+}
+
+/** Structural equality for plain JSON values (no class instances, no NaN). */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bArr = b as unknown[];
+    if (a.length !== bArr.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], bArr[i])) return false;
+    }
+    return true;
+  }
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const aKeys = Object.keys(aObj);
+  if (aKeys.length !== Object.keys(bObj).length) return false;
+  for (const k of aKeys) {
+    if (!deepEqual(aObj[k], bObj[k])) return false;
+  }
+  return true;
+}

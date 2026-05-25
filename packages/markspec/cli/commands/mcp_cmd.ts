@@ -2,6 +2,11 @@
  * @module cli/commands/mcp_cmd
  *
  * `markspec mcp` — start the MCP server or install its configuration.
+ *
+ * Slice C: claude-desktop runs through the full `runMcpInstall`
+ * orchestrator — JSON managed-block, timestamped sidecar backup,
+ * diff preview, atomic write. vscode remains verify-only (parity
+ * with Slice B's LSP vscode adapter). Cursor remains print-only.
  */
 
 import { Command } from "@cliffy/command";
@@ -13,45 +18,55 @@ export const mcpCmd = new Command()
     await startServer();
   })
   .command("install")
-  .description("Print MCP server configuration for a client")
+  .description("Install or print MCP server configuration for a client")
   .option(
     "--client <client:string>",
     "Client ID (claude-desktop|cursor|vscode)",
     { required: true },
   )
+  .option("--scope <scope:string>", "Config scope: user|workspace")
   .option(
-    "--scope <scope:string>",
-    "Config scope: user|workspace (reserved for Tier 3)",
+    "--binary-path <path:string>",
+    "Path or invoked name written into config",
+    { default: "markspec" },
   )
+  .option(
+    "--print",
+    "Write the new file contents to stdout; do not write to disk",
+  )
+  .option("--force", "Apply without TTY confirmation; required in non-TTY")
+  .option("--no-color", "Disable color output")
+  .option("--remove", "Remove the managed entry from the config file")
   .action(
-    async (options: { client: string; scope?: string }) => {
-      const { MCP_CLIENT_IDS, suggestId } = await import(
-        "../install/adapters.ts"
+    async (
+      options: {
+        client: string;
+        scope?: string;
+        binaryPath: string;
+        print?: boolean;
+        force?: boolean;
+        color?: boolean;
+        remove?: boolean;
+      },
+    ) => {
+      const { runMcpInstall } = await import(
+        "../install/mcp_orchestrator.ts"
       );
-      const clientId = options.client;
-      if (
-        !MCP_CLIENT_IDS.includes(
-          clientId as "claude-desktop" | "cursor" | "vscode",
-        )
-      ) {
-        const suggestion = suggestId(clientId, MCP_CLIENT_IDS);
-        const hint = suggestion ? `\n  did you mean: ${suggestion}` : "";
-        console.error(
-          `error: unknown client '${clientId}' (known: ${
-            MCP_CLIENT_IDS.join(", ")
-          })${hint}`,
-        );
-        Deno.exit(1);
+      const result = await runMcpInstall({
+        client: options.client,
+        scope: options.scope,
+        binaryPath: options.binaryPath,
+        print: options.print,
+        force: options.force,
+        noColor: options.color === false,
+        remove: options.remove,
+      });
+      if (result.stdout) {
+        await Deno.stdout.write(new TextEncoder().encode(result.stdout));
       }
-      const { claudeDesktopAdapter, cursorAdapter, vscodeMcpAdapter } =
-        await import("../install/mcp_adapters.ts");
-      const result = clientId === "claude-desktop"
-        ? claudeDesktopAdapter()
-        : clientId === "cursor"
-        ? cursorAdapter()
-        : await vscodeMcpAdapter();
-      if (result.stdout) console.log(result.stdout);
-      if (result.stderr) console.error(result.stderr);
+      if (result.stderr) {
+        await Deno.stderr.write(new TextEncoder().encode(result.stderr));
+      }
       Deno.exit(result.exitCode);
     },
   );

@@ -1,8 +1,10 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
+  applyJsonBlock,
   applyLuaBlock,
   LUA_FENCE_CLOSE,
   LUA_FENCE_OPEN,
+  removeJsonBlock,
   removeLuaBlock,
 } from "./managed_block.ts";
 
@@ -147,4 +149,116 @@ Deno.test("removeLuaBlock: trims trailing blank line before block (#480)", () =>
   const input = `-- config\n\n${block}`;
   const result = removeLuaBlock(input);
   assertEquals(result, "-- config\n");
+});
+
+// ---------------------------------------------------------------------------
+// applyJsonBlock / removeJsonBlock
+// ---------------------------------------------------------------------------
+
+const MCP_PATH: readonly (string | number)[] = ["mcpServers", "markspec"];
+const MCP_VALUE = { command: "markspec", args: ["mcp"] };
+
+Deno.test("applyJsonBlock: empty input → creates mcpServers.markspec", () => {
+  const result = applyJsonBlock("", MCP_PATH, MCP_VALUE);
+  const parsed = JSON.parse(result);
+  assertEquals(parsed.mcpServers.markspec, MCP_VALUE);
+});
+
+Deno.test("applyJsonBlock: re-apply with same value → byte-identical", () => {
+  const initial = applyJsonBlock("", MCP_PATH, MCP_VALUE);
+  const reapplied = applyJsonBlock(initial, MCP_PATH, MCP_VALUE);
+  assertEquals(reapplied, initial);
+});
+
+Deno.test("applyJsonBlock: preserves sibling keys under same parent", () => {
+  const input = `{
+  "mcpServers": {
+    "other-server": { "command": "other", "args": ["run"] }
+  }
+}
+`;
+  const result = applyJsonBlock(input, MCP_PATH, MCP_VALUE);
+  const parsed = JSON.parse(result);
+  assertEquals(parsed.mcpServers["other-server"].command, "other");
+  assertEquals(parsed.mcpServers.markspec, MCP_VALUE);
+});
+
+Deno.test(
+  "applyJsonBlock: preserves JSONC line + block comments outside modified region",
+  () => {
+    const input = `{
+  // Top comment
+  "mcpServers": {
+    /* block comment */
+    "other-server": { "command": "other", "args": ["run"] }
+  },
+  // Trailing comment
+  "globalShortcut": "Cmd+Space"
+}
+`;
+    const result = applyJsonBlock(input, MCP_PATH, MCP_VALUE);
+    assertStringIncludes(result, "// Top comment");
+    assertStringIncludes(result, "/* block comment */");
+    assertStringIncludes(result, "// Trailing comment");
+    assertStringIncludes(result, '"globalShortcut": "Cmd+Space"');
+  },
+);
+
+Deno.test(
+  "applyJsonBlock: replaces existing markspec entry, keeps siblings",
+  () => {
+    const input = `{
+  "mcpServers": {
+    "markspec": { "command": "/old/path", "args": ["mcp"] },
+    "other-server": { "command": "other", "args": ["run"] }
+  }
+}
+`;
+    const result = applyJsonBlock(input, MCP_PATH, MCP_VALUE);
+    const parsed = JSON.parse(result);
+    assertEquals(parsed.mcpServers.markspec, MCP_VALUE);
+    assertEquals(parsed.mcpServers["other-server"].command, "other");
+  },
+);
+
+Deno.test("removeJsonBlock: removes only the markspec key", () => {
+  const input = `{
+  "mcpServers": {
+    "markspec": { "command": "markspec", "args": ["mcp"] },
+    "other-server": { "command": "other", "args": ["run"] }
+  }
+}
+`;
+  const result = removeJsonBlock(input, MCP_PATH);
+  const parsed = JSON.parse(result);
+  assertEquals(parsed.mcpServers.markspec, undefined);
+  assertEquals(parsed.mcpServers["other-server"].command, "other");
+});
+
+Deno.test("removeJsonBlock: absent key → byte-identical", () => {
+  const input = `{
+  "mcpServers": {
+    "other-server": { "command": "other", "args": ["run"] }
+  }
+}
+`;
+  const result = removeJsonBlock(input, MCP_PATH);
+  assertEquals(result, input);
+});
+
+Deno.test("removeJsonBlock: empty input → byte-identical", () => {
+  assertEquals(removeJsonBlock("", MCP_PATH), "");
+});
+
+Deno.test("removeJsonBlock: preserves comments and other siblings", () => {
+  const input = `{
+  // header comment
+  "mcpServers": {
+    "markspec": { "command": "markspec", "args": ["mcp"] }
+  }
+}
+`;
+  const result = removeJsonBlock(input, MCP_PATH);
+  assertStringIncludes(result, "// header comment");
+  assertEquals(result.includes('"markspec"'), false);
 });
