@@ -3,11 +3,13 @@ import { fromFileUrl } from "@std/path";
 import { markspec } from "./helpers.ts";
 
 Deno.test(
-  "lsp install --editor=neovim: exits 0, stdout contains lspconfig",
+  "lsp install --editor=neovim --print: exits 0, stdout contains lspconfig",
   async () => {
+    // The bare `--editor=neovim` invocation now flows through the
+    // orchestrator (Slice A) — passing --print keeps it side-effect-free.
     const { code, stdout } = await markspec(
-      ["lsp", "install", "--editor=neovim"],
-      { permissions: ["--allow-run"] },
+      ["lsp", "install", "--editor=neovim", "--print", "--scope=user"],
+      { permissions: ["--allow-run", "--allow-env"] },
     );
     assertEquals(code, 0);
     assertStringIncludes(stdout, "lspconfig");

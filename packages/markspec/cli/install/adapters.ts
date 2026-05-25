@@ -50,6 +50,35 @@ export function suggestId(
   return bestDist <= MAX_SUGGESTION_DISTANCE ? best : undefined;
 }
 
+/** Input passed to an adapter's `renderBlock` function. */
+export interface RenderBlockInput {
+  /** Binary path to embed in the block — invoked name or absolute path. */
+  readonly binaryPath: string;
+}
+
+/**
+ * Adapter descriptor consumed by the install orchestrator. Each adapter
+ * exposes pure functions (no I/O) for path resolution and block rendering;
+ * the orchestrator handles file reads, diff/preview, backup, and writes.
+ */
+export interface LspAdapter {
+  readonly id: LspEditorId;
+  /**
+   * Resolve the config file path for the given scope.
+   * - `home` is `Deno.env.get("HOME")` (POSIX) or the Windows equivalent.
+   * - `workspaceRoot` is the directory containing the workspace marker;
+   *   required when `scope === "workspace"`, ignored otherwise.
+   */
+  resolveConfigPath(
+    scope: "user" | "workspace",
+    cwd: string,
+    home: string,
+    workspaceRoot?: string,
+  ): string;
+  /** Render the managed-block content (lines between the fence sentinels). */
+  renderBlock(input: RenderBlockInput): string;
+}
+
 /** Iterative O(n·m) Levenshtein distance with a single row buffer. */
 function levenshtein(a: string, b: string): number {
   if (a === b) return 0;
