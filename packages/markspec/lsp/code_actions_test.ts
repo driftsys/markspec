@@ -339,3 +339,81 @@ Deno.test("buildCodeActions: MSL-M060 with malformed message yields no action", 
   ]);
   assertEquals(actions, []);
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// Task 27 — MSL-L / MSL-S code actions
+// ─────────────────────────────────────────────────────────────────────
+
+Deno.test("MSL-L010: code action adds Reference-url placeholder", () => {
+  const docText = `- [@ISO-26262-6] ISO 26262 Part 6
+
+      Id: urn:iso:std:iso:26262:-6:ed-2
+`;
+  const actions = buildCodeActions(
+    "file:///t.md",
+    [diag({
+      code: "MSL-L010",
+      message: "Reference 'ISO-26262-6' has no Reference-url:",
+      line: 0,
+      character: 0,
+    })],
+    docText,
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title.includes("Reference-url"), true);
+});
+
+Deno.test("MSL-S003: code action replaces newest-wins with manual", () => {
+  const docText = `conflict:
+  default: newest-wins
+`;
+  const actions = buildCodeActions(
+    "file:///jira.yaml",
+    [diag({
+      code: "MSL-S003",
+      message: "Unknown conflict policy 'newest-wins'",
+      line: 1,
+      character: 11,
+    })],
+    docText,
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title.includes("manual"), true);
+});
+
+Deno.test("MSL-S002: code action removes locked: true line", () => {
+  const docText = `attributes:
+  - markspec: Labels
+    external: labels
+    direction: outbound
+    locked: true
+`;
+  const actions = buildCodeActions(
+    "file:///jira.yaml",
+    [diag({
+      code: "MSL-S002",
+      message:
+        "Attribute 'Labels': locked: true contradicts direction: outbound",
+      line: 4,
+      character: 4,
+    })],
+    docText,
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title.toLowerCase().includes("locked"), true);
+});
+
+Deno.test("MSL-S010: code action surfaces connector-required workflow note", () => {
+  const actions = buildCodeActions(
+    "file:///t.md",
+    [diag({
+      code: "MSL-S010",
+      message: "Locked attribute 'Title' was edited locally",
+      line: 0,
+      character: 0,
+    })],
+    "(any text — handler doesn't read it)",
+  );
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title.toLowerCase().includes("upstream"), true);
+});
