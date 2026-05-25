@@ -1,6 +1,6 @@
 # ADR-017: Discipline Classification of Requirements via Allocation Graph
 
-**Status:** Proposed
+**Status:** Accepted (2026-05-25)
 
 ## Context
 
@@ -326,29 +326,39 @@ reviewer sees the full envelope of work Path A enables.
 None of these are scoped into this ADR; they are recorded for the writing-plans
 phase that follows Acceptance.
 
-## Open for second-phase review
+## Resolution
 
-The recommendation favours Path A on cost and recoverability, but the weighting
-of criteria has not been adversarially reviewed. The second-phase review
-(deferred) should:
+The joint criteria-weighting review with
+[ADR-018](adr-018-core-discipline-ssot.md) concluded on 2026-05-25 with **R3 —
+Path A++ (extensible discipline registry)** selected:
 
-1. **Establish explicit criteria weights.** Among: code-surface change,
-   learnability for a first-time profile author, ASPICE/26262 vocabulary
-   fidelity, type-completion noise, ADR-009 boundary purity, reversibility
-   before 1.0, test churn. The current recommendation weights cost and
-   recoverability above boundary purity; a different weighting could tip toward
-   Path B.
-2. **Identify trigger conditions that would re-open Path B.** Examples: a
-   non-automotive profile (web, microservices, internal tooling) is authored and
-   finds the SW/HW vocabulary noisy or misleading; a downstream registry wants
-   to publish profiles where the SW/HW split is genuinely meaningless; the
-   source-introspection mechanisms get independently re-evaluated and the
-   inference layer moves to profiles regardless of the type taxonomy.
-3. **Reconsider scope.** This ADR scopes the comparison to `Component`,
-   `Interface`, `Unit`. The same argument applies — at different strengths — to
-   discriminating-attribute scoping, PURL maps, and source introspection. A
-   future ADR could pursue boundary purity across all four mechanisms together;
-   that is the cleaner version of Path B and not what this ADR proposes.
+- **Path A** confirmed (core retains the SW/HW Component / Interface / Unit
+  subtypes; ADR-003 unchanged).
+- **R3** adopted as the SSOT shape: a single discipline registry, seeded by core
+  and extensible by profiles, powers the four-channel classifier from Invariant
+  1 and the extensible kinds from Invariant 2.
+
+R2 (Path B) was ruled out by the required-use-cases analysis in ADR-018: it
+forces every tiered profile to redeclare core SW/HW vocabulary and forces flat
+profiles to opt into vocabulary they currently don't need, violating the
+"minimal profile-side work" constraint. R1 was ruled out because the unified
+four-channel classifier effectively requires a registry; R1's "no registry"
+posture leaves the lookup ad-hoc for profile types and blocks use case C
+(extensible kinds for non-automotive domains) without a follow-up ADR.
+
+### Triggers that would re-open the decision
+
+Even with R3 Accepted, conditions exist that could re-open the comparison in a
+future ADR:
+
+- A non-automotive profile authored at scale that finds the bundled SW/HW
+  Component subtypes actively noisy in completion lists, despite being opt-in.
+- An independent re-evaluation of the source-introspection / PURL /
+  discriminating- attribute mechanisms that moves all four to profiles
+  regardless of the type taxonomy — that would re-open Path B with a stronger
+  ADR-009 boundary argument.
+- A registry-merge conflict pattern (multiple profiles registering the same type
+  with different kinds) that proves more painful than this ADR anticipated.
 
 ## Dependencies
 
@@ -366,4 +376,6 @@ of criteria has not been adversarially reviewed. The second-phase review
 
 ## Status
 
-Proposed.
+Accepted (2026-05-25). See the Resolution section above for the joint
+criteria-weighting review outcome with
+[ADR-018](adr-018-core-discipline-ssot.md).
