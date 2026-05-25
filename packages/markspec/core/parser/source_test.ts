@@ -1574,3 +1574,39 @@ public class JavadocStyle {}
     assertEquals(entries[0].source.function, "JavadocStyle");
   }
 });
+
+// ---------------------------------------------------------------------------
+// C#: fixture file
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: fixture — in-code-csharp.cs", async () => {
+  const language = await getCsharpLanguage();
+  const fixturePath = join(
+    import.meta.dirname!,
+    "..",
+    "..",
+    "..",
+    "..",
+    "tests",
+    "fixtures",
+    "in-code-csharp.cs",
+  );
+  const content = await Deno.readTextFile(fixturePath);
+  const { entries } = parseSource(content, {
+    file: "in-code-csharp.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  const entry = entries[0];
+  assertEquals(entry.displayId, "SRS_BRK_0001");
+  assertEquals(entry.title, "Sensor input debouncing");
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entry.source.kind, "doc-comment");
+  assertStringIncludes(entry.body, "debounce window");
+  assertEquals(entry.rawAttributes.length, 3);
+  if (entry.source.kind === "doc-comment") {
+    assertEquals(entry.source.language, "csharp");
+    assertEquals(entry.source.function, "BrakingSensor");
+  }
+});
