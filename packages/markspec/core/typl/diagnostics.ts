@@ -18,6 +18,17 @@ const EXPLICIT_KIND_LIST: string = KINDS.filter((k) => k !== "value").join(
   ", ",
 );
 
+/** Union of all valid TYPL diagnostic codes. */
+export type TyplCode =
+  | "TYPL-001"
+  | "TYPL-002"
+  | "TYPL-003"
+  | "TYPL-004"
+  | "TYPL-005"
+  | "TYPL-006"
+  | "TYPL-007"
+  | "TYPL-008";
+
 /** Shape of each entry in {@linkcode TYPL_CODES}. */
 export interface TyplCodeEntry {
   readonly severity: Severity;
@@ -34,13 +45,13 @@ export interface TyplCodeEntry {
  * containing file path; see PR 6 in the implementation plan.
  */
 export interface TyplDiagnostic {
-  readonly code: string;
+  readonly code: TyplCode;
   readonly severity: Severity;
   readonly message: string;
   readonly position: Position;
 }
 
-export const TYPL_CODES: Record<string, TyplCodeEntry> = {
+export const TYPL_CODES: Record<TyplCode, TyplCodeEntry> = {
   "TYPL-001": {
     severity: "error",
     template:
@@ -89,7 +100,7 @@ export const TYPL_CODES: Record<string, TyplCodeEntry> = {
  * for now, callers should test message-formatting for each code.
  */
 export function typlDiagnostic(
-  code: string,
+  code: TyplCode,
   params: Record<string, string | number>,
   position: Position,
 ): TyplDiagnostic {

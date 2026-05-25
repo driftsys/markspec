@@ -19,7 +19,7 @@ export type {
 } from "./ast.ts";
 export { KINDS } from "./ast.ts";
 
-export type { TyplCodeEntry, TyplDiagnostic } from "./diagnostics.ts";
+export type { TyplCode, TyplCodeEntry, TyplDiagnostic } from "./diagnostics.ts";
 export { TYPL_CODES, typlDiagnostic } from "./diagnostics.ts";
 
 export { parseTyplBlock } from "./grammar.ts";
