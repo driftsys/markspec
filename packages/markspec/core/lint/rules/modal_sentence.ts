@@ -39,7 +39,7 @@ const ABBREVS = loadLexicon("sentence-abbrev");
  * `will` is intentionally excluded — it is not a normative modal per
  * RFC 2119 and its presence is handled by the Q202 rule (deferred).
  */
-const MODAL_COMPOUND_RE =
+export const MODAL_COMPOUND_RE =
   /\b(shall not|should not|must not|may not|shall|should|must|may)\b/gi;
 
 /**
