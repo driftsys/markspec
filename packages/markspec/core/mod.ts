@@ -52,6 +52,7 @@ export type {
   LabelValue,
   Link,
   LinkKind,
+  LoadedProfile,
   ModalCase,
   PaletteHue,
   ProfileChain,

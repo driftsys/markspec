@@ -16,6 +16,8 @@ import {
   CompletionItemKind,
   createConnection,
   type Diagnostic as LspDiagnosticType,
+  DidChangeWatchedFilesNotification,
+  type FileEvent,
   type InitializeParams,
   type InitializeResult,
   InsertTextFormat,
@@ -25,6 +27,7 @@ import {
   TextDocuments,
   TextDocumentSyncKind,
   type TextEdit as LspTextEdit,
+  WatchKind,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
@@ -53,6 +56,11 @@ import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 import { findOccurrencesInFile } from "./highlights.ts";
+import {
+  buildProfileResponse,
+  EMPTY_PROFILE_RESPONSE,
+  type MarkspecProfileResponse,
+} from "./profile_request.ts";
 import { findReferencingEntries } from "./references.ts";
 import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
 import {
@@ -136,6 +144,7 @@ globalThis.addEventListener("error", (e) => {
 let projectRoot: string | undefined;
 let _config: ProjectConfig = DEFAULT_PROJECT_CONFIG;
 let profile: EffectiveProfile | undefined;
+let cachedProfileResponse: MarkspecProfileResponse = EMPTY_PROFILE_RESPONSE;
 let lockfile: Lockfile | undefined;
 const index = new WorkspaceIndex();
 // Cached cross-file validation result. Updated by publishAllDiagnostics
@@ -305,6 +314,10 @@ connection.onInitialize(
         if (profileResult.chain) {
           profile = profileResult.chain.effective;
         }
+        cachedProfileResponse = buildProfileResponse(
+          profileResult.chain,
+          profile,
+        );
       } catch {
         connection.console.warn("Failed to load profile");
       }
@@ -370,6 +383,34 @@ connection.onInitialize(
 );
 
 // ---------------------------------------------------------------------------
+// Profile reload — fires `markspec/profileChanged` after watched profile files
+// change. Debounced 500ms so rapid-fire saves coalesce into one reload.
+// ---------------------------------------------------------------------------
+
+async function reloadProfile(): Promise<void> {
+  if (!projectRoot) return;
+  try {
+    const profileResult = await loadProfileForCommand(projectRoot, readFile);
+    profile = profileResult.chain?.effective;
+    cachedProfileResponse = buildProfileResponse(
+      profileResult.chain,
+      profile,
+    );
+    connection.sendNotification(
+      "markspec/profileChanged",
+      cachedProfileResponse,
+    );
+    // Profile changes can flip MSL-R010 suppression and other
+    // attribute-validity decisions — republish cross-file diagnostics.
+    publishAllDiagnostics();
+  } catch (err) {
+    connection.console.warn(`Failed to reload profile: ${err}`);
+  }
+}
+
+const debouncedReloadProfile = debounce(reloadProfile, 500);
+
+// ---------------------------------------------------------------------------
 // Initialized — build the workspace index
 // ---------------------------------------------------------------------------
 
@@ -419,11 +460,49 @@ connection.onInitialized(async () => {
       release: VERSION,
       coreSchemaVersion: CORE_SCHEMA_VERSION,
     });
+
+    // Register the profile-file watcher. We do this even when no profile
+    // is currently loaded so a later `.markspec.yaml` creation triggers
+    // a reload. See design doc §4 step 2.
+    if (projectRoot) {
+      try {
+        await connection.client.register(
+          DidChangeWatchedFilesNotification.type,
+          {
+            watchers: [
+              {
+                globPattern: "**/.markspec.yaml",
+                kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+              },
+              {
+                globPattern: "**/project.yaml",
+                kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+              },
+            ],
+          },
+        );
+      } catch (err) {
+        connection.console.warn(
+          `Failed to register profile-file watcher: ${err}`,
+        );
+      }
+    }
   } catch (err) {
     connection.console.error(`Indexing failed: ${err}`);
     debugLog(`onInitialized: indexing failed: ${err}`);
   }
   debugLog("onInitialized: end");
+});
+
+// ---------------------------------------------------------------------------
+// onDidChangeWatchedFiles — profile-file edits debounce → reload
+// ---------------------------------------------------------------------------
+
+connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
+  // We only watch `.markspec.yaml` + `project.yaml`, so any change here
+  // affects the profile chain. Debounce 500ms — see design doc §4.1.
+  if (params.changes.length === 0) return;
+  debouncedReloadProfile();
 });
 
 // ---------------------------------------------------------------------------
@@ -918,6 +997,19 @@ connection.languages.semanticTokens.on((params) => {
 });
 
 // ---------------------------------------------------------------------------
+// markspec/profile — custom request: active profile metadata for client coloring
+// ---------------------------------------------------------------------------
+
+connection.onRequest(
+  "markspec/profile",
+  (_params: { uri?: string }): MarkspecProfileResponse => {
+    // `_params.uri` is accepted for forward compatibility but ignored in v1;
+    // the server uses its rootUri. See design doc §3.1.
+    return cachedProfileResponse;
+  },
+);
+
+// ---------------------------------------------------------------------------
 // markspec/entryRanges — custom request driving VS Code decorations
 // ---------------------------------------------------------------------------
 
@@ -946,6 +1038,7 @@ connection.onRequest(
 connection.onShutdown(() => {
   debugLog("onShutdown");
   debouncedValidateAll.cancel();
+  debouncedReloadProfile.cancel();
 });
 
 connection.onExit(() => {
