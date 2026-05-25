@@ -1,0 +1,34 @@
+export const snapshot = {};
+
+snapshot[`segmenter: corpus snapshot 1`] = `
+[
+  {
+    offset: 0,
+    text: "The brake controller shall debounce sensor inputs.",
+  },
+  {
+    offset: 51,
+    text: "When the pedal is
+pressed, the system shall apply pressure within 200 ms.",
+  },
+  {
+    offset: 125,
+    text: "The pressure
+shall be released, e.g. when the parking brake is engaged, by the
+release subsystem.",
+  },
+  {
+    offset: 223,
+    text: "Fig. 3 shows the data flow.",
+  },
+  {
+    offset: 251,
+    text: "See vol. II for details.",
+  },
+  {
+    offset: 276,
+    text: "If a sensor reading is invalid, then the brake controller shall ignore
+it.",
+  },
+]
+`;
