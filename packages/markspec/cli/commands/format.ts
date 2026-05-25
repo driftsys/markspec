@@ -66,6 +66,31 @@ export const formatCmd = new Command()
       `${totalFormatted} file(s) formatted, ${totalUnchanged} unchanged (${total} total)`,
     );
 
+    // MSL-L011 stale-pin info — emitted when markspec.lock is more than 60
+    // days old. Non-fatal, never affects exit code.
+    if (projectRoot !== undefined) {
+      const { join } = await import("@std/path");
+      const lockPath = join(projectRoot, "markspec.lock");
+      const lockRaw = await readFile(lockPath);
+      if (lockRaw !== undefined) {
+        const { parseLockfile } = await import("../../core/mod.ts");
+        const parsed = parseLockfile(lockRaw);
+        if (parsed.lockfile) {
+          const lockedAtMs = Date.parse(parsed.lockfile.meta.lockedAt);
+          if (!Number.isNaN(lockedAtMs)) {
+            const ageDays = (Date.now() - lockedAtMs) / (1000 * 60 * 60 * 24);
+            if (ageDays > 60) {
+              console.error(
+                `info: MSL-L011: markspec.lock is ${
+                  ageDays.toFixed(0)
+                } days old. Consider running \`markspec lock\` to refresh.`,
+              );
+            }
+          }
+        }
+      }
+    }
+
     if (hasErrors) {
       Deno.exit(1);
     }

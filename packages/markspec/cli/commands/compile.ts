@@ -26,6 +26,10 @@ export const compileCmd = new Command()
     "--with-contributors",
     "Include git contributor names in properties.git (PII-adjacent, ADR-006; off by default)",
   )
+  .option(
+    "--frozen",
+    "Fail on lockfile drift before compiling (CI gate, MSL-L201/L2xx)",
+  )
   .arguments("<paths...:string>")
   .action(
     async (
@@ -34,9 +38,77 @@ export const compileCmd = new Command()
         output?: string;
         splitThreshold: number;
         withContributors?: boolean;
+        frozen?: boolean;
       },
       ...paths: string[]
     ) => {
+      if (_options.frozen) {
+        const {
+          checkDrift,
+          discoverProjectRoot,
+          loadConfig,
+          loadProfileForCommand,
+          parseLockfile,
+          resolveUpstreams,
+        } = await import("../../core/mod.ts");
+        const { join } = await import("@std/path");
+        const {
+          collectEntries,
+          defaultFetchUrl,
+          defaultReadFile,
+          loadAllMappings,
+          readFileOrUndefined,
+        } = await import("./lock.ts");
+
+        const root =
+          (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ??
+            Deno.cwd();
+        const lockPath = join(root, "markspec.lock");
+        const tomlRaw = await readFileOrUndefined(lockPath);
+        if (tomlRaw === undefined) {
+          console.error(
+            "error: MSL-L201: markspec.lock is missing under --frozen (run `markspec lock` to generate)",
+          );
+          Deno.exit(1);
+        }
+        const parsed = parseLockfile(tomlRaw);
+        if (!parsed.lockfile) {
+          for (const d of parsed.diagnostics) {
+            console.error(`${d.severity}: ${d.code}: ${d.message}`);
+          }
+          Deno.exit(1);
+        }
+
+        const configResult = await loadConfig(root, readFileOrUndefined);
+        if (!configResult) {
+          console.error("error: project.yaml not found");
+          Deno.exit(1);
+        }
+        const profileResult = await loadProfileForCommand(
+          root,
+          readFileOrUndefined,
+        );
+        const entries = await collectEntries(root);
+        const mappings = await loadAllMappings(root);
+
+        const resolved = await resolveUpstreams({
+          entries,
+          profileChain: profileResult.chain ?? [],
+          config: configResult.config,
+          mappings,
+          fetchUrl: defaultFetchUrl,
+          readFile: defaultReadFile,
+        });
+        const drift = checkDrift(parsed.lockfile, resolved);
+        if (drift.length > 0) {
+          for (const d of drift) {
+            console.error(`${d.severity}: ${d.code}: ${d.message}`);
+          }
+          Deno.exit(1);
+        }
+        // No drift — fall through to the existing compile path.
+      }
+
       const { result, chain } = await compileProject(paths, {
         withContributors: _options.withContributors,
       });

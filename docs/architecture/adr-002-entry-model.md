@@ -533,6 +533,12 @@ referenced entries:
 
 These are not core-reserved; the default profile (ADR-010) declares them.
 
+**Reference-url is core.** Originally framed as profile-declared (language.md
+§2.3), `Reference-url:` was promoted to a core universal attribute on Reference
+entries to support the universal `markspec lock` workflow without forcing every
+profile to declare it. Other Reference convenience attributes
+(`Reference-document:`, `License:`) remain profile-declared.
+
 ### Section locators in citations
 
 When an entry cites a referenced entry via the `References:` attribute, the

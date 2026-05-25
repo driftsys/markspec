@@ -256,3 +256,63 @@ export { isProseScope, runLint } from "./lint/mod.ts";
 export type { LintDiagnostic, LintOptions, LintResult } from "./lint/mod.ts";
 
 export * as typl from "./typl/mod.ts";
+
+// ── Lockfile (ADR-022) ───────────────────────────────────────────────────
+export {
+  canonicalEdgeJson,
+  checkDrift,
+  extractEdgeQuads,
+  hashCanonicalEdges,
+  LOCKFILE_SCHEMA_VERSION,
+  parseLockfile,
+  resolveBoundEntries,
+  resolveProfileChain,
+  resolveReferences,
+  resolveRegistries,
+  resolveUpstreams,
+  serializeLockfile,
+  sha256Bytes,
+  sha256String,
+} from "./lock/mod.ts";
+export type {
+  BoundEntry as LockBoundEntry,
+  BoundEntryBinding as LockBinding,
+  EdgeQuad,
+  FetchUrl,
+  GeneratedCache,
+  LockedAttributes,
+  Lockfile,
+  LockfileMeta,
+  ParseLockfileResult,
+  ReadFile as LockReadFile,
+  ResolvedBoundEntry,
+  ResolvedProfile,
+  ResolvedReference,
+  ResolvedRegistry,
+  ResolvedUpstreams,
+  ResolveUpstreamsOptions,
+  Upstream,
+  UpstreamProfile,
+  UpstreamReference,
+  UpstreamRegistry,
+} from "./lock/mod.ts";
+
+// ── External sync model (ADR-022) ────────────────────────────────────────
+export {
+  aggregateStatusByState,
+  encodeLogLine,
+  inferLockedAttributes,
+  parseLogLine,
+  parseMapping,
+  validateMappings,
+} from "./sync/mod.ts";
+export type {
+  AttributeMapping,
+  BoundEntryStatus,
+  ConflictPolicy,
+  Direction as SyncDirection,
+  Mapping,
+  ParseMappingResult,
+  RemoteState,
+  SyncLogEntry,
+} from "./sync/mod.ts";

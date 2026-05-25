@@ -39,7 +39,9 @@ import {
   format,
   loadConfig,
   loadProfileForCommand,
+  type Lockfile,
   makeDisplayId,
+  parseLockfile,
   type ProjectConfig,
   VERSION,
 } from "../core/mod.ts";
@@ -134,11 +136,22 @@ globalThis.addEventListener("error", (e) => {
 let projectRoot: string | undefined;
 let _config: ProjectConfig = DEFAULT_PROJECT_CONFIG;
 let profile: EffectiveProfile | undefined;
+let lockfile: Lockfile | undefined;
 const index = new WorkspaceIndex();
 // Cached cross-file validation result. Updated by publishAllDiagnostics
 // and read by request handlers (e.g. markspec/entryRanges) so they
 // don't re-run validateAll() on every keystroke.
 let lastDiagnostics: readonly CoreDiagnostic[] = [];
+
+/**
+ * Module-scoped reader for the loaded lockfile. Currently no LSP handler
+ * consumes the lockfile, but the loader is wired in so future features
+ * (federated-registry pinning, stale-pin hover hint) can opt in without
+ * a second init pass.
+ */
+function _getLockfile(): Lockfile | undefined {
+  return lockfile;
+}
 
 // ---------------------------------------------------------------------------
 // File reader for core functions (uses Deno APIs — allowed in entry points)
@@ -294,6 +307,30 @@ connection.onInitialize(
         }
       } catch {
         connection.console.warn("Failed to load profile");
+      }
+
+      // Load markspec.lock if present. Used by future federated-registry
+      // pinning + stale-pin hints. The LSP never writes the lockfile;
+      // drift detection stays in the CLI.
+      try {
+        const lockRaw = await readFile(`${projectRoot}/markspec.lock`);
+        if (lockRaw !== undefined) {
+          const parsed = parseLockfile(lockRaw);
+          if (parsed.lockfile) {
+            lockfile = parsed.lockfile;
+            connection.console.log(
+              `Loaded markspec.lock: ${lockfile.upstreams.length} upstreams, locked at ${lockfile.meta.lockedAt}`,
+            );
+          } else {
+            for (const d of parsed.diagnostics) {
+              connection.console.warn(
+                `Lockfile parse: ${d.code}: ${d.message}`,
+              );
+            }
+          }
+        }
+      } catch {
+        /* no lockfile is fine */
       }
     }
 

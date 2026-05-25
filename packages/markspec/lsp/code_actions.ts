@@ -21,6 +21,14 @@
  *     canonical multi-line form), splitting on top-level commas.
  *   - **MSL-A012** — repeatable attribute with an empty value list.
  *     Action: remove the empty trailer line.
+ *   - **MSL-L010** — lockfile reference entry has no `Reference-url:`.
+ *     Action: insert a placeholder `Reference-url:` trailer line.
+ *   - **MSL-S002** — sync attribute mapping has `locked: true` but
+ *     direction is outbound. Action: remove the `locked: true` line.
+ *   - **MSL-S003** — unknown conflict-resolution policy in sync config.
+ *     Action: replace the bad value with `manual`.
+ *   - **MSL-S010** — locally edited locked attribute. Action: surface
+ *     an informational stub (full revert requires connector cache I/O).
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
@@ -105,6 +113,18 @@ export function buildCodeActions(
       if (action) out.push(action);
     } else if (diag.code === "MSL-A012" && documentText !== undefined) {
       const action = buildA012Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-L010" && documentText !== undefined) {
+      const action = buildL010Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-S002" && documentText !== undefined) {
+      const action = buildS002Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-S003" && documentText !== undefined) {
+      const action = buildS003Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-S010") {
+      const action = buildS010Fix(uri, diag);
       if (action) out.push(action);
     }
   }
@@ -365,6 +385,119 @@ function closestCoreType(value: string): string | undefined {
     }
   }
   return bestDistance <= MAX_SUGGESTION_DISTANCE ? best : undefined;
+}
+
+function buildL010Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const lines = documentText.split("\n");
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    if (/^\s{4,}Id\s*:/.test(lines[i])) {
+      // Insert `Reference-url: <placeholder>` immediately after the
+      // matching `Id:` line, with the same 6-space trailer indent the
+      // formatter canonicalises to.
+      return {
+        title: "Add Reference-url: placeholder",
+        kind: "quickfix",
+        diagnostics: [diag],
+        isPreferred: true,
+        edit: {
+          changes: {
+            [uri]: [{
+              range: {
+                start: { line: i + 1, character: 0 },
+                end: { line: i + 1, character: 0 },
+              },
+              newText:
+                "      Reference-url: https://example.invalid/REPLACE-ME\n",
+            }],
+          },
+        },
+      };
+    }
+  }
+  return undefined;
+}
+
+function buildS002Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const lines = documentText.split("\n");
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    if (/^\s+locked\s*:\s*true\s*$/.test(lines[i])) {
+      return {
+        title: "Remove `locked: true`",
+        kind: "quickfix",
+        diagnostics: [diag],
+        isPreferred: true,
+        edit: {
+          changes: {
+            [uri]: [{
+              range: {
+                start: { line: i, character: 0 },
+                end: { line: i + 1, character: 0 },
+              },
+              newText: "",
+            }],
+          },
+        },
+      };
+    }
+  }
+  return undefined;
+}
+
+function buildS003Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  const lines = documentText.split("\n");
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    const m = lines[i].match(/^(\s*default\s*:\s*)([\w-]+)\s*$/);
+    if (m) {
+      return {
+        title: "Replace with `manual`",
+        kind: "quickfix",
+        diagnostics: [diag],
+        isPreferred: true,
+        edit: {
+          changes: {
+            [uri]: [{
+              range: {
+                start: { line: i, character: m[1].length },
+                end: { line: i, character: m[1].length + m[2].length },
+              },
+              newText: "manual",
+            }],
+          },
+        },
+      };
+    }
+  }
+  return undefined;
+}
+
+function buildS010Fix(
+  _uri: string,
+  diag: LspDiagnosticLike,
+): CodeAction | undefined {
+  // The "revert to upstream value" action requires reading the per-system
+  // cache file under .markspec/sync/<system>/cache/, which is connector
+  // territory. MVP returns an informational stub — selecting it surfaces
+  // the workflow note; full implementation lands when a connector ADR
+  // provides cache I/O.
+  return {
+    title: "Revert to upstream value (cached) — requires connector",
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: false,
+    edit: { changes: {} },
+  };
 }
 
 /** Iterative O(n·m) Levenshtein distance with a single row buffer. */

@@ -123,3 +123,14 @@ How external systems (Jira, DOORS, Jama, Codebeamer, PLM) integrate:
 - Specific connector implementations (Jira, DOORS, …) — each may have its own
   ADR or remain an extension.
 - UI for resolving sync conflicts — tooling concern.
+
+## Property additions for ADR-022 (lockfile + sync)
+
+- `sync.lastConflictAt` — RFC 3339 timestamp of the most recent conflict event
+  for any binding on this entry. Populated by sync push/pull from the NDJSON log
+  (`.markspec/sync/<system>/log.ndjson`). Used by `markspec sync show` and the
+  LSP's `markspec/entryRanges` request to surface unresolved conflicts.
+- `build.lockHash` — when an entry is bound to an external system, the hash
+  recorded in `markspec.lock` for its locked-attribute set at last lock. Used by
+  `markspec sync show` to display "currently in sync" vs "drift suspected"
+  without re-running `lock --check`.

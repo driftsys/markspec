@@ -92,3 +92,103 @@ function isMarkspecOptions(
 ): v is MarkspecOptions {
   return "files" in v || "cwd" in v || "permissions" in v;
 }
+
+/** Result returned by {@linkcode markspecPersist}, including the temp dir. */
+export interface MarkspecPersistRun {
+  readonly code: number;
+  readonly stdout: string;
+  readonly stderr: string;
+  /** Persisted temp dir — caller must remove it in try/finally. */
+  readonly dir: string;
+}
+
+/**
+ * Like {@linkcode markspec} but returns the temp dir and DOES NOT clean
+ * it up. Useful for multi-step E2E tests that write files, run
+ * `markspec`, edit the output, and re-run.
+ *
+ * Caller is responsible for `Deno.remove(dir, { recursive: true })` in a
+ * try/finally.
+ */
+export async function markspecPersist(
+  args: string[],
+  filesOrOptions: Record<string, string> | MarkspecOptions = {},
+): Promise<MarkspecPersistRun> {
+  const opts: MarkspecOptions = isMarkspecOptions(filesOrOptions)
+    ? filesOrOptions
+    : { files: filesOrOptions };
+
+  const dir = await Deno.makeTempDir();
+  for (const [name, content] of Object.entries(opts.files ?? {})) {
+    const parts = name.split("/");
+    if (parts.length > 1) {
+      await Deno.mkdir(join(dir, ...parts.slice(0, -1)), { recursive: true })
+        .catch(() => {});
+    }
+    await Deno.writeTextFile(join(dir, ...parts), content);
+  }
+
+  const cwd = opts.cwd ? join(dir, ...opts.cwd.split("/")) : dir;
+  if (opts.cwd) {
+    await Deno.mkdir(cwd, { recursive: true }).catch(() => {});
+  }
+
+  const permissions = [
+    "--allow-read",
+    "--allow-write",
+    ...(opts.permissions ?? []),
+  ];
+  // Same GIT_* stripping as markspec() — see comment there.
+  const parentEnv = Deno.env.toObject();
+  const safeEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parentEnv)) {
+    if (!k.startsWith("GIT_")) safeEnv[k] = v;
+  }
+  const cmd = new Deno.Command("deno", {
+    args: ["run", ...permissions, CLI_ENTRY, ...args],
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+    clearEnv: true,
+    env: safeEnv,
+  });
+  const result = await cmd.output();
+  return {
+    code: result.code,
+    stdout: new TextDecoder().decode(result.stdout),
+    stderr: new TextDecoder().decode(result.stderr),
+    dir,
+  };
+}
+
+/**
+ * Run the markspec CLI inside a pre-existing directory (e.g., one
+ * created by {@linkcode markspecPersist}). Same flag set, same env
+ * scrubbing — just no temp-dir creation or cleanup.
+ */
+export async function markspecInDir(
+  dir: string,
+  args: string[],
+  permissions: string[] = [],
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const allowList = ["--allow-read", "--allow-write", ...permissions];
+  const parentEnv = Deno.env.toObject();
+  const safeEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parentEnv)) {
+    if (!k.startsWith("GIT_")) safeEnv[k] = v;
+  }
+  const cmd = new Deno.Command("deno", {
+    args: ["run", ...allowList, CLI_ENTRY, ...args],
+    cwd: dir,
+    stdout: "piped",
+    stderr: "piped",
+    clearEnv: true,
+    env: safeEnv,
+  });
+  const result = await cmd.output();
+  return {
+    code: result.code,
+    stdout: new TextDecoder().decode(result.stdout),
+    stderr: new TextDecoder().decode(result.stderr),
+  };
+}
