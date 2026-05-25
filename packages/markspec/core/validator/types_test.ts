@@ -61,6 +61,7 @@ function buildType(opts: {
       description: { value: undefined, origin },
       attrDescriptions: new Map(),
       relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
     },
     origin,
   };
@@ -78,6 +79,13 @@ function buildProfile(
     conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 }
 

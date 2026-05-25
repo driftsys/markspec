@@ -284,6 +284,7 @@ Deno.test("resolvedCoreType: profile type resolves to its core parent via extend
       description: { value: undefined, origin },
       attrDescriptions: new Map(),
       relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
     },
     origin,
   };
@@ -294,6 +295,13 @@ Deno.test("resolvedCoreType: profile type resolves to its core parent via extend
     colors: new Map(),
     types: new Map([["system-requirement", sysReq]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 
   // Step 1 — explicit `Type:` naming a profile type.

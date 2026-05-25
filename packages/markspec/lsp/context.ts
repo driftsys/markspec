@@ -21,6 +21,13 @@ const SOURCE_EXTENSIONS = new Set([
   ".cxx",
   ".hpp",
   ".hxx",
+  ".ts",
+  ".tsx",
+  ".jsx",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".cs",
 ]);
 
 /** Entry marker pattern: `[TYPE_XXX_NNNN]` in any context. */

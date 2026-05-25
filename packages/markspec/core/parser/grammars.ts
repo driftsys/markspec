@@ -21,6 +21,13 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   ".cxx": "tree-sitter-cpp",
   ".hpp": "tree-sitter-cpp",
   ".hxx": "tree-sitter-cpp",
+  ".ts": "tree-sitter-typescript",
+  ".tsx": "tree-sitter-tsx",
+  ".jsx": "tree-sitter-tsx",
+  ".js": "tree-sitter-javascript",
+  ".mjs": "tree-sitter-javascript",
+  ".cjs": "tree-sitter-javascript",
+  ".cs": "tree-sitter-c-sharp",
 };
 
 /** Directory containing grammar WASM files. */

@@ -44,7 +44,7 @@ cross-references are flagged inline.
 | **adapter**             | A per-target module that knows one editor's or client's config location, format, and managed-region convention.                                      |
 | **managed block**       | A delimited, idempotent region the installer owns inside an otherwise user-owned config file (§6).                                                   |
 | **core-schema version** | The core-data-model contract version the binary implements (core-data-model §3.1/§5; [markspec-profile-schema.md §8.2](markspec-profile-schema.md)). |
-| **scope**               | Where config is written: `user` (the editor's per-user config) or `workspace` (the project, next to `markspec.yaml`).                                |
+| **scope**               | Where config is written: `user` (the editor's per-user config) or `workspace` (the project, next to a workspace marker — see §4.4).                  |
 
 ---
 
@@ -168,28 +168,29 @@ signing are Stage-2 concerns.
 
 ```text
 markspec lsp install --editor=<id> [--scope=user|workspace]
+                      [--binary-path=<path>]
                       [--print] [--force] [--no-color]
 ```
 
-| Flag            | Meaning                                                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--editor=<id>` | Required. One of the first-class adapter ids (§4.2). An unknown id errors with the list of known ids + a typo suggestion (clig.dev "suggest corrections").                     |
-| `--scope`       | `workspace` (default when a `markspec.yaml`/`.markspec.yaml` is found by walking up, §4.4) or `user`. Explicit flag overrides detection.                                       |
-| `--print`       | Write nothing; print the exact config block to **stdout** and the target path to **stderr** (clig.dev stream split). The universal fallback for any editor without an adapter. |
-| `--force`       | Apply the change without the interactive confirm (and the only way to write in a non-TTY context — §6.4).                                                                      |
-| `--no-color`    | Standard clig.dev color control; `NO_COLOR` env honored identically.                                                                                                           |
+| Flag                   | Meaning                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--editor=<id>`        | Required. One of the first-class adapter ids (§4.2). An unknown id errors with the list of known ids + a typo suggestion (clig.dev "suggest corrections").                                                                                                                                                                              |
+| `--scope`              | `workspace` (default when a workspace marker — `markspec.yaml`, `.markspec.yaml`, or `project.yaml` — is found by walking up, §4.4) or `user`. Explicit flag overrides detection.                                                                                                                                                       |
+| `--binary-path=<path>` | Override the binary path written into the adapter's managed block. Default is the invoked name `markspec` (relying on `PATH`), which survives package-manager upgrades — see §8 Q3 resolution. Use the flag for isolated builds (e.g. `./dist/markspec`) or Nix-store / asdf-shim layouts where pinning a resolved path is intentional. |
+| `--print`              | Write nothing; print the exact config block to **stdout** and the target path to **stderr** (clig.dev stream split). The universal fallback for any editor without an adapter.                                                                                                                                                          |
+| `--force`              | Apply the change without the interactive confirm (and the only way to write in a non-TTY context — §6.4).                                                                                                                                                                                                                               |
+| `--no-color`           | Standard clig.dev color control; `NO_COLOR` env honored identically.                                                                                                                                                                                                                                                                    |
 
 ### 4.2 First-class editor adapters (v1)
 
-| `--editor` id | Target                                  | Config artifact                                                   |
-| ------------- | --------------------------------------- | ----------------------------------------------------------------- |
-| `vscode`      | VS Code / VS Codium                     | Verifies the MarkSpec extension is the LSP host; see §4.3.        |
-| `neovim`      | Neovim (`nvim-lspconfig` or native LSP) | A Lua managed block in the user's MarkSpec LSP config fragment.   |
-| `zed`         | Zed                                     | A JSON managed region in `settings.json` `lsp` / language server. |
+| `--editor` id | Target                                  | Config artifact                                                 |
+| ------------- | --------------------------------------- | --------------------------------------------------------------- |
+| `vscode`      | VS Code / VS Codium                     | Verifies the MarkSpec extension is the LSP host; see §4.3.      |
+| `neovim`      | Neovim (`nvim-lspconfig` or native LSP) | A Lua managed block in the user's MarkSpec LSP config fragment. |
 
-Any other editor: `--print` only (a documented, copyable snippet). Adding an
-adapter later is additive and does not change the command surface (Open Question
-1).
+Any other editor — including Zed — uses `--print` only (a documented, copyable
+snippet). Two LSP adapters ship in v1; adding more later is additive and does
+not change the command surface (Open Question 1).
 
 ### 4.3 VS Code is extension-hosted
 
@@ -210,11 +211,26 @@ binary the user installed, never a divergent bundled copy (§2.2 last row).
 ### 4.4 Workspace detection
 
 `--scope=workspace` resolves the project root by walking up from the working
-directory for `markspec.yaml` / `.markspec.yaml` (the same discovery the profile
-loader uses — [markspec-profile-schema.md §2.2](markspec-profile-schema.md)). No
-project marker found and `--scope` not given explicitly → the installer selects
-`user` scope and says so on stderr (it never silently writes a workspace file
-into a non-project directory — clig.dev "explicit over implicit").
+directory for any of three workspace markers, in priority order:
+
+1. `markspec.yaml` (typed configuration)
+2. `.markspec.yaml` (dotfile configuration)
+3. `project.yaml` (legacy / mid-adoption convention)
+
+The first two match the profile loader's discovery rule
+([markspec-profile-schema.md §2.2](markspec-profile-schema.md)). `project.yaml`
+is accepted in addition so repos that have a project descriptor but have not yet
+adopted `.markspec.yaml` are still treated as workspaces for install purposes
+(§8 Q2 resolution). The installer does not parse the contents of any marker —
+its presence is the signal; the actual schema is the profile loader's concern.
+
+No marker found and `--scope` not given explicitly → the installer selects
+`user` scope and prints
+`markspec lsp install: no workspace marker found,
+using --scope=user` to stderr
+(it never silently writes a workspace file into a non-project directory —
+clig.dev "explicit over implicit"). The exact stderr phrasing is fixed here so
+automation can rely on it.
 
 ---
 
@@ -226,19 +242,25 @@ Symmetrical with §4:
 
 ```text
 markspec mcp install --client=<id> [--scope=user|workspace]
+                      [--binary-path=<path>]
                       [--print] [--force] [--no-color]
 ```
+
+`--binary-path` has identical semantics to the LSP install variant (§4.1 table):
+default is the invoked name `markspec`; pass an explicit path for isolated
+builds or path-pinning layouts.
 
 ### 5.2 First-class client adapters (v1)
 
 | `--client` id    | Target                | Config artifact                                                                       |
 | ---------------- | --------------------- | ------------------------------------------------------------------------------------- |
 | `claude-desktop` | Claude Desktop        | A JSON managed region under `mcpServers` in the Claude Desktop config file.           |
-| `cursor`         | Cursor                | A JSON managed region in the Cursor MCP config.                                       |
 | `vscode`         | VS Code (Copilot/MCP) | Verifies the shipped extension's MCP provider; see §5.3. No `.vscode/mcp.json` write. |
 
-Any other client: `--print` the stdio server definition (`command: markspec`,
-`args: ["mcp"]`) for manual paste.
+Any other client — including Cursor — uses `--print` to emit the stdio server
+definition (`command: markspec`, `args: ["mcp"]`) for manual paste. Two MCP
+adapters ship in v1; promotion to a first-class adapter is the topic of Open
+Question 1.
 
 ### 5.3 VS Code MCP is provider-hosted
 
@@ -351,29 +373,73 @@ clig.dev"; <https://clig.dev/>):
 
 ## 8. Open questions
 
-Capped at five (Prompt-3 constraint).
+Capped at five (Prompt-3 constraint). Three were resolved on 2026-05-25; their
+decisions are recorded inline so the rationale stays with the question.
 
-1. **Adapter growth policy.** v1 ships three LSP + three MCP adapters
-   (§4.2/§5.2). Who owns the criteria for promoting an editor from `--print` to
-   a first-class adapter, and is the adapter set versioned with the binary or
-   independently extensible (a hooks-style contribution, cf. ADR-008 §10)?
+1. **Adapter growth policy.** v1 ships two LSP + two MCP adapters (§4.2/§5.2 —
+   narrowed from the original three-per-surface scope on 2026-05-19). Who owns
+   the criteria for promoting an editor from `--print` to a first-class adapter,
+   and is the adapter set versioned with the binary or independently extensible
+   (a hooks-style contribution, cf. ADR-008 §10)?
 2. **`markspec.yaml` vs `.markspec.yaml` as the workspace marker.** §4.4 treats
    either as the project root signal, matching the profile loader. If a repo has
    `project.yaml` but no `.markspec.yaml`, is that still a workspace for
    install-scope purposes? (Touches
    [markspec-profile-schema.md §2.2](markspec-profile-schema.md) discovery.)
+
+   **Resolved (2026-05-25): `project.yaml` also counts as a workspace marker for
+   `markspec lsp install` / `markspec mcp install`.** §4.4 now accepts any of
+   `markspec.yaml`, `.markspec.yaml`, or `project.yaml` as the workspace signal.
+   Rationale: repos mid-adoption frequently have a `project.yaml` (the legacy /
+   cross-tool descriptor) but have not yet added `.markspec.yaml`; treating
+   those as `--scope=user` by default forces an explicit flag for the common
+   case. The looser rule does **not** change profile loading — the profile
+   loader still uses only the first two
+   ([markspec-profile-schema.md §2.2](markspec-profile-schema.md)). The install
+   command is the only consumer that reads `project.yaml` as a workspace signal;
+   its presence is checked, its contents are not parsed.
 3. **Binary self-path resolution.** Adapters must write the path to _this_
    binary. Under `deno compile` that is `Deno.execPath()`, but a symlinked /
    PATH-shimmed install may resolve to the shim. Should the installer write the
    resolved real path, the invoked name (`markspec`, relying on PATH), or make
    it a flag?
+
+   **Resolved (2026-05-25): the invoked name (`markspec`) is the default; an
+   explicit `--binary-path=<path>` flag is the override.** Writing a resolved
+   real path by default silently pins the editor to a specific binary version —
+   a real failure mode under version managers (asdf, mise, brew-cellar,
+   Nix-store) where `brew upgrade markspec` would leave the editor launching the
+   stale cellar path. The invoked name survives upgrades cleanly; §3.3's runtime
+   skew detection is the safety net when multiple `markspec` binaries end up on
+   `PATH`. The flag covers the genuine pinning cases (Nix-store,
+   `./dist/markspec` development builds, multi-version installs) without making
+   the default clever.
+
 4. **Backup retention.** §6.3 writes a timestamped backup on every apply.
    Unbounded backups accumulate. Is pruning (keep last N) in scope for the
    installer, or left to the user / OS?
+
+   **Resolved (2026-05-25): no pruning in v1; backup retention is the user's /
+   OS's responsibility.** Backups land only on _actual_ apply (idempotence §6.2
+   skips no-op re-runs), so accumulation is slow. Silent deletion of user files
+   contradicts §6.3's "preview every change" ethos. If real complaints arrive,
+   an opt-in `--keep-backups=N` flag can be added in a follow-up — YAGNI until
+   then.
+
 5. **VS Code verify-only vs offer-to-fix.** §4.3/§5.3 make VS Code verify-only.
    When the extension is absent entirely, should `install` attempt
    `code --install-extension`, or strictly stay out of the editor's extension
    manager and only print instructions?
+
+   **Resolved (2026-05-25): print instructions only; never invoke
+   `code --install-extension`.** Stays consistent with §4.3's already-committed
+   "verifies and reports, does not mutate config" posture for VS Code.
+   Auto-invoking `code --install-extension` invites a long tail of edge cases —
+   VS Codium and Cursor share the `code` binary but route to different
+   marketplaces; proxy/firewall blocks; publisher-id mismatches — and the
+   extension install bypasses the diff/preview/backup contract that §6.3 makes
+   load-bearing. The user cost of running one extra command is trivial; the
+   support tail of doing it ourselves is not.
 
 ---
 

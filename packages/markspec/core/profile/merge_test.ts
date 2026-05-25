@@ -38,6 +38,13 @@ function singleTierChain(yaml: string): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      kinds: new Map(),
+      prose: {
+        lexicons: {
+          "capitalized-allow": { value: [], origin: "" },
+          "sentence-abbrev": { value: [], origin: "" },
+        },
+      },
     },
   };
 }
@@ -136,6 +143,13 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      kinds: new Map(),
+      prose: {
+        lexicons: {
+          "capitalized-allow": { value: [], origin: "" },
+          "sentence-abbrev": { value: [], origin: "" },
+        },
+      },
     },
   };
 }
@@ -1079,4 +1093,323 @@ profile:
   const conv = result.effective!.conventions.get("modal-keywords");
   assertEquals(conv?.value.settings["casing"], "iso");
   assertEquals(conv?.origin, "@test/child");
+});
+
+// ---------------------------------------------------------------------------
+// prose.lexicons merge tests (Slice 1)
+// ---------------------------------------------------------------------------
+
+Deno.test("mergeChain: prose.lexicons.capitalized-allow seeds from root tier", () => {
+  const chain = singleTierChain(`
+id: "@test/root"
+version: 1.0.0
+profile:
+  prose:
+    lexicons:
+      capitalized-allow:
+        - ASIL
+        - IEC
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  assertEquals(
+    eff.prose.lexicons["capitalized-allow"].value,
+    ["ASIL", "IEC"],
+  );
+  assertEquals(eff.prose.lexicons["capitalized-allow"].origin, "@test/root");
+});
+
+Deno.test("mergeChain: prose.lexicons.sentence-abbrev seeds from root tier", () => {
+  const chain = singleTierChain(`
+id: "@test/root"
+version: 1.0.0
+profile:
+  prose:
+    lexicons:
+      sentence-abbrev:
+        - Fig.
+        - Sec.
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  assertEquals(
+    eff.prose.lexicons["sentence-abbrev"].value,
+    ["Fig.", "Sec."],
+  );
+});
+
+Deno.test("mergeChain: prose lexicons are list-additive across tiers", () => {
+  const chain = multiTierChain([
+    `
+id: "@test/parent"
+version: 1.0.0
+profile:
+  prose:
+    lexicons:
+      capitalized-allow:
+        - ASIL
+        - IEC
+      sentence-abbrev:
+        - Fig.
+`,
+    `
+id: "@test/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  prose:
+    lexicons:
+      capitalized-allow:
+        - NATO
+        - ASIL
+      sentence-abbrev:
+        - Sec.
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  // ASIL is a duplicate — deduplicated; NATO is new; parent order preserved.
+  assertEquals(
+    eff.prose.lexicons["capitalized-allow"].value,
+    ["ASIL", "IEC", "NATO"],
+  );
+  assertEquals(eff.prose.lexicons["capitalized-allow"].origin, "@test/child");
+  // sentence-abbrev: Fig. from parent, Sec. added by child.
+  assertEquals(
+    eff.prose.lexicons["sentence-abbrev"].value,
+    ["Fig.", "Sec."],
+  );
+  assertEquals(eff.prose.lexicons["sentence-abbrev"].origin, "@test/child");
+});
+
+Deno.test("mergeChain: prose lexicons default to empty when absent", () => {
+  const chain = singleTierChain(`
+id: "@test/no-prose"
+version: 1.0.0
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics.filter((d) => d.severity === "error"), []);
+  const eff = result.effective!;
+  assertEquals(eff.prose.lexicons["capitalized-allow"].value, []);
+  assertEquals(eff.prose.lexicons["sentence-abbrev"].value, []);
+});
+
+Deno.test("merge: kinds from a single tier are seeded with provenance", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: Embedded firmware
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  const fw = effective!.kinds.get("firmware");
+  assertEquals(fw?.value.description, "Embedded firmware");
+  assertEquals(fw?.origin, "p1");
+});
+
+Deno.test("merge: kinds union across tiers; child wins on description (provenance preserved)", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: from parent
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: from child
+    mechanical:
+      description: child only
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const fw = effective!.kinds.get("firmware");
+  assertEquals(fw?.value.description, "from child");
+  assertEquals(fw?.origin, "p2");
+  // `overrides` records the parent that lost the description battle.
+  assertEquals(fw?.overrides, ["p1"]);
+  const mech = effective!.kinds.get("mechanical");
+  assertEquals(mech?.origin, "p2");
+  // `mech` is an additive-only kind (no parent); no overrides chain.
+  assertEquals(mech?.overrides, undefined);
+});
+
+Deno.test("merge: per-type discipline is seeded from a single tier", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software
+`);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("SoftwareRequirement")?.value;
+  assertEquals(td?.discipline.value, "software");
+  assertEquals(td?.discipline.origin, "p1");
+});
+
+Deno.test("merge: child tier reassigning a type's discipline wins (LWW with provenance)", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: hardware
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("MyType")?.value;
+  assertEquals(td?.discipline.value, "hardware");
+  assertEquals(td?.discipline.origin, "p2");
+});
+
+Deno.test("merge: child adds discipline where parent had none", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("MyType")?.value;
+  assertEquals(td?.discipline.value, "software");
+  assertEquals(td?.discipline.origin, "p2");
+});
+
+Deno.test("merge: parent's discipline is preserved when child omits it", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      # no discipline — parent's value should survive
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("MyType")?.value;
+  assertEquals(td?.discipline.value, "software");
+  assertEquals(td?.discipline.origin, "p1");
+});
+
+Deno.test("merge: PROFILE-DISCIPLINE-004 when discipline references unknown kind", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    BadType:
+      extends: Requirement
+      discipline: nonsense
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(effective, null);
+  const d = diagnostics.find((d) => d.code === "PROFILE-DISCIPLINE-004");
+  assertEquals(d?.severity, "error");
+  assertEquals(d?.message.includes("nonsense"), true);
+  assertEquals(d?.message.includes("BadType"), true);
+});
+
+Deno.test("merge: PROFILE-DISCIPLINE-004 accepts profile-declared kinds", () => {
+  // Parent declares the kind; child references it. Order matters because
+  // validation runs after the full chain folds.
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: embedded
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: firmware
+`,
+  ]);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "PROFILE-DISCIPLINE-004").length,
+    0,
+  );
+  assertEquals(
+    effective?.types.get("MyType")?.value.discipline.value,
+    "firmware",
+  );
+});
+
+Deno.test("merge: PROFILE-DISCIPLINE-004 accepts core kinds (software/hardware/system)", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "PROFILE-DISCIPLINE-004").length,
+    0,
+  );
+  assertEquals(
+    effective?.types.get("MyType")?.value.discipline.value,
+    "software",
+  );
 });

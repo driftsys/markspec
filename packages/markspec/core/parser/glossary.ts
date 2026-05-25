@@ -40,9 +40,11 @@ export function deriveTermSlug(text: string): string {
 
 /**
  * Extract the plain-text content from a heading node by walking its
- * inline children and concatenating Text node values.
+ * inline children and concatenating `text` and `inlineCode` node values.
+ * Exported so the lint pipeline (`core/lint/glossary.ts`) can reuse the
+ * same convention without duplicating the walk.
  */
-function headingText(node: Heading): string {
+export function extractHeadingText(node: Heading): string {
   let text = "";
   for (const child of node.children) {
     if (child.type === "text") {
@@ -92,7 +94,7 @@ export function validateGlossaryStructure(
       const h = node as unknown as Heading;
       nodes.push({
         depth: h.depth,
-        text: headingText(h),
+        text: extractHeadingText(h),
         line: h.position?.start.line ?? 1,
         column: h.position?.start.column ?? 1,
       });
@@ -166,7 +168,7 @@ export function validateGlossaryStructure(
       events.push({
         kind: "heading",
         depth: h.depth,
-        text: headingText(h),
+        text: extractHeadingText(h),
         line: h.position?.start.line ?? 1,
         col: h.position?.start.column ?? 1,
       });

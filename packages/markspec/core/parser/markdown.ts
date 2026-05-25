@@ -16,9 +16,17 @@ import {
 } from "./attributes.ts";
 import { extractBodyTokens } from "./body_tokens.ts";
 import { processor } from "./remark.ts";
-import { buildBodyAst } from "../ast/build.ts";
+import { buildBodyAstWithTree } from "../ast/build.ts";
 import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
+import {
+  bridgeTyplDiagnostic,
+  extractTyplBullets,
+  extractTyplFences,
+  extractTyplInlines,
+  parseTyplBlock,
+  type TyplBlock,
+} from "../typl/mod.ts";
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
@@ -296,7 +304,7 @@ function extractEntry(
   const bodyContent = extractBodyContent(item, markdownLines);
   const [body, attrLines] = splitBodyAndAttributes(bodyContent);
   const attributes = parseAttributes(attrLines);
-  const bodyAst = buildBodyAst(body);
+  const { blocks: bodyAst, tree: mdastTree } = buildBodyAstWithTree(body);
 
   const entryLine = item.position?.start.line ?? 1;
 
@@ -524,11 +532,74 @@ function extractEntry(
   const bodyStartLine = hasLineMap
     ? (item.children[1]?.position?.start.line ?? (line + 1))
     : line + 1;
-  const bodyTokens = extractBodyTokens(body, bodyAst, {
-    file,
-    line: bodyStartLine,
-    column: 1,
-  }, bodyIndent);
+  const bodyTokens = extractBodyTokens(
+    body,
+    bodyAst,
+    {
+      file,
+      line: bodyStartLine,
+      column: 1,
+    },
+    bodyIndent,
+    mdastTree,
+  );
+
+  // Extract typl declarations from all three surfaces in the body:
+  // (1) ```typl fences, (2) bullet-glossary items, (3) inline code spans.
+  // Per-surface diagnostics are bridged to file-relative positions and
+  // pushed into the parser's diagnostic stream. Cross-entry collision
+  // detection lands in a later PR; this PR aggregates all intra-entry
+  // bindings + typedefs from every surface.
+  let types: TyplBlock | undefined;
+  const allBindings: TyplBlock["bindings"][number][] = [];
+  const allTypedefs: TyplBlock["typedefs"][number][] = [];
+
+  for (const fence of extractTyplFences(bodyAst)) {
+    const result = parseTyplBlock(fence.source);
+    allBindings.push(...result.ast.bindings);
+    allTypedefs.push(...result.ast.typedefs);
+    // Fence content starts on the line AFTER the opening ```, so the
+    // bridge offset is the file line of the opening fence.
+    const fenceFileStartLine = bodyStartLine + fence.range.start.line - 1;
+    for (const td of result.diagnostics) {
+      diagnostics.push(bridgeTyplDiagnostic(td, file, fenceFileStartLine));
+    }
+  }
+
+  for (const bullet of extractTyplBullets(bodyAst)) {
+    const result = parseTyplBlock(bullet.source);
+    allBindings.push(...result.ast.bindings);
+    allTypedefs.push(...result.ast.typedefs);
+    // A bullet item IS the typl content (single line). The bridge
+    // computes line as `offset + diag.position.line`; we want diag
+    // position.line 1 to map to the item's file line, so offset is
+    // `itemFileLine - 1` = `bodyStartLine + bullet.range.start.line - 2`.
+    const bulletFileOffset = bodyStartLine + bullet.range.start.line - 2;
+    for (const td of result.diagnostics) {
+      diagnostics.push(bridgeTyplDiagnostic(td, file, bulletFileOffset));
+    }
+  }
+
+  for (const inline of extractTyplInlines(bodyTokens)) {
+    const result = parseTyplBlock(inline.source);
+    allBindings.push(...result.ast.bindings);
+    allTypedefs.push(...result.ast.typedefs);
+    // inline.location is already file-relative (translated by the
+    // bodyTokens extractor). The bridge computes file line as
+    // `offset + diag.position.line`; for inline content where
+    // diag.position.line is 1 (single-line span), offset is
+    // `inline.location.line - 1`.
+    const inlineFileOffset = inline.location.line - 1;
+    for (const td of result.diagnostics) {
+      diagnostics.push(
+        bridgeTyplDiagnostic(td, inline.location.file, inlineFileOffset),
+      );
+    }
+  }
+
+  if (allBindings.length > 0 || allTypedefs.length > 0) {
+    types = { bindings: allBindings, typedefs: allTypedefs };
+  }
 
   return {
     displayId: makeDisplayId(displayId),
@@ -541,9 +612,11 @@ function extractEntry(
     type,
     shape,
     location: entryLocation,
+    bodyStartLine,
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
     bodyTokens,
+    ...(types ? { types } : {}),
   };
 }
 

@@ -8,6 +8,8 @@
 // (nodes.ts imports EntityRefConvention here); TypeScript resolves it
 // cleanly because both directions are `import type`.
 import type { BodyBlock } from "../ast/nodes.ts";
+import type { Discipline } from "./discipline.ts";
+import type { TyplBlock } from "../typl/mod.ts";
 
 export {
   ATTRIBUTE_CATALOG,
@@ -32,6 +34,14 @@ export { inferTypeFromUriScheme } from "./uri_scheme_map.ts";
 export { inferTypeFromSource } from "./source_introspection.ts";
 
 export { inferTypeFromDiscriminatingAttr } from "./discriminating_attr.ts";
+
+// Re-export discipline primitives (ADR-017 / ADR-018).
+export {
+  CORE_DISCIPLINE_REGISTRY,
+  CORE_KINDS,
+  MIXED_DISCIPLINE,
+} from "./discipline.ts";
+export type { Discipline, DisciplineRegistry } from "./discipline.ts";
 
 // ---------------------------------------------------------------------------
 // Display ID
@@ -190,7 +200,16 @@ export type TypedAttributes = ReadonlyMap<string, readonly string[]>;
 // ---------------------------------------------------------------------------
 
 /** Supported source-file languages for doc-comment extraction. */
-export type SupportedLanguage = "rust" | "kotlin" | "java" | "c" | "cpp";
+export type SupportedLanguage =
+  | "rust"
+  | "kotlin"
+  | "java"
+  | "c"
+  | "cpp"
+  | "typescript"
+  | "tsx"
+  | "javascript"
+  | "csharp";
 
 /** Which extractor rule produced a doc-comment entry. Distinguishes the
  * three lexical doc-comment styles MarkSpec recognises across grammars. */
@@ -431,6 +450,24 @@ export interface Entry {
   readonly shape: EntryShape;
   /** Where the entry was found. */
   readonly location: SourceLocation;
+  /**
+   * File-absolute 1-based line where the entry's body begins.
+   *
+   * Used by prose-analysis rules (MSL-Q500) to convert body-relative
+   * paragraph ranges (as produced by `buildBodyAst`) to file-absolute
+   * `LintDiagnostic.range` positions — the contract from slice 3.
+   *
+   * For `.md` entries this is `location.line + 1` (legacy convention
+   * shared with `bodyTokens`); for doc-comment entries it is the
+   * file-absolute line of the first non-title child after lineMap
+   * translation.
+   *
+   * Optional so existing test fixtures and pre-compiler pipeline
+   * stages that do not set this field can remain unchanged. Prose-analysis
+   * rules that need a file-absolute base line fall back to
+   * `location.line + 1` when absent.
+   */
+  readonly bodyStartLine?: number;
   /** Whether this came from a Markdown file or a doc comment. */
   readonly source: EntrySource;
   /**
@@ -444,6 +481,36 @@ export interface Entry {
    * Always present — empty array when no constructs are recognised.
    */
   readonly bodyTokens: readonly BodyToken[];
+  /**
+   * typl declarations extracted from typl-info-string fences in the
+   * entry body, if any. Absent when the entry contains no typl fences.
+   *
+   * Populated by the parser via {@linkcode extractTyplFences} +
+   * {@linkcode parseTyplBlock} aggregated across all fences in the
+   * entry. Per-fence diagnostics are bridged to file-relative core
+   * diagnostics and surface in the parser's diagnostic stream.
+   *
+   * See ADR-019.
+   */
+  readonly types?: TyplBlock;
+  /**
+   * Discipline kind resolved by the classifier per ADR-017 Invariant 1
+   * (channels 1–4 with default `system`).
+   *
+   * **Always set on entries returned from `compile()` after Phase 4** —
+   * external consumers reading the compiled output (reporter, serializer,
+   * LSP, MCP) can rely on this field being present. The optional `?:`
+   * modifier exists only because synthetic Entry literals (test fixtures)
+   * and parser-emitted entries before Phase 4 don't carry the field;
+   * these are internal pipeline states, not the public contract.
+   *
+   * Values are drawn from the active discipline registry (built-in
+   * `software` / `hardware` / `system` plus any profile-declared
+   * extensions); `"mixed"` is emitted when channel 4 sees `Allocated-to`
+   * targets resolving to more than one distinct kind. Authors never type
+   * this value directly.
+   */
+  readonly derivedDiscipline?: Discipline;
 }
 
 // ---------------------------------------------------------------------------
@@ -812,6 +879,7 @@ export type {
   EffectiveTypeDef,
   EnforcementMode,
   InverseDecl,
+  KindDecl,
   LabelConcern,
   LabelConcernKind,
   LabelValue,

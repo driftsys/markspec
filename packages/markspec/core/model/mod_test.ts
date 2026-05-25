@@ -5,7 +5,17 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { BodyToken, BodyTokenKind } from "./mod.ts";
+import type {
+  BodyToken,
+  BodyTokenKind,
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  KindDecl,
+  ProfileManifest,
+  TypeDef,
+} from "./mod.ts";
+import { makeDisplayId } from "./mod.ts";
 
 Deno.test("BodyToken: discriminated union exhaustiveness", () => {
   const modal: BodyToken = {
@@ -26,4 +36,107 @@ Deno.test("BodyToken: discriminated union exhaustiveness", () => {
     }
   }
   assertEquals(kindOf(modal), "modal");
+});
+
+Deno.test("Entry type accepts optional derivedDiscipline field", () => {
+  const entry: Entry = {
+    displayId: makeDisplayId("REQ_0001"),
+    title: "Test entry",
+    body: "",
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    shape: "Authored",
+    location: { file: "t.md", line: 1, column: 1 },
+    source: { kind: "markdown" },
+    bodyTokens: [],
+    derivedDiscipline: "software",
+  };
+  if (entry.derivedDiscipline !== "software") throw new Error("unreachable");
+});
+
+Deno.test("Entry type allows derivedDiscipline to be omitted (optional field)", () => {
+  // Pre-Phase-4 entries (e.g. parser-emitted) don't carry derivedDiscipline.
+  // The optional shape matches the existing bodyAst?: precedent.
+  const entry: Entry = {
+    displayId: makeDisplayId("REQ_0002"),
+    title: "Test entry without discipline",
+    body: "",
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    shape: "Authored",
+    location: { file: "t.md", line: 1, column: 1 },
+    source: { kind: "markdown" },
+    bodyTokens: [],
+  };
+  if (entry.derivedDiscipline !== undefined) throw new Error("unreachable");
+});
+
+Deno.test("Slice 2 model: KindDecl + kinds/discipline fields type-check", () => {
+  // KindDecl is a tiny record with an optional description.
+  const kd: KindDecl = { description: "Embedded firmware modules" };
+  if (kd.description !== "Embedded firmware modules") {
+    throw new Error("unreachable");
+  }
+
+  // ProfileManifest gains a kinds map.
+  const manifest: ProfileManifest = {
+    id: "x",
+    version: "0",
+    universalAttributes: [],
+    labels: [],
+    conventions: [],
+    colors: new Map(),
+    types: new Map(),
+    documents: { types: [], frontMatter: [] },
+    kinds: new Map<string, KindDecl>([["firmware", {}]]),
+    prose: { lexicons: { "capitalized-allow": [], "sentence-abbrev": [] } },
+  };
+  if (!manifest.kinds.has("firmware")) throw new Error("unreachable");
+
+  // TypeDef gains an optional discipline string.
+  const td: TypeDef = {
+    name: "SoftwareRequirement",
+    extends: "Requirement",
+    displayIdPatternEnforcement: "off",
+    required: [],
+    attributes: [],
+    traceability: new Map(),
+    discipline: "software",
+  };
+  if (td.discipline !== "software") throw new Error("unreachable");
+
+  // EffectiveProfile gains a provenanced kinds map.
+  const ep: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map(),
+    documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "x" },
+        "sentence-abbrev": { value: [], origin: "x" },
+      },
+    },
+  };
+  if (ep.kinds.size !== 0) throw new Error("unreachable");
+
+  // EffectiveTypeDef gains a provenanced discipline value.
+  const etd: EffectiveTypeDef = {
+    name: "SoftwareRequirement",
+    extends: "Requirement",
+    displayIdPattern: { value: undefined, origin: "x" },
+    displayIdPatternEnforcement: { value: "off", origin: "x" },
+    color: { value: undefined, origin: "x" },
+    required: { value: [], origin: "x" },
+    attributes: new Map(),
+    traceability: new Map(),
+    description: { value: undefined, origin: "x" },
+    attrDescriptions: new Map(),
+    relationDescriptions: new Map(),
+    discipline: { value: "software", origin: "x" },
+  };
+  if (etd.discipline.value !== "software") throw new Error("unreachable");
 });

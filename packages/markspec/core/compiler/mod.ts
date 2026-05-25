@@ -22,7 +22,10 @@ import {
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
+import { type TypeRegistry, validateTypl } from "../typl/mod.ts";
+import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
+import { classifyDiscipline } from "./discipline_classifier.ts";
 import { generateInverses } from "./inverses.ts";
 import { checkLinkTargets } from "./link_target.ts";
 
@@ -147,6 +150,11 @@ export interface CompileResult {
   readonly documents: ReadonlyMap<string, Document>;
   /** Diagnostics from parsing and validation. */
   readonly diagnostics: readonly Diagnostic[];
+  /**
+   * Corpus-wide index of typl bindings and typedefs across all entries.
+   * See ADR-019. Built by validateTypl during compile.
+   */
+  readonly typeRegistry: TypeRegistry;
 }
 
 /**
@@ -311,6 +319,23 @@ export async function compile(
     }
   }
 
+  // Phase 4: Classify each entry's discipline per ADR-017 Invariant 1
+  // (channels 3 + 4 + default — override and freeze ship in Slice 3).
+  // The effective registry is built once per compile() from the active
+  // profile chain; null falls back to the core seed.
+  {
+    const registry = buildEffectiveDisciplineRegistry(options.profile ?? null);
+    const classified: Entry[] = [];
+    for (const entry of entries.values()) {
+      const discipline = classifyDiscipline(entry, entries, registry);
+      classified.push({ ...entry, derivedDiscipline: discipline });
+    }
+    entries.clear();
+    for (const entry of classified) {
+      entries.set(entry.displayId, entry);
+    }
+  }
+
   const authoredLinks = extractLinks([...entries.values()]);
   const links = [...authoredLinks, ...generatedLinks];
 
@@ -320,13 +345,28 @@ export async function compile(
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 
+  // Build the corpus typl registry. validateTypl is also called inside
+  // validate() (via validationDiagnostics) for the cross-entry TYPL
+  // diagnostics. Here we call it again only to capture the registry — the
+  // diagnostics are already included in validationDiagnostics, so we discard
+  // them to avoid duplicates in the output.
+  const { registry: typeRegistry } = validateTypl([...entries.values()]);
+
   const diagnostics = [
     ...parseDiagnostics,
     ...validationDiagnostics,
     ...linkTargetDiags,
   ];
 
-  return { entries, links, forward, reverse, documents, diagnostics };
+  return {
+    entries,
+    links,
+    forward,
+    reverse,
+    documents,
+    diagnostics,
+    typeRegistry,
+  };
 }
 
 /** Extract traceability links from entry attributes. */
@@ -407,7 +447,11 @@ function buildAdjacency(
 
 // Re-export serialization helper.
 export { serializeCompileResult } from "./schema.ts";
-export type { SerializedCompileResult, SerializedEntry } from "./schema.ts";
+export type {
+  SerializedCompileResult,
+  SerializedEntry,
+  SerializedTypeRegistry,
+} from "./schema.ts";
 
 // Re-export inverse generation.
 export { generateInverses } from "./inverses.ts";

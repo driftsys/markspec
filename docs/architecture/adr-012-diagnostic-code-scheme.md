@@ -130,22 +130,22 @@ review's largest section cannot be closed.
 - The dual-emit deprecation-window mechanism and its duration.
 - Downstream-consumer (suppression comments, CI, `refhub`) migration tooling.
 
-## Amendment (ADR-019): MSL-L and MSL-S diagnostic families
+## Amendment (ADR-022): MSL-L and MSL-S diagnostic families
 
-ADR-019 (lockfile + external sync) introduces two new code families that extend
+ADR-022 (lockfile + external sync) introduces two new code families that extend
 the `language.md` §8 scheme without conflicting with existing families. They are
 recorded here as a bounded addition — the same pattern as the bounded exception
 for `MSL-B044`/`MSL-C072` in §Decision-6. The families follow the existing
 naming convention and are stable from their first emission.
 
-### Family overview (ADR-019 additions)
+### Family overview (ADR-022 additions)
 
 | Family     | Concern                                                                | Authority |
 | ---------- | ---------------------------------------------------------------------- | --------- |
-| `MSL-L###` | Lockfile (parse / resolution / drift)                                  | ADR-019   |
-| `MSL-S###` | External sync (mapping schema / locked-attr lint / cross-system / I/O) | ADR-019   |
+| `MSL-L###` | Lockfile (parse / resolution / drift)                                  | ADR-022   |
+| `MSL-S###` | External sync (mapping schema / locked-attr lint / cross-system / I/O) | ADR-022   |
 
-### MSL-L (Lockfile, ADR-019)
+### MSL-L (Lockfile, ADR-022)
 
 | Sub-range | Concern                                                        |
 | --------- | -------------------------------------------------------------- |
@@ -171,7 +171,7 @@ Individual codes shipped to `main`:
 | MSL-L211 | error    | Profile resolved-version drift                          |
 | MSL-L212 | error    | Canonical edge hash drift                               |
 
-### MSL-S (External sync, ADR-019)
+### MSL-S (External sync, ADR-022)
 
 | Sub-range | Concern                           |
 | --------- | --------------------------------- |

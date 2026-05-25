@@ -14,10 +14,13 @@ export const CORE_SCHEMA_VERSION = 1;
 // Model types
 export {
   ConfigError,
+  CORE_DISCIPLINE_REGISTRY,
+  CORE_KINDS,
   DEFAULT_PROJECT_CONFIG,
   KNOWN_LINK_KINDS,
   makeDisplayId,
   makeUlid,
+  MIXED_DISCIPLINE,
   PALETTE_HUES,
   REFHUB_URL,
 } from "./model/mod.ts";
@@ -31,6 +34,8 @@ export type {
   ConfigFieldError,
   Diagnostic,
   Directive,
+  Discipline,
+  DisciplineRegistry,
   DisplayId,
   EarsTrigger,
   EffectiveProfile,
@@ -41,6 +46,7 @@ export type {
   EntrySource,
   ExtractorRule,
   InlineRef,
+  KindDecl,
   LabelConcern,
   LabelConcernKind,
   LabelValue,
@@ -134,6 +140,7 @@ export type {
   RunGitResult,
 } from "./profile/mod.ts";
 
+export { buildEffectiveDisciplineRegistry } from "./profile/mod.ts";
 export { buildProfileIntrospection } from "./profile/mod.ts";
 export type {
   AttributeDetail,
@@ -218,6 +225,7 @@ export type {
   GenerateInversesResult,
   SerializedCompileResult,
   SerializedEntry,
+  SerializedTypeRegistry,
 } from "./compiler/mod.ts";
 export { buildManifest } from "./compiler/manifest.ts";
 export type {
@@ -247,7 +255,9 @@ export type {
 export { isProseScope, runLint } from "./lint/mod.ts";
 export type { LintDiagnostic, LintOptions, LintResult } from "./lint/mod.ts";
 
-// ── Lockfile (ADR-019) ───────────────────────────────────────────────────
+export * as typl from "./typl/mod.ts";
+
+// ── Lockfile (ADR-022) ───────────────────────────────────────────────────
 export {
   canonicalEdgeJson,
   checkDrift,
@@ -287,7 +297,7 @@ export type {
   UpstreamRegistry,
 } from "./lock/mod.ts";
 
-// ── External sync model (ADR-019) ────────────────────────────────────────
+// ── External sync model (ADR-022) ────────────────────────────────────────
 export {
   aggregateStatusByState,
   encodeLogLine,

@@ -659,9 +659,10 @@ defined in your profile.
 `Derived-from:`, `Verified-by:`, etc.) the server suggests all known display IDs
 in the project.
 
-**Source file context guard** — in source files (Rust, Kotlin, Java, C, C++),
-completions only activate near entry markers or trace keywords. The server won't
-interfere with your language's native LSP (rust-analyzer, kotlin-lsp, etc.).
+**Source file context guard** — in source files (Rust, Kotlin, Java, C, C++,
+TypeScript, TSX, JavaScript, C#), completions only activate near entry markers
+or trace keywords. The server won't interfere with your language's native LSP
+(rust-analyzer, kotlin-lsp, etc.).
 
 ### VS Code
 

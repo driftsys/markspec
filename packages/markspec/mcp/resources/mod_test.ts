@@ -28,6 +28,7 @@ function mkProject(entries: Entry[]): Project {
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: { bindings: new Map(), typedefs: new Map() },
   };
   const chain: ProfileChain | null = null;
   return {

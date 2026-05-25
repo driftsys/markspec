@@ -1,4 +1,4 @@
-# ADR-019 — Lockfile and external sync — design decisions for v1.0
+# ADR-022 — Lockfile and external sync — design decisions for v1.0
 
 Status: Accepted (2026-05-25)\
 Supersedes: none\

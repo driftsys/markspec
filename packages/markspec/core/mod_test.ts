@@ -176,9 +176,24 @@ Deno.test("report produces traceability output", () => {
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: { bindings: new Map(), typedefs: new Map() },
   };
   const opts: ReportOptions = { kind: "traceability", format: "md" };
   const output = report(emptyResult, opts);
   // Should at least contain the header row
   assertEquals(output.includes("ID"), true);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-017 Slice 2 public-API surface
+// ---------------------------------------------------------------------------
+
+import { buildEffectiveDisciplineRegistry, type KindDecl } from "./mod.ts";
+
+Deno.test("core/mod.ts re-exports Slice 2 surface", () => {
+  // buildEffectiveDisciplineRegistry: callable with null.
+  const reg = buildEffectiveDisciplineRegistry(null);
+  assertEquals(reg.get("SoftwareComponent"), "software");
+  // KindDecl: type-level only (compile-time check).
+  const _kd: KindDecl = { description: "test" };
 });

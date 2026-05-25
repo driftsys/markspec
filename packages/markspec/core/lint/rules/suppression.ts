@@ -13,11 +13,20 @@ import type { Entry, SourceLocation } from "../../model/mod.ts";
 import type { LintDiagnostic } from "../types.ts";
 import { LEXICON_RULE_CODES } from "./lexicon.ts";
 import { STRUCT_RULE_CODES } from "./struct.ts";
+import { EARS_RULE_CODES } from "./ears.ts";
+import { MODAL_SENTENCE_RULE_CODES } from "./modal_sentence.ts";
+import { INCOSE_SENTENCE_RULE_CODES } from "./incose_sentence.ts";
 
-/** All rule codes shipped in PA-1. MSL-Q900/Q901 are self-referential. */
+/** All rule codes shipped in PA-1 through PA-3 (slices 1–8).
+ * MSL-Q900/Q901 are self-referential. */
 export const PA1_KNOWN_RULE_CODES: ReadonlySet<string> = new Set([
   ...LEXICON_RULE_CODES,
   ...STRUCT_RULE_CODES,
+  ...EARS_RULE_CODES,
+  ...MODAL_SENTENCE_RULE_CODES,
+  ...INCOSE_SENTENCE_RULE_CODES,
+  // Q500: xref-glossary-undefined (slice 5)
+  "MSL-Q500",
   "MSL-Q900",
   "MSL-Q901",
 ]);

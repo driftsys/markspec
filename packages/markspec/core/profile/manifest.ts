@@ -12,13 +12,16 @@ import {
   type AttrDecl,
   type Cardinality,
   COLOR_NAME_RE,
+  CORE_KINDS,
   CORE_TYPES,
   type DocTypeDef,
   type EnforcementMode,
+  type KindDecl,
   type LabelConcern,
   type LabelConcernKind,
   type LabelValue,
   LIST_VALUE_TYPES,
+  MIXED_DISCIPLINE,
   PALETTE_HUES,
   type ProfileConvention,
   type ProfileSpecifier,
@@ -48,6 +51,8 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "conventions",
   "types",
   "documents",
+  "kinds",
+  "prose",
 ]);
 
 const ALLOWED_TYPE_KEYS = new Set([
@@ -59,6 +64,7 @@ const ALLOWED_TYPE_KEYS = new Set([
   "attributes",
   "traceability",
   "color",
+  "discipline",
 ]);
 
 const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
@@ -616,6 +622,104 @@ function parseColorsMap(
   return out;
 }
 
+/**
+ * Parse the `profile.kinds:` block. Each key must match COLOR_NAME_RE
+ * (the same lexical rule used for color names — lowercase letters,
+ * digits, hyphens, starting with a letter). Values may be:
+ *   - `null` / `undefined` — declare the kind with no description.
+ *   - a bare string — treated as the description shorthand.
+ *   - a mapping with optional `description:`.
+ *
+ * Validation:
+ *   - PROFILE-DISCIPLINE-001 (error): name fails the regex.
+ *   - PROFILE-DISCIPLINE-002 (error): name is the reserved sentinel
+ *     `MIXED_DISCIPLINE` ("mixed").
+ *   - PROFILE-DISCIPLINE-003 (warning): name shadows a core kind
+ *     (`system`/`software`/`hardware`).
+ */
+function parseKindsMap(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): Map<string, KindDecl> {
+  const out = new Map<string, KindDecl>();
+  if (raw === undefined) return out;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "profile.kinds: must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return out;
+  }
+  for (
+    const [name, value] of Object.entries(raw as Record<string, unknown>)
+  ) {
+    if (name === MIXED_DISCIPLINE) {
+      diagnostics.push({
+        code: "PROFILE-DISCIPLINE-002",
+        severity: "error",
+        message:
+          `profile.kinds: '${name}' is a reserved sentinel name; choose a different kind name`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    if (!COLOR_NAME_RE.test(name)) {
+      diagnostics.push({
+        code: "PROFILE-DISCIPLINE-001",
+        severity: "error",
+        message:
+          `profile.kinds: '${name}' is not a valid kind name (lowercase letters, digits, hyphens; must start with a letter)`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    if (CORE_KINDS.has(name)) {
+      diagnostics.push({
+        code: "PROFILE-DISCIPLINE-003",
+        severity: "warning",
+        message:
+          `profile.kinds: '${name}' redeclares a core kind (already shipped by markspec core); the declaration is idempotent and will be ignored`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    let description: string | undefined;
+    if (value === null || value === undefined) {
+      // declaration only
+    } else if (typeof value === "string") {
+      description = value;
+    } else if (typeof value === "object" && !Array.isArray(value)) {
+      const r = value as Record<string, unknown>;
+      if (r.description !== undefined && typeof r.description !== "string") {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message: `profile.kinds.${name}: 'description' must be a string`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+        continue;
+      }
+      description = typeof r.description === "string"
+        ? r.description
+        : undefined;
+    } else {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message:
+          `profile.kinds.${name}: value must be null, a string, or a mapping with 'description'`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      continue;
+    }
+    out.set(name, description !== undefined ? { description } : {});
+  }
+  return out;
+}
+
 const KNOWN_CONVENTIONS = new Set(["modal-keywords"]);
 const MODAL_KEYWORDS_CASING_VALUES = new Set(["rfc2119", "iso", "preserve"]);
 
@@ -845,6 +949,60 @@ function parseConventions(
   return out;
 }
 
+/**
+ * Parse the `profile.prose:` section. Returns a normalized object with
+ * the two lexicon lists; absent lists default to `[]`.
+ */
+function parseProse(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): ProfileManifest["prose"] {
+  const empty: ProfileManifest["prose"] = {
+    lexicons: { "capitalized-allow": [], "sentence-abbrev": [] },
+  };
+  if (raw === undefined || raw === null) return empty;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "'profile.prose' must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return empty;
+  }
+  const r = raw as Record<string, unknown>;
+  const lexRaw = r.lexicons;
+  if (lexRaw === undefined || lexRaw === null) {
+    return empty;
+  }
+  if (typeof lexRaw !== "object" || Array.isArray(lexRaw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "'profile.prose.lexicons' must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return empty;
+  }
+  const lex = lexRaw as Record<string, unknown>;
+  const capAllow = parseStringList(
+    lex["capitalized-allow"],
+    "profile.prose.lexicons.capitalized-allow",
+    sourcePath,
+    diagnostics,
+  );
+  const sentAbbrev = parseStringList(
+    lex["sentence-abbrev"],
+    "profile.prose.lexicons.sentence-abbrev",
+    sourcePath,
+    diagnostics,
+  );
+  return {
+    lexicons: { "capitalized-allow": capAllow, "sentence-abbrev": sentAbbrev },
+  };
+}
+
 function parseTypeDef(
   name: string,
   raw: unknown,
@@ -940,6 +1098,21 @@ function parseTypeDef(
     color = r.color;
   }
 
+  // PROFILE-DISCIPLINE-005 (error): value is not a non-empty string.
+  let discipline: string | undefined;
+  if (r.discipline !== undefined) {
+    if (typeof r.discipline !== "string" || r.discipline.length === 0) {
+      diagnostics.push({
+        code: "PROFILE-DISCIPLINE-005",
+        severity: "error",
+        message: `${ctx}: 'discipline' must be a non-empty string`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    discipline = r.discipline;
+  }
+
   const description = typeof r.description === "string"
     ? r.description
     : undefined;
@@ -973,6 +1146,7 @@ function parseTypeDef(
     traceability,
     color,
     description,
+    discipline,
   };
 }
 
@@ -1226,6 +1400,11 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
+  const kinds = parseKindsMap(
+    profileSection.kinds,
+    sourcePath,
+    diagnostics,
+  );
   const conventions = parseConventions(
     profileSection.conventions,
     sourcePath,
@@ -1246,6 +1425,11 @@ export function parseManifest(
     sourcePath,
     diagnostics,
   );
+  if (diagnostics.some((d) => d.severity === "error")) {
+    return { manifest: null, diagnostics };
+  }
+
+  const prose = parseProse(profileSection.prose, sourcePath, diagnostics);
   if (diagnostics.some((d) => d.severity === "error")) {
     return { manifest: null, diagnostics };
   }
@@ -1277,6 +1461,8 @@ export function parseManifest(
     colors,
     types: types,
     documents: documents,
+    kinds,
+    prose,
   };
 
   return { manifest, diagnostics };

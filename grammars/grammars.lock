@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-06T07:56:40.610Z",
+  "generated": "2026-05-25T14:01:20.819Z",
   "grammars": [
     {
       "file": "tree-sitter-rust.wasm",
@@ -35,6 +35,34 @@
       "package": "tree-sitter-cpp",
       "version": "0.23.4",
       "sha256": "174eb0deb75b2ec7881bcacda9f995648d8e683956e5c2267e69ab6dc503fcbf"
+    },
+    {
+      "file": "tree-sitter-typescript.wasm",
+      "source": "npm",
+      "package": "tree-sitter-typescript",
+      "version": "0.23.2",
+      "sha256": "778025db5a8be0e70f8ccc3671e486dfeddd048c25d9e8a70c26de2e1bf6f97d"
+    },
+    {
+      "file": "tree-sitter-tsx.wasm",
+      "source": "npm",
+      "package": "tree-sitter-typescript",
+      "version": "0.23.2",
+      "sha256": "79e5da75ea62855a0cd67177685f0164eac87d5f630b3cbe1e0a099751ad30f8"
+    },
+    {
+      "file": "tree-sitter-javascript.wasm",
+      "source": "npm",
+      "package": "tree-sitter-javascript",
+      "version": "0.23.1",
+      "sha256": "4a378293fe7853cbee2836023be072dafa0e53b3b5edb245920838ca834ed121"
+    },
+    {
+      "file": "tree-sitter-c-sharp.wasm",
+      "source": "npm",
+      "package": "tree-sitter-c-sharp",
+      "version": "0.23.1",
+      "sha256": "d7fe0bf8e8b8d26b2b253f375e3c43386b332d23f7b7b3e15d49fff180fe46e3"
     }
   ]
 }

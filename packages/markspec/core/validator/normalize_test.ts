@@ -35,6 +35,13 @@ function profile(opts: {
     conventions: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 }
 
@@ -209,11 +216,19 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
           description: { value: undefined, origin },
           attrDescriptions: new Map(),
           relationDescriptions: new Map(),
+          discipline: { value: undefined, origin },
         },
         origin,
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
   const e = entry({
     shape: "Authored",

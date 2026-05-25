@@ -36,6 +36,7 @@ import {
   type Diagnostic as CoreDiagnostic,
   discoverProjectRoot,
   type EffectiveProfile,
+  format,
   loadConfig,
   loadProfileForCommand,
   type Lockfile,
@@ -45,6 +46,7 @@ import {
   VERSION,
 } from "../core/mod.ts";
 import { WorkspaceIndex } from "./workspace.ts";
+import { buildFormattingEdits } from "./formatting.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildCodeActions } from "./code_actions.ts";
 import { entryToLspLocation } from "./definition.ts";
@@ -88,6 +90,12 @@ import {
   uriToPath,
 } from "./util.ts";
 import { debugLog } from "./debug_log.ts";
+import {
+  buildDollarNameCompletions,
+  dollarNameAtPosition,
+  formatTyplHoverContent,
+  isDollarNameTrigger,
+} from "./typl.ts";
 
 // ---------------------------------------------------------------------------
 // Connection and document manager
@@ -342,6 +350,7 @@ connection.onInitialize(
         renameProvider: { prepareProvider: true },
         foldingRangeProvider: true,
         documentHighlightProvider: true,
+        documentFormattingProvider: true,
         codeActionProvider: { codeActionKinds: ["quickfix"] },
         semanticTokensProvider: {
           legend: {
@@ -558,6 +567,18 @@ connection.onCompletion((params): CompletionItem[] => {
     }));
   }
 
+  // Trigger 5: $Name identifier — typl binding names from the corpus registry.
+  if (isDollarNameTrigger(line)) {
+    const registry = index.getTypeRegistry();
+    const items = buildDollarNameCompletions(registry);
+    return items.map((item) => ({
+      label: item.label,
+      detail: item.detail,
+      documentation: item.documentation,
+      kind: CompletionItemKind.Variable,
+    }));
+  }
+
   return [];
 });
 
@@ -611,6 +632,16 @@ connection.onHover((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
+
+  // Try typl $Name token first — it takes priority over display-ID lookup.
+  const dollarName = dollarNameAtPosition(line, params.position.character);
+  if (dollarName) {
+    const registry = index.getTypeRegistry();
+    const hoverContent = formatTyplHoverContent(dollarName, registry);
+    if (hoverContent) {
+      return { contents: { kind: "markdown", value: hoverContent } };
+    }
+  }
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
@@ -803,6 +834,31 @@ connection.onCodeAction((params) => {
   );
   // deno-lint-ignore no-explicit-any
   return actions as any;
+});
+
+// ---------------------------------------------------------------------------
+// Document formatting (wraps core/formatter — same code path as `markspec format`)
+// ---------------------------------------------------------------------------
+
+connection.onDocumentFormatting((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+
+  const filePath = uriToPath(params.textDocument.uri);
+  // Spec §3.4: non-MarkSpec files MUST return an empty TextEdit[], not null
+  // (null would be interpreted as "no opinion" / fall through to other formatters).
+  if (!isMarkspecFile(filePath)) return [];
+
+  const currentText = document.getText();
+  const result = format(currentText, { file: filePath });
+
+  // On parse failure the formatter returns `output === input` and emits
+  // diagnostics via its existing channel — clients see them through the
+  // ordinary publishDiagnostics flow. Returning `null` here would be wrong
+  // (the client would interpret it as "server has no opinion"); returning
+  // an empty TextEdit[] is the spec-conforming "no edits to apply" reply.
+  // deno-lint-ignore no-explicit-any
+  return buildFormattingEdits(currentText, result.output) as any;
 });
 
 // ---------------------------------------------------------------------------

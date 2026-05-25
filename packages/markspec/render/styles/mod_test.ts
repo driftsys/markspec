@@ -48,6 +48,7 @@ function buildCompiled(
     reverse: new Map(),
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: { bindings: new Map(), typedefs: new Map() },
   };
 }
 

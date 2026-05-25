@@ -6,6 +6,7 @@
 
 import { assert, assertEquals } from "@std/assert";
 import {
+  JS_LIKE_ENCLOSING_TYPES,
   LANGUAGE_SPECS,
   languageIdForExtension,
   type SupportedLanguage,
@@ -23,6 +24,13 @@ Deno.test("languageIdForExtension: maps every supported extension", () => {
   assertEquals(languageIdForExtension(".cxx"), "cpp");
   assertEquals(languageIdForExtension(".hpp"), "cpp");
   assertEquals(languageIdForExtension(".hxx"), "cpp");
+  assertEquals(languageIdForExtension(".ts"), "typescript");
+  assertEquals(languageIdForExtension(".tsx"), "tsx");
+  assertEquals(languageIdForExtension(".jsx"), "tsx");
+  assertEquals(languageIdForExtension(".js"), "javascript");
+  assertEquals(languageIdForExtension(".mjs"), "javascript");
+  assertEquals(languageIdForExtension(".cjs"), "javascript");
+  assertEquals(languageIdForExtension(".cs"), "csharp");
 });
 
 Deno.test("languageIdForExtension: returns undefined for unknown extension", () => {
@@ -31,10 +39,31 @@ Deno.test("languageIdForExtension: returns undefined for unknown extension", () 
 });
 
 Deno.test("LANGUAGE_SPECS: every SupportedLanguage has a row", () => {
-  const ids: SupportedLanguage[] = ["rust", "kotlin", "java", "c", "cpp"];
-  for (const id of ids) {
+  // Cross-check against the union so a hand-typed list cannot drift.
+  // The `satisfies` clause forces every union member to appear in `expected`.
+  const expected = [
+    "rust",
+    "kotlin",
+    "java",
+    "c",
+    "cpp",
+    "typescript",
+    "tsx",
+    "javascript",
+    "csharp",
+  ] as const satisfies readonly SupportedLanguage[];
+  const actual = Object.keys(LANGUAGE_SPECS).sort();
+  assertEquals(actual, [...expected].sort());
+  for (const id of expected) {
     assert(LANGUAGE_SPECS[id], `missing spec row for ${id}`);
   }
+});
+
+Deno.test("LANGUAGE_SPECS.tsx: shares the same object reference as typescript", () => {
+  // TSX is a strict superset of TS for the items we care about; both rows
+  // deliberately point at the same spec object so any future change to
+  // typescriptSpec automatically applies to TSX with zero drift risk.
+  assert(LANGUAGE_SPECS.tsx === LANGUAGE_SPECS.typescript);
 });
 
 Deno.test("LANGUAGE_SPECS.rust: block/line type names and predicates", () => {
@@ -87,10 +116,22 @@ Deno.test("LANGUAGE_SPECS.c: same shape as cpp", () => {
   assertEquals(spec.isDocLine("/* block */"), false);
 });
 
+Deno.test("LANGUAGE_SPECS.csharp: shared 'comment' node type with XML doc-line", () => {
+  const spec = LANGUAGE_SPECS.csharp;
+  assertEquals(spec.blockCommentTypes, ["comment"]);
+  assertEquals(spec.lineCommentTypes, ["comment"]);
+  assertEquals(spec.isDocBlock("/** javadoc-ish */"), true);
+  assertEquals(spec.isDocBlock("// not block"), false);
+  assertEquals(spec.isDocLine("/// xml doc"), true);
+  // C# has no //! inner-doc form (Rust-only).
+  assertEquals(spec.isDocLine("//! inner"), false);
+  assertEquals(spec.isDocLine("/* block */"), false);
+});
+
 Deno.test(
   "LANGUAGE_SPECS: each row has enclosingItemTypes + attributeSkipTypes + itemName",
   () => {
-    const ids: SupportedLanguage[] = ["rust", "kotlin", "java", "c", "cpp"];
+    const ids = Object.keys(LANGUAGE_SPECS) as SupportedLanguage[];
     for (const id of ids) {
       const spec = LANGUAGE_SPECS[id];
       assert(
@@ -138,8 +179,51 @@ Deno.test(
 );
 
 Deno.test(
+  "LANGUAGE_SPECS.csharp: enclosingItemTypes covers class/struct/interface/record/method",
+  () => {
+    const t = LANGUAGE_SPECS.csharp.enclosingItemTypes;
+    assert(t.includes("class_declaration"));
+    assert(t.includes("struct_declaration"));
+    assert(t.includes("interface_declaration"));
+    assert(t.includes("record_declaration"));
+    assert(t.includes("method_declaration"));
+    assert(t.includes("namespace_declaration"));
+    assert(t.includes("file_scoped_namespace_declaration"));
+  },
+);
+
+Deno.test(
   "LANGUAGE_SPECS: rust attribute_item is in rust attributeSkipTypes",
   () => {
     assert(LANGUAGE_SPECS.rust.attributeSkipTypes.includes("attribute_item"));
+  },
+);
+
+Deno.test(
+  "LANGUAGE_SPECS.typescript / javascript: every non-wrapper enclosing type is recognised by jsLikeItemName",
+  () => {
+    // Drift guard. `jsLikeItemName` recursively unwraps `export_statement`
+    // and `expression_statement` wrappers, then looks up child nodes in
+    // JS_LIKE_ENCLOSING_TYPES. If a non-wrapper type appears in a spec's
+    // `enclosingItemTypes` array but not in JS_LIKE_ENCLOSING_TYPES, the
+    // walker would stop on it and the extractor would silently return
+    // undefined when reached via an export/expression wrapper. This test
+    // pins the invariant so the next person adding a node type can't
+    // forget to update both sides.
+    const WRAPPER_TYPES = new Set(["export_statement", "expression_statement"]);
+    for (
+      const [id, types] of [
+        ["typescript", LANGUAGE_SPECS.typescript.enclosingItemTypes],
+        ["javascript", LANGUAGE_SPECS.javascript.enclosingItemTypes],
+      ] as const
+    ) {
+      for (const t of types) {
+        if (WRAPPER_TYPES.has(t)) continue;
+        assert(
+          JS_LIKE_ENCLOSING_TYPES.has(t),
+          `${id}: spec lists "${t}" but jsLikeItemName won't recurse into it from a wrapper — add it to JS_LIKE_ENCLOSING_TYPES`,
+        );
+      }
+    }
   },
 );

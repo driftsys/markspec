@@ -124,7 +124,7 @@ How external systems (Jira, DOORS, Jama, Codebeamer, PLM) integrate:
   ADR or remain an extension.
 - UI for resolving sync conflicts — tooling concern.
 
-## Property additions for ADR-019 (lockfile + sync)
+## Property additions for ADR-022 (lockfile + sync)
 
 - `sync.lastConflictAt` — RFC 3339 timestamp of the most recent conflict event
   for any binding on this entry. Populated by sync push/pull from the NDJSON log

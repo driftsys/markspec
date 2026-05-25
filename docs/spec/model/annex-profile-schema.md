@@ -26,7 +26,7 @@ attributes, relations, labels).
 | `description`     | No       | string | Human-readable summary; recommended for publishing      |
 | `license`         | No       | string | SPDX identifier (e.g. `MIT`, `Apache-2.0`); recommended |
 | `extends`         | No       | string | Parent profile specifier — local path or scoped ID      |
-| `markspec-schema` | No       | string | Core schema version pin (e.g. `"1"`); see §B.7          |
+| `markspec-schema` | No       | string | Core schema version pin (e.g. `"1"`); see §B.9          |
 
 Complete example:
 
@@ -192,7 +192,98 @@ profile:
 Labels not declared in the active profile produce `MSL-L010` (unknown label
 concern).
 
-## B.7 Versioning and compatibility
+## B.7 Discipline kinds (`profile.kinds`)
+
+The optional `profile.kinds` map declares engineering disciplines that profile
+types may be assigned to. See
+[ADR-017 — Discipline Classification](../../architecture/adr-017-discipline-classification.md)
+and
+[Profiles and extensions — Discipline kinds](profiles.md#discipline-kinds-profilekinds)
+for authoring guidance.
+
+### `profile.kinds` (map)
+
+| Property | Required | Type                       | Notes                                                                          |
+| -------- | -------- | -------------------------- | ------------------------------------------------------------------------------ |
+| (key)    | —        | `^[a-z][a-z0-9-]*$`        | Kind name; must not be `mixed`; see [name rule](#kind-name-rule) below         |
+| (value)  | —        | null \| string \| KindDecl | Three legal YAML shapes; see [`profile.kinds.<name>`](#profilekindsname) below |
+
+`profile.kinds` is optional. When absent, the map is treated as empty; only
+core-declared kinds are available to type declarations in the profile.
+
+### `profile.kinds.<name>`
+
+Each map entry under `profile.kinds` declares one discipline kind. The value may
+be one of three YAML shapes:
+
+| Shape                | Example                               | Effect                                    |
+| -------------------- | ------------------------------------- | ----------------------------------------- |
+| null (bare key)      | `avionics:`                           | Kind registered; no description           |
+| string shorthand     | `mechanical: "Mechanical assemblies"` | Kind registered with inline `description` |
+| mapping (`KindDecl`) | `firmware:\n  description: "…"`       | Kind registered; description as sub-field |
+
+**`KindDecl` fields:**
+
+| Field         | Required | Type   | Notes                  |
+| ------------- | -------- | ------ | ---------------------- |
+| `description` | No       | string | Human-readable purpose |
+
+### Kind-name rule
+
+A kind name must match the pattern `^[a-z][a-z0-9-]*$` (lowercase letters,
+digits, and hyphens; must begin with a letter). The name `mixed` is reserved by
+the core engine.
+
+**Diagnostics:**
+
+| Code                     | Severity | Trigger                                                                           |
+| ------------------------ | -------- | --------------------------------------------------------------------------------- |
+| `PROFILE-DISCIPLINE-001` | error    | Kind name does not match `^[a-z][a-z0-9-]*$`                                      |
+| `PROFILE-DISCIPLINE-002` | error    | Kind name is the reserved word `mixed`                                            |
+| `PROFILE-DISCIPLINE-003` | warning  | Kind name duplicates a core-declared kind (redeclaration allowed but discouraged) |
+
+## B.8 Per-type `discipline:` field (`profile.types.<T>.discipline`)
+
+A type declaration may carry an optional `discipline:` field that assigns the
+type to a named kind:
+
+```yaml
+profile:
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software   # must name a core or chain-declared kind
+```
+
+### Updated type fields table
+
+The full set of type fields (extending §B.3):
+
+| Field                | Required | Notes                                                                                    |
+| -------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `extends`            | Yes      | Core type name (PascalCase) or another profile type in the same chain                    |
+| `display-id-pattern` | No       | Pattern string; `{n:Nd}` is the numeric placeholder (N = minimum digits)                 |
+| `description`        | No       | Human-readable purpose shown by `markspec profile describe`                              |
+| `discipline`         | No       | Non-empty string naming a kind that exists in core-declared kinds ∪ chain-declared kinds |
+
+### Rules for `discipline:`
+
+- The value must be a non-empty string (`PROFILE-DISCIPLINE-005`).
+- The named kind must exist in the union of core kinds and all kinds declared in
+  the profile chain, including the declaring profile and all of its ancestors
+  (`PROFILE-DISCIPLINE-004`).
+- When omitted, the registry inherits the discipline by walking the `extends:`
+  chain upward; no explicit `discipline:` is needed unless the type is
+  introducing or reassigning a kind.
+
+**Diagnostics:**
+
+| Code                     | Severity | Trigger                                                                                          |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------ |
+| `PROFILE-DISCIPLINE-004` | error    | `discipline:` names a kind not found in core-declared kinds ∪ chain-declared kinds               |
+| `PROFILE-DISCIPLINE-005` | error    | `discipline:` value is present but is not a non-empty string (empty string, null, or wrong type) |
+
+## B.9 Versioning and compatibility
 
 ### Core schema pin (`markspec-schema`)
 
@@ -222,7 +313,7 @@ A consumer project pins profile versions in `.markspec.yaml`. The toolchain
 supports the declared version only — no implicit upgrade, no downgrade. Run
 `markspec profile add <spec>@<version>` to pin explicitly.
 
-## B.8 Distribution and specifiers
+## B.10 Distribution and specifiers
 
 Profiles are referenced in `.markspec.yaml` using a specifier string:
 
@@ -237,7 +328,7 @@ Vendoring: `markspec profile add <spec>` downloads the profile and writes it
 into `profiles/` under the project root. Vendored profiles are committed to
 version control — the project owns a reproducible copy.
 
-## B.9 Extends chain and conflict resolution
+## B.11 Extends chain and conflict resolution
 
 When multiple profiles are active (the `.markspec.yaml` `profiles:` list), they
 are merged into a single **effective profile**. Resolution order: later entries
@@ -263,7 +354,7 @@ Conflict rules:
 | Relations  | Child relation overrides parent relation of same `key`   |
 | Labels     | Union; duplicate `name` keeps child `description`        |
 
-## B.10 Validation and publishing
+## B.12 Validation and publishing
 
 Validate a profile manifest before distributing it:
 

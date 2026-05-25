@@ -52,6 +52,7 @@ function makeProfile(
         description: { value: undefined, origin: "test" },
         attrDescriptions: new Map(),
         relationDescriptions: new Map(),
+        discipline: { value: undefined, origin: "test" },
       },
       origin: "test",
     }]),
@@ -63,6 +64,13 @@ function makeProfile(
     colors: colorsMap,
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   } as EffectiveProfile;
 }
 

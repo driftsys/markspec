@@ -58,6 +58,7 @@ function makeResult(
     reverse,
     documents: new Map(),
     diagnostics: [],
+    typeRegistry: { bindings: new Map(), typedefs: new Map() },
   };
 }
 

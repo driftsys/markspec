@@ -45,6 +45,7 @@ function typeDef(opts: {
       description: { value: undefined, origin: ORIGIN },
       attrDescriptions: new Map(),
       relationDescriptions: new Map(),
+      discipline: { value: undefined, origin: ORIGIN },
     },
   };
 }
@@ -62,6 +63,13 @@ function profile(opts: {
     conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 }
 
@@ -455,10 +463,18 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
           description: { value: undefined, origin },
           attrDescriptions: new Map(),
           relationDescriptions: new Map(),
+          discipline: { value: undefined, origin },
         },
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
@@ -509,10 +525,18 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
           description: { value: undefined, origin },
           attrDescriptions: new Map(),
           relationDescriptions: new Map(),
+          discipline: { value: undefined, origin },
         },
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);

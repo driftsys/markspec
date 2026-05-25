@@ -123,6 +123,11 @@ export function activate(context: ExtensionContext): void {
       { scheme: "file", language: "java" },
       { scheme: "file", language: "c" },
       { scheme: "file", language: "cpp" },
+      { scheme: "file", language: "typescript" },
+      { scheme: "file", language: "typescriptreact" },
+      { scheme: "file", language: "javascript" },
+      { scheme: "file", language: "javascriptreact" },
+      { scheme: "file", language: "csharp" },
     ],
     synchronize: {
       fileEvents: workspace.createFileSystemWatcher("**/*.md"),

@@ -65,6 +65,50 @@ async function getCppLanguage(): Promise<Parser.Language> {
   return cppLanguage;
 }
 
+let typescriptLanguage: Parser.Language;
+
+async function getTypescriptLanguage(): Promise<Parser.Language> {
+  if (typescriptLanguage) return typescriptLanguage;
+  await Parser.init();
+  typescriptLanguage = await Parser.Language.load(
+    join(grammarsDir, "tree-sitter-typescript.wasm"),
+  );
+  return typescriptLanguage;
+}
+
+let tsxLanguage: Parser.Language;
+
+async function getTsxLanguage(): Promise<Parser.Language> {
+  if (tsxLanguage) return tsxLanguage;
+  await Parser.init();
+  tsxLanguage = await Parser.Language.load(
+    join(grammarsDir, "tree-sitter-tsx.wasm"),
+  );
+  return tsxLanguage;
+}
+
+let javascriptLanguage: Parser.Language;
+
+async function getJavascriptLanguage(): Promise<Parser.Language> {
+  if (javascriptLanguage) return javascriptLanguage;
+  await Parser.init();
+  javascriptLanguage = await Parser.Language.load(
+    join(grammarsDir, "tree-sitter-javascript.wasm"),
+  );
+  return javascriptLanguage;
+}
+
+let csharpLanguage: Parser.Language;
+
+async function getCsharpLanguage(): Promise<Parser.Language> {
+  if (csharpLanguage) return csharpLanguage;
+  await Parser.init();
+  csharpLanguage = await Parser.Language.load(
+    join(grammarsDir, "tree-sitter-c-sharp.wasm"),
+  );
+  return csharpLanguage;
+}
+
 // ---------------------------------------------------------------------------
 // Rust: basic entry extraction
 // ---------------------------------------------------------------------------
@@ -851,4 +895,718 @@ Deno.test("parseSource: extracts C++ /** */ doc comment entry", async () => {
   assertEquals(modals[0].text, "shall");
   assertEquals(modals[0].location.line, 4);
   assertEquals(modals[0].location.column, 22);
+});
+
+// ---------------------------------------------------------------------------
+// TypeScript / TSX / JavaScript: itemName extraction
+// ---------------------------------------------------------------------------
+
+const TS_DOC_BLOCK =
+  `/**\n * [SRS_BRK_0001] Title\n *\n * Body.\n *\n *     Id: SRS_01HGW2Q8MNP3\n */`;
+
+Deno.test("parseSource: TypeScript /** */ → function captures class name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nclass Foo {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → function captures function name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nfunction debounce() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "debounce");
+});
+
+Deno.test("parseSource: TypeScript /** */ → const arrow extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nconst Foo = () => 0;\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → const function-expression extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nconst Foo = function () {};\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → export class extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nexport class Foo {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → export const arrow extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nexport const Foo = () => 0;\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → interface extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\ninterface Foo { x: number; }\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → type alias extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\ntype Foo = number;\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → enum extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nenum Foo { A, B }\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → namespace extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nnamespace Foo { export const x = 0; }\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript /** */ → anonymous export default returns undefined", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nexport default class {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, undefined);
+});
+
+Deno.test("parseSource: TSX /** */ → const-arrow component extracts name", async () => {
+  const language = await getTsxLanguage();
+  const source = `${TS_DOC_BLOCK}\nexport const Foo = () => <div>x</div>;\n`;
+  const { entries } = parseSource(source, {
+    file: "t.tsx",
+    language,
+    languageId: "tsx",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: JavaScript /** */ → function captures function name", async () => {
+  const language = await getJavascriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nfunction debounce() {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.js",
+    language,
+    languageId: "javascript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "debounce");
+});
+
+Deno.test("parseSource: JavaScript /** */ → const arrow extracts name", async () => {
+  const language = await getJavascriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nconst Foo = () => 0;\n`;
+  const { entries } = parseSource(source, {
+    file: "t.js",
+    language,
+    languageId: "javascript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: JavaScript /** */ → const function-expression extracts name", async () => {
+  const language = await getJavascriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nconst Foo = function () {};\n`;
+  const { entries } = parseSource(source, {
+    file: "t.js",
+    language,
+    languageId: "javascript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: JavaScript /** */ → export class extracts name", async () => {
+  const language = await getJavascriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nexport class Foo {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.js",
+    language,
+    languageId: "javascript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "Foo");
+});
+
+Deno.test("parseSource: TypeScript fixture in-code-typescript.ts", async () => {
+  const language = await getTypescriptLanguage();
+  const fixturePath = join(
+    import.meta.dirname!,
+    "..",
+    "..",
+    "..",
+    "..",
+    "tests",
+    "fixtures",
+    "in-code-typescript.ts",
+  );
+  const content = await Deno.readTextFile(fixturePath);
+  const { entries } = parseSource(content, {
+    file: "in-code-typescript.ts",
+    language,
+    languageId: "typescript",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_BRK_0001");
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "BrakingSensor");
+  assertEquals(entries[0].source.language, "typescript");
+});
+
+Deno.test("parseSource: TSX fixture in-code-tsx.tsx", async () => {
+  const language = await getTsxLanguage();
+  const fixturePath = join(
+    import.meta.dirname!,
+    "..",
+    "..",
+    "..",
+    "..",
+    "tests",
+    "fixtures",
+    "in-code-tsx.tsx",
+  );
+  const content = await Deno.readTextFile(fixturePath);
+  const { entries } = parseSource(content, {
+    file: "in-code-tsx.tsx",
+    language,
+    languageId: "tsx",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_BRK_0001");
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "BrakingSensor");
+  assertEquals(entries[0].source.language, "tsx");
+});
+
+Deno.test("parseSource: JavaScript fixture in-code-javascript.js", async () => {
+  const language = await getJavascriptLanguage();
+  const fixturePath = join(
+    import.meta.dirname!,
+    "..",
+    "..",
+    "..",
+    "..",
+    "tests",
+    "fixtures",
+    "in-code-javascript.js",
+  );
+  const content = await Deno.readTextFile(fixturePath);
+  const { entries } = parseSource(content, {
+    file: "in-code-javascript.js",
+    language,
+    languageId: "javascript",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "SRS_BRK_0001");
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "BrakingSensor");
+  assertEquals(entries[0].source.language, "javascript");
+});
+
+Deno.test("parseSource: TypeScript /** */ → decorated class skips decorator and captures name", async () => {
+  // `decorator` is in attributeSkipTypes; the decorator wraps the
+  // class_declaration inside an export_statement, so jsLikeItemName's
+  // export_statement recursion reaches the class.
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\n@Component()\nexport class MyClass {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "MyClass");
+});
+
+Deno.test("parseSource: TypeScript /** */ → abstract class extracts name", async () => {
+  const language = await getTypescriptLanguage();
+  const source = `${TS_DOC_BLOCK}\nabstract class MyAbs {}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "MyAbs");
+});
+
+Deno.test("parseSource: TypeScript /** */ → method_definition inside a class extracts method name", async () => {
+  const language = await getTypescriptLanguage();
+  const source =
+    `class Outer {\n  /**\n   * [SRS_BRK_0001] Title\n   *\n   * Body.\n   *\n   *     Id: SRS_01HGW2Q8MNP3\n   */\n  myMethod() {}\n}\n`;
+  const { entries } = parseSource(source, {
+    file: "t.ts",
+    language,
+    languageId: "typescript",
+  });
+  if (entries[0].source.kind !== "doc-comment") {
+    throw new Error("expected doc-comment");
+  }
+  assertEquals(entries[0].source.function, "myMethod");
+});
+
+// C#: basic entry extraction
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: extracts C# /// doc comment entry", async () => {
+  const language = await getCsharpLanguage();
+  const source = `/// [SRS_BRK_0001] Sensor input debouncing
+///
+/// The sensor driver shall reject transient noise.
+///
+///     Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+///     Satisfies: SYS_BRK_0042
+///     Labels: ASIL-B
+public class BrakingSensor {}
+`;
+
+  const result = parseSource(source, {
+    file: "BrakingSensor.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(result.entries.length, 1);
+  const entry = result.entries[0];
+  assertEquals(entry.displayId, "SRS_BRK_0001");
+  assertEquals(entry.title, "Sensor input debouncing");
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entry.source.kind, "doc-comment");
+  if (entry.source.kind === "doc-comment") {
+    assertEquals(entry.source.language, "csharp");
+    assertEquals(entry.source.rule, "outer-doc-comment");
+    assertEquals(entry.source.function, "BrakingSensor");
+  }
+});
+
+Deno.test("parseSource: C# /// → function captures enclosing name for every item type", async () => {
+  const language = await getCsharpLanguage();
+  // One entry per node type, each carrying a distinct display ID so we
+  // can assert function-name attribution per row.
+  const source = `namespace Foo.Bar {
+    /// [REQ_0001] On namespace
+    ///
+    ///     Id: 01HGW0000000000000000001AA
+    /// dummy line so the parser stops searching for siblings on namespace
+    class _NamespaceCarrier {}
+
+    /// [REQ_0002] On class
+    ///
+    ///     Id: 01HGW0000000000000000002AA
+    public class Cls {}
+
+    /// [REQ_0003] On struct
+    ///
+    ///     Id: 01HGW0000000000000000003AA
+    public struct Strct {}
+
+    /// [REQ_0004] On interface
+    ///
+    ///     Id: 01HGW0000000000000000004AA
+    public interface IThing {}
+
+    /// [REQ_0005] On record
+    ///
+    ///     Id: 01HGW0000000000000000005AA
+    public record Rec(int X);
+
+    /// [REQ_0006] On record struct
+    ///
+    ///     Id: 01HGW0000000000000000006AA
+    public record struct RecStruct(int X);
+
+    /// [REQ_0007] On enum
+    ///
+    ///     Id: 01HGW0000000000000000007AA
+    public enum Col { Red, Green }
+
+    /// [REQ_0008] On delegate
+    ///
+    ///     Id: 01HGW0000000000000000008AA
+    public delegate void Del();
+
+    public class Holder {
+        /// [REQ_0009] On method
+        ///
+        ///     Id: 01HGW0000000000000000009AA
+        public void DoThing() {}
+
+        /// [REQ_0010] On property
+        ///
+        ///     Id: 01HGW000000000000000000AAA
+        public int Prop { get; set; }
+
+        /// [REQ_0011] On constructor
+        ///
+        ///     Id: 01HGW000000000000000000BAA
+        public Holder() {}
+
+        /// [REQ_0012] On local function
+        ///
+        ///     Id: 01HGW000000000000000000CAA
+        public void Wrapper() {
+            /// [REQ_0013] On nested local function
+            ///
+            ///     Id: 01HGW000000000000000000DAA
+            void Local() {}
+            Local();
+        }
+    }
+}
+
+/// [REQ_0014] On file-scoped namespace
+///
+///     Id: 01HGW000000000000000000EAA
+namespace Baz;
+
+class TopLevel {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Coverage.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 14);
+
+  const fnByDisplayId = new Map<string, string | undefined>();
+  for (const e of entries) {
+    if (e.source.kind === "doc-comment") {
+      fnByDisplayId.set(e.displayId, e.source.function);
+    }
+  }
+  // Skip REQ_0001 (carrier-only — the next sibling after the comment
+  // is the dummy class, not the namespace itself; namespace attribution
+  // is checked separately in the traditional-namespace test below).
+  assertEquals(fnByDisplayId.get("REQ_0002"), "Cls");
+  assertEquals(fnByDisplayId.get("REQ_0003"), "Strct");
+  assertEquals(fnByDisplayId.get("REQ_0004"), "IThing");
+  assertEquals(fnByDisplayId.get("REQ_0005"), "Rec");
+  assertEquals(fnByDisplayId.get("REQ_0006"), "RecStruct");
+  assertEquals(fnByDisplayId.get("REQ_0007"), "Col");
+  assertEquals(fnByDisplayId.get("REQ_0008"), "Del");
+  assertEquals(fnByDisplayId.get("REQ_0009"), "DoThing");
+  assertEquals(fnByDisplayId.get("REQ_0010"), "Prop");
+  assertEquals(fnByDisplayId.get("REQ_0011"), "Holder");
+  assertEquals(fnByDisplayId.get("REQ_0012"), "Wrapper");
+  assertEquals(fnByDisplayId.get("REQ_0013"), "Local");
+  assertEquals(fnByDisplayId.get("REQ_0014"), "Baz");
+});
+
+Deno.test("parseSource: C# /// → function captures traditional namespace name", async () => {
+  const language = await getCsharpLanguage();
+  const source = `/// [REQ_0100] Doc on a top-level namespace
+///
+///     Id: 01HGW0000000000000000100AA
+namespace Foo.Bar {}
+`;
+  const { entries } = parseSource(source, {
+    file: "NsAttr.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
+  if (entries[0].source.kind === "doc-comment") {
+    // qualified_name; nameField returns the full `Foo.Bar` text.
+    assertEquals(entries[0].source.function, "Foo.Bar");
+  }
+});
+
+Deno.test("parseSource: C# destructor → function captures class name (deviates from C++)", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Outer {
+    /// [REQ_0200] On destructor
+    ///
+    ///     Id: 01HGW0000000000000000200AA
+    ~Outer() {}
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "Dtor.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "Outer");
+  }
+});
+
+Deno.test("parseSource: C# operator and indexer → function undefined (anonymous)", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Outer {
+    /// [REQ_0201] On operator
+    ///
+    ///     Id: 01HGW0000000000000000201AA
+    public static Outer operator +(Outer a, Outer b) => a;
+
+    /// [REQ_0202] On indexer
+    ///
+    ///     Id: 01HGW0000000000000000202AA
+    public int this[int i] => i;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "OpIdx.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 2);
+  for (const id of ["REQ_0201", "REQ_0202"]) {
+    const e = entries.find((entry) => entry.displayId === id)!;
+    assertEquals(
+      e.source.kind,
+      "doc-comment",
+      `${id} should be a doc-comment source`,
+    );
+    if (e.source.kind === "doc-comment") {
+      assertEquals(e.source.function, undefined, `${id} should be anonymous`);
+    }
+  }
+});
+
+Deno.test("parseSource: C# field declaration → function captures first declarator name", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Holder {
+    /// [REQ_0300] On field
+    ///
+    ///     Id: 01HGW0000000000000000300AA
+    private int counter = 0;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "Field.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "counter");
+  }
+});
+
+Deno.test("parseSource: C# event field declaration → function captures first declarator name", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Holder {
+    /// [REQ_0301] On event
+    ///
+    ///     Id: 01HGW0000000000000000301AA
+    public event System.Action MyEvent;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "Event.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "MyEvent");
+  }
+});
+
+Deno.test("parseSource: C# multi-name field → function captures first declarator only", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Holder {
+    /// [REQ_0302] On multi-name field
+    ///
+    ///     Id: 01HGW0000000000000000302AA
+    public int multi1, multi2 = 5, multi3;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "MultiField.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "multi1");
+  }
+});
+
+Deno.test("parseSource: C# regular // comments are not extracted", async () => {
+  const language = await getCsharpLanguage();
+  const source = `// [REQ_0400] This looks like an entry but uses // not ///
+//     Id: 01HGW0000000000000000400AA
+public class NotAnEntry {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Negative.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 0);
+});
+
+Deno.test("parseSource: C# /** */ block doc comment is recognised", async () => {
+  const language = await getCsharpLanguage();
+  const source = `/**
+ * [REQ_0401] Javadoc-style block in C#
+ *
+ *     Id: 01HGW0000000000000000401AA
+ */
+public class JavadocStyle {}
+`;
+  const { entries } = parseSource(source, {
+    file: "Javadoc.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  assertEquals(entries[0].displayId, "REQ_0401");
+  assertEquals(entries[0].source.kind, "doc-comment");
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.rule, "block-doc-comment");
+    assertEquals(entries[0].source.function, "JavadocStyle");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// C#: fixture file
+// ---------------------------------------------------------------------------
+
+Deno.test("parseSource: fixture — in-code-csharp.cs", async () => {
+  const language = await getCsharpLanguage();
+  const fixturePath = join(
+    import.meta.dirname!,
+    "..",
+    "..",
+    "..",
+    "..",
+    "tests",
+    "fixtures",
+    "in-code-csharp.cs",
+  );
+  const content = await Deno.readTextFile(fixturePath);
+  const { entries } = parseSource(content, {
+    file: "in-code-csharp.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  const entry = entries[0];
+  assertEquals(entry.displayId, "SRS_BRK_0001");
+  assertEquals(entry.title, "Sensor input debouncing");
+  assertEquals(entry.id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entry.source.kind, "doc-comment");
+  assertStringIncludes(entry.body, "debounce window");
+  assertEquals(entry.rawAttributes.length, 3);
+  if (entry.source.kind === "doc-comment") {
+    assertEquals(entry.source.language, "csharp");
+    assertEquals(entry.source.function, "BrakingSensor");
+  }
 });

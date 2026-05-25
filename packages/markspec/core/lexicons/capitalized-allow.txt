@@ -1,0 +1,138 @@
+# MarkSpec core capitalized-allow lexicon
+#
+# Words on this list are not flagged by MSL-Q500
+# (xref-glossary-undefined) even when no glossary entry defines them.
+# See `docs/spec/internal/markspec-prose-analysis.md` §2.8 for the
+# flagship-rule resolution policy.
+#
+# Scope policy (intentionally narrow):
+#
+#   - Calendar terms (days, months) — universally English, never
+#     domain-specific.
+#   - Geographic proper nouns (countries, major regions, languages) —
+#     universally referenced in compliance prose without definition.
+#
+# Out of scope:
+#
+#   - Standards-body acronyms (ISO, IEEE, RFC, NATO, …). GtWR v4 R37
+#     requires every acronym to be expanded on first use; the lint
+#     should fire on these in a compliance project, and profiles can
+#     opt them out via `prose.lexicons.capitalized-allow` if they
+#     don't.
+#   - Domain terminology (ASIL, ECU, CAN, HMI, …). These belong in a
+#     profile manifest (`prose.lexicons.capitalized-allow`) or a
+#     project `.markspec/lint.yaml` — never in core.
+#   - Vendor / product names. Same reasoning — profile-level concern.
+#
+# Format: one token per line. Blank lines and lines starting with `#`
+# are ignored. Lookup is case-sensitive (matches the parser's
+# Capitalization detection).
+#
+# Versioning: this file is part of MarkSpec's release surface. Edits
+# require a CHANGELOG entry and review.
+
+# --- Days of the week --------------------------------------------------------
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Saturday
+Sunday
+
+# --- Months of the year ------------------------------------------------------
+January
+February
+March
+April
+May
+June
+July
+August
+September
+October
+November
+December
+
+# --- Continents and major regions --------------------------------------------
+Africa
+Antarctica
+Asia
+Europe
+Oceania
+America
+
+# --- Countries (commonly referenced in compliance docs) ----------------------
+Argentina
+Australia
+Austria
+Belgium
+Brazil
+Canada
+Chile
+China
+Colombia
+Czechia
+Denmark
+Egypt
+Finland
+France
+Germany
+Greece
+Hungary
+India
+Indonesia
+Ireland
+Israel
+Italy
+Japan
+Korea
+Mexico
+Netherlands
+Norway
+Pakistan
+Peru
+Philippines
+Poland
+Portugal
+Romania
+Russia
+Singapore
+Slovakia
+Slovenia
+Spain
+Sweden
+Switzerland
+Taiwan
+Thailand
+Turkey
+Ukraine
+Vietnam
+
+# --- Composite / commonly abbreviated political entities ---------------------
+England
+Scotland
+Wales
+
+# --- Languages (commonly referenced in i18n / locale prose) ------------------
+Arabic
+Chinese
+Dutch
+English
+Finnish
+French
+German
+Greek
+Hebrew
+Hindi
+Hungarian
+Italian
+Japanese
+Korean
+Polish
+Portuguese
+Russian
+Spanish
+Swedish
+Turkish
+Ukrainian

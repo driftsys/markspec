@@ -1076,3 +1076,177 @@ profile:
     true,
   );
 });
+
+Deno.test("manifest: parses kinds: mapping with mixed forms", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: Embedded firmware modules
+    mechanical: "Mechanical components"
+    avionics:
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  assertEquals(manifest?.kinds.size, 3);
+  assertEquals(
+    manifest?.kinds.get("firmware")?.description,
+    "Embedded firmware modules",
+  );
+  assertEquals(
+    manifest?.kinds.get("mechanical")?.description,
+    "Mechanical components",
+  );
+  assertEquals(manifest?.kinds.get("avionics")?.description, undefined);
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-001 on invalid kind-name format", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    BadName:
+      description: starts with uppercase
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-001"),
+    true,
+  );
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-002 on reserved 'mixed' kind name", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    mixed:
+      description: should be rejected
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-002"),
+    true,
+  );
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-003 warning on redeclaring a core kind", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    software:
+      description: redundant
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  // Warning, not error — manifest still parses.
+  assertEquals(manifest !== null, true);
+  const warns = diagnostics.filter((d) => d.code === "PROFILE-DISCIPLINE-003");
+  assertEquals(warns.length, 1);
+  assertEquals(warns[0].severity, "warning");
+  // Suppression behaviour: the redeclared core kind must NOT appear in the manifest's map.
+  assertEquals(manifest?.kinds.size, 0);
+});
+
+Deno.test("manifest: kinds block can be absent (default to empty map)", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile: {}
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  assertEquals(manifest?.kinds.size, 0);
+});
+
+Deno.test("manifest: PROFILE-LOAD-003 when kinds: is not a mapping", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds: not-a-map
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) =>
+      d.code === "PROFILE-LOAD-003" &&
+      d.message.includes("profile.kinds")
+    ),
+    true,
+  );
+});
+
+Deno.test("manifest: parses per-type discipline: as a string", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  const td = manifest?.types.get("SoftwareRequirement");
+  assertEquals(td?.discipline, "software");
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-005 when discipline: is not a string", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    BadType:
+      extends: Requirement
+      discipline: 42
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-005"),
+    true,
+  );
+});
+
+Deno.test("manifest: PROFILE-DISCIPLINE-005 when discipline: is an empty string", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    BadType:
+      extends: Requirement
+      discipline: ""
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(manifest, null);
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DISCIPLINE-005"),
+    true,
+  );
+});
+
+Deno.test("manifest: discipline: is optional on a type", () => {
+  const yaml = `id: t
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    SomeType:
+      extends: Requirement
+`;
+  const { manifest, diagnostics } = parseManifest(yaml);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  const td = manifest?.types.get("SomeType");
+  assertEquals(td?.discipline, undefined);
+});

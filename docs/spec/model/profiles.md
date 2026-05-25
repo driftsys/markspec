@@ -128,6 +128,82 @@ A project with no `.markspec.yaml` (or an empty profiles list) runs in
 Core-only mode is useful for generic documentation where full traceability
 tooling is not needed.
 
+## Discipline kinds (`profile.kinds`)
+
+A **kind** is a named engineering discipline — such as `software`, `hardware`,
+or `mechanical` — used to classify entries for discipline-aware filtering,
+reporting, and export. Kinds are declared in the `profile.kinds` map and
+referenced from individual type declarations via a `discipline:` field.
+
+See
+[ADR-017 — Discipline Classification](../../architecture/adr-017-discipline-classification.md)
+for the rationale and the full classification channel algorithm.
+
+### Kind declaration syntax
+
+Each entry in `profile.kinds` maps a kind name to one of three YAML shapes:
+
+```yaml
+profile:
+  kinds:
+    firmware:
+      description: Embedded firmware modules
+    mechanical: "Mechanical components and assemblies"
+    avionics:
+
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software
+
+    FirmwareUnit:
+      extends: SoftwareUnit
+      # inherits 'software' from SoftwareUnit
+```
+
+| Shape                              | Meaning                                               |
+| ---------------------------------- | ----------------------------------------------------- |
+| `<name>:` (null value)             | Kind exists; no description                           |
+| `<name>: "string"`                 | Kind exists; bare string is the description shorthand |
+| `<name>:\n  description: "string"` | Kind exists; description as a sub-field               |
+
+### Kind-name lexical rule
+
+Kind names must match `^[a-z][a-z0-9-]*$`: lowercase letters, digits, and
+hyphens, starting with a letter. The name `mixed` is reserved by the core engine
+and may not be declared in a profile.
+
+### Per-type `discipline:` field
+
+A type declaration may carry a `discipline:` field naming the kind that the type
+belongs to:
+
+```yaml
+profile:
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software
+```
+
+The named kind must exist in the union of core-declared kinds and all
+chain-declared kinds; referencing an unknown kind is `PROFILE-DISCIPLINE-004`.
+
+**Auto-inheritance.** When a type does not carry `discipline:` explicitly, the
+registry is built at compile time from the merged profile chain: the engine
+walks the `extends:` chain upward until it finds a type with an explicit
+`discipline:` assignment, or reaches a core type. Concretely, a type only needs
+`discipline:` when it is either introducing a new kind or reassigning the kind
+inherited from its parent.
+
+### Redeclaring core kinds
+
+The core engine ships with three built-in kinds: `system`, `software`, and
+`hardware`. Declaring one of these names in a profile does not change their
+semantics but produces a `PROFILE-DISCIPLINE-003` warning (the declaration is
+idempotent and ignored). Declare a new kind name to introduce additional
+disciplines such as `firmware`, `mechanical`, or `avionics`.
+
 ## What profiles cannot change
 
 Profiles extend core — they cannot weaken or redefine it:

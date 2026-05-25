@@ -8,12 +8,14 @@
  * Merge happens once at load. Callers should not call `mergeChain` lazily.
  */
 
+import { CORE_KINDS } from "../model/mod.ts";
 import type {
   AttrDecl,
   Diagnostic,
   DocTypeDef,
   EffectiveProfile,
   EffectiveTypeDef,
+  KindDecl,
   LabelConcern,
   LoadedProfile,
   ProfileChain,
@@ -82,6 +84,11 @@ export function mergeChain(chain: ProfileChain): MergeResult {
     diagnostics,
     tiers[tiers.length - 1].sourcePath,
   );
+  validateTypeDisciplines(
+    effective,
+    diagnostics,
+    tiers[tiers.length - 1].sourcePath,
+  );
 
   // If any merge error was recorded, drop the effective profile.
   const hasError = diagnostics.some((d) => d.severity === "error");
@@ -120,6 +127,9 @@ function foldTier(
   // Colors map: last-write-wins per key, additive across tiers.
   const colors = unionColorsMap(base.colors, m.colors, origin);
 
+  // Kinds map: additive across tiers, child wins on description.
+  const kinds = unionKindsMap(base.kinds, m.kinds, origin);
+
   // Types — add new types, fold existing ones.
   const types = new Map(base.types);
   for (const [name, td] of m.types) {
@@ -141,6 +151,7 @@ function foldTier(
         description: { value: td.description, origin },
         attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
         relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
+        discipline: { value: td.discipline, origin },
       };
       types.set(name, { value: eff, origin });
     } else {
@@ -172,6 +183,18 @@ function foldTier(
     diagnostics,
   );
 
+  // Prose lexicons: list-additive across tiers (profile-schema §5.1).
+  const capAllow = unionList(
+    base.prose.lexicons["capitalized-allow"],
+    m.prose.lexicons["capitalized-allow"],
+    origin,
+  );
+  const sentAbbrev = unionList(
+    base.prose.lexicons["sentence-abbrev"],
+    m.prose.lexicons["sentence-abbrev"],
+    origin,
+  );
+
   const result: EffectiveProfile = {
     attributes,
     labels,
@@ -181,6 +204,13 @@ function foldTier(
     documents: {
       types: docTypes,
       frontMatter,
+    },
+    kinds,
+    prose: {
+      lexicons: {
+        "capitalized-allow": capAllow,
+        "sentence-abbrev": sentAbbrev,
+      },
     },
   };
 
@@ -239,6 +269,33 @@ function validateTypeColors(
         location: { file: fallbackFile, line: 1, column: 1 },
       });
     }
+  }
+}
+
+/**
+ * After the full chain folds, verify each type's `discipline.value` (when
+ * set) names a kind that is in the merged `effective.kinds` map ∪
+ * CORE_KINDS. Emits PROFILE-DISCIPLINE-004 for each violation. Runs after
+ * the merge because a parent tier's kind must be visible to a child
+ * tier's type.
+ */
+function validateTypeDisciplines(
+  effective: EffectiveProfile,
+  diagnostics: Diagnostic[],
+  fallbackFile: string,
+): void {
+  for (const [typeName, entry] of effective.types) {
+    const value = entry.value.discipline.value;
+    if (value === undefined) continue;
+    if (CORE_KINDS.has(value)) continue;
+    if (effective.kinds.has(value)) continue;
+    diagnostics.push({
+      code: "PROFILE-DISCIPLINE-004",
+      severity: "error",
+      message:
+        `type '${typeName}' references unknown discipline kind '${value}' (declare it under profile.kinds: in this profile or a parent)`,
+      location: { file: fallbackFile, line: 1, column: 1 },
+    });
   }
 }
 
@@ -495,6 +552,12 @@ function tightenType(
       ? { value: child.description, origin: childOrigin }
       : effExisting.description;
 
+  // Discipline: child wins when set; otherwise parent stays.
+  const discipline: ProvenancedValue<string | undefined> =
+    child.discipline !== undefined
+      ? { value: child.discipline, origin: childOrigin }
+      : effExisting.discipline;
+
   const attrDescriptions = mergeDescriptionMap(
     effExisting.attrDescriptions,
     child.attributes.map((a) => ({ name: a.name, desc: a.description })),
@@ -522,6 +585,7 @@ function tightenType(
     description,
     attrDescriptions,
     relationDescriptions,
+    discipline,
   };
   const overrides = [
     ...(existing.overrides ?? []),
@@ -699,6 +763,19 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
       types: mapFromDocTypes(m.documents.types, origin),
       frontMatter: mapFromAttrList(m.documents.frontMatter, origin),
     },
+    kinds: mapFromKinds(m.kinds, origin),
+    prose: {
+      lexicons: {
+        "capitalized-allow": {
+          value: m.prose.lexicons["capitalized-allow"],
+          origin,
+        },
+        "sentence-abbrev": {
+          value: m.prose.lexicons["sentence-abbrev"],
+          origin,
+        },
+      },
+    },
   };
 }
 
@@ -709,6 +786,40 @@ function mapFromColors(
   const out = new Map<string, ProvenancedMapEntry<string>>();
   for (const [name, hue] of colors) {
     out.set(name, { value: hue, origin });
+  }
+  return out;
+}
+
+/**
+ * Union of `kinds:` maps across tiers. Additive: every tier's kinds are
+ * carried. When two tiers declare the same kind, the child wins on
+ * description and `overrides` records the displaced parent.
+ */
+function unionKindsMap(
+  parent: ProvenancedMap<KindDecl>,
+  childKinds: ReadonlyMap<string, KindDecl>,
+  childOrigin: ProfileId,
+): ProvenancedMap<KindDecl> {
+  if (childKinds.size === 0) return parent;
+  const out = new Map(parent);
+  for (const [name, kd] of childKinds) {
+    const prior = out.get(name);
+    out.set(name, {
+      value: kd,
+      origin: childOrigin,
+      overrides: prior ? [...(prior.overrides ?? []), prior.origin] : undefined,
+    });
+  }
+  return out;
+}
+
+function mapFromKinds(
+  kinds: ReadonlyMap<string, KindDecl>,
+  origin: ProfileId,
+): ProvenancedMap<KindDecl> {
+  const out = new Map<string, ProvenancedMapEntry<KindDecl>>();
+  for (const [name, kd] of kinds) {
+    out.set(name, { value: kd, origin });
   }
   return out;
 }
@@ -892,6 +1003,7 @@ function mapFromTypes(
       description: { value: td.description, origin },
       attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
       relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
+      discipline: { value: td.discipline, origin },
     };
     out.set(name, { value: eff, origin });
   }

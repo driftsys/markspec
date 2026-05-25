@@ -6,7 +6,11 @@
  * diagnostics by file for per-document publishing.
  */
 
-import type { Diagnostic as CoreDiagnostic, Severity } from "../core/mod.ts";
+import type {
+  Diagnostic as CoreDiagnostic,
+  Severity,
+  SourceRange,
+} from "../core/mod.ts";
 
 /**
  * LSP Diagnostic — a subset of the full LSP type.
@@ -52,13 +56,32 @@ function buildRuleDocUrl(code: string): string {
 }
 
 export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
-  const line = diagnostic.location ? diagnostic.location.line - 1 : 0;
-  const character = diagnostic.location ? diagnostic.location.column - 1 : 0;
-  const base: LspDiagnostic = {
-    range: {
+  // Prefer range when the diagnostic carries one (LintDiagnostic from
+  // prose analysis); else fall back to a 1-line range starting at
+  // location and ending at EOL (existing behaviour).
+  const ext = diagnostic as CoreDiagnostic & { range?: SourceRange };
+  let lspRange: LspDiagnostic["range"];
+  if (ext.range) {
+    lspRange = {
+      start: {
+        line: ext.range.start.line - 1,
+        character: ext.range.start.column - 1,
+      },
+      end: {
+        line: ext.range.end.line - 1,
+        character: ext.range.end.column - 1,
+      },
+    };
+  } else {
+    const line = diagnostic.location ? diagnostic.location.line - 1 : 0;
+    const character = diagnostic.location ? diagnostic.location.column - 1 : 0;
+    lspRange = {
       start: { line, character },
       end: { line, character: Number.MAX_SAFE_INTEGER },
-    },
+    };
+  }
+  const base: LspDiagnostic = {
+    range: lspRange,
     severity: toLspSeverity(diagnostic.severity),
     source: "markspec",
     code: diagnostic.code,
