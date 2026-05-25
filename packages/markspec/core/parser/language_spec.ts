@@ -295,7 +295,6 @@ function csharpItemName(node: SyntaxNode): string | undefined {
   }
 }
 
-
 /**
  * Closed-form table indexed by {@linkcode SupportedLanguage}. The walker in
  * `parser/source.ts` consults this map to know which AST node types to
