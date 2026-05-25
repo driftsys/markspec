@@ -296,6 +296,30 @@ R2 the design space is reshaped (see ADR-018).
    Under R2 (Path B) the flag is moot: discipline mode is implicit in which
    types the profile declares.
 
+### Validator semantics
+
+Severity and interaction rules across items 4, 5, and 6 above:
+
+| Rule                                  | Severity | Rationale                                                                                                                       |
+| ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Override vs Type-based conflict       | warning  | Author may have a reason to assert a different discipline than the Type suggests; surface the divergence without blocking CI.   |
+| Override vs Allocation-based conflict | warning  | Same rationale — the override is intentional; the conflict is information, not breakage.                                        |
+| Freeze divergence                     | warning  | Audit/info signal: someone re-allocated since the freeze. Not blocking — the frozen value is intended as a historical record.   |
+| Mixed-allocation (flat profile)       | error    | A flat-profile requirement allocated across disciplines is almost always a modelling mistake; the canonical fix is to split it. |
+
+**Override + freeze co-occurrence.** If an entry has both `Discipline:`
+(override) and `Discipline-frozen:` (freeze), the classifier uses the override
+for `Entry.derivedDiscipline` (channel 1 wins per Invariant 1). The validator
+emits an additional warning when override and freeze disagree, marking that the
+author has explicitly superseded a prior snapshot. When override and freeze
+agree, no warning fires.
+
+**Override + Type/Allocation precedence.** The override always wins for the
+emitted discipline value; the conflict warning surfaces the disagreement but
+does not change the classification outcome. Consumers reading
+`Entry.derivedDiscipline` get the overridden value; consumers reading the
+warning get the audit trail.
+
 ## Other follow-up candidates
 
 Candidates surfaced during the brainstorm that don't materially affect the Path

@@ -60,10 +60,11 @@ changes.
 
 ### Cross-cutting constraint
 
-The author never types a kind name directly. Their inputs are the display-ID
-prefix and the `Allocated-to` value. (An optional `Discipline:` override
-attribute exists as an escape hatch — see ADR-017 Invariant 1 — but
-discipline-by-derivation is the dominant path.)
+Authors typically don't type a kind name directly — discipline-by-derivation is
+the dominant path. Their everyday inputs are the display-ID prefix (which
+determines the Type) and the `Allocated-to` value. The `Discipline:` override
+and `Discipline-frozen:` freeze attributes provide explicit escape hatches for
+the cases derivation can't reach; see ADR-017 Invariant 1.
 
 ## The SSOT-in-Path-B Problem
 
@@ -456,6 +457,12 @@ extensibility later) costs at least as much over time.
 - **Profile-manifest schema becomes a stable API.** Once `kinds:` and per-type
   `discipline:` ship, breaking changes are expensive. To be designed
   conservatively.
+- **Schema-versioning posture.** Pre-1.0 the new manifest fields ship
+  unversioned under the project's standing no-migration policy; post-1.0 a
+  `$schema-version:` or analogous mechanism (TBD in a future ADR) governs
+  breaking changes to `kinds:` and per-type `discipline:`. Consumer profiles
+  that pin a MarkSpec version are protected; out-of-tree profiles tracking the
+  current manifest schema bear the cost of any post-1.0 evolution.
 - **Profile-conflict merge rules need a defined semantics** when multiple
   profiles register the same type. Implementation question to settle in
   writing-plans: last-write-wins, error-on-conflict, or namespace-per-profile.
