@@ -402,3 +402,36 @@ Deno.test("validate: $Name with different kinds across entries → TYPL-002", ()
   assertEquals(typl002.length, 1);
   assertEquals(result.valid, false);
 });
+
+// ---------------------------------------------------------------------------
+// MSL-A006: empty CSV element warning
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: CSV attribute with empty element emits MSL-A006", () => {
+  const e = entry({
+    displayId: "STK_0001",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Labels", value: "ASIL-B,,Safety" },
+    ],
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  });
+  const result = validate([e]);
+  const a006 = result.diagnostics.filter((d) => d.code === "MSL-A006");
+  assertEquals(a006.length, 1);
+  assertEquals(a006[0].severity, "warning");
+});
+
+Deno.test("validate: CSV attribute without empty element does not emit MSL-A006", () => {
+  const e = entry({
+    displayId: "STK_0002",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEG" },
+      { key: "Labels", value: "ASIL-B, Safety" },
+    ],
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEG",
+  });
+  const result = validate([e]);
+  const a006 = result.diagnostics.filter((d) => d.code === "MSL-A006");
+  assertEquals(a006.length, 0);
+});
