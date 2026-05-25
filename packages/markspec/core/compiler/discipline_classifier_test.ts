@@ -8,9 +8,11 @@
 import { assertEquals } from "@std/assert";
 import {
   CORE_DISCIPLINE_REGISTRY,
+  type Discipline,
   type DisplayId,
   type Entry,
   makeDisplayId,
+  MIXED_DISCIPLINE,
 } from "../mod.ts";
 import { classifyDiscipline } from "./discipline_classifier.ts";
 
@@ -69,9 +71,6 @@ Deno.test("default: entry with no Type and no Allocated-to → 'system'", () => 
 // ---------------------------------------------------------------------------
 // Channel 4: allocation-based
 // ---------------------------------------------------------------------------
-
-import { MIXED_DISCIPLINE } from "../mod.ts";
-import type { Discipline } from "../mod.ts";
 
 Deno.test("channel 4: Allocated-to a SoftwareComponent → 'software'", () => {
   const req = fixture({

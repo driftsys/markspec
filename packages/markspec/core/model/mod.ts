@@ -451,13 +451,20 @@ export interface Entry {
   readonly bodyTokens: readonly BodyToken[];
   /**
    * Discipline kind resolved by the classifier per ADR-017 Invariant 1
-   * (channels 1–4 with default `system`). Present on entries emitted by
-   * the compiler; absent on synthetic Entry literals (test fixtures,
-   * parser output before Phase 4). Values are drawn from the active
-   * discipline registry (built-in `software` / `hardware` / `system`
-   * plus any profile-declared extensions); `"mixed"` is emitted when
-   * channel 4 sees `Allocated-to` targets resolving to more than one
-   * distinct kind. Authors never type this value directly.
+   * (channels 1–4 with default `system`).
+   *
+   * **Always set on entries returned from `compile()` after Phase 4** —
+   * external consumers reading the compiled output (reporter, serializer,
+   * LSP, MCP) can rely on this field being present. The optional `?:`
+   * modifier exists only because synthetic Entry literals (test fixtures)
+   * and parser-emitted entries before Phase 4 don't carry the field;
+   * these are internal pipeline states, not the public contract.
+   *
+   * Values are drawn from the active discipline registry (built-in
+   * `software` / `hardware` / `system` plus any profile-declared
+   * extensions); `"mixed"` is emitted when channel 4 sees `Allocated-to`
+   * targets resolving to more than one distinct kind. Authors never type
+   * this value directly.
    */
   readonly derivedDiscipline?: Discipline;
 }
