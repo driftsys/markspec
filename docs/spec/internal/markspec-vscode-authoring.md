@@ -338,9 +338,15 @@ Mechanism:
 - The extension generates a CSS rule per type, e.g.:
   ```css
   .markspec-type-stakeholder-requirement {
-    border-left-color: var(--markspec-color-req, #4477AA);
+    border-left-color: var(--markspec-color-blue, #4477AA);
   }
   ```
+  The variable is keyed by the **palette hue** the LSP returns for the type
+  (`"blue" | "cyan" | "teal" | "orange" | "red" | "purple" | "grey"`). The
+  extension provides `--markspec-color-{hue}` definitions through its bundled
+  `theme/markspec.css`; the inline hex fallback covers the bootstrap window
+  before the stylesheet loads. The same `--markspec-color-{hue}` convention
+  powers the published HTML book — single rendering path.
 - The extension injects this stylesheet into the preview via the markdown
   preview's `addContent` hook (or via a dynamic stylesheet contribution if VS
   Code's API allows; otherwise via `data:` URI in the markdown-it output).
