@@ -8,6 +8,7 @@
 // (nodes.ts imports EntityRefConvention here); TypeScript resolves it
 // cleanly because both directions are `import type`.
 import type { BodyBlock } from "../ast/nodes.ts";
+import type { Discipline } from "./discipline.ts";
 
 export {
   ATTRIBUTE_CATALOG,
@@ -32,6 +33,14 @@ export { inferTypeFromUriScheme } from "./uri_scheme_map.ts";
 export { inferTypeFromSource } from "./source_introspection.ts";
 
 export { inferTypeFromDiscriminatingAttr } from "./discriminating_attr.ts";
+
+// Re-export discipline primitives (ADR-017 / ADR-018).
+export {
+  CORE_DISCIPLINE_REGISTRY,
+  CORE_KINDS,
+  MIXED_DISCIPLINE,
+} from "./discipline.ts";
+export type { Discipline, DisciplineRegistry } from "./discipline.ts";
 
 // ---------------------------------------------------------------------------
 // Display ID
@@ -440,6 +449,17 @@ export interface Entry {
    * Always present — empty array when no constructs are recognised.
    */
   readonly bodyTokens: readonly BodyToken[];
+  /**
+   * Discipline kind resolved by the classifier per ADR-017 Invariant 1
+   * (channels 1–4 with default `system`). Present on entries emitted by
+   * the compiler; absent on synthetic Entry literals (test fixtures,
+   * parser output before Phase 4). Values are drawn from the active
+   * discipline registry (built-in `software` / `hardware` / `system`
+   * plus any profile-declared extensions); `"mixed"` is emitted when
+   * channel 4 sees `Allocated-to` targets resolving to more than one
+   * distinct kind. Authors never type this value directly.
+   */
+  readonly derivedDiscipline?: Discipline;
 }
 
 // ---------------------------------------------------------------------------

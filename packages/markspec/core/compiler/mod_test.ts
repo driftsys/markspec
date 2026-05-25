@@ -547,6 +547,43 @@ Deno.test(
   },
 );
 
+// ---------------------------------------------------------------------------
+// Phase 4: Discipline classification
+// ---------------------------------------------------------------------------
+
+Deno.test("compile: every returned entry has derivedDiscipline set", async () => {
+  const files: Record<string, string> = {
+    "/r.md": `
+- [REQ_0001] Test
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [SWC_0001] SW
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Type: SoftwareComponent
+`,
+  };
+  const result = await compile(["/r.md"], { readFile: reader(files) });
+  // Every entry has a well-formed derivedDiscipline.
+  const ALLOWED = new Set(["system", "software", "hardware", "mixed"]);
+  for (const entry of result.entries.values()) {
+    if (!ALLOWED.has(entry.derivedDiscipline ?? "")) {
+      throw new Error(
+        `entry ${entry.displayId} has unexpected derivedDiscipline=${entry.derivedDiscipline}`,
+      );
+    }
+  }
+  // SWC_0001 has Type: SoftwareComponent → channel 3 → 'software'.
+  const swc = result.entries.get(makeDisplayId("SWC_0001"));
+  if (!swc) throw new Error("SWC_0001 missing from compile output");
+  if (swc.derivedDiscipline !== "software") {
+    throw new Error(
+      `expected SWC_0001 derivedDiscipline=software, got ${swc.derivedDiscipline}`,
+    );
+  }
+});
+
 Deno.test(
   "compile: properties.source determinism — two runs over identical input produce byte-identical output",
   async () => {

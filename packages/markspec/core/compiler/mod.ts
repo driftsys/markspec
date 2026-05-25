@@ -22,7 +22,9 @@ import {
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
+import { CORE_DISCIPLINE_REGISTRY } from "../model/mod.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
+import { classifyDiscipline } from "./discipline_classifier.ts";
 import { generateInverses } from "./inverses.ts";
 import { checkLinkTargets } from "./link_target.ts";
 
@@ -308,6 +310,26 @@ export async function compile(
       if (!entries.has(entry.displayId)) {
         entries.set(entry.displayId, entry);
       }
+    }
+  }
+
+  // Phase 4: Classify each entry's discipline per ADR-017 Invariant 1
+  // (channels 3 + 4 + default — override and freeze ship in Slice 3).
+  // Mutates the `entries` map by replacing each Entry with a remapped
+  // copy that carries `derivedDiscipline`.
+  {
+    const classified: Entry[] = [];
+    for (const entry of entries.values()) {
+      const discipline = classifyDiscipline(
+        entry,
+        entries,
+        CORE_DISCIPLINE_REGISTRY,
+      );
+      classified.push({ ...entry, derivedDiscipline: discipline });
+    }
+    entries.clear();
+    for (const entry of classified) {
+      entries.set(entry.displayId, entry);
     }
   }
 

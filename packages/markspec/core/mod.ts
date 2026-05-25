@@ -14,10 +14,13 @@ export const CORE_SCHEMA_VERSION = 1;
 // Model types
 export {
   ConfigError,
+  CORE_DISCIPLINE_REGISTRY,
+  CORE_KINDS,
   DEFAULT_PROJECT_CONFIG,
   KNOWN_LINK_KINDS,
   makeDisplayId,
   makeUlid,
+  MIXED_DISCIPLINE,
   PALETTE_HUES,
   REFHUB_URL,
 } from "./model/mod.ts";
@@ -31,6 +34,8 @@ export type {
   ConfigFieldError,
   Diagnostic,
   Directive,
+  Discipline,
+  DisciplineRegistry,
   DisplayId,
   EarsTrigger,
   EffectiveProfile,
