@@ -115,7 +115,8 @@ attributes:                        # MarkSpec attr ↔ external field
     external: labels
     locked: true                   # upstream-owned while bound (§4)
 conflict:
-  default: manual                  # §5 — manual | local-wins | remote-wins | newest-wins
+  default: manual                  # manual | local-wins | remote-wins
+                                   # (newest-wins removed pre-1.0)
 cache:
   ttl: 15m                         # §6
 ```
@@ -168,15 +169,17 @@ A conflict is: local and upstream both changed a mapped attribute since
 upstream hash — §4 / lockfile spec §3, not by trusting timestamps).
 
 - **Policy is configurable; default is `manual`.** Vocabulary: `manual` (default
-  — record the conflict, change nothing, surface it), `local-wins`,
-  `remote-wins`, `newest-wins` (by upstream change timestamp, only where the
-  connector supplies a trustworthy one).
+  — record the conflict, change nothing, surface it), `local-wins` (keep local,
+  overwrite upstream on next push), `remote-wins` (accept upstream, discard
+  local edit). `newest-wins` is **deferred post-1.0** because no external system
+  clock can be trusted by default.
+- Per-direction sensible defaults apply when `conflict.default` is omitted:
+  `inbound` → `remote-wins`, `outbound` → `local-wins`, `bidirectional` →
+  `manual`.
 - `manual` writes a conflict record to the sync log (§7) and sets
-  `sync.remote_state = conflict` (§2.2); it never silently picks a side.
-  Auto-resolution is opt-in per system/attribute in `mapping.yaml`.
+  `sync.remote_state = conflict` (§2.2); never silently picks a side.
 - The **resolution UI is connector/tooling territory**; this spec fixes only the
-  policy vocabulary and that `manual` is the safe default (ADR-006
-  §Out-of-scope: "UI for resolving sync conflicts — tooling concern").
+  policy vocabulary and the safe default.
 
 ## 6. Caching, generated-attribute provenance, privacy
 
@@ -211,10 +214,40 @@ NDJSON because it is append-only and streamable (the same reasoning as
 compile-output entries, different artifact — a sync log is _audit_, not a
 published graph; not unified). It is the evidentiary record for "when did this
 entry diverge from Jira and who reconciled it", the sync-side analogue of the
-lockfile's trace-audit guarantee. Rotation / retention is a tooling concern (§9
-OQ); the **shape** is fixed here.
+lockfile's trace-audit guarantee. Rotation / retention is a tooling concern; the
+**shape** is fixed here.
 
-## 8. Versioning & compatibility
+## 8. CLI surface (MVP, read-only)
+
+| Command                           | Purpose                                                                             |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| `markspec sync status [<system>]` | Group bound entries by `remote_state`; filterable via `--state conflict` etc.       |
+| `markspec sync log [<system>]`    | Tail NDJSON log; filterable via `--op conflict`, `--since`, `--tail`.               |
+| `markspec sync show <displayId>`  | Per-entry sync state: bindings, locked attrs, last sync/conflict, recent log slice. |
+
+All read-only. Work without a connector. `sync push` / `pull` / `resolve` /
+`init` are connector-side, separate ADRs per tool.
+
+## 9. Multi-system binding rules
+
+When an entry carries multiple `External-id:` values, the following rule is
+enforced at mapping load time:
+
+> **For each MarkSpec attribute on each entry, at most one system may write
+> locally to it.**
+
+"Writes locally" = `inbound` or `bidirectional` direction. Multiple `outbound`s
+targeting the same attribute are allowed (all push the same local value; nothing
+reads back). Violations → `MSL-S020`.
+
+| System A      | System B                           | Same attr | Verdict                                             |
+| ------------- | ---------------------------------- | --------- | --------------------------------------------------- |
+| outbound      | outbound                           | yes       | Allowed (multiple destinations)                     |
+| outbound      | inbound                            | yes       | Allowed (B writes locally, A pushes; deterministic) |
+| inbound       | inbound                            | yes       | **Rejected** (two local writers)                    |
+| bidirectional | inbound / bidirectional / outbound | yes       | **Rejected** (B's local write races A's)            |
+
+## 10. Versioning & compatibility
 
 - `mapping.yaml` carries `schema:` (its own format version, independent of
   `markspec-schema`). A newer mapping schema read by an older binary is a hard
@@ -228,28 +261,20 @@ OQ); the **shape** is fixed here.
   documented hand-edit, not a tool migration — acceptable pre-1.0). The
   cross-version guarantee binds at 1.0.
 
-## 9. Open questions
+## 11. Resolved decisions
 
-Capped at five.
-
-1. **Locked-edit diagnostic code.** §4 needs a code for "edited a locked
-   attribute". New ADR-012 `sync` category, or reuse `MSL-A` (attribute)? It
-   must be distinguishable from an ordinary attribute error because its CI
-   semantics differ (lockfile-tied).
-2. **`newest-wins` clock trust.** §5 allows timestamp-based resolution only
-   where the connector supplies a trustworthy clock. Is a per-connector "clock
-   trustworthy?" declaration part of the `mapping.yaml` schema (core) or a
-   connector-ADR concern?
-3. **Inbound entries and `fmt`.** §2.3 inbound entries are upstream-owned. Does
-   `fmt` skip them entirely, format-but-not-reorder, or treat them like
-   `Origin: synthesized` (core-data-model §6 OpenQ4 territory)?
-4. **Log retention.** §7 log is append-only and unbounded. Is
-   rotation/compaction in scope for the _model_ (a `maxBytes`/`maxAge` in
-   `mapping.yaml`) or strictly tooling?
-5. **Multi-system binding of one entry.** §2.1 allows several `External-id`s. If
-   two systems both map `Title` bidirectionally and disagree, is that a §5
-   conflict, a configuration error rejected at `mapping.yaml` load, or a
-   documented precedence order?
+1. **Locked-edit diagnostic code: new `MSL-S###` family.** Initial codes:
+   `MSL-S010` (interactive warning) / `MSL-S011` (CI error). See ADR-012.
+2. **`newest-wins` clock trust: dropped from MVP.** Vocabulary is `manual` /
+   `local-wins` / `remote-wins`. Per-direction sensible defaults. Revisit
+   post-1.0.
+3. **Inbound entries + `fmt`: no special-casing.** `fmt` is non-reordering;
+   inbound entries get the same indentation/backslash treatment as Authored
+   entries. Sync pull rewrites idempotently anyway.
+4. **Log retention: tooling concern.** No `retention:` field in mapping schema;
+   rely on logrotate / journald / cron. Revisit post-1.0.
+5. **Multi-system binding: at most one local writer per attribute.** Rejected at
+   mapping load via `MSL-S020`. See §9.
 
 ## Annex — Cross-reference summary
 
@@ -262,4 +287,7 @@ Capped at five.
 | §5      | ADR-006 §4 / §Out-of-scope; lockfile spec §3                                                  |
 | §6      | ADR-006 §5; compile-output §6; background-indexing §7 / §8; core-data-model §1.6              |
 | §7      | ADR-006 §4; compile-output §4.6 (NDJSON reasoning, distinct artifact)                         |
-| §8      | profile-schema §8.2; project decision (no migration until 1.0)                                |
+| §8      | (new) CLI surface, MVP read-only commands                                                     |
+| §9      | (new) Multi-system binding rules; ADR-012 `MSL-S020`                                          |
+| §10     | profile-schema §8.2; project decision (no migration until 1.0)                                |
+| §11     | Resolved OQs from Prompt-7 stage (locked-edit codes, newest-wins, fmt, retention, binding)    |
