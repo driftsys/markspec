@@ -11,7 +11,12 @@
  * stderr carries status messages, file paths, and instructions.
  */
 
-import type { AdapterResult } from "./adapters.ts";
+import { join } from "@std/path";
+import type {
+  AdapterResult,
+  LspAdapter,
+  RenderBlockInput,
+} from "./adapters.ts";
 
 /**
  * Return the canonical Lua snippet for nvim-lspconfig.
@@ -49,6 +54,38 @@ export function zedAdapter(): AdapterResult {
     "Merge the JSON block above into your Zed settings.json (~/.config/zed/settings.json).";
   return { stdout, stderr, exitCode: 0 };
 }
+
+// ---------------------------------------------------------------------------
+// neovimDescriptor — new descriptor shape (consumed by orchestrator, Task 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Descriptor for the Neovim editor adapter. Pure functions — no I/O.
+ * The install orchestrator (Task 6) handles file reads, diff/preview,
+ * backup, and writes using this descriptor.
+ */
+export const neovimDescriptor: LspAdapter = {
+  id: "neovim",
+  resolveConfigPath(scope, _cwd, home, workspaceRoot) {
+    if (scope === "user") {
+      return join(home, ".config", "nvim", "lsp", "markspec.lua");
+    }
+    if (!workspaceRoot) {
+      throw new Error("workspace scope requires a workspaceRoot");
+    }
+    return join(workspaceRoot, ".nvim", "markspec.lua");
+  },
+  renderBlock(input: RenderBlockInput): string {
+    return [
+      `-- markspec LSP (managed by markspec lsp install — do not edit)`,
+      `require('lspconfig').markspec.setup({`,
+      `  cmd = { '${input.binaryPath}', 'lsp', '--stdio' },`,
+      `  filetypes = { 'markdown' },`,
+      `  root_dir = require('lspconfig.util').root_pattern('markspec.yaml', '.markspec.yaml', 'project.yaml'),`,
+      `})`,
+    ].join("\n");
+  },
+};
 
 /**
  * VS Code adapter — verify-only.
