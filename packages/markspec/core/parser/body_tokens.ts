@@ -150,12 +150,11 @@ function emitGherkin(
  * to body-relative line/column.
  */
 function emitInlineCode(
-  body: string,
+  tree: Root,
   out: BodyToken[],
   baseLocation: SourceLocation,
   columnOffset: number,
 ): void {
-  const tree = processor.parse(body) as Root;
   const visit = (node: RootContent | Root): void => {
     if (
       node.type === "inlineCode" && node.position &&
@@ -201,6 +200,7 @@ export function extractBodyTokens(
   bodyAst: readonly BodyBlock[],
   baseLocation: SourceLocation,
   columnOffset = 0,
+  mdastTree?: Root,
 ): readonly BodyToken[] {
   const tokens: BodyToken[] = [];
   const verbatimLines = collectVerbatimLines(bodyAst);
@@ -262,7 +262,8 @@ export function extractBodyTokens(
   }
 
   emitGherkin(bodyAst, tokens, baseLocation, columnOffset);
-  emitInlineCode(body, tokens, baseLocation, columnOffset);
+  const tree = mdastTree ?? processor.parse(body) as Root;
+  emitInlineCode(tree, tokens, baseLocation, columnOffset);
 
   tokens.sort((a, b) =>
     a.location.line !== b.location.line
