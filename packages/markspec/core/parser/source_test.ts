@@ -1466,3 +1466,63 @@ Deno.test("parseSource: C# operator and indexer → function undefined (anonymou
     }
   }
 });
+
+Deno.test("parseSource: C# field declaration → function captures first declarator name", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Holder {
+    /// [REQ_0300] On field
+    ///
+    ///     Id: 01HGW0000000000000000300AA
+    private int counter = 0;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "Field.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "counter");
+  }
+});
+
+Deno.test("parseSource: C# event field declaration → function captures first declarator name", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Holder {
+    /// [REQ_0301] On event
+    ///
+    ///     Id: 01HGW0000000000000000301AA
+    public event System.Action MyEvent;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "Event.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "MyEvent");
+  }
+});
+
+Deno.test("parseSource: C# multi-name field → function captures first declarator only", async () => {
+  const language = await getCsharpLanguage();
+  const source = `public class Holder {
+    /// [REQ_0302] On multi-name field
+    ///
+    ///     Id: 01HGW0000000000000000302AA
+    public int multi1, multi2 = 5, multi3;
+}
+`;
+  const { entries } = parseSource(source, {
+    file: "MultiField.cs",
+    language,
+    languageId: "csharp",
+  });
+  assertEquals(entries.length, 1);
+  if (entries[0].source.kind === "doc-comment") {
+    assertEquals(entries[0].source.function, "multi1");
+  }
+});
