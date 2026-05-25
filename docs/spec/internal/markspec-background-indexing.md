@@ -25,14 +25,14 @@ published).
 
 ## 0. Terminology
 
-| Term                 | Meaning in this spec                                                                                                 |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **index**            | `.markspec/index.db` — the local, disposable query accelerator. Never committed, never published.                    |
-| **cold scan**        | Building the index from nothing (no db, or a corrupt one) — full project walk.                                       |
-| **warm incremental** | Updating the index for the files that changed since the last run, only.                                              |
-| **federated read**   | Querying a federated upstream's published `/api/` (compile-output §5) through the local index's resolver, read-only. |
-| **invalidation**     | Deciding which index rows a file change makes stale — the actual hard problem (Prompt-7 Context).                    |
-| **edge**             | A trace relation: authored (from source) or generated inverse (core-data-model §1.6 / ADR-003 §Part 3).              |
+| Term                 | Meaning in this spec                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **index**            | `<cache>/markspec/projects/<sha256(worktree-abspath)>/index.db` — the local, disposable query accelerator stored in the OS cache directory (§3.3). Never committed, never transmitted, never published. |
+| **cold scan**        | Building the index from nothing (no db, or a corrupt one) — full project walk.                                                                                                                          |
+| **warm incremental** | Updating the index for the files that changed since the last run, only.                                                                                                                                 |
+| **federated read**   | Querying a federated upstream's published `/api/` (compile-output §5) through the local index's resolver, read-only.                                                                                    |
+| **invalidation**     | Deciding which index rows a file change makes stale — the actual hard problem (Prompt-7 Context).                                                                                                       |
+| **edge**             | A trace relation: authored (from source) or generated inverse (core-data-model §1.6 / ADR-003 §Part 3).                                                                                                 |
 
 ---
 
@@ -61,13 +61,13 @@ never published; the mirror is never used as the editor's working store.
 
 ## 2. Storage — options analysis
 
-| Option                                     | Rejected / chosen because                                                                                                                                                                                                                                                                      |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SQLite (`.markspec/index.db`) — chosen** | The boring correct answer. Embedded, zero-config, single-file, ACID, mature WAL concurrency (§4), and **every editor/CLI/human can inspect it** with ubiquitous tooling if a query is wrong. The interesting problem is invalidation (§5), not storage — SQLite removes storage as a variable. |
-| Tantivy / a full-text engine               | **Rejected.** Optimizes ranked text search; the dominant queries are exact-key point lookups (Id, displayId, edge endpoint) and prefix completion, which a B-tree index serves better and simpler. Adds a large dependency for the wrong query shape.                                          |
-| RocksDB / LMDB (KV store)                  | **Rejected.** Faster raw KV, but no ad-hoc query, no human-inspectable form, and the project would hand-roll the relational queries (edges, glossary joins) SQLite gives for free. Speed it adds is below the budget headroom (§6).                                                            |
-| Custom binary format                       | **Rejected.** Every reason to not invent the compile-output format (compile-output §3) applies double to a format nobody else can open. Maintenance and corruption-recovery burden with no upside over SQLite.                                                                                 |
-| In-memory only (status quo)                | **Rejected at scale.** `WorkspaceIndex` reparses the whole project per server start; the §6 cold budget at 10k entries is unmet without persistence. Kept as the tiny-project fast path (§3.4).                                                                                                |
+| Option                                   | Rejected / chosen because                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SQLite — chosen** (file location §3.3) | The boring correct answer. Embedded, zero-config, single-file, ACID, mature WAL concurrency (§4), and **every editor/CLI/human can inspect it** with ubiquitous tooling if a query is wrong. The interesting problem is invalidation (§5), not storage — SQLite removes storage as a variable. |
+| Tantivy / a full-text engine             | **Rejected.** Optimizes ranked text search; the dominant queries are exact-key point lookups (Id, displayId, edge endpoint) and prefix completion, which a B-tree index serves better and simpler. Adds a large dependency for the wrong query shape.                                          |
+| RocksDB / LMDB (KV store)                | **Rejected.** Faster raw KV, but no ad-hoc query, no human-inspectable form, and the project would hand-roll the relational queries (edges, glossary joins) SQLite gives for free. Speed it adds is below the budget headroom (§6).                                                            |
+| Custom binary format                     | **Rejected.** Every reason to not invent the compile-output format (compile-output §3) applies double to a format nobody else can open. Maintenance and corruption-recovery burden with no upside over SQLite.                                                                                 |
+| In-memory only (status quo)              | **Rejected at scale.** `WorkspaceIndex` reparses the whole project per server start; the §6 cold budget at 10k entries is unmet without persistence. Kept as the tiny-project fast path (§3.4).                                                                                                |
 
 ## 3. Index data model & modes
 
@@ -98,6 +98,62 @@ never published; the mirror is never used as the editor's working store.
   reading the upstream's published `entries.idx` through a read-through cache
   table; **read-only**, never written back into the upstream, pinned by the
   lockfile (lockfile spec §2.2 `[[upstream.registry]]`).
+
+### 3.3 Cache directory & commands
+
+`index.db` lives in the user's OS cache directory, **not** in the project tree.
+The platform-specific roots match the conventions every long-lived editor and
+build tool (Cargo, Gradle, Maven, JetBrains, rust-analyzer) already use:
+
+| Platform    | Root                                                     |
+| ----------- | -------------------------------------------------------- |
+| Linux / BSD | `$XDG_CACHE_HOME/markspec` (default `~/.cache/markspec`) |
+| macOS       | `~/Library/Caches/markspec`                              |
+| Windows     | `%LOCALAPPDATA%\markspec`                                |
+
+Under that root:
+
+```text
+<cache>/markspec/
+├── projects/
+│   └── <sha256(worktree-abspath)>/
+│       ├── index.db        ← Q4: one per worktree (key is the absolute path)
+│       └── meta.json       ← worktree root path, schema versions, last-scan ts
+└── registry/
+    └── <upstream-content-hash>/   ← federated reads (Q3, lockfile-pinned)
+        └── …
+```
+
+Three consequences fall out of this layout:
+
+1. **Network filesystems become a non-issue for SQLite WAL.** The cache is on
+   local disk by default, sidestepping the documented WAL hazards on networked
+   storage. The remaining (rare) case is a networked `~/.cache/` — flagged at
+   open time, not detected per query.
+2. **Worktree isolation (Q4) is realised by the path-hash key**, not by living
+   inside the worktree. Two worktrees of the same repo land in two distinct
+   `projects/<hash>/` directories with zero coordination.
+3. **`projects/` and `registry/` are siblings**, mirroring Cargo's `target/` +
+   `~/.cargo/registry/` split: project-specific entries here, content-addressed
+   shared upstreams there.
+
+`meta.json` records the absolute worktree path the hash maps back to, the
+`schema` + `markspec-schema` versions the db was built under (§7), and the last
+cold/warm-scan timestamp. It exists for human inspection and
+`markspec cache
+list` — never as input to a correctness query.
+
+**Cache commands.** Surfaced under `markspec cache`:
+
+| Command                      | Behaviour                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `markspec cache path`        | Print this worktree's cache directory.                                                              |
+| `markspec cache clear`       | Delete this worktree's cache (`projects/<hash>/`). Next run cold-scans.                             |
+| `markspec cache clear --all` | Delete every project + registry entry under `<cache>/markspec/`.                                    |
+| `markspec cache list`        | List all known project caches with their resolved worktree paths and sizes (orphan-cleanup helper). |
+
+Clearing the cache is never required for correctness — it is a convenience for
+forcing a clean cold scan or reclaiming disk space.
 
 ## 4. Concurrency
 
@@ -181,13 +237,15 @@ check in CI, §8 OQ).
 
 ## 8. Privacy
 
-`index.db` lives under `.markspec/` and is **git-ignored by default** (a
-generated, machine-local cache). It mirrors source content (entries, prose,
-glossary) plus `file.*`/`git.*` properties — all repository-internal. It
-**excludes** `sync.*` external-system state (that is the sync model's cache,
-§sync spec §5, with its own TTL and locality) and any credential. Nothing in the
-index is transmitted; it is never an input to the published `/api/`. A federated
-read caches an upstream's _public_ `/api/` data only.
+`index.db` lives in the user's OS cache directory (§3.3) — outside the project
+tree, so it cannot be accidentally committed and is not affected by
+project-storage choices like networked home directories or container bind
+mounts. It mirrors source content (entries, prose, glossary) plus
+`file.*`/`git.*` properties — all repository-internal. It **excludes** `sync.*`
+external-system state (that is the sync model's cache, §sync spec §5, with its
+own TTL and locality) and any credential. Nothing in the index is transmitted;
+it is never an input to the published `/api/`. A federated read caches an
+upstream's _public_ `/api/` data only.
 
 ## 9. Open questions
 
@@ -254,6 +312,14 @@ preserved so the rationale stays in the spec.
    isolation also avoids cross-worktree leakage of sandbox-overlay state (an
    existing hazard with agent-driven sessions in `.claude/worktrees/`). Revisit
    if rebuild times become a complaint.
+
+   **Amended (2026-05-25, location): the cache directory moved out of the
+   project tree.** Per-worktree isolation is now realised by hashing the
+   worktree's absolute path into `<cache>/markspec/projects/<sha256>/` (§3.3)
+   rather than by the cache living at `.markspec/index.db` inside the worktree.
+   The "one index per worktree" decision is preserved; only the file location
+   changed. The amendment subsumes the original Q-2-era reasoning about network
+   filesystems (the cache is now on local disk by default).
 
 5. **Cross-file invalidation cost ceiling.** §5.2's reverse-edge closure is
    bounded but a hub entry (compile-output §2 worst case) has a huge reverse
