@@ -29,3 +29,6 @@ export { bridgeTyplDiagnostic } from "./bridge.ts";
 
 export type { TyplBulletExtraction } from "./bullet.ts";
 export { extractTyplBullets } from "./bullet.ts";
+
+export type { TyplInlineExtraction } from "./inline.ts";
+export { extractTyplInlines } from "./inline.ts";
