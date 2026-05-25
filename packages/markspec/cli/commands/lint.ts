@@ -26,7 +26,9 @@ export const lintCmd = new Command()
     ) => {
       const { result } = await compileProject(paths);
       const { runLint } = await import("../../core/mod.ts");
-      const lintResult = runLint({ entries: [...result.entries.values()] });
+      const lintResult = await runLint({
+        entries: [...result.entries.values()],
+      });
 
       let diagnostics = [...lintResult.diagnostics];
       if (options.strict) {

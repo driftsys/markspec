@@ -107,7 +107,7 @@ Deno.test("isProseScope: Component-typed entry is out-of-scope", () => {
 // Lexicon rules (via runLint)
 // ---------------------------------------------------------------------------
 
-Deno.test("runLint: MSL-Q302 fires for 'some' in body", () => {
+Deno.test("runLint: MSL-Q302 fires for 'some' in body", async () => {
   const text = "The system should use some processing mechanism.";
   const entry = makeEntry({
     body: text,
@@ -122,12 +122,12 @@ Deno.test("runLint: MSL-Q302 fires for 'some' in body", () => {
       },
     ],
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q302"), true);
 });
 
-Deno.test("runLint: MSL-Q303 fires for 'as appropriate' in body", () => {
+Deno.test("runLint: MSL-Q303 fires for 'as appropriate' in body", async () => {
   const text = "The system shall operate as appropriate for the situation.";
   const entry = makeEntry({
     body: text,
@@ -142,7 +142,7 @@ Deno.test("runLint: MSL-Q303 fires for 'as appropriate' in body", () => {
       },
     ],
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q303"), true);
 });
@@ -151,14 +151,14 @@ Deno.test("runLint: MSL-Q303 fires for 'as appropriate' in body", () => {
 // Structural rules (via runLint)
 // ---------------------------------------------------------------------------
 
-Deno.test("runLint: MSL-Q400 fires when title is too short (< 3 chars)", () => {
+Deno.test("runLint: MSL-Q400 fires when title is too short (< 3 chars)", async () => {
   const entry = makeEntry({ title: "Hi" });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q400"), true);
 });
 
-Deno.test("runLint: MSL-Q401 fires when body has fewer than 5 words", () => {
+Deno.test("runLint: MSL-Q401 fires when body has fewer than 5 words", async () => {
   const text = "Too short body.";
   const entry = makeEntry({
     body: text,
@@ -173,7 +173,7 @@ Deno.test("runLint: MSL-Q401 fires when body has fewer than 5 words", () => {
       },
     ],
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q401"), true);
 });
@@ -182,7 +182,7 @@ Deno.test("runLint: MSL-Q401 fires when body has fewer than 5 words", () => {
 // Suppression hygiene rules (via runLint)
 // ---------------------------------------------------------------------------
 
-Deno.test("runLint: MSL-Q900 fires when Markspec-disable present but no Rationale", () => {
+Deno.test("runLint: MSL-Q900 fires when Markspec-disable present but no Rationale", async () => {
   const entry = makeEntry({
     rawAttributes: [
       { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
@@ -195,12 +195,12 @@ Deno.test("runLint: MSL-Q900 fires when Markspec-disable present but no Rational
       ["Markspec-disable", ["MSL-Q302"]],
     ]),
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q900"), true);
 });
 
-Deno.test("runLint: MSL-Q901 fires when Markspec-disable lists unknown rule code", () => {
+Deno.test("runLint: MSL-Q901 fires when Markspec-disable lists unknown rule code", async () => {
   const entry = makeEntry({
     rawAttributes: [
       { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
@@ -215,7 +215,7 @@ Deno.test("runLint: MSL-Q901 fires when Markspec-disable lists unknown rule code
       ["Rationale", ["Accepted for this specific entry."]],
     ]),
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q901"), true);
 });
@@ -224,7 +224,7 @@ Deno.test("runLint: MSL-Q901 fires when Markspec-disable lists unknown rule code
 // Suppression: valid disable drops the matched rule
 // ---------------------------------------------------------------------------
 
-Deno.test("runLint: valid Markspec-disable suppresses MSL-Q302", () => {
+Deno.test("runLint: valid Markspec-disable suppresses MSL-Q302", async () => {
   const text = "The system should use some processing mechanism.";
   const entry = makeEntry({
     body: text,
@@ -251,7 +251,7 @@ Deno.test("runLint: valid Markspec-disable suppresses MSL-Q302", () => {
       ["Rationale", ["Reviewed and accepted."]],
     ]),
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const codes = result.diagnostics.map((d) => d.code);
   assertEquals(codes.includes("MSL-Q302"), false);
 });
@@ -260,7 +260,7 @@ Deno.test("runLint: valid Markspec-disable suppresses MSL-Q302", () => {
 // Diagnostics carry slug + group + scoreContribution
 // ---------------------------------------------------------------------------
 
-Deno.test("runLint: diagnostics include slug, group, scoreContribution fields", () => {
+Deno.test("runLint: diagnostics include slug, group, scoreContribution fields", async () => {
   const text = "The system should use some processing mechanism.";
   const entry = makeEntry({
     body: text,
@@ -275,7 +275,7 @@ Deno.test("runLint: diagnostics include slug, group, scoreContribution fields", 
       },
     ],
   });
-  const result = runLint({ entries: [entry] });
+  const result = await runLint({ entries: [entry] });
   const q302 = result.diagnostics.find((d) => d.code === "MSL-Q302");
   assertEquals(q302 !== undefined, true);
   // deno-lint-ignore no-explicit-any
@@ -289,7 +289,7 @@ Deno.test("runLint: diagnostics include slug, group, scoreContribution fields", 
 // Determinism
 // ---------------------------------------------------------------------------
 
-Deno.test("runLint: output is deterministic for same input", () => {
+Deno.test("runLint: output is deterministic for same input", async () => {
   const text = "The system should use some processing as appropriate.";
   const entry = makeEntry({
     body: text,
@@ -304,8 +304,8 @@ Deno.test("runLint: output is deterministic for same input", () => {
       },
     ],
   });
-  const r1 = runLint({ entries: [entry] });
-  const r2 = runLint({ entries: [entry] });
+  const r1 = await runLint({ entries: [entry] });
+  const r2 = await runLint({ entries: [entry] });
   assertEquals(
     r1.diagnostics.map((d) => d.code),
     r2.diagnostics.map((d) => d.code),
