@@ -14,6 +14,7 @@ import type {
   Diagnostic,
   Entry,
   ProfileChain,
+  ProfileSpecifier,
   ProjectConfig,
 } from "../model/mod.ts";
 import type { Mapping } from "../sync/mod.ts";
@@ -35,6 +36,16 @@ export type FetchUrl = (
   url: string,
 ) => Promise<Uint8Array | { error: string }>;
 
+/**
+ * Callback to read a local file by absolute path. Returns the bytes on
+ * success, or `{ error }` on failure. Used by `resolveProfileChain` to
+ * hash on-disk profile manifests; isolated to a callback so the resolver
+ * stays runtime-agnostic.
+ */
+export type ReadFile = (
+  path: string,
+) => Promise<Uint8Array | { error: string }>;
+
 /** Inputs to {@linkcode resolveUpstreams}. */
 export interface ResolveUpstreamsOptions {
   readonly entries: readonly Entry[];
@@ -47,6 +58,7 @@ export interface ResolveUpstreamsOptions {
   readonly config: ProjectConfig;
   readonly mappings: readonly Mapping[];
   readonly fetchUrl: FetchUrl;
+  readonly readFile: ReadFile;
   /** Injectable clock for deterministic tests. Defaults to `() => new Date()`. */
   readonly now?: () => Date;
 }
@@ -200,4 +212,150 @@ export function resolveUpstreams(
   return Promise.reject(
     new Error("resolveUpstreams: not yet implemented (Tasks 15–18)"),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Profile chain resolution (Task 16)
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a `ProfileSpecifier` into the lockfile-canonical specifier string.
+ *
+ * Strings are stable across runs so the lockfile diff captures only meaningful
+ * changes:
+ *   - `builtin`                                    — bundled default
+ *   - `local:<path>`                               — on-disk profile
+ *   - `git:<repo>#<tag>` or `git:<repo>//<subpath>#<tag>`
+ *   - `npm:<scope?><name>@<range>`
+ */
+function formatSpecifier(spec: ProfileSpecifier): string {
+  switch (spec.kind) {
+    case "builtin":
+      return "builtin";
+    case "local":
+      return `local:${spec.path}`;
+    case "git":
+      return spec.subpath !== undefined
+        ? `git:${spec.repo}//${spec.subpath}#${spec.tag}`
+        : `git:${spec.repo}#${spec.tag}`;
+    case "npm": {
+      const name = spec.scope !== undefined
+        ? `${spec.scope}/${spec.name}`
+        : spec.name;
+      return `npm:${name}@${spec.range}`;
+    }
+  }
+}
+
+/**
+ * Resolve every profile chain tier into an upstream record. Each tier's
+ * `markspec.yaml` is read from `tier.sourcePath` via `readFile` and
+ * `sha256:*`-hashed; a read failure attaches MSL-L102 and degrades the
+ * tier's hash to `sha256:0` (identity-only).
+ *
+ * The `extends` chain is reconstructed from list order: tiers are
+ * already root-parent → leaf-child, so each tier's `extends` points to
+ * the previous tier's id. The root tier has `extends: undefined`.
+ */
+export async function resolveProfileChain(
+  chain: ProfileChain | readonly never[],
+  readFile: ReadFile,
+): Promise<ResolvedProfile[]> {
+  if (Array.isArray(chain)) return [];
+  const realChain = chain as ProfileChain;
+  const out: ResolvedProfile[] = [];
+  let parentId: string | undefined = undefined;
+  for (const tier of realChain.tiers) {
+    const diagnostics: Diagnostic[] = [];
+    let hash = "sha256:0";
+    const fetched = await readFile(tier.sourcePath);
+    if (fetched instanceof Uint8Array) {
+      hash = await sha256Bytes(fetched);
+    } else {
+      diagnostics.push({
+        code: "MSL-L102",
+        severity: "warning",
+        message:
+          `Failed to read profile manifest at ${tier.sourcePath}: ${fetched.error}. Recording identity-only hash.`,
+        location: undefined,
+      });
+    }
+    out.push({
+      upstream: {
+        kind: "profile",
+        id: tier.id,
+        specifier: formatSpecifier(tier.specifier),
+        resolved: tier.version,
+        hash,
+        extends: parentId,
+      },
+      diagnostics,
+    });
+    parentId = tier.id;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Registry resolution (Task 16)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve federated parent registries (and the fallback, when not already
+ * listed). Each URL's `<url>/manifest` is fetched; the body is parsed
+ * loosely for `markspec-schema` (defaults to 1 on parse failure).
+ */
+export async function resolveRegistries(
+  config: ProjectConfig,
+  fetchUrl: FetchUrl,
+): Promise<ResolvedRegistry[]> {
+  const urls = [...config.parents];
+  if (config.parentFallback && !urls.includes(config.parentFallback)) {
+    urls.push(config.parentFallback);
+  }
+  const out: ResolvedRegistry[] = [];
+  for (const url of urls) {
+    const manifestUrl = url.endsWith("/")
+      ? `${url}manifest`
+      : `${url}/manifest`;
+    const fetched = await fetchUrl(manifestUrl);
+    if (fetched instanceof Uint8Array) {
+      const hash = await sha256Bytes(fetched);
+      let markspecSchema = 1;
+      try {
+        const parsed = JSON.parse(new TextDecoder().decode(fetched));
+        if (typeof parsed["markspec-schema"] === "number") {
+          markspecSchema = parsed["markspec-schema"];
+        }
+      } catch { /* leave default */ }
+      out.push({
+        upstream: {
+          kind: "registry",
+          id: `urn:markspec:registry:${url}`,
+          api: url,
+          resolvedManifestHash: hash,
+          markspecSchema,
+        },
+        diagnostics: [],
+      });
+    } else {
+      out.push({
+        upstream: {
+          kind: "registry",
+          id: `urn:markspec:registry:${url}`,
+          api: url,
+          resolvedManifestHash: "sha256:0",
+          markspecSchema: 1,
+        },
+        diagnostics: [{
+          code: "MSL-L101",
+          severity: "warning",
+          message:
+            `Failed to fetch registry manifest from ${manifestUrl}: ${fetched.error}`,
+          location: undefined,
+        }],
+      });
+    }
+  }
+  return out;
 }

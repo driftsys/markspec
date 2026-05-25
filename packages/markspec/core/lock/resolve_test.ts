@@ -1,8 +1,17 @@
 import { assertEquals } from "@std/assert";
 import type { ResolvedUpstreams, ResolveUpstreamsOptions } from "./resolve.ts";
-import { resolveReferences } from "./resolve.ts";
+import {
+  resolveProfileChain,
+  resolveReferences,
+  resolveRegistries,
+} from "./resolve.ts";
 import { makeDisplayId } from "../model/mod.ts";
-import type { Attribute, Entry } from "../model/mod.ts";
+import type {
+  Attribute,
+  Entry,
+  ProfileChain,
+  ProfileSpecifier,
+} from "../model/mod.ts";
 
 Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
   const opts: ResolveUpstreamsOptions = {
@@ -18,6 +27,7 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
     },
     mappings: [],
     fetchUrl: () => Promise.resolve({ error: "stub" }),
+    readFile: () => Promise.resolve({ error: "stub" }),
   };
   assertEquals(opts.entries.length, 0);
 
@@ -110,3 +120,161 @@ Deno.test("resolveReferences: dedupe by slug", async () => {
   );
   assertEquals(result.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// resolveProfileChain tests (Task 16)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal LoadedProfile-shaped object. The Reference + RegistryFn
+ * tests only need id, version, specifier, sourcePath, baseDir; the
+ * `manifest` field is opaque to the resolver and can be left as a sparse
+ * cast. `as never` on the manifest is bounded — only the resolver's
+ * narrow access path is asserted by the tests.
+ */
+function mkTier(
+  id: string,
+  version: string,
+  specifier: ProfileSpecifier,
+  sourcePath = `/fake/${id}/markspec.yaml`,
+) {
+  return {
+    id,
+    version,
+    specifier,
+    manifest: {} as never,
+    sourcePath,
+    baseDir: `/fake/${id}`,
+  };
+}
+
+Deno.test(
+  "resolveProfileChain: each tier becomes a profile upstream with extends pointing at parent id",
+  async () => {
+    const chain = {
+      tiers: [
+        mkTier("@markspec/default", "0.5.3", { kind: "builtin" }),
+        mkTier(
+          "@org/aspice",
+          "1.2.4",
+          { kind: "npm", scope: "@org", name: "aspice", range: "^1.2" },
+          "/fake/aspice/markspec.yaml",
+        ),
+      ],
+      effective: {} as never,
+    } as unknown as ProfileChain;
+
+    const readFile = (path: string) => {
+      if (path === "/fake/@markspec/default/markspec.yaml") {
+        return Promise.resolve(
+          new TextEncoder().encode(
+            "id: '@markspec/default'\nversion: 0.5.3\n",
+          ),
+        );
+      }
+      if (path === "/fake/aspice/markspec.yaml") {
+        return Promise.resolve(
+          new TextEncoder().encode("id: '@org/aspice'\nversion: 1.2.4\n"),
+        );
+      }
+      return Promise.resolve({ error: `unexpected path ${path}` });
+    };
+
+    const result = await resolveProfileChain(chain, readFile);
+    assertEquals(result.length, 2);
+    assertEquals(result[0].upstream.id, "@markspec/default");
+    assertEquals(result[0].upstream.specifier, "builtin");
+    assertEquals(result[0].upstream.resolved, "0.5.3");
+    assertEquals(result[0].upstream.extends, undefined); // root has no parent
+    assertEquals(typeof result[0].upstream.hash, "string");
+    assertEquals(result[1].upstream.id, "@org/aspice");
+    assertEquals(result[1].upstream.specifier, "npm:@org/aspice@^1.2");
+    assertEquals(result[1].upstream.extends, "@markspec/default");
+  },
+);
+
+Deno.test("resolveProfileChain: empty chain returns []", async () => {
+  const result = await resolveProfileChain(
+    [],
+    () => Promise.resolve({ error: "stub" }),
+  );
+  assertEquals(result.length, 0);
+});
+
+Deno.test(
+  "resolveProfileChain: readFile failure emits MSL-L102 warning, identity-only",
+  async () => {
+    const chain = {
+      tiers: [mkTier("@markspec/default", "0.5.3", { kind: "builtin" })],
+      effective: {} as never,
+    } as unknown as ProfileChain;
+    const readFile = () => Promise.resolve({ error: "ENOENT" });
+    const result = await resolveProfileChain(chain, readFile);
+    assertEquals(result.length, 1);
+    assertEquals(
+      result[0].diagnostics.some((d) => d.code === "MSL-L102"),
+      true,
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// resolveRegistries tests (Task 16)
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "resolveRegistries: each parent URL becomes a registry upstream when manifest fetch succeeds",
+  async () => {
+    const config = {
+      name: "p",
+      version: "0",
+      labels: [],
+      parents: ["https://reg.example/"],
+      parentFallback: "",
+      captionConventions: {},
+    };
+    const result = await resolveRegistries(
+      config,
+      () => Promise.resolve(new TextEncoder().encode('{"markspec-schema":1}')),
+    );
+    assertEquals(result.length, 1);
+    assertEquals(result[0].upstream.api, "https://reg.example/");
+    assertEquals(typeof result[0].upstream.resolvedManifestHash, "string");
+    assertEquals(result[0].upstream.markspecSchema, 1);
+  },
+);
+
+Deno.test("resolveRegistries: fetch failure emits MSL-L101", async () => {
+  const config = {
+    name: "p",
+    version: "0",
+    labels: [],
+    parents: ["https://broken/"],
+    parentFallback: "",
+    captionConventions: {},
+  };
+  const result = await resolveRegistries(
+    config,
+    () => Promise.resolve({ error: "503" }),
+  );
+  assertEquals(result[0].diagnostics.some((d) => d.code === "MSL-L101"), true);
+});
+
+Deno.test(
+  "resolveRegistries: parentFallback is included when not already in parents",
+  async () => {
+    const config = {
+      name: "p",
+      version: "0",
+      labels: [],
+      parents: ["https://a/"],
+      parentFallback: "https://b/",
+      captionConventions: {},
+    };
+    const result = await resolveRegistries(
+      config,
+      () => Promise.resolve(new TextEncoder().encode("{}")),
+    );
+    assertEquals(result.length, 2);
+  },
+);

@@ -29,9 +29,15 @@ export { sha256Bytes, sha256String } from "./hash.ts";
 export { canonicalEdgeJson, hashCanonicalEdges } from "./canonical_edges.ts";
 export type { EdgeQuad } from "./canonical_edges.ts";
 
-export { resolveReferences, resolveUpstreams } from "./resolve.ts";
+export {
+  resolveProfileChain,
+  resolveReferences,
+  resolveRegistries,
+  resolveUpstreams,
+} from "./resolve.ts";
 export type {
   FetchUrl,
+  ReadFile,
   ResolvedBoundEntry,
   ResolvedProfile,
   ResolvedReference,
