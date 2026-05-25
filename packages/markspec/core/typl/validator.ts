@@ -147,7 +147,48 @@ function shapesEqual(
 ): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case "primitive":
+      return a.type === (b as typeof a).type;
+    case "range":
+      return a.type === (b as typeof a).type &&
+        a.exact === (b as typeof a).exact &&
+        a.min === (b as typeof a).min &&
+        a.max === (b as typeof a).max;
+    case "length":
+      return a.type === (b as typeof a).type &&
+        a.exact === (b as typeof a).exact &&
+        a.min === (b as typeof a).min &&
+        a.max === (b as typeof a).max;
+    case "pattern":
+      return a.regex === (b as typeof a).regex &&
+        a.flags === (b as typeof a).flags;
+    case "literal":
+      return a.value === (b as typeof a).value;
+    case "enum":
+      return a.values.length === (b as typeof a).values.length &&
+        a.values.every((v, i) => v === (b as typeof a).values[i]);
+    case "array":
+      return a.exact === (b as typeof a).exact &&
+        a.min === (b as typeof a).min &&
+        a.max === (b as typeof a).max &&
+        shapesEqual(a.element, (b as typeof a).element);
+    case "optional":
+      return shapesEqual(a.inner, (b as typeof a).inner);
+    case "record": {
+      const aKeys = Object.keys(a.fields).sort();
+      const bKeys = Object.keys((b as typeof a).fields).sort();
+      if (aKeys.length !== bKeys.length) return false;
+      return aKeys.every((k, i) =>
+        k === bKeys[i] && shapesEqual(a.fields[k], (b as typeof a).fields[k])
+      );
+    }
+    case "ref":
+      return a.name === (b as typeof a).name;
+    default:
+      return false;
+  }
 }
 
 // Re-export Binding for consumers that import from this module.

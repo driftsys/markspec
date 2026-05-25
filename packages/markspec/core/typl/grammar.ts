@@ -307,10 +307,12 @@ class Parser {
         );
       }
     }
-    const out: Shape = { kind: "range", type };
-    if (min !== undefined) (out as Record<string, unknown>).min = min;
-    if (max !== undefined) (out as Record<string, unknown>).max = max;
-    return out;
+    return {
+      kind: "range",
+      type,
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+    };
   }
 
   private parseLengthBody(type: "string" | "bytes"): Shape | undefined {
@@ -339,10 +341,12 @@ class Parser {
     this.advance();
     if (this.peek().kind === "NUMBER") max = Number(this.advance().value);
     if (!this.expect("RBRACKET")) return undefined;
-    const out: Shape = { kind: "length", type };
-    if (min !== undefined) (out as Record<string, unknown>).min = min;
-    if (max !== undefined) (out as Record<string, unknown>).max = max;
-    return out;
+    return {
+      kind: "length",
+      type,
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+    };
   }
 
   private parseRecord(): Shape | undefined {
