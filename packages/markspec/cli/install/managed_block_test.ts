@@ -75,7 +75,7 @@ Deno.test("removeLuaBlock: removes the fenced region cleanly", () => {
   const block = `${FENCE_OPEN}\nfoo\n${FENCE_CLOSE}\n`;
   const input = `-- prelude\n\n${block}-- epilogue\n`;
   const result = removeLuaBlock(input);
-  assertEquals(result, "-- prelude\n\n-- epilogue\n");
+  assertEquals(result, "-- prelude\n-- epilogue\n");
 });
 
 Deno.test("removeLuaBlock: no block present → input unchanged", () => {
@@ -96,7 +96,7 @@ Deno.test("removeLuaBlock: block at end of file with no epilogue", () => {
   const block = `${FENCE_OPEN}\nfoo\n${FENCE_CLOSE}\n`;
   const input = `-- prelude\n\n${block}`;
   const result = removeLuaBlock(input);
-  assertEquals(result, "-- prelude\n\n");
+  assertEquals(result, "-- prelude\n");
 });
 
 Deno.test("removeLuaBlock: block is entire file content", () => {
@@ -140,4 +140,11 @@ Deno.test("applyLuaBlock: empty string content inside block is valid", () => {
 
 Deno.test("removeLuaBlock: empty file → empty file", () => {
   assertEquals(removeLuaBlock(""), "");
+});
+
+Deno.test("removeLuaBlock: trims trailing blank line before block (#480)", () => {
+  const block = `${FENCE_OPEN}\nfoo\n${FENCE_CLOSE}\n`;
+  const input = `-- config\n\n${block}`;
+  const result = removeLuaBlock(input);
+  assertEquals(result, "-- config\n");
 });
