@@ -4,8 +4,8 @@ import {
   extractTyplFences,
   KINDS,
   parseTyplBlock,
-  type TyplDiagnostic,
   TYPL_CODES,
+  type TyplDiagnostic,
 } from "./mod.ts";
 
 Deno.test("typl module exposes parseTyplBlock", () => {
