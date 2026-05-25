@@ -396,8 +396,9 @@ export function runEarsRules(entry: Entry): LintDiagnostic[] {
       if (precondCount >= 3) {
         out.push(emitQ103(s, off, text, absLine, baseCol, entry, precondCount));
         // Don't also fire Q100 on the same sentence — the sentence IS EARS-shaped,
-        // just over-complex. Q103 is the actionable diagnostic.
-        // Still check Q101 and Q102.
+        // just over-complex. Q103 is the actionable diagnostic. Q101 is also
+        // skipped (the precondCount<3 guard at line 411 excludes it). Q102 still
+        // applies independently below.
       } else if (!matchesEarsPattern(s)) {
         // Q100: normative sentence matches no EARS pattern.
         out.push(emitQ100(s, off, text, absLine, baseCol, entry));

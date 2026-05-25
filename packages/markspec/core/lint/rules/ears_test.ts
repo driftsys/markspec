@@ -116,6 +116,8 @@ Deno.test("Q102: bare negation — 'shall not'", () => {
   const entry = makeEntry("The system shall not retry on failure.");
   const diags = runEarsRules(entry);
   assertEquals(diags.some((d) => d.code === "MSL-Q102"), true);
+  // Q101 does NOT co-fire — 'system' is in GENERIC_ACTOR_ALLOWLIST.
+  assertEquals(diags.some((d) => d.code === "MSL-Q101"), false);
 });
 
 Deno.test("Q102: bare negation — 'should not'", () => {

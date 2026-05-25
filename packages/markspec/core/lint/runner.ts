@@ -128,14 +128,14 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     inScopeDiags.set(entry, diags);
   }
 
-  // Step 6: suppression hygiene on all Authored entries
+  // Step 7: suppression hygiene on all Authored entries
   const hygieneDiags: LintDiagnostic[] = [];
   for (const entry of entries) {
     if (entry.shape !== "Authored") continue;
     hygieneDiags.push(...runSuppressionRules(entry));
   }
 
-  // Step 7: apply suppression to in-scope diagnostics
+  // Step 8: apply suppression to in-scope diagnostics
   const out: LintDiagnostic[] = [];
   for (const [entry, diags] of inScopeDiags) {
     const disabled = disabledCodes(entry);
@@ -147,7 +147,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     }
   }
 
-  // Step 8: append hygiene diagnostics (never suppressed)
+  // Step 9: append hygiene diagnostics (never suppressed)
   out.push(...hygieneDiags);
 
   return { diagnostics: out };
