@@ -54,8 +54,12 @@ export async function startServer(): Promise<void> {
   const server = new Server(
     {
       name: "markspec",
-      version: VERSION,
-      coreSchemaVersion: CORE_SCHEMA_VERSION,
+      // Mirror lsp/server.ts's serverInfo so MCP clients can detect skew
+      // between the launched binary and the project's pinned core-schema
+      // version per Toolchain Tier 3 spec §3.3. The MCP SDK only forwards
+      // the standard `Implementation.{name, version}` fields, so the
+      // core-schema is encoded in the version string itself.
+      version: `${VERSION} (core-schema ${CORE_SCHEMA_VERSION})`,
     },
     {
       capabilities: {
