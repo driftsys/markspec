@@ -732,16 +732,9 @@ applicable** to Reference entries (a Reference entry does not itself cite other
 Reference entries via `References:`; the replacement relation is expressed via
 the universal `Supersedes`).
 
-**Universal attributes on Reference entries (core):**
-
-In addition to the universal attributes in §2.1, Reference entries accept
-`Reference-url:` as a **core** attribute — an HTTPS navigation link used by
-tooling (notably `markspec lock`) to fetch and hash the cited bytes for
-trace-audit reproducibility. The attribute is optional; absent `Reference-url:`,
-the lockfile records identity only (no hash, no drift detection for that row).
-
 **Profile-declared attributes:** profiles may declare convenience attributes for
-Reference entries — `Reference-document:` (canonical citation string),
+Reference entries — `Reference-url:` (HTTPS navigation link when different from
+the canonical `Id:`), `Reference-document:` (canonical citation string),
 `License:` (SPDX license expression for dependencies), etc.
 
 **Example 11 — normative standard:**
