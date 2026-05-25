@@ -80,15 +80,44 @@ export interface IndexAdapter {
 /**
  * Factory the bench code uses to obtain an adapter. Lets the orchestrator
  * pick the driver via env var without touching call sites. Default is
- * the jsr:@db/sqlite3 native-FFI binding; alternative drivers can be wired
- * here without touching any bench code.
+ * the `jsr:@db/sqlite` native-FFI binding (driver name `"sqlite3"`);
+ * alternative drivers `"wasm"` (deno.land/x/sqlite) and `"node"`
+ * (node:sqlite via Node-compat) can be wired here without touching any
+ * bench code.
+ *
+ * If the caller passes the default `"sqlite3"`, this also consults the
+ * `MARKSPEC_EVAL_DRIVER` env var — set to `wasm` or `node` to run the
+ * driver-alternatives comparison without code changes.
  */
+/**
+ * Return the driver name a bench should record in its `driver` field —
+ * either the explicit argument or the `MARKSPEC_EVAL_DRIVER` env-var
+ * override. Lets `cold_scan` / `lookups` / etc. report the actual
+ * driver they ran against.
+ */
+export function resolveDriverName(driver: string = "sqlite3"): string {
+  if (driver === "sqlite3") {
+    const envOverride = Deno.env.get("MARKSPEC_EVAL_DRIVER");
+    if (envOverride && envOverride !== "sqlite3") return envOverride;
+  }
+  return driver;
+}
+
 export async function createAdapter(
   driver: string = "sqlite3",
 ): Promise<IndexAdapter> {
+  driver = resolveDriverName(driver);
   if (driver === "sqlite3") {
     const { SqliteAdapter } = await import("./sqlite_adapter.ts");
     return new SqliteAdapter();
+  }
+  if (driver === "wasm") {
+    const { SqliteWasmAdapter } = await import("./sqlite_wasm_adapter.ts");
+    return new SqliteWasmAdapter();
+  }
+  if (driver === "node") {
+    const { NodeSqliteAdapter } = await import("./node_sqlite_adapter.ts");
+    return new NodeSqliteAdapter();
   }
   throw new Error(`createAdapter: unknown driver '${driver}'`);
 }
