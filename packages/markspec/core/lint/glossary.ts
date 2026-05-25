@@ -21,7 +21,7 @@
  */
 
 import type { Entry } from "../model/mod.ts";
-import { deriveTermSlug } from "../parser/glossary.ts";
+import { deriveTermSlug, extractHeadingText } from "../parser/glossary.ts";
 import { processor } from "../parser/remark.ts";
 import type { Heading, Root } from "mdast";
 
@@ -67,8 +67,9 @@ export async function buildGlossaryIndex(
   }
 
   // (2) Glossary file H3 terms + R4-g aliases.
-  for (const path of glossaryFilePaths) {
-    const file = await readFile(path);
+  // Read all files in parallel — order doesn't matter for the index.
+  const files = await Promise.all(glossaryFilePaths.map((p) => readFile(p)));
+  for (const file of files) {
     if (!file) continue;
     const tree = processor.parse(file.content) as Root;
     for (const node of tree.children) {
@@ -97,19 +98,4 @@ export async function buildGlossaryIndex(
     has: (slug: string) => slugs.has(slug),
     size: () => slugs.size,
   };
-}
-
-/** Extract plain text from a heading node by concatenating Text and
- * InlineCode child values. Mirrors the same helper in parser/glossary.ts
- * but kept local so this module has no dependency on that module's
- * non-exported internals. */
-function extractHeadingText(node: Heading): string {
-  let text = "";
-  for (const child of node.children) {
-    if (child.type === "text") text += (child as { value: string }).value;
-    else if (child.type === "inlineCode") {
-      text += (child as { value: string }).value;
-    }
-  }
-  return text;
 }
