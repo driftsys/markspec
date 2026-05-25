@@ -172,6 +172,18 @@ function foldTier(
     diagnostics,
   );
 
+  // Prose lexicons: list-additive across tiers (profile-schema §5.1).
+  const capAllow = unionList(
+    base.prose.lexicons["capitalized-allow"],
+    m.prose.lexicons["capitalized-allow"],
+    origin,
+  );
+  const sentAbbrev = unionList(
+    base.prose.lexicons["sentence-abbrev"],
+    m.prose.lexicons["sentence-abbrev"],
+    origin,
+  );
+
   const result: EffectiveProfile = {
     attributes,
     labels,
@@ -181,6 +193,12 @@ function foldTier(
     documents: {
       types: docTypes,
       frontMatter,
+    },
+    prose: {
+      lexicons: {
+        "capitalized-allow": capAllow,
+        "sentence-abbrev": sentAbbrev,
+      },
     },
   };
 
@@ -698,6 +716,18 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
     documents: {
       types: mapFromDocTypes(m.documents.types, origin),
       frontMatter: mapFromAttrList(m.documents.frontMatter, origin),
+    },
+    prose: {
+      lexicons: {
+        "capitalized-allow": {
+          value: m.prose.lexicons["capitalized-allow"],
+          origin,
+        },
+        "sentence-abbrev": {
+          value: m.prose.lexicons["sentence-abbrev"],
+          origin,
+        },
+      },
     },
   };
 }

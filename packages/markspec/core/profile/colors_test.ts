@@ -63,6 +63,12 @@ function makeProfile(
     colors: colorsMap,
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   } as EffectiveProfile;
 }
 

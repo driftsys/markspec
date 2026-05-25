@@ -66,6 +66,12 @@ function profile(opts: {
     conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 }
 

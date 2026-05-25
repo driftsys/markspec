@@ -48,6 +48,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "conventions",
   "types",
   "documents",
+  "prose",
 ]);
 
 const ALLOWED_TYPE_KEYS = new Set([
@@ -845,6 +846,60 @@ function parseConventions(
   return out;
 }
 
+/**
+ * Parse the `profile.prose:` section. Returns a normalized object with
+ * the two lexicon lists; absent lists default to `[]`.
+ */
+function parseProse(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): ProfileManifest["prose"] {
+  const empty: ProfileManifest["prose"] = {
+    lexicons: { "capitalized-allow": [], "sentence-abbrev": [] },
+  };
+  if (raw === undefined || raw === null) return empty;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "'profile.prose' must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return empty;
+  }
+  const r = raw as Record<string, unknown>;
+  const lexRaw = r.lexicons;
+  if (lexRaw === undefined || lexRaw === null) {
+    return empty;
+  }
+  if (typeof lexRaw !== "object" || Array.isArray(lexRaw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: "'profile.prose.lexicons' must be a mapping",
+      location: { file: sourcePath, line: 1, column: 1 },
+    });
+    return empty;
+  }
+  const lex = lexRaw as Record<string, unknown>;
+  const capAllow = parseStringList(
+    lex["capitalized-allow"],
+    "profile.prose.lexicons.capitalized-allow",
+    sourcePath,
+    diagnostics,
+  );
+  const sentAbbrev = parseStringList(
+    lex["sentence-abbrev"],
+    "profile.prose.lexicons.sentence-abbrev",
+    sourcePath,
+    diagnostics,
+  );
+  return {
+    lexicons: { "capitalized-allow": capAllow, "sentence-abbrev": sentAbbrev },
+  };
+}
+
 function parseTypeDef(
   name: string,
   raw: unknown,
@@ -1250,6 +1305,11 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  const prose = parseProse(profileSection.prose, sourcePath, diagnostics);
+  if (diagnostics.some((d) => d.severity === "error")) {
+    return { manifest: null, diagnostics };
+  }
+
   // PROFILE-SCHEMA-002: emitted on the otherwise-complete manifest so it
   // doesn't add noise to error-case output.
   if (rawSchema === undefined) {
@@ -1277,6 +1337,7 @@ export function parseManifest(
     colors,
     types: types,
     documents: documents,
+    prose,
   };
 
   return { manifest, diagnostics };

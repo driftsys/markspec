@@ -62,6 +62,12 @@ function profile(opts: {
     conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
 }
 
@@ -459,6 +465,12 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
@@ -513,6 +525,12 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
   };
   const e = entry({ shape: "Authored", type: "requirement" });
   const scope = effectiveScope(e, p);
