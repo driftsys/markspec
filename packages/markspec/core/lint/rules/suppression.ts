@@ -97,6 +97,11 @@ export function runUnusedSuppressionCheck(
   const out: LintDiagnostic[] = [];
   const location: SourceLocation = ctx.entry.location;
   for (const code of ctx.disabledCodes) {
+    // Skip codes Q901 already flagged as unknown — Q902 is for
+    // "known code listed but didn't match", not "unknown code listed".
+    // Without this gate, every malformed `Markspec-disable:` token
+    // would fire both Q901 and Q902.
+    if (!PA1_KNOWN_RULE_CODES.has(code)) continue;
     if (!ctx.matchedCodes.has(code)) {
       out.push({
         code: "MSL-Q902",

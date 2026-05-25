@@ -475,3 +475,46 @@ Deno.test("runLint: MSL-Q902 has correct fields (info, score 0, group disable)",
   assertEquals(d!.group, "disable");
   assertEquals(d!.slug, "disable-unused");
 });
+
+Deno.test("runLint: MSL-Q902 does NOT fire for unknown codes (Q901's territory)", async () => {
+  // Unknown code 'MSL-ZZZZ' triggers Q901 (unknown-rule). Q902 must NOT
+  // ALSO fire on the same token — that would double-diagnose every
+  // malformed disable entry.
+  const text = "The system shall process the request within 200 ms.";
+  const entry = makeEntry({
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Type", value: "Requirement" },
+      { key: "Markspec-disable", value: "MSL-ZZZZ" },
+      { key: "Rationale", value: "Reviewed and accepted." },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Type", ["Requirement"]],
+      ["Markspec-disable", ["MSL-ZZZZ"]],
+      ["Rationale", ["Reviewed and accepted."]],
+    ]),
+  });
+  const result = await runLint({ entries: [entry] });
+  // Q901 fires (unknown rule).
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "MSL-Q901"),
+    true,
+  );
+  // Q902 does NOT also fire on the same token.
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "MSL-Q902"),
+    false,
+  );
+});

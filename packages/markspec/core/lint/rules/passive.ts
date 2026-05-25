@@ -66,8 +66,13 @@ const ABBREVS = loadLexicon("sentence-abbrev");
  * forms of "be". Compound negations with `not` are included so "shall not
  * be applied" is also caught.
  */
-const BE_VERB_RE =
-  /\b(is|are|was|were|be|been|being|is not|are not|was not|were not)\b/i;
+// Bare be-verb forms only. Listing `is not`/`are not`/etc. as additional
+// alternatives would be dead code — left-to-right alternation would match
+// the bare form first. Accepted limitation: `"is not applied"` is NOT
+// detected as passive (the post-be-verb scan in `detectPassive` finds
+// `not` and stops). Negated passive through a modal (`"shall not be
+// applied"`) IS detected because the be-verb matched is `be`, not `is`.
+const BE_VERB_RE = /\b(is|are|was|were|be|been|being)\b/i;
 
 /**
  * Known irregular past participials. These words do not end in `-ed`
@@ -111,12 +116,12 @@ const IRREGULAR_PARTICIPIALS: ReadonlySet<string> = new Set([
   "forgotten",
   "frozen",
   "gotten",
-  "given",
+  // 'given' deliberately omitted — adjective-ambiguous ("a given condition").
   "grown",
   "hidden",
   "hit",
   "hung",
-  "known",
+  // 'known' deliberately omitted — adjective-ambiguous ("a known limit").
   "laid",
   "lain",
   "paid",
@@ -153,8 +158,11 @@ function isPastParticipial(word: string): boolean {
  * word after it. If that word is past-participial shaped, it is a passive
  * construction.
  *
- * The scan is greedy — we check each be-verb occurrence and report passive
- * on the first match.
+ * First-match scan — only the first be-verb in the sentence is inspected.
+ * A sentence with `is critical and shall be applied` is detected via the
+ * `be applied` pair (the first be-verb `is` would be followed by `critical`
+ * which isn't past-participial; the regex finds the first be-verb only, so
+ * this sentence WON'T detect — accepted limitation, narrow heuristic).
  *
  * Handles:
  *   - "shall be applied" — modal before be-verb (be + applied)
