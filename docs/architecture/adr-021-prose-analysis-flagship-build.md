@@ -1,8 +1,10 @@
-# ADR-020: Prose-Analysis Flagship Build (Stage-2 PA-3)
+# ADR-021: Prose-Analysis Flagship Build (Stage-2 PA-3)
 
 ## Status
 
-Accepted, 2026-05-25.
+Accepted, 2026-05-25. Renumbered from ADR-020 → ADR-021 on 2026-05-25 after
+[ADR-020 — SQLite-Indexing Evaluation](./adr-020-sqlite-indexing-eval.md) landed
+concurrently on `main` and claimed the same ordinal.
 
 ## Context
 
