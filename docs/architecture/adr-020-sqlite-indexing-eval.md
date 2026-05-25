@@ -74,11 +74,12 @@ alternative — that's an early Phase 1 sub-decision.
 
 ## Results
 
-> **Cold scan + warm incremental + lookups complete; size / concurrency
-> pending.** All numbers below are from the bench scripts under
-> [`eval/sqlite-indexing/bench/`](../../eval/sqlite-indexing/bench/) on a single
-> dev machine (Apple Silicon aarch64-darwin, APFS, local disk). Iteration /
-> warmup counts and target selection are per-bench (see each section).
+> **All Phase 1 benches complete.** Numbers below are from the bench scripts
+> under [`eval/sqlite-indexing/bench/`](../../eval/sqlite-indexing/bench/) and
+> [`eval/sqlite-indexing/concurrency/`](../../eval/sqlite-indexing/concurrency/)
+> on a single dev machine (Apple Silicon aarch64-darwin, APFS, local disk).
+> Iteration / warmup counts and target selection are per-bench (see each
+> section).
 
 ### Cold scan (§6 budget: 10k < 5 s)
 
@@ -194,11 +195,33 @@ scales, hundreds of times under §6's 5 ms budget.)
 
 ### Index file size
 
-| Scale | db (MB) | wal (MB) | post-checkpoint (MB) | post-vacuum (MB) |
-| ----- | ------- | -------- | -------------------- | ---------------- |
-| 1k    | _TBD_   | _TBD_    | _TBD_                | _TBD_            |
-| 10k   | _TBD_   | _TBD_    | _TBD_                | _TBD_            |
-| 100k  | _TBD_   | _TBD_    | _TBD_                | _TBD_            |
+Cold-scanned, then `PRAGMA wal_checkpoint(TRUNCATE)`, then `VACUUM`, stat'ing
+after each step. Steady-state size is the `post-checkpoint db` column (`VACUUM`
+itself writes to the WAL, so the post-vacuum total re-grows the WAL — only the
+main `.db` file reflects compacted state).
+
+| Scale | raw db (MB) | raw WAL (MB) | post-checkpoint db (MB) | post-vacuum db (MB) | bytes/entry |
+| ----- | ----------- | ------------ | ----------------------- | ------------------- | ----------- |
+| 1k    | 0.004       | 0.87         | 0.80                    | 0.80                | 815         |
+| 10k   | 7.94        | 8.05         | 7.95                    | 7.57                | 757         |
+| 100k  | 79.56       | 46.53        | 79.63                   | 76.00               | 760         |
+
+**Size observations:**
+
+- **~750–815 bytes per entry** post-vacuum, consistent across scales. Includes
+  the entry row, its share of edges (~3 per entry at the generator's
+  `edgeDensity`), and the relevant indices.
+- **At 100k entries the on-disk index is ~76 MB** — modest, comfortably fits on
+  any modern dev machine. The §8 privacy paragraph can commit to "expect ~80 MB
+  at 100k entries" as a defensible upper bound.
+- **Raw size at 1k is dominated by the WAL** (~870 KB WAL vs 4 KB main file)
+  because SQLite's default WAL auto-checkpoint threshold is 1000 pages — at 1k
+  entries the cold scan hasn't crossed that yet. At larger scales the
+  auto-checkpoint fires during the scan and the WAL stays bounded.
+- **Production-relevant takeaway:** the indexer should run an explicit
+  `wal_checkpoint(TRUNCATE)` after cold-scan completes so the WAL doesn't sit at
+  the cold-scan size between editor restarts. A periodic checkpoint on idle is
+  the standard pattern.
 
 ### Concurrency survival
 
