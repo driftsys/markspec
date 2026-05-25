@@ -8,6 +8,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
+import { parseFile } from "./mod.ts";
 import type { LineMap } from "./line_map.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
@@ -483,4 +484,103 @@ Deno.test("parseMarkdown: multiple typl fences in one entry aggregate", () => {
   assertEquals(entry.types?.bindings.map((b) => b.name), ["$A", "$B"]);
   assertEquals(entry.types?.typedefs.length, 1);
   assertEquals(entry.types?.typedefs[0].name, "T");
+});
+
+// ---------------------------------------------------------------------------
+// typl bullet-glossary extraction (ADR-019, PR 4)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: entry with bullet-glossary typl populates entry.types", async () => {
+  const source = [
+    "- [REQ_0010] Bullet glossary entry",
+    "",
+    "  Prose describing the requirement.",
+    "",
+    "  - $Speed     : signal float[0..300]",
+    "  - $Brake     : command BrakeReq",
+    "  - $Threshold : const 1.4",
+    "  - type BrakeReq = { force_N: float[0..12000] }",
+    "",
+    "      Id: 01HZZZ0000000000000000000E",
+  ].join("\n");
+
+  const result = await parseFile(source, { file: "test.md" });
+  assertEquals(result.entries.length, 1);
+  const entry = result.entries[0];
+
+  assertExists(entry.types);
+  assertEquals(entry.types?.bindings.length, 3);
+  assertEquals(entry.types?.bindings.map((b) => b.name), [
+    "$Speed",
+    "$Brake",
+    "$Threshold",
+  ]);
+  assertEquals(entry.types?.typedefs.length, 1);
+  assertEquals(entry.types?.typedefs[0].name, "BrakeReq");
+});
+
+Deno.test("parseMarkdown: bullet list with mixed typl and prose only extracts typl items", async () => {
+  const source = [
+    "- [REQ_0011] Mixed list entry",
+    "",
+    "  The system has these signals:",
+    "",
+    "  - This is a regular bullet describing context.",
+    "  - $Vehicle  : signal",
+    "  - Another regular bullet.",
+    "  - $Driver   : signal",
+    "",
+    "      Id: 01HZZZ0000000000000000000F",
+  ].join("\n");
+
+  const result = await parseFile(source, { file: "test.md" });
+  const entry = result.entries[0];
+
+  assertExists(entry.types);
+  assertEquals(entry.types?.bindings.length, 2);
+  assertEquals(entry.types?.bindings.map((b) => b.name), [
+    "$Vehicle",
+    "$Driver",
+  ]);
+});
+
+Deno.test("parseMarkdown: entry combining fence AND bullet typl aggregates both", async () => {
+  const source = [
+    "- [REQ_0012] Combined surfaces",
+    "",
+    "  ```typl",
+    "  $InFence : signal",
+    "  ```",
+    "",
+    "  Some prose.",
+    "",
+    "  - $InBullet : event",
+    "",
+    "      Id: 01HZZZ0000000000000000000G",
+  ].join("\n");
+
+  const result = await parseFile(source, { file: "test.md" });
+  const entry = result.entries[0];
+
+  assertExists(entry.types);
+  assertEquals(entry.types?.bindings.length, 2);
+  assertEquals(entry.types?.bindings.map((b) => b.name), [
+    "$InFence",
+    "$InBullet",
+  ]);
+});
+
+Deno.test("parseMarkdown: bullet typl parse error is bridged to file-relative diagnostic", async () => {
+  const source = [
+    "- [REQ_0013] Bad bullet typl",
+    "",
+    "  - $X : blah int[0..]",
+    "",
+    "      Id: 01HZZZ0000000000000000000H",
+  ].join("\n");
+  const result = await parseFile(source, { file: "test.md" });
+  const typlDiag = result.diagnostics.find((d) => d.code === "TYPL-007");
+  assertExists(typlDiag);
+  assertEquals(typlDiag.location?.file, "test.md");
+  assertEquals((typlDiag.location?.line ?? 0) >= 1, true);
 });

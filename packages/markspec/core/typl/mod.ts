@@ -26,3 +26,6 @@ export type { TyplFenceExtraction } from "./fence.ts";
 export { extractTyplFences } from "./fence.ts";
 
 export { bridgeTyplDiagnostic } from "./bridge.ts";
+
+export type { TyplBulletExtraction } from "./bullet.ts";
+export { extractTyplBullets } from "./bullet.ts";

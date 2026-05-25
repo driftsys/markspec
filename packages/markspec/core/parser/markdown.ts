@@ -21,6 +21,7 @@ import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
 import {
   bridgeTyplDiagnostic,
+  extractTyplBullets,
   extractTyplFences,
   parseTyplBlock,
   type TyplBlock,
@@ -536,28 +537,43 @@ function extractEntry(
     column: 1,
   }, bodyIndent);
 
-  // Extract typl declarations from any ```typl fences in the body.
-  // Per-fence diagnostics are bridged to file-relative positions and
-  // pushed into the parser's diagnostic stream. Cross-entry collision
-  // detection lands in a later PR; this PR just aggregates intra-entry
-  // bindings + typedefs.
+  // Extract typl declarations from any ```typl fences AND bullet-glossary
+  // items in the body. Per-fence and per-item diagnostics are bridged to
+  // file-relative positions and pushed into the parser's diagnostic stream.
+  // Cross-entry collision detection lands in PR 6; this PR aggregates all
+  // intra-entry bindings + typedefs from both surfaces.
   let types: TyplBlock | undefined;
-  const typlFences = extractTyplFences(bodyAst);
-  if (typlFences.length > 0) {
-    const allBindings: TyplBlock["bindings"][number][] = [];
-    const allTypedefs: TyplBlock["typedefs"][number][] = [];
-    for (const fence of typlFences) {
-      const result = parseTyplBlock(fence.source);
-      allBindings.push(...result.ast.bindings);
-      allTypedefs.push(...result.ast.typedefs);
-      const fenceFileStartLine = bodyStartLine + fence.range.start.line - 1;
-      for (const td of result.diagnostics) {
-        diagnostics.push(bridgeTyplDiagnostic(td, file, fenceFileStartLine));
-      }
+  const allBindings: TyplBlock["bindings"][number][] = [];
+  const allTypedefs: TyplBlock["typedefs"][number][] = [];
+
+  for (const fence of extractTyplFences(bodyAst)) {
+    const result = parseTyplBlock(fence.source);
+    allBindings.push(...result.ast.bindings);
+    allTypedefs.push(...result.ast.typedefs);
+    // Fence content starts on the line AFTER the opening ```, so the
+    // bridge offset is the file line of the opening fence.
+    const fenceFileStartLine = bodyStartLine + fence.range.start.line - 1;
+    for (const td of result.diagnostics) {
+      diagnostics.push(bridgeTyplDiagnostic(td, file, fenceFileStartLine));
     }
-    if (allBindings.length > 0 || allTypedefs.length > 0) {
-      types = { bindings: allBindings, typedefs: allTypedefs };
+  }
+
+  for (const bullet of extractTyplBullets(bodyAst)) {
+    const result = parseTyplBlock(bullet.source);
+    allBindings.push(...result.ast.bindings);
+    allTypedefs.push(...result.ast.typedefs);
+    // A bullet item IS the typl content (single line). The bridge
+    // computes line as `offset + diag.position.line`; we want diag
+    // position.line 1 to map to the item's file line, so offset is
+    // `itemFileLine - 1` = `bodyStartLine + bullet.range.start.line - 2`.
+    const bulletFileOffset = bodyStartLine + bullet.range.start.line - 2;
+    for (const td of result.diagnostics) {
+      diagnostics.push(bridgeTyplDiagnostic(td, file, bulletFileOffset));
     }
+  }
+
+  if (allBindings.length > 0 || allTypedefs.length > 0) {
+    types = { bindings: allBindings, typedefs: allTypedefs };
   }
 
   return {
