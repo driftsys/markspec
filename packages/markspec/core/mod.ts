@@ -246,3 +246,5 @@ export type {
 // Lint (prose-analysis)
 export { isProseScope, runLint } from "./lint/mod.ts";
 export type { LintDiagnostic, LintOptions, LintResult } from "./lint/mod.ts";
+
+export * as typl from "./typl/mod.ts";

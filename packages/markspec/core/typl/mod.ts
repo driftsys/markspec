@@ -7,3 +7,19 @@
  */
 
 export const VERSION = "0.1.0";
+
+export type {
+  Binding,
+  Kind,
+  Position,
+  Shape,
+  Statement,
+  Typedef,
+  TyplBlock,
+} from "./ast.ts";
+export { KINDS } from "./ast.ts";
+
+export type { TyplCodeEntry, TyplDiagnostic } from "./diagnostics.ts";
+export { TYPL_CODES, typlDiagnostic } from "./diagnostics.ts";
+
+export { parseTyplBlock } from "./grammar.ts";

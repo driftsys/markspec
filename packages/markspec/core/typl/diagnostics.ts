@@ -14,7 +14,15 @@ import type { Severity } from "../model/mod.ts";
  * `KINDS` (excluding the implicit default "value") so the message stays
  * in sync with the authoritative vocabulary automatically.
  */
-const EXPLICIT_KIND_LIST = KINDS.filter((k) => k !== "value").join(", ");
+const EXPLICIT_KIND_LIST: string = KINDS.filter((k) => k !== "value").join(
+  ", ",
+);
+
+/** Shape of each entry in {@linkcode TYPL_CODES}. */
+export interface TyplCodeEntry {
+  readonly severity: Severity;
+  readonly template: string;
+}
 
 /**
  * A diagnostic emitted by the typl parser.
@@ -26,50 +34,50 @@ const EXPLICIT_KIND_LIST = KINDS.filter((k) => k !== "value").join(", ");
  * containing file path; see PR 6 in the implementation plan.
  */
 export interface TyplDiagnostic {
-  readonly code: keyof typeof TYPL_CODES;
+  readonly code: string;
   readonly severity: Severity;
   readonly message: string;
   readonly position: Position;
 }
 
-export const TYPL_CODES = {
+export const TYPL_CODES: Record<string, TyplCodeEntry> = {
   "TYPL-001": {
-    severity: "error" as const,
+    severity: "error",
     template:
       "Duplicate binding for ${name} in the same entry (first wins, this is a duplicate).",
   },
   "TYPL-002": {
-    severity: "error" as const,
+    severity: "error",
     template:
       "${name} is declared as kind ${kindA} here and ${kindB} in ${otherFile}:${otherLine}.",
   },
   "TYPL-003": {
-    severity: "error" as const,
+    severity: "error",
     template:
       "${name} is declared with a different shape than in ${otherFile}:${otherLine}.",
   },
   "TYPL-004": {
-    severity: "error" as const,
+    severity: "error",
     template: "Typedef ${name} is redefined within the same entry.",
   },
   "TYPL-005": {
-    severity: "error" as const,
+    severity: "error",
     template: "Reference to undefined typedef ${name}.",
   },
   "TYPL-006": {
-    severity: "error" as const,
+    severity: "error",
     template: "Malformed schema: ${detail}.",
   },
   "TYPL-007": {
-    severity: "error" as const,
+    severity: "error",
     template:
       `Unknown kind keyword \${keyword}. Expected one of: ${EXPLICIT_KIND_LIST}.`,
   },
   "TYPL-008": {
-    severity: "error" as const,
+    severity: "error",
     template: "Literal ${value} violates declared ${constraint} (${detail}).",
   },
-} as const;
+};
 
 /**
  * Construct a typl diagnostic by substituting `${var}` placeholders in the
@@ -80,12 +88,15 @@ export const TYPL_CODES = {
  * mapping per code is possible with conditional types but is deferred;
  * for now, callers should test message-formatting for each code.
  */
-export function typlDiagnostic<C extends keyof typeof TYPL_CODES>(
-  code: C,
+export function typlDiagnostic(
+  code: string,
   params: Record<string, string | number>,
   position: Position,
 ): TyplDiagnostic {
   const entry = TYPL_CODES[code];
+  if (!entry) {
+    throw new Error(`Unknown TYPL code: ${code}`);
+  }
   let message: string = entry.template;
   for (const [k, v] of Object.entries(params)) {
     message = message.replaceAll(`\${${k}}`, String(v));
