@@ -132,3 +132,39 @@ Deno.test("shape: optional", () => {
     inner: { kind: "primitive", type: "string" },
   });
 });
+
+Deno.test("shape: string and bytes arrays", () => {
+  assertEquals(shapeOf("string[]"), {
+    kind: "array",
+    element: { kind: "primitive", type: "string" },
+  });
+  assertEquals(shapeOf("bytes[]"), {
+    kind: "array",
+    element: { kind: "primitive", type: "bytes" },
+  });
+  assertEquals(shapeOf("string[](..4)"), {
+    kind: "array",
+    element: { kind: "primitive", type: "string" },
+    max: 4,
+  });
+});
+
+Deno.test("shape: string and bytes lengths still work", () => {
+  assertEquals(shapeOf("string[3..6]"), {
+    kind: "length",
+    type: "string",
+    min: 3,
+    max: 6,
+  });
+  assertEquals(shapeOf("string[17]"), {
+    kind: "length",
+    type: "string",
+    exact: 17,
+  });
+  assertEquals(shapeOf("bytes[0..4096]"), {
+    kind: "length",
+    type: "bytes",
+    min: 0,
+    max: 4096,
+  });
+});

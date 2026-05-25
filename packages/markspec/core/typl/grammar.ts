@@ -208,7 +208,18 @@ class Parser {
       if (["string", "bytes"].includes(name)) {
         this.advance();
         if (this.peek().kind === "LBRACKET") {
-          return this.parseLengthBody(name as "string" | "bytes");
+          // `[]` empty brackets → array (never a length). Leave for wrapArrayOrOptional.
+          // `[N]` single number → length exact → enter parseLengthBody.
+          // `[N..M]` range form → length range → enter parseLengthBody.
+          const isEmpty = this.tokens[this.i + 1]?.kind === "RBRACKET";
+          const hasDotDot = this.bracketHasDotDot();
+          if (
+            !isEmpty &&
+            (hasDotDot || this.tokens[this.i + 1]?.kind === "NUMBER")
+          ) {
+            return this.parseLengthBody(name as "string" | "bytes");
+          }
+          // Otherwise (empty `[]`) leave for wrapArrayOrOptional.
         }
         return { kind: "primitive", type: name as "string" | "bytes" };
       }
