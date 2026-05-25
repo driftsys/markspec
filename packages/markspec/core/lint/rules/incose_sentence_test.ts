@@ -467,3 +467,32 @@ Deno.test("INCOSE: all rules silent on non-normative sentences", () => {
   assertEquals(diags.filter((d) => d.code.startsWith("MSL-Q3")).length, 0);
   assertEquals(diags.some((d) => d.code === "MSL-Q402"), false);
 });
+
+Deno.test("Q309: per-occurrence comma exception ('When X, it ... it ...')", () => {
+  // The first `it` is exempted (after a comma — EARS lead-in). The
+  // subsequent `it` is NOT after a comma and MUST fire Q309. Previously
+  // a sentence-wide regex check incorrectly exempted both occurrences.
+  const entry = makeEntry(
+    "When the pedal is pressed, it shall log and then it shall store it.",
+  );
+  const diags = runIncoseSentenceRules(entry);
+  const q309 = diags.filter((d) => d.code === "MSL-Q309");
+  // At least one Q309 fires (for the second/third `it`, not the first).
+  assertEquals(q309.length >= 1, true);
+});
+
+Deno.test("Q307: can co-fire with modal-multiple territory", () => {
+  // Q307 fires on `and`-joined dual-modal sentence; the same construct
+  // would also trigger Q200 (slice 7) when run through the full pipeline.
+  // We test Q307 in isolation here — runner-level integration confirms
+  // both fire together (slice 7 wired Q200; this slice wired Q307).
+  const entry = makeEntry(
+    "The brake shall apply and the engine shall stop.",
+  );
+  const diags = runIncoseSentenceRules(entry);
+  assertEquals(diags.some((d) => d.code === "MSL-Q307"), true);
+  // Q200 is in modal_sentence.ts, not incose_sentence.ts — verify it
+  // is NOT emitted by THIS rule module (cross-module dedupe via the
+  // runner, not via these rules).
+  assertEquals(diags.some((d) => d.code === "MSL-Q200"), false);
+});

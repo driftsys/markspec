@@ -78,12 +78,19 @@ const PRONOUN_RE = /\b(it|this|that|they|them)\b/gi;
  * pattern (comma + EARS keyword). Heuristic: "When X, it shall…" is a
  * common shorthand and should not fire.
  *
- * Detection: `it` preceded (with optional whitespace) by `,` and then
- * the EARS keyword — covers ", it" after a preceding conditional clause.
- * We match just the comma-space-it sequence since the EARS keyword can
- * be at variable distance.
+ * Detection: the SPECIFIC `it` occurrence at position `idx` is preceded
+ * (after stripping leading whitespace from `idx`) by a `,`. Checked
+ * per-occurrence — not sentence-wide — so a sentence like
+ * "When X, it shall log and then it shall store it." correctly flags
+ * the second and third `it` while exempting the first.
  */
-const IT_AFTER_COMMA_RE = /,\s*it\b/i;
+function isItAfterComma(sentence: string, idx: number): boolean {
+  // Walk back from idx skipping whitespace; the first non-space char
+  // must be a comma.
+  let k = idx - 1;
+  while (k >= 0 && sentence[k] === " ") k--;
+  return k >= 0 && sentence[k] === ",";
+}
 
 /**
  * Q309 — `that` exception: `that` acting as a relative-clause introducer
@@ -282,7 +289,10 @@ function checkQ306(
   // Only normative sentences.
   if (countModals(sentence) === 0) return undefined;
   const condCount = countConditionKeywords(sentence);
-  // Q306 fires on exactly 2 conditions. ≥3 is Q103 territory — defer to EARS.
+  // Q306 fires on exactly 2 conditions. ≥3 is Q103 territory for
+  // When/While/If — defer to EARS. Note: Q103 does NOT count `where`,
+  // so ≥3 stacked `where` clauses fall through both rules silently —
+  // an accepted gap for that rare construction.
   if (condCount !== 2) return undefined;
   return emit(
     "MSL-Q306",
@@ -386,7 +396,8 @@ function checkQ309(
     const idx = m.index;
 
     // Exception 1: `it` after a comma (EARS conditional lead-in like "When X, it shall").
-    if (pronoun === "it" && IT_AFTER_COMMA_RE.test(sentence)) continue;
+    // Per-occurrence check, not sentence-wide — see isItAfterComma JSDoc.
+    if (pronoun === "it" && isItAfterComma(sentence, idx)) continue;
 
     // Exception 2: `that` as a relative-clause introducer.
     if (pronoun === "that" && hasThatRelativeClause(sentence, idx)) continue;
