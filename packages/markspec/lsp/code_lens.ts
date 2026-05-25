@@ -19,6 +19,7 @@
  */
 
 import type { DisplayId, Entry } from "../core/mod.ts";
+import { buildIncomingCount } from "./incoming_index.ts";
 
 /** A subset of the LSP `Command` interface. */
 export interface Command {
@@ -58,22 +59,7 @@ export function buildCodeLenses(
 ): CodeLens[] {
   if (entries.length === 0) return [];
 
-  // Build per-target incoming-edge counts in one O(n) pass.
-  const incomingCount = new Map<DisplayId, number>();
-  for (const e of allEntries) {
-    for (const attr of e.rawAttributes) {
-      if (attr.key === "Id") continue;
-      const tokens = attr.value.split(TOKEN_SEPARATORS_RE);
-      for (const tok of tokens) {
-        if (tok.length === 0) continue;
-        if (tok === e.displayId) continue;
-        incomingCount.set(
-          tok as DisplayId,
-          (incomingCount.get(tok as DisplayId) ?? 0) + 1,
-        );
-      }
-    }
-  }
+  const incomingCount = buildIncomingCount(allEntries);
 
   // Index targets by displayId so `Satisfies:` titles resolve in O(1).
   const byDisplayId = new Map<DisplayId, Entry>();

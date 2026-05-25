@@ -57,6 +57,7 @@ import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 import { findOccurrencesInFile } from "./highlights.ts";
+import { buildInlayHints } from "./inlay_hint.ts";
 import {
   buildProfileResponse,
   EMPTY_PROFILE_RESPONSE,
@@ -366,6 +367,7 @@ connection.onInitialize(
         documentHighlightProvider: true,
         documentFormattingProvider: true,
         codeLensProvider: { resolveProvider: false },
+        inlayHintProvider: { resolveProvider: false },
         codeActionProvider: { codeActionKinds: ["quickfix"] },
         semanticTokensProvider: {
           legend: {
@@ -953,6 +955,23 @@ connection.onCodeLens((params) => {
   const allEntries = index.getAllEntries();
   // deno-lint-ignore no-explicit-any
   return buildCodeLenses(entries, allEntries, pathToUri) as any;
+});
+
+// ---------------------------------------------------------------------------
+// Inlay hints — ": <type>" and "(N dependents)" per entry (spec §5.2)
+// ---------------------------------------------------------------------------
+
+connection.languages.inlayHint.on((params) => {
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return [];
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  const entries = index.getEntriesForFile(filePath);
+  const allEntries = index.getAllEntries();
+  const lines = document.getText().split("\n");
+  const lineLength = (line: number): number => lines[line - 1]?.length ?? 0;
+  // deno-lint-ignore no-explicit-any
+  return buildInlayHints(entries, allEntries, lineLength) as any;
 });
 
 // ---------------------------------------------------------------------------
