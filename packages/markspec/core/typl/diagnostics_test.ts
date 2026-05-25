@@ -23,5 +23,8 @@ Deno.test("typlDiagnostic: formats template substitutions", () => {
   });
   assertEquals(d.code, "TYPL-007");
   assertEquals(d.severity, "error");
-  assertEquals(d.message.includes("stream"), true);
+  assertEquals(
+    d.message,
+    "Unknown kind keyword stream. Expected one of: event, signal, command, state, const, config, document, stream.",
+  );
 });
