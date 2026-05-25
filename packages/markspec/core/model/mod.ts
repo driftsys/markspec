@@ -200,7 +200,15 @@ export type TypedAttributes = ReadonlyMap<string, readonly string[]>;
 // ---------------------------------------------------------------------------
 
 /** Supported source-file languages for doc-comment extraction. */
-export type SupportedLanguage = "rust" | "kotlin" | "java" | "c" | "cpp";
+export type SupportedLanguage =
+  | "rust"
+  | "kotlin"
+  | "java"
+  | "c"
+  | "cpp"
+  | "typescript"
+  | "tsx"
+  | "javascript";
 
 /** Which extractor rule produced a doc-comment entry. Distinguishes the
  * three lexical doc-comment styles MarkSpec recognises across grammars. */

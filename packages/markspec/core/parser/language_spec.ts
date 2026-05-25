@@ -131,6 +131,130 @@ function cppDeclaratorName(node: SyntaxNode): string | undefined {
   }
 }
 
+/** Set of every enclosing-item node type across TypeScript, TSX, and JS.
+ * Used by {@linkcode jsLikeItemName} when unwrapping `export_statement`
+ * and `expression_statement` to recognise the real item among the
+ * wrapper's children. Probe-verified against tree-sitter-typescript@0.23.2
+ * and tree-sitter-javascript@0.23.1.
+ *
+ * Exported for the drift-guard test in `language_spec_test.ts` — every
+ * non-wrapper member of `typescriptSpec.enclosingItemTypes` and
+ * `javascriptSpec.enclosingItemTypes` must appear here. */
+export const JS_LIKE_ENCLOSING_TYPES = new Set([
+  "function_declaration",
+  "class_declaration",
+  "abstract_class_declaration",
+  "method_definition",
+  "interface_declaration",
+  "type_alias_declaration",
+  "enum_declaration",
+  "module", // module Foo { … }
+  "internal_module", // namespace Foo { … } (tree-sitter-typescript)
+  "lexical_declaration",
+  "variable_declaration",
+]);
+
+/** Item-name extractor shared by TypeScript / TSX / JavaScript. Handles
+ * four node shapes that JS/TS authors document:
+ *   1. `export_statement`: recurse into the first child whose type appears
+ *      in {@linkcode JS_LIKE_ENCLOSING_TYPES}, excluding nested
+ *      `export_statement`s. Captures `export class Foo` / `export const Foo`.
+ *   2. `expression_statement`: recurse into the first qualifying child.
+ *      Required because tree-sitter-typescript wraps `namespace Foo { … }`
+ *      in an `expression_statement` whose child is `internal_module`.
+ *   3. `lexical_declaration` / `variable_declaration`: walk to the first
+ *      `variable_declarator` child and read its `name` field. Captures
+ *      `const Foo = () => {}` and `const Foo = function () {}`.
+ *   4. anything else: read the node's `name` field directly. Covers
+ *      function/class/interface/type-alias/enum/module declarations
+ *      and `method_definition`.
+ *
+ * Returns undefined for anonymous `export default class {}` /
+ * `export default function () {}` (no name to extract), for destructuring
+ * patterns whose `variable_declarator` has no `name` field, and for
+ * non-namespace expression statements such as a doc-commented bare
+ * `foo();` (the wrapped `call_expression` is not in
+ * JS_LIKE_ENCLOSING_TYPES). Mirrors the C++ destructor/operator precedent. */
+function jsLikeItemName(node: SyntaxNode): string | undefined {
+  if (
+    node.type === "export_statement" ||
+    node.type === "expression_statement"
+  ) {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)!;
+      if (
+        child.type === "export_statement" ||
+        child.type === "expression_statement"
+      ) continue;
+      if (JS_LIKE_ENCLOSING_TYPES.has(child.type)) {
+        return jsLikeItemName(child);
+      }
+    }
+    return undefined;
+  }
+  if (
+    node.type === "lexical_declaration" ||
+    node.type === "variable_declaration"
+  ) {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)!;
+      if (child.type === "variable_declarator") {
+        return child.childForFieldName("name")?.text;
+      }
+    }
+    return undefined;
+  }
+  return nameField(node);
+}
+
+/** Shared spec for TypeScript and TSX. The TSX grammar is a strict
+ * superset of TypeScript; node names for the items we care about are
+ * identical, so both `LANGUAGE_SPECS.typescript` and `LANGUAGE_SPECS.tsx`
+ * point to this same object by reference. */
+const typescriptSpec: LanguageDocCommentSpec = {
+  blockCommentTypes: ["comment"],
+  lineCommentTypes: ["comment"],
+  isDocBlock: isJavadocBlock,
+  isDocLine: noDocLine,
+  enclosingItemTypes: [
+    "function_declaration",
+    "class_declaration",
+    "abstract_class_declaration",
+    "method_definition",
+    "interface_declaration",
+    "type_alias_declaration",
+    "enum_declaration",
+    "module", // module Foo { … }
+    "internal_module", // namespace Foo { … }
+    "lexical_declaration",
+    "variable_declaration",
+    "export_statement",
+    "expression_statement", // wraps namespace at top level
+  ],
+  attributeSkipTypes: ["comment", "decorator"],
+  itemName: jsLikeItemName,
+};
+
+/** JavaScript spec — TypeScript-only types removed
+ * (`interface_declaration`, `type_alias_declaration`, `enum_declaration`,
+ * `module`). */
+const javascriptSpec: LanguageDocCommentSpec = {
+  blockCommentTypes: ["comment"],
+  lineCommentTypes: ["comment"],
+  isDocBlock: isJavadocBlock,
+  isDocLine: noDocLine,
+  enclosingItemTypes: [
+    "function_declaration",
+    "class_declaration",
+    "method_definition",
+    "lexical_declaration",
+    "variable_declaration",
+    "export_statement",
+  ],
+  attributeSkipTypes: ["comment", "decorator"],
+  itemName: jsLikeItemName,
+};
+
 /**
  * Closed-form table indexed by {@linkcode SupportedLanguage}. The walker in
  * `parser/source.ts` consults this map to know which AST node types to
@@ -234,6 +358,9 @@ export const LANGUAGE_SPECS: Record<SupportedLanguage, LanguageDocCommentSpec> =
       ],
       itemName: cppItemName,
     },
+    typescript: typescriptSpec,
+    tsx: typescriptSpec,
+    javascript: javascriptSpec,
   };
 
 /** Map a file extension (including the dot) to its language id. */
@@ -257,6 +384,15 @@ export function languageIdForExtension(
     case ".hpp":
     case ".hxx":
       return "cpp";
+    case ".ts":
+      return "typescript";
+    case ".tsx":
+    case ".jsx":
+      return "tsx";
+    case ".js":
+    case ".mjs":
+    case ".cjs":
+      return "javascript";
     default:
       return undefined;
   }

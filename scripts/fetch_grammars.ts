@@ -58,6 +58,29 @@ const GRAMMARS: Record<string, Grammar> = {
     pkg: "tree-sitter-cpp",
     version: "0.23.4",
   },
+  // tree-sitter-typescript ships two wasm files in the same npm package
+  // (TypeScript + TSX); same pkg/version produces both rows below.
+  //
+  // Pinned at 0.23.x — newer tree-sitter-typescript / tree-sitter-javascript
+  // releases emit tree-sitter language v15, which the current
+  // web-tree-sitter@^0.24 cannot load (max supported language version is 14).
+  // When web-tree-sitter bumps past v14, revisit and consider tree-sitter-
+  // typescript@0.23.x → 0.24.x and tree-sitter-javascript@0.23.1 → 0.25.x.
+  "tree-sitter-typescript.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-typescript",
+    version: "0.23.2",
+  },
+  "tree-sitter-tsx.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-typescript",
+    version: "0.23.2",
+  },
+  "tree-sitter-javascript.wasm": {
+    source: "npm",
+    pkg: "tree-sitter-javascript",
+    version: "0.23.1",
+  },
 };
 
 const GRAMMARS_DIR = new URL("../grammars", import.meta.url).pathname;

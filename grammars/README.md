@@ -11,13 +11,16 @@ deno task fetch-grammars
 
 Supported grammars:
 
-| File                      | Language |
-| ------------------------- | -------- |
-| `tree-sitter-rust.wasm`   | Rust     |
-| `tree-sitter-kotlin.wasm` | Kotlin   |
-| `tree-sitter-java.wasm`   | Java     |
-| `tree-sitter-c.wasm`      | C        |
-| `tree-sitter-cpp.wasm`    | C++      |
+| File                          | Language               |
+| ----------------------------- | ---------------------- |
+| `tree-sitter-rust.wasm`       | Rust                   |
+| `tree-sitter-kotlin.wasm`     | Kotlin                 |
+| `tree-sitter-java.wasm`       | Java                   |
+| `tree-sitter-c.wasm`          | C                      |
+| `tree-sitter-cpp.wasm`        | C++                    |
+| `tree-sitter-typescript.wasm` | TypeScript             |
+| `tree-sitter-tsx.wasm`        | TSX (TypeScript + JSX) |
+| `tree-sitter-javascript.wasm` | JavaScript             |
 
 ## Lockfile
 
