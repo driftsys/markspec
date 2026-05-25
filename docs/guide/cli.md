@@ -660,8 +660,8 @@ defined in your profile.
 in the project.
 
 **Source file context guard** — in source files (Rust, Kotlin, Java, C, C++,
-TypeScript, TSX, JavaScript), completions only activate near entry markers or
-trace keywords. The server won't interfere with your language's native LSP
+TypeScript, TSX, JavaScript, C#), completions only activate near entry markers
+or trace keywords. The server won't interfere with your language's native LSP
 (rust-analyzer, kotlin-lsp, etc.).
 
 ### VS Code
