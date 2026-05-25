@@ -53,6 +53,12 @@
   Stage-2 `xref-glossary-undefined` rule. Versioned, capped, explicitly
   excludes domain vocabulary and standards-body acronyms (per prose-analysis
   §2.8 / §8 OQ5 resolution).
+- **typl parser foundation (PR 1)**: new `core/typl/` module exposes
+  `parseTyplBlock` producing a `Shape` discriminated-union AST covering
+  10 variants (primitive, range, length, pattern, array, enum, record,
+  literal, ref, optional). 9-kind vocabulary (`value` default + 8
+  explicit). 8 diagnostic codes (TYPL-001..008). No Markdown integration
+  yet — surfaces ship in PRs 2–5. See ADR-019.
 - **core:** `Entry.bodyTokens` — flat parser-emitted token stream for inline
   constructs (modal verbs, EARS triggers, Gherkin section/step keywords,
   `$Identifier` entity refs, inline code). Always present, sorted by source
