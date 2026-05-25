@@ -8,7 +8,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { compile } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
-import type { EffectiveProfile } from "../model/mod.ts";
+import type { EffectiveProfile, EffectiveTypeDef } from "../model/mod.ts";
 
 const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -488,6 +488,7 @@ function profileWithFoo(): EffectiveProfile {
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
     prose: {
       lexicons: {
         "capitalized-allow": { value: [], origin: "" },
@@ -652,4 +653,61 @@ Deno.test("compile: typeRegistry collects $Name bindings from typl fences", asyn
   assertEquals(Array.isArray(speedDecls), true);
   assertEquals(speedDecls?.length, 1);
   assertEquals(speedDecls?.[0].binding.kind, "signal");
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4: Profile-extended registry classification
+// ---------------------------------------------------------------------------
+
+function syntheticProfile(): EffectiveProfile {
+  const td: EffectiveTypeDef = {
+    name: "SoftwareRequirement",
+    extends: "Requirement",
+    displayIdPattern: { value: "SWR_{NNNN}", origin: "p" },
+    displayIdPatternEnforcement: { value: "off", origin: "p" },
+    color: { value: undefined, origin: "p" },
+    required: { value: [], origin: "p" },
+    attributes: new Map(),
+    traceability: new Map(),
+    description: { value: undefined, origin: "p" },
+    attrDescriptions: new Map(),
+    relationDescriptions: new Map(),
+    discipline: { value: "software", origin: "p" },
+  };
+  // deno-lint-ignore no-explicit-any
+  const types = new Map() as any;
+  types.set("SoftwareRequirement", { value: td, origin: "p" });
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types,
+    documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+  };
+}
+
+Deno.test("compile: profile-extended registry classifies SoftwareRequirement entries", async () => {
+  const files: Record<string, string> = {
+    "/r.md": `
+- [SWR_0001] SW requirement
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: SoftwareRequirement
+`,
+  };
+  const result = await compile(["/r.md"], {
+    readFile: reader(files),
+    profile: syntheticProfile(),
+  });
+  const swr = result.entries.get(makeDisplayId("SWR_0001"));
+  if (!swr) throw new Error("SWR_0001 missing from compile output");
+  assertEquals(swr.derivedDiscipline, "software");
 });

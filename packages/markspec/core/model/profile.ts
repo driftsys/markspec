@@ -112,6 +112,15 @@ export interface ProfileConvention {
 }
 
 // ---------------------------------------------------------------------------
+// Discipline kind declaration
+// ---------------------------------------------------------------------------
+
+/** A profile-declared discipline kind. */
+export interface KindDecl {
+  readonly description?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Type definition
 // ---------------------------------------------------------------------------
 
@@ -129,6 +138,12 @@ export interface TypeDef {
   /** Optional semantic color-role name (key into `ProfileManifest.colors`). */
   readonly color?: string;
   readonly description?: string;
+  /**
+   * Discipline kind explicitly assigned to this type. When absent, the
+   * effective discipline registry auto-inherits from the type's `extends:`
+   * ancestor (see core/profile/discipline_registry.ts).
+   */
+  readonly discipline?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +207,13 @@ export interface ProfileManifest {
     readonly types: readonly DocTypeDef[];
     readonly frontMatter: readonly AttrDecl[];
   };
+
+  /**
+   * Profile-declared discipline kinds (ADR-017 Invariant 2). Maps kind
+   * name → declaration metadata. Empty when the manifest does not declare
+   * `profile.kinds:`.
+   */
+  readonly kinds: ReadonlyMap<string, KindDecl>;
 
   /**
    * Prose-analysis configuration. All lexicon lists are additive across
@@ -282,6 +304,12 @@ export interface EffectiveTypeDef {
   readonly description: ProvenancedValue<string | undefined>;
   readonly attrDescriptions: ProvenancedMap<string>;
   readonly relationDescriptions: ProvenancedMap<string>;
+  /**
+   * Discipline kind explicitly assigned to this type by some tier of the
+   * profile chain. `value` is `undefined` when no tier assigned one — the
+   * registry builder then walks the `extends:` chain to resolve.
+   */
+  readonly discipline: ProvenancedValue<string | undefined>;
 }
 
 /**
@@ -299,6 +327,8 @@ export interface EffectiveProfile {
     readonly types: ProvenancedMap<DocTypeDef>;
     readonly frontMatter: ProvenancedMap<AttrDecl>;
   };
+  /** Discipline kinds declared across the profile chain (ADR-017). */
+  readonly kinds: ProvenancedMap<KindDecl>;
   /**
    * Prose-analysis configuration merged across the chain. Each lexicon list
    * is list-additive: parent entries first, child entries appended, duplicates

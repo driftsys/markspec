@@ -38,6 +38,7 @@ function singleTierChain(yaml: string): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      kinds: new Map(),
       prose: {
         lexicons: {
           "capitalized-allow": { value: [], origin: "" },
@@ -142,6 +143,7 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      kinds: new Map(),
       prose: {
         lexicons: {
           "capitalized-allow": { value: [], origin: "" },
@@ -1193,4 +1195,221 @@ version: 1.0.0
   const eff = result.effective!;
   assertEquals(eff.prose.lexicons["capitalized-allow"].value, []);
   assertEquals(eff.prose.lexicons["sentence-abbrev"].value, []);
+});
+
+Deno.test("merge: kinds from a single tier are seeded with provenance", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: Embedded firmware
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
+  const fw = effective!.kinds.get("firmware");
+  assertEquals(fw?.value.description, "Embedded firmware");
+  assertEquals(fw?.origin, "p1");
+});
+
+Deno.test("merge: kinds union across tiers; child wins on description (provenance preserved)", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: from parent
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: from child
+    mechanical:
+      description: child only
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const fw = effective!.kinds.get("firmware");
+  assertEquals(fw?.value.description, "from child");
+  assertEquals(fw?.origin, "p2");
+  // `overrides` records the parent that lost the description battle.
+  assertEquals(fw?.overrides, ["p1"]);
+  const mech = effective!.kinds.get("mechanical");
+  assertEquals(mech?.origin, "p2");
+  // `mech` is an additive-only kind (no parent); no overrides chain.
+  assertEquals(mech?.overrides, undefined);
+});
+
+Deno.test("merge: per-type discipline is seeded from a single tier", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    SoftwareRequirement:
+      extends: Requirement
+      discipline: software
+`);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("SoftwareRequirement")?.value;
+  assertEquals(td?.discipline.value, "software");
+  assertEquals(td?.discipline.origin, "p1");
+});
+
+Deno.test("merge: child tier reassigning a type's discipline wins (LWW with provenance)", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: hardware
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("MyType")?.value;
+  assertEquals(td?.discipline.value, "hardware");
+  assertEquals(td?.discipline.origin, "p2");
+});
+
+Deno.test("merge: child adds discipline where parent had none", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("MyType")?.value;
+  assertEquals(td?.discipline.value, "software");
+  assertEquals(td?.discipline.origin, "p2");
+});
+
+Deno.test("merge: parent's discipline is preserved when child omits it", () => {
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      # no discipline — parent's value should survive
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  const td = effective?.types.get("MyType")?.value;
+  assertEquals(td?.discipline.value, "software");
+  assertEquals(td?.discipline.origin, "p1");
+});
+
+Deno.test("merge: PROFILE-DISCIPLINE-004 when discipline references unknown kind", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    BadType:
+      extends: Requirement
+      discipline: nonsense
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(effective, null);
+  const d = diagnostics.find((d) => d.code === "PROFILE-DISCIPLINE-004");
+  assertEquals(d?.severity, "error");
+  assertEquals(d?.message.includes("nonsense"), true);
+  assertEquals(d?.message.includes("BadType"), true);
+});
+
+Deno.test("merge: PROFILE-DISCIPLINE-004 accepts profile-declared kinds", () => {
+  // Parent declares the kind; child references it. Order matters because
+  // validation runs after the full chain folds.
+  const chain = multiTierChain([
+    `id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  kinds:
+    firmware:
+      description: embedded
+`,
+    `id: p2
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: firmware
+`,
+  ]);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "PROFILE-DISCIPLINE-004").length,
+    0,
+  );
+  assertEquals(
+    effective?.types.get("MyType")?.value.discipline.value,
+    "firmware",
+  );
+});
+
+Deno.test("merge: PROFILE-DISCIPLINE-004 accepts core kinds (software/hardware/system)", () => {
+  const chain = singleTierChain(`id: p1
+version: "0"
+markspec-schema: "1"
+profile:
+  types:
+    MyType:
+      extends: Requirement
+      discipline: software
+`);
+  const { effective, diagnostics } = mergeChain(chain);
+  assertEquals(
+    diagnostics.filter((d) => d.code === "PROFILE-DISCIPLINE-004").length,
+    0,
+  );
+  assertEquals(
+    effective?.types.get("MyType")?.value.discipline.value,
+    "software",
+  );
 });

@@ -23,7 +23,7 @@ import {
   validate,
 } from "../validator/mod.ts";
 import { type TypeRegistry, validateTypl } from "../typl/mod.ts";
-import { CORE_DISCIPLINE_REGISTRY } from "../model/mod.ts";
+import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
 import { classifyDiscipline } from "./discipline_classifier.ts";
 import { generateInverses } from "./inverses.ts";
@@ -321,16 +321,13 @@ export async function compile(
 
   // Phase 4: Classify each entry's discipline per ADR-017 Invariant 1
   // (channels 3 + 4 + default — override and freeze ship in Slice 3).
-  // Mutates the `entries` map by replacing each Entry with a remapped
-  // copy that carries `derivedDiscipline`.
+  // The effective registry is built once per compile() from the active
+  // profile chain; null falls back to the core seed.
   {
+    const registry = buildEffectiveDisciplineRegistry(options.profile ?? null);
     const classified: Entry[] = [];
     for (const entry of entries.values()) {
-      const discipline = classifyDiscipline(
-        entry,
-        entries,
-        CORE_DISCIPLINE_REGISTRY,
-      );
+      const discipline = classifyDiscipline(entry, entries, registry);
       classified.push({ ...entry, derivedDiscipline: discipline });
     }
     entries.clear();

@@ -76,6 +76,7 @@ function makeProfile(
         description: { value: undefined, origin: "test-profile" },
         attrDescriptions: new Map(),
         relationDescriptions: new Map(),
+        discipline: { value: undefined, origin: "test-profile" },
       },
       origin: "test-profile",
     });
@@ -87,6 +88,7 @@ function makeProfile(
     conventions: new Map(),
     types,
     documents: { types: new Map(), frontMatter: new Map() },
+    kinds: new Map(),
     prose: {
       lexicons: {
         "capitalized-allow": { value: [], origin: "" },
