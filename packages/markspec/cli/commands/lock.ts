@@ -4,10 +4,10 @@
  * `markspec lock` — generate or refresh `markspec.lock`.
  *
  * Flags:
- *   --check         CI mode: read-only, exit 1 on drift
- *   --format json   Machine-readable output (default: human-readable)
- *
- * `--update[=<id>]` is added in Task 23.
+ *   --check              CI mode: read-only, exit 1 on drift
+ *   --format json        Machine-readable output (default: human-readable)
+ *   --update[=<id>]      Force re-resolve all upstreams, or one by id/slug
+ *                        (v1.0: equivalent to a full re-resolve)
  */
 
 import { Command } from "@cliffy/command";
@@ -31,17 +31,29 @@ import {
 interface LockOptions {
   check?: boolean;
   format?: string;
+  update?: string | true;
 }
 
 export const lockCmd = new Command()
   .description("Generate or refresh markspec.lock")
   .option("--check", "CI mode: read-only, exit 1 on drift")
   .option("--format <format:string>", "Output format: json")
+  .option(
+    "--update [id:string]",
+    "Force re-resolve all upstreams, or one by id/slug (v1.0: equivalent to a full re-resolve)",
+  )
   .action(async (options: LockOptions) => {
     await runLock(options);
   });
 
 async function runLock(options: LockOptions): Promise<void> {
+  if (options.update !== undefined) {
+    const target = typeof options.update === "string"
+      ? options.update
+      : "(all upstreams)";
+    console.error(`updating: ${target}`);
+  }
+
   const projectRoot =
     (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ?? Deno.cwd();
 
@@ -261,3 +273,15 @@ async function defaultReadFile(
     return { error: (e as Error).message };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Exported helpers — re-used by compile.ts --frozen path
+// ---------------------------------------------------------------------------
+
+export {
+  collectEntries,
+  defaultFetchUrl,
+  defaultReadFile,
+  loadAllMappings,
+  readFileOrUndefined,
+};
