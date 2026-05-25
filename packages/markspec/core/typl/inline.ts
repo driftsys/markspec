@@ -33,9 +33,34 @@ function isTyplInlineText(text: string): boolean {
 }
 
 /**
+ * Strip the surrounding backtick delimiter(s) from an inline-code token's
+ * `text` field. `body_tokens.ts` stores inline-code text as `` `value` ``
+ * (with backtick delimiters). The typl patterns and `parseTyplBlock` need
+ * the inner value only.
+ *
+ * Handles both single-backtick (`` `…` ``) and double-backtick (` ``…`` `)
+ * delimiters. Returns the original string unchanged when it does not start
+ * and end with a matching backtick fence.
+ */
+function stripBackticks(text: string): string {
+  if (text.startsWith("``") && text.endsWith("``") && text.length > 4) {
+    return text.slice(2, -2);
+  }
+  if (text.startsWith("`") && text.endsWith("`") && text.length > 2) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+/**
  * Filter bodyTokens to inline-code spans whose contents match typl
  * syntax. Returns extractions in source order (the bodyTokens contract
  * guarantees source order).
+ *
+ * `inline-code` tokens in `bodyTokens` store their `text` field with
+ * surrounding backtick delimiters (e.g., `` `$X : signal` ``). This
+ * function strips those delimiters before pattern-matching and before
+ * setting `source`, so `parseTyplBlock` receives the raw typl source.
  */
 export function extractTyplInlines(
   bodyTokens: readonly BodyToken[],
@@ -43,8 +68,9 @@ export function extractTyplInlines(
   const results: TyplInlineExtraction[] = [];
   for (const token of bodyTokens) {
     if (token.kind !== "inline-code") continue;
-    if (!isTyplInlineText(token.text)) continue;
-    results.push({ source: token.text, location: token.location });
+    const inner = stripBackticks(token.text);
+    if (!isTyplInlineText(inner)) continue;
+    results.push({ source: inner, location: token.location });
   }
   return results;
 }

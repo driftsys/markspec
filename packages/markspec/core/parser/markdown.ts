@@ -23,6 +23,7 @@ import {
   bridgeTyplDiagnostic,
   extractTyplBullets,
   extractTyplFences,
+  extractTyplInlines,
   parseTyplBlock,
   type TyplBlock,
 } from "../typl/mod.ts";
@@ -537,11 +538,12 @@ function extractEntry(
     column: 1,
   }, bodyIndent);
 
-  // Extract typl declarations from any ```typl fences AND bullet-glossary
-  // items in the body. Per-fence and per-item diagnostics are bridged to
-  // file-relative positions and pushed into the parser's diagnostic stream.
-  // Cross-entry collision detection lands in PR 6; this PR aggregates all
-  // intra-entry bindings + typedefs from both surfaces.
+  // Extract typl declarations from all three surfaces in the body:
+  // (1) ```typl fences, (2) bullet-glossary items, (3) inline code spans.
+  // Per-surface diagnostics are bridged to file-relative positions and
+  // pushed into the parser's diagnostic stream. Cross-entry collision
+  // detection lands in a later PR; this PR aggregates all intra-entry
+  // bindings + typedefs from every surface.
   let types: TyplBlock | undefined;
   const allBindings: TyplBlock["bindings"][number][] = [];
   const allTypedefs: TyplBlock["typedefs"][number][] = [];
@@ -569,6 +571,23 @@ function extractEntry(
     const bulletFileOffset = bodyStartLine + bullet.range.start.line - 2;
     for (const td of result.diagnostics) {
       diagnostics.push(bridgeTyplDiagnostic(td, file, bulletFileOffset));
+    }
+  }
+
+  for (const inline of extractTyplInlines(bodyTokens)) {
+    const result = parseTyplBlock(inline.source);
+    allBindings.push(...result.ast.bindings);
+    allTypedefs.push(...result.ast.typedefs);
+    // inline.location is already file-relative (translated by the
+    // bodyTokens extractor). The bridge computes file line as
+    // `offset + diag.position.line`; for inline content where
+    // diag.position.line is 1 (single-line span), offset is
+    // `inline.location.line - 1`.
+    const inlineFileOffset = inline.location.line - 1;
+    for (const td of result.diagnostics) {
+      diagnostics.push(
+        bridgeTyplDiagnostic(td, inline.location.file, inlineFileOffset),
+      );
     }
   }
 
