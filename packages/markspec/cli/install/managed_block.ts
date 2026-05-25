@@ -97,5 +97,6 @@ export function removeLuaBlock(currentContent: string): string {
   const before = currentContent.slice(0, openIdx);
   const after = currentContent.slice(afterClose);
 
-  return `${before}${after}`;
+  const trimmed = before.endsWith("\n\n") ? before.slice(0, -1) : before;
+  return `${trimmed}${after}`;
 }
