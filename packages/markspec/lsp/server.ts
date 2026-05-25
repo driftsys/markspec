@@ -31,7 +31,7 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import process from "node:process";
-import { join } from "@std/path";
+import { isAbsolute, join } from "@std/path";
 import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
@@ -51,6 +51,7 @@ import {
 import { extendsTransitively } from "../core/profile/discipline_mode.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { buildCodeLenses } from "./code_lens.ts";
+import { buildDocumentLinks } from "./document_links.ts";
 import { buildFormattingEdits } from "./formatting.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildCodeActions } from "./code_actions.ts";
@@ -383,6 +384,7 @@ connection.onInitialize(
         codeLensProvider: { resolveProvider: false },
         inlayHintProvider: { resolveProvider: false },
         codeActionProvider: { codeActionKinds: ["quickfix"] },
+        documentLinkProvider: { resolveProvider: false },
         semanticTokensProvider: {
           legend: {
             tokenTypes: [...SEMANTIC_TOKEN_LEGEND.tokenTypes],
@@ -931,6 +933,32 @@ connection.onCodeAction((params) => {
   );
   // deno-lint-ignore no-explicit-any
   return actions as any;
+});
+
+// ---------------------------------------------------------------------------
+// Document links — clickable `Verified-by:` file-path values (§5.3)
+// ---------------------------------------------------------------------------
+
+connection.onDocumentLinks((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  const filePath = uriToPath(params.textDocument.uri);
+  if (!isMarkspecFile(filePath)) return [];
+  if (!projectRoot) return [];
+
+  const entries = index.getEntriesForFile(filePath);
+  const root = projectRoot;
+  const resolveTarget = (
+    relPath: string,
+    lineSuffix: number | undefined,
+  ): string | undefined => {
+    const absPath = isAbsolute(relPath) ? relPath : join(root, relPath);
+    const baseUri = pathToUri(absPath);
+    return lineSuffix === undefined ? baseUri : `${baseUri}#L${lineSuffix}`;
+  };
+
+  // deno-lint-ignore no-explicit-any
+  return buildDocumentLinks(entries, document.getText(), resolveTarget) as any;
 });
 
 // ---------------------------------------------------------------------------
