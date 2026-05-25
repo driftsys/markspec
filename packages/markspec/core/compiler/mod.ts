@@ -361,7 +361,15 @@ export async function compile(
     ...linkTargetDiags,
   ];
 
-  return { entries, links, forward, reverse, documents, diagnostics, typeRegistry };
+  return {
+    entries,
+    links,
+    forward,
+    reverse,
+    documents,
+    diagnostics,
+    typeRegistry,
+  };
 }
 
 /** Extract traceability links from entry attributes. */

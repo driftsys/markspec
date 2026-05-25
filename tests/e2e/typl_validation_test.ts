@@ -59,8 +59,16 @@ Deno.test(
         `Expected non-zero exit code for TYPL-002 violation; stderr: ${stderr}`,
       );
     }
-    assertStringIncludes(stderr, "TYPL-002", "TYPL-002 code must appear in stderr");
-    assertStringIncludes(stderr, "$Speed", "$Speed name must appear in the diagnostic");
+    assertStringIncludes(
+      stderr,
+      "TYPL-002",
+      "TYPL-002 code must appear in stderr",
+    );
+    assertStringIncludes(
+      stderr,
+      "$Speed",
+      "$Speed name must appear in the diagnostic",
+    );
   },
 );
 
@@ -103,7 +111,11 @@ Deno.test(
         `Expected non-zero exit code for TYPL-003 violation; stderr: ${stderr}`,
       );
     }
-    assertStringIncludes(stderr, "TYPL-003", "TYPL-003 code must appear in stderr");
+    assertStringIncludes(
+      stderr,
+      "TYPL-003",
+      "TYPL-003 code must appear in stderr",
+    );
   },
 );
 
@@ -136,7 +148,11 @@ Deno.test(
         `Expected non-zero exit code for TYPL-005 violation; stderr: ${stderr}`,
       );
     }
-    assertStringIncludes(stderr, "TYPL-005", "TYPL-005 code must appear in stderr");
+    assertStringIncludes(
+      stderr,
+      "TYPL-005",
+      "TYPL-005 code must appear in stderr",
+    );
   },
 );
 
@@ -175,7 +191,10 @@ Deno.test(
     const { code, stderr } = await markspec(
       ["validate", "req.md"],
       {
-        files: { "project.yaml": PROJECT_YAML, "req.md": CROSS_ENTRY_TYPEDEF_MD },
+        files: {
+          "project.yaml": PROJECT_YAML,
+          "req.md": CROSS_ENTRY_TYPEDEF_MD,
+        },
       },
     );
     if (code === 0) {

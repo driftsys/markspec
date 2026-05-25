@@ -262,7 +262,10 @@ Deno.test("serializeCompileResult: typeRegistry Maps are converted to plain obje
   const json = JSON.stringify(serialized);
   const parsed = JSON.parse(json);
   assertEquals(Array.isArray(parsed.typeRegistry.bindings["$Speed"]), true);
-  assertEquals(parsed.typeRegistry.bindings["$Speed"][0].binding.kind, "signal");
+  assertEquals(
+    parsed.typeRegistry.bindings["$Speed"][0].binding.kind,
+    "signal",
+  );
   assertEquals(typeof parsed.typeRegistry.typedefs, "object");
 });
 

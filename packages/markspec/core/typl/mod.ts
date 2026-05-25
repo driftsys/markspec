@@ -33,7 +33,11 @@ export { extractTyplBullets } from "./bullet.ts";
 export type { TyplInlineExtraction } from "./inline.ts";
 export { extractTyplInlines } from "./inline.ts";
 
-export type { RegistryBinding, RegistryTypedef, TypeRegistry } from "./registry.ts";
+export type {
+  RegistryBinding,
+  RegistryTypedef,
+  TypeRegistry,
+} from "./registry.ts";
 export { buildTypeRegistry } from "./registry.ts";
 
 export { validateTypl } from "./validator.ts";

@@ -136,8 +136,8 @@ function collectRefDiagnostics(
         collectRefDiagnostics(fieldShape, localTypedefs, entry, line, out);
       }
       break;
-    // All other variants (primitive, range, length, pattern, enum, literal)
-    // are leaves with no nested shape — nothing to recurse into.
+      // All other variants (primitive, range, length, pattern, enum, literal)
+      // are leaves with no nested shape — nothing to recurse into.
   }
 }
 
