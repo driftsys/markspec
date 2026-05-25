@@ -18,8 +18,10 @@ import type {
   ProjectConfig,
 } from "../model/mod.ts";
 import type { Mapping } from "../sync/mod.ts";
+import { inferLockedAttributes } from "../sync/locked_attributes.ts";
 import type {
   BoundEntry,
+  BoundEntryBinding,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,
@@ -356,6 +358,81 @@ export async function resolveRegistries(
         }],
       });
     }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Bound-entry resolution (Task 17)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve every entry carrying `External-id:` attributes into a
+ * `ResolvedBoundEntry`. For each External-id, look up the mapping by
+ * scheme prefix, compute the locked-attribute set, and snapshot each
+ * local value as `sha256:*` of UTF-8 bytes.
+ *
+ * Unknown scheme → MSL-S021 error, that binding skipped. Entries with
+ * zero External-id attributes are silently dropped (no upstream lock
+ * needed). Multi-value attributes are joined with `\n` before hashing
+ * so a single locked-attribute hash captures the full attribute state.
+ */
+export async function resolveBoundEntries(
+  entries: readonly Entry[],
+  mappings: readonly Mapping[],
+): Promise<ResolvedBoundEntry[]> {
+  const mappingBySystem = new Map<string, Mapping>();
+  for (const m of mappings) mappingBySystem.set(m.system, m);
+
+  const out: ResolvedBoundEntry[] = [];
+  for (const entry of entries) {
+    const externalIds: string[] = [];
+    for (const a of entry.rawAttributes) {
+      if (a.key === "External-id") externalIds.push(a.value);
+    }
+    if (externalIds.length === 0) continue;
+
+    const diagnostics: Diagnostic[] = [];
+    const bindings: BoundEntryBinding[] = [];
+    for (const eid of externalIds) {
+      const colonIdx = eid.indexOf(":");
+      const scheme = colonIdx >= 0 ? eid.slice(0, colonIdx) : eid;
+      const mapping = mappingBySystem.get(scheme);
+      if (!mapping) {
+        diagnostics.push({
+          code: "MSL-S021",
+          severity: "error",
+          message:
+            `External-id scheme '${scheme}' on entry '${entry.displayId}' has no matching mapping.yaml.`,
+          location: entry.location,
+        });
+        continue;
+      }
+      const lockedAttrNames = inferLockedAttributes(mapping);
+      const lockedAttributes = new Map<string, string>();
+      for (const attrName of lockedAttrNames) {
+        const value = entry.rawAttributes
+          .filter((a) => a.key === attrName)
+          .map((a) => a.value)
+          .join("\n");
+        const hash = await sha256Bytes(new TextEncoder().encode(value));
+        lockedAttributes.set(attrName, hash);
+      }
+      bindings.push({
+        externalId: eid,
+        system: scheme,
+        direction: mapping.direction,
+        lockedAttributes,
+      });
+    }
+    out.push({
+      boundEntry: {
+        displayId: entry.displayId,
+        ulid: entry.id ?? "",
+        bindings,
+      },
+      diagnostics,
+    });
   }
   return out;
 }

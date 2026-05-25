@@ -1,10 +1,12 @@
 import { assertEquals } from "@std/assert";
 import type { ResolvedUpstreams, ResolveUpstreamsOptions } from "./resolve.ts";
 import {
+  resolveBoundEntries,
   resolveProfileChain,
   resolveReferences,
   resolveRegistries,
 } from "./resolve.ts";
+import { parseMapping } from "../sync/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import type {
   Attribute,
@@ -276,5 +278,94 @@ Deno.test(
       () => Promise.resolve(new TextEncoder().encode("{}")),
     );
     assertEquals(result.length, 2);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// resolveBoundEntries tests (Task 17)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal Authored entry with External-id bindings. Populates
+ * `rawAttributes` because the implementation reads from it; the typed
+ * map is left empty (the resolver doesn't consult it).
+ */
+function mkBoundEntry(displayId: string, externalIds: string[]): Entry {
+  return {
+    displayId: makeDisplayId(displayId),
+    title: displayId,
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Title", value: "Brake pedal sensor debounce" },
+      ...externalIds.map((eid) => ({ key: "External-id", value: eid })),
+    ],
+    typedAttributes: new Map() as never,
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    location: { file: "reqs.md", line: 1, column: 1 },
+    source: { kind: "markdown" },
+    bodyTokens: [],
+  };
+}
+
+const JIRA_MAPPING_YAML = `
+schema: 1
+system: jira
+direction: inbound
+identity:
+  external-id-scheme: jira
+attributes:
+  - markspec: Title
+    external: summary
+cache:
+  ttl: 15m
+`;
+
+Deno.test(
+  "resolveBoundEntries: entry with External-id produces bound entry + locked attrs",
+  async () => {
+    const mapping = parseMapping(JIRA_MAPPING_YAML, "jira.yaml").mapping!;
+    const e = mkBoundEntry("REQ-107", ["jira:PROJ-1423"]);
+    const result = await resolveBoundEntries([e], [mapping]);
+    assertEquals(result.length, 1);
+    assertEquals(result[0].boundEntry.bindings.length, 1);
+    const b = result[0].boundEntry.bindings[0];
+    assertEquals(b.externalId, "jira:PROJ-1423");
+    assertEquals(b.system, "jira");
+    assertEquals(b.lockedAttributes.has("Title"), true);
+  },
+);
+
+Deno.test(
+  "resolveBoundEntries: External-id with no matching mapping → MSL-S021",
+  async () => {
+    const e = mkBoundEntry("REQ-203", ["foo:1234"]);
+    const result = await resolveBoundEntries([e], []);
+    assertEquals(result.length, 1);
+    assertEquals(result[0].diagnostics[0].code, "MSL-S021");
+  },
+);
+
+Deno.test("resolveBoundEntries: entry without External-id is skipped", async () => {
+  const e = mkBoundEntry("REQ-100", []);
+  const result = await resolveBoundEntries([e], []);
+  assertEquals(result.length, 0);
+});
+
+Deno.test(
+  "resolveBoundEntries: locked-attribute hash is sha256 of the entry value bytes",
+  async () => {
+    const mapping = parseMapping(JIRA_MAPPING_YAML, "jira.yaml").mapping!;
+    const e = mkBoundEntry("REQ-200", ["jira:PROJ-9000"]);
+    const result = await resolveBoundEntries([e], [mapping]);
+    const titleHash = result[0].boundEntry.bindings[0].lockedAttributes.get(
+      "Title",
+    );
+    // Hash of the entry's Title attribute value "Brake pedal sensor debounce".
+    // Compute via the sibling sha256 helper for the exact expected digest.
+    const { sha256String } = await import("./hash.ts");
+    const expected = await sha256String("Brake pedal sensor debounce");
+    assertEquals(titleHash, expected);
   },
 );
