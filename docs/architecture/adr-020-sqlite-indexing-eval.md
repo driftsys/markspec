@@ -202,11 +202,58 @@ scales, hundreds of times under §6's 5 ms budget.)
 
 ### Concurrency survival
 
-| Test            | Result | Notes |
-| --------------- | ------ | ----- |
-| WAL contention  | _TBD_  | _TBD_ |
-| Kill recovery   | _TBD_  | _TBD_ |
-| Schema mismatch | _TBD_  | _TBD_ |
+Tuned pragma set + `PRAGMA busy_timeout = 5000` (added during this slice —
+standard SQLite production setting for multi-process access, makes concurrent
+open/write contention wait rather than erroring with SQLITE_BUSY).
+
+#### WAL contention (1 writer + 8 readers, 10 s sustained, 10k scale)
+
+| Role    | Total ops | Ops/sec    | p50 µs    | p95 µs    | Errors |
+| ------- | --------- | ---------- | --------- | --------- | ------ |
+| writer  | 14 380    | 1 312      | 122       | 1 692     | **0**  |
+| readers | 726 102   | 72 610 agg | 17 (mean) | 181 (max) | **0**  |
+
+Readers ran a rotating 64-key `getEntryById` workload; writer ran `updateEntry`
+against rotating entries. **Zero errors on both sides** — §4's "readers never
+block writer, writer never blocks readers" claim holds under sustained load.
+
+#### Kill recovery (SIGKILL writer mid-stream, 1k scale)
+
+| Kill point                | Re-opened | integrity_check | quick_check | Lookups (8/8 after kill) |
+| ------------------------- | --------- | --------------- | ----------- | ------------------------ |
+| start (5 ms post-READY)   | yes       | ok              | ok          | 8/8                      |
+| middle (50 ms post-READY) | yes       | ok              | ok          | 8/8                      |
+| end (200 ms post-READY)   | yes       | ok              | ok          | 8/8                      |
+
+SQLite's automatic WAL recovery on next-open handles SIGKILL cleanly at all
+three sampled points. The §7 "delete + cold rebuild" fallback was **not needed**
+for SIGKILL — WAL alone suffices.
+
+#### Schema-version mismatch (1k scale)
+
+| Field            | Detected                | Post-rebuild version | Mechanism viable         |
+| ---------------- | ----------------------- | -------------------- | ------------------------ |
+| `schema_version` | yes (999 vs expected 1) | 1                    | yes — primitives present |
+
+The eval changed `open()` to `INSERT OR IGNORE` instead of `INSERT OR REPLACE`
+so a stale version is preserved across re-opens; `getSchemaVersion()` exposes
+the read. The production indexer (Phase 2) wraps this as
+`open → getSchemaVersion → compare → delete + cold-scan
+if mismatch` — verified
+by manual simulation in the bench.
+
+**Concurrency observations:**
+
+- **§4 claim confirmed** — 1W + 8R sustained for 10 s with zero errors on either
+  side. Writer's p95 of 1.7 ms is well under any interactive budget; reader p95
+  of 0.18 ms is the same shape as the standalone lookups bench.
+- **§7 claim confirmed** for the SIGKILL path — SQLite recovers without needing
+  the explicit rebuild. The rebuild path remains the fallback for actual
+  corruption (truncated WAL, disk-level damage) which is hard to simulate
+  deterministically.
+- **`busy_timeout = 5000` is essential.** Without it, concurrent open attempts
+  that write to `schema_meta` race and ~60 % fail with SQLITE_BUSY. With it, all
+  open attempts succeed sequentially. This must be in the production pragma set.
 
 ## Decisions (filled in as Phase 1 progresses)
 

@@ -67,6 +67,11 @@ export interface IndexAdapter {
   /** Walk reverse-edge index for the §5.2 closure. */
   reverseEdgeClosure(targetId: string, cap: number): Promise<string[]>;
 
+  // ---- Schema versioning (§7) ----
+
+  /** Read the schema_version row. `undefined` if no row exists. */
+  getSchemaVersion(): Promise<number | undefined>;
+
   // ---- Lifecycle ----
 
   close(): Promise<void>;
