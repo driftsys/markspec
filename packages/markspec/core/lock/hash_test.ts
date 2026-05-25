@@ -18,6 +18,14 @@ Deno.test("sha256String: 'abc' has known hash", async () => {
   );
 });
 
+Deno.test("sha256Bytes: sub-buffer view hashes only the viewed slice", async () => {
+  const full = new TextEncoder().encode("XXXabcYYY");
+  const view = full.subarray(3, 6); // "abc"
+  const fromView = await sha256Bytes(view);
+  const fromDirect = await sha256Bytes(new TextEncoder().encode("abc"));
+  assertEquals(fromView, fromDirect);
+});
+
 Deno.test("sha256Bytes: deterministic across calls", async () => {
   const a = await sha256Bytes(new TextEncoder().encode("hello world"));
   const b = await sha256Bytes(new TextEncoder().encode("hello world"));

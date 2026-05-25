@@ -19,10 +19,16 @@ export async function sha256Bytes(bytes: Uint8Array): Promise<string> {
   // Copy into a fresh ArrayBuffer so the argument satisfies the strict
   // BufferSource overload (Uint8Array<ArrayBufferLike> includes
   // SharedArrayBuffer which Web Crypto does not accept).
-  const plain: ArrayBuffer = bytes.buffer instanceof ArrayBuffer
-    ? bytes.buffer
-    : new Uint8Array(bytes).buffer;
-  const buf = await crypto.subtle.digest("SHA-256", plain);
+  // Slice only the viewed portion — bytes.buffer may be a larger backing store
+  // when bytes is a sub-buffer view. The copy also satisfies the strict
+  // BufferSource overload (excludes SharedArrayBuffer).
+  const plain = bytes.buffer instanceof ArrayBuffer
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    : new Uint8Array(bytes);
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    plain as Uint8Array<ArrayBuffer>,
+  );
   return "sha256:" + toHex(new Uint8Array(buf));
 }
 
