@@ -4,9 +4,6 @@
  * Statement-level parser for the typl DSL. Converts a flat `Token[]`
  * stream (from the lexer) into a `TyplBlock` AST containing `Binding[]`
  * and `Typedef[]` statements.
- *
- * Shape parsing (`parseShape` / `parseShapeOptional`) is stubbed in this
- * task and filled in by Task 6.
  */
 
 import {
@@ -36,13 +33,7 @@ const PRIMITIVE_NAMES = new Set<string>([
   "bytes",
 ]);
 
-/**
- * Recursive-descent parser for a typl source block.
- *
- * The `protected parseShape*` methods are stubs intentionally left for
- * Task 6 to fill in. Subclasses (or an override in Task 6) will provide
- * the real implementation.
- */
+/** Recursive-descent parser for a typl source block. */
 class Parser {
   private i = 0;
   private diagnostics: TyplDiagnostic[] = [];
@@ -153,20 +144,282 @@ class Parser {
   }
 
   // -----------------------------------------------------------------------
-  // Shape parsing — stubbed. Task 6 fills these in.
+  // Shape parsing
   // -----------------------------------------------------------------------
-
-  /** Parse a mandatory shape expression. Returns `undefined` when absent. */
-  private parseShape(): Shape | undefined {
-    return undefined;
-  }
 
   /**
    * Parse an optional shape expression. Returns `undefined` when no shape
    * token follows (e.g. `$Idle : state` with no payload).
    */
   private parseShapeOptional(): Shape | undefined {
+    if (this.peek().kind === "EOF" || this.peek().kind === "COMMENT") {
+      return undefined;
+    }
+    return this.parseShape();
+  }
+
+  /** Parse a mandatory shape expression. Returns `undefined` when absent. */
+  private parseShape(): Shape | undefined {
+    const base = this.parsePrimary();
+    if (!base) return undefined;
+    return this.wrapArrayOrOptional(base);
+  }
+
+  private parsePrimary(): Shape | undefined {
+    const t = this.peek();
+
+    // Pattern
+    if (t.kind === "REGEX") {
+      this.advance();
+      const flagsTok = this.peek().kind === "REGEX_FLAGS"
+        ? this.advance()
+        : undefined;
+      return flagsTok
+        ? { kind: "pattern", regex: t.value, flags: flagsTok.value }
+        : { kind: "pattern", regex: t.value };
+    }
+
+    // Record
+    if (t.kind === "LBRACE") return this.parseRecord();
+
+    // Enum (literal followed by PIPE) — also handles a single literal
+    if (t.kind === "STRING" || t.kind === "NUMBER" || t.kind === "BOOL") {
+      return this.parseEnumOrLiteral();
+    }
+
+    // Primitive | typedef ref
+    if (t.kind === "IDENT") {
+      const name = t.value;
+      if (["int", "float"].includes(name)) {
+        this.advance();
+        if (this.peek().kind === "LBRACKET") {
+          // `[]` empty brackets → array (never a range). Leave for wrapArrayOrOptional.
+          // For float, `[N]` (no DOTDOT) is also an array-exact. Leave for wrapper.
+          // For int, `[N]` (no DOTDOT) is a range-exact → enter parseRangeBody.
+          const isEmpty = this.tokens[this.i + 1]?.kind === "RBRACKET";
+          const hasDotDot = this.bracketHasDotDot();
+          if (!isEmpty && (name === "int" || hasDotDot)) {
+            return this.parseRangeBody(name as "int" | "float");
+          }
+          // Otherwise leave `[…]` for wrapArrayOrOptional.
+        }
+        return { kind: "primitive", type: name as "int" | "float" };
+      }
+      if (["string", "bytes"].includes(name)) {
+        this.advance();
+        if (this.peek().kind === "LBRACKET") {
+          return this.parseLengthBody(name as "string" | "bytes");
+        }
+        return { kind: "primitive", type: name as "string" | "bytes" };
+      }
+      if (name === "bool") {
+        this.advance();
+        return { kind: "primitive", type: "bool" };
+      }
+      this.advance();
+      return { kind: "ref", name };
+    }
+
     return undefined;
+  }
+
+  private parseRangeBody(type: "int" | "float"): Shape | undefined {
+    if (!this.expect("LBRACKET")) return undefined;
+    const first = this.peek();
+    if (
+      first.kind === "NUMBER" && this.tokens[this.i + 1].kind === "RBRACKET"
+    ) {
+      const n = Number(this.advance().value);
+      this.expect("RBRACKET");
+      return { kind: "range", type, exact: n };
+    }
+    let min: number | undefined;
+    let max: number | undefined;
+    if (this.peek().kind === "NUMBER") min = Number(this.advance().value);
+    if (this.peek().kind !== "DOTDOT") {
+      this.diagnostics.push(
+        typlDiagnostic(
+          "TYPL-006",
+          { detail: "expected '..'" },
+          this.peek().position,
+        ),
+      );
+      return undefined;
+    }
+    this.advance();
+    if (this.peek().kind === "NUMBER") max = Number(this.advance().value);
+    if (!this.expect("RBRACKET")) return undefined;
+    if (type === "int") {
+      if (min !== undefined && !Number.isInteger(min)) {
+        this.diagnostics.push(
+          typlDiagnostic(
+            "TYPL-008",
+            {
+              value: min,
+              constraint: "int range",
+              detail: "non-integer literal",
+            },
+            first.position,
+          ),
+        );
+      }
+      if (max !== undefined && !Number.isInteger(max)) {
+        this.diagnostics.push(
+          typlDiagnostic(
+            "TYPL-008",
+            {
+              value: max,
+              constraint: "int range",
+              detail: "non-integer literal",
+            },
+            first.position,
+          ),
+        );
+      }
+    }
+    const out: Shape = { kind: "range", type };
+    if (min !== undefined) (out as Record<string, unknown>).min = min;
+    if (max !== undefined) (out as Record<string, unknown>).max = max;
+    return out;
+  }
+
+  private parseLengthBody(type: "string" | "bytes"): Shape | undefined {
+    if (!this.expect("LBRACKET")) return undefined;
+    if (
+      this.peek().kind === "NUMBER" &&
+      this.tokens[this.i + 1].kind === "RBRACKET"
+    ) {
+      const exact = Number(this.advance().value);
+      this.expect("RBRACKET");
+      return { kind: "length", type, exact };
+    }
+    let min: number | undefined;
+    let max: number | undefined;
+    if (this.peek().kind === "NUMBER") min = Number(this.advance().value);
+    if (this.peek().kind !== "DOTDOT") return undefined;
+    this.advance();
+    if (this.peek().kind === "NUMBER") max = Number(this.advance().value);
+    if (!this.expect("RBRACKET")) return undefined;
+    const out: Shape = { kind: "length", type };
+    if (min !== undefined) (out as Record<string, unknown>).min = min;
+    if (max !== undefined) (out as Record<string, unknown>).max = max;
+    return out;
+  }
+
+  private parseRecord(): Shape | undefined {
+    if (!this.expect("LBRACE")) return undefined;
+    const fields: Record<string, Shape> = {};
+    while (this.peek().kind !== "RBRACE" && this.peek().kind !== "EOF") {
+      const nameTok = this.expect("IDENT");
+      if (!nameTok) break;
+      // shorthand `{ a, b }` => fields with ref to typedef of same name
+      if (this.peek().kind === "COMMA" || this.peek().kind === "RBRACE") {
+        fields[nameTok.value] = { kind: "ref", name: nameTok.value };
+      } else {
+        if (!this.expect("COLON")) break;
+        const fieldShape = this.parseShape();
+        if (!fieldShape) break;
+        fields[nameTok.value] = fieldShape;
+      }
+      if (this.peek().kind === "COMMA") this.advance();
+    }
+    this.expect("RBRACE");
+    return { kind: "record", fields };
+  }
+
+  private parseEnumOrLiteral(): Shape | undefined {
+    const values: (string | number | boolean)[] = [];
+    const t = this.advance();
+    values.push(this.literalValue(t));
+    while (this.peek().kind === "PIPE") {
+      this.advance();
+      const next = this.peek();
+      if (
+        next.kind !== "STRING" && next.kind !== "NUMBER" &&
+        next.kind !== "BOOL"
+      ) {
+        this.diagnostics.push(
+          typlDiagnostic(
+            "TYPL-006",
+            { detail: "expected literal after '|'" },
+            next.position,
+          ),
+        );
+        break;
+      }
+      values.push(this.literalValue(this.advance()));
+    }
+    if (values.length === 1) return { kind: "literal", value: values[0] };
+    return { kind: "enum", values };
+  }
+
+  private literalValue(t: Token): string | number | boolean {
+    if (t.kind === "STRING") return t.value;
+    if (t.kind === "BOOL") return t.value === "true";
+    return Number(t.value);
+  }
+
+  /**
+   * Lookahead: does the upcoming `[…]` bracket contain a DOTDOT token?
+   * Used to disambiguate `float[4]` (array-exact) from `float[0..300]` (range).
+   * Scans forward from `i+1` (the token after LBRACKET) without consuming.
+   */
+  private bracketHasDotDot(): boolean {
+    let j = this.i + 1; // skip over the LBRACKET itself (not yet consumed here)
+    while (j < this.tokens.length) {
+      const k = this.tokens[j].kind;
+      if (k === "RBRACKET" || k === "EOF") return false;
+      if (k === "DOTDOT") return true;
+      j++;
+    }
+    return false;
+  }
+
+  private wrapArrayOrOptional(base: Shape): Shape {
+    let s = base;
+    while (true) {
+      if (this.peek().kind === "LBRACKET") {
+        this.advance();
+        if (this.peek().kind === "RBRACKET") {
+          this.advance();
+          s = { kind: "array", element: s };
+          if (this.peek().kind === "LPAREN") {
+            this.advance();
+            let min: number | undefined;
+            let max: number | undefined;
+            if (this.peek().kind === "NUMBER") {
+              min = Number(this.advance().value);
+            }
+            if (this.peek().kind === "DOTDOT") {
+              this.advance();
+              if (this.peek().kind === "NUMBER") {
+                max = Number(this.advance().value);
+              }
+            }
+            this.expect("RPAREN");
+            const arr = s as {
+              kind: "array";
+              element: Shape;
+              min?: number;
+              max?: number;
+            };
+            if (min !== undefined) arr.min = min;
+            if (max !== undefined) arr.max = max;
+            s = arr;
+          }
+        } else if (this.peek().kind === "NUMBER") {
+          const exact = Number(this.advance().value);
+          this.expect("RBRACKET");
+          s = { kind: "array", element: s, exact };
+        }
+      } else if (this.peek().kind === "QUESTION") {
+        this.advance();
+        s = { kind: "optional", inner: s };
+      } else {
+        break;
+      }
+    }
+    return s;
   }
 
   // -----------------------------------------------------------------------
