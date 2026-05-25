@@ -9,6 +9,7 @@
 // cleanly because both directions are `import type`.
 import type { BodyBlock } from "../ast/nodes.ts";
 import type { Discipline } from "./discipline.ts";
+import type { TyplBlock } from "../typl/mod.ts";
 
 export {
   ATTRIBUTE_CATALOG,
@@ -449,6 +450,18 @@ export interface Entry {
    * Always present — empty array when no constructs are recognised.
    */
   readonly bodyTokens: readonly BodyToken[];
+  /**
+   * typl declarations extracted from typl-info-string fences in the
+   * entry body, if any. Absent when the entry contains no typl fences.
+   *
+   * Populated by the parser via {@linkcode extractTyplFences} +
+   * {@linkcode parseTyplBlock} aggregated across all fences in the
+   * entry. Per-fence diagnostics are bridged to file-relative core
+   * diagnostics and surface in the parser's diagnostic stream.
+   *
+   * See ADR-019.
+   */
+  readonly types?: TyplBlock;
   /**
    * Discipline kind resolved by the classifier per ADR-017 Invariant 1
    * (channels 1–4 with default `system`).
