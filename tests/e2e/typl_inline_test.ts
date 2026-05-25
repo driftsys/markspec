@@ -25,7 +25,8 @@ const PROJECT_YAML = "name: test-project\nversion: 0.1.0\n";
 // each expressing the same bindings + typedef.
 // ---------------------------------------------------------------------------
 
-const FENCE_AND_INLINE_MD = `- [STK_FENCE_0001] Brake when target stops (fence form)
+const FENCE_AND_INLINE_MD =
+  `- [STK_FENCE_0001] Brake when target stops (fence form)
 
   When the lead vehicle stops the system shall apply braking.
 
@@ -54,7 +55,8 @@ const FENCE_AND_INLINE_MD = `- [STK_FENCE_0001] Brake when target stops (fence f
 // a sibling entry whose code spans carry non-typl content.
 // ---------------------------------------------------------------------------
 
-const PURE_INLINE_MD = `- [STK_INLINE_0002] Speed limit enforcement (pure inline)
+const PURE_INLINE_MD =
+  `- [STK_INLINE_0002] Speed limit enforcement (pure inline)
 
   The system shall enforce the speed limit by reading \`$Speed : signal float[0..300]\`
   and comparing it against \`$Limit : const 130.0\` at each evaluation cycle.
@@ -117,12 +119,16 @@ Deno.test(
 
     if (!fenceEntry.types) {
       throw new Error(
-        `fenceEntry.types is absent; full entry: ${JSON.stringify(fenceEntry, null, 2)}`,
+        `fenceEntry.types is absent; full entry: ${
+          JSON.stringify(fenceEntry, null, 2)
+        }`,
       );
     }
     if (!inlineEntry.types) {
       throw new Error(
-        `inlineEntry.types is absent; full entry: ${JSON.stringify(inlineEntry, null, 2)}`,
+        `inlineEntry.types is absent; full entry: ${
+          JSON.stringify(inlineEntry, null, 2)
+        }`,
       );
     }
 
@@ -243,7 +249,9 @@ Deno.test(
     );
     if (!speedBinding) {
       throw new Error(
-        `$Speed binding not found; got: ${JSON.stringify(bindings.map((b: { name: string }) => b.name))}`,
+        `$Speed binding not found; got: ${
+          JSON.stringify(bindings.map((b: { name: string }) => b.name))
+        }`,
       );
     }
     assertEquals(speedBinding.kind, "signal");
@@ -258,7 +266,9 @@ Deno.test(
     );
     if (!limitBinding) {
       throw new Error(
-        `$Limit binding not found; got: ${JSON.stringify(bindings.map((b: { name: string }) => b.name))}`,
+        `$Limit binding not found; got: ${
+          JSON.stringify(bindings.map((b: { name: string }) => b.name))
+        }`,
       );
     }
     assertEquals(limitBinding.kind, "const");

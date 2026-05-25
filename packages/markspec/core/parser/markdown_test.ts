@@ -8,7 +8,6 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
-import { parseFile } from "./mod.ts";
 import type { LineMap } from "./line_map.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
