@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { compile } from "./mod.ts";
 import { serializeCompileResult } from "./schema.ts";
 import type { SerializedEntry } from "./schema.ts";
 import type { CompileResult } from "./mod.ts";
@@ -209,4 +210,26 @@ Deno.test("serializeCompileResult: drops properties entirely when sync is the on
   const serializedEntry: SerializedEntry = serialized.entries["STK_0002"];
 
   assertEquals(serializedEntry.properties, undefined);
+});
+
+Deno.test("serializeCompileResult propagates derivedDiscipline to JSON entries", async () => {
+  const files: Record<string, string> = {
+    "/r.md": `
+- [SWC_0001] SW component
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: SoftwareComponent
+`,
+  };
+  const result = await compile(["/r.md"], {
+    readFile: (p: string) => Promise.resolve(files[p] ?? ""),
+  });
+  const serialized = serializeCompileResult(result);
+  const entry = serialized.entries["SWC_0001"];
+  if (!entry) throw new Error("SWC_0001 missing from serialized output");
+  if (entry.derivedDiscipline !== "software") {
+    throw new Error(
+      `expected derivedDiscipline=software, got ${entry.derivedDiscipline}`,
+    );
+  }
 });
