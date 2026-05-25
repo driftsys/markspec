@@ -1375,6 +1375,7 @@ class TopLevel {}
     language,
     languageId: "csharp",
   });
+  assertEquals(entries.length, 14);
 
   const fnByDisplayId = new Map<string, string | undefined>();
   for (const e of entries) {
@@ -1413,6 +1414,7 @@ namespace Foo.Bar {}
     languageId: "csharp",
   });
   assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
   if (entries[0].source.kind === "doc-comment") {
     // qualified_name; nameField returns the full `Foo.Bar` text.
     assertEquals(entries[0].source.function, "Foo.Bar");
@@ -1434,6 +1436,7 @@ Deno.test("parseSource: C# destructor → function captures class name (deviates
     languageId: "csharp",
   });
   assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
   if (entries[0].source.kind === "doc-comment") {
     assertEquals(entries[0].source.function, "Outer");
   }
@@ -1461,6 +1464,11 @@ Deno.test("parseSource: C# operator and indexer → function undefined (anonymou
   assertEquals(entries.length, 2);
   for (const id of ["REQ_0201", "REQ_0202"]) {
     const e = entries.find((entry) => entry.displayId === id)!;
+    assertEquals(
+      e.source.kind,
+      "doc-comment",
+      `${id} should be a doc-comment source`,
+    );
     if (e.source.kind === "doc-comment") {
       assertEquals(e.source.function, undefined, `${id} should be anonymous`);
     }
@@ -1482,6 +1490,7 @@ Deno.test("parseSource: C# field declaration → function captures first declara
     languageId: "csharp",
   });
   assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
   if (entries[0].source.kind === "doc-comment") {
     assertEquals(entries[0].source.function, "counter");
   }
@@ -1502,6 +1511,7 @@ Deno.test("parseSource: C# event field declaration → function captures first d
     languageId: "csharp",
   });
   assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
   if (entries[0].source.kind === "doc-comment") {
     assertEquals(entries[0].source.function, "MyEvent");
   }
@@ -1522,6 +1532,7 @@ Deno.test("parseSource: C# multi-name field → function captures first declarat
     languageId: "csharp",
   });
   assertEquals(entries.length, 1);
+  assertEquals(entries[0].source.kind, "doc-comment");
   if (entries[0].source.kind === "doc-comment") {
     assertEquals(entries[0].source.function, "multi1");
   }
@@ -1557,6 +1568,7 @@ public class JavadocStyle {}
   });
   assertEquals(entries.length, 1);
   assertEquals(entries[0].displayId, "REQ_0401");
+  assertEquals(entries[0].source.kind, "doc-comment");
   if (entries[0].source.kind === "doc-comment") {
     assertEquals(entries[0].source.rule, "block-doc-comment");
     assertEquals(entries[0].source.function, "JavadocStyle");
