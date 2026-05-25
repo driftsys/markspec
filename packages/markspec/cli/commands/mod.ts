@@ -17,6 +17,7 @@ export { formatCmd } from "./format.ts";
 export { hookCmd } from "./hook.ts";
 export { insertCmd } from "./insert.ts";
 export { lintCmd } from "./lint.ts";
+export { lockCmd } from "./lock.ts";
 export { lspCmd } from "./lsp_cmd.ts";
 export { mcpCmd } from "./mcp_cmd.ts";
 export { nextIdCmd } from "./next_id.ts";

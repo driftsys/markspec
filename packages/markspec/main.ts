@@ -25,6 +25,7 @@ import {
   hookCmd,
   insertCmd,
   lintCmd,
+  lockCmd,
   lspCmd,
   mcpCmd,
   nextIdCmd,
@@ -53,6 +54,7 @@ const cli = new Command()
   .command("dependents", dependentsCmd)
   .command("report", reportCmd)
   .command("lint", lintCmd)
+  .command("lock", lockCmd)
   .command("hook", hookCmd)
   .command("insert", insertCmd)
   .command("create", createCmd)
