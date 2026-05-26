@@ -354,6 +354,90 @@ Deno.test("parseMarkdown: populates Entry.bodyTokens", () => {
   assertEquals(kinds.includes("entity-ref"), true);
 });
 
+Deno.test("parseMarkdown: bodyToken positions are file-accurate", () => {
+  // Regression test for #514: body token locations must match the actual
+  // file content — line and column point to the token text in the source.
+  const md = [
+    "- [REQ-1] Title",
+    "",
+    "  The driver shall debounce $Sensor inputs.",
+    "",
+    `      Id: ${ULID}`,
+  ].join("\n") + "\n";
+  const lines = md.split("\n");
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  const tokens = entries[0].bodyTokens;
+
+  // Every token's location must slice back to its text in the source.
+  for (const t of tokens) {
+    const fileLine = lines[t.location.line - 1];
+    const actual = fileLine.slice(
+      t.location.column - 1,
+      t.location.column - 1 + t.text.length,
+    );
+    assertEquals(
+      actual,
+      t.text,
+      `Token "${t.text}" at L${t.location.line}:${t.location.column} ` +
+        `does not match file content "${actual}"`,
+    );
+  }
+
+  // Spot-check specific positions:
+  const modal = tokens.find((t) => t.kind === "modal")!;
+  // "shall" is on line 3 (body paragraph), column 14 ("  The driver " = 13 chars)
+  assertEquals(modal.location.line, 3);
+  assertEquals(modal.location.column, 14);
+
+  const entityRef = tokens.find((t) => t.kind === "entity-ref")!;
+  // "$Sensor" starts at column 29 on line 3 ("  The driver shall debounce " = 29 chars)
+  assertEquals(entityRef.location.line, 3);
+  assertEquals(entityRef.location.column, 29);
+});
+
+Deno.test("parseMarkdown: gherkin bodyToken positions are file-accurate", () => {
+  // Regression test for #514: gherkin tokens inside ```gherkin fences must
+  // have file-accurate positions accounting for list-item indent.
+  const md = [
+    "- [REQ-1] Filter acceptance",
+    "",
+    "  The filter shall pass:",
+    "",
+    "  ```gherkin",
+    "  Scenario: Spike rejection",
+    "    Given a stable reading of 500",
+    "    When a spike occurs",
+    "    Then the output shall remain 500",
+    "  ```",
+    "",
+    `      Id: ${ULID}`,
+  ].join("\n") + "\n";
+  const lines = md.split("\n");
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  const gherkinTokens = entries[0].bodyTokens.filter(
+    (t) => t.kind === "gherkin-section" || t.kind === "gherkin-step",
+  );
+
+  // Every gherkin token must align with file content.
+  for (const t of gherkinTokens) {
+    const fileLine = lines[t.location.line - 1];
+    const actual = fileLine.slice(
+      t.location.column - 1,
+      t.location.column - 1 + t.text.length,
+    );
+    assertEquals(
+      actual,
+      t.text,
+      `Gherkin token "${t.text}" at L${t.location.line}:${t.location.column} ` +
+        `does not match file content "${actual}"`,
+    );
+  }
+
+  // At least one section and one step token should exist.
+  assertEquals(gherkinTokens.some((t) => t.kind === "gherkin-section"), true);
+  assertEquals(gherkinTokens.some((t) => t.kind === "gherkin-step"), true);
+});
+
 // ---------------------------------------------------------------------------
 // LineMap option (ADR-016 Decision 6)
 // ---------------------------------------------------------------------------
