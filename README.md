@@ -9,30 +9,77 @@
 A Markdown flavor for traceable industrial documentation, and a CLI toolchain
 that processes it.
 
-> Early development. The
-> [language specification](docs/spec/language/language.md) is under active
-> revision to match ADR-009 (core/profile boundary). Tooling is not yet
-> functional.
+> Pre-1.0. The toolchain is functional end-to-end for authoring, validation,
+> traceability, rendering, and editor / agent integration. The
+> [language specification](docs/spec/language/language.md) and wire formats
+> (compile-output JSON, lockfile) may still change without
+> backward-compatibility shims until 1.0.
 
 ## Tools
 
+**Authoring and validation**
+
 ```text
-markspec format          # stamp ULIDs, normalize attributes
-markspec validate        # check broken refs, missing Ids
-markspec compile <paths> # build traceability graph → JSON
-                         # (ingests deps via SBOM tooling if configured)
-markspec export          # JSON → csv, reqif, yaml
-markspec insert          # scaffold entry block
-markspec profile         # add / publish / manage profiles
+markspec format             # stamp ULIDs, normalize attributes
+markspec validate           # check broken refs, missing Ids, duplicates
+markspec lint               # prose analysis (modal verbs, EARS, passive, …)
+markspec hook               # pre-commit gate: format --check + validate
+markspec insert <type>      # append a scaffolded entry to a file
+markspec create <type>      # scaffold a new entry block (stdout)
+markspec next-id <type>     # next available display ID for a type
+```
 
-markspec doc build       # document PDF
-markspec book build      # PDF + HTML book
-markspec book dev        # live preview
-markspec deck build      # presentation PDF
-markspec deck dev        # live preview
+**Traceability and querying**
 
-markspec lsp             # LSP server
-markspec mcp             # MCP server
+```text
+markspec compile <paths>    # build traceability graph → JSON
+markspec show <id>          # show one entry by display ID or ULID
+markspec context <id>       # walk the Satisfies chain upward
+markspec dependents <id>    # list entries that depend on an entry
+markspec report <kind>      # traceability matrix or coverage report
+markspec export <format>    # compile-graph → json, yaml, csv
+```
+
+**Lockfile and external sync**
+
+```text
+markspec lock               # generate or refresh markspec.lock
+markspec sync status        # group bound entries by remote_state
+markspec sync log           # tail per-system sync log (NDJSON)
+markspec sync show <id>     # full sync state for one bound entry
+```
+
+**Profiles and diagnostics**
+
+```text
+markspec profile show       # show active profile chain
+markspec doctor             # project health check
+```
+
+**Rendering**
+
+```text
+markspec doc build          # single document → PDF (Typst WASM)
+markspec book build         # multi-chapter → static HTML site
+```
+
+**Editor and agent integration**
+
+```text
+markspec lsp                # LSP server (stdio JSON-RPC)
+markspec lsp install        # print LSP config for vscode, neovim, zed
+markspec mcp                # MCP server (stdio JSON-RPC)
+markspec mcp install        # print MCP config for claude-desktop,
+                            #   cursor, vscode
+```
+
+**Not yet implemented** (registered but exit with an error):
+
+```text
+markspec export reqif       # ReqIF XML export
+markspec book dev           # live preview with hot reload
+markspec deck build         # slides → PDF via Touying/Typst
+markspec deck dev           # live slide preview
 ```
 
 ## Modules

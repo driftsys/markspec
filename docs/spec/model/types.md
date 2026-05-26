@@ -296,3 +296,18 @@ Profile subtypes appear in the type-resolution chain at step 1 (when used
 explicitly as the `Type:` value) and step 2 (when matched by their display-ID
 pattern). They cannot shadow core type names — attempting to declare a profile
 type named `Requirement` raises `MSL-A040`.
+
+## Discipline classification
+
+Per [ADR-017](../../architecture/adr-017-discipline-classification.md) and
+[ADR-018](../../architecture/adr-018-core-discipline-ssot.md), the toolchain
+derives a software-or-hardware discipline for each `Requirement` by walking the
+`Allocated-to` graph upward from concrete `Component` and `Unit` types. The
+result lands on `Entry.derivedDiscipline?` in compile output.
+
+The set of components recognized as the discipline source-of-truth lives in core
+(`Item.discipline`); profiles may **extend** the vocabulary with new components
+but cannot reclassify existing core components. Three modes are available via
+the profile's `discipline-mode:` field — `none`, `flat`, `tiered`. See the
+[Profile guide](../../guide/profiles.md#discipline-classification-sw--hw) for
+selection criteria.

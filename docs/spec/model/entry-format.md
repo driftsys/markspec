@@ -102,6 +102,19 @@ Rules:
 - Attribute order within the trailer is not significant for semantics, but
   `markspec format` normalizes it: `Id` first, then `Type`, then relations, then
   `Labels`, then any remaining attributes.
+- The `Discipline:` and `Discipline-frozen:` attributes are author overrides of
+  the discipline derivation pass (see
+  [Type taxonomy → Discipline classification](types.md#discipline-classification)).
+  `Discipline:` is single-valued and matches `/^[a-z][a-z0-9-]*$/`;
+  `Discipline-frozen:` carries a `<kind>` or `<kind> @ <YYYY-MM-DD>` snapshot
+  that is excluded from re-derivation.
+
+**Computed fields.** The parser emits `Entry.bodyTokens` — a flat
+position-sorted token stream covering modal verbs, EARS triggers, Gherkin
+keywords, `$Identifier` entity refs and inline code (ADR-016). These tokens are
+not author-editable; they are recomputed on every parse and surface in the
+compile-output entry record. After the discipline pass, an entry may also carry
+`Entry.derivedDiscipline` (set of disciplines reached via `Allocated-to`).
 
 ## The two shapes
 

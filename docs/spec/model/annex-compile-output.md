@@ -49,7 +49,7 @@ edge data.
   "markspecSchemaVersion": 1,
   "generator": {
     "name": "markspec",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "project": {
     "name": "my-project",
@@ -107,6 +107,11 @@ Each entry record appears as one JSON object — either as a line in
   "type": "requirement",
   "title": "Sensor debouncing",
   "body": "The sensor driver shall debounce raw inputs to eliminate noise.",
+  "bodyTokens": [
+    { "kind": "modal", "value": "shall", "line": 42, "column": 22 }
+  ],
+  "derivedDiscipline": ["software"],
+  "source": { "kind": "markdown" },
   "rawAttributes": [
     { "key": "Id", "value": "01HGW2Q8MNP3RSTVWXYZABCDEF" },
     { "key": "Type", "value": "requirement" },
@@ -118,22 +123,40 @@ Each entry record appears as one JSON object — either as a line in
     "file.path": "docs/requirements.md",
     "file.mtime": "2026-05-19T07:00:00Z",
     "git.sha": "a88ba34",
-    "git.author": "Alice <alice@example.com>"
+    "git.author": "Alice <alice@example.com>",
+    "source.type": "markdown"
   }
 }
 ```
 
-| Field           | Type                          | Notes                                      |
-| --------------- | ----------------------------- | ------------------------------------------ |
-| `displayId`     | string                        | Human-readable ID, e.g. `SRS_BRK_0107`     |
-| `id`            | string \| null                | ULID or URI; `null` if no `Id:` trailer    |
-| `shape`         | `"Authored"` \| `"Reference"` | Determined by `Id:` format                 |
-| `type`          | string \| null                | Resolved type name; `null` if unresolved   |
-| `title`         | string                        | Entry title text                           |
-| `body`          | string                        | Entry body text (trimmed)                  |
-| `rawAttributes` | `{key, value}[]`              | All trailer attributes in source order     |
-| `location`      | `{file, line, column}`        | Source file path, 1-based line and column  |
-| `properties`    | object                        | Observed facts (see Properties namespaces) |
+For an in-source entry (Rust `///`, Kotlin `/**`, etc.), `source` is the
+`doc-comment` variant:
+
+```json
+{
+  "source": {
+    "kind": "doc-comment",
+    "language": "rust",
+    "function": "swt_brk_0001_debounce_filters_noise",
+    "rule": "outer-doc-comment"
+  }
+}
+```
+
+| Field               | Type                          | Notes                                                                                                                |
+| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `displayId`         | string                        | Human-readable ID, e.g. `SRS_BRK_0107`                                                                               |
+| `id`                | string \| null                | ULID or URI; `null` if no `Id:` trailer                                                                              |
+| `shape`             | `"Authored"` \| `"Reference"` | Determined by `Id:` format                                                                                           |
+| `type`              | string \| null                | Resolved type name; `null` if unresolved                                                                             |
+| `title`             | string                        | Entry title text                                                                                                     |
+| `body`              | string                        | Entry body text (trimmed)                                                                                            |
+| `bodyTokens`        | `BodyToken[]`                 | Flat token stream — modal verbs, EARS triggers, Gherkin keywords, `$Identifier` entity refs, inline code. ADR-016.   |
+| `derivedDiscipline` | string[] \| undefined         | Disciplines reached by walking `Allocated-to` edges. ADR-017.                                                        |
+| `source`            | `EntrySource`                 | Tagged union: `{kind:"markdown"}` or `{kind:"doc-comment", language, function, rule}`. Pre-0.6.0 was a plain string. |
+| `rawAttributes`     | `{key, value}[]`              | All trailer attributes in source order                                                                               |
+| `location`          | `{file, line, column}`        | Source file path, 1-based line and column                                                                            |
+| `properties`        | object                        | Observed facts (see Properties namespaces)                                                                           |
 
 ## Properties namespaces
 

@@ -72,6 +72,14 @@ Note: `Supersedes` / `Superseded-by` are **universal attributes** (not relation
 attributes) — they are part of core and are available without any profile. See
 the [Attributes](attributes.md) chapter.
 
+**`Allocated-to` drives discipline classification.** Per
+[ADR-017](../../architecture/adr-017-discipline-classification.md) the toolchain
+walks `Allocated-to` edges from a requirement to the components it is allocated
+to and tags the requirement with each reached discipline. The result lands on
+`Entry.derivedDiscipline?` in compile output. Authors override the derived value
+with the `Discipline:` trailer attribute and freeze it with
+`Discipline-frozen:`.
+
 ## Cross-shape relations
 
 Both Authored and Reference entries can appear as relation sources or targets. A

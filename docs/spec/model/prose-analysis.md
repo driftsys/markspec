@@ -23,6 +23,48 @@ descriptions and glossary entries follow different writing conventions.
 Suppression-hygiene rules (`MSL-Q9xx`) run on **all** authored entries
 regardless of type.
 
+## All active rules
+
+The Stage-2 prose-analysis build (ADR-021) ships the rules below. Severity and
+score contribution drive the project-level roll-up surfaced by
+`markspec lint --format json` (band counts + mean; no trend artifact in core, by
+design — see
+[ADR-021](../../architecture/adr-021-prose-analysis-flagship-build.md)).
+
+| Code     | Slug                              | Surface             | Severity | Score |
+| -------- | --------------------------------- | ------------------- | -------- | ----- |
+| MSL-Q100 | ears-no-pattern                   | EARS                | info     | 1     |
+| MSL-Q101 | ears-missing-actor                | EARS                | warning  | 3     |
+| MSL-Q102 | ears-negative-response            | EARS                | info     | 1     |
+| MSL-Q103 | ears-stacked-preconditions        | EARS                | warning  | 3     |
+| MSL-Q104 | ears-malformed-attempt            | EARS                | info     | 1     |
+| MSL-Q200 | modal-multiple                    | Modal sentence      | warning  | 3     |
+| MSL-Q201 | modal-soft-in-normative           | Modal sentence      | info     | 1     |
+| MSL-Q300 | incose-r2-active-voice            | Passive voice       | warning  | 3     |
+| MSL-Q301 | incose-r3-subject-verb            | Passive voice       | info     | 1     |
+| MSL-Q302 | incose-r7-vague-term              | INCOSE lexicon      | warning  | 3     |
+| MSL-Q303 | incose-r8-escape-clause           | INCOSE lexicon      | warning  | 3     |
+| MSL-Q304 | incose-r9-open-ended              | INCOSE lexicon      | info     | 1     |
+| MSL-Q305 | incose-r10-superfluous-infinitive | INCOSE lexicon      | info     | 1     |
+| MSL-Q310 | incose-r26-absolute               | INCOSE lexicon      | info     | 1     |
+| MSL-Q313 | incose-r16-not                    | INCOSE lexicon      | info     | 1     |
+| MSL-Q400 | struct-title-length               | Structural          | info     | 1     |
+| MSL-Q401 | struct-body-length                | Structural          | info     | 1     |
+| MSL-Q500 | xref-glossary-undefined           | Flagship cross-ref  | warning  | 3     |
+| MSL-Q900 | disable-without-rationale         | Suppression hygiene | warning  | —     |
+| MSL-Q901 | disable-unknown-rule              | Suppression hygiene | warning  | —     |
+| MSL-Q902 | disable-unused                    | Suppression hygiene | info     | —     |
+
+The flagship rule **MSL-Q500 `xref-glossary-undefined`** flags capitalized
+proper-noun usage in normative prose that has no corresponding `Definition`
+entry in the glossary. It ships with a glossary-only subset resolver
+(`$Identifier` / RIDL rules degrade-to-silent until ADR-016 marker pass lands).
+The default severity is `warning`, and core ships an English-baseline allowlist
+of universally-true capitalized words (calendar / geography / languages) at
+`packages/markspec/core/lexicons/capitalized-allow.txt` — list-additive across
+profile tiers, capped, and explicitly excludes domain vocabulary and
+standards-body acronyms.
+
 ## Modal keyword analysis
 
 Modal keywords signal the obligation level of a requirement. MarkSpec enforces
@@ -175,8 +217,11 @@ A rule can be silenced for a specific entry by adding two trailer attributes:
 
 Both `Markspec-disable` and `Rationale` must be present; a suppression without a
 rationale fires **MSL-Q900** (disable-without-rationale). Citing an unknown rule
-code fires **MSL-Q901** (disable-unknown-rule). These two hygiene rules run on
-all authored entries regardless of type and cannot themselves be suppressed.
+code fires **MSL-Q901** (disable-unknown-rule). A disable that did not match any
+diagnostic during a run fires **MSL-Q902** (disable-unused) — one diagnostic per
+unused code at the entry's location — so stale escape hatches get pruned. These
+three hygiene rules run on all authored entries regardless of type and cannot
+themselves be suppressed.
 
 ## Running prose analysis
 

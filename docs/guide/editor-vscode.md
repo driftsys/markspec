@@ -7,21 +7,26 @@ use on the command line.
 
 ## Features
 
-| Feature                  | Description                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| Real-time diagnostics    | Validation errors and warnings inline as you type                                   |
-| Entry block completions  | `- [` → full block scaffold with display ID and attribute skeleton                  |
-| ID reference completions | `Satisfies:` → pick from all display IDs in the workspace                           |
-| Type completions         | `Type:` → core types + profile-declared types                                       |
-| Hover                    | Hover any display ID to preview the entry's title, type, and body                   |
-| Go-to-definition         | `F12` on a display ID jumps to the entry's source location                          |
-| Find all references      | `Shift+F12` lists every file that references a display ID                           |
-| Workspace rename         | `F2` renames a display ID across the entire workspace                               |
-| Document outline         | Outline view lists every entry in the file                                          |
-| Workspace symbol search  | `Ctrl+T` fuzzy-searches entries by display ID or title                              |
-| Folding                  | Each entry block is collapsible                                                     |
-| Document highlights      | Cursor on a display ID highlights every occurrence in the file                      |
-| Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more |
+| Feature                  | Description                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| Real-time diagnostics    | Validation errors and warnings inline as you type                                      |
+| Entry block completions  | `- [` → full block scaffold with display ID and attribute skeleton                     |
+| ID reference completions | `Satisfies:` → pick from all display IDs in the workspace                              |
+| Type completions         | `Type:` → core types + profile-declared types                                          |
+| Hover                    | Hover any display ID to preview the entry's title, type, and body                      |
+| Go-to-definition         | `F12` on a display ID jumps to the entry's source location                             |
+| Find all references      | `Shift+F12` lists every file that references a display ID                              |
+| Workspace rename         | `F2` renames a display ID across the entire workspace                                  |
+| Document outline         | Outline view lists every entry in the file                                             |
+| Workspace symbol search  | `Ctrl+T` fuzzy-searches entries by display ID or title                                 |
+| Folding                  | Each entry block is collapsible                                                        |
+| Document highlights      | Cursor on a display ID highlights every occurrence in the file                         |
+| Code lens                | Per-entry inline lenses: "↑ N dependents" and "↓ Satisfies: ID — Title"                |
+| Inlay hints              | Per-entry inline hints: resolved `: <type>` and `(N dependents)` counters              |
+| Document links           | `Verified-by:` file-path values are clickable links to the test source                 |
+| Document formatting      | `Shift+Alt+F` runs the same code path as `markspec format` on the buffer               |
+| Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
+| Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
 ## Install
 
@@ -77,6 +82,13 @@ Generate the full configuration snippet for your editor:
 markspec lsp install --editor neovim
 markspec lsp install --editor zed
 markspec lsp install --editor vscode   # prints JSON config block
+```
+
+Pin a specific binary path (default writes the invoked binary name, which
+resolves via `PATH` and survives package-manager upgrades):
+
+```sh
+markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 ```
 
 ## Troubleshooting

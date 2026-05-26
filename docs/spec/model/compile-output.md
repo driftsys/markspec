@@ -29,7 +29,7 @@ data:
 ```json
 {
   "markspecSchemaVersion": 1,
-  "generator": { "name": "markspec", "version": "0.5.0" },
+  "generator": { "name": "markspec", "version": "0.6.0" },
   "project": { "name": "my-project", "version": "1.0.0" },
   "counts": { "entries": 1234, "edges": 456 },
   "entries": { "format": "ndjson", "file": "entries.ndjson" },
@@ -44,17 +44,20 @@ data:
 
 Each entry record (in `compiled.json` or `entries.ndjson`) contains:
 
-| Field           | Type                          | Notes                                              |
-| --------------- | ----------------------------- | -------------------------------------------------- |
-| `displayId`     | string                        | Human-readable identifier, e.g. `SRS_BRK_0107`     |
-| `id`            | string \| null                | ULID or URI; null for entries without `Id:`        |
-| `shape`         | `"Authored"` \| `"Reference"` | Determined by `Id:` format                         |
-| `type`          | string \| null                | Resolved type, e.g. `requirement` or `Requirement` |
-| `title`         | string                        | Entry title (first line of list item)              |
-| `body`          | string                        | Entry body text                                    |
-| `rawAttributes` | `{key, value}[]`              | All trailer attributes as parsed                   |
-| `location`      | `{file, line, column}`        | Source location                                    |
-| `properties`    | object                        | Observed facts: `file.*`, `git.*`, `source.*`      |
+| Field               | Type                          | Notes                                                                                                                       |
+| ------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `displayId`         | string                        | Human-readable identifier, e.g. `SRS_BRK_0107`                                                                              |
+| `id`                | string \| null                | ULID or URI; null for entries without `Id:`                                                                                 |
+| `shape`             | `"Authored"` \| `"Reference"` | Determined by `Id:` format                                                                                                  |
+| `type`              | string \| null                | Resolved type, e.g. `requirement` or `Requirement`                                                                          |
+| `title`             | string                        | Entry title (first line of list item)                                                                                       |
+| `body`              | string                        | Entry body text                                                                                                             |
+| `bodyTokens`        | `BodyToken[]`                 | Flat token stream (modal verbs, EARS triggers, Gherkin keywords, `$Identifier` entity refs, inline code). See ADR-016.      |
+| `derivedDiscipline` | string[] \| undefined         | Disciplines reached by walking `Allocated-to`. ADR-017.                                                                     |
+| `source`            | `EntrySource`                 | Tagged union: `{kind:"markdown"}` or `{kind:"doc-comment", language, function, rule}`. Replaces the pre-0.6.0 string field. |
+| `rawAttributes`     | `{key, value}[]`              | All trailer attributes as parsed                                                                                            |
+| `location`          | `{file, line, column}`        | Source location                                                                                                             |
+| `properties`        | object                        | Observed facts: `file.*`, `git.*`, `source.*`                                                                               |
 
 ## Privacy
 

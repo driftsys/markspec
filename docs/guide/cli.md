@@ -380,6 +380,78 @@ formatting or has validation errors.
 
 See [Pre-commit hook](recipes/git-hooks.md) for setup instructions.
 
+### Lockfile and external sync
+
+#### lock
+
+Generate or refresh `markspec.lock`. The lockfile pins upstream profile and
+language-pack versions, and records the sync mappings discovered from
+`project.yaml`. See
+[ADR-022](../architecture/adr-022-lockfile-and-external-sync.md).
+
+```sh
+markspec lock
+```
+
+| Flag       | Type   | Default | Description                                            |
+| ---------- | ------ | ------- | ------------------------------------------------------ |
+| `--check`  | bool   | false   | CI mode: read-only, exit `1` on drift.                 |
+| `--update` | string | —       | Force re-resolve all upstreams, or one by `id`/`slug`. |
+| `--format` | string | `text`  | Output format: `json`, `text`.                         |
+
+**Examples:**
+
+```sh
+markspec lock                      # write or refresh markspec.lock
+markspec lock --check              # CI gate: fail if lockfile is stale
+markspec lock --update             # force re-resolve every upstream
+markspec lock --update github-foo  # force re-resolve one upstream
+```
+
+#### sync
+
+Read-only commands surfacing bound-entry state from `markspec.lock` and the
+per-system NDJSON sync log under `.markspec/sync/<system>/log.ndjson`. `push` /
+`pull` / `resolve` / `init` are connector-side and ship in per-tool ADRs.
+
+```sh
+markspec sync status [system]
+markspec sync log    [system]
+markspec sync show   <displayId>
+```
+
+**`sync status`** — group bound entries by `remote_state`:
+
+| Flag       | Type   | Default | Description                                                                                                       |
+| ---------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `--state`  | string | —       | Filter to one `remote_state` (`ok`, `behind`, `ahead`, `conflict`, `unreachable`, `deleted-upstream`, `unbound`). |
+| `--format` | string | `text`  | Output format: `json`, `text`.                                                                                    |
+
+**`sync log`** — tail the per-system sync log (NDJSON):
+
+| Flag       | Type   | Default | Description                                              |
+| ---------- | ------ | ------- | -------------------------------------------------------- |
+| `--tail`   | number | `20`    | Number of lines from the end.                            |
+| `--op`     | string | —       | Filter to one op: `push`, `pull`, `conflict`, `resolve`. |
+| `--since`  | string | —       | Filter to entries at or after this RFC 3339 timestamp.   |
+| `--format` | string | `text`  | Output format: `json`, `text`.                           |
+
+**`sync show`** — full sync state for one bound entry:
+
+| Flag       | Type   | Default | Description                    |
+| ---------- | ------ | ------- | ------------------------------ |
+| `--format` | string | `text`  | Output format: `json`, `text`. |
+
+**Examples:**
+
+```sh
+markspec sync status                     # all systems, grouped by state
+markspec sync status jira                # one system
+markspec sync status --state conflict    # only conflicting entries
+markspec sync log jira --tail 50 --op conflict
+markspec sync show STK_BRK_0001
+```
+
 ### Documents
 
 #### doc build
@@ -593,33 +665,49 @@ a re-read after an edit returns up-to-date content.
 
 #### mcp install
 
-Print MCP server configuration for a client.
+Print MCP server configuration for a client. The output is the client's native
+config snippet — pipe it to the client's settings file or copy-paste it.
 
 ```sh
 markspec mcp install --client <client>
 ```
 
-Supported clients: `claude-desktop`, `cursor`, `vscode`.
+| Flag            | Type   | Default             | Description                                                                                                                |
+| --------------- | ------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--client`      | string | —                   | Client ID: `claude-desktop`, `cursor`, `vscode`.                                                                           |
+| `--binary-path` | string | invoked binary name | Explicit path to the `markspec` binary. Default writes the invoked name (resolves via `PATH`, surviving package upgrades). |
+
+**Examples:**
 
 ```sh
 markspec mcp install --client claude-desktop
 markspec mcp install --client cursor
 markspec mcp install --client vscode
+markspec mcp install --client claude-desktop --binary-path /opt/markspec/bin/markspec
 ```
 
 #### lsp install
 
-Print LSP server configuration for an editor.
+Print LSP server configuration for an editor. The output is the editor's native
+config snippet (JSON for VS Code, Lua for Neovim, JSON for Zed) — pipe it to the
+editor's settings file or copy-paste it.
 
 ```sh
 markspec lsp install --editor <editor>
 ```
 
-Supported editors: `vscode`, `neovim`, `zed`.
+| Flag            | Type   | Default             | Description                                                                                                                |
+| --------------- | ------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--editor`      | string | —                   | Editor ID: `vscode`, `neovim`, `zed`.                                                                                      |
+| `--binary-path` | string | invoked binary name | Explicit path to the `markspec` binary. Default writes the invoked name (resolves via `PATH`, surviving package upgrades). |
+
+**Examples:**
 
 ```sh
+markspec lsp install --editor vscode
 markspec lsp install --editor neovim
 markspec lsp install --editor zed
+markspec lsp install --editor vscode --binary-path /opt/markspec/bin/markspec
 ```
 
 ### Not yet implemented
