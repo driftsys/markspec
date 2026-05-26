@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.1] (2026-05-26)
+
+### Bug Fixes
+
+- **core:** correct body token positions for markdown files ([201c490]), closes
+  [#514]
+- **lsp:** vscode status bar spinner never stops after initial indexing
+  ([ff6d422])
+- **core:** load grammar WASM bytes via Deno.readFile for compiled binary compat
+  ([bc82ea3]), closes [#513]
+
+[0.6.1]: https://github.com/driftsys/markspec/compare/v0.6.0...v0.6.1
+[201c490]: https://github.com/driftsys/markspec/commit/201c490
+[#514]: https://github.com/driftsys/markspec/issues/514
+[ff6d422]: https://github.com/driftsys/markspec/commit/ff6d422
+[bc82ea3]: https://github.com/driftsys/markspec/commit/bc82ea3
+[#513]: https://github.com/driftsys/markspec/issues/513
+
 ## [0.6.0] (2026-05-26)
 
 ### Features
