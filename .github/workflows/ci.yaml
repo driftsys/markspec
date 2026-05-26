@@ -122,6 +122,43 @@ jobs:
           }
           Write-Host "install.ps1 parses cleanly."
 
+  compile-smoke:
+    name: Compiled binary smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Compile binary
+        run: |
+          deno run --allow-read --allow-write --allow-run --allow-env \
+            scripts/compile_binary.ts --output dist/markspec
+      - name: Smoke test — help
+        run: ./dist/markspec --help
+      - name: Smoke test — validate .tsx source file
+        run: |
+          set +e
+          ./dist/markspec validate tests/fixtures/in-code-tsx.tsx
+          rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then exit $rc; fi
+      - name: Smoke test — validate .ts source file
+        run: |
+          set +e
+          ./dist/markspec validate tests/fixtures/in-code-typescript.ts
+          rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then exit $rc; fi
+      - name: Smoke test — compile with source files
+        run: |
+          mkdir -p /tmp/smoke-project
+          cat > /tmp/smoke-project/project.yaml <<'EOF'
+          name: smoke-test
+          version: 0.1.0
+          EOF
+          cp tests/fixtures/in-code-tsx.tsx /tmp/smoke-project/component.tsx
+          cp tests/fixtures/requirement-block.md /tmp/smoke-project/requirements.md
+          ./dist/markspec compile --format json /tmp/smoke-project
+
   commits:
     name: Conventional commits
     if: github.event_name == 'pull_request'

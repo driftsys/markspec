@@ -81,12 +81,20 @@ async function doLoad(grammarName: string): Promise<Language> {
   // The compiled binary embeds grammars as .wasm.bin to bypass Deno's
   // WASM-import resolver (see scripts/compile_binary.ts). Prefer the
   // mirror when present; fall back to .wasm in dev mode.
+  //
+  // We always read bytes first with Deno.readFile() and pass Uint8Array to
+  // Language.load(). Passing a path string directly causes a NotSupported
+  // crash in compiled binaries: web-tree-sitter uses the Node.js fs shim
+  // internally, which cannot access Deno's virtual embedded filesystem.
+  // (readFileFromFd in ext:deno_node/fs.ts:320 — issue #513)
   const binPath = join(GRAMMARS_DIR, `${grammarName}.wasm.bin`);
   try {
     await Deno.stat(binPath);
-    return Language.load(binPath);
+    return Language.load(await Deno.readFile(binPath));
   } catch {
-    return Language.load(join(GRAMMARS_DIR, `${grammarName}.wasm`));
+    return Language.load(
+      await Deno.readFile(join(GRAMMARS_DIR, `${grammarName}.wasm`)),
+    );
   }
 }
 
