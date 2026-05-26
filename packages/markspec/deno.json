@@ -1,6 +1,6 @@
 {
   "name": "@driftsys/markspec",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "exports": {
     ".": "./core/mod.ts",
     "./core": "./core/mod.ts",

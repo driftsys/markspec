@@ -1,5 +1,367 @@
 # Changelog
 
+## [0.6.0] (2026-05-26)
+
+### Features
+
+- **lsp:** add textDocument/documentLink for Verified-by file paths ([861ba63])
+- **core:** profile discipline-mode flag and mode-aware UX (ADR-017 Slice 5)
+  ([8421322])
+- **lsp:** add textDocument/inlayHint capability ([37f2798])
+- **lsp:** add textDocument/codeLens capability ([961f82a])
+- **core:** PA-3 slice 10 — Q300/Q301 passive voice + Q902 disable-unused
+  (final) ([5663dd7])
+- **cli:** mcp install — claude-desktop managed-block + vscode-mcp verify-only
+  ([45d0529])
+- **lsp:** add markspec/profile request and profileChanged notification
+  ([c117275])
+- **core:** PA-3 slice 9 — score roll-up + CLI/JSON output ([74bd36a])
+- **core:** Discipline: override + Discipline-frozen: freeze attributes (ADR-017
+  Slice 3) ([ea94787])
+- **cli:** vscode lsp install — verify-and-report, drop `code
+  --install-extension` ([c0ed7af])
+- **core:** PA-3 slice 8 — INCOSE sentence rules Q306-Q312 + Q402 ([8764270])
+- **core:** modal sentence rules MSL-Q200 and MSL-Q201 (PA-3 slice 7)
+  ([94ccccf])
+- **mcp:** advertise core-schema version in serverInfo.version ([6e8872f])
+- **lsp:** add textDocument/formatting capability ([01acc26])
+- **core:** EARS rules MSL-Q100–Q104 and offsetToRange extraction (PA-3 slice
+  6) ([c179a9f])
+- **core:** full C# parity across LSP server, VSCode client, and drift-guard
+  ([75ba20c])
+- **core:** wire C# language id through dispatch table ([ef66e07])
+- **cli:** markspec lsp install --editor=neovim (Toolchain Tier 3 Slice A)
+  ([f38bd75])
+- **core:** MSL-Q500 xref-glossary-undefined (flagship) ([93f4144])
+- **core:** profile extension of discipline registry (ADR-017 Slice 2)
+  ([e46f0b0])
+- **lsp:** typl hover and completion via corpus registry ([22bc96e])
+- **core:** glossary-only subset resolver ([4b8eebb])
+- **core:** add TypeScript / TSX / JavaScript grammar support ([17aff03])
+- **core:** wire typl validation into validator and emit typeRegistry from
+  compile ([0f3d709])
+- **core:** typl corpus registry and cross-entry validator (TYPL-002/003/005)
+  ([cfbc79b])
+- **lsp:** sentence-range field on LintDiagnostic ([03ce490])
+- **core:** parser populates Entry.types from typl inline backtick spans
+  ([e1ae2fa])
+- **core:** typl inline backtick surface adapter (extractTyplInlines)
+  ([98ad72e])
+- **core:** rule-based sentence segmenter for prose lint ([4612069])
+- **core:** parser populates Entry.types from typl bullet-glossary items
+  ([61022b6])
+- **core:** typl bullet-glossary surface adapter (extractTyplBullets)
+  ([7622a6c])
+- **core:** bundled lexicon loader + profile lexicon plumbing ([a6baac9])
+- **core:** parser populates Entry.types from typl fences ([71549c2])
+- **core:** Entry.types field + typl diagnostic bridge ([c6e4cb1])
+- **core:** expose extractTyplFences via core/typl namespace ([93e764e])
+- **core:** typl fence surface adapter (extractTyplFences) ([1b2133e])
+- **core:** typl parser foundation (PR 1 of 8) ([#431]) ([903aaaa])
+- **core:** discipline registry and type/allocation classifier (ADR-017 Slice 1)
+  ([#432]) ([3017c0a])
+- **core:** add sync.lastConflictAt + build.lockHash to EntryProperties
+  ([b1b4703])
+- **lsp:** code actions for MSL-L010, MSL-S002, MSL-S003, MSL-S010 ([6f9ae3f])
+- **lsp:** load markspec.lock at init (no read consumers yet) ([8ce260f])
+- **cli:** hook runs lock --check; format emits MSL-L011 stale-pin info
+  ([9370b1c])
+- **cli:** markspec sync {status, log, show} (read-only) ([325cdac])
+- **cli:** markspec lock --update + markspec compile --frozen (MSL-L201)
+  ([e7c4a7e])
+- **cli:** markspec lock --check (CI mode, MSL-L201/L2xx) ([4515dc8])
+- **cli:** markspec lock command (basic write) ([8c95467])
+- **core:** re-export lock + sync from core/mod.ts (public boundary) ([b0db489])
+- **core:** lockfile drift detection (MSL-L202/L203/L210/L211/L212) ([1611cab])
+- **core:** resolveUpstreams composition + canonical edge integration
+  ([2f68790])
+- **core:** resolveBoundEntries with sync mapping integration (MSL-S021)
+  ([2ce69c6])
+- **core:** resolveProfileChain (with readFile) + resolveRegistries
+  (MSL-L101/L102) ([9654834])
+- **core:** resolveReferences with Reference-url fetch + MSL-L010/L101
+  ([756a5cc])
+- **core:** lock/ barrel + resolveUpstreams type surface ([1343f64])
+- **core:** sync module barrel ([276eeb7])
+- **core:** sync status aggregation by remote_state ([985c986])
+- **core:** NDJSON sync log encode/decode (pure) ([4487d59])
+- **core:** locked-attribute inference from mapping.yaml ([4ab3e0d])
+- **core:** sync mapping.yaml schema + cross-system validation (MSL-S001-S005,
+  S020) ([5890d2a])
+- **core:** canonical edge model + RFC-8785 hash for lockfile (OQ4) ([9f49c65])
+- **core:** sha256:* hash helpers for lockfile (Web Crypto) ([8feb8ba])
+- **core:** TOML parser for markspec.lock (MSL-L001/L002/L003) ([3b9e704])
+- **core:** deterministic TOML serializer for markspec.lock ([b887b9f])
+- **core:** lockfile model types (lock/model.ts) ([8692a38])
+- **core:** source.* properties on every compiled entry (#nextgen-v1)
+  ([ad00333])
+- **core:** LineMap for source-file doc-comment entries ([#409]) ([9080877])
+- **core:** set Entry.bodyTokens to [] in parser/source.ts (story 3 follow-up)
+  ([291a4dc])
+- **core:** wire extractBodyTokens into parser/markdown.ts ([c68fcea])
+- **core:** add Entry.bodyTokens field (ADR-016) ([b7336ae])
+- **core:** suppress modal/EARS/entity-ref inside verbatim regions ([c739a5e])
+- **core:** extract Gherkin section + step tokens from feature fences
+  ([5823b24])
+- **core:** extract inline-code tokens from mdast ([9faa9ab])
+- **core:** extract entity-ref tokens with case classification ([870c4e6])
+- **core:** extract EARS-trigger tokens ([82abb89])
+- **core:** extract modal tokens in body_tokens.ts ([ed4dd58])
+- **core:** stub body_tokens.ts module skeleton ([79af796])
+- **core:** export body-token types from core/mod.ts ([a5eb0e8])
+- **core:** add BodyToken and BodyTokenKind types (ADR-016) ([f6520ca])
+
+### Bug Fixes
+
+- **core:** slice 10 review issues — Q902 unknown-code guard + passive
+  refinements ([61fcae7])
+- **core:** hash only viewed bytes in sha256Bytes, not full backing buffer
+  ([d3da38d]), fixes [#492]
+- **cli:** trim trailing blank line in removeLuaBlock as documented ([01b802e]),
+  fixes [#480]
+- **core:** hash only viewed bytes in sha256Bytes, not full backing buffer
+  ([2aeb4e1]), fixes [#492]
+- **deps:** bump web-tree-sitter to ^0.25 for ABI v15 support ([777c386]), fixes
+  [#427]
+- **core:** emit warning for empty CSV elements in attribute values ([0d6bfcc])
+- **core:** Q309 per-occurrence comma exception + Q306 comment + co-fire test
+  ([d516a3d])
+- **core:** emit TYPL-006 diagnostic for unterminated regex literal ([687e4e6]),
+  fixes [#449]
+- **core:** MSL-Q500 protected-keyword extension + file-absolute range
+  ([78a3b1c])
+- **repo:** activate MarkSpec LSP on TypeScript / TSX / JavaScript files
+  ([d8da880])
+- **core:** resolve PR4 rebase conflicts in markdown parser tests and fmt
+  ([2834992])
+- **core:** MODAL_RE recognizes shall not / must not compounds ([148e0c3])
+- **render:** add bodyTokens to test entry fixtures (ADR-016) ([bc88254])
+- **core:** remove unnecessary async wrapper in bodyTokens smoke test
+  ([6c9b2f2])
+- **core:** remove dead inMathFence toggle in body_tokens.ts ([c3b27da])
+- **repo:** unblock markdownlint on CHANGELOG.md and ADR-016 ([d75fa08])
+
+### Documentation
+
+- **release:** prep 0.6.0 — refresh stale CLI / spec / guide content
+  ([a4c7925])
+- **spec:** mark LSP feature additions §10 Q[#2] resolved ([d6dc21a])
+- **spec:** align LSP feature additions §5.1 codeLens label with implementation
+  ([8c20a98])
+- **spec:** align LSP feature additions §4 with implementation ([ea676af])
+- **core:** list C# under supported tree-sitter grammars ([c5ac474])
+- **spec:** promote Reference-url to core universal attribute on Reference
+  entries ([32afda5])
+- **repo:** typl language reference, user guide, and example showcase (PR 8 of
+  8) ([bac8925])
+- **repo:** ADR-020 final sign-off pass — Status: Accepted ([ba9f7a2])
+- **spec:** VS Code authoring experience spec (draft) ([423b003])
+- **lsp:** clarify LintDiagnostic.range semantics + import SourceRange
+  ([68f6186])
+- **repo:** renumber prose-analysis ADR from 020 to 021 ([e046ff5])
+- **spec:** LSP feature additions — formatting, markspec/profile, inline
+  surfaces (draft) ([4a107c3])
+- **spec:** ratify §8 Q2 — project.yaml counts as a workspace marker
+  ([e60e381])
+- **core:** document lexicon loader's Deno.* exception and internal scope
+  ([e700213])
+- **repo:** ADR-020 — prose-analysis flagship build (Stage-2 PA-3) ([e464487])
+- **spec:** move background index cache out of project tree ([#434]) ([9f59d7b])
+- **spec:** move background index cache out of project tree ([9907331])
+- **spec:** resolve 11 v1.0 blocker open questions across 3 specs ([#430])
+  ([e87debe])
+- **docs:** ADR-012 catalogue rows for MSL-L (lockfile) + MSL-S (sync) families
+  ([993e4d8])
+- **docs:** ADR-019 — lockfile and external sync design decisions for v1.0
+  ([c1761aa])
+- **spec:** resolve external-sync spec OQs (drop newest-wins, multi-system
+  rules, sync CLI) ([c6d7f93])
+- **spec:** resolve lockfile spec OQs (defer vendor post-1.0, canonical edges,
+  pin-exactly) ([72282e6])
+- **spec:** promote Reference-url to core universal attribute on Reference
+  entries ([f0664db])
+- **repo:** ADR-017 + ADR-018 — discipline classification + SSOT (Accepted,
+  R3) ([#424]) ([7638b1a])
+- **docs:** reference Entry.bodyTokens in EARS/Gherkin/prose-review skills
+  ([0ee7e1b])
+- **repo:** CHANGELOG entry for ADR-016 body-token AST (story 2) ([3deb4e3])
+- **core:** update body_blocks_test.ts comment to reference ADR-016 ([46ec804])
+- **core:** document feature fence info-string in FeatureNode JSDoc ([bb8d100])
+- **repo:** ADR-016 body-token AST — promote inline constructs to first-class
+  parser tokens ([7ebe55a])
+
+### Refactoring
+
+- **core:** replace unsafe casts and JSON.stringify in typl module ([c955e2b]),
+  fixes [#448], [#460]
+- **core:** share extractHeadingText + parallelize glossary file reads
+  ([c6cc395])
+- **lsp:** consume Entry.bodyTokens for body keywords (ADR-016 Dec 8)
+  ([04ef3ff])
+- **core:** drop EntityRef from core/mod.ts exports ([82e610f])
+- **core:** delete Entry.entityRefs and EntityRef (ADR-016 Decision 4)
+  ([6ece209])
+- **core:** delete marker types + simplify InlineContent (ADR-016 Decision 5)
+  ([26bb1ee])
+- **core:** delete parser/entity_refs.ts (folded into body_tokens.ts)
+  ([62751a7])
+- **core:** delete extractMarkersFromText from ast/build.ts ([e20566b])
+- **core:** drop marker re-derivation from ast/normalize.ts ([8958759])
+- **core:** MSL-M060 reads Entry.bodyTokens (ADR-016) ([91373b6])
+
+### Performance
+
+- **core:** avoid double mdast parse in body_tokens.ts ([7d5cf75]), fixes [#450]
+
+[0.6.0]: https://github.com/driftsys/markspec/compare/v0.5.3...v0.6.0
+[861ba63]: https://github.com/driftsys/markspec/commit/861ba63
+[8421322]: https://github.com/driftsys/markspec/commit/8421322
+[37f2798]: https://github.com/driftsys/markspec/commit/37f2798
+[961f82a]: https://github.com/driftsys/markspec/commit/961f82a
+[5663dd7]: https://github.com/driftsys/markspec/commit/5663dd7
+[45d0529]: https://github.com/driftsys/markspec/commit/45d0529
+[c117275]: https://github.com/driftsys/markspec/commit/c117275
+[74bd36a]: https://github.com/driftsys/markspec/commit/74bd36a
+[ea94787]: https://github.com/driftsys/markspec/commit/ea94787
+[c0ed7af]: https://github.com/driftsys/markspec/commit/c0ed7af
+[8764270]: https://github.com/driftsys/markspec/commit/8764270
+[94ccccf]: https://github.com/driftsys/markspec/commit/94ccccf
+[6e8872f]: https://github.com/driftsys/markspec/commit/6e8872f
+[01acc26]: https://github.com/driftsys/markspec/commit/01acc26
+[c179a9f]: https://github.com/driftsys/markspec/commit/c179a9f
+[75ba20c]: https://github.com/driftsys/markspec/commit/75ba20c
+[ef66e07]: https://github.com/driftsys/markspec/commit/ef66e07
+[f38bd75]: https://github.com/driftsys/markspec/commit/f38bd75
+[93f4144]: https://github.com/driftsys/markspec/commit/93f4144
+[e46f0b0]: https://github.com/driftsys/markspec/commit/e46f0b0
+[22bc96e]: https://github.com/driftsys/markspec/commit/22bc96e
+[4b8eebb]: https://github.com/driftsys/markspec/commit/4b8eebb
+[17aff03]: https://github.com/driftsys/markspec/commit/17aff03
+[0f3d709]: https://github.com/driftsys/markspec/commit/0f3d709
+[cfbc79b]: https://github.com/driftsys/markspec/commit/cfbc79b
+[03ce490]: https://github.com/driftsys/markspec/commit/03ce490
+[e1ae2fa]: https://github.com/driftsys/markspec/commit/e1ae2fa
+[98ad72e]: https://github.com/driftsys/markspec/commit/98ad72e
+[4612069]: https://github.com/driftsys/markspec/commit/4612069
+[61022b6]: https://github.com/driftsys/markspec/commit/61022b6
+[7622a6c]: https://github.com/driftsys/markspec/commit/7622a6c
+[a6baac9]: https://github.com/driftsys/markspec/commit/a6baac9
+[71549c2]: https://github.com/driftsys/markspec/commit/71549c2
+[c6e4cb1]: https://github.com/driftsys/markspec/commit/c6e4cb1
+[93e764e]: https://github.com/driftsys/markspec/commit/93e764e
+[1b2133e]: https://github.com/driftsys/markspec/commit/1b2133e
+[903aaaa]: https://github.com/driftsys/markspec/commit/903aaaa
+[#431]: https://github.com/driftsys/markspec/issues/431
+[3017c0a]: https://github.com/driftsys/markspec/commit/3017c0a
+[#432]: https://github.com/driftsys/markspec/issues/432
+[b1b4703]: https://github.com/driftsys/markspec/commit/b1b4703
+[6f9ae3f]: https://github.com/driftsys/markspec/commit/6f9ae3f
+[8ce260f]: https://github.com/driftsys/markspec/commit/8ce260f
+[9370b1c]: https://github.com/driftsys/markspec/commit/9370b1c
+[325cdac]: https://github.com/driftsys/markspec/commit/325cdac
+[e7c4a7e]: https://github.com/driftsys/markspec/commit/e7c4a7e
+[4515dc8]: https://github.com/driftsys/markspec/commit/4515dc8
+[8c95467]: https://github.com/driftsys/markspec/commit/8c95467
+[b0db489]: https://github.com/driftsys/markspec/commit/b0db489
+[1611cab]: https://github.com/driftsys/markspec/commit/1611cab
+[2f68790]: https://github.com/driftsys/markspec/commit/2f68790
+[2ce69c6]: https://github.com/driftsys/markspec/commit/2ce69c6
+[9654834]: https://github.com/driftsys/markspec/commit/9654834
+[756a5cc]: https://github.com/driftsys/markspec/commit/756a5cc
+[1343f64]: https://github.com/driftsys/markspec/commit/1343f64
+[276eeb7]: https://github.com/driftsys/markspec/commit/276eeb7
+[985c986]: https://github.com/driftsys/markspec/commit/985c986
+[4487d59]: https://github.com/driftsys/markspec/commit/4487d59
+[4ab3e0d]: https://github.com/driftsys/markspec/commit/4ab3e0d
+[5890d2a]: https://github.com/driftsys/markspec/commit/5890d2a
+[9f49c65]: https://github.com/driftsys/markspec/commit/9f49c65
+[8feb8ba]: https://github.com/driftsys/markspec/commit/8feb8ba
+[3b9e704]: https://github.com/driftsys/markspec/commit/3b9e704
+[b887b9f]: https://github.com/driftsys/markspec/commit/b887b9f
+[8692a38]: https://github.com/driftsys/markspec/commit/8692a38
+[ad00333]: https://github.com/driftsys/markspec/commit/ad00333
+[9080877]: https://github.com/driftsys/markspec/commit/9080877
+[#409]: https://github.com/driftsys/markspec/issues/409
+[291a4dc]: https://github.com/driftsys/markspec/commit/291a4dc
+[c68fcea]: https://github.com/driftsys/markspec/commit/c68fcea
+[b7336ae]: https://github.com/driftsys/markspec/commit/b7336ae
+[c739a5e]: https://github.com/driftsys/markspec/commit/c739a5e
+[5823b24]: https://github.com/driftsys/markspec/commit/5823b24
+[9faa9ab]: https://github.com/driftsys/markspec/commit/9faa9ab
+[870c4e6]: https://github.com/driftsys/markspec/commit/870c4e6
+[82abb89]: https://github.com/driftsys/markspec/commit/82abb89
+[ed4dd58]: https://github.com/driftsys/markspec/commit/ed4dd58
+[79af796]: https://github.com/driftsys/markspec/commit/79af796
+[a5eb0e8]: https://github.com/driftsys/markspec/commit/a5eb0e8
+[f6520ca]: https://github.com/driftsys/markspec/commit/f6520ca
+[61fcae7]: https://github.com/driftsys/markspec/commit/61fcae7
+[d3da38d]: https://github.com/driftsys/markspec/commit/d3da38d
+[#492]: https://github.com/driftsys/markspec/issues/492
+[01b802e]: https://github.com/driftsys/markspec/commit/01b802e
+[#480]: https://github.com/driftsys/markspec/issues/480
+[2aeb4e1]: https://github.com/driftsys/markspec/commit/2aeb4e1
+[777c386]: https://github.com/driftsys/markspec/commit/777c386
+[#427]: https://github.com/driftsys/markspec/issues/427
+[0d6bfcc]: https://github.com/driftsys/markspec/commit/0d6bfcc
+[d516a3d]: https://github.com/driftsys/markspec/commit/d516a3d
+[687e4e6]: https://github.com/driftsys/markspec/commit/687e4e6
+[#449]: https://github.com/driftsys/markspec/issues/449
+[78a3b1c]: https://github.com/driftsys/markspec/commit/78a3b1c
+[d8da880]: https://github.com/driftsys/markspec/commit/d8da880
+[2834992]: https://github.com/driftsys/markspec/commit/2834992
+[148e0c3]: https://github.com/driftsys/markspec/commit/148e0c3
+[bc88254]: https://github.com/driftsys/markspec/commit/bc88254
+[6c9b2f2]: https://github.com/driftsys/markspec/commit/6c9b2f2
+[c3b27da]: https://github.com/driftsys/markspec/commit/c3b27da
+[d75fa08]: https://github.com/driftsys/markspec/commit/d75fa08
+[a4c7925]: https://github.com/driftsys/markspec/commit/a4c7925
+[d6dc21a]: https://github.com/driftsys/markspec/commit/d6dc21a
+[#2]: https://github.com/driftsys/markspec/issues/2
+[8c20a98]: https://github.com/driftsys/markspec/commit/8c20a98
+[ea676af]: https://github.com/driftsys/markspec/commit/ea676af
+[c5ac474]: https://github.com/driftsys/markspec/commit/c5ac474
+[32afda5]: https://github.com/driftsys/markspec/commit/32afda5
+[bac8925]: https://github.com/driftsys/markspec/commit/bac8925
+[ba9f7a2]: https://github.com/driftsys/markspec/commit/ba9f7a2
+[423b003]: https://github.com/driftsys/markspec/commit/423b003
+[68f6186]: https://github.com/driftsys/markspec/commit/68f6186
+[e046ff5]: https://github.com/driftsys/markspec/commit/e046ff5
+[4a107c3]: https://github.com/driftsys/markspec/commit/4a107c3
+[e60e381]: https://github.com/driftsys/markspec/commit/e60e381
+[e700213]: https://github.com/driftsys/markspec/commit/e700213
+[e464487]: https://github.com/driftsys/markspec/commit/e464487
+[9f59d7b]: https://github.com/driftsys/markspec/commit/9f59d7b
+[#434]: https://github.com/driftsys/markspec/issues/434
+[9907331]: https://github.com/driftsys/markspec/commit/9907331
+[e87debe]: https://github.com/driftsys/markspec/commit/e87debe
+[#430]: https://github.com/driftsys/markspec/issues/430
+[993e4d8]: https://github.com/driftsys/markspec/commit/993e4d8
+[c1761aa]: https://github.com/driftsys/markspec/commit/c1761aa
+[c6d7f93]: https://github.com/driftsys/markspec/commit/c6d7f93
+[72282e6]: https://github.com/driftsys/markspec/commit/72282e6
+[f0664db]: https://github.com/driftsys/markspec/commit/f0664db
+[7638b1a]: https://github.com/driftsys/markspec/commit/7638b1a
+[#424]: https://github.com/driftsys/markspec/issues/424
+[0ee7e1b]: https://github.com/driftsys/markspec/commit/0ee7e1b
+[3deb4e3]: https://github.com/driftsys/markspec/commit/3deb4e3
+[46ec804]: https://github.com/driftsys/markspec/commit/46ec804
+[bb8d100]: https://github.com/driftsys/markspec/commit/bb8d100
+[7ebe55a]: https://github.com/driftsys/markspec/commit/7ebe55a
+[c955e2b]: https://github.com/driftsys/markspec/commit/c955e2b
+[#448]: https://github.com/driftsys/markspec/issues/448
+[#460]: https://github.com/driftsys/markspec/issues/460
+[c6cc395]: https://github.com/driftsys/markspec/commit/c6cc395
+[04ef3ff]: https://github.com/driftsys/markspec/commit/04ef3ff
+[82e610f]: https://github.com/driftsys/markspec/commit/82e610f
+[6ece209]: https://github.com/driftsys/markspec/commit/6ece209
+[26bb1ee]: https://github.com/driftsys/markspec/commit/26bb1ee
+[62751a7]: https://github.com/driftsys/markspec/commit/62751a7
+[e20566b]: https://github.com/driftsys/markspec/commit/e20566b
+[8958759]: https://github.com/driftsys/markspec/commit/8958759
+[91373b6]: https://github.com/driftsys/markspec/commit/91373b6
+[7d5cf75]: https://github.com/driftsys/markspec/commit/7d5cf75
+[#450]: https://github.com/driftsys/markspec/issues/450
+
 ## [Unreleased]
 
 ### Specs (decisions)
