@@ -86,6 +86,35 @@ This creates a `my-profile/` directory with a `markspec.yaml` manifest and a
 
 ---
 
+## Discipline classification (SW / HW)
+
+MarkSpec derives a software-or-hardware **discipline** for each requirement by
+walking the `Allocated-to` graph upward from concrete components to the abstract
+requirement, and tagging the requirement with the union of disciplines reached.
+The result lands on `Entry.derivedDiscipline?` in compile output and flows into
+reports.
+
+See [ADR-017](../architecture/adr-017-discipline-classification.md) and
+[ADR-018](../architecture/adr-018-core-discipline-ssot.md) for the design. Three
+modes ship out of the box, selectable via the profile's `discipline-mode:`
+field:
+
+| Mode     | Behavior                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------ |
+| `none`   | No discipline derivation. Recommended for projects that do not separate SW from HW.        |
+| `flat`   | One `software-requirement` / `hardware-requirement` bucket per discipline. Default.        |
+| `tiered` | Profile may declare per-discipline subtypes (e.g. `swe.software-requirement`). Compliance. |
+
+Authors can override the derived value with the `Discipline:` trailer attribute,
+and freeze the override with `Discipline-frozen: true`. Frozen overrides are
+excluded from re-derivation.
+
+The set of components recognized as the discipline source-of-truth lives in core
+(`Item.discipline`); profiles may **extend** the vocabulary with new components
+but cannot reclassify existing core components.
+
+---
+
 ## Coming in a future release
 
 - **ASPICE / ISO 26262 mapping** — how profile types correspond to process work

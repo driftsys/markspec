@@ -10,16 +10,18 @@ active profile.
 These attributes apply to every entry regardless of type. They are defined by
 core and are always available, even in core-only mode (no profile configured).
 
-| Attribute       | Required | Cardinality | Value                                                           |
-| --------------- | -------- | ----------- | --------------------------------------------------------------- |
-| `Id`            | Yes      | Single      | Bare ULID (Authored shape) or URI with scheme (Reference shape) |
-| `Type`          | No       | Single      | Core or profile-declared type name                              |
-| `Labels`        | No       | Multi       | Free-form tags; one `Labels:` line per tag                      |
-| `References`    | No       | Multi       | Display ID, optionally followed by a locator in `[…]`           |
-| `External-id`   | No       | Single      | Cross-system identifier (Jira, DOORS, …)                        |
-| `Supersedes`    | No       | Single      | Display ID of the predecessor entry (Authored only)             |
-| `Superseded-by` | —        | Generated   | Inverse of `Supersedes`; written by `markspec format`           |
-| `Deprecated`    | No       | Single      | Quoted retirement reason string                                 |
+| Attribute           | Required | Cardinality | Value                                                                                                                  |
+| ------------------- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `Id`                | Yes      | Single      | Bare ULID (Authored shape) or URI with scheme (Reference shape)                                                        |
+| `Type`              | No       | Single      | Core or profile-declared type name                                                                                     |
+| `Labels`            | No       | Multi       | Free-form tags; one `Labels:` line per tag                                                                             |
+| `Discipline`        | No       | Single      | ADR-017 — author-asserted discipline kind (`software`, `hardware`, …). Overrides the classifier's derivation channels. |
+| `Discipline-frozen` | No       | Single      | ADR-017 — cached snapshot of a past derivation: `<kind>` or `<kind> @ <YYYY-MM-DD>`. Excluded from re-derivation.      |
+| `References`        | No       | Multi       | Display ID, optionally followed by a locator in `[…]`                                                                  |
+| `External-id`       | No       | Single      | Cross-system identifier (Jira, DOORS, …)                                                                               |
+| `Supersedes`        | No       | Single      | Display ID of the predecessor entry (Authored only)                                                                    |
+| `Superseded-by`     | —        | Generated   | Inverse of `Supersedes`; written by `markspec format`                                                                  |
+| `Deprecated`        | No       | Single      | Quoted retirement reason string                                                                                        |
 
 ### Id
 

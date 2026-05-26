@@ -116,7 +116,7 @@ deno run jsr:@driftsys/markspec --help
 
 ```sh
 markspec --version
-# markspec 0.5.0 (core-schema 1)
+# markspec 0.6.0 (core-schema 1)
 ```
 
 ## AI assistant skillset (upskill)

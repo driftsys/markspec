@@ -220,26 +220,31 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 
 ### Implemented
 
-| Command                               | Module                              | Purpose                                                                     |
-| ------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------- |
-| `markspec format [...files]`          | `core/formatter`                    | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook.        |
-| `markspec validate [...files]`        | `core/validator`                    | Check broken refs, missing Ids, malformed entries, duplicates.              |
-| `markspec compile <paths...>`         | `core/compiler`                     | Parse all files, build traceability graph, output compiled JSON.            |
-| `markspec show <id> <paths...>`       | `core/compiler`                     | Show details of a single entry by display ID or ULID.                       |
-| `markspec context <id> <paths...>`    | `core/compiler`                     | Walk the Satisfies chain upward from an entry.                              |
-| `markspec dependents <id> <paths...>` | `core/compiler`                     | List all entries that depend on a given entry.                              |
-| `markspec report <kind> <paths...>`   | `core/reporter`                     | Generate traceability matrix or coverage report.                            |
-| `markspec profile show`               | `core/profile`                      | Show the active profile chain and effective configuration.                  |
-| `markspec doctor`                     | `core/profile` + `core/validator`   | Project health check: profile, config, and validation summary.              |
-| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`    | Print the next available display ID for a profile-declared type.            |
-| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`    | Scaffold a new entry block for a profile-declared type (stdout).            |
-| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`    | Append a scaffolded entry block to the file (agent write path).             |
-| `markspec export <format> <paths...>` | `core/compiler`                     | Emit the compiled traceability graph as json, yaml, or csv (reqif pending). |
-| `markspec hook [...files]`            | `core/formatter` + `core/validator` | Pre-commit hook: run format --check + validate on the given files.          |
-| `markspec doc build <file>`           | `render/typst`                      | Single document → PDF via Typst WASM.                                       |
-| `markspec book build`                 | `book/site`                         | Multi-chapter → static HTML site.                                           |
-| `markspec lsp`                        | `lsp/server`                        | LSP server for editor integration (stdio JSON-RPC).                         |
-| `markspec mcp`                        | `mcp/server`                        | MCP server for AI agent integration (stdio JSON-RPC).                       |
+| Command                               | Module                              | Purpose                                                                       |
+| ------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| `markspec format [...files]`          | `core/formatter`                    | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook.          |
+| `markspec validate [...files]`        | `core/validator`                    | Check broken refs, missing Ids, malformed entries, duplicates.                |
+| `markspec compile <paths...>`         | `core/compiler`                     | Parse all files, build traceability graph, output compiled JSON.              |
+| `markspec show <id> <paths...>`       | `core/compiler`                     | Show details of a single entry by display ID or ULID.                         |
+| `markspec context <id> <paths...>`    | `core/compiler`                     | Walk the Satisfies chain upward from an entry.                                |
+| `markspec dependents <id> <paths...>` | `core/compiler`                     | List all entries that depend on a given entry.                                |
+| `markspec report <kind> <paths...>`   | `core/reporter`                     | Generate traceability matrix or coverage report.                              |
+| `markspec profile show`               | `core/profile`                      | Show the active profile chain and effective configuration.                    |
+| `markspec doctor`                     | `core/profile` + `core/validator`   | Project health check: profile, config, and validation summary.                |
+| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`    | Print the next available display ID for a profile-declared type.              |
+| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`    | Scaffold a new entry block for a profile-declared type (stdout).              |
+| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`    | Append a scaffolded entry block to the file (agent write path).               |
+| `markspec export <format> <paths...>` | `core/compiler`                     | Emit the compiled traceability graph as json, yaml, or csv (reqif pending).   |
+| `markspec hook [...files]`            | `core/formatter` + `core/validator` | Pre-commit hook: run format --check + validate on the given files.            |
+| `markspec lint [...paths]`            | `core/lint`                         | Prose-analysis lint (modal verbs, EARS, passive voice, INCOSE, flagship).     |
+| `markspec lock`                       | `core/lock`                         | Generate or refresh `markspec.lock` (upstream pins, sync mappings).           |
+| `markspec sync {status\|log\|show}`   | `core/sync`                         | Read-only surface over lockfile + per-system sync log (NDJSON).               |
+| `markspec doc build <file>`           | `render/typst`                      | Single document → PDF via Typst WASM.                                         |
+| `markspec book build`                 | `book/site`                         | Multi-chapter → static HTML site.                                             |
+| `markspec lsp`                        | `lsp/server`                        | LSP server for editor integration (stdio JSON-RPC).                           |
+| `markspec lsp install`                | `lsp/server`                        | Print LSP server configuration for an editor (vscode, neovim, zed).           |
+| `markspec mcp`                        | `mcp/server`                        | MCP server for AI agent integration (stdio JSON-RPC).                         |
+| `markspec mcp install`                | `mcp/server`                        | Print MCP server configuration for a client (claude-desktop, cursor, vscode). |
 
 ### Not yet implemented
 
@@ -393,6 +398,23 @@ docs/
   `$Identifier` entity refs and inline code; supersedes ADR-014's
   `InlineContent.markers`; `LineMap` carries file-relative positions through
   source-file doc-comment parsing
+- `adr-017-discipline-classification.md` — derive SW/HW discipline from the
+  Allocated-to graph; introduces `Entry.derivedDiscipline?`; ships in slices
+  (registry + channels + default + mixed + `discipline_mode`)
+- `adr-018-core-discipline-ssot.md` — single source of truth for SW/HW
+  discipline lives in core (R3 / Path A++); profile extends, never overrides
+- `adr-019-typl-type-dsl.md` — typl Type Specification DSL for inline
+  constraint/type declarations on entry attributes; parser + three surfaces
+  (inline, bullet, fenced) + validation + corpus type registry
+- `adr-020-sqlite-indexing-eval.md` — evaluation scope for on-demand SQLite
+  indexing as Phase 1 of the background-indexing epic (no FS watcher, surgical
+  invalidation, lockfile-pinned federated cache)
+- `adr-021-prose-analysis-flagship-build.md` — Stage-2 prose-analysis design: 16
+  active MSL-Q rules + flagship `xref-glossary-undefined` + band-count score
+  roll-up; deliberate non-feature: no trend artifacts in core
+- `adr-022-lockfile-and-external-sync.md` — `markspec.lock` format for upstream
+  version pinning + sync state tracking (`markspec lock`,
+  `markspec sync status|log|show`)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

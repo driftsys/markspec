@@ -115,5 +115,5 @@ Cache `~/.local/bin/markspec` between runs to avoid downloading on every job:
 - uses: actions/cache@v4
   with:
     path: ~/.local/bin/markspec
-    key: markspec-${{ runner.os }}-0.5.0
+    key: markspec-${{ runner.os }}-0.6.0
 ```

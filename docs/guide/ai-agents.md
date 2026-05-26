@@ -47,10 +47,19 @@ Generate the snippet automatically:
 markspec mcp install --client claude-desktop
 ```
 
+Pin a specific binary path (useful when the binary is not on `PATH` or when
+package-manager upgrades would change the install location):
+
+```sh
+markspec mcp install --client claude-desktop \
+  --binary-path /opt/markspec/bin/markspec
+```
+
 ### Cursor
 
 ```sh
 markspec mcp install --client cursor
+markspec mcp install --client cursor --binary-path /opt/markspec/bin/markspec
 ```
 
 ### VS Code (Copilot / Claude)
