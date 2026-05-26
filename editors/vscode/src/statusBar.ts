@@ -9,6 +9,13 @@
  *   ✗  failed / stopped unexpectedly
  *
  * Click action opens the MarkSpec output channel.
+ *
+ * NOTE: `createStatusBar` intentionally does NOT register a
+ * `client.onNotification("markspec/indexed", ...)` handler.
+ * `vscode-languageclient@9` uses a `Map` keyed by method name, so calling
+ * `onNotification` twice for the same method silently replaces the first
+ * handler. The caller (extension.ts) owns the single `markspec/indexed`
+ * handler and must call `notifyIndexed()` from it.
  */
 
 import {
@@ -23,10 +30,20 @@ import { type LanguageClient, State } from "vscode-languageclient/node";
 
 const COMMAND_SHOW_OUTPUT = "markspec.showOutput";
 
+/** Returned by `createStatusBar` so the caller can forward notifications. */
+export interface StatusBarController {
+  readonly item: StatusBarItem;
+  /**
+   * Call this when the `markspec/indexed` notification arrives.
+   * Transitions the status bar from "starting" to "ready".
+   */
+  notifyIndexed(params: { files: number; entries: number }): void;
+}
+
 export function createStatusBar(
   context: ExtensionContext,
   client: LanguageClient,
-): StatusBarItem {
+): StatusBarController {
   const item = window.createStatusBarItem(StatusBarAlignment.Right, 100);
   item.command = COMMAND_SHOW_OUTPUT;
 
@@ -37,15 +54,7 @@ export function createStatusBar(
     if (event.newState === State.Starting) setStarting(item);
     else if (event.newState === State.Stopped) setFailed(item);
     // State.Running alone doesn't mean indexing complete — wait for
-    // markspec/indexed notification.
-  });
-
-  client.onNotification("markspec/indexed", (params) => {
-    setReady(
-      item,
-      (params as { files: number; entries: number } | undefined) ??
-        { files: 0, entries: 0 },
-    );
+    // the markspec/indexed notification forwarded via notifyIndexed().
   });
 
   context.subscriptions.push(
@@ -55,7 +64,10 @@ export function createStatusBar(
     },
   );
 
-  return item;
+  return {
+    item,
+    notifyIndexed: (params) => setReady(item, params),
+  };
 }
 
 function setStarting(item: StatusBarItem): void {
