@@ -177,7 +177,7 @@ function extractEntry(
   definitions: Set<string>,
   isReferencesDoc: boolean,
   diagnostics: Diagnostic[],
-  hasLineMap = false,
+  _hasLineMap = false,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -511,27 +511,17 @@ function extractEntry(
   // Inline-construct tokens (ADR-016). Reuses the already-built bodyAst to
   // avoid a redundant mdast parse.
   //
-  // bodyStartLine: when a lineMap is present (source-file path), use the
-  // mdast position of the second child (the body paragraph) — the actual
-  // buffer line where the body starts. CommonMark loose lists have a blank
-  // line between title and body, so the body is at (entry_line + 2), not
-  // (entry_line + 1). Without a lineMap we keep the legacy (entry_line + 1)
-  // behaviour to avoid shifting existing markdown-file token locations.
+  // bodyStartLine: use the mdast position of the second child (the body
+  // paragraph) — the actual buffer line where the body starts. CommonMark
+  // loose lists have a blank line between title and body, so the body is at
+  // (entry_line + 2), not (entry_line + 1).
   //
-  // columnOffset: when a lineMap is present, body text has been stripped of
-  // the list-item indent (e.g., "  " for column-1 items), so each token
-  // column must be bumped by that indent width for the LineMap to translate
-  // to the correct source column. Without a lineMap, no offset is applied
-  // (legacy behaviour unchanged).
-  const bodyIndent = hasLineMap
-    // + 2 = the "  " continuation indent prepended by wrapAsListItem to
-    // every non-title line. Mirrors the indent computation in
-    // extractBodyContent below.
-    ? (item.position?.start.column ?? 1) - 1 + 2
-    : 0;
-  const bodyStartLine = hasLineMap
-    ? (item.children[1]?.position?.start.line ?? (line + 1))
-    : line + 1;
+  // columnOffset: body text has been stripped of the list-item indent (e.g.,
+  // "  " for column-1 items), so each token column must be bumped by that
+  // indent width. The + 2 accounts for the "  " continuation indent
+  // prepended by wrapAsListItem to every non-title line.
+  const bodyIndent = (item.position?.start.column ?? 1) - 1 + 2;
+  const bodyStartLine = item.children[1]?.position?.start.line ?? (line + 1);
   const bodyTokens = extractBodyTokens(
     body,
     bodyAst,
