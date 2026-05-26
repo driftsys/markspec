@@ -153,7 +153,7 @@ export function activate(context: ExtensionContext): void {
 
   client.start();
 
-  createStatusBar(context, client);
+  const statusBar = createStatusBar(context, client);
 
   const decorations = new DecorationManager(client);
   context.subscriptions.push(decorations);
@@ -172,11 +172,19 @@ export function activate(context: ExtensionContext): void {
     workspace.onDidChangeTextDocument((ev) => debouncedRefresh(ev.document)),
   );
 
-  // Refresh after the server finishes initial indexing.
-  client.onNotification("markspec/indexed", () => {
-    const ed = window.activeTextEditor;
-    if (ed) void decorations.refresh(ed);
-  });
+  // Single handler for markspec/indexed — updates both the status bar and
+  // decorations. vscode-languageclient@9 only keeps one handler per method
+  // (Map keyed by method name), so a second onNotification call for the same
+  // method would silently replace the first. Consolidating here ensures both
+  // consumers are notified.
+  client.onNotification(
+    "markspec/indexed",
+    (params: { files: number; entries: number } | undefined) => {
+      statusBar.notifyIndexed(params ?? { files: 0, entries: 0 });
+      const ed = window.activeTextEditor;
+      if (ed) void decorations.refresh(ed);
+    },
+  );
 
   // Initial paint for whatever is open at activation.
   if (window.activeTextEditor) {
