@@ -1,6 +1,7 @@
 // packages/markspec/core/lock/serializer_test.ts
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { serializeLockfile } from "./serializer.ts";
+import { parseLockfile } from "./parser.ts";
 import type { Lockfile } from "./model.ts";
 
 const EMPTY_LOCKFILE: Lockfile = {
@@ -105,4 +106,86 @@ Deno.test("serializeLockfile: TOML string escaping handles backslash, quote, and
   assertStringIncludes(toml, "\\n");
   assertStringIncludes(toml, "\\r");
   assertStringIncludes(toml, "\\t");
+});
+
+Deno.test("serializeLockfile: emits [meta.toolchain] after [meta]", () => {
+  const lf: Lockfile = {
+    schema: 1,
+    meta: {
+      markspecSchema: 1,
+      lockedAt: "2026-05-27T12:00:00Z",
+      toolchain: { minVersion: "0.6" },
+    },
+    upstreams: [],
+    boundEntries: [],
+    generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
+  };
+  const out = serializeLockfile(lf);
+  // [meta.toolchain] must appear after [meta], before any [[upstream.*]].
+  const metaIdx = out.indexOf("[meta]\n");
+  const toolchainIdx = out.indexOf("[meta.toolchain]\n");
+  const cacheIdx = out.indexOf("[generated-cache]\n");
+  assertEquals(metaIdx >= 0, true, "[meta] section missing");
+  assertEquals(
+    toolchainIdx > metaIdx,
+    true,
+    "[meta.toolchain] not after [meta]",
+  );
+  assertEquals(
+    toolchainIdx < cacheIdx,
+    true,
+    "[meta.toolchain] not before [generated-cache]",
+  );
+  assertStringIncludes(out, `min-version = "0.6"`);
+});
+
+Deno.test("serializeLockfile: omits [meta.toolchain] when absent", () => {
+  const lf: Lockfile = {
+    schema: 1,
+    meta: {
+      markspecSchema: 1,
+      lockedAt: "2026-05-27T12:00:00Z",
+    },
+    upstreams: [],
+    boundEntries: [],
+    generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
+  };
+  const out = serializeLockfile(lf);
+  assertEquals(out.indexOf("[meta.toolchain]"), -1);
+  assertEquals(out.indexOf("min-version"), -1);
+});
+
+Deno.test("lockfile round-trips with [meta.toolchain]", () => {
+  const original: Lockfile = {
+    schema: 1,
+    meta: {
+      markspecSchema: 1,
+      lockedAt: "2026-05-27T12:00:00Z",
+      toolchain: { minVersion: "0.6" },
+    },
+    upstreams: [],
+    boundEntries: [],
+    generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
+  };
+  const serialized = serializeLockfile(original);
+  const { lockfile: parsed, diagnostics } = parseLockfile(serialized);
+  assertEquals(diagnostics.length, 0);
+  assertEquals(parsed, original);
+});
+
+Deno.test("lockfile round-trips without [meta.toolchain]", () => {
+  const original: Lockfile = {
+    schema: 1,
+    meta: {
+      markspecSchema: 1,
+      lockedAt: "2026-05-27T12:00:00Z",
+    },
+    upstreams: [],
+    boundEntries: [],
+    generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
+  };
+  const serialized = serializeLockfile(original);
+  const { lockfile: parsed, diagnostics } = parseLockfile(serialized);
+  assertEquals(diagnostics.length, 0);
+  assertEquals(parsed, original);
 });

@@ -74,11 +74,25 @@ export interface GeneratedCache {
   readonly edgesCount: number;
 }
 
+/** Toolchain requirements declared by the project. */
+export interface LockfileToolchain {
+  /**
+   * Minimum required markspec release version at minor granularity
+   * (e.g. "0.6" means "any 0.6.x or later"). Compared as a
+   * (major, minor) tuple against the running binary's VERSION.
+   * Format: /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/ — exactly two components,
+   * no leading zeros, no prefix, no operator.
+   */
+  readonly minVersion: string;
+}
+
 /** Lockfile metadata. */
 export interface LockfileMeta {
   readonly markspecSchema: number;
   /** Timestamp the lockfile was written, RFC 3339 UTC (e.g. "2026-05-25T12:00:00Z"). */
   readonly lockedAt: string;
+  /** Toolchain requirements; omitted when no floor is declared. */
+  readonly toolchain?: LockfileToolchain;
 }
 
 /** Top-level lockfile model. */

@@ -8,6 +8,9 @@
  *   - MSL-L001 — malformed TOML or missing required field
  *   - MSL-L002 — lockfile schema is newer than this binary supports
  *   - MSL-L003 — lockfile schema is unrecognised (< 1)
+ *   - MSL-L030 — `[meta.toolchain].min-version` is malformed
+ *   - MSL-L031 — `[meta.toolchain].min-version` is not a string
+ *   - MSL-L032 — `meta.toolchain` is a scalar instead of a table
  */
 
 import { parse as parseToml } from "@std/toml";
@@ -17,8 +20,17 @@ import {
   type BoundEntryBinding,
   type Lockfile,
   LOCKFILE_SCHEMA_VERSION,
+  type LockfileToolchain,
   type Upstream,
 } from "./model.ts";
+
+/**
+ * Strict MAJOR.MINOR grammar for `[meta.toolchain].min-version`. Exactly
+ * two components, no leading zeros (except `0` itself), no `v` prefix,
+ * no operator. See spec 2026-05-27-markspec-lock-toolchain-minversion.
+ * Must stay in sync with FLOOR_RE in `./compare.ts`.
+ */
+const MIN_VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 /** Outcome of {@linkcode parseLockfile}. */
 export interface ParseLockfileResult {
@@ -67,6 +79,39 @@ export function parseLockfile(toml: string): ParseLockfileResult {
   const markspecSchema = meta["markspec-schema"];
   if (typeof markspecSchema !== "number") {
     return diag("MSL-L001", "Missing [meta].markspec-schema");
+  }
+
+  // [meta.toolchain] — optional minimum CLI version floor (slice B).
+  // Validates strictly: malformed values are rejected with single-shot
+  // diagnostics; unknown sub-keys are silently ignored for forward-compat.
+  let toolchain: LockfileToolchain | undefined;
+  const toolchainRaw = meta.toolchain as unknown;
+  if (toolchainRaw !== undefined) {
+    if (
+      typeof toolchainRaw !== "object" || toolchainRaw === null ||
+      Array.isArray(toolchainRaw)
+    ) {
+      return diag("MSL-L032", "[meta.toolchain] must be a table");
+    }
+    const tc = toolchainRaw as Record<string, unknown>;
+    const rawMinVersion = tc["min-version"];
+    if (rawMinVersion !== undefined) {
+      if (typeof rawMinVersion !== "string") {
+        return diag(
+          "MSL-L031",
+          "[meta.toolchain].min-version must be a string",
+        );
+      }
+      if (!MIN_VERSION_RE.test(rawMinVersion)) {
+        return diag(
+          "MSL-L030",
+          `[meta.toolchain].min-version is malformed: ` +
+            `${JSON.stringify(rawMinVersion)} ` +
+            `(expected MAJOR.MINOR like "0.6")`,
+        );
+      }
+      toolchain = { minVersion: rawMinVersion };
+    }
   }
 
   const upstreams: Upstream[] = [];
@@ -217,7 +262,9 @@ export function parseLockfile(toml: string): ParseLockfileResult {
 
   const lockfile: Lockfile = {
     schema,
-    meta: { markspecSchema, lockedAt },
+    meta: toolchain
+      ? { markspecSchema, lockedAt, toolchain }
+      : { markspecSchema, lockedAt },
     upstreams,
     boundEntries,
     generatedCache: { edgesHash, edgesCount },

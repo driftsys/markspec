@@ -94,3 +94,59 @@ when added post-1.0, a schema bump records the addition.
   `Reference-url:`) — documented in CHANGELOG `### Breaking`
 - Standalone lockfile remains near-empty for non-compliance pre-1.0 projects;
   combined-with-sync value justifies the engineering cost
+
+---
+
+## Addendum (2026-05-27): `[meta.toolchain]` section
+
+Slice B of the install/upgrade devex epic adds an optional `[meta.toolchain]`
+table to `markspec.lock` carrying a single field:
+
+```toml
+[meta.toolchain]
+min-version = "0.6"
+```
+
+`min-version` is a **floor** at minor granularity (not a strict pin). Compared
+as `(major, minor)` against the running CLI's `VERSION`; the patch component of
+the running binary is ignored. The field is optional; absence means the project
+declares no toolchain floor.
+
+### Why a floor, not a strict pin
+
+Markspec's output is diagnostics, not build artifacts. Forward-compatible skew
+is acceptable; ancient skew is not. Mirrors npm's `engines.node` semantics.
+Strict pinning would create a bump treadmill for no behavioural win.
+
+### Why minor granularity
+
+Minor bumps in pre-1.0 semver are the natural granularity for "the project
+started using newer features." Patch bumps don't move the behavioural surface
+meaningfully. Major bumps are caught separately via the existing
+`meta.markspec-schema` field.
+
+### Diagnostic codes (new)
+
+| Code     | Meaning                                                    |
+| -------- | ---------------------------------------------------------- |
+| MSL-L030 | `min-version` value does not match the MAJOR.MINOR grammar |
+| MSL-L031 | `min-version` value is not a TOML string                   |
+| MSL-L032 | `meta.toolchain` is a scalar instead of a table            |
+
+Unknown sub-keys under `[meta.toolchain]` are silently ignored — forward-compat
+path for future fields (`installSource`, `signature`, etc.). Older CLIs will
+parse newer lockfiles without error.
+
+### Consumer surfaces
+
+Slice B is foundation-only. Downstream consumers:
+
+- **Slice C** — VS Code extension reads `meta.toolchain.minVersion` and surfaces
+  skew via the status bar.
+- **Slice F** — `markspec doctor` reports skew between the project floor and the
+  running CLI's `VERSION`.
+- **Slice G** — `markspec init` stamps the field with `MAJOR.MINOR` of the
+  version of `markspec` running `init`.
+
+The SSOT comparison function is `isBelowFloor(actual, floor)` exported from
+`core/lock/`.

@@ -13,6 +13,7 @@ export type {
   LockedAttributes,
   Lockfile,
   LockfileMeta,
+  LockfileToolchain,
   Upstream,
   UpstreamProfile,
   UpstreamReference,
@@ -23,6 +24,8 @@ export { LOCKFILE_SCHEMA_VERSION } from "./model.ts";
 export { serializeLockfile } from "./serializer.ts";
 export { parseLockfile } from "./parser.ts";
 export type { ParseLockfileResult } from "./parser.ts";
+
+export { isBelowFloor } from "./compare.ts";
 
 export { checkDrift } from "./check.ts";
 

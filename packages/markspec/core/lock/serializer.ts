@@ -28,6 +28,10 @@ export function serializeLockfile(lf: Lockfile): string {
   parts.push("[meta]\n");
   parts.push(`markspec-schema = ${lf.meta.markspecSchema}\n`);
   parts.push(`locked-at = ${tomlString(lf.meta.lockedAt)}\n`);
+  if (lf.meta.toolchain !== undefined) {
+    parts.push("\n[meta.toolchain]\n");
+    parts.push(`min-version = ${tomlString(lf.meta.toolchain.minVersion)}\n`);
+  }
 
   const refs = lf.upstreams
     .filter((u): u is UpstreamReference => u.kind === "reference")
