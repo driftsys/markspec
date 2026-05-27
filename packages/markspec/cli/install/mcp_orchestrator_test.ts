@@ -49,3 +49,74 @@ Deno.test("runMcpInstall: cursor → delegates to legacy print-only adapter", as
   assertStringIncludes(r.stdout, "mcpServers");
   assertStringIncludes(r.stderr, "mcp.json");
 });
+
+Deno.test("runMcpInstall: --client=claude-code routes through managed-block flow", async () => {
+  // Use --print path so we don't write any file.
+  const result = await runMcpInstall({
+    client: "claude-code",
+    scope: "workspace",
+    binaryPath: "markspec",
+    print: true,
+    env: {
+      cwd: "/tmp/some-repo",
+      home: "/home/u",
+      isTty: true,
+    },
+  });
+  assertEquals(result.exitCode, 0);
+  // stdout has the rendered JSON
+  assertStringIncludes(result.stdout, `"mcpServers"`);
+  assertStringIncludes(result.stdout, `"markspec"`);
+  // stderr shows the target path under cwd
+  assertStringIncludes(result.stderr, "/tmp/some-repo/.mcp.json");
+});
+
+Deno.test("runMcpInstall: --client=claude-code --scope=user is rejected", async () => {
+  const result = await runMcpInstall({
+    client: "claude-code",
+    scope: "user",
+    binaryPath: "markspec",
+    print: true,
+    env: { cwd: "/tmp", home: "/home/u", isTty: true },
+  });
+  assertEquals(result.exitCode, 1);
+  assertStringIncludes(
+    result.stderr,
+    "--scope=user is not supported for --client=claude-code",
+  );
+});
+
+Deno.test("runMcpInstall: --client=opencode routes through managed-block flow", async () => {
+  const result = await runMcpInstall({
+    client: "opencode",
+    scope: "workspace",
+    binaryPath: "markspec",
+    print: true,
+    env: {
+      cwd: "/tmp/some-repo",
+      home: "/home/u",
+      isTty: true,
+    },
+  });
+  assertEquals(result.exitCode, 0);
+  // Verified opencode shape — flat `mcp.markspec`, no `mcpServers`.
+  assertStringIncludes(result.stdout, `"mcp"`);
+  assertStringIncludes(result.stdout, `"markspec"`);
+  // Verified opencode path: `opencode.json` at project root.
+  assertStringIncludes(result.stderr, "/tmp/some-repo/opencode.json");
+});
+
+Deno.test("runMcpInstall: --client=opencode --scope=user is rejected", async () => {
+  const result = await runMcpInstall({
+    client: "opencode",
+    scope: "user",
+    binaryPath: "markspec",
+    print: true,
+    env: { cwd: "/tmp", home: "/home/u", isTty: true },
+  });
+  assertEquals(result.exitCode, 1);
+  assertStringIncludes(
+    result.stderr,
+    "--scope=user is not supported for --client=opencode",
+  );
+});

@@ -14,7 +14,12 @@ export interface AdapterResult {
 }
 
 export type LspEditorId = "vscode" | "neovim" | "zed";
-export type McpClientId = "claude-desktop" | "cursor" | "vscode";
+export type McpClientId =
+  | "claude-desktop"
+  | "claude-code"
+  | "cursor"
+  | "opencode"
+  | "vscode";
 
 export const LSP_EDITOR_IDS: readonly LspEditorId[] = [
   "vscode",
@@ -23,7 +28,9 @@ export const LSP_EDITOR_IDS: readonly LspEditorId[] = [
 ];
 export const MCP_CLIENT_IDS: readonly McpClientId[] = [
   "claude-desktop",
+  "claude-code",
   "cursor",
+  "opencode",
   "vscode",
 ];
 
@@ -79,6 +86,30 @@ export interface LspAdapter {
   renderBlock(input: RenderBlockInput): string;
 }
 
+/** Result of an adapter's detection check. */
+export interface DetectResult {
+  /** True when at least one detection signal fired. */
+  readonly detected: boolean;
+  /** Human-readable signals that fired (for `--format json` and debug). */
+  readonly signals: readonly string[];
+}
+
+/**
+ * Test seam for detection — production wires real Deno APIs. Adapters'
+ * `detect()` consumes this env so unit tests inject fakes for zero
+ * filesystem / process I/O.
+ */
+export interface DetectEnv {
+  /** Resolve a command name to a path; undefined when not on PATH. */
+  readonly whichCommand: (name: string) => Promise<string | undefined>;
+  /** Test whether an absolute or repo-relative path exists. */
+  readonly pathExists: (path: string) => Promise<boolean>;
+  /** Absolute project root, for repo-relative checks. */
+  readonly projectRoot: string;
+  /** Home directory, for `~/.claude/` etc. */
+  readonly homeDir: string;
+}
+
 /**
  * Adapter descriptor consumed by the MCP install orchestrator. Each
  * adapter exposes pure functions (no I/O) for path resolution and block
@@ -90,6 +121,12 @@ export interface LspAdapter {
  */
 export interface McpAdapter {
   readonly id: McpClientId;
+  /**
+   * JSON path of the managed entry under the target config file's root.
+   * For claude-desktop / claude-code this is `["mcpServers", "markspec"]`.
+   * For opencode it differs — see `mcp_adapters_opencode.ts`.
+   */
+  readonly jsonPath: readonly (string | number)[];
   /**
    * Resolve the config file path for the given scope.
    * - `home` is `Deno.env.get("HOME")` (POSIX) or equivalent.
@@ -111,6 +148,12 @@ export interface McpAdapter {
   ): string;
   /** Render the JSON object for the `mcpServers.<name>` key. */
   renderBlock(input: RenderBlockInput): Record<string, unknown>;
+  /**
+   * Optional detection — returns whether the client is in use (machine
+   * CLI on PATH OR repo marker OR user-home marker). Consumed by
+   * `markspec init` in slice G1. Not surfaced via CLI in G0.
+   */
+  readonly detect?: (env: DetectEnv) => Promise<DetectResult>;
 }
 
 /** Iterative O(n·m) Levenshtein distance with a single row buffer. */
