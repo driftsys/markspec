@@ -11,7 +11,9 @@ import { join, resolve } from "@std/path";
 import {
   checkFileStaleness,
   createProject,
+  detectMarkspecProject,
   type ProjectEnv,
+  SOFT_GATE_MESSAGE,
 } from "./project.ts";
 
 /** Platform-native project root used by `makeEnv`'s cwd. */
@@ -292,4 +294,51 @@ Deno.test("getCompiled: same content, mtime bumped → NOT stale (SHA256 gate)",
   const r2 = await proj.getCompiled();
   assertEquals(r2.entries.size, 1);
   assertEquals(r2, r1, "cached result returned — no recompile triggered");
+});
+
+// ---------------------------------------------------------------------------
+// detectMarkspecProject tests
+// ---------------------------------------------------------------------------
+
+Deno.test("detectMarkspecProject: returns true when project.yaml exists", async () => {
+  const files = new Map<string, string>([
+    ["/proj/project.yaml", "name: x\n"],
+  ]);
+  const readFile = (path: string) => Promise.resolve(files.get(path));
+  const detected = await detectMarkspecProject("/proj", readFile);
+  assertEquals(detected, true);
+});
+
+Deno.test("detectMarkspecProject: returns true when .markspec.yaml exists", async () => {
+  const files = new Map<string, string>([
+    ["/proj/.markspec.yaml", "extends: default\n"],
+  ]);
+  const readFile = (path: string) => Promise.resolve(files.get(path));
+  const detected = await detectMarkspecProject("/proj", readFile);
+  assertEquals(detected, true);
+});
+
+Deno.test("detectMarkspecProject: walks up parent directories", async () => {
+  const files = new Map<string, string>([
+    ["/proj/project.yaml", "name: x\n"],
+  ]);
+  const readFile = (path: string) => Promise.resolve(files.get(path));
+  const detected = await detectMarkspecProject("/proj/sub/nested", readFile);
+  assertEquals(detected, true);
+});
+
+Deno.test("detectMarkspecProject: returns false when neither file exists", async () => {
+  const files = new Map<string, string>();
+  const readFile = (path: string) => Promise.resolve(files.get(path));
+  const detected = await detectMarkspecProject("/some/other/cwd", readFile);
+  assertEquals(detected, false);
+});
+
+Deno.test("SOFT_GATE_MESSAGE: contains the exact load-bearing phrase", () => {
+  // The trigger language in tool descriptions keys on this phrase verbatim.
+  // Do not paraphrase across handlers.
+  assertEquals(
+    SOFT_GATE_MESSAGE.startsWith("No MarkSpec project found"),
+    true,
+  );
 });
