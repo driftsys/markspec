@@ -106,10 +106,7 @@ export const VALIDATE_INPUT_SCHEMA = {
 export const VALIDATE_DESCRIPTOR = {
   name: "validate",
   description:
-    "Run the project's validation pipeline: broken cross-references, missing or duplicate IDs, malformed entries, and profile rule violations. Returns a Markdown report grouped by severity. " +
-    "Use after edits, before committing, or when an entry's relationships look wrong. " +
-    "Optional 'files' restricts diagnostics to a subset of paths (relative to the project root). " +
-    "An empty 'files' list means all files.",
+    `TRIGGER when: user asks "is this file valid", "are there broken refs", "check the project for errors", "run validate", or after entry-bearing files were edited and traceability needs confirming. PREFER over: re-reading every file to spot dangling Satisfies: targets — the validator runs the full diagnostic pipeline (broken refs, missing or duplicate IDs, malformed entries, profile rule violations) in one call.\n\nReturns a Markdown report grouped by severity. Optional 'files' restricts diagnostics to a subset of paths (relative to project root); empty 'files' list means all files.\n\nSKIP when: returns "No MarkSpec project found" — this workspace doesn't use MarkSpec.`,
   inputSchema: VALIDATE_INPUT_SCHEMA,
   annotations: {
     title: "Validate project",

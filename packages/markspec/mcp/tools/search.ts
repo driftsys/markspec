@@ -119,10 +119,7 @@ export const ENTRY_SEARCH_INPUT_SCHEMA = {
 export const ENTRY_SEARCH_DESCRIPTOR = {
   name: "entry_search",
   description:
-    "Find entries by keyword across display IDs and titles. Returns up to 100 ranked matches as Markdown links to markspec://entry/{id} resources. " +
-    "Use this for any 'find/search/list entries about X' query. " +
-    "Prefer over reading markspec://entries — search scales to thousands of entries; the full index does not. " +
-    "Limit: keep at 5–20 for broad exploratory queries, 50+ only when listing every match in a domain.",
+    `TRIGGER when: user asks to find/list/show/search requirements, specifications, ICDs, architecture descriptions, or tests about X; mentions a display ID like STK_0001, SAD_AEB_0042, or ICD_BRK_0010; or asks "what requirements cover X", "where is Y specified", "list stakeholder requirements", "show ASIL-B safety requirements". PREFER over: grep, Read, Glob on Markdown files — this returns ranked matches from the compiled traceability graph in one call instead of N file reads.\n\nReturns up to 100 ranked matches as Markdown links to markspec://entry/{id} resources, searching across display IDs and titles. Limit: 5–20 for broad exploration, 50+ only when listing every match in a domain.\n\nSKIP when: returns "No MarkSpec project found" — this workspace doesn't use MarkSpec; stop calling MarkSpec tools.`,
   inputSchema: ENTRY_SEARCH_INPUT_SCHEMA,
   annotations: {
     title: "Search entries",

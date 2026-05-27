@@ -115,3 +115,23 @@ Deno.test(
     );
   },
 );
+
+import { PROFILE_DESCRIBE_DESCRIPTOR } from "./profile_describe.ts";
+
+Deno.test(
+  "PROFILE_DESCRIBE_DESCRIPTOR.description: has TRIGGER and PREFER blocks",
+  () => {
+    const desc = PROFILE_DESCRIBE_DESCRIPTOR.description;
+    assertStringIncludes(desc, "TRIGGER when:");
+    assertStringIncludes(desc, "PREFER over:");
+  },
+);
+
+Deno.test(
+  "PROFILE_DESCRIBE_DESCRIPTOR.description: names profile-vocabulary intent phrases",
+  () => {
+    const desc = PROFILE_DESCRIBE_DESCRIPTOR.description;
+    assertStringIncludes(desc, "what does");
+    assertStringIncludes(desc, "EARS convention");
+  },
+);

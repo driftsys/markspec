@@ -16,6 +16,7 @@ import type {
 } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import type { Project } from "../project.ts";
+import { SOFT_GATE_MESSAGE } from "../project.ts";
 import { listResourceDescriptors, readResource } from "./mod.ts";
 
 function mkProject(entries: Entry[]): Project {
@@ -33,6 +34,7 @@ function mkProject(entries: Entry[]): Project {
   const chain: ProfileChain | null = null;
   return {
     projectRoot: "/proj",
+    markspecDetected: true,
     config: undefined,
     profileChain: chain,
     profile: undefined,
@@ -100,4 +102,38 @@ Deno.test("readResource: rejects missing entry", async () => {
     Error,
     "entry not found",
   );
+});
+
+function gatedProject(): Project {
+  return {
+    projectRoot: undefined,
+    markspecDetected: false,
+    config: undefined,
+    profileChain: null,
+    profile: undefined,
+    getCompiled: () =>
+      Promise.reject(new Error("getCompiled must not be called when gated")),
+    forceRefresh: () =>
+      Promise.reject(new Error("forceRefresh must not be called when gated")),
+    subscribeInvalidation: () => () => {},
+  };
+}
+
+Deno.test("readResource: returns soft-gate text when markspecDetected=false", async () => {
+  const project = gatedProject();
+  const result = await readResource("markspec://entries", project);
+  assertEquals(result.mimeType, "text/plain");
+  assertEquals(result.text, SOFT_GATE_MESSAGE);
+});
+
+Deno.test("readResource: soft-gate fires for any URI when gated", async () => {
+  const project = gatedProject();
+  const result = await readResource("markspec://entry/STK_0001", project);
+  assertEquals(result.text, SOFT_GATE_MESSAGE);
+});
+
+Deno.test("listResourceDescriptors: returns empty list when gated", async () => {
+  const project = gatedProject();
+  const list = await listResourceDescriptors(project);
+  assertEquals(list, []);
 });

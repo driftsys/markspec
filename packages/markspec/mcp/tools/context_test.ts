@@ -7,7 +7,11 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { CompileResult, DisplayId, Entry, Link } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
-import { renderContext, walkContext } from "./context.ts";
+import {
+  ENTRY_CONTEXT_DESCRIPTOR,
+  renderContext,
+  walkContext,
+} from "./context.ts";
 
 function mk(displayId: string, title: string): Entry {
   return {
@@ -133,5 +137,25 @@ Deno.test("renderContext: nested list with indentation", () => {
   assertStringIncludes(
     md,
     "    - satisfies → [C_0001](markspec://entry/C_0001) — C",
+  );
+});
+
+Deno.test("ENTRY_CONTEXT_DESCRIPTOR.description: has TRIGGER and PREFER blocks", () => {
+  const desc = ENTRY_CONTEXT_DESCRIPTOR.description;
+  assertStringIncludes(desc, "TRIGGER when:");
+  assertStringIncludes(desc, "PREFER over:");
+});
+
+Deno.test("ENTRY_CONTEXT_DESCRIPTOR.description: names satisfies-chain intent verbs", () => {
+  const desc = ENTRY_CONTEXT_DESCRIPTOR.description;
+  assertStringIncludes(desc, "satisfy");
+  assertStringIncludes(desc, "trace");
+  assertStringIncludes(desc, "implement");
+});
+
+Deno.test("ENTRY_CONTEXT_DESCRIPTOR.description: points at Incoming links for opposite direction", () => {
+  assertStringIncludes(
+    ENTRY_CONTEXT_DESCRIPTOR.description,
+    "Incoming links",
   );
 });

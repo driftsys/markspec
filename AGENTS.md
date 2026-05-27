@@ -415,6 +415,9 @@ docs/
 - `adr-022-lockfile-and-external-sync.md` — `markspec.lock` format for upstream
   version pinning + sync state tracking (`markspec lock`,
   `markspec sync status|log|show`)
+- `adr-023-mcp-trigger-language.md` — MCP server's agent-facing trigger language
+  (TRIGGER / PREFER over / SKIP grammar) + project-detection soft gate so tools
+  self-describe "no MarkSpec project found" outside MarkSpec workspaces
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

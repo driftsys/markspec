@@ -17,7 +17,7 @@ import {
   type ReadResourceRequest,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { Project } from "../project.ts";
+import { type Project, SOFT_GATE_MESSAGE } from "../project.ts";
 import {
   ENTRIES_URI,
   entryUri,
@@ -49,6 +49,7 @@ export interface ResourceDescriptor {
 export async function listResourceDescriptors(
   project: Project,
 ): Promise<ResourceDescriptor[]> {
+  if (!project.markspecDetected) return [];
   const result = await project.getCompiled();
   const out: ResourceDescriptor[] = [
     {
@@ -103,6 +104,13 @@ export async function readResource(
   uri: string,
   project: Project,
 ): Promise<ReadResourceResult> {
+  if (!project.markspecDetected) {
+    return {
+      uri,
+      mimeType: "text/plain",
+      text: SOFT_GATE_MESSAGE,
+    };
+  }
   if (uri === PROFILE_URI) {
     const intro = buildProfileView(project.profileChain);
     return {

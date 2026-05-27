@@ -23,9 +23,7 @@ const URI_KIND_TO_ELEMENT_KIND: Record<string, ProfileElementKind> = {
 export const PROFILE_DESCRIBE_DESCRIPTOR = {
   name: "profile_describe",
   description:
-    "Fetch the full description of a profile element (type, attribute, relation, label concern, or convention). " +
-    "Supply a `name` and optionally a `kind` to narrow the search. " +
-    "Fuzzy matching is used when no exact match is found — the response lists candidates if more than one matches.",
+    `TRIGGER when: user asks "what does <Type> mean in this project", "what attribute is X", "is Y a valid label", "what relations does this profile define", "what's the EARS convention here", or any question about the project's profile-declared vocabulary. PREFER over: reading profile YAML files directly — this returns resolved element details from the compiled profile chain.\n\nSupply 'name' (required) and optionally 'kind' (type/attribute/relation/label/convention) to narrow the search. Fuzzy matching when no exact match; response lists candidates if multiple match.`,
   inputSchema: {
     type: "object",
     properties: {

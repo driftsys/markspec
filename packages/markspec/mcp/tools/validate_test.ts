@@ -185,6 +185,7 @@ function emptyCompileResult(): CompileResult {
 function stubProject(profileChain: ProfileChain): Project {
   return {
     projectRoot: "/proj",
+    markspecDetected: true,
     config: undefined,
     profileChain,
     profile: profileChain.effective,
@@ -229,3 +230,25 @@ Deno.test(
     assertEquals(report.includes("@markspec/profile-default"), false);
   },
 );
+
+import { VALIDATE_DESCRIPTOR } from "./validate.ts";
+
+Deno.test("VALIDATE_DESCRIPTOR.description: has TRIGGER/PREFER/SKIP blocks", () => {
+  const desc = VALIDATE_DESCRIPTOR.description;
+  assertStringIncludes(desc, "TRIGGER when:");
+  assertStringIncludes(desc, "PREFER over:");
+  assertStringIncludes(desc, "SKIP when:");
+});
+
+Deno.test("VALIDATE_DESCRIPTOR.description: names validation intent phrases", () => {
+  const desc = VALIDATE_DESCRIPTOR.description;
+  assertStringIncludes(desc, "broken refs");
+  assertStringIncludes(desc, "duplicate IDs");
+});
+
+Deno.test("VALIDATE_DESCRIPTOR.description: keys on canonical soft-gate phrase", () => {
+  assertStringIncludes(
+    VALIDATE_DESCRIPTOR.description,
+    "No MarkSpec project found",
+  );
+});

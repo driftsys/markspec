@@ -23,6 +23,42 @@ import {
   type ReadFile,
 } from "../core/mod.ts";
 
+/**
+ * Canonical soft-gate message returned when no MarkSpec project is detected
+ * in the workspace. Load-bearing: the trigger language in tool descriptions
+ * (ADR-023) keys on the phrase "No MarkSpec project found" verbatim. Do not
+ * paraphrase across handlers.
+ */
+export const SOFT_GATE_MESSAGE =
+  "No MarkSpec project found in this workspace (looked for .markspec.yaml and project.yaml from cwd upward). This MCP server has no work to do here — stop calling MarkSpec tools.";
+
+/**
+ * Detect whether the workspace at `cwd` is a MarkSpec project.
+ *
+ * Walks up from `cwd` checking for either `project.yaml` (canonical config)
+ * or `.markspec.yaml` (profile activation chain). Returns `true` as soon as
+ * either is found, `false` only when neither is found anywhere up to the
+ * filesystem root.
+ *
+ * Per ADR-023 §6.1.
+ */
+export async function detectMarkspecProject(
+  cwd: string,
+  readFile: ReadFile,
+): Promise<boolean> {
+  let dir = cwd;
+  while (true) {
+    if (await readFile(join(dir, "project.yaml")) !== undefined) return true;
+    if (await readFile(join(dir, ".markspec.yaml")) !== undefined) return true;
+    const parent = join(dir, "..");
+    // join("/", "..") → "/" on POSIX (idempotent at root). Detect with
+    // equality rather than parent.length, which doesn't catch the case.
+    const resolvedParent = parent === dir ? null : parent;
+    if (resolvedParent === null) return false;
+    dir = resolvedParent;
+  }
+}
+
 /** Files MarkSpec parses: Markdown plus supported source extensions. */
 const TRACKED_EXTENSIONS = new Set([
   ".md",
@@ -112,6 +148,13 @@ export type InvalidationHandler = (
 export interface Project {
   /** Discovered project root, or undefined when no `project.yaml` was found. */
   readonly projectRoot: string | undefined;
+  /**
+   * `true` when the workspace contains either `project.yaml` or
+   * `.markspec.yaml` anywhere up the directory tree from cwd. Tools and
+   * resources should short-circuit with `SOFT_GATE_MESSAGE` when this is
+   * `false`. Per ADR-023 §6.
+   */
+  readonly markspecDetected: boolean;
   /** Loaded project config, or undefined when no `project.yaml` was found. */
   readonly config: ProjectConfig | undefined;
   /** Active profile chain, or null when no profile is configured. */
@@ -179,6 +222,7 @@ async function* walkFs(dir: string): AsyncGenerator<string> {
  */
 export async function createProject(env: ProjectEnv): Promise<Project> {
   const cwd = env.cwd();
+  const markspecDetected = await detectMarkspecProject(cwd, env.readFile);
   const projectRoot = await discoverProjectRoot(cwd, env.readFile);
 
   let config: ProjectConfig | undefined;
@@ -327,6 +371,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
 
   return {
     projectRoot,
+    markspecDetected,
     config,
     profileChain,
     profile: profileChain?.effective,
