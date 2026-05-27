@@ -122,3 +122,146 @@ locked-at = "2026-05-25T12:00:00Z"
   assertEquals(r.lockfile, undefined);
   assertEquals(r.diagnostics[0].code, "MSL-L001");
 });
+
+// ---------------------------------------------------------------------------
+// meta.toolchain (slice B — see spec 2026-05-27-markspec-lock-toolchain-minversion)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseLockfile: [meta.toolchain] with min-version parses", () => {
+  const toml = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-27T12:00:00Z"
+
+[meta.toolchain]
+min-version = "0.6"
+
+[generated-cache]
+edges-hash = "sha256:abc"
+edges-count = 0
+`;
+  const { lockfile, diagnostics } = parseLockfile(toml);
+  assertEquals(diagnostics.length, 0);
+  assertEquals(lockfile?.meta.toolchain, { minVersion: "0.6" });
+});
+
+Deno.test("parseLockfile: no [meta.toolchain] section → toolchain undefined", () => {
+  const toml = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-27T12:00:00Z"
+
+[generated-cache]
+edges-hash = "sha256:abc"
+edges-count = 0
+`;
+  const { lockfile, diagnostics } = parseLockfile(toml);
+  assertEquals(diagnostics.length, 0);
+  assertEquals(lockfile?.meta.toolchain, undefined);
+});
+
+Deno.test("parseLockfile: empty [meta.toolchain] section → toolchain undefined", () => {
+  const toml = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-27T12:00:00Z"
+
+[meta.toolchain]
+
+[generated-cache]
+edges-hash = "sha256:abc"
+edges-count = 0
+`;
+  const { lockfile, diagnostics } = parseLockfile(toml);
+  assertEquals(diagnostics.length, 0);
+  assertEquals(lockfile?.meta.toolchain, undefined);
+});
+
+Deno.test("parseLockfile: malformed min-version → MSL-L030", () => {
+  const cases: readonly string[] = [
+    "0.6.1", // three components
+    "v0.6", // v prefix
+    "0.06", // leading zero
+    "0", // single component
+    "", // empty
+    ">=0.6", // operator embedded
+    "0.6.x", // non-numeric
+  ];
+  for (const bad of cases) {
+    const toml = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-27T12:00:00Z"
+
+[meta.toolchain]
+min-version = ${JSON.stringify(bad)}
+
+[generated-cache]
+edges-hash = "sha256:abc"
+edges-count = 0
+`;
+    const { lockfile, diagnostics } = parseLockfile(toml);
+    assertEquals(
+      lockfile,
+      undefined,
+      `unexpected parse success for ${JSON.stringify(bad)}`,
+    );
+    assertEquals(
+      diagnostics.length,
+      1,
+      `expected exactly one diagnostic for ${JSON.stringify(bad)}`,
+    );
+    assertEquals(
+      diagnostics[0].code,
+      "MSL-L030",
+      `wrong code for ${JSON.stringify(bad)}`,
+    );
+  }
+});
+
+Deno.test("parseLockfile: min-version as TOML number → MSL-L031", () => {
+  // TOML parses `0.6` (unquoted) as a float, not a string. The parser
+  // must reject this with MSL-L031 since min-version must be a string.
+  const toml = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-27T12:00:00Z"
+
+[meta.toolchain]
+min-version = 0.6
+
+[generated-cache]
+edges-hash = "sha256:abc"
+edges-count = 0
+`;
+  const { lockfile, diagnostics } = parseLockfile(toml);
+  assertEquals(lockfile, undefined);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-L031");
+});
+
+Deno.test("parseLockfile: meta.toolchain as scalar → MSL-L032", () => {
+  // If the user writes `toolchain = "0.6"` directly under [meta] rather
+  // than `[meta.toolchain]` as a table, the value is a string, not a
+  // table. The parser must reject with MSL-L032.
+  const toml = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-27T12:00:00Z"
+toolchain = "0.6"
+
+[generated-cache]
+edges-hash = "sha256:abc"
+edges-count = 0
+`;
+  const { lockfile, diagnostics } = parseLockfile(toml);
+  assertEquals(lockfile, undefined);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-L032");
+});

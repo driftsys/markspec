@@ -1,5 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { sha256Bytes, sha256String } from "./hash.ts";
+import { serializeLockfile } from "./serializer.ts";
+import type { Lockfile } from "./model.ts";
 
 Deno.test("sha256Bytes: empty input has known SHA-256", async () => {
   const h = await sha256Bytes(new Uint8Array());
@@ -30,4 +32,39 @@ Deno.test("sha256Bytes: deterministic across calls", async () => {
   const a = await sha256Bytes(new TextEncoder().encode("hello world"));
   const b = await sha256Bytes(new TextEncoder().encode("hello world"));
   assertEquals(a, b);
+});
+
+// ---------------------------------------------------------------------------
+// meta.toolchain affects the lockfile content hash (slice B)
+// ---------------------------------------------------------------------------
+
+Deno.test("hash differs when meta.toolchain.minVersion differs", async () => {
+  const base: Lockfile = {
+    schema: 1,
+    meta: { markspecSchema: 1, lockedAt: "2026-05-27T12:00:00Z" },
+    upstreams: [],
+    boundEntries: [],
+    generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
+  };
+  const withFloor06: Lockfile = {
+    ...base,
+    meta: { ...base.meta, toolchain: { minVersion: "0.6" } },
+  };
+  const withFloor07: Lockfile = {
+    ...base,
+    meta: { ...base.meta, toolchain: { minVersion: "0.7" } },
+  };
+
+  const hashNone = await sha256String(serializeLockfile(base));
+  const hash06 = await sha256String(serializeLockfile(withFloor06));
+  const hash07 = await sha256String(serializeLockfile(withFloor07));
+
+  // Each variant produces a distinct hash.
+  assertEquals(hashNone !== hash06, true, "absent vs 0.6 should differ");
+  assertEquals(hash06 !== hash07, true, "0.6 vs 0.7 should differ");
+  assertEquals(hashNone !== hash07, true, "absent vs 0.7 should differ");
+
+  // Same input always produces the same hash (deterministic).
+  const hash06Again = await sha256String(serializeLockfile(withFloor06));
+  assertEquals(hash06, hash06Again);
 });
