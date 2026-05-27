@@ -11,13 +11,13 @@ import { scoreText } from "../../core/lint/mod.ts";
 
 export const scoreCmd = new Command()
   .description(
-    "Score a single requirement prose against the PA-3 rule catalog",
+    "Score a single piece of requirement prose against the PA-3 rule catalog",
   )
   .option("--text <text:string>", "Inline prose to score")
   .option("--id <id:string>", "Identifier to echo in the result")
   .option(
     "--format <format:string>",
-    "Output format (json|text). Default: json when stdout is not a TTY, text otherwise.",
+    "Output format (json|text). Currently only json is wired; text rendering lands later.",
   )
   .action(
     async (options: { text?: string; id?: string; format?: string }) => {

@@ -5,7 +5,7 @@
  * shared markspec() helper.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 Deno.test("score --text --format json: prints structured result", async () => {
@@ -39,4 +39,10 @@ Deno.test("score --text: caller-supplied id is echoed", async () => {
   assertEquals(code, 0);
   const parsed = JSON.parse(stdout);
   assertEquals(parsed.id, "DOORS-001");
+});
+
+Deno.test("score: missing --text exits 1 with error message", async () => {
+  const { code, stderr } = await markspec(["score"]);
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "error: --text is required");
 });
