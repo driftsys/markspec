@@ -7,7 +7,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Entry } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
-import { renderSearchResults, scoreEntries } from "./search.ts";
+import { renderSearchResults, scoreEntries, ENTRY_SEARCH_DESCRIPTOR } from "./search.ts";
 
 function mk(displayId: string, title: string): Entry {
   return {
@@ -90,4 +90,27 @@ Deno.test("renderSearchResults: links each hit", () => {
     "[STK_AEB_0001](markspec://entry/STK_AEB_0001) — Stop on collision",
   );
   assertStringIncludes(md, "score 11");
+});
+
+Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: has TRIGGER/PREFER/SKIP blocks", () => {
+  const desc = ENTRY_SEARCH_DESCRIPTOR.description;
+  assertStringIncludes(desc, "TRIGGER when:");
+  assertStringIncludes(desc, "PREFER over:");
+  assertStringIncludes(desc, "SKIP when:");
+});
+
+Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: names user-facing nouns", () => {
+  const desc = ENTRY_SEARCH_DESCRIPTOR.description;
+  assertStringIncludes(desc, "requirements");
+  assertStringIncludes(desc, "specifications");
+  assertStringIncludes(desc, "ICD");
+});
+
+Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: names anti-fallback tools", () => {
+  const desc = ENTRY_SEARCH_DESCRIPTOR.description;
+  assertStringIncludes(desc, "grep");
+});
+
+Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: keys on canonical soft-gate phrase", () => {
+  assertStringIncludes(ENTRY_SEARCH_DESCRIPTOR.description, "No MarkSpec project found");
 });
