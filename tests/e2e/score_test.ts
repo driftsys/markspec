@@ -141,3 +141,31 @@ Deno.test("score: missing 'text' field → skipped with stderr message", async (
   assertEquals(stdout.trim().split("\n").length, 1);
   assertStringIncludes(stderr, "text");
 });
+
+Deno.test("score --text --format text: prints score + counts + diagnostics", async () => {
+  const { code, stdout, stderr } = await markspec([
+    "score",
+    "--text",
+    "The system SHALL handle errors appropriately.",
+    "--format",
+    "text",
+  ]);
+  assertEquals(code, 0, `stderr: ${stderr}`);
+  assertStringIncludes(stdout, "Score:");
+  assertStringIncludes(stdout, "Warnings:");
+  assertStringIncludes(stdout, "Infos:");
+});
+
+Deno.test("score --text --format text: empty input prints Q401 banner", async () => {
+  const { code, stdout } = await markspec([
+    "score",
+    "--text",
+    " ",
+    "--format",
+    "text",
+  ]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "Score: 1");
+  assertStringIncludes(stdout, "Warnings: 0");
+  assertStringIncludes(stdout, "Infos: 1");
+});

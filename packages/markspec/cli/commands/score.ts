@@ -28,7 +28,7 @@ export const scoreCmd = new Command()
   .option("--id <id:string>", "Identifier to echo in the result")
   .option(
     "--format <format:string>",
-    "Output format (json|text). Currently only json is wired; text rendering lands later.",
+    "Output format (json|text). Default: text when stdout is a TTY, json otherwise.",
   )
   .action(async (options: ScoreOptions) => {
     const format = pickFormat(options.format);
@@ -103,9 +103,15 @@ function printResult(
     );
     return;
   }
-  // Text-format path lands in Task 5; for now emit JSON so the wiring
-  // works end-to-end and pickFormat is exercised.
-  console.log(JSON.stringify(result));
+  const header =
+    `${result.id} — Score: ${result.score}, Warnings: ${result.warningCount}, Infos: ${result.infoCount}`;
+  console.log(header);
+  for (const d of result.diagnostics) {
+    const loc = d.location
+      ? `${d.location.file}:${d.location.line}:${d.location.column} `
+      : "";
+    console.log(`  ${loc}${d.severity} ${d.slug} [${d.code}]: ${d.message}`);
+  }
 }
 
 async function readAllStdin(): Promise<string> {
