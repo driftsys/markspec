@@ -12,7 +12,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { Project } from "../project.ts";
+import { type Project, SOFT_GATE_MESSAGE } from "../project.ts";
 import {
   ENTRY_SEARCH_DESCRIPTOR,
   renderSearchResults,
@@ -109,6 +109,35 @@ const HANDLERS: Record<string, ToolHandler> = {
   },
 };
 
+/**
+ * Dispatch a tool call by name. Soft-gates per ADR-023 §6 — when the
+ * workspace is not a MarkSpec project, every tool returns the canonical
+ * soft-gate message as normal content (not isError) so the agent's SKIP
+ * rule fires.
+ *
+ * Throws on unknown tool names so callers (the MCP request handler) can
+ * map that to an isError response.
+ */
+export async function dispatchTool(
+  name: string,
+  // deno-lint-ignore no-explicit-any
+  args: any,
+  project: Project,
+): Promise<string> {
+  // Soft gate first — every known tool short-circuits.
+  if (!project.markspecDetected) {
+    if (!HANDLERS[name]) {
+      throw new Error(`unknown tool: ${name}`);
+    }
+    return SOFT_GATE_MESSAGE;
+  }
+  const handler = HANDLERS[name];
+  if (!handler) {
+    throw new Error(`unknown tool: ${name}`);
+  }
+  return await handler(args ?? {}, project);
+}
+
 /** Attach `tools/list` and `tools/call` handlers to a Server instance. */
 export function registerTools(server: Server, project: Project): void {
   server.setRequestHandler(ListToolsRequestSchema, () =>
@@ -119,16 +148,12 @@ export function registerTools(server: Server, project: Project): void {
   server.setRequestHandler(
     CallToolRequestSchema,
     async (req: CallToolRequest) => {
-      const name = req.params.name;
-      const handler = HANDLERS[name];
-      if (!handler) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `unknown tool: ${name}` }],
-        };
-      }
       try {
-        const text = await handler(req.params.arguments ?? {}, project);
+        const text = await dispatchTool(
+          req.params.name,
+          req.params.arguments,
+          project,
+        );
         return { content: [{ type: "text", text }] };
       } catch (err) {
         return {

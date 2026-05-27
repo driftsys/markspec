@@ -33,6 +33,7 @@ function mkProject(entries: Entry[]): Project {
   const chain: ProfileChain | null = null;
   return {
     projectRoot: "/proj",
+    markspecDetected: true,
     config: undefined,
     profileChain: chain,
     profile: undefined,
