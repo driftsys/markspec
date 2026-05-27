@@ -247,5 +247,8 @@ Deno.test("VALIDATE_DESCRIPTOR.description: names validation intent phrases", ()
 });
 
 Deno.test("VALIDATE_DESCRIPTOR.description: keys on canonical soft-gate phrase", () => {
-  assertStringIncludes(VALIDATE_DESCRIPTOR.description, "No MarkSpec project found");
+  assertStringIncludes(
+    VALIDATE_DESCRIPTOR.description,
+    "No MarkSpec project found",
+  );
 });

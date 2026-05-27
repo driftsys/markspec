@@ -33,5 +33,8 @@ Deno.test("REFRESH_DESCRIPTOR.description: names external-edit causes", () => {
 });
 
 Deno.test("REFRESH_DESCRIPTOR.description: warns against unnecessary calls", () => {
-  assertStringIncludes(REFRESH_DESCRIPTOR.description, "Do NOT call between back-to-back reads");
+  assertStringIncludes(
+    REFRESH_DESCRIPTOR.description,
+    "Do NOT call between back-to-back reads",
+  );
 });

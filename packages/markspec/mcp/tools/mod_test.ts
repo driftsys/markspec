@@ -32,7 +32,11 @@ Deno.test("dispatchTool: returns soft-gate message when markspecDetected=false",
 
 Deno.test("dispatchTool: gates every tool name (entry_context)", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_context", { id: "STK_0001" }, project);
+  const result = await dispatchTool(
+    "entry_context",
+    { id: "STK_0001" },
+    project,
+  );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
@@ -50,7 +54,11 @@ Deno.test("dispatchTool: gates markspec_refresh", async () => {
 
 Deno.test("dispatchTool: gates profile_describe", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("profile_describe", { name: "Stk" }, project);
+  const result = await dispatchTool(
+    "profile_describe",
+    { name: "Stk" },
+    project,
+  );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 

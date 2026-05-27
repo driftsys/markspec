@@ -7,7 +7,11 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { CompileResult, DisplayId, Entry, Link } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
-import { ENTRY_CONTEXT_DESCRIPTOR, renderContext, walkContext } from "./context.ts";
+import {
+  ENTRY_CONTEXT_DESCRIPTOR,
+  renderContext,
+  walkContext,
+} from "./context.ts";
 
 function mk(displayId: string, title: string): Entry {
   return {

@@ -7,7 +7,11 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Entry } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
-import { renderSearchResults, scoreEntries, ENTRY_SEARCH_DESCRIPTOR } from "./search.ts";
+import {
+  ENTRY_SEARCH_DESCRIPTOR,
+  renderSearchResults,
+  scoreEntries,
+} from "./search.ts";
 
 function mk(displayId: string, title: string): Entry {
   return {
@@ -112,5 +116,8 @@ Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: names anti-fallback tools", () =
 });
 
 Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: keys on canonical soft-gate phrase", () => {
-  assertStringIncludes(ENTRY_SEARCH_DESCRIPTOR.description, "No MarkSpec project found");
+  assertStringIncludes(
+    ENTRY_SEARCH_DESCRIPTOR.description,
+    "No MarkSpec project found",
+  );
 });
