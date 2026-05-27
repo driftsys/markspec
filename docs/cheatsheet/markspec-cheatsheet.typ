@@ -112,10 +112,12 @@ Slug: `fig.architecture-overview`
   raw inputs to eliminate noise.
 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-      Derived-from: 01HGW2R0NPQR4STVWXYZABCDEF
+      Type: requirement
+      Derived-from: SRS_BRK_0042
       Labels: ASIL-B
 ```]
 
+Structure: title · body (optional) · trailer (4+ space indent).
 No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
 
 == Two shapes (single `Id:`)
@@ -125,14 +127,16 @@ No `_emphasis_` inside entries. `**Strong**` and `` `code` `` ok.
   stroke: 0.4pt + luma(180),
   inset: 3pt,
   table.header[*Shape*][*`Id:` value*],
-  [Authored], [Bare ULID, assigned by `format`],
-  [Reference], [URI w/ scheme: `urn:` `doi:` `pkg:` `https:`],
+  [Authored], [Bare ULID — assigned by `format`],
+  [Reference], [URI: `urn:` `doi:` `pkg:` `https:`],
 )
 
 #code[```text
 Id: 01HGW2P4KFR7ABCDEFGHJKMNPQ
 Id: urn:iso:std:iso:26262:-6:ed-2
-Id: pkg:cargo/serde@1.0.0
+Id: doi:10.1109/IEEESTD.2018.8299595
+Id: pkg:cargo/serde@1.0.197
+Id: https://www.rfc-editor.org/rfc/rfc2119
 ```]
 
 == EARS patterns (requirement body)
@@ -151,13 +155,37 @@ Id: pkg:cargo/serde@1.0.0
 
 == GWT pattern (test body)
 
-#code[```markdown
+Fenced `feature` block — analysed as full Gherkin:
+
+#code[````markdown
 - [SWT_BRK_0030] Debounce rejects short pulses
 
-  Given the debounce threshold is 10 ms,
-  When a pulse of 5 ms arrives,
-  Then the output shall remain unchanged.
+  ```feature
+  Scenario: Spike shorter than window
+    Given a debounce window of 10 ms
+    When a pulse of 5 ms arrives
+    Then the output remains unchanged
+  ```
+
+      Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
+      Type: test
+      Verifies: SRS_BRK_0107
+````]
+
+== In-code entries
+
+#code[```kotlin
+/**
+ * [SWT_BRK_0030] Debounce test
+ *
+ *     Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
+ *     Type: test
+ *     Verifies: SRS_BRK_0107
+ */
+@Test fun debounce() { }
 ```]
+
+Rust `///` or `/** */`. Kotlin · Java · C/C++ · TS/JS · C\# use `/** */`.
 
 #colbreak()
 
@@ -171,55 +199,65 @@ Apply to every entry (both shapes).
   inset: 3pt,
   table.header[*Attr*][*Description*],
   [`Id`], [ULID or URI; required],
+  [`Type`], [Core or profile-declared type],
   [`Labels`], [Free-form tags (`DRAFT`, …)],
   [`References`], [Cite referenced entries (locator ok)],
   [`External-id`], [Cross-system identifier],
-  [`Supersedes`], [Same-shape predecessor],
+  [`Supersedes`], [Same-shape predecessor (Authored only)],
   [`Superseded-by`], [Generated inverse],
   [`Deprecated`], [Retirement reason],
+  [`Discipline`], [Author-asserted discipline kind],
+  [`Discipline-frozen`], [Cached derivation snapshot],
 )
 
-= Referenced entry
+= typl bindings
+
+Declare typed identifiers in entry bodies: `$Name : kind shape`.
+
+== Three surfaces
+
+Fence — multiple bindings + typedefs:
+
+#code[```typl
+type Track = { id: int, range_m: float[0..300] }
+$Track   : signal Track
+$CycleHz : const int[10]
+```]
+
+Bullet — annotate list items:
 
 #code[```markdown
-- [@ISO-26262-6] ISO 26262 Part 6
-
-      Id: urn:iso:std:iso:26262:-6:ed-2
-      Reference-url: https://www.iso.org/...
-      Reference-document: ISO 26262-6:2018
+- $Window : config int[1..50]
+- $Stable : signal bool
 ```]
 
-Body optional. `Reference-*` are default-profile, not core.
+Inline — one identifier in prose:
 
-= Profile layer
-
-Core defines 15 concrete types (`Requirement`, `Test`, `Contract`, `Record`,
-`Risk`, `SoftwareComponent`, `HardwareComponent`, `SoftwareInterface`,
-`HardwareInterface`, `SoftwareUnit`, `HardwareUnit`, `Definition`, …).
-Profiles extend via `extends:` — adding subtypes, attributes, relations.
-
-- *Subtypes* — `requirement extends Requirement`, `hazard extends Risk`, …
-- *Relations* — `Derived-from`, `Satisfies`, `Verifies`, `Tests`,
-  `Realizes`, `Allocated-to`, `Depends-on`, `Part-of`, …
-- *Domain attrs* — `Test-level`, `ASIL`, `License`, …
-
-Profiles chain: `default → compliance → org → project`. Active chain
-set via `.markspec.yaml`. No profile = core-only mode.
-
-= In-code entries
-
-#code[```kotlin
-/**
- * [unit-test-debounce] Debounce test
- *
- *     Id: 01HGW3R9QNP4ABCDEFGHJKMNPQ
- *     type: test
- *     Verifies: 01HGW2Q8MNP3RSTVWXYZABCDEF
- */
-@Test fun debounce() { }
+#code[```markdown
+Gain `$Gain : signal float[0.5..2.0]` selected.
 ```]
 
-Rust `///` · Kotlin `/** */` · C `/** */` · Java 23+ `///`
+== Kinds (closed set)
+
+`value` (default) · `event` · `signal` · `command` · `state` · `const` · `config` · `document` · `stream`
+
+== Shapes
+
+#table(
+  columns: (auto, 1fr),
+  stroke: 0.4pt + luma(180),
+  inset: 3pt,
+  table.header[*Example*][*Shape*],
+  [`int` `float` `bool` `string` `bytes`], [primitive],
+  [`int[0..300]` `int[42]`], [range / literal],
+  [`string[3..6]` `bytes[32]`], [length],
+  [`pattern /^[A-Z]{3}$/`], [regex],
+  [`int[]` `float[](1..64)`], [array],
+  [`'low' | 'mid' | 'high'`], [enum],
+  [`{ id: int, msg: string }`], [record],
+  [`Track`], [typedef ref],
+  [`int?` `string[32]?`], [optional],
+)
 
 ]
 
@@ -309,7 +347,7 @@ Mention the 150ms requirement.
 
 = Deck (presentations)
 
-`---` = slide break. `==` starts each slide.
+`---` = slide break. `##` starts each slide.
 
 == Markdown source
 
@@ -358,21 +396,24 @@ Profile-declared types may add namespaces (e.g. `ref`, `h`).
 
 = Reference entries
 
-Display ID = slug. `Id:` is a URI (URN/DOI/purl/ISBN/HTTPS).
+`@slug` convention — the `@` is stripped from the display ID
+(`@ISO-26262-6` → `ISO-26262-6`). Body optional.
 
 #code[```markdown
 - [@ISO-26262-6] ISO 26262 Part 6
 
-  Road vehicles — Functional
-  safety — Part 6: Software.
+  Road vehicles — Functional safety
+  — Part 6: Software.
 
       Id: urn:iso:std:iso:26262:-6:ed-2
       Reference-document: ISO 26262-6:2018
       Reference-url: https://www.iso.org/...
+      License: ISO-proprietary
       Labels: functional-safety
 ```]
 
-`Id:` is core; `Reference-*` and `License` are default-profile.
+`Id:` schemes: `urn:` `doi:` `pkg:` `https:`. `Id:` and `Type:`
+are core; `Reference-*` and `License` are default-profile.
 
 #colbreak()
 
