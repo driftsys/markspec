@@ -21,8 +21,11 @@ import {
 } from "./rules/suppression.ts";
 import { buildGlossaryIndex } from "./glossary.ts";
 import type { FileReader, GlossaryIndex } from "./glossary.ts";
-import { runXrefRules } from "./rules/xref.ts";
-import type { IsIdentifierHook } from "./rules/xref.ts";
+import {
+  buildIdentifierIndex,
+  buildIsIdentifierHook,
+  runXrefRules,
+} from "./rules/xref.ts";
 import { runEarsRules } from "./rules/ears.ts";
 import { runModalSentenceRules } from "./rules/modal_sentence.ts";
 import { runIncoseSentenceRules } from "./rules/incose_sentence.ts";
@@ -128,7 +131,11 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     options.readFile ?? (() => Promise.resolve(undefined)),
     options.glossaryFilePaths ?? [],
   );
-  const isIdHook: IsIdentifierHook = () => false;
+  // Corpus-scan resolver leg (issue #502, ADR-021 Decision 1). Built once
+  // per invocation; reused across every in-scope entry. Honors the
+  // additive-enrichment invariant — Q500 fires *less* as the resolver
+  // grows, never *more*.
+  const isIdHook = buildIsIdentifierHook(buildIdentifierIndex(entries));
 
   // Steps 1–9: collect diagnostics keyed by entry
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();

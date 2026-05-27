@@ -518,3 +518,83 @@ Deno.test("runLint: MSL-Q902 does NOT fire for unknown codes (Q901's territory)"
     false,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Q500 $Identifier corpus-scan hook (issue #502)
+// ---------------------------------------------------------------------------
+
+Deno.test("runLint: corpus-scan hook silences Q500 on cross-entry $Identifier", async () => {
+  // Entry A: prose-irrelevant; carries one `entity-ref` body token for
+  // `$BrakePedalPressed`. In production the parser would emit this token
+  // when encountering `$BrakePedalPressed` somewhere in the body; here
+  // we synthesise it directly.
+  const a = makeEntry({
+    displayId: "REQ-001",
+    body: "Some unrelated prose.",
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text: "Some unrelated prose." },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: 22 },
+        },
+      },
+    ],
+    bodyTokens: [
+      {
+        kind: "entity-ref",
+        text: "$BrakePedalPressed",
+        convention: "type",
+        location: { file: "test.md", line: 1, column: 1 },
+      },
+    ],
+  });
+  // Entry B: prose mentions `BrakePedalPressed` capitalized but without
+  // the leading `$`, mid-sentence — Q500 would normally fire on it.
+  const text = "When triggered, the BrakePedalPressed signal shall propagate.";
+  const b = makeEntry({
+    displayId: "REQ-002",
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+    location: { file: "test.md", line: 5, column: 1 },
+  });
+  const result = await runLint({ entries: [a, b] });
+  const q500 = result.diagnostics.filter((d) => d.code === "MSL-Q500");
+  // The corpus-scan hook resolves `BrakePedalPressed` via A's entity-ref
+  // token, so Q500 must not fire on B's prose occurrence.
+  assertEquals(q500.length, 0);
+});
+
+Deno.test("runLint: corpus-scan hook leaves Q500 firing on truly unknown phrases", async () => {
+  // No entity-ref tokens exist for `UnknownTerm` anywhere in the corpus
+  // → Q500 must still fire on it.
+  const text = "When triggered, the UnknownTerm signal shall propagate.";
+  const entry = makeEntry({
+    displayId: "REQ-001",
+    body: text,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: text.length },
+        },
+      },
+    ],
+  });
+  const result = await runLint({ entries: [entry] });
+  const q500 = result.diagnostics.filter((d) => d.code === "MSL-Q500");
+  assertEquals(q500.length, 1);
+  assertEquals(q500[0].message.includes("UnknownTerm"), true);
+});
