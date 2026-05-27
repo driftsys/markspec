@@ -1,5 +1,14 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { join } from "@std/path";
 import { runMcpInstall } from "./mcp_orchestrator.ts";
+
+// Expected stderr paths use `join()` so the assertion matches the
+// platform-aware path the adapter renders — on Windows `join` produces
+// backslash paths (`\tmp\some-repo\.mcp.json`), so a POSIX literal
+// would fail the substring check.
+const REPO_CWD = join("/", "tmp", "some-repo");
+const REPO_MCP_JSON = join(REPO_CWD, ".mcp.json");
+const REPO_OPENCODE_JSON = join(REPO_CWD, "opencode.json");
 
 Deno.test("runMcpInstall: unknown client → exit 1 with suggestion", async () => {
   const r = await runMcpInstall({
@@ -58,7 +67,7 @@ Deno.test("runMcpInstall: --client=claude-code routes through managed-block flow
     binaryPath: "markspec",
     print: true,
     env: {
-      cwd: "/tmp/some-repo",
+      cwd: REPO_CWD,
       home: "/home/u",
       isTty: true,
     },
@@ -68,7 +77,7 @@ Deno.test("runMcpInstall: --client=claude-code routes through managed-block flow
   assertStringIncludes(result.stdout, `"mcpServers"`);
   assertStringIncludes(result.stdout, `"markspec"`);
   // stderr shows the target path under cwd
-  assertStringIncludes(result.stderr, "/tmp/some-repo/.mcp.json");
+  assertStringIncludes(result.stderr, REPO_MCP_JSON);
 });
 
 Deno.test("runMcpInstall: --client=claude-code --scope=user is rejected", async () => {
@@ -93,7 +102,7 @@ Deno.test("runMcpInstall: --client=opencode routes through managed-block flow", 
     binaryPath: "markspec",
     print: true,
     env: {
-      cwd: "/tmp/some-repo",
+      cwd: REPO_CWD,
       home: "/home/u",
       isTty: true,
     },
@@ -103,7 +112,7 @@ Deno.test("runMcpInstall: --client=opencode routes through managed-block flow", 
   assertStringIncludes(result.stdout, `"mcp"`);
   assertStringIncludes(result.stdout, `"markspec"`);
   // Verified opencode path: `opencode.json` at project root.
-  assertStringIncludes(result.stderr, "/tmp/some-repo/opencode.json");
+  assertStringIncludes(result.stderr, REPO_OPENCODE_JSON);
 });
 
 Deno.test("runMcpInstall: --client=opencode --scope=user is rejected", async () => {

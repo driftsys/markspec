@@ -15,8 +15,22 @@
  */
 
 import { assertEquals, assertThrows } from "@std/assert";
+import { join } from "@std/path";
 import { opencodeDescriptor } from "./mcp_adapters_opencode.ts";
 import type { DetectEnv } from "./adapters.ts";
+
+// Path fixtures use `join()` so the constants match the platform-aware
+// paths the adapter constructs at runtime — on Windows the std `join`
+// returns backslash paths (`\repo\opencode.json`), so a POSIX literal
+// would miss the equality check.
+const REPO_ROOT = join("/", "repo");
+const HOME_DIR = join("/", "home", "u");
+const CWD_DIR = join("/", "some", "cwd");
+const OPENCODE_BIN = join("/", "usr", "local", "bin", "opencode");
+const REPO_OPENCODE_JSON = join(REPO_ROOT, "opencode.json");
+const REPO_OPENCODE_JSONC = join(REPO_ROOT, "opencode.jsonc");
+const CWD_OPENCODE_JSON = join(CWD_DIR, "opencode.json");
+const HOME_OPENCODE = join(HOME_DIR, ".opencode");
 
 // ---------------------------------------------------------------------------
 // jsonPath + id
@@ -35,22 +49,22 @@ Deno.test("opencodeDescriptor: id and jsonPath", () => {
 Deno.test("opencodeDescriptor: workspace scope → <workspaceRoot>/opencode.json", () => {
   const path = opencodeDescriptor.resolveConfigPath(
     "workspace",
-    "/some/cwd",
-    "/home/u",
+    CWD_DIR,
+    HOME_DIR,
     undefined,
-    "/repo",
+    REPO_ROOT,
   );
   // Verified: opencode reads opencode.json at the project root (not .opencode/mcp.json)
-  assertEquals(path, "/repo/opencode.json");
+  assertEquals(path, REPO_OPENCODE_JSON);
 });
 
 Deno.test("opencodeDescriptor: workspace scope without workspaceRoot → falls back to cwd", () => {
   const path = opencodeDescriptor.resolveConfigPath(
     "workspace",
-    "/some/cwd",
-    "/home/u",
+    CWD_DIR,
+    HOME_DIR,
   );
-  assertEquals(path, "/some/cwd/opencode.json");
+  assertEquals(path, CWD_OPENCODE_JSON);
 });
 
 Deno.test("opencodeDescriptor: user scope throws", () => {
@@ -89,8 +103,8 @@ function makeEnv(overrides: Partial<DetectEnv> = {}): DetectEnv {
   return {
     whichCommand: () => Promise.resolve(undefined),
     pathExists: () => Promise.resolve(false),
-    projectRoot: "/repo",
-    homeDir: "/home/u",
+    projectRoot: REPO_ROOT,
+    homeDir: HOME_DIR,
     ...overrides,
   };
 }
@@ -105,9 +119,7 @@ Deno.test("opencodeDescriptor.detect: opencode on PATH → opencode-cli-on-path 
   const result = await opencodeDescriptor.detect!(
     makeEnv({
       whichCommand: (name) =>
-        Promise.resolve(
-          name === "opencode" ? "/usr/local/bin/opencode" : undefined,
-        ),
+        Promise.resolve(name === "opencode" ? OPENCODE_BIN : undefined),
     }),
   );
   assertEquals(result.detected, true);
@@ -117,7 +129,7 @@ Deno.test("opencodeDescriptor.detect: opencode on PATH → opencode-cli-on-path 
 Deno.test("opencodeDescriptor.detect: project opencode.json present → project-opencode-config-present", async () => {
   const result = await opencodeDescriptor.detect!(
     makeEnv({
-      pathExists: (path) => Promise.resolve(path === "/repo/opencode.json"),
+      pathExists: (path) => Promise.resolve(path === REPO_OPENCODE_JSON),
     }),
   );
   assertEquals(result.detected, true);
@@ -127,7 +139,7 @@ Deno.test("opencodeDescriptor.detect: project opencode.json present → project-
 Deno.test("opencodeDescriptor.detect: project opencode.jsonc present → project-opencode-config-present", async () => {
   const result = await opencodeDescriptor.detect!(
     makeEnv({
-      pathExists: (path) => Promise.resolve(path === "/repo/opencode.jsonc"),
+      pathExists: (path) => Promise.resolve(path === REPO_OPENCODE_JSONC),
     }),
   );
   assertEquals(result.detected, true);
@@ -137,7 +149,7 @@ Deno.test("opencodeDescriptor.detect: project opencode.jsonc present → project
 Deno.test("opencodeDescriptor.detect: ~/.opencode/ present → user-opencode-home-present", async () => {
   const result = await opencodeDescriptor.detect!(
     makeEnv({
-      pathExists: (path) => Promise.resolve(path === "/home/u/.opencode"),
+      pathExists: (path) => Promise.resolve(path === HOME_OPENCODE),
     }),
   );
   assertEquals(result.detected, true);
@@ -148,13 +160,9 @@ Deno.test("opencodeDescriptor.detect: all signals fire → all listed", async ()
   const result = await opencodeDescriptor.detect!(
     makeEnv({
       whichCommand: (name) =>
-        Promise.resolve(
-          name === "opencode" ? "/usr/local/bin/opencode" : undefined,
-        ),
+        Promise.resolve(name === "opencode" ? OPENCODE_BIN : undefined),
       pathExists: (path) =>
-        Promise.resolve(
-          path === "/repo/opencode.json" || path === "/home/u/.opencode",
-        ),
+        Promise.resolve(path === REPO_OPENCODE_JSON || path === HOME_OPENCODE),
     }),
   );
   assertEquals(result.detected, true);
