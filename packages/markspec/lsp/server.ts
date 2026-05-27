@@ -457,19 +457,34 @@ connection.onInitialized(async () => {
       }
     }
 
-    // Parse all files
+    // Parse all files with bounded concurrency. The serial loop spent
+    // most of its wall time waiting on file I/O while CPU was idle —
+    // overlapping reads + parses cuts cold-start dramatically. Side
+    // effect: when duplicate display IDs exist across files, the
+    // "first entry wins" tiebreak now resolves to whichever parse
+    // finishes first (previously: alphabetical file order). The
+    // validator still flags the duplicate in either case; the
+    // diagnostic location is the only thing that becomes
+    // nondeterministic.
     await timeAsync("onInitialized/parseAll", async () => {
-      for (const filePath of files) {
-        try {
-          const content = await readFileRequired(filePath);
-          await timeAsync(
-            "onInitialized/parseFile",
-            () => index.parseAndUpdateFile(filePath, content),
-          );
-        } catch {
-          connection.console.warn(`Failed to parse: ${filePath}`);
-        }
-      }
+      const CONCURRENCY = 8;
+      let cursor = 0;
+      await Promise.all(
+        Array.from({ length: CONCURRENCY }, async () => {
+          while (cursor < files.length) {
+            const filePath = files[cursor++];
+            try {
+              const content = await readFileRequired(filePath);
+              await timeAsync(
+                "onInitialized/parseFile",
+                () => index.parseAndUpdateFile(filePath, content),
+              );
+            } catch {
+              connection.console.warn(`Failed to parse: ${filePath}`);
+            }
+          }
+        }),
+      );
     });
 
     connection.console.log(
