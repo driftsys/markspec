@@ -31,6 +31,7 @@ import {
   nextIdCmd,
   profileCmd,
   reportCmd,
+  scoreCmd,
   showCmd,
   syncCmd,
   validateCmd,
@@ -55,6 +56,7 @@ const cli = new Command()
   .command("dependents", dependentsCmd)
   .command("report", reportCmd)
   .command("lint", lintCmd)
+  .command("score", scoreCmd)
   .command("lock", lockCmd)
   .command("sync", syncCmd)
   .command("hook", hookCmd)
