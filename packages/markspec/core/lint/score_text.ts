@@ -43,7 +43,14 @@ export interface ScoreTextOptions {
   readonly id?: string;
 }
 
-/** Result returned by {@linkcode scoreText}. */
+/**
+ * Result returned by {@linkcode scoreText}.
+ *
+ * `warningCount + infoCount === diagnostics.length` by convention:
+ * every PA-3 rule emits `warning` or `info` only. The `Severity` type
+ * permits `error`, but no current rule produces one; if that ever
+ * changes the partition will need a third counter.
+ */
 export interface ScoreTextResult {
   readonly id: string;
   /** Sum of `weight × occurrences` across all firings. */
