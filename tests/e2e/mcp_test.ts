@@ -384,3 +384,86 @@ Deno.test("mcp: touching a file without changing content does not break results"
     await Deno.remove(cwd, { recursive: true });
   }
 });
+
+/** Create a non-MarkSpec workspace (no project.yaml, no .markspec.yaml). */
+async function setupGated(): Promise<
+  { proc: McpProcess; cwd: string; initResponse: RpcResponse }
+> {
+  const dir = await Deno.makeTempDir();
+  // Deliberately do NOT create project.yaml or .markspec.yaml.
+  const proc = new McpProcess(dir);
+  const initResponse = await proc.request("initialize", {
+    protocolVersion: "2024-11-05",
+    capabilities: {},
+    clientInfo: { name: "test", version: "0.0.1" },
+  });
+  await proc.notify("notifications/initialized", {});
+  return { proc, cwd: dir, initResponse };
+}
+
+Deno.test("mcp soft-gate: tools/call returns canonical message in non-MarkSpec workspace", async () => {
+  const { proc, cwd } = await setupGated();
+  try {
+    const resp = await proc.request("tools/call", {
+      name: "entry_search",
+      arguments: { query: "anything" },
+    });
+    // deno-lint-ignore no-explicit-any
+    const result = resp.result as any;
+    // Per ADR-023 §6.2: returned as normal content, NOT isError: true.
+    assertEquals(result.isError, undefined);
+    assertEquals(result.content[0].type, "text");
+    assertStringIncludes(result.content[0].text, "No MarkSpec project found");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp soft-gate: resources/read returns text/plain soft-gate content in non-MarkSpec workspace", async () => {
+  const { proc, cwd } = await setupGated();
+  try {
+    const resp = await proc.request("resources/read", {
+      uri: "markspec://entries",
+    });
+    // deno-lint-ignore no-explicit-any
+    const contents = (resp.result as any).contents as Array<
+      { text: string; mimeType: string }
+    >;
+    assertEquals(contents[0].mimeType, "text/plain");
+    assertStringIncludes(contents[0].text, "No MarkSpec project found");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp soft-gate: resources/list returns empty in non-MarkSpec workspace", async () => {
+  const { proc, cwd } = await setupGated();
+  try {
+    const resp = await proc.request("resources/list", {});
+    // deno-lint-ignore no-explicit-any
+    const resources = (resp.result as any).resources as Array<{ uri: string }>;
+    assertEquals(resources, []);
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp soft-gate: initialize still succeeds in non-MarkSpec workspace (D2 soft, not D1 hard)", async () => {
+  const { proc, cwd, initResponse } = await setupGated();
+  try {
+    // Server must still start, advertise capabilities, and return instructions
+    // per ADR-023 decision to choose D2 (soft) over D1 (hard refuse-to-start).
+    // deno-lint-ignore no-explicit-any
+    const caps = (initResponse.result as any).capabilities;
+    assertEquals(typeof caps.tools, "object");
+    // deno-lint-ignore no-explicit-any
+    const instructions = (initResponse.result as any).instructions as string;
+    assertStringIncludes(instructions, "TRIGGER when");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
