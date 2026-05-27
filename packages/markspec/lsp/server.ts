@@ -102,6 +102,7 @@ import {
   uriToPath,
 } from "./util.ts";
 import { debugLog } from "./debug_log.ts";
+import { time, timeAsync } from "./timing.ts";
 import {
   buildDollarNameCompletions,
   dollarNameAtPosition,
@@ -200,7 +201,10 @@ function publishFileDiagnostics(
 
 /** Run cross-file validation and publish diagnostics for all files. */
 function publishAllDiagnostics(): void {
-  const allDiags = index.validateAll(profile ?? null);
+  const allDiags = time(
+    `validateAll/${index.getAllEntries().length}`,
+    () => index.validateAll(profile ?? null),
+  );
   lastDiagnostics = allDiags;
   const grouped = groupDiagnosticsByFile(allDiags);
 
@@ -454,14 +458,19 @@ connection.onInitialized(async () => {
     }
 
     // Parse all files
-    for (const filePath of files) {
-      try {
-        const content = await readFileRequired(filePath);
-        await index.parseAndUpdateFile(filePath, content);
-      } catch {
-        connection.console.warn(`Failed to parse: ${filePath}`);
+    await timeAsync("onInitialized/parseAll", async () => {
+      for (const filePath of files) {
+        try {
+          const content = await readFileRequired(filePath);
+          await timeAsync(
+            "onInitialized/parseFile",
+            () => index.parseAndUpdateFile(filePath, content),
+          );
+        } catch {
+          connection.console.warn(`Failed to parse: ${filePath}`);
+        }
       }
-    }
+    });
 
     connection.console.log(
       `Indexed ${files.length} files, ${index.getAllEntries().length} entries`,
@@ -608,74 +617,84 @@ connection.onCompletion((params): CompletionItem[] => {
 
   // Trigger 1: Block scaffold
   if (isBlockScaffoldTrigger(line)) {
-    const types = getEntryTypes();
-    const items = buildBlockScaffoldItems(types, ulid);
-    return items.map((item, i) => {
-      const type = types[i];
-      return {
-        label: item.label,
-        detail: item.detail,
-        insertText: item.insertText,
-        insertTextFormat: item.isSnippet
-          ? InsertTextFormat.Snippet
-          : InsertTextFormat.PlainText,
-        kind: item.isSnippet
-          ? CompletionItemKind.Snippet
-          : CompletionItemKind.Reference,
-        data: type
-          ? {
-            kind: SCAFFOLD_COMPLETION_KIND,
-            typeName: type.name,
-            prefix: type.prefix,
-          } satisfies ScaffoldCompletionData
-          : undefined,
-      };
+    return time("onCompletion/scaffold", () => {
+      const types = getEntryTypes();
+      const items = buildBlockScaffoldItems(types, ulid);
+      return items.map((item, i) => {
+        const type = types[i];
+        return {
+          label: item.label,
+          detail: item.detail,
+          insertText: item.insertText,
+          insertTextFormat: item.isSnippet
+            ? InsertTextFormat.Snippet
+            : InsertTextFormat.PlainText,
+          kind: item.isSnippet
+            ? CompletionItemKind.Snippet
+            : CompletionItemKind.Reference,
+          data: type
+            ? {
+              kind: SCAFFOLD_COMPLETION_KIND,
+              typeName: type.name,
+              prefix: type.prefix,
+            } satisfies ScaffoldCompletionData
+            : undefined,
+        };
+      });
     });
   }
 
   // Trigger 2: Trailer attribute key — indented blank or partial key.
   if (isTrailerKeyContext(line)) {
-    const items = buildTrailerKeyItems();
-    return items.map((item) => ({
-      label: item.label,
-      detail: item.detail,
-      insertText: item.insertText,
-      kind: CompletionItemKind.Property,
-    }));
+    return time("onCompletion/trailerKey", () => {
+      const items = buildTrailerKeyItems();
+      return items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        insertText: item.insertText,
+        kind: CompletionItemKind.Property,
+      }));
+    });
   }
 
   // Trigger 3: ID reference
   if (isTraceAttributeTrigger(line)) {
-    const displayIds = index.getAllDisplayIds();
-    const items = buildIdReferenceItems(displayIds);
-    return items.map((item) => ({
-      label: item.label,
-      detail: item.detail,
-      kind: CompletionItemKind.Reference,
-    }));
+    return time("onCompletion/idRef", () => {
+      const displayIds = index.getAllDisplayIds();
+      const items = buildIdReferenceItems(displayIds);
+      return items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        kind: CompletionItemKind.Reference,
+      }));
+    });
   }
 
   // Trigger 4: Type: attribute value — core types + profile types.
   if (isTypeAttributeTrigger(line)) {
-    const profileTypeNames = profile ? [...profile.types.keys()] : [];
-    const items = buildTypeAttributeItems(profileTypeNames);
-    return items.map((item) => ({
-      label: item.label,
-      detail: item.detail,
-      kind: CompletionItemKind.Reference,
-    }));
+    return time("onCompletion/typeAttr", () => {
+      const profileTypeNames = profile ? [...profile.types.keys()] : [];
+      const items = buildTypeAttributeItems(profileTypeNames);
+      return items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        kind: CompletionItemKind.Reference,
+      }));
+    });
   }
 
   // Trigger 5: $Name identifier — typl binding names from the corpus registry.
   if (isDollarNameTrigger(line)) {
-    const registry = index.getTypeRegistry();
-    const items = buildDollarNameCompletions(registry);
-    return items.map((item) => ({
-      label: item.label,
-      detail: item.detail,
-      documentation: item.documentation,
-      kind: CompletionItemKind.Variable,
-    }));
+    return time("onCompletion/dollarName", () => {
+      const registry = index.getTypeRegistry();
+      const items = buildDollarNameCompletions(registry);
+      return items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        documentation: item.documentation,
+        kind: CompletionItemKind.Variable,
+      }));
+    });
   }
 
   return [];
