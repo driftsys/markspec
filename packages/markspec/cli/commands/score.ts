@@ -48,6 +48,11 @@ export const scoreCmd = new Command()
     }
 
     const stdinText = await readAllStdin();
+    if (stdinText.trim().length === 0) {
+      // stdin is closed or empty — print help and exit 0.
+      await scoreCmd.showHelp();
+      Deno.exit(0);
+    }
     const lines = stdinText.split("\n");
     let scored = 0;
     let malformed = 0;

@@ -169,3 +169,57 @@ Deno.test("score --text --format text: empty input prints Q401 banner", async ()
   assertStringIncludes(stdout, "Warnings: 0");
   assertStringIncludes(stdout, "Infos: 1");
 });
+
+Deno.test("score: no --text and no stdin → prints help, exit 0", async () => {
+  const CLI_ENTRY = new URL(
+    "../../packages/markspec/main.ts",
+    import.meta.url,
+  ).pathname;
+  const cmd = new Deno.Command("deno", {
+    args: ["run", "--allow-read", "--allow-write", CLI_ENTRY, "score"],
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const out = await cmd.output();
+  const combined = new TextDecoder().decode(out.stdout) +
+    new TextDecoder().decode(out.stderr);
+  assertStringIncludes(combined.toLowerCase(), "score");
+});
+
+Deno.test("score: --text wins over stdin", async () => {
+  const CLI_ENTRY = new URL(
+    "../../packages/markspec/main.ts",
+    import.meta.url,
+  ).pathname;
+  const cmd = new Deno.Command("deno", {
+    args: [
+      "run",
+      "--allow-read",
+      "--allow-write",
+      CLI_ENTRY,
+      "score",
+      "--text",
+      "Inline wins.",
+      "--format",
+      "json",
+    ],
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const child = cmd.spawn();
+  const w = child.stdin.getWriter();
+  await w.write(
+    new TextEncoder().encode(
+      JSON.stringify({ id: "should-be-ignored", text: "from stdin" }) + "\n",
+    ),
+  );
+  await w.close();
+  const out = await child.output();
+  assertEquals(out.code, 0);
+  const stdoutText = new TextDecoder().decode(out.stdout).trim();
+  // One-shot mode pretty-prints JSON; parse the whole stdout as one object.
+  const parsed = JSON.parse(stdoutText);
+  assertEquals(parsed.id, "EXT_0001");
+});
