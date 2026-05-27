@@ -44,6 +44,7 @@ const VSCODE_MARKETPLACE_URL =
  */
 export const claudeDesktopDescriptor: McpAdapter = {
   id: "claude-desktop",
+  jsonPath: ["mcpServers", "markspec"],
   resolveConfigPath(scope, _cwd, home, appData, _workspaceRoot) {
     if (scope === "workspace") {
       throw new Error(

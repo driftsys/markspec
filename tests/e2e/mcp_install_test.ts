@@ -293,6 +293,100 @@ Deno.test(
 );
 
 // ---------------------------------------------------------------------------
+// Test: claude-code --print emits JSON for .mcp.json
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "mcp install claude-code: --print emits JSON for .mcp.json",
+  async () => {
+    const { code, stdout, stderr } = await markspec(
+      [
+        "mcp",
+        "install",
+        "--client=claude-code",
+        "--scope=workspace",
+        "--print",
+      ],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0);
+    assertStringIncludes(stdout, '"mcpServers"');
+    assertStringIncludes(stdout, '"markspec"');
+    assertStringIncludes(stderr.replaceAll("\\", "/"), ".mcp.json");
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Test: claude-code --force writes .mcp.json
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "mcp install claude-code: --force writes .mcp.json",
+  async () => {
+    const { code, stderr } = await markspec(
+      [
+        "mcp",
+        "install",
+        "--client=claude-code",
+        "--scope=workspace",
+        "--force",
+      ],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0);
+    assertStringIncludes(stderr.replaceAll("\\", "/"), ".mcp.json");
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Test: opencode --print emits JSON for opencode.json
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "mcp install opencode: --print emits JSON for opencode.json",
+  async () => {
+    const { code, stdout, stderr } = await markspec(
+      [
+        "mcp",
+        "install",
+        "--client=opencode",
+        "--scope=workspace",
+        "--print",
+      ],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0);
+    // Verified opencode shape — flat `mcp.markspec`, no `mcpServers` nesting.
+    assertStringIncludes(stdout, '"mcp"');
+    assertStringIncludes(stdout, '"markspec"');
+    assertStringIncludes(stderr.replaceAll("\\", "/"), "opencode.json");
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Test: opencode --force writes opencode.json
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "mcp install opencode: --force writes opencode.json",
+  async () => {
+    const { code, stderr } = await markspec(
+      [
+        "mcp",
+        "install",
+        "--client=opencode",
+        "--scope=workspace",
+        "--force",
+      ],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0);
+    // Verified opencode path: opencode.json at project root.
+    assertStringIncludes(stderr.replaceAll("\\", "/"), "opencode.json");
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Test 8: --remove strips only the markspec entry; re-remove is no-op
 // ---------------------------------------------------------------------------
 

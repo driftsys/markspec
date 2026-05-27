@@ -55,12 +55,44 @@ markspec mcp install --client claude-desktop \
   --binary-path /opt/markspec/bin/markspec
 ```
 
+### Claude Code
+
+`markspec mcp install --client claude-code` writes `.mcp.json` at the project
+root. The file uses the same `mcpServers.markspec` shape as Claude Desktop and
+is read automatically by Claude Code when it opens the directory.
+
+```sh
+markspec mcp install --client claude-code --scope workspace
+markspec mcp install --client claude-code --scope workspace \
+  --binary-path /opt/markspec/bin/markspec
+```
+
+The `--scope=user` flag is not supported for `claude-code` — the config is
+always project-scoped (`.mcp.json` at the repo root).
+
 ### Cursor
 
 ```sh
 markspec mcp install --client cursor
 markspec mcp install --client cursor --binary-path /opt/markspec/bin/markspec
 ```
+
+### opencode
+
+`markspec mcp install --client opencode` writes `opencode.json` at the project
+root. The file uses a flat `mcp.markspec` object with a `type: "local"` entry
+(no `mcpServers` nesting), which matches the opencode JSON schema verified
+against the [anomalyco/opencode](https://github.com/anomalyco/opencode)
+repository.
+
+```sh
+markspec mcp install --client opencode --scope workspace
+markspec mcp install --client opencode --scope workspace \
+  --binary-path /opt/markspec/bin/markspec
+```
+
+The `--scope=user` flag is not supported for `opencode` — the config is always
+project-scoped (`opencode.json` at the repo root).
 
 ### VS Code (Copilot / Claude)
 
