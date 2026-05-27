@@ -366,6 +366,101 @@ markspec lint --strict "docs/**/*.md"
 markspec lint --format json "docs/**/*.md"
 ```
 
+#### score
+
+Score a single piece of requirement prose against the PA-3 lint catalog (the
+same rules `lint` runs) without first authoring it as a MarkSpec entry. Designed
+for two use cases:
+
+- An **inbound quality gate**: pipe a candidate requirement (from a customer
+  Word doc, a DOORS export, a chat message, …) and decide whether it is worth
+  accepting based on the returned score and severity counts.
+- A **pre/post-rewrite delta**: score the original prose, let an agent rewrite
+  it as MarkSpec, score the result, compare.
+
+```sh
+markspec score --text "<prose>"
+markspec score < requirements.jsonl
+```
+
+| Flag       | Type   | Default                         | Description                                                                       |
+| ---------- | ------ | ------------------------------- | --------------------------------------------------------------------------------- |
+| `--text`   | string | —                               | Inline prose to score (one-shot mode). Wins over stdin when both are present.     |
+| `--id`     | string | `EXT_0001`                      | Identifier echoed in the result so a batch caller can correlate inputs.           |
+| `--format` | string | `text` on TTY, `json` otherwise | Output format: `json` for structured data, `text` for human-readable diagnostics. |
+
+**Batch (JSONL) mode.** When `--text` is absent and stdin contains data, each
+non-empty line is parsed as JSON: `{"id": "...", "text": "..."}`. The `id` field
+is optional; the command synthesises `EXT_0001`, `EXT_0002`, … in input order
+when absent. One JSON result object is printed per input line in input order (no
+trailing summary).
+
+**Exit codes** (clig.dev mapping):
+
+| Code | Meaning                                                             |
+| ---- | ------------------------------------------------------------------- |
+| `0`  | At least one input was scored successfully; no malformed input.     |
+| `1`  | No inputs were scored (all stdin lines malformed, or no input).     |
+| `2`  | Partial: at least one input scored AND at least one line malformed. |
+
+Malformed lines write `error: ... on line N` to stderr (1-based) and the command
+continues.
+
+**Result shape (JSON format):**
+
+```json
+{
+  "id": "EXT_0001",
+  "score": 4,
+  "warningCount": 1,
+  "infoCount": 1,
+  "contributions": [
+    {
+      "code": "MSL-Q200",
+      "slug": "modal-multiple",
+      "weight": 3,
+      "occurrences": 1
+    },
+    {
+      "code": "MSL-Q312",
+      "slug": "incose-r33-range-of-values",
+      "weight": 1,
+      "occurrences": 1
+    }
+  ],
+  "diagnostics": [/* ...full LintDiagnostic objects */]
+}
+```
+
+`score = Σ weight × occurrences` matches the PA-3 banded score
+(`0 / 1-3 /
+4-7 / 8-15 / 16+`). `warningCount` and `infoCount` are surfaced
+separately so a caller can express "score under 7 AND zero warnings" without
+conflating severity with score.
+
+**Implementation note.** The prose is wrapped in a synthetic Requirement-shaped
+entry and run through the existing `runLint` pipeline. The whole 16-rule MSL-Q
+catalog applies. `Q500`'s `$Identifier` resolver sees an empty corpus (no
+cross-references possible), and the suppression-hygiene checks self-skip because
+there is no `Markspec-disable` attribute to inspect.
+
+**Examples:**
+
+```sh
+# Score a single prose snippet
+markspec score --text "The system shall stop within 200 ms."
+
+# Score many at once
+echo '{"text": "The brake actuator shall respond."}' | markspec score
+
+# Gate in a pipeline: fail if score above 7 OR any warnings
+score_json=$(markspec score --text "$REQ" --format json)
+if [ "$(echo "$score_json" | jq '.score > 7 or .warningCount > 0')" = "true" ]; then
+  echo "Requirement quality below threshold — please revise"
+  exit 1
+fi
+```
+
 #### hook
 
 Run `format --check` and `validate` on a list of files. Designed as a pre-commit
