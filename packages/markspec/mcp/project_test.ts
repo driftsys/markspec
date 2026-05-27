@@ -300,37 +300,49 @@ Deno.test("getCompiled: same content, mtime bumped → NOT stale (SHA256 gate)",
 // detectMarkspecProject tests
 // ---------------------------------------------------------------------------
 
+// detectMarkspecProject fixtures use `join()` to build Map keys because the
+// helper itself constructs lookup paths via `join(dir, "project.yaml")` —
+// on Windows this returns backslash paths (`\proj\project.yaml`), so a
+// hard-coded POSIX literal like `/proj/project.yaml` would miss the map
+// lookup. Pre-computing the constants with `join()` keeps the tests
+// cross-platform.
+const FIXTURE_ROOT = join("/", "proj");
+const FIXTURE_PROJECT_YAML = join(FIXTURE_ROOT, "project.yaml");
+const FIXTURE_MARKSPEC_YAML = join(FIXTURE_ROOT, ".markspec.yaml");
+const FIXTURE_NESTED_CWD = join(FIXTURE_ROOT, "sub", "nested");
+const FIXTURE_UNRELATED_CWD = join("/", "some", "other", "cwd");
+
 Deno.test("detectMarkspecProject: returns true when project.yaml exists", async () => {
   const files = new Map<string, string>([
-    ["/proj/project.yaml", "name: x\n"],
+    [FIXTURE_PROJECT_YAML, "name: x\n"],
   ]);
   const readFile = (path: string) => Promise.resolve(files.get(path));
-  const detected = await detectMarkspecProject("/proj", readFile);
+  const detected = await detectMarkspecProject(FIXTURE_ROOT, readFile);
   assertEquals(detected, true);
 });
 
 Deno.test("detectMarkspecProject: returns true when .markspec.yaml exists", async () => {
   const files = new Map<string, string>([
-    ["/proj/.markspec.yaml", "extends: default\n"],
+    [FIXTURE_MARKSPEC_YAML, "extends: default\n"],
   ]);
   const readFile = (path: string) => Promise.resolve(files.get(path));
-  const detected = await detectMarkspecProject("/proj", readFile);
+  const detected = await detectMarkspecProject(FIXTURE_ROOT, readFile);
   assertEquals(detected, true);
 });
 
 Deno.test("detectMarkspecProject: walks up parent directories", async () => {
   const files = new Map<string, string>([
-    ["/proj/project.yaml", "name: x\n"],
+    [FIXTURE_PROJECT_YAML, "name: x\n"],
   ]);
   const readFile = (path: string) => Promise.resolve(files.get(path));
-  const detected = await detectMarkspecProject("/proj/sub/nested", readFile);
+  const detected = await detectMarkspecProject(FIXTURE_NESTED_CWD, readFile);
   assertEquals(detected, true);
 });
 
 Deno.test("detectMarkspecProject: returns false when neither file exists", async () => {
   const files = new Map<string, string>();
   const readFile = (path: string) => Promise.resolve(files.get(path));
-  const detected = await detectMarkspecProject("/some/other/cwd", readFile);
+  const detected = await detectMarkspecProject(FIXTURE_UNRELATED_CWD, readFile);
   assertEquals(detected, false);
 });
 
