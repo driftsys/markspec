@@ -18,9 +18,14 @@
  *
  * Corpus-dependent rules (Q500 xref-glossary, xref-undefined,
  * suppression hygiene) self-skip because there is nothing for them
- * to cross-reference on a one-entry corpus.
- *
- * See `docs/superpowers/specs/2026-05-27-external-requirement-scoring-design.md`.
+ * to cross-reference on a one-entry corpus. Note specifically:
+ * `bodyTokens` is left empty here, which means any `$Identifier`
+ * style entity references inside `text` are NOT extracted and so
+ * Q500 cannot fire on them in either direction. External requirement
+ * prose (DOORS / Word / PDF) does not use MarkSpec's `$Identifier`
+ * syntax, so this is the right trade for v1; a caller that does want
+ * `$Identifier` resolution should run the prose through `parseFile`
+ * to get a real entry and use the normal `runLint` path instead.
  */
 
 import type { Entry } from "../model/mod.ts";

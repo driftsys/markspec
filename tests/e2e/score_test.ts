@@ -99,7 +99,7 @@ Deno.test("score: JSONL batch synthesises EXT_<n> when id absent", async () => {
   );
   assertEquals(code, 0);
   const ids = stdout.trim().split("\n").map((l) => JSON.parse(l).id);
-  assertEquals(ids, ["EXT_1", "EXT_2"]);
+  assertEquals(ids, ["EXT_0001", "EXT_0002"]);
 });
 
 Deno.test("score: malformed JSONL line → exit 2, stderr cites line", async () => {
@@ -182,6 +182,7 @@ Deno.test("score: no --text and no stdin → prints help, exit 0", async () => {
     stderr: "piped",
   });
   const out = await cmd.output();
+  assertEquals(out.code, 0);
   const combined = new TextDecoder().decode(out.stdout) +
     new TextDecoder().decode(out.stderr);
   assertStringIncludes(combined.toLowerCase(), "score");

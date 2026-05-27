@@ -76,7 +76,7 @@ export const scoreCmd = new Command()
       }
       const id = typeof parsed.id === "string" && parsed.id.length > 0
         ? parsed.id
-        : `EXT_${nonBlankIndex}`;
+        : `EXT_${String(nonBlankIndex).padStart(4, "0")}`;
       const result = await scoreText(parsed.text, { id });
       printResult(result, format, false);
       scored++;
