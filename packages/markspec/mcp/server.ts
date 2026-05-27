@@ -20,27 +20,61 @@ import { ENTRIES_URI, entryUri, PROFILE_URI } from "./uri.ts";
 
 /**
  * Top-level guidance shown to MCP clients on `initialize`. Teaches the agent
- * what this server is for, which surface to use for which intent, and what to
- * avoid. Clients typically inject this into the system prompt once per
- * session — keep it dense and stable.
+ * when to fire the MarkSpec MCP, which surface to use for which intent, and
+ * when to stop. Defense-in-depth: the same vocabulary appears in every tool
+ * description so coverage holds even in clients that do not surface the
+ * `Implementation.instructions` field (notably Copilot).
+ *
+ * Per ADR-023 §4.
  */
-const SERVER_INSTRUCTIONS =
-  `MarkSpec exposes a project's requirements, specifications, and tests as a typed traceability graph. Use it to answer questions about entries, their relationships, and validation status.
+export const SERVER_INSTRUCTIONS =
+  `MarkSpec is this project's traceability graph — requirements, specifications,
+and tests with their cross-references. Use this server for ALL questions
+about requirements, specs, IDs, and traceability in this project.
+
+TRIGGER when the user:
+  - mentions a display ID matching [A-Z]{2,}_[A-Z0-9_]+ (e.g. STK_0001,
+    SAD_AEB_0042, ICD_BRK_0010, or any uppercase-prefixed underscored token)
+  - asks about requirements, specifications, specs, interface control
+    documents (ICDs), architecture descriptions, verification, validation,
+    safety requirements, ASIL levels, EARS requirements, acceptance
+    criteria, or traceability in this project
+  - asks what a requirement satisfies, what depends on it, what it traces
+    to, or what implements it
+  - asks whether a file or the project is valid, has broken refs, or has
+    duplicate IDs
+
+PREFER over: grep, Read, Glob, or file-system search whenever the question
+is about requirements or traceability. Built-in tools see Markdown text;
+this server sees the compiled traceability graph.
 
 Pick the right surface per intent:
-- Find entries by keyword → entry_search tool (scales to thousands of entries; preferred discovery path)
-- Show one entry by display ID → resources/read markspec://entry/{displayId}
-- Walk upward from an entry to see what it satisfies → entry_context tool
-- See what depends on an entry → the "Incoming links" section in markspec://entry/{id}
-- Check project health (broken refs, duplicates, rule violations) → validate tool
-- Refresh after CLI/file edits → markspec_refresh tool
+  - Find requirements by keyword      → entry_search
+  - Show one requirement by ID        → resources/read markspec://entry/{id}
+  - Walk satisfies-chain upward       → entry_context
+  - See what depends on a requirement → "Incoming links" in markspec://entry/{id}
+  - Check project health              → validate
+  - Refresh after external file edits → markspec_refresh
 
-Avoid:
-- Reading markspec://entries on projects with more than ~50 entries; use entry_search instead.
-- Calling markspec_refresh between back-to-back reads — MCP reads are cache-coherent within a session.
-- Using this server to edit entries. Writes are CLI-only (markspec format, markspec insert).
+SKIP when:
+  - any MarkSpec tool returns "No MarkSpec project found" — this workspace
+    doesn't use MarkSpec (no .markspec.yaml or project.yaml in scope);
+    stop calling MarkSpec tools for the rest of this session
+  - the user asks about source-code symbols, language features, framework
+    APIs, or library documentation — use context7 / language servers /
+    Read instead
+  - the user wants to edit a file directly ("change line 42 to X", "fix
+    this typo") — MarkSpec MCP is read-only; use Edit
+  - the user wants to create or insert a new requirement — writes are
+    CLI-only (markspec format, markspec insert)
+  - the user wants a rendered preview of a Markdown file — use markspec
+    doc build / markspec book build via Bash, not the MCP
 
-All resource bodies are Markdown with cross-references as markspec:// URIs you can follow with resources/read.`;
+Do NOT use this server to edit entries. Writes are CLI-only:
+  markspec format, markspec insert.
+
+All resource bodies are Markdown with markspec:// URIs you can follow with
+resources/read.`;
 
 /**
  * Start the MarkSpec MCP server.
