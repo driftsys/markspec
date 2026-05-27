@@ -13,12 +13,57 @@ import type { GlossaryIndex } from "../glossary.ts";
 import { deriveTermSlug } from "../../parser/glossary.ts";
 import { offsetToRange } from "../range_util.ts";
 
-/** Hook signature for the deferred $Identifier registry leg. Returns
- * true when the token is a resolvable $Identifier (i.e. should be
- * skipped by Q500). Today, always returns false; ADR-016's marker
- * pass replaces this with a real registry lookup. See ADR-021
- * Decision 1. */
+/** Hook signature for the $Identifier registry leg. Returns true when
+ * the token is a resolvable $Identifier (i.e. should be skipped by
+ * Q500). See ADR-021 Decision 1 for the integration seam, and
+ * {@linkcode buildIdentifierIndex} + {@linkcode buildIsIdentifierHook}
+ * for the corpus-scan implementation that backs it today. */
 export type IsIdentifierHook = (token: string) => boolean;
+
+/**
+ * Build a corpus-wide `$Identifier` index from every entry's `bodyTokens`.
+ *
+ * Aggregates the bare name (text with leading `$` stripped) of every
+ * `entity-ref` token across `entries` into a `Set<string>`. The set is
+ * the data backing the {@linkcode IsIdentifierHook} closure produced by
+ * {@linkcode buildIsIdentifierHook}.
+ *
+ * Behavioural contract (ADR-021 Decision 1, additive-enrichment invariant):
+ *   - Every name in the index is observed in the corpus as `$Name`.
+ *   - The index is purely additive: more entries → more silenced phrases,
+ *     never more diagnostics.
+ *
+ * Scope note: this is the pragmatic minimal resolver leg per issue #502.
+ * The formal `MSL-M050`/`MSL-M051` entity-resolution model (definition
+ * vs. use, typed identifiers, profile Aliases) is deferred to a
+ * follow-up story — the closure body changes but the hook signature
+ * stays the same.
+ */
+export function buildIdentifierIndex(
+  entries: readonly Entry[],
+): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const entry of entries) {
+    for (const token of entry.bodyTokens) {
+      if (token.kind !== "entity-ref") continue;
+      // `token.text` is the full `$Identifier` form; strip the leading `$`.
+      out.add(token.text.slice(1));
+    }
+  }
+  return out;
+}
+
+/**
+ * Build the {@linkcode IsIdentifierHook} closure from a precomputed
+ * index. Separated from {@linkcode buildIdentifierIndex} so the index
+ * can be computed once per `runLint` invocation and reused across
+ * every in-scope entry.
+ */
+export function buildIsIdentifierHook(
+  index: ReadonlySet<string>,
+): IsIdentifierHook {
+  return (phrase) => index.has(phrase);
+}
 
 /** RFC 2119 modal verbs + EARS leading-clause keywords that must never
  * trigger Q500 mid-sentence. Sentence-initial exclusion is handled

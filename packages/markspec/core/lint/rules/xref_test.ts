@@ -6,10 +6,10 @@
 
 import { assertEquals } from "@std/assert";
 import type { BodyBlock } from "../../ast/nodes.ts";
-import type { Entry } from "../../model/mod.ts";
+import type { BodyToken, Entry } from "../../model/mod.ts";
 import { makeDisplayId } from "../../model/mod.ts";
 import { loadLexicon } from "../../lexicons/mod.ts";
-import { runXrefRules } from "./xref.ts";
+import { buildIdentifierIndex, runXrefRules } from "./xref.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,6 +31,7 @@ function makeParagraph(text: string, line = 1, column = 1): BodyBlock {
 interface MakeEntryOpts {
   location?: { file: string; line: number; column: number };
   bodyStartLine?: number;
+  bodyTokens?: readonly BodyToken[];
 }
 
 function makeEntry(
@@ -61,7 +62,23 @@ function makeEntry(
       ? { bodyStartLine: opts.bodyStartLine }
       : {}),
     source: { kind: "markdown" },
-    bodyTokens: [],
+    bodyTokens: opts.bodyTokens ?? [],
+  };
+}
+
+function entityRef(text: string, line = 1, column = 1): BodyToken {
+  const bare = text.startsWith("$") ? text.slice(1) : text;
+  const convention =
+    /^[A-Z][A-Z0-9_]*[A-Z0-9]$/.test(bare) && /[_0-9]/.test(bare)
+      ? "constant"
+      : /^[A-Z]/.test(bare)
+      ? "type"
+      : "instance";
+  return {
+    kind: "entity-ref",
+    text: text.startsWith("$") ? text : `$${text}`,
+    convention,
+    location: { file: "test.md", line, column },
   };
 }
 
@@ -249,4 +266,58 @@ Deno.test("Q500: 'Brake of the Vehicle System' is one phrase (ADR-021 Decision 2
   const q500 = diags.filter((d) => d.code === "MSL-Q500");
   assertEquals(q500.length, 1);
   assertEquals(q500[0].message.includes("Brake of the Vehicle System"), true);
+});
+
+// ---------------------------------------------------------------------------
+// buildIdentifierIndex — corpus-scan $Identifier resolver leg (issue #502)
+// ---------------------------------------------------------------------------
+
+Deno.test("buildIdentifierIndex: aggregates entity-ref bare names across entries", () => {
+  const e1 = makeEntry("ignored prose", "REQ_0001", {
+    bodyTokens: [entityRef("$BrakePedalPressed")],
+  });
+  const e2 = makeEntry("ignored prose", "REQ_0002", {
+    bodyTokens: [entityRef("$sensorStatus"), entityRef("$ASIL_D")],
+  });
+  const index = buildIdentifierIndex([e1, e2]);
+  // Bare names with leading `$` stripped.
+  assertEquals(index.has("BrakePedalPressed"), true);
+  assertEquals(index.has("sensorStatus"), true);
+  assertEquals(index.has("ASIL_D"), true);
+  // Words appearing in prose but never as $Identifier MUST NOT enter the index.
+  assertEquals(index.has("ignored"), false);
+  assertEquals(index.has("prose"), false);
+  // Set size matches the number of distinct identifiers observed.
+  assertEquals(index.size, 3);
+});
+
+Deno.test("buildIdentifierIndex: empty input yields empty index", () => {
+  const index = buildIdentifierIndex([]);
+  assertEquals(index.size, 0);
+});
+
+Deno.test("buildIdentifierIndex: ignores non-entity-ref body tokens", () => {
+  // Modal + EARS-trigger tokens must not pollute the identifier index.
+  const e = makeEntry("ignored prose", "REQ_0001", {
+    bodyTokens: [
+      {
+        kind: "modal",
+        text: "shall",
+        case: "lower",
+        location: { file: "test.md", line: 1, column: 1 },
+      },
+      {
+        kind: "ears-trigger",
+        text: "When",
+        trigger: "When",
+        location: { file: "test.md", line: 1, column: 1 },
+      },
+      entityRef("$RealIdentifier"),
+    ],
+  });
+  const index = buildIdentifierIndex([e]);
+  assertEquals(index.size, 1);
+  assertEquals(index.has("RealIdentifier"), true);
+  assertEquals(index.has("shall"), false);
+  assertEquals(index.has("When"), false);
 });
