@@ -93,8 +93,20 @@ Deno.test("buildBlockScaffoldItems: returns generic item when no types", () => {
 
 Deno.test("buildBlockScaffoldItems: returns one item per type", () => {
   const types = [
-    { name: "stakeholder-requirement", prefix: "STK_AEB_", nextNumber: 4 },
-    { name: "architecture", prefix: "SAD_AEB_", nextNumber: 2 },
+    {
+      name: "stakeholder-requirement",
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 4,
+    },
+    {
+      name: "architecture",
+      prefix: "SAD_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 2,
+    },
   ];
   const items = buildBlockScaffoldItems(
     types,
@@ -107,7 +119,13 @@ Deno.test("buildBlockScaffoldItems: returns one item per type", () => {
 
 Deno.test("buildBlockScaffoldItems: bakes provided ULID into snippet", () => {
   const items = buildBlockScaffoldItems(
-    [{ name: "stakeholder-requirement", prefix: "STK_AEB_", nextNumber: 1 }],
+    [{
+      name: "stakeholder-requirement",
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+    }],
     () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
   );
   assertEquals(items.length, 1);
@@ -122,8 +140,20 @@ Deno.test("buildBlockScaffoldItems: calls provider once per item", () => {
   const provider = () =>
     `01HGW2Q8MNP3RSTVWXYZ${(counter++).toString().padStart(6, "0")}`;
   const types = [
-    { name: "stakeholder-requirement", prefix: "STK_", nextNumber: 1 },
-    { name: "architecture", prefix: "SAD_", nextNumber: 1 },
+    {
+      name: "stakeholder-requirement",
+      prefix: "STK_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+    },
+    {
+      name: "architecture",
+      prefix: "SAD_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+    },
   ];
   const items = buildBlockScaffoldItems(types, provider);
   assertEquals(items.length, 2);
@@ -187,6 +217,8 @@ Deno.test("renderScaffoldSnippet: formats display ID and ULID", () => {
   const snippet = renderScaffoldSnippet({
     typeName: "stakeholder-requirement",
     prefix: "STK_AEB_",
+    width: 4,
+    suffix: "",
     nextNumber: 42,
     ulid: "01HGW2Q8MNP3RSTVWXYZABCDEF",
   });
@@ -208,6 +240,8 @@ Deno.test("renderScaffoldSnippet: escapes $ in profile-provided prefix and typeN
   const snippet = renderScaffoldSnippet({
     typeName: "type-with-$",
     prefix: "STK_$_",
+    width: 4,
+    suffix: "",
     nextNumber: 1,
     ulid: "01HGW2Q8MNP3RSTVWXYZABCDEF",
   });
@@ -215,6 +249,37 @@ Deno.test("renderScaffoldSnippet: escapes $ in profile-provided prefix and typeN
   // does not interpret them as tab stops.
   assertEquals(snippet.insertText.includes("STK_\\$_0001"), true);
   assertEquals(snippet.label.includes("type-with-\\$"), true);
+});
+
+Deno.test("renderScaffoldSnippet: 6-digit profile pattern produces 6-digit ID", () => {
+  // Regression test: profiles declared with `{n:6d}` previously
+  // produced 4-digit IDs from the LSP scaffold completion because
+  // the LSP hardcoded `padStart(4, "0")`. The resulting ID failed
+  // validation against the pattern. Plumbing width through the
+  // shared formatDisplayId fixes this.
+  const snippet = renderScaffoldSnippet({
+    typeName: "stakeholder-requirement",
+    prefix: "STK_",
+    width: 6,
+    suffix: "",
+    nextNumber: 7,
+    ulid: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  });
+  assertEquals(snippet.label, "New stakeholder-requirement (STK_000007)");
+  assertEquals(snippet.insertText.startsWith("STK_000007]"), true);
+});
+
+Deno.test("renderScaffoldSnippet: pattern suffix is preserved in the ID", () => {
+  const snippet = renderScaffoldSnippet({
+    typeName: "draft-requirement",
+    prefix: "REQ-",
+    width: 3,
+    suffix: "-draft",
+    nextNumber: 12,
+    ulid: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  });
+  assertEquals(snippet.label, "New draft-requirement (REQ-012-draft)");
+  assertEquals(snippet.insertText.startsWith("REQ-012-draft]"), true);
 });
 
 // --- Trailer key trigger ---
@@ -286,10 +351,38 @@ Deno.test("buildTrailerKeyItems: each label matches a TRAILER_KEYS entry", () =>
 
 Deno.test("Slice 5 LSP: buildBlockScaffoldItems sorts modeRecommended items first", () => {
   const types = [
-    { name: "Aaa", prefix: "AAA_", nextNumber: 1, modeRecommended: false },
-    { name: "Bbb", prefix: "BBB_", nextNumber: 1, modeRecommended: true },
-    { name: "Ccc", prefix: "CCC_", nextNumber: 1, modeRecommended: true },
-    { name: "Ddd", prefix: "DDD_", nextNumber: 1, modeRecommended: false },
+    {
+      name: "Aaa",
+      prefix: "AAA_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: false,
+    },
+    {
+      name: "Bbb",
+      prefix: "BBB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: true,
+    },
+    {
+      name: "Ccc",
+      prefix: "CCC_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: true,
+    },
+    {
+      name: "Ddd",
+      prefix: "DDD_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: false,
+    },
   ];
   const items = buildBlockScaffoldItems(
     types,
@@ -304,8 +397,8 @@ Deno.test("Slice 5 LSP: buildBlockScaffoldItems sorts modeRecommended items firs
 
 Deno.test("Slice 5 LSP: buildBlockScaffoldItems leaves order unchanged when modeRecommended is absent", () => {
   const types = [
-    { name: "Aaa", prefix: "AAA_", nextNumber: 1 },
-    { name: "Bbb", prefix: "BBB_", nextNumber: 1 },
+    { name: "Aaa", prefix: "AAA_", width: 4, suffix: "", nextNumber: 1 },
+    { name: "Bbb", prefix: "BBB_", width: 4, suffix: "", nextNumber: 1 },
   ];
   const items = buildBlockScaffoldItems(
     types,
@@ -318,8 +411,22 @@ Deno.test("Slice 5 LSP: buildBlockScaffoldItems leaves order unchanged when mode
 
 Deno.test("Slice 5 LSP: '(recommended)' suffix appears only on modeRecommended items", () => {
   const types = [
-    { name: "Yes", prefix: "YES_", nextNumber: 1, modeRecommended: true },
-    { name: "No", prefix: "NO_", nextNumber: 1, modeRecommended: false },
+    {
+      name: "Yes",
+      prefix: "YES_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: true,
+    },
+    {
+      name: "No",
+      prefix: "NO_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+      modeRecommended: false,
+    },
   ];
   const items = buildBlockScaffoldItems(
     types,
