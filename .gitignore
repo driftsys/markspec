@@ -40,3 +40,6 @@ docs/superpowers/
 
 # Git worktrees (per-developer, not tracked)
 .worktrees/
+
+# MarkSpec LSP event log (per-project, regenerated each session)
+.markspec/lsp.log*

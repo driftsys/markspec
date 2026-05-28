@@ -102,6 +102,11 @@ import {
   uriToPath,
 } from "./util.ts";
 import { debugLog } from "./debug_log.ts";
+import {
+  flushSync as flushEventLog,
+  logEvent,
+  setProjectRoot as setEventLogProjectRoot,
+} from "./event_log.ts";
 import { time, timeAsync } from "./timing.ts";
 import {
   buildDollarNameCompletions,
@@ -129,6 +134,7 @@ globalThis.addEventListener("unhandledrejection", (e) => {
   e.preventDefault();
   const reason = (e.reason as Error)?.stack ?? String(e.reason);
   debugLog(`unhandledrejection: ${reason}`);
+  logEvent("error", "uncaught", { type: "rejection", stack: reason });
   try {
     connection.console.error(`unhandled rejection: ${reason}`);
   } catch { /* connection may not be ready */ }
@@ -137,6 +143,7 @@ globalThis.addEventListener("unhandledrejection", (e) => {
 globalThis.addEventListener("error", (e) => {
   const stack = e.error?.stack ?? e.message;
   debugLog(`error: ${stack}`);
+  logEvent("error", "uncaught", { type: "error", stack });
   try {
     connection.console.error(`uncaught error: ${stack}`);
   } catch { /* connection may not be ready */ }
@@ -315,6 +322,7 @@ connection.onInitialize(
         ? uriToPath(rootUri)
         : rootUri;
       projectRoot = await discoverProjectRoot(rootPath, readFile) ?? rootPath;
+      setEventLogProjectRoot(projectRoot);
 
       // Load config
       try {
@@ -466,6 +474,7 @@ connection.onInitialized(async () => {
     // validator still flags the duplicate in either case; the
     // diagnostic location is the only thing that becomes
     // nondeterministic.
+    const parseAllStart = performance.now();
     await timeAsync("onInitialized/parseAll", async () => {
       const CONCURRENCY = 8;
       let cursor = 0;
@@ -486,6 +495,7 @@ connection.onInitialized(async () => {
         }),
       );
     });
+    const parseAllMs = Math.round(performance.now() - parseAllStart);
 
     connection.console.log(
       `Indexed ${files.length} files, ${index.getAllEntries().length} entries`,
@@ -498,6 +508,12 @@ connection.onInitialized(async () => {
     connection.sendNotification("markspec/indexed", {
       files: files.length,
       entries: index.getAllEntries().length,
+    });
+
+    logEvent("info", "startup", {
+      files: files.length,
+      entries: index.getAllEntries().length,
+      parseAllMs,
     });
 
     connection.sendNotification("markspec/version", {
@@ -1149,10 +1165,12 @@ connection.onShutdown(() => {
   debugLog("onShutdown");
   debouncedValidateAll.cancel();
   debouncedReloadProfile.cancel();
+  flushEventLog();
 });
 
 connection.onExit(() => {
   debugLog("onExit");
+  flushEventLog();
 });
 
 // ---------------------------------------------------------------------------
