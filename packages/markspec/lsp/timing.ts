@@ -38,16 +38,26 @@ function findThreshold(label: string): number | undefined {
 /**
  * Emit a `kind=slow` WARN event when `duration` exceeds the
  * registered threshold for `label`.
+ *
+ * Errors from {@linkcode logEvent} are swallowed: this helper runs
+ * in the `finally` block of {@linkcode time} / {@linkcode timeAsync},
+ * so any throw here would mask the original exception that the
+ * wrapped function raised.
  */
 function maybeFlagSlow(label: string, duration: number): void {
   const threshold = findThreshold(label);
   if (threshold === undefined) return;
   if (duration <= threshold) return;
-  logEvent("warn", "slow", {
-    label,
-    ms: Math.round(duration),
-    threshold,
-  });
+  try {
+    logEvent("warn", "slow", {
+      label,
+      ms: Math.round(duration),
+      threshold,
+    });
+  } catch {
+    // Never let observability disrupt the wrapped function's
+    // result/exception contract.
+  }
 }
 
 /** Time a synchronous function. Returns its result. */

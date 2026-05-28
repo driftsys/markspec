@@ -127,18 +127,50 @@ Deno.test("event_log: quotes values containing whitespace or specials", async ()
   });
 });
 
-Deno.test("event_log: setProjectRoot drains pre-init buffered events", async () => {
+Deno.test("event_log: setProjectRoot drains pre-init queued events", async () => {
   await withTempRoot(async (root, logPath) => {
-    // No env var, no projectRoot → first emit drops silently
-    logEvent("info", "before-init");
+    // No env var, no projectRoot → emit queues into the bounded
+    // pre-init buffer rather than dropping. This is the path that
+    // recovers startup-time uncaught errors that fire before
+    // onInitialize resolves the workspace.
+    logEvent("error", "uncaught", { type: "rejection", stack: "boom" });
+    logEvent("info", "lifecycle", { event: "starting" });
     setProjectRoot(root);
     logEvent("info", "after-init");
     flushSync();
     const contents = await Deno.readTextFile(logPath);
-    // "before-init" was dropped (no destination at the time of emit);
-    // only "after-init" should appear.
-    assertEquals(contents.includes("kind=before-init"), false);
+    // All three events should appear, in emit order.
+    assertStringIncludes(contents, "kind=uncaught");
+    assertStringIncludes(contents, "stack=boom");
+    assertStringIncludes(contents, "event=starting");
     assertStringIncludes(contents, "kind=after-init");
+    const lines = contents.trim().split("\n");
+    assertEquals(lines.length, 3);
+    // Order preservation: pre-init events come first, in arrival order.
+    assert(lines[0].includes("kind=uncaught"), "uncaught should come first");
+    assert(lines[1].includes("event=starting"), "starting should come second");
+    assert(lines[2].includes("kind=after-init"), "after-init should come last");
+  });
+});
+
+Deno.test("event_log: pre-init queue drops oldest on overflow", async () => {
+  await withTempRoot(async (root, logPath) => {
+    // Emit > MAX_PRE_INIT_EVENTS (64) before init. The oldest entries
+    // should be dropped; the newest 64 should survive.
+    for (let i = 0; i < 70; i++) {
+      logEvent("info", "early", { i });
+    }
+    setProjectRoot(root);
+    flushSync();
+    const contents = await Deno.readTextFile(logPath);
+    const lines = contents.trim().split("\n");
+    // 70 emitted, 64 retained.
+    assertEquals(lines.length, 64);
+    // i=0..5 dropped, i=6..69 retained.
+    assertEquals(contents.includes(" i=0\n"), false);
+    assertEquals(contents.includes(" i=5\n"), false);
+    assertStringIncludes(contents, " i=6\n");
+    assertStringIncludes(contents, " i=69\n");
   });
 });
 

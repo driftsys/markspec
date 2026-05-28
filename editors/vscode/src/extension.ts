@@ -111,7 +111,7 @@ export function activate(context: ExtensionContext): void {
     workspaceFolder,
     configuredServerPath: config.get<string>("server.path") || undefined,
     configuredServerArgs: config.get<string[]>("server.args"),
-    debugLogPath: config.get<string>("trace.debugLog") || undefined,
+    logPath: config.get<string>("trace.logPath") || undefined,
     platform: process.platform,
   });
 
