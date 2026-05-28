@@ -102,7 +102,6 @@ import {
   pathToUri,
   uriToPath,
 } from "./util.ts";
-import { debugLog } from "./debug_log.ts";
 import {
   flushSync as flushEventLog,
   logEvent,
@@ -128,14 +127,15 @@ const connection = createConnection(
 );
 const documents = new TextDocuments(TextDocument);
 
-debugLog(
-  `server starting (pid=${Deno.pid}, args=${JSON.stringify(Deno.args)})`,
-);
+logEvent("info", "lifecycle", {
+  event: "starting",
+  pid: Deno.pid,
+  args: JSON.stringify(Deno.args),
+});
 
 globalThis.addEventListener("unhandledrejection", (e) => {
   e.preventDefault();
   const reason = (e.reason as Error)?.stack ?? String(e.reason);
-  debugLog(`unhandledrejection: ${reason}`);
   logEvent("error", "uncaught", { type: "rejection", stack: reason });
   try {
     connection.console.error(`unhandled rejection: ${reason}`);
@@ -144,7 +144,6 @@ globalThis.addEventListener("unhandledrejection", (e) => {
 
 globalThis.addEventListener("error", (e) => {
   const stack = e.error?.stack ?? e.message;
-  debugLog(`error: ${stack}`);
   logEvent("error", "uncaught", { type: "error", stack });
   try {
     connection.console.error(`uncaught error: ${stack}`);
@@ -344,7 +343,7 @@ function encodeSemanticTokens(
 
 connection.onInitialize(
   async (params: InitializeParams): Promise<InitializeResult> => {
-    debugLog("onInitialize: start");
+    logEvent("info", "lifecycle", { event: "onInitialize.start" });
     const rootUri = params.rootUri ?? params.rootPath;
     if (rootUri) {
       const rootPath = rootUri.startsWith("file://")
@@ -405,7 +404,7 @@ connection.onInitialize(
       }
     }
 
-    debugLog("onInitialize: end");
+    logEvent("info", "lifecycle", { event: "onInitialize.end" });
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Full,
@@ -476,10 +475,13 @@ const debouncedReloadProfile = debounce(reloadProfile, 500);
 // ---------------------------------------------------------------------------
 
 connection.onInitialized(async () => {
-  debugLog("onInitialized: start");
+  logEvent("info", "lifecycle", { event: "onInitialized.start" });
   if (!projectRoot) {
     connection.console.log("No project root found — running without index");
-    debugLog("onInitialized: end (no project root)");
+    logEvent("info", "lifecycle", {
+      event: "onInitialized.end",
+      reason: "no-project-root",
+    });
     return;
   }
 
@@ -529,7 +531,10 @@ connection.onInitialized(async () => {
     connection.console.log(
       `Indexed ${files.length} files, ${index.getAllEntries().length} entries`,
     );
-    debugLog(`onInitialized: indexed ${files.length} files`);
+    logEvent("info", "lifecycle", {
+      event: "onInitialized.indexed",
+      files: files.length,
+    });
 
     // Initial cross-file validation
     publishAllDiagnostics();
@@ -578,9 +583,12 @@ connection.onInitialized(async () => {
     }
   } catch (err) {
     connection.console.error(`Indexing failed: ${err}`);
-    debugLog(`onInitialized: indexing failed: ${err}`);
+    logEvent("error", "lifecycle", {
+      event: "onInitialized.failed",
+      err: String(err),
+    });
   }
-  debugLog("onInitialized: end");
+  logEvent("info", "lifecycle", { event: "onInitialized.end" });
 });
 
 // ---------------------------------------------------------------------------
@@ -1209,7 +1217,7 @@ connection.onRequest(
 // ---------------------------------------------------------------------------
 
 connection.onShutdown(() => {
-  debugLog("onShutdown");
+  logEvent("info", "lifecycle", { event: "onShutdown" });
   debouncedValidateAll.cancel();
   debouncedReloadProfile.cancel();
   // Roll up per-method counters + session duration into one final
@@ -1226,7 +1234,7 @@ connection.onShutdown(() => {
 });
 
 connection.onExit(() => {
-  debugLog("onExit");
+  logEvent("info", "lifecycle", { event: "onExit" });
   flushEventLog();
 });
 

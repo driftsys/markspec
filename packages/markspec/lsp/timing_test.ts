@@ -4,26 +4,7 @@
 
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { _resetEventLog, flushSync } from "./event_log.ts";
-import { _resetTiming, time, timeAsync } from "./timing.ts";
-
-async function withTempLog<T>(
-  fn: (path: string) => T | Promise<T>,
-): Promise<T> {
-  _resetTiming();
-  const path = await Deno.makeTempFile({ prefix: "markspec-timing-" });
-  Deno.env.set("MARKSPEC_LSP_TIMING_LOG", path);
-  try {
-    return await fn(path);
-  } finally {
-    Deno.env.delete("MARKSPEC_LSP_TIMING_LOG");
-    _resetTiming();
-    try {
-      await Deno.remove(path);
-    } catch {
-      /* already gone */
-    }
-  }
-}
+import { time, timeAsync } from "./timing.ts";
 
 /**
  * Set up a temp MARKSPEC_LSP_LOG so the default-on event_log writes
@@ -33,11 +14,9 @@ async function withTempLog<T>(
 async function withEventLog<T>(
   fn: (logPath: string) => T | Promise<T>,
 ): Promise<T> {
-  _resetTiming();
   _resetEventLog();
   Deno.env.delete("MARKSPEC_LSP_LOG");
   Deno.env.delete("MARKSPEC_LSP_LOG_OFF");
-  Deno.env.delete("MARKSPEC_LSP_TIMING_LOG");
   const logPath = await Deno.makeTempFile({ prefix: "markspec-slow-events-" });
   Deno.env.set("MARKSPEC_LSP_LOG", logPath);
   try {
@@ -45,10 +24,8 @@ async function withEventLog<T>(
   } finally {
     flushSync();
     _resetEventLog();
-    _resetTiming();
     Deno.env.delete("MARKSPEC_LSP_LOG");
     Deno.env.delete("MARKSPEC_LSP_LOG_OFF");
-    Deno.env.delete("MARKSPEC_LSP_TIMING_LOG");
     try {
       await Deno.remove(logPath);
     } catch {
@@ -65,65 +42,69 @@ function busySleep(ms: number): void {
   }
 }
 
-Deno.test("timing: no-op when env var unset", () => {
-  _resetTiming();
-  Deno.env.delete("MARKSPEC_LSP_TIMING_LOG");
-  const result = time("noop", () => 42);
+Deno.test("timing: time() returns wrapped result", () => {
+  const result = time("unregistered-label", () => 42);
   assertEquals(result, 42);
 });
 
-Deno.test("timing: time() returns result and writes log line", async () => {
-  await withTempLog(async (path) => {
-    const result = time("sync-test", () => "hello");
-    assertEquals(result, "hello");
-    const contents = await Deno.readTextFile(path);
-    assertStringIncludes(contents, "timing: sync-test");
-    assertStringIncludes(contents, "ms");
+Deno.test("timing: timeAsync() returns wrapped result", async () => {
+  const result = await timeAsync("unregistered-label", async () => {
+    await Promise.resolve();
+    return 7;
   });
+  assertEquals(result, 7);
 });
 
-Deno.test("timing: timeAsync() returns result and writes log line", async () => {
-  await withTempLog(async (path) => {
-    const result = await timeAsync("async-test", async () => {
-      await Promise.resolve();
-      return 7;
+Deno.test("timing: time() propagates exceptions", () => {
+  let threw = false;
+  try {
+    time("unregistered-label", () => {
+      throw new Error("boom");
     });
-    assertEquals(result, 7);
-    const contents = await Deno.readTextFile(path);
-    assertStringIncludes(contents, "timing: async-test");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "expected exception to propagate");
+});
+
+Deno.test("timing: timeAsync() propagates rejections", async () => {
+  let threw = false;
+  try {
+    await timeAsync("unregistered-label", async () => {
+      await Promise.resolve();
+      throw new Error("boom");
+    });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "expected rejection to propagate");
+});
+
+Deno.test("timing: time() returns result for a registered label", async () => {
+  // Registered label triggers the slow-flag path; verify result still
+  // flows through.
+  await withEventLog(() => {
+    const result = time("onInitialized/parseFile", () => "hello");
+    assertEquals(result, "hello");
   });
 });
 
-Deno.test("timing: time() still logs when wrapped fn throws", async () => {
-  await withTempLog(async (path) => {
+Deno.test("timing: time() still flags slow when wrapped fn throws", async () => {
+  await withEventLog(async (logPath) => {
     let threw = false;
     try {
-      time("throws", () => {
+      time("onInitialized/parseFile", () => {
+        busySleep(60);
         throw new Error("boom");
       });
     } catch {
       threw = true;
     }
     assert(threw, "expected exception to propagate");
-    const contents = await Deno.readTextFile(path);
-    assertStringIncludes(contents, "timing: throws");
-  });
-});
-
-Deno.test("timing: timeAsync() still logs when wrapped fn rejects", async () => {
-  await withTempLog(async (path) => {
-    let threw = false;
-    try {
-      await timeAsync("rejects", async () => {
-        await Promise.resolve();
-        throw new Error("boom");
-      });
-    } catch {
-      threw = true;
-    }
-    assert(threw, "expected rejection to propagate");
-    const contents = await Deno.readTextFile(path);
-    assertStringIncludes(contents, "timing: rejects");
+    flushSync();
+    const contents = await Deno.readTextFile(logPath);
+    assertStringIncludes(contents, "kind=slow");
+    assertStringIncludes(contents, "label=onInitialized/parseFile");
   });
 });
 
