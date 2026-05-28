@@ -10,7 +10,37 @@
  *
  * Kept separate from MARKSPEC_LSP_DEBUG_LOG so timing noise doesn't
  * drown out lifecycle/crash events when both are enabled.
+ *
+ * Slow-event flags (Job 2 of the event-log epic): when a measurement
+ * exceeds a label-prefix threshold (see {@linkcode THRESHOLDS}), a
+ * `kind=slow` WARN event is ALSO emitted via the default-on
+ * {@link ./event_log.ts event_log}. This second channel is
+ * independent of MARKSPEC_LSP_TIMING_LOG — slow flags fire even when
+ * detailed timing output is disabled.
  */
+
+import { logEvent } from "./event_log.ts";
+
+/**
+ * Label-prefix → threshold-ms table. Order documents prefix
+ * specificity: longer prefixes come first so they win over shorter
+ * ones in {@linkcode findThreshold}. When two prefixes would both
+ * match a label, the first array entry wins.
+ */
+const THRESHOLDS: ReadonlyArray<readonly [string, number]> = [
+  ["onInitialized/parseFile", 50],
+  ["onInitialized/parseAll", 5000],
+  ["validateAll/", 100],
+  ["onCompletion/", 10],
+] as const;
+
+/** Return the first threshold whose prefix matches `label`, or undefined. */
+function findThreshold(label: string): number | undefined {
+  for (const [prefix, ms] of THRESHOLDS) {
+    if (label.startsWith(prefix)) return ms;
+  }
+  return undefined;
+}
 
 let logPath: string | undefined;
 let initialized = false;
@@ -36,15 +66,38 @@ function write(label: string, ms: number): void {
   }
 }
 
+/**
+ * Emit a `kind=slow` WARN event when `duration` exceeds the
+ * registered threshold for `label`. Independent of MARKSPEC_LSP_TIMING_LOG —
+ * slow flags ride the default-on event log so perf regressions show
+ * up in `.markspec/lsp.log` without authors opting in to detailed
+ * timing capture.
+ */
+function maybeFlagSlow(label: string, duration: number): void {
+  const threshold = findThreshold(label);
+  if (threshold === undefined) return;
+  if (duration <= threshold) return;
+  logEvent("warn", "slow", {
+    label,
+    ms: Math.round(duration),
+    threshold,
+  });
+}
+
 /** Time a synchronous function. Returns its result. */
 export function time<T>(label: string, fn: () => T): T {
   lazyInit();
-  if (!logPath) return fn();
+  // Fast-path when neither channel cares about this label: skip the
+  // performance.now() pair entirely. The slow-event channel only
+  // cares when the label matches a registered prefix.
+  if (!logPath && findThreshold(label) === undefined) return fn();
   const start = performance.now();
   try {
     return fn();
   } finally {
-    write(label, performance.now() - start);
+    const duration = performance.now() - start;
+    write(label, duration);
+    maybeFlagSlow(label, duration);
   }
 }
 
@@ -54,12 +107,14 @@ export async function timeAsync<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   lazyInit();
-  if (!logPath) return await fn();
+  if (!logPath && findThreshold(label) === undefined) return await fn();
   const start = performance.now();
   try {
     return await fn();
   } finally {
-    write(label, performance.now() - start);
+    const duration = performance.now() - start;
+    write(label, duration);
+    maybeFlagSlow(label, duration);
   }
 }
 
