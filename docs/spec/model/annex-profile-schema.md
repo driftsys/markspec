@@ -1,32 +1,42 @@
 # Annex B — Profile manifest schema
 
 A profile is a versioned, distributable directory that extends the core type
-taxonomy with domain-specific vocabulary. Its normative specification lives in
-this annex; the [Profiles and extensions](profiles.md) chapter explains how to
-author and activate profiles.
+taxonomy with domain-specific vocabulary, attributes, labels, and rules. Its
+normative specification lives in this annex; the
+[Profiles and extensions](profiles.md) chapter explains how to author, activate,
+and publish profiles.
 
 ## B.1 Directory layout
 
 ```text
 <profile-id>/
 ├── markspec.yaml        ← manifest + declarative content (required)
+├── package.json         ← required only when publishing to npm (see §B.14)
 └── README.md            ← recommended
 ```
 
+`markspec.yaml` is authoritative — it is the only file the profile system reads.
+When the profile is published to npm, `markspec.yaml` MUST sit at the package
+root: the resolver runs `npm pack` and reads the manifest from the tarball root.
+
 The `markspec.yaml` file has two regions: **manifest fields** (identity,
 versioning, distribution) and the **`profile:` content subtree** (types,
-attributes, relations, labels).
+attributes, labels, colors, conventions, prose, discipline declarations, and
+document types).
 
 ## B.2 Top-level manifest fields
 
-| Field             | Required | Type   | Notes                                                   |
-| ----------------- | -------- | ------ | ------------------------------------------------------- |
-| `id`              | Yes      | string | Scoped identifier: `@org/name` or `name`                |
-| `version`         | Yes      | string | Semantic version (`MAJOR.MINOR.PATCH`)                  |
-| `description`     | No       | string | Human-readable summary; recommended for publishing      |
-| `license`         | No       | string | SPDX identifier (e.g. `MIT`, `Apache-2.0`); recommended |
-| `extends`         | No       | string | Parent profile specifier — local path or scoped ID      |
-| `markspec-schema` | No       | string | Core schema version pin (e.g. `"1"`); see §B.10         |
+| Field             | Required | Type   | Notes                                                              |
+| ----------------- | -------- | ------ | ------------------------------------------------------------------ |
+| `id`              | Yes      | string | Scoped identifier: `@org/name` or `name`                           |
+| `version`         | Yes      | string | Semantic version (`MAJOR.MINOR.PATCH`)                             |
+| `description`     | No       | string | Human-readable summary; recommended for publishing                 |
+| `license`         | No       | string | SPDX identifier (e.g. `MIT`, `Apache-2.0`); recommended            |
+| `extends`         | No       | string | Parent-profile **specifier** (see §B.11) — local, git, or npm form |
+| `markspec-schema` | No       | string | Core schema version pin (e.g. `"1"`); see §B.13                    |
+| `profile`         | No       | map    | The declarative content subtree (§B.3 onward)                      |
+
+Any unrecognised top-level key is a `PROFILE-LOAD-003` error.
 
 Complete example:
 
@@ -35,19 +45,43 @@ id: "@myorg/safety"
 version: 1.2.0
 description: "ISO 26262 safety vocabulary"
 license: MIT
-extends: "@markspec/default"
+extends: "npm:@markspec/profile-default@^1"
 markspec-schema: "1"
 
 profile:
-  types: { ... }
   attributes: []
-  relations: []
   labels: []
+  types: {}
+  documents:
+    types: []
+    frontMatter: []
 ```
+
+> **`extends:` is a specifier, not a bare profile id.** It must be one of the
+> three specifier forms in §B.11 (`./path`, `git+…#tag`, or `npm:…@range`). A
+> bare `@org/name` without a scheme is rejected. When `extends:` is omitted the
+> bundled default profile is spliced in as the implicit chain root (unless the
+> consuming project sets `default-profile: false`).
+
+The `profile:` block accepts these keys; any other is a `PROFILE-LOAD-003`
+error:
+
+| Block             | Section | Purpose                                          |
+| ----------------- | ------- | ------------------------------------------------ |
+| `attributes`      | §B.4    | Universal attributes (apply to every type)       |
+| `types`           | §B.3    | Profile-declared entry types                     |
+| `labels`          | §B.6    | Label concerns (flag / enum / set)               |
+| `colors`          | §B.7    | Semantic-name → palette-hue map                  |
+| `conventions`     | §B.8    | Tunable engine conventions (e.g. modal-keywords) |
+| `prose`           | §B.9    | Prose-analysis lexicons                          |
+| `kinds`           | §B.10   | Discipline kinds                                 |
+| `discipline-mode` | §B.10   | `flat` / `tiered` / `none`                       |
+| `documents`       | §B.12   | Document types + front-matter attributes         |
 
 ## B.3 Types (`profile.types`)
 
-Each entry under `profile.types` declares one concrete profile type:
+Each entry under `profile.types` declares one profile type. The key is the type
+name (lowercase-with-hyphens by convention):
 
 ```yaml
 profile:
@@ -56,276 +90,365 @@ profile:
       extends: Requirement
       display-id-pattern: "SRS_{n:4d}"
       description: "Software-level normative statement"
+      discipline: software
     hazard:
       extends: Risk
-      display-id-pattern: "HAZ_{n:4d}"
-    safety-requirement:
-      extends: software-requirement   # profile-declared parent
-      display-id-pattern: "SAF_{n:4d}"
+      display-id-pattern: "HAZ_{n:3d}"
+      display-id-pattern-enforcement: error
+      required: [Mitigated-by]
+      color: hazard-red
+      traceability:
+        Mitigated-by:
+          target: [software-requirement]
+          cardinality: "1..N"
+          required: true
 ```
 
 ### Type fields
 
-| Field                | Required | Notes                                                                    |
-| -------------------- | -------- | ------------------------------------------------------------------------ |
-| `extends`            | Yes      | Core type name (PascalCase) or another profile type in the same chain    |
-| `display-id-pattern` | No       | Pattern string; `{n:Nd}` is the numeric placeholder (N = minimum digits) |
-| `description`        | No       | Human-readable purpose shown by `markspec profile describe`              |
+| Field                            | Required | Notes                                                             |
+| -------------------------------- | -------- | ----------------------------------------------------------------- |
+| `extends`                        | Yes      | A **core type name** (PascalCase, §B.3.1)                         |
+| `display-id-pattern`             | No       | Pattern string; `{n:Nd}` is the numeric placeholder (§B.3.2)      |
+| `display-id-pattern-enforcement` | No       | `off` (default), `warn`, or `error`                               |
+| `description`                    | No       | Human-readable purpose shown by `markspec profile describe`       |
+| `required`                       | No       | List of attribute/relation keys that MUST be present on this type |
+| `attributes`                     | No       | Per-type attribute declarations (same shape as §B.4)              |
+| `traceability`                   | No       | Per-type relation rules, keyed by link name (§B.5)                |
+| `color`                          | No       | Semantic color name declared in `profile.colors` (§B.7)           |
+| `discipline`                     | No       | Non-empty string naming a kind in core ∪ chain kinds (§B.10)      |
+
+Any unrecognised type key is a `PROFILE-TYPE-005` error.
 
 ### Rules
 
-- **`extends:` is required.** Every profile type must name a parent. Omitting it
-  is a profile-load error (`PROFILE-TYPE-001`).
-- **Target must resolve.** The parent must be one of the 19 core type names (4
-  abstract + 15 concrete) or another profile type in the same effective profile.
-  An unresolved target is `PROFILE-TYPE-002`.
-- **No cycles.** The inheritance graph must be acyclic and must root at a core
-  type (`PROFILE-TYPE-003`).
-- **No shadowing.** Profile type names must not duplicate any of the 19 core
-  type names (`MSL-A040` / `PROFILE-TYPE-004`).
+- **`extends:` is required.** Every profile type names a core-type parent.
+  Omitting it is `PROFILE-TYPE-001`.
+- **The parent must be a core type.** `extends:` must resolve to one of the core
+  type names in §B.3.1; an unrecognised value is `PROFILE-TYPE-002`.
+- **No shadowing.** A profile type name must not duplicate a core type name
+  (`MSL-A040`).
 - **Convention.** Profile type names use lowercase-with-hyphens; core names use
-  PascalCase. This makes origin unambiguous.
+  PascalCase. This keeps a name's origin unambiguous.
 
-### display-id-pattern syntax
+### B.3.1 Core type names
 
-| Placeholder | Meaning                                  | Example pattern | Example output |
-| ----------- | ---------------------------------------- | --------------- | -------------- |
-| `{n:4d}`    | Auto-increment, minimum 4 digits, padded | `SRS_{n:4d}`    | `SRS_0042`     |
-| `{n:3d}`    | Auto-increment, minimum 3 digits, padded | `HAZ_{n:3d}`    | `HAZ_003`      |
-| `{scope}`   | Project-scope tag (reserved, future)     | —               | —              |
+There are **16 core type names** — 4 abstract roots plus 12 concrete subtypes.
+Fifteen are instantiable (every name except the purely abstract `Item`).
+`extends:` on a profile type must name one of these:
 
-`markspec format` assigns the next available number. `markspec next-id <type>`
-prints it without writing.
+| Group                    | Names                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| Abstract roots (4)       | `Item`, `Specification`, `Component`, `Unit`                                       |
+| `Specification` subtypes | `Requirement`, `Test`, `Contract`, `Record`, `Risk`                                |
+| `Component` subtypes     | `SoftwareComponent`, `HardwareComponent`, `SoftwareInterface`, `HardwareInterface` |
+| `Unit` subtypes          | `SoftwareUnit`, `HardwareUnit`                                                     |
+| `Item` subtype           | `Definition`                                                                       |
 
-## B.4 Attributes (`profile.attributes`)
+`Specification`, `Component`, and `Unit` are abstract roots that are also
+directly instantiable (usable as fallbacks when no concrete subtype fits);
+`Item` is the only non-instantiable name.
+
+### B.3.2 `display-id-pattern` syntax
+
+| Placeholder | Meaning                                   | Example pattern   | Example output |
+| ----------- | ----------------------------------------- | ----------------- | -------------- |
+| `{n:4d}`    | Auto-increment, minimum 4 digits, padded  | `SRS_{n:4d}`      | `SRS_0042`     |
+| `{n:3d}`    | Auto-increment, minimum 3 digits, padded  | `HAZ_{n:3d}`      | `HAZ_003`      |
+| `{n:04d}`   | Leading-zero form, equivalent to `{n:4d}` | `STK_AEB_{n:04d}` | `STK_AEB_0007` |
+
+The text before the placeholder is the literal prefix; the text after is the
+literal suffix (e.g. `REQ-{n:3d}-draft` → `REQ-012-draft`). Width is a minimum,
+not a maximum — numbers wider than the pad are left intact. `markspec format`
+assigns the next available number; `markspec next-id <type>` prints it without
+writing; `markspec create` / `insert` scaffold a full block.
+
+`display-id-pattern-enforcement` controls whether an entry whose display ID does
+not match the pattern is ignored (`off`), warned (`warn`), or rejected
+(`error`).
+
+## B.4 Attributes (`profile.attributes` and per-type `attributes`)
+
+`profile.attributes` declares **universal** attributes (valid on every type);
+the identical shape under a type's `attributes:` field declares **type-scoped**
+attributes.
 
 ```yaml
 profile:
   attributes:
-    - key: ASIL
-      applies-to: [software-requirement, hazard, test]
-      cardinality: single
+    - name: ASIL
+      type: enum
       values: [QM, ASIL-A, ASIL-B, ASIL-C, ASIL-D]
+      required: false
       description: "Automotive Safety Integrity Level"
-    - key: Test-level
-      applies-to: [test]
-      cardinality: single
-      values: [unit, integration, system, acceptance]
-    - key: Priority
-      applies-to: []       # empty = applies to all profile types
-      cardinality: single
-      values: [low, medium, high, critical]
+    - name: Mitigated-by
+      type: id-list
+      cardinality: "1..N"
+      inverse:
+        name: Mitigates
+        category: relation
 ```
 
 ### Attribute fields
 
-| Field         | Required | Notes                                                                  |
-| ------------- | -------- | ---------------------------------------------------------------------- |
-| `key`         | Yes      | Trailer key name; PascalCase or Hyphen-case; must not shadow core keys |
-| `applies-to`  | Yes      | List of profile type names; empty list means all profile types         |
-| `cardinality` | No       | `single` (default) or `multi`; `multi` allows repeated `Key:` lines    |
-| `values`      | No       | Closed enumeration; open if omitted                                    |
-| `description` | No       | Human-readable purpose                                                 |
-| `required`    | No       | Boolean; `true` makes the attribute mandatory for the listed types     |
+| Field         | Required | Notes                                                                        |
+| ------------- | -------- | ---------------------------------------------------------------------------- |
+| `name`        | Yes      | Trailer key name (e.g. `ASIL`, `Mitigated-by`)                               |
+| `type`        | Yes      | A value type from the table below                                            |
+| `required`    | No       | Boolean; `true` makes the attribute mandatory (default `false`)              |
+| `cardinality` | No       | `"lower..upper"`, e.g. `"0..1"`, `"1..1"`, `"1..N"`. Defaults per value type |
+| `values`      | enum     | Required for `type: enum`; the closed value list (see grouping note)         |
+| `inverse`     | No       | Only for `id` / `id-list`: `{name, category}` — the generated reverse edge   |
+| `description` | No       | Human-readable purpose                                                       |
 
-### Constraints
+Any unrecognised attribute key is a `PROFILE-LOAD-003` error.
 
-- Attribute keys must not conflict with the core universal set (`Id`, `Type`,
-  `Labels`, `References`, `External-id`, `Supersedes`, `Superseded-by`,
-  `Deprecated`). Shadowing a core key is `MSL-A040`.
-- `cardinality: multi` allows repeating the attribute on separate trailer lines
-  or as CSV on a single line. `markspec format` normalises CSV to one-per-line.
+### Value types (`type:`)
 
-## B.5 Relations (`profile.relations`)
+`id`, `id-list`, `uri`, `url`, `path`, `path-or-id`, `enum`, `tag-list`, `text`,
+`citation`, `external-id`, `integer`, `date`, `boolean`.
 
-```yaml
-profile:
-  relations:
-    - key: Mitigated-by
-      inverse: Mitigates
-      source-types: [hazard]
-      target-types: [software-requirement]
-      cardinality: many-to-many
-      description: "Links a hazard to requirements that address it"
-    - key: Addresses
-      inverse: Addressed-by
-      source-types: [software-requirement]
-      target-types: [change]
-      cardinality: many-to-one
-```
+Default cardinality is `0..N` for the list types (`id-list`, `tag-list`) and
+`0..1` for every other type. A `cardinality:` string overrides the default; its
+upper bound must be `N` (unbounded) or an integer ≥ the lower bound.
 
-### Relation fields
+### `enum` value grouping
 
-| Field          | Required | Notes                                                                     |
-| -------------- | -------- | ------------------------------------------------------------------------- |
-| `key`          | Yes      | Trailer attribute name used by authors (`Mitigated-by: HAZ_001`)          |
-| `inverse`      | No       | Name of the generated reverse edge; MarkSpec writes it in compiled output |
-| `source-types` | No       | Profile types that may carry this relation; empty = any                   |
-| `target-types` | No       | Profile types that may be targeted; empty = any                           |
-| `cardinality`  | No       | `many-to-many` (default), `many-to-one`, `one-to-many`, `one-to-one`      |
-| `description`  | No       | Human-readable purpose                                                    |
+An `enum`'s `values:` list may be bare strings, `{name, description?}` mappings,
+or `{group, description?, values: [...]}` group objects (recursed). Group labels
+and descriptions are documentation-only — validation matches against the leaf
+value names.
 
-Relations declared in a profile are validated by `markspec validate`. A relation
-attribute on an entry not in `source-types` is `MSL-R085`. A target not in
-`target-types` is `MSL-R086`.
+## B.5 Relations (per-type `traceability` + attribute `inverse`)
 
-## B.6 Labels (`profile.labels`)
+> There is **no** top-level `profile.relations` block. Relations are expressed
+> two ways: per-type **traceability rules**, and per-attribute **inverses**.
 
-```yaml
-profile:
-  labels:
-    - name: DRAFT
-      description: "Work in progress; not reviewed"
-    - name: RELEASED
-      description: "Approved and baselined"
-    - name: ASIL-B
-      description: "Automotive Safety Integrity Level B"
-      applies-to: [software-requirement, hazard]
-```
+### Per-type `traceability`
 
-| Field         | Required | Notes                                          |
-| ------------- | -------- | ---------------------------------------------- |
-| `name`        | Yes      | Label value as it appears in `Labels:` trailer |
-| `description` | No       | Human-readable meaning                         |
-| `applies-to`  | No       | Restrict to listed profile types; empty = any  |
-
-Labels not declared in the active profile produce `MSL-L010` (unknown label
-concern).
-
-## B.7 Discipline kinds (`profile.kinds`)
-
-The optional `profile.kinds` map declares engineering disciplines that profile
-types may be assigned to. See
-[ADR-017 — Discipline Classification](../../architecture/adr-017-discipline-classification.md)
-and
-[Profiles and extensions — Discipline kinds](profiles.md#discipline-kinds-profilekinds)
-for authoring guidance.
-
-### `profile.kinds` (map)
-
-| Property | Required | Type                       | Notes                                                                          |
-| -------- | -------- | -------------------------- | ------------------------------------------------------------------------------ |
-| (key)    | —        | `^[a-z][a-z0-9-]*$`        | Kind name; must not be `mixed`; see [name rule](#kind-name-rule) below         |
-| (value)  | —        | null \| string \| KindDecl | Three legal YAML shapes; see [`profile.kinds.<name>`](#profilekindsname) below |
-
-`profile.kinds` is optional. When absent, the map is treated as empty; only
-core-declared kinds are available to type declarations in the profile.
-
-### `profile.kinds.<name>`
-
-Each map entry under `profile.kinds` declares one discipline kind. The value may
-be one of three YAML shapes:
-
-| Shape                | Example                               | Effect                                    |
-| -------------------- | ------------------------------------- | ----------------------------------------- |
-| null (bare key)      | `avionics:`                           | Kind registered; no description           |
-| string shorthand     | `mechanical: "Mechanical assemblies"` | Kind registered with inline `description` |
-| mapping (`KindDecl`) | `firmware:\n  description: "…"`       | Kind registered; description as sub-field |
-
-**`KindDecl` fields:**
-
-| Field         | Required | Type   | Notes                  |
-| ------------- | -------- | ------ | ---------------------- |
-| `description` | No       | string | Human-readable purpose |
-
-### Kind-name rule
-
-A kind name must match the pattern `^[a-z][a-z0-9-]*$` (lowercase letters,
-digits, and hyphens; must begin with a letter). The name `mixed` is reserved by
-the core engine.
-
-**Diagnostics:**
-
-| Code                     | Severity | Trigger                                                                           |
-| ------------------------ | -------- | --------------------------------------------------------------------------------- |
-| `PROFILE-DISCIPLINE-001` | error    | Kind name does not match `^[a-z][a-z0-9-]*$`                                      |
-| `PROFILE-DISCIPLINE-002` | error    | Kind name is the reserved word `mixed`                                            |
-| `PROFILE-DISCIPLINE-003` | warning  | Kind name duplicates a core-declared kind (redeclaration allowed but discouraged) |
-
-## B.8 Per-type `discipline:` field (`profile.types.<T>.discipline`)
-
-A type declaration may carry an optional `discipline:` field that assigns the
-type to a named kind:
+A type's `traceability:` field maps a trace-link key (e.g. `Satisfies`,
+`Mitigated-by`) to a rule constraining its targets:
 
 ```yaml
 profile:
   types:
-    SoftwareRequirement:
+    software-requirement:
       extends: Requirement
-      discipline: software   # must name a core or chain-declared kind
+      traceability:
+        Satisfies:
+          target: [system-requirement]
+          cardinality: "1..N"
+          required: true
+          description: "Each SRS satisfies at least one system requirement"
 ```
 
-### Updated type fields table
+### Trace-rule fields
 
-The full set of type fields (extending §B.3):
+| Field         | Required | Notes                                                                                |
+| ------------- | -------- | ------------------------------------------------------------------------------------ |
+| `target`      | Yes      | Non-empty list of matchers: a type-name string, or `{shape: identified\|referenced}` |
+| `cardinality` | No       | `"lower..upper"`; defaults to `0..N`                                                 |
+| `required`    | No       | Boolean (default `false`)                                                            |
+| `description` | No       | Human-readable purpose                                                               |
 
-| Field                | Required | Notes                                                                                    |
-| -------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `extends`            | Yes      | Core type name (PascalCase) or another profile type in the same chain                    |
-| `display-id-pattern` | No       | Pattern string; `{n:Nd}` is the numeric placeholder (N = minimum digits)                 |
-| `description`        | No       | Human-readable purpose shown by `markspec profile describe`                              |
-| `discipline`         | No       | Non-empty string naming a kind that exists in core-declared kinds ∪ chain-declared kinds |
+Any unrecognised trace-rule key is a `PROFILE-LOAD-003` error.
+`markspec profile
+show` and `markspec profile describe relation <key>` surface
+the resolved relations.
 
-### Rules for `discipline:`
+### Attribute `inverse`
 
-- The value must be a non-empty string (`PROFILE-DISCIPLINE-005`).
-- The named kind must exist in the union of core kinds and all kinds declared in
-  the profile chain, including the declaring profile and all of its ancestors
-  (`PROFILE-DISCIPLINE-004`).
-- When omitted, the registry inherits the discipline by walking the `extends:`
-  chain upward; no explicit `discipline:` is needed unless the type is
-  introducing or reassigning a kind.
+An `id` / `id-list` attribute may declare an `inverse:` (`{name, category}`).
+MarkSpec materialises the reverse edge in compiled output, so a forward
+`Mitigated-by` produces an inverse `Mitigates` on the target. `inverse` on a
+non-id attribute is a `PROFILE-LOAD-003` error.
 
-**Diagnostics:**
+## B.6 Labels (`profile.labels`)
 
-| Code                     | Severity | Trigger                                                                                          |
-| ------------------------ | -------- | ------------------------------------------------------------------------------------------------ |
-| `PROFILE-DISCIPLINE-004` | error    | `discipline:` names a kind not found in core-declared kinds ∪ chain-declared kinds               |
-| `PROFILE-DISCIPLINE-005` | error    | `discipline:` value is present but is not a non-empty string (empty string, null, or wrong type) |
+`profile.labels` may take two forms.
 
-## B.9 Profile-level `discipline-mode` (`profile.discipline-mode`)
-
-A profile may declare the optional `profile.discipline-mode:` scalar to make its
-intent about discipline tiering explicit. The value is one of `flat`, `tiered`,
-or `none`. When omitted, the mode is inferred from the profile's type graph:
-`tiered` when any profile-declared requirement-shaped type carries
-`discipline:`; `flat` when the profile contributes any discipline-bearing types
-but no per-type assignment; otherwise `none`. See ADR-017 Slice 5.
+**Form A — a list of names** (each becomes a `flag` concern):
 
 ```yaml
 profile:
-  discipline-mode: tiered   # optional; flat | tiered | none
+  labels:
+    - DRAFT
+    - RELEASED
 ```
 
-### Field
+**Form B — a mapping** keyed by concern name, for `enum` / `set` concerns or to
+attach descriptions:
 
-| Field             | Required | Type   | Notes                                                              |
-| ----------------- | -------- | ------ | ------------------------------------------------------------------ |
-| `discipline-mode` | No       | string | Scalar enum: `flat`, `tiered`, or `none`. Case-sensitive lowercase |
+```yaml
+profile:
+  labels:
+    DRAFT: "Work in progress; not reviewed"   # string shorthand → flag
+    asil:
+      kind: enum
+      description: "Automotive Safety Integrity Level"
+      values:
+        QM: "Quality-managed"
+        ASIL-A: null
+        ASIL-B: { description: "Integrity level B" }
+```
 
-### Rules
+### Label-concern fields (Form B)
 
-- The value must be a scalar string (`PROFILE-DISCIPLINE-007`).
-- The value must be one of the three legal enum members `flat`, `tiered`, `none`
-  (`PROFILE-DISCIPLINE-006`). Matching is case-sensitive.
-- When omitted, the engine infers the mode from the profile's type graph; the
-  inferred value is reported by `markspec doctor` and consumed by the LSP
-  block-scaffold completion and `markspec create` recommendation hint.
+| Field         | Required | Notes                                                                           |
+| ------------- | -------- | ------------------------------------------------------------------------------- |
+| `kind`        | No       | `flag` (default), `enum`, or `set`                                              |
+| `description` | No       | Human-readable meaning                                                          |
+| `values`      | No       | Mapping of value name → null \| string \| `{description}`. Not valid for `flag` |
+
+List entries in Form A may also be grouped objects (`{group, values: [...]}`);
+groups are flattened to their leaf names.
+
+## B.7 Colors (`profile.colors`)
+
+`profile.colors` maps a semantic color name to a palette hue. Type declarations
+reference a semantic name via their `color:` field (§B.3).
+
+```yaml
+profile:
+  colors:
+    requirement-blue: blue
+    hazard-red: red
+```
+
+- Each key must match `^[a-z][a-z0-9-]*$` (`MSL-PROFILE-COLOR-004` otherwise).
+- Each value must be a palette hue name; an unknown hue is
+  `MSL-PROFILE-COLOR-002`.
+
+## B.8 Conventions (`profile.conventions`)
+
+`profile.conventions` tunes engine conventions. Each key is a convention name
+mapping to a settings object (plus an optional `description`).
+
+```yaml
+profile:
+  conventions:
+    modal-keywords:
+      casing: rfc2119   # rfc2119 | iso | preserve
+      description: "Require lowercase shall/should/may"
+```
+
+The only recognised convention is `modal-keywords`; unknown convention names are
+accepted with a `PROFILE-LOAD-003` warning (forward compatibility). For
+`modal-keywords`, the `casing` setting must be `rfc2119`, `iso`, or `preserve`.
+
+## B.9 Prose lexicons (`profile.prose`)
+
+`profile.prose.lexicons` supplies project vocabulary to the prose-analysis
+rules:
+
+```yaml
+profile:
+  prose:
+    lexicons:
+      capitalized-allow: [API, ECU, LiDAR]       # allowed mid-sentence capitals
+      sentence-abbrev: ["e.g.", "i.e.", "etc."]  # non-terminal abbreviations
+```
+
+Both lists default to empty when absent.
+
+## B.10 Discipline kinds and mode
+
+### `profile.kinds` (map)
+
+The optional `profile.kinds` map declares engineering disciplines that types may
+be assigned to via their `discipline:` field. See
+[ADR-017 — Discipline Classification](../../architecture/adr-017-discipline-classification.md).
+
+| Property | Required | Type                       | Notes                                                           |
+| -------- | -------- | -------------------------- | --------------------------------------------------------------- |
+| (key)    | —        | `^[a-z][a-z0-9-]*$`        | Kind name; must not be `mixed`                                  |
+| (value)  | —        | null \| string \| KindDecl | `null` (declare only), string (description), or `{description}` |
+
+When absent, only core-declared kinds are available.
 
 **Diagnostics:**
 
-| Code                     | Severity | Trigger                                                                                   |
-| ------------------------ | -------- | ----------------------------------------------------------------------------------------- |
-| `PROFILE-DISCIPLINE-006` | error    | `profile.discipline-mode:` value is not one of `flat`, `tiered`, `none` — ADR-017 Slice 5 |
-| `PROFILE-DISCIPLINE-007` | error    | `profile.discipline-mode:` value is not a scalar string — ADR-017 Slice 5                 |
+| Code                     | Severity | Trigger                                                                     |
+| ------------------------ | -------- | --------------------------------------------------------------------------- |
+| `PROFILE-DISCIPLINE-001` | error    | Kind name does not match `^[a-z][a-z0-9-]*$`                                |
+| `PROFILE-DISCIPLINE-002` | error    | Kind name is the reserved word `mixed`                                      |
+| `PROFILE-DISCIPLINE-003` | warning  | Kind name duplicates a core-declared kind (idempotent; declaration ignored) |
 
-## B.10 Versioning and compatibility
+### Per-type `discipline:`
+
+A type may carry `discipline:` to assign it to a named kind (§B.3). The value
+must be a non-empty string (`PROFILE-DISCIPLINE-005`) naming a kind in the union
+of core kinds and chain-declared kinds (`PROFILE-DISCIPLINE-004`). When omitted,
+the discipline is inherited by walking the `extends:` chain upward.
+
+### `profile.discipline-mode`
+
+A profile may declare `discipline-mode:` to make its tiering intent explicit:
+
+```yaml
+profile:
+  discipline-mode: tiered   # flat | tiered | none
+```
+
+When omitted, the mode is inferred from the type graph: `tiered` when any
+requirement-shaped type carries `discipline:`, `flat` when discipline-bearing
+types exist without per-type assignment, otherwise `none`.
+
+**Diagnostics:**
+
+| Code                     | Severity | Trigger                                                       |
+| ------------------------ | -------- | ------------------------------------------------------------- |
+| `PROFILE-DISCIPLINE-006` | error    | Value is not one of `flat`, `tiered`, `none` (case-sensitive) |
+| `PROFILE-DISCIPLINE-007` | error    | Value is not a scalar string                                  |
+
+## B.11 Distribution and specifiers
+
+A profile is referenced — in a project's `.markspec.yaml` `profiles:` list and
+in a manifest's `extends:` field — using one of three specifier schemes:
+
+| Specifier form                                      | Resolves to                                           |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `./path/to/profile`                                 | Local directory relative to the declaring file        |
+| `git+<https\|file>://host/repo.git[/subpath]#<tag>` | Git source; shallow + sparse clone, cached globally   |
+| `npm:[@scope/]name@<version-range>`                 | npm package; resolved via `npm pack`, cached globally |
+
+Git auth is inherited from the user's git configuration; npm resolution uses the
+registry configured in `.npmrc`. The `jsr:` and raw `https:` schemes are
+reserved for a future release.
+
+`markspec profile add <spec>` validates the specifier and records it in
+`.markspec.yaml`. It does **not** copy the profile into the repository — git and
+npm sources are fetched and cached on demand when a profile-aware command runs.
+
+## B.12 Documents (`profile.documents`)
+
+`profile.documents` declares document types and front-matter attributes (per
+[ADR-007](../../architecture/adr-007-document-structure.md)):
+
+```yaml
+profile:
+  documents:
+    types:
+      - id: srs-document
+        contains: [software-requirement]
+        description: "Software requirements specification"
+    frontMatter:
+      - name: classification
+        type: enum
+        values: [public, internal, confidential]
+```
+
+`documents.types[].id` is required; `contains` is a list of type names;
+`frontMatter` uses the attribute shape from §B.4.
+
+## B.13 Versioning and compatibility
 
 ### Core schema pin (`markspec-schema`)
 
 `markspec-schema: "1"` pins the profile against version 1 of the core schema
-contract. The toolchain rejects a profile whose `markspec-schema` value is
-higher than the running binary's `CORE_SCHEMA_VERSION`.
+contract. A profile whose pin exceeds the running binary's `CORE_SCHEMA_VERSION`
+is rejected (`PROFILE-SCHEMA-001`). When the pin is absent the profile loads
+with a `PROFILE-SCHEMA-002` warning recommending you add it.
 
 ```yaml
 markspec-schema: "1"   # integer string; "1" is the current value
@@ -333,64 +456,26 @@ markspec-schema: "1"   # integer string; "1" is the current value
 
 ### Profile `version` and semver rules
 
-| Change kind                              | Version bump |
-| ---------------------------------------- | ------------ |
-| Add new optional attribute / label       | minor        |
-| Add new type (new `extends:` entry)      | minor        |
-| Add new relation with `inverse`          | minor        |
-| Make attribute `required: true`          | major        |
-| Remove a type, attribute, or relation    | major        |
-| Rename a key                             | major        |
-| Change `cardinality` to more restrictive | major        |
+| Change kind                           | Version bump |
+| ------------------------------------- | ------------ |
+| Add new optional attribute / label    | minor        |
+| Add new type                          | minor        |
+| Add new relation with `inverse`       | minor        |
+| Make an attribute `required: true`    | major        |
+| Remove a type, attribute, or relation | major        |
+| Rename a key                          | major        |
+| Tighten `cardinality`                 | major        |
 
-### Compatibility window
+### Composition
 
-A consumer project pins profile versions in `.markspec.yaml`. The toolchain
-supports the declared version only — no implicit upgrade, no downgrade. Run
-`markspec profile add <spec>@<version>` to pin explicitly.
+A project's `.markspec.yaml` accepts **at most one content-bearing profile**;
+declaring more than one is a `PROFILE-LOAD-006` error and no chain loads.
+Compose standards by publishing a pre-merged profile, or by chaining via a
+manifest's single-parent `extends:` field. When `profiles:` is empty the bundled
+default profile loads automatically unless the project sets
+`default-profile: false`.
 
-## B.11 Distribution and specifiers
-
-Profiles are referenced in `.markspec.yaml` using a specifier string:
-
-| Specifier form       | Resolves to                                           |
-| -------------------- | ----------------------------------------------------- |
-| `@org/name`          | Latest vendored copy in `profiles/@org/name/`         |
-| `@org/name@1.2.0`    | Specific version; pinned in `.markspec.yaml`          |
-| `./path/to/profile`  | Local directory relative to project root              |
-| `npm:@org/name@^1.0` | npm registry (resolved and vendored on `profile add`) |
-
-Vendoring: `markspec profile add <spec>` downloads the profile and writes it
-into `profiles/` under the project root. Vendored profiles are committed to
-version control — the project owns a reproducible copy.
-
-## B.12 Extends chain and conflict resolution
-
-When multiple profiles are active (the `.markspec.yaml` `profiles:` list), they
-are merged into a single **effective profile**. Resolution order: later entries
-in the list take precedence over earlier ones.
-
-```yaml
-# .markspec.yaml
-profiles:
-  - "@markspec/default"          # lowest precedence
-  - "@markspec/compliance-iso26262"
-  - "./profiles/myorg"           # highest precedence
-```
-
-Within a single profile's `extends:` inheritance chain, child declarations
-override parent declarations for the same key.
-
-Conflict rules:
-
-| Element    | Conflict resolution                                      |
-| ---------- | -------------------------------------------------------- |
-| Types      | Child type overrides parent type of same name            |
-| Attributes | Child attribute overrides parent attribute of same `key` |
-| Relations  | Child relation overrides parent relation of same `key`   |
-| Labels     | Union; duplicate `name` keeps child `description`        |
-
-## B.13 Validation and publishing
+## B.14 Validation and publishing
 
 Validate a profile manifest before distributing it:
 
@@ -398,13 +483,18 @@ Validate a profile manifest before distributing it:
 markspec profile publish --dir ./my-profile
 ```
 
-This checks:
+`profile publish` parses the manifest and reports:
 
-- All required fields present (`id`, `version`)
-- All `extends:` targets resolve
-- No shadowing of core type names (`MSL-A040`)
-- No shadowing of core attribute keys
-- `markspec-schema` is present and ≤ current `CORE_SCHEMA_VERSION`
-- `description` and `license` present (warnings if absent)
+- YAML / schema errors (`PROFILE-LOAD-002`, `PROFILE-LOAD-003`, the
+  `PROFILE-TYPE-*` and `PROFILE-DISCIPLINE-*` families, …)
+- `markspec-schema` mismatch (`PROFILE-SCHEMA-001`) or absence
+  (`PROFILE-SCHEMA-002`)
+- Missing `description` (`PROFILE-PUB-001`) and `license` (`PROFILE-PUB-002`) as
+  warnings
 
-A zero-error exit indicates the profile is safe to distribute.
+It exits non-zero on any error. **`profile publish` validates only — it does not
+upload to a registry.** Distribute the validated directory with git (commit +
+tag) or npm (`npm publish` with `markspec.yaml` at the package root and a
+`package.json` whose `files` includes it). See
+[Authoring and publishing a profile](../../guide/profiles.md#authoring-and-publishing-a-profile)
+in the guide for the end-to-end workflow.

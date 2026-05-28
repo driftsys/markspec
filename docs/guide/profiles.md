@@ -26,7 +26,8 @@ profiles:
 
 ### Profile specifiers
 
-Three formats are supported:
+Three schemes are supported. The leaf specifier in `.markspec.yaml` and the
+`extends:` value inside a manifest both accept the same three forms.
 
 **Local path** — relative to `.markspec.yaml`:
 
@@ -36,30 +37,40 @@ profiles:
   - ../shared/markspec.yaml
 ```
 
-**Git HTTPS** — cloned and cached locally:
+**Git** — shallow + sparse clone, cached under the global cache directory.
+Authentication is inherited from your git configuration, so private hosts
+(including corporate GitLab) work without extra setup:
 
 ```yaml
 profiles:
-  - git+https://github.com/acme/compliance-profiles.git#v1.0.0
-```
-
-**Git HTTPS with subpath** — for monorepos:
-
-```yaml
-profiles:
-  - git+https://github.com/acme/profiles.git/aspice#v2.0.0
-```
-
-**Git file** — for local development:
-
-```yaml
-profiles:
+  # HTTPS, single-profile repo, tag-pinned
+  - git+https://gitlab.example.com/platform/compliance-profile.git#v1.0.0
+  # HTTPS with subpath, for monorepos holding several profiles
+  - git+https://github.com/acme/profiles.git/aspice#aspice/v2.0.0
+  # file:// for local development against a bare repo
   - git+file:///home/user/profiles.git#main
 ```
 
-> Only one profile is supported in the current implementation. If multiple
-> profiles are listed, a `PROFILE-LOAD-006` warning is emitted and only the
-> first is used.
+The fragment after `#` is a git tag (or branch for `file://` development). The
+optional subpath between `.git` and `#` selects one profile inside a monorepo.
+
+**npm** — resolved with `npm pack` and cached. Use this when your organization
+distributes profiles through an npm registry or mirror (Nexus, Artifactory,
+JFrog, or GitLab's npm package registry). The registry is whatever your `.npmrc`
+points at:
+
+```yaml
+profiles:
+  - npm:@markspec/profile-aspice-4@^1.2
+  - npm:my-team-profile@1.0.0
+```
+
+> **At most one profile.** `.markspec.yaml` accepts a single content-bearing
+> profile. Listing two or more is an error (`PROFILE-LOAD-006`) and no profile
+> chain loads — compose standards by publishing a pre-merged profile, or chain
+> them with `extends:` (see below), rather than stacking entries here. A bundled
+> default profile loads automatically when `profiles:` is empty; opt out with
+> `default-profile: false`.
 
 ---
 
@@ -72,17 +83,73 @@ Profiles can extend other profiles via `extends:`, forming a chain. Child
 profiles can add types and attributes, or tighten constraints (e.g., narrowing
 cardinality, adding `required: true`) — but cannot relax them.
 
-Use `markspec profile show` to inspect the active profile chain and
-`markspec doctor` for a project health check.
+Use `markspec profile show` to inspect the active profile chain,
+`markspec profile describe <kind> <name>` to see one element (type, attribute,
+relation, label, or convention) in full, and `markspec doctor` for a project
+health check.
 
-Scaffold a new profile with:
+The normative manifest schema — every block, field, and diagnostic — lives in
+[Annex B — Profile manifest schema](../spec/model/annex-profile-schema.md).
+
+---
+
+## Authoring and publishing a profile
+
+A profile is a directory with a `markspec.yaml` manifest and a recommended
+`README.md`. Scaffold one with:
 
 ```sh
-markspec profile new my-profile
+markspec profile new my-profile          # or: @org/my-profile
 ```
 
-This creates a `my-profile/` directory with a `markspec.yaml` manifest and a
-`README.md`.
+This creates `my-profile/markspec.yaml` (a minimal manifest stub) and
+`my-profile/README.md`.
+
+Before distributing, validate the manifest:
+
+```sh
+markspec profile publish --dir ./my-profile
+```
+
+`profile publish` parses the manifest, reports any schema errors, and warns when
+`description` or `license` is missing (`PROFILE-PUB-001` / `PROFILE-PUB-002`).
+It exits non-zero on errors. **It validates only — it does not upload to any
+registry.** Distribution itself is done with plain git or npm:
+
+- **Git** — commit the profile directory and tag it (`git tag v1.0.0`). The
+  `markspec.yaml` must sit at the repo root, or at the subpath named in the
+  specifier. Consumers reference it with `git+https://…#v1.0.0`.
+- **npm** — the profile directory is the npm package. Place `markspec.yaml` at
+  the **package root** alongside a `package.json`, then `npm publish`. A minimal
+  package:
+
+  ```text
+  my-profile/
+  ├── package.json        # name, version, files: ["markspec.yaml","README.md"]
+  ├── markspec.yaml       # the manifest — must be at the package root
+  └── README.md
+  ```
+
+  ```json
+  {
+    "name": "@org/my-profile",
+    "version": "1.0.0",
+    "files": ["markspec.yaml", "README.md"]
+  }
+  ```
+
+  The resolver runs `npm pack` and reads `markspec.yaml` from the tarball root,
+  so keep the manifest at the top level (not nested in a subdirectory).
+
+To wire a published profile into a project:
+
+```sh
+markspec profile add npm:@org/my-profile@^1.0
+```
+
+`profile add` validates the specifier and records it in `.markspec.yaml`. It
+does **not** copy the profile into your repository — git and npm sources are
+fetched and cached on demand the next time a profile-aware command runs.
 
 ---
 
@@ -123,5 +190,3 @@ but cannot reclassify existing core components.
   profile.
 - **Type vocabulary reference** — all built-in types, their allowed attributes,
   and their traceability constraints.
-- **Publishing profiles** — validating a profile for distribution with
-  `markspec profile publish`.
