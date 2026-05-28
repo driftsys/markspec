@@ -347,3 +347,21 @@ export type {
   RemoteState,
   SyncLogEntry,
 } from "./sync/mod.ts";
+
+// ── Self-upgrade ─────────────────────────────────────────────────────────
+export {
+  type Arch as SelfUpgradeArch,
+  classifyInstallPath,
+  type ClassifyResult as SelfUpgradeClassifyResult,
+  compareVersions,
+  type Comparison,
+  detectTarget,
+  type InstallSource,
+  type Os as SelfUpgradeOs,
+  parseSha256Line,
+  type Platform as SelfUpgradePlatform,
+  platformFromBuild,
+  type ReleaseAssets,
+  releaseAssets,
+  type Target as SelfUpgradeTarget,
+} from "./self_upgrade/mod.ts";
