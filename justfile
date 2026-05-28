@@ -8,7 +8,7 @@ check: lint test
 
 # Run tests
 test:
-    deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
+    deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi --allow-net
 
 # Lint (Deno + dprint)
 lint:

@@ -33,6 +33,7 @@ import {
   profileCmd,
   reportCmd,
   scoreCmd,
+  selfUpgradeCmd,
   showCmd,
   syncCmd,
   validateCmd,
@@ -58,6 +59,7 @@ const cli = new Command()
   .command("report", reportCmd)
   .command("lint", lintCmd)
   .command("score", scoreCmd)
+  .command("self-upgrade", selfUpgradeCmd)
   .command("lock", lockCmd)
   .command("sync", syncCmd)
   .command("hook", hookCmd)

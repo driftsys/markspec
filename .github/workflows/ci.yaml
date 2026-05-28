@@ -64,7 +64,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi
+      - run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi --allow-net
 
   test-summary:
     # Umbrella status for the `test` matrix. Branch protection on `main`
