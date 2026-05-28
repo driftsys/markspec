@@ -142,9 +142,12 @@ Deno.test("sha256OfFile: matches a known hash", async () => {
 
 Deno.test("fetchLatestTag: helpful message on network error (server unreachable)", async () => {
   // Use a port that nothing should be listening on. (Pick 1; lower than
-  // ephemeral range so we won't collide with leftover sockets.)
+  // ephemeral range so we won't collide with leftover sockets.) The
+  // helper must prefix the underlying fetch error with "failed to reach"
+  // — the orchestrator's network reason path relies on that wording.
   await assertRejects(
     () => fetchLatestTag("http://127.0.0.1:1/releases"),
     Error,
+    "failed to reach",
   );
 });

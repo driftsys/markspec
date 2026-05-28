@@ -145,6 +145,7 @@ Deno.test("self-upgrade --check: up-to-date → exit 0", async () => {
         MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
         MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
         MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+        MARKSPEC_TEST_MODE: "1",
       },
     );
     assertEquals(code, 0);
@@ -177,6 +178,7 @@ Deno.test("self-upgrade --check: newer available → exit 1", async () => {
         MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
         MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
         MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+        MARKSPEC_TEST_MODE: "1",
       },
     );
     assertEquals(code, 1);
@@ -207,6 +209,7 @@ Deno.test("self-upgrade: up-to-date → already-current, no FS change", async ()
         MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
         MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
         MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+        MARKSPEC_TEST_MODE: "1",
       },
     );
     assertEquals(code, 0);
@@ -242,6 +245,7 @@ Deno.test(
           MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
           MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
           MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+          MARKSPEC_TEST_MODE: "1",
         },
       );
       assertEquals(code, 0);
@@ -278,6 +282,7 @@ Deno.test(
           MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
           MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
           MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+          MARKSPEC_TEST_MODE: "1",
         },
       );
       assertEquals(code, 2);
@@ -318,6 +323,7 @@ Deno.test("self-upgrade --version v0.0.1: downgrade flow", async () => {
         MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
         MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
         MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+        MARKSPEC_TEST_MODE: "1",
       },
     );
     assertEquals(code, 0);
@@ -357,6 +363,7 @@ Deno.test({
           MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
           MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
           MARKSPEC_SELF_UPGRADE_BIN_PATH: linkBin,
+          MARKSPEC_TEST_MODE: "1",
         },
       );
       assertEquals(code, 2);
@@ -391,6 +398,7 @@ Deno.test(
           MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
           MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
           MARKSPEC_SELF_UPGRADE_BIN_PATH: binPath,
+          MARKSPEC_TEST_MODE: "1",
         },
       );
       assertEquals(code, 0);

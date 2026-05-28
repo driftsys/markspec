@@ -9,7 +9,6 @@
  *   --check              Check only; exit 1 if a newer release is available.
  *   --version <vX.Y.Z>   Pin a specific release (downgrade allowed).
  *   --format <text|json> Output format (default: text).
- *   --quiet              Suppress non-error stdout (inherited).
  *
  * Environment overrides (test seams + advanced users):
  *   MARKSPEC_RELEASES_API
@@ -19,8 +18,10 @@
  *     Base URL for tarball downloads. Default:
  *     "https://github.com/driftsys/markspec/releases/download".
  *   MARKSPEC_SELF_UPGRADE_BIN_PATH
- *     Override the binary path that will be swapped. Test-only; lets
- *     E2E tests point at a temp file instead of Deno.execPath().
+ *     Override the binary path that will be swapped. Test-only; gated
+ *     behind MARKSPEC_TEST_MODE=1 so a stray env var in a user's parent
+ *     shell cannot redirect a production self-upgrade to an arbitrary
+ *     path. Both vars must be set together.
  */
 
 import { Command } from "@cliffy/command";
@@ -75,8 +76,18 @@ export const selfUpgradeCmd = new Command()
     default: "text",
   })
   .action(async (options) => {
-    const out = await runSelfUpgrade(options as SelfUpgradeOptions);
-    emit(out, (options as SelfUpgradeOptions).format ?? "text");
+    const o = options as SelfUpgradeOptions;
+    const format = o.format ?? "text";
+    if (format !== "text" && format !== "json") {
+      Deno.stderr.writeSync(
+        new TextEncoder().encode(
+          `error: invalid --format '${format}'; expected 'text' or 'json'\n`,
+        ),
+      );
+      Deno.exit(2);
+    }
+    const out = await runSelfUpgrade(o);
+    emit(out, format);
     Deno.exit(exitCodeFor(out));
   });
 
@@ -86,7 +97,12 @@ async function runSelfUpgrade(
   const apiBase = Deno.env.get("MARKSPEC_RELEASES_API") ?? DEFAULT_API;
   const downloadBase = Deno.env.get("MARKSPEC_RELEASES_DOWNLOAD_BASE") ??
     DEFAULT_DOWNLOAD_BASE;
-  const binPathOverride = Deno.env.get("MARKSPEC_SELF_UPGRADE_BIN_PATH");
+  // MARKSPEC_SELF_UPGRADE_BIN_PATH is gated on MARKSPEC_TEST_MODE=1 (see
+  // module docstring); a stray bin-path in a user's parent shell cannot
+  // redirect a production self-upgrade.
+  const binPathOverride = Deno.env.get("MARKSPEC_TEST_MODE") === "1"
+    ? Deno.env.get("MARKSPEC_SELF_UPGRADE_BIN_PATH")
+    : undefined;
 
   const platform = platformFromBuild(Deno.build.os, Deno.build.arch);
   if (!platform) {
@@ -271,28 +287,37 @@ async function runSelfUpgrade(
   const entryName = platform.os === "windows" ? "markspec.exe" : "markspec";
   const tmpTar = `${dir}/.markspec-upgrade.${Deno.pid}.tar.gz`;
   const tmpBin = `${dir}/.markspec-upgrade.${Deno.pid}.bin`;
+  // A 404 on the tarball or checksum URL while the user pinned an
+  // explicit --version is almost always a missing-tag error, not a
+  // transport problem. Reclassify so the JSON `reason` is accurate.
+  const reclassifyAs404 = (msg: string): "version-not-found" | "network" =>
+    opts.version && msg.includes("status 404")
+      ? "version-not-found"
+      : "network";
   try {
     try {
       await downloadTo(tarballUrl, tmpTar);
     } catch (err) {
+      const msg = (err as Error).message;
       return error(
-        "network",
+        reclassifyAs404(msg),
         VERSION,
         stripV(targetVersion),
         realExecPath,
-        (err as Error).message,
+        msg,
       );
     }
     let expected: string;
     try {
       expected = await fetchChecksum(checksumUrl);
     } catch (err) {
+      const msg = (err as Error).message;
       return error(
-        "network",
+        reclassifyAs404(msg),
         VERSION,
         stripV(targetVersion),
         realExecPath,
-        (err as Error).message,
+        msg,
       );
     }
     const actual = await sha256OfFile(tmpTar);
