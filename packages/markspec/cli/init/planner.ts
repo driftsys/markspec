@@ -7,13 +7,20 @@
  * spec §4 idempotency table becomes code.
  */
 
-import { join } from "@std/path";
+import { join, relative } from "@std/path";
 import type { MemFs } from "./fake_fs.ts";
+import type { McpAdapter } from "../install/adapters.ts";
 import {
   EXTENSION_ID,
   mergeVscodeExtensions,
 } from "./scaffolders/vscode_extensions.ts";
-import type { Action, ClientSet, ProfileChoice, WritePlan } from "./types.ts";
+import type {
+  Action,
+  ClientSet,
+  InitClientId,
+  ProfileChoice,
+  WritePlan,
+} from "./types.ts";
 
 export interface PlanInputs {
   readonly targetDir: string;
@@ -21,6 +28,14 @@ export interface PlanInputs {
   readonly profileChoice: ProfileChoice;
   readonly clientSet: ClientSet;
   readonly force: boolean;
+  /**
+   * Per-client adapter descriptors. The planner calls
+   * `adapter.resolveConfigPath("workspace", ...)` for each client in
+   * `clientSet.write` to discover where the client expects its config,
+   * so the planner does not hardcode client → filename mappings.
+   * Keyed by {@linkcode InitClientId}.
+   */
+  readonly mcpAdapters: ReadonlyMap<InitClientId, McpAdapter>;
 }
 
 const SKIP_HINT = "rerun with --force to overwrite";
@@ -33,8 +48,22 @@ export async function computeWritePlan(inputs: PlanInputs): Promise<WritePlan> {
   }
 
   for (const client of inputs.clientSet.write) {
-    const file = client === "opencode" ? "opencode.json" : ".mcp.json";
-    const exists = await inputs.fs.exists(join(inputs.targetDir, file));
+    const adapter = inputs.mcpAdapters.get(client);
+    if (!adapter) {
+      // Defensive: clientSet.write should only contain IDs the
+      // orchestrator has an adapter for. Skip rather than throw so a
+      // misconfigured wiring surfaces as a missing action, not a crash.
+      continue;
+    }
+    const absPath = adapter.resolveConfigPath(
+      "workspace",
+      inputs.targetDir,
+      "",
+      undefined,
+      inputs.targetDir,
+    );
+    const file = relative(inputs.targetDir, absPath);
+    const exists = await inputs.fs.exists(absPath);
     actions.push(
       exists ? { kind: "merge", file } : { kind: "create", file },
     );

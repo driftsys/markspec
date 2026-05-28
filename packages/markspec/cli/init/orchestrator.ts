@@ -7,7 +7,8 @@
  * {@linkcode InitResult}; the CLI action surfaces stdout/stderr/exit.
  */
 
-import { basename, join } from "@std/path";
+import { basename, join, relative } from "@std/path";
+import type { McpAdapter } from "../install/adapters.ts";
 import type {
   McpInstallOptions,
   OrchestratorResult,
@@ -64,6 +65,14 @@ export interface RunInitOptions {
   };
   readonly mcpRunner: McpRunner;
   readonly execRunner: ExecRunner;
+  /**
+   * Per-client MCP adapter descriptors. Threaded through to the
+   * planner (for `adapter.resolveConfigPath` lookups) and used here
+   * to map the planner's emitted file paths back to client IDs at
+   * execute time. Production wires `claudeCodeDescriptor` +
+   * `opencodeDescriptor`; tests inject stubs.
+   */
+  readonly mcpAdapters: ReadonlyMap<InitClientId, McpAdapter>;
   readonly now: () => string;
   readonly version: string;
 }
@@ -93,7 +102,23 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
     profileChoice: options.profileChoice,
     clientSet,
     force: options.force,
+    mcpAdapters: options.mcpAdapters,
   });
+
+  // Reverse-lookup for the executor: relative config path → client ID.
+  // Built once from the same adapters the planner used so the executor
+  // and planner agree on filenames without duplicating any literal.
+  const mcpFileToClient = new Map<string, InitClientId>();
+  for (const [clientId, adapter] of options.mcpAdapters) {
+    const abs = adapter.resolveConfigPath(
+      "workspace",
+      options.targetDir,
+      "",
+      undefined,
+      options.targetDir,
+    );
+    mcpFileToClient.set(relative(options.targetDir, abs), clientId);
+  }
 
   // Spec §3 step 1: refuse non-empty target without --force.
   // Whitelist = pre-existing project files (static) ∪ top-level
@@ -195,20 +220,24 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
             await scaffoldVscodeExtensions(options.fs, options.targetDir);
           }
           break;
-        case ".mcp.json":
-        case "opencode.json": {
-          // Defensive guard. The planner only emits `create` or `merge`
-          // for MCP files today, so this gate is a no-op against the
-          // current planner. It exists so a future planner change that
-          // emits `skip`/`no-op` for MCP files cannot silently invoke
-          // the runner — matching the gates on the other file branches.
+        default: {
+          // Adapter-driven MCP branch. The planner emitted this file
+          // path via `adapter.resolveConfigPath`; the reverse lookup
+          // tells us which client it belongs to. Non-MCP files that
+          // don't match the static cases above are skipped silently —
+          // the planner does not emit any today.
+          const client = mcpFileToClient.get(a.file);
+          if (client === undefined) break;
+          // Defensive guard. The planner only emits `create` or
+          // `merge` for MCP files today, so this gate is a no-op
+          // against the current planner. It exists so a future
+          // planner change that emits `skip`/`no-op` for MCP files
+          // cannot silently invoke the runner — matching the gates
+          // on the other file branches.
           if (
             a.kind !== "create" && a.kind !== "merge" &&
             a.kind !== "overwrite"
           ) break;
-          const client: string = a.file === "opencode.json"
-            ? "opencode"
-            : "claude-code";
           const r = await options.mcpRunner({
             client,
             scope: "workspace",

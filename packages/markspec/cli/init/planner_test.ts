@@ -1,6 +1,13 @@
 import { assertEquals } from "@std/assert";
 import { createMemFs } from "./fake_fs.ts";
 import { computeWritePlan, type PlanInputs } from "./planner.ts";
+import { claudeCodeDescriptor } from "../install/mcp_adapters_claude_code.ts";
+import { opencodeDescriptor } from "../install/mcp_adapters_opencode.ts";
+
+const adapters = new Map([
+  ["claude-code" as const, claudeCodeDescriptor],
+  ["opencode" as const, opencodeDescriptor],
+]);
 
 const baseInputs = (overrides: Partial<PlanInputs> = {}): PlanInputs => ({
   targetDir: "/r",
@@ -8,6 +15,7 @@ const baseInputs = (overrides: Partial<PlanInputs> = {}): PlanInputs => ({
   profileChoice: { kind: "bundled" },
   clientSet: { write: new Set() },
   force: false,
+  mcpAdapters: adapters,
   ...overrides,
 });
 
@@ -65,4 +73,23 @@ Deno.test("planner: existing .vscode/extensions.json without our id → merge", 
   const plan = await computeWritePlan(baseInputs({ fs }));
   const action = plan.actions.find((a) => a.file === ".vscode/extensions.json");
   assertEquals(action?.kind, "merge");
+});
+
+Deno.test("planner: MCP filename comes from adapter.resolveConfigPath (no hardcoded mapping)", async () => {
+  // Wire a stub adapter that uses a non-default filename. The planner
+  // must surface it verbatim; if it ever reverts to a hardcoded
+  // client → filename map this test fails.
+  const stubAdapter = {
+    id: "claude-code" as const,
+    jsonPath: ["mcpServers", "markspec"] as const,
+    resolveConfigPath: () => "/r/.stub-mcp.json",
+    renderBlock: () => ({}),
+  };
+  const stubAdapters = new Map([["claude-code" as const, stubAdapter]]);
+  const plan = await computeWritePlan(baseInputs({
+    clientSet: { write: new Set(["claude-code"]) },
+    mcpAdapters: stubAdapters,
+  }));
+  const stubAction = plan.actions.find((a) => a.file === ".stub-mcp.json");
+  assertEquals(stubAction?.kind, "create");
 });
