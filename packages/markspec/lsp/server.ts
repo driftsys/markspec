@@ -54,6 +54,7 @@ import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
 import { buildFormattingEdits } from "./formatting.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
+import { buildDiagnosticsHistogram } from "./diagnostics_histogram.ts";
 import { buildCodeActions } from "./code_actions.ts";
 import { entryToLspLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
@@ -206,13 +207,34 @@ function publishFileDiagnostics(
   connection.sendDiagnostics({ uri, diagnostics: lspDiags });
 }
 
+/**
+ * Cap on the number of distinct MSL codes the `kind=diagnostics`
+ * histogram surfaces by name. Anything past the cap is summed into a
+ * synthetic `other` field — see {@linkcode buildDiagnosticsHistogram}.
+ * 20 keeps the event-log line under a couple hundred bytes even when
+ * the project fires every catalogue rule.
+ */
+const DIAGNOSTICS_HISTOGRAM_TOP_N = 20;
+
 /** Run cross-file validation and publish diagnostics for all files. */
 function publishAllDiagnostics(): void {
+  const entryCount = index.getAllEntries().length;
   const allDiags = time(
-    `validateAll/${index.getAllEntries().length}`,
+    `validateAll/${entryCount}`,
     () => index.validateAll(profile ?? null),
   );
   lastDiagnostics = allDiags;
+
+  // Emit a per-validateAll histogram of MSL codes that fired. Always
+  // emitted (zero diagnostics is a valid analytics signal — "the
+  // project validated cleanly"); the zero case carries just the
+  // entry count.
+  const histogram = buildDiagnosticsHistogram(
+    allDiags,
+    DIAGNOSTICS_HISTOGRAM_TOP_N,
+  );
+  logEvent("info", "diagnostics", { entries: entryCount, ...histogram });
+
   const grouped = groupDiagnosticsByFile(allDiags);
 
   // Send diagnostics for files that have issues
