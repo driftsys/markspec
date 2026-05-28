@@ -11,6 +11,7 @@ import {
   buildTrailerKeyItems,
   buildTypeAttributeItems,
   extractRelationName,
+  extractTracePartial,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
   isTrailerKeyContext,
@@ -69,6 +70,42 @@ Deno.test("extractRelationName: extracts 'Satisfies' from line", () => {
 
 Deno.test("extractRelationName: extracts 'Derived-from'", () => {
   assertEquals(extractRelationName("  Derived-from: "), "Derived-from");
+});
+
+// --- extractTracePartial ---
+
+Deno.test("extractTracePartial: empty after colon returns empty string", () => {
+  assertEquals(extractTracePartial("  Satisfies:"), "");
+  assertEquals(extractTracePartial("  Satisfies: "), "");
+  assertEquals(extractTracePartial("  Satisfies:   "), "");
+});
+
+Deno.test("extractTracePartial: returns partial after colon", () => {
+  assertEquals(extractTracePartial("  Satisfies: SY"), "SY");
+  assertEquals(extractTracePartial("  Satisfies: SYS_AEB"), "SYS_AEB");
+});
+
+Deno.test("extractTracePartial: trims surrounding whitespace", () => {
+  assertEquals(extractTracePartial("  Satisfies:   SY  "), "SY");
+});
+
+Deno.test("extractTracePartial: CSV form takes text after last comma", () => {
+  assertEquals(
+    extractTracePartial("  Satisfies: STK_001, SY"),
+    "SY",
+  );
+  assertEquals(
+    extractTracePartial("  Satisfies: STK_001, STK_002, SY"),
+    "SY",
+  );
+});
+
+Deno.test("extractTracePartial: empty partial after trailing comma", () => {
+  assertEquals(extractTracePartial("  Satisfies: STK_001, "), "");
+});
+
+Deno.test("extractTracePartial: returns empty when no colon present", () => {
+  assertEquals(extractTracePartial("  Satisfies SY"), "");
 });
 
 // --- Completion item building ---
