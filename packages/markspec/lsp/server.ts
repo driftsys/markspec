@@ -14,6 +14,7 @@
 import {
   type CompletionItem,
   CompletionItemKind,
+  type CompletionList,
   createConnection,
   type Diagnostic as LspDiagnosticType,
   DidChangeWatchedFilesNotification,
@@ -87,6 +88,7 @@ import {
   buildTypeAttributeItems,
   type EntryTypeInfo,
   extractRelationName,
+  extractTracePartial,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
   isTrailerKeyContext,
@@ -672,7 +674,7 @@ documents.onDidOpen(async (event) => {
 // Completions
 // ---------------------------------------------------------------------------
 
-connection.onCompletion((params): CompletionItem[] => {
+connection.onCompletion((params): CompletionItem[] | CompletionList => {
   tally("completion");
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
@@ -756,19 +758,33 @@ connection.onCompletion((params): CompletionItem[] => {
       const targets = profile && relationName
         ? targetsForRelation(profile, enclosing?.type, relationName)
         : undefined;
-      const displayIds = profile && targets
+      let displayIds = profile && targets
         ? filterEntriesByTraceTargets(
           index.getAllEntries(),
           targets,
           profile,
         ).map((e) => ({ displayId: e.displayId, title: e.title }))
         : index.getAllDisplayIds();
-      const items = buildIdReferenceItems(displayIds);
-      return items.map((item) => ({
+      // Server-side prefix filter on the partial the user has typed
+      // after the colon. Case-insensitive to match VS Code's
+      // client-side filter UX. The CompletionList is marked
+      // `isIncomplete` so the client re-queries as the prefix grows
+      // — otherwise the client would narrow its cached set further,
+      // hiding IDs that match a different prefix path (e.g. after a
+      // backspace + retype).
+      const partial = extractTracePartial(line);
+      if (partial) {
+        const needle = partial.toLowerCase();
+        displayIds = displayIds.filter((e) =>
+          e.displayId.toLowerCase().startsWith(needle)
+        );
+      }
+      const items = buildIdReferenceItems(displayIds).map((item) => ({
         label: item.label,
         detail: item.detail,
         kind: CompletionItemKind.Reference,
       }));
+      return { isIncomplete: partial.length > 0, items };
     });
   }
 

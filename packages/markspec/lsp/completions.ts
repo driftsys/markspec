@@ -107,6 +107,30 @@ export function extractRelationName(textBefore: string): string | undefined {
   return match?.[1];
 }
 
+/**
+ * Extract the partial display-ID the user is currently typing on a
+ * trace-attribute line, for server-side prefix filtering.
+ *
+ * Handles both the canonical single-value form (`Satisfies: SY`) and
+ * the legacy CSV form (`Satisfies: STK_001, SY`). In the CSV case the
+ * partial is the text after the last comma — earlier complete values
+ * must not narrow the suggestion list.
+ *
+ * Returns an empty string when nothing has been typed after the
+ * colon yet. Callers MUST treat the empty result as "no prefix
+ * filter" rather than "no matches"; a `startsWith("")` would still
+ * match every ID, but the handler typically skips the filter step
+ * entirely to set the `isIncomplete` flag correctly.
+ */
+export function extractTracePartial(textBefore: string): string {
+  const colonIdx = textBefore.indexOf(":");
+  if (colonIdx < 0) return "";
+  const afterColon = textBefore.slice(colonIdx + 1);
+  const lastComma = afterColon.lastIndexOf(",");
+  const last = lastComma < 0 ? afterColon : afterColon.slice(lastComma + 1);
+  return last.trim();
+}
+
 /** A completion item — protocol-independent for testability. */
 export interface CompletionItemData {
   readonly label: string;
