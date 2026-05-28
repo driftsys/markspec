@@ -24,6 +24,9 @@
     "jsr:@std/path@1": "1.1.4",
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@std/semver@^1.0.8": "1.0.8",
+    "jsr:@std/streams@^1.0.17": "1.0.17",
+    "jsr:@std/tar@*": "0.1.10",
+    "jsr:@std/tar@0.1": "0.1.10",
     "jsr:@std/testing@1": "1.0.18",
     "jsr:@std/text@^1.0.17": "1.0.17",
     "jsr:@std/toml@1": "1.0.11",
@@ -137,6 +140,15 @@
     },
     "@std/semver@1.0.8": {
       "integrity": "dc830e8b8b6a380c895d53fbfd1258dc253704ca57bbe1629ac65fd7830179b7"
+    },
+    "@std/streams@1.0.17": {
+      "integrity": "7859f3d9deed83cf4b41f19223d4a67661b3d3819e9fc117698f493bf5992140"
+    },
+    "@std/tar@0.1.10": {
+      "integrity": "6bf907f3a4bc8bfef42973ba132d946756a6161ef6b914a9e1c06debe664db17",
+      "dependencies": [
+        "jsr:@std/streams"
+      ]
     },
     "@std/testing@1.0.18": {
       "integrity": "d3152f57b11666bf6358d0e127c7e3488e91178b0c2d8fbf0793e1c53cd13cb1",
@@ -1393,9 +1405,11 @@
       "jsr:@deno/dnt@~0.42.3",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
+      "jsr:@std/encoding@1",
       "jsr:@std/fs@1",
       "jsr:@std/jsonc@1",
       "jsr:@std/path@1",
+      "jsr:@std/tar@0.1",
       "jsr:@std/testing@1",
       "jsr:@std/toml@1",
       "jsr:@std/ulid@1",
