@@ -30,8 +30,7 @@ export async function resolveClientSet(
   const write = new Set<InitClientId>();
 
   if (options.allClients) {
-    write.add("claude-code");
-    write.add("opencode");
+    for (const c of INIT_CLIENT_IDS) write.add(c);
   } else {
     if ((await claudeCodeDescriptor.detect!(options.env)).detected) {
       write.add("claude-code");

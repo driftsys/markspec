@@ -9,6 +9,8 @@
 import { Command, EnumType } from "@cliffy/command";
 import { resolve } from "@std/path";
 import { VERSION } from "../../core/mod.ts";
+import { parseProfileSpec } from "../init/mod.ts";
+import { parseWhichOutput } from "../init/which_command.ts";
 
 const clientType = new EnumType(["claude-code", "opencode"]);
 const formatType = new EnumType(["text", "json"]);
@@ -90,8 +92,7 @@ export const initCmd = new Command()
           stderr: "null",
         });
         const out = await p.output();
-        if (out.code !== 0) return undefined;
-        return new TextDecoder().decode(out.stdout).split(/\r?\n/)[0].trim();
+        return parseWhichOutput(out.code, out.stdout);
       } catch {
         return undefined;
       }
@@ -185,12 +186,11 @@ function resolveProfileFromFlags(
     // TTY interactive picker is wired in a follow-up; v1 uses bundled default.
     return { kind: "bundled" };
   }
-  const s = options.profile.trim();
-  if (s === "bundled") return { kind: "bundled" };
-  if (s === "false") return { kind: "none" };
-  if (/^git\+(https?|ssh):\/\/.+$/.test(s)) return { kind: "git", spec: s };
-  if (/^\.{0,2}\/.+|^\/.+$/.test(s)) return { kind: "local", spec: s };
-  console.error(`error: unrecognized --profile spec '${s}'`);
+  const parsed = parseProfileSpec(options.profile);
+  if (parsed) return parsed;
+  console.error(
+    `error: unrecognized --profile spec '${options.profile.trim()}'`,
+  );
   console.error(
     "       accepted: bundled | false | git+https://... | ./path | /abs/path",
   );

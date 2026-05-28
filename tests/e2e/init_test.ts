@@ -76,7 +76,10 @@ Deno.test(
           "opencode",
         ],
         PERMS,
-        { MARKSPEC_FAKE_CLIENT_DETECT: "claude-code,opencode" },
+        {
+          MARKSPEC_TEST_MODE: "1",
+          MARKSPEC_FAKE_CLIENT_DETECT: "claude-code,opencode",
+        },
       );
       assertEquals(
         [0, 2].includes(code),

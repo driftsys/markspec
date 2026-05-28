@@ -134,8 +134,12 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
     const dirName = basename(options.targetDir);
     const minVersion = toolchainMinVersion(options.version);
 
-    // Steps 4–7: execute file writes per plan.
+    // Steps 4–7: execute file writes per plan. Each branch reports
+    // whether the action actually completed; only successes land in
+    // executedActions so the InitResult does not advertise writes
+    // that an MCP failure silently rolled back.
     for (const a of plan.actions) {
+      let ok = true;
       switch (a.file) {
         case "project.yaml":
           if (a.kind === "create" || a.kind === "overwrite") {
@@ -191,11 +195,12 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
               message:
                 `runMcpInstall(${client}) exit=${r.exitCode}: ${r.stderr}`,
             });
+            ok = false;
           }
           break;
         }
       }
-      executedActions.push(a);
+      if (ok) executedActions.push(a);
     }
 
     // Step 8: install skills bundle via upskill.

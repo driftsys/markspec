@@ -258,4 +258,8 @@ Deno.test("runInit: mcpRunner failure → MCP_INSTALL_FAILED warning + exit 2", 
   const warn = result.warnings.find((w) => w.code === "MCP_INSTALL_FAILED");
   assertEquals(warn !== undefined, true);
   assertEquals(warn!.message.includes("claude-code"), true);
+  // The failed write must not appear in actions — otherwise the
+  // summary advertises a config that was never written.
+  const mcpAction = result.actions.find((a) => a.file === ".mcp.json");
+  assertEquals(mcpAction, undefined);
 });

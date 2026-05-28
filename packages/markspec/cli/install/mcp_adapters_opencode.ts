@@ -48,10 +48,16 @@ export const opencodeDescriptor: McpAdapter = {
   },
   detect: async (env: DetectEnv): Promise<DetectResult> => {
     const signals: string[] = [];
-    const fake = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
-    if (fake !== undefined && fake.split(",").includes("opencode")) {
-      signals.push("env-fake");
-      return { detected: true, signals };
+    // The fake-detect hook is gated behind MARKSPEC_TEST_MODE so a stray
+    // MARKSPEC_FAKE_CLIENT_DETECT in a user's parent shell / .env / CI env
+    // cannot trick a production run into writing unwanted MCP configs.
+    // Both vars must be set together; the test harness owns both.
+    if (Deno.env.get("MARKSPEC_TEST_MODE") === "1") {
+      const fake = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
+      if (fake !== undefined && fake.split(",").includes("opencode")) {
+        signals.push("env-fake");
+        return { detected: true, signals };
+      }
     }
     if (await env.whichCommand("opencode") !== undefined) {
       signals.push("opencode-cli-on-path");
