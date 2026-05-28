@@ -123,7 +123,9 @@ function composeReadyOkTooltip(
 ): string {
   const sections: string[] = ["**MarkSpec LSP** ready"];
   if (indexed) {
-    sections.push(`Indexed ${indexed.files} files, ${indexed.entries} entries.`);
+    sections.push(
+      `Indexed ${indexed.files} files, ${indexed.entries} entries.`,
+    );
   }
   if (version) {
     sections.push(`Version: ${version.release}`);
@@ -142,7 +144,9 @@ function composeReadyBelowFloorTooltip(
 ): string {
   const sections: string[] = ["**MarkSpec LSP** below workspace floor"];
   if (indexed) {
-    sections.push(`Indexed ${indexed.files} files, ${indexed.entries} entries.`);
+    sections.push(
+      `Indexed ${indexed.files} files, ${indexed.entries} entries.`,
+    );
   }
   // `version.minVersion` is guaranteed non-null when `isBelow` is true —
   // see `isBelowFloor`: it returns false for `undefined` floor.

@@ -1,10 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import {
-  type IndexedInfo,
-  renderState,
-  type VersionInfo,
-} from "./statusBar";
+import { type IndexedInfo, renderState, type VersionInfo } from "./statusBar";
 
 const VERSION_NO_FLOOR: VersionInfo = {
   release: "0.6.1",
