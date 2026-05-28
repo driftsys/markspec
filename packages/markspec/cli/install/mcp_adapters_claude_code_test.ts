@@ -153,3 +153,28 @@ Deno.test("claudeCodeDescriptor.detect: all signals fire → all listed", async 
     ]),
   );
 });
+
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude-code forces detected=true", async () => {
+  const original = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
+  Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", "claude-code");
+  try {
+    const r = await claudeCodeDescriptor.detect!(makeEnv());
+    assertEquals(r.detected, true);
+    assertEquals(r.signals.includes("env-fake"), true);
+  } finally {
+    if (original === undefined) Deno.env.delete("MARKSPEC_FAKE_CLIENT_DETECT");
+    else Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", original);
+  }
+});
+
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode does NOT force claude-code", async () => {
+  const original = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
+  Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", "opencode");
+  try {
+    const r = await claudeCodeDescriptor.detect!(makeEnv());
+    assertEquals(r.detected, false);
+  } finally {
+    if (original === undefined) Deno.env.delete("MARKSPEC_FAKE_CLIENT_DETECT");
+    else Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", original);
+  }
+});
