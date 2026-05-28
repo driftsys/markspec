@@ -1,17 +1,15 @@
 /**
  * @module lsp/event_log
  *
- * Unified, perf-safe event log for the LSP server. Replaces the
- * per-event `Deno.writeTextFileSync` pattern used by `debug_log` and
- * `timing` with a single buffered writer: one open file handle, an
+ * Unified, perf-safe event log for the LSP server. The single buffered
+ * writer behind every LSP log channel: one open file handle, an
  * in-memory line buffer, and either a 250ms timer or a 4KB watermark
  * triggering a flush. Per-emit cost is one array push plus a small
- * length check — well under a microsecond — so events can be enabled
- * by default without measurable impact on the LSP hot paths.
+ * length check — well under a microsecond — so events are enabled by
+ * default without measurable impact on the LSP hot paths.
  *
- * MVP scope: one tier (`info`/`warn`/`error` levels exist for future
- * filtering but no level gate is enforced yet). One log destination
- * resolved as:
+ * Levels (`info`/`warn`/`error`) exist for future filtering but no
+ * level gate is enforced yet. One log destination resolved as:
  *
  *   1. `MARKSPEC_LSP_LOG_OFF=1` → disabled, no writes
  *   2. `MARKSPEC_LSP_LOG=<path>` → that path
@@ -21,10 +19,6 @@
  * Line format: `[<ISO timestamp>] <level> kind=<kind> [key=value ...]`
  * where values containing whitespace are double-quoted. One line per
  * event. Designed for `grep` / `awk`.
- *
- * The MARKSPEC_LSP_DEBUG_LOG and MARKSPEC_LSP_TIMING_LOG channels
- * keep working unchanged; future work migrates them to this module
- * (Job 5 of the event-log epic).
  */
 
 import { dirname, join } from "@std/path";
