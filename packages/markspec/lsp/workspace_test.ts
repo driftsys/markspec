@@ -142,6 +142,43 @@ Deno.test("WorkspaceIndex: getNextDisplayIdNumber returns 1 for empty prefix", (
   assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 1);
 });
 
+Deno.test("WorkspaceIndex: getNextDisplayIdNumber skips reserved numbers", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("reqs.md", [
+    entry("STK_AEB_0001", { file: "reqs.md" }),
+    entry("STK_AEB_0002", { file: "reqs.md" }),
+  ]);
+
+  // Without reservations the next number is 3.
+  assertEquals(index.getNextDisplayIdNumber("STK_AEB_"), 3);
+
+  // Reserving 3 bumps the next free number past it, even though 3 is
+  // not yet present in the parsed index.
+  assertEquals(
+    index.getNextDisplayIdNumber("STK_AEB_", "", new Set([3])),
+    4,
+  );
+
+  // The reserved max dominates when it exceeds the indexed max.
+  assertEquals(
+    index.getNextDisplayIdNumber("STK_AEB_", "", new Set([3, 7])),
+    8,
+  );
+});
+
+Deno.test("WorkspaceIndex: getNextDisplayIdNumber ignores reservations under a different prefix", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("reqs.md", [entry("STK_AEB_0001", { file: "reqs.md" })]);
+
+  // The reserved set is the caller's responsibility — getNextDisplayIdNumber
+  // simply folds it into the max. The server only ever passes the set that
+  // matches (prefix, suffix), so an empty set leaves the result unchanged.
+  assertEquals(
+    index.getNextDisplayIdNumber("STK_AEB_", "", new Set()),
+    2,
+  );
+});
+
 Deno.test("WorkspaceIndex: updateFile promotes survivor when owner loses a display ID", () => {
   const index = new WorkspaceIndex();
 

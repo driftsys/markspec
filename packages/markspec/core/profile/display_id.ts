@@ -87,15 +87,49 @@ export function highestDisplayIdNumber(
 ): number {
   let max = 0;
   for (const entry of entries) {
-    const id = entry.displayId;
-    if (!id.startsWith(shape.prefix)) continue;
-    if (shape.suffix && !id.endsWith(shape.suffix)) continue;
-    const numberPart = id.slice(
-      shape.prefix.length,
-      id.length - shape.suffix.length,
-    );
-    const n = parseInt(numberPart, 10);
-    if (!isNaN(n) && n > max) max = n;
+    const n = decomposeDisplayId(entry.displayId, shape);
+    if (n !== undefined && n > max) max = n;
   }
   return max;
+}
+
+/**
+ * Recover the sequential number from a display ID by stripping a
+ * pattern's literal `prefix`/`suffix` and parsing the numeric middle.
+ * Inverse of {@linkcode formatDisplayId}. Returns `undefined` when the
+ * affixes don't match (or, in `strict` mode, when the middle is not
+ * purely numeric), so callers can skip non-matching IDs without a
+ * separate guard.
+ *
+ * Shared by {@linkcode highestDisplayIdNumber}, the LSP's
+ * `getNextDisplayIdNumber` index scan, and the LSP reservation-release
+ * path so the affix-stripping arithmetic lives in one place.
+ *
+ * **Lenient by default** — `parseInt` consumes the leading digits and
+ * ignores any trailing junk (`"0099_extra"` → `99`). This is the
+ * deliberate next-ID contract: a malformed sibling must still push the
+ * next minted number past it so the two never collide. Both next-number
+ * computers rely on this and must agree, so the default is shared.
+ *
+ * **`strict: true`** rejects a non-numeric middle outright. The
+ * reservation-release path needs this: when two profile patterns share a
+ * prefix (`STK_{n:4d}` vs `STK_{n:4d}-draft`), lenient parsing of
+ * `"STK_0003-draft"` against the no-suffix pattern would yield `3` and
+ * release the wrong `(prefix, suffix)` triple. The digit guard makes the
+ * `-draft` pattern the only match.
+ */
+export function decomposeDisplayId(
+  id: string,
+  shape: Pick<DisplayIdPatternShape, "prefix" | "suffix">,
+  opts: { strict?: boolean } = {},
+): number | undefined {
+  if (!id.startsWith(shape.prefix)) return undefined;
+  if (shape.suffix && !id.endsWith(shape.suffix)) return undefined;
+  const numberPart = id.slice(
+    shape.prefix.length,
+    id.length - shape.suffix.length,
+  );
+  if (opts.strict && !/^\d+$/.test(numberPart)) return undefined;
+  const n = parseInt(numberPart, 10);
+  return Number.isNaN(n) ? undefined : n;
 }

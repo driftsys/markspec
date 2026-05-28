@@ -36,6 +36,7 @@ import { isAbsolute, join } from "@std/path";
 import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
+  decomposeDisplayId,
   DEFAULT_PROJECT_CONFIG,
   type Diagnostic as CoreDiagnostic,
   discoverProjectRoot,
@@ -98,6 +99,11 @@ import {
   type ScaffoldCompletionData,
 } from "./completions.ts";
 import { findEnclosingEntry } from "./find_entry.ts";
+import {
+  hasAnyReservations,
+  mintReservedNumber,
+  release,
+} from "./id_reservations.ts";
 import {
   isDocCommentContext,
   isMarkspecFile,
@@ -315,6 +321,56 @@ function getEntryTypes(): EntryTypeInfo[] {
     types.push({ name, prefix, width, suffix, nextNumber, modeRecommended });
   }
   return types;
+}
+
+/**
+ * Lean `(prefix, suffix)` pairs for every profile type with a parseable
+ * `display-id-pattern`. Unlike {@linkcode getEntryTypes} this skips the
+ * per-type `getNextDisplayIdNumber` scan — {@linkcode releaseObservedReservations}
+ * only needs the literal affixes to decompose a display ID, and it runs on
+ * every debounced parse.
+ */
+function getScaffoldPatterns(): Array<{ prefix: string; suffix: string }> {
+  if (!profile) return [];
+  const out: Array<{ prefix: string; suffix: string }> = [];
+  for (const [, typeDef] of profile.types) {
+    const pattern = typeDef.value.displayIdPattern.value;
+    if (!pattern) continue;
+    const shape = parseDisplayIdPattern(pattern);
+    if (!shape) continue;
+    out.push({ prefix: shape.prefix, suffix: shape.suffix });
+  }
+  return out;
+}
+
+/**
+ * Release any display-ID reservation now satisfied by a freshly-parsed
+ * file. The resolve handler reserves a number the instant it hands one
+ * out; once the inserted entry reaches the index (after the debounced
+ * parse) the reservation is redundant and must be dropped so the number
+ * is not blocked. Each entry's display ID is decomposed against the
+ * active profile's type affixes to recover the `(prefix, suffix, number)`
+ * triple. A no-op when no profile is loaded or nothing matches — cheap
+ * because reservation buckets are typically empty.
+ */
+function releaseObservedReservations(filePath: string): void {
+  // Hot path: this runs after every debounced parse (≈ per keystroke).
+  // The reservation map is empty unless a scaffold accept is mid-flight,
+  // so skip the pattern parse + entry scan entirely in the common case.
+  if (!hasAnyReservations()) return;
+  const patterns = getScaffoldPatterns();
+  if (patterns.length === 0) return;
+  for (const entry of index.getEntriesForFile(filePath)) {
+    const id = entry.displayId as string;
+    for (const { prefix, suffix } of patterns) {
+      // strict: a non-numeric middle must not match, so prefix-sharing
+      // patterns (`STK_{n:4d}` vs `STK_{n:4d}-draft`) disambiguate.
+      const n = decomposeDisplayId(id, { prefix, suffix }, { strict: true });
+      if (n === undefined) continue;
+      release(prefix, suffix, n);
+      break; // one pattern matched this entry; move on
+    }
+  }
 }
 
 /**
@@ -630,6 +686,9 @@ documents.onDidChangeContent((change) => {
       const content = pendingContent.get(filePath);
       if (content === undefined) return;
       const parseDiags = await index.parseAndUpdateFile(filePath, content);
+      // The just-parsed entries now carry any display ID a scaffold accept
+      // reserved — drop those reservations so the numbers aren't blocked.
+      releaseObservedReservations(filePath);
       publishFileDiagnostics(filePath, parseDiags);
       debouncedValidateAll();
     }, 50);
@@ -666,6 +725,7 @@ documents.onDidOpen(async (event) => {
     filePath,
     event.document.getText(),
   );
+  releaseObservedReservations(filePath);
   publishFileDiagnostics(filePath, parseDiags);
   debouncedValidateAll();
 });
@@ -835,7 +895,16 @@ connection.onCompletionResolve((item): CompletionItem => {
   ) {
     return item;
   }
-  const nextNumber = index.getNextDisplayIdNumber(data.prefix, data.suffix);
+  // Mint and reserve the number atomically. Reserving before the snippet
+  // is built means a second resolve firing inside the parse-debounce
+  // window — before this entry reaches the index — sees the number as
+  // taken and picks the next one, closing the duplicate-ID race.
+  const { prefix, suffix } = data;
+  const nextNumber = mintReservedNumber(
+    prefix,
+    suffix,
+    (reserved) => index.getNextDisplayIdNumber(prefix, suffix, reserved),
+  );
   const rendered = renderScaffoldSnippet({
     typeName: data.typeName,
     prefix: data.prefix,

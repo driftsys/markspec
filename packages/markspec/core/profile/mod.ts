@@ -50,6 +50,7 @@ export {
 } from "./discipline_mode.ts";
 
 export {
+  decomposeDisplayId,
   formatDisplayId,
   highestDisplayIdNumber,
   padDisplayIdNumber,

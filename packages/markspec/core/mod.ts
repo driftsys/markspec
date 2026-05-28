@@ -145,6 +145,7 @@ export { buildEffectiveDisciplineRegistry } from "./profile/mod.ts";
 export { inferDisciplineMode, resolveDisciplineMode } from "./profile/mod.ts";
 // DisciplineMode type already re-exported via Task 2.
 export {
+  decomposeDisplayId,
   formatDisplayId,
   highestDisplayIdNumber,
   padDisplayIdNumber,

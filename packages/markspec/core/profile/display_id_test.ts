@@ -4,11 +4,51 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  decomposeDisplayId,
   formatDisplayId,
   highestDisplayIdNumber,
   padDisplayIdNumber,
   parseDisplayIdPattern,
 } from "./display_id.ts";
+
+Deno.test("decomposeDisplayId: extracts the number from a zero-padded ID", () => {
+  const shape = { prefix: "STK_", width: 4, suffix: "" };
+  assertEquals(decomposeDisplayId("STK_0003", shape), 3);
+  assertEquals(decomposeDisplayId("STK_0010", shape), 10);
+});
+
+Deno.test("decomposeDisplayId: respects a non-empty suffix", () => {
+  const shape = { prefix: "REQ-", width: 3, suffix: "-draft" };
+  assertEquals(decomposeDisplayId("REQ-012-draft", shape), 12);
+  // Suffix present in the pattern but absent on the ID → no match.
+  assertEquals(decomposeDisplayId("REQ-012", shape), undefined);
+});
+
+Deno.test("decomposeDisplayId: returns undefined when prefix doesn't match", () => {
+  const shape = { prefix: "STK_", width: 4, suffix: "" };
+  assertEquals(decomposeDisplayId("SYS_0003", shape), undefined);
+});
+
+Deno.test("decomposeDisplayId: lenient by default — trailing junk parses leading digits", () => {
+  // Mirrors highestDisplayIdNumber's documented next-ID contract.
+  const shape = { prefix: "STK_", width: 4, suffix: "" };
+  assertEquals(decomposeDisplayId("STK_0099_extra", shape), 99);
+});
+
+Deno.test("decomposeDisplayId: strict mode rejects a non-numeric middle", () => {
+  const shape = { prefix: "STK_", width: 4, suffix: "" };
+  // Lenient default would yield a number; strict rejects so prefix-sharing
+  // patterns disambiguate (the release path relies on this).
+  assertEquals(decomposeDisplayId("STK_0099_extra", shape), 99);
+  assertEquals(
+    decomposeDisplayId("STK_0099_extra", shape, { strict: true }),
+    undefined,
+  );
+  assertEquals(
+    decomposeDisplayId("STK_00X3", shape, { strict: true }),
+    undefined,
+  );
+});
 
 Deno.test("parseDisplayIdPattern: simple 4-digit prefix", () => {
   const shape = parseDisplayIdPattern("STK_{n:4d}");
