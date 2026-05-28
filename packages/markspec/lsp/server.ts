@@ -107,6 +107,7 @@ import {
   logEvent,
   setProjectRoot as setEventLogProjectRoot,
 } from "./event_log.ts";
+import { snapshot as methodCountsSnapshot, tally } from "./method_counts.ts";
 import { time, timeAsync } from "./timing.ts";
 import {
   buildDollarNameCompletions,
@@ -152,6 +153,12 @@ globalThis.addEventListener("error", (e) => {
 // ---------------------------------------------------------------------------
 // Server state
 // ---------------------------------------------------------------------------
+
+/** Monotonic clock reading captured at module load. Subtracted from the
+ * `onShutdown` reading to compute the `durMs` field on the shutdown
+ * event — close enough to "session lifetime" for analytics; the wall
+ * clock is unsuitable here because it can jump backwards. */
+const sessionStartedAt = performance.now();
 
 let projectRoot: string | undefined;
 let _config: ProjectConfig = DEFAULT_PROJECT_CONFIG;
@@ -628,6 +635,7 @@ documents.onDidOpen(async (event) => {
 // ---------------------------------------------------------------------------
 
 connection.onCompletion((params): CompletionItem[] => {
+  tally("completion");
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
 
@@ -764,6 +772,7 @@ connection.onCompletionResolve((item): CompletionItem => {
 // ---------------------------------------------------------------------------
 
 connection.onHover((params) => {
+  tally("hover");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -807,6 +816,7 @@ connection.onHover((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onDefinition((params) => {
+  tally("definition");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -838,6 +848,7 @@ connection.onDefinition((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onReferences((params) => {
+  tally("references");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -874,6 +885,7 @@ connection.onReferences((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onDocumentSymbol((params) => {
+  tally("documentSymbol");
   const filePath = uriToPath(params.textDocument.uri);
   if (!isMarkspecFile(filePath)) return null;
   const entries = index.getEntriesForFile(filePath);
@@ -889,6 +901,7 @@ connection.onDocumentSymbol((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onWorkspaceSymbol((params) => {
+  tally("workspaceSymbol");
   // The result conforms to LSP `SymbolInformation[]`; cast to satisfy
   // the typed `SymbolKind` enum the d.ts expects.
   // deno-lint-ignore no-explicit-any
@@ -900,6 +913,7 @@ connection.onWorkspaceSymbol((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onPrepareRename((params) => {
+  tally("prepareRename");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -923,6 +937,7 @@ connection.onPrepareRename((params) => {
 });
 
 connection.onRenameRequest(async (params) => {
+  tally("rename");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -970,6 +985,7 @@ connection.onRenameRequest(async (params) => {
 // ---------------------------------------------------------------------------
 
 connection.onCodeAction((params) => {
+  tally("codeAction");
   const filePath = uriToPath(params.textDocument.uri);
   if (!isMarkspecFile(filePath)) return null;
   const document = documents.get(params.textDocument.uri);
@@ -990,6 +1006,7 @@ connection.onCodeAction((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onDocumentLinks((params) => {
+  tally("documentLink");
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
   const filePath = uriToPath(params.textDocument.uri);
@@ -1016,6 +1033,7 @@ connection.onDocumentLinks((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onDocumentFormatting((params) => {
+  tally("documentFormatting");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -1041,6 +1059,7 @@ connection.onDocumentFormatting((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onCodeLens((params) => {
+  tally("codeLens");
   const filePath = uriToPath(params.textDocument.uri);
   if (!isMarkspecFile(filePath)) return [];
   const entries = index.getEntriesForFile(filePath);
@@ -1054,6 +1073,7 @@ connection.onCodeLens((params) => {
 // ---------------------------------------------------------------------------
 
 connection.languages.inlayHint.on((params) => {
+  tally("inlayHint");
   const filePath = uriToPath(params.textDocument.uri);
   if (!isMarkspecFile(filePath)) return [];
   const document = documents.get(params.textDocument.uri);
@@ -1071,6 +1091,7 @@ connection.languages.inlayHint.on((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onDocumentHighlight((params) => {
+  tally("documentHighlight");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
@@ -1097,6 +1118,7 @@ connection.onDocumentHighlight((params) => {
 // ---------------------------------------------------------------------------
 
 connection.onFoldingRanges((params) => {
+  tally("foldingRanges");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
   const filePath = uriToPath(params.textDocument.uri);
@@ -1112,6 +1134,7 @@ connection.onFoldingRanges((params) => {
 // ---------------------------------------------------------------------------
 
 connection.languages.semanticTokens.on((params) => {
+  tally("semanticTokens");
   const document = documents.get(params.textDocument.uri);
   if (!document) return { data: [] };
   const filePath = uriToPath(params.textDocument.uri);
@@ -1129,6 +1152,7 @@ connection.languages.semanticTokens.on((params) => {
 connection.onRequest(
   "markspec/profile",
   (_params: { uri?: string }): MarkspecProfileResponse => {
+    tally("markspecProfile");
     // `_params.uri` is accepted for forward compatibility but ignored in v1;
     // the server uses its rootUri. See design doc §3.1.
     return cachedProfileResponse;
@@ -1142,6 +1166,7 @@ connection.onRequest(
 connection.onRequest(
   "markspec/entryRanges",
   (params: { uri: string }): EntryRangesResponse => {
+    tally("markspecEntryRanges");
     const document = documents.get(params.uri);
     if (!document) return { entries: [] };
     const filePath = uriToPath(params.uri);
@@ -1165,6 +1190,16 @@ connection.onShutdown(() => {
   debugLog("onShutdown");
   debouncedValidateAll.cancel();
   debouncedReloadProfile.cancel();
+  // Roll up per-method counters + session duration into one final
+  // `kind=shutdown` event. Emitted from `onShutdown` (orderly exit)
+  // rather than `onExit` (hard close) so the summary still lands in
+  // the log when the client skips the exit notification.
+  const durMs = Math.round(performance.now() - sessionStartedAt);
+  const fields: Record<string, number> = { durMs };
+  for (const [method, n] of methodCountsSnapshot()) {
+    fields[`requests.${method}`] = n;
+  }
+  logEvent("info", "shutdown", fields);
   flushEventLog();
 });
 
