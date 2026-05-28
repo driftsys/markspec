@@ -154,27 +154,54 @@ Deno.test("claudeCodeDescriptor.detect: all signals fire → all listed", async 
   );
 });
 
-Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude-code forces detected=true", async () => {
-  const original = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
-  Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", "claude-code");
+/**
+ * Run `body` with MARKSPEC_TEST_MODE + MARKSPEC_FAKE_CLIENT_DETECT
+ * set to the given values, restoring the previous values afterward.
+ * Both vars are required because the adapter's fake-detect hook is
+ * gated behind MARKSPEC_TEST_MODE=1.
+ */
+async function withFakeEnv(
+  testMode: string | undefined,
+  fake: string | undefined,
+  body: () => Promise<void>,
+): Promise<void> {
+  const origMode = Deno.env.get("MARKSPEC_TEST_MODE");
+  const origFake = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
+  if (testMode === undefined) Deno.env.delete("MARKSPEC_TEST_MODE");
+  else Deno.env.set("MARKSPEC_TEST_MODE", testMode);
+  if (fake === undefined) Deno.env.delete("MARKSPEC_FAKE_CLIENT_DETECT");
+  else Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", fake);
   try {
+    await body();
+  } finally {
+    if (origMode === undefined) Deno.env.delete("MARKSPEC_TEST_MODE");
+    else Deno.env.set("MARKSPEC_TEST_MODE", origMode);
+    if (origFake === undefined) Deno.env.delete("MARKSPEC_FAKE_CLIENT_DETECT");
+    else Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", origFake);
+  }
+}
+
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude-code forces detected=true (with TEST_MODE)", async () => {
+  await withFakeEnv("1", "claude-code", async () => {
     const r = await claudeCodeDescriptor.detect!(makeEnv());
     assertEquals(r.detected, true);
     assertEquals(r.signals.includes("env-fake"), true);
-  } finally {
-    if (original === undefined) Deno.env.delete("MARKSPEC_FAKE_CLIENT_DETECT");
-    else Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", original);
-  }
+  });
 });
 
-Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode does NOT force claude-code", async () => {
-  const original = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
-  Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", "opencode");
-  try {
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode does NOT force claude-code (with TEST_MODE)", async () => {
+  await withFakeEnv("1", "opencode", async () => {
     const r = await claudeCodeDescriptor.detect!(makeEnv());
     assertEquals(r.detected, false);
-  } finally {
-    if (original === undefined) Deno.env.delete("MARKSPEC_FAKE_CLIENT_DETECT");
-    else Deno.env.set("MARKSPEC_FAKE_CLIENT_DETECT", original);
-  }
+  });
+});
+
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT without MARKSPEC_TEST_MODE is ignored", async () => {
+  // Env-bleed guard: a stray MARKSPEC_FAKE_CLIENT_DETECT in a parent
+  // shell / .env / CI environment must not trick a production run.
+  await withFakeEnv(undefined, "claude-code", async () => {
+    const r = await claudeCodeDescriptor.detect!(makeEnv());
+    assertEquals(r.detected, false);
+    assertEquals(r.signals.includes("env-fake"), false);
+  });
 });
