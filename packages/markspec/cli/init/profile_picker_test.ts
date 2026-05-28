@@ -91,3 +91,32 @@ Deno.test("runProfilePicker: gives up after 3 invalid inputs", async () => {
   };
   await assertRejects(() => runProfilePicker(prompter), Error, "max attempts");
 });
+
+Deno.test("runProfilePicker: null from prompter (EOF / Ctrl-D) aborts", async () => {
+  // Pressing Ctrl-D before answering must not silently scaffold the
+  // bundled default — it has to surface as an abort the CLI can
+  // exit non-zero on. Empty string `""` (plain Enter) keeps its
+  // existing meaning of "use bundled default".
+  const prompter: Prompter = {
+    question: () => Promise.resolve(null),
+  };
+  await assertRejects(
+    () => runProfilePicker(prompter),
+    Error,
+    "aborted by user",
+  );
+});
+
+Deno.test("runProfilePicker: null on sub-prompt (e.g. mid Git URL) aborts", async () => {
+  // EOF mid-flow on a follow-up prompt must abort, not loop back.
+  const answers: Array<string | null> = ["2", null];
+  let i = 0;
+  const prompter: Prompter = {
+    question: () => Promise.resolve(answers[i++]),
+  };
+  await assertRejects(
+    () => runProfilePicker(prompter),
+    Error,
+    "aborted by user",
+  );
+});
