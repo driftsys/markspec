@@ -9,6 +9,7 @@
 import { Command, EnumType } from "@cliffy/command";
 import { resolve } from "@std/path";
 import { VERSION } from "../../core/mod.ts";
+import { parseWhichOutput } from "../init/which_command.ts";
 
 const clientType = new EnumType(["claude-code", "opencode"]);
 const formatType = new EnumType(["text", "json"]);
@@ -90,8 +91,7 @@ export const initCmd = new Command()
           stderr: "null",
         });
         const out = await p.output();
-        if (out.code !== 0) return undefined;
-        return new TextDecoder().decode(out.stdout).split(/\r?\n/)[0].trim();
+        return parseWhichOutput(out.code, out.stdout);
       } catch {
         return undefined;
       }
