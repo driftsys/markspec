@@ -238,7 +238,14 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
         ["add", SKILLS_BUNDLE_SOURCE],
         { cwd: options.targetDir },
       );
-      if (r.code === 127 || r.stderr.includes("not found")) {
+      // POSIX shells emit code 127 + "not found". cmd.exe emits
+      // code 9009 + "is not recognized as an internal or external
+      // command". Match both so Windows users see UPSKILL_NOT_FOUND
+      // instead of the less-helpful UPSKILL_FAILED.
+      const notFound = r.code === 127 || r.code === 9009 ||
+        r.stderr.includes("not found") ||
+        r.stderr.includes("not recognized");
+      if (notFound) {
         warnings.push({
           code: "UPSKILL_NOT_FOUND",
           message:

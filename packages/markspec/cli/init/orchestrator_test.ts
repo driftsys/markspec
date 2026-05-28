@@ -180,6 +180,48 @@ Deno.test("runInit: upskill missing → warning + exit 2", async () => {
   assertEquals(upskillWarn !== undefined, true);
 });
 
+Deno.test("runInit: upskill missing on Windows (exit 9009 / not recognized) → UPSKILL_NOT_FOUND", async () => {
+  // cmd.exe returns exit code 9009 with stderr containing 'is not
+  // recognized as an internal or external command' when the binary
+  // is not on PATH. Neither matches the POSIX `code === 127` /
+  // `'not found'` checks, so without this branch Windows users
+  // would see the less-helpful UPSKILL_FAILED warning.
+  const fs = createMemFs();
+  const windowsMissingExec: ExecRunner = () =>
+    Promise.resolve({
+      code: 9009,
+      stdout: "",
+      stderr:
+        "'upskill' is not recognized as an internal or external command, operable program or batch file.",
+    });
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "bundled" },
+    forcedClients: [],
+    allClients: false,
+    noMcp: false,
+    noSkills: false,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: noClientEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: windowsMissingExec,
+    now: fakeNow,
+    version: "0.6.0",
+  });
+  const upskillNotFound = result.warnings.find((w) =>
+    w.code === "UPSKILL_NOT_FOUND"
+  );
+  const upskillFailed = result.warnings.find((w) =>
+    w.code === "UPSKILL_FAILED"
+  );
+  assertEquals(upskillNotFound !== undefined, true);
+  assertEquals(upskillFailed, undefined);
+});
+
 Deno.test("runInit: non-whitelisted content (src/) → TARGET_NOT_EMPTY error + exit 1", async () => {
   const fs = createMemFs();
   await fs.write("/repo/src/x.txt", "user code");
