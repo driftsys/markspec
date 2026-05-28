@@ -3,6 +3,13 @@
 import { assertEquals } from "@std/assert";
 import { createMemFs } from "./fake_fs.ts";
 import { type ExecRunner, type McpRunner, runInit } from "./orchestrator.ts";
+import { claudeCodeDescriptor } from "../install/mcp_adapters_claude_code.ts";
+import { opencodeDescriptor } from "../install/mcp_adapters_opencode.ts";
+
+const adapters = new Map([
+  ["claude-code" as const, claudeCodeDescriptor],
+  ["opencode" as const, opencodeDescriptor],
+]);
 
 const FROZEN_TIME = "2026-05-28T12:00:00Z";
 
@@ -60,6 +67,7 @@ Deno.test("runInit: empty target, no clients, ok path", async () => {
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.ok, true);
   assertEquals(result.exitCode, 0);
@@ -91,6 +99,7 @@ Deno.test("runInit: --dry-run writes no files", async () => {
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.ok, true);
   assertEquals(await fs.read("/repo/project.yaml"), undefined);
@@ -121,6 +130,7 @@ Deno.test("runInit: clients detected → mcpRunner invoked per client", async ()
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(calls.sort(), ["claude-code", "opencode"]);
 });
@@ -149,6 +159,7 @@ Deno.test("runInit: --no-skills skips upskill", async () => {
     execRunner: exec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(calls.includes("upskill"), false);
 });
@@ -172,6 +183,7 @@ Deno.test("runInit: upskill missing → warning + exit 2", async () => {
     execRunner: missingExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.exitCode, 2);
   const upskillWarn = result.warnings.find((w) =>
@@ -211,6 +223,7 @@ Deno.test("runInit: upskill missing on Windows (exit 9009 / not recognized) → 
     execRunner: windowsMissingExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   const upskillNotFound = result.warnings.find((w) =>
     w.code === "UPSKILL_NOT_FOUND"
@@ -242,6 +255,7 @@ Deno.test("runInit: non-whitelisted content (src/) → TARGET_NOT_EMPTY error + 
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.ok, false);
   assertEquals(result.exitCode, 1);
@@ -274,6 +288,7 @@ Deno.test("runInit: plan outputs are dynamically whitelisted for TARGET_NOT_EMPT
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.ok, true);
   assertEquals(result.error, undefined);
@@ -299,6 +314,7 @@ Deno.test("runInit: existing project.yaml only → skip + exit 2 (whitelisted ou
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.exitCode, 2);
   const skip = result.actions.find((a) => a.file === "project.yaml");
@@ -326,6 +342,7 @@ Deno.test("runInit: mcpRunner failure → MCP_INSTALL_FAILED warning + exit 2", 
     execRunner: okExec,
     now: fakeNow,
     version: "0.6.0",
+    mcpAdapters: adapters,
   });
   assertEquals(result.exitCode, 2);
   const warn = result.warnings.find((w) => w.code === "MCP_INSTALL_FAILED");

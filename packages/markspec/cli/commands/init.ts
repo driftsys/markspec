@@ -120,6 +120,17 @@ export const initCmd = new Command()
       execPath: () => Deno.execPath(),
     };
 
+    const { claudeCodeDescriptor } = await import(
+      "../install/mcp_adapters_claude_code.ts"
+    );
+    const { opencodeDescriptor } = await import(
+      "../install/mcp_adapters_opencode.ts"
+    );
+    const mcpAdapters = new Map([
+      ["claude-code" as const, claudeCodeDescriptor],
+      ["opencode" as const, opencodeDescriptor],
+    ]);
+
     const result = await runInit({
       targetDir,
       profileChoice,
@@ -133,6 +144,7 @@ export const initCmd = new Command()
       fs,
       detectEnv,
       binaryEnv,
+      mcpAdapters,
       mcpRunner: async (opts) => {
         const { runMcpInstall } = await import(
           "../install/mcp_orchestrator.ts"
