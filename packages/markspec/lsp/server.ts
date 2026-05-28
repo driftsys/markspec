@@ -116,6 +116,7 @@ import {
   formatTyplHoverContent,
   isDollarNameTrigger,
 } from "./typl.ts";
+import { buildVersionNotification } from "./version_notification.ts";
 
 // ---------------------------------------------------------------------------
 // Connection and document manager
@@ -552,10 +553,10 @@ connection.onInitialized(async () => {
       parseAllMs,
     });
 
-    connection.sendNotification("markspec/version", {
-      release: VERSION,
-      coreSchemaVersion: CORE_SCHEMA_VERSION,
-    });
+    connection.sendNotification(
+      "markspec/version",
+      buildVersionNotification(VERSION, CORE_SCHEMA_VERSION, lockfile),
+    );
 
     // Register the profile-file watcher. We do this even when no profile
     // is currently loaded so a later `.markspec.yaml` creation triggers
