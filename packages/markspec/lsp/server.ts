@@ -39,6 +39,7 @@ import {
   type Diagnostic as CoreDiagnostic,
   discoverProjectRoot,
   type EffectiveProfile,
+  filterEntriesByTraceTargets,
   format,
   loadConfig,
   loadProfileForCommand,
@@ -47,6 +48,7 @@ import {
   parseDisplayIdPattern,
   parseLockfile,
   type ProjectConfig,
+  targetsForRelation,
   VERSION,
 } from "../core/mod.ts";
 import { extendsTransitively } from "../core/profile/discipline_mode.ts";
@@ -84,6 +86,7 @@ import {
   buildTrailerKeyItems,
   buildTypeAttributeItems,
   type EntryTypeInfo,
+  extractRelationName,
   isBlockScaffoldTrigger,
   isTraceAttributeTrigger,
   isTrailerKeyContext,
@@ -92,6 +95,7 @@ import {
   SCAFFOLD_COMPLETION_KIND,
   type ScaffoldCompletionData,
 } from "./completions.ts";
+import { findEnclosingEntry } from "./find_entry.ts";
 import {
   isDocCommentContext,
   isMarkspecFile,
@@ -733,7 +737,30 @@ connection.onCompletion((params): CompletionItem[] => {
   // Trigger 3: ID reference
   if (isTraceAttributeTrigger(line)) {
     return time("onCompletion/idRef", () => {
-      const displayIds = index.getAllDisplayIds();
+      // Narrow the suggestion list to entries the profile's trace
+      // rule actually allows in this slot (e.g. `Satisfies:` on a
+      // software-requirement should only suggest system-requirement
+      // IDs). The narrowing fires only when we can resolve: the
+      // enclosing entry's type, the relation name, and a TraceRule
+      // for that pair. Any missing piece falls back to the full
+      // workspace listing — better to over-suggest than to hide.
+      const enclosing = profile
+        ? findEnclosingEntry(
+          index.getEntriesForFile(filePath),
+          params.position.line + 1, // LSP is 0-based; Entry is 1-based.
+        )
+        : undefined;
+      const relationName = profile ? extractRelationName(line) : undefined;
+      const targets = profile && relationName
+        ? targetsForRelation(profile, enclosing?.type, relationName)
+        : undefined;
+      const displayIds = profile && targets
+        ? filterEntriesByTraceTargets(
+          index.getAllEntries(),
+          targets,
+          profile,
+        ).map((e) => ({ displayId: e.displayId, title: e.title }))
+        : index.getAllDisplayIds();
       const items = buildIdReferenceItems(displayIds);
       return items.map((item) => ({
         label: item.label,
