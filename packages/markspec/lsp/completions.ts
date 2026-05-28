@@ -23,6 +23,16 @@ import type { DisplayIdEntry } from "./workspace.ts";
 /** Block scaffold trigger pattern: `- [` at the start of a list item. */
 const BLOCK_SCAFFOLD_RE = /^\s*-\s*\[$/;
 
+/**
+ * Mid-typed scaffold trigger pattern: `- [` followed by at least one
+ * display-ID prefix character (letters, digits, underscore, hyphen),
+ * with the cursor at the end. Fires once the author has started typing
+ * a prefix by hand (e.g. `- [STK_`), where the bare-bracket
+ * {@linkcode BLOCK_SCAFFOLD_RE} no longer matches. The captured group
+ * is the typed partial.
+ */
+const MID_TYPED_SCAFFOLD_RE = /^\s*-\s*\[([A-Za-z0-9_-]+)$/;
+
 /** Pattern matching a trace attribute keyword at line start. */
 const TRACE_ATTR_RE =
   /^\s*(Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes)\s*:/;
@@ -79,6 +89,26 @@ export function isTrailerKeyContext(textBefore: string): boolean {
  */
 export function isBlockScaffoldTrigger(textBefore: string): boolean {
   return BLOCK_SCAFFOLD_RE.test(textBefore);
+}
+
+/**
+ * Check if the text before the cursor triggers a mid-typed scaffold
+ * completion — `- [` followed by ≥1 prefix character, cursor at end.
+ * This is more specific than {@linkcode isBlockScaffoldTrigger} (which
+ * matches only the bare `- [`); the server tries this trigger first.
+ */
+export function isMidTypedScaffoldTrigger(textBefore: string): boolean {
+  return MID_TYPED_SCAFFOLD_RE.test(textBefore);
+}
+
+/**
+ * Extract the partially-typed display-ID prefix from a mid-typed
+ * scaffold line. Returns the captured partial (e.g. `"STK_"` from
+ * `"- [STK_"`), or the empty string when the line is not a mid-typed
+ * scaffold trigger.
+ */
+export function extractMidTypedPartial(textBefore: string): string {
+  return MID_TYPED_SCAFFOLD_RE.exec(textBefore)?.[1] ?? "";
 }
 
 /**
@@ -275,6 +305,16 @@ export interface ScaffoldCompletionData {
   readonly prefix: string;
   readonly width: number;
   readonly suffix: string;
+  /**
+   * Present only for mid-typed scaffold items (see
+   * {@linkcode buildMidTypedScaffoldItems}): the exact range the
+   * accepted edit must replace — the typed partial. When set, the
+   * resolve handler rebuilds a `textEdit` (range + freshly rendered
+   * snippet) instead of plain `insertText`, so the editor replaces the
+   * partial rather than inserting after it. Absent for bare `- [`
+   * block-scaffold items, which keep the plain-insertText resolve path.
+   */
+  readonly replacementRange?: ReplacementRange;
 }
 
 /**
@@ -391,6 +431,107 @@ export function buildBlockScaffoldItems(
       insertText: rendered.insertText,
       isSnippet: true,
       kind: KIND_SNIPPET,
+    };
+  });
+}
+
+/**
+ * A zero-based LSP range (start/end line + character) — the span a
+ * mid-typed scaffold completion replaces. Matches the shape of the LSP
+ * `Range` type so callers can hand it straight to a `TextEdit`.
+ */
+export interface ReplacementRange {
+  readonly start: { readonly line: number; readonly character: number };
+  readonly end: { readonly line: number; readonly character: number };
+}
+
+/**
+ * One mid-typed scaffold completion item. Unlike
+ * {@linkcode CompletionItemData}, it always carries a `textEdit` so the
+ * editor replaces exactly the typed partial (not whatever its
+ * word-boundary heuristic would pick). `typeName`, `prefix`, `width`,
+ * and `suffix` are surfaced so the server can attach the resolve-time
+ * {@linkcode ScaffoldCompletionData} payload.
+ */
+export interface MidTypedScaffoldItem {
+  readonly label: string;
+  readonly detail: string;
+  readonly typeName: string;
+  readonly prefix: string;
+  readonly width: number;
+  readonly suffix: string;
+  readonly textEdit: {
+    readonly range: ReplacementRange;
+    readonly newText: string;
+  };
+}
+
+/**
+ * Build mid-typed scaffold completion items for a partially-typed
+ * display-ID prefix.
+ *
+ * A profile type matches the `partial` when its `prefix` is a (non-
+ * strict) prefix of the partial, or the partial is a (non-strict)
+ * prefix of its `prefix` — i.e. `prefix.startsWith(partial) ||
+ * partial.startsWith(prefix)`. This covers both directions: the author
+ * has typed a strict prefix of a declared prefix (`STK_` → `STK_AEB_`),
+ * or the author has already typed the full prefix and possibly more
+ * (`STK_AEB_0001`). Matching is case-sensitive — display IDs are.
+ *
+ * Each matched type's snippet is rendered via
+ * {@linkcode renderScaffoldSnippet} (filling the missing prefix suffix,
+ * the next sequential number, a freshly provided ULID and the trailer
+ * skeleton) and wrapped in a `textEdit` whose range is the supplied
+ * `replacementRange` (the span covering the typed partial). Items whose
+ * `prefix` exactly equals the partial sort first; remaining matches keep
+ * the caller's order.
+ *
+ * Returns an empty array when no profile type matches (including when
+ * `types` is empty), so the server falls back to no completion — the
+ * pre-existing behaviour for a mid-typed bracket.
+ *
+ * @param ulidProvider - Called once per matched item; the returned ULID
+ *   is baked into the snippet so no follow-up `markspec format` is
+ *   needed. The resolve handler re-renders with a fresh ULID on accept.
+ */
+export function buildMidTypedScaffoldItems(
+  types: readonly EntryTypeInfo[],
+  partial: string,
+  ulidProvider: () => string,
+  replacementRange: ReplacementRange,
+): MidTypedScaffoldItem[] {
+  const matched = types.filter((t) =>
+    t.prefix.startsWith(partial) || partial.startsWith(t.prefix)
+  );
+
+  // Exact prefix match first; otherwise preserve the caller's order.
+  const sorted = matched
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => {
+      const aExact = a.t.prefix === partial ? 1 : 0;
+      const bExact = b.t.prefix === partial ? 1 : 0;
+      if (aExact !== bExact) return bExact - aExact;
+      return a.i - b.i;
+    })
+    .map(({ t }) => t);
+
+  return sorted.map((type) => {
+    const rendered = renderScaffoldSnippet({
+      typeName: type.name,
+      prefix: type.prefix,
+      width: type.width,
+      suffix: type.suffix,
+      nextNumber: type.nextNumber,
+      ulid: ulidProvider(),
+    });
+    return {
+      label: rendered.label,
+      detail: type.name,
+      typeName: type.name,
+      prefix: type.prefix,
+      width: type.width,
+      suffix: type.suffix,
+      textEdit: { range: replacementRange, newText: rendered.insertText },
     };
   });
 }

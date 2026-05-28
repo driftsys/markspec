@@ -84,16 +84,20 @@ import {
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildMidTypedScaffoldItems,
   buildTrailerKeyItems,
   buildTypeAttributeItems,
   type EntryTypeInfo,
+  extractMidTypedPartial,
   extractRelationName,
   extractTracePartial,
   isBlockScaffoldTrigger,
+  isMidTypedScaffoldTrigger,
   isTraceAttributeTrigger,
   isTrailerKeyContext,
   isTypeAttributeTrigger,
   renderScaffoldSnippet,
+  type ReplacementRange,
   SCAFFOLD_COMPLETION_KIND,
   type ScaffoldCompletionData,
 } from "./completions.ts";
@@ -694,6 +698,50 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
     end: params.position,
   });
 
+  // Trigger 0: Mid-typed display-ID scaffold — `- [<partial>`. More
+  // specific than the bare-bracket block scaffold below, so it is tried
+  // first. Each item carries an explicit textEdit replacing exactly the
+  // typed partial (VS Code's word-boundary heuristic treats `_` and
+  // digits as word chars and would otherwise pick the wrong span).
+  if (isMidTypedScaffoldTrigger(line)) {
+    return time("onCompletion/midTypedScaffold", () => {
+      const partial = extractMidTypedPartial(line);
+      const bracketIndex = line.lastIndexOf("[");
+      const replacementRange: ReplacementRange = {
+        start: { line: params.position.line, character: bracketIndex + 1 },
+        end: {
+          line: params.position.line,
+          character: params.position.character,
+        },
+      };
+      const items = buildMidTypedScaffoldItems(
+        getEntryTypes(),
+        partial,
+        ulid,
+        replacementRange,
+      );
+      // No matching profile type → return nothing (no profile loaded or
+      // the partial matches no declared prefix), matching prior behaviour
+      // for a mid-typed bracket.
+      return items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        insertText: item.textEdit.newText,
+        insertTextFormat: InsertTextFormat.Snippet,
+        kind: CompletionItemKind.Snippet,
+        textEdit: item.textEdit,
+        data: {
+          kind: SCAFFOLD_COMPLETION_KIND,
+          typeName: item.typeName,
+          prefix: item.prefix,
+          width: item.width,
+          suffix: item.suffix,
+          replacementRange: item.textEdit.range,
+        } satisfies ScaffoldCompletionData,
+      }));
+    });
+  }
+
   // Trigger 1: Block scaffold
   if (isBlockScaffoldTrigger(line)) {
     return time("onCompletion/scaffold", () => {
@@ -844,6 +892,22 @@ connection.onCompletionResolve((item): CompletionItem => {
     nextNumber,
     ulid: ulid(),
   });
+  // Mid-typed scaffold items carry the replacement range: rebuild the
+  // textEdit with the freshly rendered snippet (a stale textEdit.newText
+  // would otherwise win over insertText). Range is unchanged — the cursor
+  // hasn't moved between completion and resolve. Bare block-scaffold items
+  // have no range and keep the plain-insertText path.
+  if (isValidReplacementRange(data.replacementRange)) {
+    return {
+      ...item,
+      label: rendered.label,
+      textEdit: {
+        range: data.replacementRange,
+        newText: rendered.insertText,
+      },
+      insertTextFormat: InsertTextFormat.Snippet,
+    };
+  }
   return {
     ...item,
     label: rendered.label,
@@ -851,6 +915,20 @@ connection.onCompletionResolve((item): CompletionItem => {
     insertTextFormat: InsertTextFormat.Snippet,
   };
 });
+
+/** Narrow + validate a resolve-payload replacement range. Defends against
+ * tampered or malformed `data` from a hostile or buggy LSP client — the
+ * typed cast at the resolve handler's top does not validate at runtime. */
+function isValidReplacementRange(
+  range: ReplacementRange | undefined,
+): range is ReplacementRange {
+  if (!range) return false;
+  const { start, end } = range;
+  return typeof start?.line === "number" &&
+    typeof start?.character === "number" &&
+    typeof end?.line === "number" &&
+    typeof end?.character === "number";
+}
 
 // ---------------------------------------------------------------------------
 // Hover

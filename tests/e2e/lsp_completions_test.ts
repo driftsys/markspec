@@ -4,7 +4,7 @@
  * E2E test: trigger completion at `- [` and `Satisfies:` positions.
  */
 
-import { assert, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { join, toFileUrl } from "@std/path";
 import { LspTestClient } from "./lsp_helpers.ts";
 
@@ -180,6 +180,83 @@ Deno.test("lsp completions: server-side prefix filter on 'Satisfies: STK_'", asy
     assert(
       result.isIncomplete,
       "Non-empty partial should produce an incomplete list",
+    );
+  } finally {
+    await client.shutdown();
+  }
+});
+
+Deno.test("lsp completions: mid-typed prefix '- [STK_' scaffolds with textEdit", async () => {
+  // Profile declaring a stakeholder-requirement type with the
+  // STK_AEB_{n:04d} display-ID pattern → prefix "STK_AEB_".
+  const profileYaml = `id: "@acme/midtyped"
+version: 0.1.0
+profile:
+  types:
+    stakeholder-requirement:
+      extends: Requirement
+      display-id-pattern: "STK_AEB_{n:04d}"
+`;
+  const md = `# Requirements
+
+- [STK_
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\nversion: 0.1.0\n",
+    ".markspec.yaml": "profiles:\n  - ./profiles/midtyped\n",
+    "profiles/midtyped/markspec.yaml": profileYaml,
+    "reqs.md": md,
+  });
+  try {
+    await client.initialize();
+
+    const fileUri = toFileUrl(join(client.workDir, "reqs.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "markdown",
+        version: 1,
+        text: md,
+      },
+    });
+
+    // Give the server time to load the profile and parse.
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Cursor at the end of "- [STK_" on line 2 (0-based): char 7.
+    // "- [STK_" → `-`=0 ` `=1 `[`=2 `STK_`=3..6, cursor at 7.
+    const result = await client.request("textDocument/completion", {
+      textDocument: { uri: fileUri },
+      position: { line: 2, character: 7 },
+    }) as Array<{
+      label: string;
+      textEdit?: {
+        range: {
+          start: { line: number; character: number };
+          end: { line: number; character: number };
+        };
+        newText: string;
+      };
+    }>;
+
+    assertExists(result);
+    const item = result.find((i) =>
+      i.label === "New stakeholder-requirement (STK_AEB_0001)"
+    );
+    assertExists(
+      item,
+      `Expected mid-typed scaffold for STK_AEB_0001, got: ${
+        JSON.stringify(result.map((i) => i.label))
+      }`,
+    );
+    // The textEdit replaces exactly the typed partial "STK_" (chars 3..7)
+    // with the full display ID + entry skeleton.
+    assertExists(item.textEdit, "Expected a textEdit on the scaffold item");
+    assertEquals(item.textEdit.range.start, { line: 2, character: 3 });
+    assertEquals(item.textEdit.range.end, { line: 2, character: 7 });
+    assert(
+      item.textEdit.newText.startsWith("STK_AEB_0001]"),
+      `Expected newText to start with the full display ID, got: ${item.textEdit.newText}`,
     );
   } finally {
     await client.shutdown();

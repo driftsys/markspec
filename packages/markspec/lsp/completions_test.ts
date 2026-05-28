@@ -8,15 +8,19 @@ import { assertEquals, assertNotEquals } from "@std/assert";
 import {
   buildBlockScaffoldItems,
   buildIdReferenceItems,
+  buildMidTypedScaffoldItems,
   buildTrailerKeyItems,
   buildTypeAttributeItems,
+  extractMidTypedPartial,
   extractRelationName,
   extractTracePartial,
   isBlockScaffoldTrigger,
+  isMidTypedScaffoldTrigger,
   isTraceAttributeTrigger,
   isTrailerKeyContext,
   isTypeAttributeTrigger,
   renderScaffoldSnippet,
+  type ReplacementRange,
   TRAILER_KEYS,
 } from "./completions.ts";
 import type { DisplayIdEntry } from "./workspace.ts";
@@ -473,4 +477,187 @@ Deno.test("Slice 5 LSP: '(recommended)' suffix appears only on modeRecommended i
   const no = items.find((i) => i.detail?.startsWith("No"));
   assertEquals(yes?.detail, "Yes (recommended)");
   assertEquals(no?.detail, "No");
+});
+
+// --- Item #4: mid-typed display-ID scaffold trigger ---
+
+Deno.test("isMidTypedScaffoldTrigger: matches '- [S' (single char)", () => {
+  assertEquals(isMidTypedScaffoldTrigger("- [S"), true);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: matches '- [STK_' (full prefix, underscore)", () => {
+  assertEquals(isMidTypedScaffoldTrigger("- [STK_"), true);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: matches '- [STK_AEB_0' (with digit)", () => {
+  assertEquals(isMidTypedScaffoldTrigger("- [STK_AEB_0"), true);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: matches '- [REQ-' (with hyphen)", () => {
+  assertEquals(isMidTypedScaffoldTrigger("- [REQ-"), true);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: matches indented '  - [STK'", () => {
+  assertEquals(isMidTypedScaffoldTrigger("  - [STK"), true);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: rejects bare '- [' (no partial)", () => {
+  assertEquals(isMidTypedScaffoldTrigger("- ["), false);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: rejects closed bracket '- [STK]'", () => {
+  assertEquals(isMidTypedScaffoldTrigger("- [STK]"), false);
+});
+
+Deno.test("isMidTypedScaffoldTrigger: rejects mid-line text 'foo - [STK'", () => {
+  assertEquals(isMidTypedScaffoldTrigger("foo - [STK"), false);
+});
+
+Deno.test("extractMidTypedPartial: extracts 'STK_' from '- [STK_'", () => {
+  assertEquals(extractMidTypedPartial("- [STK_"), "STK_");
+});
+
+Deno.test("extractMidTypedPartial: extracts single char 'S' from '- [S'", () => {
+  assertEquals(extractMidTypedPartial("- [S"), "S");
+});
+
+Deno.test("extractMidTypedPartial: extracts 'REQ-0' from indented '  - [REQ-0'", () => {
+  assertEquals(extractMidTypedPartial("  - [REQ-0"), "REQ-0");
+});
+
+Deno.test("extractMidTypedPartial: returns '' for bare '- ['", () => {
+  assertEquals(extractMidTypedPartial("- ["), "");
+});
+
+Deno.test("extractMidTypedPartial: returns '' for non-matching line", () => {
+  assertEquals(extractMidTypedPartial("random text"), "");
+});
+
+// --- Item #4: buildMidTypedScaffoldItems ---
+
+const MID_RANGE: ReplacementRange = {
+  start: { line: 2, character: 3 },
+  end: { line: 2, character: 7 },
+};
+
+Deno.test("buildMidTypedScaffoldItems: subset matches by prefix-extends", () => {
+  const types = [
+    {
+      name: "stakeholder-requirement",
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 4,
+    },
+    {
+      name: "architecture",
+      prefix: "SAD_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 2,
+    },
+  ];
+  const items = buildMidTypedScaffoldItems(
+    types,
+    "STK_",
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    MID_RANGE,
+  );
+  // Only STK_AEB_ has a prefix that starts with the partial "STK_".
+  assertEquals(items.length, 1);
+  assertEquals(items[0].prefix, "STK_AEB_");
+  assertEquals(items[0].label, "New stakeholder-requirement (STK_AEB_0004)");
+});
+
+Deno.test("buildMidTypedScaffoldItems: matches when partial extends a declared prefix", () => {
+  const types = [
+    {
+      name: "stakeholder-requirement",
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+    },
+  ];
+  const items = buildMidTypedScaffoldItems(
+    types,
+    "STK_AEB_0001",
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    MID_RANGE,
+  );
+  // The partial already extends the declared prefix → still a match.
+  assertEquals(items.length, 1);
+  assertEquals(items[0].prefix, "STK_AEB_");
+});
+
+Deno.test("buildMidTypedScaffoldItems: exact-prefix match comes first", () => {
+  const types = [
+    { name: "scoped", prefix: "STK_AEB_", width: 4, suffix: "", nextNumber: 1 },
+    { name: "bare", prefix: "STK_", width: 4, suffix: "", nextNumber: 1 },
+  ];
+  const items = buildMidTypedScaffoldItems(
+    types,
+    "STK_",
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    MID_RANGE,
+  );
+  // Both match the partial "STK_"; the exact prefix match (STK_) is first.
+  assertEquals(items.length, 2);
+  assertEquals(items[0].prefix, "STK_");
+  assertEquals(items[1].prefix, "STK_AEB_");
+});
+
+Deno.test("buildMidTypedScaffoldItems: no matches → empty array", () => {
+  const types = [
+    {
+      name: "stakeholder-requirement",
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 1,
+    },
+  ];
+  const items = buildMidTypedScaffoldItems(
+    types,
+    "XYZ",
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    MID_RANGE,
+  );
+  assertEquals(items.length, 0);
+});
+
+Deno.test("buildMidTypedScaffoldItems: attaches the replacement range to each textEdit", () => {
+  const types = [
+    {
+      name: "stakeholder-requirement",
+      prefix: "STK_AEB_",
+      width: 4,
+      suffix: "",
+      nextNumber: 4,
+    },
+  ];
+  const items = buildMidTypedScaffoldItems(
+    types,
+    "STK_",
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    MID_RANGE,
+  );
+  assertEquals(items[0].textEdit.range, MID_RANGE);
+  // The replacement text is the full display ID + skeleton — replacing
+  // the typed partial with the rest of the entry.
+  assertEquals(items[0].textEdit.newText.startsWith("STK_AEB_0004]"), true);
+  assertEquals(
+    items[0].textEdit.newText.includes("Id: 01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    true,
+  );
+});
+
+Deno.test("buildMidTypedScaffoldItems: empty types → empty array", () => {
+  const items = buildMidTypedScaffoldItems(
+    [],
+    "STK_",
+    () => "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    MID_RANGE,
+  );
+  assertEquals(items.length, 0);
 });
