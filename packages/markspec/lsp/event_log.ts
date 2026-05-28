@@ -47,6 +47,21 @@ export type EventFields = Record<
 const FLUSH_INTERVAL_MS = 250;
 const FLUSH_THRESHOLD_BYTES = 4096;
 
+/**
+ * Size cap (in bytes) at which the active log file is rotated. When the
+ * existing `lsp.log` is at or above this size on session open, it is
+ * rotated to `lsp.log.1` and a fresh `lsp.log` is created. Exported so
+ * tests can size pre-rotation fixtures against the production threshold.
+ */
+export const MAX_BYTES = 1024 * 1024;
+
+/**
+ * Number of rotated log files to retain on disk. The active file
+ * (`lsp.log`) plus `lsp.log.1` … `lsp.log.{KEEP}`. The oldest rotated
+ * file is evicted on each rotation.
+ */
+const KEEP = 3;
+
 let initialized = false;
 let disabled = false;
 let projectRoot: string | undefined;
@@ -81,16 +96,63 @@ function resolveLogPath(): string | undefined {
   return undefined;
 }
 
+/**
+ * Run an `fs` step that is expected to be a no-op when the target
+ * doesn't exist. Swallows `Deno.errors.NotFound` and rethrows
+ * everything else (permission denied, cross-device link, etc.) so the
+ * outer `openHandleIfNeeded` catch can disable the channel cleanly.
+ */
+function ignoreNotFound(fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    if (!(err instanceof Deno.errors.NotFound)) throw err;
+  }
+}
+
+/**
+ * Rotate the active log file when it has reached {@linkcode MAX_BYTES}.
+ * Performs the classic newsyslog-style shuffle:
+ *
+ *   lsp.log.3  ← evicted
+ *   lsp.log.2  → lsp.log.3
+ *   lsp.log.1  → lsp.log.2
+ *   lsp.log    → lsp.log.1
+ *
+ * A fresh `lsp.log` is then created by the open-for-append in
+ * {@linkcode openHandleIfNeeded}. The function is a no-op when the
+ * file does not yet exist or is below the cap. Rotation happens at
+ * most once per session because the buffered writer keeps the handle
+ * open after the first open.
+ */
+function rotateIfNeeded(path: string): void {
+  let stat: Deno.FileInfo;
+  try {
+    stat = Deno.statSync(path);
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) return;
+    throw err;
+  }
+  if (stat.size < MAX_BYTES) return;
+  ignoreNotFound(() => Deno.removeSync(`${path}.${KEEP}`));
+  for (let i = KEEP - 1; i >= 1; i--) {
+    ignoreNotFound(() => Deno.renameSync(`${path}.${i}`, `${path}.${i + 1}`));
+  }
+  Deno.renameSync(path, `${path}.1`);
+}
+
 function openHandleIfNeeded(): void {
   if (handle || disabled) return;
   const path = resolveLogPath();
   if (!path) return;
   try {
     Deno.mkdirSync(dirname(path), { recursive: true });
+    rotateIfNeeded(path);
     handle = Deno.openSync(path, { create: true, append: true });
   } catch {
-    // Any failure opening the log makes the channel inert for the
-    // session — better than crashing the server. We do not retry.
+    // Any failure opening (or rotating) the log makes the channel
+    // inert for the session — better than crashing the server. We
+    // do not retry.
     disabled = true;
     handle = undefined;
   }

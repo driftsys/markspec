@@ -9,6 +9,7 @@ import {
   flushSync,
   isEnabled,
   logEvent,
+  MAX_BYTES,
   setProjectRoot,
 } from "./event_log.ts";
 
@@ -149,5 +150,101 @@ Deno.test("event_log: undefined field values are skipped", async () => {
     const contents = await Deno.readTextFile(logPath);
     assertStringIncludes(contents, "real=yes");
     assertEquals(contents.includes("missing="), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rotation (Job 6)
+// ---------------------------------------------------------------------------
+
+/** Helper: returns true iff `path` exists. */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+Deno.test("event_log: rotation does NOT fire below cap", async () => {
+  await withTempRoot(async (root, logPath) => {
+    await Deno.mkdir(join(root, ".markspec"), { recursive: true });
+    // Pre-seed with content well under MAX_BYTES.
+    await Deno.writeTextFile(logPath, "pre-rotation small content\n");
+    setProjectRoot(root);
+    logEvent("info", "after-init");
+    flushSync();
+    assertEquals(
+      await fileExists(`${logPath}.1`),
+      false,
+      "lsp.log.1 must not exist when active log is below cap",
+    );
+    const contents = await Deno.readTextFile(logPath);
+    assertStringIncludes(contents, "pre-rotation small content");
+    assertStringIncludes(contents, "kind=after-init");
+  });
+});
+
+Deno.test("event_log: rotation fires at-or-above cap; preserves old content as .1", async () => {
+  await withTempRoot(async (root, logPath) => {
+    await Deno.mkdir(join(root, ".markspec"), { recursive: true });
+    // Pre-seed with content of size >= MAX_BYTES so rotation triggers.
+    const atCap = "x".repeat(MAX_BYTES);
+    await Deno.writeTextFile(logPath, atCap);
+    setProjectRoot(root);
+    logEvent("info", "after-rotate");
+    flushSync();
+    const rotated = await Deno.readTextFile(`${logPath}.1`);
+    assertEquals(rotated, atCap, "lsp.log.1 must hold the pre-rotation bytes");
+    const fresh = await Deno.readTextFile(logPath);
+    assert(
+      fresh.includes("kind=after-rotate"),
+      "fresh lsp.log must contain the post-rotation event",
+    );
+    assert(
+      !fresh.startsWith("x"),
+      "fresh lsp.log must not start with the pre-rotation 'x' bytes",
+    );
+  });
+});
+
+Deno.test("event_log: rotation cycles correctly (.2 -> .3, .1 -> .2, orig -> .1)", async () => {
+  await withTempRoot(async (root, logPath) => {
+    await Deno.mkdir(join(root, ".markspec"), { recursive: true });
+    const atCap = "x".repeat(MAX_BYTES);
+    await Deno.writeTextFile(logPath, atCap);
+    await Deno.writeTextFile(`${logPath}.1`, "one");
+    await Deno.writeTextFile(`${logPath}.2`, "two");
+    setProjectRoot(root);
+    logEvent("info", "after-rotate");
+    flushSync();
+    assertEquals(await Deno.readTextFile(`${logPath}.3`), "two");
+    assertEquals(await Deno.readTextFile(`${logPath}.2`), "one");
+    assertEquals(await Deno.readTextFile(`${logPath}.1`), atCap);
+    const fresh = await Deno.readTextFile(logPath);
+    assert(fresh.includes("kind=after-rotate"));
+    assert(!fresh.startsWith("x"));
+  });
+});
+
+Deno.test("event_log: rotation evicts .3", async () => {
+  await withTempRoot(async (root, logPath) => {
+    await Deno.mkdir(join(root, ".markspec"), { recursive: true });
+    const atCap = "x".repeat(MAX_BYTES);
+    await Deno.writeTextFile(logPath, atCap);
+    await Deno.writeTextFile(`${logPath}.1`, "one");
+    await Deno.writeTextFile(`${logPath}.2`, "two");
+    await Deno.writeTextFile(`${logPath}.3`, "old-three");
+    setProjectRoot(root);
+    logEvent("info", "after-rotate");
+    flushSync();
+    // The old `.3` content is gone; `.3` now holds what `.2` had.
+    const dotThree = await Deno.readTextFile(`${logPath}.3`);
+    assertEquals(dotThree, "two");
+    assert(
+      !dotThree.includes("old-three"),
+      "old-three must have been evicted by rotation",
+    );
   });
 });
