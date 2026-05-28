@@ -770,6 +770,7 @@ connection.onCompletion((params): CompletionItem[] => {
 });
 
 connection.onCompletionResolve((item): CompletionItem => {
+  tally("completionResolve");
   const data = item.data as ScaffoldCompletionData | undefined;
   if (data?.kind !== SCAFFOLD_COMPLETION_KIND) {
     return item;

@@ -12,7 +12,7 @@ test("resolveServerOptions: bundled binary by default (linux)", () => {
     workspaceFolder: WORKSPACE,
     configuredServerPath: undefined,
     configuredServerArgs: undefined,
-    debugLogPath: undefined,
+    logPath: undefined,
     platform: "linux",
   }) as { command: string; args: string[] };
   assert.equal(opts.command, path.join(EXT_PATH, "bin", "markspec"));
@@ -25,7 +25,7 @@ test("resolveServerOptions: bundled binary uses .exe on win32", () => {
     workspaceFolder: WORKSPACE,
     configuredServerPath: undefined,
     configuredServerArgs: undefined,
-    debugLogPath: undefined,
+    logPath: undefined,
     platform: "win32",
   }) as { command: string };
   assert.equal(opts.command, path.join(EXT_PATH, "bin", "markspec.exe"));
@@ -37,7 +37,7 @@ test("resolveServerOptions: configured path overrides bundled binary", () => {
     workspaceFolder: WORKSPACE,
     configuredServerPath: "deno",
     configuredServerArgs: ["run", "--allow-read", "main.ts", "lsp"],
-    debugLogPath: undefined,
+    logPath: undefined,
     platform: "linux",
   }) as { command: string; args: string[] };
   assert.equal(opts.command, "deno");
@@ -54,7 +54,7 @@ test("resolveServerOptions: ${workspaceFolder} is expanded in args", () => {
       "${workspaceFolder}/packages/markspec/main.ts",
       "lsp",
     ],
-    debugLogPath: undefined,
+    logPath: undefined,
     platform: "linux",
   }) as { args: string[] };
   assert.deepEqual(opts.args, [
@@ -70,38 +70,41 @@ test("resolveServerOptions: configured path with empty args defaults to ['lsp']"
     workspaceFolder: WORKSPACE,
     configuredServerPath: "/usr/local/bin/markspec",
     configuredServerArgs: undefined,
-    debugLogPath: undefined,
+    logPath: undefined,
     platform: "linux",
   }) as { args: string[] };
   assert.deepEqual(opts.args, ["lsp"]);
 });
 
-test("resolveServerOptions: debugLogPath sets MARKSPEC_LSP_DEBUG_LOG env", () => {
+test("resolveServerOptions: logPath sets MARKSPEC_LSP_LOG env", () => {
+  // Renamed from markspec.trace.debugLog; now drives MARKSPEC_LSP_LOG
+  // (the unified event log) instead of the removed
+  // MARKSPEC_LSP_DEBUG_LOG.
   const opts = resolveServerOptions({
     extensionPath: EXT_PATH,
     workspaceFolder: WORKSPACE,
     configuredServerPath: undefined,
     configuredServerArgs: undefined,
-    debugLogPath: "/tmp/markspec-lsp.log",
+    logPath: "/tmp/markspec-lsp.log",
     platform: "linux",
   }) as { options: { env: Record<string, string | undefined> } };
   assert.equal(
-    opts.options.env.MARKSPEC_LSP_DEBUG_LOG,
+    opts.options.env.MARKSPEC_LSP_LOG,
     "/tmp/markspec-lsp.log",
   );
 });
 
-test("resolveServerOptions: ${workspaceFolder} is expanded in debugLogPath", () => {
+test("resolveServerOptions: ${workspaceFolder} is expanded in logPath", () => {
   const opts = resolveServerOptions({
     extensionPath: EXT_PATH,
     workspaceFolder: WORKSPACE,
     configuredServerPath: undefined,
     configuredServerArgs: undefined,
-    debugLogPath: "${workspaceFolder}/.markspec-lsp.log",
+    logPath: "${workspaceFolder}/.markspec-lsp.log",
     platform: "linux",
   }) as { options: { env: Record<string, string | undefined> } };
   assert.equal(
-    opts.options.env.MARKSPEC_LSP_DEBUG_LOG,
+    opts.options.env.MARKSPEC_LSP_LOG,
     `${WORKSPACE}/.markspec-lsp.log`,
   );
 });

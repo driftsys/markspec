@@ -39,7 +39,23 @@ export type EventFields = Record<
 // ---------------------------------------------------------------------------
 
 const FLUSH_INTERVAL_MS = 250;
-const FLUSH_THRESHOLD_BYTES = 4096;
+/**
+ * Watermark, in characters, that triggers an immediate buffer flush.
+ * `String.length` returns UTF-16 code units rather than UTF-8 byte
+ * count, so this is an approximate byte threshold (exact for ASCII).
+ * Bounded over-buffering for non-ASCII content is acceptable; the
+ * timer flush still fires every 250 ms.
+ */
+const FLUSH_THRESHOLD_CHARS = 4096;
+/**
+ * Cap on the in-memory queue used before a log destination is
+ * resolved. Crashes during early LSP startup (before
+ * `setProjectRoot` runs) emit `kind=error` events that would
+ * otherwise be lost; queueing lets them surface to the log once the
+ * destination is known. Oldest events are dropped on overflow so
+ * a misbehaving server can't grow the queue unboundedly.
+ */
+const MAX_PRE_INIT_EVENTS = 64;
 
 /**
  * Size cap (in bytes) at which the active log file is rotated. When the
@@ -62,8 +78,14 @@ let projectRoot: string | undefined;
 let explicitPath: string | undefined;
 let handle: Deno.FsFile | undefined;
 let buffer: string[] = [];
-let bufferBytes = 0;
+let bufferChars = 0;
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * Pre-init queue for events emitted before a log destination is
+ * resolved. Drained into {@linkcode buffer} on the first successful
+ * `openHandleIfNeeded` call (typically inside `setProjectRoot`).
+ */
+let preInitQueue: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Path resolution + init
@@ -164,8 +186,25 @@ export function setProjectRoot(root: string): void {
   projectRoot = root;
   if (!disabled && !handle) {
     openHandleIfNeeded();
-    if (handle && buffer.length > 0) flushSync();
+    if (handle) drainPreInitQueue();
   }
+}
+
+/**
+ * Move any events queued before the destination was known into the
+ * regular buffer and flush, so they appear as the first lines of the
+ * session's log. No-op when no handle is open or the queue is empty.
+ */
+function drainPreInitQueue(): void {
+  if (!handle || preInitQueue.length === 0) {
+    return;
+  }
+  for (const line of preInitQueue) {
+    buffer.push(line);
+    bufferChars += line.length;
+  }
+  preInitQueue = [];
+  flushSync();
 }
 
 // ---------------------------------------------------------------------------
@@ -207,8 +246,9 @@ function formatLine(
 // Buffered emit
 // ---------------------------------------------------------------------------
 
-/** Emit one structured event. Cheap when disabled or when the log
- * destination is not yet resolved (events are simply dropped). */
+/** Emit one structured event. When no destination is yet resolved
+ * (e.g. during early startup before `setProjectRoot` fires), the
+ * event is queued in a bounded pre-init buffer and drained later. */
 export function logEvent(
   level: Level,
   kind: string,
@@ -216,17 +256,26 @@ export function logEvent(
 ): void {
   readEnvOnce();
   if (disabled) return;
+  const line = formatLine(level, kind, fields);
   if (!handle && !explicitPath && !projectRoot) {
-    // No destination yet — drop. Callers that need pre-init capture
-    // should defer their events until after setProjectRoot fires.
+    // No destination yet — queue up to MAX_PRE_INIT_EVENTS so an
+    // uncaught error or rejection during startup is recoverable
+    // once setProjectRoot opens the log. Drop oldest on overflow.
+    preInitQueue.push(line);
+    if (preInitQueue.length > MAX_PRE_INIT_EVENTS) {
+      preInitQueue.shift();
+    }
     return;
   }
   openHandleIfNeeded();
   if (!handle) return;
-  const line = formatLine(level, kind, fields);
+  // An explicit MARKSPEC_LSP_LOG path opens the handle on first
+  // emit. Drain any pre-init events at that moment too, so they
+  // also surface when the explicit-path code path is taken.
+  if (preInitQueue.length > 0) drainPreInitQueue();
   buffer.push(line);
-  bufferBytes += line.length;
-  if (bufferBytes >= FLUSH_THRESHOLD_BYTES) {
+  bufferChars += line.length;
+  if (bufferChars >= FLUSH_THRESHOLD_CHARS) {
     flushSync();
   } else if (flushTimer === undefined) {
     flushTimer = setTimeout(flushSync, FLUSH_INTERVAL_MS);
@@ -242,7 +291,7 @@ export function flushSync(): void {
   }
   if (!handle || buffer.length === 0) {
     buffer = [];
-    bufferBytes = 0;
+    bufferChars = 0;
     return;
   }
   try {
@@ -260,7 +309,7 @@ export function flushSync(): void {
     handle = undefined;
   }
   buffer = [];
-  bufferBytes = 0;
+  bufferChars = 0;
 }
 
 /** Whether the channel will actually write events. Cheap probe. */
@@ -293,5 +342,6 @@ export function _resetEventLog(): void {
   explicitPath = undefined;
   handle = undefined;
   buffer = [];
-  bufferBytes = 0;
+  bufferChars = 0;
+  preInitQueue = [];
 }

@@ -22,8 +22,8 @@ export interface ResolveInput {
   readonly configuredServerPath: string | undefined;
   /** Value of `markspec.server.args` setting, or undefined. */
   readonly configuredServerArgs: readonly string[] | undefined;
-  /** Value of `markspec.trace.debugLog` setting, or undefined. */
-  readonly debugLogPath: string | undefined;
+  /** Value of `markspec.trace.logPath` setting, or undefined. */
+  readonly logPath: string | undefined;
   /** Platform identifier for naming the bundled binary. */
   readonly platform: NodeJS.Platform;
 }
@@ -35,14 +35,14 @@ export interface ResolveInput {
  * back to the bundled binary at `<extensionPath>/bin/markspec(.exe)`.
  *
  * `${workspaceFolder}` is substituted in `configuredServerArgs` and in
- * `debugLogPath`.
+ * `logPath`.
  */
 export function resolveServerOptions(input: ResolveInput): ServerOptions {
   const { command, args } = resolveCommand(input);
   const env = { ...process.env };
-  if (input.debugLogPath) {
-    env.MARKSPEC_LSP_DEBUG_LOG = expandVariables(
-      [input.debugLogPath],
+  if (input.logPath) {
+    env.MARKSPEC_LSP_LOG = expandVariables(
+      [input.logPath],
       input.workspaceFolder,
     )[0];
   }
