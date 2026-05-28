@@ -72,32 +72,6 @@ const SKILLS_BUNDLE_SOURCE =
   "driftsys/markspec:skills/markspec-core.bundle.yaml";
 
 export async function runInit(options: RunInitOptions): Promise<InitResult> {
-  // Spec §3 step 1: refuse non-empty target without --force.
-  if (!options.force) {
-    const entries = await options.fs.listEntries(options.targetDir);
-    const unexpected = entries.filter((name) => !isWhitelistedEntry(name));
-    if (unexpected.length > 0) {
-      return {
-        ok: false,
-        exitCode: 1,
-        target: options.targetDir,
-        profile: options.profileChoice,
-        clientsWritten: [],
-        actions: [],
-        warnings: [],
-        skills: { installed: false, attempted: false },
-        error: {
-          code: "TARGET_NOT_EMPTY",
-          message:
-            `target directory not empty: ${options.targetDir} (unexpected: ${
-              unexpected.join(", ")
-            })`,
-          details: { unexpectedEntries: unexpected },
-        },
-      };
-    }
-  }
-
   // Step 1+2: resolve client set and binary ref in parallel.
   const [clientSet, binaryRef] = await Promise.all([
     resolveClientSet({
@@ -120,6 +94,42 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
     clientSet,
     force: options.force,
   });
+
+  // Spec §3 step 1: refuse non-empty target without --force.
+  // Whitelist = pre-existing project files (static) ∪ top-level
+  // entries the planner intends to write this run (dynamic).
+  // Deriving the dynamic half from `plan.actions` means a future
+  // scaffolder output is recognised automatically — no manual
+  // sync of the static set required.
+  if (!options.force) {
+    const planOutputs = new Set(
+      plan.actions.map((a) => a.file.split("/")[0]),
+    );
+    const entries = await options.fs.listEntries(options.targetDir);
+    const unexpected = entries.filter(
+      (name) => !isWhitelistedEntry(name, planOutputs),
+    );
+    if (unexpected.length > 0) {
+      return {
+        ok: false,
+        exitCode: 1,
+        target: options.targetDir,
+        profile: options.profileChoice,
+        clientsWritten: [],
+        actions: [],
+        warnings: [],
+        skills: { installed: false, attempted: false },
+        error: {
+          code: "TARGET_NOT_EMPTY",
+          message:
+            `target directory not empty: ${options.targetDir} (unexpected: ${
+              unexpected.join(", ")
+            })`,
+          details: { unexpectedEntries: unexpected },
+        },
+      };
+    }
+  }
 
   const warnings: Warning[] = [];
   if (binaryRef.warning) {
@@ -265,29 +275,27 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
 }
 
 /**
- * Entries that init tolerates in an otherwise-empty target directory.
- * The seed list comes from spec §3 step 1. Conservative — add to it
- * if e2e fixtures uncover common cases that should not block init.
+ * Common pre-existing project files that should not block init.
+ *
+ * Init's own scaffolder outputs are NOT listed here — they are derived
+ * per-run from the planner's actions in `runInit`, so adding a new
+ * scaffolder requires no manual sync with this set.
  */
 const TARGET_WHITELIST = new Set([
-  // Common pre-existing project files that should not block init.
   ".git",
   ".gitignore",
   "README.md",
   "LICENSE",
   ".editorconfig",
   ".vscode",
-  // Init's own scaffolder outputs — allow re-runs without --force
-  // to fall through to per-file skip/merge logic.
-  "project.yaml",
-  ".markspec.yaml",
-  "markspec.lock",
-  ".mcp.json",
-  "opencode.json",
 ]);
 
-function isWhitelistedEntry(name: string): boolean {
+function isWhitelistedEntry(
+  name: string,
+  planOutputs: ReadonlySet<string>,
+): boolean {
   if (TARGET_WHITELIST.has(name)) return true;
+  if (planOutputs.has(name)) return true;
   if (name.startsWith("LICENSE.")) return true;
   return false;
 }

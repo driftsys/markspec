@@ -206,6 +206,37 @@ Deno.test("runInit: non-whitelisted content (src/) → TARGET_NOT_EMPTY error + 
   assertEquals(result.error?.code, "TARGET_NOT_EMPTY");
 });
 
+Deno.test("runInit: plan outputs are dynamically whitelisted for TARGET_NOT_EMPTY", async () => {
+  // The static TARGET_WHITELIST covers only pre-existing project
+  // files. Multiple init outputs in the target should still pass
+  // the empty-check via the per-run plan-derived whitelist —
+  // regression test for finding #6.
+  const fs = createMemFs();
+  await fs.write("/repo/project.yaml", "user content");
+  await fs.write("/repo/markspec.lock", "older lock");
+  await fs.write("/repo/.markspec.yaml", "older profile config");
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "bundled" },
+    forcedClients: [],
+    allClients: false,
+    noMcp: false,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: noClientEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+  });
+  assertEquals(result.ok, true);
+  assertEquals(result.error, undefined);
+});
+
 Deno.test("runInit: existing project.yaml only → skip + exit 2 (whitelisted output)", async () => {
   const fs = createMemFs();
   await fs.write("/repo/project.yaml", "user content");
