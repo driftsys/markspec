@@ -21,6 +21,10 @@ export interface DisplayIdEntry {
   readonly title: string;
 }
 
+/** Shared empty reserved-number set — the default for callers that do
+ * not participate in display-ID reservation. Never mutated. */
+const NO_RESERVATIONS: ReadonlySet<number> = new Set<number>();
+
 /**
  * In-memory index of all parsed entries, keyed by file path.
  *
@@ -172,8 +176,19 @@ export class WorkspaceIndex {
    * @param suffix - Optional literal text after the numeric
    *   placeholder, e.g., `"-draft"` for IDs like `REQ-012-draft`.
    *   Defaults to empty.
+   * @param reserved - Numbers handed out by the scaffold-completion
+   *   resolve handler but not yet observed in the index. Folded into the
+   *   maximum so two rapid accepts inside the parse-debounce window do not
+   *   both mint the same ID. Defaults to empty for callers that don't
+   *   participate in reservation (e.g. the build-time scaffold path). The
+   *   caller is responsible for passing a set scoped to this
+   *   `(prefix, suffix)`; entries are not re-filtered here.
    */
-  getNextDisplayIdNumber(prefix: string, suffix = ""): number {
+  getNextDisplayIdNumber(
+    prefix: string,
+    suffix = "",
+    reserved: ReadonlySet<number> = NO_RESERVATIONS,
+  ): number {
     let max = 0;
     for (const id of this.byDisplayId.keys()) {
       if (!id.startsWith(prefix)) continue;
@@ -181,6 +196,9 @@ export class WorkspaceIndex {
       const numberPart = id.slice(prefix.length, id.length - suffix.length);
       const num = parseInt(numberPart, 10);
       if (!isNaN(num) && num > max) max = num;
+    }
+    for (const n of reserved) {
+      if (n > max) max = n;
     }
     return max + 1;
   }
