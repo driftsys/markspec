@@ -227,6 +227,25 @@ export function activate(context: ExtensionContext): void {
     },
   );
 
+  // Single handler for markspec/version — forwards CLI release + workspace
+  // toolchain floor + skew verdict to the status bar. Same one-handler-per-
+  // method constraint as markspec/indexed.
+  client.onNotification(
+    "markspec/version",
+    (
+      params:
+        | {
+          release: string;
+          coreSchemaVersion: number;
+          minVersion: string | null;
+          isBelow: boolean;
+        }
+        | undefined,
+    ) => {
+      if (params) statusBar.notifyVersion(params);
+    },
+  );
+
   // Initial paint for whatever is open at activation.
   if (window.activeTextEditor) {
     void decorations.refresh(window.activeTextEditor);
