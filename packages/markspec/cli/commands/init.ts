@@ -183,7 +183,10 @@ function resolveProfileFromFlags(
   }
   if (options.profile === undefined) {
     // No --profile, no --no-profile → default bundled (non-interactive).
-    // TTY interactive picker is wired in a follow-up; v1 uses bundled default.
+    // TODO(#544): TTY interactive picker (`runProfilePicker`) is implemented
+    // in `cli/init/profile_picker.ts` but not wired here. A future slice
+    // detects `Deno.stdin.isTerminal()` and calls the picker; v1 falls
+    // back to bundled so non-TTY (CI, piped) runs do not block.
     return { kind: "bundled" };
   }
   const parsed = parseProfileSpec(options.profile);

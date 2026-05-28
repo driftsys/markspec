@@ -7,6 +7,11 @@
  *     `--profile <spec>` flag.
  *   - {@linkcode runProfilePicker}: drives the TTY numbered menu via a
  *     {@linkcode Prompter} test seam (no direct console I/O).
+ *
+ * Note: `runProfilePicker` is implemented and unit-tested but is not
+ * yet invoked by `cli/commands/init.ts` — `resolveProfileFromFlags`
+ * falls back to the bundled default when neither `--profile` nor
+ * `--no-profile` is supplied. See issue #544 for the wiring task.
  */
 
 import type { ProfileChoice } from "./types.ts";

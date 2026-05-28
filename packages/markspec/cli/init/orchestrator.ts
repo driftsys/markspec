@@ -143,32 +143,40 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
       switch (a.file) {
         case "project.yaml":
           if (a.kind === "create" || a.kind === "overwrite") {
-            await scaffoldProjectYamlForced(
+            await forceWrite(
               options.fs,
-              options.targetDir,
-              dirName,
+              join(options.targetDir, "project.yaml"),
               a.kind === "overwrite",
+              () => scaffoldProjectYaml(options.fs, options.targetDir, dirName),
             );
           }
           break;
         case ".markspec.yaml":
           if (a.kind === "create" || a.kind === "overwrite") {
-            await scaffoldMarkspecYamlForced(
+            await forceWrite(
               options.fs,
-              options.targetDir,
-              options.profileChoice,
+              join(options.targetDir, ".markspec.yaml"),
               a.kind === "overwrite",
+              () =>
+                scaffoldMarkspecYaml(
+                  options.fs,
+                  options.targetDir,
+                  options.profileChoice,
+                ),
             );
           }
           break;
         case "markspec.lock":
           if (a.kind === "create" || a.kind === "overwrite") {
-            await scaffoldMarkspecLockForced(
+            await forceWrite(
               options.fs,
-              options.targetDir,
-              minVersion,
-              options.now(),
+              join(options.targetDir, "markspec.lock"),
               a.kind === "overwrite",
+              () =>
+                scaffoldMarkspecLock(options.fs, options.targetDir, {
+                  toolchainMinVersion: minVersion,
+                  lockedAt: options.now(),
+                }),
             );
           }
           break;
@@ -290,36 +298,18 @@ function toolchainMinVersion(version: string): string {
   return m ? `${m[1]}.${m[2]}` : version;
 }
 
-async function scaffoldProjectYamlForced(
+/**
+ * Remove `path` if `overwrite` is true, then invoke the supplied
+ * scaffolder. Lets the executor handle every per-file write with one
+ * call shape — `create` (overwrite=false) goes straight to the
+ * scaffolder; `overwrite` clears the existing file first.
+ */
+async function forceWrite(
   fs: MemFs,
-  targetDir: string,
-  dirName: string,
+  path: string,
   overwrite: boolean,
+  scaffold: () => Promise<unknown>,
 ): Promise<void> {
-  if (overwrite) await fs.remove(join(targetDir, "project.yaml"));
-  await scaffoldProjectYaml(fs, targetDir, dirName);
-}
-
-async function scaffoldMarkspecYamlForced(
-  fs: MemFs,
-  targetDir: string,
-  choice: ProfileChoice,
-  overwrite: boolean,
-): Promise<void> {
-  if (overwrite) await fs.remove(join(targetDir, ".markspec.yaml"));
-  await scaffoldMarkspecYaml(fs, targetDir, choice);
-}
-
-async function scaffoldMarkspecLockForced(
-  fs: MemFs,
-  targetDir: string,
-  minVersion: string,
-  lockedAt: string,
-  overwrite: boolean,
-): Promise<void> {
-  if (overwrite) await fs.remove(join(targetDir, "markspec.lock"));
-  await scaffoldMarkspecLock(fs, targetDir, {
-    toolchainMinVersion: minVersion,
-    lockedAt,
-  });
+  if (overwrite) await fs.remove(path);
+  await scaffold();
 }
