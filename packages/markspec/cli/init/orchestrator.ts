@@ -179,6 +179,15 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
           break;
         case ".mcp.json":
         case "opencode.json": {
+          // Defensive guard. The planner only emits `create` or `merge`
+          // for MCP files today, so this gate is a no-op against the
+          // current planner. It exists so a future planner change that
+          // emits `skip`/`no-op` for MCP files cannot silently invoke
+          // the runner — matching the gates on the other file branches.
+          if (
+            a.kind !== "create" && a.kind !== "merge" &&
+            a.kind !== "overwrite"
+          ) break;
           const client: string = a.file === "opencode.json"
             ? "opencode"
             : "claude-code";
