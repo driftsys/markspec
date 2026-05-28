@@ -21,6 +21,14 @@ Deno.test("MemFs: mkdir is idempotent", async () => {
   assertEquals(await fs.exists("/a/b/c"), true);
 });
 
+Deno.test("MemFs: mkdir adds intermediate parent dirs", async () => {
+  const fs = createMemFs();
+  await fs.mkdir("/a/b/c");
+  assertEquals(await fs.exists("/a"), true);
+  assertEquals(await fs.exists("/a/b"), true);
+  assertEquals(await fs.exists("/a/b/c"), true);
+});
+
 Deno.test("MemFs: remove deletes the file", async () => {
   const fs = createMemFs();
   await fs.write("/x", "y");

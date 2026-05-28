@@ -68,8 +68,8 @@ export function createMemFs(options: MemFsOptions = {}): MemFs {
     },
     mkdir: (path) => {
       const key = normalize(path);
+      ensureParents(key);
       dirs.add(key);
-      ensureParents(key + "/.");
       return Promise.resolve();
     },
     remove: (path) => {
