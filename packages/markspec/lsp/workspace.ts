@@ -162,25 +162,25 @@ export class WorkspaceIndex {
   }
 
   /**
-   * Compute the next sequential number for a display-ID prefix.
+   * Compute the next sequential number for a display-ID pattern,
+   * filtering by `prefix` and (when present) `suffix`. Scans all
+   * display IDs matching both, extracts the numeric segment between
+   * them, and returns max + 1. Returns 1 when no matching ID exists.
    *
-   * Scans all display IDs that start with `prefix`, extracts the trailing
-   * numeric segment, and returns max + 1. Returns 1 if no matching IDs
-   * exist.
-   *
-   * @param prefix - The prefix including the trailing separator,
+   * @param prefix - Literal text before the numeric placeholder,
    *   e.g., `"STK_AEB_"` for IDs like `STK_AEB_0001`.
+   * @param suffix - Optional literal text after the numeric
+   *   placeholder, e.g., `"-draft"` for IDs like `REQ-012-draft`.
+   *   Defaults to empty.
    */
-  getNextDisplayIdNumber(prefix: string): number {
+  getNextDisplayIdNumber(prefix: string, suffix = ""): number {
     let max = 0;
     for (const id of this.byDisplayId.keys()) {
-      if (id.startsWith(prefix)) {
-        const suffix = id.slice(prefix.length);
-        const num = parseInt(suffix, 10);
-        if (!isNaN(num) && num > max) {
-          max = num;
-        }
-      }
+      if (!id.startsWith(prefix)) continue;
+      if (suffix && !id.endsWith(suffix)) continue;
+      const numberPart = id.slice(prefix.length, id.length - suffix.length);
+      const num = parseInt(numberPart, 10);
+      if (!isNaN(num) && num > max) max = num;
     }
     return max + 1;
   }

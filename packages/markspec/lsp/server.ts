@@ -44,6 +44,7 @@ import {
   loadProfileForCommand,
   type Lockfile,
   makeDisplayId,
+  parseDisplayIdPattern,
   parseLockfile,
   type ProjectConfig,
   VERSION,
@@ -284,12 +285,13 @@ function getEntryTypes(): EntryTypeInfo[] {
   for (const [name, typeDef] of profile.types) {
     const pattern = typeDef.value.displayIdPattern.value;
     if (!pattern) continue;
-    // Extract the fixed prefix before the numeric placeholder.
-    // Patterns look like "STK_AEB_{NNNN}" or "STK_{NNNN}".
-    const placeholderIndex = pattern.indexOf("{");
-    if (placeholderIndex < 0) continue;
-    const prefix = pattern.slice(0, placeholderIndex);
-    const nextNumber = index.getNextDisplayIdNumber(prefix);
+    // Parse the `{n:Nd}` placeholder. Width and suffix flow through
+    // the snippet so profiles using non-4-digit IDs (`{n:6d}`) or
+    // a trailing literal don't produce mis-formatted scaffolds.
+    const shape = parseDisplayIdPattern(pattern);
+    if (!shape) continue;
+    const { prefix, width, suffix } = shape;
+    const nextNumber = index.getNextDisplayIdNumber(prefix, suffix);
 
     // ADR-017 Slice 5: mark mode-relevant types as recommended.
     const isRequirementShaped = extendsTransitively(
@@ -302,7 +304,7 @@ function getEntryTypes(): EntryTypeInfo[] {
       (mode === "flat" && isRequirementShaped && !hasDiscipline) ||
       (mode === "none" && isRequirementShaped);
 
-    types.push({ name, prefix, nextNumber, modeRecommended });
+    types.push({ name, prefix, width, suffix, nextNumber, modeRecommended });
   }
   return types;
 }
@@ -706,6 +708,8 @@ connection.onCompletion((params): CompletionItem[] => {
               kind: SCAFFOLD_COMPLETION_KIND,
               typeName: type.name,
               prefix: type.prefix,
+              width: type.width,
+              suffix: type.suffix,
             } satisfies ScaffoldCompletionData
             : undefined,
         };
@@ -779,14 +783,19 @@ connection.onCompletionResolve((item): CompletionItem => {
   // buggy LSP client. The typed cast above does not validate at runtime.
   if (
     typeof data.prefix !== "string" || data.prefix.length > 64 ||
-    typeof data.typeName !== "string" || data.typeName.length > 128
+    typeof data.typeName !== "string" || data.typeName.length > 128 ||
+    typeof data.suffix !== "string" || data.suffix.length > 64 ||
+    typeof data.width !== "number" || !Number.isInteger(data.width) ||
+    data.width < 1 || data.width > 32
   ) {
     return item;
   }
-  const nextNumber = index.getNextDisplayIdNumber(data.prefix);
+  const nextNumber = index.getNextDisplayIdNumber(data.prefix, data.suffix);
   const rendered = renderScaffoldSnippet({
     typeName: data.typeName,
     prefix: data.prefix,
+    width: data.width,
+    suffix: data.suffix,
     nextNumber,
     ulid: ulid(),
   });

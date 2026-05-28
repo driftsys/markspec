@@ -17,6 +17,7 @@
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
+import { formatDisplayId } from "../core/mod.ts";
 import type { DisplayIdEntry } from "./workspace.ts";
 
 /** Block scaffold trigger pattern: `- [` at the start of a list item. */
@@ -128,6 +129,15 @@ const KIND_PROPERTY = 10;
 export interface EntryTypeInfo {
   readonly name: string;
   readonly prefix: string;
+  /**
+   * Width of the zero-padded numeric segment from the profile's
+   * `display-id-pattern`. Patterns declared as `{n:6d}` produce
+   * 6-character IDs (`STK_000007`); a hardcoded 4-digit pad would
+   * silently violate the pattern and fail validation.
+   */
+  readonly width: number;
+  /** Literal text after the `{n:Nd}` placeholder (often empty). */
+  readonly suffix: string;
   readonly nextNumber: number;
   /**
    * `true` when this type is the recommended scaffold for the active
@@ -136,11 +146,6 @@ export interface EntryTypeInfo {
    * `detail` field. `undefined` or `false` → no special treatment.
    */
   readonly modeRecommended?: boolean;
-}
-
-/** Pad a number with leading zeros to at least 4 digits. */
-function padNumber(n: number): string {
-  return n.toString().padStart(4, "0");
 }
 
 /**
@@ -218,6 +223,8 @@ export function buildTrailerKeyItems(): CompletionItemData[] {
 export interface ScaffoldSnippetInput {
   readonly typeName: string;
   readonly prefix: string;
+  readonly width: number;
+  readonly suffix: string;
   readonly nextNumber: number;
   readonly ulid: string;
 }
@@ -242,6 +249,8 @@ export interface ScaffoldCompletionData {
   readonly kind: typeof SCAFFOLD_COMPLETION_KIND;
   readonly typeName: string;
   readonly prefix: string;
+  readonly width: number;
+  readonly suffix: string;
 }
 
 /**
@@ -267,9 +276,17 @@ function escapeSnippet(s: string): string {
 export function renderScaffoldSnippet(
   input: ScaffoldSnippetInput,
 ): { label: string; insertText: string } {
-  const safePrefix = escapeSnippet(input.prefix);
   const safeTypeName = escapeSnippet(input.typeName);
-  const displayId = `${safePrefix}${padNumber(input.nextNumber)}`;
+  // Format the display ID via the shared `formatDisplayId` so width
+  // + suffix come straight from the profile's pattern, then escape
+  // the result for snippet syntax. Escaping AFTER formatting is
+  // safe because formatDisplayId only concatenates the pieces.
+  const displayId = escapeSnippet(
+    formatDisplayId(
+      { prefix: input.prefix, width: input.width, suffix: input.suffix },
+      input.nextNumber,
+    ),
+  );
   return {
     label: `New ${safeTypeName} (${displayId})`,
     insertText:
@@ -336,6 +353,8 @@ export function buildBlockScaffoldItems(
     const rendered = renderScaffoldSnippet({
       typeName: type.name,
       prefix: type.prefix,
+      width: type.width,
+      suffix: type.suffix,
       nextNumber: type.nextNumber,
       ulid: ulidProvider(),
     });

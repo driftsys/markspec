@@ -49,6 +49,14 @@ export {
   resolveDisciplineMode,
 } from "./discipline_mode.ts";
 
+export {
+  formatDisplayId,
+  highestDisplayIdNumber,
+  padDisplayIdNumber,
+  parseDisplayIdPattern,
+} from "./display_id.ts";
+export type { DisplayIdPatternShape } from "./display_id.ts";
+
 export { buildProfileIntrospection } from "./introspect.ts";
 export type {
   AttributeDetail,

@@ -5,7 +5,12 @@
  * Extracts the copy-pasted `nextDisplayId` computation into one place.
  */
 
-import type { ProfileChain } from "../../core/mod.ts";
+import {
+  formatDisplayId,
+  highestDisplayIdNumber,
+  parseDisplayIdPattern,
+  type ProfileChain,
+} from "../../core/mod.ts";
 
 /**
  * Compute the next display ID for a given pattern and existing entries.
@@ -21,28 +26,14 @@ export function nextDisplayId(
   pattern: string,
   entries: Iterable<{ displayId: string }>,
 ): string {
-  const placeholderMatch = /\{n:(\d+)d\}/.exec(pattern);
-  if (!placeholderMatch) {
+  const shape = parseDisplayIdPattern(pattern);
+  if (!shape) {
     console.error(
       `error: display-id-pattern '${pattern}' does not contain a recognised number placeholder ('{n:Nd}')`,
     );
     Deno.exit(1);
   }
-  const width = parseInt(placeholderMatch[1], 10);
-  const prefix = pattern.slice(0, placeholderMatch.index);
-  const suffix = pattern.slice(
-    placeholderMatch.index + placeholderMatch[0].length,
-  );
-  let max = 0;
-  for (const entry of entries) {
-    const id = entry.displayId;
-    if (!id.startsWith(prefix)) continue;
-    if (suffix && !id.endsWith(suffix)) continue;
-    const numberPart = id.slice(prefix.length, id.length - suffix.length);
-    const n = parseInt(numberPart, 10);
-    if (!isNaN(n) && n > max) max = n;
-  }
-  return `${prefix}${String(max + 1).padStart(width, "0")}${suffix}`;
+  return formatDisplayId(shape, highestDisplayIdNumber(shape, entries) + 1);
 }
 
 /**
