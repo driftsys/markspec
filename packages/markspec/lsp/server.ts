@@ -174,10 +174,11 @@ const index = new WorkspaceIndex();
 let lastDiagnostics: readonly CoreDiagnostic[] = [];
 
 /**
- * Module-scoped reader for the loaded lockfile. Currently no LSP handler
- * consumes the lockfile, but the loader is wired in so future features
- * (federated-registry pinning, stale-pin hover hint) can opt in without
- * a second init pass.
+ * Module-scoped reader for the loaded lockfile. The send-site for
+ * `markspec/version` reads the module-scoped `lockfile` directly via
+ * `buildVersionNotification`; this accessor is kept as a stable entry
+ * point for future LSP handlers (federated-registry pinning, stale-pin
+ * hover hint) so they don't need a second init pass.
  */
 function _getLockfile(): Lockfile | undefined {
   return lockfile;
