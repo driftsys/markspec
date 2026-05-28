@@ -21,4 +21,9 @@ export type {
 } from "./types.ts";
 export { renderJsonSummary, renderTextSummary } from "./summary.ts";
 export { createDenoFs, createMemFs } from "./fake_fs.ts";
-export { parseProfileSpec } from "./profile_picker.ts";
+export {
+  parseProfileSpec,
+  ProfilePickerAbortedError,
+  runProfilePicker,
+} from "./profile_picker.ts";
+export type { Prompter } from "./profile_picker.ts";
