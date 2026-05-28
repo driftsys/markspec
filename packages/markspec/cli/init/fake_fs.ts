@@ -29,43 +29,58 @@ export function createMemFs(options: MemFsOptions = {}): MemFs {
   const files = new Map<string, string>();
   const dirs = new Set<string>(["/"]);
 
+  // Backslashes from Windows `@std/path/join` are normalised to forward
+  // slashes so the in-memory store stays platform-agnostic — tests can
+  // seed/read with POSIX literals while production scaffolders compose
+  // paths via the host's `join()`.
+  function normalize(path: string): string {
+    return path.replace(/\\/g, "/");
+  }
+
   function ensureParents(path: string): void {
-    let dir = dirname(path);
+    let dir = normalize(dirname(path));
     while (dir !== "/" && dir !== "." && !dirs.has(dir)) {
       dirs.add(dir);
-      dir = dirname(dir);
+      dir = normalize(dirname(dir));
     }
   }
 
   return {
-    read: (path) => Promise.resolve(files.get(path)),
+    read: (path) => Promise.resolve(files.get(normalize(path))),
     write: (path, content) => {
-      const parent = dirname(path);
+      const key = normalize(path);
+      const parent = normalize(dirname(key));
       if (!dirs.has(parent) && parent !== "/" && parent !== ".") {
         if (autoMkdir) {
-          ensureParents(path);
+          ensureParents(key);
         } else {
           return Promise.reject(
-            new Error(`MemFs: parent dir missing for ${path}`),
+            new Error(`MemFs: parent dir missing for ${key}`),
           );
         }
       }
-      files.set(path, content);
+      files.set(key, content);
       return Promise.resolve();
     },
-    exists: (path) => Promise.resolve(files.has(path) || dirs.has(path)),
+    exists: (path) => {
+      const key = normalize(path);
+      return Promise.resolve(files.has(key) || dirs.has(key));
+    },
     mkdir: (path) => {
-      dirs.add(path);
-      ensureParents(path + "/.");
+      const key = normalize(path);
+      dirs.add(key);
+      ensureParents(key + "/.");
       return Promise.resolve();
     },
     remove: (path) => {
-      files.delete(path);
-      dirs.delete(path);
+      const key = normalize(path);
+      files.delete(key);
+      dirs.delete(key);
       return Promise.resolve();
     },
     listEntries: (path) => {
-      const prefix = path.endsWith("/") ? path : path + "/";
+      const key = normalize(path);
+      const prefix = key.endsWith("/") ? key : key + "/";
       const seen = new Set<string>();
       for (const f of files.keys()) {
         if (f.startsWith(prefix)) {
@@ -75,7 +90,7 @@ export function createMemFs(options: MemFsOptions = {}): MemFs {
         }
       }
       for (const d of dirs) {
-        if (d.startsWith(prefix) && d !== path) {
+        if (d.startsWith(prefix) && d !== key) {
           const rest = d.slice(prefix.length);
           const head = rest.split("/")[0];
           if (head.length > 0) seen.add(head);
