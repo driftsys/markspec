@@ -19,11 +19,15 @@ import {
   lm,
   McpStdioServerDefinition,
   type OutputChannel,
+  Position,
+  Range,
+  Selection,
   type TextDocument,
   Uri,
   window,
   workspace,
 } from "vscode";
+import { parseCodeLensTarget } from "./codeLensCommands";
 import process from "node:process";
 import {
   LanguageClient,
@@ -149,6 +153,43 @@ export function activate(context: ExtensionContext): void {
     commands.registerCommand("markspec.showOutput", () => {
       outputChannel?.show();
     }),
+    // CodeLens command handlers — the LSP emits these from
+    // `packages/markspec/lsp/code_lens.ts`. The "↓ Satisfies: ID — Title"
+    // lens dispatches `markspec.openDefinition`; the "↑ N dependents"
+    // lens dispatches `markspec.openReferences`. VS Code rehydrates the
+    // LSP `Position` payload as a plain `{ line, character }` object,
+    // so we validate the shape via `parseCodeLensTarget` before
+    // calling into the editor API.
+    commands.registerCommand(
+      "markspec.openDefinition",
+      async (...args: unknown[]) => {
+        const target = parseCodeLensTarget(args);
+        if (target.kind === "missing") {
+          window.showInformationMessage(
+            "MarkSpec: Satisfies target not found in workspace",
+          );
+          return;
+        }
+        const doc = await workspace.openTextDocument(Uri.parse(target.uri));
+        const pos = new Position(target.line, target.character);
+        await window.showTextDocument(doc, {
+          selection: new Selection(pos, pos),
+        });
+      },
+    ),
+    commands.registerCommand(
+      "markspec.openReferences",
+      async (...args: unknown[]) => {
+        const target = parseCodeLensTarget(args);
+        if (target.kind === "missing") return;
+        await commands.executeCommand(
+          "editor.action.showReferences",
+          Uri.parse(target.uri),
+          new Position(target.line, target.character),
+          [],
+        );
+      },
+    ),
   );
 
   client.start();
