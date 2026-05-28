@@ -48,6 +48,11 @@ export const opencodeDescriptor: McpAdapter = {
   },
   detect: async (env: DetectEnv): Promise<DetectResult> => {
     const signals: string[] = [];
+    const fake = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
+    if (fake !== undefined && fake.split(",").includes("opencode")) {
+      signals.push("env-fake");
+      return { detected: true, signals };
+    }
     if (await env.whichCommand("opencode") !== undefined) {
       signals.push("opencode-cli-on-path");
     }

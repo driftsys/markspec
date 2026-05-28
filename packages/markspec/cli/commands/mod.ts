@@ -15,6 +15,7 @@ export { docCmd } from "./doc.ts";
 export { doctorCmd } from "./doctor.ts";
 export { formatCmd } from "./format.ts";
 export { hookCmd } from "./hook.ts";
+export { initCmd } from "./init.ts";
 export { insertCmd } from "./insert.ts";
 export { lintCmd } from "./lint.ts";
 export { lockCmd } from "./lock.ts";

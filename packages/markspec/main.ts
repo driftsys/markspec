@@ -23,6 +23,7 @@ import {
   exportCmd,
   formatCmd,
   hookCmd,
+  initCmd,
   insertCmd,
   lintCmd,
   lockCmd,
@@ -60,6 +61,7 @@ const cli = new Command()
   .command("lock", lockCmd)
   .command("sync", syncCmd)
   .command("hook", hookCmd)
+  .command("init", initCmd)
   .command("insert", insertCmd)
   .command("create", createCmd)
   .command("next-id", nextIdCmd)

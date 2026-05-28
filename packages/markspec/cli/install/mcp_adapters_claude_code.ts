@@ -38,6 +38,11 @@ export const claudeCodeDescriptor: McpAdapter = {
   },
   detect: async (env: DetectEnv): Promise<DetectResult> => {
     const signals: string[] = [];
+    const fake = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
+    if (fake !== undefined && fake.split(",").includes("claude-code")) {
+      signals.push("env-fake");
+      return { detected: true, signals };
+    }
     if (await env.whichCommand("claude") !== undefined) {
       signals.push("claude-cli-on-path");
     }

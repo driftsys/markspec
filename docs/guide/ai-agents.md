@@ -7,6 +7,53 @@ MarkSpec integrates with AI assistants at two levels:
 - **Skillset** — teaches the agent MarkSpec's authoring conventions so it can
   write and review entries correctly without constant guidance.
 
+## Setting up a new project
+
+Run `markspec init` in an empty directory to scaffold everything you need:
+
+```bash
+markspec init
+```
+
+This writes:
+
+- `project.yaml` — minimal project metadata
+- `.markspec.yaml` — profile chain (defaults to the bundled profile)
+- `markspec.lock` — toolchain pin at the running CLI's minor version
+- `.vscode/extensions.json` — recommends the `driftsys.markspec-ide` extension
+- MCP config for each detected client:
+  - **Claude Code** → `.mcp.json` at repo root
+  - **opencode** → `opencode.json` at repo root
+- Skills bundle via `upskill add` (warns and continues if `upskill` is not
+  installed)
+
+### Targeting specific clients
+
+Auto-detection covers Claude Code and opencode. Force a client with `--client`:
+
+```bash
+markspec init --client claude-code --client opencode
+```
+
+For `claude-desktop`, run `markspec mcp install --client claude-desktop`
+separately — it writes to user-scope config (`~/.claude/`) outside the project
+directory and is intentionally not part of `markspec init`.
+
+For VS Code + Copilot, no MCP file is written — the bundled
+`driftsys.markspec-ide` extension handles the wiring once the
+`.vscode/extensions.json` recommendation is in place.
+
+### Profile selection
+
+`--profile <spec>` accepts any of:
+
+- `bundled` (the default; explicit form)
+- `false` (equivalent to `--no-profile`, core-only mode)
+- `git+https://...` / `git+ssh://...` (git URL)
+- `./relative/path` or `/absolute/path` (local profile directory)
+
+See `markspec init --help` for the full flag list.
+
 ## MCP server
 
 The MCP server runs as a subcommand of the same `markspec` binary:

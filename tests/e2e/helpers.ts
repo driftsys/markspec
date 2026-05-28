@@ -165,17 +165,27 @@ export async function markspecPersist(
  * Run the markspec CLI inside a pre-existing directory (e.g., one
  * created by {@linkcode markspecPersist}). Same flag set, same env
  * scrubbing — just no temp-dir creation or cleanup.
+ *
+ * `permissions` extends the default `--allow-read --allow-write` list
+ * (e.g. pass `["--allow-run", "--allow-env"]` for tests that need them).
+ * `envOverrides` adds/replaces env vars in the subprocess, useful for
+ * test-only seams like MARKSPEC_FAKE_CLIENT_DETECT.
  */
 export async function markspecInDir(
   dir: string,
   args: string[],
   permissions: string[] = [],
+  envOverrides: Record<string, string> = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const allowList = ["--allow-read", "--allow-write", ...permissions];
   const parentEnv = Deno.env.toObject();
   const safeEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(parentEnv)) {
     if (!k.startsWith("GIT_")) safeEnv[k] = v;
+  }
+  // Apply caller-supplied env overrides last so they win.
+  for (const [k, v] of Object.entries(envOverrides)) {
+    safeEnv[k] = v;
   }
   const cmd = new Deno.Command("deno", {
     args: ["run", ...allowList, CLI_ENTRY, ...args],
