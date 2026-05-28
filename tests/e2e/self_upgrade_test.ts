@@ -115,8 +115,10 @@ function startMock(
     },
   );
   const addr = server.addr as { hostname: string; port: number };
+  // server.addr.hostname is "0.0.0.0" (bind address); Windows can't
+  // connect to that (os error 10049). Use 127.0.0.1 for client URLs.
   return {
-    baseUrl: `http://${addr.hostname}:${addr.port}`,
+    baseUrl: `http://127.0.0.1:${addr.port}`,
     close: async () => {
       ac.abort();
       await server.finished;

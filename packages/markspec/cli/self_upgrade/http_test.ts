@@ -23,8 +23,11 @@ async function withServer(
     },
   );
   const addr = server.addr as { hostname: string; port: number };
+  // server.addr.hostname is "0.0.0.0" (the bind address). On Windows
+  // that isn't a valid CONNECT target (WSAEADDRNOTAVAIL / os error
+  // 10049); use 127.0.0.1 for the client URL.
   try {
-    await fn(`http://${addr.hostname}:${addr.port}`);
+    await fn(`http://127.0.0.1:${addr.port}`);
   } finally {
     ac.abort();
     await server.finished;
