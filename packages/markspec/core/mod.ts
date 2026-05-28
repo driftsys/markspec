@@ -152,6 +152,12 @@ export {
 } from "./profile/mod.ts";
 export type { DisplayIdPatternShape } from "./profile/mod.ts";
 
+export {
+  entryMatchesTargets,
+  filterEntriesByTraceTargets,
+  targetsForRelation,
+} from "./profile/mod.ts";
+
 export { buildProfileIntrospection } from "./profile/mod.ts";
 export type {
   AttributeDetail,

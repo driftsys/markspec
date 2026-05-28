@@ -57,6 +57,12 @@ export {
 } from "./display_id.ts";
 export type { DisplayIdPatternShape } from "./display_id.ts";
 
+export {
+  entryMatchesTargets,
+  filterEntriesByTraceTargets,
+  targetsForRelation,
+} from "./trace_targets.ts";
+
 export { buildProfileIntrospection } from "./introspect.ts";
 export type {
   AttributeDetail,
