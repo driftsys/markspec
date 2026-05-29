@@ -15,7 +15,7 @@ attribute is written in source. Cross-reference relation names (`Satisfies`,
   falls below the configurable threshold and the driver has not applied the
   brake pedal.
 
-  ```feature
+  ```gherkin
   Scenario: Noise spike shorter than debounce window
     Given a debounce window of 10ms
     And a stable pressure reading of 500
@@ -29,28 +29,29 @@ attribute is written in source. Cross-reference relation names (`Satisfies`,
     Then the output shall change to 600
   ```
 
-      Id: 01HGW3A2BCD5VWXYZABCDEFGHJ
-      Labels: ASIL-B, Labels: safety-critical
+      Id: 01KSS261EKN9D4CJCQ7WTE0PJR
+      Labels: ASIL-B
+      Labels: Labels: safety-critical
 
 - [SYS_AEB_0012] Object threat assessment from radar tracks
 
   The system shall compute a threat level for each tracked object based on
   time-to-collision, relative velocity, and object classification.
 
-      Id: 01HGW3C4DEF6VWXYZABCDEFGHJ
+      Id: 01KSS261EKE0W9S5TJ800DK4ZT
       Satisfies: STK_AEB_0001
       Labels: ASIL-B
-
 
 - [SWE_BRK_0107] Median filter implementation
 
   The braking ECU shall apply a 5-sample median filter to the raw brake pressure
   sensor input before processing.  $aNiceVariable
 
-
-      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Id: 01KSS261EKX1CQF34ZH6QJ35GK
       Satisfies: SYS_AEB_0012
-      Labels: ASIL-B, real-time, performance
+      Labels: ASIL-B
+      Labels: real-time
+      Labels: performance
 
 Prose between entries renders normally — no left border, no type coloring. The
 visual separation between entries and prose is provided by the admonition border
@@ -64,7 +65,7 @@ alone.
   tracking) from decision (threat assessment, braking command) via a
   publish-subscribe message bus.
 
-      Id: 01HGW4E5GHJ7VWXYZABCDEFGHJ
+      Id: 01KSS261EKRNRD12Z32T8D2EAF
       Satisfies: STK_AEB_0001
 
 - [ICD_AEB_0010] Radar frame interface
@@ -72,7 +73,7 @@ alone.
   The radar driver shall publish `RadarFrame` messages at 20 Hz containing
   range, velocity, azimuth, and classification for each detected object.
 
-      Id: 01HGW4F6HKM8VWXYZABCDEFGHJ
+      Id: 01KSS261EKQZ954VGE7VGAJ1TP
       Satisfies: SAD_AEB_0001
       Labels: interface
 
@@ -84,7 +85,7 @@ alone.
   positive closing velocity and returns infinity for zero or negative closing
   velocity.
 
-      Id: 01HGW5G7JMN9VWXYZABCDEFGHJ
+      Id: 01KSS261EKEZ1AF8NBGPDT3TDS
       Verifies: SWE_BRK_0107
 
 - [SIT_AEB_0012] Perception-to-decision integration
@@ -92,7 +93,7 @@ alone.
   Verify end-to-end that a radar frame with a stationary object at 40m produces
   a `High` threat level through the full perception–decision pipeline.
 
-      Id: 01HGW5H8KPQ0VWXYZABCDEFGHJ
+      Id: 01KSS261EKRB8VQF36ZWFK9R67
       Verifies: SYS_AEB_0012
       Labels: integration
 
@@ -105,7 +106,7 @@ Entry with no labels — pill group is not rendered:
   The braking ECU shall reject brake pressure readings outside the valid sensor
   range [0, 250] bar.
 
-      Id: 01HGW6J9NRS1VWXYZABCDEFGHJ
+      Id: 01KSS261EK1GFK8S5AT2ZG0XRD
       Satisfies: SYS_AEB_0012
 
 Entry with many labels — pill group wraps to the next line:
@@ -115,7 +116,7 @@ Entry with many labels — pill group wraps to the next line:
   The braking ECU shall detect open-circuit, short-circuit, and out-of-range
   faults on all brake pressure sensors within one sample period.
 
-      Id: 01HGW6K0MST2VWXYZABCDEFGHJ
+      Id: 01KSS261EK6TJNASWMRCAK1F20
       Satisfies: SYS_AEB_0012
       Labels: ASIL-B
       Labels: safety-critical
@@ -131,9 +132,9 @@ Entry with multiple cross-references:
   The braking ECU shall use triple-modular redundancy voting across the three
   brake pressure sensors.
 
-      Id: 01HGW6N1NVW3VWXYZABCDEFGHJ
-      Satisfies: SYS_AEB_0012
+      Id: 01KSS261EKH0G8HPP9EAAJC2Z0
       Derived-from: STK_AEB_0001
+      Satisfies: SYS_AEB_0012
       Labels: ASIL-B
       Labels: redundancy
 
@@ -144,7 +145,7 @@ URI, and the display ID serves as a pandoc-style slug:
 
 - [@ISO-26262-6] ISO 26262 Part 6
 
-  Road vehicles — Functional safety — Part 6: Software level.
+  Road vehicles — Functional safety — Part 6, Software level.
 
       Id: urn:iso:std:iso:26262:-6:ed-2
       Labels: functional-safety
@@ -170,7 +171,7 @@ only the modal.
   vehicle ignition is on. The vehicle must report any detected anomaly to
   the driver instrument cluster within 500 ms.
 
-      Id: 01HGW7A1BCDE2VWXYZABCDEFGH
+      Id: 01KSS261EKBQBGQP3ZNYPQGN60
       Satisfies: STK_AEB_0001
       Labels: ASIL-B
 
@@ -180,7 +181,7 @@ only the modal.
   torque within 50 ms. When the driver releases the pedal, engine torque
   may return to the requested level over the next 100 ms.
 
-      Id: 01HGW7B2DEFG3VWXYZABCDEFGH
+      Id: 01KSS261EKP9G2S3WDDMR8ZVYC
       Satisfies: STK_AEB_0001
       Labels: ASIL-B
 
@@ -191,7 +192,7 @@ only the modal.
   flagged degraded, the decision module should de-weight its contribution
   to the fusion output.
 
-      Id: 01HGW7C3FGHJ4VWXYZABCDEFGH
+      Id: 01KSS261EKBMEQF5CJ4T5T653T
       Satisfies: STK_AEB_0001
       Labels: ASIL-B
 
@@ -202,7 +203,7 @@ only the modal.
   frame. Where the driver has disabled the feature, the system will
   continue object tracking without engaging the brakes.
 
-      Id: 01HGW7D4GHJK5VWXYZABCDEFGH
+      Id: 01KSS261EKGPVX9C7ZDF8ZW65Q
       Satisfies: STK_AEB_0001
       Labels: ASIL-B
 
@@ -212,7 +213,7 @@ only the modal.
   within one diagnostic cycle. The system shall not engage automatic
   braking while in degraded mode.
 
-      Id: 01HGW7E5HJKL6VWXYZABCDEFGH
+      Id: 01KSS261EKWE0RY6JFVE1ZAVDA
       Satisfies: STK_AEB_0001
       Labels: ASIL-B
       Labels: fault-tolerance
@@ -244,7 +245,7 @@ distinguish their domain:
   Below the code block: $rawPressure and $MedianFilter remain entity
   refs because the language fence is `rust`, not `feature`.
 
-      Id: 01HGW8F6JKLM7VWXYZABCDEFGH
+      Id: 01KSS261EKVBFR3A4YF6GDEQ9D
       Satisfies: SYS_AEB_0012
       Labels: ASIL-B
       Labels: performance
@@ -254,7 +255,7 @@ distinguish their domain:
   The implementation shall pass the acceptance criteria expressed as
   Gherkin scenarios:
 
-  ```feature
+  ```gherkin
   Feature: Median filter debouncing
     Background:
       Given a window size of 5
@@ -275,7 +276,7 @@ distinguish their domain:
         | 5      | 3       | 500    |
   ```
 
-      Id: 01HGW8G7KLMN8VWXYZABCDEFGH
+      Id: 01KSS261EK3WXQBQRP47GEMDQ5
       Verifies: SWE_BRK_0210
       Labels: integration
 
@@ -311,7 +312,7 @@ table and dims as usual.
   single-`$` math such as `$T_{TTC}$` is not currently distinguished
   from entity refs; the body-token AST refactor will address that.)
 
-      Id: 01HGW9H8MNOP9VWXYZABCDEFGH
+      Id: 01KSS261EKS3DGQAHNRGW9D230
       Satisfies: SYS_AEB_0012
       Labels: design
 
@@ -345,7 +346,7 @@ LSP.
   > modal verbs and EARS triggers inside `[!NOTE]` / `[!WARNING]`
   > content above.
 
-      Id: 01HGWAI9NPRS0VWXYZABCDEFGH
+      Id: 01KSS261EJRVQKS1D8ZH2V2HJ4
       Satisfies: SYS_AEB_0012
       Labels: ASIL-B
       Labels: fault-tolerance
@@ -361,7 +362,6 @@ LSP.
   The CAN driver delivers each frame to `$BrakeActuator` via the
   publish-subscribe bus.
 
-      Id: 01HGWAJ0OQRT1VWXYZABCDEFGH
+      Id: 01KSS261EG8RBTF422G2NFBHPD
       Satisfies: SAD_AEB_0001
       Labels: interface
-
