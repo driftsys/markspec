@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://driftsys.github.io/markspec/schemas/profile/v1.json",
+  "title": "MarkSpec profile manifest",
+  "description": "Schema for a MarkSpec profile's markspec.yaml manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "markspec-schema"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "description": "Reverse-DNS profile identifier." },
+    "version": { "type": "string", "description": "Profile version." },
+    "markspec-schema": { "type": "integer", "description": "Core schema version targeted." },
+    "description": { "type": "string" },
+    "license": { "type": "string" },
+    "extends": {
+      "description": "Parent profile specifier(s).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attribute" }
+        },
+        "labels": {},
+        "colors": {},
+        "conventions": {},
+        "types": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/type" }
+        },
+        "documents": { "$ref": "#/$defs/documents" },
+        "kinds": {},
+        "prose": {},
+        "discipline-mode": { "enum": ["flat", "tiered", "none"] }
+      }
+    }
+  },
+  "$defs": {
+    "type": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extends": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "description": { "type": "string" },
+        "display-id-pattern": { "type": "string" },
+        "display-id-pattern-enforcement": { "enum": ["off", "warn", "error"] },
+        "required": { "type": "boolean" },
+        "attributes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attribute" }
+        },
+        "traceability": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/traceRule" }
+        },
+        "color": { "type": "string" },
+        "discipline": { "type": "string" }
+      }
+    },
+    "attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "enum": [
+            "id",
+            "id-list",
+            "uri",
+            "url",
+            "path",
+            "path-or-id",
+            "enum",
+            "tag-list",
+            "text",
+            "citation",
+            "external-id",
+            "integer",
+            "date",
+            "boolean"
+          ]
+        },
+        "required": { "type": "boolean" },
+        "cardinality": { "type": "string", "pattern": "^\\d+\\.\\.(\\d+|N)$" },
+        "values": { "type": "array" },
+        "inverse": { "$ref": "#/$defs/inverse" },
+        "description": { "type": "string" }
+      }
+    },
+    "inverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "category"],
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" }
+      }
+    },
+    "traceRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object" },
+            { "type": "array" }
+          ]
+        },
+        "cardinality": { "type": "string", "pattern": "^\\d+\\.\\.(\\d+|N)$" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" }
+      }
+    },
+    "documents": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "types": {},
+        "frontMatter": {}
+      }
+    }
+  }
+}
