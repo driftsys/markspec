@@ -10,6 +10,8 @@
  * for traceability and CI cache keying.
  */
 
+import { fromFileUrl, join } from "@std/path";
+
 interface NpmGrammar {
   source: "npm";
   pkg: string;
@@ -102,8 +104,11 @@ const GRAMMARS: Record<string, Grammar> = {
   },
 };
 
-const GRAMMARS_DIR = new URL("../grammars", import.meta.url).pathname;
-const LOCK_PATH = `${GRAMMARS_DIR}/grammars.lock`;
+// Use fromFileUrl (not URL.pathname): on Windows .pathname yields a
+// leading-slash drive path like `/D:/…/grammars` that Deno.writeFile
+// rejects with "cannot find the path specified".
+const GRAMMARS_DIR = fromFileUrl(new URL("../grammars", import.meta.url));
+const LOCK_PATH = join(GRAMMARS_DIR, "grammars.lock");
 
 /**
  * With `--write-lock`, freshly-computed hashes are written to
@@ -161,7 +166,7 @@ async function fetchGrammar(
     throw new Error(`failed to fetch ${url}: ${response.status}`);
   }
   const data = new Uint8Array(await response.arrayBuffer());
-  await Deno.writeFile(`${GRAMMARS_DIR}/${file}`, data);
+  await Deno.writeFile(join(GRAMMARS_DIR, file), data);
   const digest = await sha256(data);
   console.error(
     `  wrote ${file} (${(data.length / 1024).toFixed(0)} KB) sha256:${
