@@ -189,3 +189,12 @@ Deno.test("lockfile round-trips without [meta.toolchain]", () => {
   assertEquals(diagnostics.length, 0);
   assertEquals(parsed, original);
 });
+
+Deno.test("serializer: first line is the #:schema directive", () => {
+  const toml = serializeLockfile(EMPTY_LOCKFILE);
+  const firstLine = toml.split("\n")[0];
+  assertEquals(
+    firstLine,
+    "#:schema https://driftsys.github.io/markspec/schemas/lock/v1.json",
+  );
+});
