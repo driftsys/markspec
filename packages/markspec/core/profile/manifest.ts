@@ -36,6 +36,7 @@ import {
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
 export const ALLOWED_ROOT_KEYS = new Set([
+  "$schema",
   "id",
   "version",
   "markspec-schema",
