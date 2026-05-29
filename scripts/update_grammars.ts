@@ -151,10 +151,12 @@ const updated = applyUpdates(source, updates);
 await Deno.writeTextFile(FETCH_SCRIPT, updated);
 console.error("  updated scripts/fetch_grammars.ts");
 
-// Run fetch to download new versions and regenerate lockfile
+// Run fetch to download new versions and rewrite the lockfile. A version
+// bump legitimately changes the pinned hashes, so we pass --write-lock to
+// record the new ones (rather than the default verifying fetch).
 console.error("  running fetch...\n");
 const cmd = new Deno.Command("deno", {
-  args: ["task", "fetch-grammars"],
+  args: ["task", "fetch-grammars", "--write-lock"],
   stdout: "inherit",
   stderr: "inherit",
 });

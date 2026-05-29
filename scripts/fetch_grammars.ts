@@ -10,6 +10,8 @@
  * for traceability and CI cache keying.
  */
 
+import { fromFileUrl, join } from "@std/path";
+
 interface NpmGrammar {
   source: "npm";
   pkg: string;
@@ -102,7 +104,37 @@ const GRAMMARS: Record<string, Grammar> = {
   },
 };
 
-const GRAMMARS_DIR = new URL("../grammars", import.meta.url).pathname;
+// Use fromFileUrl (not URL.pathname): on Windows .pathname yields a
+// leading-slash drive path like `/D:/…/grammars` that Deno.writeFile
+// rejects with "cannot find the path specified".
+const GRAMMARS_DIR = fromFileUrl(new URL("../grammars", import.meta.url));
+const LOCK_PATH = join(GRAMMARS_DIR, "grammars.lock");
+
+/**
+ * With `--write-lock`, freshly-computed hashes are written to
+ * `grammars.lock` (used by `update_grammars.ts --apply` after a version
+ * bump). Without it, the default is a *verifying* fetch: each downloaded
+ * file's sha256 must match the hash already pinned in `grammars.lock`, or
+ * the script exits non-zero. This makes the build-time fetch
+ * tamper-evident — a CDN compromise or accidental version drift fails
+ * loudly instead of silently shipping unexpected bytes.
+ */
+const WRITE_LOCK = Deno.args.includes("--write-lock");
+
+/** Read the pinned `file → sha256` map from the committed lockfile. */
+async function readLockedHashes(): Promise<Map<string, string>> {
+  try {
+    const raw = await Deno.readTextFile(LOCK_PATH);
+    const parsed = JSON.parse(raw) as { grammars?: LockEntry[] };
+    const map = new Map<string, string>();
+    for (const entry of parsed.grammars ?? []) {
+      map.set(entry.file, entry.sha256);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
 
 function grammarUrl(file: string, grammar: Grammar): string {
   if (grammar.source === "npm") {
@@ -134,7 +166,7 @@ async function fetchGrammar(
     throw new Error(`failed to fetch ${url}: ${response.status}`);
   }
   const data = new Uint8Array(await response.arrayBuffer());
-  await Deno.writeFile(`${GRAMMARS_DIR}/${file}`, data);
+  await Deno.writeFile(join(GRAMMARS_DIR, file), data);
   const digest = await sha256(data);
   console.error(
     `  wrote ${file} (${(data.length / 1024).toFixed(0)} KB) sha256:${
@@ -158,10 +190,36 @@ for (const [file, grammar] of Object.entries(GRAMMARS)) {
   entries.push(await fetchGrammar(file, grammar));
 }
 
-const lock = { generated: new Date().toISOString(), grammars: entries };
-await Deno.writeTextFile(
-  `${GRAMMARS_DIR}/grammars.lock`,
-  JSON.stringify(lock, null, 2) + "\n",
-);
-console.error("\nWrote grammars/grammars.lock");
+if (WRITE_LOCK) {
+  const lock = { generated: new Date().toISOString(), grammars: entries };
+  await Deno.writeTextFile(LOCK_PATH, JSON.stringify(lock, null, 2) + "\n");
+  console.error("\nWrote grammars/grammars.lock");
+} else {
+  // Verifying fetch: every downloaded file must match the pinned hash.
+  const locked = await readLockedHashes();
+  const mismatches: string[] = [];
+  for (const entry of entries) {
+    const expected = locked.get(entry.file);
+    if (expected === undefined) {
+      mismatches.push(
+        `${entry.file}: no entry in grammars.lock (run with --write-lock to record it)`,
+      );
+    } else if (expected !== entry.sha256) {
+      mismatches.push(
+        `${entry.file}: sha256 mismatch\n      expected ${expected}\n      got      ${entry.sha256}`,
+      );
+    }
+  }
+  if (mismatches.length > 0) {
+    console.error("\nerror: fetched grammars do not match grammars.lock:");
+    for (const m of mismatches) console.error(`  ${m}`);
+    console.error(
+      "\nIf this is an intentional version bump, re-run with --write-lock:\n" +
+        "  deno task fetch-grammars -- --write-lock",
+    );
+    Deno.exit(1);
+  }
+  console.error("\nVerified all grammars against grammars.lock.");
+}
+
 console.error("Done.");

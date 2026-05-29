@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          lfs: true
 
       - uses: denoland/setup-deno@v2
         with:
@@ -49,7 +47,8 @@ jobs:
           body: |
             Automated update of tree-sitter WASM grammar versions.
 
-            Review the changes to `scripts/fetch_grammars.ts`, `grammars/grammars.lock`,
-            and the updated `.wasm` files.
+            Review the changes to `scripts/fetch_grammars.ts` (pinned versions)
+            and `grammars/grammars.lock` (pinned hashes). The `.wasm` binaries
+            themselves are fetched at build time, not committed.
           labels: dependencies
           delete-branch: true

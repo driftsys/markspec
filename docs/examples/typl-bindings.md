@@ -26,7 +26,7 @@ all bindings at a glance.
   $CycleHz : const int[10]
   ```
 
-      Id: 01JZTYPLEXAMPLE0000RADAR001
+      Id: 01KSS2PGSNGHDT7BJP3JKVRXCV
       Satisfies: STK_RADAR_0001
       Labels: ASIL-B
 
@@ -46,10 +46,12 @@ at the same indent level as any other list item.
   The debounce window shall be configurable at system-start time and shall
   not exceed 50 ms.
 
-  - $Window : config int[1..50]
-  - $Stable : signal bool
+  ```typl
+  $Window : config int[1..50]
+  $Stable : signal bool
+  ```
 
-      Id: 01JZTYPLEXAMPLE0000BRAKE001
+      Id: 01KSS2PGSNKD8XGJA3RP4KCXJW
       Satisfies: STK_BRAKE_0002
       Labels: ASIL-C
 
@@ -69,7 +71,7 @@ only one or two identifiers to annotate.
   based on the current velocity operating mode. The gain selection shall
   complete within one control cycle of an operating-mode transition.
 
-      Id: 01JZTYPLEXAMPLE0000CTRL001
+      Id: 01KSS2PGSN15WMYG2H2K8P5RQ0
       Satisfies: SYS_CTRL_0003
       Labels: ASIL-B
 
@@ -94,9 +96,11 @@ namespace regardless of which surface introduces them.
   type FaultRecord = { ts: int, severity: Severity, code: int[0..255], msg: string[..128] }
   ```
 
-  - $FaultRecord : document FaultRecord
-  - $FaultRate   : signal float[0..100]
+  ```typl
+  $FaultRecord : document FaultRecord
+  $FaultRate   : signal float[0..100]
+  ```
 
-      Id: 01JZTYPLEXAMPLE0000DIAG001
+      Id: 01KSS2PGSNA58HXQ4HAQVNZ43W
       Satisfies: STK_DIAG_0001
       Labels: QM
