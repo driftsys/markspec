@@ -214,7 +214,7 @@ Deno.test("mcp: every tool advertises read-only annotations", async () => {
   }
 });
 
-Deno.test("mcp: tools/list returns all five tools", async () => {
+Deno.test("mcp: tools/list returns all eight tools", async () => {
   const { proc, cwd } = await setup();
   try {
     const resp = await proc.request("tools/list", {});
@@ -223,7 +223,10 @@ Deno.test("mcp: tools/list returns all five tools", async () => {
     const names = tools.map((t) => t.name).sort();
     assertEquals(names, [
       "entry_context",
+      "entry_list",
+      "entry_neighborhood",
       "entry_search",
+      "entry_show",
       "markspec_refresh",
       "profile_describe",
       "validate",

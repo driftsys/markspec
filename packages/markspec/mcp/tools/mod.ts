@@ -18,6 +18,7 @@ import {
   renderSearchResults,
   scoreEntries,
 } from "./search.ts";
+import { ENTRY_SHOW_DESCRIPTOR, renderShow } from "./show.ts";
 import {
   ENTRY_CONTEXT_DESCRIPTOR,
   renderContext,
@@ -34,11 +35,19 @@ import {
   PROFILE_DESCRIBE_DESCRIPTOR,
 } from "./profile_describe.ts";
 import { buildProfileView } from "../resources/profile.ts";
+import { ENTRY_LIST_DESCRIPTOR, renderList } from "./list.ts";
+import {
+  ENTRY_NEIGHBORHOOD_DESCRIPTOR,
+  renderNeighborhood,
+} from "./neighborhood.ts";
 
 /** All tool descriptors, in `tools/list` order. */
 export const TOOL_DESCRIPTORS = [
   ENTRY_SEARCH_DESCRIPTOR,
+  ENTRY_SHOW_DESCRIPTOR,
+  ENTRY_LIST_DESCRIPTOR,
   ENTRY_CONTEXT_DESCRIPTOR,
+  ENTRY_NEIGHBORHOOD_DESCRIPTOR,
   VALIDATE_DESCRIPTOR,
   REFRESH_DESCRIPTOR,
   PROFILE_DESCRIBE_DESCRIPTOR,
@@ -65,12 +74,27 @@ const HANDLERS: Record<string, ToolHandler> = {
   },
 
   // deno-lint-ignore no-explicit-any
+  entry_show: async (args: any, project) => {
+    const id = String(args?.id ?? "");
+    const result = await project.getCompiled();
+    return renderShow(result, id, project.projectRoot);
+  },
+
+  // deno-lint-ignore no-explicit-any
   entry_context: async (args: any, project) => {
     const id = String(args?.id ?? "");
     const depth = Math.min(50, Math.max(0, Number(args?.depth ?? 10)));
     const result = await project.getCompiled();
     const chain = walkContext(result, id, depth);
     return renderContext(chain, id);
+  },
+
+  // deno-lint-ignore no-explicit-any
+  entry_neighborhood: async (args: any, project) => {
+    const id = String(args?.id ?? "");
+    const depth = Math.min(50, Math.max(0, Number(args?.depth ?? 3)));
+    const result = await project.getCompiled();
+    return renderNeighborhood(result, id, depth);
   },
 
   // deno-lint-ignore no-explicit-any
@@ -95,6 +119,18 @@ const HANDLERS: Record<string, ToolHandler> = {
       result.entries.size,
       project.projectRoot,
     );
+  },
+
+  // deno-lint-ignore no-explicit-any
+  entry_list: async (args: any, project) => {
+    const mode = args?.mode === "full" ? "full" : "summary";
+    const result = await project.getCompiled();
+    return renderList([...result.entries.values()], {
+      mode,
+      type: args?.type !== undefined ? String(args.type) : undefined,
+      label: args?.label !== undefined ? String(args.label) : undefined,
+      page: args?.page !== undefined ? Number(args.page) : undefined,
+    });
   },
 
   markspec_refresh: async (_args, project) => {

@@ -24,6 +24,29 @@ function mockProject(detected: boolean): Project {
   };
 }
 
+/** A detected project with an empty compiled graph — for routing smoke tests. */
+function emptyDetectedProject(): Project {
+  return {
+    projectRoot: "/proj",
+    markspecDetected: true,
+    config: undefined,
+    profileChain: null,
+    profile: undefined,
+    getCompiled: () =>
+      Promise.resolve({
+        entries: new Map(),
+        links: [],
+        forward: new Map(),
+        reverse: new Map(),
+        diagnostics: [],
+        // deno-lint-ignore no-explicit-any
+      } as any),
+    forceRefresh: () =>
+      Promise.reject(new Error("forceRefresh must not be called")),
+    subscribeInvalidation: () => () => {},
+  };
+}
+
 Deno.test("dispatchTool: returns soft-gate message when markspecDetected=false", async () => {
   const project = mockProject(false);
   const result = await dispatchTool("entry_search", { query: "x" }, project);
@@ -62,6 +85,28 @@ Deno.test("dispatchTool: gates profile_describe", async () => {
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
+Deno.test("dispatchTool: gates entry_show", async () => {
+  const project = mockProject(false);
+  const result = await dispatchTool("entry_show", { id: "X_0001" }, project);
+  assertStringIncludes(result, "No MarkSpec project found");
+});
+
+Deno.test("dispatchTool: gates entry_list", async () => {
+  const project = mockProject(false);
+  const result = await dispatchTool("entry_list", {}, project);
+  assertStringIncludes(result, "No MarkSpec project found");
+});
+
+Deno.test("dispatchTool: gates entry_neighborhood", async () => {
+  const project = mockProject(false);
+  const result = await dispatchTool(
+    "entry_neighborhood",
+    { id: "X_0001" },
+    project,
+  );
+  assertStringIncludes(result, "No MarkSpec project found");
+});
+
 Deno.test("dispatchTool: unknown tool returns error message regardless of gate", async () => {
   const project = mockProject(false);
   let caught: Error | null = null;
@@ -71,4 +116,24 @@ Deno.test("dispatchTool: unknown tool returns error message regardless of gate",
     caught = err as Error;
   }
   assertEquals(caught?.message.includes("unknown tool"), true);
+});
+
+Deno.test("dispatchTool: entry_show routes", async () => {
+  const project = emptyDetectedProject();
+  const result = await dispatchTool("entry_show", { id: "X_0001" }, project);
+  assertStringIncludes(result, "No entry with display ID X_0001");
+});
+
+Deno.test("dispatchTool: entry_list routes (summary default)", async () => {
+  const result = await dispatchTool("entry_list", {}, emptyDetectedProject());
+  assertStringIncludes(result, "Specification overview");
+});
+
+Deno.test("dispatchTool: entry_neighborhood routes", async () => {
+  const result = await dispatchTool(
+    "entry_neighborhood",
+    { id: "X_0001" },
+    emptyDetectedProject(),
+  );
+  assertStringIncludes(result, "No entry with display ID X_0001");
 });
