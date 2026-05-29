@@ -10,20 +10,24 @@ import { join } from "@std/path";
 import type { MemFs } from "../fake_fs.ts";
 import type { ProfileChoice } from "../types.ts";
 
+const SCHEMA_LINE =
+  "$schema: https://driftsys.github.io/markspec/schemas/markspec/v1.json";
+
 export function buildMarkspecYaml(choice: ProfileChoice): string {
   switch (choice.kind) {
     case "bundled":
       return [
+        SCHEMA_LINE,
         "# Profile chain — bundled default active implicitly.",
         "# See https://markspec.dev/profiles/",
         "",
       ].join("\n");
     case "git":
-      return ["profiles:", `  - ${choice.spec}`, ""].join("\n");
+      return [SCHEMA_LINE, "profiles:", `  - ${choice.spec}`, ""].join("\n");
     case "local":
-      return ["profiles:", `  - ${choice.spec}`, ""].join("\n");
+      return [SCHEMA_LINE, "profiles:", `  - ${choice.spec}`, ""].join("\n");
     case "none":
-      return ["default-profile: false", ""].join("\n");
+      return [SCHEMA_LINE, "default-profile: false", ""].join("\n");
   }
 }
 
