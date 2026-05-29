@@ -38,6 +38,7 @@
     "npm:@modelcontextprotocol/sdk@1": "1.29.0_zod@4.4.3",
     "npm:@myriaddreamin/typst-ts-node-compiler@0.6": "0.6.0",
     "npm:@types/mdast@4": "4.0.4",
+    "npm:ajv@8": "8.20.0",
     "npm:jsonc-parser@3": "3.3.1",
     "npm:rehype-stringify@10": "10.0.1",
     "npm:remark-gfm@4": "4.0.1",
@@ -1417,7 +1418,8 @@
       "jsr:@std/testing@1",
       "jsr:@std/toml@1",
       "jsr:@std/ulid@1",
-      "jsr:@std/yaml@1"
+      "jsr:@std/yaml@1",
+      "npm:ajv@8"
     ],
     "members": {
       "packages/markspec": {

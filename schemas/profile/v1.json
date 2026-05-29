@@ -10,7 +10,7 @@
     "$schema": { "type": "string" },
     "id": { "type": "string", "description": "Reverse-DNS profile identifier." },
     "version": { "type": "string", "description": "Profile version." },
-    "markspec-schema": { "type": "integer", "description": "Core schema version targeted." },
+    "markspec-schema": { "type": "string", "description": "Core schema version targeted, as a string (e.g. \"1\")." },
     "description": { "type": "string" },
     "license": { "type": "string" },
     "extends": {
