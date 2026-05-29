@@ -185,6 +185,40 @@ plan** and re-pops the relation-filtered ID menu. An invalid label `ASIL-Q` →
 applies each repair (plan supplies valid values), runs `format`, and
 re-validates until clean.
 
+### 4.4 Agent-first (prompt-driven) authoring
+
+CUJ-3 and CUJ-4 are persona variants of single-entry agent assistance _while the
+author is in the file_. The two journeys below elevate the **agent-first** path,
+where the human stays in the chat prompt and never touches entry syntax. This is
+the canonical L2 experience and a primary onboarding scenario (a tech writer
+migrating an existing requirements document).
+
+**CUJ-11 · Pure prompt-first · L2 (canonical agentic path).** The author types
+only intent into the Copilot/agent prompt — e.g. _"Add a stakeholder requirement
+that the vehicle must come to a full stop before a detected obstacle within
+braking distance."_ They never open or edit the file by hand. The agent runs the
+full loop end-to-end: `authoring_plan(STK)` → draft title + body → pick a valid
+`Satisfies:` target and `Labels:` value from the plan → `insert` → `format`
+(stamps ULID) → `validate`. It reports back the created display ID. The author
+reviews the result in the diff, not the syntax.
+
+**CUJ-12 · Batch from a source doc · L2.** The author pastes a requirements
+blurb, table, or external document into the prompt: _"Turn these into
+stakeholder requirements."_ The agent authors **many entries in one pass**,
+which adds four batch-specific obligations beyond the single-entry loop:
+
+1. **Sequential IDs** — each new entry takes the next display number; the
+   allocation must advance across the batch so two new entries never collide.
+2. **Cross-links between new entries** — when the source implies derivation (a
+   system requirement satisfying a stakeholder need authored in the same batch),
+   the agent wires `Satisfies:` / `Derived-from:` between IDs it is minting in
+   this pass.
+3. **Dedup against existing** — the agent checks (`entry_search`) before
+   creating, so it does not duplicate an entry that already exists.
+4. **One reconciliation at the end** — a single `format` + `validate` over the
+   batch stamps every ULID and confirms the whole set is consistent, rather than
+   round-tripping per entry.
+
 ---
 
 ## 5. Triggers and component responsibilities
@@ -347,22 +381,23 @@ gated by a flicker-avoidance study (§10, JOB2 Story 0).
 
 ## 9. Work items (gaps)
 
-| #     | Item                                                                            | Phase |
-| ----- | ------------------------------------------------------------------------------- | ----- |
-| G1    | Snippet injects comment leaders for source files                                | 1     |
-| G2    | `insert` writes into source doc-comments + accepts pre-filled field values      | 1     |
-| G3    | Palette quick-pick wizard (tech-writer lane)                                    | 1     |
-| G4    | Plan marks `Id:` auto/omit — agent never forges ULID                            | 1     |
-| G5    | Re-trigger orchestration in snippet (`command:triggerSuggest`)                  | 1     |
-| G6    | Present-aware trailer completion (plan − present, cardinality)                  | 1     |
-| G7    | Plan-aware quick-fixes: add-required, replace-invalid-enum, fix-relation-target | 1     |
-| G8    | Documented + hardened agent fix loop (`validate --format json`, MCP `validate`) | 1     |
-| MCP   | `authoring_plan` read tool                                                      | 1     |
-| G10   | Verify/fix semantic-token columns inside leader-prefixed doc-comments           | 1     |
-| Study | Flicker-avoidance study (theme-color alignment) — gates G9                      | 2     |
-| G9    | TextMate injection — **Markdown + Rust + Kotlin + C#**                          | 2     |
-| P2b   | TextMate injection — TS/JS, Java, C/C++                                         | 2     |
-| P2a   | EARS / Gherkin / typl **body-content** completion                               | 2     |
+| #     | Item                                                                                                            | Phase |
+| ----- | --------------------------------------------------------------------------------------------------------------- | ----- |
+| G1    | Snippet injects comment leaders for source files                                                                | 1     |
+| G2    | `insert` writes into source doc-comments + accepts pre-filled field values                                      | 1     |
+| G3    | Palette quick-pick wizard (tech-writer lane)                                                                    | 1     |
+| G4    | Plan marks `Id:` auto/omit — agent never forges ULID                                                            | 1     |
+| G5    | Re-trigger orchestration in snippet (`command:triggerSuggest`)                                                  | 1     |
+| G6    | Present-aware trailer completion (plan − present, cardinality)                                                  | 1     |
+| G7    | Plan-aware quick-fixes: add-required, replace-invalid-enum, fix-relation-target                                 | 1     |
+| G8    | Documented + hardened agent fix loop (`validate --format json`, MCP `validate`)                                 | 1     |
+| MCP   | `authoring_plan` read tool                                                                                      | 1     |
+| G11   | Batch authoring semantics: sequential IDs, cross-links between new entries, dedup, single final format+validate | 1     |
+| G10   | Verify/fix semantic-token columns inside leader-prefixed doc-comments                                           | 1     |
+| Study | Flicker-avoidance study (theme-color alignment) — gates G9                                                      | 2     |
+| G9    | TextMate injection — **Markdown + Rust + Kotlin + C#**                                                          | 2     |
+| P2b   | TextMate injection — TS/JS, Java, C/C++                                                                         | 2     |
+| P2a   | EARS / Gherkin / typl **body-content** completion                                                               | 2     |
 
 ---
 
@@ -375,15 +410,15 @@ entries correctly — in Markdown and in code, by hand or with an agent — insi
 VS Code."_ Tolerates LSP-dependent highlighting and no body-prose completion.
 Proves the model end-to-end.
 
-| Story                                                                                                                            | Items       |
-| -------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 1. Core `buildAuthoringPlan` + tests (the spine)                                                                                 | foundation  |
-| 2. LSP create — plan-driven snippet (type picker, auto-ID, auto-ULID, tab-stops, enum CHOICE, id-ref re-trigger); source leaders | G1, G4, G5  |
-| 3. LSP edit — present-aware trailer                                                                                              | G6          |
-| 4. LSP fix — plan-aware quick-fixes                                                                                              | G7          |
-| 5. Tech-writer wizard (`MarkSpec: New Entry`)                                                                                    | G3          |
-| 6. Agent lane — MCP `authoring_plan` + `Id:omit` contract; source-aware `insert`; hardened fix loop                              | G2, G8, MCP |
-| 7. Highlighting correctness — semantic-token columns in doc-comments                                                             | G10         |
+| Story                                                                                                                            | Items            |
+| -------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 1. Core `buildAuthoringPlan` + tests (the spine)                                                                                 | foundation       |
+| 2. LSP create — plan-driven snippet (type picker, auto-ID, auto-ULID, tab-stops, enum CHOICE, id-ref re-trigger); source leaders | G1, G4, G5       |
+| 3. LSP edit — present-aware trailer                                                                                              | G6               |
+| 4. LSP fix — plan-aware quick-fixes                                                                                              | G7               |
+| 5. Tech-writer wizard (`MarkSpec: New Entry`)                                                                                    | G3               |
+| 6. Agent lane — MCP `authoring_plan` + `Id:omit` contract; source-aware `insert`; batch authoring; hardened fix loop             | G2, G8, G11, MCP |
+| 7. Highlighting correctness — semantic-token columns in doc-comments                                                             | G10              |
 
 ### Epic JOB2 — Seamless devex: frictionless authoring for wider adoption
 
