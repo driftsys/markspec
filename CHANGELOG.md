@@ -1,5 +1,200 @@
 # Changelog
 
+## [0.6.2] (2026-05-29)
+
+### Bug Fixes
+
+- **cli:** use 127.0.0.1 in self-upgrade test client URLs for Windows
+  ([b8646af])
+- **cli:** address final-review feedback on self-upgrade ([7b98a6d])
+- **lsp:** prevent duplicate display IDs across rapid scaffold accepts
+  ([7e884b8])
+- **cli:** treat Prompter EOF as abort, not bundled-default confirmation
+  ([eb8de6a])
+- **cli:** recognise Windows cmd.exe 9009 as upskill-not-found ([be36505])
+- **lsp:** register openDefinition and openReferences in VS Code extension
+  ([724c5ad]), closes 547.
+- **lsp:** share display-id-pattern parsing between CLI and LSP ([3e980c1])
+- **cli:** guard MCP executor branch on action kind ([46143ae])
+- **cli:** walk parent dirs in MemFs.mkdir before adding leaf ([1dd0a5a])
+- **lsp:** pre-init event queue + vscode logPath rewire + missing tally
+  ([db6a30e])
+- **cli:** gate test-only env detect-hook behind MARKSPEC_TEST_MODE ([937f8fc])
+- **cli:** only record init actions that actually executed ([4cc3a1c])
+- **cli:** return undefined when which/where stdout is empty ([c75b5e1])
+- **cli:** normalize Windows backslashes in MemFs path keys ([aa90370])
+- **cli:** use join() for cross-platform path fixtures in MCP adapter tests
+  ([3bfd402])
+- **cli:** pad batch-mode synthetic IDs to 4 digits; tighten docs ([7a07407])
+- **cli:** lock in score-command edge cases (no-input help; --text precedence)
+  ([10add4a])
+- **cli:** honest --format help text and error-path test for score ([76a9c27])
+- **mcp:** use join() for cross-platform path fixtures in project_test
+  ([1534d66])
+
+### Documentation
+
+- **docs:** align profile docs with current declaration + npm distribution
+  ([dc40333])
+- **docs:** lead landing page with the User Guide ([753bb72])
+- **lsp:** refresh _getLockfile comment to note buildVersionNotification
+  consumer ([00d26f5])
+- **cli:** mark runProfilePicker as unwired with TODO([#544]) ([40bdca0]),
+  closes 544.
+- **core:** note severity-partition assumption in ScoreTextResult ([a1b1bba])
+- **docs:** add ADR-023 for MCP trigger language and soft gate ([72bae95])
+- **docs:** align cheatsheet with spec model and add typl bindings ([626cfd5])
+
+### Features
+
+- **cli:** add markspec self-upgrade command ([2c5fc5c])
+- **cli:** add self-upgrade HTTP helpers (tag, tarball, checksum, sha256)
+  ([b0cb50b])
+- **cli:** add self-upgrade rename-dance swap + writability probe ([29a584d])
+- **cli:** add self-upgrade single-binary tarball extractor ([efb34d9])
+- **core:** re-export self-upgrade helpers from core/mod ([c8ef013])
+- **core:** add self-upgrade package-manager path classifier ([54a2a68])
+- **core:** add self-upgrade release URL builder + sha256 line parser
+  ([f697b45])
+- **core:** add self-upgrade version comparison (compareVersions) ([3c545ef])
+- **core:** add self-upgrade target detection (detectTarget, platformFromBuild)
+  ([2ff1afb])
+- **lsp:** mid-typed display-ID auto-complete in block scaffold ([71ef2a3])
+- **lsp:** server-side prefix filter on trace-attribute completion ([097be05])
+- **lsp:** narrow trace-attribute completions by profile target type ([a8a56d0])
+- **lsp:** wire markspec/version notification into vscode status bar ([511d163])
+- **lsp:** include toolchain floor + skew verdict in markspec/version
+  ([f1698e2])
+- **lsp:** add buildVersionNotification helper for markspec/version payload
+  ([f10ed8b])
+- **lsp:** per-method counters + kind=shutdown summary event (Job 4) ([63a26f5])
+- **lsp:** kind=diagnostics histogram per validateAll (Job 3) ([572b376])
+- **cli:** add `markspec init` subcommand (slice G1) ([b7e7abb])
+- **lsp:** event log rotation (Job 6) ([92fa4b2])
+- **lsp:** slow-event WARN flags via event_log (Job 2) ([c26feef])
+- **lsp:** add default-on event log with perf-safe buffered writer ([2b7f35f])
+- **cli:** add claude-code and opencode MCP install adapters ([9db9407])
+- **cli:** --format text human renderer for markspec score ([4528ec2])
+- **cli:** JSONL batch mode + exit-code mapping for markspec score ([746a751])
+- **cli:** markspec score --text one-shot JSON mode ([f907008])
+- **core:** re-export scoreText from core/lint barrel ([3362920])
+- **core:** scoreText primitive for external requirement prose ([b5f7a33])
+- **lsp:** add MARKSPEC_LSP_TIMING_LOG instrumentation ([cb814ae])
+- **core:** record toolchain minVersion floor in markspec.lock ([5a155ec])
+- **mcp:** rewrite profile_describe description with TRIGGER/PREFER ([7d1cefe])
+- **mcp:** rewrite markspec_refresh description with TRIGGER/PREFER ([5bb7bc5])
+- **mcp:** rewrite validate description with TRIGGER/PREFER/SKIP ([c3b52cc])
+- **mcp:** rewrite entry_context description with TRIGGER/PREFER ([713a088])
+- **mcp:** rewrite entry_search description with TRIGGER/PREFER/SKIP ([c097f2c])
+- **mcp:** rewrite SERVER_INSTRUCTIONS with TRIGGER/PREFER/SKIP grammar
+  ([967f045])
+- **mcp:** soft-gate resources/read + resources/list when no MarkSpec project
+  ([5199ec5])
+- **mcp:** soft-gate every tool dispatch when no MarkSpec project found
+  ([e856653])
+- **mcp:** add detectMarkspecProject + Project.markspecDetected field
+  ([900c6f6])
+- **core:** wire corpus-scan $Identifier hook into runLint ([c4d0ba6]), closes
+  502.
+- **core:** add corpus-scan $Identifier index for Q500 hook ([e1e48da]), refs
+  502.
+
+### Refactoring
+
+- **cli:** derive init MCP filenames from adapter.resolveConfigPath ([311b3fb]),
+  closes 542.
+- **lsp:** extract pure renderState in vscode status bar ([3ae32ee])
+- **cli:** derive init's TARGET_NOT_EMPTY whitelist from plan outputs
+  ([4e11fd3])
+- **cli:** collapse scaffold*Forced helpers into forceWrite ([f200cdb]), closes
+  543.
+- **cli:** dedupe --profile parser by reusing parseProfileSpec ([6626a0e])
+- **cli:** iterate INIT_CLIENT_IDS for --all-clients ([376ffcb])
+- **lsp:** unify log channels through event_log; remove debug_log (Job 5)
+  ([a462e81])
+
+### Performance
+
+- **lsp:** parallelize onInitialized parse loop with bounded concurrency
+  ([9e86b8d])
+
+[0.6.2]: https://github.com/driftsys/markspec/compare/v0.6.1...v0.6.2
+[b8646af]: https://github.com/driftsys/markspec/commit/b8646af
+[7b98a6d]: https://github.com/driftsys/markspec/commit/7b98a6d
+[7e884b8]: https://github.com/driftsys/markspec/commit/7e884b8
+[eb8de6a]: https://github.com/driftsys/markspec/commit/eb8de6a
+[be36505]: https://github.com/driftsys/markspec/commit/be36505
+[724c5ad]: https://github.com/driftsys/markspec/commit/724c5ad
+[3e980c1]: https://github.com/driftsys/markspec/commit/3e980c1
+[46143ae]: https://github.com/driftsys/markspec/commit/46143ae
+[1dd0a5a]: https://github.com/driftsys/markspec/commit/1dd0a5a
+[db6a30e]: https://github.com/driftsys/markspec/commit/db6a30e
+[937f8fc]: https://github.com/driftsys/markspec/commit/937f8fc
+[4cc3a1c]: https://github.com/driftsys/markspec/commit/4cc3a1c
+[c75b5e1]: https://github.com/driftsys/markspec/commit/c75b5e1
+[aa90370]: https://github.com/driftsys/markspec/commit/aa90370
+[3bfd402]: https://github.com/driftsys/markspec/commit/3bfd402
+[7a07407]: https://github.com/driftsys/markspec/commit/7a07407
+[10add4a]: https://github.com/driftsys/markspec/commit/10add4a
+[76a9c27]: https://github.com/driftsys/markspec/commit/76a9c27
+[1534d66]: https://github.com/driftsys/markspec/commit/1534d66
+[dc40333]: https://github.com/driftsys/markspec/commit/dc40333
+[753bb72]: https://github.com/driftsys/markspec/commit/753bb72
+[00d26f5]: https://github.com/driftsys/markspec/commit/00d26f5
+[40bdca0]: https://github.com/driftsys/markspec/commit/40bdca0
+[#544]: https://github.com/driftsys/markspec/issues/544
+[a1b1bba]: https://github.com/driftsys/markspec/commit/a1b1bba
+[72bae95]: https://github.com/driftsys/markspec/commit/72bae95
+[626cfd5]: https://github.com/driftsys/markspec/commit/626cfd5
+[2c5fc5c]: https://github.com/driftsys/markspec/commit/2c5fc5c
+[b0cb50b]: https://github.com/driftsys/markspec/commit/b0cb50b
+[29a584d]: https://github.com/driftsys/markspec/commit/29a584d
+[efb34d9]: https://github.com/driftsys/markspec/commit/efb34d9
+[c8ef013]: https://github.com/driftsys/markspec/commit/c8ef013
+[54a2a68]: https://github.com/driftsys/markspec/commit/54a2a68
+[f697b45]: https://github.com/driftsys/markspec/commit/f697b45
+[3c545ef]: https://github.com/driftsys/markspec/commit/3c545ef
+[2ff1afb]: https://github.com/driftsys/markspec/commit/2ff1afb
+[71ef2a3]: https://github.com/driftsys/markspec/commit/71ef2a3
+[097be05]: https://github.com/driftsys/markspec/commit/097be05
+[a8a56d0]: https://github.com/driftsys/markspec/commit/a8a56d0
+[511d163]: https://github.com/driftsys/markspec/commit/511d163
+[f1698e2]: https://github.com/driftsys/markspec/commit/f1698e2
+[f10ed8b]: https://github.com/driftsys/markspec/commit/f10ed8b
+[63a26f5]: https://github.com/driftsys/markspec/commit/63a26f5
+[572b376]: https://github.com/driftsys/markspec/commit/572b376
+[b7e7abb]: https://github.com/driftsys/markspec/commit/b7e7abb
+[92fa4b2]: https://github.com/driftsys/markspec/commit/92fa4b2
+[c26feef]: https://github.com/driftsys/markspec/commit/c26feef
+[2b7f35f]: https://github.com/driftsys/markspec/commit/2b7f35f
+[9db9407]: https://github.com/driftsys/markspec/commit/9db9407
+[4528ec2]: https://github.com/driftsys/markspec/commit/4528ec2
+[746a751]: https://github.com/driftsys/markspec/commit/746a751
+[f907008]: https://github.com/driftsys/markspec/commit/f907008
+[3362920]: https://github.com/driftsys/markspec/commit/3362920
+[b5f7a33]: https://github.com/driftsys/markspec/commit/b5f7a33
+[cb814ae]: https://github.com/driftsys/markspec/commit/cb814ae
+[5a155ec]: https://github.com/driftsys/markspec/commit/5a155ec
+[7d1cefe]: https://github.com/driftsys/markspec/commit/7d1cefe
+[5bb7bc5]: https://github.com/driftsys/markspec/commit/5bb7bc5
+[c3b52cc]: https://github.com/driftsys/markspec/commit/c3b52cc
+[713a088]: https://github.com/driftsys/markspec/commit/713a088
+[c097f2c]: https://github.com/driftsys/markspec/commit/c097f2c
+[967f045]: https://github.com/driftsys/markspec/commit/967f045
+[5199ec5]: https://github.com/driftsys/markspec/commit/5199ec5
+[e856653]: https://github.com/driftsys/markspec/commit/e856653
+[900c6f6]: https://github.com/driftsys/markspec/commit/900c6f6
+[c4d0ba6]: https://github.com/driftsys/markspec/commit/c4d0ba6
+[e1e48da]: https://github.com/driftsys/markspec/commit/e1e48da
+[311b3fb]: https://github.com/driftsys/markspec/commit/311b3fb
+[3ae32ee]: https://github.com/driftsys/markspec/commit/3ae32ee
+[4e11fd3]: https://github.com/driftsys/markspec/commit/4e11fd3
+[f200cdb]: https://github.com/driftsys/markspec/commit/f200cdb
+[6626a0e]: https://github.com/driftsys/markspec/commit/6626a0e
+[376ffcb]: https://github.com/driftsys/markspec/commit/376ffcb
+[a462e81]: https://github.com/driftsys/markspec/commit/a462e81
+[9e86b8d]: https://github.com/driftsys/markspec/commit/9e86b8d
+
 ## [0.6.1] (2026-05-26)
 
 ### Bug Fixes
