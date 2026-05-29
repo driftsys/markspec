@@ -52,7 +52,11 @@ export interface ParseMarkspecYamlResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-const ALLOWED_MARKSPEC_YAML_KEYS = new Set(["profiles", "default-profile"]);
+export const ALLOWED_MARKSPEC_YAML_KEYS = new Set([
+  "$schema",
+  "profiles",
+  "default-profile",
+]);
 
 /**
  * Parse and validate a `.markspec.yaml` string.
