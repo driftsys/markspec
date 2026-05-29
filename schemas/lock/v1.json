@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://driftsys.github.io/markspec/schemas/lock/v1.json",
+  "title": "MarkSpec lockfile",
+  "description": "Schema for markspec.lock (parsed TOML form).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "meta", "generated-cache"],
+  "properties": {
+    "schema": { "type": "integer" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["markspec-schema", "locked-at"],
+      "properties": {
+        "markspec-schema": { "type": "integer" },
+        "locked-at": { "type": "string" },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "min-version": { "type": "string" } }
+        }
+      }
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reference": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slug", "id"],
+            "properties": {
+              "slug": { "type": "string" },
+              "id": { "type": "string" },
+              "resolved": { "type": "string" },
+              "hash": { "type": "string" },
+              "source": { "type": "string" },
+              "component-scheme": { "type": "string" }
+            }
+          }
+        },
+        "profile": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "specifier", "resolved", "hash"],
+            "properties": {
+              "id": { "type": "string" },
+              "specifier": { "type": "string" },
+              "resolved": { "type": "string" },
+              "hash": { "type": "string" },
+              "extends": { "type": "string" }
+            }
+          }
+        },
+        "registry": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "api", "resolved-manifest-hash", "markspec-schema"],
+            "properties": {
+              "id": { "type": "string" },
+              "api": { "type": "string" },
+              "resolved-manifest-hash": { "type": "string" },
+              "markspec-schema": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "bound-entry": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["display-id", "ulid"],
+        "properties": {
+          "display-id": { "type": "string" },
+          "ulid": { "type": "string" },
+          "binding": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["external-id", "system", "direction"],
+              "properties": {
+                "external-id": { "type": "string" },
+                "system": { "type": "string" },
+                "direction": { "enum": ["outbound", "inbound", "bidirectional"] },
+                "locked-attributes": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "generated-cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edges-hash", "edges-count"],
+      "properties": {
+        "edges-hash": { "type": "string" },
+        "edges-count": { "type": "integer" }
+      }
+    }
+  }
+}

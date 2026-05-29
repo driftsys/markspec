@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://driftsys.github.io/markspec/schemas/markspec/v1.json",
+  "title": "MarkSpec consumer binding",
+  "description": "Schema for a project's .markspec.yaml profile binding.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "profiles": {
+      "type": "array",
+      "description": "Profile specifiers the project activates, in order.",
+      "items": { "type": "string" }
+    },
+    "default-profile": {
+      "type": "boolean",
+      "description": "Set false to opt out of the bundled default profile."
+    }
+  }
+}

@@ -35,7 +35,8 @@ import {
 
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
-const ALLOWED_ROOT_KEYS = new Set([
+export const ALLOWED_ROOT_KEYS = new Set([
+  "$schema",
   "id",
   "version",
   "markspec-schema",
@@ -45,7 +46,7 @@ const ALLOWED_ROOT_KEYS = new Set([
   "profile",
 ]);
 
-const ALLOWED_PROFILE_KEYS = new Set([
+export const ALLOWED_PROFILE_KEYS = new Set([
   "attributes",
   "labels",
   "colors",
@@ -57,7 +58,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
   "discipline-mode",
 ]);
 
-const ALLOWED_TYPE_KEYS = new Set([
+export const ALLOWED_TYPE_KEYS = new Set([
   "extends",
   "description",
   "display-id-pattern",
@@ -69,10 +70,10 @@ const ALLOWED_TYPE_KEYS = new Set([
   "discipline",
 ]);
 
-const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
-const ALLOWED_DOCUMENTS_KEYS = new Set(["types", "frontMatter"]);
+export const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
+export const ALLOWED_DOCUMENTS_KEYS = new Set(["types", "frontMatter"]);
 
-const ALLOWED_ATTR_KEYS = new Set([
+export const ALLOWED_ATTR_KEYS = new Set([
   "name",
   "type",
   "required",
@@ -82,9 +83,9 @@ const ALLOWED_ATTR_KEYS = new Set([
   "description",
 ]);
 
-const ALLOWED_INVERSE_KEYS = new Set(["name", "category"]);
+export const ALLOWED_INVERSE_KEYS = new Set(["name", "category"]);
 
-const ALLOWED_TRACE_RULE_KEYS = new Set([
+export const ALLOWED_TRACE_RULE_KEYS = new Set([
   "target",
   "cardinality",
   "required",

@@ -54,6 +54,46 @@ All settings live under the `markspec.` prefix in VS Code settings.
 }
 ```
 
+## Schema validation
+
+MarkSpec publishes JSON Schemas for its config files at
+`https://driftsys.github.io/markspec/schemas/<name>/v1.json`:
+
+| File                    | Schema                       |
+| ----------------------- | ---------------------------- |
+| `.markspec.yaml`        | `…/schemas/markspec/v1.json` |
+| profile `markspec.yaml` | `…/schemas/profile/v1.json`  |
+| `markspec.lock`         | `…/schemas/lock/v1.json`     |
+
+**YAML files** (`.markspec.yaml`, profile `markspec.yaml`). `markspec init`
+writes a `$schema:` key into generated `.markspec.yaml` files, which the
+[YAML Language Server](https://github.com/redhat-developer/vscode-yaml) reads
+automatically. To add it by hand:
+
+```yaml
+$schema: https://driftsys.github.io/markspec/schemas/markspec/v1.json
+profiles:
+  - io.example.base@1.0.0
+```
+
+Or map by filename in VS Code `settings.json`:
+
+```json
+{
+  "yaml.schemas": {
+    "https://driftsys.github.io/markspec/schemas/profile/v1.json": "**/markspec.yaml"
+  }
+}
+```
+
+**Lockfile** (`markspec.lock`, TOML). `markspec lock` writes a `#:schema`
+directive on the first line, which the
+[Even Better TOML](https://taplo.tamasfe.dev/) extension reads:
+
+```text
+#:schema https://driftsys.github.io/markspec/schemas/lock/v1.json
+```
+
 ## MCP server
 
 The extension also registers MarkSpec as an MCP server so Claude and other AI

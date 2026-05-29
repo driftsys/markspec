@@ -48,3 +48,19 @@ Deno.test("scaffoldMarkspecYaml: skips when present", async () => {
   assertEquals(wrote, false);
   assertEquals(await fs.read("/r/.markspec.yaml"), "existing");
 });
+
+Deno.test("buildMarkspecYaml: every branch emits the $schema key", () => {
+  const url =
+    "$schema: https://driftsys.github.io/markspec/schemas/markspec/v1.json";
+  for (
+    const choice of [
+      { kind: "bundled" } as const,
+      { kind: "git", spec: "github:org/repo@1.0.0" } as const,
+      { kind: "local", spec: "./profiles/base" } as const,
+      { kind: "none" } as const,
+    ]
+  ) {
+    const out = buildMarkspecYaml(choice);
+    assertStringIncludes(out, url);
+  }
+});

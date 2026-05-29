@@ -9,6 +9,7 @@ on:
       - "theme/**"
       - "docs/cheatsheet/**"
       - "docs/index.html"
+      - "schemas/**"
       - ".github/workflows/pages.yaml"
 
 permissions:
@@ -57,9 +58,10 @@ jobs:
       - name: Build cheat sheet
         run: typst compile --font-path packages/markspec-typst/fonts docs/cheatsheet/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
 
-      - name: Copy theme and landing page
+      - name: Copy theme, schemas, and landing page
         run: |
           mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
+          mkdir -p _site/schemas && cp -R schemas/. _site/schemas/
           cp docs/index.html _site/index.html
 
       - name: Upload artifact
