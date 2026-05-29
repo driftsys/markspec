@@ -12,6 +12,11 @@ npm/
 # Compile-time WASM mirrors (see scripts/compile_binary.ts)
 *.wasm.bin
 
+# Tree-sitter grammar WASM — fetched at build time, not committed.
+# Run `deno task fetch-grammars` (bootstrap does this automatically); the
+# pinned versions + hashes live in grammars/grammars.lock.
+grammars/*.wasm
+
 # Deno
 .deno/
 

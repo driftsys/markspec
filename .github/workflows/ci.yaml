@@ -59,11 +59,18 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
-        with:
-          lfs: true
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Cache tree-sitter grammars
+        id: grammars-cache
+        uses: actions/cache@v4
+        with:
+          path: grammars/*.wasm
+          key: grammars-${{ hashFiles('grammars/grammars.lock') }}
+      - name: Fetch grammars
+        if: steps.grammars-cache.outputs.cache-hit != 'true'
+        run: deno task fetch-grammars
       - run: deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi --allow-net
 
   test-summary:
@@ -127,11 +134,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          lfs: true
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Cache tree-sitter grammars
+        id: grammars-cache
+        uses: actions/cache@v4
+        with:
+          path: grammars/*.wasm
+          key: grammars-${{ hashFiles('grammars/grammars.lock') }}
+      - name: Fetch grammars
+        if: steps.grammars-cache.outputs.cache-hit != 'true'
+        run: deno task fetch-grammars
       - name: Compile binary
         run: |
           deno run --allow-read --allow-write --allow-run --allow-env \
