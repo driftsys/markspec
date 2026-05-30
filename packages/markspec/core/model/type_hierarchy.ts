@@ -136,6 +136,28 @@ export function attributesForType(typeName: string): Set<string> {
 }
 
 /**
+ * Every type whose ancestor chain includes `ancestor` (inclusive of `ancestor`
+ * itself), per {@linkcode CORE_TYPE_HIERARCHY}. Returns an empty set when
+ * `ancestor` is not a known core type. Used to derive type-family sets (e.g. the
+ * components-listing family) so they cannot drift from the hierarchy.
+ */
+export function descendantsOf(ancestor: string): Set<string> {
+  const result = new Set<string>();
+  if (!CORE_TYPE_HIERARCHY[ancestor]) return result;
+  for (const name of Object.keys(CORE_TYPE_HIERARCHY)) {
+    let cursor: string | null = name;
+    while (cursor !== null && CORE_TYPE_HIERARCHY[cursor]) {
+      if (cursor === ancestor) {
+        result.add(name);
+        break;
+      }
+      cursor = CORE_TYPE_HIERARCHY[cursor].parent;
+    }
+  }
+  return result;
+}
+
+/**
  * Union of every type-scoped attribute name declared anywhere in the
  * core hierarchy. Used by the validator to suppress `MSL-R010`
  * (unknown attribute) for keys that are core-known but appear on the

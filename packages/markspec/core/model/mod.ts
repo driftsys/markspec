@@ -10,6 +10,7 @@
 import type { BodyBlock } from "../ast/nodes.ts";
 import type { Discipline } from "./discipline.ts";
 import type { TyplBlock } from "../typl/mod.ts";
+import { CORE_RELATIONS } from "./relations.ts";
 
 export {
   ATTRIBUTE_CATALOG,
@@ -26,8 +27,12 @@ export {
   attributesForType,
   CORE_TYPE_HIERARCHY,
   CORE_TYPE_SCOPED_ATTRS,
+  descendantsOf,
 } from "./type_hierarchy.ts";
 export type { CoreTypeDef } from "./type_hierarchy.ts";
+
+export { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "./relations.ts";
+export type { RelationDef } from "./relations.ts";
 
 export { inferTypeFromUriScheme } from "./uri_scheme_map.ts";
 
@@ -769,21 +774,9 @@ export type LinkKind = string;
  * vocabulary should use this constant rather than hard-coding string literals.
  * Profile-declared kinds extend this set at runtime.
  */
-export const KNOWN_LINK_KINDS: readonly string[] = [
-  "satisfies",
-  "derived-from",
-  "references",
-  "allocated-to",
-  "realizes",
-  "verifies",
-  "tests",
-  "depends-on",
-  "part-of",
-  "generated-from",
-  "supersedes",
-  "provides",
-  "requires",
-] as const;
+export const KNOWN_LINK_KINDS: readonly string[] = CORE_RELATIONS
+  .filter((r) => r.linkKind)
+  .map((r) => r.linkKind!);
 
 /** A directional link between two entries in the traceability graph. */
 export interface Link {

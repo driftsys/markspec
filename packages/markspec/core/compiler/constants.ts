@@ -4,6 +4,7 @@
  * Shared constants for the compiler pipeline.
  */
 
+import { CORE_RELATIONS } from "../model/mod.ts";
 import type { LinkKind } from "../model/mod.ts";
 
 /**
@@ -14,18 +15,7 @@ import type { LinkKind } from "../model/mod.ts";
  * Element attributes: Realizes, Depends-on, Part-of, Generated-from, Provides, Requires.
  * Universal: Supersedes (same-family).
  */
-export const ATTR_TO_LINK_KIND: Readonly<Record<string, LinkKind>> = {
-  "Satisfies": "satisfies",
-  "Derived-from": "derived-from",
-  "References": "references",
-  "Allocated-to": "allocated-to",
-  "Realizes": "realizes",
-  "Verifies": "verifies",
-  "Tests": "tests",
-  "Depends-on": "depends-on",
-  "Part-of": "part-of",
-  "Generated-from": "generated-from",
-  "Supersedes": "supersedes",
-  "Provides": "provides",
-  "Requires": "requires",
-};
+export const ATTR_TO_LINK_KIND: Readonly<Record<string, LinkKind>> = Object
+  .fromEntries(
+    CORE_RELATIONS.filter((r) => r.linkKind).map((r) => [r.attr, r.linkKind!]),
+  );

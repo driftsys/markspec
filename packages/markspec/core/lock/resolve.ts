@@ -17,6 +17,7 @@ import type {
   ProfileSpecifier,
   ProjectConfig,
 } from "../model/mod.ts";
+import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/mod.ts";
 import type { Mapping } from "../sync/mod.ts";
 import { inferLockedAttributes } from "../sync/locked_attributes.ts";
 import type {
@@ -210,19 +211,8 @@ export async function resolveReferences(
  */
 export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
   const TRACE_KEYS: readonly string[] = [
-    "Satisfies",
-    "Derived-from",
-    "Verified-by",
-    "References",
-    "Tests",
-    "Depends-on",
-    "Part-of",
-    "Allocated-to",
-    "Realizes",
-    "Provides",
-    "Requires",
-    "Generated-from",
-    "Supersedes",
+    ...CORE_RELATIONS.filter((r) => r.lockEdge).map((r) => r.attr),
+    ...LOCK_EXTRA_INVERSE_KEYS, // Verified-by — lock tracks the inverse edge
   ];
   const out: EdgeQuad[] = [];
   for (const entry of entries) {
