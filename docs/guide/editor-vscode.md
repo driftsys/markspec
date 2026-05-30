@@ -24,7 +24,7 @@ use on the command line.
 | Code lens                | Per-entry inline lenses: "↑ N dependents" and "↓ Satisfies: ID — Title"                |
 | Inlay hints              | Per-entry inline hints: resolved `: <type>` and `(N dependents)` counters              |
 | Document links           | `Verified-by:` file-path values are clickable links to the test source                 |
-| Document formatting      | `Shift+Alt+F` runs the same code path as `markspec format` on the buffer               |
+| Document formatting      | `Shift+Alt+F` runs the same code path as `markspec fmt` on the buffer                  |
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
@@ -137,7 +137,7 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 
 - Confirm the binary is on `PATH`: `markspec --version` in a terminal.
 - Check the MarkSpec output panel (**View → Output → MarkSpec**) for LSP errors.
-- Verify the project has a `project.yaml` — `markspec validate` requires one.
+- Verify the project has a `project.yaml` — `markspec check` requires one.
 
 **"markspec: command not found"**
 

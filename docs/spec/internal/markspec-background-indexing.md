@@ -159,13 +159,13 @@ forcing a clean cold scan or reclaiming disk space.
 
 **Single-writer, many-reader.** One writer process holds the index (SQLite WAL
 mode: readers never block the writer, the writer never blocks readers). The LSP
-server is the canonical writer; CLI (`compile`, `validate`) and MCP open
+server is the canonical writer; CLI (`compile`, `check`) and MCP open
 **read-only** and, if the index is absent/stale, fall back to a direct parse
 rather than contending for the write lock (correctness without the index is
 always available — §8). A stale read is acceptable for completion/hover (it
 self-heals on the next incremental); it is never acceptable for
-`validate`/`compile`, which therefore do not trust a stale index for a
-correctness verdict (§8 OQ).
+`check`/`compile`, which therefore do not trust a stale index for a correctness
+verdict (§8 OQ).
 
 ## 5. Invalidation — the actual design problem
 
@@ -222,7 +222,7 @@ check in CI, §8 OQ).
 - **Corrupt index → rebuild, never block.** A failed integrity check, a
   truncated WAL, or an unreadable db ⇒ delete `index.db`, cold-scan, log one
   warning. The index is **disposable by definition**; a corrupt cache must never
-  break `validate`/`compile`/the editor (those always have the source as ground
+  break `check`/`compile`/the editor (those always have the source as ground
   truth — §4).
 - **Schema-version row.** `index.db` stores its own format `schema` integer
   **and** the `markspec-schema` it was built under. A mismatch on either ⇒
@@ -252,7 +252,7 @@ upstream's _public_ `/api/` data only.
 Capped at five. All five were resolved on 2026-05-25; the original questions are
 preserved so the rationale stays in the spec.
 
-1. **Stale-index trust for `validate`/`compile`.** §4 says correctness commands
+1. **Stale-index trust for `check`/`compile`.** §4 says correctness commands
    don't trust a stale index. Do they (a) always full-parse (simple, slower CI),
    (b) trust the index iff a fast whole-project hash matches, or (c)
    verify-then-use? The CI-time cost of (a) at 100k entries may be unacceptable.
@@ -273,7 +273,7 @@ preserved so the rationale stays in the spec.
    a small first-query latency). Which is canonical, which optional?
 
    **Resolved (2026-05-25): on-demand canonical; no filesystem watcher in v1.**
-   CLI commands (`validate`, `compile`, `show`, `report`, …) are one-shot —
+   CLI commands (`check`, `compile`, `show`, `report`, …) are one-shot —
    on-demand `mtime` check is the natural fit and a watcher would be wasted
    overhead. The LSP already receives change notifications from the editor (LSP
    `didChange` / `didSave`) — the editor _is_ the watcher, so a separate FS

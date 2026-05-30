@@ -82,13 +82,13 @@ Profile configuration (`.markspec.yaml` and profile manifests) is covered in the
 
 ### Authoring
 
-#### format
+#### fmt
 
 Stamp ULIDs, fix indentation, normalize attributes.
 
 ```sh
-markspec format <file...>
-markspec format --check <file...>
+markspec fmt <file...>
+markspec fmt --check <file...>
 ```
 
 | Flag      | Type | Default | Description                                              |
@@ -99,21 +99,21 @@ markspec format --check <file...>
 
 ```sh
 # Format a single file (writes changes in place)
-markspec format docs/requirements.md
+markspec fmt docs/requirements.md
 
 # Format multiple files
-markspec format docs/*.md
+markspec fmt docs/*.md
 
 # Check mode for CI — reports but doesn't modify
-markspec format --check docs/*.md
+markspec fmt --check docs/*.md
 ```
 
-#### validate
+#### check
 
 Check broken refs, missing Ids, malformed entries, duplicates.
 
 ```sh
-markspec validate <file...>
+markspec check <file...>
 ```
 
 | Flag       | Type   | Default | Description                   |
@@ -124,14 +124,14 @@ markspec validate <file...>
 **Examples:**
 
 ```sh
-# Validate a file
-markspec validate docs/requirements.md
+# Check a file
+markspec check docs/requirements.md
 
 # Strict mode — warnings become errors (useful for CI)
-markspec validate --strict docs/requirements.md
+markspec check --strict docs/requirements.md
 
 # JSON output for tool integration
-markspec validate --format json docs/*.md
+markspec check --format json docs/*.md
 ```
 
 ### Querying
@@ -301,8 +301,8 @@ markspec insert requirement docs/requirements.md --print
 # → appends SRS_PRJ_0003, prints block to stdout
 ```
 
-Follow with `markspec format` to normalize indentation and `markspec validate`
-to confirm no broken references.
+Follow with `markspec fmt` to normalize indentation and `markspec check` to
+confirm no broken references.
 
 #### create
 
@@ -355,7 +355,7 @@ markspec lint <paths...>
 | `--format` | string | `text`  | Output format: `json`, `text` |
 | `--strict` | bool   | false   | Promote warnings to errors    |
 
-Lint does **not** run as part of `validate` or the pre-commit hook. It is a
+Lint does **not** run as part of `check` or the pre-commit hook. It is a
 review-time quality gate.
 
 **Examples:**
@@ -365,20 +365,6 @@ markspec lint docs/requirements.md
 markspec lint --strict "docs/**/*.md"
 markspec lint --format json "docs/**/*.md"
 ```
-
-#### hook
-
-Run `format --check` and `validate` on a list of files. Designed as a pre-commit
-hook entry point.
-
-```sh
-markspec hook [files...]
-```
-
-Exits `0` when no files are given (nothing staged). Exits `1` if any file needs
-formatting or has validation errors.
-
-See [Pre-commit hook](recipes/git-hooks.md) for setup instructions.
 
 ### Lockfile and external sync
 

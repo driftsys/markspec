@@ -9,7 +9,7 @@ generates the inverse edge automatically in the compiled output.
 Relations look like any other trailer attribute —
 `RelationName:
 TARGET_DISPLAY_ID`. Multiple targets are written as one line per
-target (or CSV, normalized by `markspec format`):
+target (or CSV, normalized by `markspec fmt`):
 
 ```markdown
 - [SRS_BRK_0107] Sensor debouncing

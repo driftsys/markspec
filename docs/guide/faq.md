@@ -19,7 +19,7 @@ use the LSP rename command.
 
 A ULID (Universally Unique Lexicographically Sortable Identifier) is a
 26-character string like `01KPVVC9J2B1ZA64QZEMHF02PW`. MarkSpec stamps one onto
-each entry during `markspec format` and stores it as the `Id:` attribute.
+each entry during `markspec fmt` and stores it as the `Id:` attribute.
 
 The ULID is **immutable**. Once assigned it never changes, even if the display
 ID or title is renamed. Traceability links between projects and external tools
@@ -34,17 +34,17 @@ breaks cross-tool links.
 it finds a `project.yaml` file. The directory containing that file becomes the
 project root. If no `project.yaml` is found, commands that require project
 context (`compile`, `show`, `context`, `dependents`, `report`, `next-id`,
-`doc build`, `book build`) exit with an error. `format` and `validate` work
-without a `project.yaml`.
+`doc build`, `book build`) exit with an error. `fmt` and `check` work without a
+`project.yaml`.
 
 ---
 
 ## Can I use MarkSpec without a profile?
 
-Yes. `markspec format` and `markspec validate` work without a profile — they
-apply built-in formatting rules and lint checks. Commands that need type
-vocabulary (`compile`, `create`, `next-id`) require a profile to know the
-display-ID patterns for each type.
+Yes. `markspec fmt` and `markspec check` work without a profile — they apply
+built-in formatting rules and lint checks. Commands that need type vocabulary
+(`compile`, `create`, `next-id`) require a profile to know the display-ID
+patterns for each type.
 
 To activate a profile, create a `.markspec.yaml` in the project root:
 
@@ -59,14 +59,14 @@ See the [Profile guide](profiles.md) for the full configuration reference.
 
 ## What do exit codes 0, 1, and 2 mean?
 
-| Code | Meaning                                                 |
-| ---- | ------------------------------------------------------- |
-| `0`  | Success — no errors, no warnings                        |
-| `1`  | Error — validation failed or command error              |
-| `2`  | Warnings only — `validate` found warnings but no errors |
+| Code | Meaning                                              |
+| ---- | ---------------------------------------------------- |
+| `0`  | Success — no errors, no warnings                     |
+| `1`  | Error — validation failed or command error           |
+| `2`  | Warnings only — `check` found warnings but no errors |
 
 In CI, treat exit code 2 as a pass or a fail depending on your policy. Pass
-`--strict` to `markspec validate` to promote warnings to errors (exit code 1).
+`--strict` to `markspec check` to promote warnings to errors (exit code 1).
 
 ---
 
@@ -81,22 +81,22 @@ used in this project is:
 Pass explicit paths or globs to commands that need them:
 
 ```sh
-markspec validate docs/requirements.md
+markspec check docs/requirements.md
 markspec compile "docs/**/*.md" src/main.rs
 ```
 
 ---
 
-## What is the difference between `format` and `validate`?
+## What is the difference between `fmt` and `check`?
 
-| Command             | What it does                                                  | Writes files?  |
-| ------------------- | ------------------------------------------------------------- | -------------- |
-| `markspec format`   | Stamps ULIDs, normalizes indentation and attribute order      | Yes (in place) |
-| `markspec validate` | Checks broken references, missing IDs, duplicates, lint rules | No             |
+| Command          | What it does                                                  | Writes files?  |
+| ---------------- | ------------------------------------------------------------- | -------------- |
+| `markspec fmt`   | Stamps ULIDs, normalizes indentation and attribute order      | Yes (in place) |
+| `markspec check` | Checks broken references, missing IDs, duplicates, lint rules | No             |
 
-Run `format` first (or as a pre-commit hook via `markspec hook`) to ensure every
-entry has a ULID before committing. Run `validate` in CI to catch broken
-traceability links.
+Run `fmt` first (see the [git hooks recipe](recipes/git-hooks.md) for pre-commit
+setup) to ensure every entry has a ULID before committing. Run `check` in CI to
+catch broken traceability links.
 
 ---
 

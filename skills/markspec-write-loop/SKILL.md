@@ -2,7 +2,7 @@
 schema: 1
 name: markspec-write-loop
 description: |
-  Use when writing new entries to a MarkSpec file — teaches the canonical `markspec insert → markspec format → markspec validate` agent write path and explains what each step produces.
+  Use when writing new entries to a MarkSpec file — teaches the canonical `markspec insert → markspec fmt → markspec check` agent write path and explains what each step produces.
 ---
 
 ## Overview
@@ -12,8 +12,8 @@ a three-command sequence. Run each step and check its output before proceeding.
 
 ```text
 markspec insert <type> <file>
-markspec format <file>
-markspec validate <file>
+markspec fmt <file>
+markspec check <file>
 ```
 
 Never hand-craft a full entry block and paste it. `insert` computes the correct
@@ -41,20 +41,21 @@ or the display ID — the formatter owns them.
 ## Step 2 — Format
 
 ```bash
-markspec format <file>
+markspec fmt <file>
 ```
 
 - Stamps any missing `Id:` ULIDs.
 - Normalises trailer indent to 6 spaces.
 - Adds missing trailing backslashes on multi-line attribute values.
 
-Run this before committing. The pre-commit hook (`markspec hook`) runs the same
-normalisation check and will reject unformatted files.
+Run this before committing. See the
+[git hooks recipe](../../../docs/guide/recipes/git-hooks.md) for pre-commit
+setup using `markspec fmt` and `markspec check`.
 
-## Step 3 — Validate
+## Step 3 — Check
 
 ```bash
-markspec validate <file>
+markspec check <file>
 ```
 
 Runs file-local and cross-file checks:
@@ -70,20 +71,19 @@ Fix any errors and repeat until exit 0.
 
 ## Quick reference
 
-| Command                              | Touches file?    | When to run                          |
-| ------------------------------------ | ---------------- | ------------------------------------ |
-| `markspec insert <type> <file>`      | Yes — appends    | Start of the write loop              |
-| `markspec format <file>`             | Yes — normalises | After editing, before commit         |
-| `markspec validate <file>`           | No               | After format, check for broken links |
-| `markspec next-id <type> <paths...>` | No               | Read-only ID preview (no insert)     |
-| `markspec create <type> <paths...>`  | No               | Print scaffold to stdout (no write)  |
-| `markspec hook <file>`               | No               | Pre-commit: format-check + validate  |
+| Command                              | Touches file?    | When to run                         |
+| ------------------------------------ | ---------------- | ----------------------------------- |
+| `markspec insert <type> <file>`      | Yes — appends    | Start of the write loop             |
+| `markspec fmt <file>`                | Yes — normalises | After editing, before commit        |
+| `markspec check <file>`              | No               | After fmt, check for broken links   |
+| `markspec next-id <type> <paths...>` | No               | Read-only ID preview (no insert)    |
+| `markspec create <type> <paths...>`  | No               | Print scaffold to stdout (no write) |
 
 ## Common mistakes
 
-| Mistake                            | Fix                                                                    |
-| ---------------------------------- | ---------------------------------------------------------------------- |
-| Skipping `markspec format`         | The pre-commit hook will reject the file; run format before committing |
-| Running `validate` before `format` | Format first — some diagnostics are caused by malformed indentation    |
-| Guessing the next display ID       | Use `markspec next-id` or `markspec insert`; never guess               |
-| Editing `Id:` by hand              | Leave it alone; `format` stamps it                                     |
+| Mistake                      | Fix                                                                 |
+| ---------------------------- | ------------------------------------------------------------------- |
+| Skipping `markspec fmt`      | The pre-commit hook will reject the file; run fmt before committing |
+| Running `check` before `fmt` | Format first — some diagnostics are caused by malformed indentation |
+| Guessing the next display ID | Use `markspec next-id` or `markspec insert`; never guess            |
+| Editing `Id:` by hand        | Leave it alone; `fmt` stamps it                                     |

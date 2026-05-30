@@ -27,9 +27,8 @@ Three personas the spec must serve:
 - **Cross-platform contributor** — develops MarkSpec itself, needs the local
   test loop to work on whatever OS they happen to be on, and needs CI to catch
   Windows regressions before merge.
-- **CI operator** — runs `markspec validate` and `markspec hook` from a
-  Windows-based GitLab or GitHub runner as a pre-commit check on customer
-  documentation repositories.
+- **CI operator** — runs `markspec check` from a Windows-based GitLab or GitHub
+  runner as a validation check on customer documentation repositories.
 
 ## Requirements
 
@@ -74,7 +73,7 @@ The Markdown parser shall accept files with CR, LF, or CRLF line endings and
 shall not propagate `\r` characters into entry bodies, attribute values, or
 diagnostic locations. The formatter shall preserve the original line-ending
 convention of the file when writing back, so a CRLF file remains CRLF after
-`markspec format`.
+`markspec fmt`.
 
 **Verification.** Unit tests with fixtures containing each line-ending
 convention assert that parsed entry bodies contain no `\r`, and that formatter

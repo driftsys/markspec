@@ -229,7 +229,6 @@ The lockfile family is `MSL-L###`. See ADR-012 for the full catalogue.
 | `markspec lock --update[=<id>]` | Force re-resolve all upstreams, or one by id/slug.                        |
 | `markspec compile --frozen`     | Require lockfile, fail on drift before compiling.                         |
 | `markspec fmt`                  | Reads lockfile (stale-pin warning); never writes.                         |
-| `markspec hook`                 | Runs `lock --check` alongside `format --check` + `validate`.              |
 
 ## Annex — Cross-reference summary
 

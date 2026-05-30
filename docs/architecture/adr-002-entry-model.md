@@ -76,10 +76,10 @@ git-trailers convention.
 Every attribute has an **origin** describing how its value arrives in the model:
 
 - **Authored** — written by the author in the source file.
-- **Inferred** — pre-filled by `markspec format` from a heuristic (source
-  context, namespace hierarchy, profile mapping). Committed to the source file,
+- **Inferred** — pre-filled by `markspec fmt` from a heuristic (source context,
+  namespace hierarchy, profile mapping). Committed to the source file,
   author-overridable when the heuristic misfires.
-- **Assigned** — generated fresh by `markspec format` at creation time (the ULID
+- **Assigned** — generated fresh by `markspec fmt` at creation time (the ULID
   inside an identified entry's `Id:`). Never derived from other data, never
   changes after assignment.
 - **Generated** — computed at build time by inverting other entries' authored
@@ -122,7 +122,7 @@ Id: doi:10.1109/IEEESTD.2008.4610935  # URI → referenced
 A bare slug (no scheme, not a ULID) is rejected as an `Id:` value. Slugs live in
 the display ID for referenced entries; they are not duplicated in `Id:`.
 
-**Assignment.** For identified entries, `markspec format` generates the ULID on
+**Assignment.** For identified entries, `markspec fmt` generates the ULID on
 creation and commits it to source. Once assigned, it never changes.
 
 **For referenced entries**, the URI is author-provided. MarkSpec does not invent
@@ -191,8 +191,8 @@ is no separate `DEPRECATED` / `WITHDRAWN` label.
 
 A **property** is a model-level observation about an entry that is not part of
 the markup language. Properties are never authored in source, never round-trip
-through `markspec format`, and do not appear in git diffs. They are captured by
-the tooling from observable sources:
+through `markspec fmt`, and do not appear in git diffs. They are captured by the
+tooling from observable sources:
 
 | Category | Source                 | Example properties                                      |
 | -------- | ---------------------- | ------------------------------------------------------- |
@@ -299,7 +299,7 @@ Id: 01HGW2P4KFR7ABCDEFGHJKMNPQ
 The value is 26 characters in Crockford base32, pattern
 `^[0-9A-HJKMNP-TV-Z]{26}$`. The ULID is:
 
-- **Assigned** by `markspec format` at creation; never hand-authored.
+- **Assigned** by `markspec fmt` at creation; never hand-authored.
 - **Immutable** — once assigned, never changes.
 - **Unique** — globally unique across the project and its imported registries.
 
@@ -619,9 +619,8 @@ Properties:
 
 ### Classification rule for new entries
 
-When an author writes a new entry without yet specifying `Id:`,
-`markspec format` uses a heuristic to decide whether to mint a ULID or prompt
-for a URI:
+When an author writes a new entry without yet specifying `Id:`, `markspec fmt`
+uses a heuristic to decide whether to mint a ULID or prompt for a URI:
 
 1. If the display ID matches the slug pattern and the enclosing document's
    `contains:` profile metadata lists only referenced types → prompt for a URI
@@ -645,7 +644,7 @@ After `Id:` is assigned, the linter verifies:
 
 ## Part 5 — Document Type Directives
 
-Document directives are **optional hints** used by `markspec format` to classify
+Document directives are **optional hints** used by `markspec fmt` to classify
 new entries that do not yet have an `Id:` attribute, and by the linter to warn
 about organizational conventions.
 

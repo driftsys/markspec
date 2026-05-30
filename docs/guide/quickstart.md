@@ -92,10 +92,10 @@ An **entry** is a Markdown list item where:
 
 ## Step 4 — Format: stamp ULIDs (2 min)
 
-Run `markspec format` to assign a permanent ULID to each entry:
+Run `markspec fmt` to assign a permanent ULID to each entry:
 
 ```sh
-markspec format requirements.md
+markspec fmt requirements.md
 ```
 
 ```text
@@ -124,12 +124,12 @@ Your file now has `Id:` attributes:
 The ULID is a universally unique, immutable identifier. Once assigned it never
 changes — even if the display ID or title is renamed.
 
-## Step 5 — Validate: check traceability (2 min)
+## Step 5 — Check: verify traceability (2 min)
 
-Run `markspec validate` to confirm the link is intact:
+Run `markspec check` to confirm the link is intact:
 
 ```sh
-markspec validate requirements.md
+markspec check requirements.md
 ```
 
 No output means validation passed (exit code 0).
@@ -138,7 +138,7 @@ Now break a reference to see a failure:
 
 ```sh
 # temporarily change "Satisfies: STK_PRJ_0001" → "Satisfies: STK_PRJ_9999"
-markspec validate requirements.md
+markspec check requirements.md
 ```
 
 ```text

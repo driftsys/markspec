@@ -33,7 +33,7 @@ skills/
 ├── markspec-core.bundle.yaml                  one-shot install of the bundle
 ├── markspec-core-rules/RULE.md                always-on authoring invariants
 ├── markspec-entry-authoring/SKILL.md          entry-block format
-├── markspec-write-loop/SKILL.md               insert → format → validate
+├── markspec-write-loop/SKILL.md               insert → fmt → check
 ├── markspec-diagnostics/SKILL.md              MSL- diagnostic codes
 ├── markspec-requirement-style/SKILL.md        EARS vs Gherkin vs prose
 ├── markspec-ears/SKILL.md                     EARS patterns deep dive
@@ -54,16 +54,16 @@ skills/
 
 ### Skills
 
-| Item                                | Triggers when…                                                       |
-| ----------------------------------- | -------------------------------------------------------------------- |
-| `markspec-entry-authoring`          | Writing or reviewing a MarkSpec entry block — format and trailers    |
-| `markspec-write-loop`               | Adding a new entry — canonical `insert → format → validate` sequence |
-| `markspec-diagnostics`              | Validator output contains MSL- codes — covers every family and fix   |
-| `markspec-requirement-style`        | Choosing how to write a requirement body — EARS vs Gherkin vs prose  |
-| `markspec-ears`                     | Writing EARS-style requirements — all five patterns with do/don't    |
-| `markspec-gherkin`                  | Writing Gherkin acceptance criteria — Given/When/Then with examples  |
-| `markspec-prose-review`             | Reviewing entry bodies for prose quality against the core checklist  |
-| `markspec-profile-bundle-authoring` | Creating or extending a MarkSpec profile's upskill bundle            |
+| Item                                | Triggers when…                                                      |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `markspec-entry-authoring`          | Writing or reviewing a MarkSpec entry block — format and trailers   |
+| `markspec-write-loop`               | Adding a new entry — canonical `insert → fmt → check` sequence      |
+| `markspec-diagnostics`              | Validator output contains MSL- codes — covers every family and fix  |
+| `markspec-requirement-style`        | Choosing how to write a requirement body — EARS vs Gherkin vs prose |
+| `markspec-ears`                     | Writing EARS-style requirements — all five patterns with do/don't   |
+| `markspec-gherkin`                  | Writing Gherkin acceptance criteria — Given/When/Then with examples |
+| `markspec-prose-review`             | Reviewing entry bodies for prose quality against the core checklist |
+| `markspec-profile-bundle-authoring` | Creating or extending a MarkSpec profile's upskill bundle           |
 
 ### Agents
 

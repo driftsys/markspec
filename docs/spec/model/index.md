@@ -37,7 +37,7 @@ the toolchain runs in core-only mode.
 **Shape** — determined solely by the `Id:` value. Exactly two shapes exist:
 
 - **Authored** — `Id:` is a bare ULID (`01HGW2Q8MNP3RSTVWXYZABCDEF`). The item
-  originated in this project; ULIDs are assigned by `markspec format`.
+  originated in this project; ULIDs are assigned by `markspec fmt`.
 - **Reference** — `Id:` is a URI with scheme (`urn:`, `doi:`, `pkg:`, `https:`).
   The item is an external standard, package, or open-source dependency.
 

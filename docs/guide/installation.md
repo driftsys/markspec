@@ -133,14 +133,14 @@ upskill add markspec:markspec-core.bundle.yaml
 
 This registers the following skills in your project's `.claude/plugins/`:
 
-| Skill                               | Purpose                                     |
-| ----------------------------------- | ------------------------------------------- |
-| `markspec-entry-authoring`          | Entry block syntax, shapes, attributes      |
-| `markspec-core-rules`               | Validation rules and diagnostic codes       |
-| `markspec-write-loop`               | The `insert → format → validate` agent loop |
-| `markspec-gherkin`                  | GWT / Gherkin pattern for test entries      |
-| `markspec-traceability-review`      | Cross-file link review agent                |
-| `markspec-profile-bundle-authoring` | Writing and publishing profile manifests    |
+| Skill                               | Purpose                                  |
+| ----------------------------------- | ---------------------------------------- |
+| `markspec-entry-authoring`          | Entry block syntax, shapes, attributes   |
+| `markspec-core-rules`               | Validation rules and diagnostic codes    |
+| `markspec-write-loop`               | The `insert → fmt → check` agent loop    |
+| `markspec-gherkin`                  | GWT / Gherkin pattern for test entries   |
+| `markspec-traceability-review`      | Cross-file link review agent             |
+| `markspec-profile-bundle-authoring` | Writing and publishing profile manifests |
 
 > See [AI agents and skillset](ai-agents.md) for MCP server setup and how to use
 > the skills from Claude Code or Claude Desktop.

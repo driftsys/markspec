@@ -102,12 +102,12 @@ Required lock semantics:
 
 ## 5. Lifecycle Responsibilities
 
-- `markspec format`
+- `markspec fmt`
   - stamps missing ULIDs
   - initializes lock records for new ULIDs
   - updates `updatedAt` / `updatedBy` from content changes
   - does not overwrite explicit Markdown overrides
-- `markspec validate`
+- `markspec check`
   - warns when Markdown ULIDs are missing from `.markspec.lock`
   - validates lock consistency (display ID/ULID mapping)
 - `markspec sync --tool <name>`

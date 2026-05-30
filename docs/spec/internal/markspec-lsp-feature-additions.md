@@ -53,8 +53,8 @@ Out of scope (and where each piece is owned):
   code actions, semantic tokens are already shipped — see
   `packages/markspec/lsp/server.ts`. This spec adds to them, does not modify
   them.
-- **CLI subcommands.** The `format`, `compile`, and `report` CLI surfaces are
-  owned by the implementation under `packages/markspec/cli/commands/`. The LSP
+- **CLI subcommands.** The `fmt`, `compile`, and `report` CLI surfaces are owned
+  by the implementation under `packages/markspec/cli/commands/`. The LSP
   capabilities specified here delegate to the same `core/` modules but expose
   them via LSP protocol.
 - **Background indexing changes.** Workspace indexing strategy is owned by
@@ -105,7 +105,7 @@ response. On a `textDocument/formatting` request, the server:
 1. Loads the document's current text from the LSP `TextDocuments` cache (the
    already-open buffer, not the disk file).
 2. Invokes the existing `core/formatter/` module to compute the formatted text.
-   Same code path as `markspec format` CLI — single source of truth.
+   Same code path as `markspec fmt` CLI — single source of truth.
 3. Computes a minimal-diff `TextEdit[]` between the current text and the
    formatted text (so the editor preserves cursor position, scroll, undo stacks
    accurately).
@@ -119,12 +119,12 @@ applying the returned edits to its buffer; saving is the user's normal flow.
 The formatter is already deterministic (CLAUDE.md "Deterministic output"): same
 input always produces identical output. The LSP wrapper preserves this — no
 environmental dependencies, no timestamps. The same content fed through
-`markspec format` and through the LSP request yield byte-identical output.
+`markspec fmt` and through the LSP request yield byte-identical output.
 
 ### 3.3 ULID stamping
 
-`markspec format` stamps `Id:` ULIDs when missing. The LSP wrapper does the same
-— every save (with formatOnSave) generates ULIDs for newly-authored entries that
+`markspec fmt` stamps `Id:` ULIDs when missing. The LSP wrapper does the same —
+every save (with formatOnSave) generates ULIDs for newly-authored entries that
 lack them. This is the load-bearing reason the LSP needs a formatter: without
 it, authors save unformatted entries and the validator flags them on every
 reload.
@@ -157,7 +157,7 @@ pipeline) keeps the WorkspaceIndex warm.
 | LSP wraps the existing `core/formatter/` (**chosen**)    | Single source of truth between CLI and LSP. No drift risk. The formatter is already pure (content in, content out) — perfect fit for LSP `TextEdit[]` return shape.         |
 | LSP gets its own re-implementation of the formatter      | Two implementations to keep in sync. Inevitable drift. The CLI tests would not cover the LSP path. Rejected outright.                                                       |
 | Server writes the formatted text to disk; client reloads | Bypasses the editor's buffer / undo stack / cursor preservation. Hostile to interactive editing. Violates the LSP contract that the server returns edits, not writes files. |
-| Client shells out to `markspec format` for every save    | Process spawn overhead per save (~50-200ms). Worse latency, no benefit. The LSP server is already running and has the buffer in memory.                                     |
+| Client shells out to `markspec fmt` for every save       | Process spawn overhead per save (~50-200ms). Worse latency, no benefit. The LSP server is already running and has the buffer in memory.                                     |
 
 ---
 
@@ -384,7 +384,7 @@ they've disabled.
 
 ### 7.1 Lazy loading discipline
 
-Per CLAUDE.md "Single binary, lazy loading": `markspec validate` MUST NOT load
+Per CLAUDE.md "Single binary, lazy loading": `markspec check` MUST NOT load
 Typst WASM; `markspec book build` MUST NOT load ReqIF. The same discipline
 applies to the LSP server.
 
@@ -441,14 +441,14 @@ mechanism for graceful degradation.
 The LSP server is not a CLI surface, so clig.dev applies indirectly. The
 relevant disciplines:
 
-| Discipline             | How the new capabilities comply                                                                                 |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Deterministic output   | Formatter is already deterministic; LSP wrapper preserves that property.                                        |
-| Same code path as CLI  | Both `markspec format` (CLI) and `textDocument/formatting` (LSP) call `core/formatter`. Single source of truth. |
-| No interactive prompts | LSP is a structured protocol; no prompts on the server side.                                                    |
-| Stream conventions     | LSP uses JSON-RPC over stdio; server writes to stdout (protocol), debug log to stderr. Already enforced.        |
-| `NO_COLOR`             | Server doesn't write color output; N/A. Clients honor `NO_COLOR` in their own rendering.                        |
-| Stable contract        | Capability set is additive — capabilities are added, never removed without a version-major change.              |
+| Discipline             | How the new capabilities comply                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Deterministic output   | Formatter is already deterministic; LSP wrapper preserves that property.                                     |
+| Same code path as CLI  | Both `markspec fmt` (CLI) and `textDocument/formatting` (LSP) call `core/formatter`. Single source of truth. |
+| No interactive prompts | LSP is a structured protocol; no prompts on the server side.                                                 |
+| Stream conventions     | LSP uses JSON-RPC over stdio; server writes to stdout (protocol), debug log to stderr. Already enforced.     |
+| `NO_COLOR`             | Server doesn't write color output; N/A. Clients honor `NO_COLOR` in their own rendering.                     |
+| Stable contract        | Capability set is additive — capabilities are added, never removed without a version-major change.           |
 
 ---
 
@@ -494,7 +494,7 @@ Capped at five; four remain open after v1 implementation. None blocks v1.
 | Section here        | Source                                                                                                                                              |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | §2 Capability set   | LSP 3.17 spec; `packages/markspec/lsp/server.ts` existing capabilities; [markspec-vscode-authoring.md §1, §4.4, §6.1](markspec-vscode-authoring.md) |
-| §3 Formatting       | `core/formatter/`; `markspec format` CLI; CLAUDE.md "Deterministic output"                                                                          |
+| §3 Formatting       | `core/formatter/`; `markspec fmt` CLI; CLAUDE.md "Deterministic output"                                                                             |
 | §4 markspec/profile | `core/profile/`; [markspec-profile-schema.md](markspec-profile-schema.md); rust-analyzer / typescript-language-server custom-request conventions    |
 | §5 Inline surfaces  | LSP `textDocument/codeLens` / `inlayHint` / `documentLink`; existing `WorkspaceIndex` (`lsp/workspace.ts`)                                          |
 | §7 Performance      | CLAUDE.md "Single binary, lazy loading"; existing cold-start measurements                                                                           |

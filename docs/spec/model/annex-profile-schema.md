@@ -160,7 +160,7 @@ directly instantiable (usable as fallbacks when no concrete subtype fits);
 
 The text before the placeholder is the literal prefix; the text after is the
 literal suffix (e.g. `REQ-{n:3d}-draft` → `REQ-012-draft`). Width is a minimum,
-not a maximum — numbers wider than the pad are left intact. `markspec format`
+not a maximum — numbers wider than the pad are left intact. `markspec fmt`
 assigns the next available number; `markspec next-id <type>` prints it without
 writing; `markspec create` / `insert` scaffold a full block.
 

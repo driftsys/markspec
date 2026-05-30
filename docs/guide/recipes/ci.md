@@ -8,7 +8,7 @@ repository on every push and pull request.
 A minimal CI gate runs three jobs in sequence:
 
 ```text
-format-check → validate → (optional) lint
+fmt-check → check → (optional) lint
 ```
 
 All three jobs consume no build artifacts — they operate on the committed source
@@ -22,28 +22,28 @@ name: MarkSpec
 on: [push, pull_request]
 
 jobs:
-  format-check:
+  fmt-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install markspec
         run: curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/install.sh | sh
       - name: Format check
-        run: markspec format --check docs/**/*.md
+        run: markspec fmt --check docs/**/*.md
 
-  validate:
+  check:
     runs-on: ubuntu-latest
-    needs: format-check
+    needs: fmt-check
     steps:
       - uses: actions/checkout@v4
       - name: Install markspec
         run: curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/install.sh | sh
-      - name: Validate
-        run: markspec validate docs/**/*.md
+      - name: Check
+        run: markspec check docs/**/*.md
 
   lint:
     runs-on: ubuntu-latest
-    needs: validate
+    needs: check
     steps:
       - uses: actions/checkout@v4
       - name: Install markspec
@@ -58,24 +58,24 @@ jobs:
 stages:
   - quality
 
-markspec-format:
+markspec-fmt:
   stage: quality
   script:
     - curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/install.sh | sh
-    - markspec format --check docs/**/*.md
+    - markspec fmt --check docs/**/*.md
 
-markspec-validate:
+markspec-check:
   stage: quality
   script:
-    - markspec validate docs/**/*.md
-  needs: [markspec-format]
+    - markspec check docs/**/*.md
+  needs: [markspec-fmt]
 
 markspec-lint:
   stage: quality
   allow_failure: true   # lint is informational; remove to make it blocking
   script:
     - markspec lint docs/**/*.md
-  needs: [markspec-validate]
+  needs: [markspec-check]
 ```
 
 ## Exit codes
@@ -86,11 +86,11 @@ markspec-lint:
 | `1`  | Errors present — commit should be blocked              |
 | `2`  | Warnings only — informational; gate at your discretion |
 
-The `validate` command exits `2` when only warnings are present. Use `--strict`
-to promote warnings to errors and make the gate fully binary:
+The `check` command exits `2` when only warnings are present. Use `--strict` to
+promote warnings to errors and make the gate fully binary:
 
 ```sh
-markspec validate --strict docs/**/*.md
+markspec check --strict docs/**/*.md
 ```
 
 ## Traceability report as CI artifact

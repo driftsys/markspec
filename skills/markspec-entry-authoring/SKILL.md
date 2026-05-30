@@ -43,20 +43,20 @@ prose, and an indented trailer section. Two shapes exist:
 - Use `markspec next-id <type> <files...>` to read the next safe number.
 - Use `markspec insert <type> <file>` to scaffold a full block with a valid ID.
 - **Never invent a ULID by hand.** Leave `Id:` absent and run
-  `markspec format <file>` to stamp it.
+  `markspec fmt <file>` to stamp it.
 
 ## Core trailer attributes
 
-| Attribute       | Cardinality | Purpose                                                               |
-| --------------- | ----------- | --------------------------------------------------------------------- |
-| `Id:`           | 0–1         | ULID. Stamped by `markspec format`. Present on Authored entries only. |
-| `Type:`         | 0–1         | Declared type name from the active profile.                           |
-| `Satisfies:`    | 0–N         | Upstream display IDs this entry satisfies (one per line).             |
-| `Derived-from:` | 0–N         | Source entries for derived requirements.                              |
-| `Verified-by:`  | 0–N         | Test or acceptance-criteria entries that verify this one.             |
-| `Tests:`        | 0–N         | Reverse of Verified-by — the entry being tested.                      |
-| `Labels:`       | 0–N         | Free-form tags: ASIL level, domain, review state.                     |
-| `References:`   | 0–N         | Informational links — does not create a traceability link.            |
+| Attribute       | Cardinality | Purpose                                                            |
+| --------------- | ----------- | ------------------------------------------------------------------ |
+| `Id:`           | 0–1         | ULID. Stamped by `markspec fmt`. Present on Authored entries only. |
+| `Type:`         | 0–1         | Declared type name from the active profile.                        |
+| `Satisfies:`    | 0–N         | Upstream display IDs this entry satisfies (one per line).          |
+| `Derived-from:` | 0–N         | Source entries for derived requirements.                           |
+| `Verified-by:`  | 0–N         | Test or acceptance-criteria entries that verify this one.          |
+| `Tests:`        | 0–N         | Reverse of Verified-by — the entry being tested.                   |
+| `Labels:`       | 0–N         | Free-form tags: ASIL level, domain, review state.                  |
+| `References:`   | 0–N         | Informational links — does not create a traceability link.         |
 
 Multi-value attributes repeat the key on separate lines:
 
@@ -89,10 +89,10 @@ Satisfies: STK_0001 Satisfies: STK_0007
 
 ## Common mistakes
 
-| Mistake                                  | Fix                                                        |
-| ---------------------------------------- | ---------------------------------------------------------- |
-| Hand-stamping `Id:`                      | Remove it; run `markspec format`                           |
-| Wrong indent on trailers                 | Must be 6 spaces — not 4, not a tab                        |
-| Compound requirement ("and…")            | Split into two separate entries                            |
-| Bare adjective body ("fast", "reliable") | Add units and thresholds                                   |
-| Displaying `${ULID}` literally           | You copied an unformatted scaffold — run `markspec format` |
+| Mistake                                  | Fix                                                     |
+| ---------------------------------------- | ------------------------------------------------------- |
+| Hand-stamping `Id:`                      | Remove it; run `markspec fmt`                           |
+| Wrong indent on trailers                 | Must be 6 spaces — not 4, not a tab                     |
+| Compound requirement ("and…")            | Split into two separate entries                         |
+| Bare adjective body ("fast", "reliable") | Add units and thresholds                                |
+| Displaying `${ULID}` literally           | You copied an unformatted scaffold — run `markspec fmt` |
