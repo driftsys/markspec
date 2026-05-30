@@ -11,6 +11,7 @@
 
 import {
   commands,
+  env,
   EventEmitter,
   type ExtensionContext,
   InlineCompletionItem,
@@ -29,6 +30,13 @@ import {
 } from "vscode";
 import { parseCodeLensTarget } from "./codeLensCommands";
 import process from "node:process";
+import * as nodePath from "node:path";
+import {
+  isDirOnPath,
+  pathHint,
+  performCopy,
+  planForHost,
+} from "./installToPath";
 import {
   LanguageClient,
   type LanguageClientOptions,
@@ -152,6 +160,36 @@ export function activate(context: ExtensionContext): void {
   context.subscriptions.push(
     commands.registerCommand("markspec.showOutput", () => {
       outputChannel?.show();
+    }),
+    commands.registerCommand("markspec.installToPath", async () => {
+      const plan = planForHost(context.extensionPath);
+      try {
+        await performCopy(plan);
+        const onPath = isDirOnPath(
+          plan.targetDir,
+          process.env.PATH ?? process.env.Path,
+          nodePath.delimiter,
+          process.platform,
+        );
+        if (onPath) {
+          window.showInformationMessage(
+            `MarkSpec CLI installed to ${plan.target}`,
+          );
+        } else {
+          const hint = pathHint(plan.targetDir, process.platform);
+          const pick = await window.showWarningMessage(
+            `MarkSpec CLI copied to ${plan.target}, but ${plan.targetDir} is not on your PATH.`,
+            "Copy PATH command",
+          );
+          if (pick === "Copy PATH command") {
+            await env.clipboard.writeText(hint);
+            window.showInformationMessage("PATH command copied to clipboard");
+          }
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        window.showErrorMessage(`MarkSpec: install failed — ${reason}`);
+      }
     }),
     // CodeLens command handlers — the LSP emits these from
     // `packages/markspec/lsp/code_lens.ts`. The "↓ Satisfies: ID — Title"
