@@ -827,7 +827,16 @@ severity/effort/priority, and review flow.
 
 - **Always work in a worktree.** Create a git worktree for every task. Never
   commit directly to the main working tree unless the user explicitly says to
-  work in the tree.
+  work in the tree. After `git worktree add`, run `./bootstrap` **and verify the
+  tree-sitter grammars were fetched**: `ls grammars/*.wasm` must list 9 files. A
+  fresh worktree starts with none, and `bootstrap` runs under
+  `set -euo
+  pipefail`, so it can exit before its grammar-fetch step if an
+  earlier step fails — leaving the worktree grammar-less. Without the grammars
+  the pre-push hook's `just check` fails on the source-file parsing e2e tests
+  (`source_body_tokens_test.ts`, `source_jsfamily_test.ts`). Fetch them with
+  `deno task fetch-grammars`, or copy from the main checkout:
+  `cp <main-checkout>/grammars/*.wasm grammars/`.
 - **Start from the issue.** Read the acceptance criteria and
   `docs/spec/language/language.md`, propose an approach, and wait for approval
   before implementing.
