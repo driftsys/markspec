@@ -417,6 +417,10 @@ docs/
 - `adr-023-mcp-trigger-language.md` — MCP server's agent-facing trigger language
   (TRIGGER / PREFER over / SKIP grammar) + project-detection soft gate so tools
   self-describe "no MarkSpec project found" outside MarkSpec workspaces
+- `adr-024-interface-as-contract.md` — re-parent `SoftwareInterface` /
+  `HardwareInterface` from `Component` to `Contract` (an interface is a
+  specification, not a building block); `Provides`/`Requires` provider/consumer
+  links; supersedes the type tree shown in ADR-017
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
