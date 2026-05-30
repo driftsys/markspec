@@ -30,9 +30,16 @@ use on the command line.
 
 ## Install
 
+**VS Code Marketplace:**
+
 1. Open **Extensions** (`Ctrl+Shift+X` / `Cmd+Shift+X`).
 2. Search for **MarkSpec**.
-3. Install `driftsys.markspec-ide`.
+3. Install `driftsys.markspec-ide` — or run
+   `code --install-extension driftsys.markspec-ide`.
+
+**Open VSX** (VSCodium, Cursor, Gitpod, …):
+<https://open-vsx.org/extension/driftsys/markspec-ide> — or
+`codium --install-extension driftsys.markspec-ide`.
 
 The extension activates on any workspace that contains `.md` files.
 
