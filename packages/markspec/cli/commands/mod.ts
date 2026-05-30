@@ -13,7 +13,7 @@ export { deckCmd } from "./deck.ts";
 export { dependentsCmd } from "./dependents.ts";
 export { docCmd } from "./doc.ts";
 export { doctorCmd } from "./doctor.ts";
-export { formatCmd } from "./format.ts";
+export { fmtCmd } from "./fmt.ts";
 export { hookCmd } from "./hook.ts";
 export { initCmd } from "./init.ts";
 export { insertCmd } from "./insert.ts";

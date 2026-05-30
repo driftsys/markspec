@@ -19,7 +19,7 @@ Deno.test("validate in nested dir finds files", async () => {
 });
 
 Deno.test("format outside project works with defaults", async () => {
-  const { code, stderr } = await markspec(["format", "req.md"], {
+  const { code, stderr } = await markspec(["fmt", "req.md"], {
     files: {
       "req.md": "# Test\n",
     },

@@ -28,8 +28,8 @@ Deno.test("--version flag prints version", async () => {
   assertMatch(stdout, /\d+\.\d+\.\d+/);
 });
 
-Deno.test("format with no args exits 1", async () => {
-  const { code, stderr } = await markspec(["format"]);
+Deno.test("fmt with no args exits 1", async () => {
+  const { code, stderr } = await markspec(["fmt"]);
   assertEquals(code, 1);
   assertStringIncludes(stderr, "no files specified");
 });

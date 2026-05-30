@@ -1,13 +1,13 @@
 /**
- * @module cli/commands/format
+ * @module cli/commands/fmt
  *
- * `markspec format` — stamp ULIDs, fix indentation, normalize attributes.
+ * `markspec fmt` — stamp ULIDs, fix indentation, normalize attributes.
  */
 
 import { Command } from "@cliffy/command";
 import { loadActiveProfile, readFile } from "../helpers.ts";
 
-export const formatCmd = new Command()
+export const fmtCmd = new Command()
   .description("Stamp ULIDs, fix indentation, normalize attributes")
   .option(
     "--check",
@@ -17,7 +17,7 @@ export const formatCmd = new Command()
   .action(async (options: { check?: boolean }, ...files: string[]) => {
     if (files.length === 0) {
       console.error("error: no files specified");
-      console.error("usage: markspec format <file...>");
+      console.error("usage: markspec fmt <file...>");
       Deno.exit(1);
     }
 

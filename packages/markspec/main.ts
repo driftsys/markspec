@@ -21,7 +21,7 @@ import {
   docCmd,
   doctorCmd,
   exportCmd,
-  formatCmd,
+  fmtCmd,
   hookCmd,
   initCmd,
   insertCmd,
@@ -49,7 +49,7 @@ const cli = new Command()
   )
   .globalOption("-q, --quiet", "Suppress non-error output")
   // Core commands — implemented in cli/commands/
-  .command("format", formatCmd)
+  .command("fmt", fmtCmd)
   .command("validate", validateCmd)
   .command("compile", compileCmd)
   .command("export", exportCmd)

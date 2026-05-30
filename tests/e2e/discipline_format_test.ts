@@ -11,7 +11,7 @@ Deno.test("Slice 3 E2E format: bare Discipline-frozen: stamps today's date", asy
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Discipline-frozen: software
 `;
-  const r1 = await markspec(["format", "requirements.md"], {
+  const r1 = await markspec(["fmt", "requirements.md"], {
     "requirements.md": input,
   });
   assertEquals(r1.code, 0);
