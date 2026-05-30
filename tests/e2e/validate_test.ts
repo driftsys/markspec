@@ -1,7 +1,7 @@
 /**
  * @module tests/e2e/validate_test
  *
- * E2E tests for `markspec validate` subcommand.
+ * E2E tests for `markspec check` subcommand.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
