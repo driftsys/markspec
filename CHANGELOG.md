@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.7.0] (2026-05-30)
+
+### Documentation
+
+- **repo:** remind agents to verify tree-sitter grammars in fresh worktrees
+  ([caba43c])
+- **repo:** apply dprint formatting to ADR-024 ([1cc66ed])
+- **repo:** add ADR-024 interface-as-contract ([a21d01b])
+- **docs:** rewrite install guide for marketplace and three onboarding paths
+  ([6f73d50])
+- **spec:** add agent-first authoring CUJs (pure prompt + batch) ([6fde8ee])
+- **spec:** add authoring-experience design (completion, highlighting,
+  lifecycle) ([815dba0])
+- **docs:** refresh entry-rendering and typl-bindings examples ([9285306])
+
+### Features
+
+- **repo:** add 'Install CLI to PATH' command to vscode extension ([3ee006d])
+- **cli:** report toolchain floor skew in markspec doctor ([41c6b84])
+- **core:** model interfaces as contracts, not components ([#569]) ([3cdde94])
+- **mcp:** add entry_show, entry_list, entry_neighborhood read tools ([5aefcf5])
+- publish config JSON schemas (profile, .markspec.yaml, lock) on Pages ([#566])
+  ([b8bdccb])
+
+### Bug Fixes
+
+- **repo:** use fromFileUrl for grammars dir (Windows path) ([2176de3])
+
+### Refactoring
+
+- **core:** single-source trace-relation & type-family metadata ([bf08748])
+- **cli:** rename format→fmt, validate→check; remove hook ([#570])
+  ([c51ce28])
+
+[0.7.0]: https://github.com/driftsys/markspec/compare/v0.6.2...v0.7.0
+[caba43c]: https://github.com/driftsys/markspec/commit/caba43c
+[1cc66ed]: https://github.com/driftsys/markspec/commit/1cc66ed
+[a21d01b]: https://github.com/driftsys/markspec/commit/a21d01b
+[6f73d50]: https://github.com/driftsys/markspec/commit/6f73d50
+[6fde8ee]: https://github.com/driftsys/markspec/commit/6fde8ee
+[815dba0]: https://github.com/driftsys/markspec/commit/815dba0
+[9285306]: https://github.com/driftsys/markspec/commit/9285306
+[3ee006d]: https://github.com/driftsys/markspec/commit/3ee006d
+[41c6b84]: https://github.com/driftsys/markspec/commit/41c6b84
+[3cdde94]: https://github.com/driftsys/markspec/commit/3cdde94
+[#569]: https://github.com/driftsys/markspec/issues/569
+[5aefcf5]: https://github.com/driftsys/markspec/commit/5aefcf5
+[b8bdccb]: https://github.com/driftsys/markspec/commit/b8bdccb
+[#566]: https://github.com/driftsys/markspec/issues/566
+[2176de3]: https://github.com/driftsys/markspec/commit/2176de3
+[bf08748]: https://github.com/driftsys/markspec/commit/bf08748
+[c51ce28]: https://github.com/driftsys/markspec/commit/c51ce28
+[#570]: https://github.com/driftsys/markspec/issues/570
+
 ## [0.6.2] (2026-05-29)
 
 ### Bug Fixes
