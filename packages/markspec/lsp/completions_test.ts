@@ -52,6 +52,14 @@ Deno.test("isTraceAttributeTrigger: matches 'Derived-from:'", () => {
   assertEquals(isTraceAttributeTrigger("  Derived-from:"), true);
 });
 
+Deno.test("isTraceAttributeTrigger: matches 'Provides:'", () => {
+  assertEquals(isTraceAttributeTrigger("      Provides:"), true);
+});
+
+Deno.test("isTraceAttributeTrigger: matches 'Requires:'", () => {
+  assertEquals(isTraceAttributeTrigger("      Requires:"), true);
+});
+
 Deno.test("isTraceAttributeTrigger: matches 'Satisfies: ' with trailing space", () => {
   assertEquals(isTraceAttributeTrigger("  Satisfies: "), true);
 });
@@ -326,7 +334,7 @@ Deno.test("renderScaffoldSnippet: pattern suffix is preserved in the ID", () => 
 // --- Trailer key trigger ---
 
 Deno.test("TRAILER_KEYS: includes the documented trace + label + type keys", () => {
-  assertEquals(TRAILER_KEYS.length, 13);
+  assertEquals(TRAILER_KEYS.length, 15);
   // Trace attribute keys.
   assertEquals(TRAILER_KEYS.includes("Satisfies"), true);
   assertEquals(TRAILER_KEYS.includes("Derived-from"), true);
@@ -337,6 +345,8 @@ Deno.test("TRAILER_KEYS: includes the documented trace + label + type keys", () 
   assertEquals(TRAILER_KEYS.includes("Part-of"), true);
   assertEquals(TRAILER_KEYS.includes("Allocated-to"), true);
   assertEquals(TRAILER_KEYS.includes("Realizes"), true);
+  assertEquals(TRAILER_KEYS.includes("Provides"), true);
+  assertEquals(TRAILER_KEYS.includes("Requires"), true);
   assertEquals(TRAILER_KEYS.includes("Generated-from"), true);
   assertEquals(TRAILER_KEYS.includes("Supersedes"), true);
   // Non-trace keys we also suggest.

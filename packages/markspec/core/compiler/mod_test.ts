@@ -5,7 +5,7 @@
  * entry-graph construction, link extraction, and diagnostic propagation.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertArrayIncludes, assertEquals, assertExists } from "@std/assert";
 import { compile } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import type { EffectiveProfile, EffectiveTypeDef } from "../model/mod.ts";
@@ -202,6 +202,39 @@ Deno.test("compile: multi-value Derived-from splits into one link per target", a
   assertEquals(df.map((l) => l.to).sort(), ["REQ-PARENT-A", "REQ-PARENT-B"]);
   // No target retains the comma separator.
   assertEquals(df.every((l) => !l.to.includes(",")), true);
+});
+
+Deno.test("compile: Provides/Requires produce provides/requires links", async () => {
+  const files = {
+    "components.md": `- [SWC_0001] Order service
+
+      Id: ${ULID_A}
+      Type: SoftwareComponent
+      Provides: API_0001
+
+- [SWC_0002] Cart service
+
+      Id: ${ULID_B}
+      Type: SoftwareComponent
+      Requires: API_0001
+
+- [API_0001] Order API
+
+      Id: ${ULID_C}
+      Type: SoftwareInterface
+`,
+  };
+  const result = await compile(["components.md"], { readFile: reader(files) });
+  const kinds = result.links.map((l) => l.kind);
+  assertArrayIncludes(kinds, ["provides", "requires"]);
+  const providesLinks = result.links.filter((l) => l.kind === "provides");
+  assertEquals(providesLinks.length, 1);
+  assertEquals(providesLinks[0].from, "SWC_0001");
+  assertEquals(providesLinks[0].to, "API_0001");
+  const requiresLinks = result.links.filter((l) => l.kind === "requires");
+  assertEquals(requiresLinks.length, 1);
+  assertEquals(requiresLinks[0].from, "SWC_0002");
+  assertEquals(requiresLinks[0].to, "API_0001");
 });
 
 // ---------------------------------------------------------------------------

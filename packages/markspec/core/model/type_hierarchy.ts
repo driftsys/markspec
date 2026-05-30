@@ -47,6 +47,19 @@ export const CORE_TYPE_HIERARCHY: Readonly<Record<string, CoreTypeDef>> = {
     excludedAttrs: ["Allocated-to"],
   },
   Contract: { parent: "Specification", ownAttrs: ["Schema-language"] },
+  // Interface specifications — software/hardware boundary contracts.
+  // Re-parented from Component (an interface is a spec, not a building
+  // block); names kept (literature terms for an interface specification).
+  SoftwareInterface: { parent: "Contract", ownAttrs: [] },
+  HardwareInterface: {
+    parent: "Contract",
+    ownAttrs: [
+      "Bus-protocol",
+      "Connector-type",
+      "Voltage-level",
+      "Signal-direction",
+    ],
+  },
   Record: { parent: "Specification", ownAttrs: ["Caused-by", "Affects"] },
   Risk: { parent: "Specification", ownAttrs: ["Caused-by", "Mitigated-by"] },
 
@@ -69,16 +82,6 @@ export const CORE_TYPE_HIERARCHY: Readonly<Record<string, CoreTypeDef>> = {
   HardwareComponent: {
     parent: "Component",
     ownAttrs: ["Manufacturer", "Part-number", "Datasheet"],
-  },
-  SoftwareInterface: { parent: "Component", ownAttrs: [] },
-  HardwareInterface: {
-    parent: "Component",
-    ownAttrs: [
-      "Bus-protocol",
-      "Connector-type",
-      "Voltage-level",
-      "Signal-direction",
-    ],
   },
 
   // Unit family (ADR-003 §Part 2 — Unit)

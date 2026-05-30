@@ -55,18 +55,26 @@ The following relations are declared by the `@markspec/default` profile and are
 available in any project that uses it. In core-only mode (no profile
 configured), these relation keys are treated as unknown attributes (`MSL-A020`).
 
-| Relation         | Inverse        | Typical source type | Typical target type         |
-| ---------------- | -------------- | ------------------- | --------------------------- |
-| `Satisfies`      | `Satisfied-by` | `Requirement`       | `Requirement`, `Objective`  |
-| `Derived-from`   | `Derived-by`   | `Requirement`       | `Requirement`               |
-| `Verifies`       | `Verified-by`  | `Test`              | `Requirement`, `Contract`   |
-| `Tests`          | `Tested-by`    | `Test`              | `SoftwareUnit`, `Component` |
-| `Depends-on`     | `Required-by`  | `Component`, `Unit` | `Component`                 |
-| `Part-of`        | `Has-part`     | `Component`, `Unit` | `Component`                 |
-| `Allocated-to`   | `Allocates`    | `Requirement`       | `Component`                 |
-| `Realizes`       | `Realized-by`  | `Component`, `Unit` | `Contract`, `Requirement`   |
-| `Generated-from` | (none)         | any                 | any                         |
-| `Addresses`      | `Addressed-by` | `Requirement`       | `Change`                    |
+| Relation         | Inverse          | Typical source type | Typical target type         |
+| ---------------- | ---------------- | ------------------- | --------------------------- |
+| `Satisfies`      | `Satisfied-by`   | `Requirement`       | `Requirement`, `Objective`  |
+| `Derived-from`   | `Derived-by`     | `Requirement`       | `Requirement`               |
+| `Verifies`       | `Verified-by`    | `Test`              | `Requirement`, `Contract`   |
+| `Tests`          | `Tested-by`      | `Test`              | `SoftwareUnit`, `Component` |
+| `Depends-on`     | `Depended-on-by` | `Component`, `Unit` | `Component`                 |
+| `Part-of`        | `Has-part`       | `Component`, `Unit` | `Component`                 |
+| `Provides`       | `Provided-by`    | `Component`         | `Contract`                  |
+| `Requires`       | `Required-by`    | `Component`         | `Contract`                  |
+| `Allocated-to`   | `Allocates`      | `Requirement`       | `Component`                 |
+| `Realizes`       | `Realized-by`    | `Component`, `Unit` | `Contract`, `Requirement`   |
+| `Generated-from` | (none)           | any                 | any                         |
+| `Addresses`      | `Addressed-by`   | `Requirement`       | `Change`                    |
+
+`Provides` / `Requires` are the symmetric provider/consumer relations between a
+component and a `Contract` (including `SoftwareInterface` /
+`HardwareInterface`): a provider `Provides` the contract, a consumer `Requires`
+it. `Allocated-to` is **not** reused for provider-hosting — it keeps its single
+requirement-allocation meaning.
 
 Note: `Supersedes` / `Superseded-by` are **universal attributes** (not relation
 attributes) — they are part of core and are available without any profile. See

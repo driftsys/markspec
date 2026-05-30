@@ -147,3 +147,111 @@ Deno.test("Caused-by on Requirement (neither Record nor Risk) → no MSL-R083 (s
   const r083 = result.filter((d) => d.code === "MSL-R083");
   assertEquals(r083.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Interface-as-contract re-parent (Fix 1):
+//   Provides/Requires now accept Contract (and subtypes).
+//   Tests/Affects now also accept Contract (and subtypes).
+// ---------------------------------------------------------------------------
+
+const ULID_C = "01HGW2Q8MNP3RSTVWXYZABCDEH";
+
+Deno.test("Provides: SoftwareInterface target → no MSL-R083 (Contract subtype)", () => {
+  const result = validateTraceTargetTypes([
+    entry({
+      displayId: "SWC-001",
+      type: "SoftwareComponent",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "SoftwareComponent" },
+        { key: "Provides", value: ULID_B },
+      ],
+    }),
+    entry({
+      displayId: "IFC-001",
+      type: "SoftwareInterface",
+      id: ULID_B,
+      rawAttributes: [
+        { key: "Id", value: ULID_B },
+        { key: "Type", value: "SoftwareInterface" },
+      ],
+    }),
+  ]);
+  const r083 = result.filter((d) => d.code === "MSL-R083");
+  assertEquals(r083.length, 0);
+});
+
+Deno.test("Provides: plain Contract target → no MSL-R083", () => {
+  const result = validateTraceTargetTypes([
+    entry({
+      displayId: "SWC-001",
+      type: "SoftwareComponent",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "SoftwareComponent" },
+        { key: "Provides", value: ULID_B },
+      ],
+    }),
+    entry({
+      displayId: "CTR-001",
+      type: "Contract",
+      id: ULID_B,
+      rawAttributes: [
+        { key: "Id", value: ULID_B },
+        { key: "Type", value: "Contract" },
+      ],
+    }),
+  ]);
+  const r083 = result.filter((d) => d.code === "MSL-R083");
+  assertEquals(r083.length, 0);
+});
+
+Deno.test("Tests: SoftwareInterface target → no MSL-R083 (Contract subtype)", () => {
+  const result = validateTraceTargetTypes([
+    entry({
+      displayId: "TST-001",
+      type: "Test",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "Test" },
+        { key: "Tests", value: ULID_B },
+      ],
+    }),
+    entry({
+      displayId: "IFC-001",
+      type: "SoftwareInterface",
+      id: ULID_B,
+      rawAttributes: [
+        { key: "Id", value: ULID_B },
+        { key: "Type", value: "SoftwareInterface" },
+      ],
+    }),
+  ]);
+  const r083 = result.filter((d) => d.code === "MSL-R083");
+  assertEquals(r083.length, 0);
+});
+
+Deno.test("Requires: HardwareInterface target → no MSL-R083 (Contract subtype)", () => {
+  const result = validateTraceTargetTypes([
+    entry({
+      displayId: "HWC-001",
+      type: "HardwareComponent",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "HardwareComponent" },
+        { key: "Requires", value: ULID_C },
+      ],
+    }),
+    entry({
+      displayId: "HIFC-001",
+      type: "HardwareInterface",
+      id: ULID_C,
+      rawAttributes: [
+        { key: "Id", value: ULID_C },
+        { key: "Type", value: "HardwareInterface" },
+      ],
+    }),
+  ]);
+  const r083 = result.filter((d) => d.code === "MSL-R083");
+  assertEquals(r083.length, 0);
+});

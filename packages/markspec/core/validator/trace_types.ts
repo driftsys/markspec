@@ -34,23 +34,21 @@ const TRACE_RULES: readonly TraceRule[] = [
   { attr: "Allocated-to", allowedTargetTypes: ["Component"] },
   // Test (extends Specification)
   { attr: "Verifies", allowedTargetTypes: ["Requirement", "Contract"] },
-  { attr: "Tests", allowedTargetTypes: ["Component", "Unit"] },
+  { attr: "Tests", allowedTargetTypes: ["Component", "Unit", "Contract"] },
   // Component / Unit
   { attr: "Realizes", allowedTargetTypes: ["Specification"] },
-  {
-    attr: "Provides",
-    allowedTargetTypes: ["SoftwareInterface", "HardwareInterface"],
-  },
-  {
-    attr: "Requires",
-    allowedTargetTypes: ["SoftwareInterface", "HardwareInterface"],
-  },
+  // Provides/Requires: interfaces are Contract subtypes (re-parented from
+  // Component in the interface-as-contract design). Using ["Contract"] here
+  // accepts Contract itself AND every subtype (SoftwareInterface,
+  // HardwareInterface, profile-declared API/ICD, …) via the hierarchy walk.
+  { attr: "Provides", allowedTargetTypes: ["Contract"] },
+  { attr: "Requires", allowedTargetTypes: ["Contract"] },
   { attr: "Depends-on", allowedTargetTypes: ["Component", "Unit"] },
   { attr: "Part-of", allowedTargetTypes: ["Component"] },
   // Risk
   { attr: "Mitigated-by", allowedTargetTypes: ["Specification"] },
   // Record
-  { attr: "Affects", allowedTargetTypes: ["Component", "Unit"] },
+  { attr: "Affects", allowedTargetTypes: ["Component", "Unit", "Contract"] },
   // `Caused-by` is polymorphic between Record (cause = Requirement/Risk/
   // Contract/Record) and Risk (cause = Component/Unit/Specification).
   // The simplest correct rule is the union — handled by the loop below.

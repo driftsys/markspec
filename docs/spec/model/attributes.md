@@ -185,22 +185,22 @@ above are available in core-only mode.
 
 ### Specification types
 
-| Type          | Typical profile attributes               | Typical relation attributes            |
-| ------------- | ---------------------------------------- | -------------------------------------- |
-| `Requirement` | `ASIL`, `Priority`, `Safety-goal`        | `Satisfies`, `Derived-from`            |
-| `Test`        | `Test-level`, `Test-type`, `Test-result` | `Verifies`, `Tests`                    |
-| `Contract`    | (none typical)                           | `Satisfies`, `Realized-by` (generated) |
-| `Record`      | (none typical)                           | (standalone)                           |
-| `Risk`        | `ASIL`, `Severity`, `Probability`        | `Mitigated-by` (generated)             |
+| Type                | Typical profile attributes                                            | Typical relation attributes                             |
+| ------------------- | --------------------------------------------------------------------- | ------------------------------------------------------- |
+| `Requirement`       | `ASIL`, `Priority`, `Safety-goal`                                     | `Satisfies`, `Derived-from`                             |
+| `Test`              | `Test-level`, `Test-type`, `Test-result`                              | `Verifies`, `Tests`                                     |
+| `Contract`          | (none typical)                                                        | `Satisfies`, `Realized-by` (generated)                  |
+| `SoftwareInterface` | (none typical)                                                        | `Provided-by`, `Required-by`, `Realized-by` (generated) |
+| `HardwareInterface` | `Bus-protocol`, `Voltage-level`, `Connector-type`, `Signal-direction` | `Provided-by`, `Required-by`, `Realized-by` (generated) |
+| `Record`            | (none typical)                                                        | (standalone)                                            |
+| `Risk`              | `ASIL`, `Severity`, `Probability`                                     | `Mitigated-by` (generated)                              |
 
 ### Component types
 
-| Type                | Typical profile attributes       | Typical relation attributes          |
-| ------------------- | -------------------------------- | ------------------------------------ |
-| `SoftwareComponent` | `Version`, `License`, `Supplier` | `Part-of`, `Depends-on`              |
-| `HardwareComponent` | `Version`, `Supplier`            | `Part-of`                            |
-| `SoftwareInterface` | (none typical)                   | `Part-of`, `Realized-by` (generated) |
-| `HardwareInterface` | (none typical)                   | `Part-of`                            |
+| Type                | Typical profile attributes       | Typical relation attributes |
+| ------------------- | -------------------------------- | --------------------------- |
+| `SoftwareComponent` | `Version`, `License`, `Supplier` | `Part-of`, `Depends-on`     |
+| `HardwareComponent` | `Version`, `Supplier`            | `Part-of`                   |
 
 ### Unit types
 

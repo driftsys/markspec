@@ -40,11 +40,29 @@ Deno.test("attributesForType: SoftwareComponent inherits Component attrs + own",
   assertEquals(attrs.has("Satisfies"), false);
 });
 
-Deno.test("attributesForType: HardwareInterface inherits Component + own bus protocol attrs", () => {
+Deno.test("attributesForType: HardwareInterface owns physical attrs, inherits Contract chain", () => {
   const attrs = attributesForType("HardwareInterface");
+  // Own physical attributes retained after re-parenting.
   assertEquals(attrs.has("Bus-protocol"), true);
   assertEquals(attrs.has("Connector-type"), true);
-  assertEquals(attrs.has("Provides"), true); // inherited
+  assertEquals(attrs.has("Voltage-level"), true);
+  assertEquals(attrs.has("Signal-direction"), true);
+  // Inherited from Contract → Specification.
+  assertEquals(attrs.has("Schema-language"), true);
+  assertEquals(attrs.has("Satisfies"), true);
+  assertEquals(attrs.has("Derived-from"), true);
+  // No longer inherited from Component.
+  assertEquals(attrs.has("Provides"), false);
+  assertEquals(attrs.has("Requires"), false);
+  assertEquals(attrs.has("Kind"), false);
+});
+
+Deno.test("attributesForType: SoftwareInterface inherits Contract chain, no Component attrs", () => {
+  const attrs = attributesForType("SoftwareInterface");
+  assertEquals(attrs.has("Schema-language"), true); // from Contract
+  assertEquals(attrs.has("Satisfies"), true); // from Specification
+  assertEquals(attrs.has("Provides"), false); // not from Component anymore
+  assertEquals(attrs.has("Kind"), false);
 });
 
 Deno.test("attributesForType: Item root → empty set", () => {

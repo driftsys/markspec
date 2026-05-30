@@ -11,7 +11,7 @@ import type { LinkKind } from "../model/mod.ts";
  *
  * Spec attributes: Satisfies, Derived-from, References, Allocated-to.
  * Test attributes: Verifies, Tests.
- * Element attributes: Realizes, Depends-on, Part-of, Generated-from.
+ * Element attributes: Realizes, Depends-on, Part-of, Generated-from, Provides, Requires.
  * Universal: Supersedes (same-family).
  */
 export const ATTR_TO_LINK_KIND: Readonly<Record<string, LinkKind>> = {
@@ -26,4 +26,6 @@ export const ATTR_TO_LINK_KIND: Readonly<Record<string, LinkKind>> = {
   "Part-of": "part-of",
   "Generated-from": "generated-from",
   "Supersedes": "supersedes",
+  "Provides": "provides",
+  "Requires": "requires",
 };

@@ -9,7 +9,7 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
-import { validate } from "./mod.ts";
+import { runPipeline, validate } from "./mod.ts";
 import type { TyplBlock } from "../typl/mod.ts";
 
 function entry(
@@ -434,4 +434,45 @@ Deno.test("validate: CSV attribute without empty element does not emit MSL-A006"
   const result = validate([e]);
   const a006 = result.diagnostics.filter((d) => d.code === "MSL-A006");
   assertEquals(a006.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// MSL-T022 — SoftwareInterface re-parented from Component to Contract
+// (interface-as-contract design). Satisfies is inherited from Specification
+// (via Contract); Provides is a Component attribute and must no longer fire
+// on SoftwareInterface.
+// ---------------------------------------------------------------------------
+
+Deno.test("MSL-T022: Satisfies is valid on a SoftwareInterface", () => {
+  const e = entry({
+    displayId: "API_0001",
+    rawAttributes: [
+      { key: "Id", value: ULID_A },
+      { key: "Type", value: "SoftwareInterface" },
+      { key: "Satisfies", value: "SRS_0001" },
+    ],
+    id: ULID_A,
+  });
+  // runPipeline runs validatePerTypeAttributes (Stage 1.5) which emits MSL-T022.
+  // Plain validate() does not — it is Stage 1 only.
+  const result = runPipeline([e], null);
+  const t022 = result.diagnostics.filter((d) => d.code === "MSL-T022");
+  assertEquals(t022.length, 0);
+});
+
+Deno.test("MSL-T022: Provides authored on a SoftwareInterface is flagged", () => {
+  const e = entry({
+    displayId: "API_0001",
+    rawAttributes: [
+      { key: "Id", value: ULID_A },
+      { key: "Type", value: "SoftwareInterface" },
+      { key: "Provides", value: "SWC_0002" },
+    ],
+    id: ULID_A,
+  });
+  // runPipeline runs validatePerTypeAttributes (Stage 1.5) which emits MSL-T022.
+  // Plain validate() does not — it is Stage 1 only.
+  const result = runPipeline([e], null);
+  const t022 = result.diagnostics.filter((d) => d.code === "MSL-T022");
+  assertEquals(t022.length >= 1, true);
 });
