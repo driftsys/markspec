@@ -149,6 +149,82 @@ jobs:
           name: markspec-ide-${{ matrix.vsce-target }}-vsix
           path: editors/vscode/markspec-ide-${{ matrix.vsce-target }}.vsix
 
+  publish-vsce:
+    name: Publish to VS Code Marketplace
+    needs: package-vsix
+    runs-on: ubuntu-latest
+    # Manual-approval gate: the `marketplace` environment must require reviewers
+    # in repo settings. The release job does NOT depend on this job, so a
+    # non-approval or publish failure here can never fail the GitHub Release.
+    environment: marketplace
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Download all VSIX artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: vsix
+          pattern: markspec-ide-*-vsix
+          merge-multiple: true
+
+      - name: Publish each platform VSIX
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        # Re-run caveat: vsce publish is NOT idempotent — re-running this job
+        # after a partial success re-attempts already-published platforms and
+        # will fail on the first one. If a release partially publishes, publish
+        # the remaining platforms manually rather than blindly re-running.
+        run: |
+          shopt -s nullglob
+          files=("$GITHUB_WORKSPACE"/vsix/*.vsix)
+          if [ "${#files[@]}" -ne 4 ]; then
+            echo "::error::expected 4 VSIX artifacts, found ${#files[@]}" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "Publishing $f to VS Code Marketplace"
+            npx -y vsce publish --packagePath "$f" --pat "$VSCE_PAT"
+          done
+
+  publish-ovsx:
+    name: Publish to Open VSX
+    needs: package-vsix
+    runs-on: ubuntu-latest
+    environment: marketplace
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Download all VSIX artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: vsix
+          pattern: markspec-ide-*-vsix
+          merge-multiple: true
+
+      - name: Publish each platform VSIX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        # Re-run caveat: ovsx publish is NOT idempotent — see publish-vsce.
+        run: |
+          shopt -s nullglob
+          files=("$GITHUB_WORKSPACE"/vsix/*.vsix)
+          if [ "${#files[@]}" -ne 4 ]; then
+            echo "::error::expected 4 VSIX artifacts, found ${#files[@]}" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "Publishing $f to Open VSX"
+            npx -y ovsx publish "$f" --pat "$OVSX_PAT"
+          done
+
   release:
     name: GitHub Release
     needs: [build, package-vsix]
