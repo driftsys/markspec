@@ -3,7 +3,7 @@ export const snapshot = {};
 snapshot[`init --help snapshot 1`] = `
 \`
 [1mUsage:[22m   [95mmarkspec init [33m[[95m[95mtarget-dir[95m[33m][95m[39m
-[1mVersion:[22m [33m0.6.2 (core-schema 1)[39m     
+[1mVersion:[22m [33m0.7.0 (core-schema 1)[39m     
 
 [1mDescription:[22m
 
