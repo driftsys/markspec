@@ -65,12 +65,16 @@ markspec mcp
 It speaks the Model Context Protocol over stdio JSON-RPC and exposes the
 following tools:
 
-| Tool               | Description                                      |
-| ------------------ | ------------------------------------------------ |
-| `entry_search`     | Fuzzy search entries by display ID or title      |
-| `entry_context`    | Walk the `Satisfies` chain upward from an entry  |
-| `markspec_refresh` | Re-index the workspace after file changes        |
-| `validate`         | Run validation and return structured diagnostics |
+| Tool                 | Description                                                     |
+| -------------------- | --------------------------------------------------------------- |
+| `entry_search`       | Fuzzy search entries by display ID or title                     |
+| `entry_show`         | Show one entry's full detail (body, outgoing + incoming links)  |
+| `entry_list`         | Spec overview (per-type counts) or paginated listing of entries |
+| `entry_context`      | Walk the `Satisfies` chain upward from an entry                 |
+| `entry_neighborhood` | Show an entry's parents (up) and children (down) as a subgraph  |
+| `validate`           | Run validation and return structured diagnostics                |
+| `markspec_refresh`   | Re-index the workspace after file changes                       |
+| `profile_describe`   | Describe the active profile's types, attributes, and relations  |
 
 ### Claude Desktop
 
