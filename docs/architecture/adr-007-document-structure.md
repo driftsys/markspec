@@ -152,7 +152,7 @@ safety-goal: SG-BRK-001  # profile key
 ```
 
 The profile declares `asil: enum [A, B, C, D, QM]` and `safety-goal: id`;
-MarkSpec validates these during `markspec format` and `markspec validate`.
+MarkSpec validates these during `markspec fmt` and `markspec check`.
 
 ### The `metadata:` map
 

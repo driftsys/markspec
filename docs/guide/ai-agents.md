@@ -179,7 +179,7 @@ The bundle includes:
 | ----------------------------------- | ------------------------------- | -------------------------------------------------------------- |
 | `markspec-entry-authoring`          | Any entry authoring request     | Guides the agent through correct block syntax and attributes   |
 | `markspec-core-rules`               | Diagnostic triage               | Maps `MSL-` codes to their fix, suppression, and rationale     |
-| `markspec-write-loop`               | File modification tasks         | Enforces the `insert → format → validate` agent write loop     |
+| `markspec-write-loop`               | File modification tasks         | Enforces the `insert → fmt → check` agent write loop           |
 | `markspec-gherkin`                  | Test entry authoring            | Applies GWT / Gherkin structure to `test` entries              |
 | `markspec-traceability-review`      | PR reviews, traceability audits | Walks the graph, checks coverage, flags orphaned entries       |
 | `markspec-profile-bundle-authoring` | Profile manifest writing        | Validates manifest fields, extends chains, display-ID patterns |
@@ -210,16 +210,16 @@ The canonical pattern for AI-assisted requirement authoring is:
 
 ```text
 markspec insert <type> <file>    # scaffold a new entry
-markspec format <file>           # assign ULID, normalize indentation
-markspec validate <file>         # confirm no broken references
+markspec fmt <file>              # assign ULID, normalize indentation
+markspec check <file>            # confirm no broken references
 ```
 
 Each step produces structured output the agent can parse:
 
 ```sh
 markspec insert requirement docs/requirements.md --print
-markspec format docs/requirements.md
-markspec validate docs/requirements.md --format json
+markspec fmt docs/requirements.md
+markspec check docs/requirements.md --format json
 ```
 
 The `markspec-write-loop` skill enforces this sequence so agents don't skip the

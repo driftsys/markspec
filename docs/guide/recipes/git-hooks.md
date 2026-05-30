@@ -1,89 +1,88 @@
-# Pre-commit hook
+# Git hooks
 
-`markspec hook` is a pre-commit hook that runs format-check and validation on
-the files staged for commit. Commits that contain malformed entries or broken
-references are rejected before they reach the repository.
+MarkSpec exposes composable check primitives — `markspec fmt`, `markspec check`,
+`markspec lint`, and `markspec lock --check`. Wire them into git hooks via your
+hook manager and compose them at the cadence you want. There is no bundled hook
+command.
 
-## What the hook checks
+## What each primitive does
 
-1. **Format** — every staged `.md` file is checked against the canonical format
-   (`markspec format --check`). If any file needs reformatting the commit is
-   rejected with a message: `needs formatting (run 'markspec format')`.
-2. **Validation** — cross-file rules run on all staged entries. Missing `Id:`
-   attributes, broken `Satisfies:` references, and duplicate display IDs all
-   block the commit.
+| Command                 | Question                   | Blocks? | Cadence      |
+| ----------------------- | -------------------------- | ------- | ------------ |
+| `markspec fmt`          | Is it in canonical form?   | —       | every commit |
+| `markspec check`        | Is it structurally valid?  | yes     | every commit |
+| `markspec lint`         | Is the prose well-written? | no      | pre-push     |
+| `markspec lock --check` | Has an upstream drifted?   | yes     | pre-push/CI  |
 
-The hook does **not** run `markspec lint` (prose analysis). That is a
-review-time quality gate, not a commit blocker.
+`markspec fmt --check` reports without rewriting (exit 1 if changes are needed);
+plain `markspec fmt` rewrites in place.
 
-## Setup
+## With git-std (recommended)
 
-### pre-commit framework (recommended)
+[git-std](https://github.com/driftsys/git-std) manages git hooks via
+`.githooks/*.hooks` files. Each line takes a prefix — `~` fix (isolate staged
+files, run, re-stage), `!` check (block on failure), `?` advisory (never block)
+— and `$@` expands to the matching staged files.
 
-Add to `.pre-commit-config.yaml`:
+`.githooks/pre-commit.hooks` — fast, every commit:
+
+```text
+~markspec fmt   $@ *.md
+!markspec check $@ *.md
+```
+
+`.githooks/pre-push.hooks` — thorough, before sharing:
+
+```text
+!markspec check *.md
+?markspec lint  *.md
+!markspec lock --check
+```
+
+Then run `git std hook install`.
+
+## With the pre-commit framework
+
+For repos using [pre-commit](https://pre-commit.com/), add to
+`.pre-commit-config.yaml`:
 
 ```yaml
 repos:
   - repo: local
     hooks:
-      - id: markspec
-        name: markspec
-        entry: markspec hook
+      - id: markspec-fmt
+        name: markspec fmt --check
+        entry: markspec fmt --check
         language: system
-        types: [markdown]
-        pass_filenames: true
+        files: \.md$
+      - id: markspec-check
+        name: markspec check
+        entry: markspec check
+        language: system
+        files: \.md$
 ```
 
-Install the hook:
+Then run `pre-commit install`.
 
-```sh
-pre-commit install
-```
-
-### Plain Git hook
+## Plain Git hook
 
 Create `.git/hooks/pre-commit`:
 
-```sh
-#!/usr/bin/env sh
-set -e
-
-# Get staged .md files
-STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.md$' || true)
-
-if [ -z "$STAGED" ]; then
-  exit 0
-fi
-
-markspec hook $STAGED
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+files=$(git diff --cached --name-only --diff-filter=ACM | grep '\.md$' || true)
+[ -z "$files" ] && exit 0
+markspec fmt --check $files
+markspec check $files
 ```
 
-Make it executable:
-
-```sh
+```bash
 chmod +x .git/hooks/pre-commit
 ```
 
-### Sharing the hook with the team
-
-Git hooks are not committed to the repository. Use one of these approaches to
-share them:
-
-- **pre-commit framework** (recommended) — the `.pre-commit-config.yaml` file is
-  committed; developers run `pre-commit install` after cloning.
-- **Bootstrap script** — add a `bootstrap` script that installs the hook:
-
-  ```sh
-  #!/usr/bin/env sh
-  cp scripts/pre-commit .git/hooks/pre-commit
-  chmod +x .git/hooks/pre-commit
-  ```
-
 ## Bypass (emergency)
 
-```sh
-git commit --no-verify -m "emergency: skip markspec hook"
+```bash
+git commit --no-verify
 ```
-
-Use sparingly. Bypassed commits accumulate formatting debt that must be paid
-before the next regular commit.

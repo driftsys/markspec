@@ -140,8 +140,8 @@ alone:**
 ## Key rules
 
 **Single binary, lazy loading.** `main.ts` dispatches subcommands. Each
-subcommand dynamically imports only the modules it needs. `markspec validate`
-never loads Typst WASM. `markspec book build` never loads ReqIF.
+subcommand dynamically imports only the modules it needs. `markspec check` never
+loads Typst WASM. `markspec book build` never loads ReqIF.
 
 **One compile target — one binary:**
 
@@ -220,31 +220,30 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 
 ### Implemented
 
-| Command                               | Module                              | Purpose                                                                       |
-| ------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
-| `markspec format [...files]`          | `core/formatter`                    | Stamp ULIDs, fix indentation, normalize attributes. Pre-commit hook.          |
-| `markspec validate [...files]`        | `core/validator`                    | Check broken refs, missing Ids, malformed entries, duplicates.                |
-| `markspec compile <paths...>`         | `core/compiler`                     | Parse all files, build traceability graph, output compiled JSON.              |
-| `markspec show <id> <paths...>`       | `core/compiler`                     | Show details of a single entry by display ID or ULID.                         |
-| `markspec context <id> <paths...>`    | `core/compiler`                     | Walk the Satisfies chain upward from an entry.                                |
-| `markspec dependents <id> <paths...>` | `core/compiler`                     | List all entries that depend on a given entry.                                |
-| `markspec report <kind> <paths...>`   | `core/reporter`                     | Generate traceability matrix or coverage report.                              |
-| `markspec profile show`               | `core/profile`                      | Show the active profile chain and effective configuration.                    |
-| `markspec doctor`                     | `core/profile` + `core/validator`   | Project health check: profile, config, and validation summary.                |
-| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`    | Print the next available display ID for a profile-declared type.              |
-| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`    | Scaffold a new entry block for a profile-declared type (stdout).              |
-| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`    | Append a scaffolded entry block to the file (agent write path).               |
-| `markspec export <format> <paths...>` | `core/compiler`                     | Emit the compiled traceability graph as json, yaml, or csv (reqif pending).   |
-| `markspec hook [...files]`            | `core/formatter` + `core/validator` | Pre-commit hook: run format --check + validate on the given files.            |
-| `markspec lint [...paths]`            | `core/lint`                         | Prose-analysis lint (modal verbs, EARS, passive voice, INCOSE, flagship).     |
-| `markspec lock`                       | `core/lock`                         | Generate or refresh `markspec.lock` (upstream pins, sync mappings).           |
-| `markspec sync {status\|log\|show}`   | `core/sync`                         | Read-only surface over lockfile + per-system sync log (NDJSON).               |
-| `markspec doc build <file>`           | `render/typst`                      | Single document → PDF via Typst WASM.                                         |
-| `markspec book build`                 | `book/site`                         | Multi-chapter → static HTML site.                                             |
-| `markspec lsp`                        | `lsp/server`                        | LSP server for editor integration (stdio JSON-RPC).                           |
-| `markspec lsp install`                | `lsp/server`                        | Print LSP server configuration for an editor (vscode, neovim, zed).           |
-| `markspec mcp`                        | `mcp/server`                        | MCP server for AI agent integration (stdio JSON-RPC).                         |
-| `markspec mcp install`                | `mcp/server`                        | Print MCP server configuration for a client (claude-desktop, cursor, vscode). |
+| Command                               | Module                            | Purpose                                                                       |
+| ------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------- |
+| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes.                           |
+| `markspec check [...files]`           | `core/validator`                  | Check broken refs, missing Ids, malformed entries, duplicates.                |
+| `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.              |
+| `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                         |
+| `markspec context <id> <paths...>`    | `core/compiler`                   | Walk the Satisfies chain upward from an entry.                                |
+| `markspec dependents <id> <paths...>` | `core/compiler`                   | List all entries that depend on a given entry.                                |
+| `markspec report <kind> <paths...>`   | `core/reporter`                   | Generate traceability matrix or coverage report.                              |
+| `markspec profile show`               | `core/profile`                    | Show the active profile chain and effective configuration.                    |
+| `markspec doctor`                     | `core/profile` + `core/validator` | Project health check: profile, config, and validation summary.                |
+| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`  | Print the next available display ID for a profile-declared type.              |
+| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`  | Scaffold a new entry block for a profile-declared type (stdout).              |
+| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`  | Append a scaffolded entry block to the file (agent write path).               |
+| `markspec export <format> <paths...>` | `core/compiler`                   | Emit the compiled traceability graph as json, yaml, or csv (reqif pending).   |
+| `markspec lint [...paths]`            | `core/lint`                       | Prose-analysis lint (modal verbs, EARS, passive voice, INCOSE, flagship).     |
+| `markspec lock`                       | `core/lock`                       | Generate or refresh `markspec.lock` (upstream pins, sync mappings).           |
+| `markspec sync {status\|log\|show}`   | `core/sync`                       | Read-only surface over lockfile + per-system sync log (NDJSON).               |
+| `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                         |
+| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                             |
+| `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                           |
+| `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).           |
+| `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                         |
+| `markspec mcp install`                | `mcp/server`                      | Print MCP server configuration for a client (claude-desktop, cursor, vscode). |
 
 ### Not yet implemented
 
@@ -258,7 +257,7 @@ invoke them.
 | `markspec deck build`   | Slides → PDF via Touying/Typst. |
 | `markspec deck dev`     | Live slide preview.             |
 
-**Project context:** `format` and `validate` work file-locally without a
+**Project context:** `fmt` and `check` work file-locally without a
 `project.yaml`. All other commands (`compile`, `show`, `context`, `dependents`,
 `report`, `next-id`, `doc build`, `book build`) require a `project.yaml` found
 by walking up from the working directory.
@@ -383,7 +382,7 @@ docs/
   diagnostic-code catalogue (current `language.md` §8 scheme stays authoritative
   for `main` until a sequenced migration phase)
 - `adr-013-document-directive-not-a-resolution-step.md` — the family-hint
-  document directive is a `markspec format` concern, not a validator
+  document directive is a `markspec fmt` concern, not a validator
   type-resolution step (type-chain "step 7" deferred by design)
 - `adr-014-canonical-body-ast.md` — canonical body-AST is the load-bearing body
   model; formatter uses a safe string fallback where the build/render inverse
@@ -457,8 +456,8 @@ Key rules from clig.dev that apply directly to MarkSpec:
   `markspec help subcommand` should also work.
 - **Lead with examples in help text.** Users read examples first. Show the
   common invocations before the flag reference.
-- **Suggest corrections on typos.** If the user types `markspec valdate`,
-  suggest `markspec validate`.
+- **Suggest corrections on typos.** If the user types `markspec chekc`, suggest
+  `markspec check`.
 - **`NO_COLOR` environment variable support.** When `NO_COLOR` is set, suppress
   all color output. Also support `--color` / `--no-color` flags.
 - **No interactive prompts when stdin is not a TTY.** In CI/piped contexts,
@@ -503,18 +502,18 @@ error[E001]: broken reference
 
 - **Dual output mode.** Every command supports `--format json` for
   machine-readable output. JSON to stdout, diagnostics to stderr.
-- **File-local vs project-wide.** File-local commands (`format`, `validate` on a
+- **File-local vs project-wide.** File-local commands (`fmt`, `check` on a
   single file) never silently do project-wide work. Project-wide commands
   (`compile`) require explicit paths/globs.
-- **Write-back safety.** Any command that modifies a file (`format`, `insert`)
-  is lossless — only the targeted entry block changes, surrounding content
+- **Write-back safety.** Any command that modifies a file (`fmt`, `insert`) is
+  lossless — only the targeted entry block changes, surrounding content
   untouched. The diff shows exactly the intended change.
 - **Deterministic output.** Commands producing artifacts (`compile`, `export`)
   are deterministic — same input always produces identical output. No timestamps
   or run metadata unless explicitly requested.
-- **Agent-friendly.** The `insert → format → validate` loop is the canonical
-  write path for coding agents. Each step produces structured JSON output that
-  the next step or the agent can consume.
+- **Agent-friendly.** The `insert → fmt → check` loop is the canonical write
+  path for coding agents. Each step produces structured JSON output that the
+  next step or the agent can consume.
 
 ## Test conventions
 
@@ -812,8 +811,8 @@ cargo test                    # everything
 
 **Traceability.** The three-letter prefix in function names (`swt_`, `sit_`,
 `val_`) and the `[TYPE_...]` / `/// Verifies:` annotations allow
-`markspec validate` to discover and classify all requirements and tests by
-walking both Markdown files and source doc comments.
+`markspec check` to discover and classify all requirements and tests by walking
+both Markdown files and source doc comments.
 
 ## Workflow
 

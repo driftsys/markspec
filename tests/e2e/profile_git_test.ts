@@ -36,7 +36,7 @@ Deno.test("profile git e2e: top-level git specifier clones and validates cleanly
       tag: "v1.0.0",
     });
 
-    const { code, stderr } = await markspec(["validate", "req.md"], {
+    const { code, stderr } = await markspec(["check", "req.md"], {
       files: {
         "project.yaml": PROJECT_YAML,
         ".markspec.yaml":
@@ -57,7 +57,7 @@ Deno.test("profile git e2e: top-level git specifier clones and validates cleanly
 });
 
 Deno.test("profile git e2e: unreachable repo surfaces PROFILE-LOAD-001", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml":
@@ -81,7 +81,7 @@ Deno.test("profile git e2e: bad tag emits PROFILE-LOAD-001", async () => {
       tag: "v1.0.0",
     });
 
-    const { code, stderr } = await markspec(["validate", "req.md"], {
+    const { code, stderr } = await markspec(["check", "req.md"], {
       files: {
         "project.yaml": PROJECT_YAML,
         ".markspec.yaml": `profiles:\n  - "git+${fixture.url}#v99.0.0"\n`,

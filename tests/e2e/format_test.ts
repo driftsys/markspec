@@ -1,7 +1,7 @@
 /**
  * @module tests/e2e/format_test
  *
- * E2E tests for `markspec format` subcommand.
+ * E2E tests for `markspec fmt` subcommand.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -11,7 +11,7 @@ const CLI_ENTRY = fromFileUrl(
   new URL("../../packages/markspec/main.ts", import.meta.url),
 );
 
-/** Run markspec format in a temp dir, return result + file contents. */
+/** Run markspec fmt in a temp dir, return result + file contents. */
 async function runFormat(
   files: Record<string, string>,
   args: string[] = [],
@@ -36,7 +36,7 @@ async function runFormat(
       "--allow-read",
       "--allow-write",
       CLI_ENTRY,
-      "format",
+      "fmt",
       ...args,
       ...filePaths,
     ],
@@ -471,7 +471,7 @@ Deno.test("format: no files exits 1", async () => {
         "--allow-read",
         "--allow-write",
         CLI_ENTRY,
-        "format",
+        "fmt",
       ],
       cwd: dir,
       stdout: "piped",
@@ -842,7 +842,7 @@ Deno.test(
 // ---------------------------------------------------------------------------
 // Line-ending tests — STK-WIN-0004.
 //
-// A CRLF source file must remain CRLF after `markspec format`; the
+// A CRLF source file must remain CRLF after `markspec fmt`; the
 // formatter normalises `\r\n` → `\n` internally so entry bodies and
 // AST nodes never carry a `\r`, then restores the original ending on
 // write-back. A pure-LF file is never silently converted to CRLF.

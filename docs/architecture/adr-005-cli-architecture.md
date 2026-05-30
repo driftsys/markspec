@@ -12,8 +12,8 @@ agents.
 ### Single binary, lazy loading
 
 `main.ts` dispatches subcommands. Each subcommand dynamically imports only the
-modules it needs. `markspec validate` never loads Typst WASM.
-`markspec book build` never loads ReqIF.
+modules it needs. `markspec check` never loads Typst WASM. `markspec book build`
+never loads ReqIF.
 
 Three compile targets from the same source:
 
@@ -80,8 +80,8 @@ error[E001]: broken reference
   targeted entry block changes, surrounding content untouched.
 - **Deterministic output.** Commands producing artifacts are deterministic —
   same input always produces identical output.
-- **Agent-friendly.** The `insert → format → validate` loop is the canonical
-  write path for coding agents. Each step produces structured JSON output.
+- **Agent-friendly.** The `insert → fmt → check` loop is the canonical write
+  path for coding agents. Each step produces structured JSON output.
 
 ## Consequences
 

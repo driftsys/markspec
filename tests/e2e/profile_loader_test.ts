@@ -18,7 +18,7 @@ const REQ_MD =
   `# Example\n\n- [NOTE-001] A note\n\n  Body text.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n`;
 
 Deno.test("profile loader e2e: no .markspec.yaml — core-only mode, exit 0", async () => {
-  const { code } = await markspec(["validate", "req.md"], {
+  const { code } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       "req.md": REQ_MD,
@@ -28,7 +28,7 @@ Deno.test("profile loader e2e: no .markspec.yaml — core-only mode, exit 0", as
 });
 
 Deno.test("profile loader e2e: happy path with local profile — no profile errors", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/minimal\n`,
@@ -45,7 +45,7 @@ Deno.test("profile loader e2e: happy path with local profile — no profile erro
 });
 
 Deno.test("profile loader e2e: missing specifier target fails with PROFILE-LOAD-001", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/does-not-exist\n`,
@@ -57,7 +57,7 @@ Deno.test("profile loader e2e: missing specifier target fails with PROFILE-LOAD-
 });
 
 Deno.test("profile loader e2e: multiple profiles fails with PROFILE-LOAD-006", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/a\n  - ./profiles/b\n`,
@@ -71,7 +71,7 @@ Deno.test("profile loader e2e: multiple profiles fails with PROFILE-LOAD-006", a
 });
 
 Deno.test("profile loader e2e: malformed .markspec.yaml fails with MARKSPEC-YAML-002", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles: [\n  unclosed`,
@@ -91,7 +91,7 @@ profile:
     - name: Id
       type: text
 `;
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/bad\n`,
@@ -112,7 +112,7 @@ profile:
     - name: Type
       type: text
 `;
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/bad\n`,
@@ -133,7 +133,7 @@ profile:
     Requirement:
       extends: Item
 `;
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/bad\n`,
@@ -147,7 +147,7 @@ profile:
 });
 
 Deno.test("profile loader e2e: unknown .markspec.yaml key warns but doesn't block", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/minimal\nbogus: true\n`,
@@ -162,7 +162,7 @@ Deno.test("profile loader e2e: unknown .markspec.yaml key warns but doesn't bloc
 
 Deno.test('profile loader e2e: markspec-schema: "1" → no PROFILE-SCHEMA diagnostics', async () => {
   const profile = `id: "@acme/pinned"\nversion: 0.1.0\nmarkspec-schema: "1"\n`;
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/pinned\n`,
@@ -179,7 +179,7 @@ Deno.test('profile loader e2e: markspec-schema: "1" → no PROFILE-SCHEMA diagno
 
 Deno.test("profile loader e2e: markspec-schema absent → PROFILE-SCHEMA-002 warning", async () => {
   const profile = `id: "@acme/no-pin"\nversion: 0.1.0\n`;
-  const { stderr } = await markspec(["validate", "req.md"], {
+  const { stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/no-pin\n`,
@@ -193,7 +193,7 @@ Deno.test("profile loader e2e: markspec-schema absent → PROFILE-SCHEMA-002 war
 Deno.test('profile loader e2e: markspec-schema: "2" → PROFILE-SCHEMA-001 error, exit 1', async () => {
   const profile =
     `id: "@acme/wrong-pin"\nversion: 0.1.0\nmarkspec-schema: "2"\n`;
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/wrong-pin\n`,

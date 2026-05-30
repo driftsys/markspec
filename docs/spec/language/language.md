@@ -348,10 +348,10 @@ block with no attribute meaning. Authors must place attributes at the very end
 of the entry.
 
 **Backward compatibility.** During the transition, the parser also accepts the
-legacy paragraph-with-trailing-`\` shape. Running `markspec format` rewrites
-legacy blocks to the canonical indented form. The legacy shape emits a
-deprecation diagnostic (`MSL-DEPRECATED-ATTR-001`) and will be removed in a
-future major release.
+legacy paragraph-with-trailing-`\` shape. Running `markspec fmt` rewrites legacy
+blocks to the canonical indented form. The legacy shape emits a deprecation
+diagnostic (`MSL-DEPRECATED-ATTR-001`) and will be removed in a future major
+release.
 
 #### §3 Table captions
 
@@ -630,10 +630,9 @@ REQ-042, NOTE-007                         ← simple typed prefix + number
 ```
 
 **Identity:** `Id:` carries a bare 26-character ULID
-(`^[0-9A-HJKMNP-TV-Z]{26}$`). Assigned by `markspec format`, never
-hand-authored, immutable once assigned. The ULID is the stable identity; the
-display ID is a renumberable alias that resolves through the ULID for
-cross-references.
+(`^[0-9A-HJKMNP-TV-Z]{26}$`). Assigned by `markspec fmt`, never hand-authored,
+immutable once assigned. The ULID is the stable identity; the display ID is a
+renumberable alias that resolves through the ULID for cross-references.
 
 **Type:** profile-declared. Normally inferred by the active profile from the
 display-ID prefix (`SRS_BRK_0107` → `type: software-requirement` under an ASPICE
@@ -792,7 +791,7 @@ Properties of this rule:
 - **Independent of profile** — shape resolution completes without consulting any
   profile.
 
-When a new entry is authored without an `Id:` attribute, `markspec format`
+When a new entry is authored without an `Id:` attribute, `markspec fmt`
 classifies it using a heuristic on the display ID and the document directive
 (see Part 3), then either mints a fresh ULID (Authored) or prompts for a URI
 (Reference). Once `Id:` is assigned, the shape is fixed by the value's format.
@@ -897,11 +896,11 @@ Placed in the first HTML comment after the H1 heading.
 Type directives (`glossary`, `summary`, `deck`) are mutually exclusive.
 Family-hint directives (`specs`, `tests`, `elements`, `references` without a
 payload) hint at the predominant entry family in the document — used by
-`markspec format` to classify new entries before they carry an identity
-attribute. `references` (with a URL payload) can coexist with any type
-directive. `doc` is the default — no directive for it. Multiple
-`markspec:references` directives with URL payloads declare multiple upstream
-registries; order matters, with an implicit fallback to RefHub.
+`markspec fmt` to classify new entries before they carry an identity attribute.
+`references` (with a URL payload) can coexist with any type directive. `doc` is
+the default — no directive for it. Multiple `markspec:references` directives
+with URL payloads declare multiple upstream registries; order matters, with an
+implicit fallback to RefHub.
 
 Document-level retirement uses the `deprecated:` front-matter key (or
 `supersedes:` for replacement retirement), not a directive. See §6.2.
@@ -1619,10 +1618,10 @@ formatter.
 lint:
   steps:
     - name: Format check
-      run: markspec format --check
+      run: markspec fmt --check
 
     - name: Lint
-      run: markspec validate
+      run: markspec check
 ```
 
 ### 9.3 Editor integration

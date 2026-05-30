@@ -44,7 +44,7 @@ export async function requireProjectConfig() {
         "error: no project.yaml found\n" +
           `  searched from ${Deno.cwd()} to filesystem root\n\n` +
           "  Create a project.yaml in your project root, or use\n" +
-          "  markspec format <file> / markspec validate <file>\n" +
+          "  markspec fmt <file> / markspec check <file>\n" +
           "  which work without project context.",
       );
       Deno.exit(1);

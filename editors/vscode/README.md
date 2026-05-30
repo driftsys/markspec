@@ -73,7 +73,7 @@ Run before each release on a clean Windows 11 (or 10 22H2) host:
    - the file's line endings remain CRLF after save,
    - no diagnostic locations point past the visible end of any line (which would
      indicate stray `\r` propagation), and
-   - `markspec format` (Ctrl-Shift-P → Format Document) keeps the file as CRLF.
+   - `markspec fmt` (Ctrl-Shift-P → Format Document) keeps the file as CRLF.
 
 6. **Path-handling check (STK-WIN-0002).** Open a file with a path that contains
    spaces or non-ASCII characters (e.g. `C:\Users\dev\my project\café.md`).

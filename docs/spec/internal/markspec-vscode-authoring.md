@@ -175,7 +175,7 @@ After install, if the binary's directory is not on `PATH`, the extension shows a
 single dismissible notification:
 
 > "MarkSpec CLI installed to `~/.local/bin/markspec`. This directory isn't on
-> your PATH — terminal commands like `markspec format` won't work yet. [Add to
+> your PATH — terminal commands like `markspec fmt` won't work yet. [Add to
 > PATH] [Skip] [Show snippet]"
 
 - **Add to PATH** detects the user's shell (`SHELL` env, default-shell on Win)

@@ -5,8 +5,8 @@ Deno.test("--help prints usage and lists subcommands", async () => {
   const { code, stdout } = await markspec(["--help"]);
   assertEquals(code, 0);
   assertStringIncludes(stdout, "markspec");
-  assertStringIncludes(stdout, "format");
-  assertStringIncludes(stdout, "validate");
+  assertStringIncludes(stdout, "fmt");
+  assertStringIncludes(stdout, "check");
   assertStringIncludes(stdout, "compile");
   assertStringIncludes(stdout, "book");
   assertStringIncludes(stdout, "deck");
@@ -28,8 +28,8 @@ Deno.test("--version flag prints version", async () => {
   assertMatch(stdout, /\d+\.\d+\.\d+/);
 });
 
-Deno.test("format with no args exits 1", async () => {
-  const { code, stderr } = await markspec(["format"]);
+Deno.test("fmt with no args exits 1", async () => {
+  const { code, stderr } = await markspec(["fmt"]);
   assertEquals(code, 1);
   assertStringIncludes(stderr, "no files specified");
 });
@@ -44,7 +44,7 @@ Deno.test("help subcommand shows root help", async () => {
   const { code, stdout } = await markspec(["help"]);
   assertEquals(code, 0);
   assertStringIncludes(stdout, "markspec");
-  assertStringIncludes(stdout, "format");
+  assertStringIncludes(stdout, "fmt");
 });
 
 Deno.test("help show prints show subcommand help", async () => {

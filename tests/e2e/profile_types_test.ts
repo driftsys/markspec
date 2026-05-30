@@ -25,7 +25,7 @@ profile:
 `;
 
 Deno.test("profile types e2e: entry matching REQ pattern classifies cleanly", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/typed\n`,
@@ -46,7 +46,7 @@ Deno.test("profile types e2e: entry matching REQ pattern classifies cleanly", as
 });
 
 Deno.test("profile types e2e: un-classified entry emits MSL-T003", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/typed\n`,
@@ -66,7 +66,7 @@ Deno.test("profile types e2e: un-classified entry emits MSL-T003", async () => {
 });
 
 Deno.test("profile types e2e: explicit Type: attribute overrides display-ID inference", async () => {
-  const { code } = await markspec(["validate", "req.md"], {
+  const { code } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/typed\n`,
@@ -86,7 +86,7 @@ Deno.test("profile types e2e: explicit Type: attribute overrides display-ID infe
 });
 
 Deno.test("profile types e2e: explicit Type: unknown value emits MSL-T001", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/typed\n`,
@@ -107,7 +107,7 @@ Deno.test("profile types e2e: explicit Type: unknown value emits MSL-T001", asyn
 });
 
 Deno.test("profile types e2e: pattern-enforcement=error + mismatch emits MSL-T004 error", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/typed\n`,
@@ -128,7 +128,7 @@ Deno.test("profile types e2e: pattern-enforcement=error + mismatch emits MSL-T00
 });
 
 Deno.test("profile types e2e: no .markspec.yaml — core-only mode, no MSL-T diagnostics", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       "req.md": `# Example

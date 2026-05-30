@@ -56,7 +56,7 @@ const REQ_MD = `# Example
 `;
 
 Deno.test("profile merge e2e: valid two-tier chain loads cleanly", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/child\n`,
@@ -73,7 +73,7 @@ Deno.test("profile merge e2e: valid two-tier chain loads cleanly", async () => {
 });
 
 Deno.test("profile merge e2e: relaxation in child fails with PROFILE-MERGE-010", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/child\n`,
@@ -87,7 +87,7 @@ Deno.test("profile merge e2e: relaxation in child fails with PROFILE-MERGE-010",
 });
 
 Deno.test("profile merge e2e: direct extends cycle fails with PROFILE-LOAD-004", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/a\n`,
@@ -103,7 +103,7 @@ Deno.test("profile merge e2e: direct extends cycle fails with PROFILE-LOAD-004",
 });
 
 Deno.test("profile merge e2e: unreachable parent in chain fails with PROFILE-LOAD-001", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": `profiles:\n  - ./profiles/leaf\n`,

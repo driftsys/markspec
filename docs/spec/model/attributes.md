@@ -20,7 +20,7 @@ core and are always available, even in core-only mode (no profile configured).
 | `References`        | No       | Multi       | Display ID, optionally followed by a locator in `[…]`                                                                  |
 | `External-id`       | No       | Single      | Cross-system identifier (Jira, DOORS, …)                                                                               |
 | `Supersedes`        | No       | Single      | Display ID of the predecessor entry (Authored only)                                                                    |
-| `Superseded-by`     | —        | Generated   | Inverse of `Supersedes`; written by `markspec format`                                                                  |
+| `Superseded-by`     | —        | Generated   | Inverse of `Supersedes`; written by `markspec fmt`                                                                     |
 | `Deprecated`        | No       | Single      | Quoted retirement reason string                                                                                        |
 
 ### Id
@@ -33,9 +33,9 @@ Id: 01HGW2Q8MNP3RSTVWXYZABCDEF ← Authored (26-char ULID) Id:
 urn:iso:std:iso:26262:-6:ed-2 ← Reference (URI with scheme)
 ```
 
-ULIDs are assigned by `markspec format`. An entry without an `Id:` is
-"unstamped" — the validator emits `MSL-A010` in strict mode, and
-`markspec format` will add one on the next run.
+ULIDs are assigned by `markspec fmt`. An entry without an `Id:` is "unstamped" —
+the validator emits `MSL-A010` in strict mode, and `markspec fmt` will add one
+on the next run.
 
 ### Type
 
@@ -54,7 +54,7 @@ in the [Type taxonomy](types.md) chapter. Unknown values raise `MSL-T020`.
 
 `Labels:` is a multi-value attribute. Each value is a free-form tag. The
 preferred form is one line per tag; CSV is accepted and normalized by
-`markspec format`:
+`markspec fmt`:
 
 ```markdown
 # One tag per line (preferred)
@@ -107,7 +107,7 @@ own versioning).
 Supersedes: SRS_BRK_0042
 ```
 
-When `markspec format` encounters a `Supersedes:` line, it writes the inverse
+When `markspec fmt` encounters a `Supersedes:` line, it writes the inverse
 `Superseded-by:` attribute on the target entry automatically. The author only
 writes `Supersedes:` — never `Superseded-by:`.
 
@@ -134,12 +134,12 @@ per line. The two equivalent forms are:
     Labels: ASIL-B
     Labels: safety-critical
 
-# CSV (accepted; normalized by markspec format)
+# CSV (accepted; normalized by markspec fmt)
 
     Labels: ASIL-B, safety-critical
 ```
 
-`markspec format` always normalizes to the one-per-line form. If a CSV line
+`markspec fmt` always normalizes to the one-per-line form. If a CSV line
 contains a value that includes a comma (e.g., a citation locator like
 `ISO-26262-6 [§4, §5]`), the square-bracket content is treated as a single token
 and not split.
@@ -242,7 +242,7 @@ that these rules only activate when the declaring profile is present.
 
 ## Attribute ordering
 
-`markspec format` normalizes the trailer attribute order:
+`markspec fmt` normalizes the trailer attribute order:
 
 1. `Id`
 2. `Type`

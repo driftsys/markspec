@@ -20,10 +20,9 @@ that processes it.
 **Authoring and validation**
 
 ```text
-markspec format             # stamp ULIDs, normalize attributes
-markspec validate           # check broken refs, missing Ids, duplicates
+markspec fmt                # stamp ULIDs, normalize attributes
+markspec check              # check broken refs, missing Ids, duplicates
 markspec lint               # prose analysis (modal verbs, EARS, passive, …)
-markspec hook               # pre-commit gate: format --check + validate
 markspec insert <type>      # append a scaffolded entry to a file
 markspec create <type>      # scaffold a new entry block (stdout)
 markspec next-id <type>     # next available display ID for a type

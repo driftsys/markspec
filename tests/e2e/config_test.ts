@@ -2,7 +2,7 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 Deno.test("validate in nested dir finds files", async () => {
-  const { code } = await markspec(["validate", "req.md"], {
+  const { code } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": "name: test-project\n",
       "req.md": `# Test
@@ -19,7 +19,7 @@ Deno.test("validate in nested dir finds files", async () => {
 });
 
 Deno.test("format outside project works with defaults", async () => {
-  const { code, stderr } = await markspec(["format", "req.md"], {
+  const { code, stderr } = await markspec(["fmt", "req.md"], {
     files: {
       "req.md": "# Test\n",
     },
@@ -77,7 +77,7 @@ Deno.test("validate: malformed caption-conventions in project.yaml surfaces erro
   // "unknown-keyword" is not a valid caption keyword; loadConfig throws
   // ConfigError.  The validate command must surface it rather than silently
   // continuing with MSL-C072 disabled.
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml":
         "name: test-project\ncaption-conventions:\n  unknown-keyword: above\n",
@@ -96,7 +96,7 @@ Deno.test("validate: absent project.yaml still works silently — no false error
   // No project.yaml: validate must still succeed for a valid file and
   // must NOT emit any caption-conventions error.  This is the non-fatal
   // path that must remain unchanged by the M-1 fix.
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": VALID_REQ,
     },
@@ -110,7 +110,7 @@ Deno.test("validate: absent project.yaml still works silently — no false error
 });
 
 Deno.test("validate: well-formed caption-conventions in project.yaml succeeds silently", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml":
         "name: test-project\ncaption-conventions:\n  Figure: above\n",

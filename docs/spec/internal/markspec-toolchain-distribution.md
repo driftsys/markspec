@@ -88,7 +88,7 @@ markspec mcp                             # MCP server (stdio JSON-RPC)
 
 `lsp/server.ts` and `mcp/server.ts` are dynamically imported by `main.ts` only
 when their subcommand runs (lazy loading — CLAUDE.md "Single binary, lazy
-loading"; `markspec validate` never loads the MCP SDK). There is **no**
+loading"; `markspec check` never loads the MCP SDK). There is **no**
 `markspec-lsp` or `markspec-mcp` artifact.
 
 ### 2.2 Options analysis — packaging

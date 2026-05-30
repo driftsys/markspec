@@ -10,7 +10,7 @@ ADR-002 introduces a two-tier model for entries:
 - **Properties** — model-level observations about an entry: where it lives in
   the repository, when it was created, who has touched it, how an external
   system tracks it. Properties are never authored in source, never round-trip
-  through `markspec format`, and do not appear in git diffs.
+  through `markspec fmt`, and do not appear in git diffs.
 
 ADR-009 §4 formalizes the dual of this distinction on the identity axis:
 **identity** (ULID or URI in the `Id:` attribute, display ID, slug) is stable

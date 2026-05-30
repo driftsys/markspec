@@ -3,7 +3,7 @@
 MarkSpec performs quality analysis on the body prose of authored entries — the
 paragraphs and list items that describe _what_ a requirement means, not just its
 identity. Prose analysis runs as a separate `markspec lint` pass after parsing
-and validation; it does not block `markspec validate`.
+and validation; it does not block `markspec check`.
 
 ## Scope
 
@@ -83,13 +83,13 @@ the RFC 2119 / EARS convention that modals appear in **lowercase**:
 **MSL-M060 — modal-keyword-uppercase** (warning)
 
 Fires when any of the above keywords appears in uppercase (`SHALL`, `MUST`, …)
-inside body prose. The formatter (`markspec format`) rewrites uppercase modals
-to lowercase automatically, so this diagnostic appears only on files that have
-not been formatted.
+inside body prose. The formatter (`markspec fmt`) rewrites uppercase modals to
+lowercase automatically, so this diagnostic appears only on files that have not
+been formatted.
 
 ```text
 warning[MSL-M060]: requirements.md:12 modal keyword 'SHALL' in body prose is
-uppercase (spec §3.4.1 canonical form is lowercase; 'markspec format' will
+uppercase (spec §3.4.1 canonical form is lowercase; 'markspec fmt' will
 rewrite it)
 ```
 
@@ -231,6 +231,6 @@ markspec lint --format json <paths...>  # structured JSON to stdout
 markspec lint --strict <paths...>  # promote warnings to errors (exit 1)
 ```
 
-The `lint` subcommand is separate from `validate`; the pre-commit hook
-(`markspec hook`) does **not** run lint — lint is a review-time quality gate,
-not a commit blocker.
+The `lint` subcommand is separate from `check`; the pre-commit hook (see the
+[git hooks recipe](../../guide/recipes/git-hooks.md)) does **not** run lint —
+lint is a review-time quality gate, not a commit blocker.

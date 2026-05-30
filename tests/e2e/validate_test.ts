@@ -1,7 +1,7 @@
 /**
  * @module tests/e2e/validate_test
  *
- * E2E tests for `markspec validate` subcommand.
+ * E2E tests for `markspec check` subcommand.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -12,7 +12,7 @@ import { markspec } from "./helpers.ts";
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: valid file exits 0", async () => {
-  const { code } = await markspec(["validate", "req.md"], {
+  const { code } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -33,7 +33,7 @@ Deno.test("validate: valid file exits 0", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Type: Specification accepted in core-only mode", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -51,7 +51,7 @@ Deno.test("validate: Type: Specification accepted in core-only mode", async () =
 });
 
 Deno.test("validate: Derives in source rejected with MSL-A030 (generated inverse)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -70,7 +70,7 @@ Deno.test("validate: Derives in source rejected with MSL-A030 (generated inverse
 });
 
 Deno.test("validate: Verified-by in source rejected with MSL-A030", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -89,7 +89,7 @@ Deno.test("validate: Verified-by in source rejected with MSL-A030", async () => 
 });
 
 Deno.test("validate: generated-origin attribute in source rejected with MSL-A030", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -109,7 +109,7 @@ Deno.test("validate: generated-origin attribute in source rejected with MSL-A030
 
 // MSL-A013 — single-cardinality core attribute used more than once
 Deno.test("validate: duplicate Type: trailers fire MSL-A013", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -129,7 +129,7 @@ Deno.test("validate: duplicate Type: trailers fire MSL-A013", async () => {
 });
 
 Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -150,7 +150,7 @@ Deno.test("validate: duplicate Source: trailers fire MSL-A013", async () => {
 
 // MSL-A050 — Origin: value must match the enum {authored, synthesized}
 Deno.test("validate: Origin: invalid value fires MSL-A050", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -169,7 +169,7 @@ Deno.test("validate: Origin: invalid value fires MSL-A050", async () => {
 });
 
 Deno.test("validate: Origin: authored stays clean (no MSL-A050)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -187,7 +187,7 @@ Deno.test("validate: Origin: authored stays clean (no MSL-A050)", async () => {
 });
 
 Deno.test("validate: Origin: synthesized stays clean (no MSL-A050)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -207,7 +207,7 @@ Deno.test("validate: Origin: synthesized stays clean (no MSL-A050)", async () =>
 
 // MSL-P010 — title is empty after trimming
 Deno.test("validate: entry with empty title fires MSL-P010", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -225,7 +225,7 @@ Deno.test("validate: entry with empty title fires MSL-P010", async () => {
 });
 
 Deno.test("validate: entry with whitespace-only title fires MSL-P010", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -242,7 +242,7 @@ Deno.test("validate: entry with whitespace-only title fires MSL-P010", async () 
 });
 
 Deno.test("validate: entry with non-empty title stays clean (no MSL-P010)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -260,7 +260,7 @@ Deno.test("validate: entry with non-empty title stays clean (no MSL-P010)", asyn
 
 // MSL-A011 — citation attribute used CSV form (always multi-line per §2.3.2)
 Deno.test("validate: References with CSV form fires MSL-A011", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -287,7 +287,7 @@ Deno.test("validate: References with CSV form fires MSL-A011", async () => {
 });
 
 Deno.test("validate: single-citation References stays clean (no MSL-A011)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -311,7 +311,7 @@ Deno.test("validate: single-citation References stays clean (no MSL-A011)", asyn
 });
 
 Deno.test("validate: multi-line References stays clean (no MSL-A011)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -342,7 +342,7 @@ Deno.test("validate: multi-line References stays clean (no MSL-A011)", async () 
 
 // MSL-A012 — repeatable attribute value list is empty
 Deno.test("validate: Labels with only commas fires MSL-A012", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -361,7 +361,7 @@ Deno.test("validate: Labels with only commas fires MSL-A012", async () => {
 });
 
 Deno.test("validate: External-id with empty CSV fires MSL-A012", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -380,7 +380,7 @@ Deno.test("validate: External-id with empty CSV fires MSL-A012", async () => {
 });
 
 Deno.test("validate: Labels with one non-empty value stays clean (no MSL-A012)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -399,7 +399,7 @@ Deno.test("validate: Labels with one non-empty value stays clean (no MSL-A012)",
 
 // MSL-M061 — Requirement entry contains no modal keyword (info)
 Deno.test("validate: Requirement entry with no modal keyword emits MSL-M061 (info)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -417,7 +417,7 @@ Deno.test("validate: Requirement entry with no modal keyword emits MSL-M061 (inf
 });
 
 Deno.test("validate: Requirement entry with lowercase modal stays clean (no MSL-M061)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -434,7 +434,7 @@ Deno.test("validate: Requirement entry with lowercase modal stays clean (no MSL-
 });
 
 Deno.test("validate: non-Requirement entry without modal does NOT fire MSL-M061", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -454,7 +454,7 @@ Deno.test("validate: non-Requirement entry without modal does NOT fire MSL-M061"
 
 // MSL-M060 — uppercase modal keywords in entry-body prose
 Deno.test("validate: uppercase SHALL in body fires MSL-M060", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -477,7 +477,7 @@ Deno.test("validate: uppercase SHALL in body fires MSL-M060", async () => {
 });
 
 Deno.test("validate: uppercase MUST NOT in body fires MSL-M060", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -499,7 +499,7 @@ Deno.test("validate: uppercase MUST NOT in body fires MSL-M060", async () => {
 });
 
 Deno.test("validate: lowercase modal in body does NOT fire MSL-M060", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -516,7 +516,7 @@ Deno.test("validate: lowercase modal in body does NOT fire MSL-M060", async () =
 });
 
 Deno.test("validate: SHALL inside fenced code block is NOT flagged", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -537,7 +537,7 @@ Deno.test("validate: SHALL inside fenced code block is NOT flagged", async () =>
 });
 
 Deno.test("validate: repeated Labels: trailers do NOT fire MSL-A013 (tag-list is repeatable)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -560,7 +560,7 @@ Deno.test("validate: repeated Labels: trailers do NOT fire MSL-A013 (tag-list is
 });
 
 Deno.test("validate: display-ID containing :: emits MSL-T021 inference warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -581,7 +581,7 @@ Deno.test("validate: display-ID containing :: emits MSL-T021 inference warning",
 });
 
 Deno.test("validate: lowercase Type: in core-only mode rejected with MSL-T023", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -600,7 +600,7 @@ Deno.test("validate: lowercase Type: in core-only mode rejected with MSL-T023", 
 });
 
 Deno.test("validate: unknown Type value rejected with MSL-T020 in core-only mode", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -623,7 +623,7 @@ Deno.test("validate: type-specific attr on an unresolved-type entry warns (MSL-T
   // discriminating one, so step-6 inference does not rescue it; the
   // `jira:` scheme is unknown and there is no `Type:`. Previously
   // silent — now MSL-T024 (warning, exit 2).
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -642,7 +642,7 @@ Deno.test("validate: type-specific attr on an unresolved-type entry warns (MSL-T
 });
 
 Deno.test("validate: reference with only universal attrs stays clean (no MSL-T024)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -668,7 +668,7 @@ Deno.test("validate: reference with only universal attrs stays clean (no MSL-T02
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: URI-scheme inference (step 5) emits MSL-T021 late-stage warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -690,7 +690,7 @@ Deno.test("validate: URI-scheme inference (step 5) emits MSL-T021 late-stage war
 });
 
 Deno.test("validate: discriminating-attr inference (step 6) emits MSL-T021 late-stage warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -714,7 +714,7 @@ Deno.test("validate: discriminating-attr inference (step 6) emits MSL-T021 late-
 });
 
 Deno.test("validate: explicit Type: (step 1) does not emit MSL-T021", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -735,7 +735,7 @@ Deno.test("validate: explicit Type: (step 1) does not emit MSL-T021", async () =
 });
 
 Deno.test("validate: display-ID prefix (step 4) does not emit MSL-T021", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -753,7 +753,7 @@ Deno.test("validate: display-ID prefix (step 4) does not emit MSL-T021", async (
 });
 
 Deno.test("validate: Verifies attr infers Test at step 6; Allocated-to fires MSL-T022", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -779,7 +779,7 @@ Deno.test("validate: Verifies attr infers Test at step 6; Allocated-to fires MSL
 });
 
 Deno.test("validate: Schema-language infers Contract at step 6", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -805,7 +805,7 @@ Deno.test("validate: Schema-language infers Contract at step 6", async () => {
 });
 
 Deno.test("validate: Source: Cargo.toml infers SoftwareComponent at step 3", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -831,7 +831,7 @@ Deno.test("validate: Source: Cargo.toml infers SoftwareComponent at step 3", asy
 });
 
 Deno.test("validate: Source: .rs file infers SoftwareUnit at step 3", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -856,7 +856,7 @@ Deno.test("validate: Source: .rs file infers SoftwareUnit at step 3", async () =
 });
 
 Deno.test("validate: [REQ-001] infers Requirement at step 4; Bus-protocol fires MSL-T022", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -881,7 +881,7 @@ Deno.test("validate: [REQ-001] infers Requirement at step 4; Bus-protocol fires 
 });
 
 Deno.test("validate: [TST-001] infers Test at step 4; Allocated-to fires MSL-T022", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -905,7 +905,7 @@ Deno.test("validate: [TST-001] infers Test at step 4; Allocated-to fires MSL-T02
 });
 
 Deno.test("validate: Allocated-to on a Component fires MSL-T022 warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -935,7 +935,7 @@ Deno.test("validate: Allocated-to on a Component fires MSL-T022 warning", async 
 });
 
 Deno.test("validate: Satisfies on a Requirement passes (inherits Specification)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -960,7 +960,7 @@ Deno.test("validate: Satisfies on a Requirement passes (inherits Specification)"
 });
 
 Deno.test("validate: Allocated-to on a Test fires MSL-T022 (subtype exclusion)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -985,7 +985,7 @@ Deno.test("validate: Allocated-to on a Test fires MSL-T022 (subtype exclusion)",
 });
 
 Deno.test("validate: License on a SoftwareComponent passes (own attribute)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1003,7 +1003,7 @@ Deno.test("validate: License on a SoftwareComponent passes (own attribute)", asy
 });
 
 Deno.test("validate: License on a Specification fires MSL-T022 warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1031,7 +1031,7 @@ Deno.test("validate: License on a Specification fires MSL-T022 warning", async (
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Satisfies target of type Component fires MSL-R083", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1058,7 +1058,7 @@ Deno.test("validate: Satisfies target of type Component fires MSL-R083", async (
 });
 
 Deno.test("validate: Satisfies target of type Requirement passes (R083 OK)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1083,7 +1083,7 @@ Deno.test("validate: Satisfies target of type Requirement passes (R083 OK)", asy
 });
 
 Deno.test("validate: Supersedes target with mismatched shape fires MSL-R084", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1105,7 +1105,7 @@ Deno.test("validate: Supersedes target with mismatched shape fires MSL-R084", as
 });
 
 Deno.test("validate: Supersedes target with same shape passes", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1128,7 +1128,7 @@ Deno.test("validate: Supersedes target with same shape passes", async () => {
 });
 
 Deno.test("validate: link target with Deprecated emits MSL-R081 warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1159,7 +1159,7 @@ Deno.test("validate: link target with Deprecated emits MSL-R081 warning", async 
 });
 
 Deno.test("validate: link target with Labels: DRAFT emits MSL-R082 info", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1190,7 +1190,7 @@ Deno.test("validate: link target with Labels: DRAFT emits MSL-R082 info", async 
 });
 
 Deno.test("validate: Allocated-to target of type Specification fires MSL-R083", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1221,7 +1221,7 @@ Deno.test("validate: Allocated-to target of type Specification fires MSL-R083", 
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: doi: Reference as Allocated-to target fires MSL-R083 (infers Requirement)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1246,7 +1246,7 @@ Deno.test("validate: doi: Reference as Allocated-to target fires MSL-R083 (infer
 });
 
 Deno.test("validate: pkg:cargo Reference with Bus-protocol fires MSL-T022 (scheme infers SoftwareComponent)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1268,7 +1268,7 @@ Deno.test("validate: pkg:cargo Reference with Bus-protocol fires MSL-T022 (schem
 });
 
 Deno.test("validate: pkg:cargo Reference as Depends-on target passes (infers SoftwareComponent)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1298,7 +1298,7 @@ Deno.test("validate: pkg:cargo Reference as Depends-on target passes (infers Sof
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Reference display ID with leading digit fires MSL-I006", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1313,7 +1313,7 @@ Deno.test("validate: Reference display ID with leading digit fires MSL-I006", as
 });
 
 Deno.test("validate: References citing an Authored entry fires MSL-R085 warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1342,7 +1342,7 @@ Deno.test("validate: References citing an Authored entry fires MSL-R085 warning"
 });
 
 Deno.test("validate: Reference-url with non-HTTPS value fires MSL-A050", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1359,7 +1359,7 @@ Deno.test("validate: Reference-url with non-HTTPS value fires MSL-A050", async (
 });
 
 Deno.test("validate: Reference display ID with valid slug passes", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1380,7 +1380,7 @@ Deno.test("validate: Reference display ID with valid slug passes", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: heading inside entry body fires MSL-B040", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1401,7 +1401,7 @@ Deno.test("validate: heading inside entry body fires MSL-B040", async () => {
 });
 
 Deno.test("validate: horizontal rule inside entry body fires MSL-B041", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1422,7 +1422,7 @@ Deno.test("validate: horizontal rule inside entry body fires MSL-B041", async ()
 });
 
 Deno.test("validate: task list inside entry body fires MSL-B042", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1442,7 +1442,7 @@ Deno.test("validate: task list inside entry body fires MSL-B042", async () => {
 });
 
 Deno.test("validate: non-markspec HTML comment in body fires MSL-B043", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1459,7 +1459,7 @@ Deno.test("validate: non-markspec HTML comment in body fires MSL-B043", async ()
 });
 
 Deno.test("validate: markspec directive comment in body is allowed", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1480,7 +1480,7 @@ Deno.test("validate: markspec directive comment in body is allowed", async () =>
 });
 
 Deno.test("validate: raw HTML inside entry body fires MSL-B043", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1501,7 +1501,7 @@ Deno.test("validate: raw HTML inside entry body fires MSL-B043", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: orphan Figure: caption emits MSL-C070", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1522,7 +1522,7 @@ Deno.test("validate: orphan Figure: caption emits MSL-C070", async () => {
 });
 
 Deno.test("validate: Equation: caption adjacent to a Figure fires MSL-C071", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1541,7 +1541,7 @@ Deno.test("validate: Equation: caption adjacent to a Figure fires MSL-C071", asy
 });
 
 Deno.test("validate: Figure: caption adjacent to image passes", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1559,7 +1559,7 @@ Deno.test("validate: Figure: caption adjacent to image passes", async () => {
 });
 
 Deno.test("validate: caption keyword inside a fenced code block is not flagged", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1584,7 +1584,7 @@ Deno.test("validate: caption keyword inside a fenced code block is not flagged",
 });
 
 Deno.test("validate: C071 names the Listing/Feature ambiguity for a fenced block", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1613,7 +1613,7 @@ Deno.test("validate: C071 names the Listing/Feature ambiguity for a fenced block
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: missing Id exits 1", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1631,7 +1631,7 @@ Deno.test("validate: missing Id exits 1", async () => {
 });
 
 Deno.test("validate: unresolved References citation exits 1 (MSL-T005)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1655,7 +1655,7 @@ Deno.test("validate: unresolved References citation exits 1 (MSL-T005)", async (
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Origin: synthesized recognised as universal (no MSL-R010)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1677,7 +1677,7 @@ Deno.test("validate: Origin: synthesized recognised as universal (no MSL-R010)",
 });
 
 Deno.test("validate: warning only exits 2", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1701,7 +1701,7 @@ Deno.test("validate: warning only exits 2", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: --strict promotes warning to error → exit 1", async () => {
-  const { code } = await markspec(["validate", "--strict", "req.md"], {
+  const { code } = await markspec(["check", "--strict", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -1724,7 +1724,7 @@ Deno.test("validate: --strict promotes warning to error → exit 1", async () =>
 
 Deno.test("validate: --format json outputs structured diagnostics", async () => {
   const { code, stdout } = await markspec(
-    ["validate", "--format", "json", "req.md"],
+    ["check", "--format", "json", "req.md"],
     {
       files: {
         "req.md": `# Test
@@ -1750,7 +1750,7 @@ Deno.test("validate: --format json outputs structured diagnostics", async () => 
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: valid Rust source file exits 0", async () => {
-  const { code } = await markspec(["validate", "lib.rs"], {
+  const { code } = await markspec(["check", "lib.rs"], {
     files: {
       "lib.rs": `/// [SRS_BRK_0001] Sensor debouncing
 ///
@@ -1765,7 +1765,7 @@ fn debounce() {}
 });
 
 Deno.test("validate: Rust source file missing Id exits 1", async () => {
-  const { code, stderr } = await markspec(["validate", "lib.rs"], {
+  const { code, stderr } = await markspec(["check", "lib.rs"], {
     files: {
       "lib.rs": `/// [SRS_BRK_0001] Sensor debouncing
 ///
@@ -1781,7 +1781,7 @@ fn debounce() {}
 });
 
 Deno.test("validate: mixed .md and .rs files — no error diagnostics", async () => {
-  const { code } = await markspec(["validate", "req.md", "lib.rs"], {
+  const { code } = await markspec(["check", "req.md", "lib.rs"], {
     files: {
       "req.md": `# Test
 
@@ -1810,7 +1810,7 @@ fn impl_debounce() {}
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: no files exits 1", async () => {
-  const { code, stderr } = await markspec(["validate"]);
+  const { code, stderr } = await markspec(["check"]);
   assertEquals(code, 1);
   assertStringIncludes(stderr, "no files specified");
 });
@@ -1820,7 +1820,7 @@ Deno.test("validate: no files exits 1", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: MSL-B044 fires when Feature + AC list present", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Requirements
 
@@ -1856,7 +1856,7 @@ Deno.test("validate: MSL-B044 fires when Feature + AC list present", async () =>
 });
 
 Deno.test("validate: MSL-B044 does not fire for Feature only (no AC list)", async () => {
-  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+  const { code: _code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Requirements
 
@@ -1885,7 +1885,7 @@ Deno.test("validate: MSL-B044 does not fire for Feature only (no AC list)", asyn
 });
 
 Deno.test("validate: MSL-B044 does not fire for AC list only (no Feature)", async () => {
-  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+  const { code: _code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Requirements
 
@@ -1913,7 +1913,7 @@ Deno.test("validate: MSL-B044 does not fire for AC list only (no Feature)", asyn
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: MSL-C072 fires when Figure caption is below but convention=above", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": `name: test-project
 caption-conventions:
@@ -1944,7 +1944,7 @@ caption-conventions:
 });
 
 Deno.test("validate: MSL-C072 does not fire when Figure caption is below and convention=below", async () => {
-  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+  const { code: _code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": `name: test-project
 caption-conventions:
@@ -1972,7 +1972,7 @@ caption-conventions:
 });
 
 Deno.test("validate: MSL-C072 does not fire when no caption-conventions configured", async () => {
-  const { code: _code, stderr } = await markspec(["validate", "req.md"], {
+  const { code: _code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Requirements
 

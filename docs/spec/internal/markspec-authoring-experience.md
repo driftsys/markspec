@@ -50,8 +50,8 @@ agent write path and the interactive path are **two separate mental models**.
    completion and syntax highlighting.
 4. **Unify** the interactive (LSP) and agent (MCP + CLI) lanes behind one shared
    authoring model so they cannot drift.
-5. Preserve **ID integrity**: ULIDs are stamped by `format`/`insert`, never
-   forged — by the author or the agent.
+5. Preserve **ID integrity**: ULIDs are stamped by `fmt`/`insert`, never forged
+   — by the author or the agent.
 
 **Non-goals (YAGNI):** owning inline ghost-text completion (that belongs to the
 client model — we make the agent's output correct, we do not drive Copilot's
@@ -106,7 +106,7 @@ Each field carries a **kind**, **value source**, **required** flag,
 | `literal` | `Type:`                       | fixed (the type name)                                     |
 
 `Id:` is always declared `auto` with mode `omit` and a note "stamped by
-`markspec format` — never forge" (ID-integrity guardrail, §6).
+`markspec fmt` — never forge" (ID-integrity guardrail, §6).
 
 **Inputs already available in the codebase:** profile enum attributes are parsed
 (`core/profile/manifest.ts`, `type: enum` + `values:`) and introspected
@@ -181,9 +181,9 @@ plan** and re-pops the relation-filtered ID menu. An invalid label `ASIL-Q` →
 "Replace with nearest valid: ASIL-A / ASIL-B / QM" (values from the plan).
 
 **CUJ-10 · either · L2.** "Fix all the errors in braking.md." The agent runs
-`validate --format json` (or MCP `validate`), reads structured diagnostics,
-applies each repair (plan supplies valid values), runs `format`, and
-re-validates until clean.
+`check --format json` (or MCP `validate`), reads structured diagnostics, applies
+each repair (plan supplies valid values), runs `fmt`, and re-validates until
+clean.
 
 ### 4.4 Agent-first (prompt-driven) authoring
 
@@ -198,9 +198,9 @@ only intent into the Copilot/agent prompt — e.g. _"Add a stakeholder requireme
 that the vehicle must come to a full stop before a detected obstacle within
 braking distance."_ They never open or edit the file by hand. The agent runs the
 full loop end-to-end: `authoring_plan(STK)` → draft title + body → pick a valid
-`Satisfies:` target and `Labels:` value from the plan → `insert` → `format`
-(stamps ULID) → `validate`. It reports back the created display ID. The author
-reviews the result in the diff, not the syntax.
+`Satisfies:` target and `Labels:` value from the plan → `insert` → `fmt` (stamps
+ULID) → `check`. It reports back the created display ID. The author reviews the
+result in the diff, not the syntax.
 
 **CUJ-12 · Batch from a source doc · L2.** The author pastes a requirements
 blurb, table, or external document into the prompt: _"Turn these into
@@ -215,8 +215,8 @@ which adds four batch-specific obligations beyond the single-entry loop:
    this pass.
 3. **Dedup against existing** — the agent checks (`entry_search`) before
    creating, so it does not duplicate an entry that already exists.
-4. **One reconciliation at the end** — a single `format` + `validate` over the
-   batch stamps every ULID and confirms the whole set is consistent, rather than
+4. **One reconciliation at the end** — a single `fmt` + `check` over the batch
+   stamps every ULID and confirms the whole set is consistent, rather than
    round-tripping per entry.
 
 ---
@@ -226,16 +226,16 @@ which adds four batch-specific obligations beyond the single-entry loop:
 All triggers read the **same `AuthoringPlan`**, so they cannot disagree about
 what an entry needs.
 
-| Trigger (author action)                     | Verb        | Owner                                       | Plan's role                       |
-| ------------------------------------------- | ----------- | ------------------------------------------- | --------------------------------- |
-| Type `- [` (md or doc-comment)              | create      | LSP `onCompletion`                          | full plan → snippet               |
-| Tab into an `enum` field                    | create/edit | LSP (snippet `CHOICE`)                      | plan `values[]` (baked at insert) |
-| Tab into an `id-ref` field                  | create/edit | LSP, re-invoked by `command:triggerSuggest` | relation-filtered targets         |
-| New trailer line (**present-aware**)        | edit        | LSP `onCompletion`                          | **plan − present**                |
-| `MarkSpec: New Entry` palette command       | create      | VS Code extension                           | full plan → quick-pick stepper    |
-| Diagnostic lightbulb                        | fix         | LSP code-actions                            | valid values / missing fields     |
-| `authoring_plan` tool                       | create/edit | MCP → agent                                 | plan as JSON                      |
-| `validate [--format json]` / MCP `validate` | fix         | CLI / MCP → agent                           | diagnostics drive the loop        |
+| Trigger (author action)                  | Verb        | Owner                                       | Plan's role                       |
+| ---------------------------------------- | ----------- | ------------------------------------------- | --------------------------------- |
+| Type `- [` (md or doc-comment)           | create      | LSP `onCompletion`                          | full plan → snippet               |
+| Tab into an `enum` field                 | create/edit | LSP (snippet `CHOICE`)                      | plan `values[]` (baked at insert) |
+| Tab into an `id-ref` field               | create/edit | LSP, re-invoked by `command:triggerSuggest` | relation-filtered targets         |
+| New trailer line (**present-aware**)     | edit        | LSP `onCompletion`                          | **plan − present**                |
+| `MarkSpec: New Entry` palette command    | create      | VS Code extension                           | full plan → quick-pick stepper    |
+| Diagnostic lightbulb                     | fix         | LSP code-actions                            | valid values / missing fields     |
+| `authoring_plan` tool                    | create/edit | MCP → agent                                 | plan as JSON                      |
+| `check [--format json]` / MCP `validate` | fix         | CLI / MCP → agent                           | diagnostics drive the loop        |
 
 **Sharply divided responsibilities:**
 
@@ -249,7 +249,7 @@ what an entry needs.
   agent what to fill and what **not** to (`Id: omit`).
 - **Agent** — supplies prose, picks from offered values, writes via CLI. Holds
   its own reasoning state.
-- **CLI (`insert`/`format`/`validate`)** — the actual write + ULID stamping.
+- **CLI (`insert`/`fmt`/`check`)** — the actual write + ULID stamping.
 
 ---
 
@@ -279,8 +279,8 @@ stays a pure function (`authoring_plan`) plus write/validate commands.
 
 **ID-integrity guardrail.** The plan declares `Id:` as `auto`/`omit` in every
 path. Neither the snippet, the wizard, nor the agent ever writes a ULID; it is
-stamped by `format`/`insert`. This is enforced at the plan layer so all
-renderers inherit it.
+stamped by `fmt`/`insert`. This is enforced at the plan layer so all renderers
+inherit it.
 
 ---
 
@@ -317,17 +317,17 @@ never re-offers a single-cardinality attribute already in the entry.
 file? })`** returns the
 plan as structured JSON: ordered fields with kinds, the next display-ID, enum
 value sets, relation-target display-IDs, and an explicit
-`id: { mode: "omit", note: "stamped by markspec format — never forge" }`.
+`id: { mode: "omit", note: "stamped by markspec fmt — never forge" }`.
 
 **Source-aware `insert`.** Extend the CLI `insert` command so it (1) can write
 into a source doc-comment (leader-prefixed) as well as Markdown, and (2) accepts
 pre-filled field values so the agent's drafted title/body/attrs land in one
-call. ULID is still stamped by the subsequent `format`.
+call. ULID is still stamped by the subsequent `fmt`.
 
 **Canonical agent loop:** `authoring_plan` → draft prose contextually → fill
-enums/targets from the plan → `insert` (with values) → `format` (stamps ULID) →
-`validate`. This is the project's existing `insert → format → validate` loop,
-now **plan-driven** so the agent fills correctly the first time.
+enums/targets from the plan → `insert` (with values) → `fmt` (stamps ULID) →
+`check`. This is the project's existing `insert → fmt → check` loop, now
+**plan-driven** so the agent fills correctly the first time.
 
 ### 7.3 Fix (both lanes)
 
@@ -340,7 +340,7 @@ Plan-aware quick-fixes mirror the existing `MSL-T020` "did you mean" pattern:
 - **fix-broken-relation-target** — suggest valid targets for the relation.
 
 The agent fix loop (CUJ-10) consumes the same diagnostics via
-`validate --format json` / MCP `validate`.
+`check --format json` / MCP `validate`.
 
 ---
 
@@ -381,23 +381,23 @@ gated by a flicker-avoidance study (§10, JOB2 Story 0).
 
 ## 9. Work items (gaps)
 
-| #     | Item                                                                                                            | Phase |
-| ----- | --------------------------------------------------------------------------------------------------------------- | ----- |
-| G1    | Snippet injects comment leaders for source files                                                                | 1     |
-| G2    | `insert` writes into source doc-comments + accepts pre-filled field values                                      | 1     |
-| G3    | Palette quick-pick wizard (tech-writer lane)                                                                    | 1     |
-| G4    | Plan marks `Id:` auto/omit — agent never forges ULID                                                            | 1     |
-| G5    | Re-trigger orchestration in snippet (`command:triggerSuggest`)                                                  | 1     |
-| G6    | Present-aware trailer completion (plan − present, cardinality)                                                  | 1     |
-| G7    | Plan-aware quick-fixes: add-required, replace-invalid-enum, fix-relation-target                                 | 1     |
-| G8    | Documented + hardened agent fix loop (`validate --format json`, MCP `validate`)                                 | 1     |
-| MCP   | `authoring_plan` read tool                                                                                      | 1     |
-| G11   | Batch authoring semantics: sequential IDs, cross-links between new entries, dedup, single final format+validate | 1     |
-| G10   | Verify/fix semantic-token columns inside leader-prefixed doc-comments                                           | 1     |
-| Study | Flicker-avoidance study (theme-color alignment) — gates G9                                                      | 2     |
-| G9    | TextMate injection — **Markdown + Rust + Kotlin + C#**                                                          | 2     |
-| P2b   | TextMate injection — TS/JS, Java, C/C++                                                                         | 2     |
-| P2a   | EARS / Gherkin / typl **body-content** completion                                                               | 2     |
+| #     | Item                                                                                                      | Phase |
+| ----- | --------------------------------------------------------------------------------------------------------- | ----- |
+| G1    | Snippet injects comment leaders for source files                                                          | 1     |
+| G2    | `insert` writes into source doc-comments + accepts pre-filled field values                                | 1     |
+| G3    | Palette quick-pick wizard (tech-writer lane)                                                              | 1     |
+| G4    | Plan marks `Id:` auto/omit — agent never forges ULID                                                      | 1     |
+| G5    | Re-trigger orchestration in snippet (`command:triggerSuggest`)                                            | 1     |
+| G6    | Present-aware trailer completion (plan − present, cardinality)                                            | 1     |
+| G7    | Plan-aware quick-fixes: add-required, replace-invalid-enum, fix-relation-target                           | 1     |
+| G8    | Documented + hardened agent fix loop (`check --format json`, MCP `validate`)                              | 1     |
+| MCP   | `authoring_plan` read tool                                                                                | 1     |
+| G11   | Batch authoring semantics: sequential IDs, cross-links between new entries, dedup, single final fmt+check | 1     |
+| G10   | Verify/fix semantic-token columns inside leader-prefixed doc-comments                                     | 1     |
+| Study | Flicker-avoidance study (theme-color alignment) — gates G9                                                | 2     |
+| G9    | TextMate injection — **Markdown + Rust + Kotlin + C#**                                                    | 2     |
+| P2b   | TextMate injection — TS/JS, Java, C/C++                                                                   | 2     |
+| P2a   | EARS / Gherkin / typl **body-content** completion                                                         | 2     |
 
 ---
 
@@ -442,8 +442,8 @@ content-aware help, so authoring feels effortless from the first keystroke."_
 - **LSP** — snippet rendering (incl. leader injection), present-aware trailer
   (plan − present), plan-aware quick-fixes, semantic-token columns in
   doc-comments.
-- **E2E** — source `insert → format → validate` round-trip (leaders + ULID
-  stamping); markdown create round-trip.
+- **E2E** — source `insert → fmt → check` round-trip (leaders + ULID stamping);
+  markdown create round-trip.
 - **MCP** — `authoring_plan` tool contract test (JSON shape, `Id:omit`).
 - **Extension** — wizard quick-pick stepper.
 - **Phase 2** — TextMate grammar snapshot tests per language; documented

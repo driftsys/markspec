@@ -7,7 +7,7 @@ description: Always-on MarkSpec authoring invariants for any project using MarkS
 ## Id integrity
 
 Never hand-write an `Id:` value or forge a ULID. The `Id:` trailer attribute is
-stamped automatically by `markspec format` and `markspec insert`. A hand-written
+stamped automatically by `markspec fmt` and `markspec insert`. A hand-written
 ULID is invalid — it will not have the correct timestamp prefix and will fail
 validation.
 
@@ -17,13 +17,12 @@ validation.
 Id: 01HANDWRITTENULID000000000
 ```
 
-**Do this instead:** leave `Id:` absent; run `markspec format <file>` to stamp
-it.
+**Do this instead:** leave `Id:` absent; run `markspec fmt <file>` to stamp it.
 
 ## Format before commit
 
-Run `markspec format <file>` (or `markspec hook <file>`) before committing any
-Markdown file that contains MarkSpec entry blocks. The formatter:
+Run `markspec fmt <file>` before committing any Markdown file that contains
+MarkSpec entry blocks, then `markspec check <file>` to verify it. The formatter:
 
 - stamps missing `Id:` ULIDs
 - normalises trailer indentation to 6 spaces

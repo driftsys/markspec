@@ -602,7 +602,7 @@ This section constrains the Stage-2 build prompt; it is **not** implementation.
     When the pedal is pressed, the brake shall apply.
   ```
 
-- `--format json` (data to stdout — mirrors `markspec validate --format
+- `--format json` (data to stdout — mirrors `markspec check --format
   json`,
   main.ts): an array of
   `{ code, slug, group, severity, message, range, scoreContribution }`, plus a

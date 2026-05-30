@@ -26,7 +26,7 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
 1. **Validate the corpus.**
 
    ```bash
-   markspec validate <paths> --format json
+   markspec check <paths> --format json
    ```
 
    Collect all diagnostics. Note any `error` severity items — these must be
@@ -63,9 +63,9 @@ the user will provide one or more file paths or a glob (e.g. `docs/**/*.md`).
 5. **Check for cross-file consistency.**
 
    Entries referencing a display ID that does not appear in the corpus will
-   already be flagged by `markspec validate` (broken reference diagnostic).
-   Confirm all such errors are present in your Step 1 output and include them in
-   the report.
+   already be flagged by `markspec check` (broken reference diagnostic). Confirm
+   all such errors are present in your Step 1 output and include them in the
+   report.
 
 6. **Emit the findings report** in this structure:
 

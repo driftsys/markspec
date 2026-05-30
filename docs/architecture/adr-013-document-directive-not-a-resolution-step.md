@@ -14,9 +14,9 @@ spec-interpretation decision:
 - **The shipped spec scopes the directive to the formatter.** `language.md` §3.2
   defines the family-hint directives (`markspec:specs`, `markspec:tests`,
   `markspec:elements`) as hints that "hint at the predominant entry family in
-  the document — used by `markspec format` to classify **new entries before they
-  carry an identity attribute**." That is a `markspec format` scaffolding
-  concern, not a validation-time type-resolution rule.
+  the document — used by `markspec fmt` to classify **new entries before they
+  carry an identity attribute**." That is a `markspec fmt` scaffolding concern,
+  not a validation-time type-resolution rule.
 - **A document-context resolution step contradicts a stated invariant.**
   `language.md` §2.4 states entry resolution is "**Independent of document
   context** — shape is intrinsic to the entry, not dependent on which document
@@ -37,7 +37,7 @@ recorded decision, not a code defect.
 
 ## Decision
 
-1. **The family-hint document directive is a `markspec format` new-entry
+1. **The family-hint document directive is a `markspec fmt` new-entry
    classification aid, not a validator type-resolution step.**
    `resolvedCoreType` remains pure on the entry; no document-directive context
    is threaded through the core resolution API.
@@ -52,9 +52,9 @@ recorded decision, not a code defect.
    that finding.
 
 4. **Future formatter work is bounded.** If family-hint new-entry classification
-   is implemented in `markspec format`, it ships as a format-path feature with
-   its own family → core-type mapping specified in `language.md`. It must not
-   alter type resolution for entries that already carry an identity attribute —
+   is implemented in `markspec fmt`, it ships as a format-path feature with its
+   own family → core-type mapping specified in `language.md`. It must not alter
+   type resolution for entries that already carry an identity attribute —
    consistent with the §2.4 "independent of document context" invariant.
 
 ## Consequences
@@ -75,11 +75,10 @@ recorded decision, not a code defect.
 
 ### Trade-offs accepted
 
-- `markspec format` does not yet auto-classify a brand-new identity-less entry
-  from a family-hint directive. That ergonomic is deferred to a future
-  format-path feature; it is not a correctness gap (a new entry without a
-  resolvable type already surfaces through the normal diagnostics once
-  authored).
+- `markspec fmt` does not yet auto-classify a brand-new identity-less entry from
+  a family-hint directive. That ergonomic is deferred to a future format-path
+  feature; it is not a correctness gap (a new entry without a resolvable type
+  already surfaces through the normal diagnostics once authored).
 - The reviewers' raw "type chain 30% / step 7 missing" framing stands in the
   numbers, but is correctly reclassified as deferred-by-design.
 
@@ -87,7 +86,7 @@ recorded decision, not a code defect.
 
 - [`docs/spec/language/language.md`](../spec/language/language.md) §2.4
   (context-independence invariant) and §3.2 (family-hint directives scoped to
-  `markspec format`).
+  `markspec fmt`).
 - [ADR-012](./adr-012-diagnostic-code-scheme.md) — sibling decision: a review
   finding resolved by recorded policy rather than code.
 
@@ -101,7 +100,7 @@ recorded decision, not a code defect.
 
 ## Out of scope (future work)
 
-- `markspec format` family-hint new-entry classification and its family →
-  core-type mapping specification.
+- `markspec fmt` family-hint new-entry classification and its family → core-type
+  mapping specification.
 - Any change to the §1.3.1 chain enumeration in code comments (left as-is; the
   disclaimer is now ADR-backed).

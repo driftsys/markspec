@@ -126,12 +126,12 @@ SKIP when:
   - the user wants to edit a file directly ("change line 42 to X", "fix
     this typo") — MarkSpec MCP is read-only; use Edit
   - the user wants to create or insert a new requirement — writes are
-    CLI-only (markspec format, markspec insert)
+    CLI-only (markspec fmt, markspec insert)
   - the user wants a rendered preview of a Markdown file — use markspec
     doc build / markspec book build via Bash, not the MCP
 
 Do NOT use this server to edit entries. Writes are CLI-only:
-  markspec format, markspec insert.
+  markspec fmt, markspec insert.
 
 All resource bodies are Markdown with markspec:// URIs you can follow with
 resources/read.

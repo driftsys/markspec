@@ -83,7 +83,7 @@ the list item marker:
 ### Trailer block
 
 The trailer block is a set of key-value attribute lines, each indented at least
-4 spaces (6 spaces is the canonical indent produced by `markspec format`):
+4 spaces (6 spaces is the canonical indent produced by `markspec fmt`):
 
 ```markdown
 Id: 01HGW2Q8MNP3RSTVWXYZABCDEF Type: requirement Derived-from: SYS_BRK_0042
@@ -96,11 +96,11 @@ Rules:
 - Each line is `Key: value`; there is exactly one space after the colon.
 - Multi-value attributes (`Labels`, `Satisfies`, …) use one line per value. CSV
   form (`Labels: ASIL-B, safety-critical`) is accepted on input and normalized
-  to one-per-line by `markspec format`.
+  to one-per-line by `markspec fmt`.
 - The `Id:` attribute is required for all entries (a missing `Id:` is a warning;
-  the entry receives no ULID until `markspec format` is run).
+  the entry receives no ULID until `markspec fmt` is run).
 - Attribute order within the trailer is not significant for semantics, but
-  `markspec format` normalizes it: `Id` first, then `Type`, then relations, then
+  `markspec fmt` normalizes it: `Id` first, then `Type`, then relations, then
   `Labels`, then any remaining attributes.
 - The `Discipline:` and `Discipline-frozen:` attributes are author overrides of
   the discipline derivation pass (see
@@ -136,10 +136,10 @@ The `Id:` value is a 26-character uppercase base32 ULID:
       Labels: ASIL-B
 ```
 
-ULIDs are time-ordered unique identifiers. They are assigned by
-`markspec format` on the first format run after an entry is created. Until then
-the entry is in an "unstamped" state; the validator emits `MSL-A010` for
-unstamped entries in strict mode.
+ULIDs are time-ordered unique identifiers. They are assigned by `markspec fmt`
+on the first format run after an entry is created. Until then the entry is in an
+"unstamped" state; the validator emits `MSL-A010` for unstamped entries in
+strict mode.
 
 Authored entries represent items created in this project. They are expected to
 evolve over time (body edits, new attributes) while keeping the same ULID. The
@@ -231,7 +231,7 @@ fn debounce() {
 | Java     | `/** */` block comments |
 | C / C++  | `/** */` block comments |
 
-The `markspec validate` and `markspec compile` commands accept source files
+The `markspec check` and `markspec compile` commands accept source files
 alongside Markdown files. The `source.*` properties namespace in the compile
 output records the source language and enclosing function name for in-source
 entries.

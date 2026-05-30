@@ -1134,7 +1134,7 @@ The toolchain operates correctly without any profile loaded. In core-only mode:
   `fmt`).
 - Label-concern and convention rules are inactive.
 
-This is the mode used by `markspec validate` and `markspec compile` when no
+This is the mode used by `markspec check` and `markspec compile` when no
 `.markspec.yaml` is found by walking up from the working directory.
 
 ---

@@ -49,7 +49,7 @@ Deno.test(
   "validate: cross-entry kind mismatch emits TYPL-002",
   async () => {
     const { code, stderr } = await markspec(
-      ["validate", "req.md"],
+      ["check", "req.md"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": DIFF_KIND_MD },
       },
@@ -101,7 +101,7 @@ Deno.test(
   "validate: cross-entry shape mismatch emits TYPL-003",
   async () => {
     const { code, stderr } = await markspec(
-      ["validate", "req.md"],
+      ["check", "req.md"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": DIFF_SHAPE_MD },
       },
@@ -138,7 +138,7 @@ Deno.test(
   "validate: binding referencing an undefined typedef emits TYPL-005",
   async () => {
     const { code, stderr } = await markspec(
-      ["validate", "req.md"],
+      ["check", "req.md"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": UNDEF_REF_MD },
       },
@@ -189,7 +189,7 @@ Deno.test(
   "validate: typedef defined in sibling entry is invisible — TYPL-005 fires",
   async () => {
     const { code, stderr } = await markspec(
-      ["validate", "req.md"],
+      ["check", "req.md"],
       {
         files: {
           "project.yaml": PROJECT_YAML,
@@ -366,7 +366,7 @@ Deno.test(
   "validate: identical cross-entry declarations do not trigger TYPL-002/003",
   async () => {
     const { code, stderr } = await markspec(
-      ["validate", "req.md"],
+      ["check", "req.md"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": SAME_DECL_MD },
       },

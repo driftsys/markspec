@@ -20,7 +20,7 @@ import { markspec } from "./helpers.ts";
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: empty display-ID brackets → MSL-P001", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -41,7 +41,7 @@ Deno.test("validate: empty display-ID brackets → MSL-P001", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: no title after display-ID brackets → MSL-P002", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -62,7 +62,7 @@ Deno.test("validate: no title after display-ID brackets → MSL-P002", async () 
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: unterminated bracket → MSL-P003", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -83,7 +83,7 @@ Deno.test("validate: unterminated bracket → MSL-P003", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: trailers not final indented block → MSL-P020", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -109,7 +109,7 @@ Deno.test("validate: malformed trailer line → MSL-P021", async () => {
   // ATTR_LINE_RE for inclusion, the malformed line displaces valid trailers
   // into the body and P020 fires. P021 fires on the trailing colon-like
   // line that doesn't parse as a valid Key: Value.
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -131,7 +131,7 @@ Deno.test("validate: malformed trailer line → MSL-P021", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: invalid trailer key chars → MSL-P022", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -153,7 +153,7 @@ Deno.test("validate: invalid trailer key chars → MSL-P022", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Authored entry without body → MSL-P030", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -168,7 +168,7 @@ Deno.test("validate: Authored entry without body → MSL-P030", async () => {
 });
 
 Deno.test("validate: Reference entry without body → no MSL-P030 (allowed)", async () => {
-  const { stderr } = await markspec(["validate", "references.md"], {
+  const { stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -196,7 +196,7 @@ Deno.test("validate: Reference entry without body → no MSL-P030 (allowed)", as
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: invalid Id value → MSL-I001 + MSL-R004", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -218,7 +218,7 @@ Deno.test("validate: invalid Id value → MSL-I001 + MSL-R004", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Reference entry missing Id → MSL-I002 + MSL-R003", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -238,7 +238,7 @@ Deno.test("validate: Reference entry missing Id → MSL-I002 + MSL-R003", async 
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: Authored entry missing Id → MSL-I003 + MSL-R003", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -260,7 +260,7 @@ Deno.test("validate: Authored entry missing Id → MSL-I003 + MSL-R003", async (
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: multiple Id attributes → MSL-I004 + MSL-R003", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -285,7 +285,7 @@ Deno.test("validate: multiple Id attributes → MSL-I004 + MSL-R003", async () =
 Deno.test("validate: empty display ID after @ strip → MSL-I005", async () => {
   // The `@` prefix is stripped for Pandoc compatibility; if only `@` was in
   // the brackets, the display ID becomes empty → MSL-I005.
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -303,7 +303,7 @@ Deno.test("validate: empty display ID after @ strip → MSL-I005", async () => {
 
 Deno.test("validate: empty brackets emits MSL-P001 (not I005)", async () => {
   // `[]` triggers P001 (parse-level empty bracket), entry is not admitted.
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -324,7 +324,7 @@ Deno.test("validate: empty brackets emits MSL-P001 (not I005)", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: duplicate Id value → MSL-I007 + MSL-R005", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -352,7 +352,7 @@ Deno.test("validate: duplicate Id value → MSL-I007 + MSL-R005", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate: duplicate display ID → MSL-I008 + MSL-R006", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 
@@ -380,7 +380,7 @@ Deno.test("validate: duplicate display ID → MSL-I008 + MSL-R006", async () => 
 // ===========================================================================
 
 Deno.test("validate: Reference slug violation → MSL-I006 (regression)", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -401,7 +401,7 @@ Deno.test("validate: Reference slug violation → MSL-I006 (regression)", async 
 // ===========================================================================
 
 Deno.test("validate: empty title after trim → MSL-P010 (regression)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "req.md": `# Test
 

@@ -484,7 +484,7 @@ markspec doctor                       # consumer — diagnostics: active chain,
 
 - `markspec profile lint` — `publish --dry-run` covers the same ground.
 - `markspec profile update` — registry checks are surfaced as hints inside
-  existing commands (e.g., `markspec build` / `markspec validate`) when a newer
+  existing commands (e.g., `markspec build` / `markspec check`) when a newer
   in-range version is available.
 - `markspec profile show` — replaced by `markspec doctor`, which covers it
   alongside other diagnostic content.

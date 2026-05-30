@@ -137,7 +137,7 @@ Deno.test("lint: JSON output includes slug, group, scoreContribution", async () 
 
 Deno.test("lint: markspec validate does not emit MSL-Q codes", async () => {
   const { code, stderr } = await markspec(
-    ["validate", "req.md"],
+    ["check", "req.md"],
     { files: { "req.md": VAGUE_FIXTURE } },
   );
   // validate should exit 0 (no structural errors in the fixture)

@@ -12,7 +12,7 @@ This chapter will cover:
 - **Project layout** — recommended directory structure for multi-domain
   requirements documents.
 - **Entry authoring workflow** — write, format, validate, review; the canonical
-  `insert → format → validate` loop for AI agents and human authors.
+  `insert → fmt → check` loop for AI agents and human authors.
 - **Traceability graph design** — how to structure `Satisfies:` chains across
   stakeholder requirements, software requirements, and test entries.
 - **Listing documents** — authoring `glossary.md`, `components.md`, and

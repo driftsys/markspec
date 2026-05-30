@@ -72,7 +72,7 @@ The core is deliberately small and semantics-free. It ships:
   ([ADR-006](./adr-006-property-model.md)).
 - **Document structure** — front matter, document identity, reserved keys
   ([ADR-007](./adr-007-document-structure.md)).
-- **CLI** — `markspec format`, `validate`, `compile`, `show`, `report`,
+- **CLI** — `markspec fmt`, `check`, `compile`, `show`, `report`,
   `profile show`, `doctor`, `doc build`, `book build`
   ([ADR-005](./adr-005-cli-architecture.md)).
 
