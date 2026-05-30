@@ -106,7 +106,7 @@ Deno.test("Slice 5 E2E: doctor shows (declared) when discipline-mode is explicit
 
 Deno.test("Slice 5 E2E: PROFILE-DISCIPLINE-006 on invalid discipline-mode value", async () => {
   const { code, stderr } = await markspec(
-    ["validate", "requirements.md"],
+    ["check", "requirements.md"],
     withRequirements(INVALID_MODE_PROFILE, "# Empty\n"),
   );
   assertEquals(code, 1);

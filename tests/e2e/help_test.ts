@@ -6,7 +6,7 @@ Deno.test("--help prints usage and lists subcommands", async () => {
   assertEquals(code, 0);
   assertStringIncludes(stdout, "markspec");
   assertStringIncludes(stdout, "format");
-  assertStringIncludes(stdout, "validate");
+  assertStringIncludes(stdout, "check");
   assertStringIncludes(stdout, "compile");
   assertStringIncludes(stdout, "book");
   assertStringIncludes(stdout, "deck");

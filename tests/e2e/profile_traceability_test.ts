@@ -34,7 +34,7 @@ const BASE_FILES = {
 };
 
 Deno.test("traceability e2e: test entry Verifies a requirement → clean", async () => {
-  const { code, stderr } = await markspec(["validate", "doc.md"], {
+  const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       ...BASE_FILES,
       "doc.md": `# Example
@@ -60,7 +60,7 @@ Deno.test("traceability e2e: test entry Verifies a requirement → clean", async
 });
 
 Deno.test("traceability e2e: test entry missing Verifies → MSL-L001", async () => {
-  const { code, stderr } = await markspec(["validate", "doc.md"], {
+  const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       ...BASE_FILES,
       "doc.md": `# Example
@@ -79,7 +79,7 @@ Deno.test("traceability e2e: test entry missing Verifies → MSL-L001", async ()
 });
 
 Deno.test("traceability e2e: Verifies too many targets → MSL-L002", async () => {
-  const { code, stderr } = await markspec(["validate", "doc.md"], {
+  const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       ...BASE_FILES,
       "doc.md": `# Example
@@ -118,7 +118,7 @@ Deno.test("traceability e2e: Verifies too many targets → MSL-L002", async () =
 });
 
 Deno.test("traceability e2e: Verifies points at a non-requirement → MSL-L004", async () => {
-  const { code, stderr } = await markspec(["validate", "doc.md"], {
+  const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       ...BASE_FILES,
       "doc.md": `# Example
@@ -144,7 +144,7 @@ Deno.test("traceability e2e: Verifies points at a non-requirement → MSL-L004",
 });
 
 Deno.test("traceability e2e: comma-separated Verifies is split by Stage 2.5", async () => {
-  const { code, stderr } = await markspec(["validate", "doc.md"], {
+  const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       ...BASE_FILES,
       "doc.md": `# Example
@@ -178,7 +178,7 @@ Deno.test("traceability e2e: comma-separated Verifies is split by Stage 2.5", as
 });
 
 Deno.test("traceability e2e: no profile → Stage 4 silent", async () => {
-  const { code, stderr } = await markspec(["validate", "doc.md"], {
+  const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       "doc.md": `# Example

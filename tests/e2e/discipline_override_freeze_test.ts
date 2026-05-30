@@ -50,7 +50,7 @@ Deno.test("Slice 3 E2E: Discipline: override beats type-based and shows in deriv
 
 Deno.test("Slice 3 E2E: Discipline: override-vs-type conflict surfaces MSL-T028", async () => {
   const { stderr } = await markspec(
-    ["validate", "requirements.md"],
+    ["check", "requirements.md"],
     withRequirements(`# Requirements
 
 - [SWR_0001] Mismatched override
@@ -65,7 +65,7 @@ Deno.test("Slice 3 E2E: Discipline: override-vs-type conflict surfaces MSL-T028"
 
 Deno.test("Slice 3 E2E: Discipline: unknown kind fails with MSL-T025", async () => {
   const { code, stderr } = await markspec(
-    ["validate", "requirements.md"],
+    ["check", "requirements.md"],
     withRequirements(`# Requirements
 
 - [SWR_0001] Unknown kind asserted
@@ -82,7 +82,7 @@ Deno.test("Slice 3 E2E: Discipline: unknown kind fails with MSL-T025", async () 
 
 Deno.test("Slice 3 E2E: Discipline-frozen: malformed value fails with MSL-T026", async () => {
   const { code, stderr } = await markspec(
-    ["validate", "requirements.md"],
+    ["check", "requirements.md"],
     withRequirements(`# Requirements
 
 - [SWR_0001] Malformed freeze
@@ -98,7 +98,7 @@ Deno.test("Slice 3 E2E: Discipline-frozen: malformed value fails with MSL-T026",
 
 Deno.test("Slice 3 E2E: Discipline-frozen: divergence from current derivation surfaces MSL-T030", async () => {
   const { stderr } = await markspec(
-    ["validate", "requirements.md"],
+    ["check", "requirements.md"],
     withRequirements(`# Requirements
 
 - [SWR_0001] Frozen as hardware but currently classifies as software
@@ -113,7 +113,7 @@ Deno.test("Slice 3 E2E: Discipline-frozen: divergence from current derivation su
 
 Deno.test("Slice 3 E2E: Discipline: and Discipline-frozen: disagreement surfaces MSL-T031", async () => {
   const { stderr } = await markspec(
-    ["validate", "requirements.md"],
+    ["check", "requirements.md"],
     withRequirements(`# Requirements
 
 - [SWR_0001] Override software, freeze hardware

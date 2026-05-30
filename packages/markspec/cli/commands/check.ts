@@ -1,7 +1,7 @@
 /**
- * @module cli/commands/validate
+ * @module cli/commands/check
  *
- * `markspec validate` — check broken refs, missing Ids, duplicates.
+ * `markspec check` — check broken refs, missing Ids, duplicates.
  */
 
 import { Command } from "@cliffy/command";
@@ -9,7 +9,7 @@ import { ConfigError } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import { loadActiveProfile, readFile } from "../helpers.ts";
 
-export const validateCmd = new Command()
+export const checkCmd = new Command()
   .description("Check broken refs, missing Ids, duplicates")
   .option("--strict", "Promote warnings to errors")
   .option(
@@ -25,7 +25,7 @@ export const validateCmd = new Command()
     ) => {
       if (files.length === 0) {
         console.error("error: no files specified");
-        console.error("usage: markspec validate <file...>");
+        console.error("usage: markspec check <file...>");
         Deno.exit(1);
       }
 

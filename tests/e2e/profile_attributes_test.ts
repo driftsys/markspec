@@ -41,7 +41,7 @@ const BASE_FILES = {
 };
 
 Deno.test("profile attributes e2e: happy path — all required present, types valid", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -68,7 +68,7 @@ Deno.test("profile attributes e2e: happy path — all required present, types va
 });
 
 Deno.test("profile attributes e2e: missing required → MSL-A001", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -87,7 +87,7 @@ Deno.test("profile attributes e2e: missing required → MSL-A001", async () => {
 });
 
 Deno.test("profile attributes e2e: cardinality upper exceeded → MSL-A002", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -110,7 +110,7 @@ Deno.test("profile attributes e2e: cardinality upper exceeded → MSL-A002", asy
 });
 
 Deno.test("profile attributes e2e: cardinality lower unmet → MSL-A003", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -130,7 +130,7 @@ Deno.test("profile attributes e2e: cardinality lower unmet → MSL-A003", async 
 });
 
 Deno.test("profile attributes e2e: value-type mismatch → MSL-A004", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -150,7 +150,7 @@ Deno.test("profile attributes e2e: value-type mismatch → MSL-A004", async () =
 });
 
 Deno.test("profile attributes e2e: unknown attribute → MSL-A005 warning", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -174,7 +174,7 @@ Deno.test("profile attributes e2e: unknown attribute → MSL-A005 warning", asyn
 });
 
 Deno.test("profile attributes e2e: enum type-mismatch → MSL-A004 on Status", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       ...BASE_FILES,
       "req.md": `# Example
@@ -194,7 +194,7 @@ Deno.test("profile attributes e2e: enum type-mismatch → MSL-A004 on Status", a
 });
 
 Deno.test("profile attributes e2e: no profile → no MSL-A diagnostics (core-only)", async () => {
-  const { code, stderr } = await markspec(["validate", "req.md"], {
+  const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": PROJECT_YAML,
       "req.md": `# Example

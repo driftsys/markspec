@@ -28,4 +28,4 @@ export { scoreCmd } from "./score.ts";
 export { selfUpgradeCmd } from "./self_upgrade.ts";
 export { showCmd } from "./show.ts";
 export { syncCmd } from "./sync.ts";
-export { validateCmd } from "./validate.ts";
+export { checkCmd } from "./check.ts";

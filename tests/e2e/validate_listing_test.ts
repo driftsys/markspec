@@ -16,7 +16,7 @@ import { markspec } from "./helpers.ts";
 // ---------------------------------------------------------------------------
 
 Deno.test("validate/listing: L010 info on references.md with matching explicit directive", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       // Empty listing: only L010 (info) + L050 (info) → exit 0
       "references.md": `<!-- markspec:references -->
@@ -36,7 +36,7 @@ Deno.test("validate/listing: L010 info on references.md with matching explicit d
 });
 
 Deno.test("validate/listing: L010 info on glossary.md with matching explicit directive", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       // Proper glossary structure: only L010 (info) → exit 0
       "glossary.md": `<!-- markspec:glossary -->
@@ -60,7 +60,7 @@ Automotive Safety Integrity Level.
 });
 
 Deno.test("validate/listing: L010 info on components.md with matching explicit directive", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       // Empty listing: only L010 (info) + L050 (info) → exit 0
       "components.md": `<!-- markspec:components -->
@@ -78,7 +78,7 @@ Deno.test("validate/listing: L010 info on components.md with matching explicit d
 });
 
 Deno.test("validate/listing: L011 error on glossary.md with conflicting markspec:components directive", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `<!-- markspec:components -->
 
@@ -98,7 +98,7 @@ Automotive Safety Integrity Level.
 });
 
 Deno.test("validate/listing: L011 error on references.md with conflicting markspec:glossary directive", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `<!-- markspec:glossary -->
 
@@ -115,7 +115,7 @@ Deno.test("validate/listing: L011 error on references.md with conflicting marksp
 });
 
 Deno.test("validate/listing: L012 error on file with two different explicit directives", async () => {
-  const { code, stderr } = await markspec(["validate", "mixed.md"], {
+  const { code, stderr } = await markspec(["check", "mixed.md"], {
     files: {
       "mixed.md": `<!-- markspec:references -->
 <!-- markspec:glossary -->
@@ -134,7 +134,7 @@ Deno.test("validate/listing: L012 error on file with two different explicit dire
 });
 
 Deno.test("validate/listing: L012 error on two components directives (same kind still conflicts)", async () => {
-  const { code, stderr } = await markspec(["validate", "mixed.md"], {
+  const { code, stderr } = await markspec(["check", "mixed.md"], {
     files: {
       "mixed.md": `<!-- markspec:components -->
 <!-- markspec:references -->
@@ -148,7 +148,7 @@ Deno.test("validate/listing: L012 error on two components directives (same kind 
 });
 
 Deno.test("validate/listing: no listing code for ordinary file with no directives", async () => {
-  const { stderr } = await markspec(["validate", "requirements.md"], {
+  const { stderr } = await markspec(["check", "requirements.md"], {
     files: {
       "requirements.md": `# Requirements
 
@@ -178,7 +178,7 @@ Deno.test("validate/listing: no listing code for ordinary file with no directive
 // ---------------------------------------------------------------------------
 
 Deno.test("validate/listing: L020 error on glossary.md with no H1", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `## A
 
@@ -193,7 +193,7 @@ Automotive Safety Integrity Level.
 });
 
 Deno.test("validate/listing: L020 error on glossary.md with two H1 headings", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -212,7 +212,7 @@ Automotive Safety Integrity Level.
 });
 
 Deno.test("validate/listing: L021 error on H3 with no preceding H2", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -227,7 +227,7 @@ Automotive Safety Integrity Level.
 });
 
 Deno.test("validate/listing: L022 error on duplicate term slug in same H2 group", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -249,7 +249,7 @@ Another definition of ASIL.
 });
 
 Deno.test("validate/listing: L023 warning on H3 with empty definition", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -274,7 +274,7 @@ Automotive SPICE.
 });
 
 Deno.test("validate/listing: L024 error on H4+ inside glossary", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -295,7 +295,7 @@ Not allowed.
 });
 
 Deno.test("validate/listing: valid glossary.md passes without L02x", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -332,7 +332,7 @@ Automotive SPICE.
 // ---------------------------------------------------------------------------
 
 Deno.test("validate/listing: L030 info on unrecognized URI scheme in components.md", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       // Explicit Type: suppresses MSL-T021; L030 fires because the scheme is unknown
       "components.md": `# Components
@@ -355,7 +355,7 @@ Deno.test("validate/listing: L030 info on unrecognized URI scheme in components.
 });
 
 Deno.test("validate/listing: L031 error on malformed purl (missing name)", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -371,7 +371,7 @@ Deno.test("validate/listing: L031 error on malformed purl (missing name)", async
 });
 
 Deno.test("validate/listing: valid purl in components.md passes", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -391,7 +391,7 @@ Deno.test("validate/listing: valid purl in components.md passes", async () => {
 });
 
 Deno.test("validate/listing: L032 error on malformed mfg: id (missing vendor)", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -407,7 +407,7 @@ Deno.test("validate/listing: L032 error on malformed mfg: id (missing vendor)", 
 });
 
 Deno.test("validate/listing: valid mfg: id passes", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -427,7 +427,7 @@ Deno.test("validate/listing: valid mfg: id passes", async () => {
 });
 
 Deno.test("validate/listing: L033 error on gtin: wrong length", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -443,7 +443,7 @@ Deno.test("validate/listing: L033 error on gtin: wrong length", async () => {
 });
 
 Deno.test("validate/listing: L034 error on gtin: bad check digit", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -459,7 +459,7 @@ Deno.test("validate/listing: L034 error on gtin: bad check digit", async () => {
 
 Deno.test("validate/listing: valid gtin-8 passes (73513537 — check digit 7)", async () => {
   // GTIN-8: 73513537, check digit=7 verified by GS1 mod-10
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -479,7 +479,7 @@ Deno.test("validate/listing: valid gtin-8 passes (73513537 — check digit 7)", 
 });
 
 Deno.test("validate/listing: L035 error on CPE 2.2 URI binding", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -495,7 +495,7 @@ Deno.test("validate/listing: L035 error on CPE 2.2 URI binding", async () => {
 });
 
 Deno.test("validate/listing: L036 error on CPE with invalid part", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -512,7 +512,7 @@ Deno.test("validate/listing: L036 error on CPE with invalid part", async () => {
 
 Deno.test("validate/listing: valid cpe:2.3 passes", async () => {
   // 11 colon-separated components after cpe:2.3:
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -537,7 +537,7 @@ Deno.test("validate/listing: valid cpe:2.3 passes", async () => {
 });
 
 Deno.test("validate/listing: L037 error on malformed urn:system: (empty segment)", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -553,7 +553,7 @@ Deno.test("validate/listing: L037 error on malformed urn:system: (empty segment)
 });
 
 Deno.test("validate/listing: valid urn:system: passes", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -573,7 +573,7 @@ Deno.test("validate/listing: valid urn:system: passes", async () => {
 });
 
 Deno.test("validate/listing: L037 error on malformed urn:tool: (invalid char)", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -588,7 +588,7 @@ Deno.test("validate/listing: L037 error on malformed urn:tool: (invalid char)", 
 });
 
 Deno.test("validate/listing: valid urn:tool: passes", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -617,7 +617,7 @@ Deno.test("validate/listing: valid urn:tool: passes", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test("validate/listing: L040 warning on Authored entry in references.md", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -640,7 +640,7 @@ Deno.test("validate/listing: L040 warning on Authored entry in references.md", a
 });
 
 Deno.test("validate/listing: L041 warning on Type: Unit entry in references.md", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -662,7 +662,7 @@ Deno.test("validate/listing: L041 warning on Type: Unit entry in references.md",
 });
 
 Deno.test("validate/listing: L042 error on entry block in glossary.md", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -686,7 +686,7 @@ Automotive Safety Integrity Level.
 });
 
 Deno.test("validate/listing: L043 error on non-Component-family type in components.md", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
@@ -726,7 +726,7 @@ Deno.test("validate/listing: L043 error on SoftwareInterface type in components.
 });
 
 Deno.test("validate/listing: L050 info on empty references.md", async () => {
-  const { code, stderr } = await markspec(["validate", "references.md"], {
+  const { code, stderr } = await markspec(["check", "references.md"], {
     files: {
       "references.md": `# References
 
@@ -745,7 +745,7 @@ No items yet.
 });
 
 Deno.test("validate/listing: L050 info on empty glossary.md", async () => {
-  const { code, stderr } = await markspec(["validate", "glossary.md"], {
+  const { code, stderr } = await markspec(["check", "glossary.md"], {
     files: {
       "glossary.md": `# Glossary
 
@@ -762,7 +762,7 @@ Welcome to the glossary.
 });
 
 Deno.test("validate/listing: L050 info on empty components.md", async () => {
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 

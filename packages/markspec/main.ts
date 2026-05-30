@@ -13,6 +13,7 @@ import { CompletionsCommand } from "@cliffy/command/completions";
 import { CORE_SCHEMA_VERSION, VERSION } from "./core/mod.ts";
 import {
   bookCmd,
+  checkCmd,
   compileCmd,
   contextCmd,
   createCmd,
@@ -36,7 +37,6 @@ import {
   selfUpgradeCmd,
   showCmd,
   syncCmd,
-  validateCmd,
 } from "./cli/commands/mod.ts";
 
 // ── Root command ──────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ const cli = new Command()
   .globalOption("-q, --quiet", "Suppress non-error output")
   // Core commands — implemented in cli/commands/
   .command("fmt", fmtCmd)
-  .command("validate", validateCmd)
+  .command("check", checkCmd)
   .command("compile", compileCmd)
   .command("export", exportCmd)
   .command("show", showCmd)
