@@ -64,10 +64,11 @@ separately and the spec does not unify the three.
 **Cross-references to the companion spec:**
 
 - The Component types a `markspec:components` listing admits
-  (`SoftwareComponent`, `HardwareComponent`, `SoftwareInterface`,
-  `HardwareInterface`, and profile subtypes such as `dependency`, `ecu`) are
-  core types per core-data-model §1.3; profile subtyping is
-  [markspec-profile-schema.md §3/§4](markspec-profile-schema.md).
+  (`SoftwareComponent`, `HardwareComponent`, and profile subtypes such as
+  `dependency`, `ecu`) are core types per core-data-model §1.3; profile
+  subtyping is [markspec-profile-schema.md §3/§4](markspec-profile-schema.md).
+  `SoftwareInterface` and `HardwareInterface` are Contract subtypes and are
+  therefore NOT admitted by a components listing.
 - The glossary produces core `Definition` items (core-data-model §1.3 / ADR-003
   §Part 2 "Definition"); the default profile's `term`→`Definition` binding is
   [markspec-profile-schema.md §7.1](markspec-profile-schema.md).
@@ -473,10 +474,12 @@ segment    = 1*( ALPHA / DIGIT / "-" / "." / "_" )
 ### 6.3 Components listing
 
 - Every item MUST resolve to a Component-family `Type:`
-  (`Component`/`SoftwareComponent`/`HardwareComponent`/`SoftwareInterface`/`HardwareInterface`
-  or a profile subtype of one — core-data-model §1.3;
+  (`Component`/`SoftwareComponent`/`HardwareComponent` or a profile subtype of
+  one — core-data-model §1.3;
   [markspec-profile-schema.md §3](markspec-profile-schema.md)). A non-Component
-  type in a components listing → `MSL-L043` (error).
+  type in a components listing → `MSL-L043` (error). `SoftwareInterface` and
+  `HardwareInterface` are Contract subtypes (not Component) and therefore
+  trigger `MSL-L043`.
 - A Reference-shape component's `Id:` MUST parse under some §5 scheme **or** be
   a valid RFC 3986 URI (the `MSL-L030` info fallback applies; not an error —
   ADR-006 §Component Id schemes allows "any scheme that satisfies RFC 3986").

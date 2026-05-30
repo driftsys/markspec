@@ -115,8 +115,8 @@ The information type is expressed by a single `Type:` attribute (ADR-004 §Part
   TitleCase. Always available regardless of profile.
 - **Core concrete types** — the 15 built-in subtypes (ADR-003 §Part 1):
   - Under `Specification`: `Requirement`, `Test`, `Contract`, `Record`, `Risk`
-  - Under `Component`: `SoftwareComponent`, `HardwareComponent`,
-    `SoftwareInterface`, `HardwareInterface`
+  - Under `Component`: `SoftwareComponent`, `HardwareComponent`
+  - Under `Contract`: `SoftwareInterface`, `HardwareInterface`
   - Under `Unit`: `SoftwareUnit`, `HardwareUnit`
   - Standalone under `Item`: `Definition`
 - **Profile-declared concrete types** — extend any core type by inheritance.
@@ -241,8 +241,8 @@ parser knows which attribute keys are core-defined vs profile-declared.
 | `Component`         | `Kind`, `Part-of`, `Realizes`, `Depends-on`, `Provides`, `Requires`   | §Part 2 “Component"         |
 | `SoftwareComponent` | `License`, `Build-manifest`, `Package-manager`                        | §Part 2 “SoftwareComponent" |
 | `HardwareComponent` | `Manufacturer`, `Part-number`, `Datasheet`                            | §Part 2 “HardwareComponent" |
-| `SoftwareInterface` | _(inherits Component; no additions in core)_                          | §Part 2 “SoftwareInterface" |
-| `HardwareInterface` | `Bus-protocol`, `Connector-type`, `Voltage-level`, `Signal-direction` | §Part 2 “HardwareInterface" |
+| `SoftwareInterface` | _(inherits Contract → Specification; no additions in core)_           | §Part 2 “SoftwareInterface” |
+| `HardwareInterface` | `Bus-protocol`, `Connector-type`, `Voltage-level`, `Signal-direction` | §Part 2 “HardwareInterface” |
 | `Unit`              | `Part-of`, `Realizes`, `Depends-on`                                   | §Part 2 “Unit"              |
 | `SoftwareUnit`      | `Source`, `Symbol`, `Language`                                        | §Part 2 “SoftwareUnit"      |
 | `HardwareUnit`      | `Manufacturer`, `Part-number`, `Datasheet`, `Footprint`, `Value`      | §Part 2 “HardwareUnit"      |

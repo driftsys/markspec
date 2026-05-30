@@ -137,13 +137,14 @@ There are **16 core type names** — 4 abstract roots plus 12 concrete subtypes.
 Fifteen are instantiable (every name except the purely abstract `Item`).
 `extends:` on a profile type must name one of these:
 
-| Group                    | Names                                                                              |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| Abstract roots (4)       | `Item`, `Specification`, `Component`, `Unit`                                       |
-| `Specification` subtypes | `Requirement`, `Test`, `Contract`, `Record`, `Risk`                                |
-| `Component` subtypes     | `SoftwareComponent`, `HardwareComponent`, `SoftwareInterface`, `HardwareInterface` |
-| `Unit` subtypes          | `SoftwareUnit`, `HardwareUnit`                                                     |
-| `Item` subtype           | `Definition`                                                                       |
+| Group                    | Names                                               |
+| ------------------------ | --------------------------------------------------- |
+| Abstract roots (4)       | `Item`, `Specification`, `Component`, `Unit`        |
+| `Specification` subtypes | `Requirement`, `Test`, `Contract`, `Record`, `Risk` |
+| `Contract` subtypes      | `SoftwareInterface`, `HardwareInterface`            |
+| `Component` subtypes     | `SoftwareComponent`, `HardwareComponent`            |
+| `Unit` subtypes          | `SoftwareUnit`, `HardwareUnit`                      |
+| `Item` subtype           | `Definition`                                        |
 
 `Specification`, `Component`, and `Unit` are abstract roots that are also
 directly instantiable (usable as fallbacks when no concrete subtype fits);
