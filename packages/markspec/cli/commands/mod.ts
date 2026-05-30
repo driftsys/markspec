@@ -6,6 +6,7 @@
  */
 
 export { bookCmd } from "./book.ts";
+export { checkCmd } from "./check.ts";
 export { compileCmd, exportCmd } from "./compile.ts";
 export { contextCmd } from "./context_cmd.ts";
 export { createCmd } from "./create.ts";
@@ -27,4 +28,3 @@ export { scoreCmd } from "./score.ts";
 export { selfUpgradeCmd } from "./self_upgrade.ts";
 export { showCmd } from "./show.ts";
 export { syncCmd } from "./sync.ts";
-export { checkCmd } from "./check.ts";
