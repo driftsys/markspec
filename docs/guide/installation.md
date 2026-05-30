@@ -1,24 +1,75 @@
 # Installation
 
-MarkSpec ships as a single self-contained binary. There are three ways to get
-started, ordered by the experience they give you:
+MarkSpec is a single self-contained binary plus an optional VS Code extension
+that bundles it. Pick the onboarding path that matches how you work.
 
-## VS Code extension (recommended)
+## Choose your path
+
+### Path 1 — VS Code + Copilot (2 steps)
+
+You want inline diagnostics and Copilot-assisted authoring. No separate CLI
+install needed — the extension bundles the `markspec` binary.
+
+1. Install the **MarkSpec** extension (`driftsys.markspec-ide`) from the
+   Marketplace (see [VS Code Marketplace](#vs-code-marketplace) below).
+2. Open a folder that contains `.md` files. The extension activates, starts the
+   language server, and registers its MCP server for Copilot automatically.
+
+### Path 2 — Claude Code (4 steps)
+
+You want the CLI, the editor extension, and the MarkSpec MCP server wired into
+Claude Code.
+
+1. Install the CLI (see [Binary install](#binary-install) below).
+2. Install the **MarkSpec** extension from the Marketplace or
+   [Open VSX](#open-vsx).
+3. In your project root, run `markspec init` (see
+   [Project setup with `markspec init`](#project-setup-with-markspec-init)).
+   This writes `.mcp.json` so Claude Code discovers the MarkSpec MCP server.
+4. Restart Claude Code (or reload the window) so it picks up `.mcp.json`.
+
+### Path 3 — opencode (4 steps)
+
+Same as Claude Code, but step 3's `markspec init` writes `opencode.json` instead
+of `.mcp.json`, and step 4 reloads opencode.
+
+1. Install the CLI (see [Binary install](#binary-install)).
+2. Install the **MarkSpec** extension from the Marketplace or
+   [Open VSX](#open-vsx).
+3. Run `markspec init` in your project root — it detects opencode and writes
+   `opencode.json`.
+4. Reload opencode so it picks up the MCP server.
+
+## VS Code extension
 
 The **MarkSpec** extension (`driftsys.markspec-ide`) bundles the language server
-directly. Install it and you get real-time diagnostics, completions, and
-go-to-definition with zero extra configuration.
+directly, giving you real-time diagnostics, completions, and go-to-definition
+with zero extra configuration.
 
-**Install from the marketplace:**
+### VS Code Marketplace
 
-1. Open VS Code.
-2. Open the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`).
-3. Search for **MarkSpec**.
-4. Click **Install** on the `driftsys.markspec-ide` extension.
+From the Extensions panel:
 
-The extension prompts you to install or locate the `markspec` binary the first
-time it activates. Click **Download** to let it fetch the platform binary
-automatically, or point it at an existing install.
+1. Open the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`).
+2. Search for **MarkSpec**.
+3. Click **Install** on `driftsys.markspec-ide`.
+
+Or from the command line:
+
+```sh
+code --install-extension driftsys.markspec-ide
+```
+
+### Open VSX
+
+For editors that use the Open VSX registry (VSCodium, Cursor, Gitpod, …) the
+same extension is published at
+<https://open-vsx.org/extension/driftsys/markspec-ide>:
+
+```sh
+# any editor whose CLI is configured against Open VSX
+codium --install-extension driftsys.markspec-ide
+```
 
 > See [VS Code extension](editor-vscode.md) for the full feature list, settings
 > reference, and troubleshooting.
@@ -116,8 +167,34 @@ deno run jsr:@driftsys/markspec --help
 
 ```sh
 markspec --version
-# markspec 0.6.0 (core-schema 1)
+# markspec <version> (core-schema <n>)
 ```
+
+## Project setup with `markspec init`
+
+Once the CLI is installed, scaffold a project in one command:
+
+```sh
+markspec init
+```
+
+In an empty (or existing) project root this writes:
+
+- `project.yaml` — minimal project metadata
+- `.markspec.yaml` — profile chain (defaults to the bundled profile)
+- `markspec.lock` — toolchain floor pinned to the running CLI's minor version
+- `.vscode/extensions.json` — recommends `driftsys.markspec-ide`
+- MCP config for each detected agent client:
+  - **Claude Code** → `.mcp.json` at the repo root
+  - **opencode** → `opencode.json` at the repo root
+- The MarkSpec skills bundle via `upskill add` (skipped with a warning if
+  `upskill` is not installed)
+
+VS Code + Copilot needs no MCP file — the bundled extension handles that wiring
+once the `.vscode/extensions.json` recommendation is in place.
+
+> See [AI agents and skillset](ai-agents.md) for the full `markspec init` flag
+> reference (`--client`, `--profile`) and MCP server details.
 
 ## AI assistant skillset (upskill)
 
@@ -128,10 +205,11 @@ and traceability review.
 Install it with [upskill](https://github.com/driftsys/upskill):
 
 ```sh
-upskill add markspec:markspec-core.bundle.yaml
+upskill add driftsys/markspec:skills/markspec-core.bundle.yaml
 ```
 
-This registers the following skills in your project's `.claude/plugins/`:
+This registers the following skills under `.claude/`, `.github/`, `.opencode/`,
+and `.agents/`:
 
 | Skill                               | Purpose                                  |
 | ----------------------------------- | ---------------------------------------- |
