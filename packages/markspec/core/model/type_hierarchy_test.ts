@@ -7,7 +7,11 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { attributesForType, CORE_TYPE_SCOPED_ATTRS } from "./type_hierarchy.ts";
+import {
+  attributesForType,
+  CORE_TYPE_SCOPED_ATTRS,
+  descendantsOf,
+} from "./type_hierarchy.ts";
 
 Deno.test("attributesForType: Requirement inherits Specification attrs", () => {
   const attrs = attributesForType("Requirement");
@@ -85,4 +89,30 @@ Deno.test("CORE_TYPE_SCOPED_ATTRS contains union of every typed attr", () => {
   // Universal attrs are not "typed" — they live in the catalogue.
   assertEquals(CORE_TYPE_SCOPED_ATTRS.has("Labels"), false);
   assertEquals(CORE_TYPE_SCOPED_ATTRS.has("Id"), false);
+});
+
+Deno.test("descendantsOf: Component family is the ancestor plus its subtypes", () => {
+  assertEquals(
+    descendantsOf("Component"),
+    new Set(["Component", "SoftwareComponent", "HardwareComponent"]),
+  );
+});
+
+Deno.test("descendantsOf: Specification includes the re-parented interfaces", () => {
+  const d = descendantsOf("Specification");
+  assertEquals(d.has("SoftwareInterface"), true);
+  assertEquals(d.has("HardwareInterface"), true);
+  assertEquals(d.has("Contract"), true);
+  assertEquals(d.has("Requirement"), true);
+});
+
+Deno.test("descendantsOf: a leaf type returns just itself", () => {
+  assertEquals(
+    descendantsOf("SoftwareComponent"),
+    new Set(["SoftwareComponent"]),
+  );
+});
+
+Deno.test("descendantsOf: unknown type returns empty set", () => {
+  assertEquals(descendantsOf("NotAType"), new Set<string>());
 });

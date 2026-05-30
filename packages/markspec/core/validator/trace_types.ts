@@ -13,7 +13,7 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { CORE_TYPE_HIERARCHY } from "../model/mod.ts";
+import { CORE_RELATIONS, CORE_TYPE_HIERARCHY } from "../model/mod.ts";
 import { resolvedCoreType } from "./type_resolution.ts";
 
 /**
@@ -27,32 +27,12 @@ interface TraceRule {
   readonly allowedTargetTypes: readonly string[];
 }
 
-const TRACE_RULES: readonly TraceRule[] = [
-  // Specification family
-  { attr: "Satisfies", allowedTargetTypes: ["Specification"] },
-  { attr: "Derived-from", allowedTargetTypes: ["Specification"] },
-  { attr: "Allocated-to", allowedTargetTypes: ["Component"] },
-  // Test (extends Specification)
-  { attr: "Verifies", allowedTargetTypes: ["Requirement", "Contract"] },
-  { attr: "Tests", allowedTargetTypes: ["Component", "Unit", "Contract"] },
-  // Component / Unit
-  { attr: "Realizes", allowedTargetTypes: ["Specification"] },
-  // Provides/Requires: interfaces are Contract subtypes (re-parented from
-  // Component in the interface-as-contract design). Using ["Contract"] here
-  // accepts Contract itself AND every subtype (SoftwareInterface,
-  // HardwareInterface, profile-declared API/ICD, …) via the hierarchy walk.
-  { attr: "Provides", allowedTargetTypes: ["Contract"] },
-  { attr: "Requires", allowedTargetTypes: ["Contract"] },
-  { attr: "Depends-on", allowedTargetTypes: ["Component", "Unit"] },
-  { attr: "Part-of", allowedTargetTypes: ["Component"] },
-  // Risk
-  { attr: "Mitigated-by", allowedTargetTypes: ["Specification"] },
-  // Record
-  { attr: "Affects", allowedTargetTypes: ["Component", "Unit", "Contract"] },
-  // `Caused-by` is polymorphic between Record (cause = Requirement/Risk/
-  // Contract/Record) and Risk (cause = Component/Unit/Specification).
-  // The simplest correct rule is the union — handled by the loop below.
-];
+const TRACE_RULES: readonly TraceRule[] = CORE_RELATIONS
+  .filter((r) => r.targetTypes)
+  .map((r) => ({ attr: r.attr, allowedTargetTypes: r.targetTypes! }));
+// `Caused-by` is polymorphic between Record (cause = Requirement/Risk/
+// Contract/Record) and Risk (cause = Component/Unit/Specification).
+// The simplest correct rule is the union — handled by POLYMORPHIC_CAUSED_BY below.
 
 /** Polymorphic relations where the source type's role widens the targets. */
 const POLYMORPHIC_CAUSED_BY: readonly {

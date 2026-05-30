@@ -20,6 +20,7 @@
 
 import { basename } from "@std/path";
 import type { Diagnostic, Directive, Entry } from "../model/mod.ts";
+import { descendantsOf } from "../model/mod.ts";
 import { validateGlossaryStructure } from "../parser/glossary.ts";
 import {
   isSchemeQualifiedUri,
@@ -55,11 +56,7 @@ export interface ListingFileContext {
  * were re-parented from Component to Contract (interface-as-contract
  * design). A components listing accepts only true structural components.
  */
-const COMPONENT_FAMILY: ReadonlySet<string> = new Set([
-  "Component",
-  "SoftwareComponent",
-  "HardwareComponent",
-]);
+const COMPONENT_FAMILY: ReadonlySet<string> = descendantsOf("Component");
 
 /** Core Unit-family type names per ADR-003 §Part 2. */
 const UNIT_FAMILY: ReadonlySet<string> = new Set([
