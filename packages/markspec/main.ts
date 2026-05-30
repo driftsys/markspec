@@ -23,7 +23,6 @@ import {
   doctorCmd,
   exportCmd,
   fmtCmd,
-  hookCmd,
   initCmd,
   insertCmd,
   lintCmd,
@@ -62,7 +61,6 @@ const cli = new Command()
   .command("self-upgrade", selfUpgradeCmd)
   .command("lock", lockCmd)
   .command("sync", syncCmd)
-  .command("hook", hookCmd)
   .command("init", initCmd)
   .command("insert", insertCmd)
   .command("create", createCmd)
