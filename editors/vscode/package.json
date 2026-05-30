@@ -52,6 +52,11 @@
         "command": "markspec.showOutput",
         "title": "MarkSpec: Show Output",
         "category": "MarkSpec"
+      },
+      {
+        "command": "markspec.installToPath",
+        "title": "Install CLI to PATH",
+        "category": "MarkSpec"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -301,7 +306,7 @@
     "bundle": "deno run --config ../../deno.json --allow-read --allow-write scripts/bundleBinary.ts",
     "package": "npm run bundle && vsce package",
     "lint": "eslint src",
-    "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js out/mcpDefinition.test.js out/inlineCompletions.test.js out/codeLensCommands.test.js out/statusBar.test.js"
+    "test": "tsc -p tsconfig.json && node --require ./out/test-setup.js --test out/serverOptions.test.js out/mcpDefinition.test.js out/inlineCompletions.test.js out/codeLensCommands.test.js out/statusBar.test.js out/installToPath.test.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
