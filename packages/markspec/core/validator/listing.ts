@@ -49,13 +49,16 @@ export interface ListingFileContext {
 // Component-family and Unit-family sets
 // ---------------------------------------------------------------------------
 
-/** Core Component-family type names per ADR-003 §Part 2 / spec §6.3. */
+/** Core Component-family type names per ADR-003 §Part 2 / spec §6.3.
+ *
+ * SoftwareInterface and HardwareInterface are NOT included here: they
+ * were re-parented from Component to Contract (interface-as-contract
+ * design). A components listing accepts only true structural components.
+ */
 const COMPONENT_FAMILY: ReadonlySet<string> = new Set([
   "Component",
   "SoftwareComponent",
   "HardwareComponent",
-  "SoftwareInterface",
-  "HardwareInterface",
 ]);
 
 /** Core Unit-family type names per ADR-003 §Part 2. */
@@ -280,8 +283,7 @@ function validateComponentsEntry(
       severity: "error",
       message: `${file}:${entry.location.line}: entry '[${entry.displayId}]' ` +
         `has Type: ${typeVal} which is not in the Component family ` +
-        `(Component/SoftwareComponent/HardwareComponent/` +
-        `SoftwareInterface/HardwareInterface) — ` +
+        `(Component/SoftwareComponent/HardwareComponent) — ` +
         `only Component-family types are permitted in a components listing ` +
         `(spec §6.3)`,
       location: entry.location,

@@ -704,6 +704,27 @@ Deno.test("validate/listing: L043 error on non-Component-family type in componen
   assertStringIncludes(stderr, "Component");
 });
 
+Deno.test("validate/listing: L043 error on SoftwareInterface type in components.md", async () => {
+  // SoftwareInterface re-parented from Component to Contract; it is no longer
+  // a Component-family type and must not appear in a components listing.
+  const { code, stderr } = await markspec(["validate", "components.md"], {
+    files: {
+      "components.md": `# Components
+
+- [some-api] A software interface (wrong family)
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: SoftwareInterface
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, got ${code}; stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-L043");
+  assertStringIncludes(stderr, "SoftwareInterface");
+});
+
 Deno.test("validate/listing: L050 info on empty references.md", async () => {
   const { code, stderr } = await markspec(["validate", "references.md"], {
     files: {

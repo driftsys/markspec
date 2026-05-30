@@ -448,3 +448,59 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "extractEdgeQuads: Provides attribute yields an edge quad with relation Provides",
+  async () => {
+    const { extractEdgeQuads } = await import("./resolve.ts");
+    const entry: Entry = {
+      displayId: makeDisplayId("SWC-1"),
+      title: "t",
+      body: "",
+      rawAttributes: [
+        { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+        { key: "Provides", value: "IFC-1" },
+      ],
+      typedAttributes: new Map() as never,
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      shape: "Authored",
+      location: { file: "x.md", line: 1, column: 1 },
+      source: { kind: "markdown" },
+      bodyTokens: [],
+    };
+    const edges = extractEdgeQuads([entry]);
+    assertEquals(edges.length, 1);
+    assertEquals(edges[0].source, "SWC-1");
+    assertEquals(edges[0].relation, "Provides");
+    assertEquals(edges[0].target, "IFC-1");
+    assertEquals(edges[0].provenance, "local");
+  },
+);
+
+Deno.test(
+  "extractEdgeQuads: Requires attribute yields an edge quad with relation Requires",
+  async () => {
+    const { extractEdgeQuads } = await import("./resolve.ts");
+    const entry: Entry = {
+      displayId: makeDisplayId("SWC-2"),
+      title: "t",
+      body: "",
+      rawAttributes: [
+        { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+        { key: "Requires", value: "IFC-2" },
+      ],
+      typedAttributes: new Map() as never,
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      shape: "Authored",
+      location: { file: "x.md", line: 1, column: 1 },
+      source: { kind: "markdown" },
+      bodyTokens: [],
+    };
+    const edges = extractEdgeQuads([entry]);
+    assertEquals(edges.length, 1);
+    assertEquals(edges[0].source, "SWC-2");
+    assertEquals(edges[0].relation, "Requires");
+    assertEquals(edges[0].target, "IFC-2");
+    assertEquals(edges[0].provenance, "local");
+  },
+);

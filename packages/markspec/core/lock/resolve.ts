@@ -219,6 +219,8 @@ export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
     "Part-of",
     "Allocated-to",
     "Realizes",
+    "Provides",
+    "Requires",
     "Generated-from",
     "Supersedes",
   ];
