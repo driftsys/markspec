@@ -5,6 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import { isBelowFloor, parseLockfile, VERSION } from "../../core/mod.ts";
 import { compileProject, requireProjectConfig } from "../helpers.ts";
 
 export const doctorCmd = new Command()
@@ -26,9 +27,28 @@ export const doctorCmd = new Command()
     // are fast and idempotent.
     const { config, projectRoot } = await requireProjectConfig();
 
+    // Toolchain floor skew (slice F): compare the running CLI version against
+    // the workspace markspec.lock min-version floor using the slice-B SSOT.
+    // A missing lockfile or missing floor means "no floor declared" — not skew.
+    let floor: string | undefined;
+    try {
+      const lockRaw = await Deno.readTextFile(`${projectRoot}/markspec.lock`);
+      floor = parseLockfile(lockRaw).lockfile?.meta.toolchain?.minVersion;
+    } catch {
+      // No lockfile (or unreadable) → no floor. Lockfile validity is the
+      // concern of `markspec check`/`lock`, not doctor.
+    }
+    const belowFloor = isBelowFloor(VERSION, floor);
+
     const diagnostics: Array<
       { severity: string; code: string; message: string }
-    > = [];
+    > = belowFloor
+      ? [{
+        severity: "warning",
+        code: "toolchain-below-floor",
+        message: `CLI version ${VERSION} is below the workspace floor ${floor}`,
+      }]
+      : [];
 
     const leaf = chain ? chain.tiers[chain.tiers.length - 1] : null;
     const tierCount = chain ? chain.tiers.length : 0;
@@ -69,6 +89,11 @@ export const doctorCmd = new Command()
           }
           : null,
         diagnostics,
+        toolchain: {
+          cliVersion: VERSION,
+          floor: floor ?? null,
+          belowFloor,
+        },
         ...(modeInfo ? { disciplineCounts: counts } : {}),
       };
       console.log(JSON.stringify(output, null, 2));
@@ -82,6 +107,17 @@ export const doctorCmd = new Command()
       } else {
         console.error("Profile: no profile configured");
       }
+      if (floor === undefined) {
+        console.error(
+          `Toolchain: CLI ${VERSION} · no workspace floor declared`,
+        );
+      } else if (belowFloor) {
+        console.error(
+          `⚠ Toolchain: CLI ${VERSION} below workspace floor ${floor} — upgrade markspec`,
+        );
+      } else {
+        console.error(`Toolchain: CLI ${VERSION} · workspace floor ${floor} ✓`);
+      }
       if (modeInfo) {
         console.error(
           `Discipline mode: ${modeInfo.value} (${modeInfo.origin})`,
@@ -93,4 +129,8 @@ export const doctorCmd = new Command()
         console.error(`Entries by discipline: ${countsLine || "(none)"}`);
       }
     }
+
+    // clig.dev: below-floor is a warning → exit 2 so CI can gate on toolchain
+    // skew. Hard errors (no config/profile) throw earlier and yield 1.
+    if (belowFloor) Deno.exit(2);
   });
