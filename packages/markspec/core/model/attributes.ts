@@ -227,6 +227,13 @@ export const ATTRIBUTE_CATALOG: readonly AttributeSpec[] = [
     required: false,
   },
   {
+    key: "Depended-on-by",
+    type: "id-list",
+    origin: "generated",
+    shapes: BOTH_SHAPES,
+    required: false,
+  },
+  {
     key: "Used-by",
     type: "id-list",
     origin: "generated",

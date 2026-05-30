@@ -781,6 +781,8 @@ export const KNOWN_LINK_KINDS: readonly string[] = [
   "part-of",
   "generated-from",
   "supersedes",
+  "provides",
+  "requires",
 ] as const;
 
 /** A directional link between two entries in the traceability graph. */

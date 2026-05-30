@@ -35,14 +35,14 @@ const MID_TYPED_SCAFFOLD_RE = /^\s*-\s*\[([A-Za-z0-9_-]+)$/;
 
 /** Pattern matching a trace attribute keyword at line start. */
 const TRACE_ATTR_RE =
-  /^\s*(Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Generated-from|Supersedes)\s*:/;
+  /^\s*(Satisfies|Derived-from|Verified-by|References|Tests|Depends-on|Part-of|Allocated-to|Realizes|Provides|Requires|Generated-from|Supersedes)\s*:/;
 
 /** Pattern matching the `Type:` attribute keyword at line start. */
 const TYPE_ATTR_RE = /^\s*Type\s*:/;
 
 /**
  * Trailer attribute keys offered as completions inside an entry's
- * trailer region. Includes the eleven trace-link keys (whose pattern
+ * trailer region. Includes the thirteen trace-link keys (whose pattern
  * also appears in `TRACE_ATTR_RE` and in `TRACE_KEYWORDS_RE` in
  * `context.ts`), plus the cardinal `Labels:` and `Type:` keys. When
  * the trace-keyword set changes here, also update those two regexes.
@@ -60,6 +60,8 @@ export const TRAILER_KEYS: readonly string[] = [
   "Part-of",
   "Allocated-to",
   "Realizes",
+  "Provides",
+  "Requires",
   "Generated-from",
   "Supersedes",
   "Labels",

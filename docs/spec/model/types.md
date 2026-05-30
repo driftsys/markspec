@@ -13,13 +13,13 @@ Item  (abstract — root)
 │   ├── Requirement
 │   ├── Test
 │   ├── Contract
+│   │   ├── SoftwareInterface
+│   │   └── HardwareInterface
 │   ├── Record
 │   └── Risk
 ├── Component  (abstract)
 │   ├── SoftwareComponent
-│   ├── HardwareComponent
-│   ├── SoftwareInterface
-│   └── HardwareInterface
+│   └── HardwareComponent
 ├── Unit  (abstract)
 │   ├── SoftwareUnit
 │   └── HardwareUnit
@@ -35,12 +35,12 @@ Four abstract types structure the taxonomy. They **cannot** be used directly as
 `Type:` values — they exist as extension targets for the concrete types below
 them and for profile-declared subtypes.
 
-| Abstract type   | Purpose                                         | Extended by                                                                        |
-| --------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `Item`          | Root; ultimate fallback for all type resolution | All 15 concrete types; any profile subtype                                         |
-| `Specification` | Normative statements; things that must or shall | `Requirement`, `Test`, `Contract`, `Record`, `Risk`                                |
-| `Component`     | System-level building blocks with identity      | `SoftwareComponent`, `HardwareComponent`, `SoftwareInterface`, `HardwareInterface` |
-| `Unit`          | Fine-grained implementation-level elements      | `SoftwareUnit`, `HardwareUnit`                                                     |
+| Abstract type   | Purpose                                         | Extended by                                         |
+| --------------- | ----------------------------------------------- | --------------------------------------------------- |
+| `Item`          | Root; ultimate fallback for all type resolution | All 15 concrete types; any profile subtype          |
+| `Specification` | Normative statements; things that must or shall | `Requirement`, `Test`, `Contract`, `Record`, `Risk` |
+| `Component`     | System-level building blocks with identity      | `SoftwareComponent`, `HardwareComponent`            |
+| `Unit`          | Fine-grained implementation-level elements      | `SoftwareUnit`, `HardwareUnit`                      |
 
 ## Concrete types — Specification subtypes
 
@@ -93,6 +93,23 @@ layers.
 - **Typical relations:** `Satisfies` (→ `Requirement`), `Realized-by` (generated
   inverse of `Realizes` from a `Component`).
 
+### SoftwareInterface
+
+A software interface specification — an API surface (`.proto`, OpenAPI, WSDL)
+defining the contract between two software components.
+
+- **Typical relations:** `Provided-by` / `Required-by` (generated inverses of a
+  component's `Provides` / `Requires`); `Realized-by` (generated inverse of
+  `Realizes`); `Verified-by` (generated inverse of `Verifies`).
+
+### HardwareInterface
+
+A hardware interface specification — a connector, bus, or pin-level boundary
+spec. Carries `Bus-protocol`, `Connector-type`, `Voltage-level`,
+`Signal-direction`.
+
+- **Typical relations:** `Provided-by` / `Required-by`; `Realized-by`.
+
 ### Record
 
 An immutable audit record, decision log, or meeting minute. Typically stands
@@ -137,20 +154,6 @@ An ECU, sensor, actuator, or other physical hardware element.
 - **Typical relations:** `Part-of` (→ `HardwareComponent`), `Realizes` (→
   `Contract`).
 - **Typical profile attributes:** `Supplier`, `Part-number`
-
-### SoftwareInterface
-
-An API, IPC channel, or protocol definition — the contract between two software
-components.
-
-- **Typical relations:** `Part-of` (→ `SoftwareComponent`), `Realized-by`
-  (generated inverse of `Realizes`).
-
-### HardwareInterface
-
-A connector, bus, pin definition, or other physical interface.
-
-- **Typical relations:** `Part-of` (→ `HardwareComponent`).
 
 ## Concrete types — Unit subtypes
 

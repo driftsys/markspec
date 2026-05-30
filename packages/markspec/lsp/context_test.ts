@@ -100,3 +100,13 @@ Deno.test("Slice 3 LSP context: Discipline-frozen: keyword triggers doc-comment 
   const lines = ["/// Some prose", "/// Discipline-frozen: software"];
   assertEquals(isDocCommentContext(lines, 1), true);
 });
+
+Deno.test("isDocCommentContext: Provides: keyword triggers doc-comment context", () => {
+  const lines = ["/// Some prose", "/// Provides: IFC_001"];
+  assertEquals(isDocCommentContext(lines, 1), true);
+});
+
+Deno.test("isDocCommentContext: Requires: keyword triggers doc-comment context", () => {
+  const lines = ["/// Some prose", "/// Requires: IFC_002"];
+  assertEquals(isDocCommentContext(lines, 1), true);
+});
