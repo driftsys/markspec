@@ -1,0 +1,41 @@
+name: VSIX Verify
+
+on:
+  pull_request:
+    paths:
+      - "editors/vscode/**"
+      - ".github/workflows/vsix-verify.yaml"
+      - ".github/workflows/release.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-vsix:
+    name: Verify VSIX packages (manifest + icon + metadata)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install extension deps
+        run: cd editors/vscode && npm ci
+
+      - name: Compile extension
+        run: cd editors/vscode && npm run compile
+
+      # `vsce package` validates the manifest, icon reference, and gallery
+      # metadata with no marketplace credentials. A fresh checkout has no
+      # bundled binary (bin/ is gitignored); the manifest does not reference
+      # the binary, so packaging succeeds and proves the listing assets are
+      # valid. ovsx publishes this same VSIX, so this validates both targets.
+      - name: Package VSIX (validation only)
+        run: cd editors/vscode && npx vsce package --out /tmp/markspec-ide-verify.vsix
+
+      - name: Confirm icon is bundled
+        run: |
+          set -o pipefail
+          cd editors/vscode && npx vsce ls | grep -qx images/icon.png
