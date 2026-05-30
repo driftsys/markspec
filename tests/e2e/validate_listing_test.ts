@@ -707,7 +707,7 @@ Deno.test("validate/listing: L043 error on non-Component-family type in componen
 Deno.test("validate/listing: L043 error on SoftwareInterface type in components.md", async () => {
   // SoftwareInterface re-parented from Component to Contract; it is no longer
   // a Component-family type and must not appear in a components listing.
-  const { code, stderr } = await markspec(["validate", "components.md"], {
+  const { code, stderr } = await markspec(["check", "components.md"], {
     files: {
       "components.md": `# Components
 
