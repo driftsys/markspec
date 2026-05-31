@@ -355,10 +355,13 @@ export type {
 // ── Self-upgrade ─────────────────────────────────────────────────────────
 export {
   type Arch as SelfUpgradeArch,
+  assertTrustedReleaseUrl,
   classifyInstallPath,
   type ClassifyResult as SelfUpgradeClassifyResult,
   compareVersions,
   type Comparison,
+  DEFAULT_RELEASES_API,
+  DEFAULT_RELEASES_DOWNLOAD_BASE,
   detectTarget,
   type InstallSource,
   type Os as SelfUpgradeOs,
@@ -367,5 +370,8 @@ export {
   platformFromBuild,
   type ReleaseAssets,
   releaseAssets,
+  type ReleaseEndpoints,
+  type ResolveEndpointsInput,
+  resolveReleaseEndpoints,
   type Target as SelfUpgradeTarget,
 } from "./self_upgrade/mod.ts";

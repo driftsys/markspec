@@ -10,28 +10,36 @@
  *   --version <vX.Y.Z>   Pin a specific release (downgrade allowed).
  *   --format <text|json> Output format (default: text).
  *
- * Environment overrides (test seams + advanced users):
+ * Environment overrides — all test-only, gated behind MARKSPEC_TEST_MODE=1
+ * so a stray or hostile env var in a user's parent shell cannot redirect a
+ * production self-upgrade to an attacker-controlled origin or path (#580):
  *   MARKSPEC_RELEASES_API
- *     Base URL for the releases API endpoint. Default:
+ *     Base URL for the releases API endpoint. Ignored unless
+ *     MARKSPEC_TEST_MODE=1; production always uses the pinned default
  *     "https://api.github.com/repos/driftsys/markspec/releases".
  *   MARKSPEC_RELEASES_DOWNLOAD_BASE
- *     Base URL for tarball downloads. Default:
+ *     Base URL for tarball downloads. Ignored unless MARKSPEC_TEST_MODE=1;
+ *     production always uses the pinned default
  *     "https://github.com/driftsys/markspec/releases/download".
  *   MARKSPEC_SELF_UPGRADE_BIN_PATH
- *     Override the binary path that will be swapped. Test-only; gated
- *     behind MARKSPEC_TEST_MODE=1 so a stray env var in a user's parent
- *     shell cannot redirect a production self-upgrade to an arbitrary
- *     path. Both vars must be set together.
+ *     Override the binary path that will be swapped. Ignored unless
+ *     MARKSPEC_TEST_MODE=1.
+ *
+ * As defence-in-depth, every resolved endpoint is run through
+ * assertTrustedReleaseUrl before any fetch: production permits only https
+ * to the github.com hosts; loopback http is allowed solely under test mode.
  */
 
 import { Command } from "@cliffy/command";
 import { basename, dirname } from "@std/path";
 import {
+  assertTrustedReleaseUrl,
   classifyInstallPath,
   compareVersions,
   detectTarget,
   platformFromBuild,
   releaseAssets,
+  resolveReleaseEndpoints,
   VERSION,
 } from "../../core/mod.ts";
 import { extractSingleBinary } from "../self_upgrade/extract.ts";
@@ -53,10 +61,6 @@ import {
   isDirWritable,
   swapBinary,
 } from "../self_upgrade/swap.ts";
-
-const DEFAULT_API = "https://api.github.com/repos/driftsys/markspec/releases";
-const DEFAULT_DOWNLOAD_BASE =
-  "https://github.com/driftsys/markspec/releases/download";
 
 interface SelfUpgradeOptions {
   check?: boolean;
@@ -94,13 +98,26 @@ export const selfUpgradeCmd = new Command()
 async function runSelfUpgrade(
   opts: SelfUpgradeOptions,
 ): Promise<Outcome> {
-  const apiBase = Deno.env.get("MARKSPEC_RELEASES_API") ?? DEFAULT_API;
-  const downloadBase = Deno.env.get("MARKSPEC_RELEASES_DOWNLOAD_BASE") ??
-    DEFAULT_DOWNLOAD_BASE;
-  // MARKSPEC_SELF_UPGRADE_BIN_PATH is gated on MARKSPEC_TEST_MODE=1 (see
-  // module docstring); a stray bin-path in a user's parent shell cannot
-  // redirect a production self-upgrade.
-  const binPathOverride = Deno.env.get("MARKSPEC_TEST_MODE") === "1"
+  // Every override (release URLs + bin path) is gated on MARKSPEC_TEST_MODE=1
+  // (see module docstring); a stray or hostile env var in a user's parent
+  // shell cannot redirect a production self-upgrade. In production the pinned
+  // github.com endpoints are always used (#580).
+  const testMode = Deno.env.get("MARKSPEC_TEST_MODE") === "1";
+  const { apiBase, downloadBase } = resolveReleaseEndpoints({
+    testMode,
+    apiOverride: Deno.env.get("MARKSPEC_RELEASES_API"),
+    downloadOverride: Deno.env.get("MARKSPEC_RELEASES_DOWNLOAD_BASE"),
+  });
+  // Defence-in-depth: refuse to fetch from an insecure or non-github origin
+  // even if a future change loosens the gating above. Loopback http is
+  // permitted only under test mode.
+  try {
+    assertTrustedReleaseUrl(apiBase, { allowInsecure: testMode });
+    assertTrustedReleaseUrl(downloadBase, { allowInsecure: testMode });
+  } catch (err) {
+    return error("network", VERSION, null, "", (err as Error).message);
+  }
+  const binPathOverride = testMode
     ? Deno.env.get("MARKSPEC_SELF_UPGRADE_BIN_PATH")
     : undefined;
 

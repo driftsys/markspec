@@ -1,5 +1,12 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import { parseSha256Line, releaseAssets } from "./manifest.ts";
+import {
+  assertTrustedReleaseUrl,
+  DEFAULT_RELEASES_API,
+  DEFAULT_RELEASES_DOWNLOAD_BASE,
+  parseSha256Line,
+  releaseAssets,
+  resolveReleaseEndpoints,
+} from "./manifest.ts";
 
 const BASE = "https://github.com/driftsys/markspec/releases/download";
 
@@ -83,5 +90,133 @@ Deno.test("parseSha256Line: rejects wrong-length digest", () => {
     () => parseSha256Line("abcd  file.tar.gz"),
     Error,
     "malformed sha256 line",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// resolveReleaseEndpoints — URL overrides are test-mode-only (issue #580)
+// ---------------------------------------------------------------------------
+
+Deno.test("resolveReleaseEndpoints: production ignores env overrides", () => {
+  assertEquals(
+    resolveReleaseEndpoints({
+      testMode: false,
+      apiOverride: "https://github.com/attacker/evil/releases",
+      downloadOverride: "http://evil.invalid/download",
+    }),
+    {
+      apiBase: DEFAULT_RELEASES_API,
+      downloadBase: DEFAULT_RELEASES_DOWNLOAD_BASE,
+    },
+  );
+});
+
+Deno.test("resolveReleaseEndpoints: production with no overrides uses defaults", () => {
+  assertEquals(
+    resolveReleaseEndpoints({ testMode: false }),
+    {
+      apiBase: DEFAULT_RELEASES_API,
+      downloadBase: DEFAULT_RELEASES_DOWNLOAD_BASE,
+    },
+  );
+});
+
+Deno.test("resolveReleaseEndpoints: test mode honors overrides", () => {
+  assertEquals(
+    resolveReleaseEndpoints({
+      testMode: true,
+      apiOverride: "http://127.0.0.1:8080/releases",
+      downloadOverride: "http://127.0.0.1:8080/releases/download",
+    }),
+    {
+      apiBase: "http://127.0.0.1:8080/releases",
+      downloadBase: "http://127.0.0.1:8080/releases/download",
+    },
+  );
+});
+
+Deno.test("resolveReleaseEndpoints: test mode with a missing override falls back to default", () => {
+  assertEquals(
+    resolveReleaseEndpoints({
+      testMode: true,
+      downloadOverride: "http://127.0.0.1:8080/releases/download",
+    }),
+    {
+      apiBase: DEFAULT_RELEASES_API,
+      downloadBase: "http://127.0.0.1:8080/releases/download",
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// assertTrustedReleaseUrl — scheme + host pinning (issue #580)
+// ---------------------------------------------------------------------------
+
+Deno.test("assertTrustedReleaseUrl: accepts https github.com hosts", () => {
+  assertTrustedReleaseUrl(DEFAULT_RELEASES_API, { allowInsecure: false });
+  assertTrustedReleaseUrl(DEFAULT_RELEASES_DOWNLOAD_BASE, {
+    allowInsecure: false,
+  });
+  assertTrustedReleaseUrl(
+    "https://objects.githubusercontent.com/foo",
+    { allowInsecure: false },
+  );
+});
+
+Deno.test("assertTrustedReleaseUrl: rejects non-https scheme in production", () => {
+  assertThrows(
+    () =>
+      assertTrustedReleaseUrl("http://github.com/driftsys/markspec", {
+        allowInsecure: false,
+      }),
+    Error,
+    "insecure transport",
+  );
+});
+
+Deno.test("assertTrustedReleaseUrl: rejects untrusted host in production", () => {
+  assertThrows(
+    () =>
+      assertTrustedReleaseUrl("https://evil.invalid/driftsys/markspec", {
+        allowInsecure: false,
+      }),
+    Error,
+    "untrusted host",
+  );
+});
+
+Deno.test("assertTrustedReleaseUrl: rejects a non-github https host even under allowInsecure", () => {
+  assertThrows(
+    () =>
+      assertTrustedReleaseUrl("https://evil.invalid/x", {
+        allowInsecure: true,
+      }),
+    Error,
+    "untrusted host",
+  );
+});
+
+Deno.test("assertTrustedReleaseUrl: allows http localhost only under allowInsecure", () => {
+  assertTrustedReleaseUrl("http://127.0.0.1:8080/releases", {
+    allowInsecure: true,
+  });
+  assertTrustedReleaseUrl("http://localhost:8080/releases", {
+    allowInsecure: true,
+  });
+  assertThrows(
+    () =>
+      assertTrustedReleaseUrl("http://127.0.0.1:8080/releases", {
+        allowInsecure: false,
+      }),
+    Error,
+    "insecure transport",
+  );
+});
+
+Deno.test("assertTrustedReleaseUrl: rejects a malformed URL", () => {
+  assertThrows(
+    () => assertTrustedReleaseUrl("not a url", { allowInsecure: false }),
+    Error,
+    "invalid release URL",
   );
 });

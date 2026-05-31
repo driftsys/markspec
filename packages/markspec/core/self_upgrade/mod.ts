@@ -13,9 +13,15 @@ export {
   type InstallSource,
 } from "./pm_detect.ts";
 export {
+  assertTrustedReleaseUrl,
+  DEFAULT_RELEASES_API,
+  DEFAULT_RELEASES_DOWNLOAD_BASE,
   parseSha256Line,
   type ReleaseAssets,
   releaseAssets,
+  type ReleaseEndpoints,
+  type ResolveEndpointsInput,
+  resolveReleaseEndpoints,
 } from "./manifest.ts";
 export {
   type Arch,
