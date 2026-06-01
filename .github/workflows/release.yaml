@@ -44,7 +44,7 @@ jobs:
 
       - name: Cache tree-sitter grammars
         id: grammars-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: grammars/*.wasm
           key: grammars-${{ hashFiles('grammars/grammars.lock') }}
@@ -239,7 +239,7 @@ jobs:
           merge-multiple: true
 
       - name: Create release
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           generate_release_notes: true

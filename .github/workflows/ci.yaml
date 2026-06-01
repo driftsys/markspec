@@ -38,7 +38,7 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno lint
-      - uses: DavidAnson/markdownlint-cli2-action@v23
+      - uses: DavidAnson/markdownlint-cli2-action@v23.1.0
 
   check:
     name: Type check
@@ -64,7 +64,7 @@ jobs:
           deno-version: v2.x
       - name: Cache tree-sitter grammars
         id: grammars-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: grammars/*.wasm
           key: grammars-${{ hashFiles('grammars/grammars.lock') }}
@@ -139,7 +139,7 @@ jobs:
           deno-version: v2.x
       - name: Cache tree-sitter grammars
         id: grammars-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: grammars/*.wasm
           key: grammars-${{ hashFiles('grammars/grammars.lock') }}
