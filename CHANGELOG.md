@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.1] (2026-06-01)
+
+### Bug Fixes
+
+- **cli:** pin self-upgrade release origin to github.com ([#580]) ([097266e]),
+  closes 580.
+
+[0.7.1]: https://github.com/driftsys/markspec/compare/v0.7.0...v0.7.1
+[097266e]: https://github.com/driftsys/markspec/commit/097266e
+[#580]: https://github.com/driftsys/markspec/issues/580
+
 ## [0.7.0] (2026-05-30)
 
 ### Documentation
