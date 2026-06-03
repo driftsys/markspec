@@ -89,12 +89,12 @@ const GRAMMARS: Record<string, Grammar> = {
   "tree-sitter-javascript.wasm": {
     source: "npm",
     pkg: "tree-sitter-javascript",
-    version: "0.23.1",
+    version: "0.25.0",
   },
   "tree-sitter-c-sharp.wasm": {
     source: "npm",
     pkg: "tree-sitter-c-sharp",
-    version: "0.23.1",
+    version: "0.23.5",
     // Upstream package ships its WASM with an underscore
     // (tree-sitter-c_sharp.wasm); we save it with a hyphen to match
     // the naming of the other grammars. Pinned to 0.23.1 because the
