@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.2] (2026-06-03)
+
+### Bug Fixes
+
+- **repo:** default vscode server.path to bundled binary ([#588]) ([3a496b4])
+
+[0.7.2]: https://github.com/driftsys/markspec/compare/v0.7.1...v0.7.2
+[3a496b4]: https://github.com/driftsys/markspec/commit/3a496b4
+[#588]: https://github.com/driftsys/markspec/issues/588
+
 ## [0.7.1] (2026-06-01)
 
 ### Bug Fixes
