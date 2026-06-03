@@ -70,8 +70,8 @@
       "properties": {
         "markspec.server.path": {
           "type": "string",
-          "default": "markspec",
-          "description": "Path to the markspec binary. Defaults to 'markspec' on PATH. Used by both the LSP client and the MCP server registration."
+          "default": "",
+          "description": "Path to the markspec binary used by both the LSP client and the MCP server registration. Leave empty (the default) to use the version-matched binary bundled with the extension. Set to 'markspec' to use the CLI on your PATH, or an absolute path for a development build."
         },
         "markspec.server.args": {
           "type": "array",

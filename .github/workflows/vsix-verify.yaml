@@ -27,6 +27,13 @@ jobs:
       - name: Compile extension
         run: cd editors/vscode && npm run compile
 
+      # Unit tests cover the pure spawn-resolution logic (serverOptions /
+      # mcpDefinition), including the #588 regression guard that an unset
+      # `markspec.server.path` resolves to the bundled binary rather than a
+      # bare `markspec` PATH command.
+      - name: Test extension
+        run: cd editors/vscode && npm test
+
       # `vsce package` validates the manifest, icon reference, and gallery
       # metadata with no marketplace credentials. A fresh checkout has no
       # bundled binary (bin/ is gitignored); the manifest does not reference
