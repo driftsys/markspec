@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as path from "node:path";
+import * as fs from "node:fs";
 import { resolveMcpDefinition } from "./mcpDefinition";
 
 const EXT_PATH = "/fake/extensions/driftsys.markspec-ide-0.5.0";
@@ -121,4 +122,26 @@ test("resolveMcpDefinition: workspaceFolder undefined leaves variables untouched
   assert.ok(def);
   assert.equal(def!.cwd, undefined);
   assert.deepEqual(def!.args, ["run", "${workspaceFolder}/main.ts", "mcp"]);
+});
+
+// Regression guard for #588 (MCP side). The same `markspec.server.path`
+// default flows into resolveMcpDefinition via extension.ts, so the MCP
+// server hit the same `spawn markspec ENOENT`. Bundled-first: an UNSET
+// server.path must resolve the MCP command to the bundled binary.
+test("resolveMcpDefinition: shipped server.path default resolves to bundled binary (#588)", () => {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
+  );
+  const shippedDefault: unknown = pkg.contributes.configuration
+    .properties["markspec.server.path"].default;
+  // Mirror extension.ts: `config.get<string>("server.path") || undefined`.
+  const configuredServerPath = (shippedDefault as string) || undefined;
+  const def = resolveMcpDefinition({ ...base(), configuredServerPath });
+  assert.ok(def);
+  assert.equal(
+    def!.command,
+    path.join(EXT_PATH, "bin", "markspec"),
+    "unset server.path must spawn the bundled binary for MCP too",
+  );
+  assert.notEqual(def!.command, "markspec");
 });
