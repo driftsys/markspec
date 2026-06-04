@@ -280,3 +280,62 @@ Deno.test("event_log: rotation evicts .3", async () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Self-ignoring .markspec/.gitignore
+// ---------------------------------------------------------------------------
+
+Deno.test("event_log: writes self-ignoring .markspec/.gitignore on open", async () => {
+  await withTempRoot(async (root) => {
+    setProjectRoot(root);
+    logEvent("info", "startup");
+    flushSync();
+    const ignorePath = join(root, ".markspec", ".gitignore");
+    const contents = await Deno.readTextFile(ignorePath);
+    // A `*` pattern ignores every file in `.markspec/` — including the
+    // log files and the `.gitignore` itself — so git status stays clean
+    // in every workspace the LSP opens, regardless of the user's root
+    // .gitignore.
+    assertStringIncludes(contents, "*");
+  });
+});
+
+Deno.test("event_log: does not clobber an existing .markspec/.gitignore", async () => {
+  await withTempRoot(async (root) => {
+    const ignorePath = join(root, ".markspec", ".gitignore");
+    await Deno.mkdir(join(root, ".markspec"), { recursive: true });
+    await Deno.writeTextFile(ignorePath, "# hand-authored\nlsp.log*\n");
+    setProjectRoot(root);
+    logEvent("info", "startup");
+    flushSync();
+    const contents = await Deno.readTextFile(ignorePath);
+    // The pre-existing file is left exactly as the user wrote it.
+    assertEquals(contents, "# hand-authored\nlsp.log*\n");
+  });
+});
+
+Deno.test("event_log: MARKSPEC_LSP_LOG path gets no sibling .gitignore", async () => {
+  _resetEventLog();
+  Deno.env.delete("MARKSPEC_LSP_LOG_OFF");
+  const dir = await Deno.makeTempDir({ prefix: "markspec-explicit-dir-" });
+  const explicit = join(dir, "custom.log");
+  Deno.env.set("MARKSPEC_LSP_LOG", explicit);
+  try {
+    logEvent("info", "startup");
+    flushSync();
+    // An explicit path is the user's deliberate choice — we must not
+    // litter a `.gitignore` next to it.
+    let exists = false;
+    try {
+      await Deno.stat(join(dir, ".gitignore"));
+      exists = true;
+    } catch { /* expected: no .gitignore created */ }
+    assert(!exists, "explicit log path must not get a sibling .gitignore");
+  } finally {
+    Deno.env.delete("MARKSPEC_LSP_LOG");
+    _resetEventLog();
+    try {
+      await Deno.remove(dir, { recursive: true });
+    } catch { /* */ }
+  }
+});

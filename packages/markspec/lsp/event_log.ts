@@ -16,6 +16,12 @@
  *   3. else, after `setProjectRoot(root)` is called → `<root>/.markspec/lsp.log`
  *   4. else → events are dropped silently (no project root, no env var)
  *
+ * When the default per-project destination (case 3) is opened, a
+ * self-ignoring `.markspec/.gitignore` (`*`) is dropped alongside it so
+ * the runtime log never pollutes the user's `git status`, in every
+ * workspace, regardless of the repo's root `.gitignore`. See
+ * {@linkcode ensureMarkspecDirIgnored}.
+ *
  * Line format: `[<ISO timestamp>] <level> kind=<kind> [key=value ...]`
  * where values containing whitespace are double-quoted. One line per
  * event. Designed for `grep` / `awk`.
@@ -157,12 +163,53 @@ function rotateIfNeeded(path: string): void {
   Deno.renameSync(path, `${path}.1`);
 }
 
+/**
+ * Drop a self-ignoring `.gitignore` into the default `.markspec/`
+ * directory so the runtime log never appears in the user's `git
+ * status`, in every workspace the LSP opens, no matter the repo's root
+ * `.gitignore`. The single `*` pattern ignores everything in the
+ * directory — the log files, their rotations, and the `.gitignore`
+ * itself — which is the right policy because `.markspec/` holds only
+ * per-session runtime artefacts (the event log and the sync cache).
+ *
+ * An existing `.gitignore` is never overwritten: a project that
+ * deliberately tracks something under `.markspec/` keeps its own rules.
+ * Best-effort — a write failure must never break logging, so any error
+ * is swallowed.
+ */
+function ensureMarkspecDirIgnored(markspecDir: string): void {
+  const ignorePath = join(markspecDir, ".gitignore");
+  try {
+    Deno.statSync(ignorePath);
+    return; // already present — respect the user's file
+  } catch (err) {
+    if (!(err instanceof Deno.errors.NotFound)) return;
+  }
+  try {
+    Deno.writeTextFileSync(
+      ignorePath,
+      "# Created by MarkSpec. Runtime files (LSP event log, sync cache);\n" +
+        "# regenerated each session, not meant to be committed.\n" +
+        "*\n",
+    );
+  } catch {
+    // Best-effort: never let an ignore-file write break logging.
+  }
+}
+
 function openHandleIfNeeded(): void {
   if (handle || disabled) return;
   const path = resolveLogPath();
   if (!path) return;
   try {
-    Deno.mkdirSync(dirname(path), { recursive: true });
+    const dir = dirname(path);
+    Deno.mkdirSync(dir, { recursive: true });
+    // Only self-ignore when writing to the default `<root>/.markspec/`
+    // location. An explicit `MARKSPEC_LSP_LOG` path is the user's
+    // deliberate choice — we must not litter a `.gitignore` beside it.
+    if (!explicitPath && projectRoot) {
+      ensureMarkspecDirIgnored(dir);
+    }
     rotateIfNeeded(path);
     handle = Deno.openSync(path, { create: true, append: true });
   } catch {
