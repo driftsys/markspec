@@ -96,7 +96,7 @@
         "markspec.trace.logPath": {
           "type": "string",
           "default": "",
-          "description": "Override path for the LSP event log. When empty, the server writes to `<workspace>/.markspec/lsp.log` by default. Equivalent to setting MARKSPEC_LSP_LOG when spawning the server manually."
+          "description": "Override path for the LSP event log. When empty, the server writes to `<workspace>/.markspec/lsp.log` by default and drops a self-ignoring `.markspec/.gitignore` so the log never appears in `git status`. Equivalent to setting MARKSPEC_LSP_LOG when spawning the server manually."
         },
         "markspec.mcp.enabled": {
           "type": "boolean",
