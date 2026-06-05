@@ -843,6 +843,10 @@ an accepted input but never a canonical output.
 CSV is **forbidden** for the `citation` type. `References` values may carry
 free-text locators like `§9.4, Table 7` that would be ambiguous in CSV.
 
+The `id` and `id-list` types accept a 26-char ULID, a scheme-qualified URI, or a
+display ID. A display ID is resolved to its target by existence; an unresolved
+display ID is reported by `MSL-L006`, not by the value-format gate.
+
 ---
 
 ## Part 3 — Directives
@@ -1352,7 +1356,7 @@ declare additional keys; projects may allowlist SSG-ecosystem keys in
 | **modified** | Git last merge commit timestamp | File system modification time |
 
 These are **never authored in front matter** — `title:`, `author:`, `date:`,
-`description:`, `toc:`, `cover:` in front matter are errors (see §8.5 MSL-D001).
+`description:`, `toc:`, `cover:` in front matter are errors (see §8.6 MSL-D001).
 The H1, first paragraph, git history, and filesystem are the authoritative
 sources.
 
@@ -1540,7 +1544,15 @@ The core defines no enum vocabularies of its own.
 Direction and level-crossing rules (e.g., "acceptance tests verify stakeholder
 requirements") are profile concerns, not core concerns.
 
-### 8.4 References (MSL-M)
+### 8.4 Link rules (MSL-L)
+
+Existence and cardinality rules for the targets of trace-relation links.
+
+| ID         | Severity | Rule                                                                                                                            |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-L006` | warning  | Profile trace-relation target does not resolve to any entry (resolved by display ID or ULID). Scheme-qualified URIs are exempt. |
+
+### 8.5 References (MSL-M)
 
 | ID         | Severity | Rule                                                            |
 | ---------- | -------- | --------------------------------------------------------------- |
@@ -1548,7 +1560,7 @@ requirements") are profile concerns, not core concerns.
 | `MSL-M002` | error    | Namespace: `spec`, `test`, `element`, `ref`, `fig`, `tbl`, `h`. |
 | `MSL-M003` | error    | No sections, inverted sections, or partials.                    |
 
-### 8.5 Document structure (MSL-D)
+### 8.6 Document structure (MSL-D)
 
 | ID         | Severity     | Rule                                                                                                                                                                                                                                                                    |
 | ---------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1561,7 +1573,7 @@ requirements") are profile concerns, not core concerns.
 | `MSL-D007` | warning      | Reference definitions at end of document, alphabetical within groups. Auto-fixed.                                                                                                                                                                                       |
 | `MSL-D008` | error        | Image paths must be relative and stay within the document folder. Absolute URLs (`https://...`), repo-root links (`/...`), and paths escaping via `../../` are not permitted (ADR-003).                                                                                 |
 
-### 8.6 Glossary (MSL-G)
+### 8.7 Glossary (MSL-G)
 
 | ID         | Severity | Rule                                                                                 |
 | ---------- | -------- | ------------------------------------------------------------------------------------ |
@@ -1570,7 +1582,7 @@ requirements") are profile concerns, not core concerns.
 | `MSL-G003` | warning  | Link references at end of file, alphabetical within groups (internal then external). |
 | `MSL-G004` | error    | Cross-links reference existing headings.                                             |
 
-### 8.7 Summary (MSL-S)
+### 8.8 Summary (MSL-S)
 
 | ID         | Severity | Rule                                                              |
 | ---------- | -------- | ----------------------------------------------------------------- |

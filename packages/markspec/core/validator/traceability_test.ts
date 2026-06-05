@@ -517,7 +517,7 @@ Deno.test("validateTraceabilityForEntry: shape matcher accepts any identified ta
   assertEquals(diags.filter((d) => d.code === "MSL-L004"), []);
 });
 
-Deno.test("validateTraceabilityForEntry: target not in graph is silently skipped (Stage 1 owns)", () => {
+Deno.test("validateTraceabilityForEntry: target not in either index → MSL-L006 (no MSL-L004)", () => {
   const rule: TraceRule = {
     target: ["requirement"],
     cardinality: { lower: 0, upper: Infinity },
@@ -531,9 +531,9 @@ Deno.test("validateTraceabilityForEntry: target not in graph is silently skipped
     type: "test",
     attrs: { Verifies: ["01MISSING000000000000000000"] },
   });
-  const graph = graphOf([e]);
-  const diags = validateTraceabilityForEntry(e, p, graph);
+  const diags = validateTraceabilityForEntry(e, p, graphOf([e]));
   assertEquals(diags.filter((d) => d.code === "MSL-L004"), []);
+  assertEquals(diags.filter((d) => d.code === "MSL-L006").length, 1);
 });
 
 Deno.test("validateTraceabilityForEntry: one valid + one invalid target → single MSL-L004", () => {
@@ -603,4 +603,127 @@ Deno.test("validateTraceabilityForEntry: un-classified Authored entry gets no ru
   const graph = graphOf([e]);
   const diags = validateTraceabilityForEntry(e, p, graph);
   assertEquals(diags, []);
+});
+
+// ---------------------------------------------------------------------------
+// Display-ID resolution + MSL-L006 existence (issue #593)
+// ---------------------------------------------------------------------------
+
+function byDisplayIdOf(entries: readonly Entry[]): Map<string, Entry> {
+  const m = new Map<string, Entry>();
+  for (const e of entries) m.set(e.displayId, e);
+  return m;
+}
+
+Deno.test("validateTraceabilityForEntry: display-ID target resolves and type-checks clean", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const target = entryWithAttrs({
+    id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
+    displayId: "REQ-0001",
+    shape: "Authored",
+    type: "requirement",
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-0001"] }, // display ID, not ULID
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, target]),
+    byDisplayIdOf([e, target]),
+  );
+  assertEquals(diags, []);
+});
+
+Deno.test("validateTraceabilityForEntry: display-ID target type mismatch → MSL-L004", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const wrong = entryWithAttrs({
+    id: "01T1T1T1T1T1T1T1T1T1T1T1T1",
+    displayId: "NOTE-0001",
+    shape: "Authored",
+    type: "note",
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["NOTE-0001"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, wrong]),
+    byDisplayIdOf([e, wrong]),
+  );
+  if (!diags.find((d) => d.code === "MSL-L004")) {
+    throw new Error(`expected MSL-L004, got: ${diags.map((d) => d.code)}`);
+  }
+});
+
+Deno.test("validateTraceabilityForEntry: unresolved target → MSL-L006 warning", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-9999"] }, // exists nowhere
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+  );
+  const l006 = diags.find((d) => d.code === "MSL-L006");
+  if (!l006) {
+    throw new Error(`expected MSL-L006, got: ${diags.map((d) => d.code)}`);
+  }
+  assertEquals(l006.severity, "warning");
+  if (!l006.message.includes("REQ-9999")) {
+    throw new Error(`expected target in message: ${l006.message}`);
+  }
+});
+
+Deno.test("validateTraceabilityForEntry: scheme-qualified URI target is not flagged", () => {
+  const rule: TraceRule = {
+    target: [{ shape: "Authored" }],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["urn:iso:std:iso:26262"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+  );
+  assertEquals(diags.filter((d) => d.code === "MSL-L006"), []);
 });

@@ -9,18 +9,20 @@
  *   - Required (MSL-L001)
  *   - Cardinality bounds (MSL-L002 upper / MSL-L003 lower)
  *   - Target match against the rule's target matchers (MSL-L004)
+ *   - Target existence (MSL-L006, warning; scheme-qualified URIs exempt)
  *
  * Referenced entries are skipped entirely — the profile manifest parser
  * rejects `referenced.traceability` at load time, so referenced entries
  * never have declared outgoing links.
  */
 
-import type {
-  Diagnostic,
-  EffectiveProfile,
-  Entry,
-  TargetMatcher,
-  TraceRule,
+import {
+  type Diagnostic,
+  type EffectiveProfile,
+  type Entry,
+  type TargetMatcher,
+  type TraceRule,
+  URI_SCHEME_RE,
 } from "../model/mod.ts";
 
 /**
@@ -81,12 +83,15 @@ export function matchesAnyTarget(
  * @param entry - The entry to validate (after Stage 2 classification +
  *                Stage 2.5 normalization)
  * @param profile - The effective profile (null → never called)
- * @param graph - Index keyed by entry.id for target lookup
+ * @param graph - Index keyed by entry.id (ULID) for target lookup
+ * @param byDisplayId - Index keyed by entry.displayId for target lookup
+ *                      (issue #593 — display-ID targets). Defaults to empty.
  */
 export function validateTraceabilityForEntry(
   entry: Entry,
   profile: EffectiveProfile,
   graph: ReadonlyMap<string, Entry>,
+  byDisplayId: ReadonlyMap<string, Entry> = new Map(),
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   if (entry.shape !== "Authored") return diagnostics;
@@ -137,10 +142,25 @@ export function validateTraceabilityForEntry(
       });
     }
 
-    // MSL-L004: target match for each resolved value.
+    // MSL-L004 target match + MSL-L006 existence, for each resolved value.
+    // Resolve by ULID (graph) first, then by display ID (byDisplayId) — the
+    // dual-resolution spine (issue #593).
     for (const v of values!) {
-      const target = graph.get(v);
-      if (!target) continue;
+      const target = graph.get(v) ?? byDisplayId.get(v);
+      if (!target) {
+        // Scheme-qualified URIs are intentionally external — never local
+        // graph targets, so they are not "broken references".
+        if (URI_SCHEME_RE.test(v)) continue;
+        diagnostics.push({
+          code: "MSL-L006",
+          severity: "warning",
+          message:
+            `${entry.displayId}: link '${linkName}' target '${v}' does not ` +
+            `resolve to any entry`,
+          location: entry.location,
+        });
+        continue;
+      }
       if (!matchesAnyTarget(target, rule.target)) {
         diagnostics.push({
           code: "MSL-L004",

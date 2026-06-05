@@ -9,7 +9,7 @@
  */
 
 import type { AttrDecl, ValueType } from "../model/mod.ts";
-import { ULID_RE, URI_SCHEME_RE } from "../model/mod.ts";
+import { DISPLAY_ID_RE, ULID_RE, URI_SCHEME_RE } from "../model/mod.ts";
 
 /**
  * Validate one string value against an attribute's declared value type.
@@ -66,7 +66,8 @@ const validateEnum: ValueValidator = (value, decl) => {
 const validateId: ValueValidator = (value, _decl) => {
   if (ULID_RE.test(value)) return null;
   if (URI_SCHEME_RE.test(value)) return null;
-  return `not a valid id: '${value}' (expected 26-char ULID or scheme-qualified URI)`;
+  if (DISPLAY_ID_RE.test(value)) return null;
+  return `not a valid id: '${value}' (expected a display ID, 26-char ULID, or scheme-qualified URI)`;
 };
 
 /**
