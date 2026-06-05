@@ -108,6 +108,24 @@ markspec fmt docs/*.md
 markspec fmt --check docs/*.md
 ```
 
+**Project-aware trace canonicalisation (requires `project.yaml`):**
+
+When `markspec fmt` runs inside a project, it also canonicalises and heals trace
+reference values:
+
+- **Canonicalise** — any ULID written directly in a trace attribute
+  (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.) is rewritten to the
+  target entry's current display ID.
+- **Heal** — if a target's display ID was renamed, the edge ledger in
+  `markspec.lock` records the stable `target-ulid`; `fmt` uses it to rewrite the
+  stale display ID to the target's new name.
+- **Unresolved references are left as-is** — `markspec check` reports them via
+  MSL-L006.
+
+Neither action is performed when no `project.yaml` is discoverable (file-local
+invocation). `fmt` reads the edge ledger but never writes `markspec.lock`; the
+ledger is owned by `markspec lock`.
+
 #### check
 
 Check broken refs, missing Ids, malformed entries, duplicates.
