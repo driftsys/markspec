@@ -334,6 +334,14 @@ export type {
   UpstreamRegistry,
 } from "./lock/mod.ts";
 
+// ── Trace-reference canonicalisation + heal (issue #593, Slice 4) ────────
+export {
+  buildRefIndex,
+  canonicalizeRefs,
+  TRACE_ATTRIBUTE_KEYS,
+} from "./refs/mod.ts";
+export type { RefIndex } from "./refs/mod.ts";
+
 // ── External sync model (ADR-022) ────────────────────────────────────────
 export {
   aggregateStatusByState,
