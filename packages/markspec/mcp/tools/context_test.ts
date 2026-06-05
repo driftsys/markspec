@@ -13,7 +13,7 @@ import {
   walkContext,
 } from "./context.ts";
 
-function mk(displayId: string, title: string): Entry {
+function mk(displayId: string, title: string, id?: string): Entry {
   return {
     displayId: makeDisplayId(displayId),
     title,
@@ -24,6 +24,7 @@ function mk(displayId: string, title: string): Entry {
     location: { file: "/proj/x.md", line: 1, column: 1 },
     source: { kind: "markdown" },
     bodyTokens: [],
+    ...(id !== undefined ? { id } : {}),
   };
 }
 
@@ -159,3 +160,29 @@ Deno.test("ENTRY_CONTEXT_DESCRIPTOR.description: points at Incoming links for op
     "Incoming links",
   );
 });
+
+// --- Issue #593: trace targets render as display IDs, never ULIDs ---
+
+Deno.test(
+  "entry_context: resolves a display-ID-authored satisfies chain (issue #593)",
+  () => {
+    // The target carries a known ULID id. renderContext renders nodes by
+    // displayId only — the ULID must not appear in the output.
+    const TARGET_ULID = "01J0000000000000000000TGT1";
+    const result = buildResult(
+      [
+        mk("SWE_0001", "Source"),
+        mk("SYS_0001", "Target", TARGET_ULID),
+      ],
+      [{ from: "SWE_0001", to: "SYS_0001", kind: "satisfies" }],
+    );
+    const chain = walkContext(result, "SWE_0001", 10);
+    assertEquals(chain.map((n) => n.displayId), ["SWE_0001", "SYS_0001"]);
+    const md = renderContext(chain, "SWE_0001");
+    assertStringIncludes(md, "SYS_0001");
+    // The target's ULID must not appear — nodes are identified by display
+    // ID, never by the internal ULID. This assertion would fail if
+    // renderContext ever emitted the `id` field instead of `displayId`.
+    assertEquals(md.includes(TARGET_ULID), false);
+  },
+);

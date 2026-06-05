@@ -89,3 +89,39 @@ Deno.test("renderList: page past the end reports no entries on this page", () =>
   const text = renderList(entries, { mode: "full", page: 99 });
   assertStringIncludes(text, "No entries on page 99");
 });
+
+// --- Issue #593: entries listed by display ID, no ULID leaks ---
+
+Deno.test(
+  "entry_list: lists entries by display ID, never exposes their ULIDs (issue #593)",
+  () => {
+    // Entries carry distinct ULID ids. renderList must list them by
+    // displayId only — it must not emit any entry's ULID.
+    const SRC_ULID = "01J0000000000000000000SRC1";
+    const TGT_ULID = "01J0000000000000000000TGT1";
+    const entries = [
+      {
+        ...entry("SWE_0001", "Source", "software-requirement"),
+        id: SRC_ULID,
+      },
+      {
+        ...entry("SYS_0001", "Target", "system-requirement"),
+        id: TGT_ULID,
+      },
+    ];
+    const md = renderList(
+      entries as unknown as Parameters<typeof renderList>[0],
+      {
+        mode: "full",
+        page: 1,
+      },
+    );
+    assertStringIncludes(md, "SWE_0001");
+    assertStringIncludes(md, "SYS_0001");
+    // Neither entry's ULID may appear — entries are listed by display ID.
+    // These assertions would fail if renderList ever switched to emitting
+    // the `id` field instead of `displayId`.
+    assertEquals(md.includes(SRC_ULID), false);
+    assertEquals(md.includes(TGT_ULID), false);
+  },
+);
