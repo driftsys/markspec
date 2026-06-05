@@ -5,6 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import type { LockEdge, RefIndex } from "../../core/mod.ts";
 import { loadActiveProfile, readFile } from "../helpers.ts";
 
 export const fmtCmd = new Command()
@@ -29,6 +30,26 @@ export const fmtCmd = new Command()
 
     const { format } = await import("../../core/mod.ts");
 
+    // Project-aware reference canonicalisation/healing (issue #593, Slice 4).
+    // Built once and reused for every file. File-local fmt (no project root)
+    // leaves refIndex undefined and skips canonicalisation entirely.
+    let refIndex: RefIndex | undefined = undefined;
+    let ledger: readonly LockEdge[] = [];
+    if (projectRoot !== undefined) {
+      const { buildRefIndex, parseLockfile } = await import(
+        "../../core/mod.ts"
+      );
+      const { collectEntries } = await import("./lock.ts");
+      const { join } = await import("@std/path");
+      const projectEntries = await collectEntries(projectRoot);
+      refIndex = buildRefIndex(projectEntries);
+      const lockRaw = await readFile(join(projectRoot, "markspec.lock"));
+      if (lockRaw !== undefined) {
+        const parsed = parseLockfile(lockRaw);
+        if (parsed.lockfile) ledger = parsed.lockfile.edges;
+      }
+    }
+
     let totalFormatted = 0;
     let totalUnchanged = 0;
 
@@ -45,16 +66,35 @@ export const fmtCmd = new Command()
       }
 
       const result = format(content, { file: filePath });
+      let output = result.output;
+      let changed = result.changed;
+
+      if (refIndex !== undefined) {
+        const { parseFile, canonicalizeRefs } = await import(
+          "../../core/mod.ts"
+        );
+        const parsed = await parseFile(output, { file: filePath });
+        const refResult = canonicalizeRefs(
+          output,
+          parsed.entries,
+          refIndex,
+          ledger,
+        );
+        if (refResult.changed) {
+          output = refResult.output;
+          changed = true;
+        }
+      }
 
       for (const d of result.diagnostics) {
         const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
         console.error(`${d.severity}: ${loc} ${d.message}`);
       }
 
-      if (result.changed) {
+      if (changed) {
         totalFormatted++;
         if (!options.check) {
-          await Deno.writeTextFile(filePath, result.output);
+          await Deno.writeTextFile(filePath, output);
         }
       } else {
         totalUnchanged++;

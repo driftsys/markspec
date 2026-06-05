@@ -153,13 +153,13 @@ is the only command that edits source.
 
 ## 4. Update mechanics
 
-| Command                         | Behavior                                                                                                                                                   |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `markspec lock`                 | Resolve every upstream, write/refresh `markspec.lock`. Idempotent: re-running with no upstream change is a zero diff.                                      |
-| `markspec lock --check`         | **CI mode.** Resolve, compare to the committed lockfile, **write nothing**; exit non-zero on any drift (new/changed/removed upstream, hash mismatch).      |
-| `markspec lock --update[=<id>]` | Re-resolve all (or one) upstreams to current latest within the specifier range; the explicit "I am intentionally moving the pin" verb.                     |
-| `markspec fmt`                  | **Reads** the lockfile (to surface a stale-pin warning) but **never writes** it. Locking is not a formatting concern (AGENTS.md formatters/linters split). |
-| `markspec compile` / `lsp`      | Read the lockfile to pin federated resolution (compile-output §5); never write it.                                                                         |
+| Command                         | Behavior                                                                                                                                                                                                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `markspec lock`                 | Resolve every upstream, write/refresh `markspec.lock`. Idempotent: re-running with no upstream change is a zero diff.                                                                                                                                                        |
+| `markspec lock --check`         | **CI mode.** Resolve, compare to the committed lockfile, **write nothing**; exit non-zero on any drift (new/changed/removed upstream, hash mismatch).                                                                                                                        |
+| `markspec lock --update[=<id>]` | Re-resolve all (or one) upstreams to current latest within the specifier range; the explicit "I am intentionally moving the pin" verb.                                                                                                                                       |
+| `markspec fmt`                  | **Reads** the lockfile edge ledger (§3.1) to **heal stale trace references** (target display ID renamed → rewrite to current name) and surfaces stale-pin warnings; **never writes** the lockfile. Locking is not a formatting concern (AGENTS.md formatters/linters split). |
+| `markspec compile` / `lsp`      | Read the lockfile to pin federated resolution (compile-output §5); never write it.                                                                                                                                                                                           |
 
 Only `markspec lock` (and `--update`) mutate the file. This mirrors the
 `Cargo.lock` discipline: the build reads it, one explicit command writes it.
