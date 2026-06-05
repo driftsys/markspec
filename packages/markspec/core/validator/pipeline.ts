@@ -140,16 +140,23 @@ export function runPipeline(
     }
   }
 
-  // Stage 4 — traceability rules (only when a profile is loaded). Builds a
-  // graph index keyed by `entry.id` from the post-classification entries so
-  // trace-rule target matchers can look up the classified type/shape.
+  // Stage 4 — traceability rules (only when a profile is loaded). Builds two
+  // indexes: by `entry.id` (ULID) and by `entry.displayId`, so trace values
+  // resolve in either form (issue #593).
   if (profile !== null) {
     const graph = new Map<string, Entry>();
+    const byDisplayId = new Map<string, Entry>();
     for (const e of finalEntries) {
-      if (e.id) graph.set(e.id, e);
+      if (e.id && !graph.has(e.id)) graph.set(e.id, e);
+      if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
     }
     for (const entry of finalEntries) {
-      const stage4 = validateTraceabilityForEntry(entry, profile, graph);
+      const stage4 = validateTraceabilityForEntry(
+        entry,
+        profile,
+        graph,
+        byDisplayId,
+      );
       diagnostics.push(...stage4);
     }
   }
