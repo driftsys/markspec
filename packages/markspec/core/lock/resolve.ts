@@ -105,6 +105,8 @@ export interface ResolvedUpstreams {
   /** sha256:* of the canonical edge serialization. */
   readonly canonicalEdgeHash: string;
   readonly canonicalEdgeCount: number;
+  /** Per-edge ULID identity ledger (issue #593, Slice 3). */
+  readonly edges: readonly LockEdge[];
   /** Wall-clock timestamp the lockfile was resolved. */
   readonly lockedAt: string;
   /** Aggregate diagnostics — empty when every upstream resolved cleanly. */
@@ -303,6 +305,16 @@ export async function resolveUpstreams(
   const edges = extractEdgeQuads(opts.entries);
   const canonicalEdgeHash = await hashCanonicalEdges(edges);
 
+  // Dual index for the ULID ledger — first-entry-wins on duplicate keys,
+  // matching the validator/workspace convention.
+  const byDisplayId = new Map<string, Entry>();
+  const byId = new Map<string, Entry>();
+  for (const e of opts.entries) {
+    if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
+    if (e.id !== undefined && !byId.has(e.id)) byId.set(e.id, e);
+  }
+  const edgeLedger = extractEdgeLedger(opts.entries, byDisplayId, byId);
+
   const diagnostics: Diagnostic[] = [
     ...refResults.flatMap((r) => r.diagnostics),
     ...profResults.flatMap((r) => r.diagnostics),
@@ -317,6 +329,7 @@ export async function resolveUpstreams(
     boundEntries: boundResults,
     canonicalEdgeHash,
     canonicalEdgeCount: edges.length,
+    edges: edgeLedger,
     lockedAt,
     diagnostics,
   };

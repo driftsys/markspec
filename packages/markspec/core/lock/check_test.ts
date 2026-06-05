@@ -19,6 +19,7 @@ const EMPTY_RESOLVED: ResolvedUpstreams = {
   boundEntries: [],
   canonicalEdgeHash: "sha256:0",
   canonicalEdgeCount: 0,
+  edges: [],
   lockedAt: "2026-05-25T12:00:00Z",
   diagnostics: [],
 };

@@ -41,6 +41,7 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
     boundEntries: [],
     canonicalEdgeHash: "sha256:0",
     canonicalEdgeCount: 0,
+    edges: [],
     lockedAt: "2026-05-25T12:00:00Z",
     diagnostics: [],
   };
@@ -629,6 +630,47 @@ Deno.test(
     const byId = new Map([["01J0000000000000000000SRC4", source]]);
     const ledger = extractEdgeLedger([source], byDisplayId, byId);
     assertEquals(ledger.length, 0);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// resolveUpstreams: edge ledger population (Task 3 / issue #593)
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "resolveUpstreams: populates the edge ledger from entries",
+  async () => {
+    const source = makeEntry({
+      displayId: "SWE_0001",
+      id: "01J0000000000000000000SRC1",
+      rawAttributes: [{ key: "Satisfies", value: "SYS_0001" }],
+    });
+    const target = makeEntry({
+      displayId: "SYS_0001",
+      id: "01J0000000000000000000TGT1",
+      rawAttributes: [],
+    });
+    const resolved = await resolveUpstreams({
+      entries: [source, target],
+      profileChain: [],
+      config: {
+        name: "x",
+        version: "0.0.0",
+        labels: [],
+        parents: [],
+        parentFallback: "",
+        captionConventions: {},
+      },
+      mappings: [],
+      fetchUrl: () => Promise.resolve({ error: "no network in test" }),
+      readFile: () => Promise.resolve({ error: "no fs in test" }),
+      now: () => new Date("2026-06-06T00:00:00Z"),
+    });
+    assertEquals(resolved.edges.length, 1);
+    assertEquals(resolved.edges[0].sourceUlid, "01J0000000000000000000SRC1");
+    assertEquals(resolved.edges[0].targetUlid, "01J0000000000000000000TGT1");
+    assertEquals(resolved.edges[0].authoredTarget, "SYS_0001");
+    assertEquals(resolved.edges[0].relation, "Satisfies");
   },
 );
 
