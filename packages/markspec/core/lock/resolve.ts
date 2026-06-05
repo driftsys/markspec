@@ -17,12 +17,17 @@ import type {
   ProfileSpecifier,
   ProjectConfig,
 } from "../model/mod.ts";
-import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/mod.ts";
+import {
+  CORE_RELATIONS,
+  LOCK_EXTRA_INVERSE_KEYS,
+  URI_SCHEME_RE,
+} from "../model/mod.ts";
 import type { Mapping } from "../sync/mod.ts";
 import { inferLockedAttributes } from "../sync/locked_attributes.ts";
 import type {
   BoundEntry,
   BoundEntryBinding,
+  LockEdge,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,
@@ -228,6 +233,43 @@ export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
         });
       }
     }
+  }
+  return out;
+}
+
+/**
+ * Resolve every trace edge to a ULID identity-ledger record (issue #593,
+ * Slice 3). Reuses {@linkcode extractEdgeQuads} for the trace-key walk, then
+ * resolves the source (always a local entry → `entry.id`) and target through
+ * the dual index `byDisplayId ?? byId`. The verbatim authored target token is
+ * preserved so `fmt` rename-healing can match it later.
+ *
+ * Skips:
+ *   - edges whose source has no ULID (unstamped — not lockable);
+ *   - edges whose target is a scheme-qualified URI (intentionally external,
+ *     never a local entry — mirrors the MSL-L006 existence-check skip).
+ *
+ * An unresolved (but non-URI) target yields a record with `targetUlid`
+ * undefined — a dangling reference already surfaced by MSL-L006 at `check`.
+ */
+export function extractEdgeLedger(
+  entries: readonly Entry[],
+  byDisplayId: ReadonlyMap<string, Entry>,
+  byId: ReadonlyMap<string, Entry>,
+): LockEdge[] {
+  const out: LockEdge[] = [];
+  for (const quad of extractEdgeQuads(entries)) {
+    const sourceEntry = byDisplayId.get(quad.source) ?? byId.get(quad.source);
+    const sourceUlid = sourceEntry?.id;
+    if (sourceUlid === undefined) continue; // unstamped source — not lockable
+    if (URI_SCHEME_RE.test(quad.target)) continue; // external reference
+    const targetEntry = byDisplayId.get(quad.target) ?? byId.get(quad.target);
+    out.push({
+      sourceUlid,
+      relation: quad.relation,
+      authoredTarget: quad.target,
+      ...(targetEntry?.id !== undefined ? { targetUlid: targetEntry.id } : {}),
+    });
   }
   return out;
 }

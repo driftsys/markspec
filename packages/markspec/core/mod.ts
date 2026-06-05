@@ -294,6 +294,7 @@ export * as typl from "./typl/mod.ts";
 export {
   canonicalEdgeJson,
   checkDrift,
+  extractEdgeLedger,
   extractEdgeQuads,
   hashCanonicalEdges,
   isBelowFloor,
