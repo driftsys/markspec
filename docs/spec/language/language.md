@@ -639,7 +639,10 @@ display-ID prefix (`SRS_BRK_0107` → `type: software-requirement` under an ASPI
 profile that declares
 `software-requirement: display-id-pattern: "SRS_{scope}_{n:04d}"`). An explicit
 `type:` attribute in source overrides inference and is required when the display
-ID matches no declared pattern.
+ID matches no declared pattern. Types whose IDs are named, not numbered — e.g.
+components `SWC_LIGHT_CTRL`, `HWC_PIU` — declare a counter-less pattern
+(`sw-component: display-id-pattern: "SWC_{name}"`) so they are classified by
+prefix without an explicit `type:` (see annex §B.3.2).
 
 **Profile-declared attributes:** every attribute beyond the universal set (§2.1)
 is declared by the active profile. Examples — declared by an automotive ASPICE

@@ -81,9 +81,46 @@ Deno.test("compileDisplayIdPattern: named {scope} segment matches any token", ()
   assertEquals(r.test("XREQ_IMMER_FOO_0010"), false); // extra segment
 });
 
-Deno.test("compileDisplayIdPattern: named segment without {n} still requires a counter", () => {
+Deno.test("compileDisplayIdPattern: counter-less named pattern matches rest-of-ID", () => {
+  // Named (no {n}) pattern with a literal anchor — issue #594. The trailing
+  // {name} captures the rest of the display ID, underscores included, so
+  // named component IDs classify by prefix.
+  const r = compileDisplayIdPattern("SWC_{name}");
+  assertEquals(r.test("SWC_DSG"), true);
+  assertEquals(r.test("SWC_LIGHT_CTRL"), true); // underscore in the name
+  assertEquals(r.test("SWC_io.adc"), true); // dot
+  assertEquals(r.test("SWC_drv/pwm"), true); // slash
+  assertEquals(r.test("HWC_PIU"), false); // wrong prefix
+  assertEquals(r.test("SWC_"), false); // empty name
+  assertEquals(r.test("XSWC_DSG"), false); // anchored prefix
+});
+
+Deno.test("compileDisplayIdPattern: counter-less {scope} pattern is now valid (named)", () => {
+  // `XREQ_{scope}` was rejected before #594 (no counter); it is now a named
+  // pattern whose {scope} captures the rest of the ID.
+  const r = compileDisplayIdPattern("XREQ_{scope}");
+  assertEquals(r.test("XREQ_LIGHT"), true);
+  assertEquals(r.test("XREQ_LIGHT_CTRL"), true);
+  assertEquals(r.test("XREQ_"), false);
+});
+
+Deno.test("compileDisplayIdPattern: bare {name} with no literal anchor throws", () => {
   try {
-    compileDisplayIdPattern("XREQ_{scope}");
+    compileDisplayIdPattern("{name}");
+    throw new Error("expected compileDisplayIdPattern to throw");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.toLowerCase().includes("literal")) {
+      throw new Error(`expected 'literal' in error message, got: ${msg}`);
+    }
+  }
+});
+
+Deno.test("compileDisplayIdPattern: all-literal pattern (no placeholder) still throws", () => {
+  // A literal-only template has no variable part — neither counter nor named —
+  // and is rejected with the historical missing-{n} message.
+  try {
+    compileDisplayIdPattern("REQ_FIXED");
     throw new Error("expected compileDisplayIdPattern to throw");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

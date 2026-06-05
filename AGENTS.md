@@ -421,6 +421,10 @@ docs/
   `HardwareInterface` from `Component` to `Contract` (an interface is a
   specification, not a building block); `Provides`/`Requires` provider/consumer
   links; supersedes the type tree shown in ADR-017
+- `adr-025-counter-less-display-id-pattern.md` — counter-less ("named")
+  `display-id-pattern` so types whose IDs are named, not numbered (components
+  `SWC_LIGHT_CTRL`, `HWC_PIU`) classify by prefix without an explicit `Type:`;
+  refines ADR-009 §5; classification-only (not mintable)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
