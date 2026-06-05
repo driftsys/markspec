@@ -4,7 +4,7 @@
  * Unit tests for markspec.yaml manifest parsing.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { fromFileUrl } from "@std/path";
 import { parseManifest } from "./manifest.ts";
 
@@ -127,6 +127,45 @@ profile:
 `);
   assertEquals(result.manifest, null);
   assertEquals(result.diagnostics[0].code, "PROFILE-LOAD-003");
+});
+
+Deno.test("parseManifest: invalid display-id-pattern emits PROFILE-TYPE-008 (#597)", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    sw-component:
+      extends: SoftwareComponent
+      display-id-pattern: "SWC_{x}_{x}"
+`);
+  // A malformed pattern is reported as a clean diagnostic, not thrown later.
+  // Per parseManifest's all-or-nothing error contract, the manifest is
+  // rejected (null) — the same as every other type-field error.
+  assertEquals(result.manifest, null);
+  const t006 = result.diagnostics.find((d) => d.code === "PROFILE-TYPE-008");
+  assertExists(t006);
+  assertStringIncludes(t006.message, "duplicate named placeholder");
+});
+
+Deno.test("parseManifest: valid display-id-pattern emits no PROFILE-TYPE-008 (#597)", () => {
+  const result = parseManifest(`
+id: "@acme/x"
+version: 1.0.0
+profile:
+  types:
+    software-requirement:
+      extends: Requirement
+      display-id-pattern: "SRS_{n:4d}"
+`);
+  assertExists(result.manifest);
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "PROFILE-TYPE-008"),
+    false,
+  );
+  const srs = result.manifest.types.get("software-requirement");
+  assertExists(srs);
+  assertEquals(srs.displayIdPattern, "SRS_{n:4d}");
 });
 
 Deno.test("parseManifest: referenced.traceability is not a recognized key", () => {

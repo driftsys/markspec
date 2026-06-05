@@ -258,6 +258,13 @@ ADR-008's per-type key set — Annex B):
 Any other per-type key is `PROFILE-TYPE-005` (new, error). The ADR-008 per-type
 `shape:` key is **removed** (§1.3 / Annex B).
 
+A malformed `display-id-pattern` — more than one `{n}` counter, an invalid or
+zero-width padding specifier, a counter-less pattern with no literal anchor, or
+a duplicate named placeholder — is a `PROFILE-TYPE-008` profile-load error
+(new). It is compile-checked once when the profile loads, against the same
+grammar the classifier uses, so a typo is reported cleanly at load instead of
+throwing an uncaught exception during validation.
+
 ### 4.1 Attributes — inherited, optional, required
 
 A type's effective attribute set is the **union** of:
