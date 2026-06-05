@@ -142,6 +142,8 @@ async function runLock(options: LockOptions): Promise<void> {
       ...resolved.registries.map((r) => r.upstream),
     ],
     boundEntries: resolved.boundEntries.map((b) => b.boundEntry),
+    // TODO(#593 Task 3): populate edges from resolved trace relations
+    edges: [],
     generatedCache: {
       edgesHash: resolved.canonicalEdgeHash,
       edgesCount: resolved.canonicalEdgeCount,

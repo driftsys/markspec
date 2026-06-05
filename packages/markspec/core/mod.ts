@@ -315,6 +315,7 @@ export type {
   FetchUrl,
   GeneratedCache,
   LockedAttributes,
+  LockEdge,
   Lockfile,
   LockfileMeta,
   LockfileToolchain,

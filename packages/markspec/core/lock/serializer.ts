@@ -10,6 +10,7 @@
  */
 
 import type {
+  LockEdge,
   Lockfile,
   UpstreamProfile,
   UpstreamReference,
@@ -109,11 +110,34 @@ export function serializeLockfile(lf: Lockfile): string {
     }
   }
 
+  const edges = lf.edges.slice().sort(compareLockEdges);
+  for (const e of edges) {
+    parts.push("\n[[edge]]\n");
+    parts.push(`source-ulid     = ${tomlString(e.sourceUlid)}\n`);
+    parts.push(`relation        = ${tomlString(e.relation)}\n`);
+    if (e.targetUlid !== undefined) {
+      parts.push(`target-ulid     = ${tomlString(e.targetUlid)}\n`);
+    }
+    parts.push(`authored-target = ${tomlString(e.authoredTarget)}\n`);
+  }
+
   parts.push("\n[generated-cache]\n");
   parts.push(`edges-hash = ${tomlString(lf.generatedCache.edgesHash)}\n`);
   parts.push(`edges-count = ${lf.generatedCache.edgesCount}\n`);
 
   return parts.join("");
+}
+
+/**
+ * Deterministic edge order: (sourceUlid, relation, authoredTarget). Input order
+ * never affects output, so identical project state → byte-identical lockfile.
+ */
+function compareLockEdges(a: LockEdge, b: LockEdge): number {
+  const s = a.sourceUlid.localeCompare(b.sourceUlid);
+  if (s !== 0) return s;
+  const r = a.relation.localeCompare(b.relation);
+  if (r !== 0) return r;
+  return a.authoredTarget.localeCompare(b.authoredTarget);
 }
 
 /**

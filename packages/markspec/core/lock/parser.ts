@@ -18,6 +18,7 @@ import type { Diagnostic } from "../model/mod.ts";
 import {
   type BoundEntry,
   type BoundEntryBinding,
+  type LockEdge,
   type Lockfile,
   LOCKFILE_SCHEMA_VERSION,
   type LockfileToolchain,
@@ -247,6 +248,31 @@ export function parseLockfile(toml: string): ParseLockfileResult {
     });
   }
 
+  const edges: LockEdge[] = [];
+  const rawEdges = (raw.edge as readonly Record<string, unknown>[]) ?? [];
+  for (let i = 0; i < rawEdges.length; i++) {
+    const e = rawEdges[i];
+    const sourceUlid = requireString(e, "source-ulid");
+    const relation = requireString(e, "relation");
+    const authoredTarget = requireString(e, "authored-target");
+    if (
+      sourceUlid === undefined || relation === undefined ||
+      authoredTarget === undefined
+    ) {
+      return diag(
+        "MSL-L001",
+        `[[edge]] entry ${i}: missing required field 'source-ulid', 'relation', or 'authored-target'`,
+      );
+    }
+    const targetUlid = e["target-ulid"];
+    edges.push({
+      sourceUlid,
+      relation,
+      authoredTarget,
+      ...(typeof targetUlid === "string" ? { targetUlid } : {}),
+    });
+  }
+
   const cache = raw["generated-cache"] as Record<string, unknown> | undefined;
   if (!cache) {
     return diag("MSL-L001", "Missing [generated-cache] table");
@@ -267,6 +293,7 @@ export function parseLockfile(toml: string): ParseLockfileResult {
       : { markspecSchema, lockedAt },
     upstreams,
     boundEntries,
+    edges,
     generatedCache: { edgesHash, edgesCount },
   };
   return { lockfile, diagnostics: [] };

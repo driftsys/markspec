@@ -8,6 +8,7 @@ const EMPTY_LOCKED: Lockfile = {
   meta: { markspecSchema: 1, lockedAt: "2026-05-25T12:00:00Z" },
   upstreams: [],
   boundEntries: [],
+  edges: [],
   generatedCache: { edgesHash: "sha256:0", edgesCount: 0 },
 };
 

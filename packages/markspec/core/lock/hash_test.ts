@@ -44,6 +44,7 @@ Deno.test("hash differs when meta.toolchain.minVersion differs", async () => {
     meta: { markspecSchema: 1, lockedAt: "2026-05-27T12:00:00Z" },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
   };
   const withFloor06: Lockfile = {

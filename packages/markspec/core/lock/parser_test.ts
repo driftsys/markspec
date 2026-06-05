@@ -1,6 +1,8 @@
 // packages/markspec/core/lock/parser_test.ts
 import { assertEquals, assertExists } from "@std/assert";
 import { parseLockfile } from "./parser.ts";
+import { serializeLockfile } from "./serializer.ts";
+import type { Lockfile } from "./model.ts";
 
 Deno.test("parseLockfile: round-trips empty lockfile", () => {
   const toml = `
@@ -264,4 +266,79 @@ edges-count = 0
   assertEquals(lockfile, undefined);
   assertEquals(diagnostics.length, 1);
   assertEquals(diagnostics[0].code, "MSL-L032");
+});
+
+// ---------------------------------------------------------------------------
+// [[edge]] ledger (issue #593, Slice 3)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseLockfile: round-trips [[edge]] ledger; omitted target-ulid → undefined", () => {
+  const lf: Lockfile = {
+    schema: 1,
+    meta: { markspecSchema: 1, lockedAt: "2026-06-06T00:00:00Z" },
+    upstreams: [],
+    boundEntries: [],
+    edges: [
+      {
+        sourceUlid: "01J0000000000000000000SRC1",
+        relation: "Satisfies",
+        targetUlid: "01J0000000000000000000TGT1",
+        authoredTarget: "SYS_BRK_0042",
+      },
+      {
+        sourceUlid: "01J0000000000000000000SRC1",
+        relation: "Derived-from",
+        authoredTarget: "SYS_GONE_0001",
+      },
+    ],
+    generatedCache: { edgesHash: "sha256:0", edgesCount: 0 },
+  };
+  const toml = serializeLockfile(lf);
+  const parsed = parseLockfile(toml);
+  assertEquals(parsed.diagnostics, []);
+  assertEquals(parsed.lockfile?.edges.length, 2);
+  const satisfies = parsed.lockfile!.edges.find((e) =>
+    e.relation === "Satisfies"
+  );
+  assertEquals(satisfies?.targetUlid, "01J0000000000000000000TGT1");
+  assertEquals(satisfies?.authoredTarget, "SYS_BRK_0042");
+  const derived = parsed.lockfile!.edges.find((e) =>
+    e.relation === "Derived-from"
+  );
+  assertEquals(derived?.targetUlid, undefined);
+  assertEquals(derived?.authoredTarget, "SYS_GONE_0001");
+});
+
+Deno.test("parseLockfile: lockfile with no [[edge]] table yields edges: []", () => {
+  const toml = `schema = 1
+[meta]
+markspec-schema = 1
+locked-at = "2026-06-06T00:00:00Z"
+[generated-cache]
+edges-hash = "sha256:0"
+edges-count = 0
+`;
+  const parsed = parseLockfile(toml);
+  assertEquals(parsed.diagnostics, []);
+  assertEquals(parsed.lockfile?.edges, []);
+});
+
+Deno.test("parseLockfile: [[edge]] missing source-ulid → MSL-L001", () => {
+  const toml = `schema = 1
+[meta]
+markspec-schema = 1
+locked-at = "2026-06-06T00:00:00Z"
+
+[[edge]]
+relation = "Satisfies"
+authored-target = "SYS_BRK_0042"
+
+[generated-cache]
+edges-hash = "sha256:0"
+edges-count = 0
+`;
+  const parsed = parseLockfile(toml);
+  assertEquals(parsed.lockfile, undefined);
+  assertEquals(parsed.diagnostics.length, 1);
+  assertEquals(parsed.diagnostics[0].code, "MSL-L001");
 });

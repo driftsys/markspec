@@ -11,6 +11,7 @@ export type {
   BoundEntryBinding,
   GeneratedCache,
   LockedAttributes,
+  LockEdge,
   Lockfile,
   LockfileMeta,
   LockfileToolchain,
