@@ -61,6 +61,14 @@ function richLockfile(): Lockfile {
         ],
       },
     ],
+    edges: [
+      {
+        sourceUlid: "01J0000000000000000000SRC1",
+        relation: "Satisfies",
+        targetUlid: "01J0000000000000000000TGT1",
+        authoredTarget: "SYS_BRK_0042",
+      },
+    ],
     generatedCache: {
       edgesHash: "sha256:edges001",
       edgesCount: 5,

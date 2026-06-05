@@ -13,6 +13,7 @@ Deno.test("Lockfile: empty lockfile constructs", () => {
     meta: { markspecSchema: 1, lockedAt: "2026-05-25T12:00:00Z" },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash: "sha256:e3b0c44...", edgesCount: 0 },
   };
   assertEquals(lf.schema, 1);

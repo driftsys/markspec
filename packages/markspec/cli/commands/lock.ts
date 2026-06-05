@@ -142,6 +142,7 @@ async function runLock(options: LockOptions): Promise<void> {
       ...resolved.registries.map((r) => r.upstream),
     ],
     boundEntries: resolved.boundEntries.map((b) => b.boundEntry),
+    edges: resolved.edges,
     generatedCache: {
       edgesHash: resolved.canonicalEdgeHash,
       edgesCount: resolved.canonicalEdgeCount,
@@ -164,6 +165,7 @@ async function runLock(options: LockOptions): Promise<void> {
           registries: { resolved: resolved.registries.length },
           "bound-entries": { resolved: resolved.boundEntries.length },
           "canonical-edges": { count: resolved.canonicalEdgeCount },
+          "ledger-edges": { count: resolved.edges.length },
         },
         diagnostics: resolved.diagnostics.map((d) => ({
           code: d.code,
@@ -174,7 +176,7 @@ async function runLock(options: LockOptions): Promise<void> {
     );
   } else {
     console.error(
-      `wrote markspec.lock (${resolved.references.length} references, ${resolved.profiles.length} profiles, ${resolved.registries.length} registries, ${resolved.boundEntries.length} bound entries, ${resolved.canonicalEdgeCount} edges)`,
+      `wrote markspec.lock (${resolved.references.length} references, ${resolved.profiles.length} profiles, ${resolved.registries.length} registries, ${resolved.boundEntries.length} bound entries, ${resolved.canonicalEdgeCount} edges, ${resolved.edges.length} ledger edges)`,
     );
   }
 

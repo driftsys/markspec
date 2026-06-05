@@ -24,6 +24,7 @@ function lockfileWith(toolchainMinVersion: string | undefined): Lockfile {
     },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: EMPTY_CACHE,
   };
 }

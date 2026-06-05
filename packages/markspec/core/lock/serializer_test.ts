@@ -9,6 +9,7 @@ const EMPTY_LOCKFILE: Lockfile = {
   meta: { markspecSchema: 1, lockedAt: "2026-05-25T12:00:00Z" },
   upstreams: [],
   boundEntries: [],
+  edges: [],
   generatedCache: { edgesHash: "sha256:e3b0c44", edgesCount: 0 },
 };
 
@@ -118,6 +119,7 @@ Deno.test("serializeLockfile: emits [meta.toolchain] after [meta]", () => {
     },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
   };
   const out = serializeLockfile(lf);
@@ -148,6 +150,7 @@ Deno.test("serializeLockfile: omits [meta.toolchain] when absent", () => {
     },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
   };
   const out = serializeLockfile(lf);
@@ -165,6 +168,7 @@ Deno.test("lockfile round-trips with [meta.toolchain]", () => {
     },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
   };
   const serialized = serializeLockfile(original);
@@ -182,6 +186,7 @@ Deno.test("lockfile round-trips without [meta.toolchain]", () => {
     },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash: "sha256:abc", edgesCount: 0 },
   };
   const serialized = serializeLockfile(original);
@@ -197,4 +202,44 @@ Deno.test("serializer: first line is the #:schema directive", () => {
     firstLine,
     "#:schema https://driftsys.github.io/markspec/schemas/lock/v1.json",
   );
+});
+
+Deno.test("serializeLockfile: emits [[edge]] tables sorted by (source, relation, authored-target)", () => {
+  const lf: Lockfile = {
+    schema: 1,
+    meta: { markspecSchema: 1, lockedAt: "2026-06-06T00:00:00Z" },
+    upstreams: [],
+    boundEntries: [],
+    edges: [
+      {
+        sourceUlid: "01J0000000000000000000SRC2",
+        relation: "Satisfies",
+        targetUlid: "01J0000000000000000000TGT2",
+        authoredTarget: "SYS_BRK_0099",
+      },
+      {
+        sourceUlid: "01J0000000000000000000SRC1",
+        relation: "Satisfies",
+        targetUlid: "01J0000000000000000000TGT1",
+        authoredTarget: "SYS_BRK_0042",
+      },
+      {
+        sourceUlid: "01J0000000000000000000SRC1",
+        relation: "Derived-from",
+        authoredTarget: "SYS_GONE_0001",
+      },
+    ],
+    generatedCache: { edgesHash: "sha256:0", edgesCount: 0 },
+  };
+  const toml = serializeLockfile(lf);
+  const firstSrc1 = toml.indexOf("01J0000000000000000000SRC1");
+  const src2 = toml.indexOf("01J0000000000000000000SRC2");
+  assertEquals(firstSrc1 < src2, true);
+  assertStringIncludes(toml, "[[edge]]");
+  assertStringIncludes(toml, 'relation        = "Satisfies"');
+  assertStringIncludes(toml, 'authored-target = "SYS_BRK_0042"');
+  const goneIdx = toml.indexOf('authored-target = "SYS_GONE_0001"');
+  const goneBlock = toml.slice(goneIdx - 200, goneIdx);
+  assertEquals(goneBlock.includes("01J0000000000000000000SRC1"), true);
+  assertEquals(serializeLockfile(lf), toml); // determinism
 });

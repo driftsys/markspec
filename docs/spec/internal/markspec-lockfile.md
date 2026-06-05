@@ -105,6 +105,12 @@ api = "https://…/api/"
 resolved-manifest-hash = "sha256:…"
 markspec-schema = 1
 
+[[edge]] # §3.1 — ULID identity ledger, one per local trace edge (issue #593)
+source-ulid = "01J…SRC" # stable ULID of the edge's source entry
+relation = "Satisfies"
+target-ulid = "01J…TGT" # stable ULID of the resolved target; omitted when unresolved
+authored-target = "SYS_BRK_0042" # the display ID (or ULID) as authored at lock time
+
 [generated-cache] # §3 — generated inverse-edge cache
 edges-hash = "sha256:…" # digest of edges.ndjson (compile-output §4.6) at lock time
 ```
@@ -126,6 +132,24 @@ time — not the edges themselves (that would duplicate the compile output,
 violating anti-unification). A reproduction step recompiles, hashes, and
 compares: identical hash ⇒ the trace graph is bit-for-bit the one the audit saw.
 The cache is _integrity metadata_, not a second copy of the graph.
+
+### 3.1 Edge identity ledger
+
+Each local trace edge is recorded as an `[[edge]]` row carrying the **stable
+ULID** of its source and (when resolved) its target, alongside the **authored
+target token** — the display ID exactly as written in source at lock time. This
+is the _identity ledger_ `markspec fmt` uses to heal a stale cross-reference: if
+a target's display ID is renamed, the source's `target-ulid` still resolves, and
+`fmt` rewrites the stale token to the target's current display ID.
+
+The ledger is **not** a second copy of the graph (cf. §3). The authored token is
+the one datum a recompile cannot reconstruct after a rename — it is identity
+provenance, not derivable state. The `generated-cache.edges-hash` remains the
+sole integrity digest ("did the graph change"); the ledger answers a different
+question ("what stable identity did this edge point at last time"). An
+unresolved target omits `target-ulid` and is also surfaced by `MSL-L006` at
+`markspec check`. `markspec lock` writes the ledger; `markspec fmt` reads it and
+is the only command that edits source.
 
 ## 4. Update mechanics
 

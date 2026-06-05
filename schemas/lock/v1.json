@@ -102,6 +102,20 @@
         }
       }
     },
+    "edge": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source-ulid", "relation", "authored-target"],
+        "properties": {
+          "source-ulid": { "type": "string" },
+          "relation": { "type": "string" },
+          "target-ulid": { "type": "string" },
+          "authored-target": { "type": "string" }
+        }
+      }
+    },
     "generated-cache": {
       "type": "object",
       "additionalProperties": false,

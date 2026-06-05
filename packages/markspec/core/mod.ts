@@ -294,6 +294,7 @@ export * as typl from "./typl/mod.ts";
 export {
   canonicalEdgeJson,
   checkDrift,
+  extractEdgeLedger,
   extractEdgeQuads,
   hashCanonicalEdges,
   isBelowFloor,
@@ -315,6 +316,7 @@ export type {
   FetchUrl,
   GeneratedCache,
   LockedAttributes,
+  LockEdge,
   Lockfile,
   LockfileMeta,
   LockfileToolchain,

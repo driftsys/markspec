@@ -68,6 +68,30 @@ export interface BoundEntry {
   readonly bindings: readonly BoundEntryBinding[];
 }
 
+/**
+ * One resolved trace edge in the ULID identity ledger (issue #593, Slice 3).
+ *
+ * Records the stable ULID identity of an edge's source and target alongside the
+ * verbatim authored target token at lock time. The authored token is the datum
+ * a recompile cannot recover after a rename, so the ledger is identity
+ * provenance for `fmt` rename-healing — distinct from the integrity digest in
+ * {@linkcode GeneratedCache}. Distinct from `EdgeQuad` (the display-ID hash
+ * input in `canonical_edges.ts`).
+ */
+export interface LockEdge {
+  /** Stable ULID of the source entry. Always present (source is a local entry). */
+  readonly sourceUlid: string;
+  /** Trace relation attribute name, e.g. "Satisfies". */
+  readonly relation: string;
+  /**
+   * Stable ULID of the resolved target. Absent when the authored target
+   * resolves to no entry (a dangling reference, already warned by MSL-L006).
+   */
+  readonly targetUlid?: string;
+  /** Verbatim authored target token (display ID or ULID) at lock time. */
+  readonly authoredTarget: string;
+}
+
 /** Canonical-edge-graph integrity record. */
 export interface GeneratedCache {
   readonly edgesHash: string;
@@ -101,6 +125,8 @@ export interface Lockfile {
   readonly meta: LockfileMeta;
   readonly upstreams: readonly Upstream[];
   readonly boundEntries: readonly BoundEntry[];
+  /** Per-edge ULID identity ledger (issue #593, Slice 3). */
+  readonly edges: readonly LockEdge[];
   readonly generatedCache: GeneratedCache;
 }
 

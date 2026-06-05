@@ -41,6 +41,7 @@ export async function buildMarkspecLockStub(
     },
     upstreams: [],
     boundEntries: [],
+    edges: [],
     generatedCache: { edgesHash, edgesCount: 0 },
   };
   return serializeLockfile(stub);

@@ -17,12 +17,17 @@ import type {
   ProfileSpecifier,
   ProjectConfig,
 } from "../model/mod.ts";
-import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/mod.ts";
+import {
+  CORE_RELATIONS,
+  LOCK_EXTRA_INVERSE_KEYS,
+  URI_SCHEME_RE,
+} from "../model/mod.ts";
 import type { Mapping } from "../sync/mod.ts";
 import { inferLockedAttributes } from "../sync/locked_attributes.ts";
 import type {
   BoundEntry,
   BoundEntryBinding,
+  LockEdge,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,
@@ -100,6 +105,8 @@ export interface ResolvedUpstreams {
   /** sha256:* of the canonical edge serialization. */
   readonly canonicalEdgeHash: string;
   readonly canonicalEdgeCount: number;
+  /** Per-edge ULID identity ledger (issue #593, Slice 3). */
+  readonly edges: readonly LockEdge[];
   /** Wall-clock timestamp the lockfile was resolved. */
   readonly lockedAt: string;
   /** Aggregate diagnostics — empty when every upstream resolved cleanly. */
@@ -233,6 +240,43 @@ export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
 }
 
 /**
+ * Resolve every trace edge to a ULID identity-ledger record (issue #593,
+ * Slice 3). Reuses {@linkcode extractEdgeQuads} for the trace-key walk, then
+ * resolves the source (always a local entry → `entry.id`) and target through
+ * the dual index `byDisplayId ?? byId`. The verbatim authored target token is
+ * preserved so `fmt` rename-healing can match it later.
+ *
+ * Skips:
+ *   - edges whose source has no ULID (unstamped — not lockable);
+ *   - edges whose target is a scheme-qualified URI (intentionally external,
+ *     never a local entry — mirrors the MSL-L006 existence-check skip).
+ *
+ * An unresolved (but non-URI) target yields a record with `targetUlid`
+ * undefined — a dangling reference already surfaced by MSL-L006 at `check`.
+ */
+export function extractEdgeLedger(
+  entries: readonly Entry[],
+  byDisplayId: ReadonlyMap<string, Entry>,
+  byId: ReadonlyMap<string, Entry>,
+): LockEdge[] {
+  const out: LockEdge[] = [];
+  for (const quad of extractEdgeQuads(entries)) {
+    const sourceEntry = byDisplayId.get(quad.source) ?? byId.get(quad.source);
+    const sourceUlid = sourceEntry?.id;
+    if (sourceUlid === undefined) continue; // unstamped source — not lockable
+    if (URI_SCHEME_RE.test(quad.target)) continue; // external reference
+    const targetEntry = byDisplayId.get(quad.target) ?? byId.get(quad.target);
+    out.push({
+      sourceUlid,
+      relation: quad.relation,
+      authoredTarget: quad.target,
+      ...(targetEntry?.id !== undefined ? { targetUlid: targetEntry.id } : {}),
+    });
+  }
+  return out;
+}
+
+/**
  * Resolve every upstream the lockfile needs: References, profile chain
  * tiers, federated registries, and bound entries. Computes the
  * canonical edge hash from the same entry set. Returns the aggregate
@@ -261,6 +305,16 @@ export async function resolveUpstreams(
   const edges = extractEdgeQuads(opts.entries);
   const canonicalEdgeHash = await hashCanonicalEdges(edges);
 
+  // Dual index for the ULID ledger — first-entry-wins on duplicate keys,
+  // matching the validator/workspace convention.
+  const byDisplayId = new Map<string, Entry>();
+  const byId = new Map<string, Entry>();
+  for (const e of opts.entries) {
+    if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
+    if (e.id !== undefined && !byId.has(e.id)) byId.set(e.id, e);
+  }
+  const edgeLedger = extractEdgeLedger(opts.entries, byDisplayId, byId);
+
   const diagnostics: Diagnostic[] = [
     ...refResults.flatMap((r) => r.diagnostics),
     ...profResults.flatMap((r) => r.diagnostics),
@@ -275,6 +329,7 @@ export async function resolveUpstreams(
     boundEntries: boundResults,
     canonicalEdgeHash,
     canonicalEdgeCount: edges.length,
+    edges: edgeLedger,
     lockedAt,
     diagnostics,
   };

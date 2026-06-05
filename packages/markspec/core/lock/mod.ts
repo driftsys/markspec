@@ -11,6 +11,7 @@ export type {
   BoundEntryBinding,
   GeneratedCache,
   LockedAttributes,
+  LockEdge,
   Lockfile,
   LockfileMeta,
   LockfileToolchain,
@@ -35,6 +36,7 @@ export { canonicalEdgeJson, hashCanonicalEdges } from "./canonical_edges.ts";
 export type { EdgeQuad } from "./canonical_edges.ts";
 
 export {
+  extractEdgeLedger,
   extractEdgeQuads,
   resolveBoundEntries,
   resolveProfileChain,

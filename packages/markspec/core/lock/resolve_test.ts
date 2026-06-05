@@ -41,6 +41,7 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
     boundEntries: [],
     canonicalEdgeHash: "sha256:0",
     canonicalEdgeCount: 0,
+    edges: [],
     lockedAt: "2026-05-25T12:00:00Z",
     diagnostics: [],
   };
@@ -502,5 +503,197 @@ Deno.test(
     assertEquals(edges[0].relation, "Requires");
     assertEquals(edges[0].target, "IFC-2");
     assertEquals(edges[0].provenance, "local");
+  },
+);
+
+// ---------------------------------------------------------------------------
+// extractEdgeLedger tests (Task 2 / issue #593)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal Authored entry for extractEdgeLedger tests.
+ * Matches the shape used by `mkBoundEntry` above.
+ */
+function makeEntry(
+  partial: {
+    displayId: string;
+    id: string | undefined;
+    rawAttributes: Array<{ key: string; value: string }>;
+  },
+): Entry {
+  return {
+    displayId: makeDisplayId(partial.displayId),
+    title: partial.displayId,
+    body: "",
+    rawAttributes: partial.rawAttributes,
+    typedAttributes: new Map() as never,
+    id: partial.id,
+    shape: "Authored",
+    location: { file: "x.md", line: 1, column: 1 },
+    source: { kind: "markdown" },
+    bodyTokens: [],
+  };
+}
+
+Deno.test(
+  "extractEdgeLedger: display-ID target resolves to its ULID; authored kept",
+  async () => {
+    const { extractEdgeLedger } = await import("./resolve.ts");
+    const source = makeEntry({
+      displayId: "SWE_0001",
+      id: "01J0000000000000000000SRC1",
+      rawAttributes: [{ key: "Satisfies", value: "SYS_0001" }],
+    });
+    const target = makeEntry({
+      displayId: "SYS_0001",
+      id: "01J0000000000000000000TGT1",
+      rawAttributes: [],
+    });
+    const byDisplayId = new Map([
+      ["SWE_0001", source],
+      ["SYS_0001", target],
+    ]);
+    const byId = new Map([
+      ["01J0000000000000000000SRC1", source],
+      ["01J0000000000000000000TGT1", target],
+    ]);
+    const ledger = extractEdgeLedger([source, target], byDisplayId, byId);
+    assertEquals(ledger.length, 1);
+    assertEquals(ledger[0].sourceUlid, "01J0000000000000000000SRC1");
+    assertEquals(ledger[0].relation, "Satisfies");
+    assertEquals(ledger[0].targetUlid, "01J0000000000000000000TGT1");
+    assertEquals(ledger[0].authoredTarget, "SYS_0001");
+  },
+);
+
+Deno.test(
+  "extractEdgeLedger: ULID target resolves; authoredTarget keeps the ULID verbatim",
+  async () => {
+    const { extractEdgeLedger } = await import("./resolve.ts");
+    const source = makeEntry({
+      displayId: "SWE_0002",
+      id: "01J0000000000000000000SRC2",
+      rawAttributes: [
+        { key: "Satisfies", value: "01J0000000000000000000TGT1" },
+      ],
+    });
+    const target = makeEntry({
+      displayId: "SYS_0001",
+      id: "01J0000000000000000000TGT1",
+      rawAttributes: [],
+    });
+    const byDisplayId = new Map([
+      ["SWE_0002", source],
+      ["SYS_0001", target],
+    ]);
+    const byId = new Map([
+      ["01J0000000000000000000SRC2", source],
+      ["01J0000000000000000000TGT1", target],
+    ]);
+    const ledger = extractEdgeLedger([source, target], byDisplayId, byId);
+    assertEquals(ledger.length, 1);
+    assertEquals(ledger[0].targetUlid, "01J0000000000000000000TGT1");
+    assertEquals(ledger[0].authoredTarget, "01J0000000000000000000TGT1");
+  },
+);
+
+Deno.test(
+  "extractEdgeLedger: unresolved target → targetUlid undefined, authored kept",
+  async () => {
+    const { extractEdgeLedger } = await import("./resolve.ts");
+    const source = makeEntry({
+      displayId: "SWE_0003",
+      id: "01J0000000000000000000SRC3",
+      rawAttributes: [{ key: "Satisfies", value: "SYS_GONE" }],
+    });
+    const byDisplayId = new Map([["SWE_0003", source]]);
+    const byId = new Map([["01J0000000000000000000SRC3", source]]);
+    const ledger = extractEdgeLedger([source], byDisplayId, byId);
+    assertEquals(ledger.length, 1);
+    assertEquals(ledger[0].targetUlid, undefined);
+    assertEquals(ledger[0].authoredTarget, "SYS_GONE");
+  },
+);
+
+Deno.test(
+  "extractEdgeLedger: URI-scheme target is skipped (external, not a local edge)",
+  async () => {
+    const { extractEdgeLedger } = await import("./resolve.ts");
+    // References has lockEdge:true so extractEdgeQuads will emit a quad for it.
+    // The URI_SCHEME_RE skip then filters it out — exercising the skip branch.
+    const source = makeEntry({
+      displayId: "SWE_0004",
+      id: "01J0000000000000000000SRC4",
+      rawAttributes: [{ key: "References", value: "urn:iso:std:iso:26262" }],
+    });
+    const byDisplayId = new Map([["SWE_0004", source]]);
+    const byId = new Map([["01J0000000000000000000SRC4", source]]);
+    const ledger = extractEdgeLedger([source], byDisplayId, byId);
+    assertEquals(ledger.length, 0);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// resolveUpstreams: edge ledger population (Task 3 / issue #593)
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "resolveUpstreams: populates the edge ledger from entries",
+  async () => {
+    const source = makeEntry({
+      displayId: "SWE_0001",
+      id: "01J0000000000000000000SRC1",
+      rawAttributes: [{ key: "Satisfies", value: "SYS_0001" }],
+    });
+    const target = makeEntry({
+      displayId: "SYS_0001",
+      id: "01J0000000000000000000TGT1",
+      rawAttributes: [],
+    });
+    const resolved = await resolveUpstreams({
+      entries: [source, target],
+      profileChain: [],
+      config: {
+        name: "x",
+        version: "0.0.0",
+        labels: [],
+        parents: [],
+        parentFallback: "",
+        captionConventions: {},
+      },
+      mappings: [],
+      fetchUrl: () => Promise.resolve({ error: "no network in test" }),
+      readFile: () => Promise.resolve({ error: "no fs in test" }),
+      now: () => new Date("2026-06-06T00:00:00Z"),
+    });
+    assertEquals(resolved.edges.length, 1);
+    assertEquals(resolved.edges[0].sourceUlid, "01J0000000000000000000SRC1");
+    assertEquals(resolved.edges[0].targetUlid, "01J0000000000000000000TGT1");
+    assertEquals(resolved.edges[0].authoredTarget, "SYS_0001");
+    assertEquals(resolved.edges[0].relation, "Satisfies");
+  },
+);
+
+Deno.test(
+  "extractEdgeLedger: source with no ULID is skipped (not lockable)",
+  async () => {
+    const { extractEdgeLedger } = await import("./resolve.ts");
+    const source = makeEntry({
+      displayId: "SWE_0005",
+      id: undefined,
+      rawAttributes: [{ key: "Satisfies", value: "SYS_0001" }],
+    });
+    const target = makeEntry({
+      displayId: "SYS_0001",
+      id: "01J0000000000000000000TGT1",
+      rawAttributes: [],
+    });
+    const byDisplayId = new Map([
+      ["SWE_0005", source],
+      ["SYS_0001", target],
+    ]);
+    const byId = new Map([["01J0000000000000000000TGT1", target]]);
+    const ledger = extractEdgeLedger([source, target], byDisplayId, byId);
+    assertEquals(ledger.length, 0);
   },
 );
