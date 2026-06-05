@@ -152,17 +152,29 @@ directly instantiable (usable as fallbacks when no concrete subtype fits);
 
 ### B.3.2 `display-id-pattern` syntax
 
-| Placeholder | Meaning                                   | Example pattern   | Example output |
-| ----------- | ----------------------------------------- | ----------------- | -------------- |
-| `{n:4d}`    | Auto-increment, minimum 4 digits, padded  | `SRS_{n:4d}`      | `SRS_0042`     |
-| `{n:3d}`    | Auto-increment, minimum 3 digits, padded  | `HAZ_{n:3d}`      | `HAZ_003`      |
-| `{n:04d}`   | Leading-zero form, equivalent to `{n:4d}` | `STK_AEB_{n:04d}` | `STK_AEB_0007` |
+| Placeholder | Meaning                                   | Example pattern   | Example output   |
+| ----------- | ----------------------------------------- | ----------------- | ---------------- |
+| `{n:4d}`    | Auto-increment, minimum 4 digits, padded  | `SRS_{n:4d}`      | `SRS_0042`       |
+| `{n:3d}`    | Auto-increment, minimum 3 digits, padded  | `HAZ_{n:3d}`      | `HAZ_003`        |
+| `{n:04d}`   | Leading-zero form, equivalent to `{n:4d}` | `STK_AEB_{n:04d}` | `STK_AEB_0007`   |
+| `{name}`    | Named segment (no counter) — see below    | `SWC_{name}`      | `SWC_LIGHT_CTRL` |
 
 The text before the placeholder is the literal prefix; the text after is the
 literal suffix (e.g. `REQ-{n:3d}-draft` → `REQ-012-draft`). Width is a minimum,
 not a maximum — numbers wider than the pad are left intact. `markspec fmt`
 assigns the next available number; `markspec next-id <type>` prints it without
 writing; `markspec create` / `insert` scaffold a full block.
+
+**Numbered vs named patterns (ADR-025).** A pattern is _numbered_ when it
+carries exactly one `{n}` counter (the mintable, auto-incremented forms above)
+or _named_ when it carries no counter. A named pattern classifies types whose
+IDs are named, not numbered — components such as `SWC_LIGHT_CTRL` or `HWC_PIU`.
+It requires a non-empty literal prefix plus a trailing named placeholder (e.g.
+`SWC_{name}`); the named placeholder captures the rest of the display ID,
+underscores included. A bare `{name}` with no literal prefix is rejected — it
+would match every ID. Named patterns are classification-only: there is no
+counter to mint, so pair them with `display-id-pattern-enforcement: off` and
+author the ID by hand (`markspec next-id` / `create` skip named types).
 
 `display-id-pattern-enforcement` controls whether an entry whose display ID does
 not match the pattern is ignored (`off`), warned (`warn`), or rejected

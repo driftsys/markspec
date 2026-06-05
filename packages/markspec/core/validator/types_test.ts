@@ -133,6 +133,43 @@ Deno.test("classifyEntry: ambiguous match emits MSL-T002", () => {
   assertEquals(result.diagnostics[0].code, "MSL-T002");
 });
 
+Deno.test("classifyEntry: counter-less named pattern classifies underscore-bearing ID", () => {
+  // Issue #594: a named (non-numbered) component type declares a counter-less
+  // display-id-pattern and is classified by prefix with no explicit Type:.
+  const profile = buildProfile([
+    buildType({
+      name: "sw-component",
+      displayIdPattern: "SWC_{name}",
+      enforcement: "off",
+    }),
+  ]);
+  const entry = buildEntry({ displayId: "SWC_LIGHT_CTRL", shape: "Authored" });
+  const result = classifyEntry(entry, profile);
+  assertEquals(result.type, "sw-component");
+  assertEquals(result.diagnostics, []);
+});
+
+Deno.test("classifyEntry: overlapping named prefixes emit MSL-T002", () => {
+  // Two counter-less patterns can both match an ID; the existing ambiguity
+  // path applies unchanged.
+  const profile = buildProfile([
+    buildType({
+      name: "sw-component",
+      displayIdPattern: "SWC_{name}",
+      enforcement: "off",
+    }),
+    buildType({
+      name: "sw-light-component",
+      displayIdPattern: "SWC_LIGHT_{name}",
+      enforcement: "off",
+    }),
+  ]);
+  const entry = buildEntry({ displayId: "SWC_LIGHT_CTRL", shape: "Authored" });
+  const result = classifyEntry(entry, profile);
+  assertEquals(result.type, undefined);
+  assertEquals(result.diagnostics[0].code, "MSL-T002");
+});
+
 Deno.test("classifyEntry: all types participate in pattern match regardless of extends", () => {
   // Tier 2: types no longer have a 'shape' field; all participate in pattern
   // matching. Only the entry's own shape guards classification (Authored only).
