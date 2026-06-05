@@ -54,8 +54,12 @@ export {
   highestDisplayIdNumber,
   padDisplayIdNumber,
   parseDisplayIdPattern,
+  validateDisplayIdPattern,
 } from "./display_id.ts";
-export type { DisplayIdPatternShape } from "./display_id.ts";
+export type {
+  DisplayIdPatternShape,
+  DisplayIdPatternValidation,
+} from "./display_id.ts";
 
 export {
   entryMatchesTargets,

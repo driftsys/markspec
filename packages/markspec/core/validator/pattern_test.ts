@@ -26,6 +26,43 @@ Deno.test("compileDisplayIdPattern: {n:04d} requires exactly 4 digits", () => {
   assertEquals(r.test("REQ-12345"), false);
 });
 
+Deno.test("compileDisplayIdPattern: {n:4d} (no leading zero) now compiles (#596)", () => {
+  // The annex documents SRS_{n:4d} / HAZ_{n:3d} as valid, and the mint
+  // parser accepts them — classification must too, or `markspec check`
+  // crashes. {n:4d} is exactly N digits, same as {n:04d}.
+  const r = compileDisplayIdPattern("STK_{n:4d}");
+  assertEquals(r.test("STK_0001"), true);
+  assertEquals(r.test("STK_9999"), true);
+  assertEquals(r.test("STK_1"), false); // wrong width
+  assertEquals(r.test("STK_12345"), false);
+});
+
+Deno.test("compileDisplayIdPattern: {n:0d} (zero width) throws (#596)", () => {
+  try {
+    compileDisplayIdPattern("REQ-{n:0d}");
+    throw new Error("expected compileDisplayIdPattern to throw");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.toLowerCase().includes("invalid")) {
+      throw new Error(`expected 'invalid' in error message, got: ${msg}`);
+    }
+  }
+});
+
+Deno.test("compileDisplayIdPattern: duplicate named placeholder throws clean message (#597)", () => {
+  // Previously surfaced as a raw 'Duplicate capture group name' from
+  // `new RegExp`. The validateDisplayIdPattern oracle now catches it first.
+  try {
+    compileDisplayIdPattern("SWC_{x}_{x}");
+    throw new Error("expected compileDisplayIdPattern to throw");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.toLowerCase().includes("duplicate")) {
+      throw new Error(`expected 'duplicate' in error message, got: ${msg}`);
+    }
+  }
+});
+
 Deno.test("compileDisplayIdPattern: multi-segment prefix allowed", () => {
   const r = compileDisplayIdPattern("STAKE-REQ-{n:06d}");
   assertEquals(r.test("STAKE-REQ-000001"), true);

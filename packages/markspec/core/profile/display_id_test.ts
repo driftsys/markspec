@@ -8,6 +8,7 @@ import {
   highestDisplayIdNumber,
   padDisplayIdNumber,
   parseDisplayIdPattern,
+  validateDisplayIdPattern,
 } from "./display_id.ts";
 
 Deno.test("parseDisplayIdPattern: simple 4-digit prefix", () => {
@@ -51,6 +52,60 @@ Deno.test("parseDisplayIdPattern: scope placeholder stays literal", () => {
     width: 4,
     suffix: "",
   });
+});
+
+Deno.test("parseDisplayIdPattern: bare {n} is mintable with width 1 (#596)", () => {
+  // The mirror of the {n:4d} bug: a bare {n} compiles for classification
+  // (\d+) but previously returned undefined here, so it was silently
+  // non-mintable. Now it mints with no zero-padding (width 1).
+  const shape = parseDisplayIdPattern("REQ-{n}");
+  assertEquals(shape, { prefix: "REQ-", width: 1, suffix: "" });
+  assertEquals(formatDisplayId(shape!, 7), "REQ-7");
+  assertEquals(formatDisplayId(shape!, 42), "REQ-42");
+});
+
+Deno.test("parseDisplayIdPattern: named (counter-less) pattern is non-mintable (#598)", () => {
+  // A named pattern classifies (compileDisplayIdPattern) but has no
+  // counter to increment, so the mint path must report it as undefined.
+  assertEquals(parseDisplayIdPattern("SWC_{name}"), undefined);
+  assertEquals(parseDisplayIdPattern("XREQ_{scope}"), undefined);
+});
+
+Deno.test("validateDisplayIdPattern: accepts numbered and named forms (#596)", () => {
+  for (
+    const ok of [
+      "STK_{n:4d}", // non-leading-zero padding — the #596 case
+      "STK_{n:04d}",
+      "REQ-{n}", // bare counter
+      "XREQ_{scope}_{n:04d}", // medial named + counter
+      "SWC_{name}", // counter-less named
+      "XREQ_{scope}", // counter-less named
+    ]
+  ) {
+    assertEquals(validateDisplayIdPattern(ok).ok, true, ok);
+  }
+});
+
+Deno.test("validateDisplayIdPattern: rejects malformed forms with a reason (#596/#597)", () => {
+  const cases: Array<[string, string]> = [
+    ["{name}", "literal"], // bare named, no anchor
+    ["REQ_FIXED", "{n}"], // no variable part
+    ["REQ-{n:abc}", "invalid"], // malformed padding
+    ["STK_{n:0d}", "invalid"], // zero width
+    ["X_{n}_{n:04d}", "multiple"], // two counters
+    ["SWC_{x}_{x}", "duplicate"], // duplicate named placeholder
+  ];
+  for (const [pattern, needle] of cases) {
+    const result = validateDisplayIdPattern(pattern);
+    assertEquals(result.ok, false, pattern);
+    if (!result.ok) {
+      assertEquals(
+        result.message.toLowerCase().includes(needle),
+        true,
+        `expected '${needle}' in message for '${pattern}', got: ${result.message}`,
+      );
+    }
+  }
 });
 
 Deno.test("padDisplayIdNumber: pads to minimum width", () => {
