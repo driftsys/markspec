@@ -124,9 +124,19 @@ Deno.test("validateValue: id accepts URI with scheme", () => {
   assertEquals(validateValue("pkg:cargo/serde@1.0.0", d), null);
 });
 
-Deno.test("validateValue: id rejects bare strings without ULID or URI shape", () => {
+Deno.test("validateValue: id accepts a display-ID-shaped token", () => {
   const d = decl("id");
-  const bad = ["", "not-an-id", "REQ-0001", "01HGW2Q8MN"];
+  assertEquals(validateValue("REQ-0001", d), null);
+  assertEquals(validateValue("XREQ_TEST_0001", d), null);
+  assertEquals(validateValue("SYS_BRK_0042", d), null);
+  assertEquals(validateValue("a/b.c", d), null);
+});
+
+Deno.test("validateValue: id rejects empty, digit-leading, and punctuation-leading tokens", () => {
+  const d = decl("id");
+  // "" empty; "01HGW2Q8MN" digit-leading and not a 26-char ULID;
+  // "-x"/"9x" do not start with a letter; "@x" has no URI scheme colon.
+  const bad = ["", "01HGW2Q8MN", "-leading", "9digit", "@x"];
   for (const v of bad) {
     if (validateValue(v, d) === null) {
       throw new Error(`expected '${v}' to be invalid id`);
@@ -139,8 +149,9 @@ Deno.test("validateValue: id-list applies per-element id validation", () => {
   const d = decl("id-list", { cardinality: { lower: 0, upper: Infinity } });
   assertEquals(validateValue("01HGW2Q8MNP3RSTVWXYZABCDEF", d), null);
   assertEquals(validateValue("doi:10.1/xyz", d), null);
-  const bad = validateValue("not-an-id", d);
-  if (bad === null) throw new Error("expected 'not-an-id' to be invalid");
+  assertEquals(validateValue("REQ-0001", d), null); // display ID now valid
+  const bad = validateValue("@nope", d);
+  if (bad === null) throw new Error("expected '@nope' to be invalid");
 });
 
 // uri

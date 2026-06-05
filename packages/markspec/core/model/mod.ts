@@ -280,6 +280,23 @@ export const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 export const URI_SCHEME_RE = /^[A-Za-z][A-Za-z0-9+\-.]*:/;
 
 /**
+ * Regex matching a display-ID-shaped token (a "slug"): a letter, then any of
+ * letters / digits / `.` `_` `/` `-`, ending on a letter or digit. Mirrors the
+ * parser's slug grammar in `core/parser/markdown.ts` (`SLUG_RE`).
+ *
+ * Used by the `id` / `id-list` value-type gate to accept a display ID in a
+ * trace-relation value. This is a SHAPE check only — whether the display ID
+ * resolves to a real entry is checked downstream by the Stage-4 existence rule
+ * (MSL-L006), not here.
+ *
+ * Single- and two-character slugs match here (mirroring `SLUG_RE`) but are
+ * unresolvable in the LSP, whose token grammar requires ≥ 3 characters. Real
+ * profile display-ID patterns always produce longer IDs, so the asymmetry is
+ * benign.
+ */
+export const DISPLAY_ID_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
+
+/**
  * Decide the shape of an entry from its `Id:` value.
  *
  * Returns `undefined` for inputs that are neither a bare ULID nor a
