@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.4] (2026-06-06)
+
+### Documentation
+
+- **docs:** rewrite VS Code extension marketplace overview ([6f7b2ce])
+
+[0.7.4]: https://github.com/driftsys/markspec/compare/v0.7.3...v0.7.4
+[6f7b2ce]: https://github.com/driftsys/markspec/commit/6f7b2ce
+
 ## [0.7.3] (2026-06-06)
 
 ### Features

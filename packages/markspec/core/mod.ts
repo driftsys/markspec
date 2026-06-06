@@ -8,7 +8,7 @@
  * from core/mod.ts, never from internal paths.
  */
 
-export const VERSION = "0.7.3";
+export const VERSION = "0.7.4";
 export const CORE_SCHEMA_VERSION = 1;
 
 // Model types

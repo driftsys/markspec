@@ -2,7 +2,7 @@
   "name": "markspec-ide",
   "displayName": "MarkSpec",
   "description": "MarkSpec language support — diagnostics, completions, and entry block scaffolding for traceable industrial documentation.",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "publisher": "driftsys",
   "license": "MIT",
   "icon": "images/icon.png",
