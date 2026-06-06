@@ -103,6 +103,27 @@ export function compileDisplayIdPattern(template: string): RegExp {
   return new RegExp(regexSource);
 }
 
+/**
+ * Compile a display-ID pattern, returning `undefined` instead of throwing when
+ * the template is malformed.
+ *
+ * Defensive guard for the classification stage: the canonical fix rejects a
+ * malformed `display-id-pattern` at profile-load (`PROFILE-TYPE-008`, #597),
+ * but until that fix is on the same branch a bad pattern reaching
+ * classification must not crash `markspec check` with an uncaught throw
+ * (clig.dev: never surface a raw stack trace). A skipped type simply does not
+ * classify — the entry surfaces as `MSL-T003` rather than a crash.
+ */
+export function tryCompileDisplayIdPattern(
+  template: string,
+): RegExp | undefined {
+  try {
+    return compileDisplayIdPattern(template);
+  } catch {
+    return undefined;
+  }
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

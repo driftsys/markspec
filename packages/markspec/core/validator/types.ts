@@ -16,7 +16,7 @@ import type {
   ProvenancedMapEntry,
 } from "../model/mod.ts";
 import { CORE_TYPES } from "../model/mod.ts";
-import { compileDisplayIdPattern } from "./pattern.ts";
+import { tryCompileDisplayIdPattern } from "./pattern.ts";
 import {
   explicitType,
   resolvedCoreType,
@@ -197,7 +197,10 @@ export function classifyEntry(
   for (const [typeName, typeEntry] of profile.types) {
     const pattern = typeEntry.value.displayIdPattern.value;
     if (pattern === undefined) continue;
-    const regex = compileDisplayIdPattern(pattern);
+    // A malformed pattern must not crash classification — skip it (canonical
+    // fix: load-time PROFILE-TYPE-008, #597).
+    const regex = tryCompileDisplayIdPattern(pattern);
+    if (regex === undefined) continue;
     if (regex.test(entry.displayId)) {
       matches.push(typeName);
     }
@@ -290,8 +293,10 @@ function checkEnforcement(
   if (pattern === undefined) return undefined;
   const level = typeEntry.value.displayIdPatternEnforcement.value;
   if (level === "off") return undefined;
-  const regex = compileDisplayIdPattern(pattern);
-  if (regex.test(entry.displayId)) return undefined;
+  // A malformed pattern cannot enforce anything — skip rather than crash
+  // (canonical fix: load-time PROFILE-TYPE-008, #597).
+  const regex = tryCompileDisplayIdPattern(pattern);
+  if (regex === undefined || regex.test(entry.displayId)) return undefined;
   return {
     code: "MSL-T004",
     severity: level === "error" ? "error" : "warning",
