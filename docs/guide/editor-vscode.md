@@ -41,7 +41,12 @@ use on the command line.
 <https://open-vsx.org/extension/driftsys/markspec-ide> — or
 `codium --install-extension driftsys.markspec-ide`.
 
-The extension activates on any workspace that contains `.md` files.
+The extension activates only in a **MarkSpec project** — a workspace that
+contains a `.markspec.yaml` activator (per ADR-008). In a plain Markdown or
+source repository with no `.markspec.yaml` the extension stays dormant: it never
+spawns the language server, never indexes, and never writes a `.markspec/`
+directory. Run `markspec init` (or add a `.markspec.yaml`) to turn a workspace
+into a MarkSpec project.
 
 ## Configuration
 
@@ -63,13 +68,15 @@ All settings live under the `markspec.` prefix in VS Code settings.
 
 ## Logs
 
-The language server writes a per-project event log to
+In a MarkSpec project the language server writes a per-project event log to
 `<workspace>/.markspec/lsp.log` (rotated at 1 MB, three files kept). The first
 time it opens that file it drops a self-ignoring `.markspec/.gitignore` (`*`)
 alongside it, so the log never shows up in `git status` — you do not need to add
-anything to your repository's `.gitignore`. Override the location with the
+anything to your repository's `.gitignore`. A workspace with no `.markspec.yaml`
+gets no `.markspec/` directory at all. Override the location with the
 `markspec.trace.logPath` setting (or the `MARKSPEC_LSP_LOG` environment
-variable); set `MARKSPEC_LSP_LOG_OFF=1` to disable logging entirely.
+variable); an explicit path writes the log regardless of project membership. Set
+`MARKSPEC_LSP_LOG_OFF=1` to disable logging entirely.
 
 ## Schema validation
 
@@ -149,6 +156,11 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 ```
 
 ## Troubleshooting
+
+**Extension never activates**
+
+- The extension activates only when the workspace contains a `.markspec.yaml`.
+  Add one (or run `markspec init`) to mark the folder as a MarkSpec project.
 
 **Extension activates but shows no diagnostics**
 
