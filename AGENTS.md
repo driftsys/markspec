@@ -425,6 +425,11 @@ docs/
   `display-id-pattern` so types whose IDs are named, not numbered (components
   `SWC_LIGHT_CTRL`, `HWC_PIU`) classify by prefix without an explicit `Type:`;
   refines ADR-009 §5; classification-only (not mintable)
+- `adr-026-display-id-trace-resolution.md` — display IDs are the canonical
+  authored form for trace-relation values; permissive slug-shape gate +
+  `MSL-L006` existence warning; lockfile `[[edge]]` ULID ledger; `core/refs/`
+  purity boundary; `fmt` canonicalise + rename-heal; MSL-L006 vs deferred
+  ADR-012 §8.3 T-family; additive `[[edge]]` on ADR-022 lockfile
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
