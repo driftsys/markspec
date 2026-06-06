@@ -129,9 +129,13 @@ export function serializeLockfile(lf: Lockfile): string {
 }
 
 /**
- * Deterministic edge order: (sourceUlid, relation, authoredTarget, targetUlid).
- * `targetUlid` (treated as "" when absent) is the final tiebreaker so the
- * comparator is total — input order never affects output.
+ * Deterministic edge order: (sourceUlid, relation, authoredTarget,
+ * targetUlid). The first three keys can collide when one authored target
+ * resolves to two different ULIDs (e.g. duplicate display IDs across files
+ * whose first-wins tiebreak flips per machine); targetUlid breaks that tie
+ * so the comparator is a total order and input order never affects output.
+ * A missing targetUlid (dangling reference) sorts as the empty string,
+ * before any real ULID.
  */
 function compareLockEdges(a: LockEdge, b: LockEdge): number {
   const s = a.sourceUlid.localeCompare(b.sourceUlid);
