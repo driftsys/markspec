@@ -106,6 +106,7 @@ export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 export {
   addProfileSpecifier,
+  discoverMarkspecRoot,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,

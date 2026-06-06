@@ -38,6 +38,7 @@ import {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   type Diagnostic as CoreDiagnostic,
+  discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
   filterEntriesByTraceTargets,
@@ -432,7 +433,19 @@ connection.onInitialize(
         ? uriToPath(rootUri)
         : rootUri;
       projectRoot = await discoverProjectRoot(rootPath, readFile) ?? rootPath;
-      setEventLogProjectRoot(projectRoot);
+
+      // Gate the event log on MarkSpec-project membership (#609). A project
+      // is MarkSpec-activated only when a `.markspec.yaml` is discoverable
+      // (ADR-008). In a plain Markdown or source repo with no activator the
+      // server stays inert on disk — it never creates the `.markspec/`
+      // runtime directory or its `lsp.log`, so a non-MarkSpec working tree is
+      // never dirtied. In-memory indexing still runs (it writes nothing to
+      // disk), and the broad `projectRoot` fallback above keeps config and
+      // profile loading working for projects that carry only `project.yaml`.
+      const markspecRoot = await discoverMarkspecRoot(rootPath, readFile);
+      if (markspecRoot !== undefined) {
+        setEventLogProjectRoot(markspecRoot);
+      }
 
       // Load config
       try {

@@ -42,8 +42,7 @@
     "aspice"
   ],
   "activationEvents": [
-    "onLanguage:markdown",
-    "workspaceContains:**/*.md"
+    "workspaceContains:**/.markspec.yaml"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -96,7 +95,7 @@
         "markspec.trace.logPath": {
           "type": "string",
           "default": "",
-          "description": "Override path for the LSP event log. When empty, the server writes to `<workspace>/.markspec/lsp.log` by default and drops a self-ignoring `.markspec/.gitignore` so the log never appears in `git status`. Equivalent to setting MARKSPEC_LSP_LOG when spawning the server manually."
+          "description": "Override path for the LSP event log. When empty, the server writes to `<workspace>/.markspec/lsp.log` by default — but only in a MarkSpec project (a workspace containing a `.markspec.yaml`); a plain Markdown or source repo gets no `.markspec/` directory at all. In a MarkSpec project the server also drops a self-ignoring `.markspec/.gitignore` so the log never appears in `git status`. Setting an explicit path writes the log regardless of project membership. Equivalent to setting MARKSPEC_LSP_LOG when spawning the server manually."
         },
         "markspec.mcp.enabled": {
           "type": "boolean",

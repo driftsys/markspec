@@ -9,7 +9,7 @@
  */
 
 import { parse as parseYaml } from "@std/yaml";
-import { join } from "@std/path";
+import { dirname, join, resolve } from "@std/path";
 import type { Diagnostic, ProfileSpecifier } from "../model/mod.ts";
 import type { ReadFile } from "./mod.ts";
 
@@ -30,6 +30,37 @@ export async function readMarkspecYaml(
   const path = join(projectRoot, MARKSPEC_YAML_FILENAME);
   const content = await readFile(path);
   return content ?? null;
+}
+
+/**
+ * Walk up from `startDir` to the filesystem root looking for a
+ * `.markspec.yaml` activator (ADR-008). Returns the absolute path to the
+ * directory containing it, or `undefined` when none is found.
+ *
+ * This is the membership test for "is this a MarkSpec project?". Unlike
+ * {@linkcode discoverProjectRoot}, which keys on `project.yaml`, a project
+ * is considered MarkSpec-activated only by the presence of a
+ * `.markspec.yaml` (per ADR-008): the LSP server uses this to stay inert —
+ * no `.markspec/` runtime directory or event log — in a plain Markdown or
+ * source repo (issue #609).
+ *
+ * @param startDir - Directory to begin the upward walk from (typically the
+ *   workspace root the editor opened).
+ * @param readFile - File reader returning `undefined` for missing paths.
+ */
+export async function discoverMarkspecRoot(
+  startDir: string,
+  readFile: ReadFile,
+): Promise<string | undefined> {
+  let current = resolve(startDir);
+  for (;;) {
+    const candidate = join(current, MARKSPEC_YAML_FILENAME);
+    const content = await readFile(candidate);
+    if (content !== undefined) return current;
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
 }
 
 // ---------------------------------------------------------------------------

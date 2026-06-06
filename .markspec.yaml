@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://driftsys.github.io/markspec/schemas/markspec/v1.json
+$schema: https://driftsys.github.io/markspec/schemas/markspec/v1.json
+# MarkSpec project activator (ADR-008). Its presence marks this repository as a
+# MarkSpec project, so the editor tooling (LSP server / VS Code extension)
+# activates here. Empty `profiles` keeps the bundled default profile active —
+# behaviorally identical to having no file at all (ADR-010).
+profiles: []

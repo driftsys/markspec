@@ -8,6 +8,7 @@ import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { join, resolve } from "@std/path";
 import {
   addProfileSpecifier,
+  discoverMarkspecRoot,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,
@@ -310,4 +311,39 @@ Deno.test("addProfileSpecifier: preserves an existing default-profile key", asyn
   );
   assertStringIncludes(store[yamlPath], "default-profile: false");
   assertStringIncludes(store[yamlPath], '- "./b"');
+});
+
+// ---------------------------------------------------------------------------
+// discoverMarkspecRoot — the "is this a MarkSpec project?" membership test (#609)
+// ---------------------------------------------------------------------------
+
+Deno.test("discoverMarkspecRoot: finds .markspec.yaml in current directory", async () => {
+  const a = resolve("/a");
+  const yamlPath = join(a, MARKSPEC_YAML_FILENAME);
+  const readFile = (path: string) =>
+    Promise.resolve(path === yamlPath ? "profiles: []\n" : undefined);
+  assertEquals(await discoverMarkspecRoot(a, readFile), a);
+});
+
+Deno.test("discoverMarkspecRoot: finds .markspec.yaml several levels up", async () => {
+  const a = resolve("/a");
+  const yamlPath = join(a, MARKSPEC_YAML_FILENAME);
+  const deep = join(a, "b", "c", "d");
+  const readFile = (path: string) =>
+    Promise.resolve(path === yamlPath ? "profiles: []\n" : undefined);
+  assertEquals(await discoverMarkspecRoot(deep, readFile), a);
+});
+
+Deno.test("discoverMarkspecRoot: returns undefined when no .markspec.yaml exists", async () => {
+  const readFile = () => Promise.resolve(undefined);
+  assertEquals(await discoverMarkspecRoot("/a/b/c", readFile), undefined);
+});
+
+Deno.test("discoverMarkspecRoot: ignores a sibling project.yaml (marker is .markspec.yaml only)", async () => {
+  const a = resolve("/a");
+  const readFile = (path: string) =>
+    Promise.resolve(
+      path === join(a, "project.yaml") ? "name: test\n" : undefined,
+    );
+  assertEquals(await discoverMarkspecRoot(a, readFile), undefined);
 });
