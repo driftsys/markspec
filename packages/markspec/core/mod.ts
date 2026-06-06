@@ -153,8 +153,12 @@ export {
   highestDisplayIdNumber,
   padDisplayIdNumber,
   parseDisplayIdPattern,
+  validateDisplayIdPattern,
 } from "./profile/mod.ts";
-export type { DisplayIdPatternShape } from "./profile/mod.ts";
+export type {
+  DisplayIdPatternShape,
+  DisplayIdPatternValidation,
+} from "./profile/mod.ts";
 
 export {
   entryMatchesTargets,

@@ -247,7 +247,7 @@ ADR-008's per-type key set — Annex B):
 | -------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `extends`                        | Parent type (§3). Required.                                                                          |
 | `description`                    | Human-readable summary. Optional.                                                                    |
-| `display-id-pattern`             | Template (ADR-009 §5 grammar): literal prefix + `{n}`/`{n:0Nd}` + optional `{scope}`. Optional.      |
+| `display-id-pattern`             | Template (ADR-009 §5 grammar): literal prefix + `{n}`/`{n:Nd}` + optional `{scope}`. Optional.       |
 | `display-id-pattern-enforcement` | `off` \| `warn` \| `error`. Default `warn`. ADR-008 §6; ADR-010 §5.                                  |
 | `required`                       | List of attribute names that must be present on entries of this type. §4.2.                          |
 | `attributes`                     | Per-type attribute declarations (extend the inherited set). §4.1.                                    |
