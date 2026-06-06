@@ -70,3 +70,31 @@ Deno.test("renderShow: empty graph", () => {
     "No entry with display ID X_0001.\n",
   );
 });
+
+// --- Issue #593: trace targets render as display IDs, never ULIDs ---
+
+Deno.test(
+  "entry_show: renders trace targets as display IDs, never ULIDs (issue #593)",
+  () => {
+    // The target carries a known ULID id. renderShow must reference the
+    // target by its displayId in the link list, not by this ULID.
+    const TARGET_ULID = "01J0000000000000000000TGT1";
+    const target = {
+      ...entry("SYS_0001", "Target"),
+      id: TARGET_ULID,
+    };
+    const result = compiled(
+      [
+        entry("SWE_0001", "Source"),
+        target as unknown as ReturnType<typeof entry>,
+      ],
+      [link("SWE_0001", "SYS_0001")],
+    );
+    const md = renderShow(result, "SWE_0001", undefined);
+    assertStringIncludes(md, "SYS_0001");
+    // The target's ULID must not appear in the output — link targets are
+    // always identified by display ID. This assertion would fail if
+    // renderShow ever emitted the target's `id` field instead of `displayId`.
+    assertEquals(md.includes(TARGET_ULID), false);
+  },
+);

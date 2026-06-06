@@ -847,6 +847,15 @@ The `id` and `id-list` types accept a 26-char ULID, a scheme-qualified URI, or a
 display ID. A display ID is resolved to its target by existence; an unresolved
 display ID is reported by `MSL-L006`, not by the value-format gate.
 
+Display IDs are the canonical form across the full toolchain surface.
+`markspec
+fmt` canonicalises a raw ULID trace value to the target's current
+display ID and heals a renamed reference via the `markspec.lock` ledger (see the
+`fmt` command reference for details). The LSP ID-reference completion inserts
+display IDs directly, and the MCP read tools (`entry_show`, `entry_list`,
+`entry_neighborhood`, `entry_context`) present all trace targets as display IDs
+— authors and agents never see raw ULIDs in cross-references.
+
 ---
 
 ## Part 3 — Directives

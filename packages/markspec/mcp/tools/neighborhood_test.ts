@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { CompileResult, Entry, Link } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import { MAX_NODES, renderNeighborhood } from "./neighborhood.ts";
@@ -75,3 +75,31 @@ Deno.test("renderNeighborhood: appends truncation note when node cap is hit", ()
   const text = renderNeighborhood(compiled(entries, links), "SWE_0001", 5);
   assertStringIncludes(text, "truncated");
 });
+
+// --- Issue #593: trace targets render as display IDs, never ULIDs ---
+
+Deno.test(
+  "entry_neighborhood: renders neighbors as display IDs, never ULIDs (issue #593)",
+  () => {
+    // Neighbors carry known ULID ids. renderNeighborhood must identify them
+    // by displayId in the output, never by these ULIDs.
+    const TARGET_ULID = "01J0000000000000000000TGT1";
+    const CHILD_ULID = "01J0000000000000000000CHD1";
+    const result = compiled(
+      [
+        entry("SWE_0001", "Mid"),
+        { ...entry("SYS_0001", "Up"), id: TARGET_ULID } as unknown as Entry,
+        { ...entry("TST_0001", "Down"), id: CHILD_ULID } as unknown as Entry,
+      ],
+      [link("SWE_0001", "SYS_0001"), link("TST_0001", "SWE_0001")],
+    );
+    const md = renderNeighborhood(result, "SWE_0001", 5);
+    assertStringIncludes(md, "SYS_0001");
+    assertStringIncludes(md, "TST_0001");
+    // Neither neighbor's ULID may appear — neighbors are identified by
+    // display ID only. These assertions would fail if renderNeighborhood
+    // ever emitted the `id` fields instead of `displayId`.
+    assertEquals(md.includes(TARGET_ULID), false);
+    assertEquals(md.includes(CHILD_ULID), false);
+  },
+);

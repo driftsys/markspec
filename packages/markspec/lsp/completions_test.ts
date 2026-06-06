@@ -671,3 +671,24 @@ Deno.test("buildMidTypedScaffoldItems: empty types → empty array", () => {
   );
   assertEquals(items.length, 0);
 });
+
+// --- Issue #593: ID-reference completion inserts display ID, never ULID ---
+
+Deno.test(
+  "buildIdReferenceItems: inserts the display ID, never a ULID (issue #593)",
+  () => {
+    const items = buildIdReferenceItems([
+      { displayId: makeDisplayId("SYS_0001"), title: "Target one" },
+      { displayId: makeDisplayId("SWE_0002"), title: "Target two" },
+    ]);
+    assertEquals(items.length, 2);
+    for (const item of items) {
+      // No insertText — the editor inserts the label (the display ID).
+      assertEquals(item.insertText, undefined);
+      // The label must not look like a ULID (26 Crockford base-32 chars after "01").
+      assertEquals(/^01[0-9A-HJKMNP-TV-Z]{24}$/.test(item.label), false);
+    }
+    assertEquals(items[0].label, "SYS_0001");
+    assertEquals(items[1].label, "SWE_0002");
+  },
+);
