@@ -425,6 +425,13 @@ docs/
   `display-id-pattern` so types whose IDs are named, not numbered (components
   `SWC_LIGHT_CTRL`, `HWC_PIU`) classify by prefix without an explicit `Type:`;
   refines ADR-009 §5; classification-only (not mintable)
+- `adr-026-trace-target-resolution.md` — trace-relation values are authored as
+  display IDs (existence-gated, not format-gated); one dual-resolution rule
+  (`byDisplayId ?? byId`) unifies validator/compiler/lock + `MSL-L006` warning;
+  the lockfile `[[edge]]` table is the stable ULID identity ledger;
+  `markspec
+  fmt` is the sole source write-back (canonicalise ULID→display ID +
+  rename-heal via the ledger) through the pure `core/refs/` module; closes #593
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
