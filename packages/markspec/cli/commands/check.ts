@@ -89,10 +89,15 @@ export const checkCmd = new Command()
         });
       }
 
+      // projectWide: false — check operates on a file-local subset so MSL-L006
+      // ("link target does not resolve") is suppressed: the subset cannot
+      // distinguish a typo from a valid cross-file target. Full existence checks
+      // are available via `markspec compile` or the LSP (which index all files).
       const result = runPipeline(
         allEntries,
         chain?.effective ?? null,
         captionConventions,
+        { projectWide: false },
       );
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
