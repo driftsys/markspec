@@ -34,6 +34,13 @@ The dual-lookup precedent already existed for the baked-in universal relations:
 (MSL-T005) in `core/validator/mod.ts`. Profile trace relations never reached it
 because the format gate rejected their values first.
 
+Underlying both problems is a representational tension: a display ID is
+**human-readable but renameable**, while a ULID is **opaque but stable**. Source
+cross-references want the former; durable identity tracking wants the latter. A
+single representation cannot serve both — so the decision splits the two needs
+across two artifacts (source and lockfile), bridged by one resolution rule and
+one write-back command.
+
 ## Decision
 
 ### D1 — Unresolved trace target is a warning (MSL-L006)
@@ -136,6 +143,18 @@ editor inserts the display ID. The MCP read tools (`entry_show`, `entry_list`,
 `entry_neighborhood`, `entry_context`) render via the compiler graph, which is
 display-ID-keyed. Both surfaces are pinned by regression tests (PR4).
 
+## End-state model
+
+```text
+         SOURCE (.md)                        LOCKFILE (markspec.lock)
+human-readable display IDs   ── lock ──►   stable ULID ledger per edge
+     Satisfies: SYS_BRK_0042  resolve d→u   [[edge]] { source-ulid, relation,
+           ▲                                          target-ulid, authored-target }
+           │ fmt write-back (resolve u→d)
+           │  • ULID → display ID            (canonicalise)
+           │  • stale display ID → ULID(ledger) → current display ID  (heal)
+```
+
 ## Unifying mechanism: dual resolution
 
 All resolution passes use the same two-index pattern:
@@ -228,6 +247,12 @@ semantics. Specifically:
   rejected (D5): two source-editing commands create confusion about which
   command to run after a rename. `fmt` is already the write-back normalizer and
   is project-and-lock-aware, so it owns all source rewrites.
+- **Extend `generated-cache` instead of a new `[[edge]]` table** — rejected
+  (D4): the generated-cache is a single summary digest; per-edge identity rows
+  are a list with different cardinality and purpose. A dedicated `[[edge]]`
+  array-of-tables matches the lockfile's existing
+  `[[upstream.*]]`/`[[bound-entry]]` convention and keeps the integrity digest
+  byte-stable.
 
 ## References
 
