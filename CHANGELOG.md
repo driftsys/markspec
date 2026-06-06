@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.7.3] (2026-06-06)
+
+### Features
+
+- **cli:** named-aware authoring + validate-pattern-at-load ([#597], [#598])
+  ([be4a8a9])
+- **cli:** fmt canonicalises + heals trace references (project-aware) ([#604])
+  ([a2a2f82])
+- **core:** persist a per-edge ULID identity ledger in markspec lock ([#602])
+  ([0125244])
+- **core:** resolve trace targets by display ID or ULID; warn MSL-L006 on miss
+  ([622ba78])
+- **core:** accept display-ID-shaped tokens in id/id-list value gate ([7eefec0])
+- **core:** classify named types via counter-less display-id-pattern
+  ([b792c53]), closes 594.
+
+### Bug Fixes
+
+- **core:** make compareLockEdges a total order ([d4ecc67]), closes 611.
+- **core:** make compareLockEdges a total order by appending targetUlid
+  tiebreaker ([c361ede])
+- **core:** suppress MSL-L006 under file-local check via projectWide flag
+  ([6ba1c39])
+- **lsp:** gate activation and event log on .markspec.yaml ([#609]) ([cafbcc5])
+- **core:** guard entry classification against a malformed display-id-pattern
+  ([8237e98])
+- **core:** handle CRLF line endings in trace-ref canonicalisation ([510ddb0])
+- **core:** unify the two display-id-pattern parsers ([5e00662]), closes 596.
+- **lsp:** self-ignore the .markspec event-log directory ([7a9b9ee])
+
+### Documentation
+
+- **repo:** fold tension framing, end-state diagram, generated-cache alternative
+  into ADR-026 ([2a31912])
+- **repo:** add ADR-026 display-ID trace resolution ([ccef21a]), refs 593.
+- **spec:** document display-ID trace values + MSL-L006 ([f50c22d])
+
+[0.7.3]: https://github.com/driftsys/markspec/compare/v0.7.2...v0.7.3
+[be4a8a9]: https://github.com/driftsys/markspec/commit/be4a8a9
+[#597]: https://github.com/driftsys/markspec/issues/597
+[#598]: https://github.com/driftsys/markspec/issues/598
+[a2a2f82]: https://github.com/driftsys/markspec/commit/a2a2f82
+[#604]: https://github.com/driftsys/markspec/issues/604
+[0125244]: https://github.com/driftsys/markspec/commit/0125244
+[#602]: https://github.com/driftsys/markspec/issues/602
+[622ba78]: https://github.com/driftsys/markspec/commit/622ba78
+[7eefec0]: https://github.com/driftsys/markspec/commit/7eefec0
+[b792c53]: https://github.com/driftsys/markspec/commit/b792c53
+[d4ecc67]: https://github.com/driftsys/markspec/commit/d4ecc67
+[c361ede]: https://github.com/driftsys/markspec/commit/c361ede
+[6ba1c39]: https://github.com/driftsys/markspec/commit/6ba1c39
+[cafbcc5]: https://github.com/driftsys/markspec/commit/cafbcc5
+[#609]: https://github.com/driftsys/markspec/issues/609
+[8237e98]: https://github.com/driftsys/markspec/commit/8237e98
+[510ddb0]: https://github.com/driftsys/markspec/commit/510ddb0
+[5e00662]: https://github.com/driftsys/markspec/commit/5e00662
+[7a9b9ee]: https://github.com/driftsys/markspec/commit/7a9b9ee
+[2a31912]: https://github.com/driftsys/markspec/commit/2a31912
+[ccef21a]: https://github.com/driftsys/markspec/commit/ccef21a
+[f50c22d]: https://github.com/driftsys/markspec/commit/f50c22d
+
 ## [0.7.2] (2026-06-03)
 
 ### Bug Fixes
