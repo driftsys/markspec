@@ -164,6 +164,52 @@ Deno.test(
 );
 
 Deno.test(
+  "fmt --check: CRLF file with a ULID trace value still needs canonicalisation (#610)",
+  async () => {
+    // Regression for #610: a CRLF file must not silently pass --check while
+    // its LF twin (the test above) exits 1.
+    const { code } = await markspec(
+      ["fmt", "--check", "swe.md", "sys.md"],
+      {
+        files: {
+          "project.yaml": PROJECT_YAML,
+          "sys.md": SYS.replace(/\n/g, "\r\n"),
+          "swe.md": SWE_ULID.replace(/\n/g, "\r\n"),
+        },
+        permissions: ["--allow-env", "--allow-run"],
+      },
+    );
+    assertEquals(code, 1);
+  },
+);
+
+Deno.test(
+  "fmt: CRLF file canonicalises a ULID trace value and preserves CRLF (#610)",
+  async () => {
+    const run = await markspecPersist(["fmt", "swe.md", "sys.md"], {
+      files: {
+        "project.yaml": PROJECT_YAML,
+        "sys.md": SYS.replace(/\n/g, "\r\n"),
+        "swe.md": SWE_ULID.replace(/\n/g, "\r\n"),
+      },
+      permissions: ["--allow-env", "--allow-run"],
+    });
+    try {
+      assertEquals(run.code, 0, run.stderr);
+      const swe = await Deno.readTextFile(join(run.dir, "swe.md"));
+      // Canonicalised, and the CRLF line ending on the rewritten line survives.
+      assertStringIncludes(swe, "Satisfies: SYS_0001\r\n");
+      assertEquals(
+        swe.includes("Satisfies: 01SYS000000000000000000001"),
+        false,
+      );
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
   "fmt: file-local (no project root) does NOT canonicalise a ULID trace value",
   async () => {
     // No project.yaml → file-local fmt. The ULID reference must be left as

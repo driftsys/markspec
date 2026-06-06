@@ -107,7 +107,12 @@ export function canonicalizeRefs(
   const lines = content.split("\n");
   let changed = false;
   for (let i = 0; i < lines.length; i++) {
-    const m = TRACE_TRAILER_RE.exec(lines[i]);
+    // Strip a trailing CR before matching so CRLF files are handled (the
+    // trailer regex ends in `$`, which `\r` would block) and re-append it on
+    // rewrite so line endings stay byte-for-byte lossless.
+    const cr = lines[i].endsWith("\r");
+    const bare = cr ? lines[i].slice(0, -1) : lines[i];
+    const m = TRACE_TRAILER_RE.exec(bare);
     if (!m) continue;
     const [, indent, key, sep, rest] = m;
     if (!TRACE_ATTRIBUTE_KEYS.has(key)) continue;
@@ -119,7 +124,7 @@ export function canonicalizeRefs(
       (token) => rewriteToken(token, sourceUlid, key, index, ledgerByKey),
     );
     if (rewritten !== rest) {
-      lines[i] = `${indent}${key}${sep}${rewritten}`;
+      lines[i] = `${indent}${key}${sep}${rewritten}${cr ? "\r" : ""}`;
       changed = true;
     }
   }

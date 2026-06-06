@@ -393,6 +393,60 @@ Deno.test("canonicalizeRefs: trailer line with trailing backslash is left untouc
 });
 
 // ---------------------------------------------------------------------------
+// canonicalizeRefs — CRLF line endings (#610 regression)
+// ---------------------------------------------------------------------------
+
+Deno.test("canonicalizeRefs: CRLF file canonicalises a ULID and preserves the CR", () => {
+  // Same content as the rule-1 test but with CRLF line endings. The trailer
+  // regex must still match (the CR is stripped before matching) and the
+  // rewritten line must retain its trailing CR so line endings are lossless.
+  // The Satisfies line must NOT be the final line — only a non-final line
+  // carries a trailing CR after `split("\n")`, which is what exposes the bug.
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: ${TGT}`,
+    ``,
+  ].join("\r\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [
+      { key: "Id", value: SRC },
+      { key: "Satisfies", value: TGT },
+    ],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 8, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt]);
+  const { output, changed } = canonicalizeRefs(content, [src, tgt], idx, []);
+
+  assertEquals(changed, true);
+  // Output is byte-for-byte the input with only the ULID token canonicalised
+  // and every CRLF preserved.
+  const expected = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: SYS_0001`,
+    ``,
+  ].join("\r\n");
+  assertEquals(output, expected);
+});
+
+// ---------------------------------------------------------------------------
 // Spec-invariant hardening (review follow-up)
 // ---------------------------------------------------------------------------
 
