@@ -32,6 +32,7 @@ import {
   VALUE_TYPES,
   type ValueType,
 } from "../model/mod.ts";
+import { validateDisplayIdPattern } from "./display_id.ts";
 
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
@@ -1115,6 +1116,24 @@ function parseTypeDef(
       return undefined;
     }
     displayIdPattern = r["display-id-pattern"];
+    // Compile-check the pattern here, at profile-load, against the same grammar
+    // oracle classification uses. A malformed pattern (duplicate named
+    // placeholder, bad padding, no anchor, …) is reported as a clean
+    // PROFILE-TYPE-008 diagnostic instead of throwing an uncaught exception
+    // later inside classifyEntry / checkEnforcement. Like the sibling field
+    // checks above, an error here drops the type so the bad pattern never
+    // reaches compileDisplayIdPattern (and, per parseManifest's all-or-nothing
+    // error contract, the manifest is rejected). (#597)
+    const patternValidation = validateDisplayIdPattern(displayIdPattern);
+    if (!patternValidation.ok) {
+      diagnostics.push({
+        code: "PROFILE-TYPE-008",
+        severity: "error",
+        message: `${ctx}: ${patternValidation.message}`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
   }
 
   let enforcement: EnforcementMode = "off";

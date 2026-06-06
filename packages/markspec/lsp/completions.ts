@@ -202,6 +202,14 @@ export interface EntryTypeInfo {
    * `detail` field. `undefined` or `false` → no special treatment.
    */
   readonly modeRecommended?: boolean;
+  /**
+   * `true` for a named (counter-less) type (ADR-025) whose IDs are named,
+   * not numbered — e.g. `sw-component: "SWC_{name}"`. `prefix` carries the
+   * literal anchor (`SWC_`); `width` / `suffix` / `nextNumber` are unused.
+   * The scaffold inserts a `${1:NAME}` tab stop after the prefix instead of
+   * a minted number (#598).
+   */
+  readonly named?: boolean;
 }
 
 /**
@@ -283,6 +291,12 @@ export interface ScaffoldSnippetInput {
   readonly suffix: string;
   readonly nextNumber: number;
   readonly ulid: string;
+  /**
+   * `true` to render a named (counter-less) scaffold: a `${1:NAME}` tab stop
+   * after the literal `prefix` instead of a minted display ID. `width`,
+   * `suffix`, and `nextNumber` are ignored in this mode (#598).
+   */
+  readonly named?: boolean;
 }
 
 /**
@@ -307,6 +321,12 @@ export interface ScaffoldCompletionData {
   readonly prefix: string;
   readonly width: number;
   readonly suffix: string;
+  /**
+   * `true` for a named (counter-less) type (#598). The resolve handler skips
+   * the number-minting path and re-renders the `${1:NAME}` snippet with a
+   * fresh ULID; `width` / `suffix` are unused.
+   */
+  readonly named?: boolean;
   /**
    * Present only for mid-typed scaffold items (see
    * {@linkcode buildMidTypedScaffoldItems}): the exact range the
@@ -343,6 +363,17 @@ export function renderScaffoldSnippet(
   input: ScaffoldSnippetInput,
 ): { label: string; insertText: string } {
   const safeTypeName = escapeSnippet(input.typeName);
+  // Named (counter-less) type (#598): no number to mint. The author types
+  // the identifier into the first tab stop after the literal prefix, so the
+  // Title/Body/Satisfies stops shift one place to avoid colliding with it.
+  if (input.named) {
+    const safePrefix = escapeSnippet(input.prefix);
+    return {
+      label: `New ${safeTypeName} (${input.prefix}<name>)`,
+      insertText:
+        `${safePrefix}\${1:NAME}] \${2:Title}\n\n  \${3:Body.}\n\n      Id: ${input.ulid}\n      \${4:Satisfies: }`,
+    };
+  }
   // Format the display ID via the shared `formatDisplayId` so width
   // + suffix come straight from the profile's pattern, then escape
   // the result for snippet syntax. Escaping AFTER formatting is
@@ -423,6 +454,7 @@ export function buildBlockScaffoldItems(
       suffix: type.suffix,
       nextNumber: type.nextNumber,
       ulid: ulidProvider(),
+      named: type.named,
     });
     const detail = type.modeRecommended === true
       ? `${type.name} (recommended)`
@@ -462,6 +494,10 @@ export interface MidTypedScaffoldItem {
   readonly prefix: string;
   readonly width: number;
   readonly suffix: string;
+  /** `true` for a named (counter-less) type — the server passes this into
+   * the resolve-time {@linkcode ScaffoldCompletionData} so it skips minting
+   * a number (#598). */
+  readonly named?: boolean;
   readonly textEdit: {
     readonly range: ReplacementRange;
     readonly newText: string;
@@ -525,6 +561,7 @@ export function buildMidTypedScaffoldItems(
       suffix: type.suffix,
       nextNumber: type.nextNumber,
       ulid: ulidProvider(),
+      named: type.named,
     });
     return {
       label: rendered.label,
@@ -533,6 +570,7 @@ export function buildMidTypedScaffoldItems(
       prefix: type.prefix,
       width: type.width,
       suffix: type.suffix,
+      named: type.named,
       textEdit: { range: replacementRange, newText: rendered.insertText },
     };
   });

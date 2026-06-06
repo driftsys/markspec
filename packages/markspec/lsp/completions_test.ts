@@ -692,3 +692,63 @@ Deno.test(
     assertEquals(items[1].label, "SWE_0002");
   },
 );
+
+// --- #598: named (counter-less) type scaffolds ---
+
+const NAMED_ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+
+Deno.test("renderScaffoldSnippet: named type emits a ${1:NAME} placeholder snippet (#598)", () => {
+  const snippet = renderScaffoldSnippet({
+    typeName: "sw-component",
+    prefix: "SWC_",
+    width: 0,
+    suffix: "",
+    nextNumber: 0,
+    ulid: NAMED_ULID,
+    named: true,
+  });
+  assertEquals(snippet.label, "New sw-component (SWC_<name>)");
+  // The author types the identifier into the first tab stop after the prefix.
+  assertEquals(snippet.insertText.startsWith("SWC_${1:NAME}]"), true);
+  assertEquals(snippet.insertText.includes(`Id: ${NAMED_ULID}`), true);
+  // Trailer tab stops shift past the name placeholder.
+  assertEquals(snippet.insertText.includes("${2:Title}"), true);
+  assertEquals(snippet.insertText.includes("${3:Body.}"), true);
+  assertEquals(snippet.insertText.includes("${4:Satisfies: }"), true);
+});
+
+Deno.test("buildBlockScaffoldItems: includes named types with a name placeholder (#598)", () => {
+  const items = buildBlockScaffoldItems(
+    [{
+      name: "sw-component",
+      prefix: "SWC_",
+      width: 0,
+      suffix: "",
+      nextNumber: 0,
+      named: true,
+    }],
+    () => NAMED_ULID,
+  );
+  assertEquals(items.length, 1);
+  assertEquals(items[0].label, "New sw-component (SWC_<name>)");
+  assertEquals(items[0].insertText?.startsWith("SWC_${1:NAME}]"), true);
+});
+
+Deno.test("buildMidTypedScaffoldItems: matches a named type by its leading literal (#598)", () => {
+  const items = buildMidTypedScaffoldItems(
+    [{
+      name: "sw-component",
+      prefix: "SWC_",
+      width: 0,
+      suffix: "",
+      nextNumber: 0,
+      named: true,
+    }],
+    "SWC_",
+    () => NAMED_ULID,
+    MID_RANGE,
+  );
+  assertEquals(items.length, 1);
+  assertEquals(items[0].named, true);
+  assertEquals(items[0].textEdit.newText.startsWith("SWC_${1:NAME}]"), true);
+});
