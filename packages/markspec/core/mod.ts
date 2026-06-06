@@ -233,6 +233,7 @@ export type {
   EffectiveAttrScope,
   ListingFileContext,
   ListingKind,
+  PipelineOptions,
   PipelineResult,
   ValidateResult,
   ValueValidator,

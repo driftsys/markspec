@@ -44,6 +44,19 @@ export interface PipelineResult {
   readonly valid: boolean;
 }
 
+/** Options for {@linkcode runPipeline}. */
+export interface PipelineOptions {
+  /**
+   * When `false`, suppress MSL-L006 ("link target does not resolve") from
+   * Stage 4 output. Use this when the validator is running against a subset
+   * of the project's files (e.g. `markspec check <file>`): file-local scope
+   * cannot distinguish a typo from a valid cross-file target. MSL-L006 is
+   * only meaningful when the full entry set is available (LSP, `compile`).
+   * Defaults to `true` (full-project scope — emit MSL-L006 normally).
+   */
+  readonly projectWide?: boolean;
+}
+
 /**
  * Run the validator pipeline.
  *
@@ -58,11 +71,14 @@ export interface PipelineResult {
  *   conventions (from `ProjectConfig.captionConventions`). When supplied
  *   and non-empty, MSL-C072 is checked for each entry. Defaults to no
  *   conventions (rule inactive).
+ * @param opts - Pipeline options. Pass `{ projectWide: false }` when
+ *   validating a file-local subset so MSL-L006 is suppressed.
  */
 export function runPipeline(
   entries: readonly Entry[],
   profile: EffectiveProfile | null,
   captionConventions: CaptionConventions = {},
+  opts: PipelineOptions = {},
 ): PipelineResult {
   const diagnostics: Diagnostic[] = [];
 
@@ -150,6 +166,7 @@ export function runPipeline(
       if (e.id && !graph.has(e.id)) graph.set(e.id, e);
       if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
     }
+    const projectWide = opts.projectWide !== false;
     for (const entry of finalEntries) {
       const stage4 = validateTraceabilityForEntry(
         entry,
@@ -157,7 +174,12 @@ export function runPipeline(
         graph,
         byDisplayId,
       );
-      diagnostics.push(...stage4);
+      // Suppress MSL-L006 ("link target does not resolve") when running
+      // file-locally: the checked subset cannot distinguish a typo from a
+      // valid cross-file target. Only emit when the full entry set is present.
+      diagnostics.push(
+        ...projectWide ? stage4 : stage4.filter((d) => d.code !== "MSL-L006"),
+      );
     }
   }
 

@@ -5,7 +5,7 @@
  * display ID validates clean; an unresolved one warns MSL-L006 (exit 2).
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 const PROJECT_YAML = `name: disp-id-e2e\nversion: 0.1.0\n`;
@@ -67,7 +67,47 @@ Deno.test("check: Satisfies a display ID that exists → clean (exit 0)", async 
   );
 });
 
-Deno.test("check: Satisfies a display ID that does not exist → MSL-L006 (exit 2)", async () => {
+Deno.test("check: Satisfies a display ID in another file (not passed) → no MSL-L006 (exit 0)", async () => {
+  // REQ-0001 lives in req.md; only sreq.md is passed to check. A file-local
+  // check cannot distinguish a typo from a valid cross-file target, so MSL-L006
+  // must not fire — the link is only flagged when the full project is available
+  // (compile / LSP).
+  const { code, stderr } = await markspec(["check", "sreq.md"], {
+    files: {
+      ...BASE_FILES,
+      "req.md": `# Requirements
+
+- [REQ-0001] A requirement
+
+  Body text.
+
+      Id: 01REQ000000000000000000001
+      Type: requirement
+`,
+      "sreq.md": `# System Requirements
+
+- [SREQ-0001] A system requirement
+
+  Body text.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+      Satisfies: REQ-0001
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(
+    stderr.split("\n").filter((l) => l.includes("MSL-L006")),
+    [],
+    "file-local check must not emit MSL-L006 for cross-file trace targets",
+  );
+});
+
+Deno.test("check: Satisfies a display ID that does not exist in checked files → no MSL-L006 (exit 0)", async () => {
+  // check cannot distinguish a typo (REQ-9999) from a valid cross-file target,
+  // so MSL-L006 is suppressed for file-local scope. Use `markspec compile` or
+  // the LSP to surface existence errors across the full project.
   const { code, stderr } = await markspec(["check", "doc.md"], {
     files: {
       ...BASE_FILES,
@@ -83,7 +123,10 @@ Deno.test("check: Satisfies a display ID that does not exist → MSL-L006 (exit 
 `,
     },
   });
-  assertEquals(code, 2); // warning-only → exit 2
-  assertStringIncludes(stderr, "MSL-L006");
-  assertStringIncludes(stderr, "REQ-9999");
+  assertEquals(code, 0, `expected exit 0, got ${code}; stderr: ${stderr}`);
+  assertEquals(
+    stderr.split("\n").filter((l) => l.includes("MSL-L006")),
+    [],
+    "file-local check must not emit MSL-L006",
+  );
 });
