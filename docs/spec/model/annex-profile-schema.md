@@ -176,6 +176,11 @@ would match every ID. Named patterns are classification-only: there is no
 counter to mint, so pair them with `display-id-pattern-enforcement: off` and
 author the ID by hand (`markspec next-id` / `create` skip named types).
 
+A malformed pattern — more than one counter, an invalid or zero-width padding
+specifier, a counter-less pattern with no literal prefix, or a duplicate named
+placeholder — is a `PROFILE-TYPE-008` error reported when the profile loads, not
+an uncaught failure during validation.
+
 `display-id-pattern-enforcement` controls whether an entry whose display ID does
 not match the pattern is ignored (`off`), warned (`warn`), or rejected
 (`error`).
