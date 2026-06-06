@@ -409,3 +409,40 @@ Deno.test("classifyEntry: Reference-shape entry is NOT classified by display-id-
   // Must not be classified via pattern for Reference entries.
   assertEquals(result.type, undefined);
 });
+
+// ─── Malformed display-id-pattern: classification must not crash (#597) ───────
+
+Deno.test("classifyEntriesStage: malformed pattern is skipped, not thrown (#597 hardening)", () => {
+  // `SWC_{a}_{a}` is rejected by validateDisplayIdPattern (duplicate named
+  // placeholder) and would throw from compileDisplayIdPattern inside the
+  // per-entry loop, crashing the whole pipeline. The stage must skip the
+  // malformed type instead. Canonical fix: load-time PROFILE-TYPE-008 (#601).
+  const profile = buildProfile([
+    buildType({ name: "component", displayIdPattern: "SWC_{a}_{a}" }),
+  ]);
+  const entry = buildEntry({ displayId: "SWC_LIGHT_CTRL", shape: "Authored" });
+  const result = classifyEntriesStage([entry], profile);
+  // Pass-through unclassified — no usable pattern matched.
+  assertEquals(result.entries[0].type, undefined);
+});
+
+Deno.test("classifyEntriesStage: malformed pattern with explicit Type does not crash enforcement (#597 hardening)", () => {
+  // Explicit `Type: component` classifies via the trailer (bypassing the
+  // pattern), then checkEnforcement compiles the same malformed pattern. That
+  // compile must not throw either.
+  const profile = buildProfile([
+    buildType({
+      name: "component",
+      displayIdPattern: "SWC_{a}_{a}",
+      enforcement: "error",
+    }),
+  ]);
+  const entry = buildEntry({
+    displayId: "SWC_LIGHT_CTRL",
+    shape: "Authored",
+    typeAttribute: "component",
+  });
+  const result = classifyEntriesStage([entry], profile);
+  // Still classified by the explicit Type:; enforcement silently skipped.
+  assertEquals(result.entries[0].type, "component");
+});
