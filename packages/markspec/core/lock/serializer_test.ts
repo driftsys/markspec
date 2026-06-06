@@ -204,6 +204,35 @@ Deno.test("serializer: first line is the #:schema directive", () => {
   );
 });
 
+Deno.test("serializeLockfile: edge sort is total — colliding (source, relation, authored-target) differ only by targetUlid produce identical bytes regardless of input order", () => {
+  // Two edges share (sourceUlid, relation, authoredTarget) but have different
+  // targetUlids — a collision that the old comparator left as input-order-dependent.
+  const edgeA = {
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    authoredTarget: "SYS_DUP_0001",
+    targetUlid: "01J0000000000000000000TGA1",
+  };
+  const edgeB = {
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    authoredTarget: "SYS_DUP_0001",
+    targetUlid: "01J0000000000000000000TGB2",
+  };
+  const base: Lockfile = {
+    ...EMPTY_LOCKFILE,
+    edges: [],
+    generatedCache: { edgesHash: "sha256:x", edgesCount: 2 },
+  };
+  const toml1 = serializeLockfile({ ...base, edges: [edgeA, edgeB] });
+  const toml2 = serializeLockfile({ ...base, edges: [edgeB, edgeA] });
+  assertEquals(
+    toml1,
+    toml2,
+    "both input permutations must produce identical bytes",
+  );
+});
+
 Deno.test("serializeLockfile: emits [[edge]] tables sorted by (source, relation, authored-target)", () => {
   const lf: Lockfile = {
     schema: 1,
