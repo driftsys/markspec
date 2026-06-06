@@ -272,3 +272,35 @@ Deno.test("serializeLockfile: emits [[edge]] tables sorted by (source, relation,
   assertEquals(goneBlock.includes("01J0000000000000000000SRC1"), true);
   assertEquals(serializeLockfile(lf), toml); // determinism
 });
+
+Deno.test("serializeLockfile: edge order is total — colliding edges sort by target-ulid", () => {
+  // Two edges that collide on (source-ulid, relation, authored-target) and
+  // differ only in target-ulid. This arises when the same authored display ID
+  // resolves to two different ULIDs (duplicate display IDs across files whose
+  // first-wins tiebreak flips per machine). Without target-ulid in the
+  // comparator, the stable sort preserves input order — which comes from an
+  // unsorted Deno.readDir walk — so the bytes become machine-dependent.
+  const edgeA: Lockfile["edges"][number] = {
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    targetUlid: "01J0000000000000000000TGTA",
+    authoredTarget: "SYS_DUP_0001",
+  };
+  const edgeB: Lockfile["edges"][number] = {
+    sourceUlid: "01J0000000000000000000SRC1",
+    relation: "Satisfies",
+    targetUlid: "01J0000000000000000000TGTB",
+    authoredTarget: "SYS_DUP_0001",
+  };
+  const base: Lockfile = {
+    schema: 1,
+    meta: { markspecSchema: 1, lockedAt: "2026-06-06T00:00:00Z" },
+    upstreams: [],
+    boundEntries: [],
+    edges: [],
+    generatedCache: { edgesHash: "sha256:0", edgesCount: 0 },
+  };
+  const forward = serializeLockfile({ ...base, edges: [edgeA, edgeB] });
+  const reversed = serializeLockfile({ ...base, edges: [edgeB, edgeA] });
+  assertEquals(forward, reversed); // permutation-independent → total order
+});
