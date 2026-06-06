@@ -341,6 +341,16 @@ markspec next-id requirement "docs/**/*.md" --format json
 # → {"type":"requirement","displayId":"SRS_PRJ_0004"}
 ```
 
+For a **named (counter-less) type** — one whose `display-id-pattern` has no
+`{n}` counter, e.g. `sw-component: "SWC_{name}"` (ADR-025) — there is no number
+to mint. `next-id`, `create`, and `insert` instead emit a `<name>` placeholder
+template for you to fill in by hand:
+
+```sh
+markspec next-id sw-component "docs/**/*.md"
+# → SWC_<name>   (with a note on stderr: author the identifier yourself)
+```
+
 #### lint
 
 Run prose-quality analysis on entries (INCOSE lexicon, modal keywords,

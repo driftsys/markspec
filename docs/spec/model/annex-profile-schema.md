@@ -174,7 +174,10 @@ It requires a non-empty literal prefix plus a trailing named placeholder (e.g.
 underscores included. A bare `{name}` with no literal prefix is rejected — it
 would match every ID. Named patterns are classification-only: there is no
 counter to mint, so pair them with `display-id-pattern-enforcement: off` and
-author the ID by hand (`markspec next-id` / `create` skip named types).
+author the identifier by hand. `markspec next-id` / `create` / `insert` do not
+auto-number a named type — they emit a `<name>` placeholder template (e.g.
+`SWC_<name>`) to fill in, and the LSP offers a matching `${1:name}` scaffold
+completion.
 
 A malformed pattern — more than one counter, an invalid or zero-width padding
 specifier, a counter-less pattern with no literal prefix, or a duplicate named
