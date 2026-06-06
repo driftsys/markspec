@@ -50,6 +50,7 @@ import {
   parseLockfile,
   type ProjectConfig,
   targetsForRelation,
+  validateDisplayIdPattern,
   VERSION,
 } from "../core/mod.ts";
 import { extendsTransitively } from "../core/profile/discipline_mode.ts";
@@ -298,15 +299,9 @@ function getEntryTypes(): EntryTypeInfo[] {
   for (const [name, typeDef] of profile.types) {
     const pattern = typeDef.value.displayIdPattern.value;
     if (!pattern) continue;
-    // Parse the `{n:Nd}` placeholder. Width and suffix flow through
-    // the snippet so profiles using non-4-digit IDs (`{n:6d}`) or
-    // a trailing literal don't produce mis-formatted scaffolds.
-    const shape = parseDisplayIdPattern(pattern);
-    if (!shape) continue;
-    const { prefix, width, suffix } = shape;
-    const nextNumber = index.getNextDisplayIdNumber(prefix, suffix);
 
-    // ADR-017 Slice 5: mark mode-relevant types as recommended.
+    // ADR-017 Slice 5: mark mode-relevant types as recommended. Shared by
+    // both the numbered and named branches below.
     const isRequirementShaped = extendsTransitively(
       name,
       "Requirement",
@@ -317,7 +312,33 @@ function getEntryTypes(): EntryTypeInfo[] {
       (mode === "flat" && isRequirementShaped && !hasDiscipline) ||
       (mode === "none" && isRequirementShaped);
 
-    types.push({ name, prefix, width, suffix, nextNumber, modeRecommended });
+    // Numbered pattern: parse the `{n:Nd}` placeholder. Width and suffix flow
+    // through the snippet so profiles using non-4-digit IDs (`{n:6d}`) or a
+    // trailing literal don't produce mis-formatted scaffolds.
+    const shape = parseDisplayIdPattern(pattern);
+    if (shape) {
+      const { prefix, width, suffix } = shape;
+      const nextNumber = index.getNextDisplayIdNumber(prefix, suffix);
+      types.push({ name, prefix, width, suffix, nextNumber, modeRecommended });
+      continue;
+    }
+
+    // Named (counter-less) type (ADR-025, #598): not mintable, but still
+    // offer a `${1:NAME}` scaffold. The literal anchor is everything before
+    // the first placeholder. A malformed pattern is skipped — profile-load
+    // (#597) already rejects those via PROFILE-TYPE-008.
+    if (!validateDisplayIdPattern(pattern).ok) continue;
+    const firstBrace = pattern.indexOf("{");
+    const prefix = firstBrace >= 0 ? pattern.slice(0, firstBrace) : pattern;
+    types.push({
+      name,
+      prefix,
+      width: 0,
+      suffix: "",
+      nextNumber: 0,
+      named: true,
+      modeRecommended,
+    });
   }
   return types;
 }
@@ -787,6 +808,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
           prefix: item.prefix,
           width: item.width,
           suffix: item.suffix,
+          named: item.named,
           replacementRange: item.textEdit.range,
         } satisfies ScaffoldCompletionData,
       }));
@@ -817,6 +839,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
               prefix: type.prefix,
               width: type.width,
               suffix: type.suffix,
+              named: type.named,
             } satisfies ScaffoldCompletionData
             : undefined,
         };
@@ -925,33 +948,53 @@ connection.onCompletionResolve((item): CompletionItem => {
   }
   // Defend against tampered or malformed resolve payloads from a hostile or
   // buggy LSP client. The typed cast above does not validate at runtime.
+  // These checks apply to both numbered and named scaffolds.
   if (
     typeof data.prefix !== "string" || data.prefix.length > 64 ||
     typeof data.typeName !== "string" || data.typeName.length > 128 ||
-    typeof data.suffix !== "string" || data.suffix.length > 64 ||
-    typeof data.width !== "number" || !Number.isInteger(data.width) ||
-    data.width < 1 || data.width > 32
+    typeof data.suffix !== "string" || data.suffix.length > 64
   ) {
     return item;
   }
-  // Mint and reserve the number atomically. Reserving before the snippet
-  // is built means a second resolve firing inside the parse-debounce
-  // window — before this entry reaches the index — sees the number as
-  // taken and picks the next one, closing the duplicate-ID race.
-  const { prefix, suffix } = data;
-  const nextNumber = mintReservedNumber(
-    prefix,
-    suffix,
-    (reserved) => index.getNextDisplayIdNumber(prefix, suffix, reserved),
-  );
-  const rendered = renderScaffoldSnippet({
-    typeName: data.typeName,
-    prefix: data.prefix,
-    width: data.width,
-    suffix: data.suffix,
-    nextNumber,
-    ulid: ulid(),
-  });
+  let rendered: { label: string; insertText: string };
+  if (data.named === true) {
+    // Named (counter-less) type (#598): no number to mint. Re-render the
+    // `${1:NAME}` snippet with a fresh ULID; width / suffix are unused.
+    rendered = renderScaffoldSnippet({
+      typeName: data.typeName,
+      prefix: data.prefix,
+      width: 0,
+      suffix: "",
+      nextNumber: 0,
+      ulid: ulid(),
+      named: true,
+    });
+  } else {
+    if (
+      typeof data.width !== "number" || !Number.isInteger(data.width) ||
+      data.width < 1 || data.width > 32
+    ) {
+      return item;
+    }
+    // Mint and reserve the number atomically. Reserving before the snippet
+    // is built means a second resolve firing inside the parse-debounce
+    // window — before this entry reaches the index — sees the number as
+    // taken and picks the next one, closing the duplicate-ID race.
+    const { prefix, suffix } = data;
+    const nextNumber = mintReservedNumber(
+      prefix,
+      suffix,
+      (reserved) => index.getNextDisplayIdNumber(prefix, suffix, reserved),
+    );
+    rendered = renderScaffoldSnippet({
+      typeName: data.typeName,
+      prefix: data.prefix,
+      width: data.width,
+      suffix: data.suffix,
+      nextNumber,
+      ulid: ulid(),
+    });
+  }
   // Mid-typed scaffold items carry the replacement range: rebuild the
   // textEdit with the freshly rendered snippet (a stale textEdit.newText
   // would otherwise win over insertText). Range is unchanged — the cursor
