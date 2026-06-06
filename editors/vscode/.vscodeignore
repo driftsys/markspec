@@ -35,3 +35,7 @@ node_modules/**/.bin/**
 .gitignore
 .vscodeignore
 package-lock.json
+
+# Contributor-only docs — README.md is the marketplace overview and ships;
+# DEVELOPMENT.md (build + release smoke test) does not.
+DEVELOPMENT.md

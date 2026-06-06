@@ -1,85 +1,126 @@
-# markspec-ide — VSCode extension
+# MarkSpec for VS Code
 
-VSCode extension for [MarkSpec](https://github.com/driftsys/markspec). Provides
-LSP-backed diagnostics, completions, hover, go-to-definition, references,
-rename, document/workspace symbols, folding, document highlights, code actions,
-and MCP integration for MarkSpec documents and source-file doc comments.
+Author traceable requirements, specifications, and tests in Markdown — with live
+validation, traceability navigation, and AI assistance built in.
 
-The extension bundles the platform-appropriate `markspec` binary (`markspec.exe`
-on Windows, `markspec` elsewhere) and spawns it as a child process for the
-`markspec lsp` and `markspec mcp` subcommands. The binary is selected at build
-time via [`scripts/bundleBinary.ts`](scripts/bundleBinary.ts) and at runtime via
-[`src/serverOptions.ts`](src/serverOptions.ts).
+MarkSpec is a Markdown flavor and toolchain for **traceable industrial
+documentation**. You write requirements, architecture, and tests as ordinary
+Markdown entry blocks; MarkSpec stamps each with a stable ID, links them with
+trace relations (`Satisfies:`, `Verified-by:`, `Derived-from:`, …), and
+validates the whole graph. It targets ISO 26262 and ASPICE compliance workflows
+— but works for any project that needs requirements that stay connected to their
+tests and don't rot.
 
-## Building
+This extension brings the MarkSpec language server into VS Code, so the
+traceability graph is live as you type.
 
-```bash
-cd editors/vscode
-npm install
-npm run compile
+> **No separate install required.** The extension bundles the version-matched
+> `markspec` binary for your platform and runs it for you.
+
+## A MarkSpec entry block
+
+```markdown
+- [SRS_BRK_0001] Sensor debouncing
+
+  The sensor driver shall debounce raw inputs over a 20 ms window.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_BRK_0012
+      Verified-by: SWT_BRK_0001
+      Labels: ASIL-B
 ```
 
-To run from source against a freshly compiled CLI:
+The display ID `SRS_BRK_0001` is the human-readable handle; the `Id:` ULID is
+stamped automatically. `Satisfies:` and `Verified-by:` are trace links — the
+extension validates, navigates, and renames across all of them.
 
-```bash
-# from the repo root
-just compile
-# from editors/vscode, press F5 to launch an Extension Development Host
-```
+## What you get
 
-## Manual Windows smoke test — STK-WIN-0005
+**Live validation.** Broken references, missing or duplicate IDs, malformed
+entries, attribute and type errors, and uppercase modal verbs (`SHALL` →
+`shall`) surface as squiggles within about a second of typing — each carrying an
+`MSL-…` diagnostic code. Many come with a one-click quick fix.
 
-Run before each release on a clean Windows 11 (or 10 22H2) host:
+**Authoring without boilerplate.**
 
-1. **Install the CLI.**
-   ```powershell
-   irm https://raw.githubusercontent.com/driftsys/markspec/main/install.ps1 | iex
-   ```
-   Confirm `markspec --version` prints the expected version.
+- Type `- [` on a list line to scaffold a complete entry block, pre-filled with
+  a fresh ULID and the next display ID for each type your profile declares.
+- Trace-attribute completion suggests only the IDs the active profile allows in
+  that slot (e.g. `Satisfies:` on a software requirement offers system
+  requirements).
+- `Type:` and `Labels:` values complete from the active profile catalog.
+- Quick-fix code actions for common diagnostics: lowercase a modal verb, remove
+  a generated attribute, "did you mean…" type suggestions, deduplicate
+  attributes, and more.
 
-2. **Install the extension.** Use the Windows VSIX from the GitHub release
-   (`markspec-ide-<version>-win32-x64.vsix`):
-   ```powershell
-   code --install-extension .\markspec-ide-<version>-win32-x64.vsix
-   ```
+**Navigate the graph.**
 
-3. **Open a MarkSpec project.** Clone the
-   [examples repo](https://github.com/driftsys/markspec) and open
-   `docs/examples/` in VSCode. The LSP indexer should fire on open and the
-   status bar should report the entry count.
+- Hover any display ID for a rendered Markdown preview of the target entry.
+- Go to definition (`F12`) and find all references (`Shift+F12`) across the
+  whole project.
+- Project-wide rename (`F2`) of a display ID, updating every whole-token
+  occurrence in every file.
+- Outline view and `Ctrl+T` workspace search by display ID or title.
+- CodeLens and inlay hints showing dependents and the satisfies-chain inline.
+- Folding, document highlights, and per-entry semantic-token coloring.
 
-4. **Verify per-capability behaviour.** For each row, perform the action and
-   record pass / fail. Every row must pass.
+**Source code is part of the graph.** Entry blocks and trace links written in
+doc comments — Rust, Kotlin, Java, C/C++, TypeScript, JavaScript, C# — are
+indexed alongside Markdown. A unit test's `/// Satisfies: SRS_BRK_0001` links
+straight to the requirement it verifies.
 
-   | #  | Capability          | Test                                                                                                                |
-   | -- | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-   | 1  | Diagnostics         | Introduce a broken `Satisfies:` reference. A red squiggle and `MSL-…` diagnostic appear within 1 s.                 |
-   | 2  | Completion (block)  | Type `- [` at the start of a list line. The entry-block scaffold completion appears.                                |
-   | 3  | Completion (id)     | Type `Satisfies:` on a trailer line. A list of display IDs appears.                                                 |
-   | 4  | Hover               | Hover a display ID. A Markdown preview of the target entry appears.                                                 |
-   | 5  | Go to definition    | F12 on a display ID. The editor jumps to the entry's title line.                                                    |
-   | 6  | References          | Shift-F12 on a display ID. The references panel lists every referencing entry.                                      |
-   | 7  | Rename              | F2 on a display ID. Type a new ID and confirm. Every whole-token occurrence across every open project file updates. |
-   | 8  | Document symbols    | Open the outline view. One symbol per entry, named by display ID.                                                   |
-   | 9  | Workspace symbols   | Ctrl-T → type part of a display ID. Matching entries appear.                                                        |
-   | 10 | Folding             | The gutter shows one foldable region per entry.                                                                     |
-   | 11 | Document highlights | Click a display ID. Every occurrence in the file highlights (write at the declaration, read elsewhere).             |
-   | 12 | Code action         | Trigger a diagnostic with a known quick-fix (e.g. uppercase `SHALL`). The light bulb offers the fix.                |
-   | 13 | MCP                 | Open the MCP panel. The `markspec` server starts and exposes its tools.                                             |
+**Readable entry blocks.** Each entry is marked with a colored left bar and
+label pills (red-bordered when a label isn't in the profile catalog), with
+themed admonitions for light, dark, and high-contrast color themes.
 
-5. **CRLF safety check (STK-WIN-0004).** Open a file saved with CRLF line
-   endings (status bar bottom-right says `CRLF`). Edit the file, save, and
-   confirm that:
-   - the file's line endings remain CRLF after save,
-   - no diagnostic locations point past the visible end of any line (which would
-     indicate stray `\r` propagation), and
-   - `markspec fmt` (Ctrl-Shift-P → Format Document) keeps the file as CRLF.
+**AI integration.** The extension registers the MarkSpec **MCP server**, so
+GitHub Copilot and other MCP-aware assistants can query your requirements and
+traceability graph directly instead of grepping Markdown. An optional inline
+completion provider feeds workspace entry context to the model for
+requirement-aware suggestions.
 
-6. **Path-handling check (STK-WIN-0002).** Open a file with a path that contains
-   spaces or non-ASCII characters (e.g. `C:\Users\dev\my project\café.md`).
-   Diagnostics, go-to-definition, and references must work — no `file://C:\…`
-   URI errors in the LSP output channel (View → Output → MarkSpec).
+## Requirements
 
-7. **Record the result.** File any failures as issues with the `os:windows`
-   label; otherwise note "Windows smoke-test pass" in the release PR
-   description.
+The extension activates when your workspace contains a **`.markspec.yaml`** file
+(the project activator). In a MarkSpec project it indexes your entries on open
+and reports the entry count in the status bar; in a plain Markdown or source
+repository it stays inert and writes nothing to disk.
+
+New to MarkSpec? The [documentation](https://driftsys.github.io/markspec/) walks
+through setting up a project and choosing a profile.
+
+## Configuration
+
+| Setting                                         | Default                           | What it does                                                                                                                                   |
+| ----------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `markspec.server.path`                          | _(bundled binary)_                | Path to the `markspec` binary. Empty uses the bundled, version-matched binary; `markspec` uses your `PATH`; an absolute path uses a dev build. |
+| `markspec.mcp.enabled`                          | `true`                            | Register the MarkSpec MCP server with VS Code for Copilot and other MCP clients.                                                               |
+| `markspec.inlineCompletion.enabled`             | `true`                            | Enable the MarkSpec requirement-aware inline completion provider.                                                                              |
+| `markspec.inlineCompletion.maxWorkspaceEntries` | `200`                             | Maximum workspace entries packed into the AI prompt context.                                                                                   |
+| `markspec.trace.server`                         | `off`                             | Trace LSP traffic (`messages` / `verbose`) for debugging.                                                                                      |
+| `markspec.trace.logPath`                        | _(workspace `.markspec/lsp.log`)_ | Override the LSP event-log path.                                                                                                               |
+
+## Commands
+
+Both are available from the Command Palette (`Ctrl/Cmd+Shift+P`):
+
+- **MarkSpec: Show Output** — open the LSP output channel.
+- **MarkSpec: Install CLI to PATH** — make the bundled `markspec` binary
+  available in your terminal.
+
+## Beyond the editor
+
+The bundled `markspec` CLI does more than the editor surfaces live — prose-style
+linting (EARS, passive voice, INCOSE), PDF and static-site rendering, coverage
+and traceability-matrix reports, and an upstream lockfile with external-sync
+tracking. Run **MarkSpec: Install CLI to PATH**, then `markspec --help`.
+
+## Learn more
+
+- [Documentation](https://driftsys.github.io/markspec/)
+- [Language specification](https://github.com/driftsys/markspec/blob/main/docs/spec/language/language.md)
+- [Source, issues & discussions](https://github.com/driftsys/markspec)
+
+## License
+
+MIT — see [LICENSE](https://github.com/driftsys/markspec/blob/main/LICENSE).
