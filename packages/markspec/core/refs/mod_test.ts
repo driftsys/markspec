@@ -353,10 +353,10 @@ Deno.test("canonicalizeRefs: ULID in body prose is not rewritten", () => {
 });
 
 // ---------------------------------------------------------------------------
-// canonicalizeRefs — multi-line continuation left untouched
+// canonicalizeRefs — trailing-backslash key line is canonicalised (#606)
 // ---------------------------------------------------------------------------
 
-Deno.test("canonicalizeRefs: trailer line with trailing backslash is left untouched", () => {
+Deno.test("canonicalizeRefs: trailing-backslash key line has its ULID canonicalised, continuation orphan untouched", () => {
   const line = `      Satisfies: ${TGT} \\`;
   const content = [
     `- [SWE_0001] Title`,
@@ -387,9 +387,12 @@ Deno.test("canonicalizeRefs: trailer line with trailing backslash is left untouc
   const idx = buildRefIndex([src, tgt]);
   const { output, changed } = canonicalizeRefs(content, [src, tgt], idx, []);
 
-  // The continuation line is left byte-for-byte identical.
-  assertEquals(changed, false);
-  assertEquals(output, content);
+  assertEquals(changed, true);
+  const lines = output.split("\n");
+  // The key-line ULID is canonicalised; the trailing backslash is preserved.
+  assertEquals(lines[5], "      Satisfies: SYS_0001 \\");
+  // The continuation orphan (SYS_0002 not in the index) is left untouched.
+  assertEquals(lines[6], "      SYS_0002");
 });
 
 // ---------------------------------------------------------------------------
@@ -498,4 +501,198 @@ Deno.test("canonicalizeRefs: a non-resolving ULID trace value is left as-is", ()
   const { output, changed } = canonicalizeRefs(content, [src], idx, []);
   assertEquals(changed, false);
   assertEquals(output, content);
+});
+
+// ---------------------------------------------------------------------------
+// canonicalizeRefs — multi-line (\-continued) trace values (#606)
+// ---------------------------------------------------------------------------
+
+const TGT2 = "01J0000000000000000000TGT2";
+
+Deno.test("canonicalizeRefs: multi-line value canonicalises ULIDs on every line", () => {
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: ${TGT}, \\`,
+    `        ${TGT2}`,
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 9, column: 1 },
+  });
+  const tgt2 = entry({
+    displayId: "SYS_0002",
+    id: TGT2,
+    rawAttributes: [{ key: "Id", value: TGT2 }],
+    location: { file: "x.md", line: 12, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt, tgt2]);
+  const { output, changed } = canonicalizeRefs(
+    content,
+    [src, tgt, tgt2],
+    idx,
+    [],
+  );
+
+  assertEquals(changed, true);
+  const lines = output.split("\n");
+  // Both ULIDs canonicalised; indentation + trailing backslash preserved.
+  assertEquals(lines[5], "      Satisfies: SYS_0001, \\");
+  assertEquals(lines[6], "        SYS_0002");
+});
+
+Deno.test("canonicalizeRefs: multi-line value heals a stale display ID on a continuation line", () => {
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: SYS_0001, \\`,
+    `        OLD_SYS_002`,
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 9, column: 1 },
+  });
+  const tgt2 = entry({
+    displayId: "SYS_0002",
+    id: TGT2,
+    rawAttributes: [{ key: "Id", value: TGT2 }],
+    location: { file: "x.md", line: 12, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt, tgt2]);
+  const ledger: LockEdge[] = [
+    {
+      sourceUlid: SRC,
+      relation: "Satisfies",
+      targetUlid: TGT2,
+      authoredTarget: "OLD_SYS_002",
+    },
+  ];
+  const { output, changed } = canonicalizeRefs(
+    content,
+    [src, tgt, tgt2],
+    idx,
+    ledger,
+  );
+
+  assertEquals(changed, true);
+  const lines = output.split("\n");
+  assertEquals(lines[5], "      Satisfies: SYS_0001, \\");
+  assertEquals(lines[6], "        SYS_0002");
+});
+
+Deno.test("canonicalizeRefs: fully-canonical multi-line value is a lossless no-op", () => {
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: SYS_0001, \\`,
+    `        SYS_0002`,
+    ``,
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 9, column: 1 },
+  });
+  const tgt2 = entry({
+    displayId: "SYS_0002",
+    id: TGT2,
+    rawAttributes: [{ key: "Id", value: TGT2 }],
+    location: { file: "x.md", line: 12, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt, tgt2]);
+  const { output, changed } = canonicalizeRefs(
+    content,
+    [src, tgt, tgt2],
+    idx,
+    [],
+  );
+
+  assertEquals(changed, false);
+  assertEquals(output, content);
+});
+
+Deno.test("canonicalizeRefs: continuation-only change does not skip the following trace line", () => {
+  // The key line is already canonical; only the continuation carries a ULID.
+  // A following `Verified-by:` line must still be reached by the outer loop.
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: SYS_0001, \\`,
+    `        ${TGT2}`,
+    `      Verified-by: ${SRC}`,
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 10, column: 1 },
+  });
+  const tgt2 = entry({
+    displayId: "SYS_0002",
+    id: TGT2,
+    rawAttributes: [{ key: "Id", value: TGT2 }],
+    location: { file: "x.md", line: 13, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt, tgt2]);
+  const { output, changed } = canonicalizeRefs(
+    content,
+    [src, tgt, tgt2],
+    idx,
+    [],
+  );
+
+  assertEquals(changed, true);
+  const lines = output.split("\n");
+  assertEquals(lines[6], "        SYS_0002");
+  // The Verified-by line after the continuation is still canonicalised.
+  assertEquals(lines[7], "      Verified-by: SWE_0001");
 });
