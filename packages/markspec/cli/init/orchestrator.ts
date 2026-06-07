@@ -294,6 +294,27 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
     executedActions.push(...plan.actions);
   }
 
+  // A non-bundled (git/local) profile may pin upstreams, but `init` writes a
+  // stub `markspec.lock` with zero upstreams — it does not resolve the profile
+  // chain (no network I/O at init time). Surface a warning pointing at
+  // `markspec lock` so the stub is intentional and visible rather than a
+  // silent inconsistency with the `.markspec.yaml` profile (#581). Gated on a
+  // fresh lock actually being written (create/overwrite) so a re-run that
+  // skips an existing lock stays quiet.
+  const writesLockStub = (options.profileChoice.kind === "git" ||
+    options.profileChoice.kind === "local") &&
+    plan.actions.some((a) =>
+      a.file === "markspec.lock" &&
+      (a.kind === "create" || a.kind === "overwrite")
+    );
+  if (writesLockStub) {
+    warnings.push({
+      code: "LOCKFILE_STUB_NEEDS_PIN",
+      message:
+        `markspec.lock was written with no upstreams. Run \`markspec lock\` to resolve and pin the ${options.profileChoice.kind} profile chain.`,
+    });
+  }
+
   const hasSkip = executedActions.some((a) => a.kind === "skip");
   const exitCode: 0 | 1 | 2 = warnings.length > 0 || hasSkip ? 2 : 0;
   const clientsWritten: InitClientId[] = [...clientSet.write];
