@@ -352,4 +352,95 @@ Deno.test("runInit: mcpRunner failure → MCP_INSTALL_FAILED warning + exit 2", 
   // summary advertises a config that was never written.
   const mcpAction = result.actions.find((a) => a.file === ".mcp.json");
   assertEquals(mcpAction, undefined);
+  // …and the failed client must not be advertised as written (#575).
+  assertEquals(result.clientsWritten.includes("claude-code"), false);
+});
+
+Deno.test("runInit: clientsWritten lists the client whose MCP config landed", async () => {
+  const fs = createMemFs();
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "bundled" },
+    forcedClients: ["claude-code"],
+    allClients: false,
+    noMcp: false,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: noClientEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+    mcpAdapters: adapters,
+  });
+  assertEquals(result.clientsWritten, ["claude-code"]);
+});
+
+// ---------------------------------------------------------------------------
+// #575 — BINARY_PATH_WARNING is only meaningful when an MCP client will
+// reference the binary. Under --no-mcp (empty clientSet.write) it must be
+// suppressed so init does not flip to exit 2 for an unused binary path.
+// ---------------------------------------------------------------------------
+
+const mismatchBinaryEnv = {
+  whichCommand: (n: string) =>
+    Promise.resolve(n === "markspec" ? "/usr/bin/markspec" : undefined),
+  execPath: () => "/opt/markspec",
+  pathExists: () => Promise.resolve(true),
+};
+
+Deno.test("runInit: --no-mcp suppresses spurious BINARY_PATH_WARNING → exit 0", async () => {
+  const fs = createMemFs();
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "bundled" },
+    forcedClients: [],
+    allClients: false,
+    noMcp: true,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: mismatchBinaryEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+    mcpAdapters: adapters,
+  });
+  const binWarn = result.warnings.find((w) => w.code === "BINARY_PATH_WARNING");
+  assertEquals(binWarn, undefined);
+  assertEquals(result.exitCode, 0);
+});
+
+Deno.test("runInit: BINARY_PATH_WARNING still fires when an MCP client is written", async () => {
+  const fs = createMemFs();
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "bundled" },
+    forcedClients: ["claude-code"],
+    allClients: false,
+    noMcp: false,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: mismatchBinaryEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+    mcpAdapters: adapters,
+  });
+  const binWarn = result.warnings.find((w) => w.code === "BINARY_PATH_WARNING");
+  assertEquals(binWarn !== undefined, true);
+  assertEquals(result.exitCode, 2);
 });
