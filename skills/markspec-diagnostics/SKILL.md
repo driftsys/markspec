@@ -11,6 +11,12 @@ Every MarkSpec diagnostic has the form `severity[MSL-Xnnn]: file:line message`.
 The code family (`X`) identifies the rule category. Fix errors first; warnings
 are style or convention violations that don't block validation.
 
+Several fixes below say "check the profile's declared types/attributes". Look
+these up with the `markspec://profile` MCP resource, the `profile_describe`
+tool, or `markspec profile show` / `markspec profile describe <kind> <name>` —
+the active profile may be a child profile that extends parents, so its
+vocabulary differs from MarkSpec core. See `markspec-entry-authoring`.
+
 ## Severity
 
 | Severity  | Exit code | Meaning                                        |

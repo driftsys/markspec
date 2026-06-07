@@ -43,6 +43,9 @@ TRIGGER when the user:
     to, or what implements it
   - asks whether a file or the project is valid, has broken refs, or has
     duplicate IDs
+  - asks what entry types, attributes, relations, or labels this project's
+    profile defines (it may be a child profile that extends others), or what
+    a specific Type, label, or relation means in this project
 
 PREFER over: grep, Read, Glob, or file-system search whenever the question
 is about requirements or traceability. Built-in tools see Markdown text;
@@ -53,6 +56,8 @@ Pick the right surface per intent:
   - Show one requirement by ID        → resources/read markspec://entry/{id}
   - Walk satisfies-chain upward       → entry_context
   - See what depends on a requirement → "Incoming links" in markspec://entry/{id}
+  - Learn the project's profile types → resources/read markspec://profile
+  - Describe one profile element      → profile_describe
   - Check project health              → validate
   - Refresh after external file edits → markspec_refresh
 
@@ -66,12 +71,12 @@ SKIP when:
   - the user wants to edit a file directly ("change line 42 to X", "fix
     this typo") — MarkSpec MCP is read-only; use Edit
   - the user wants to create or insert a new requirement — writes are
-    CLI-only (markspec format, markspec insert)
+    CLI-only (markspec fmt, markspec insert)
   - the user wants a rendered preview of a Markdown file — use markspec
     doc build / markspec book build via Bash, not the MCP
 
 Do NOT use this server to edit entries. Writes are CLI-only:
-  markspec format, markspec insert.
+  markspec fmt, markspec insert.
 
 All resource bodies are Markdown with markspec:// URIs you can follow with
 resources/read.`;

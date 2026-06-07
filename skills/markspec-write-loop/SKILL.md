@@ -19,6 +19,12 @@ markspec check <file>
 Never hand-craft a full entry block and paste it. `insert` computes the correct
 display ID from the current corpus; pasting a guessed ID risks a collision.
 
+**Before you start:** the `<type>` you pass to `insert` must be a type the
+project's **active profile** declares — and that profile may be a child profile
+that extends parents, so do not assume core type names. Discover the valid types
+with the `markspec://profile` MCP resource (or `markspec profile show`). See
+`markspec-entry-authoring` § _Discover the active profile first_.
+
 ## Step 1 — Insert
 
 ```bash
@@ -81,9 +87,10 @@ Fix any errors and repeat until exit 0.
 
 ## Common mistakes
 
-| Mistake                      | Fix                                                                 |
-| ---------------------------- | ------------------------------------------------------------------- |
-| Skipping `markspec fmt`      | The pre-commit hook will reject the file; run fmt before committing |
-| Running `check` before `fmt` | Format first — some diagnostics are caused by malformed indentation |
-| Guessing the next display ID | Use `markspec next-id` or `markspec insert`; never guess            |
-| Editing `Id:` by hand        | Leave it alone; `fmt` stamps it                                     |
+| Mistake                      | Fix                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| Skipping `markspec fmt`      | The pre-commit hook will reject the file; run fmt before committing       |
+| Running `check` before `fmt` | Format first — some diagnostics are caused by malformed indentation       |
+| Guessing the next display ID | Use `markspec next-id` or `markspec insert`; never guess                  |
+| Guessing the `<type>` name   | Read the active profile (`markspec://profile`); types are profile-defined |
+| Editing `Id:` by hand        | Leave it alone; `fmt` stamps it                                           |

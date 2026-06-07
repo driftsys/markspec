@@ -15,6 +15,29 @@ prose, and an indented trailer section. Two shapes exist:
 - **Reference** — no `Id:` trailer; a pointer to an external or higher-level
   requirement.
 
+## Discover the active profile first
+
+Type prefixes, display-ID widths, valid `Type:` values, and which trailer
+attributes and trace relations are allowed are defined by the project's **active
+profile** — not by MarkSpec core. The active profile is often a **child
+profile** that `extends:` one or more parents (e.g.
+`aspice-4 → profile-default → markspec-core`), so it may add, rename, or
+constrain the vocabulary beyond the core baseline shown below.
+
+**Never assume a default vocabulary. Read the active profile before authoring.**
+Prefer the MCP surfaces — they return the _resolved_ chain, not raw YAML:
+
+| Need                                                                 | MCP                                | CLI fallback                              |
+| -------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------- |
+| Active profile + inherited chain + every declared type/attr/relation | read resource `markspec://profile` | `markspec profile show`                   |
+| One element's detail (a type's prefix, a relation's targets)         | `profile_describe` tool            | `markspec profile describe <kind> <name>` |
+
+The `markspec://profile` overview names the **Active** profile and what it
+**Inherits**, then lists every declared entry type, attribute, relation, label
+concern, and convention — the authoritative answer to "what can I write in this
+project". `kind` is one of `type`, `attribute`, `relation`, `label`,
+`convention`.
+
 ## Block anatomy
 
 ```markdown
@@ -58,6 +81,10 @@ prose, and an indented trailer section. Two shapes exist:
 | `Labels:`       | 0–N         | Free-form tags: ASIL level, domain, review state.                  |
 | `References:`   | 0–N         | Informational links — does not create a traceability link.         |
 
+This is the core baseline. A child profile may declare additional attributes and
+trace relations — discover them via `markspec://profile` (see _Discover the
+active profile first_ above).
+
 Multi-value attributes repeat the key on separate lines:
 
 ```markdown
@@ -89,10 +116,11 @@ Satisfies: STK_0001 Satisfies: STK_0007
 
 ## Common mistakes
 
-| Mistake                                  | Fix                                                     |
-| ---------------------------------------- | ------------------------------------------------------- |
-| Hand-stamping `Id:`                      | Remove it; run `markspec fmt`                           |
-| Wrong indent on trailers                 | Must be 6 spaces — not 4, not a tab                     |
-| Compound requirement ("and…")            | Split into two separate entries                         |
-| Bare adjective body ("fast", "reliable") | Add units and thresholds                                |
-| Displaying `${ULID}` literally           | You copied an unformatted scaffold — run `markspec fmt` |
+| Mistake                                  | Fix                                                                        |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| Hand-stamping `Id:`                      | Remove it; run `markspec fmt`                                              |
+| Wrong indent on trailers                 | Must be 6 spaces — not 4, not a tab                                        |
+| Compound requirement ("and…")            | Split into two separate entries                                            |
+| Bare adjective body ("fast", "reliable") | Add units and thresholds                                                   |
+| Displaying `${ULID}` literally           | You copied an unformatted scaffold — run `markspec fmt`                    |
+| Assuming core types/attributes apply     | Read the active profile (`markspec://profile`) — it may be a child profile |
