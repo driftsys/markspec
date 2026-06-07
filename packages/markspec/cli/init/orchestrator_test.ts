@@ -353,3 +353,101 @@ Deno.test("runInit: mcpRunner failure → MCP_INSTALL_FAILED warning + exit 2", 
   const mcpAction = result.actions.find((a) => a.file === ".mcp.json");
   assertEquals(mcpAction, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// #581 — a non-bundled profile writes a stub markspec.lock with zero
+// upstreams. init does not resolve upstreams (no network at init time), so it
+// must surface a LOCKFILE_STUB_NEEDS_PIN warning telling the user to run
+// `markspec lock` to pin the profile chain. Without it the empty lock is
+// silently inconsistent with the `.markspec.yaml` profile.
+// ---------------------------------------------------------------------------
+
+Deno.test("runInit: git profile → LOCKFILE_STUB_NEEDS_PIN warning + exit 2", async () => {
+  const fs = createMemFs();
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "git", spec: "git+https://example.com/p.git" },
+    forcedClients: [],
+    allClients: false,
+    noMcp: true,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: noClientEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+    mcpAdapters: adapters,
+  });
+  const lockWarn = result.warnings.find((w) =>
+    w.code === "LOCKFILE_STUB_NEEDS_PIN"
+  );
+  assertEquals(lockWarn !== undefined, true);
+  assertEquals(lockWarn!.message.includes("markspec lock"), true);
+  // A stub-lock advisory is the only warning here, so the run exits 2
+  // (clig.dev: 2 = warnings only) rather than 0.
+  assertEquals(result.exitCode, 2);
+  // The stub lock was still written — the warning is advisory, not a refusal.
+  assertEquals((await fs.read("/repo/markspec.lock")) !== undefined, true);
+});
+
+Deno.test("runInit: local profile → LOCKFILE_STUB_NEEDS_PIN warning", async () => {
+  const fs = createMemFs();
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "local", spec: "./profiles/house.yaml" },
+    forcedClients: [],
+    allClients: false,
+    noMcp: true,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: noClientEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+    mcpAdapters: adapters,
+  });
+  const lockWarn = result.warnings.find((w) =>
+    w.code === "LOCKFILE_STUB_NEEDS_PIN"
+  );
+  assertEquals(lockWarn !== undefined, true);
+});
+
+Deno.test("runInit: bundled profile → no LOCKFILE_STUB_NEEDS_PIN warning, exit 0", async () => {
+  const fs = createMemFs();
+  const result = await runInit({
+    targetDir: "/repo",
+    profileChoice: { kind: "bundled" },
+    forcedClients: [],
+    allClients: false,
+    noMcp: true,
+    noSkills: true,
+    binaryPathFlag: undefined,
+    force: false,
+    dryRun: false,
+    fs,
+    detectEnv: noClientEnv,
+    binaryEnv: noClientEnv,
+    mcpRunner: okMcpRunner,
+    execRunner: okExec,
+    now: fakeNow,
+    version: "0.6.0",
+    mcpAdapters: adapters,
+  });
+  const lockWarn = result.warnings.find((w) =>
+    w.code === "LOCKFILE_STUB_NEEDS_PIN"
+  );
+  assertEquals(lockWarn, undefined);
+  // The bundled profile expects no upstreams — an empty lock is correct,
+  // so the clean run exits 0.
+  assertEquals(result.exitCode, 0);
+});

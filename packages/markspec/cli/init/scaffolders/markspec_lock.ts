@@ -1,10 +1,14 @@
 /**
  * @module cli/init/scaffolders/markspec_lock
  *
- * Stub-path scaffolder for `markspec.lock` in the no-upstream case
- * (a fresh init with the bundled default profile). When the user
- * selects a non-default profile, the orchestrator delegates to
- * `runLock` instead — see {@linkcode runInit} step 5.
+ * Stub-path scaffolder for `markspec.lock`. `init` always writes a
+ * minimal lock with zero upstreams — it does not resolve the profile
+ * chain (resolution needs network I/O, which `init` deliberately
+ * avoids). For the bundled default profile that stub is the final,
+ * correct lock. For a non-default (git/local) profile the stub is a
+ * starting point: the orchestrator emits a `LOCKFILE_STUB_NEEDS_PIN`
+ * warning telling the user to run `markspec lock` to resolve and pin
+ * the profile's upstreams (#581).
  */
 
 import { join } from "@std/path";

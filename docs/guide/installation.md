@@ -193,6 +193,14 @@ In an empty (or existing) project root this writes:
 VS Code + Copilot needs no MCP file — the bundled extension handles that wiring
 once the `.vscode/extensions.json` recommendation is in place.
 
+> **Non-default profiles need `markspec lock`.** `init` writes `markspec.lock`
+> with **no upstreams** — it does not fetch or resolve the profile chain (init
+> performs no network I/O). With the bundled default profile that stub is the
+> final, correct lock. With a git or local profile (`--profile git+…` /
+> `--profile ./path`), `init` warns `LOCKFILE_STUB_NEEDS_PIN`; run
+> [`markspec lock`](cli.md#lock) once to resolve and pin the profile's
+> upstreams.
+
 > See [AI agents and skillset](ai-agents.md) for the full `markspec init` flag
 > reference (`--client`, `--profile`) and MCP server details.
 

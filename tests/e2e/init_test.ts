@@ -200,14 +200,12 @@ Deno.test(
         ],
         PERMS,
       );
-      // Exit 2 expected because lockfile resolve may warn in CI without net.
-      // Either exit 0 or 2 is acceptable here — we only assert the file
-      // contents.
-      assertEquals(
-        [0, 2].includes(code),
-        true,
-        `exit ${code}, stderr: ${stderr}`,
-      );
+      // init writes a stub markspec.lock with zero upstreams (it does not
+      // resolve the git profile — no network at init time), so it always
+      // warns LOCKFILE_STUB_NEEDS_PIN → exit 2 (#581).
+      assertEquals(code, 2, `exit ${code}, stderr: ${stderr}`);
+      assertStringIncludes(stderr, "LOCKFILE_STUB_NEEDS_PIN");
+      assertStringIncludes(stderr, "markspec lock");
       const md = await Deno.readTextFile(join(dir, ".markspec.yaml"));
       assertStringIncludes(md, "git+https://github.com/example/profile.git");
     } finally {
