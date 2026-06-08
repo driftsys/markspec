@@ -1,14 +1,14 @@
 /**
  * @module core/self_upgrade/pm_detect
  *
- * Classify the realpath of the running binary into one of four
+ * Classify the realpath of the running binary into one of five
  * install-source buckets so the self-upgrade orchestrator can refuse
  * with a per-manager hint instead of fighting the package manager.
  *
  * The check is heuristic and order-sensitive — Homebrew first (because
  * brew's bin paths live under /opt/homebrew or /usr/local), npm second,
- * system third, user-local fourth. Anything that falls through is
- * "unknown" and the orchestrator proceeds with a warning.
+ * cargo third, user-local fourth, system fifth. Anything that falls
+ * through is "unknown" and the orchestrator proceeds with a warning.
  *
  * Path matching is whole-segment (path separator on both sides) to
  * avoid matching e.g. `/foo/.localfish/markspec` against the user-local
@@ -23,6 +23,7 @@ export type InstallSource =
   | "user-local"
   | "homebrew"
   | "npm"
+  | "cargo"
   | "system"
   | "unknown";
 
@@ -58,12 +59,19 @@ export function classifyInstallPath(
     return { source: "npm", hintCommand: "npm update -g markspec" };
   }
 
-  // 3. user-local paths under $HOME.
+  // 3. Cargo (`~/.cargo/bin`). A package-manager location like Homebrew/npm,
+  //    so it is refused rather than overwritten — self-upgrade's rename-swap
+  //    would leave cargo's own metadata stale (#575). Checked before the
+  //    user-local rule, which would otherwise claim `.cargo/bin/`.
+  if (h && p.startsWith(`${h}/.cargo/bin/`)) {
+    return { source: "cargo", hintCommand: "cargo install markspec --force" };
+  }
+
+  // 4. user-local paths under $HOME.
   if (h && p.startsWith(`${h}/`)) {
     const tail = p.slice(h.length + 1);
     if (
       tail.startsWith(".local/") ||
-      tail.startsWith(".cargo/bin/") ||
       tail.startsWith("bin/") ||
       tail.startsWith("Library/")
     ) {
@@ -71,7 +79,7 @@ export function classifyInstallPath(
     }
   }
 
-  // 4. system bins.
+  // 5. system bins.
   if (
     p.startsWith("/usr/") ||
     p.startsWith("/opt/") ||

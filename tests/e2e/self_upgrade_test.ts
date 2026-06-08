@@ -378,6 +378,52 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "self-upgrade: PM-managed path (~/.cargo/bin) → refused (#575)",
+  ignore: Deno.build.os === "windows",
+  fn: async () => {
+    const next = nextPatch(VERSION);
+    const tarGz = await makeTarGz(new TextEncoder().encode("NEW"));
+    const sum = await sha256Hex(tarGz);
+    const mock = startMock(
+      `v${next}`,
+      tarGz,
+      `${sum}  markspec-${TARGET}.tar.gz\n`,
+    );
+    const dir = await Deno.makeTempDir();
+    try {
+      // Resolve the temp dir's realpath up front: the classifier compares the
+      // binary's realpath against HOME, and on macOS the temp dir is a
+      // symlink (/var → /private/var), so both sides must be realpaths.
+      const realDir = await Deno.realPath(dir);
+      const cargoBin = join(realDir, ".cargo", "bin");
+      await Deno.mkdir(cargoBin, { recursive: true });
+      const realBin = join(cargoBin, BIN_NAME);
+      await Deno.writeTextFile(realBin, "CARGO-BIN");
+      const { code, stderr } = await markspecInDir(
+        dir,
+        ["self-upgrade"],
+        ["--allow-net", "--allow-env", "--allow-run"],
+        {
+          MARKSPEC_RELEASES_API: `${mock.baseUrl}/releases`,
+          MARKSPEC_RELEASES_DOWNLOAD_BASE: `${mock.baseUrl}/releases/download`,
+          MARKSPEC_SELF_UPGRADE_BIN_PATH: realBin,
+          MARKSPEC_TEST_MODE: "1",
+          // The cargo rule matches `${HOME}/.cargo/bin/` — point HOME at the
+          // temp dir's realpath so the realpath classifies as cargo.
+          HOME: realDir,
+        },
+      );
+      assertEquals(code, 2);
+      assertStringIncludes(stderr, "Cargo");
+      assertStringIncludes(stderr, "cargo install markspec --force");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+      await mock.close();
+    }
+  },
+});
+
 Deno.test(
   "self-upgrade --format json: emits valid JSON outcome",
   async () => {
