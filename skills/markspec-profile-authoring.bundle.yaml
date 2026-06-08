@@ -1,0 +1,16 @@
+schema: 1
+name: markspec-profile-authoring
+description: |
+  Authoring tools for MarkSpec profile packages — scaffolding a profile's upskill bundle and registering its rules / skills / agents. Builds on markspec-core literacy; install à la carte when authoring a profile, not in every consumer project.
+license: MIT
+items:
+  rules: []
+  skills:
+  - markspec-profile-bundle-authoring
+  agents:
+  - markspec-scaffold-profile-bundle
+requires:
+  - { name: "markspec-core" }
+metadata:
+  version: 0.1.0
+  author: driftsys

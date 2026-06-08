@@ -1,7 +1,7 @@
 schema: 1
 name: markspec-core
 description: |
-  Profile-agnostic MarkSpec literacy — entry authoring, write loop, diagnostics, requirement writing patterns (EARS/Gherkin), prose review, traceability audit, and profile bundle authoring.
+  Profile-agnostic MarkSpec literacy — entry authoring, write loop, diagnostics, requirement writing patterns (EARS/Gherkin), prose review, and traceability audit.
 license: MIT
 items:
   rules:
@@ -13,11 +13,9 @@ items:
   - markspec-requirement-style
   - markspec-ears
   - markspec-gherkin
-  - markspec-profile-bundle-authoring
   - markspec-prose-review
   agents:
-  - markspec-scaffold-profile-bundle
   - markspec-traceability-review
 metadata:
-  version: 0.2.0
+  version: 0.3.0
   author: driftsys

@@ -5,6 +5,14 @@ Core AI-assistance content for MarkSpec consumer projects, managed via
 any profile chain. Every profile bundle should `requires:` this bundle
 (directly, or transitively via the default profile).
 
+This registry ships two bundles:
+
+- **`markspec-core`** — authoring literacy for every consumer project (entry
+  authoring, write loop, diagnostics, requirement style, prose review,
+  traceability review).
+- **`markspec-profile-authoring`** — tooling for people building a MarkSpec
+  _profile package_. Installed à la carte; `requires: markspec-core`.
+
 ## Install
 
 Install the full core bundle:
@@ -25,12 +33,23 @@ To install one item without the rest, pass the item name as a filter:
 upskill add ./skills markspec-entry-authoring
 ```
 
+### Profile-authoring bundle
+
+If you are authoring a MarkSpec profile package (not just authoring requirements
+in a consumer project), install the profile-authoring tools — this pulls in
+`markspec-core` transitively via `requires:`:
+
+```bash
+upskill add driftsys/markspec:skills/markspec-profile-authoring.bundle.yaml
+```
+
 ## Layout
 
 ```text
 skills/
 ├── README.md                                  this file
-├── markspec-core.bundle.yaml                  one-shot install of the bundle
+├── markspec-core.bundle.yaml                  authoring-literacy bundle
+├── markspec-profile-authoring.bundle.yaml     profile-package authoring bundle
 ├── markspec-core-rules/RULE.md                always-on authoring invariants
 ├── markspec-entry-authoring/SKILL.md          entry-block format
 ├── markspec-write-loop/SKILL.md               insert → fmt → check
@@ -44,7 +63,7 @@ skills/
 └── markspec-traceability-review/AGENT.md      audit traceability gaps
 ```
 
-## Items
+## `markspec-core` items
 
 ### Rule
 
@@ -54,23 +73,30 @@ skills/
 
 ### Skills
 
-| Item                                | Triggers when…                                                      |
-| ----------------------------------- | ------------------------------------------------------------------- |
-| `markspec-entry-authoring`          | Writing or reviewing a MarkSpec entry block — format and trailers   |
-| `markspec-write-loop`               | Adding a new entry — canonical `insert → fmt → check` sequence      |
-| `markspec-diagnostics`              | Validator output contains MSL- codes — covers every family and fix  |
-| `markspec-requirement-style`        | Choosing how to write a requirement body — EARS vs Gherkin vs prose |
-| `markspec-ears`                     | Writing EARS-style requirements — all five patterns with do/don't   |
-| `markspec-gherkin`                  | Writing Gherkin acceptance criteria — Given/When/Then with examples |
-| `markspec-prose-review`             | Reviewing entry bodies for prose quality against the core checklist |
-| `markspec-profile-bundle-authoring` | Creating or extending a MarkSpec profile's upskill bundle           |
+| Item                         | Triggers when…                                                      |
+| ---------------------------- | ------------------------------------------------------------------- |
+| `markspec-entry-authoring`   | Writing or reviewing a MarkSpec entry block — format and trailers   |
+| `markspec-write-loop`        | Adding a new entry — canonical `insert → fmt → check` sequence      |
+| `markspec-diagnostics`       | Validator output contains MSL- codes — covers every family and fix  |
+| `markspec-requirement-style` | Choosing how to write a requirement body — EARS vs Gherkin vs prose |
+| `markspec-ears`              | Writing EARS-style requirements — all five patterns with do/don't   |
+| `markspec-gherkin`           | Writing Gherkin acceptance criteria — Given/When/Then with examples |
+| `markspec-prose-review`      | Reviewing entry bodies for prose quality against the core checklist |
 
 ### Agents
 
-| Item                               | Purpose                                                                |
-| ---------------------------------- | ---------------------------------------------------------------------- |
-| `markspec-scaffold-profile-bundle` | Reads `markspec.yaml` and scaffolds the `skills/` bundle manifest      |
-| `markspec-traceability-review`     | Audits the corpus for missing derivations, untested requirements, gaps |
+| Item                           | Purpose                                                                |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `markspec-traceability-review` | Audits the corpus for missing derivations, untested requirements, gaps |
+
+## `markspec-profile-authoring` items
+
+Install à la carte when building a profile package (`requires: markspec-core`):
+
+| Item                                | Kind  | Purpose                                                           |
+| ----------------------------------- | ----- | ----------------------------------------------------------------- |
+| `markspec-profile-bundle-authoring` | skill | Creating or extending a MarkSpec profile's upskill bundle         |
+| `markspec-scaffold-profile-bundle`  | agent | Reads `markspec.yaml` and scaffolds the `skills/` bundle manifest |
 
 ## Format
 
