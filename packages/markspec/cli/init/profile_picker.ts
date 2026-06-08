@@ -8,10 +8,12 @@
  *   - {@linkcode runProfilePicker}: drives the TTY numbered menu via a
  *     {@linkcode Prompter} test seam (no direct console I/O).
  *
- * Note: `runProfilePicker` is implemented and unit-tested but is not
- * yet invoked by `cli/commands/init.ts` — `resolveProfileFromFlags`
- * falls back to the bundled default when neither `--profile` nor
- * `--no-profile` is supplied. See issue #544 for the wiring task.
+ * Note: `runProfilePicker` is implemented and unit-tested but is kept
+ * dormant — `cli/commands/init.ts` (`resolveProfileFromFlags`) always uses
+ * the bundled default when neither `--profile` nor `--no-profile` is
+ * supplied, so init never prompts. Wiring the picker behind a
+ * `Deno.stdin.isTerminal()` check is a deliberate future opt-in, not a
+ * pending task.
  */
 
 import type { ProfileChoice } from "./types.ts";
