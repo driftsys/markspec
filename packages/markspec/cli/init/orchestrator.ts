@@ -157,7 +157,12 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
   }
 
   const warnings: Warning[] = [];
-  if (binaryRef.warning) {
+  // The binary reference is only written into MCP `command:` fields, so a
+  // path warning is only meaningful when at least one MCP client will be
+  // written. Under `--no-mcp` (or when no client is detected) `clientSet.write`
+  // is empty and the warning is spurious — gating it here keeps init from
+  // flipping the exit code to 2 for an unused binary path (#575).
+  if (binaryRef.warning && clientSet.write.size > 0) {
     warnings.push({ code: "BINARY_PATH_WARNING", message: binaryRef.warning });
   }
 
@@ -317,7 +322,14 @@ export async function runInit(options: RunInitOptions): Promise<InitResult> {
 
   const hasSkip = executedActions.some((a) => a.kind === "skip");
   const exitCode: 0 | 1 | 2 = warnings.length > 0 || hasSkip ? 2 : 0;
-  const clientsWritten: InitClientId[] = [...clientSet.write];
+  // Report only the clients whose MCP config actually landed. Deriving this
+  // from `executedActions` (not the planned `clientSet.write`) means a client
+  // whose MCP install failed — and was therefore excluded from
+  // `executedActions` — is not advertised as written, matching the
+  // "only successes land in the result" design (#575).
+  const clientsWritten: InitClientId[] = executedActions
+    .map((a) => mcpFileToClient.get(a.file))
+    .filter((c): c is InitClientId => c !== undefined);
 
   return {
     ok: true,

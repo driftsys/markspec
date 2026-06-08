@@ -356,16 +356,25 @@ Deno.test("e2e[13] init --force on modified project.yaml overwrites", async () =
 Deno.test("e2e[14] init --binary-path /nonexistent warns or exits 1", async () => {
   const dir = await tempDir();
   try {
+    // Force an MCP client so the binary path is actually referenced — the
+    // BINARY_PATH_WARNING is gated on a client being written (#575), so a
+    // bare invocation with no detected client would (correctly) stay silent.
     const { code, stderr } = await markspecInDir(
       dir,
       [
         "init",
         "--no-skills",
         "--force",
+        "--client",
+        "claude-code",
         "--binary-path",
         "/nonexistent/markspec",
       ],
       PERMS,
+      {
+        MARKSPEC_TEST_MODE: "1",
+        MARKSPEC_FAKE_CLIENT_DETECT: "claude-code",
+      },
     );
     // Spec §6 maps non-existent --binary-path to a warning (exit 2),
     // not a hard error. Accept either 1 or 2 here.
@@ -398,6 +407,35 @@ Deno.test("e2e[15] init non-TTY without --force/--no-profile/--profile", async (
       [0, 1, 2].includes(code),
       true,
       `exit ${code}, stderr: ${stderr}`,
+    );
+  } finally {
+    await cleanup(dir);
+  }
+});
+
+Deno.test("e2e[16] init --no-mcp --binary-path /nonexistent stays silent (no spurious warning)", async () => {
+  // With --no-mcp no client references the binary, so a bad --binary-path
+  // must NOT raise BINARY_PATH_WARNING (#575). The lockfile is the bundled
+  // stub (no upstreams), so the run is clean → exit 0.
+  const dir = await tempDir();
+  try {
+    const { code, stderr } = await markspecInDir(
+      dir,
+      [
+        "init",
+        "--no-skills",
+        "--no-mcp",
+        "--force",
+        "--binary-path",
+        "/nonexistent/markspec",
+      ],
+      PERMS,
+    );
+    assertEquals(code, 0, `exit ${code}, stderr: ${stderr}`);
+    assertEquals(
+      stderr.includes("BINARY_PATH_WARNING"),
+      false,
+      `unexpected binary warning: ${stderr}`,
     );
   } finally {
     await cleanup(dir);
