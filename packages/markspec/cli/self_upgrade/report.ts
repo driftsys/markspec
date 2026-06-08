@@ -19,6 +19,7 @@ export type Action =
 export type Reason =
   | "homebrew"
   | "npm"
+  | "cargo"
   | "system"
   | "unwritable"
   | "network"
@@ -57,5 +58,6 @@ export function renderJson(out: Outcome): string {
 export function pmHint(source: InstallSource): string | undefined {
   if (source === "homebrew") return "brew upgrade markspec";
   if (source === "npm") return "npm update -g markspec";
+  if (source === "cargo") return "cargo install markspec --force";
   return undefined;
 }

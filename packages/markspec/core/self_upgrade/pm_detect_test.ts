@@ -9,11 +9,13 @@ Deno.test("classifyInstallPath: ~/.local/bin → user-local", () => {
   assertEquals(r.source, "user-local");
 });
 
-Deno.test("classifyInstallPath: ~/.cargo/bin → user-local", () => {
-  assertEquals(
-    classifyInstallPath("/Users/alice/.cargo/bin/markspec", HOME_POSIX).source,
-    "user-local",
+Deno.test("classifyInstallPath: ~/.cargo/bin → cargo (refused, #575)", () => {
+  const r = classifyInstallPath(
+    "/Users/alice/.cargo/bin/markspec",
+    HOME_POSIX,
   );
+  assertEquals(r.source, "cargo");
+  assertEquals(r.hintCommand, "cargo install markspec --force");
 });
 
 Deno.test("classifyInstallPath: ~/bin → user-local", () => {

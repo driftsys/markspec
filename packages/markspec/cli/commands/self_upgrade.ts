@@ -267,6 +267,7 @@ async function runSelfUpgrade(
   if (
     classification.source === "homebrew" ||
     classification.source === "npm" ||
+    classification.source === "cargo" ||
     classification.source === "system"
   ) {
     const hint = pmHint(classification.source);
@@ -415,9 +416,12 @@ function stripV(v: string): string {
   return v.startsWith("v") ? v.slice(1) : v;
 }
 
-function humanSourceLabel(s: "homebrew" | "npm" | "system"): string {
+function humanSourceLabel(
+  s: "homebrew" | "npm" | "cargo" | "system",
+): string {
   if (s === "homebrew") return "Homebrew";
   if (s === "npm") return "npm";
+  if (s === "cargo") return "Cargo";
   return "a system package";
 }
 
