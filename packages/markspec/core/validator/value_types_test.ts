@@ -4,7 +4,7 @@
  * Unit tests for per-type value validators.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { validateValue } from "./value_types.ts";
 import type { AttrDecl } from "../model/mod.ts";
 
@@ -108,6 +108,27 @@ Deno.test("validateValue: enum is case-sensitive", () => {
   assertEquals(validateValue("Draft", d), null);
   const r = validateValue("draft", d);
   if (r === null) throw new Error("expected lowercase 'draft' to be invalid");
+});
+
+Deno.test("validateValue: enum case-only mismatch suggests the declared spelling (#215)", () => {
+  const d = decl("enum", { values: ["draft", "approved", "deprecated"] });
+  const r = validateValue("Approved", d);
+  if (r === null) throw new Error("expected 'Approved' to be invalid enum");
+  assertStringIncludes(r, "did you mean 'approved'?");
+});
+
+Deno.test("validateValue: enum suggests the declared mixed-case spelling", () => {
+  const d = decl("enum", { values: ["InProgress"] });
+  const r = validateValue("inprogress", d);
+  if (r === null) throw new Error("expected 'inprogress' to be invalid enum");
+  assertStringIncludes(r, "did you mean 'InProgress'?");
+});
+
+Deno.test("validateValue: enum genuine unknown value gets no suggestion", () => {
+  const d = decl("enum", { values: ["draft", "approved"] });
+  const r = validateValue("pending", d);
+  if (r === null) throw new Error("expected 'pending' to be invalid enum");
+  assertEquals(r.includes("did you mean"), false);
 });
 
 // id

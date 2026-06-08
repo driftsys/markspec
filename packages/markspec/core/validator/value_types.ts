@@ -56,7 +56,14 @@ const validateDate: ValueValidator = (value, _decl) => {
 const validateEnum: ValueValidator = (value, decl) => {
   const values = decl.values ?? [];
   if (values.includes(value)) return null;
-  return `value '${value}' is not in declared enum [${values.join(", ")}]`;
+  const base = `value '${value}' is not in declared enum [${
+    values.join(", ")
+  }]`;
+  // Case-only mismatch: the author most likely title/upper-cased a valid
+  // member (e.g. `Approved` → `approved`). Suggest the declared spelling
+  // (#215). A genuine unknown value falls through with no hint.
+  const match = values.find((v) => v.toLowerCase() === value.toLowerCase());
+  return match !== undefined ? `${base}; did you mean '${match}'?` : base;
 };
 
 // ---------------------------------------------------------------------------
