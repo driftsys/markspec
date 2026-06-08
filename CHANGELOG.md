@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.8.0] (2026-06-08)
+
+### Bug Fixes
+
+- **core:** refuse self-upgrade for cargo-managed installs ([f1fd493])
+- **core:** suggest the declared spelling on a case-only enum mismatch
+  ([48e9215])
+- **core:** canonicalise/heal \-continued multi-line trace values in fmt
+  ([ea601b7]), refs 593. Closes #606.
+- **cli:** report only succeeded MCP clients and gate the binary-path warning
+  ([a349632])
+- **cli:** warn when init writes a stub markspec.lock for non-default profiles
+  ([5298c57])
+
+### Refactoring
+
+- **repo:** split profile-authoring skills into a separate bundle ([53317c3])
+- **cli:** de-brittle init's non-TTY profile handling ([97828dc])
+
+### Documentation
+
+- **repo:** guide agents to discover the active (child) profile via MCP
+  ([ae750ec])
+
+### BREAKING CHANGES
+
+- installing markspec-core no longer ships
+markspec-profile-bundle-authoring or markspec-scaffold-profile-bundle.
+Profile authors install markspec-profile-authoring instead. Pre-1.0,
+no migration shim.
+
+[0.8.0]: https://github.com/driftsys/markspec/compare/v0.7.4...v0.8.0
+[f1fd493]: https://github.com/driftsys/markspec/commit/f1fd493
+[48e9215]: https://github.com/driftsys/markspec/commit/48e9215
+[ea601b7]: https://github.com/driftsys/markspec/commit/ea601b7
+[a349632]: https://github.com/driftsys/markspec/commit/a349632
+[5298c57]: https://github.com/driftsys/markspec/commit/5298c57
+[53317c3]: https://github.com/driftsys/markspec/commit/53317c3
+[97828dc]: https://github.com/driftsys/markspec/commit/97828dc
+[ae750ec]: https://github.com/driftsys/markspec/commit/ae750ec
+
 ## [0.7.4] (2026-06-06)
 
 ### Documentation
