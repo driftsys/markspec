@@ -60,6 +60,12 @@ export function buildRefIndex(entries: readonly Entry[]): RefIndex {
 /** Trailer trace line: indent, key, `:` + spaces, value-rest. */
 const TRACE_TRAILER_RE = /^(\s{4,})([A-Z][A-Za-z-]*)(\s*:\s*)(.*)$/;
 
+/**
+ * A `\`-continuation line of a multi-line trace value: leading indent then a
+ * non-empty value-rest (no `Key:` — that sat on the first physical line).
+ */
+const CONTINUATION_LINE_RE = /^(\s+)(\S.*)$/;
+
 /** Token splitter that preserves separators between value tokens. */
 const VALUE_TOKEN_RE = /[^\s,]+/g;
 
@@ -116,19 +122,78 @@ export function canonicalizeRefs(
     if (!m) continue;
     const [, indent, key, sep, rest] = m;
     if (!TRACE_ATTRIBUTE_KEYS.has(key)) continue;
-    // Multi-line continuation — leave untouched (debt: full multi-line support).
-    if (rest.endsWith("\\")) continue;
     const sourceUlid = sourceUlidForLine(i + 1);
-    const rewritten = rest.replace(
-      VALUE_TOKEN_RE,
-      (token) => rewriteToken(token, sourceUlid, key, index, ledgerByKey),
+
+    // Rewrite the key line's value, preserving any trailing `\` continuation
+    // marker (only resolvable tokens change — indentation, separators and the
+    // backslash stay byte-for-byte).
+    const newRest = rewriteValuePreservingContinuation(
+      rest,
+      sourceUlid,
+      key,
+      index,
+      ledgerByKey,
     );
-    if (rewritten !== rest) {
-      lines[i] = `${indent}${key}${sep}${rewritten}${cr ? "\r" : ""}`;
+    if (newRest !== rest) {
+      lines[i] = `${indent}${key}${sep}${newRest}${cr ? "\r" : ""}`;
       changed = true;
     }
+
+    // Multi-line value: a `\`-continued value splits across physical lines,
+    // each non-final line ending in `\`. Walk the continuation lines (indent +
+    // value, no key) and rewrite each the same way, stopping at the first line
+    // that does not end in `\`. `i` is advanced past the consumed lines so the
+    // outer loop does not re-scan them (#606).
+    let continues = rest.endsWith("\\");
+    let j = i;
+    while (continues && j + 1 < lines.length) {
+      j++;
+      const crj = lines[j].endsWith("\r");
+      const barej = crj ? lines[j].slice(0, -1) : lines[j];
+      const cm = CONTINUATION_LINE_RE.exec(barej);
+      if (!cm) {
+        j--; // not a continuation line — leave it for the outer loop
+        break;
+      }
+      const [, cIndent, cVal] = cm;
+      const newVal = rewriteValuePreservingContinuation(
+        cVal,
+        sourceUlid,
+        key,
+        index,
+        ledgerByKey,
+      );
+      if (newVal !== cVal) {
+        lines[j] = `${cIndent}${newVal}${crj ? "\r" : ""}`;
+        changed = true;
+      }
+      continues = cVal.endsWith("\\");
+    }
+    i = j;
   }
   return { output: lines.join("\n"), changed };
+}
+
+/**
+ * Rewrite the value tokens of one trace-value line, preserving a trailing `\`
+ * continuation marker verbatim. The backslash is split off before token
+ * rewriting (so it is never mistaken for a value token) and re-appended after,
+ * keeping the multi-line continuation lossless.
+ */
+function rewriteValuePreservingContinuation(
+  value: string,
+  sourceUlid: string | undefined,
+  relation: string,
+  index: RefIndex,
+  ledgerByKey: ReadonlyMap<string, string>,
+): string {
+  const hasBackslash = value.endsWith("\\");
+  const core = hasBackslash ? value.slice(0, -1) : value;
+  const rewritten = core.replace(
+    VALUE_TOKEN_RE,
+    (token) => rewriteToken(token, sourceUlid, relation, index, ledgerByKey),
+  );
+  return hasBackslash ? `${rewritten}\\` : rewritten;
 }
 
 function rewriteToken(
