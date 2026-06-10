@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MarkSpec Config Schemas</title>
+    <link rel="stylesheet" href="../theme/markspec.css">
+    <link rel="stylesheet" href="../spec/FontAwesome/css/font-awesome.css">
+    <style>
+      body {
+        font-family: var(--font-sans, sans-serif);
+        max-width: 600px;
+        margin: 80px auto;
+        padding: 0 20px;
+        color: var(--ms-text, #333);
+      }
+      .github-link {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        font-size: 1.5rem;
+        color: var(--ms-secondary, #666);
+        text-decoration: none;
+        line-height: 1;
+      }
+      .github-link:hover {
+        color: var(--ms-text, #333);
+      }
+      h1 {
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+      }
+      p {
+        color: var(--ms-secondary, #666);
+        margin-bottom: 2rem;
+      }
+      a.card {
+        display: block;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        border: 1px solid var(--ms-border, #ddd);
+        border-radius: 6px;
+        text-decoration: none;
+        color: var(--ms-accent, #0072b2);
+        font-weight: 500;
+      }
+      a.card:hover {
+        background: var(--ms-bg-code, #f8f8f8);
+        border-color: var(--ms-accent, #0072b2);
+      }
+      a.card code {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.85rem;
+        font-weight: 400;
+      }
+      a.card span {
+        display: block;
+        color: var(--ms-secondary, #888);
+        font-size: 0.85rem;
+        font-weight: 400;
+        margin-top: 4px;
+      }
+      .home {
+        display: inline-block;
+        margin-top: 1rem;
+        color: var(--ms-secondary, #888);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <a href="https://github.com/driftsys/markspec" title="Git repository" aria-label="Git repository" class="github-link">
+      <i class="fa fa-github"></i>
+    </a>
+    <h1>MarkSpec Config Schemas</h1>
+    <p>JSON Schemas for MarkSpec configuration files. Reference one from a config
+      file's <code>$schema</code> key for editor validation and autocomplete.</p>
+    <a class="card" href="project/v1.json">
+      <code>project/v1.json</code>
+      <span>The <code>project.yaml</code> project manifest — name, version,
+        labels, parents, caption conventions.</span>
+    </a>
+    <a class="card" href="markspec/v1.json">
+      <code>markspec/v1.json</code>
+      <span>The <code>.markspec.yaml</code> consumer binding — activated profile
+        chain and default-profile opt-out.</span>
+    </a>
+    <a class="card" href="profile/v1.json">
+      <code>profile/v1.json</code>
+      <span>A profile's <code>markspec.yaml</code> manifest — id, version,
+        extends chain, type and attribute declarations.</span>
+    </a>
+    <a class="card" href="lock/v1.json">
+      <code>lock/v1.json</code>
+      <span>The <code>markspec.lock</code> lockfile — upstream version pins, sync
+        mappings, and the per-edge identity ledger.</span>
+    </a>
+    <a class="home" href="../">← MarkSpec documentation</a>
+  </body>
+</html>

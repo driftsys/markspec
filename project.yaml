@@ -1,4 +1,4 @@
-"$schema": https://driftsys.github.io/schemas/project/v1.json
+"$schema": https://driftsys.github.io/markspec/schemas/project/v1.json
 name: io.driftsys.markspec
 version: "0.8.0"
 category: [specification, tool]
