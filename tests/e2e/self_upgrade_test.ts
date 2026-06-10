@@ -21,6 +21,9 @@ const TARGET = (() => {
   if (Deno.build.os === "linux" && Deno.build.arch === "x86_64") {
     return "x86_64-unknown-linux-gnu";
   }
+  if (Deno.build.os === "linux" && Deno.build.arch === "aarch64") {
+    return "aarch64-unknown-linux-gnu";
+  }
   if (Deno.build.os === "darwin" && Deno.build.arch === "x86_64") {
     return "x86_64-apple-darwin";
   }
