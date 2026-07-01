@@ -45,6 +45,7 @@ export type {
   EffectiveTypeDef,
   EntityRefConvention,
   Entry,
+  EntryOrigin,
   EntryShape,
   EntrySource,
   ExtractorRule,
@@ -181,6 +182,14 @@ export type {
   RelationDetail,
   TypeDetail,
 } from "./profile/mod.ts";
+
+// Delivered corpus loader
+export {
+  buildCorpusIndex,
+  corpusOriginLabel,
+  loadDeliveredCorpus,
+} from "./profile/delivered.ts";
+export type { LoadDeliveredCorpusResult } from "./profile/delivered.ts";
 
 // Parser
 export {
