@@ -63,6 +63,7 @@ function profile(opts: {
     conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -469,6 +470,7 @@ Deno.test("effectiveScope: trace rule without explicit attribute declaration syn
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -532,6 +534,7 @@ Deno.test("effectiveScope: explicit attribute declaration wins over trace-rule s
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

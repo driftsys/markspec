@@ -295,6 +295,7 @@ Deno.test("resolvedCoreType: profile type resolves to its core parent via extend
     colors: new Map(),
     types: new Map([["system-requirement", sysReq]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

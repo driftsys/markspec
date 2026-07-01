@@ -184,6 +184,20 @@ export interface DeliversDecl {
   readonly description?: string;
 }
 
+/**
+ * A delivered document after chain resolution (ADR-029): the manifest's
+ * `DeliversDecl` joined with the delivering tier's identity and on-disk
+ * location. `absPath` is `join(tier.baseDir, path)`.
+ */
+export interface DeliveredDocument {
+  readonly profileId: string;
+  readonly profileVersion: string;
+  readonly path: string;
+  readonly absPath: string;
+  readonly corpus: boolean;
+  readonly description?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Profile manifest
 // ---------------------------------------------------------------------------
@@ -366,6 +380,12 @@ export interface EffectiveProfile {
     readonly types: ProvenancedMap<DocTypeDef>;
     readonly frontMatter: ProvenancedMap<AttrDecl>;
   };
+  /**
+   * Documents delivered by the chain (ADR-029), parent-first then manifest
+   * order — the deterministic corpus injection order. Deduped by
+   * `(profileId, path)`.
+   */
+  readonly delivers: readonly DeliveredDocument[];
   /** Discipline kinds declared across the profile chain (ADR-017). */
   readonly kinds: ProvenancedMap<KindDecl>;
   /**

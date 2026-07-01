@@ -38,6 +38,7 @@ function singleTierChain(yaml: string): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      delivers: [],
       kinds: new Map(),
       prose: {
         lexicons: {
@@ -144,6 +145,7 @@ function multiTierChain(yamls: readonly string[]): ProfileChain {
       colors: new Map(),
       types: new Map(),
       documents: { types: new Map(), frontMatter: new Map() },
+      delivers: [],
       kinds: new Map(),
       prose: {
         lexicons: {
@@ -1498,4 +1500,43 @@ profile: {}
   // Parent's declaration survives — child has no opinion.
   assertEquals(effective?.disciplineMode.value, "flat");
   assertEquals(effective?.disciplineMode.origin, "declared");
+});
+
+Deno.test("mergeChain: delivers resolve absPath per tier, parent-first", () => {
+  const chain = multiTierChain([
+    `id: base
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  delivers:
+    - path: ref/base.md
+      corpus: true
+`,
+    `id: leaf
+version: 2.0.0
+markspec-schema: "1"
+profile:
+  delivers:
+    - path: ref/leaf.md
+`,
+  ]);
+  const { effective } = mergeChain(chain);
+  assertEquals(effective?.delivers, [
+    {
+      profileId: "base",
+      profileVersion: "1.0.0",
+      path: "ref/base.md",
+      absPath: "/fixture/t0/ref/base.md",
+      corpus: true,
+      description: undefined,
+    },
+    {
+      profileId: "leaf",
+      profileVersion: "2.0.0",
+      path: "ref/leaf.md",
+      absPath: "/fixture/t1/ref/leaf.md",
+      corpus: false,
+      description: undefined,
+    },
+  ]);
 });

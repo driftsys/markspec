@@ -35,6 +35,7 @@ function profile(opts: {
     conventions: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -223,6 +224,7 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
       }],
     ]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

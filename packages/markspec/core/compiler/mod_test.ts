@@ -521,6 +521,7 @@ function profileWithFoo(): EffectiveProfile {
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -718,6 +719,7 @@ function syntheticProfile(): EffectiveProfile {
     colors: new Map(),
     types,
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

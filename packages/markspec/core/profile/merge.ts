@@ -8,9 +8,11 @@
  * Merge happens once at load. Callers should not call `mergeChain` lazily.
  */
 
+import { join } from "@std/path";
 import { CORE_KINDS } from "../model/mod.ts";
 import type {
   AttrDecl,
+  DeliveredDocument,
   Diagnostic,
   DisciplineMode,
   DocTypeDef,
@@ -215,6 +217,16 @@ function foldTier(
     diagnostics,
   );
 
+  // Delivered documents — additive union keyed by (profileId, path).
+  const delivers = [...base.delivers];
+  for (const d of deliveredFromTier(tier)) {
+    if (
+      !delivers.some((e) => e.profileId === d.profileId && e.path === d.path)
+    ) {
+      delivers.push(d);
+    }
+  }
+
   // Prose lexicons: list-additive across tiers (profile-schema §5.1).
   const capAllow = unionList(
     base.prose.lexicons["capitalized-allow"],
@@ -237,6 +249,7 @@ function foldTier(
       types: docTypes,
       frontMatter,
     },
+    delivers,
     kinds,
     prose: {
       lexicons: {
@@ -782,6 +795,18 @@ function stringifyMatcher(m: TargetMatcher): string {
 // Helpers: construct an EffectiveProfile from a single tier's manifest.
 // ---------------------------------------------------------------------------
 
+/** Resolve a tier's `delivers:` declarations against its baseDir (ADR-029). */
+function deliveredFromTier(tier: LoadedProfile): DeliveredDocument[] {
+  return tier.manifest.delivers.map((d) => ({
+    profileId: tier.id,
+    profileVersion: tier.version,
+    path: d.path,
+    absPath: join(tier.baseDir, d.path),
+    corpus: d.corpus,
+    description: d.description,
+  }));
+}
+
 function seedFromTier(tier: LoadedProfile): EffectiveProfile {
   const origin: ProfileId = tier.id;
   const m = tier.manifest;
@@ -796,6 +821,7 @@ function seedFromTier(tier: LoadedProfile): EffectiveProfile {
       types: mapFromDocTypes(m.documents.types, origin),
       frontMatter: mapFromAttrList(m.documents.frontMatter, origin),
     },
+    delivers: deliveredFromTier(tier),
     kinds: mapFromKinds(m.kinds, origin),
     prose: {
       lexicons: {
