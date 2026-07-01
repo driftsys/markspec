@@ -190,7 +190,14 @@ affecting every command, not scoped to this change.
   `exclude:` (and `.gitignore`) for the first time.
 - `markspec.lock` byte output can change for projects with source-file entries
   after the first `markspec lock` run post-upgrade (widened collection scope,
-  described above).
+  described above). **Upgrade note (#663):** a project with trace attributes in
+  source doc comments (e.g. the `demo-aeb-*` V-model repos) that runs bare
+  `markspec check` in CI before re-running `markspec lock` gets a one-time
+  `MSL-L212` error, because the pinned edge hash was computed from the narrower
+  markdown-only corpus. This is expected; run `markspec lock` once to refresh
+  the pin. Per the standing "no migration tooling until 1.0" decision, no
+  migration is provided — the `MSL-L212` message names the source-file widening
+  as a possible cause so the failure is self-explanatory.
 
 ## Alternatives considered
 

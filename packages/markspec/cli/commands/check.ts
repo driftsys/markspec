@@ -183,7 +183,7 @@ export const checkCmd = new Command()
                 code: "MSL-L212",
                 severity: "error",
                 message:
-                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} (run \`markspec lock\` to refresh)`,
+                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
                 location: { file: lockPath, line: 1, column: 1 },
               });
             }
