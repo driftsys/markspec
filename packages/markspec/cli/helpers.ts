@@ -10,7 +10,12 @@
  */
 
 import { ConfigError, CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
-import type { CompileResult, ProfileChain, ReadFile } from "../core/mod.ts";
+import type {
+  CompileResult,
+  DiscoveryIO,
+  ProfileChain,
+  ReadFile,
+} from "../core/mod.ts";
 
 export { CORE_SCHEMA_VERSION, VERSION };
 
@@ -193,4 +198,120 @@ export function csvQuote(value: string): string {
     return `"${value.replaceAll('"', '""')}"`;
   }
   return value;
+}
+
+/** Deno-backed I/O implementation for `core/discovery`. CLI entry
+ * points are allowed to use `Deno.*` APIs. */
+export function denoDiscoveryIO(): DiscoveryIO {
+  return {
+    readDir: (path: string) => Deno.readDir(path),
+    readFile: async (path: string) => {
+      try {
+        return await Deno.readTextFile(path);
+      } catch {
+        return undefined;
+      }
+    },
+  };
+}
+
+/** Resolved invocation scope for a file-consuming verb. */
+export interface ResolvedScope {
+  /** Files to operate on (absolute for discovered, verbatim for explicit). */
+  readonly files: string[];
+  /** Discovered project root, if any (needed by profile/config loaders). */
+  readonly projectRoot: string | undefined;
+  /** True when no args were given — the whole-project case. Drives
+   * project-wide-only gates (MSL-L006, lockfile drift). */
+  readonly projectWide: boolean;
+}
+
+/**
+ * Shared scope resolution for `check` / `lint` / `fmt`:
+ *
+ *   - no args  → whole project via gitignore-aware discovery (requires a
+ *     discoverable project root; honors project.yaml `exclude:`), with a
+ *     one-line scope header on stderr;
+ *   - explicit args → files verbatim; directories expand recursively
+ *     through the discovery filter. Exact scope, no surprises.
+ *
+ * Exits 1 (with a hint) when no args are given and no project root is
+ * found, when project.yaml is malformed, or when an explicit path does
+ * not exist.
+ */
+export async function resolveScope(
+  args: string[],
+  opts: {
+    /** Header verb, e.g. "checking" / "formatting" / "linting". */
+    verb: string;
+    /** Extension filter; defaults to RELEVANT_EXTENSIONS. */
+    extensions?: ReadonlySet<string>;
+    /** Suppress the scope header (set for -q and --format json). */
+    quiet?: boolean;
+  },
+): Promise<ResolvedScope> {
+  const {
+    discoverFiles,
+    discoverProjectRoot,
+    loadConfig,
+    RELEVANT_EXTENSIONS,
+  } = await import("../core/mod.ts");
+  const extensions = opts.extensions ?? RELEVANT_EXTENSIONS;
+  const io = denoDiscoveryIO();
+  const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
+
+  if (args.length === 0) {
+    if (projectRoot === undefined) {
+      console.error(
+        "error: no project root found (project.yaml or .markspec.yaml)",
+      );
+      console.error(`  searched from ${Deno.cwd()} to filesystem root`);
+      console.error(
+        "  run 'markspec init' to create one, or pass explicit files",
+      );
+      Deno.exit(1);
+    }
+    let exclude: readonly string[] = [];
+    try {
+      const configResult = await loadConfig(projectRoot, readFile);
+      if (configResult) exclude = configResult.config.exclude;
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        console.error(`error: ${err.message}`);
+        Deno.exit(1);
+      }
+      // Other errors: discovery proceeds without exclude patterns.
+    }
+    const files: string[] = [];
+    for await (
+      const f of discoverFiles(projectRoot, io, { extensions, exclude })
+    ) {
+      files.push(f);
+    }
+    if (!opts.quiet) {
+      console.error(
+        `${opts.verb} ${files.length} file(s) under ${projectRoot}`,
+      );
+    }
+    return { files, projectRoot, projectWide: true };
+  }
+
+  const files: string[] = [];
+  for (const arg of args) {
+    let info: Deno.FileInfo;
+    try {
+      info = await Deno.stat(arg);
+    } catch {
+      console.error(`error: ${arg}: no such file or directory`);
+      Deno.exit(1);
+    }
+    if (info.isDirectory) {
+      for await (const f of discoverFiles(arg, io, { extensions })) {
+        files.push(f);
+      }
+    } else {
+      files.push(arg);
+    }
+  }
+  return { files, projectRoot, projectWide: false };
 }
