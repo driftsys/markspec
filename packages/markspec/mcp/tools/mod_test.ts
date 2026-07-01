@@ -7,13 +7,12 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { dispatchTool } from "./mod.ts";
 import type { Project } from "../project.ts";
-import { SOFT_GATE_MESSAGE } from "../project.ts";
 
 function mockProject(detected: boolean): Project {
   return {
     projectRoot: detected ? "/proj" : undefined,
     markspecDetected: detected,
-    softGateMessage: SOFT_GATE_MESSAGE,
+    softGateMessage: "No MarkSpec project found (mock)",
     config: undefined,
     profileChain: null,
     profile: undefined,
@@ -52,7 +51,7 @@ function emptyDetectedProject(): Project {
 Deno.test("dispatchTool: returns soft-gate message when markspecDetected=false", async () => {
   const project = mockProject(false);
   const result = await dispatchTool("entry_search", { query: "x" }, project);
-  assertEquals(result, SOFT_GATE_MESSAGE);
+  assertEquals(result, "No MarkSpec project found (mock)");
 });
 
 Deno.test("dispatchTool: gates every tool name (entry_context)", async () => {

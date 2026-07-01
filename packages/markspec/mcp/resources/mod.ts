@@ -17,7 +17,7 @@ import {
   type ReadResourceRequest,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { type Project, SOFT_GATE_MESSAGE } from "../project.ts";
+import type { Project } from "../project.ts";
 import {
   ENTRIES_URI,
   entryUri,
@@ -108,7 +108,7 @@ export async function readResource(
     return {
       uri,
       mimeType: "text/plain",
-      text: SOFT_GATE_MESSAGE,
+      text: project.softGateMessage,
     };
   }
   if (uri === PROFILE_URI) {
