@@ -146,12 +146,18 @@ project root via `discoverProjectRoot`, which walks up for `project.yaml` only
 activated solely by `.markspec.yaml` with no `project.yaml` present (see
 [ADR-008](./adr-008-profile-system.md)) is not recognized as a project root for
 the no-args path, and bare invocation reports "no project root found" in that
-case, even though the error message text says "project.yaml or .markspec.yaml".
-This mismatch is pre-existing across the whole CLI (`requireProjectConfig` has
-the same gap) and is not fixed by this work — explicit file arguments are
-unaffected. Revisiting it (making no-args root discovery also honor a
-`.markspec.yaml`-only project, or correcting the message) is a product call
-affecting every command, not scoped to this change.
+case. This behavior is pre-existing across the whole CLI (`requireProjectConfig`
+has the same gap) — explicit file arguments are unaffected.
+
+**Resolution (#666):** the _message_ was the misleading part — it named
+"project.yaml or .markspec.yaml", implying a lone `.markspec.yaml` would be
+recognized. The chosen fix corrects the message (project.yaml is the required
+root marker; a `.markspec.yaml` only activates a profile per ADR-008 and does
+not mark a root) rather than widening discovery. Making no-args root discovery
+honor a `.markspec.yaml`-only project remains deferred: it is a product call
+affecting every command (and `project.yaml`'s required
+`name`/`version`/`exclude` fields mean such commands would fail later anyway),
+not scoped to this work.
 
 ## Consequences
 
