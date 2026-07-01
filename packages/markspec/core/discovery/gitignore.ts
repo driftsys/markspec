@@ -112,9 +112,14 @@ export function parseGitignore(
     const anchored = pattern.includes("/");
     if (pattern.startsWith("/")) pattern = pattern.slice(1);
     if (pattern === "") continue;
+    // baseDir is a literal directory prefix, so every regex metacharacter
+    // in it must be escaped — including `* ? [ ]`, which the pattern-body
+    // helpers (escapeRegexChar / globToRegexSource) deliberately leave
+    // unescaped so they can act as globs. A dir literally named `pkg[v2]`
+    // would otherwise inject a stray character class.
     const prefix = baseDir === ""
       ? ""
-      : `${baseDir.replace(/[.+^${}()|\\]/g, "\\$&")}/`;
+      : `${baseDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`;
     const depth = anchored ? "" : "(?:.*/)?";
     let regex: RegExp;
     try {

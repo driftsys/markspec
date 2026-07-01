@@ -70,6 +70,14 @@ Deno.test("gitignore: baseDir scopes nested gitignore patterns", () => {
   assertEquals(ignored("/draft.md", "sub/deep/draft.md", false, "sub"), false);
 });
 
+Deno.test("gitignore: baseDir with regex metacharacters is escaped literally", () => {
+  // A directory literally named `pkg[v2]` must be matched by its exact
+  // characters — the `[` `]` must not become a regex character class.
+  assertEquals(ignored("*.md", "pkg[v2]/a.md", false, "pkg[v2]"), true);
+  assertEquals(ignored("*.md", "pkgv/a.md", false, "pkg[v2]"), false);
+  assertEquals(ignored("*.md", "pkg2/a.md", false, "pkg[v2]"), false);
+});
+
 Deno.test("gitignore: trailing spaces are stripped", () => {
   assertEquals(ignored("*.tmp   ", "a.tmp"), true);
 });
