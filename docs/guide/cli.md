@@ -611,6 +611,28 @@ Code, Claude Desktop, GitHub Copilot in VS Code, OpenCode).
 markspec mcp
 ```
 
+##### Project discovery
+
+`markspec mcp` resolves the project root from the first of these that contains a
+`project.yaml` or `.markspec.yaml` (walking upward from each):
+
+1. `--root <path>` — pass the flag once per candidate root.
+2. `MARKSPEC_PROJECT_ROOT` — colon-separated list of candidate roots.
+3. `CLAUDE_PROJECT_DIR` — injected automatically by Claude Code (v2.1.139+); no
+   configuration needed.
+4. The server's launch working directory.
+
+If none resolves, every MarkSpec tool replies with a message that begins "No
+MarkSpec project found …" and names the directories it searched. Set `--root` or
+`MARKSPEC_PROJECT_ROOT` to point the server at your project — this is the
+reliable fix when it is launched from outside the project tree (for example a
+user-scoped MCP install, whose working directory is the plugin cache, or a
+monorepo opened at a parent directory).
+
+```sh
+markspec mcp --root /path/to/your/markspec-project
+```
+
 ##### Resources
 
 - `markspec://profile` — distilled profile manifest (types, attributes, link
