@@ -204,3 +204,65 @@ Deno.test("check: lockfile gate skipped in file-local mode", async () => {
   assertEquals(stderr.includes("MSL-L2"), false, stderr);
   assertEquals(code, 0, stderr);
 });
+
+Deno.test("check: prose findings are advisory (exit 2)", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      "docs/vague.md": `# Doc
+
+- [REQ-0003] Vague requirement
+
+  The system shall respond as appropriate.
+
+      Id: 01REQ000000000000000000003
+      Type: requirement
+`,
+    },
+  });
+  assertStringIncludes(stderr, "MSL-Q");
+  assertEquals(code, 2, `prose findings must not block; stderr: ${stderr}`);
+});
+
+Deno.test("check: --strict promotes prose findings to errors", async () => {
+  const { code } = await markspec(["check", "--strict"], {
+    files: {
+      ...BASE_FILES,
+      "docs/vague.md": `# Doc
+
+- [REQ-0003] Vague requirement
+
+  The system shall respond as appropriate.
+
+      Id: 01REQ000000000000000000003
+      Type: requirement
+`,
+    },
+  });
+  assertEquals(code, 1);
+});
+
+Deno.test("check: json output keeps the stable diagnostic schema", async () => {
+  const { code, stdout } = await markspec(["check", "--format", "json"], {
+    files: {
+      ...BASE_FILES,
+      "docs/vague.md": `# Doc
+
+- [REQ-0003] Vague requirement
+
+  The system shall respond as appropriate.
+
+      Id: 01REQ000000000000000000003
+      Type: requirement
+`,
+    },
+  });
+  assertEquals(code, 2);
+  const diags = JSON.parse(stdout) as Record<string, unknown>[];
+  const q = diags.find((d) => String(d.code).startsWith("MSL-Q"));
+  assertEquals(q !== undefined, true, "expected an MSL-Q diagnostic");
+  // LintDiagnostic extras must not leak into check's stable JSON schema.
+  assertEquals("slug" in q!, false);
+  assertEquals("group" in q!, false);
+  assertEquals("scoreContribution" in q!, false);
+});

@@ -154,14 +154,36 @@ export const checkCmd = new Command()
         }
       }
 
-      // Merge parse-level (MSL-P0xx), pipeline, listing, fmt-drift, and
-      // lockfile-drift diagnostics.
+      // Gate: prose lint (project-wide only, advisory — warnings/info
+      // unless --strict). LintDiagnostic carries slug/group/score fields
+      // that must not leak into check's stable JSON schema — project to
+      // plain Diagnostic. `runLint`'s `readFile` option is typed for
+      // glossary-file indexing (`FileReader`, distinct from the CLI's
+      // `ReadFile`) and is only needed when `glossaryFilePaths` is
+      // supplied; omitted here since `check` passes none.
+      const proseDiagnostics: Diagnostic[] = [];
+      if (scope.projectWide) {
+        const { runLint } = await import("../../core/mod.ts");
+        const lintResult = await runLint({ entries: allEntries });
+        for (const d of lintResult.diagnostics) {
+          proseDiagnostics.push({
+            code: d.code,
+            severity: d.severity,
+            message: d.message,
+            location: d.location,
+          });
+        }
+      }
+
+      // Merge parse-level (MSL-P0xx), pipeline, listing, fmt-drift,
+      // lockfile-drift, and prose-lint diagnostics.
       const allDiagnostics = [
         ...parseDiagnostics,
         ...result.diagnostics,
         ...listingDiagnostics,
         ...fmtDiagnostics,
         ...lockDiagnostics,
+        ...proseDiagnostics,
       ];
 
       // Apply --strict: promote warnings to errors.
