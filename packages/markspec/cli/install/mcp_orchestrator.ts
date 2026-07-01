@@ -29,6 +29,7 @@ import {
 } from "./mcp_adapters.ts";
 import { claudeCodeDescriptor } from "./mcp_adapters_claude_code.ts";
 import { opencodeDescriptor } from "./mcp_adapters_opencode.ts";
+import { copilotDescriptor } from "./mcp_adapters_copilot.ts";
 import { applyJsonBlock, removeJsonBlock } from "./managed_block.ts";
 import { writeBackup } from "./backup.ts";
 import { renderDiff } from "./preview.ts";
@@ -105,17 +106,20 @@ export async function runMcpInstall(
     };
   }
 
-  // 4. Managed-block flow — claude-desktop, claude-code, or opencode.
+  // 4. Managed-block flow — claude-desktop, claude-code, opencode, copilot.
   if (
     clientId === "claude-desktop" ||
     clientId === "claude-code" ||
-    clientId === "opencode"
+    clientId === "opencode" ||
+    clientId === "copilot"
   ) {
     const adapter: McpAdapter = clientId === "claude-desktop"
       ? claudeDesktopDescriptor
       : clientId === "claude-code"
       ? claudeCodeDescriptor
-      : opencodeDescriptor;
+      : clientId === "opencode"
+      ? opencodeDescriptor
+      : copilotDescriptor;
     return await runManagedBlockFlow(adapter, options);
   }
 
@@ -129,8 +133,8 @@ export async function runMcpInstall(
 }
 
 /**
- * Shared managed-block flow used by claude-desktop, claude-code, and opencode.
- * Reads current content, computes next via `applyJsonBlock` /
+ * Shared managed-block flow used by claude-desktop, claude-code, opencode,
+ * and copilot. Reads current content, computes next via `applyJsonBlock` /
  * `removeJsonBlock`, handles --print / --force / atomic write /
  * sidecar backup.
  */
@@ -141,6 +145,11 @@ async function runManagedBlockFlow(
   const isClaudeDesktop = adapter.id === "claude-desktop";
   const isProjectScoped = adapter.id === "claude-code" ||
     adapter.id === "opencode";
+  // Copilot is the one dual-scope client: --scope=workspace →
+  // .github/mcp.json, --scope=user → ~/.copilot/mcp-config.json. It
+  // rejects neither scope; an omitted scope defaults to workspace
+  // (per-repo, matching `markspec init`).
+  const isDualScope = adapter.id === "copilot";
 
   if (isClaudeDesktop && options.scope === "workspace") {
     return {
@@ -192,16 +201,24 @@ async function runManagedBlockFlow(
   };
   const isTty = options.env?.isTty ?? Deno.stdin.isTerminal();
 
-  // Resolve the target config path. claude-desktop uses "user" (default
-  // when scope is omitted); claude-code and opencode use "workspace" with
-  // workspaceRoot=cwd.
-  const scope: "user" | "workspace" = isProjectScoped ? "workspace" : "user";
+  // Resolve the effective scope. claude-desktop is user-only; claude-code
+  // and opencode are workspace-only; copilot honours --scope and defaults
+  // to workspace when omitted. The unknown-scope guard above has already
+  // narrowed options.scope to user | workspace | undefined.
+  let scope: "user" | "workspace";
+  if (isProjectScoped) {
+    scope = "workspace";
+  } else if (isDualScope) {
+    scope = options.scope === "user" ? "user" : "workspace";
+  } else {
+    scope = "user"; // claude-desktop
+  }
   const configPath = adapter.resolveConfigPath(
     scope,
     cwd,
     readHome(),
     readAppData(),
-    isProjectScoped ? cwd : undefined,
+    scope === "workspace" ? cwd : undefined,
   );
 
   // 5. Read current content. Missing file → empty string.

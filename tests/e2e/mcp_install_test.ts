@@ -136,13 +136,16 @@ const CLI_ENTRY = fromFileUrl(
 async function runMcpInstallE2e(
   args: string[],
   homeDir: string,
+  cwd?: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   // Inherit the parent environment so Windows-specific vars
   // (SYSTEMROOT, TMP, PATH, …) reach the subprocess — Deno needs them
   // to function on Windows. Strip GIT_* like the shared helper does.
   // Then override HOME / USERPROFILE / APPDATA to point at the temp
   // dir so the orchestrator writes there instead of the real user
-  // config locations.
+  // config locations. Pass `cwd` to anchor workspace-scoped writes
+  // (e.g. copilot's .github/mcp.json) to a temp repo dir the caller
+  // owns and can read back / clean up.
   const parentEnv = Deno.env.toObject();
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(parentEnv)) {
@@ -161,6 +164,7 @@ async function runMcpInstallE2e(
       CLI_ENTRY,
       ...args,
     ],
+    cwd,
     stdout: "piped",
     stderr: "piped",
     clearEnv: true,
@@ -436,5 +440,271 @@ Deno.test(
     } finally {
       await Deno.remove(homeDir, { recursive: true });
     }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// copilot (#635) — dual-scope client. Workspace → .github/mcp.json,
+// user → ~/.copilot/mcp-config.json. Schema adds type:"local" + tools:["*"].
+// ---------------------------------------------------------------------------
+
+/** Copilot user-scope config path under an overridden HOME. */
+function copilotUserConfigPath(homeDir: string): string {
+  return join(homeDir, ".copilot", "mcp-config.json");
+}
+
+Deno.test(
+  "mcp install copilot: --scope=workspace --print emits type+tools for .github/mcp.json",
+  async () => {
+    const { code, stdout, stderr } = await markspec(
+      [
+        "mcp",
+        "install",
+        "--client=copilot",
+        "--scope=workspace",
+        "--print",
+      ],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0);
+    assertStringIncludes(stdout, '"mcpServers"');
+    assertStringIncludes(stdout, '"markspec"');
+    assertStringIncludes(stdout, '"type": "local"');
+    assertStringIncludes(stdout, '"tools"');
+    assertStringIncludes(stderr.replaceAll("\\", "/"), ".github/mcp.json");
+    assertStringIncludes(stderr, "would write to ");
+  },
+);
+
+Deno.test(
+  "mcp install copilot: --scope=user --print targets ~/.copilot/mcp-config.json",
+  async () => {
+    // Override HOME to a fresh temp dir so the print reads no pre-existing
+    // ~/.copilot/mcp-config.json (which would trigger the idempotence
+    // no-op and emit empty stdout on a machine that already has markspec
+    // wired into Copilot).
+    const homeDir = await Deno.makeTempDir();
+    try {
+      const { code, stdout, stderr } = await runMcpInstallE2e(
+        ["mcp", "install", "--client=copilot", "--scope=user", "--print"],
+        homeDir,
+      );
+      assertEquals(code, 0, stderr);
+      assertStringIncludes(stdout, '"type": "local"');
+      assertStringIncludes(
+        stderr.replaceAll("\\", "/"),
+        ".copilot/mcp-config.json",
+      );
+    } finally {
+      await Deno.remove(homeDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "mcp install copilot: no --scope defaults to workspace (.github/mcp.json)",
+  async () => {
+    const { code, stderr } = await markspec(
+      ["mcp", "install", "--client=copilot", "--print"],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0);
+    assertStringIncludes(stderr.replaceAll("\\", "/"), ".github/mcp.json");
+  },
+);
+
+Deno.test(
+  "mcp install copilot: --scope=workspace --force writes .github/mcp.json",
+  async () => {
+    const { code, stderr } = await markspec(
+      [
+        "mcp",
+        "install",
+        "--client=copilot",
+        "--scope=workspace",
+        "--force",
+      ],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 0, stderr);
+    assertStringIncludes(stderr.replaceAll("\\", "/"), ".github/mcp.json");
+    assertStringIncludes(stderr, "wrote ");
+  },
+);
+
+Deno.test(
+  "mcp install copilot: --scope=user write merges (not clobbers), is idempotent, and removes",
+  async () => {
+    const homeDir = await Deno.makeTempDir();
+    try {
+      const configPath = copilotUserConfigPath(homeDir);
+      // Pre-seed a sibling server so we prove managed-entry merge, not clobber.
+      await Deno.mkdir(dirname(configPath), { recursive: true });
+      await Deno.writeTextFile(
+        configPath,
+        JSON.stringify(
+          { mcpServers: { other: { type: "local", command: "other" } } },
+          null,
+          2,
+        ),
+      );
+
+      const install = await runMcpInstallE2e(
+        [
+          "mcp",
+          "install",
+          "--client=copilot",
+          "--scope=user",
+          "--binary-path=markspec",
+          "--force",
+        ],
+        homeDir,
+      );
+      assertEquals(install.code, 0, install.stderr);
+      assertStringIncludes(install.stderr, "wrote ");
+
+      const parsed = JSON.parse(await Deno.readTextFile(configPath));
+      // Sibling survives (merge, not clobber).
+      assertEquals(parsed.mcpServers.other.command, "other");
+      // Managed entry carries the Copilot local schema.
+      assertEquals(parsed.mcpServers.markspec, {
+        type: "local",
+        command: "markspec",
+        args: ["mcp"],
+        tools: ["*"],
+      });
+
+      // Re-install is a no-op.
+      const again = await runMcpInstallE2e(
+        [
+          "mcp",
+          "install",
+          "--client=copilot",
+          "--scope=user",
+          "--binary-path=markspec",
+          "--force",
+        ],
+        homeDir,
+      );
+      assertEquals(again.code, 0, again.stderr);
+      assertStringIncludes(again.stderr, "already up to date");
+
+      // Remove strips only the markspec entry.
+      const removed = await runMcpInstallE2e(
+        [
+          "mcp",
+          "install",
+          "--client=copilot",
+          "--scope=user",
+          "--remove",
+          "--force",
+        ],
+        homeDir,
+      );
+      assertEquals(removed.code, 0, removed.stderr);
+      assertStringIncludes(removed.stderr, "wrote ");
+      const afterRemove = JSON.parse(await Deno.readTextFile(configPath));
+      assertEquals(afterRemove.mcpServers.markspec, undefined);
+      assertEquals(afterRemove.mcpServers.other.command, "other");
+    } finally {
+      await Deno.remove(homeDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "mcp install copilot: --scope=workspace write verifies content, preserves top-level + sibling keys, and removes",
+  async () => {
+    const repoDir = await Deno.makeTempDir();
+    const homeDir = await Deno.makeTempDir();
+    try {
+      const configPath = join(repoDir, ".github", "mcp.json");
+      // Pre-seed a top-level sibling ($schema) AND a sibling server so we
+      // prove neither is clobbered by the managed-entry write.
+      await Deno.mkdir(dirname(configPath), { recursive: true });
+      await Deno.writeTextFile(
+        configPath,
+        JSON.stringify(
+          {
+            $schema: "https://example.invalid/copilot.schema.json",
+            mcpServers: { other: { type: "local", command: "other" } },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const install = await runMcpInstallE2e(
+        [
+          "mcp",
+          "install",
+          "--client=copilot",
+          "--scope=workspace",
+          "--binary-path=markspec",
+          "--force",
+        ],
+        homeDir,
+        repoDir,
+      );
+      assertEquals(install.code, 0, install.stderr);
+      assertStringIncludes(install.stderr, "wrote ");
+
+      const parsed = JSON.parse(await Deno.readTextFile(configPath));
+      // Top-level sibling and server sibling both survive (merge, not clobber).
+      assertEquals(
+        parsed.$schema,
+        "https://example.invalid/copilot.schema.json",
+      );
+      assertEquals(parsed.mcpServers.other.command, "other");
+      // Managed entry carries the exact Copilot local schema (strong check,
+      // not a substring).
+      assertEquals(parsed.mcpServers.markspec, {
+        type: "local",
+        command: "markspec",
+        args: ["mcp"],
+        tools: ["*"],
+      });
+
+      // Remove strips only the markspec entry from the workspace file.
+      const removed = await runMcpInstallE2e(
+        [
+          "mcp",
+          "install",
+          "--client=copilot",
+          "--scope=workspace",
+          "--remove",
+          "--force",
+        ],
+        homeDir,
+        repoDir,
+      );
+      assertEquals(removed.code, 0, removed.stderr);
+      assertStringIncludes(removed.stderr, "wrote ");
+      const afterRemove = JSON.parse(await Deno.readTextFile(configPath));
+      assertEquals(afterRemove.mcpServers.markspec, undefined);
+      assertEquals(
+        afterRemove.$schema,
+        "https://example.invalid/copilot.schema.json",
+      );
+      assertEquals(afterRemove.mcpServers.other.command, "other");
+    } finally {
+      await Deno.remove(repoDir, { recursive: true });
+      await Deno.remove(homeDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "mcp install copilot: non-TTY without --force → exit 1 with remediation",
+  async () => {
+    // The shared markspec() helper pipes stdin, so the subprocess is
+    // non-TTY. Without --force (and without --print) the dual-scope
+    // resolution must still fall through to the non-TTY abort.
+    const { code, stderr } = await markspec(
+      ["mcp", "install", "--client=copilot", "--scope=workspace"],
+      { permissions: ["--allow-env"] },
+    );
+    assertEquals(code, 1);
+    assertStringIncludes(stderr, "--force");
   },
 );
