@@ -227,6 +227,103 @@ Deno.test("validate: malformed trailer key after a colon table still -> MSL-P022
 });
 
 // ---------------------------------------------------------------------------
+// #654: MSL-P020 (misplaced trailer) must fire only for a RECOGNIZED trailer
+// key. A body paragraph that merely starts with a capitalized word + colon
+// (`Note:`, `Example:`, `Rationale:`) is prose, not a misplaced trailer, and
+// must not be flagged. A genuinely misplaced real trailer (`Id:`, `Satisfies:`)
+// in the body still fires.
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: 'Note:' prose paragraph is not a misplaced trailer (#654)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Note prose
+
+  The system shall support the modes below.
+
+  Note: fast mode brakes within 200 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+  assert(
+    !stderr.includes("MSL-P020"),
+    `no MSL-P020 expected for a 'Note:' prose paragraph, stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: 'Example:' prose paragraph is not a misplaced trailer (#654)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Example prose
+
+  The system shall support the modes below.
+
+  Example: fast mode brakes within 200 ms.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+  assert(
+    !stderr.includes("MSL-P020"),
+    `no MSL-P020 expected for an 'Example:' prose paragraph, stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: arbitrary 'Assumption:' prose is not a misplaced trailer (#654)", async () => {
+  // A skip-list of admonition words would miss this; only an allowlist of
+  // recognized trailer keys covers every prose lead-in. (Note: words that ARE
+  // recognized attribute keys, e.g. `Rationale`, remain flagged by design.)
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Assumption prose
+
+  The system shall brake on a dry road.
+
+  Assumption: the road surface is dry.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+  assert(
+    !stderr.includes("MSL-P020"),
+    `no MSL-P020 expected for a 'Rationale:' prose paragraph, stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: a misplaced real trailer in the body still → MSL-P020 (#654 guard)", async () => {
+  // The allowlist must still catch a genuinely misplaced recognized trailer.
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Misplaced Satisfies
+
+  The system shall support the modes below.
+
+  Satisfies: SYS_0001
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P020");
+});
+
+// ---------------------------------------------------------------------------
 // MSL-P030: Authored entry has no body block
 // ---------------------------------------------------------------------------
 
