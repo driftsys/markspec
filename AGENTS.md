@@ -433,6 +433,13 @@ docs/
   `MSL-L006` existence warning; lockfile `[[edge]]` ULID ledger; `core/refs/`
   purity boundary; `fmt` canonicalise + rename-heal; MSL-L006 vs deferred
   ADR-012 §8.3 T-family; additive `[[edge]]` on ADR-022 lockfile
+- `adr-027-cli-smoother-defaults.md` — bare `check`/`lint`/`fmt` default to
+  whole-project scope via gitignore-aware `core/discovery/`; `project.yaml`
+  `exclude:`; `check` becomes the composite gate (structure + traceability + fmt
+  drift `MSL-F010` + lockfile drift `MSL-L212` + advisory prose lint); extra
+  gates are project-wide only, file-local `check <file>` stays fast structural;
+  lock↔check discovery parity; known limitation: `.markspec.yaml`-only projects
+  don't satisfy bare-invocation root discovery
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
