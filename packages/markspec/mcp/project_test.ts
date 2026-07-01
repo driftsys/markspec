@@ -9,6 +9,7 @@
 import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { join, resolve } from "@std/path";
 import {
+  buildRootOverrides,
   checkFileStaleness,
   createProject,
   detectMarkspecProject,
@@ -23,7 +24,10 @@ const REQ_MD_PATH = join(PROJ, "req.md");
 const EXTRA_MD_PATH = join(PROJ, "extra.md");
 
 /** Build a ProjectEnv that serves a fixed file map. */
-function makeEnv(files: Record<string, { content: string; mtime: number }>): {
+function makeEnv(
+  files: Record<string, { content: string; mtime: number }>,
+  rootOverrides: string[] = [],
+): {
   env: ProjectEnv;
   bumpMtime: (path: string, content: string, mtime: number) => void;
   removeFile: (path: string) => void;
@@ -32,6 +36,7 @@ function makeEnv(files: Record<string, { content: string; mtime: number }>): {
   return {
     env: {
       cwd: () => PROJ,
+      rootOverrides: () => rootOverrides,
       readFile: (path) => {
         const f = store.get(path);
         return Promise.resolve(f?.content);
@@ -294,6 +299,32 @@ Deno.test("getCompiled: same content, mtime bumped → NOT stale (SHA256 gate)",
   const r2 = await proj.getCompiled();
   assertEquals(r2.entries.size, 1);
   assertEquals(r2, r1, "cached result returned — no recompile triggered");
+});
+
+// ---------------------------------------------------------------------------
+// buildRootOverrides tests
+// ---------------------------------------------------------------------------
+
+Deno.test("buildRootOverrides: orders flags, MARKSPEC_PROJECT_ROOT, CLAUDE_PROJECT_DIR", () => {
+  const out = buildRootOverrides(
+    ["/flag/a", "/flag/b"],
+    "/env/one:/env/two",
+    "/claude/dir",
+  );
+  assertEquals(out, [
+    "/flag/a",
+    "/flag/b",
+    "/env/one",
+    "/env/two",
+    "/claude/dir",
+  ]);
+});
+
+Deno.test("buildRootOverrides: drops blank/empty segments and missing env", () => {
+  assertEquals(buildRootOverrides([" ", "/keep"], undefined, undefined), [
+    "/keep",
+  ]);
+  assertEquals(buildRootOverrides([], "::/only:", ""), ["/only"]);
 });
 
 // ---------------------------------------------------------------------------

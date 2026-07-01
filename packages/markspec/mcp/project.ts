@@ -86,10 +86,43 @@ const SKIP_DIRS = new Set([
   ".claude",
 ]);
 
+/**
+ * Assemble the ordered project-root override candidates that take precedence
+ * over the launch `cwd`. Order encodes precedence (first wins): explicit
+ * `--root` flags, then `MARKSPEC_PROJECT_ROOT` (colon-separated, POSIX
+ * `PATH`-style), then Claude Code's auto-injected `CLAUDE_PROJECT_DIR`. Blank
+ * segments are dropped so an unset or empty env var contributes nothing.
+ */
+export function buildRootOverrides(
+  flagRoots: readonly string[],
+  markspecProjectRoot: string | undefined,
+  claudeProjectDir: string | undefined,
+): string[] {
+  const out: string[] = [];
+  for (const r of flagRoots) {
+    if (r.trim().length > 0) out.push(r);
+  }
+  if (markspecProjectRoot) {
+    for (const seg of markspecProjectRoot.split(":")) {
+      if (seg.trim().length > 0) out.push(seg);
+    }
+  }
+  if (claudeProjectDir && claudeProjectDir.trim().length > 0) {
+    out.push(claudeProjectDir);
+  }
+  return out;
+}
+
 /** Filesystem + environment shim, injectable for tests. */
 export interface ProjectEnv {
   /** Return the starting working directory used for root discovery. */
   cwd(): string;
+  /**
+   * Ordered project-root override candidates that take precedence over
+   * {@linkcode ProjectEnv.cwd} during discovery. See
+   * {@linkcode buildRootOverrides}.
+   */
+  rootOverrides(): string[];
   /** Read a file's text content, or undefined if missing. */
   readFile: ReadFile;
   /** Return the file's last-modified time in milliseconds since epoch. */
@@ -176,9 +209,22 @@ export interface Project {
  * never construct one of these directly — accept a `ProjectEnv` instead so
  * tests can supply an in-memory shim.
  */
-export function defaultEnv(): ProjectEnv {
+export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
+  const envGet = (key: string): string | undefined => {
+    try {
+      return Deno.env.get(key);
+    } catch {
+      return undefined; // --allow-env not granted; treat as unset
+    }
+  };
   return {
     cwd: () => Deno.cwd(),
+    rootOverrides: () =>
+      buildRootOverrides(
+        flagRoots,
+        envGet("MARKSPEC_PROJECT_ROOT"),
+        envGet("CLAUDE_PROJECT_DIR"),
+      ),
     readFile: async (path: string) => {
       try {
         return await Deno.readTextFile(path);
