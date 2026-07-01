@@ -13,15 +13,20 @@ import { Command } from "@cliffy/command";
 
 export const mcpCmd = new Command()
   .description("Start MCP server or install its configuration")
-  .action(async () => {
+  .option(
+    "--root <path:string>",
+    "Project root to serve (repeatable). Overrides cwd/env discovery.",
+    { collect: true },
+  )
+  .action(async (options: { root?: string[] }) => {
     const { startServer } = await import("../../mcp/server.ts");
-    await startServer();
+    await startServer({ rootFlags: options.root ?? [] });
   })
   .command("install")
   .description("Install or print MCP server configuration for a client")
   .option(
     "--client <client:string>",
-    "Client ID (claude-desktop|claude-code|cursor|opencode|vscode)",
+    "Client ID (claude-desktop|claude-code|cursor|opencode|vscode|copilot)",
     { required: true },
   )
   .option("--scope <scope:string>", "Config scope: user|workspace")

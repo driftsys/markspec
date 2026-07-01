@@ -27,8 +27,11 @@ Deno.test("detectTarget: windows x86_64 → x86_64-pc-windows-msvc", () => {
   );
 });
 
-Deno.test("detectTarget: linux aarch64 (no build target shipped) → undefined", () => {
-  assertEquals(detectTarget({ os: "linux", arch: "aarch64" }), undefined);
+Deno.test("detectTarget: linux aarch64 → aarch64-unknown-linux-gnu", () => {
+  assertEquals(
+    detectTarget({ os: "linux", arch: "aarch64" }),
+    "aarch64-unknown-linux-gnu",
+  );
 });
 
 Deno.test("detectTarget: windows aarch64 (not shipped) → undefined", () => {

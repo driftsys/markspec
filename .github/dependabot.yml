@@ -12,7 +12,10 @@ updates:
         patterns:
           - "*"
     commit-message:
-      prefix: "chore"
+      # `(deps)` scope is required so the generated message passes the
+      # git-std Conventional-commits CI gate (a bare `chore:` has no scope
+      # and fails; `deps` is an allowed scope).
+      prefix: "chore(deps)"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"

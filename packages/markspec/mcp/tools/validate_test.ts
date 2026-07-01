@@ -186,6 +186,7 @@ function stubProject(profileChain: ProfileChain): Project {
   return {
     projectRoot: "/proj",
     markspecDetected: true,
+    softGateMessage: "",
     config: undefined,
     profileChain,
     profile: profileChain.effective,

@@ -89,7 +89,9 @@ resources/read.`;
  * `resources/list_changed` notifications, then opens a stdio transport
  * and blocks until stdin closes.
  */
-export async function startServer(): Promise<void> {
+export async function startServer(
+  options: { rootFlags?: string[] } = {},
+): Promise<void> {
   const server = new Server(
     {
       name: "markspec",
@@ -109,7 +111,7 @@ export async function startServer(): Promise<void> {
     },
   );
 
-  const project = await createProject(defaultEnv());
+  const project = await createProject(defaultEnv(options.rootFlags ?? []));
 
   registerResources(server, project);
   registerTools(server, project);

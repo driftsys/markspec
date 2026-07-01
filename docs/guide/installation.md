@@ -141,13 +141,13 @@ Pre-built binaries are attached to every GitHub Release. Download the archive
 for your platform, extract the `markspec` binary, and place it anywhere on your
 `PATH`.
 
-| Platform         | File                                     |
-| ---------------- | ---------------------------------------- |
-| macOS (Apple)    | `markspec-macos-aarch64.tar.gz`          |
-| macOS (Intel)    | `markspec-macos-x86_64.tar.gz`           |
-| Linux (x86_64)   | `markspec-linux-x86_64.tar.gz`           |
-| Linux (aarch64)  | `markspec-linux-aarch64.tar.gz`          |
-| Windows (x86_64) | `markspec-x86_64-pc-windows-msvc.tar.gz` |
+| Platform         | File                                        |
+| ---------------- | ------------------------------------------- |
+| macOS (Apple)    | `markspec-aarch64-apple-darwin.tar.gz`      |
+| macOS (Intel)    | `markspec-x86_64-apple-darwin.tar.gz`       |
+| Linux (x86_64)   | `markspec-x86_64-unknown-linux-gnu.tar.gz`  |
+| Linux (aarch64)  | `markspec-aarch64-unknown-linux-gnu.tar.gz` |
+| Windows (x86_64) | `markspec-x86_64-pc-windows-msvc.tar.gz`    |
 
 ### Deno (from source)
 

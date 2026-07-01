@@ -128,7 +128,7 @@ async function runSelfUpgrade(
       VERSION,
       null,
       "",
-      `unsupported platform: ${Deno.build.os}/${Deno.build.arch}. Supported: linux-x64, darwin-x64, darwin-arm64, windows-x64.`,
+      `unsupported platform: ${Deno.build.os}/${Deno.build.arch}. Supported: linux-x64, linux-arm64, darwin-x64, darwin-arm64, windows-x64.`,
     );
   }
   const target = detectTarget(platform);

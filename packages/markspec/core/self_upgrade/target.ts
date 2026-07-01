@@ -3,8 +3,8 @@
  *
  * Map (os, arch) → the GitHub release target string used in tarball
  * names. Targets match those produced by the Release workflow:
- *   x86_64-unknown-linux-gnu, x86_64-apple-darwin,
- *   aarch64-apple-darwin, x86_64-pc-windows-msvc.
+ *   x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu,
+ *   x86_64-apple-darwin, aarch64-apple-darwin, x86_64-pc-windows-msvc.
  *
  * Pure functions — no I/O, no Deno.* APIs. The CLI passes
  * `Deno.build.os` / `Deno.build.arch` strings to platformFromBuild;
@@ -22,6 +22,7 @@ export interface Platform {
 
 export type Target =
   | "x86_64-unknown-linux-gnu"
+  | "aarch64-unknown-linux-gnu"
   | "x86_64-apple-darwin"
   | "aarch64-apple-darwin"
   | "x86_64-pc-windows-msvc";
@@ -30,6 +31,7 @@ export type Target =
 export function detectTarget(platform: Platform): Target | undefined {
   const { os, arch } = platform;
   if (os === "linux" && arch === "x86_64") return "x86_64-unknown-linux-gnu";
+  if (os === "linux" && arch === "aarch64") return "aarch64-unknown-linux-gnu";
   if (os === "darwin" && arch === "x86_64") return "x86_64-apple-darwin";
   if (os === "darwin" && arch === "aarch64") return "aarch64-apple-darwin";
   if (os === "windows" && arch === "x86_64") return "x86_64-pc-windows-msvc";

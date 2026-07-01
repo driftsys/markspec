@@ -8,7 +8,7 @@
  * Each test verifies that the correct diagnostic code surfaces in stderr.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 // ===========================================================================
@@ -146,6 +146,84 @@ Deno.test("validate: invalid trailer key chars → MSL-P022", async () => {
   });
   assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
   assertStringIncludes(stderr, "MSL-P022");
+});
+
+// ---------------------------------------------------------------------------
+// #648: a colon inside body content (a table cell or ordinary prose) must
+// NOT be misparsed as a malformed trailer. The backward body-scan heuristic
+// used to split on the first colon and flag the "key" as an invalid trailer
+// key, firing a false-positive MSL-P022 whenever a colon-bearing table row or
+// prose sentence was the last body block. A genuine trailer key is a single
+// token -- it never contains internal whitespace or a pipe.
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: colon in a table cell is body content, not a trailer (#648)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Modes table
+
+  The system shall support the modes below.
+
+  | Mode | Note |
+  | ---- | ---- |
+  | Fast | latency: under 200 ms |
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+  assert(
+    !stderr.includes("MSL-P02"),
+    `no parse diagnostic expected for a table-cell colon, stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: colon in trailing prose is body content, not a trailer (#648)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Modes prose
+
+  The system shall support the modes as follows: fast and safe.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+  assert(
+    !stderr.includes("MSL-P02"),
+    `no parse diagnostic expected for a prose colon, stderr: ${stderr}`,
+  );
+});
+
+Deno.test("validate: malformed trailer key after a colon table still -> MSL-P022 (#648 guard)", async () => {
+  // The whitespace/pipe guard must stay targeted: a real malformed trailer
+  // key (no internal whitespace) below a colon-bearing table must still fire.
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Malformed trailer despite a table
+
+  The system shall x.
+
+  | Mode | Note |
+  | ---- | ---- |
+  | Fast | latency: under 200 ms |
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Bad_Key: some value
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P022");
+  assertStringIncludes(stderr, "Bad_Key");
 });
 
 // ---------------------------------------------------------------------------

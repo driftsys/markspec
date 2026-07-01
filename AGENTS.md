@@ -440,6 +440,11 @@ docs/
   gates are project-wide only, file-local `check <file>` stays fast structural;
   lock↔check discovery parity; known limitation: `.markspec.yaml`-only projects
   don't satisfy bare-invocation root discovery
+- `adr-028-mcp-project-discovery.md` — `markspec mcp` resolves its project root
+  from an ordered candidate list (`--root` > `MARKSPEC_PROJECT_ROOT` >
+  `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots
+  deliberately dropped (unimplemented on Claude Code); soft gate names the
+  searched dirs
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

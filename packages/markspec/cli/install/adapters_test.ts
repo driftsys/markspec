@@ -11,6 +11,7 @@ Deno.test("MCP_CLIENT_IDS contains expected clients", () => {
   assertEquals(MCP_CLIENT_IDS.includes("claude-desktop"), true);
   assertEquals(MCP_CLIENT_IDS.includes("cursor"), true);
   assertEquals(MCP_CLIENT_IDS.includes("vscode"), true);
+  assertEquals(MCP_CLIENT_IDS.includes("copilot"), true);
 });
 
 Deno.test("suggestId: returns closest match within distance 3", () => {
