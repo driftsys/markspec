@@ -68,12 +68,36 @@ Deno.test("loadDeliveredCorpus: docs-only file is never parsed", async () => {
   assertEquals(entries, []);
 });
 
+/**
+ * Fixture whose malformed typl fence makes the parser emit a TYPL-007
+ * diagnostic (same fixture family as "typl parse error is bridged to
+ * file-relative diagnostic" in `core/parser/markdown_test.ts`). Chosen
+ * because it reliably produces a parse-level diagnostic — an invalid
+ * `Id:` value alone does not (that is a validator concern).
+ */
+const CORPUS_MD_WITH_DIAG = [
+  "- [PLT_0002] Bad typl",
+  "",
+  "  Body.",
+  "",
+  "  ```typl",
+  "  $X : blah int[0..]",
+  "  ```",
+  "",
+  "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "",
+].join("\n");
+
 Deno.test("loadDeliveredCorpus: corpus parse diagnostics are attributed", async () => {
   const { diagnostics } = await loadDeliveredCorpus(
     [doc({})],
-    // malformed trailer → parser emits a diagnostic for this file
     // deno-lint-ignore require-await
-    async () => `- [PLT_0002] Broken\n\n  Body.\n\n      Id: NOT_A_ULID\n`,
+    async () => CORPUS_MD_WITH_DIAG,
+  );
+  assertEquals(
+    diagnostics.length > 0,
+    true,
+    "fixture must produce at least one diagnostic",
   );
   for (const d of diagnostics) {
     assertStringIncludes(d.message, "delivered by platform-arch@1.2.0:");
