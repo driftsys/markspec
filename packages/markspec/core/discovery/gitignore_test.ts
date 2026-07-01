@@ -73,3 +73,19 @@ Deno.test("gitignore: baseDir scopes nested gitignore patterns", () => {
 Deno.test("gitignore: trailing spaces are stripped", () => {
   assertEquals(ignored("*.tmp   ", "a.tmp"), true);
 });
+
+Deno.test("gitignore: a long run of stars does not hang", () => {
+  // Regression: consecutive `*` must collapse to a single quantifier, or
+  // this backtracks catastrophically. The assertion is secondary — the
+  // real check is that this returns promptly.
+  const rules = parseGitignore("**********", "");
+  assertEquals(isIgnored("a/b/c/d.md", false, rules), true);
+});
+
+Deno.test("gitignore: malformed character class is skipped, not thrown", () => {
+  // `[z-a]` is an inverted range → invalid regex. The bad line is dropped;
+  // the valid rule after it still applies.
+  const rules = parseGitignore("[z-a]x\n*.md", "");
+  assertEquals(rules.length, 1);
+  assertEquals(isIgnored("a.md", false, rules), true);
+});

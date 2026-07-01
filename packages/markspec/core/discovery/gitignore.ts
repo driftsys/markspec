@@ -38,17 +38,22 @@ function globToRegexSource(pattern: string): string {
   while (i < pattern.length) {
     const c = pattern[i];
     if (c === "*") {
-      if (pattern[i + 1] === "*") {
-        if (pattern[i + 2] === "/") {
-          re += "(?:[^/]+/)*"; // `**/` — zero or more whole segments
-          i += 3;
-        } else {
-          re += ".*"; // trailing or bare `**`
-          i += 2;
-        }
-      } else {
-        re += "[^/]*";
+      // Consume the whole run of consecutive `*` so we never emit adjacent
+      // unbounded quantifiers (which backtrack catastrophically against a
+      // non-matching input). Git likewise treats consecutive `*` that are
+      // not a slash-delimited `**` as regular asterisks.
+      let stars = 0;
+      while (pattern[i] === "*") {
+        stars++;
         i++;
+      }
+      if (stars >= 2 && pattern[i] === "/") {
+        re += "(?:[^/]+/)*"; // `**/` — zero or more whole segments
+        i++; // consume the `/`
+      } else if (stars >= 2) {
+        re += ".*"; // leading/trailing/bare `**` — crosses directories
+      } else {
+        re += "[^/]*"; // single `*` — within one path segment
       }
     } else if (c === "?") {
       re += "[^/]";
@@ -111,11 +116,14 @@ export function parseGitignore(
       ? ""
       : `${baseDir.replace(/[.+^${}()|\\]/g, "\\$&")}/`;
     const depth = anchored ? "" : "(?:.*/)?";
-    rules.push({
-      regex: new RegExp(`^${prefix}${depth}${globToRegexSource(pattern)}$`),
-      negated,
-      dirOnly,
-    });
+    let regex: RegExp;
+    try {
+      regex = new RegExp(`^${prefix}${depth}${globToRegexSource(pattern)}$`);
+    } catch {
+      continue; // skip a line that compiles to an invalid regex (e.g. a
+      // malformed character class) rather than crashing discovery
+    }
+    rules.push({ regex, negated, dirOnly });
   }
   return rules;
 }
