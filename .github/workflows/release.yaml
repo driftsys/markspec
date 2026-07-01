@@ -39,7 +39,7 @@ jobs:
             os: windows-latest
             binary: markspec.exe
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - uses: denoland/setup-deno@v2
         with:
@@ -47,7 +47,7 @@ jobs:
 
       - name: Cache tree-sitter grammars
         id: grammars-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5.0.5
         with:
           path: grammars/*.wasm
           key: grammars-${{ hashFiles('grammars/grammars.lock') }}
@@ -102,7 +102,7 @@ jobs:
             vsce-target: win32-x64
             binary: markspec.exe
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - uses: denoland/setup-deno@v2
         with:
@@ -161,7 +161,7 @@ jobs:
     # non-approval or publish failure here can never fail the GitHub Release.
     environment: marketplace
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - uses: actions/setup-node@v6
         with:
@@ -199,7 +199,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: marketplace
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - uses: actions/setup-node@v6
         with:
@@ -233,7 +233,7 @@ jobs:
     needs: [build, package-vsix]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Download artifacts
         uses: actions/download-artifact@v8
@@ -242,7 +242,7 @@ jobs:
           merge-multiple: true
 
       - name: Create release
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           generate_release_notes: true
@@ -259,7 +259,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - uses: denoland/setup-deno@v2
         with:
@@ -276,7 +276,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - uses: denoland/setup-deno@v2
         with:
