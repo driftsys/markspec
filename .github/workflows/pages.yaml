@@ -26,7 +26,7 @@ jobs:
     name: Build books
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Install mdBook
         uses: peaceiris/actions-mdbook@v2
@@ -65,7 +65,7 @@ jobs:
           cp docs/index.html _site/index.html
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
