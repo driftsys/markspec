@@ -70,7 +70,7 @@ async function runLock(options: LockOptions): Promise<void> {
   );
   const chain = profileResult.chain;
 
-  const entries = await collectEntries(projectRoot);
+  const entries = await collectEntries(projectRoot, config.exclude);
   const mappings = await loadAllMappings(projectRoot);
 
   const mappingDiags = validateMappings(mappings);
@@ -193,35 +193,16 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
   }
 }
 
-async function collectEntries(root: string) {
+async function collectEntries(root: string, exclude: readonly string[] = []) {
+  const { discoverFiles } = await import("../../core/mod.ts");
+  const { denoDiscoveryIO } = await import("../helpers.ts");
   const out = [];
-  for await (const f of walkMarkdown(root)) {
+  for await (const f of discoverFiles(root, denoDiscoveryIO(), { exclude })) {
     const content = await Deno.readTextFile(f);
     const r = await parseFile(content, { file: f });
     out.push(...r.entries);
   }
   return out;
-}
-
-const SKIP_DIRS = new Set([
-  "node_modules",
-  ".git",
-  ".worktrees",
-  "target",
-  "dist",
-  "build",
-]);
-
-async function* walkMarkdown(dir: string): AsyncGenerator<string> {
-  for await (const e of Deno.readDir(dir)) {
-    if (e.name.startsWith(".") || SKIP_DIRS.has(e.name)) continue;
-    const p = join(dir, e.name);
-    if (e.isDirectory) {
-      yield* walkMarkdown(p);
-    } else if (e.isFile && e.name.endsWith(".md")) {
-      yield p;
-    }
-  }
 }
 
 async function loadAllMappings(root: string): Promise<Mapping[]> {
