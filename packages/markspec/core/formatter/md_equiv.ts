@@ -4,7 +4,10 @@
  * CommonMark-semantic Markdown equivalence — the gate for the ADR-029
  * dprint pass. Two fragments are equivalent when they parse to the
  * same mdast structure after eliding source `position`s and collapsing
- * whitespace runs inside `text` node values. Soft-wrap positions,
+ * ASCII whitespace runs inside `text` node values. Only ASCII
+ * whitespace is collapsed — NBSP (U+00A0) and Unicode spaces are
+ * content, not wrap artifacts, and must not compare equal to a plain
+ * space. Soft-wrap positions,
  * emphasis delimiter style (`*x*` vs `_x_`), table cell padding, and
  * list marker style are presentation, not content — they compare
  * equal. Hard breaks are `break` nodes in mdast, so wrap-collapsing
@@ -36,9 +39,11 @@ export function markdownSemanticallyEquivalent(
 }
 
 /**
- * Recursively strip `position` keys and collapse whitespace runs in
- * `text` node values. Returns a plain JSON-ish structure for
- * comparison; never mutates the input tree.
+ * Recursively strip `position` keys and collapse ASCII whitespace runs
+ * in `text` node values (reflow can only introduce ASCII spaces and
+ * newlines; `\s` would also match NBSP and Unicode Zs spaces, letting
+ * a content change pass as a wrap change). Returns a plain JSON-ish
+ * structure for comparison; never mutates the input tree.
  */
 function normalize(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(normalize);
@@ -51,7 +56,7 @@ function normalize(node: unknown): unknown {
       key === "value" && src.type === "text" &&
       typeof src.value === "string"
     ) {
-      out.value = src.value.replace(/\s+/g, " ");
+      out.value = src.value.replace(/[ \t\r\n\f\v]+/g, " ");
       continue;
     }
     out[key] = normalize(src[key]);

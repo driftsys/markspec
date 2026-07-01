@@ -60,3 +60,23 @@ Deno.test("md_equiv: list marker style is equivalent", () => {
     true,
   );
 });
+
+Deno.test("md_equiv: NBSP vs plain space is NOT equivalent", () => {
+  // remark decodes `&nbsp;` to a literal U+00A0 inside text values.
+  // NBSP is content (e.g. `10\u00a0Nm` unit binding), not a wrap
+  // artifact — it must not collapse into a plain space.
+  assertEquals(
+    markdownSemanticallyEquivalent(
+      "torque of 10\u00a0Nm applies",
+      "torque of 10 Nm applies",
+    ),
+    false,
+  );
+});
+
+Deno.test("md_equiv: inline code content is verbatim — whitespace change NOT equivalent", () => {
+  assertEquals(
+    markdownSemanticallyEquivalent("a `x  y` b", "a `x y` b"),
+    false,
+  );
+});
