@@ -231,3 +231,40 @@ Deno.test("loadConfig: throws ConfigError on invalid project.yaml", async () => 
     assertEquals(err instanceof ConfigError, true);
   }
 });
+
+// ---------------------------------------------------------------------------
+// exclude
+// ---------------------------------------------------------------------------
+
+Deno.test("loadConfig: parses exclude as string array", async () => {
+  const yaml =
+    `name: t\nversion: 0.1.0\nexclude:\n  - "skills/"\n  - "*.gen.md"\n`;
+  const result = await loadConfig(
+    "/proj",
+    (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
+  );
+  assertEquals(result?.config.exclude, ["skills/", "*.gen.md"]);
+});
+
+Deno.test("loadConfig: exclude defaults to empty", async () => {
+  const yaml = `name: t\nversion: 0.1.0\n`;
+  const result = await loadConfig(
+    "/proj",
+    (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
+  );
+  assertEquals(result?.config.exclude, []);
+});
+
+Deno.test("loadConfig: non-array exclude is a ConfigError", async () => {
+  const yaml = `name: t\nversion: 0.1.0\nexclude: nope\n`;
+  let threw = false;
+  try {
+    await loadConfig(
+      "/proj",
+      (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
+    );
+  } catch (err) {
+    threw = err instanceof ConfigError;
+  }
+  assertEquals(threw, true);
+});

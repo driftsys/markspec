@@ -607,6 +607,12 @@ export interface ProjectConfig {
    * or absent map means all keywords are unconstrained.
    */
   readonly captionConventions: CaptionConventions;
+  /**
+   * Gitignore-syntax patterns excluded from project file discovery,
+   * anchored at the project root (e.g. `["skills/", "*.gen.md"]`).
+   * Applied after `.gitignore` rules by `core/discovery`.
+   */
+  readonly exclude: readonly string[];
 }
 
 /** Default configuration used when no `project.yaml` is found. */
@@ -617,6 +623,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   parents: [],
   parentFallback: REFHUB_URL,
   captionConventions: {},
+  exclude: [],
 };
 
 // ---------------------------------------------------------------------------

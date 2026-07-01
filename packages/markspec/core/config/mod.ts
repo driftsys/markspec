@@ -273,6 +273,31 @@ export function parseProjectConfig(
     }
   }
 
+  // exclude: optional string[] of gitignore-syntax patterns
+  let exclude: readonly string[] = DEFAULT_PROJECT_CONFIG.exclude;
+  if (obj.exclude !== undefined && obj.exclude !== null) {
+    if (!Array.isArray(obj.exclude)) {
+      errors.push({
+        field: "exclude",
+        message: `expected array, got ${typeof obj.exclude}`,
+        line: findLineNumber(yaml, "exclude"),
+      });
+    } else {
+      const bad = obj.exclude.findIndex(
+        (v: unknown) => typeof v !== "string" || v === "",
+      );
+      if (bad !== -1) {
+        errors.push({
+          field: `exclude[${bad}]`,
+          message: "each exclude pattern must be a non-empty string",
+          line: findLineNumber(yaml, "exclude"),
+        });
+      } else {
+        exclude = obj.exclude as string[];
+      }
+    }
+  }
+
   if (errors.length > 0) {
     throw new ConfigError(filePath, errors);
   }
@@ -284,6 +309,7 @@ export function parseProjectConfig(
     parents,
     parentFallback,
     captionConventions,
+    exclude,
   };
 }
 
