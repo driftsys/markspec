@@ -35,6 +35,7 @@ function mkProject(entries: Entry[]): Project {
   return {
     projectRoot: "/proj",
     markspecDetected: true,
+    softGateMessage: "",
     config: undefined,
     profileChain: chain,
     profile: undefined,
@@ -108,6 +109,7 @@ function gatedProject(): Project {
   return {
     projectRoot: undefined,
     markspecDetected: false,
+    softGateMessage: SOFT_GATE_MESSAGE,
     config: undefined,
     profileChain: null,
     profile: undefined,

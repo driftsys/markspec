@@ -13,6 +13,7 @@ function mockProject(detected: boolean): Project {
   return {
     projectRoot: detected ? "/proj" : undefined,
     markspecDetected: detected,
+    softGateMessage: SOFT_GATE_MESSAGE,
     config: undefined,
     profileChain: null,
     profile: undefined,
@@ -29,6 +30,7 @@ function emptyDetectedProject(): Project {
   return {
     projectRoot: "/proj",
     markspecDetected: true,
+    softGateMessage: "",
     config: undefined,
     profileChain: null,
     profile: undefined,

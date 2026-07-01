@@ -33,6 +33,20 @@ export const SOFT_GATE_MESSAGE =
   "No MarkSpec project found in this workspace (looked for .markspec.yaml and project.yaml from cwd upward). This MCP server has no work to do here — stop calling MarkSpec tools.";
 
 /**
+ * Compose the soft-gate message that names every directory searched. Starts
+ * with the same load-bearing phrase as {@linkcode SOFT_GATE_MESSAGE} (ADR-023)
+ * and points the operator at the `--root` / `MARKSPEC_PROJECT_ROOT` remedies.
+ */
+export function buildSoftGateMessage(searchedDirs: readonly string[]): string {
+  const dirs = searchedDirs.join(", ");
+  return "No MarkSpec project found in this workspace.\n" +
+    `Searched from: ${dirs} (walked upward for .markspec.yaml / project.yaml).\n` +
+    "Point the server at your project with `markspec mcp --root <path>` or the " +
+    "MARKSPEC_PROJECT_ROOT environment variable. This server has no work to do " +
+    "here — stop calling MarkSpec tools.";
+}
+
+/**
  * Detect whether the workspace at `cwd` is a MarkSpec project.
  *
  * Walks up from `cwd` checking for either `project.yaml` (canonical config)
@@ -188,6 +202,12 @@ export interface Project {
    * `false`. Per ADR-023 §6.
    */
   readonly markspecDetected: boolean;
+  /**
+   * Human-readable "no project here" message naming the directories searched,
+   * for tools/resources to return when {@linkcode Project.markspecDetected} is
+   * `false`. Starts with the load-bearing ADR-023 phrase.
+   */
+  readonly softGateMessage: string;
   /** Loaded project config, or undefined when no `project.yaml` was found. */
   readonly config: ProjectConfig | undefined;
   /** Active profile chain, or null when no profile is configured. */
@@ -267,9 +287,19 @@ async function* walkFs(dir: string): AsyncGenerator<string> {
  * method awaits the background compile on first call.
  */
 export async function createProject(env: ProjectEnv): Promise<Project> {
-  const cwd = env.cwd();
-  const markspecDetected = await detectMarkspecProject(cwd, env.readFile);
-  const projectRoot = await discoverProjectRoot(cwd, env.readFile);
+  // Ordered discovery candidates: explicit overrides first (Task 1), launch
+  // cwd last. First candidate whose upward walk detects a project wins (D2).
+  const candidates = [...env.rootOverrides(), env.cwd()];
+  let markspecDetected = false;
+  let projectRoot: string | undefined;
+  for (const candidate of candidates) {
+    if (await detectMarkspecProject(candidate, env.readFile)) {
+      markspecDetected = true;
+      projectRoot = await discoverProjectRoot(candidate, env.readFile);
+      break;
+    }
+  }
+  const softGateMessage = buildSoftGateMessage(candidates);
 
   let config: ProjectConfig | undefined;
   let profileChain: ProfileChain | null = null;
@@ -418,6 +448,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   return {
     projectRoot,
     markspecDetected,
+    softGateMessage,
     config,
     profileChain,
     profile: profileChain?.effective,

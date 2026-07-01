@@ -6,7 +6,12 @@
  * Uses an in-memory ProjectEnv shim so no filesystem access is required.
  */
 
-import { assertEquals, assertExists, assertRejects } from "@std/assert";
+import {
+  assertEquals,
+  assertExists,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 import { join, resolve } from "@std/path";
 import {
   buildRootOverrides,
@@ -384,4 +389,46 @@ Deno.test("SOFT_GATE_MESSAGE: contains the exact load-bearing phrase", () => {
     SOFT_GATE_MESSAGE.startsWith("No MarkSpec project found"),
     true,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Ordered candidate resolution tests (Task 2)
+// ---------------------------------------------------------------------------
+
+Deno.test("createProject: an override beats a non-project cwd", async () => {
+  // cwd (PROJ_EMPTY) has no project files; the override dir does.
+  const OVERRIDE = resolve("/override");
+  const { env } = makeEnv({
+    [join(OVERRIDE, "project.yaml")]: { content: PROJECT_YAML, mtime: 1 },
+    [join(OVERRIDE, "req.md")]: { content: REQ_DOC, mtime: 1 },
+  }, [OVERRIDE]);
+  // makeEnv's cwd is PROJ (which has no files in this store) → only the
+  // override resolves.
+  const proj = await createProject(env);
+  assertEquals(proj.markspecDetected, true);
+  assertEquals(proj.projectRoot, OVERRIDE);
+});
+
+Deno.test("createProject: precedence — first resolvable override wins", async () => {
+  const FIRST = resolve("/first");
+  const SECOND = resolve("/second");
+  const { env } = makeEnv({
+    [join(FIRST, "project.yaml")]: { content: PROJECT_YAML, mtime: 1 },
+    [join(SECOND, "project.yaml")]: { content: PROJECT_YAML, mtime: 1 },
+  }, [FIRST, SECOND]);
+  const proj = await createProject(env);
+  assertEquals(proj.projectRoot, FIRST);
+});
+
+Deno.test("createProject: no candidate resolves → gated + message names dirs", async () => {
+  const OTHER = resolve("/elsewhere");
+  const { env } = makeEnv({}, [OTHER]); // no project files anywhere
+  const proj = await createProject(env);
+  assertEquals(proj.markspecDetected, false);
+  assertEquals(proj.projectRoot, undefined);
+  // Message starts with the load-bearing phrase and names both candidates.
+  assertStringIncludes(proj.softGateMessage, "No MarkSpec project found");
+  assertStringIncludes(proj.softGateMessage, OTHER);
+  assertStringIncludes(proj.softGateMessage, PROJ); // cwd is always a candidate
+  assertStringIncludes(proj.softGateMessage, "--root");
 });
