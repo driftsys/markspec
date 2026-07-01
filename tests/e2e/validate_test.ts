@@ -1809,10 +1809,10 @@ fn impl_debounce() {}
 // No args
 // ---------------------------------------------------------------------------
 
-Deno.test("validate: no files exits 1", async () => {
+Deno.test("validate: no files outside a project exits 1 with hint", async () => {
   const { code, stderr } = await markspec(["check"]);
   assertEquals(code, 1);
-  assertStringIncludes(stderr, "no files specified");
+  assertStringIncludes(stderr, "no project root found");
 });
 
 // ---------------------------------------------------------------------------

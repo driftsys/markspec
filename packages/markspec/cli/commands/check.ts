@@ -7,7 +7,7 @@
 import { Command } from "@cliffy/command";
 import { ConfigError } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
-import { loadActiveProfile, readFile } from "../helpers.ts";
+import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
 
 export const checkCmd = new Command()
   .description("Check broken refs, missing Ids, duplicates")
@@ -20,19 +20,18 @@ export const checkCmd = new Command()
   .arguments("[...files:string]")
   .action(
     async (
-      options: { strict?: boolean; format?: string },
-      ...files: string[]
+      options: { strict?: boolean; format?: string; quiet?: boolean },
+      ...fileArgs: string[]
     ) => {
-      if (files.length === 0) {
-        console.error("error: no files specified");
-        console.error("usage: markspec check <file...>");
-        Deno.exit(1);
-      }
+      const scope = await resolveScope(fileArgs, {
+        verb: "checking",
+        quiet: options.quiet === true || options.format === "json",
+      });
+      const files = scope.files;
+      const projectRoot = scope.projectRoot;
 
-      const { discoverProjectRoot, loadConfig } = await import(
-        "../../core/mod.ts"
-      );
-      const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
+      const { loadConfig } = await import("../../core/mod.ts");
+
       const chain = projectRoot !== undefined
         ? await loadActiveProfile(projectRoot)
         : null;
@@ -89,15 +88,17 @@ export const checkCmd = new Command()
         });
       }
 
-      // projectWide: false — check operates on a file-local subset so MSL-L006
-      // ("link target does not resolve") is suppressed: the subset cannot
-      // distinguish a typo from a valid cross-file target. Full existence checks
-      // are available via `markspec compile` or the LSP (which index all files).
+      // projectWide reflects the resolved scope: a bare invocation walks the
+      // whole project, so MSL-L006 ("link target does not resolve") is
+      // meaningful and fires. Explicit file args stay file-local — that
+      // subset cannot distinguish a typo from a valid cross-file target, so
+      // MSL-L006 is suppressed. Full existence checks are always available
+      // via `markspec compile` or the LSP (which index all files).
       const result = runPipeline(
         allEntries,
         chain?.effective ?? null,
         captionConventions,
-        { projectWide: false },
+        { projectWide: scope.projectWide },
       );
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
