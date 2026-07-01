@@ -37,10 +37,10 @@ Deno.test("--version flag prints version", async () => {
   assertMatch(stdout, /\d+\.\d+\.\d+/);
 });
 
-Deno.test("fmt with no args exits 1", async () => {
+Deno.test("fmt with no args outside a project exits 1 with hint", async () => {
   const { code, stderr } = await markspec(["fmt"]);
   assertEquals(code, 1);
-  assertStringIncludes(stderr, "no files specified");
+  assertStringIncludes(stderr, "no project root found");
 });
 
 Deno.test("book build without project.yaml exits 1", async () => {
