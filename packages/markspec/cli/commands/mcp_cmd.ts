@@ -21,7 +21,7 @@ export const mcpCmd = new Command()
   .description("Install or print MCP server configuration for a client")
   .option(
     "--client <client:string>",
-    "Client ID (claude-desktop|claude-code|cursor|opencode|vscode)",
+    "Client ID (claude-desktop|claude-code|cursor|opencode|vscode|copilot)",
     { required: true },
   )
   .option("--scope <scope:string>", "Config scope: user|workspace")

@@ -19,7 +19,8 @@ export type McpClientId =
   | "claude-code"
   | "cursor"
   | "opencode"
-  | "vscode";
+  | "vscode"
+  | "copilot";
 
 export const LSP_EDITOR_IDS: readonly LspEditorId[] = [
   "vscode",
@@ -32,6 +33,7 @@ export const MCP_CLIENT_IDS: readonly McpClientId[] = [
   "cursor",
   "opencode",
   "vscode",
+  "copilot",
 ];
 
 /** Max Levenshtein distance to emit a "did you mean" suggestion. */

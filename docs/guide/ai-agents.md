@@ -145,6 +145,61 @@ markspec mcp install --client opencode --scope workspace \
 The `--scope=user` flag is not supported for `opencode` — the config is always
 project-scoped (`opencode.json` at the repo root).
 
+### GitHub Copilot CLI
+
+`markspec mcp install --client copilot` writes a Copilot-shaped MCP entry. It is
+the one dual-scope client:
+
+| Scope       | Path                         | Notes                              |
+| ----------- | ---------------------------- | ---------------------------------- |
+| `workspace` | `.github/mcp.json`           | Default; committable, per-repo     |
+| `user`      | `~/.copilot/mcp-config.json` | Per-user, applies to every project |
+
+```sh
+markspec mcp install --client copilot                  # → .github/mcp.json
+markspec mcp install --client copilot --scope user      # → ~/.copilot/mcp-config.json
+markspec mcp install --client copilot --scope workspace \
+  --binary-path /opt/markspec/bin/markspec
+```
+
+The entry nests under `mcpServers.markspec` like Claude Desktop, but the
+local-server shape differs — it adds `type` and `tools`:
+
+```json
+{
+  "mcpServers": {
+    "markspec": {
+      "type": "local",
+      "command": "markspec",
+      "args": ["mcp"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+An omitted `--scope` defaults to `workspace`, matching the per-repo model of
+`markspec init`. The `.github/mcp.json` path (verified against
+`GitHub Copilot CLI 1.0.66`) is deliberately distinct from the `claude-code`
+client's `.mcp.json` so the two clients never contend for one file.
+
+**Editor / agent-mode surface.** `--client copilot` covers Copilot's _CLI_
+surfaces only — the file-based sources the terminal reads (`.github/mcp.json`,
+`~/.copilot/mcp-config.json`). Copilot's _in-editor_ agent mode is served
+differently: the `driftsys.markspec-ide` extension (below) registers the MCP
+server **programmatically** via VS Code's
+`lm.registerMcpServerDefinitionProvider` API (VS Code 1.101+), so it lands in
+the same agent-mode tool registry as a `.vscode/mcp.json` entry — without
+markspec writing that file. The extension route reaches only the in-editor
+agent; it cannot reach the Copilot CLI or a GitHub-hosted coding agent, which is
+why those file-based surfaces need `--client copilot`.
+
+This follows the **sanctioned-surfaces** policy: markspec writes MCP config only
+via a vendor CLI or a user/workspace file the client reads, never a file an app
+manages as its own private state. See
+[#637](https://github.com/driftsys/markspec/issues/637) for the policy's wider
+application to the Claude clients.
+
 ### VS Code (Copilot / Claude)
 
 The VS Code extension registers the MCP server automatically — no extra

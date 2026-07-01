@@ -689,7 +689,8 @@ markspec mcp install --client <client>
 
 | Flag            | Type   | Default             | Description                                                                                                                |
 | --------------- | ------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `--client`      | string | —                   | Client ID: `claude-desktop`, `cursor`, `vscode`.                                                                           |
+| `--client`      | string | —                   | Client ID: `claude-desktop`, `claude-code`, `cursor`, `opencode`, `vscode`, `copilot`.                                     |
+| `--scope`       | string | client default      | Config scope: `user` or `workspace`. Honoured by `copilot`; other clients are fixed to one scope.                          |
 | `--binary-path` | string | invoked binary name | Explicit path to the `markspec` binary. Default writes the invoked name (resolves via `PATH`, surviving package upgrades). |
 
 **Examples:**
@@ -698,6 +699,8 @@ markspec mcp install --client <client>
 markspec mcp install --client claude-desktop
 markspec mcp install --client cursor
 markspec mcp install --client vscode
+markspec mcp install --client copilot                 # → .github/mcp.json
+markspec mcp install --client copilot --scope user     # → ~/.copilot/mcp-config.json
 markspec mcp install --client claude-desktop --binary-path /opt/markspec/bin/markspec
 ```
 
