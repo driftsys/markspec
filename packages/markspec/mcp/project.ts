@@ -105,7 +105,8 @@ const SKIP_DIRS = new Set([
  * over the launch `cwd`. Order encodes precedence (first wins): explicit
  * `--root` flags, then `MARKSPEC_PROJECT_ROOT` (colon-separated, POSIX
  * `PATH`-style), then Claude Code's auto-injected `CLAUDE_PROJECT_DIR`. Blank
- * segments are dropped so an unset or empty env var contributes nothing.
+ * segments are dropped so an unset or empty env var contributes nothing, and
+ * each kept candidate is trimmed of surrounding whitespace.
  */
 export function buildRootOverrides(
   flagRoots: readonly string[],
@@ -113,16 +114,22 @@ export function buildRootOverrides(
   claudeProjectDir: string | undefined,
 ): string[] {
   const out: string[] = [];
+  // Push trimmed values: a padded candidate (e.g. " /real ") would otherwise
+  // reach discoverProjectRoot, whose resolve() treats a leading-space path as
+  // relative — silently producing a garbage root that never matches.
   for (const r of flagRoots) {
-    if (r.trim().length > 0) out.push(r);
+    const trimmed = r.trim();
+    if (trimmed.length > 0) out.push(trimmed);
   }
   if (markspecProjectRoot) {
     for (const seg of markspecProjectRoot.split(":")) {
-      if (seg.trim().length > 0) out.push(seg);
+      const trimmed = seg.trim();
+      if (trimmed.length > 0) out.push(trimmed);
     }
   }
-  if (claudeProjectDir && claudeProjectDir.trim().length > 0) {
-    out.push(claudeProjectDir);
+  if (claudeProjectDir) {
+    const trimmed = claudeProjectDir.trim();
+    if (trimmed.length > 0) out.push(trimmed);
   }
   return out;
 }

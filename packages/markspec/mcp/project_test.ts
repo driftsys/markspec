@@ -333,6 +333,16 @@ Deno.test("buildRootOverrides: drops blank/empty segments and missing env", () =
   assertEquals(buildRootOverrides([], "::/only:", ""), ["/only"]);
 });
 
+Deno.test("buildRootOverrides: trims surrounding whitespace on kept candidates", () => {
+  // A padded candidate must not survive with its spaces — a leading space
+  // would make discoverProjectRoot's resolve() treat the path as relative.
+  assertEquals(
+    buildRootOverrides([" /flag "], " /env ", " /claude "),
+    ["/flag", "/env", "/claude"],
+  );
+  assertEquals(buildRootOverrides([], " /a : /b ", undefined), ["/a", "/b"]);
+});
+
 // ---------------------------------------------------------------------------
 // detectMarkspecProject tests
 // ---------------------------------------------------------------------------
