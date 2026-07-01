@@ -129,6 +129,14 @@ jobs:
           }
           Write-Host "install.ps1 parses cleanly."
 
+  sh-installer:
+    name: POSIX installer syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint install.sh (POSIX sh)
+        run: shellcheck -s sh install.sh
+
   compile-smoke:
     name: Compiled binary smoke
     runs-on: ubuntu-latest

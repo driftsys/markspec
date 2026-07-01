@@ -1,14 +1,18 @@
-#!/bin/bash
+#!/bin/sh
 # Install markspec — downloads the latest release binary for the current platform.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/driftsys/markspec/main/install.sh | sh
 #
 # Environment variables:
 #   MARKSPEC_INSTALL_DIR  Installation directory (default: $HOME/.local/bin)
 #   MARKSPEC_VERSION      Version to install (default: latest)
 
-set -euo pipefail
+# `local` (SC3043) is not in POSIX, but every real /bin/sh — dash, busybox
+# ash — supports it, so it is a documented non-blocker rather than a reason
+# to fall back to subshell-scoped workarounds.
+# shellcheck disable=SC3043
+set -eu
 
 REPO="driftsys/markspec"
 INSTALL_DIR="${MARKSPEC_INSTALL_DIR:-$HOME/.local/bin}"
@@ -40,12 +44,20 @@ detect_target() {
 
 get_version() {
   if [ -n "${MARKSPEC_VERSION:-}" ]; then
-    echo "$MARKSPEC_VERSION"
-  else
-    gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null \
-      || curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-           | grep '"tag_name"' | head -1 | cut -d'"' -f4
+    printf '%s\n' "$MARKSPEC_VERSION"
+    return
   fi
+
+  if version=$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null); then
+    printf '%s\n' "$version"
+    return
+  fi
+
+  # gh unavailable — fall back to the REST API. Capture the fallible curl on
+  # its own line so `set -e` catches a failure (pipefail is not POSIX).
+  body=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest") \
+    || { echo "error: could not reach GitHub API" >&2; exit 1; }
+  printf '%s\n' "$body" | grep '"tag_name"' | head -1 | cut -d'"' -f4
 }
 
 main() {
