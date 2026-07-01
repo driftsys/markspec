@@ -131,7 +131,9 @@ rewrites source files, unlike `check`/`lint` which also cover source doc
 comments.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
-recursively through the same gitignore-aware filter:
+recursively with `.gitignore` (and the built-in hidden-directory skip) applied —
+`project.yaml` `exclude:` patterns are honored only for bare whole-project
+invocation, not for explicitly-named directories:
 
 ```sh
 # a subtree

@@ -61,8 +61,10 @@ it too.
   skip list).
 - I/O is injected (same convention as `ReadFile`) so the module stays
   Node-compatible; CLI and LSP entry points pass the Deno implementation.
-- Directory arguments to commands expand recursively through the same filter
-  (`markspec check docs/`).
+- Directory arguments to commands expand recursively through `.gitignore` and
+  the built-in hidden-directory skip (`markspec check docs/`); `project.yaml`
+  `exclude:` applies only to the whole-project default scope, not to
+  explicitly-named directories.
 
 ### 2. Default scope and argument handling
 
@@ -73,7 +75,9 @@ Shared resolution logic for all three verbs:
   with a hint (`run 'markspec init' or pass explicit files`). Never silently
   scans an arbitrary cwd.
 - **Explicit args** → files taken as-is; directories expand through the
-  discovery filter. Scope is exactly what was named.
+  discovery filter's `.gitignore` and hidden-directory skip, but not
+  `project.yaml` `exclude:` (whole-project-default only). Scope is exactly what
+  was named.
 - A one-line scope header on **stderr** (`checking 142 files under <root>`),
   suppressed by `-q` and in `--format json` mode.
 - `lint`'s required `<paths...>` becomes optional `[...paths]`.
