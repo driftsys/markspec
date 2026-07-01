@@ -725,10 +725,11 @@ export function renderAttributeBlock(
 
 /**
  * Find the 0-based line index where a list item's content ends.
+ * Exported for the ADR-029 prose pass (entry-extent computation).
  * Scans forward from the entry start, stopping at: a sibling list item
  * (`- ` at the entry's marker column), a line with less indent, or EOF.
  */
-function findItemEnd(
+export function findItemEnd(
   lines: readonly string[],
   startIdx: number,
   indent: number,
