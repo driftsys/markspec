@@ -15,6 +15,15 @@ Deno.test("--help prints usage and lists subcommands", async () => {
   assertStringIncludes(stdout, "mcp");
 });
 
+Deno.test("no args prints help (clig.dev)", async () => {
+  const { code, stdout } = await markspec([]);
+  assertEquals(code, 0);
+  // Same top-of-output as --help.
+  assertStringIncludes(stdout, "markspec");
+  assertStringIncludes(stdout, "Commands");
+  assertStringIncludes(stdout, "check");
+});
+
 Deno.test("version subcommand prints version", async () => {
   const { code, stdout } = await markspec(["version"]);
   assertEquals(code, 0);
