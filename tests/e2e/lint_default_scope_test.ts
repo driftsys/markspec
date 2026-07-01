@@ -6,6 +6,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { join } from "@std/path";
 import { markspec } from "./helpers.ts";
 
 const PROJECT_YAML = `name: lint-scope-e2e\nversion: 0.1.0\n`;
@@ -32,8 +33,10 @@ Deno.test("lint: bare invocation lints the whole project", async () => {
   // Warning-only run exits 2; the finding comes from the tracked file
   // and the gitignored copy contributes nothing.
   assertEquals(code, 2, `stderr: ${stderr}`);
-  assertStringIncludes(stderr, "docs/req.md");
-  assertEquals(stderr.includes("drafts/ignored.md"), false);
+  // Diagnostic paths use the OS-native separator (`\` on Windows), so
+  // build the expected fragments with `join` rather than a literal `/`.
+  assertStringIncludes(stderr, join("docs", "req.md"));
+  assertEquals(stderr.includes(join("drafts", "ignored.md")), false);
 });
 
 Deno.test("lint: bare invocation outside a project errors with hint", async () => {

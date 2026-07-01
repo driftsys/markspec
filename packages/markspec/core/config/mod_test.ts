@@ -237,32 +237,29 @@ Deno.test("loadConfig: throws ConfigError on invalid project.yaml", async () => 
 // ---------------------------------------------------------------------------
 
 Deno.test("loadConfig: parses exclude as string array", async () => {
+  const proj = resolve("/proj");
   const yaml =
     `name: t\nversion: 0.1.0\nexclude:\n  - "skills/"\n  - "*.gen.md"\n`;
-  const result = await loadConfig(
-    "/proj",
-    (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
-  );
+  const files: Record<string, string> = { [join(proj, "project.yaml")]: yaml };
+  const result = await loadConfig(proj, (p) => Promise.resolve(files[p]));
   assertEquals(result?.config.exclude, ["skills/", "*.gen.md"]);
 });
 
 Deno.test("loadConfig: exclude defaults to empty", async () => {
+  const proj = resolve("/proj");
   const yaml = `name: t\nversion: 0.1.0\n`;
-  const result = await loadConfig(
-    "/proj",
-    (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
-  );
+  const files: Record<string, string> = { [join(proj, "project.yaml")]: yaml };
+  const result = await loadConfig(proj, (p) => Promise.resolve(files[p]));
   assertEquals(result?.config.exclude, []);
 });
 
 Deno.test("loadConfig: non-array exclude is a ConfigError", async () => {
+  const proj = resolve("/proj");
   const yaml = `name: t\nversion: 0.1.0\nexclude: nope\n`;
+  const files: Record<string, string> = { [join(proj, "project.yaml")]: yaml };
   let threw = false;
   try {
-    await loadConfig(
-      "/proj",
-      (p) => Promise.resolve(p === "/proj/project.yaml" ? yaml : undefined),
-    );
+    await loadConfig(proj, (p) => Promise.resolve(files[p]));
   } catch (err) {
     threw = err instanceof ConfigError;
   }
