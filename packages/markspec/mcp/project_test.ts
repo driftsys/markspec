@@ -17,6 +17,7 @@ import {
   buildRootOverrides,
   checkFileStaleness,
   createProject,
+  defaultEnv,
   detectMarkspecProject,
   type ProjectEnv,
   SOFT_GATE_MESSAGE,
@@ -431,4 +432,24 @@ Deno.test("createProject: no candidate resolves → gated + message names dirs",
   assertStringIncludes(proj.softGateMessage, OTHER);
   assertStringIncludes(proj.softGateMessage, PROJ); // cwd is always a candidate
   assertStringIncludes(proj.softGateMessage, "--root");
+});
+
+// ---------------------------------------------------------------------------
+// defaultEnv env-read wiring test (Task 4)
+// ---------------------------------------------------------------------------
+
+Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => {
+  const prevMs = Deno.env.get("MARKSPEC_PROJECT_ROOT");
+  const prevCc = Deno.env.get("CLAUDE_PROJECT_DIR");
+  try {
+    Deno.env.set("MARKSPEC_PROJECT_ROOT", "/env/ms");
+    Deno.env.set("CLAUDE_PROJECT_DIR", "/env/cc");
+    const env = defaultEnv(["/flag/x"]);
+    assertEquals(env.rootOverrides(), ["/flag/x", "/env/ms", "/env/cc"]);
+  } finally {
+    if (prevMs === undefined) Deno.env.delete("MARKSPEC_PROJECT_ROOT");
+    else Deno.env.set("MARKSPEC_PROJECT_ROOT", prevMs);
+    if (prevCc === undefined) Deno.env.delete("CLAUDE_PROJECT_DIR");
+    else Deno.env.set("CLAUDE_PROJECT_DIR", prevCc);
+  }
 });
