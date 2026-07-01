@@ -112,3 +112,31 @@ Deno.test("check: clean project exits 0", async () => {
   });
   assertEquals(code, 0, `expected exit 0; stderr: ${stderr}`);
 });
+
+Deno.test("check: unformatted file fails the gate with MSL-F010", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      // Missing Id: — `markspec fmt` would stamp it, so this is drift.
+      "docs/unformatted.md": `# Doc
+
+- [REQ-0002] Unformatted
+
+  The system shall respond within 200 ms.
+
+      Type: requirement
+`,
+    },
+  });
+  assertStringIncludes(stderr, "MSL-F010");
+  assertStringIncludes(stderr, "markspec fmt");
+  assertEquals(code, 1); // error severity blocks
+});
+
+Deno.test("check: formatted project does not emit MSL-F010", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: { ...BASE_FILES, "docs/req.md": CLEAN_REQ },
+  });
+  assertEquals(stderr.includes("MSL-F010"), false, stderr);
+  assertEquals(code, 0, stderr);
+});

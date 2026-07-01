@@ -69,6 +69,7 @@ export const checkCmd = new Command()
       const parseDiagnostics: Diagnostic[] = [];
       // deno-lint-ignore no-explicit-any
       const listingContexts: any[] = [];
+      const mdContents = new Map<string, string>();
       for (const filePath of files) {
         let content: string;
         try {
@@ -77,6 +78,7 @@ export const checkCmd = new Command()
           console.error(`error: ${filePath}: file not found`);
           Deno.exit(1);
         }
+        if (filePath.endsWith(".md")) mdContents.set(filePath, content);
         const result = await parseFile(content, { file: filePath });
         allEntries.push(...result.entries);
         parseDiagnostics.push(...result.diagnostics);
@@ -103,11 +105,29 @@ export const checkCmd = new Command()
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
-      // Merge parse-level (MSL-P0xx), pipeline, and listing diagnostics.
+      // Gate: fmt drift. Markdown only — `markspec fmt` never rewrites
+      // source files. format() is the same code path fmt uses, so the
+      // gate exactly matches what fmt would change.
+      const { format } = await import("../../core/mod.ts");
+      const fmtDiagnostics: Diagnostic[] = [];
+      for (const [filePath, content] of mdContents) {
+        if (format(content, { file: filePath }).changed) {
+          fmtDiagnostics.push({
+            code: "MSL-F010",
+            severity: "error",
+            message: "file is not formatted (run `markspec fmt`)",
+            location: { file: filePath, line: 1, column: 1 },
+          });
+        }
+      }
+
+      // Merge parse-level (MSL-P0xx), pipeline, listing, and fmt-drift
+      // diagnostics.
       const allDiagnostics = [
         ...parseDiagnostics,
         ...result.diagnostics,
         ...listingDiagnostics,
+        ...fmtDiagnostics,
       ];
 
       // Apply --strict: promote warnings to errors.
