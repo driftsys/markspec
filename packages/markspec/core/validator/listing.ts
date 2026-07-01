@@ -71,7 +71,9 @@ const UNIT_FAMILY: ReadonlySet<string> = new Set([
 
 /** Listing kind implied by a file's basename, or null if not a listing file. */
 function filenameKind(file: string): ListingKind | null {
-  const base = basename(file).toLowerCase().replace(/\.[^.]+$/, "");
+  const name = basename(file).toLowerCase();
+  if (!name.endsWith(".md")) return null;
+  const base = name.replace(/\.md$/, "");
   if (base === "references") return "references";
   if (base === "glossary") return "glossary";
   if (base === "components") return "components";
