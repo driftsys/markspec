@@ -177,6 +177,26 @@ Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
     const drifted = await markspecInDir(run.dir, ["check"]);
     assertStringIncludes(drifted.stderr, "MSL-L212");
     assertEquals(drifted.code, 1);
+
+    // 4. JSON consumers that group by location.file must not drop MSL-L212 —
+    // the diagnostic carries a markspec.lock location (like MSL-F010 does).
+    const json = await markspecInDir(run.dir, ["check", "--format", "json"]);
+    assertEquals(json.code, 1);
+    const diags = JSON.parse(json.stdout) as Array<Record<string, unknown>>;
+    const l212 = diags.find((d) => d.code === "MSL-L212");
+    assertEquals(
+      l212 !== undefined,
+      true,
+      `expected MSL-L212; got ${json.stdout}`,
+    );
+    const loc = l212!.location as { file?: string } | null | undefined;
+    assertEquals(
+      typeof loc?.file === "string" && loc.file.endsWith("markspec.lock"),
+      true,
+      `MSL-L212 must carry a markspec.lock location; got ${
+        JSON.stringify(loc)
+      }`,
+    );
   } finally {
     await Deno.remove(run.dir, { recursive: true });
   }

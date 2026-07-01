@@ -147,7 +147,11 @@ export const checkCmd = new Command()
                 severity: "error",
                 message:
                   `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} (run \`markspec lock\` to refresh)`,
-                location: undefined,
+                location: {
+                  file: join(projectRoot, "markspec.lock"),
+                  line: 1,
+                  column: 1,
+                },
               });
             }
           }
