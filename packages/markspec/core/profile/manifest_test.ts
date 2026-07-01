@@ -1380,3 +1380,57 @@ profile: {}
   assertEquals(diagnostics.filter((d) => d.severity === "error").length, 0);
   assertEquals(manifest?.disciplineMode, undefined);
 });
+
+Deno.test("parseManifest: delivers section parses path/corpus/description", () => {
+  const { manifest, diagnostics } = parseManifest(
+    `id: p\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
+      `profile:\n  delivers:\n` +
+      `    - path: reference/arch.md\n      corpus: true\n      description: Ref arch\n` +
+      `    - path: reference/guide.md\n`,
+  );
+  assertEquals(diagnostics.filter((d) => d.severity === "error"), []);
+  assertEquals(manifest?.delivers, [
+    { path: "reference/arch.md", corpus: true, description: "Ref arch" },
+    { path: "reference/guide.md", corpus: false, description: undefined },
+  ]);
+});
+
+Deno.test("parseManifest: delivers path escaping profile dir is PROFILE-DELIVERS-003", () => {
+  for (const bad of ["../secrets.md", "/etc/passwd", "a/../../b.md"]) {
+    const { diagnostics } = parseManifest(
+      `id: p\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
+        `profile:\n  delivers:\n    - path: "${bad}"\n`,
+    );
+    assertEquals(
+      diagnostics.some((d) => d.code === "PROFILE-DELIVERS-003"),
+      true,
+      bad,
+    );
+  }
+});
+
+Deno.test("parseManifest: corpus on non-md file is PROFILE-DELIVERS-004", () => {
+  const { diagnostics } = parseManifest(
+    `id: p\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
+      `profile:\n  delivers:\n    - path: data.csv\n      corpus: true\n`,
+  );
+  assertEquals(
+    diagnostics.some((d) => d.code === "PROFILE-DELIVERS-004"),
+    true,
+  );
+});
+
+Deno.test("parseManifest: duplicate delivers path is a load error", () => {
+  const { diagnostics } = parseManifest(
+    `id: p\nversion: 1.0.0\nmarkspec-schema: "1"\n` +
+      `profile:\n  delivers:\n    - path: a.md\n    - path: a.md\n`,
+  );
+  assertEquals(diagnostics.some((d) => d.code === "PROFILE-LOAD-003"), true);
+});
+
+Deno.test("parseManifest: manifest without delivers has empty list", () => {
+  const { manifest } = parseManifest(
+    `id: p\nversion: 1.0.0\nmarkspec-schema: "1"\n`,
+  );
+  assertEquals(manifest?.delivers, []);
+});

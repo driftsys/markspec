@@ -168,6 +168,23 @@ export interface DocTypeDef {
 }
 
 // ---------------------------------------------------------------------------
+// Delivered documents (ADR-029)
+// ---------------------------------------------------------------------------
+
+/**
+ * One `profile.delivers:` item as authored in `markspec.yaml`. `path` is
+ * relative to the profile directory, `/`-separated, and validated at parse
+ * time to stay inside it. `corpus: true` marks a Markdown file whose entries
+ * join the consuming project's traceability graph (ADR-029); default `false`
+ * means documentation-only.
+ */
+export interface DeliversDecl {
+  readonly path: string;
+  readonly corpus: boolean;
+  readonly description?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Profile manifest
 // ---------------------------------------------------------------------------
 
@@ -218,6 +235,10 @@ export interface ProfileManifest {
     readonly types: readonly DocTypeDef[];
     readonly frontMatter: readonly AttrDecl[];
   };
+
+  /** Files this profile delivers to consumers (ADR-029). Empty when the
+   * manifest declares no `profile.delivers:`. */
+  readonly delivers: readonly DeliversDecl[];
 
   /**
    * Profile-declared discipline kinds (ADR-017 Invariant 2). Maps kind

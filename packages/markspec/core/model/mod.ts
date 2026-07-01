@@ -893,6 +893,7 @@ export interface Document {
 export type {
   AttrDecl,
   Cardinality,
+  DeliversDecl,
   DisciplineMode,
   DocTypeDef,
   EffectiveProfile,
