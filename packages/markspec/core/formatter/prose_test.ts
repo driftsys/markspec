@@ -68,6 +68,27 @@ Deno.test("prose: no entries — whole document is one segment", () => {
   assertEquals(res.changed, true);
 });
 
+Deno.test("prose: overlapping or malformed extents never duplicate lines or reach the formatter", () => {
+  const calls: string[] = [];
+  const identitySpy = (md: string): string => {
+    calls.push(md);
+    return md.endsWith("\n") ? md : md + "\n";
+  };
+  const res = formatProseSegments(
+    DOC,
+    [{ start: 5, end: 10 }, { start: 8, end: 12 }, { start: 5, end: 3 }],
+    identitySpy,
+  );
+  // Output is byte-identical: every input line exactly once, no change.
+  assertEquals(res.lines, DOC);
+  assertEquals(res.changed, false);
+  // No entry-block line was ever handed to the formatter.
+  for (const chunk of calls) {
+    assertEquals(chunk.includes("STK_0001"), false);
+    assertEquals(chunk.includes("Id: 01JADYKACKQKGVGHT9K7Y6PBPA"), false);
+  }
+});
+
 Deno.test("prose: already-canonical input is a no-op", () => {
   const res = formatProseSegments(
     [

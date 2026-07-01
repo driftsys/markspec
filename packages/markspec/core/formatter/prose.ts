@@ -77,9 +77,16 @@ export function formatProseSegments(
   };
 
   for (const extent of extents) {
-    if (extent.start > cursor) flushProse(cursor, extent.start);
-    out.push(...lines.slice(extent.start, extent.end));
-    cursor = extent.end;
+    // Defensive clamp: extents from a healthy parse are disjoint and
+    // well-formed, but this module is the last guard between entry
+    // blocks and the prose formatter — never re-emit lines already
+    // written (overlap/duplicate extents) and treat end < start as
+    // zero-width instead of walking the cursor backwards.
+    const start = Math.max(extent.start, cursor);
+    const end = Math.max(extent.end, start);
+    if (start > cursor) flushProse(cursor, start);
+    out.push(...lines.slice(start, end));
+    cursor = end;
   }
   if (cursor < lines.length) flushProse(cursor, lines.length);
 
