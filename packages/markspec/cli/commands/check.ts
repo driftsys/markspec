@@ -105,19 +105,22 @@ export const checkCmd = new Command()
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
-      // Gate: fmt drift. Markdown only — `markspec fmt` never rewrites
-      // source files. format() is the same code path fmt uses, so the
-      // gate exactly matches what fmt would change.
-      const { format } = await import("../../core/mod.ts");
+      // Gate: fmt drift (project-wide only — the composite `check` gate; a
+      // file-local `check <file>` stays a fast structural check, and the
+      // canonical agent path runs `fmt` before `check`). Markdown only —
+      // `markspec fmt` never rewrites source files.
       const fmtDiagnostics: Diagnostic[] = [];
-      for (const [filePath, content] of mdContents) {
-        if (format(content, { file: filePath }).changed) {
-          fmtDiagnostics.push({
-            code: "MSL-F010",
-            severity: "error",
-            message: "file is not formatted (run `markspec fmt`)",
-            location: { file: filePath, line: 1, column: 1 },
-          });
+      if (scope.projectWide) {
+        const { format } = await import("../../core/mod.ts");
+        for (const [filePath, content] of mdContents) {
+          if (format(content, { file: filePath }).changed) {
+            fmtDiagnostics.push({
+              code: "MSL-F010",
+              severity: "error",
+              message: "file is not formatted (run `markspec fmt`)",
+              location: { file: filePath, line: 1, column: 1 },
+            });
+          }
         }
       }
 
