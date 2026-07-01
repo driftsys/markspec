@@ -7,7 +7,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { markspec } from "./helpers.ts";
+import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
 
 const PROJECT_YAML = `name: check-project-e2e\nversion: 0.1.0\n`;
 
@@ -34,7 +34,7 @@ export const BASE_FILES = {
   "profiles/p/markspec.yaml": PROFILE_YAML,
 };
 
-const CLEAN_REQ = `# Requirements
+export const CLEAN_REQ = `# Requirements
 
 - [REQ-0001] Response time
 
@@ -138,5 +138,69 @@ Deno.test("check: formatted project does not emit MSL-F010", async () => {
     files: { ...BASE_FILES, "docs/req.md": CLEAN_REQ },
   });
   assertEquals(stderr.includes("MSL-F010"), false, stderr);
+  assertEquals(code, 0, stderr);
+});
+
+Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
+  // 1. Build a project and generate a lockfile that pins its edges.
+  const run = await markspecPersist(["lock"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "docs/sreq.md": `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+      Satisfies: REQ-0001
+`,
+    },
+    permissions: ["--allow-net", "--allow-env", "--allow-run"],
+  });
+  try {
+    assertEquals(run.code, 0, `lock failed: ${run.stderr}`);
+
+    // 2. In-sync project: check passes the lockfile gate.
+    const clean = await markspecInDir(run.dir, ["check"]);
+    assertEquals(clean.stderr.includes("MSL-L212"), false, clean.stderr);
+
+    // 3. Change the traceability graph without re-locking.
+    const sreqPath = `${run.dir}/docs/sreq.md`;
+    const content = await Deno.readTextFile(sreqPath);
+    await Deno.writeTextFile(
+      sreqPath,
+      content.replace("Satisfies: REQ-0001", ""),
+    );
+    const drifted = await markspecInDir(run.dir, ["check"]);
+    assertStringIncludes(drifted.stderr, "MSL-L212");
+    assertEquals(drifted.code, 1);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("check: malformed lockfile is an error", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "markspec.lock": "this is not toml {{{",
+    },
+  });
+  assertEquals(code, 1, stderr);
+});
+
+Deno.test("check: lockfile gate skipped in file-local mode", async () => {
+  const { code, stderr } = await markspec(["check", "docs/req.md"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "markspec.lock": "this is not toml {{{",
+    },
+  });
+  assertEquals(stderr.includes("MSL-L2"), false, stderr);
   assertEquals(code, 0, stderr);
 });

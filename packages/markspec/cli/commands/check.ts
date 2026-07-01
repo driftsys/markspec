@@ -124,13 +124,44 @@ export const checkCmd = new Command()
         }
       }
 
-      // Merge parse-level (MSL-P0xx), pipeline, listing, and fmt-drift
-      // diagnostics.
+      // Gate: lockfile (project-wide only; needs the full corpus to
+      // recompute the canonical edge hash). Offline by design — upstream
+      // resolution (network) stays in `markspec lock --check`.
+      const lockDiagnostics: Diagnostic[] = [];
+      if (scope.projectWide && projectRoot !== undefined) {
+        const { join } = await import("@std/path");
+        const lockRaw = await readFile(join(projectRoot, "markspec.lock"));
+        if (lockRaw !== undefined) {
+          const { extractEdgeQuads, hashCanonicalEdges, parseLockfile } =
+            await import("../../core/mod.ts");
+          const parsed = parseLockfile(lockRaw);
+          if (!parsed.lockfile) {
+            lockDiagnostics.push(...parsed.diagnostics);
+          } else {
+            const quads = extractEdgeQuads(allEntries);
+            const currentHash = await hashCanonicalEdges(quads);
+            const cache = parsed.lockfile.generatedCache;
+            if (cache.edgesHash !== currentHash) {
+              lockDiagnostics.push({
+                code: "MSL-L212",
+                severity: "error",
+                message:
+                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} (run \`markspec lock\` to refresh)`,
+                location: undefined,
+              });
+            }
+          }
+        }
+      }
+
+      // Merge parse-level (MSL-P0xx), pipeline, listing, fmt-drift, and
+      // lockfile-drift diagnostics.
       const allDiagnostics = [
         ...parseDiagnostics,
         ...result.diagnostics,
         ...listingDiagnostics,
         ...fmtDiagnostics,
+        ...lockDiagnostics,
       ];
 
       // Apply --strict: promote warnings to errors.
