@@ -410,6 +410,11 @@ function extractEntry(
       const colonMatch = COLON_SPLIT_RE.exec(trimmed);
       if (!colonMatch) break; // stop at non-colon line
       const key = colonMatch[1].trim();
+      // A genuine trailer key is a single token; it never contains internal
+      // whitespace or a pipe. A colon inside prose ("modes are: fast") or a
+      // Markdown table row ("| Fast | latency: 200ms |") is body content, not
+      // a malformed trailer — stop scanning at it (#648).
+      if (/[\s|]/.test(key)) break;
       if (ATTR_LINE_RE.test(trimmed)) {
         // Valid attr line in body → already caught by P020
         continue;
