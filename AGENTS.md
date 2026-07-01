@@ -430,7 +430,7 @@ docs/
   `MSL-L006` existence warning; lockfile `[[edge]]` ULID ledger; `core/refs/`
   purity boundary; `fmt` canonicalise + rename-heal; MSL-L006 vs deferred
   ADR-012 §8.3 T-family; additive `[[edge]]` on ADR-022 lockfile
-- `adr-027-mcp-project-discovery.md` — `markspec mcp` resolves its project root
+- `adr-028-mcp-project-discovery.md` — `markspec mcp` resolves its project root
   from an ordered candidate list (`--root` > `MARKSPEC_PROJECT_ROOT` >
   `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots
   deliberately dropped (unimplemented on Claude Code); soft gate names the

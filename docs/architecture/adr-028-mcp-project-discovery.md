@@ -1,4 +1,4 @@
-# ADR-027 — MCP project-root discovery
+# ADR-028 — MCP project-root discovery
 
 Status: Accepted (2026-07-01)\
 Related: [ADR-023](./adr-023-mcp-trigger-language.md) — this ADR governs how the
