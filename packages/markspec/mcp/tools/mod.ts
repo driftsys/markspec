@@ -12,7 +12,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { type Project, SOFT_GATE_MESSAGE } from "../project.ts";
+import type { Project } from "../project.ts";
 import {
   ENTRY_SEARCH_DESCRIPTOR,
   renderSearchResults,
@@ -165,7 +165,7 @@ export async function dispatchTool(
     if (!HANDLERS[name]) {
       throw new Error(`unknown tool: ${name}`);
     }
-    return SOFT_GATE_MESSAGE;
+    return project.softGateMessage;
   }
   const handler = HANDLERS[name];
   if (!handler) {

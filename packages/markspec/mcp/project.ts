@@ -33,6 +33,20 @@ export const SOFT_GATE_MESSAGE =
   "No MarkSpec project found in this workspace (looked for .markspec.yaml and project.yaml from cwd upward). This MCP server has no work to do here — stop calling MarkSpec tools.";
 
 /**
+ * Compose the soft-gate message that names every directory searched. Starts
+ * with the same load-bearing phrase as {@linkcode SOFT_GATE_MESSAGE} (ADR-023)
+ * and points the operator at the `--root` / `MARKSPEC_PROJECT_ROOT` remedies.
+ */
+export function buildSoftGateMessage(searchedDirs: readonly string[]): string {
+  const dirs = searchedDirs.join(", ");
+  return "No MarkSpec project found in this workspace.\n" +
+    `Searched from: ${dirs} (walked upward for .markspec.yaml / project.yaml).\n` +
+    "Point the server at your project with `markspec mcp --root <path>` or the " +
+    "MARKSPEC_PROJECT_ROOT environment variable. This server has no work to do " +
+    "here — stop calling MarkSpec tools.";
+}
+
+/**
  * Detect whether the workspace at `cwd` is a MarkSpec project.
  *
  * Walks up from `cwd` checking for either `project.yaml` (canonical config)
@@ -86,10 +100,50 @@ const SKIP_DIRS = new Set([
   ".claude",
 ]);
 
+/**
+ * Assemble the ordered project-root override candidates that take precedence
+ * over the launch `cwd`. Order encodes precedence (first wins): explicit
+ * `--root` flags, then `MARKSPEC_PROJECT_ROOT` (colon-separated, POSIX
+ * `PATH`-style), then Claude Code's auto-injected `CLAUDE_PROJECT_DIR`. Blank
+ * segments are dropped so an unset or empty env var contributes nothing, and
+ * each kept candidate is trimmed of surrounding whitespace.
+ */
+export function buildRootOverrides(
+  flagRoots: readonly string[],
+  markspecProjectRoot: string | undefined,
+  claudeProjectDir: string | undefined,
+): string[] {
+  const out: string[] = [];
+  // Push trimmed values: a padded candidate (e.g. " /real ") would otherwise
+  // reach discoverProjectRoot, whose resolve() treats a leading-space path as
+  // relative — silently producing a garbage root that never matches.
+  for (const r of flagRoots) {
+    const trimmed = r.trim();
+    if (trimmed.length > 0) out.push(trimmed);
+  }
+  if (markspecProjectRoot) {
+    for (const seg of markspecProjectRoot.split(":")) {
+      const trimmed = seg.trim();
+      if (trimmed.length > 0) out.push(trimmed);
+    }
+  }
+  if (claudeProjectDir) {
+    const trimmed = claudeProjectDir.trim();
+    if (trimmed.length > 0) out.push(trimmed);
+  }
+  return out;
+}
+
 /** Filesystem + environment shim, injectable for tests. */
 export interface ProjectEnv {
   /** Return the starting working directory used for root discovery. */
   cwd(): string;
+  /**
+   * Ordered project-root override candidates that take precedence over
+   * {@linkcode ProjectEnv.cwd} during discovery. See
+   * {@linkcode buildRootOverrides}.
+   */
+  rootOverrides(): string[];
   /** Read a file's text content, or undefined if missing. */
   readFile: ReadFile;
   /** Return the file's last-modified time in milliseconds since epoch. */
@@ -155,6 +209,12 @@ export interface Project {
    * `false`. Per ADR-023 §6.
    */
   readonly markspecDetected: boolean;
+  /**
+   * Human-readable "no project here" message naming the directories searched,
+   * for tools/resources to return when {@linkcode Project.markspecDetected} is
+   * `false`. Starts with the load-bearing ADR-023 phrase.
+   */
+  readonly softGateMessage: string;
   /** Loaded project config, or undefined when no `project.yaml` was found. */
   readonly config: ProjectConfig | undefined;
   /** Active profile chain, or null when no profile is configured. */
@@ -176,9 +236,22 @@ export interface Project {
  * never construct one of these directly — accept a `ProjectEnv` instead so
  * tests can supply an in-memory shim.
  */
-export function defaultEnv(): ProjectEnv {
+export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
+  const envGet = (key: string): string | undefined => {
+    try {
+      return Deno.env.get(key);
+    } catch {
+      return undefined; // --allow-env not granted; treat as unset
+    }
+  };
   return {
     cwd: () => Deno.cwd(),
+    rootOverrides: () =>
+      buildRootOverrides(
+        flagRoots,
+        envGet("MARKSPEC_PROJECT_ROOT"),
+        envGet("CLAUDE_PROJECT_DIR"),
+      ),
     readFile: async (path: string) => {
       try {
         return await Deno.readTextFile(path);
@@ -221,9 +294,19 @@ async function* walkFs(dir: string): AsyncGenerator<string> {
  * method awaits the background compile on first call.
  */
 export async function createProject(env: ProjectEnv): Promise<Project> {
-  const cwd = env.cwd();
-  const markspecDetected = await detectMarkspecProject(cwd, env.readFile);
-  const projectRoot = await discoverProjectRoot(cwd, env.readFile);
+  // Ordered discovery candidates: explicit overrides first (Task 1), launch
+  // cwd last. First candidate whose upward walk detects a project wins (D2).
+  const candidates = [...env.rootOverrides(), env.cwd()];
+  let markspecDetected = false;
+  let projectRoot: string | undefined;
+  for (const candidate of candidates) {
+    if (await detectMarkspecProject(candidate, env.readFile)) {
+      markspecDetected = true;
+      projectRoot = await discoverProjectRoot(candidate, env.readFile);
+      break;
+    }
+  }
+  const softGateMessage = buildSoftGateMessage(candidates);
 
   let config: ProjectConfig | undefined;
   let profileChain: ProfileChain | null = null;
@@ -372,6 +455,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   return {
     projectRoot,
     markspecDetected,
+    softGateMessage,
     config,
     profileChain,
     profile: profileChain?.effective,
