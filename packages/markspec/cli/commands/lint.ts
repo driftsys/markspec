@@ -6,7 +6,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { compileProject } from "../helpers.ts";
+import { compileProject, resolveScope } from "../helpers.ts";
 
 export const lintCmd = new Command()
   .description(
@@ -18,13 +18,17 @@ export const lintCmd = new Command()
     { default: "text" },
   )
   .option("--strict", "Promote warnings to errors")
-  .arguments("<paths...:string>")
+  .arguments("[...paths:string]")
   .action(
     async (
-      options: { format?: string; strict?: boolean },
+      options: { format?: string; strict?: boolean; quiet?: boolean },
       ...paths: string[]
     ) => {
-      const { result } = await compileProject(paths);
+      const scope = await resolveScope(paths, {
+        verb: "linting",
+        quiet: options.quiet === true || options.format === "json",
+      });
+      const { result } = await compileProject(scope.files);
       const { runLint } = await import("../../core/mod.ts");
       const lintResult = await runLint({
         entries: [...result.entries.values()],

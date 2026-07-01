@@ -24,6 +24,7 @@ function testConfig(): ProjectConfig {
     parents: [],
     parentFallback: "",
     captionConventions: {},
+    exclude: [],
   };
 }
 

@@ -7,7 +7,7 @@
 import { Command } from "@cliffy/command";
 import { ConfigError } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
-import { loadActiveProfile, readFile } from "../helpers.ts";
+import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
 
 export const checkCmd = new Command()
   .description("Check broken refs, missing Ids, duplicates")
@@ -20,19 +20,18 @@ export const checkCmd = new Command()
   .arguments("[...files:string]")
   .action(
     async (
-      options: { strict?: boolean; format?: string },
-      ...files: string[]
+      options: { strict?: boolean; format?: string; quiet?: boolean },
+      ...fileArgs: string[]
     ) => {
-      if (files.length === 0) {
-        console.error("error: no files specified");
-        console.error("usage: markspec check <file...>");
-        Deno.exit(1);
-      }
+      const scope = await resolveScope(fileArgs, {
+        verb: "checking",
+        quiet: options.quiet === true || options.format === "json",
+      });
+      const files = scope.files;
+      const projectRoot = scope.projectRoot;
 
-      const { discoverProjectRoot, loadConfig } = await import(
-        "../../core/mod.ts"
-      );
-      const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
+      const { loadConfig } = await import("../../core/mod.ts");
+
       const chain = projectRoot !== undefined
         ? await loadActiveProfile(projectRoot)
         : null;
@@ -70,6 +69,7 @@ export const checkCmd = new Command()
       const parseDiagnostics: Diagnostic[] = [];
       // deno-lint-ignore no-explicit-any
       const listingContexts: any[] = [];
+      const mdContents = new Map<string, string>();
       for (const filePath of files) {
         let content: string;
         try {
@@ -78,6 +78,7 @@ export const checkCmd = new Command()
           console.error(`error: ${filePath}: file not found`);
           Deno.exit(1);
         }
+        if (filePath.endsWith(".md")) mdContents.set(filePath, content);
         const result = await parseFile(content, { file: filePath });
         allEntries.push(...result.entries);
         parseDiagnostics.push(...result.diagnostics);
@@ -89,24 +90,104 @@ export const checkCmd = new Command()
         });
       }
 
-      // projectWide: false — check operates on a file-local subset so MSL-L006
-      // ("link target does not resolve") is suppressed: the subset cannot
-      // distinguish a typo from a valid cross-file target. Full existence checks
-      // are available via `markspec compile` or the LSP (which index all files).
+      // projectWide reflects the resolved scope: a bare invocation walks the
+      // whole project, so MSL-L006 ("link target does not resolve") is
+      // meaningful and fires. Explicit file args stay file-local — that
+      // subset cannot distinguish a typo from a valid cross-file target, so
+      // MSL-L006 is suppressed. Full existence checks are always available
+      // via `markspec compile` or the LSP (which index all files).
       const result = runPipeline(
         allEntries,
         chain?.effective ?? null,
         captionConventions,
-        { projectWide: false },
+        { projectWide: scope.projectWide },
       );
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
-      // Merge parse-level (MSL-P0xx), pipeline, and listing diagnostics.
+      // Gate: fmt drift (project-wide only — the composite `check` gate; a
+      // file-local `check <file>` stays a fast structural check, and the
+      // canonical agent path runs `fmt` before `check`). Markdown only —
+      // `markspec fmt` never rewrites source files.
+      const fmtDiagnostics: Diagnostic[] = [];
+      if (scope.projectWide) {
+        const { format } = await import("../../core/mod.ts");
+        for (const [filePath, content] of mdContents) {
+          if (format(content, { file: filePath }).changed) {
+            fmtDiagnostics.push({
+              code: "MSL-F010",
+              severity: "error",
+              message: "file is not formatted (run `markspec fmt`)",
+              location: { file: filePath, line: 1, column: 1 },
+            });
+          }
+        }
+      }
+
+      // Gate: lockfile (project-wide only; needs the full corpus to
+      // recompute the canonical edge hash). Offline by design — upstream
+      // resolution (network) stays in `markspec lock --check`.
+      const lockDiagnostics: Diagnostic[] = [];
+      if (scope.projectWide && projectRoot !== undefined) {
+        const { join } = await import("@std/path");
+        const lockRaw = await readFile(join(projectRoot, "markspec.lock"));
+        if (lockRaw !== undefined) {
+          const { extractEdgeQuads, hashCanonicalEdges, parseLockfile } =
+            await import("../../core/mod.ts");
+          const parsed = parseLockfile(lockRaw);
+          if (!parsed.lockfile) {
+            lockDiagnostics.push(...parsed.diagnostics);
+          } else {
+            const quads = extractEdgeQuads(allEntries);
+            const currentHash = await hashCanonicalEdges(quads);
+            const cache = parsed.lockfile.generatedCache;
+            if (cache.edgesHash !== currentHash) {
+              lockDiagnostics.push({
+                code: "MSL-L212",
+                severity: "error",
+                message:
+                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} (run \`markspec lock\` to refresh)`,
+                location: {
+                  file: join(projectRoot, "markspec.lock"),
+                  line: 1,
+                  column: 1,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // Gate: prose lint (project-wide only, advisory — warnings/info
+      // unless --strict). LintDiagnostic carries slug/group/score fields
+      // that must not leak into check's stable JSON schema — project to
+      // plain Diagnostic. `runLint`'s `readFile` option is typed for
+      // glossary-file indexing (`FileReader`, distinct from the CLI's
+      // `ReadFile`) and is only needed when `glossaryFilePaths` is
+      // supplied; omitted here since `check` passes none.
+      const proseDiagnostics: Diagnostic[] = [];
+      if (scope.projectWide) {
+        const { runLint } = await import("../../core/mod.ts");
+        const lintResult = await runLint({ entries: allEntries });
+        for (const d of lintResult.diagnostics) {
+          proseDiagnostics.push({
+            code: d.code,
+            severity: d.severity,
+            message: d.message,
+            location: d.location,
+          });
+        }
+      }
+
+      // Merge parse-level (MSL-P0xx), pipeline, listing, fmt-drift,
+      // lockfile-drift, and prose-lint diagnostics.
       const allDiagnostics = [
         ...parseDiagnostics,
         ...result.diagnostics,
         ...listingDiagnostics,
+        ...fmtDiagnostics,
+        ...lockDiagnostics,
+        ...proseDiagnostics,
       ];
 
       // Apply --strict: promote warnings to errors.

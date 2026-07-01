@@ -480,7 +480,7 @@ Deno.test("format: no files exits 1", async () => {
     const result = await cmd.output();
     assertEquals(result.code, 1);
     const stderr = new TextDecoder().decode(result.stderr);
-    assertStringIncludes(stderr, "no files specified");
+    assertStringIncludes(stderr, "no project root found");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

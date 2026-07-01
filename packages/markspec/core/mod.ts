@@ -391,3 +391,19 @@ export {
   resolveReleaseEndpoints,
   type Target as SelfUpgradeTarget,
 } from "./self_upgrade/mod.ts";
+
+// ── Gitignore-aware project file discovery ───────────────────────────────
+export {
+  discoverFiles,
+  isIgnored,
+  MARKDOWN_EXTENSIONS,
+  parseGitignore,
+  RELEVANT_EXTENSIONS,
+  SOURCE_EXTENSIONS,
+} from "./discovery/mod.ts";
+export type {
+  DiscoverOptions,
+  DiscoveryDirEntry,
+  DiscoveryIO,
+  GitignoreRule,
+} from "./discovery/mod.ts";

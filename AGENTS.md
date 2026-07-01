@@ -220,30 +220,30 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 
 ### Implemented
 
-| Command                               | Module                            | Purpose                                                                       |
-| ------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------- |
-| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes.                           |
-| `markspec check [...files]`           | `core/validator`                  | Check broken refs, missing Ids, malformed entries, duplicates.                |
-| `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.              |
-| `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                         |
-| `markspec context <id> <paths...>`    | `core/compiler`                   | Walk the Satisfies chain upward from an entry.                                |
-| `markspec dependents <id> <paths...>` | `core/compiler`                   | List all entries that depend on a given entry.                                |
-| `markspec report <kind> <paths...>`   | `core/reporter`                   | Generate traceability matrix or coverage report.                              |
-| `markspec profile show`               | `core/profile`                    | Show the active profile chain and effective configuration.                    |
-| `markspec doctor`                     | `core/profile` + `core/validator` | Project health check: profile, config, and validation summary.                |
-| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`  | Print the next available display ID for a profile-declared type.              |
-| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`  | Scaffold a new entry block for a profile-declared type (stdout).              |
-| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`  | Append a scaffolded entry block to the file (agent write path).               |
-| `markspec export <format> <paths...>` | `core/compiler`                   | Emit the compiled traceability graph as json, yaml, or csv (reqif pending).   |
-| `markspec lint [...paths]`            | `core/lint`                       | Prose-analysis lint (modal verbs, EARS, passive voice, INCOSE, flagship).     |
-| `markspec lock`                       | `core/lock`                       | Generate or refresh `markspec.lock` (upstream pins, sync mappings).           |
-| `markspec sync {status\|log\|show}`   | `core/sync`                       | Read-only surface over lockfile + per-system sync log (NDJSON).               |
-| `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                         |
-| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                             |
-| `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                           |
-| `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).           |
-| `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                         |
-| `markspec mcp install`                | `mcp/server`                      | Print MCP server configuration for a client (claude-desktop, cursor, vscode). |
+| Command                               | Module                            | Purpose                                                                                                                                                                                           |
+| ------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes. Bare = whole-project markdown scope.                                                                                                          |
+| `markspec check [...files]`           | `core/validator` + gates          | Composite gate: structure, traceability, listing docs, fmt drift (MSL-F010), offline lockfile drift (MSL-L212), advisory prose lint. Bare = whole project; the extra gates run project-wide only. |
+| `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.                                                                                                                                  |
+| `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                                                                                                                                             |
+| `markspec context <id> <paths...>`    | `core/compiler`                   | Walk the Satisfies chain upward from an entry.                                                                                                                                                    |
+| `markspec dependents <id> <paths...>` | `core/compiler`                   | List all entries that depend on a given entry.                                                                                                                                                    |
+| `markspec report <kind> <paths...>`   | `core/reporter`                   | Generate traceability matrix or coverage report.                                                                                                                                                  |
+| `markspec profile show`               | `core/profile`                    | Show the active profile chain and effective configuration.                                                                                                                                        |
+| `markspec doctor`                     | `core/profile` + `core/validator` | Project health check: profile, config, and validation summary.                                                                                                                                    |
+| `markspec next-id <type> <paths...>`  | `core/compiler` + `core/profile`  | Print the next available display ID for a profile-declared type.                                                                                                                                  |
+| `markspec create <type> <paths...>`   | `core/compiler` + `core/profile`  | Scaffold a new entry block for a profile-declared type (stdout).                                                                                                                                  |
+| `markspec insert <type> <file>`       | `core/compiler` + `core/profile`  | Append a scaffolded entry block to the file (agent write path).                                                                                                                                   |
+| `markspec export <format> <paths...>` | `core/compiler`                   | Emit the compiled traceability graph as json, yaml, or csv (reqif pending).                                                                                                                       |
+| `markspec lint [...paths]`            | `core/lint`                       | Prose-analysis lint (modal verbs, EARS, passive voice, INCOSE, flagship). Bare = whole project.                                                                                                   |
+| `markspec lock`                       | `core/lock`                       | Generate or refresh `markspec.lock` (upstream pins, sync mappings).                                                                                                                               |
+| `markspec sync {status\|log\|show}`   | `core/sync`                       | Read-only surface over lockfile + per-system sync log (NDJSON).                                                                                                                                   |
+| `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                                                                                                                                             |
+| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                                                                                                                                                 |
+| `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                                                                                                                                               |
+| `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).                                                                                                                               |
+| `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                                                                                                                                             |
+| `markspec mcp install`                | `mcp/server`                      | Print MCP server configuration for a client (claude-desktop, cursor, vscode).                                                                                                                     |
 
 ### Not yet implemented
 
@@ -258,9 +258,12 @@ invoke them.
 | `markspec deck dev`     | Live slide preview.             |
 
 **Project context:** `fmt` and `check` work file-locally without a
-`project.yaml`. All other commands (`compile`, `show`, `context`, `dependents`,
-`report`, `next-id`, `doc build`, `book build`) require a `project.yaml` found
-by walking up from the working directory.
+`project.yaml` when given explicit file arguments. Invoked bare (no args),
+`fmt`/`check`/`lint` require a discoverable `project.yaml` — bare invocation in
+a project activated only by `.markspec.yaml` (no `project.yaml`) reports "no
+project root found" (known limitation). All other commands (`compile`, `show`,
+`context`, `dependents`, `report`, `next-id`, `doc build`, `book build`) require
+a `project.yaml` found by walking up from the working directory.
 
 ## Entry block rendering pipeline
 
@@ -356,7 +359,7 @@ docs/
 │   ├── SUMMARY.md                     (published as separate book)
 │   ├── getting-started.md
 │   ├── configuration.md
-│   ├── commands.md                  ← CLI reference: all subcommands, flags,
+│   ├── cli.md                       ← CLI reference: all subcommands, flags,
 │   │                                  examples
 │   └── recipes/                     ← how-to guides, common workflows
 ├── product/                         ← internal engineering (not published,
@@ -430,6 +433,13 @@ docs/
   `MSL-L006` existence warning; lockfile `[[edge]]` ULID ledger; `core/refs/`
   purity boundary; `fmt` canonicalise + rename-heal; MSL-L006 vs deferred
   ADR-012 §8.3 T-family; additive `[[edge]]` on ADR-022 lockfile
+- `adr-027-cli-smoother-defaults.md` — bare `check`/`lint`/`fmt` default to
+  whole-project scope via gitignore-aware `core/discovery/`; `project.yaml`
+  `exclude:`; `check` becomes the composite gate (structure + traceability + fmt
+  drift `MSL-F010` + lockfile drift `MSL-L212` + advisory prose lint); extra
+  gates are project-wide only, file-local `check <file>` stays fast structural;
+  lock↔check discovery parity; known limitation: `.markspec.yaml`-only projects
+  don't satisfy bare-invocation root discovery
 - `adr-028-mcp-project-discovery.md` — `markspec mcp` resolves its project root
   from an ordered candidate list (`--root` > `MARKSPEC_PROJECT_ROOT` >
   `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots
@@ -520,9 +530,14 @@ error[E001]: broken reference
 
 - **Dual output mode.** Every command supports `--format json` for
   machine-readable output. JSON to stdout, diagnostics to stderr.
-- **File-local vs project-wide.** File-local commands (`fmt`, `check` on a
-  single file) never silently do project-wide work. Project-wide commands
-  (`compile`) require explicit paths/globs.
+- **Explicit args = exact scope; bare invocation = announced project scope.**
+  `check`, `lint`, and `fmt` with explicit file/directory arguments operate on
+  exactly those paths (directories expand through gitignore-aware discovery).
+  Invoked bare, they operate on every relevant file under the project root
+  (gitignore + project.yaml `exclude:` honored) and announce the scope on
+  stderr. Bare invocation outside a project is an error, never a silent cwd
+  scan. Artifact-producing commands (`compile`, `export`) still require explicit
+  paths/globs.
 - **Write-back safety.** Any command that modifies a file (`fmt`, `insert`) is
   lossless — only the targeted entry block changes, surrounding content
   untouched. The diff shows exactly the intended change.

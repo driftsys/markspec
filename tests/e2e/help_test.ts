@@ -15,6 +15,15 @@ Deno.test("--help prints usage and lists subcommands", async () => {
   assertStringIncludes(stdout, "mcp");
 });
 
+Deno.test("no args prints help (clig.dev)", async () => {
+  const { code, stdout } = await markspec([]);
+  assertEquals(code, 0);
+  // Same top-of-output as --help.
+  assertStringIncludes(stdout, "markspec");
+  assertStringIncludes(stdout, "Commands");
+  assertStringIncludes(stdout, "check");
+});
+
 Deno.test("version subcommand prints version", async () => {
   const { code, stdout } = await markspec(["version"]);
   assertEquals(code, 0);
@@ -28,10 +37,10 @@ Deno.test("--version flag prints version", async () => {
   assertMatch(stdout, /\d+\.\d+\.\d+/);
 });
 
-Deno.test("fmt with no args exits 1", async () => {
+Deno.test("fmt with no args outside a project exits 1 with hint", async () => {
   const { code, stderr } = await markspec(["fmt"]);
   assertEquals(code, 1);
-  assertStringIncludes(stderr, "no files specified");
+  assertStringIncludes(stderr, "no project root found");
 });
 
 Deno.test("book build without project.yaml exits 1", async () => {

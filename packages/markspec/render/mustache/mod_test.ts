@@ -26,6 +26,7 @@ function makeConfig(
     parents: [],
     parentFallback: "",
     captionConventions: {},
+    exclude: [],
     ...overrides,
   };
 }

@@ -38,6 +38,7 @@ import {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   type Diagnostic as CoreDiagnostic,
+  discoverFiles,
   discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
@@ -583,12 +584,16 @@ connection.onInitialized(async () => {
   connection.console.log(`Indexing project at ${projectRoot}...`);
 
   try {
-    // Discover all relevant files
+    // Discover all relevant files (core/discovery: gitignore-aware,
+    // honors project.yaml `exclude:`).
     const files: string[] = [];
-    for await (const entry of walkDirectory(projectRoot)) {
-      if (isMarkspecFile(entry)) {
-        files.push(entry);
-      }
+    const io = { readDir: (p: string) => Deno.readDir(p), readFile };
+    for await (
+      const entry of discoverFiles(projectRoot, io, {
+        exclude: _config.exclude,
+      })
+    ) {
+      files.push(entry);
     }
 
     // Parse all files with bounded concurrency. The serial loop spent
@@ -1486,37 +1491,6 @@ connection.onExit(() => {
   logEvent("info", "lifecycle", { event: "onExit" });
   flushEventLog();
 });
-
-// ---------------------------------------------------------------------------
-// File walker (Deno-specific — allowed in entry points)
-// ---------------------------------------------------------------------------
-
-/** Recursively walk a directory yielding file paths. */
-async function* walkDirectory(dir: string): AsyncGenerator<string> {
-  const SKIP_DIRS = new Set([
-    "node_modules",
-    ".git",
-    ".worktrees",
-    "target",
-    "dist",
-    "build",
-    "skills", // upskill SSOT — not MarkSpec requirement documents
-  ]);
-  try {
-    for await (const entry of Deno.readDir(dir)) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory) {
-        if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
-          yield* walkDirectory(path);
-        }
-      } else if (entry.isFile) {
-        yield path;
-      }
-    }
-  } catch {
-    // Skip unreadable directories
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Start

@@ -47,6 +47,11 @@ const cli = new Command()
     "Markdown flavor and toolchain for traceable industrial documentation",
   )
   .globalOption("-q, --quiet", "Suppress non-error output")
+  // clig.dev: bare `markspec` with no subcommand prints help instead of
+  // exiting silently. The `function` form binds `this` to the Command.
+  .action(function () {
+    this.showHelp();
+  })
   // Core commands — implemented in cli/commands/
   .command("fmt", fmtCmd)
   .command("check", checkCmd)

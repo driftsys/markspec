@@ -7,28 +7,7 @@
  */
 
 import { extname } from "@std/path";
-
-/** Supported source file extensions (tree-sitter grammars available). */
-const SOURCE_EXTENSIONS = new Set([
-  ".rs",
-  ".kt",
-  ".kts",
-  ".java",
-  ".c",
-  ".h",
-  ".cpp",
-  ".cc",
-  ".cxx",
-  ".hpp",
-  ".hxx",
-  ".ts",
-  ".tsx",
-  ".jsx",
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".cs",
-]);
+import { SOURCE_EXTENSIONS } from "../core/mod.ts";
 
 /** Entry marker pattern: `[TYPE_XXX_NNNN]` in any context. */
 const ENTRY_MARKER_RE = /\[[A-Z]{2,}_[A-Z0-9_]+\]/;
