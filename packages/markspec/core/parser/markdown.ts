@@ -7,7 +7,14 @@
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
-import { IDENTITY_KEY, makeDisplayId, shapeFromIdValue } from "../model/mod.ts";
+import {
+  CORE_RELATIONS,
+  IDENTITY_KEY,
+  LOCK_EXTRA_INVERSE_KEYS,
+  makeDisplayId,
+  shapeFromIdValue,
+  UNIVERSAL_ATTRIBUTE_KEYS,
+} from "../model/mod.ts";
 import {
   ATTR_LINE_RE,
   collateAttributes,
@@ -27,6 +34,19 @@ import {
   parseTyplBlock,
   type TyplBlock,
 } from "../typl/mod.ts";
+
+/**
+ * Canonical set of trailer attribute keys the core recognizes: the union of
+ * every universal attribute, every core trace relation, and the extra inverse
+ * lock key (`Verified-by`). MSL-P020 (misplaced trailer) fires only when a
+ * body line's key is in this set; any other capitalized `Word:` lead-in
+ * (`Note:`, `Example:`, `Assumption:`) is prose, not a misplaced trailer (#654).
+ */
+const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
+  ...UNIVERSAL_ATTRIBUTE_KEYS,
+  ...CORE_RELATIONS.map((r) => r.attr),
+  ...LOCK_EXTRA_INVERSE_KEYS,
+]);
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
@@ -310,17 +330,10 @@ function extractEntry(
 
   // MSL-P020: trailers block is not the final indented code block.
   // Detect `Key: Value` lines in the body that likely should be trailers
-  // but are not at the final position (body content follows them).
-  // Exclude caption keywords (Figure:, Table:, etc.) which are legitimate
-  // body content, not misplaced trailer attributes.
-  const CAPTION_KEYWORDS = new Set([
-    "Figure",
-    "Table",
-    "Listing",
-    "Feature",
-    "Equation",
-    "List",
-  ]);
+  // but are not at the final position (body content follows them). Only lines
+  // whose key is a recognized trailer attribute count — see
+  // RECOGNIZED_TRAILER_KEYS — so ordinary prose (`Note:`, `Example:`) and
+  // caption lead-ins (`Figure:`, `Table:`) are left as legitimate body content.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
     let inFencedBlock = false;
@@ -333,10 +346,12 @@ function extractEntry(
       }
       if (inFencedBlock) continue;
       if (!ATTR_LINE_RE.test(trimmed)) continue;
-      // Extract the key portion to check against caption keywords
+      // Only a RECOGNIZED trailer key signals a genuinely misplaced trailer.
+      // A body paragraph starting with any other capitalized word + colon
+      // (`Note:`, `Example:`, `Assumption:`) is prose, not a trailer (#654).
       const keyMatch = trimmed.match(/^([A-Z][A-Za-z-]*):/);
-      if (keyMatch && CAPTION_KEYWORDS.has(keyMatch[1])) continue;
-      // Found a Key: Value line in the body — non-final position
+      if (!keyMatch || !RECOGNIZED_TRAILER_KEYS.has(keyMatch[1])) continue;
+      // Found a misplaced trailer-like line in the body — non-final position
       diagnostics.push({
         code: "MSL-P020",
         severity: "error",
