@@ -46,9 +46,15 @@ it too.
 - Walks from the project root; yields files in the relevant-extension set
   (`.md` + the tree-sitter source families). That extension set becomes a single
   SSOT, currently duplicated in `lsp/context.ts` and the WIP helper.
-- Skip precedence: built-ins (`.git`, `.markspec`) → `.gitignore` files (root +
-  nested; standard semantics: `!` negation, `/` anchoring, trailing-`/` dir-only
-  patterns) → `exclude:` globs from `project.yaml`.
+- Skip precedence: built-ins (hidden directories — any directory whose name
+  starts with `.`, which covers `.git` and `.markspec`) → patterns from
+  `.gitignore` files (root + nested; standard semantics: `!` negation, `/`
+  anchoring, trailing-`/` dir-only patterns) → `exclude:` globs from
+  `project.yaml`.
+  > **Amended during implementation:** the built-in skip generalised from a
+  > hardcoded `.git` / `.markspec` list to "any directory whose name starts with
+  > `.`" — this also naturally covers `.worktrees` and `.claude` without
+  > enumerating every dotdir a consumer's environment might create.
 - The `exclude:` escape hatch is required, not speculative: this repo's own
   `skills/` directory contains example entry blocks that are not real
   requirements and is not gitignored (today it is hardcoded in the LSP walker's
@@ -92,14 +98,33 @@ Bare `markspec check` runs, in one process over one parsed corpus:
   `--format json` array, one exit-code computation. Exit 1 = any error; exit 2 =
   warnings only; 0 = clean. `--strict` promotes warnings to errors (existing
   flag, unchanged semantics).
-- `markspec check <files>` runs the same gates **scoped to those files**;
-  cross-file-only gates (MSL-L006, lockfile drift) auto-suppress, exactly as
-  file-local mode behaves today.
+- **Amended during implementation — the composite gate is project-wide only, not
+  "the same gates scoped to files."** `markspec check <files>` (file-local) runs
+  structural/attribute/listing validation only; the fmt-drift (MSL-F010),
+  lockfile (MSL-L212), and prose-lint (MSL-Q) gates, plus the MSL-L006
+  trace-existence warning, do not fire when explicit file arguments are given —
+  they are gated on `scope.projectWide` in `cli/commands/check.ts`, not
+  auto-suppressed per-gate. The refinement was necessary because `format()`
+  lowercases modal verbs and applies other normalisations; running MSL-F010
+  file-local against a single file's current-vs-formatted diff would hard-fail
+  (error severity) on content that file-local `check` today treats as
+  warning-level or doesn't touch at all, turning the fast editor/per-file-hook
+  path into a surprise failure. Project-wide `check` is the CI/pre-push gate
+  where the full corpus and the "must already be formatted" bar both make sense;
+  file-local `check` stays the fast structural check the canonical
+  `insert → fmt → check` agent loop relies on.
 - `lint` and `fmt` remain focused verbs (`lint` = prose only; `fmt` = writes,
   `fmt --check` = drift only). `check` never writes.
 - Known behavior change: existing `check <files>` hook users start seeing
   advisory prose-lint warnings. Pre-1.0, no compat promise; findings are
   non-blocking (exit 2 at most).
+
+**Known limitation:** bare invocation (`check`/`lint`/`fmt` with no file
+arguments) discovers the project root via `project.yaml` only. A project
+activated solely by `.markspec.yaml` with no `project.yaml` present is not yet
+recognized as a project root for the no-args path, and bare invocation reports
+"no project root found" in that case. Not fixed here — out of scope for this
+change; explicit file arguments are unaffected.
 
 ### 4. Testing
 

@@ -7,7 +7,7 @@ Every command supports `--help`. Commands that produce structured output support
 `--format json` for machine-readable output to stdout (diagnostics always go to
 stderr).
 
-**Exit codes:** `0` success, `1` error, `2` warnings only (validate).
+**Exit codes:** `0` success, `1` error, `2` warnings only (`check`, `lint`).
 
 **Global options** (available on every command):
 
@@ -50,13 +50,28 @@ parent-fallback: https://driftsys.github.io/refhub
 
 #### Fields
 
-| Field             | Type     | Required | Default                             | Description                                               |
-| ----------------- | -------- | -------- | ----------------------------------- | --------------------------------------------------------- |
-| `name`            | string   | yes      | —                                   | Project name. Reverse-DNS convention recommended.         |
-| `version`         | string   | yes      | `"0.0.0"`                           | Project version. Quote in YAML to avoid number coercion.  |
-| `labels`          | string[] | no       | `[]`                                | Allowed label vocabulary. Empty means no constraint.      |
-| `parents`         | string[] | no       | `[]`                                | Upstream parent registry URLs, searched in order.         |
-| `parent-fallback` | string   | no       | `https://driftsys.github.io/refhub` | Fallback registry when parents don't resolve a reference. |
+| Field             | Type     | Required | Default                             | Description                                                                                                                                                      |
+| ----------------- | -------- | -------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`            | string   | yes      | —                                   | Project name. Reverse-DNS convention recommended.                                                                                                                |
+| `version`         | string   | yes      | `"0.0.0"`                           | Project version. Quote in YAML to avoid number coercion.                                                                                                         |
+| `labels`          | string[] | no       | `[]`                                | Allowed label vocabulary. Empty means no constraint.                                                                                                             |
+| `parents`         | string[] | no       | `[]`                                | Upstream parent registry URLs, searched in order.                                                                                                                |
+| `parent-fallback` | string   | no       | `https://driftsys.github.io/refhub` | Fallback registry when parents don't resolve a reference.                                                                                                        |
+| `exclude`         | string[] | no       | `[]`                                | Gitignore-syntax patterns excluded from project-wide file discovery (bare `check`/`lint`/`fmt`), anchored at the project root. Applied after `.gitignore` rules. |
+
+`project.yaml` has no JSON schema (unlike `.markspec.yaml`, which validates
+against `schemas/markspec/v1.json`) — the fields above are the full contract.
+
+**`exclude:` example** — skip a directory of example entry blocks that aren't
+real requirements, plus a generated-file pattern:
+
+```yaml
+name: io.acme.braking-system
+version: "2.3.0"
+exclude:
+  - skills/
+  - "*.gen.md"
+```
 
 ### Directory conventions
 
@@ -87,25 +102,43 @@ Profile configuration (`.markspec.yaml` and profile manifests) is covered in the
 Stamp ULIDs, fix indentation, normalize attributes.
 
 ```sh
-markspec fmt <file...>
-markspec fmt --check <file...>
+# the whole project's markdown — what you run before committing
+markspec fmt
+
+# one file
+markspec fmt docs/requirements.md
+
+# check mode for CI — reports but doesn't modify
+markspec fmt --check
+```
+
+```sh
+markspec fmt [...files]
+markspec fmt --check [...files]
 ```
 
 | Flag      | Type | Default | Description                                              |
 | --------- | ---- | ------- | -------------------------------------------------------- |
 | `--check` | bool | false   | Report changes without writing. Exit 1 if changes needed |
 
-**Examples:**
+**Bare invocation = whole-project markdown scope.** With no file arguments,
+`fmt` discovers every `.md` file under the project root (gitignore +
+`project.yaml` `exclude:` honored) and prints a one-line scope header to stderr
+(`formatting N file(s) under <root>`), suppressed by `-q`. Bare invocation
+requires a discoverable `project.yaml`; outside a project it errors rather than
+silently scanning the cwd. `fmt`'s scope is markdown-only — the formatter never
+rewrites source files, unlike `check`/`lint` which also cover source doc
+comments.
+
+Explicit arguments scope exactly to what's named; a directory argument expands
+recursively through the same gitignore-aware filter:
 
 ```sh
-# Format a single file (writes changes in place)
-markspec fmt docs/requirements.md
+# a subtree
+markspec fmt docs/
 
-# Format multiple files
+# multiple files
 markspec fmt docs/*.md
-
-# Check mode for CI — reports but doesn't modify
-markspec fmt --check docs/*.md
 ```
 
 **Project-aware trace canonicalisation (requires `project.yaml`):**
@@ -128,10 +161,22 @@ ledger is owned by `markspec lock`.
 
 #### check
 
-Check broken refs, missing Ids, malformed entries, duplicates.
+The composite traceability and hygiene gate — structure, traceability, format
+drift, lockfile drift, and advisory prose, merged into one diagnostics stream.
 
 ```sh
-markspec check <file...>
+# the whole project — what you wire into CI and the pre-push hook
+markspec check
+
+# one file, fast — what editors and per-file hooks run
+markspec check docs/requirements.md
+
+# a subtree
+markspec check docs/
+```
+
+```sh
+markspec check [...files]
 ```
 
 | Flag       | Type   | Default | Description                   |
@@ -139,17 +184,51 @@ markspec check <file...>
 | `--strict` | bool   | false   | Promote warnings to errors    |
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
+**Bare invocation = whole-project gate.** With no file arguments, `check`
+discovers every relevant file (markdown + source doc comments) under the project
+root (gitignore + `project.yaml` `exclude:` honored) and prints a one-line scope
+header to stderr (`checking N file(s) under <root>`), suppressed by `-q` and in
+`--format json` mode. Bare invocation requires a discoverable `project.yaml`;
+outside a project it errors rather than silently scanning the cwd.
+
+**The composite gate is project-wide only.** Bare `markspec check` runs every
+gate below over the whole corpus in one pass, merging findings into a single
+diagnostics stream (one text renderer, one `--format json` array, one exit-code
+computation):
+
+| Gate                            | Severity                                     | What it checks                                                                                                                    |
+| ------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Parse + structure + attributes  | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                               |
+| Traceability (incl. `MSL-L006`) | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.            |
+| Listing documents               | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                           |
+| Format drift (`MSL-F010`)       | **error**                                    | The file's current content differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.               |
+| Lockfile drift (`MSL-L212`)     | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network). |
+| Prose lint (`MSL-Q*`)           | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                        |
+
+**`markspec check <file>` (file-local) runs structural validation only.** The
+format-drift, lockfile, and prose-lint gates, and the `MSL-L006` trace-existence
+warning, are project-wide-only — they need the full corpus (or the whole file's
+formatted form) to be meaningful, so they don't fire when you pass explicit file
+arguments. This is the fast, editor/per-file-hook path; the canonical agent
+write loop is `insert → fmt → check` per file, then a project-wide `check`
+before commit/CI catches everything else.
+
+**Exit codes:** `0` clean, `1` any error, `2` warnings only (no errors).
+`--strict` promotes every warning (including advisory prose findings) to an
+error, so a project-wide `check --strict` is a stricter CI gate than the
+default.
+
 **Examples:**
 
 ```sh
-# Check a file
-markspec check docs/requirements.md
+# Whole project, JSON output for tool integration
+markspec check --format json
 
 # Strict mode — warnings become errors (useful for CI)
-markspec check --strict docs/requirements.md
+markspec check --strict
 
-# JSON output for tool integration
-markspec check --format json docs/*.md
+# One file, strict mode
+markspec check --strict docs/requirements.md
 ```
 
 ### Querying
@@ -376,7 +455,16 @@ Run prose-quality analysis on entries (INCOSE lexicon, modal keywords,
 structural checks). Returns `MSL-Q` and `MSL-M` codes.
 
 ```sh
-markspec lint <paths...>
+# the whole project — same rules bare `check` runs as an advisory gate
+markspec lint
+
+# one file or subtree
+markspec lint docs/requirements.md
+markspec lint docs/
+```
+
+```sh
+markspec lint [...paths]
 ```
 
 | Flag       | Type   | Default | Description                   |
@@ -384,15 +472,21 @@ markspec lint <paths...>
 | `--format` | string | `text`  | Output format: `json`, `text` |
 | `--strict` | bool   | false   | Promote warnings to errors    |
 
-Lint does **not** run as part of `check` or the pre-commit hook. It is a
-review-time quality gate.
+**Bare invocation = whole-project scope**, same discovery rules (gitignore +
+`project.yaml` `exclude:`) as `check`/`fmt`, with a scope header on stderr
+suppressed by `-q` / `--format json`.
+
+A project-wide `markspec check` already runs these same prose rules as an
+advisory (warning-level) gate — `lint` is useful on its own as a focused,
+review-time surface with its own score roll-up and band summary, and for running
+on an explicit file or subtree without pulling in the other `check` gates.
 
 **Examples:**
 
 ```sh
+markspec lint --strict
+markspec lint --format json
 markspec lint docs/requirements.md
-markspec lint --strict "docs/**/*.md"
-markspec lint --format json "docs/**/*.md"
 ```
 
 ### Lockfile and external sync
