@@ -66,6 +66,11 @@ export async function markspec(
     const cmd = new Deno.Command("deno", {
       args: [
         "run",
+        // --quiet suppresses Deno's own `Download`/`Check` progress lines.
+        // On a cold module cache they otherwise leak into the captured
+        // subprocess stderr and corrupt stderr-snapshot assertions — a flake
+        // that only surfaces on CI runners with an unwarmed cache.
+        "--quiet",
         ...permissions,
         CLI_ENTRY,
         ...args,
@@ -145,7 +150,9 @@ export async function markspecPersist(
     if (!k.startsWith("GIT_")) safeEnv[k] = v;
   }
   const cmd = new Deno.Command("deno", {
-    args: ["run", ...permissions, CLI_ENTRY, ...args],
+    // --quiet: strip Deno's Download/Check progress from captured stderr —
+    // see markspec() above.
+    args: ["run", "--quiet", ...permissions, CLI_ENTRY, ...args],
     cwd,
     stdout: "piped",
     stderr: "piped",
@@ -188,7 +195,9 @@ export async function markspecInDir(
     safeEnv[k] = v;
   }
   const cmd = new Deno.Command("deno", {
-    args: ["run", ...allowList, CLI_ENTRY, ...args],
+    // --quiet: strip Deno's Download/Check progress from captured stderr —
+    // see markspec() above.
+    args: ["run", "--quiet", ...allowList, CLI_ENTRY, ...args],
     cwd: dir,
     stdout: "piped",
     stderr: "piped",
