@@ -198,14 +198,15 @@ gate below over the whole corpus in one pass, merging findings into a single
 diagnostics stream (one text renderer, one `--format json` array, one exit-code
 computation):
 
-| Gate                            | Severity                                     | What it checks                                                                                                                    |
-| ------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Parse + structure + attributes  | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                               |
-| Traceability (incl. `MSL-L006`) | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.            |
-| Listing documents               | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                           |
-| Format drift (`MSL-F010`)       | **error**                                    | The file's current content differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.               |
-| Lockfile drift (`MSL-L212`)     | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network). |
-| Prose lint (`MSL-Q*`)           | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                        |
+| Gate                               | Severity                                     | What it checks                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parse + structure + attributes     | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                                                                                                  |
+| Traceability (incl. `MSL-L006`)    | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.                                                                               |
+| Listing documents                  | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                                                                                              |
+| Format drift (`MSL-F010`)          | **error**                                    | The file's whitespace/attribute form differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.                                                                        |
+| Reference-canon drift (`MSL-F011`) | **error**                                    | A trace value is a ULID or stale display ID that `markspec fmt` would rewrite to its canonical display ID (ADR-026 canonicalization). Distinct from `MSL-F010` so you know which fmt concern to fix. |
+| Lockfile drift (`MSL-L212`)        | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network).                                                                    |
+| Prose lint (`MSL-Q*`)              | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                                                                                           |
 
 **`markspec check <file>` (file-local) runs structural validation only.** The
 format-drift, lockfile, and prose-lint gates, and the `MSL-L006` trace-existence

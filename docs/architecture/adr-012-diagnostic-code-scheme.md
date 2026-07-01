@@ -193,3 +193,35 @@ Individual codes shipped to `main`:
 | MSL-S011 | error          | Locked attribute edited locally (CI)                                 |
 | MSL-S020 | error          | Multi-system local-write conflict on same attribute                  |
 | MSL-S021 | error          | External-id scheme has no matching mapping.yaml                      |
+
+## Amendment (ADR-027): MSL-F formatting-drift family
+
+[ADR-027](./adr-027-cli-smoother-defaults.md) makes `markspec check` a composite
+CI/pre-push gate that, project-wide, reports when a file is not what
+`markspec fmt` would produce. This introduces the `MSL-F###` family — a
+**bounded early adoption** of the nextgen `MSL-F` ("format reports") family
+named in §Context, recorded here as a bounded addition on the same footing as
+the `MSL-B044` / `MSL-C072` exception in §Decision-6 and the `MSL-L` / `MSL-S`
+families in the ADR-022 amendment. `MSL-F###` has no current-scheme equivalent
+(the legacy scheme had no format-report family), so no code is renamed and no
+suppression comment breaks. The codes are stable from first emission.
+
+### Family overview (ADR-027 addition)
+
+| Family     | Concern                                                 | Authority |
+| ---------- | ------------------------------------------------------- | --------- |
+| `MSL-F###` | Formatting drift reported by the composite `check` gate | ADR-027   |
+
+### MSL-F (Formatting drift, ADR-027)
+
+Both codes fire only in the project-wide composite `markspec check` gate and
+mirror `markspec fmt` / `markspec fmt --check` from the same corpus; a
+file-local `markspec check <file>` never emits them.
+
+| Code     | Severity | Concern                                                                                                                                           |
+| -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MSL-F010 | error    | Formatter drift — on-disk form differs from `markspec fmt` output (whitespace, attribute order, casing, …)                                        |
+| MSL-F011 | error    | Reference-canonicalization drift — a trace value is a ULID or stale display ID `markspec fmt` would rewrite to its canonical display ID (ADR-026) |
+
+Published in the language spec at
+[`docs/spec/language/language.md` §8.9](../spec/language/language.md).

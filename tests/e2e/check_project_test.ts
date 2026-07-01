@@ -44,6 +44,24 @@ export const CLEAN_REQ = `# Requirements
       Type: requirement
 `;
 
+/**
+ * A system requirement whose `Satisfies:` value is the *ULID* of REQ-0001,
+ * not its display ID. The file is formatter-clean (`markspec fmt` makes no
+ * whitespace/attribute change, so MSL-F010 stays silent) but `canonicalizeRefs`
+ * would rewrite the ULID to the canonical display ID `REQ-0001` — the
+ * ref-canonicalization drift the MSL-F011 gate must catch (issue #660).
+ */
+export const SREQ_ULID_REF = `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+      Satisfies: 01REQ000000000000000000001
+`;
+
 Deno.test("check: bare invocation walks project and flips MSL-L006 on", async () => {
   const files = {
     ...BASE_FILES,
@@ -285,4 +303,69 @@ Deno.test("check: json output keeps the stable diagnostic schema", async () => {
   assertEquals("slug" in q!, false);
   assertEquals("group" in q!, false);
   assertEquals("scoreContribution" in q!, false);
+});
+
+Deno.test("check: non-canonical reference fails the gate with MSL-F011", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "docs/sreq.md": SREQ_ULID_REF,
+    },
+  });
+  // The ULID reference is formatter-clean, so MSL-F010 must NOT fire — only
+  // the ref-canonicalization gate catches it.
+  assertEquals(
+    stderr.includes("MSL-F010"),
+    false,
+    `unexpected F010: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-F011");
+  assertStringIncludes(stderr, "markspec fmt");
+  assertEquals(code, 1); // error severity blocks
+});
+
+Deno.test("check: MSL-F011 suppressed in file-local mode", async () => {
+  const { code, stderr } = await markspec(
+    ["check", "docs/req.md", "docs/sreq.md"],
+    {
+      files: {
+        ...BASE_FILES,
+        "docs/req.md": CLEAN_REQ,
+        "docs/sreq.md": SREQ_ULID_REF,
+      },
+    },
+  );
+  assertEquals(
+    stderr.includes("MSL-F011"),
+    false,
+    `unexpected F011: ${stderr}`,
+  );
+  assertEquals(code, 0, `expected clean file-local; stderr: ${stderr}`);
+});
+
+Deno.test("check: MSL-F011 clears after fmt canonicalizes the reference", async () => {
+  const run = await markspecPersist(["fmt"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "docs/sreq.md": SREQ_ULID_REF,
+    },
+  });
+  try {
+    assertEquals(run.code, 0, `fmt failed: ${run.stderr}`);
+    // fmt must have canonicalized the ULID to the display ID REQ-0001.
+    const sreq = await Deno.readTextFile(`${run.dir}/docs/sreq.md`);
+    assertStringIncludes(sreq, "Satisfies: REQ-0001");
+    // check now passes the fmt-drift gate.
+    const checked = await markspecInDir(run.dir, ["check"]);
+    assertEquals(
+      checked.stderr.includes("MSL-F011"),
+      false,
+      `MSL-F011 should be gone after fmt; stderr: ${checked.stderr}`,
+    );
+    assertEquals(checked.code, 0, `expected clean; stderr: ${checked.stderr}`);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
 });

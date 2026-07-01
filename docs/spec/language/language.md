@@ -1600,6 +1600,46 @@ Existence and cardinality rules for the targets of trace-relation links.
 | `MSL-S003` | error    | No duplicate file paths.                                          |
 | `MSL-S004` | warning  | Markdown files in the source directory not referenced in summary. |
 
+### 8.9 Formatting (MSL-F)
+
+Drift between a file's on-disk form and what `markspec fmt` would write. These
+codes fire only in the project-wide composite `markspec check` gate (ADR-027)
+and mirror `markspec fmt` / `markspec fmt --check` exactly, from the same
+`.gitignore`- and `exclude:`-aware corpus. They are Markdown-only —
+`markspec fmt` never rewrites source files.
+
+| ID         | Severity | Rule                                                                                                                                                                                                                                                 |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-F010` | error    | Formatter drift: the file's whitespace / attribute form differs from `markspec fmt` output (indentation, backslashes, attribute order, modal-verb casing, …).                                                                                        |
+| `MSL-F011` | error    | Reference-canonicalization drift: a trace-relation value is a ULID or stale display ID that `markspec fmt` would rewrite to its current canonical display ID (ADR-026). Kept distinct from `MSL-F010` so the author knows which `fmt` concern fired. |
+
+`MSL-F010` and `MSL-F011` are project-wide-only — a file-local
+`markspec check
+<file>` does not fire them (the canonical agent path runs `fmt`
+before `check`). The `MSL-F` prefix is a bounded early adoption of the nextgen
+"format reports" family named in
+[ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md), the same
+pattern as `MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
+
+### 8.10 Lockfile and external sync (MSL-L, MSL-S)
+
+The lockfile (`MSL-L###`) and external-sync (`MSL-S###`) diagnostic families are
+governed by [ADR-022](../../architecture/adr-022-lockfile-and-external-sync.md)
+and catalogued in
+[ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md) (ADR-022
+amendment). The offline composite `markspec check` gate emits one of them:
+
+| ID         | Severity | Rule                                                                                                                                                                                                                                                               |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MSL-L212` | error    | Canonical edge-hash drift: the project's traceability edges no longer match the hash pinned in `markspec.lock` (run `markspec lock`). Fires only when `markspec.lock` exists; checked offline (no network — upstream resolution stays in `markspec lock --check`). |
+
+> **Prefix overlap (known, pre-existing).** The `MSL-L###` lockfile family
+> shares its prefix with §8.4's link rules (`MSL-L006`), and the `MSL-S###`
+> external-sync family shares its prefix with §8.8's summary rules
+> (`MSL-S001`–`S004`). This overlap predates the composite gate; disambiguation
+> is deferred to the sequenced ADR-012 scheme migration, not resolved here (code
+> names are a public interface — renumbering is a breaking change).
+
 ---
 
 ## Part 9 — Configuration
