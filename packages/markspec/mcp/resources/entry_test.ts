@@ -134,7 +134,7 @@ Deno.test("renderEntry: omits Attributes section when only Id present", () => {
   assertEquals(md.includes("## Attributes"), false);
 });
 
-Deno.test("renderEntry: shows Origin when the entry is corpus-delivered (ADR-029)", () => {
+Deno.test("renderEntry: shows Origin when the entry is corpus-delivered (ADR-030)", () => {
   const corpusEntry: Entry = {
     ...ENTRY,
     origin: {

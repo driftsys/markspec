@@ -753,7 +753,7 @@ Deno.test("buildMidTypedScaffoldItems: matches a named type by its leading liter
   assertEquals(items[0].textEdit.newText.startsWith("SWC_${1:NAME}]"), true);
 });
 
-// --- ADR-029: delivered-corpus completion badge ---
+// --- ADR-030: delivered-corpus completion badge ---
 
 Deno.test("buildIdReferenceItems: corpus entries carry origin badge", () => {
   const items = buildIdReferenceItems([

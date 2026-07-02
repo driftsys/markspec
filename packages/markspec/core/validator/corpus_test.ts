@@ -1,7 +1,7 @@
 /**
  * @module validator/corpus_test
  *
- * Unit tests for the corpus-aware diagnostic post-pass (ADR-029):
+ * Unit tests for the corpus-aware diagnostic post-pass (ADR-030):
  * `detectCorpusCollisions` (MSL-R014) and `attributeCorpusDiagnostics`
  * (suppression + downgrade/attribution).
  */
@@ -16,7 +16,7 @@ import {
 
 /** Minimal Entry fixture builder, adapted from `mod_test.ts`'s `entry()`
  * helper — adds `file` (projected into `location.file`) and `origin`
- * (ADR-029 provenance) since those are what this module's tests key on. */
+ * (ADR-030 provenance) since those are what this module's tests key on. */
 function makeEntry(
   partial: Partial<Omit<Entry, "displayId" | "location">> & {
     displayId: string;

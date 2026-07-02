@@ -1,7 +1,7 @@
 /**
  * @module core/profile/delivered
  *
- * Loader for profile-delivered documents (ADR-029). Checks every delivered
+ * Loader for profile-delivered documents (ADR-030). Checks every delivered
  * file's existence (PROFILE-DELIVERS-001/002), parses the `corpus: true`
  * files, and stamps each parsed entry with its profile origin. Pure — all
  * I/O via the injected {@linkcode ReadFile}.

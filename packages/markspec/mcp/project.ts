@@ -223,7 +223,7 @@ export interface Project {
   readonly profileChain: ProfileChain | null;
   /** Effective profile derived from the chain, or undefined. */
   readonly profile: EffectiveProfile | undefined;
-  /** Documents delivered by the active profile chain (ADR-029). */
+  /** Documents delivered by the active profile chain (ADR-030). */
   readonly delivers: readonly DeliveredDocument[];
   /** Return the current compiled graph, recompiling when stale. */
   getCompiled(): Promise<CompileResult>;

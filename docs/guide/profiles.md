@@ -96,7 +96,7 @@ The normative manifest schema — every block, field, and diagnostic — lives i
 ## Delivered documents
 
 A profile can deliver document files to every project that consumes it — see
-[ADR-029](../architecture/adr-029-profile-delivered-documents.md). Each file is
+[ADR-030](../architecture/adr-030-profile-delivered-documents.md). Each file is
 flagged, per file, as either a **traceable corpus** (its entries join the
 consuming project's traceability graph) or **documentation-only** (surfaced for
 humans and agents to read, never parsed).
@@ -157,7 +157,7 @@ to rename the project entry; delivered corpus entries are read-only.
 
 See the
 [reference architecture recipe](recipes/shipping-a-reference-architecture.md)
-for a worked example, and ADR-029 for the collision-attribution and
+for a worked example, and ADR-030 for the collision-attribution and
 lockfile-scope rules.
 
 ---

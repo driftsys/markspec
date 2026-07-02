@@ -34,7 +34,7 @@ export function buildProfileView(
  * Render the overview `markspec://profile` resource body as Markdown.
  *
  * @param delivers - Documents delivered by the active profile chain
- *   (ADR-029), passed separately from `intro` because `ProfileIntrospection`
+ *   (ADR-030), passed separately from `intro` because `ProfileIntrospection`
  *   only surfaces classification elements, not delivered files.
  */
 export function renderProfile(

@@ -303,7 +303,7 @@ Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared 
   assertEquals(withProfile.some((d) => d.code === "MSL-R010"), false);
 });
 
-// --- ADR-029: delivered-corpus seeding determinism ---
+// --- ADR-030: delivered-corpus seeding determinism ---
 
 const CORPUS_MD = `- [PLT_0001] Core platform entry
 

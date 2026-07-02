@@ -168,14 +168,14 @@ export interface DocTypeDef {
 }
 
 // ---------------------------------------------------------------------------
-// Delivered documents (ADR-029)
+// Delivered documents (ADR-030)
 // ---------------------------------------------------------------------------
 
 /**
  * One `profile.delivers:` item as authored in `markspec.yaml`. `path` is
  * relative to the profile directory, `/`-separated, and validated at parse
  * time to stay inside it. `corpus: true` marks a Markdown file whose entries
- * join the consuming project's traceability graph (ADR-029); default `false`
+ * join the consuming project's traceability graph (ADR-030); default `false`
  * means documentation-only.
  */
 export interface DeliversDecl {
@@ -185,7 +185,7 @@ export interface DeliversDecl {
 }
 
 /**
- * A delivered document after chain resolution (ADR-029): the manifest's
+ * A delivered document after chain resolution (ADR-030): the manifest's
  * `DeliversDecl` joined with the delivering tier's identity and on-disk
  * location. `absPath` is `join(tier.baseDir, path)`.
  */
@@ -250,7 +250,7 @@ export interface ProfileManifest {
     readonly frontMatter: readonly AttrDecl[];
   };
 
-  /** Files this profile delivers to consumers (ADR-029). Empty when the
+  /** Files this profile delivers to consumers (ADR-030). Empty when the
    * manifest declares no `profile.delivers:`. */
   readonly delivers: readonly DeliversDecl[];
 
@@ -381,7 +381,7 @@ export interface EffectiveProfile {
     readonly frontMatter: ProvenancedMap<AttrDecl>;
   };
   /**
-   * Documents delivered by the chain (ADR-029), parent-first then manifest
+   * Documents delivered by the chain (ADR-030), parent-first then manifest
    * order — the deterministic corpus injection order. Deduped by
    * `(profileId, path)`.
    */

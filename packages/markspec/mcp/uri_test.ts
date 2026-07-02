@@ -105,7 +105,7 @@ Deno.test("isProfileDetailUri: correctly identifies detail URIs", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Delivered-document URI helpers (ADR-029)
+// Delivered-document URI helpers (ADR-030)
 // ---------------------------------------------------------------------------
 
 Deno.test("deliveredUri round-trips profileId and path", () => {

@@ -524,7 +524,7 @@ in the guide for the end-to-end workflow.
 ## B.15 Delivered documents (`profile.delivers`)
 
 `profile.delivers` lists document files the profile ships to consuming projects
-(per [ADR-029](../../architecture/adr-029-profile-delivered-documents.md)). Each
+(per [ADR-030](../../architecture/adr-030-profile-delivered-documents.md)). Each
 file is flagged per file: a **corpus** file's entries join the consumer's
 traceability graph (marked with `Entry.origin` provenance); a
 **documentation-only** file is surfaced for reading, never parsed:

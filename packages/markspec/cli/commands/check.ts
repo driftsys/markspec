@@ -4,8 +4,9 @@
  * `markspec check` — check broken refs, missing Ids, duplicates.
  */
 
+import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
-import { ConfigError } from "../../core/mod.ts";
+import { ConfigError, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import {
   loadActiveProfile,
@@ -63,7 +64,7 @@ export const checkCmd = new Command()
         }
       }
 
-      // Load the delivered corpus (ADR-029) — project-wide only, matching
+      // Load the delivered corpus (ADR-030) — project-wide only, matching
       // the other composite gates: a file-local `check <file>` cannot
       // distinguish a corpus target from a typo any more than MSL-L006
       // could, so the corpus stays out of scope there.
@@ -98,7 +99,9 @@ export const checkCmd = new Command()
           console.error(`error: ${filePath}: file not found`);
           Deno.exit(1);
         }
-        if (filePath.endsWith(".md")) mdContents.set(filePath, content);
+        if (MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase())) {
+          mdContents.set(filePath, content);
+        }
         const result = await parseFile(content, { file: filePath });
         allEntries.push(...result.entries);
         parseDiagnostics.push(...result.diagnostics);
@@ -123,7 +126,7 @@ export const checkCmd = new Command()
         { projectWide: scope.projectWide },
       );
 
-      // Corpus-aware post-pass (ADR-029): a project entry re-declaring a
+      // Corpus-aware post-pass (ADR-030): a project entry re-declaring a
       // display ID already delivered by the corpus becomes MSL-R014 (not
       // the generic duplicate codes), and pipeline findings located inside
       // a corpus file are downgraded to attributed warnings — a consumer
@@ -143,15 +146,50 @@ export const checkCmd = new Command()
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
-      // Gate: fmt drift (project-wide only — the composite `check` gate; a
-      // file-local `check <file>` stays a fast structural check, and the
-      // canonical agent path runs `fmt` before `check`). Markdown only —
-      // `markspec fmt` never rewrites source files.
+      // Project-wide-only gates (the composite `check` gate). A file-local
+      // `check <file>` stays a fast structural check, and the canonical agent
+      // path runs `fmt` before `check`.
       const fmtDiagnostics: Diagnostic[] = [];
+      const lockDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const { format } = await import("../../core/mod.ts");
+        const {
+          buildRefIndex,
+          canonicalizeRefs,
+          extractEdgeQuads,
+          format,
+          hashCanonicalEdges,
+          loadMarkdownFormatter,
+          parseLockfile,
+        } = await import("../../core/mod.ts");
+
+        const formatMarkdownProse = await loadMarkdownFormatter();
+
+        // Read markspec.lock once: its edge ledger feeds reference healing
+        // (MSL-F011) and its cached edge hash feeds the lockfile gate
+        // (MSL-L212).
+        let lockParse: ReturnType<typeof parseLockfile> | undefined;
+        let lockPath: string | undefined;
+        if (projectRoot !== undefined) {
+          lockPath = join(projectRoot, "markspec.lock");
+          const lockRaw = await readFile(lockPath);
+          if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
+        }
+        const ledger = lockParse?.lockfile?.edges ?? [];
+
+        // Gate: fmt drift. Runs the SAME `format() → parse → canonicalizeRefs`
+        // sequence `markspec fmt` performs, from the same exclude-aware corpus,
+        // so bare `check` and `fmt --check` never disagree. `MSL-F010` is pure
+        // formatter drift; `MSL-F011` is reference-canonicalization drift (a
+        // ULID or stale display ID `fmt` would rewrite) — kept distinct so the
+        // author knows which fmt concern fired. Markdown only — `markspec fmt`
+        // never rewrites source files.
+        const refIndex = buildRefIndex(allEntries);
         for (const [filePath, content] of mdContents) {
-          if (format(content, { file: filePath }).changed) {
+          const formatted = format(content, {
+            file: filePath,
+            formatMarkdownProse,
+          });
+          if (formatted.changed) {
             fmtDiagnostics.push({
               code: "MSL-F010",
               severity: "error",
@@ -159,25 +197,32 @@ export const checkCmd = new Command()
               location: { file: filePath, line: 1, column: 1 },
             });
           }
+          const parsed = await parseFile(formatted.output, { file: filePath });
+          const refResult = canonicalizeRefs(
+            formatted.output,
+            parsed.entries,
+            refIndex,
+            ledger,
+          );
+          if (refResult.changed) {
+            fmtDiagnostics.push({
+              code: "MSL-F011",
+              severity: "error",
+              message: "references are not canonical (run `markspec fmt`)",
+              location: { file: filePath, line: 1, column: 1 },
+            });
+          }
         }
-      }
 
-      // Gate: lockfile (project-wide only; needs the full corpus to
-      // recompute the canonical edge hash). Offline by design — upstream
-      // resolution (network) stays in `markspec lock --check`.
-      const lockDiagnostics: Diagnostic[] = [];
-      if (scope.projectWide && projectRoot !== undefined) {
-        const { join } = await import("@std/path");
-        const lockRaw = await readFile(join(projectRoot, "markspec.lock"));
-        if (lockRaw !== undefined) {
-          const { extractEdgeQuads, hashCanonicalEdges, parseLockfile } =
-            await import("../../core/mod.ts");
-          const parsed = parseLockfile(lockRaw);
-          if (!parsed.lockfile) {
-            lockDiagnostics.push(...parsed.diagnostics);
+        // Gate: lockfile (needs the full corpus to recompute the canonical
+        // edge hash). Offline by design — upstream resolution (network) stays
+        // in `markspec lock --check`.
+        if (lockParse !== undefined && lockPath !== undefined) {
+          if (!lockParse.lockfile) {
+            lockDiagnostics.push(...lockParse.diagnostics);
           } else {
             // Corpus-blind by design: the lockfile is not corpus-aware yet
-            // (ADR-029 defers lockfile integration), so `markspec lock`
+            // (ADR-030 defers lockfile integration), so `markspec lock`
             // never counts corpus edges. Counting them here would raise an
             // MSL-L212 drift error that `markspec lock` can never fix —
             // consumer gates must not fail on upstream content the consumer
@@ -185,18 +230,14 @@ export const checkCmd = new Command()
             const projectEntries = allEntries.filter((e) => !e.origin);
             const quads = extractEdgeQuads(projectEntries);
             const currentHash = await hashCanonicalEdges(quads);
-            const cache = parsed.lockfile.generatedCache;
+            const cache = lockParse.lockfile.generatedCache;
             if (cache.edgesHash !== currentHash) {
               lockDiagnostics.push({
                 code: "MSL-L212",
                 severity: "error",
                 message:
-                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} (run \`markspec lock\` to refresh)`,
-                location: {
-                  file: join(projectRoot, "markspec.lock"),
-                  line: 1,
-                  column: 1,
-                },
+                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
+                location: { file: lockPath, line: 1, column: 1 },
               });
             }
           }
@@ -213,7 +254,7 @@ export const checkCmd = new Command()
       const proseDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
         const { runLint } = await import("../../core/mod.ts");
-        // Prose lint never runs on delivered corpus entries (ADR-029) — a
+        // Prose lint never runs on delivered corpus entries (ADR-030) — a
         // consumer cannot fix an upstream profile's prose.
         const lintResult = await runLint({
           entries: allEntries.filter((e) => !e.origin),
@@ -241,7 +282,7 @@ export const checkCmd = new Command()
       ];
 
       // Apply --strict: promote warnings to errors. Corpus-attributed
-      // findings are exempt (ADR-029) — a consumer cannot fix upstream
+      // findings are exempt (ADR-030) — a consumer cannot fix upstream
       // content, so promoting them would create unfixable red builds.
       // Tracked by identity, not by message matching: everything the
       // corpus loader emitted (attributed parse findings + the docs-only

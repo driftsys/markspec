@@ -44,6 +44,24 @@ export const CLEAN_REQ = `# Requirements
       Type: requirement
 `;
 
+/**
+ * A system requirement whose `Satisfies:` value is the *ULID* of REQ-0001,
+ * not its display ID. The file is formatter-clean (`markspec fmt` makes no
+ * whitespace/attribute change, so MSL-F010 stays silent) but `canonicalizeRefs`
+ * would rewrite the ULID to the canonical display ID `REQ-0001` — the
+ * ref-canonicalization drift the MSL-F011 gate must catch (issue #660).
+ */
+export const SREQ_ULID_REF = `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+      Satisfies: 01REQ000000000000000000001
+`;
+
 Deno.test("check: bare invocation walks project and flips MSL-L006 on", async () => {
   const files = {
     ...BASE_FILES,
@@ -104,6 +122,15 @@ Deno.test("check: bare invocation without project root errors with hint", async 
   assertEquals(code, 1);
   assertStringIncludes(stderr, "no project root found");
   assertStringIncludes(stderr, "markspec init");
+  // The message names project.yaml as the required root marker and must NOT
+  // present `.markspec.yaml` as a sufficient alternative — a `.markspec.yaml`
+  // alone does not satisfy bare-invocation root discovery (#666).
+  assertStringIncludes(stderr, "project.yaml");
+  assertEquals(
+    stderr.includes("project.yaml or .markspec.yaml"),
+    false,
+    `message must not imply .markspec.yaml alone works; got: ${stderr}`,
+  );
 });
 
 Deno.test("check: clean project exits 0", async () => {
@@ -133,12 +160,39 @@ Deno.test("check: unformatted file fails the gate with MSL-F010", async () => {
   assertEquals(code, 1); // error severity blocks
 });
 
+Deno.test("check: markdown-only prose drift fails the gate with MSL-F010 (ADR-029)", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      // No entries at all — but the asterisk bullet is not the
+      // canonical dash form, so the ADR-029 whole-document pass
+      // reports fmt drift.
+      "docs/overview.md": "# Overview\n\n* asterisk bullet\n",
+    },
+  });
+  assertStringIncludes(stderr, "MSL-F010");
+  assertEquals(code, 1);
+});
+
 Deno.test("check: formatted project does not emit MSL-F010", async () => {
   const { code, stderr } = await markspec(["check"], {
     files: { ...BASE_FILES, "docs/req.md": CLEAN_REQ },
   });
   assertEquals(stderr.includes("MSL-F010"), false, stderr);
   assertEquals(code, 0, stderr);
+});
+
+Deno.test("check: uppercase .MD extension is covered by the MSL-F010 drift gate (case parity)", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      // Uppercase extension + non-canonical prose (asterisk bullet): fmt would
+      // reformat it, so the MSL-F010 gate must also see it — case parity.
+      "docs/OVERVIEW.MD": "# Overview\n\n* asterisk bullet\n",
+    },
+  });
+  assertStringIncludes(stderr, "MSL-F010");
+  assertEquals(code, 1);
 });
 
 Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
@@ -177,6 +231,11 @@ Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
     const drifted = await markspecInDir(run.dir, ["check"]);
     assertStringIncludes(drifted.stderr, "MSL-L212");
     assertEquals(drifted.code, 1);
+    // The message names the remedy and the #651 upgrade cause (the lock walk
+    // now also indexes source-file doc comments), so a one-time post-upgrade
+    // failure is self-explanatory.
+    assertStringIncludes(drifted.stderr, "markspec lock");
+    assertStringIncludes(drifted.stderr, "source-file");
 
     // 4. JSON consumers that group by location.file must not drop MSL-L212 —
     // the diagnostic carries a markspec.lock location (like MSL-F010 does).
@@ -285,4 +344,69 @@ Deno.test("check: json output keeps the stable diagnostic schema", async () => {
   assertEquals("slug" in q!, false);
   assertEquals("group" in q!, false);
   assertEquals("scoreContribution" in q!, false);
+});
+
+Deno.test("check: non-canonical reference fails the gate with MSL-F011", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "docs/sreq.md": SREQ_ULID_REF,
+    },
+  });
+  // The ULID reference is formatter-clean, so MSL-F010 must NOT fire — only
+  // the ref-canonicalization gate catches it.
+  assertEquals(
+    stderr.includes("MSL-F010"),
+    false,
+    `unexpected F010: ${stderr}`,
+  );
+  assertStringIncludes(stderr, "MSL-F011");
+  assertStringIncludes(stderr, "markspec fmt");
+  assertEquals(code, 1); // error severity blocks
+});
+
+Deno.test("check: MSL-F011 suppressed in file-local mode", async () => {
+  const { code, stderr } = await markspec(
+    ["check", "docs/req.md", "docs/sreq.md"],
+    {
+      files: {
+        ...BASE_FILES,
+        "docs/req.md": CLEAN_REQ,
+        "docs/sreq.md": SREQ_ULID_REF,
+      },
+    },
+  );
+  assertEquals(
+    stderr.includes("MSL-F011"),
+    false,
+    `unexpected F011: ${stderr}`,
+  );
+  assertEquals(code, 0, `expected clean file-local; stderr: ${stderr}`);
+});
+
+Deno.test("check: MSL-F011 clears after fmt canonicalizes the reference", async () => {
+  const run = await markspecPersist(["fmt"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      "docs/sreq.md": SREQ_ULID_REF,
+    },
+  });
+  try {
+    assertEquals(run.code, 0, `fmt failed: ${run.stderr}`);
+    // fmt must have canonicalized the ULID to the display ID REQ-0001.
+    const sreq = await Deno.readTextFile(`${run.dir}/docs/sreq.md`);
+    assertStringIncludes(sreq, "Satisfies: REQ-0001");
+    // check now passes the fmt-drift gate.
+    const checked = await markspecInDir(run.dir, ["check"]);
+    assertEquals(
+      checked.stderr.includes("MSL-F011"),
+      false,
+      `MSL-F011 should be gone after fmt; stderr: ${checked.stderr}`,
+    );
+    assertEquals(checked.code, 0, `expected clean; stderr: ${checked.stderr}`);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
 });

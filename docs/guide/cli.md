@@ -73,6 +73,12 @@ exclude:
   - "*.gen.md"
 ```
 
+**Built-in skips.** File discovery always skips hidden directories (names
+starting with `.`) and the common build-output / dependency directories
+`node_modules`, `target`, `dist`, and `build`, on top of `.gitignore` and
+`exclude:`. The build-output skip is overridable — re-include one with a negated
+entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
+
 ### Directory conventions
 
 MarkSpec does not enforce a directory layout. By convention:
@@ -99,7 +105,8 @@ Profile configuration (`.markspec.yaml` and profile manifests) is covered in the
 
 #### fmt
 
-Stamp ULIDs, fix indentation, normalize attributes.
+Stamp ULIDs, fix indentation, normalize attributes, and format the whole
+Markdown document — entry mechanics and surrounding prose in one pass (ADR-029).
 
 ```sh
 # the whole project's markdown — what you run before committing
@@ -129,6 +136,26 @@ requires a discoverable `project.yaml`; outside a project it errors rather than
 silently scanning the cwd. `fmt`'s scope is markdown-only — the formatter never
 rewrites source files, unlike `check`/`lint` which also cover source doc
 comments.
+
+**Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
+formats the entire Markdown document — headings, lists, tables, and prose —
+through an embedded dprint-markdown plugin, with one fixed, zero-config style:
+80-column line width, always-wrap prose, underscore emphasis, asterisk strong,
+dash bullet lists, and the file's own line-ending convention preserved.
+
+- **80 columns is a soft target, not a hard cap.** Table rows, links and
+  reference definitions, and inline code spans are never split to fit — they may
+  exceed 80 columns when they can't be broken.
+- **`<!-- dprint-ignore -->` and `<!-- dprint-ignore-start/end -->`** work as a
+  per-block opt-out, same as external dprint. An ignore-start/end pair MUST NOT
+  span an entry block — entry blocks and surrounding prose format as separate
+  segments, so a range that straddles both is not honored across the boundary.
+- **Files that must stay unformatted** (long attribute-value lines in showcase
+  docs, generated files) use `project.yaml` `exclude:` — the same mechanism
+  `check`/`lint` use, not a new flag.
+- **Every rewrite is safety-gated.** If reformatting an entry body would change
+  its meaning, `fmt` keeps the original text for that entry and reports an
+  advisory `MSL-F012` instead of silently doing nothing or corrupting content.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
 recursively with `.gitignore` (and the built-in hidden-directory skip) applied —
@@ -198,14 +225,15 @@ gate below over the whole corpus in one pass, merging findings into a single
 diagnostics stream (one text renderer, one `--format json` array, one exit-code
 computation):
 
-| Gate                            | Severity                                     | What it checks                                                                                                                    |
-| ------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Parse + structure + attributes  | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                               |
-| Traceability (incl. `MSL-L006`) | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.            |
-| Listing documents               | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                           |
-| Format drift (`MSL-F010`)       | **error**                                    | The file's current content differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.               |
-| Lockfile drift (`MSL-L212`)     | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network). |
-| Prose lint (`MSL-Q*`)           | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                        |
+| Gate                               | Severity                                     | What it checks                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parse + structure + attributes     | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                                                                                                  |
+| Traceability (incl. `MSL-L006`)    | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.                                                                               |
+| Listing documents                  | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                                                                                              |
+| Format drift (`MSL-F010`)          | **error**                                    | The file's whitespace/attribute form differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.                                                                        |
+| Reference-canon drift (`MSL-F011`) | **error**                                    | A trace value is a ULID or stale display ID that `markspec fmt` would rewrite to its canonical display ID (ADR-026 canonicalization). Distinct from `MSL-F010` so you know which fmt concern to fix. |
+| Lockfile drift (`MSL-L212`)        | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network).                                                                    |
+| Prose lint (`MSL-Q*`)              | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                                                                                           |
 
 **`markspec check <file>` (file-local) runs structural validation only.** The
 format-drift, lockfile, and prose-lint gates, and the `MSL-L006` trace-existence
@@ -255,7 +283,7 @@ markspec show --format json STK_PRJ_0001 docs/requirements.md
 ```
 
 When the active profile [delivers a corpus](profiles.md#delivered-documents)
-(ADR-029), an entry injected from that corpus prints an extra `Origin:` line and
+(ADR-030), an entry injected from that corpus prints an extra `Origin:` line and
 its `Source:` renders as `<profile-id>@<version>:<path>:<line>:<column>` instead
 of a raw filesystem path:
 
@@ -366,7 +394,7 @@ markspec report traceability --label ASIL-B "docs/**/*.md"
 
 The traceability matrix carries an **Origin** column: `project` for a
 project-authored entry, or `<profile-id>@<version>` for an entry injected from a
-profile's delivered corpus (ADR-029). All three formats (`md`, `json`, `csv`)
+profile's delivered corpus (ADR-030). All three formats (`md`, `json`, `csv`)
 include it.
 
 #### export
@@ -392,7 +420,7 @@ markspec export csv "docs/**/*.md" > entries.csv
 markspec export yaml "docs/**/*.md"
 ```
 
-All three formats carry provenance (ADR-029): in `json` and `yaml`, corpus
+All three formats carry provenance (ADR-030): in `json` and `yaml`, corpus
 entries have an `origin: { kind, profileId, profileVersion }` field
 (project-authored entries omit it); in `csv`, every row has an `origin` column
 holding `<profile-id>@<version>` for corpus entries or `project` for
@@ -544,6 +572,13 @@ markspec lock --update             # force re-resolve every upstream
 markspec lock --update github-foo  # force re-resolve one upstream
 ```
 
+**Upgrade note.** `markspec lock` now indexes source-file doc-comment entries in
+addition to Markdown. A project that pinned its lockfile with an older MarkSpec
+and has trace links in source files will see a one-time `MSL-L212` edge-drift
+error from bare `markspec check` until you run `markspec lock` once to refresh
+the pin — the requirements didn't change, only the set of files the lockfile
+indexes did.
+
 #### sync
 
 Read-only commands surfacing bound-entry state from `markspec.lock` and the
@@ -646,7 +681,7 @@ markspec profile show
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
 When the active profile [delivers documents](profiles.md#delivered-documents)
-(ADR-029), the text output gains a **Delivered documents** block listing each
+(ADR-030), the text output gains a **Delivered documents** block listing each
 file's path, role (`corpus` with an entry count, or `doc` with its description),
 and providing tier — plus any missing-file issue
 (`PROFILE-DELIVERS-001`/`-002`):
@@ -734,7 +769,7 @@ markspec doctor
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
-When the active profile delivers documents (ADR-029), `doctor` reports the
+When the active profile delivers documents (ADR-030), `doctor` reports the
 document count, corpus entry count, and any health issue (declared-but-missing
 file, corpus parse failure):
 

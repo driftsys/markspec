@@ -755,7 +755,7 @@ Deno.test("compile: profile-extended registry classifies SoftwareRequirement ent
 });
 
 // ---------------------------------------------------------------------------
-// Corpus injection (ADR-029): CompileOptions.corpusEntries
+// Corpus injection (ADR-030): CompileOptions.corpusEntries
 // ---------------------------------------------------------------------------
 
 const CORPUS_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";

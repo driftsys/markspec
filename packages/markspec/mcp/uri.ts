@@ -9,7 +9,7 @@
  * - `markspec://entry/{displayId}`          — a single entry
  * - `markspec://profile/{kind}/{name}`      — a profile element detail
  * - `markspec://delivered/{profileId}/{path}` — a profile-delivered document
- *   (ADR-029)
+ *   (ADR-030)
  *
  * All helpers are pure and safe to import from any module.
  */
@@ -108,10 +108,10 @@ export function isProfileDetailUri(uri: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Delivered-document URIs (ADR-029)
+// Delivered-document URIs (ADR-030)
 // ---------------------------------------------------------------------------
 
-/** Prefix for delivered-document resource URIs (ADR-029). */
+/** Prefix for delivered-document resource URIs (ADR-030). */
 export const DELIVERED_URI_PREFIX = "markspec://delivered/";
 
 /** Build a delivered-document URI: profileId segment + encoded relative path. */

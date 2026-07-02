@@ -420,7 +420,7 @@ export interface EntryProperties {
 
 /**
  * Provenance of an entry that did not originate in the project's own files
- * (ADR-029). Absent on project-authored entries. `kind` is a discriminant so
+ * (ADR-030). Absent on project-authored entries. `kind` is a discriminant so
  * future origins (e.g. ADR-011 SBOM-generated dependency entries) can reuse
  * the slot.
  */
@@ -547,7 +547,7 @@ export interface Entry {
   readonly derivedDiscipline?: Discipline;
   /**
    * Set on entries injected from a profile-delivered corpus document
-   * (ADR-029). Consumers treat such entries as read-only: `fmt` and rename
+   * (ADR-030). Consumers treat such entries as read-only: `fmt` and rename
    * never touch them, and validation findings inside them are downgraded
    * to attributed warnings.
    */

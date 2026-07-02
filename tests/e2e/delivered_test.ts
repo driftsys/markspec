@@ -1,7 +1,7 @@
 /**
  * @module tests/e2e/delivered_test
  *
- * E2E tests for profile-delivered documents (ADR-029). The differential
+ * E2E tests for profile-delivered documents (ADR-030). The differential
  * pair below is the feature's only end-to-end proof that injecting a
  * profile's delivered corpus into `check` actually resolves a project
  * `Satisfies:` target: the same fixture WITH `delivers:` resolves cleanly,
@@ -77,7 +77,7 @@ const GUIDE_MD = `# Integration guide\n`;
 
 const PROJECT_MD = `- [STK_0001] Vehicle state access
 
-  The system shall read the vehicle state from the platform core service within 100 ms.
+  The system shall read the vehicle state within 100 ms.
 
       Id: 01ARZ3NDEKTSV4RRFFQ69G5FB0
       Type: stakeholder-requirement
@@ -194,7 +194,7 @@ Deno.test("show: a corpus entry is visible without naming its file", async () =>
   try {
     assertEquals(run.code, 0, run.stderr);
     assertStringIncludes(run.stdout, "PLT_0001");
-    // The Source line renders the ADR-029 stable form — profile label +
+    // The Source line renders the ADR-030 stable form — profile label +
     // manifest-relative path — never the raw on-disk absolute path.
     assertStringIncludes(
       run.stdout,

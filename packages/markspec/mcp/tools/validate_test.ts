@@ -237,7 +237,7 @@ Deno.test(
 Deno.test(
   "validate tool: reports corpus-load diagnostics from the compiled context",
   async () => {
-    // The MCP compiled context carries corpus-load diagnostics (ADR-029,
+    // The MCP compiled context carries corpus-load diagnostics (ADR-030,
     // merged by runCompile in project.ts) — the validate tool must render
     // them so a missing delivered corpus file is not reported as clean.
     const chain = makeMultiTierChain(makeTier(ROOT_DEFAULT_YAML));

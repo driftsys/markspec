@@ -66,7 +66,7 @@ export const doctorCmd = new Command()
       }
     }
 
-    // Delivered-document health (ADR-029): re-load the corpus to report a
+    // Delivered-document health (ADR-030): re-load the corpus to report a
     // per-document count + any surviving PROFILE-DELIVERS diagnostics. Any
     // corpus file missing an error-severity check already made
     // compileProject() exit(1) above, so only warning-level issues (e.g. a

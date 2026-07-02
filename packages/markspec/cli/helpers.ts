@@ -166,7 +166,7 @@ export function makeGitFile(withContributors: boolean) {
 /**
  * Render a diagnostic's location for human-facing output. A location
  * inside a delivered corpus file is mapped to the stable
- * `<profile-id>@<version>:<relative-path>:<line>` form (ADR-029) instead
+ * `<profile-id>@<version>:<relative-path>:<line>` form (ADR-030) instead
  * of the raw `.markspec/cache/...` (or local package) absolute path —
  * consumers should never see the cache layout. Locations outside the
  * corpus render as `<file>:<line>`, unchanged from prior behavior.
@@ -187,7 +187,7 @@ export function renderDiagnosticLocation(
  * Compile project files and return the result alongside the loaded profile chain.
  * Shared helper for commands that need the compiled graph.
  *
- * Loads the active profile's delivered corpus (ADR-029) and injects it into
+ * Loads the active profile's delivered corpus (ADR-030) and injects it into
  * `compile()` so every graph-consuming command (`show`, `context`,
  * `dependents`, `report`, `export`) resolves trace targets that live in a
  * profile-delivered document. A corpus-load error (e.g. a declared corpus
@@ -313,10 +313,15 @@ export async function resolveScope(
 
   if (args.length === 0) {
     if (projectRoot === undefined) {
-      console.error(
-        "error: no project root found (project.yaml or .markspec.yaml)",
-      );
+      // project.yaml is the project-root marker (it carries name / version /
+      // exclude). A `.markspec.yaml` only activates a profile (ADR-008) and
+      // does not, on its own, mark a root — so the message must not imply it
+      // does (#666).
+      console.error("error: no project root found (project.yaml required)");
       console.error(`  searched from ${Deno.cwd()} to filesystem root`);
+      console.error(
+        "  a .markspec.yaml activates a profile but does not mark a project root",
+      );
       console.error(
         "  run 'markspec init' to create one, or pass explicit files",
       );

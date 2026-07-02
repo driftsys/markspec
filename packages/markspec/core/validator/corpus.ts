@@ -1,7 +1,7 @@
 /**
  * @module core/validator/corpus
  *
- * Corpus-aware diagnostic post-pass (ADR-029). Two responsibilities:
+ * Corpus-aware diagnostic post-pass (ADR-030). Two responsibilities:
  *
  * 1. {@linkcode detectCorpusCollisions} — a project entry re-declaring a
  *    display ID (or Id) owned by a delivered corpus entry is MSL-R014, a

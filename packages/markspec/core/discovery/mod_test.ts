@@ -126,3 +126,61 @@ Deno.test("discovery: output is sorted (deterministic)", async () => {
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("discovery: skips common build-output dirs (built-in, no .gitignore)", async () => {
+  const dir = await makeTree({
+    "real.md": "",
+    "node_modules/pkg/a.md": "",
+    "target/b.rs": "",
+    "dist/c.md": "",
+    "build/d.md": "",
+    "src/nested/build/e.md": "", // nested build dir also skipped
+  });
+  try {
+    assertEquals(await collect(dir), ["real.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: build-output skip is overridable via exclude negation", async () => {
+  const dir = await makeTree({ "target/keep.md": "", "real.md": "" });
+  try {
+    assertEquals(
+      await collect(dir, { exclude: ["!target/"] }),
+      ["real.md", "target/keep.md"],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: build-output skip is overridable via .gitignore negation", async () => {
+  const dir = await makeTree({
+    ".gitignore": "!build/\n",
+    "build/keep.md": "",
+    "real.md": "",
+  });
+  try {
+    assertEquals(await collect(dir), ["build/keep.md", "real.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: explicitly naming a build dir walks its contents", async () => {
+  const dir = await makeTree({
+    "target/keep.md": "",
+    "target/sub/deep.md": "",
+  });
+  try {
+    // Root the walk *at* the build dir — its own name isn't in the
+    // root-relative paths, so the built-in skip does not prune it.
+    assertEquals(
+      await collect(join(dir, "target")),
+      ["keep.md", "sub/deep.md"],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

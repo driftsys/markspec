@@ -1,4 +1,4 @@
-# ADR-029: Profile-Delivered Documents
+# ADR-030: Profile-Delivered Documents
 
 ## Status
 
@@ -224,7 +224,7 @@ to `!e.origin` **before** calling `extractEdgeQuads`, so corpus-internal trace
 edges are never counted against the lockfile:
 
 ```ts
-// Corpus-blind by design: the lockfile is not corpus-aware yet (ADR-029
+// Corpus-blind by design: the lockfile is not corpus-aware yet (ADR-030
 // defers lockfile integration), so `markspec lock` never counts corpus
 // edges. Counting them here would raise an MSL-L212 drift error that
 // `markspec lock` can never fix.

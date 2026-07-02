@@ -73,7 +73,7 @@ export interface CompileOptions {
    */
   readonly withContributors?: boolean;
   /**
-   * Profile-delivered corpus entries (ADR-029), pre-loaded and
+   * Profile-delivered corpus entries (ADR-030), pre-loaded and
    * origin-stamped by `loadDeliveredCorpus`. Injected AHEAD of project
    * entries so first-entry-wins graph slots resolve to the corpus
    * deterministically. Optional — absent means no corpus.
@@ -367,7 +367,7 @@ export async function compile(
     ...linkTargetDiags,
   ];
 
-  // Phase 5: Corpus-aware diagnostic post-pass (ADR-029). A project entry
+  // Phase 5: Corpus-aware diagnostic post-pass (ADR-030). A project entry
   // that reuses a display ID or Id already delivered by a corpus is
   // MSL-R014, not the generic MSL-R005/R006/I007/I008 duplicate codes —
   // and findings located inside a corpus file are downgraded to

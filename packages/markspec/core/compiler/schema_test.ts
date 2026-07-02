@@ -270,7 +270,7 @@ Deno.test("serializeCompileResult: typeRegistry Maps are converted to plain obje
 });
 
 // ---------------------------------------------------------------------------
-// Origin (ADR-029): corpus provenance survives serialization
+// Origin (ADR-030): corpus provenance survives serialization
 // ---------------------------------------------------------------------------
 
 Deno.test("serializeEntry: origin present verbatim when set", () => {

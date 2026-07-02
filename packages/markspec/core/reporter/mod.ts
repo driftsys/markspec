@@ -88,7 +88,7 @@ interface TraceRow {
 }
 
 /**
- * Render an entry's provenance cell (ADR-029): `<profileId>@<profileVersion>`
+ * Render an entry's provenance cell (ADR-030): `<profileId>@<profileVersion>`
  * for an entry injected from a profile-delivered corpus, `"project"` for a
  * project-authored entry. Shared by the traceability matrix builder so CSV,
  * Markdown, and JSON rows all agree on the same value.

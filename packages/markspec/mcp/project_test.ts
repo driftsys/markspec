@@ -450,7 +450,7 @@ Deno.test("createProject: no candidate resolves → gated + message names dirs",
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Delivered corpus injection (ADR-029, Task 8)
+// Delivered corpus injection (ADR-030, Task 8)
 // ---------------------------------------------------------------------------
 
 /** A local profile that delivers one corpus document (`platform.md`). */

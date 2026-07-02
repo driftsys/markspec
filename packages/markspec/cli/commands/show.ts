@@ -49,7 +49,7 @@ export const showCmd = new Command()
         for (const attr of entry.rawAttributes) {
           console.log(`  ${attr.key}: ${attr.value}`);
         }
-        // A corpus entry's Source renders in the stable ADR-029 form
+        // A corpus entry's Source renders in the stable ADR-030 form
         // (`<profile-id>@<version>:<relative-path>:<line>`) — never the
         // raw cache/package absolute path. Project entries keep the
         // plain `<file>:<line>` form. Column is appended in both cases.

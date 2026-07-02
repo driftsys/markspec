@@ -119,7 +119,7 @@ Deno.test("readResource: rejects missing entry", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Delivered documents (ADR-029)
+// Delivered documents (ADR-030)
 // ---------------------------------------------------------------------------
 
 const DOC1: DeliveredDocument = {

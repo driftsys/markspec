@@ -8,7 +8,7 @@
  * from core/mod.ts, never from internal paths.
  */
 
-export const VERSION = "0.8.0";
+export const VERSION = "0.9.0";
 export const CORE_SCHEMA_VERSION = 1;
 
 // Model types
@@ -220,6 +220,12 @@ export type {
 // Formatter
 export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
+export {
+  loadMarkdownFormatter,
+  MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
+  MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
+} from "./formatter/dprint.ts";
+export type { ProseFormatOptions, ProseFormatter } from "./formatter/dprint.ts";
 
 // Validator
 export {

@@ -189,7 +189,7 @@ Deno.test("reporter traceability md: header row is present", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Origin column (ADR-029): corpus provenance in the traceability matrix
+// Origin column (ADR-030): corpus provenance in the traceability matrix
 // ---------------------------------------------------------------------------
 
 Deno.test("reporter traceability md: corpus entry renders profileId@profileVersion in Origin column", () => {

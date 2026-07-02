@@ -223,7 +223,7 @@ export const exportCmd = new Command()
           entry.id ?? "",
           entry.location.file,
           String(entry.location.line),
-          // ADR-029 provenance — same cell convention as the reporter's
+          // ADR-030 provenance — same cell convention as the reporter's
           // originCell: profile label for corpus entries, "project" for
           // project-authored ones.
           entry.origin

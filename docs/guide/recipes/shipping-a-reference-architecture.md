@@ -2,7 +2,7 @@
 
 A profile can deliver document files to every project that consumes it — see
 [Delivered documents](../profiles.md#delivered-documents) and
-[ADR-029](../../architecture/adr-029-profile-delivered-documents.md). This
+[ADR-030](../../architecture/adr-030-profile-delivered-documents.md). This
 recipe walks through the platform-team use case end to end: author a profile
 that ships a reference architecture as a traceable corpus, consume it from a
 project, and see what happens when a project entry collides with a corpus ID.
@@ -198,7 +198,7 @@ change. Delete `docs/collide.md` (or rename its display ID) to return to a clean
   merely protected by a check.
 - **Corpus-blind lockfile gate.** `markspec lock` and the `MSL-L212` drift gate
   only ever see project-authored edges; a `Satisfies:` edge between two corpus
-  entries is invisible to both, by design (ADR-029 §D6, deferred lockfile
+  entries is invisible to both, by design (ADR-030 §D6, deferred lockfile
   integration).
 - **A missing corpus file is a hard error.** If `profile/reference/platform.md`
   is absent from the published package, `check` fails with

@@ -75,7 +75,7 @@ export async function listResourceDescriptors(
       mimeType: "text/markdown",
     });
   }
-  // Delivered documents (ADR-029) — one descriptor per profile-delivered
+  // Delivered documents (ADR-030) — one descriptor per profile-delivered
   // file, whether or not its entries join the graph.
   for (const doc of project.delivers) {
     out.push({

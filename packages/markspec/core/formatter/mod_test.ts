@@ -527,3 +527,186 @@ Deno.test("Slice 3 formatter: malformed Discipline-frozen: value is untouched (v
   assertEquals(output.includes("Discipline-frozen: Software"), true);
   assertEquals(output.includes("@ 2026-05-25"), false);
 });
+
+Deno.test("format: formatMarkdownProse formats prose around entries", () => {
+  const input = `# Title
+
+Ragged
+prose.
+
+- [STK_0001] Entry
+
+  Body.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const unwrap = (md: string): string =>
+    md.split(/\n{2,}/).map((p) => p.replace(/\n(?!$)/g, " ")).join("\n\n") +
+    "\n";
+  const result = format(input, {
+    file: "t.md",
+    formatMarkdownProse: unwrap,
+  });
+  assertEquals(result.changed, true);
+  assertStringIncludes(result.output, "Ragged prose.");
+  assertStringIncludes(result.output, "- [STK_0001] Entry");
+  assertStringIncludes(result.output, "      Id: 01JADYKACKQKGVGHT9K7Y6PBPA");
+});
+
+Deno.test("format: formatMarkdownProse formats entry-less documents", () => {
+  const unwrap = (md: string): string => md.replace(/\n(?!$)/g, " ");
+  const result = format("Just\nprose.\n", {
+    file: "t.md",
+    formatMarkdownProse: unwrap,
+  });
+  assertEquals(result.changed, true);
+  assertEquals(result.output, "Just prose.\n");
+});
+
+Deno.test("format: without formatMarkdownProse, entry-less documents are untouched", () => {
+  const result = format("Just\nprose.\n", { file: "t.md" });
+  assertEquals(result.changed, false);
+  assertEquals(result.output, "Just\nprose.\n");
+});
+
+Deno.test("format: prose gate fallback emits MSL-F012 info", () => {
+  const truncate = (md: string): string =>
+    md.trimEnd().split(" ").slice(0, -1).join(" ") + "\n";
+  const result = format("some prose words here\n", {
+    file: "t.md",
+    formatMarkdownProse: truncate,
+  });
+  assertEquals(result.changed, false);
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "MSL-F012"),
+    true,
+  );
+});
+
+Deno.test("format: formatMarkdownProse re-wraps entry bodies (gated)", () => {
+  const input = `- [STK_0001] Entry
+
+  Ragged
+  body prose.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const unwrap = (md: string): string =>
+    md.split(/\n{2,}/).map((p) => p.replace(/\n(?!$)/g, " ")).join("\n\n") +
+    "\n";
+  const result = format(input, { file: "t.md", formatMarkdownProse: unwrap });
+  assertEquals(result.changed, true);
+  assertStringIncludes(result.output, "  Ragged body prose.");
+});
+
+Deno.test("format: polished entry-body lines never exceed 80 columns including indent", async () => {
+  // Regression (ADR-029 convergence): the body polish formats the body
+  // DEDENTED and re-indents +2 afterwards. Without an indent-adjusted
+  // width budget, a wrap point landing on exactly 80 columns dedented
+  // becomes 82 columns re-indented — which an external whole-file dprint
+  // (78-col budget for list content) re-wraps, ping-ponging forever.
+  const { loadMarkdownFormatter } = await import("./dprint.ts");
+  const proseFormat = await loadMarkdownFormatter();
+  const input = `- [STK_9003] Width budget
+
+  The system shall demonstrate a deliberately very long ragged body paragraph that must reflow under the indent-adjusted width budget so no emitted line exceeds eighty columns.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPD
+`;
+  const result = format(input, {
+    file: "t.md",
+    formatMarkdownProse: proseFormat,
+  });
+  for (const line of result.output.split("\n")) {
+    if (line.length > 80) throw new Error(`line exceeds 80 cols: ${line}`);
+  }
+});
+
+Deno.test("format: body gate rejects destructive output with MSL-F012, keeps canonical body", () => {
+  const input = `- [STK_0001] Entry
+
+  Body prose here.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const truncate = (md: string): string =>
+    md.trimEnd().split(" ").slice(0, -1).join(" ") + "\n";
+  const result = format(input, {
+    file: "t.md",
+    formatMarkdownProse: truncate,
+  });
+  assertStringIncludes(result.output, "  Body prose here.");
+  assertEquals(
+    result.diagnostics.some(
+      (d) => d.code === "MSL-F012" && d.message.includes("STK_0001"),
+    ),
+    true,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// ADR-029 follow-ups: scope guard + throw hardening
+// ---------------------------------------------------------------------------
+
+Deno.test("format: markdown pass is disabled for non-.md files even when the callback is wired (ADR-029 scope guard in format())", () => {
+  let called = false;
+  const spy = (md: string): string => {
+    called = true;
+    return md.replace(/\n(?!$)/g, " ");
+  };
+  const src =
+    'fn main() {\n    let x = compute(1, 2);\n    println!("{}", x);\n}\n';
+  const result = format(src, { file: "main.rs", formatMarkdownProse: spy });
+  assertEquals(called, false);
+  assertEquals(result.output, src);
+});
+
+Deno.test("format: markdown pass still runs for .md files (control for the scope guard)", () => {
+  let called = false;
+  const spy = (md: string): string => {
+    called = true;
+    return md;
+  };
+  format("# Heading\n\nsome prose.\n", {
+    file: "doc.md",
+    formatMarkdownProse: spy,
+  });
+  assertEquals(called, true);
+});
+
+Deno.test("format: a throwing markdown formatter degrades to fallback, never crashes (entry body)", () => {
+  const thrower = (): string => {
+    throw new Error("simulated dprint WASM panic");
+  };
+  const input = `- [STK_9004] Throw safety
+
+  The system shall keep its canonical body when the Markdown formatter errors.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPE
+`;
+  const result = format(input, { file: "t.md", formatMarkdownProse: thrower });
+  assertStringIncludes(
+    result.output,
+    "The system shall keep its canonical body when the Markdown formatter errors.",
+  );
+  assertEquals(result.diagnostics.some((d) => d.code === "MSL-F012"), true);
+});
+
+Deno.test("format: a throwing markdown formatter degrades to fallback for prose segments too", () => {
+  const thrower = (): string => {
+    throw new Error("simulated dprint WASM panic");
+  };
+  const result = format("# Overview\n\nragged prose here.\n", {
+    file: "t.md",
+    formatMarkdownProse: thrower,
+  });
+  // No throw; original prose preserved; the fallback is reported with the
+  // accurate "errored" cause (not the semantic-rejection wording).
+  assertStringIncludes(result.output, "ragged prose here.");
+  assertEquals(
+    result.diagnostics.some(
+      (d) => d.code === "MSL-F012" && d.message.includes("errored"),
+    ),
+    true,
+  );
+});

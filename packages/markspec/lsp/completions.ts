@@ -215,7 +215,7 @@ export interface EntryTypeInfo {
 /**
  * Build completion items for the ID reference trigger.
  * Returns one item per display ID in the workspace. Delivered-corpus
- * entries (ADR-029) get an `— from <origin>` badge appended to their
+ * entries (ADR-030) get an `— from <origin>` badge appended to their
  * detail so authors can see the ID is read-only, sourced from a profile.
  */
 export function buildIdReferenceItems(

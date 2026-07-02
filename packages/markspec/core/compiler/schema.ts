@@ -17,7 +17,7 @@ import type { RegistryBinding, RegistryTypedef } from "../typl/mod.ts";
  * `Record<string, readonly string[]>` instead of a `ReadonlyMap` — Maps are
  * not JSON-serializable. All other fields are passed through unchanged.
  *
- * `origin` (ADR-029) is restated explicitly here — rather than relying on
+ * `origin` (ADR-030) is restated explicitly here — rather than relying on
  * the `Omit<Entry, ...>` passthrough — so the field-presence contract is
  * documented at the serialization boundary: present verbatim on entries
  * injected from a profile-delivered corpus, absent (not `null`) on
@@ -123,7 +123,7 @@ export function serializeEntry(entry: Entry): SerializedEntry {
     properties = Object.keys(rest).length > 0 ? rest : undefined;
   }
 
-  // Pull `origin` (ADR-029) out of the spread so the key is entirely
+  // Pull `origin` (ADR-030) out of the spread so the key is entirely
   // absent — not `origin: undefined` — on entries that did not come
   // from a delivered corpus, matching the serialized-field-presence
   // contract. Object rest destructuring drops the named key regardless

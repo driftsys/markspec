@@ -795,7 +795,7 @@ function stringifyMatcher(m: TargetMatcher): string {
 // Helpers: construct an EffectiveProfile from a single tier's manifest.
 // ---------------------------------------------------------------------------
 
-/** Resolve a tier's `delivers:` declarations against its baseDir (ADR-029). */
+/** Resolve a tier's `delivers:` declarations against its baseDir (ADR-030). */
 function deliveredFromTier(tier: LoadedProfile): DeliveredDocument[] {
   return tier.manifest.delivers.map((d) => ({
     profileId: tier.id,
