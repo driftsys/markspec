@@ -18,7 +18,12 @@ import type { DisplayId, Entry, Link } from "../model/mod.ts";
 function makeEntry(
   id: string,
   title: string,
-  opts: { file?: string; type?: string; labels?: string } = {},
+  opts: {
+    file?: string;
+    type?: string;
+    labels?: string;
+    origin?: { profileId: string; profileVersion: string };
+  } = {},
 ): Entry {
   const rawAttributes: Array<{ key: string; value: string }> = [];
   if (opts.labels) {
@@ -35,6 +40,13 @@ function makeEntry(
     typedAttributes: new Map(),
     type: opts.type,
     bodyTokens: [],
+    origin: opts.origin
+      ? {
+        kind: "profile" as const,
+        profileId: opts.origin.profileId,
+        profileVersion: opts.origin.profileVersion,
+      }
+      : undefined,
   };
 }
 
@@ -174,6 +186,58 @@ Deno.test("reporter traceability md: header row is present", () => {
   assertStringIncludes(output, "Title");
   assertStringIncludes(output, "Satisfies");
   assertStringIncludes(output, "Satisfied-by");
+});
+
+// ---------------------------------------------------------------------------
+// Origin column (ADR-029): corpus provenance in the traceability matrix
+// ---------------------------------------------------------------------------
+
+Deno.test("reporter traceability md: corpus entry renders profileId@profileVersion in Origin column", () => {
+  const entry = makeEntry("PLT_0001", "Platform core service", {
+    origin: { profileId: "p", profileVersion: "1.0.0" },
+  });
+  const result = makeResult([entry]);
+
+  const output = report(result, { kind: "traceability", format: "md" });
+
+  assertStringIncludes(output, "Origin");
+  const row = output.split("\n").find((line) => line.includes("PLT_0001"));
+  assertStringIncludes(row ?? "", "p@1.0.0");
+});
+
+Deno.test("reporter traceability md: project entry renders 'project' in Origin column", () => {
+  const entry = makeEntry("STK_0001", "Stakeholder req");
+  const result = makeResult([entry]);
+
+  const output = report(result, { kind: "traceability", format: "md" });
+
+  const row = output.split("\n").find((line) => line.includes("STK_0001"));
+  assertStringIncludes(row ?? "", "project");
+});
+
+Deno.test("reporter traceability csv: header includes Origin column between Type and Satisfies", () => {
+  const result = makeResult([makeEntry("REQ_001", "A requirement")]);
+  const output = report(result, { kind: "traceability", format: "csv" });
+  assertStringIncludes(output, "ID,Title,Type,Origin,Satisfies,Satisfied-by");
+});
+
+Deno.test("reporter traceability csv: corpus entry row includes profileId@profileVersion", () => {
+  const entry = makeEntry("PLT_0001", "Platform core service", {
+    origin: { profileId: "p", profileVersion: "1.0.0" },
+  });
+  const result = makeResult([entry]);
+
+  const output = report(result, { kind: "traceability", format: "csv" });
+
+  const row = output.split("\n").find((line) => line.startsWith("PLT_0001,"));
+  assertStringIncludes(row ?? "", ",p@1.0.0,");
+});
+
+Deno.test("reporter traceability csv: project entry row includes 'project'", () => {
+  const result = makeResult([makeEntry("REQ_001", "A requirement")]);
+  const output = report(result, { kind: "traceability", format: "csv" });
+  const row = output.split("\n").find((line) => line.startsWith("REQ_001,"));
+  assertStringIncludes(row ?? "", ",project,");
 });
 
 Deno.test("reporter traceability json: returns valid JSON array", () => {

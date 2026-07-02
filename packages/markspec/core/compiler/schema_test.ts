@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { compile } from "./mod.ts";
-import { serializeCompileResult } from "./schema.ts";
+import { serializeCompileResult, serializeEntry } from "./schema.ts";
 import type { SerializedEntry } from "./schema.ts";
 import type { CompileResult } from "./mod.ts";
 import type { DisplayId, Entry, Link } from "../model/mod.ts";
@@ -267,6 +267,40 @@ Deno.test("serializeCompileResult: typeRegistry Maps are converted to plain obje
     "signal",
   );
   assertEquals(typeof parsed.typeRegistry.typedefs, "object");
+});
+
+// ---------------------------------------------------------------------------
+// Origin (ADR-029): corpus provenance survives serialization
+// ---------------------------------------------------------------------------
+
+Deno.test("serializeEntry: origin present verbatim when set", () => {
+  const entry: Entry = {
+    ...makeEntry("PLT_0001"),
+    origin: {
+      kind: "profile",
+      profileId: "platform-arch",
+      profileVersion: "1.2.0",
+    },
+  };
+
+  const serialized = serializeEntry(entry);
+
+  assertEquals(serialized.origin, {
+    kind: "profile",
+    profileId: "platform-arch",
+    profileVersion: "1.2.0",
+  });
+});
+
+Deno.test("serializeEntry: origin field absent when unset", () => {
+  const entry = makeEntry("STK_0001");
+
+  const serialized = serializeEntry(entry);
+
+  assertEquals("origin" in serialized, false);
+  // Field-free (not null/undefined-serialized) after JSON round-trip too.
+  const json = JSON.stringify(serialized);
+  assertEquals(json.includes("origin"), false);
 });
 
 Deno.test("serializeCompileResult propagates derivedDiscipline to JSON entries", async () => {

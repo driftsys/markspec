@@ -235,6 +235,19 @@ Deno.test("profile show: lists delivered documents", async () => {
   assertStringIncludes(stdout, "reference/guide.md");
 });
 
+// ---------------------------------------------------------------------------
+// Task 7 — origin in export + reports
+// ---------------------------------------------------------------------------
+
+Deno.test("export json: corpus entries carry origin", async () => {
+  const { code, stdout } = await markspec(
+    ["export", "json", "docs/requirements.md"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, `"profileId": "platform-arch"`);
+});
+
 Deno.test("profile show: missing corpus file is surfaced, not '0 entries'", async () => {
   // `profile show` does NOT route through compileProject, so a missing
   // corpus file (PROFILE-DELIVERS-001, fatal everywhere else) is reachable
