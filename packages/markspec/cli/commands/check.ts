@@ -4,8 +4,9 @@
  * `markspec check` — check broken refs, missing Ids, duplicates.
  */
 
+import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
-import { ConfigError } from "../../core/mod.ts";
+import { ConfigError, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
 
@@ -78,7 +79,9 @@ export const checkCmd = new Command()
           console.error(`error: ${filePath}: file not found`);
           Deno.exit(1);
         }
-        if (filePath.endsWith(".md")) mdContents.set(filePath, content);
+        if (MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase())) {
+          mdContents.set(filePath, content);
+        }
         const result = await parseFile(content, { file: filePath });
         allEntries.push(...result.entries);
         parseDiagnostics.push(...result.diagnostics);
@@ -120,7 +123,6 @@ export const checkCmd = new Command()
           loadMarkdownFormatter,
           parseLockfile,
         } = await import("../../core/mod.ts");
-        const { join } = await import("@std/path");
 
         const formatMarkdownProse = await loadMarkdownFormatter();
 

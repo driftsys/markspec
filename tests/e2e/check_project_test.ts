@@ -182,6 +182,19 @@ Deno.test("check: formatted project does not emit MSL-F010", async () => {
   assertEquals(code, 0, stderr);
 });
 
+Deno.test("check: uppercase .MD extension is covered by the MSL-F010 drift gate (case parity)", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      // Uppercase extension + non-canonical prose (asterisk bullet): fmt would
+      // reformat it, so the MSL-F010 gate must also see it — case parity.
+      "docs/OVERVIEW.MD": "# Overview\n\n* asterisk bullet\n",
+    },
+  });
+  assertStringIncludes(stderr, "MSL-F010");
+  assertEquals(code, 1);
+});
+
 Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
   // 1. Build a project and generate a lockfile that pins its edges.
   const run = await markspecPersist(["lock"], {
