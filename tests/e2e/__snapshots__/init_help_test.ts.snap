@@ -3,7 +3,7 @@ export const snapshot = {};
 snapshot[`init --help snapshot 1`] = `
 \`
 [1mUsage:[22m   [95mmarkspec init [33m[[95m[95mtarget-dir[95m[33m][95m[39m
-[1mVersion:[22m [33m<version> (core-schema <n>)[39m     
+[1mVersion:[22m [33m<version> (core-schema <n>)[39m
 
 [1mDescription:[22m
 
@@ -11,26 +11,26 @@ snapshot[`init --help snapshot 1`] = `
 
 [1mOptions:[22m
 
-  [94m-h[39m, [94m--help[39m             [31m[1m-[22m[39m Show this help.                                                                                                         
-  [94m--client[39m       [33m<[39m[95mid[39m[33m>[39m    [31m[1m-[22m[39m Force write for the named client (repeatable)                                  ([1mValues: [22m[32m"claude-code"[39m, [32m"opencode"[39m)      
-  [94m--all-clients[39m          [31m[1m-[22m[39m Write configs for claude-code + opencode regardless of detection                                                        
-  [94m--no-mcp[39m               [31m[1m-[22m[39m Skip all MCP scaffolding                                                                                                
-  [94m--no-skills[39m            [31m[1m-[22m[39m Skip 'upskill add'                                                                                                      
-  [94m--profile[39m      [33m<[39m[95mspec[39m[33m>[39m  [31m[1m-[22m[39m Profile spec; see --help for grammar                                           ([31m[1mConflicts: [22m[39m[3m--no-profile[23m)                
-  [94m--no-profile[39m           [31m[1m-[22m[39m Core-only mode (default-profile: false)                                                                                 
-  [94m--binary-path[39m  [33m<[39m[95mpath[39m[33m>[39m  [31m[1m-[22m[39m Absolute path to markspec binary for MCP configs                                                                        
-  [94m--dry-run[39m              [31m[1m-[22m[39m Report decisions, write nothing                                                                                         
-  [94m--force[39m                [31m[1m-[22m[39m Overwrite skip-on-exists files; required for non-empty target dir and non-TTY                                           
+  [94m-h[39m, [94m--help[39m             [31m[1m-[22m[39m Show this help.
+  [94m--client[39m       [33m<[39m[95mid[39m[33m>[39m    [31m[1m-[22m[39m Force write for the named client (repeatable)                                  ([1mValues: [22m[32m"claude-code"[39m, [32m"opencode"[39m)
+  [94m--all-clients[39m          [31m[1m-[22m[39m Write configs for claude-code + opencode regardless of detection
+  [94m--no-mcp[39m               [31m[1m-[22m[39m Skip all MCP scaffolding
+  [94m--no-skills[39m            [31m[1m-[22m[39m Skip 'upskill add'
+  [94m--profile[39m      [33m<[39m[95mspec[39m[33m>[39m  [31m[1m-[22m[39m Profile spec; see --help for grammar                                           ([31m[1mConflicts: [22m[39m[3m--no-profile[23m)
+  [94m--no-profile[39m           [31m[1m-[22m[39m Core-only mode (default-profile: false)
+  [94m--binary-path[39m  [33m<[39m[95mpath[39m[33m>[39m  [31m[1m-[22m[39m Absolute path to markspec binary for MCP configs
+  [94m--dry-run[39m              [31m[1m-[22m[39m Report decisions, write nothing
+  [94m--force[39m                [31m[1m-[22m[39m Overwrite skip-on-exists files; required for non-empty target dir and non-TTY
   [94m--format[39m       [33m<[39m[95mfmt[39m[33m>[39m   [31m[1m-[22m[39m Summary format                                                                 ([1mDefault: [22m[32m"text"[39m, [1mValues: [22m[32m"text"[39m, [32m"json"[39m)
-  [94m-q[39m, [94m--quiet[39m            [31m[1m-[22m[39m Errors only                                                                                                             
+  [94m-q[39m, [94m--quiet[39m            [31m[1m-[22m[39m Errors only
 
 [1mExamples:[22m
 
-  [2m[1mScaffold a project in cwd[2m[22m           markspec init                                                       
-  [2m[1mScaffold in a new subdir[2m[22m            markspec init ./my-project                                          
-  [2m[1mUse a git profile[2m[22m                   markspec init --profile git+https://github.com/org/profile          
+  [2m[1mScaffold a project in cwd[2m[22m           markspec init
+  [2m[1mScaffold in a new subdir[2m[22m            markspec init ./my-project
+  [2m[1mUse a git profile[2m[22m                   markspec init --profile git+https://github.com/org/profile
   [2m[1mForce all clients + absolute binary[2m[22m markspec init --all-clients --binary-path /opt/markspec/bin/markspec
-  [2m[1mDry-run JSON[2m[22m                        markspec init --dry-run --format json                               
+  [2m[1mDry-run JSON[2m[22m                        markspec init --dry-run --format json
 
 \`
 `;
