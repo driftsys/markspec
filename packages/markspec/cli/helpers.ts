@@ -255,7 +255,20 @@ export async function compileProject(
     );
   }
 
-  return { result, chain };
+  // Merge the corpus-load diagnostics into the returned result so
+  // serialized artifacts (`export`/`compile --format json`) surface them
+  // too — otherwise a machine consumer parsing the JSON would believe the
+  // corpus is healthy while other surfaces (`check`, MCP) flag it (#674 f4).
+  // Only warning/info corpus diagnostics reach here: error-severity ones
+  // already exited above. Prepended so they read as load-time findings,
+  // ahead of the compiler's own diagnostics. Both sets were already printed
+  // to stderr above, so this changes serialization only, never the console.
+  const merged: CompileResult = {
+    ...result,
+    diagnostics: [...corpus.diagnostics, ...result.diagnostics],
+  };
+
+  return { result: merged, chain };
 }
 
 /**

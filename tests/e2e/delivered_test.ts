@@ -267,12 +267,11 @@ Deno.test("export csv: origin column distinguishes corpus from project", async (
 // (review fix 2)
 // ---------------------------------------------------------------------------
 
-// Prose lint's scope filter (`isProseScope`) resolves core types WITHOUT the
-// profile, so entries typed with profile-declared names never enter prose
-// scope — only core-resolvable ones do. `REQ_`-prefixed display IDs resolve
-// via step-4 prefix inference (REQ → Requirement), so a declared `requirement`
-// type with a `REQ_` pattern gives us entries that BOTH classify cleanly (no
-// MSL-T003) AND are prose-scoped. "shall be exposed" trips MSL-Q300 (passive).
+// A declared `requirement` type with a `REQ_` pattern gives entries that BOTH
+// classify cleanly (no MSL-T003) AND are prose-scoped: `REQ_`-prefixed IDs
+// resolve to Requirement via step-4 prefix inference, independent of the
+// profile (the #675 fix additionally scopes profile-only-typed entries — see
+// the "profile-typed entry" test). "shall be exposed" trips MSL-Q300 (passive).
 const WITH_DELIVERS_AND_REQ_TYPE = profileManifest(`    requirement:
       extends: Requirement
       display-id-pattern: "REQ_{n:04d}"
@@ -388,4 +387,131 @@ Deno.test("profile show: missing corpus file is surfaced, not '0 entries'", asyn
     false,
     `missing corpus file silently rendered as 0 entries:\n${stdout}`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// #675 — prose lint reaches profile-typed entries (isProseScope threads profile)
+// ---------------------------------------------------------------------------
+
+// A project entry classified purely by a profile type: `platform-component`
+// extends Requirement but its `PLT_` prefix is NOT a core-recognizable one, so
+// only the profile's `extends:` chain can resolve it to a Specification
+// descendant. Before the fix `isProseScope` called `resolvedCoreType` WITHOUT
+// the profile, so this entry never entered prose scope and its passive sentence
+// was silently skipped by both `check`'s advisory gate and `markspec lint`.
+const PROFILE_TYPED_PASSIVE_MD = `- [PLT_0500] State bus exposure
+
+  The state bus shall be exposed by the service.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5F50
+      Type: platform-component
+`;
+
+Deno.test("check: prose lint reaches a profile-typed entry (#675)", async () => {
+  // No corpus needed — this is a pure classification bug. WITHOUT_DELIVERS
+  // keeps the profile (so `platform-component` is declared) without injecting
+  // any corpus, and we drop the base fixture's requirements.md so PLT_0500 is
+  // the only project entry under scrutiny.
+  const files = fixture(WITHOUT_DELIVERS);
+  delete files["docs/requirements.md"];
+  files["docs/prose675.md"] = PROFILE_TYPED_PASSIVE_MD;
+  const { code, stderr } = await markspec(["check"], files);
+  assertStringIncludes(stderr, "MSL-Q300");
+  assertStringIncludes(stderr, "prose675.md");
+  assertEquals(code, 2, stderr); // advisory prose warning only
+});
+
+// ---------------------------------------------------------------------------
+// #674 finding 1 — a $Identifier defined only in the corpus still silences
+// Q500 in project prose (the Q500 additive-index contract survives corpus
+// origin-filtering)
+// ---------------------------------------------------------------------------
+
+// Corpus entry defines `$Framebus`; the project entry's prose mentions the bare
+// capitalized word "Framebus". Pre-filtering corpus entries out of `runLint`'s
+// input dropped `$Framebus` from `buildIdentifierIndex`, so the project mention
+// tripped a spurious `xref-glossary-undefined` (MSL-Q500) warning.
+const CORPUS_DEFINES_IDENTIFIER_MD = `- [PLT_0001] Platform core service
+
+  The platform core service exposes $Framebus for vehicle state distribution.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+      Type: platform-component
+`;
+
+const PROJECT_USES_IDENTIFIER_MD = `- [REQ_0500] Gateway publication
+
+  The gateway shall publish to the Framebus within 10 ms.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5F51
+`;
+
+Deno.test("check: a corpus $Identifier silences Q500 in project prose (#674 f1)", async () => {
+  const files = fixture(WITH_DELIVERS_AND_REQ_TYPE);
+  files["profile/reference/platform.md"] = CORPUS_DEFINES_IDENTIFIER_MD;
+  files["docs/uses.md"] = PROJECT_USES_IDENTIFIER_MD;
+  const { code, stderr } = await markspec(["check"], files);
+  // "Framebus" resolves via the corpus-defined $Framebus → no MSL-Q500 against
+  // the project entry that mentions it.
+  const q500Lines = stderr.split("\n").filter((l) => l.includes("MSL-Q500"));
+  assertEquals(
+    q500Lines.filter((l) => l.includes("uses.md")),
+    [],
+    `corpus $Identifier failed to silence Q500 in project prose:\n${stderr}`,
+  );
+  // Belt-and-braces: the Q500 message quotes the offending phrase, so
+  // "'Framebus'" must appear nowhere in the output.
+  assertEquals(
+    stderr.includes("'Framebus'"),
+    false,
+    `Framebus tripped an xref warning despite the corpus $Identifier:\n${stderr}`,
+  );
+  // The project prose carries an unrelated EARS advisory (MSL-Q101), so the
+  // run is warnings-only (exit 2), never an error — the corpus filter did not
+  // turn an upstream identifier into a project error.
+  assertEquals(code, 2, stderr);
+});
+
+// ---------------------------------------------------------------------------
+// #674 finding 2 — standalone `markspec lint` never runs prose analysis on
+// delivered-corpus entries (ADR-030 §D4)
+// ---------------------------------------------------------------------------
+
+Deno.test("lint: prose runs on project entries but never on corpus (#674 f2)", async () => {
+  const files = fixture(WITH_DELIVERS_AND_REQ_TYPE);
+  files["profile/reference/platform.md"] = PASSIVE_CORPUS_MD;
+  files["docs/passive.md"] = PASSIVE_PROJECT_MD;
+  const { code, stderr } = await markspec(["lint"], files);
+  const proseLines = stderr.split("\n").filter((l) => l.includes("MSL-Q"));
+  // Project-side passive sentence still fires — lint isn't disabled outright.
+  assertEquals(
+    proseLines.some((l) => l.includes("passive.md") && l.includes("MSL-Q300")),
+    true,
+    `project-side MSL-Q300 missing from lint:\n${stderr}`,
+  );
+  // The corpus file's passive sentence must never surface.
+  assertEquals(
+    proseLines.filter((l) => l.includes("platform.md")),
+    [],
+    `corpus prose finding leaked into lint output:\n${stderr}`,
+  );
+  assertEquals(code, 2, stderr); // advisory warnings only
+});
+
+// ---------------------------------------------------------------------------
+// #674 finding 4 — export/compile --format json surface corpus-load warnings
+// in the serialized diagnostics (machine consumers parse json, not stderr)
+// ---------------------------------------------------------------------------
+
+Deno.test("export json: corpus-load warning reaches serialized diagnostics (#674 f4)", async () => {
+  const files = fixture(WITH_DELIVERS);
+  // Drop the docs-only guide.md → PROFILE-DELIVERS-002 (warning severity, not
+  // fatal, so compile still runs and export exits 0).
+  delete files["profile/reference/guide.md"];
+  const { code, stdout, stderr } = await markspec(
+    ["export", "json", "docs/requirements.md"],
+    files,
+  );
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stdout, "PROFILE-DELIVERS-002");
 });
