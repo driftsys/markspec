@@ -45,6 +45,7 @@ import {
   type Entry,
   filterEntriesByTraceTargets,
   format,
+  isLineFenced,
   loadConfig,
   loadDeliveredCorpus,
   loadMarkdownFormatter,
@@ -1289,6 +1290,11 @@ connection.onPrepareRename((params) => {
       return null;
     }
   }
+  // A token inside a fenced illustrative example is not a live reference
+  // (#680) — findIdOccurrencesInFile would exclude it from the rename's
+  // edits anyway, so reject the rename here rather than opening an input
+  // box for a token that silently won't change.
+  if (isLineFenced(document.getText(), params.position.line)) return null;
 
   const line = document.getText({
     start: { line: params.position.line, character: 0 },
@@ -1511,6 +1517,11 @@ connection.onDocumentHighlight((params) => {
       return null;
     }
   }
+  // A token inside a fenced illustrative example is not a live reference
+  // (#680) — findOccurrencesInFile would exclude it from the results
+  // anyway, which would otherwise light up unrelated real occurrences
+  // elsewhere while leaving the cursor's own token dark.
+  if (isLineFenced(document.getText(), params.position.line)) return null;
 
   const line = document.getText({
     start: { line: params.position.line, character: 0 },

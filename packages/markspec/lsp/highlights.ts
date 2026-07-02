@@ -11,7 +11,19 @@
  * occurrence is `Read`. This matches the LSP/IDE convention where
  * a "write" highlight marks the symbol's binding location and
  * "read" marks usages.
+ *
+ * `findOccurrencesInFile` scans raw file text rather than parsed
+ * entries, so it must skip fenced code regions itself (#680, same
+ * class as the `core/refs` `canonicalizeRefs` fix in #679/#668) —
+ * otherwise an ID inside an illustrative fenced example gets
+ * highlighted as a `Read` reference to an unrelated real entry. It
+ * reuses `walkProseLines` (`core/util/fence.ts`) rather than
+ * re-implementing the fence toggle. The server separately gates
+ * `onDocumentHighlight` against a fenced cursor position (via
+ * `isLineFenced`) before calling this function.
  */
+
+import { walkProseLines } from "../core/mod.ts";
 
 /** Display-ID character set — letters, digits, dot, slash, hyphen, underscore. */
 const ID_CHAR_RE = /[A-Za-z0-9._/-]/;
@@ -35,6 +47,10 @@ export interface DocumentHighlight {
  * whole-token occurrence of `displayId`. The token at the start of
  * a Markdown list-item bracket (`- [REQ-001]`) is classified as
  * `Write` — it's the declaration. All other matches are `Read`.
+ *
+ * Lines inside a fenced code block (``` or ~~~) are skipped — an
+ * illustrative example that happens to display the same ID as sample
+ * text is not a real reference and must not be highlighted (#680).
  */
 export function findOccurrencesInFile(
   text: string,
@@ -42,9 +58,7 @@ export function findOccurrencesInFile(
 ): DocumentHighlight[] {
   if (displayId.length === 0) return [];
   const out: DocumentHighlight[] = [];
-  const lines = text.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  walkProseLines(text, (line, i) => {
     let start = 0;
     while (true) {
       const idx = line.indexOf(displayId, start);
@@ -72,6 +86,6 @@ export function findOccurrencesInFile(
       }
       start = idx + displayId.length;
     }
-  }
+  });
   return out;
 }

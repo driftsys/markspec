@@ -12,7 +12,13 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../core/mod.ts";
-import { parseFile, suppressDeclaredAttrR010, validate } from "../core/mod.ts";
+import {
+  attributeCorpusDiagnostics,
+  detectCorpusCollisions,
+  parseFile,
+  suppressDeclaredAttrR010,
+  validate,
+} from "../core/mod.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
 
 /** A display ID paired with its entry title, for completion items. */
@@ -253,11 +259,34 @@ export class WorkspaceIndex {
    * When `profile` is supplied, core-only MSL-R010 "unknown attribute"
    * warnings are suppressed for attributes the profile declares — matching
    * the `validate` command so the editor doesn't flood with false positives.
+   *
+   * Corpus-aware post-pass (ADR-030), mirroring `check`/`compile`: a
+   * project entry re-declaring a display ID or Id already delivered by
+   * the corpus becomes MSL-R014 instead of the generic MSL-R005/R006/
+   * I007/I008 duplicate codes, whose message would otherwise embed the
+   * corpus entry's raw `.markspec/cache/…` location (#674 finding 3).
+   * `detectCorpusCollisions`/`attributeCorpusDiagnostics` no-op when no
+   * corpus was seeded. Diagnostics located in a corpus file (including
+   * the corpus↔corpus branch of MSL-R014) are still filtered out at
+   * publish time by the server's `corpusFilePaths` guard.
    */
   validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();
     const result = validate(allEntries);
-    return suppressDeclaredAttrR010(result.diagnostics, allEntries, profile);
+    const suppressed = suppressDeclaredAttrR010(
+      result.diagnostics,
+      allEntries,
+      profile,
+    );
+    const collisions = detectCorpusCollisions(allEntries);
+    return [
+      ...attributeCorpusDiagnostics(
+        suppressed,
+        allEntries,
+        collisions.collidedTokens,
+      ),
+      ...collisions.diagnostics,
+    ];
   }
 
   // -----------------------------------------------------------------------

@@ -42,3 +42,24 @@ export function walkProseLines(body: string, cb: ProseLineCallback): void {
     cb(line, i);
   }
 }
+
+/**
+ * Return whether `lineIndex` (0-based) is a line {@linkcode walkProseLines}
+ * would skip — either a fence-marker line itself, or content inside a
+ * fenced block. Single-line-membership counterpart to `walkProseLines`'s
+ * full-body callback walk, for callers that only need a yes/no answer for
+ * one position (e.g. an LSP request gating a cursor position, #680).
+ */
+export function isLineFenced(body: string, lineIndex: number): boolean {
+  const lines = body.split("\n");
+  let inFence = false;
+  for (let i = 0; i <= lineIndex && i < lines.length; i++) {
+    if (FENCE_RE.test(lines[i])) {
+      inFence = !inFence;
+      if (i === lineIndex) return true;
+      continue;
+    }
+    if (i === lineIndex) return inFence;
+  }
+  return false;
+}

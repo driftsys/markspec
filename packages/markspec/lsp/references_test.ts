@@ -9,6 +9,7 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
 import { makeDisplayId } from "../core/model/mod.ts";
+import { parseFile } from "../core/mod.ts";
 import { findReferencingEntries } from "./references.ts";
 
 function makeEntry(
@@ -110,4 +111,46 @@ Deno.test("findReferencingEntries: returns empty when no entries reference the t
   ];
   const refs = findReferencingEntries(entries, "REQ-001");
   assertEquals(refs, []);
+});
+
+// --- fenced code regions (#680) ---
+//
+// Unlike rename.ts / highlights.ts, findReferencingEntries needs no
+// fence-tracking of its own: it only ever sees Entry.rawAttributes from
+// the AST-based parser, which never turns a fenced code example into a
+// real Entry in the first place. This test locks in that upstream
+// guarantee through the real parser (not hand-built Entry fixtures) so a
+// future parser change that breaks it is caught here.
+Deno.test("findReferencingEntries: an illustrative fenced example never becomes a phantom reference", async () => {
+  const md = [
+    `- [REQ-001] Real requirement`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF`,
+    ``,
+    "```markdown",
+    `- [REQ-002] Illustrative example`,
+    ``,
+    `      Satisfies: REQ-001`,
+    "```",
+    ``,
+    `- [REQ-003] Real dependent requirement`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG`,
+    `      Satisfies: REQ-001`,
+  ].join("\n");
+  const result = await parseFile(md, { file: "guide.md" });
+  // The fenced example never produces a real REQ-002 entry — only REQ-001
+  // and the genuinely later REQ-003 are parsed.
+  assertEquals(
+    result.entries.map((e) => e.displayId).sort(),
+    ["REQ-001", "REQ-003"],
+  );
+  // The real REQ-003 reference is found; the phantom REQ-002 inside the
+  // fence cannot appear — it was never a real Entry to begin with.
+  const refs = findReferencingEntries(result.entries, "REQ-001");
+  assertEquals(refs.map((e) => e.displayId), ["REQ-003"]);
 });

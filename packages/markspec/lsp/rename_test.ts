@@ -71,6 +71,50 @@ Deno.test("findIdOccurrencesInFile: no match yields empty result", () => {
   assertEquals(findIdOccurrencesInFile(text, "REQ-001", "REQ-100"), []);
 });
 
+// --- fenced code regions (#680) ---
+
+Deno.test("findIdOccurrencesInFile: skips an occurrence inside a fenced code example", () => {
+  const text = [
+    `- [REQ-001] Real requirement`,
+    ``,
+    `  Body.`,
+    ``,
+    `\`\`\`markdown`,
+    `- [REQ-001] Illustrative example`,
+    `\`\`\``,
+  ].join("\n");
+  const edits = findIdOccurrencesInFile(text, "REQ-001", "REQ-100");
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start.line, 0);
+});
+
+Deno.test("findIdOccurrencesInFile: renames occurrences before and after a fenced example", () => {
+  const text = [
+    `- [REQ-001] Real requirement`,
+    ``,
+    `\`\`\`markdown`,
+    `      Satisfies: REQ-001`,
+    `\`\`\``,
+    ``,
+    `- [REQ-002] Other`,
+    ``,
+    `      Satisfies: REQ-001`,
+  ].join("\n");
+  const edits = findIdOccurrencesInFile(text, "REQ-001", "REQ-100");
+  assertEquals(edits.length, 2);
+  assertEquals(edits[0].range.start.line, 0);
+  assertEquals(edits[1].range.start.line, 8);
+});
+
+Deno.test("findIdOccurrencesInFile: tilde fences are also honored", () => {
+  const text = [
+    `~~~`,
+    `- [REQ-001] Illustrative example`,
+    `~~~`,
+  ].join("\n");
+  assertEquals(findIdOccurrencesInFile(text, "REQ-001", "REQ-100"), []);
+});
+
 // --- prepareRenameRange ---
 
 Deno.test("prepareRenameRange: returns range + placeholder when cursor is on a display ID", () => {

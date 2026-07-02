@@ -9,7 +9,20 @@
  * `REQ-001-extra` — both ends of the token must be at a non-ID
  * character. The ID character set matches the parser's display-ID
  * grammar: letters, digits, `._/-`.
+ *
+ * `findIdOccurrencesInFile` scans raw file text rather than parsed
+ * entries, so it must skip fenced code regions itself (#680, same
+ * class as the `core/refs` `canonicalizeRefs` fix in #679/#668) —
+ * otherwise renaming a real entry also rewrites the ID inside an
+ * illustrative fenced example that merely reuses the same text. It
+ * reuses `walkProseLines` (`core/util/fence.ts`) rather than
+ * re-implementing the fence toggle. `prepareRenameRange` stays
+ * single-line and fence-unaware by design — the server gates
+ * `onPrepareRename` against a fenced cursor position separately (via
+ * `isLineFenced`) using the full document text it already has.
  */
+
+import { walkProseLines } from "../core/mod.ts";
 
 /** A subset of the LSP `TextEdit` interface. */
 export interface TextEdit {
@@ -79,6 +92,10 @@ export function prepareRenameRange(
  * convention). Each occurrence's range covers only the `oldId`
  * characters — the editor uses the textual replacement to perform
  * the rename, so the range must be exact.
+ *
+ * Lines inside a fenced code block (``` or ~~~) are skipped — an
+ * illustrative example that happens to display the same ID as sample
+ * text is not a real reference and must not be rewritten (#680).
  */
 export function findIdOccurrencesInFile(
   text: string,
@@ -87,9 +104,7 @@ export function findIdOccurrencesInFile(
 ): TextEdit[] {
   if (oldId.length === 0) return [];
   const edits: TextEdit[] = [];
-  const lines = text.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  walkProseLines(text, (line, i) => {
     let start = 0;
     while (true) {
       const idx = line.indexOf(oldId, start);
@@ -111,6 +126,6 @@ export function findIdOccurrencesInFile(
       }
       start = idx + oldId.length;
     }
-  }
+  });
   return edits;
 }
