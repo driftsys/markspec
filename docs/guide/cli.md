@@ -73,6 +73,12 @@ exclude:
   - "*.gen.md"
 ```
 
+**Built-in skips.** File discovery always skips hidden directories (names
+starting with `.`) and the common build-output / dependency directories
+`node_modules`, `target`, `dist`, and `build`, on top of `.gitignore` and
+`exclude:`. The build-output skip is overridable — re-include one with a negated
+entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
+
 ### Directory conventions
 
 MarkSpec does not enforce a directory layout. By convention:

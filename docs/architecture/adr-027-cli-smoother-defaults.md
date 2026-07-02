@@ -59,6 +59,18 @@ Skip precedence, in order:
    requirements and is not gitignored — previously hardcoded in the LSP walker's
    skip list, now `exclude: ["skills/"]` in the repo's own `project.yaml`.
 
+A second built-in skip covers the common build-output / dependency directories
+`node_modules`, `target`, `dist`, and `build` (`BUILTIN_SKIP_DIRS` in
+`core/discovery/mod.ts`). Unlike the hidden-dir skip it is **overridable**: it
+is applied as the _lowest_-precedence rule layer (before `.gitignore` and
+`exclude:`), so a negated `!target/` in either re-includes it under gitignore
+last-match-wins. This restores the guarantee the pre-`core/discovery` walkers
+(LSP `walkDirectory`, lockfile `collectEntries`) had via their hardcoded skip
+lists — without it, a consumer project that does not list these in `.gitignore`
+recurses into build artifacts (duplicate-ID noise, slow LSP indexing, spurious
+`MSL-L212` edge-hash entries). Added as a follow-up (#661) after the merge
+review found the unconditional skip had been dropped.
+
 Three extension-set SSOTs live in `core/discovery/mod.ts`: `SOURCE_EXTENSIONS`
 (tree-sitter-parseable source families), `MARKDOWN_EXTENSIONS` (`.md` only — the
 `fmt` scope, since the formatter never rewrites source), and
