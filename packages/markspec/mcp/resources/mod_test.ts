@@ -10,15 +10,20 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import type {
   CompileResult,
+  DeliveredDocument,
   DisplayId,
   Entry,
   ProfileChain,
 } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import type { Project } from "../project.ts";
+import { deliveredUri } from "../uri.ts";
 import { listResourceDescriptors, readResource } from "./mod.ts";
 
-function mkProject(entries: Entry[]): Project {
+function mkProject(
+  entries: Entry[],
+  delivers: readonly DeliveredDocument[] = [],
+): Project {
   const entriesMap = new Map<DisplayId, Entry>();
   for (const e of entries) entriesMap.set(e.displayId, e);
   const result: CompileResult = {
@@ -31,6 +36,7 @@ function mkProject(entries: Entry[]): Project {
     typeRegistry: { bindings: new Map(), typedefs: new Map() },
   };
   const chain: ProfileChain | null = null;
+  const fileContents = new Map(delivers.map((d) => [d.absPath, `# ${d.path}`]));
   return {
     projectRoot: "/proj",
     markspecDetected: true,
@@ -38,9 +44,17 @@ function mkProject(entries: Entry[]): Project {
     config: undefined,
     profileChain: chain,
     profile: undefined,
+    delivers,
     getCompiled: () => Promise.resolve(result),
     forceRefresh: () => Promise.resolve(result),
     subscribeInvalidation: () => () => {},
+    readDeliveredDocument: (profileId, relPath) => {
+      const doc = delivers.find(
+        (d) => d.profileId === profileId && d.path === relPath,
+      );
+      if (!doc) return Promise.resolve(undefined);
+      return Promise.resolve(fileContents.get(doc.absPath));
+    },
   };
 }
 
@@ -104,6 +118,67 @@ Deno.test("readResource: rejects missing entry", async () => {
   );
 });
 
+// ---------------------------------------------------------------------------
+// Delivered documents (ADR-029)
+// ---------------------------------------------------------------------------
+
+const DOC1: DeliveredDocument = {
+  profileId: "platform-arch",
+  profileVersion: "1.2.0",
+  path: "reference/platform.md",
+  absPath: "/profiles/platform-arch/reference/platform.md",
+  corpus: true,
+  description: "Reference platform architecture",
+};
+
+const DOC2: DeliveredDocument = {
+  profileId: "platform-arch",
+  profileVersion: "1.2.0",
+  path: "reference/guide.md",
+  absPath: "/profiles/platform-arch/reference/guide.md",
+  corpus: false,
+};
+
+Deno.test("listResourceDescriptors: includes delivered docs with manifest description", async () => {
+  const project = mkProject([E1], [DOC1, DOC2]);
+  const list = await listResourceDescriptors(project);
+  const delivered = list.filter((d) =>
+    d.uri.startsWith("markspec://delivered/")
+  );
+  assertEquals(delivered.length, 2);
+
+  const doc1 = delivered.find((d) =>
+    d.uri === deliveredUri("platform-arch", "reference/platform.md")
+  );
+  assertEquals(doc1?.description, "Reference platform architecture");
+  assertEquals(doc1?.mimeType, "text/markdown");
+
+  // DOC2 has no manifest description — falls back to a generated one that
+  // names the delivering profile and the doc's corpus/reference role.
+  const doc2 = delivered.find((d) =>
+    d.uri === deliveredUri("platform-arch", "reference/guide.md")
+  );
+  assertStringIncludes(doc2?.description ?? "", "platform-arch");
+});
+
+Deno.test("readResource: routes a delivered URI to the raw file text", async () => {
+  const project = mkProject([E1], [DOC1]);
+  const uri = deliveredUri("platform-arch", "reference/platform.md");
+  const r = await readResource(uri, project);
+  assertEquals(r.mimeType, "text/markdown");
+  assertStringIncludes(r.text, "# reference/platform.md");
+});
+
+Deno.test("readResource: rejects an unknown delivered path", async () => {
+  const project = mkProject([E1], [DOC1]);
+  const uri = deliveredUri("platform-arch", "reference/missing.md");
+  await assertRejects(
+    () => readResource(uri, project),
+    Error,
+    "delivered document not found",
+  );
+});
+
 function gatedProject(): Project {
   return {
     projectRoot: undefined,
@@ -112,11 +187,16 @@ function gatedProject(): Project {
     config: undefined,
     profileChain: null,
     profile: undefined,
+    delivers: [],
     getCompiled: () =>
       Promise.reject(new Error("getCompiled must not be called when gated")),
     forceRefresh: () =>
       Promise.reject(new Error("forceRefresh must not be called when gated")),
     subscribeInvalidation: () => () => {},
+    readDeliveredDocument: () =>
+      Promise.reject(
+        new Error("readDeliveredDocument must not be called when gated"),
+      ),
   };
 }
 
@@ -130,6 +210,13 @@ Deno.test("readResource: returns soft-gate text when markspecDetected=false", as
 Deno.test("readResource: soft-gate fires for any URI when gated", async () => {
   const project = gatedProject();
   const result = await readResource("markspec://entry/STK_0001", project);
+  assertEquals(result.text, "No MarkSpec project found (mock)");
+});
+
+Deno.test("readResource: soft-gate fires for a delivered URI when gated", async () => {
+  const project = gatedProject();
+  const uri = deliveredUri("platform-arch", "reference/platform.md");
+  const result = await readResource(uri, project);
   assertEquals(result.text, "No MarkSpec project found (mock)");
 });
 

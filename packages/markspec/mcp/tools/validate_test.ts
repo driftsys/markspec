@@ -190,9 +190,11 @@ function stubProject(profileChain: ProfileChain): Project {
     config: undefined,
     profileChain,
     profile: profileChain.effective,
+    delivers: profileChain.effective.delivers,
     getCompiled: () => Promise.resolve(emptyCompileResult()),
     forceRefresh: () => Promise.resolve(emptyCompileResult()),
     subscribeInvalidation: () => () => {},
+    readDeliveredDocument: () => Promise.resolve(undefined),
   };
 }
 

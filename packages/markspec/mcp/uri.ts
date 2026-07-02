@@ -1,13 +1,15 @@
 /**
  * @module mcp/uri
  *
- * The `markspec://` URI scheme used by the MCP server. Four resource
+ * The `markspec://` URI scheme used by the MCP server. Five resource
  * families:
  *
  * - `markspec://profile`                    — the distilled profile manifest
  * - `markspec://entries`                    — the entry index
  * - `markspec://entry/{displayId}`          — a single entry
  * - `markspec://profile/{kind}/{name}`      — a profile element detail
+ * - `markspec://delivered/{profileId}/{path}` — a profile-delivered document
+ *   (ADR-029)
  *
  * All helpers are pure and safe to import from any module.
  */
@@ -103,4 +105,40 @@ export function parseProfileDetailUri(
 /** Check whether a URI is a profile element detail URI (not the overview). */
 export function isProfileDetailUri(uri: string): boolean {
   return parseProfileDetailUri(uri) !== undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Delivered-document URIs (ADR-029)
+// ---------------------------------------------------------------------------
+
+/** Prefix for delivered-document resource URIs (ADR-029). */
+export const DELIVERED_URI_PREFIX = "markspec://delivered/";
+
+/** Build a delivered-document URI: profileId segment + encoded relative path. */
+export function deliveredUri(profileId: string, path: string): string {
+  return `${DELIVERED_URI_PREFIX}${encodeURIComponent(profileId)}/` +
+    encodeURIComponent(path);
+}
+
+/** Parse a delivered-document URI. Returns `{profileId, path}` or undefined. */
+export function parseDeliveredUri(
+  uri: string,
+): { profileId: string; path: string } | undefined {
+  if (!uri.startsWith(DELIVERED_URI_PREFIX)) return undefined;
+  const rest = uri.slice(DELIVERED_URI_PREFIX.length);
+  const slashIdx = rest.indexOf("/");
+  if (slashIdx <= 0 || slashIdx === rest.length - 1) return undefined;
+  try {
+    return {
+      profileId: decodeURIComponent(rest.slice(0, slashIdx)),
+      path: decodeURIComponent(rest.slice(slashIdx + 1)),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Check whether a URI is a delivered-document URI. */
+export function isDeliveredUri(uri: string): boolean {
+  return parseDeliveredUri(uri) !== undefined;
 }

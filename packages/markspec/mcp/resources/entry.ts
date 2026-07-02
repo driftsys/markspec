@@ -27,6 +27,11 @@ export function renderEntry(
 
   if (entry.type) lines.push(`**Type**: ${entry.type}`);
   lines.push(`**Shape**: ${entry.shape}`);
+  if (entry.origin) {
+    lines.push(
+      `**Origin**: delivered by ${entry.origin.profileId}@${entry.origin.profileVersion} (read-only)`,
+    );
+  }
   if (entry.id) lines.push(`**Id**: \`${entry.id}\``);
   lines.push(
     `**Location**: ${

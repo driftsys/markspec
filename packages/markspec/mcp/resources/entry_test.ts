@@ -133,3 +133,24 @@ Deno.test("renderEntry: omits Attributes section when only Id present", () => {
   const md = renderEntry(idOnly, [], [], TITLES);
   assertEquals(md.includes("## Attributes"), false);
 });
+
+Deno.test("renderEntry: shows Origin when the entry is corpus-delivered (ADR-029)", () => {
+  const corpusEntry: Entry = {
+    ...ENTRY,
+    origin: {
+      kind: "profile",
+      profileId: "platform-arch",
+      profileVersion: "1.2.0",
+    },
+  };
+  const md = renderEntry(corpusEntry, [], [], TITLES);
+  assertStringIncludes(
+    md,
+    "**Origin**: delivered by platform-arch@1.2.0 (read-only)",
+  );
+});
+
+Deno.test("renderEntry: omits Origin for a project-authored entry", () => {
+  const md = renderEntry(ENTRY, [], [], TITLES);
+  assertEquals(md.includes("**Origin**"), false);
+});

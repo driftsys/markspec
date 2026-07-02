@@ -19,10 +19,13 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Project } from "../project.ts";
 import {
+  deliveredUri,
   ENTRIES_URI,
   entryUri,
+  isDeliveredUri,
   isEntryUri,
   isProfileDetailUri,
+  parseDeliveredUri,
   parseEntryUri,
   parseProfileDetailUri,
   PROFILE_URI,
@@ -72,6 +75,19 @@ export async function listResourceDescriptors(
       mimeType: "text/markdown",
     });
   }
+  // Delivered documents (ADR-029) — one descriptor per profile-delivered
+  // file, whether or not its entries join the graph.
+  for (const doc of project.delivers) {
+    out.push({
+      uri: deliveredUri(doc.profileId, doc.path),
+      name: `delivered: ${doc.path}`,
+      description: doc.description ??
+        (doc.corpus
+          ? `Corpus document delivered by ${doc.profileId} — its entries are in the graph`
+          : `Reference document delivered by ${doc.profileId}`),
+      mimeType: "text/markdown",
+    });
+  }
   out.push({
     uri: ENTRIES_URI,
     name: "Entry index",
@@ -116,7 +132,7 @@ export async function readResource(
     return {
       uri,
       mimeType: "text/markdown",
-      text: renderProfile(intro),
+      text: renderProfile(intro, project.delivers),
     };
   }
 
@@ -166,6 +182,20 @@ export async function readResource(
         project.projectRoot,
       ),
     };
+  }
+
+  if (isDeliveredUri(uri)) {
+    const parsed = parseDeliveredUri(uri)!;
+    const text = await project.readDeliveredDocument(
+      parsed.profileId,
+      parsed.path,
+    );
+    if (text === undefined) {
+      throw new Error(
+        `delivered document not found: ${parsed.profileId}/${parsed.path}`,
+      );
+    }
+    return { uri, mimeType: "text/markdown", text };
   }
 
   throw new Error(`unknown resource URI: ${uri}`);

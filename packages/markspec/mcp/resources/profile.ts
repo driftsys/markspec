@@ -10,6 +10,7 @@
 import type {
   AttributeDetail,
   ConventionDetail,
+  DeliveredDocument,
   LabelConcernDetail,
   ProfileChain,
   ProfileElementDetail,
@@ -18,7 +19,7 @@ import type {
   TypeDetail,
 } from "../../core/mod.ts";
 import { buildProfileIntrospection } from "../../core/mod.ts";
-import { profileDetailUri } from "../uri.ts";
+import { deliveredUri, profileDetailUri } from "../uri.ts";
 
 export { buildProfileIntrospection };
 
@@ -29,8 +30,17 @@ export function buildProfileView(
   return buildProfileIntrospection(chain);
 }
 
-/** Render the overview `markspec://profile` resource body as Markdown. */
-export function renderProfile(intro: ProfileIntrospection): string {
+/**
+ * Render the overview `markspec://profile` resource body as Markdown.
+ *
+ * @param delivers - Documents delivered by the active profile chain
+ *   (ADR-029), passed separately from `intro` because `ProfileIntrospection`
+ *   only surfaces classification elements, not delivered files.
+ */
+export function renderProfile(
+  intro: ProfileIntrospection,
+  delivers: readonly DeliveredDocument[] = [],
+): string {
   const overview = intro.overview();
   const lines: string[] = ["# MarkSpec Profile", ""];
 
@@ -51,6 +61,17 @@ export function renderProfile(intro: ProfileIntrospection): string {
     lines.push(`**Inherits**: ${inherits}`);
   }
   lines.push("");
+
+  if (delivers.length > 0) {
+    lines.push("## Delivered documents", "");
+    for (const doc of delivers) {
+      const uri = deliveredUri(doc.profileId, doc.path);
+      const role = doc.corpus ? "corpus (entries in graph)" : "documentation";
+      const description = doc.description ? ` — ${doc.description}` : "";
+      lines.push(`- [${doc.path}](${uri}) — ${role}${description}`);
+    }
+    lines.push("");
+  }
 
   // Group elements by kind and render each group.
   const kinds = [

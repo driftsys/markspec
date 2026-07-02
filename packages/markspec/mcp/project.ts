@@ -14,9 +14,11 @@ import { join } from "@std/path";
 import {
   compile,
   type CompileResult,
+  type DeliveredDocument,
   discoverProjectRoot,
   type EffectiveProfile,
   loadConfig,
+  loadDeliveredCorpus,
   loadProfileForCommand,
   type ProfileChain,
   type ProjectConfig,
@@ -221,12 +223,19 @@ export interface Project {
   readonly profileChain: ProfileChain | null;
   /** Effective profile derived from the chain, or undefined. */
   readonly profile: EffectiveProfile | undefined;
+  /** Documents delivered by the active profile chain (ADR-029). */
+  readonly delivers: readonly DeliveredDocument[];
   /** Return the current compiled graph, recompiling when stale. */
   getCompiled(): Promise<CompileResult>;
   /** Force a recompile and return the fresh result. */
   forceRefresh(): Promise<CompileResult>;
   /** Subscribe to recompile events. Returns an unsubscribe function. */
   subscribeInvalidation(handler: InvalidationHandler): () => void;
+  /** Read a delivered document's raw text from the profile cache. */
+  readDeliveredDocument(
+    profileId: string,
+    relPath: string,
+  ): Promise<string | undefined>;
 }
 
 /**
@@ -347,6 +356,12 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   async function runCompile(): Promise<CompileResult> {
     try {
       const paths = await discoverTracked();
+      const corpus = profileChain
+        ? await loadDeliveredCorpus(
+          profileChain.effective.delivers,
+          env.readFile,
+        )
+        : { entries: [], diagnostics: [] };
       const result = await compile(paths, {
         readFile: async (p: string) => {
           const content = await env.readFile(p);
@@ -356,6 +371,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           return content;
         },
         profile: profileChain?.effective ?? undefined,
+        corpusEntries: corpus.entries,
       });
 
       // Snapshot mtime + SHA256 hash for the next invalidation check.
@@ -459,6 +475,17 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     config,
     profileChain,
     profile: profileChain?.effective,
+    delivers: profileChain?.effective.delivers ?? [],
+    async readDeliveredDocument(
+      profileId: string,
+      relPath: string,
+    ): Promise<string | undefined> {
+      const doc = (profileChain?.effective.delivers ?? []).find(
+        (d) => d.profileId === profileId && d.path === relPath,
+      );
+      if (!doc) return undefined;
+      return await env.readFile(doc.absPath);
+    },
     async getCompiled(): Promise<CompileResult> {
       if (!projectRoot) {
         throw new Error(

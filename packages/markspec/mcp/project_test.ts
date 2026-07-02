@@ -13,6 +13,7 @@ import {
   assertStringIncludes,
 } from "@std/assert";
 import { join, resolve } from "@std/path";
+import { makeDisplayId } from "../core/mod.ts";
 import {
   buildRootOverrides,
   checkFileStaleness,
@@ -447,6 +448,111 @@ Deno.test("createProject: no candidate resolves → gated + message names dirs",
 // ---------------------------------------------------------------------------
 // defaultEnv env-read wiring test (Task 4)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Delivered corpus injection (ADR-029, Task 8)
+// ---------------------------------------------------------------------------
+
+/** A local profile that delivers one corpus document (`platform.md`). */
+const PROFILE_MANIFEST = `id: platform-arch
+version: 1.2.0
+markspec-schema: "1"
+profile:
+  types:
+    platform-component:
+      extends: Requirement
+      display-id-pattern: "PLT_{n:04d}"
+  delivers:
+    - path: reference/platform.md
+      corpus: true
+      description: Reference platform architecture
+`;
+
+const CORPUS_MD = `- [PLT_0001] Platform core service
+
+  The platform core service shall expose the vehicle state bus within 50 ms of a state change.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+      Type: platform-component
+`;
+
+const MARKSPEC_YAML_PATH = join(PROJ, ".markspec.yaml");
+const PROFILE_MANIFEST_PATH = join(PROJ, "profile", "markspec.yaml");
+const PROFILE_DIR = join(PROJ, "profile");
+const CORPUS_MD_PATH = join(PROFILE_DIR, "reference", "platform.md");
+
+/**
+ * Build a ProjectEnv wired for a project whose profile (activated via a
+ * local `./profile` specifier, mirroring `tests/e2e/delivered_test.ts`)
+ * delivers a corpus document. `walk()` deliberately skips everything under
+ * `profile/` — mirroring the e2e fixture's `project.yaml` `exclude:
+ * profile/` — so the corpus file reaches the graph exactly once, via
+ * `loadDeliveredCorpus`, not also as an ordinary project-walked file.
+ */
+function makeCorpusEnv(): ProjectEnv {
+  const files = new Map<string, string>([
+    [PROJECT_YAML_PATH, PROJECT_YAML],
+    [MARKSPEC_YAML_PATH, "profiles:\n  - ./profile\n"],
+    [PROFILE_MANIFEST_PATH, PROFILE_MANIFEST],
+    [CORPUS_MD_PATH, CORPUS_MD],
+    [REQ_MD_PATH, REQ_DOC],
+  ]);
+  return {
+    cwd: () => PROJ,
+    rootOverrides: () => [],
+    readFile: (path) => Promise.resolve(files.get(path)),
+    stat: (path) => {
+      if (!files.has(path)) return Promise.reject(new Error(`ENOENT: ${path}`));
+      return Promise.resolve({ mtime: 1 });
+    },
+    walk: async function* () {
+      for (const path of files.keys()) {
+        if (path.startsWith(PROFILE_DIR)) continue;
+        yield path;
+      }
+    },
+  };
+}
+
+Deno.test("createProject: delivers reflects the active profile chain", async () => {
+  const proj = await createProject(makeCorpusEnv());
+  assertEquals(proj.delivers.length, 1);
+  assertEquals(proj.delivers[0].profileId, "platform-arch");
+  assertEquals(proj.delivers[0].path, "reference/platform.md");
+});
+
+Deno.test("readDeliveredDocument: returns the file text for a known document", async () => {
+  const proj = await createProject(makeCorpusEnv());
+  const text = await proj.readDeliveredDocument(
+    "platform-arch",
+    "reference/platform.md",
+  );
+  assertStringIncludes(text ?? "", "Platform core service");
+});
+
+Deno.test("readDeliveredDocument: returns undefined for an unknown path", async () => {
+  const proj = await createProject(makeCorpusEnv());
+  const text = await proj.readDeliveredDocument(
+    "platform-arch",
+    "reference/nope.md",
+  );
+  assertEquals(text, undefined);
+});
+
+Deno.test("getCompiled: injects the delivered corpus alongside project entries", async () => {
+  const proj = await createProject(makeCorpusEnv());
+  const result = await proj.getCompiled();
+  // 1 project entry (STK_TEST_0001) + 1 corpus entry (PLT_0001).
+  assertEquals(result.entries.size, 2);
+  assertExists(result.entries.get(makeDisplayId("PLT_0001")));
+});
+
+Deno.test("forceRefresh: still injects the delivered corpus after a forced recompile", async () => {
+  const proj = await createProject(makeCorpusEnv());
+  await proj.getCompiled();
+  const result = await proj.forceRefresh();
+  assertExists(result.entries.get(makeDisplayId("PLT_0001")));
+});
 
 Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => {
   const prevMs = Deno.env.get("MARKSPEC_PROJECT_ROOT");
