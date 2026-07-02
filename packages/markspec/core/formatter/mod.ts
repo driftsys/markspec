@@ -405,6 +405,13 @@ export interface FormatOptions {
    * pre-ADR-029 behaviour. The entry-body polish passes a per-call
    * `lineWidth` reduced by the body indent (see `emitBodyViaAst`);
    * one-arg formatter callbacks simply ignore it.
+   *
+   * The pass is Markdown-only: it runs only when {@linkcode file} has a
+   * Markdown extension (`.md`). A source-file (or absent) `file` disables
+   * it even when this callback is set — a source file's doc comment must
+   * never be reflowed as Markdown, and the semantic gate cannot catch
+   * that class of corruption. Callers that format Markdown held in memory
+   * must therefore pass a `.md`-suffixed `file`.
    */
   readonly formatMarkdownProse?: ProseFormatter;
 }
@@ -650,14 +657,16 @@ export function format(
     });
     const prose = formatProseSegments(collapsedLines, extents, proseFormat);
     if (prose.changed) changed = true;
-    for (const lineIdx of prose.fallbackStarts) {
+    for (const fallback of prose.fallbacks) {
+      const cause = fallback.reason === "error"
+        ? "errored"
+        : "produced non-equivalent output";
       diagnostics.push({
         code: "MSL-F012",
         severity: "info",
-        message:
-          "Markdown pass produced non-equivalent output for this prose " +
-          "segment — kept the original text",
-        location: { file, line: lineIdx + 1, column: 1 },
+        message: `Markdown pass ${cause} for this prose segment — kept ` +
+          `the original text`,
+        location: { file, line: fallback.line + 1, column: 1 },
       });
     }
     proseLines = prose.lines;

@@ -1,0 +1,221 @@
+diff --git a/packages/markspec/cli/commands/check.ts b/packages/markspec/cli/commands/check.ts
+index a9cd2fc7..e6a3e123 100644
+--- a/packages/markspec/cli/commands/check.ts
++++ b/packages/markspec/cli/commands/check.ts
+@@ -4,8 +4,9 @@
+  * `markspec check` — check broken refs, missing Ids, duplicates.
+  */
+ 
++import { extname, join } from "@std/path";
+ import { Command } from "@cliffy/command";
+-import { ConfigError } from "../../core/mod.ts";
++import { ConfigError, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
+ import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
+ import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
+ 
+@@ -78,7 +79,9 @@ export const checkCmd = new Command()
+           console.error(`error: ${filePath}: file not found`);
+           Deno.exit(1);
+         }
+-        if (filePath.endsWith(".md")) mdContents.set(filePath, content);
++        if (MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase())) {
++          mdContents.set(filePath, content);
++        }
+         const result = await parseFile(content, { file: filePath });
+         allEntries.push(...result.entries);
+         parseDiagnostics.push(...result.diagnostics);
+@@ -120,7 +123,6 @@ export const checkCmd = new Command()
+           loadMarkdownFormatter,
+           parseLockfile,
+         } = await import("../../core/mod.ts");
+-        const { join } = await import("@std/path");
+ 
+         const formatMarkdownProse = await loadMarkdownFormatter();
+ 
+diff --git a/packages/markspec/core/formatter/mod.ts b/packages/markspec/core/formatter/mod.ts
+index de801d22..fdfe9121 100644
+--- a/packages/markspec/core/formatter/mod.ts
++++ b/packages/markspec/core/formatter/mod.ts
+@@ -6,6 +6,7 @@
+  * and requirement block insertion.
+  */
+ 
++import { extname } from "@std/path";
+ import { ulid as defaultUlid } from "@std/ulid";
+ import { stringify as stringifyYaml } from "@std/yaml";
+ import type {
+@@ -19,6 +20,7 @@ import {
+   CSV_SPLITTABLE_TYPES,
+   IDENTITY_KEY,
+ } from "../model/mod.ts";
++import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
+ import { ATTR_LINE_RE } from "../parser/attributes.ts";
+ import { extractFrontMatter } from "../parser/frontmatter.ts";
+ import { parseMarkdown } from "../parser/markdown.ts";
+@@ -311,13 +313,27 @@ function emitBodyViaAst(
+       // external whole-file dprint view (which sees the indent) re-wraps
+       // it: a formatter ping-pong. Floor of 20 keeps a pathological indent
+       // from degenerating into one-word-per-line output.
+-      const polished = proseFormat(emittedBody, {
+-        lineWidth: Math.max(
+-          20,
+-          MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth - indent,
+-        ),
+-      }).replace(/\n$/, "");
+-      if (polished !== emittedBody) {
++      let polished: string | undefined;
++      try {
++        polished = proseFormat(emittedBody, {
++          lineWidth: Math.max(
++            20,
++            MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth - indent,
++          ),
++        }).replace(/\n$/, "");
++      } catch {
++        // The dprint WASM formatter can throw on a pathological body.
++        // Treat a throw exactly like a rejected rewrite: keep the
++        // canonical body and report the fallback (never crash the run).
++        diagnostics.push({
++          code: "MSL-F012",
++          severity: "info",
++          message: `${entry.displayId}: Markdown pass errored — kept ` +
++            `the canonical body`,
++          location: entry.location,
++        });
++      }
++      if (polished !== undefined && polished !== emittedBody) {
+         if (markdownSemanticallyEquivalent(emittedBody, polished)) {
+           finalBody = polished;
+         } else {
+@@ -464,7 +480,15 @@ export function format(
+   const { entries } = parseMarkdown(body, { file });
+   const diagnostics: Diagnostic[] = [...fm.diagnostics];
+ 
+-  const proseFormat = options?.formatMarkdownProse;
++  // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
++  // file extension HERE so the invariant has one home — a caller that wires
++  // formatMarkdownProse without its own guard (e.g. a future write tool, or
++  // formatSource forwarding options with a source-file label) cannot silently
++  // reflow a source file's doc comment as Markdown. The CommonMark-semantic
++  // gate cannot catch that class, so it must be prevented, not detected. The
++  // CLI/LSP call-site guards remain as defense-in-depth.
++  const isMarkdownFile = MARKDOWN_EXTENSIONS.has(extname(file).toLowerCase());
++  const proseFormat = isMarkdownFile ? options?.formatMarkdownProse : undefined;
+   if (entries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined) {
+     // No entries and no front matter — nothing to format. Returning the
+     // original `markdown` preserves the source's exact byte sequence,
+diff --git a/packages/markspec/core/formatter/mod_test.ts b/packages/markspec/core/formatter/mod_test.ts
+index 2e8b96b7..f3803842 100644
+--- a/packages/markspec/core/formatter/mod_test.ts
++++ b/packages/markspec/core/formatter/mod_test.ts
+@@ -643,3 +643,63 @@ Deno.test("format: body gate rejects destructive output with MSL-F012, keeps can
+     true,
+   );
+ });
++
++// ---------------------------------------------------------------------------
++// ADR-029 follow-ups: scope guard + throw hardening
++// ---------------------------------------------------------------------------
++
++Deno.test("format: markdown pass is disabled for non-.md files even when the callback is wired (ADR-029 scope guard in format())", () => {
++  let called = false;
++  const spy = (md: string): string => {
++    called = true;
++    return md.replace(/\n(?!$)/g, " ");
++  };
++  const src =
++    'fn main() {\n    let x = compute(1, 2);\n    println!("{}", x);\n}\n';
++  const result = format(src, { file: "main.rs", formatMarkdownProse: spy });
++  assertEquals(called, false);
++  assertEquals(result.output, src);
++});
++
++Deno.test("format: markdown pass still runs for .md files (control for the scope guard)", () => {
++  let called = false;
++  const spy = (md: string): string => {
++    called = true;
++    return md;
++  };
++  format("# Heading\n\nsome prose.\n", {
++    file: "doc.md",
++    formatMarkdownProse: spy,
++  });
++  assertEquals(called, true);
++});
++
++Deno.test("format: a throwing markdown formatter degrades to fallback, never crashes (entry body)", () => {
++  const thrower = (): string => {
++    throw new Error("simulated dprint WASM panic");
++  };
++  const input = `- [STK_9004] Throw safety
++
++  The system shall keep its canonical body when the Markdown formatter errors.
++
++      Id: 01JADYKACKQKGVGHT9K7Y6PBPE
++`;
++  const result = format(input, { file: "t.md", formatMarkdownProse: thrower });
++  assertStringIncludes(
++    result.output,
++    "The system shall keep its canonical body when the Markdown formatter errors.",
++  );
++  assertEquals(result.diagnostics.some((d) => d.code === "MSL-F012"), true);
++});
++
++Deno.test("format: a throwing markdown formatter degrades to fallback for prose segments too", () => {
++  const thrower = (): string => {
++    throw new Error("simulated dprint WASM panic");
++  };
++  const result = format("# Overview\n\nragged prose here.\n", {
++    file: "t.md",
++    formatMarkdownProse: thrower,
++  });
++  // No throw; original prose preserved.
++  assertStringIncludes(result.output, "ragged prose here.");
++});
+diff --git a/packages/markspec/core/formatter/prose.ts b/packages/markspec/core/formatter/prose.ts
+index 647e0d19..2975b5b5 100644
+--- a/packages/markspec/core/formatter/prose.ts
++++ b/packages/markspec/core/formatter/prose.ts
+@@ -60,7 +60,17 @@ export function formatProseSegments(
+       return;
+     }
+     const chunk = segment.slice(from, to).join("\n");
+-    const formatted = proseFormat(chunk).replace(/\n$/, "");
++    let formatted: string;
++    try {
++      formatted = proseFormat(chunk).replace(/\n$/, "");
++    } catch {
++      // The dprint WASM formatter can throw on a pathological fragment.
++      // Treat a throw exactly like a rejected rewrite: keep the original
++      // segment and report the fallback (never crash the whole run).
++      fallbackStarts.push(gapStart + from);
++      out.push(...segment);
++      return;
++    }
+     if (formatted === chunk) {
+       out.push(...segment);
+       return;
+diff --git a/tests/e2e/check_project_test.ts b/tests/e2e/check_project_test.ts
+index 05f97567..f2b92089 100644
+--- a/tests/e2e/check_project_test.ts
++++ b/tests/e2e/check_project_test.ts
+@@ -182,6 +182,19 @@ Deno.test("check: formatted project does not emit MSL-F010", async () => {
+   assertEquals(code, 0, stderr);
+ });
+ 
++Deno.test("check: uppercase .MD extension is covered by the MSL-F010 drift gate (case parity)", async () => {
++  const { code, stderr } = await markspec(["check"], {
++    files: {
++      ...BASE_FILES,
++      // Uppercase extension + non-canonical prose (asterisk bullet): fmt would
++      // reformat it, so the MSL-F010 gate must also see it — case parity.
++      "docs/OVERVIEW.MD": "# Overview\n\n* asterisk bullet\n",
++    },
++  });
++  assertStringIncludes(stderr, "MSL-F010");
++  assertEquals(code, 1);
++});
++
+ Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
+   // 1. Build a project and generate a lockfile that pins its edges.
+   const run = await markspecPersist(["lock"], {

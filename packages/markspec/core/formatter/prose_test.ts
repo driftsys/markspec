@@ -55,7 +55,19 @@ Deno.test("prose: gate rejects non-equivalent output, reports fallback", () => {
   const res = formatProseSegments(DOC, [{ start: 5, end: 10 }], truncate);
   assertEquals(res.changed, false);
   assertEquals(res.lines, DOC);
-  assertEquals(res.fallbackStarts.length, 2); // both prose segments rejected
+  assertEquals(res.fallbacks.length, 2); // both prose segments rejected
+  assertEquals(res.fallbacks.every((f) => f.reason === "non-equivalent"), true);
+});
+
+Deno.test("prose: a throwing formatter falls back with reason 'error'", () => {
+  const thrower = (): string => {
+    throw new Error("simulated dprint WASM panic");
+  };
+  const res = formatProseSegments(DOC, [{ start: 5, end: 10 }], thrower);
+  assertEquals(res.changed, false);
+  assertEquals(res.lines, DOC);
+  assertEquals(res.fallbacks.length, 2);
+  assertEquals(res.fallbacks.every((f) => f.reason === "error"), true);
 });
 
 Deno.test("prose: no entries — whole document is one segment", () => {

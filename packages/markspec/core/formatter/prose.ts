@@ -6,8 +6,8 @@
  * the injected {@linkcode ProseFormatter} (dprint-markdown). Every
  * rewritten segment must pass {@linkcode markdownSemanticallyEquivalent}
  * against its original — a rejected segment is kept byte-identical and
- * reported via `fallbackStarts` so `format()` can emit an advisory
- * diagnostic ("never make a file worse").
+ * reported via `fallbacks` (with its reason) so `format()` can emit an
+ * advisory diagnostic ("never make a file worse").
  *
  * Entry blocks (title line → item end, trailers included) are never
  * given to dprint here; entry BODIES are polished separately inside
@@ -24,12 +24,25 @@ export interface EntryExtent {
   readonly end: number;
 }
 
+/**
+ * Why a prose segment kept its original text instead of the formatted
+ * output: the dprint formatter threw (`"error"`), or its output failed the
+ * CommonMark-semantic gate (`"non-equivalent"`). Threaded so `format()`
+ * can emit an accurate MSL-F012 cause per segment rather than collapsing
+ * both into one message.
+ */
+export interface ProseFallback {
+  readonly line: number;
+  readonly reason: "error" | "non-equivalent";
+}
+
 /** Result of {@linkcode formatProseSegments}. */
 export interface ProsePassResult {
   readonly lines: string[];
   readonly changed: boolean;
-  /** 0-based first line of each prose segment the gate rejected. */
-  readonly fallbackStarts: readonly number[];
+  /** One entry per prose segment that fell back to its original text,
+   * with the 0-based first line and the reason. */
+  readonly fallbacks: readonly ProseFallback[];
 }
 
 /**
@@ -44,7 +57,7 @@ export function formatProseSegments(
 ): ProsePassResult {
   const extents = [...entryExtents].sort((a, b) => a.start - b.start);
   const out: string[] = [];
-  const fallbackStarts: number[] = [];
+  const fallbacks: ProseFallback[] = [];
   let changed = false;
   let cursor = 0;
 
@@ -67,7 +80,7 @@ export function formatProseSegments(
       // The dprint WASM formatter can throw on a pathological fragment.
       // Treat a throw exactly like a rejected rewrite: keep the original
       // segment and report the fallback (never crash the whole run).
-      fallbackStarts.push(gapStart + from);
+      fallbacks.push({ line: gapStart + from, reason: "error" });
       out.push(...segment);
       return;
     }
@@ -76,7 +89,7 @@ export function formatProseSegments(
       return;
     }
     if (!markdownSemanticallyEquivalent(chunk, formatted)) {
-      fallbackStarts.push(gapStart + from);
+      fallbacks.push({ line: gapStart + from, reason: "non-equivalent" });
       out.push(...segment);
       return;
     }
@@ -100,5 +113,5 @@ export function formatProseSegments(
   }
   if (cursor < lines.length) flushProse(cursor, lines.length);
 
-  return { lines: out, changed, fallbackStarts };
+  return { lines: out, changed, fallbacks };
 }

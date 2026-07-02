@@ -700,6 +700,13 @@ Deno.test("format: a throwing markdown formatter degrades to fallback for prose 
     file: "t.md",
     formatMarkdownProse: thrower,
   });
-  // No throw; original prose preserved.
+  // No throw; original prose preserved; the fallback is reported with the
+  // accurate "errored" cause (not the semantic-rejection wording).
   assertStringIncludes(result.output, "ragged prose here.");
+  assertEquals(
+    result.diagnostics.some(
+      (d) => d.code === "MSL-F012" && d.message.includes("errored"),
+    ),
+    true,
+  );
 });
