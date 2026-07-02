@@ -1,0 +1,118 @@
+diff --git a/packages/markspec/core/refs/mod.ts b/packages/markspec/core/refs/mod.ts
+index 13e01ffc..66586119 100644
+--- a/packages/markspec/core/refs/mod.ts
++++ b/packages/markspec/core/refs/mod.ts
+@@ -20,6 +20,7 @@ import {
+   ULID_RE,
+ } from "../model/mod.ts";
+ import type { LockEdge } from "../lock/mod.ts";
++import { FENCE_RE } from "../util/fence.ts";
+ 
+ /**
+  * Trace-attribute keys whose values are canonicalised/healed: the core
+@@ -112,12 +113,24 @@ export function canonicalizeRefs(
+ 
+   const lines = content.split("\n");
+   let changed = false;
++  // Track fenced-code regions so illustrative trailers inside ``` / ~~~
++  // blocks (e.g. `Realizes: 01HGW...` in a ```markdown example) are never
++  // "healed" against the real ref index — the same verbatim-region rule
++  // every other fmt pass honors (§5.1; cf. `collapseBlankLines`). Without
++  // this, `markspec fmt` rewrites example IDs in spec/ADR docs on every run
++  // (#668). The parser/validator already treat fenced content as inert.
++  let inFence = false;
+   for (let i = 0; i < lines.length; i++) {
+     // Strip a trailing CR before matching so CRLF files are handled (the
+     // trailer regex ends in `$`, which `\r` would block) and re-append it on
+     // rewrite so line endings stay byte-for-byte lossless.
+     const cr = lines[i].endsWith("\r");
+     const bare = cr ? lines[i].slice(0, -1) : lines[i];
++    if (FENCE_RE.test(bare)) {
++      inFence = !inFence;
++      continue;
++    }
++    if (inFence) continue;
+     const m = TRACE_TRAILER_RE.exec(bare);
+     if (!m) continue;
+     const [, indent, key, sep, rest] = m;
+diff --git a/packages/markspec/core/refs/mod_test.ts b/packages/markspec/core/refs/mod_test.ts
+index 3016fb9c..308ef6b4 100644
+--- a/packages/markspec/core/refs/mod_test.ts
++++ b/packages/markspec/core/refs/mod_test.ts
+@@ -145,6 +145,76 @@ Deno.test("canonicalizeRefs: ULID token in trace attr replaced with current disp
+   );
+ });
+ 
++// ---------------------------------------------------------------------------
++// canonicalizeRefs — fenced-code regions are verbatim (#668)
++// ---------------------------------------------------------------------------
++
++Deno.test("canonicalizeRefs: trace values inside a fenced block are left verbatim", () => {
++  // A real trailer (line 6) is healed; an identical illustrative trailer
++  // inside a ```markdown example (line 9) must stay byte-for-byte.
++  const content = [
++    `- [SWE_0001] Title`,
++    ``,
++    `  Body.`,
++    ``,
++    `      Id: ${SRC}`,
++    `      Satisfies: ${TGT}`,
++    ``,
++    "```markdown",
++    `      Satisfies: ${TGT}`,
++    "```",
++  ].join("\n");
++
++  const src = entry({
++    displayId: "SWE_0001",
++    id: SRC,
++    rawAttributes: [
++      { key: "Id", value: SRC },
++      { key: "Satisfies", value: TGT },
++    ],
++    location: { file: "x.md", line: 1, column: 1 },
++  });
++  const tgt = entry({
++    displayId: "SYS_0001",
++    id: TGT,
++    rawAttributes: [{ key: "Id", value: TGT }],
++    location: { file: "x.md", line: 20, column: 1 },
++  });
++
++  const idx = buildRefIndex([src, tgt]);
++  const { output, changed } = canonicalizeRefs(content, [src, tgt], idx, []);
++  const outLines = output.split("\n");
++
++  assertEquals(changed, true);
++  // Real trailer healed ULID → current display ID.
++  assertEquals(outLines[5], "      Satisfies: SYS_0001");
++  // Fenced example untouched — still the raw ULID.
++  assertEquals(outLines[8], `      Satisfies: ${TGT}`);
++});
++
++Deno.test("canonicalizeRefs: a document that is only a fenced example is a no-op", () => {
++  // Mirrors the #668 repo-churn scenario: an illustrative trailer inside a
++  // fence, with no real entry claiming that ULID — must not be rewritten.
++  const content = [
++    "```markdown",
++    `      Realizes: ${TGT}`,
++    "```",
++  ].join("\n");
++
++  const tgt = entry({
++    displayId: "SYS_0001",
++    id: TGT,
++    rawAttributes: [{ key: "Id", value: TGT }],
++    location: { file: "x.md", line: 100, column: 1 },
++  });
++
++  const idx = buildRefIndex([tgt]);
++  const { output, changed } = canonicalizeRefs(content, [tgt], idx, []);
++
++  assertEquals(changed, false);
++  assertEquals(output, content);
++});
++
+ // ---------------------------------------------------------------------------
+ // canonicalizeRefs — rule 2: current display ID → no-op
+ // ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import {
   ULID_RE,
 } from "../model/mod.ts";
 import type { LockEdge } from "../lock/mod.ts";
+import { FENCE_RE } from "../util/fence.ts";
 
 /**
  * Trace-attribute keys whose values are canonicalised/healed: the core
@@ -112,12 +113,24 @@ export function canonicalizeRefs(
 
   const lines = content.split("\n");
   let changed = false;
+  // Track fenced-code regions so illustrative trailers inside ``` / ~~~
+  // blocks (e.g. `Realizes: 01HGW...` in a ```markdown example) are never
+  // "healed" against the real ref index — the same verbatim-region rule
+  // every other fmt pass honors (§5.1; cf. `collapseBlankLines`). Without
+  // this, `markspec fmt` rewrites example IDs in spec/ADR docs on every run
+  // (#668). The parser/validator already treat fenced content as inert.
+  let inFence = false;
   for (let i = 0; i < lines.length; i++) {
     // Strip a trailing CR before matching so CRLF files are handled (the
     // trailer regex ends in `$`, which `\r` would block) and re-append it on
     // rewrite so line endings stay byte-for-byte lossless.
     const cr = lines[i].endsWith("\r");
     const bare = cr ? lines[i].slice(0, -1) : lines[i];
+    if (FENCE_RE.test(bare)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
     const m = TRACE_TRAILER_RE.exec(bare);
     if (!m) continue;
     const [, indent, key, sep, rest] = m;
@@ -150,6 +163,14 @@ export function canonicalizeRefs(
       j++;
       const crj = lines[j].endsWith("\r");
       const barej = crj ? lines[j].slice(0, -1) : lines[j];
+      // A fence marker is never continuation text. An indented one (e.g.
+      // `  ```md`) would otherwise match CONTINUATION_LINE_RE and be
+      // swallowed here without toggling `inFence`, desyncing fence tracking
+      // for the rest of the file. Back out and let the outer loop toggle it.
+      if (FENCE_RE.test(barej)) {
+        j--;
+        break;
+      }
       const cm = CONTINUATION_LINE_RE.exec(barej);
       if (!cm) {
         j--; // not a continuation line — leave it for the outer loop
