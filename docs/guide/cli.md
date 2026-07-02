@@ -520,6 +520,13 @@ markspec lock --update             # force re-resolve every upstream
 markspec lock --update github-foo  # force re-resolve one upstream
 ```
 
+**Upgrade note.** `markspec lock` now indexes source-file doc-comment entries in
+addition to Markdown. A project that pinned its lockfile with an older MarkSpec
+and has trace links in source files will see a one-time `MSL-L212` edge-drift
+error from bare `markspec check` until you run `markspec lock` once to refresh
+the pin — the requirements didn't change, only the set of files the lockfile
+indexes did.
+
 #### sync
 
 Read-only commands surfacing bound-entry state from `markspec.lock` and the

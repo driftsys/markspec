@@ -195,6 +195,11 @@ Deno.test("check: lockfile edge drift fails with MSL-L212", async () => {
     const drifted = await markspecInDir(run.dir, ["check"]);
     assertStringIncludes(drifted.stderr, "MSL-L212");
     assertEquals(drifted.code, 1);
+    // The message names the remedy and the #651 upgrade cause (the lock walk
+    // now also indexes source-file doc comments), so a one-time post-upgrade
+    // failure is self-explanatory.
+    assertStringIncludes(drifted.stderr, "markspec lock");
+    assertStringIncludes(drifted.stderr, "source-file");
 
     // 4. JSON consumers that group by location.file must not drop MSL-L212 —
     // the diagnostic carries a markspec.lock location (like MSL-F010 does).
