@@ -212,16 +212,21 @@ suppression comment breaks. The codes are stable from first emission.
 | ---------- | ------------------------------------------------------- | --------- |
 | `MSL-F###` | Formatting drift reported by the composite `check` gate | ADR-027   |
 
-### MSL-F (Formatting drift, ADR-027)
+### MSL-F (Formatting drift, ADR-027 + ADR-029)
 
-Both codes fire only in the project-wide composite `markspec check` gate and
-mirror `markspec fmt` / `markspec fmt --check` from the same corpus; a
-file-local `markspec check <file>` never emits them.
+`MSL-F010` and `MSL-F011` fire only in the project-wide composite
+`markspec check` gate and mirror `markspec fmt` / `markspec fmt --check` from
+the same corpus; a file-local `markspec check <file>` never emits them.
+`MSL-F012` ([ADR-029](./adr-029-whole-document-markdown-formatting.md)) is
+emitted directly by `fmt` itself (and format-on-save) when the whole-document
+Markdown pass falls back on an entry, so — unlike `MSL-F010` / `MSL-F011` — it
+also fires for a file-local `markspec fmt <file>`.
 
 | Code     | Severity | Concern                                                                                                                                           |
 | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | MSL-F010 | error    | Formatter drift — on-disk form differs from `markspec fmt` output (whitespace, attribute order, casing, …)                                        |
 | MSL-F011 | error    | Reference-canonicalization drift — a trace value is a ULID or stale display ID `markspec fmt` would rewrite to its canonical display ID (ADR-026) |
+| MSL-F012 | info     | Markdown-pass fallback — the whole-document formatter's output was rejected by the CommonMark-semantic gate; the original text was kept           |
 
 Published in the language spec at
 [`docs/spec/language/language.md` §8.9](../spec/language/language.md).

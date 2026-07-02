@@ -145,7 +145,10 @@ export const checkCmd = new Command()
         // never rewrites source files.
         const refIndex = buildRefIndex(allEntries);
         for (const [filePath, content] of mdContents) {
-          const formatted = format(content, { file: filePath, formatMarkdownProse });
+          const formatted = format(content, {
+            file: filePath,
+            formatMarkdownProse,
+          });
           if (formatted.changed) {
             fmtDiagnostics.push({
               code: "MSL-F010",

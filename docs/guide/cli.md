@@ -155,7 +155,7 @@ dash bullet lists, and the file's own line-ending convention preserved.
   `check`/`lint` use, not a new flag.
 - **Every rewrite is safety-gated.** If reformatting an entry body would change
   its meaning, `fmt` keeps the original text for that entry and reports an
-  advisory `MSL-F011` instead of silently doing nothing or corrupting content.
+  advisory `MSL-F012` instead of silently doing nothing or corrupting content.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
 recursively with `.gitignore` (and the built-in hidden-directory skip) applied —

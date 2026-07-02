@@ -33,7 +33,7 @@ never do. Every dprint rewrite is gated by a CommonMark-semantic equivalence
 comparator (`markdownSemanticallyEquivalent`, mdast-based: positions elided,
 whitespace runs in text values collapsed) — soft-wrap positions and delimiter
 styles compare equal, content changes do not. A rejected rewrite is kept as-was
-and reported as MSL-F011 (info). ADR-015's byte-verbatim `astEquivalent` is
+and reported as MSL-F012 (info). ADR-015's byte-verbatim `astEquivalent` is
 unchanged and still guards §5.2 body emission (MSL-F900).
 
 Because a body is formatted dedented and re-indented afterward, the body pass
@@ -75,6 +75,6 @@ ragged, #649 unfixed).
 - As-built: `packages/markspec/core/formatter/dprint.ts` (WASM loader + fixed
   style), `packages/markspec/core/formatter/md_equiv.ts` (semantic equivalence
   gate), `packages/markspec/core/formatter/prose.ts` and `mod.ts`
-  (segmentation + body pass + MSL-F011), `packages/markspec/lsp/server.ts`
+  (segmentation + body pass + MSL-F012), `packages/markspec/lsp/server.ts`
   (`onDocumentFormatting`), `tests/e2e/format_test.ts` and
   `tests/e2e/lsp_formatting_test.ts`.

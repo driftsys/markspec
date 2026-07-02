@@ -569,7 +569,7 @@ Deno.test("format: without formatMarkdownProse, entry-less documents are untouch
   assertEquals(result.output, "Just\nprose.\n");
 });
 
-Deno.test("format: prose gate fallback emits MSL-F011 info", () => {
+Deno.test("format: prose gate fallback emits MSL-F012 info", () => {
   const truncate = (md: string): string =>
     md.trimEnd().split(" ").slice(0, -1).join(" ") + "\n";
   const result = format("some prose words here\n", {
@@ -578,7 +578,7 @@ Deno.test("format: prose gate fallback emits MSL-F011 info", () => {
   });
   assertEquals(result.changed, false);
   assertEquals(
-    result.diagnostics.some((d) => d.code === "MSL-F011"),
+    result.diagnostics.some((d) => d.code === "MSL-F012"),
     true,
   );
 });
@@ -622,7 +622,7 @@ Deno.test("format: polished entry-body lines never exceed 80 columns including i
   }
 });
 
-Deno.test("format: body gate rejects destructive output with MSL-F011, keeps canonical body", () => {
+Deno.test("format: body gate rejects destructive output with MSL-F012, keeps canonical body", () => {
   const input = `- [STK_0001] Entry
 
   Body prose here.
@@ -638,7 +638,7 @@ Deno.test("format: body gate rejects destructive output with MSL-F011, keeps can
   assertStringIncludes(result.output, "  Body prose here.");
   assertEquals(
     result.diagnostics.some(
-      (d) => d.code === "MSL-F011" && d.message.includes("STK_0001"),
+      (d) => d.code === "MSL-F012" && d.message.includes("STK_0001"),
     ),
     true,
   );

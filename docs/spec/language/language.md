@@ -1602,24 +1602,28 @@ Existence and cardinality rules for the targets of trace-relation links.
 
 ### 8.9 Formatting (MSL-F)
 
-Drift between a file's on-disk form and what `markspec fmt` would write. These
-codes fire only in the project-wide composite `markspec check` gate (ADR-027)
-and mirror `markspec fmt` / `markspec fmt --check` exactly, from the same
-`.gitignore`- and `exclude:`-aware corpus. They are Markdown-only —
-`markspec fmt` never rewrites source files.
+Drift between a file's on-disk form and what `markspec fmt` would write, plus
+one advisory `fmt` raises about itself. `MSL-F010` and `MSL-F011` fire only in
+the project-wide composite `markspec check` gate (ADR-027) and mirror
+`markspec fmt` / `markspec fmt --check` exactly, from the same `.gitignore`- and
+`exclude:`-aware corpus. They are Markdown-only — `markspec fmt` never rewrites
+source files.
 
 | ID         | Severity | Rule                                                                                                                                                                                                                                                 |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MSL-F010` | error    | Formatter drift: the file's whitespace / attribute form differs from `markspec fmt` output (indentation, backslashes, attribute order, modal-verb casing, …).                                                                                        |
 | `MSL-F011` | error    | Reference-canonicalization drift: a trace-relation value is a ULID or stale display ID that `markspec fmt` would rewrite to its current canonical display ID (ADR-026). Kept distinct from `MSL-F010` so the author knows which `fmt` concern fired. |
+| `MSL-F012` | info     | Markdown-pass fallback: the whole-document formatter's output was rejected by the CommonMark-semantic gate; the original text was kept (ADR-029).                                                                                                    |
 
 `MSL-F010` and `MSL-F011` are project-wide-only — a file-local
 `markspec check
 <file>` does not fire them (the canonical agent path runs `fmt`
-before `check`). The `MSL-F` prefix is a bounded early adoption of the nextgen
-"format reports" family named in
-[ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md), the same
-pattern as `MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
+before `check`). `MSL-F012` is emitted directly by `fmt` (and format-on-save)
+when the whole-document Markdown pass (ADR-029) falls back on a single entry, so
+it fires file-locally too — it is not gated on the composite `check` corpus. The
+`MSL-F` prefix is a bounded early adoption of the nextgen "format reports"
+family named in [ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md),
+the same pattern as `MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
 
 ### 8.10 Lockfile and external sync (MSL-L, MSL-S)
 

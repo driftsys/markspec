@@ -213,7 +213,7 @@ const CANONICAL_ORDER: readonly string[] = [
  * gated by CommonMark-semantic equivalence — NOT the strict ADR-015
  * relation above, which is byte-verbatim on inline markup and would
  * reject every legitimate re-wrap. A rejected polish keeps the
- * AST-canonical body and raises an info diagnostic (MSL-F011) naming
+ * AST-canonical body and raises an info diagnostic (MSL-F012) naming
  * the entry.
  *
  * Returns `true` when any entry body was rewritten (so `format()` can
@@ -322,7 +322,7 @@ function emitBodyViaAst(
           finalBody = polished;
         } else {
           diagnostics.push({
-            code: "MSL-F011",
+            code: "MSL-F012",
             severity: "info",
             message: `${entry.displayId}: Markdown pass produced a ` +
               `non-equivalent body — kept the canonical body`,
@@ -628,7 +628,7 @@ export function format(
     if (prose.changed) changed = true;
     for (const lineIdx of prose.fallbackStarts) {
       diagnostics.push({
-        code: "MSL-F011",
+        code: "MSL-F012",
         severity: "info",
         message:
           "Markdown pass produced non-equivalent output for this prose " +
