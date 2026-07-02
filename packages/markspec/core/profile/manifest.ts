@@ -14,6 +14,7 @@ import {
   COLOR_NAME_RE,
   CORE_KINDS,
   CORE_TYPES,
+  type DeliversDecl,
   type DisciplineMode,
   type DocTypeDef,
   type EnforcementMode,
@@ -54,6 +55,7 @@ export const ALLOWED_PROFILE_KEYS = new Set([
   "conventions",
   "types",
   "documents",
+  "delivers",
   "kinds",
   "prose",
   "discipline-mode",
@@ -73,6 +75,7 @@ export const ALLOWED_TYPE_KEYS = new Set([
 
 export const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
 export const ALLOWED_DOCUMENTS_KEYS = new Set(["types", "frontMatter"]);
+export const ALLOWED_DELIVERS_KEYS = new Set(["path", "corpus", "description"]);
 
 export const ALLOWED_ATTR_KEYS = new Set([
   "name",
@@ -1340,6 +1343,112 @@ function parseDocumentsSection(
   return { types, frontMatter };
 }
 
+function parseDeliversSection(
+  raw: unknown,
+  sourcePath: string,
+  diagnostics: Diagnostic[],
+): DeliversDecl[] {
+  if (raw === undefined) return [];
+  const loc = { file: sourcePath, line: 1, column: 1 };
+  if (!Array.isArray(raw)) {
+    diagnostics.push({
+      code: "PROFILE-LOAD-003",
+      severity: "error",
+      message: `profile.delivers: must be a list`,
+      location: loc,
+    });
+    return [];
+  }
+  const out: DeliversDecl[] = [];
+  const seenPaths = new Set<string>();
+  for (const item of raw) {
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.delivers: each item must be a mapping`,
+        location: loc,
+      });
+      continue;
+    }
+    const r = item as Record<string, unknown>;
+    for (const key of Object.keys(r)) {
+      if (!ALLOWED_DELIVERS_KEYS.has(key)) {
+        diagnostics.push({
+          code: "PROFILE-LOAD-003",
+          severity: "error",
+          message: `profile.delivers: unknown key '${key}'`,
+          location: loc,
+        });
+      }
+    }
+    const path = r.path;
+    if (typeof path !== "string" || path.trim().length === 0) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.delivers: item missing required 'path' (string)`,
+        location: loc,
+      });
+      continue;
+    }
+    // PROFILE-DELIVERS-003 — the path must stay inside the profile
+    // directory: no absolute paths (POSIX or drive-letter), no `..`.
+    const normalized = path.replaceAll("\\", "/");
+    if (
+      normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized) ||
+      normalized.split("/").includes("..")
+    ) {
+      diagnostics.push({
+        code: "PROFILE-DELIVERS-003",
+        severity: "error",
+        message: `profile.delivers: path '${path}' escapes the profile ` +
+          `directory (absolute paths and '..' segments are not allowed)`,
+        location: loc,
+      });
+      continue;
+    }
+    if (r.corpus !== undefined && typeof r.corpus !== "boolean") {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.delivers: 'corpus' must be a boolean`,
+        location: loc,
+      });
+      continue;
+    }
+    const corpus = r.corpus === true;
+    if (corpus && !normalized.toLowerCase().endsWith(".md")) {
+      diagnostics.push({
+        code: "PROFILE-DELIVERS-004",
+        severity: "error",
+        message: `profile.delivers: 'corpus: true' requires a Markdown ` +
+          `(.md) file, got '${path}'`,
+        location: loc,
+      });
+      continue;
+    }
+    if (seenPaths.has(normalized)) {
+      diagnostics.push({
+        code: "PROFILE-LOAD-003",
+        severity: "error",
+        message: `profile.delivers: duplicate path '${path}'`,
+        location: loc,
+      });
+      continue;
+    }
+    seenPaths.add(normalized);
+    out.push({
+      path: normalized,
+      corpus,
+      description: typeof r.description === "string"
+        ? r.description
+        : undefined,
+    });
+  }
+  return out;
+}
+
 /**
  * Parse and validate a raw markspec.yaml string.
  *
@@ -1502,6 +1611,15 @@ export function parseManifest(
     return { manifest: null, diagnostics };
   }
 
+  const delivers = parseDeliversSection(
+    profileSection.delivers,
+    sourcePath,
+    diagnostics,
+  );
+  if (diagnostics.some((d) => d.severity === "error")) {
+    return { manifest: null, diagnostics };
+  }
+
   const prose = parseProse(profileSection.prose, sourcePath, diagnostics);
   if (diagnostics.some((d) => d.severity === "error")) {
     return { manifest: null, diagnostics };
@@ -1534,6 +1652,7 @@ export function parseManifest(
     colors,
     types: types,
     documents: documents,
+    delivers,
     kinds,
     prose,
     disciplineMode,

@@ -12,6 +12,7 @@ import {
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
   readFile,
+  renderDiagnosticLocation,
   resolveScope,
 } from "../helpers.ts";
 
@@ -64,6 +65,20 @@ export const checkCmd = new Command()
         }
       }
 
+      // Load the delivered corpus (ADR-030) — project-wide only, matching
+      // the other composite gates: a file-local `check <file>` cannot
+      // distinguish a corpus target from a typo any more than MSL-L006
+      // could, so the corpus stays out of scope there.
+      const { loadDeliveredCorpus, buildCorpusIndex } = await import(
+        "../../core/mod.ts"
+      );
+      const corpus = scope.projectWide && chain
+        ? await loadDeliveredCorpus(chain.effective.delivers, readFile)
+        : { entries: [], diagnostics: [] };
+      const corpusIndex = buildCorpusIndex(
+        scope.projectWide ? chain?.effective.delivers ?? [] : [],
+      );
+
       const {
         detectDirectives,
         parseFile,
@@ -72,6 +87,7 @@ export const checkCmd = new Command()
       } = await import("../../core/mod.ts");
 
       const allEntries = [];
+      allEntries.push(...corpus.entries);
       const parseDiagnostics: Diagnostic[] = [];
       // deno-lint-ignore no-explicit-any
       const listingContexts: any[] = [];
@@ -110,6 +126,24 @@ export const checkCmd = new Command()
         captionConventions,
         { projectWide: scope.projectWide },
       );
+
+      // Corpus-aware post-pass (ADR-030): a project entry re-declaring a
+      // display ID already delivered by the corpus becomes MSL-R014 (not
+      // the generic duplicate codes), and pipeline findings located inside
+      // a corpus file are downgraded to attributed warnings — a consumer
+      // build must not go red over an upstream bug it cannot fix. No-op
+      // when no corpus was injected.
+      const { attributeCorpusDiagnostics, detectCorpusCollisions } =
+        await import("../../core/mod.ts");
+      const collisions = detectCorpusCollisions(allEntries);
+      const pipelineDiagnostics = [
+        ...attributeCorpusDiagnostics(
+          result.diagnostics,
+          allEntries,
+          collisions.collidedTokens,
+        ),
+        ...collisions.diagnostics,
+      ];
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
@@ -187,7 +221,14 @@ export const checkCmd = new Command()
           if (!lockParse.lockfile) {
             lockDiagnostics.push(...lockParse.diagnostics);
           } else {
-            const quads = extractEdgeQuads(allEntries);
+            // Corpus-blind by design: the lockfile is not corpus-aware yet
+            // (ADR-030 defers lockfile integration), so `markspec lock`
+            // never counts corpus edges. Counting them here would raise an
+            // MSL-L212 drift error that `markspec lock` can never fix —
+            // consumer gates must not fail on upstream content the consumer
+            // cannot re-lock.
+            const projectEntries = allEntries.filter((e) => !e.origin);
+            const quads = extractEdgeQuads(projectEntries);
             const currentHash = await hashCanonicalEdges(quads);
             const cache = lockParse.lockfile.generatedCache;
             if (cache.edgesHash !== currentHash) {
@@ -213,7 +254,11 @@ export const checkCmd = new Command()
       const proseDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
         const { runLint } = await import("../../core/mod.ts");
-        const lintResult = await runLint({ entries: allEntries });
+        // Prose lint never runs on delivered corpus entries (ADR-030) — a
+        // consumer cannot fix an upstream profile's prose.
+        const lintResult = await runLint({
+          entries: allEntries.filter((e) => !e.origin),
+        });
         for (const d of lintResult.diagnostics) {
           proseDiagnostics.push({
             code: d.code,
@@ -224,21 +269,37 @@ export const checkCmd = new Command()
         }
       }
 
-      // Merge parse-level (MSL-P0xx), pipeline, listing, fmt-drift,
-      // lockfile-drift, and prose-lint diagnostics.
+      // Merge parse-level (MSL-P0xx), corpus-load, pipeline, listing,
+      // fmt-drift, lockfile-drift, and prose-lint diagnostics.
       const allDiagnostics = [
         ...parseDiagnostics,
-        ...result.diagnostics,
+        ...corpus.diagnostics,
+        ...pipelineDiagnostics,
         ...listingDiagnostics,
         ...fmtDiagnostics,
         ...lockDiagnostics,
         ...proseDiagnostics,
       ];
 
-      // Apply --strict: promote warnings to errors.
+      // Apply --strict: promote warnings to errors. Corpus-attributed
+      // findings are exempt (ADR-030) — a consumer cannot fix upstream
+      // content, so promoting them would create unfixable red builds.
+      // Tracked by identity, not by message matching: everything the
+      // corpus loader emitted (attributed parse findings + the docs-only
+      // missing-file warning PROFILE-DELIVERS-002), plus every pipeline
+      // finding located inside a delivered corpus file (the downgraded
+      // attributed warnings from attributeCorpusDiagnostics).
+      const strictExempt = new Set<Diagnostic>(corpus.diagnostics);
+      for (const d of pipelineDiagnostics) {
+        if (d.location && corpusIndex.has(d.location.file)) {
+          strictExempt.add(d);
+        }
+      }
       const diagnostics = options.strict
         ? allDiagnostics.map((d) =>
-          d.severity === "warning" ? { ...d, severity: "error" as const } : d
+          d.severity === "warning" && !strictExempt.has(d)
+            ? { ...d, severity: "error" as const }
+            : d
         )
         : allDiagnostics;
 
@@ -249,7 +310,7 @@ export const checkCmd = new Command()
         console.log(JSON.stringify(diagnostics, null, 2));
       } else {
         for (const d of diagnostics) {
-          const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
+          const loc = renderDiagnosticLocation(d, corpusIndex);
           console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
         }
       }

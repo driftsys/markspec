@@ -61,6 +61,7 @@ function makeProfile(
     colors: new Map(),
     types: new Map(Object.entries(types)),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

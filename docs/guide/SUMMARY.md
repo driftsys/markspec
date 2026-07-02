@@ -23,6 +23,7 @@
 - [Pre-commit hook](recipes/git-hooks.md)
 - [CI traceability gate](recipes/ci.md)
 - [ISO 26262 / ASPICE workflow](recipes/iso26262.md)
+- [Shipping a reference architecture](recipes/shipping-a-reference-architecture.md)
 
 ---
 

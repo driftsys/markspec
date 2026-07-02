@@ -42,9 +42,11 @@ import {
   discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
+  type Entry,
   filterEntriesByTraceTargets,
   format,
   loadConfig,
+  loadDeliveredCorpus,
   loadMarkdownFormatter,
   loadProfileForCommand,
   type Lockfile,
@@ -202,6 +204,53 @@ function _getLockfile(): Lockfile | undefined {
   return lockfile;
 }
 
+/** Absolute paths of delivered corpus files currently seeded into the
+ * index (ADR-030). Diagnostics for these files are never published and
+ * the files are re-seeded, not watched. */
+const corpusFilePaths = new Set<string>();
+
+/**
+ * (Re-)seed the workspace index with the active profile's delivered
+ * corpus (ADR-030). Removes any previously-seeded corpus files first so
+ * a profile reload that drops or changes `delivers:` doesn't leave stale
+ * corpus entries behind, then loads the current `profile.delivers` list
+ * and indexes each corpus file under its own file path — entries carry
+ * `Entry.origin` from {@linkcode loadDeliveredCorpus}, which
+ * `publishAllDiagnostics` and the rename handlers use to treat corpus
+ * files/entries as read-only. Called before the project file walk in
+ * `onInitialized` (so corpus display IDs win "first entry wins"
+ * collisions deterministically) and again in `reloadProfile` after
+ * `profile` is reassigned.
+ */
+async function seedDeliveredCorpus(): Promise<void> {
+  // Always drop the old corpus first — even if the reload below fails,
+  // stale entries from a previous profile must not linger in the index.
+  for (const path of corpusFilePaths) index.removeFile(path);
+  corpusFilePaths.clear();
+  const delivers = profile?.delivers ?? [];
+  if (delivers.length === 0) return;
+  try {
+    const corpus = await loadDeliveredCorpus(delivers, readFile);
+    for (const d of corpus.diagnostics) {
+      connection.console.warn(`${d.code}: ${d.message}`);
+    }
+    const byFile = new Map<string, Entry[]>();
+    for (const e of corpus.entries) {
+      const list = byFile.get(e.location.file) ?? [];
+      list.push(e);
+      byFile.set(e.location.file, list);
+    }
+    for (const [file, entries] of byFile) {
+      index.updateFile(file, entries);
+      corpusFilePaths.add(file);
+    }
+  } catch (err) {
+    // Cold-cache soft-fail (design spec §4): the index proceeds without
+    // corpus rather than aborting initialization or profile reload.
+    connection.console.warn(`Failed to load delivered corpus: ${err}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // File reader for core functions (uses Deno APIs — allowed in entry points)
 // ---------------------------------------------------------------------------
@@ -264,8 +313,11 @@ function publishAllDiagnostics(): void {
 
   const grouped = groupDiagnosticsByFile(allDiags);
 
-  // Send diagnostics for files that have issues
+  // Send diagnostics for files that have issues. Delivered corpus files
+  // (ADR-030) are never published — they are read-only, sourced from a
+  // profile, not the author's own work.
   for (const [file, diags] of grouped) {
+    if (corpusFilePaths.has(file)) continue;
     const uri = pathToUri(file);
     connection.sendDiagnostics({
       uri,
@@ -275,6 +327,7 @@ function publishAllDiagnostics(): void {
 
   // Clear diagnostics for tracked files with no issues
   for (const file of index.getFilePaths()) {
+    if (corpusFilePaths.has(file)) continue;
     if (!grouped.has(file)) {
       connection.sendDiagnostics({
         uri: pathToUri(file),
@@ -560,6 +613,9 @@ async function reloadProfile(): Promise<void> {
       "markspec/profileChanged",
       cachedProfileResponse,
     );
+    // Re-seed the delivered corpus (ADR-030) before republishing — the
+    // new profile may change, add, or drop `delivers:` entirely.
+    await seedDeliveredCorpus();
     // Profile changes can flip MSL-R010 suppression and other
     // attribute-validity decisions — republish cross-file diagnostics.
     publishAllDiagnostics();
@@ -588,6 +644,11 @@ connection.onInitialized(async () => {
   connection.console.log(`Indexing project at ${projectRoot}...`);
 
   try {
+    // Seed the delivered corpus (ADR-030) before the project walk so
+    // corpus display IDs win "first entry wins" collisions
+    // deterministically, regardless of project-file parse order.
+    await seedDeliveredCorpus();
+
     // Discover all relevant files (core/discovery: gitignore-aware,
     // honors project.yaml `exclude:`).
     const files: string[] = [];
@@ -713,6 +774,9 @@ connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
 documents.onDidChangeContent((change) => {
   const filePath = uriToPath(change.document.uri);
   if (!isMarkspecFile(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by
+  // seedDeliveredCorpus (ADR-030) — never reparse from a buffer edit.
+  if (corpusFilePaths.has(filePath)) return;
 
   // Stash latest content so the debounced parse always uses the most
   // recent snapshot, even if multiple edits arrive before the timer fires.
@@ -744,6 +808,10 @@ documents.onDidSave(() => {
 documents.onDidClose((event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by
+  // seedDeliveredCorpus (ADR-030) — closing the buffer must neither
+  // remove the entries nor touch diagnostics (none were published).
+  if (corpusFilePaths.has(filePath)) return;
   // Remove the file from the index and clear its diagnostics so stale
   // entries don't affect cross-file validation after the buffer closes.
   index.removeFile(filePath);
@@ -756,6 +824,9 @@ documents.onDidClose((event) => {
 documents.onDidOpen(async (event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by
+  // seedDeliveredCorpus (ADR-030) — never reparse from an opened buffer.
+  if (corpusFilePaths.has(filePath)) return;
   // Index newly opened files immediately so rename and other workspace
   // operations cover them even before the first edit event fires.
   if (index.getFilePaths().includes(filePath)) return; // already indexed
@@ -907,7 +978,13 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
           index.getAllEntries(),
           targets,
           profile,
-        ).map((e) => ({ displayId: e.displayId, title: e.title }))
+        ).map((e) => ({
+          displayId: e.displayId,
+          title: e.title,
+          origin: e.origin
+            ? `${e.origin.profileId}@${e.origin.profileVersion}`
+            : undefined,
+        }))
         : index.getAllDisplayIds();
       // Server-side prefix filter on the partial the user has typed
       // after the colon. Case-insensitive to match VS Code's
@@ -1217,6 +1294,11 @@ connection.onPrepareRename((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
+  const id = displayIdAtPosition(line, params.position.character);
+  if (id) {
+    const targetEntry = index.getEntryByDisplayId(makeDisplayId(id));
+    if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
+  }
   return prepareRenameRange(
     line,
     params.position.character,
@@ -1243,6 +1325,8 @@ connection.onRenameRequest(async (params) => {
   });
   const oldId = displayIdAtPosition(line, params.position.character);
   if (!oldId) return null;
+  const targetEntry = index.getEntryByDisplayId(makeDisplayId(oldId));
+  if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
   const newId = params.newName;
   if (!newId || newId === oldId) return null;
 
@@ -1251,6 +1335,9 @@ connection.onRenameRequest(async (params) => {
   // and fall back to reading from disk.
   const changes: Record<string, LspTextEdit[]> = {};
   for (const path of index.getFilePaths()) {
+    // Delivered corpus files are read-only (ADR-030) — a project-ID rename
+    // must never emit WorkspaceEdits against the profile cache.
+    if (corpusFilePaths.has(path)) continue;
     const uri = pathToUri(path);
     let text: string | undefined;
     const openDoc = documents.get(uri);
@@ -1331,6 +1418,8 @@ connection.onDocumentFormatting(async (params) => {
   // Checked before loadMarkdownFormatter() so the WASM prose formatter is
   // never loaded for files the server won't format.
   if (!isMarkspecFile(filePath)) return [];
+  // Delivered corpus files are read-only (ADR-030) — never format them.
+  if (corpusFilePaths.has(filePath)) return [];
 
   // Source files are read-only for formatting (ADR-029: Markdown files
   // only) — doc-comment layout belongs to the host language's formatter.

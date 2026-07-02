@@ -8,7 +8,12 @@
 import { assertArrayIncludes, assertEquals, assertExists } from "@std/assert";
 import { compile } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
-import type { EffectiveProfile, EffectiveTypeDef } from "../model/mod.ts";
+import type {
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+} from "../model/mod.ts";
+import { parseFile } from "../parser/mod.ts";
 
 const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -521,6 +526,7 @@ function profileWithFoo(): EffectiveProfile {
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -718,6 +724,7 @@ function syntheticProfile(): EffectiveProfile {
     colors: new Map(),
     types,
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -745,4 +752,81 @@ Deno.test("compile: profile-extended registry classifies SoftwareRequirement ent
   const swr = result.entries.get(makeDisplayId("SWR_0001"));
   if (!swr) throw new Error("SWR_0001 missing from compile output");
   assertEquals(swr.derivedDiscipline, "software");
+});
+
+// ---------------------------------------------------------------------------
+// Corpus injection (ADR-030): CompileOptions.corpusEntries
+// ---------------------------------------------------------------------------
+
+const CORPUS_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+
+/** Build one origin-stamped corpus entry the way `loadDeliveredCorpus`
+ * does: parse a delivered-document fixture, then stamp `origin`. */
+async function corpusEntries(): Promise<Entry[]> {
+  const md = `- [PLT_0001] Platform core service
+
+  The platform core service shall expose the vehicle state bus.
+
+      Id: ${CORPUS_ULID}
+`;
+  const { entries } = await parseFile(md, {
+    file: "/cache/platform-arch/reference/platform.md",
+  });
+  return entries.map((e) => ({
+    ...e,
+    origin: {
+      kind: "profile" as const,
+      profileId: "platform-arch",
+      profileVersion: "1.2.0",
+    },
+  }));
+}
+
+Deno.test("compile: corpusEntries resolves a project Satisfies: target with no MSL-L006", async () => {
+  const files = {
+    "/repo/reqs.md": `- [STK_0001] Vehicle state access
+
+  The system shall read the vehicle state from the platform core service.
+
+      Id: ${ULID_A}
+      Satisfies: PLT_0001
+`,
+  };
+  const result = await compile(["/repo/reqs.md"], {
+    readFile: reader(files),
+    corpusEntries: await corpusEntries(),
+  });
+
+  const corpusEntry = result.entries.get(makeDisplayId("PLT_0001"));
+  assertExists(corpusEntry);
+  assertEquals(corpusEntry.origin?.profileId, "platform-arch");
+
+  const forward = result.forward.get(makeDisplayId("STK_0001")) ?? [];
+  assertEquals(
+    forward.some((l) => l.to === makeDisplayId("PLT_0001")),
+    true,
+  );
+
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
+});
+
+Deno.test("compile: project entry colliding with a corpus display ID → exactly one MSL-R014, no MSL-R006", async () => {
+  const files = {
+    "/repo/collide.md": `- [PLT_0001] My own platform entry
+
+  Colliding body.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FC0
+`,
+  };
+  const result = await compile(["/repo/collide.md"], {
+    readFile: reader(files),
+    corpusEntries: await corpusEntries(),
+  });
+
+  const r014 = result.diagnostics.filter((d) => d.code === "MSL-R014");
+  assertEquals(r014.length, 1);
+  assertEquals(r014[0].location?.file, "/repo/collide.md");
+
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-R006"), []);
 });

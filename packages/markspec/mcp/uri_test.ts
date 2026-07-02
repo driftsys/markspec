@@ -6,10 +6,13 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  deliveredUri,
   ENTRIES_URI,
   entryUri,
+  isDeliveredUri,
   isEntryUri,
   isProfileDetailUri,
+  parseDeliveredUri,
   parseEntryUri,
   parseProfileDetailUri,
   PROFILE_URI,
@@ -99,4 +102,73 @@ Deno.test("isProfileDetailUri: correctly identifies detail URIs", () => {
   );
   assertEquals(isProfileDetailUri(PROFILE_URI), false);
   assertEquals(isProfileDetailUri("markspec://entry/SRS_0001"), false);
+});
+
+// ---------------------------------------------------------------------------
+// Delivered-document URI helpers (ADR-030)
+// ---------------------------------------------------------------------------
+
+Deno.test("deliveredUri round-trips profileId and path", () => {
+  const uri = deliveredUri("platform-arch", "reference/platform.md");
+  assertEquals(
+    uri,
+    "markspec://delivered/platform-arch/reference%2Fplatform.md",
+  );
+  assertEquals(parseDeliveredUri(uri), {
+    profileId: "platform-arch",
+    path: "reference/platform.md",
+  });
+  assertEquals(isDeliveredUri(uri), true);
+  assertEquals(isDeliveredUri("markspec://profile"), false);
+});
+
+Deno.test("deliveredUri: encodes special characters in profileId and path", () => {
+  const uri = deliveredUri("acme/platform", "a b/c.md");
+  assertEquals(parseDeliveredUri(uri), {
+    profileId: "acme/platform",
+    path: "a b/c.md",
+  });
+});
+
+Deno.test("parseDeliveredUri: rejects a URI missing the profileId segment", () => {
+  assertEquals(
+    parseDeliveredUri("markspec://delivered/reference.md"),
+    undefined,
+  );
+  assertEquals(
+    parseDeliveredUri("markspec://delivered//reference.md"),
+    undefined,
+  );
+});
+
+Deno.test("parseDeliveredUri: rejects a URI with an empty path", () => {
+  assertEquals(
+    parseDeliveredUri("markspec://delivered/platform-arch/"),
+    undefined,
+  );
+  assertEquals(
+    parseDeliveredUri("markspec://delivered/platform-arch"),
+    undefined,
+  );
+});
+
+Deno.test("parseDeliveredUri: rejects malformed percent-encoding", () => {
+  assertEquals(
+    parseDeliveredUri("markspec://delivered/platform-arch/%E0%A4%A"),
+    undefined,
+  );
+});
+
+Deno.test("parseDeliveredUri: returns undefined for non-delivered URIs", () => {
+  assertEquals(parseDeliveredUri("markspec://profile"), undefined);
+  assertEquals(parseDeliveredUri("markspec://entry/STK_0001"), undefined);
+});
+
+Deno.test("isDeliveredUri: false for other URI families", () => {
+  assertEquals(isDeliveredUri("markspec://entries"), false);
+  assertEquals(isDeliveredUri("markspec://entry/STK_0001"), false);
+  assertEquals(
+    isDeliveredUri("markspec://profile/type/software-requirement"),
+    false,
+  );
 });

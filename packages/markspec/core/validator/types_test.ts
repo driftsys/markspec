@@ -79,6 +79,7 @@ function buildProfile(
     conventions: new Map(),
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

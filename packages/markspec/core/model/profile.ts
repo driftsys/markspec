@@ -168,6 +168,37 @@ export interface DocTypeDef {
 }
 
 // ---------------------------------------------------------------------------
+// Delivered documents (ADR-030)
+// ---------------------------------------------------------------------------
+
+/**
+ * One `profile.delivers:` item as authored in `markspec.yaml`. `path` is
+ * relative to the profile directory, `/`-separated, and validated at parse
+ * time to stay inside it. `corpus: true` marks a Markdown file whose entries
+ * join the consuming project's traceability graph (ADR-030); default `false`
+ * means documentation-only.
+ */
+export interface DeliversDecl {
+  readonly path: string;
+  readonly corpus: boolean;
+  readonly description?: string;
+}
+
+/**
+ * A delivered document after chain resolution (ADR-030): the manifest's
+ * `DeliversDecl` joined with the delivering tier's identity and on-disk
+ * location. `absPath` is `join(tier.baseDir, path)`.
+ */
+export interface DeliveredDocument {
+  readonly profileId: string;
+  readonly profileVersion: string;
+  readonly path: string;
+  readonly absPath: string;
+  readonly corpus: boolean;
+  readonly description?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Profile manifest
 // ---------------------------------------------------------------------------
 
@@ -218,6 +249,10 @@ export interface ProfileManifest {
     readonly types: readonly DocTypeDef[];
     readonly frontMatter: readonly AttrDecl[];
   };
+
+  /** Files this profile delivers to consumers (ADR-030). Empty when the
+   * manifest declares no `profile.delivers:`. */
+  readonly delivers: readonly DeliversDecl[];
 
   /**
    * Profile-declared discipline kinds (ADR-017 Invariant 2). Maps kind
@@ -345,6 +380,12 @@ export interface EffectiveProfile {
     readonly types: ProvenancedMap<DocTypeDef>;
     readonly frontMatter: ProvenancedMap<AttrDecl>;
   };
+  /**
+   * Documents delivered by the chain (ADR-030), parent-first then manifest
+   * order — the deterministic corpus injection order. Deduped by
+   * `(profileId, path)`.
+   */
+  readonly delivers: readonly DeliveredDocument[];
   /** Discipline kinds declared across the profile chain (ADR-017). */
   readonly kinds: ProvenancedMap<KindDecl>;
   /**

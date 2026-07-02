@@ -68,6 +68,7 @@ function buildProfileWithRequirement(): EffectiveProfile {
     colors: new Map(),
     types: new Map([["requirement", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -176,6 +177,7 @@ Deno.test("runPipeline: Stage 3 checks attributes of classified entries", () => 
     colors: new Map(),
     types: new Map([["requirement", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -229,6 +231,7 @@ Deno.test("runPipeline: MSL-R010 suppressed for profile-declared attributes", ()
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -275,6 +278,7 @@ Deno.test("runPipeline: profile with zero types runs Stage 2 permissively", () =
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -326,6 +330,7 @@ Deno.test("runPipeline: Stage 4 catches required link missing", () => {
     colors: new Map(),
     types: new Map([["test", reqType]]),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -403,6 +408,7 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

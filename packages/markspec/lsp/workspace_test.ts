@@ -280,6 +280,7 @@ Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared 
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -300,4 +301,36 @@ Deno.test("WorkspaceIndex: validateAll suppresses MSL-R010 for profile-declared 
   // With the profile loaded, the declared attribute is suppressed.
   const withProfile = index.validateAll(profile);
   assertEquals(withProfile.some((d) => d.code === "MSL-R010"), false);
+});
+
+// --- ADR-030: delivered-corpus seeding determinism ---
+
+const CORPUS_MD = `- [PLT_0001] Core platform entry
+
+  Corpus body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+
+const PROJECT_MD_WITH_SAME_ID = `- [PLT_0001] Local override entry
+
+  Project body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+`;
+
+Deno.test("WorkspaceIndex: corpus seeded first owns colliding display IDs", async () => {
+  const index = new WorkspaceIndex();
+  await index.parseAndUpdateFile("/cache/p/ref.md", CORPUS_MD); // corpus fixture
+  // Simulate origin stamping the server applies on seed:
+  index.updateFile(
+    "/cache/p/ref.md",
+    index.getEntriesForFile("/cache/p/ref.md").map((e) => ({
+      ...e,
+      origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+    })),
+  );
+  await index.parseAndUpdateFile("/repo/a.md", PROJECT_MD_WITH_SAME_ID);
+  const owner = index.getEntryByDisplayId(makeDisplayId("PLT_0001"));
+  assertEquals(owner?.origin?.profileId, "p");
 });

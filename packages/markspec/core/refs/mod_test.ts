@@ -146,6 +146,109 @@ Deno.test("canonicalizeRefs: ULID token in trace attr replaced with current disp
 });
 
 // ---------------------------------------------------------------------------
+// canonicalizeRefs — fenced-code regions are verbatim (#668)
+// ---------------------------------------------------------------------------
+
+Deno.test("canonicalizeRefs: trace values inside a fenced block are left verbatim", () => {
+  // A real trailer (line 6) is healed; an identical illustrative trailer
+  // inside a ```markdown example (line 9) must stay byte-for-byte.
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: ${TGT}`,
+    ``,
+    "```markdown",
+    `      Satisfies: ${TGT}`,
+    "```",
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [
+      { key: "Id", value: SRC },
+      { key: "Satisfies", value: TGT },
+    ],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 20, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt]);
+  const { output, changed } = canonicalizeRefs(content, [src, tgt], idx, []);
+  const outLines = output.split("\n");
+
+  assertEquals(changed, true);
+  // Real trailer healed ULID → current display ID.
+  assertEquals(outLines[5], "      Satisfies: SYS_0001");
+  // Fenced example untouched — still the raw ULID.
+  assertEquals(outLines[8], `      Satisfies: ${TGT}`);
+});
+
+Deno.test("canonicalizeRefs: a document that is only a fenced example is a no-op", () => {
+  // Mirrors the #668 repo-churn scenario: an illustrative trailer inside a
+  // fence, with no real entry claiming that ULID — must not be rewritten.
+  const content = [
+    "```markdown",
+    `      Realizes: ${TGT}`,
+    "```",
+  ].join("\n");
+
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 100, column: 1 },
+  });
+
+  const idx = buildRefIndex([tgt]);
+  const { output, changed } = canonicalizeRefs(content, [tgt], idx, []);
+
+  assertEquals(changed, false);
+  assertEquals(output, content);
+});
+
+Deno.test("canonicalizeRefs: an indented fence after a continuation does not desync tracking", () => {
+  // A `\`-continued trailer whose continuation flows straight into an
+  // INDENTED fence marker must not swallow the marker as continuation text
+  // (which would leave inFence=false and heal the trailer inside the fence).
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `      Id: ${SRC}`,
+    `      References: a, \\`,
+    "  ```markdown",
+    `      Satisfies: ${TGT}`,
+    "  ```",
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 20, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt]);
+  const { output } = canonicalizeRefs(content, [src, tgt], idx, []);
+  // The trailer inside the fence stays the raw ULID (fence tracking held).
+  assertEquals(output.split("\n")[5], `      Satisfies: ${TGT}`);
+});
+
+// ---------------------------------------------------------------------------
 // canonicalizeRefs — rule 2: current display ID → no-op
 // ---------------------------------------------------------------------------
 

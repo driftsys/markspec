@@ -36,6 +36,10 @@
           "additionalProperties": { "$ref": "#/$defs/type" }
         },
         "documents": { "$ref": "#/$defs/documents" },
+        "delivers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/deliversItem" }
+        },
         "kinds": {},
         "prose": {},
         "discipline-mode": { "enum": ["flat", "tiered", "none"] }
@@ -131,6 +135,16 @@
       "properties": {
         "types": {},
         "frontMatter": {}
+      }
+    },
+    "deliversItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "corpus": { "type": "boolean" },
+        "description": { "type": "string" }
       }
     }
   }

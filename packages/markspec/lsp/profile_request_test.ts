@@ -65,6 +65,7 @@ function fakeEffective(
     colors: colorsMap,
     types: typesMap,
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

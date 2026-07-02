@@ -16,11 +16,16 @@ function mockProject(detected: boolean): Project {
     config: undefined,
     profileChain: null,
     profile: undefined,
+    delivers: [],
     getCompiled: () =>
       Promise.reject(new Error("getCompiled must not be called when gated")),
     forceRefresh: () =>
       Promise.reject(new Error("forceRefresh must not be called when gated")),
     subscribeInvalidation: () => () => {},
+    readDeliveredDocument: () =>
+      Promise.reject(
+        new Error("readDeliveredDocument must not be called when gated"),
+      ),
   };
 }
 
@@ -33,6 +38,7 @@ function emptyDetectedProject(): Project {
     config: undefined,
     profileChain: null,
     profile: undefined,
+    delivers: [],
     getCompiled: () =>
       Promise.resolve({
         entries: new Map(),
@@ -45,6 +51,7 @@ function emptyDetectedProject(): Project {
     forceRefresh: () =>
       Promise.reject(new Error("forceRefresh must not be called")),
     subscribeInvalidation: () => () => {},
+    readDeliveredDocument: () => Promise.resolve(undefined),
   };
 }
 

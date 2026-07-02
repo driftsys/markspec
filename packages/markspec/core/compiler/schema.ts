@@ -7,7 +7,7 @@
  */
 
 import type { CompileResult } from "./mod.ts";
-import type { Diagnostic, Entry, Link } from "../model/mod.ts";
+import type { Diagnostic, Entry, EntryOrigin, Link } from "../model/mod.ts";
 import type { RegistryBinding, RegistryTypedef } from "../typl/mod.ts";
 
 /**
@@ -16,9 +16,16 @@ import type { RegistryBinding, RegistryTypedef } from "../typl/mod.ts";
  * Identical to `Entry` except `typedAttributes` is a plain
  * `Record<string, readonly string[]>` instead of a `ReadonlyMap` — Maps are
  * not JSON-serializable. All other fields are passed through unchanged.
+ *
+ * `origin` (ADR-030) is restated explicitly here — rather than relying on
+ * the `Omit<Entry, ...>` passthrough — so the field-presence contract is
+ * documented at the serialization boundary: present verbatim on entries
+ * injected from a profile-delivered corpus, absent (not `null`) on
+ * project-authored entries.
  */
 export type SerializedEntry = Omit<Entry, "typedAttributes"> & {
   readonly typedAttributes?: Record<string, readonly string[]>;
+  readonly origin?: EntryOrigin;
 };
 
 /**
@@ -116,9 +123,17 @@ export function serializeEntry(entry: Entry): SerializedEntry {
     properties = Object.keys(rest).length > 0 ? rest : undefined;
   }
 
+  // Pull `origin` (ADR-030) out of the spread so the key is entirely
+  // absent — not `origin: undefined` — on entries that did not come
+  // from a delivered corpus, matching the serialized-field-presence
+  // contract. Object rest destructuring drops the named key regardless
+  // of its value, unlike `...entry` alone.
+  const { origin, ...rest } = entry;
+
   return {
-    ...entry,
+    ...rest,
     typedAttributes,
     properties,
+    ...(origin ? { origin } : {}),
   };
 }
