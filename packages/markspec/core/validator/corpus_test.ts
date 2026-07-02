@@ -71,6 +71,48 @@ Deno.test("detectCorpusCollisions: no corpus entries → no findings", () => {
   assertEquals(detectCorpusCollisions([a]).diagnostics, []);
 });
 
+Deno.test("detectCorpusCollisions: corpus entries from different profiles sharing a display ID → MSL-R014", () => {
+  const first = makeEntry({
+    displayId: "PLT_0001",
+    file: "/cache/p/ref.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const second = makeEntry({
+    displayId: "PLT_0001",
+    file: "/cache/q/ref.md",
+    origin: { kind: "profile", profileId: "q", profileVersion: "2.0.0" },
+  });
+  const { diagnostics, collidedTokens } = detectCorpusCollisions([
+    first,
+    second,
+  ]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-R014");
+  assertEquals(diagnostics[0].severity, "error");
+  assertEquals(diagnostics[0].location?.file, "/cache/q/ref.md");
+  assertStringIncludes(diagnostics[0].message, "p@1.0.0");
+  assertEquals(collidedTokens.has("PLT_0001"), true);
+});
+
+Deno.test("detectCorpusCollisions: same-profile duplicate display ID stays generic (no R014)", () => {
+  const first = makeEntry({
+    displayId: "PLT_0001",
+    file: "/cache/p/a.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const second = makeEntry({
+    displayId: "PLT_0001",
+    file: "/cache/p/b.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const { diagnostics, collidedTokens } = detectCorpusCollisions([
+    first,
+    second,
+  ]);
+  assertEquals(diagnostics, []);
+  assertEquals(collidedTokens.size, 0);
+});
+
 // ---------------------------------------------------------------------------
 // attributeCorpusDiagnostics
 // ---------------------------------------------------------------------------

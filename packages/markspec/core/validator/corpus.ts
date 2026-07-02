@@ -49,31 +49,72 @@ export function detectCorpusCollisions(
   const diagnostics: Diagnostic[] = [];
   const collided = new Set<string>();
   for (const e of allEntries) {
-    if (e.origin) continue;
+    if (!e.origin) {
+      const displayOwner = corpusByDisplayId.get(e.displayId);
+      if (displayOwner) {
+        collided.add(e.displayId);
+        diagnostics.push({
+          code: "MSL-R014",
+          severity: "error",
+          message: `display ID '${e.displayId}' is already delivered by ` +
+            `${displayOwner.origin!.profileId}@` +
+            `${displayOwner.origin!.profileVersion}; rename this entry — ` +
+            `delivered corpus entries are read-only`,
+          location: e.location,
+        });
+      }
+      if (e.id) {
+        const idOwner = corpusById.get(e.id);
+        if (idOwner) {
+          collided.add(e.id);
+          diagnostics.push({
+            code: "MSL-R014",
+            severity: "error",
+            message: `Id '${e.id}' is already delivered by ` +
+              `${idOwner.origin!.profileId}@` +
+              `${idOwner.origin!.profileVersion}; rename this entry — ` +
+              `delivered corpus entries are read-only`,
+            location: e.location,
+          });
+        }
+      }
+      continue;
+    }
+    // Corpus↔corpus inter-tier collision: a later delivered entry from a
+    // DIFFERENT profile claims a display ID (or Id) the first-registered
+    // profile already owns. Same-profile duplicates are excluded — that's
+    // the delivering profile's own authoring bug, not a read-only-boundary
+    // violation, and stays on the generic duplicate codes.
     const displayOwner = corpusByDisplayId.get(e.displayId);
-    if (displayOwner) {
+    if (
+      displayOwner !== e && displayOwner &&
+      displayOwner.origin!.profileId !== e.origin.profileId
+    ) {
       collided.add(e.displayId);
       diagnostics.push({
         code: "MSL-R014",
         severity: "error",
         message: `display ID '${e.displayId}' is already delivered by ` +
           `${displayOwner.origin!.profileId}@` +
-          `${displayOwner.origin!.profileVersion}; rename this entry — ` +
-          `delivered corpus entries are read-only`,
+          `${displayOwner.origin!.profileVersion}; delivered corpus ` +
+          `entries are read-only`,
         location: e.location,
       });
     }
     if (e.id) {
       const idOwner = corpusById.get(e.id);
-      if (idOwner) {
+      if (
+        idOwner !== e && idOwner &&
+        idOwner.origin!.profileId !== e.origin.profileId
+      ) {
         collided.add(e.id);
         diagnostics.push({
           code: "MSL-R014",
           severity: "error",
           message: `Id '${e.id}' is already delivered by ` +
             `${idOwner.origin!.profileId}@` +
-            `${idOwner.origin!.profileVersion}; rename this entry — ` +
-            `delivered corpus entries are read-only`,
+            `${idOwner.origin!.profileVersion}; delivered corpus entries ` +
+            `are read-only`,
           location: e.location,
         });
       }
