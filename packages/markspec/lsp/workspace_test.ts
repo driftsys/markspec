@@ -334,3 +334,37 @@ Deno.test("WorkspaceIndex: corpus seeded first owns colliding display IDs", asyn
   const owner = index.getEntryByDisplayId(makeDisplayId("PLT_0001"));
   assertEquals(owner?.origin?.profileId, "p");
 });
+
+Deno.test("WorkspaceIndex: validateAll reports a project/corpus collision as MSL-R014, not a raw-cache-path MSL-R006 (#674 finding 3)", async () => {
+  const CORPUS_CACHE_PATH = "/repo/.markspec/cache/abc123sha/ref.md";
+  const index = new WorkspaceIndex();
+  await index.parseAndUpdateFile(CORPUS_CACHE_PATH, CORPUS_MD); // corpus fixture
+  // Simulate origin stamping the server applies on seed:
+  index.updateFile(
+    CORPUS_CACHE_PATH,
+    index.getEntriesForFile(CORPUS_CACHE_PATH).map((e) => ({
+      ...e,
+      origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+    })),
+  );
+  await index.parseAndUpdateFile("/repo/a.md", PROJECT_MD_WITH_SAME_ID);
+
+  const diags = index.validateAll();
+
+  // The collision surfaces as MSL-R014, located at the project entry that
+  // re-declared the corpus-owned display ID.
+  const r014 = diags.filter((d) => d.code === "MSL-R014");
+  assertEquals(r014.length > 0, true);
+  assertEquals(r014.every((d) => d.location?.file === "/repo/a.md"), true);
+
+  // The generic duplicate codes — whose message embeds the corpus entry's
+  // raw file location — are suppressed in favor of MSL-R014.
+  assertEquals(diags.some((d) => d.code === "MSL-R006"), false);
+  assertEquals(diags.some((d) => d.code === "MSL-I008"), false);
+
+  // No diagnostic anywhere leaks the corpus entry's raw cache path.
+  assertEquals(
+    diags.some((d) => d.message.includes(CORPUS_CACHE_PATH)),
+    false,
+  );
+});

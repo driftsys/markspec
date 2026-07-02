@@ -8,7 +8,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { walkProseLines } from "./fence.ts";
+import { isLineFenced, walkProseLines } from "./fence.ts";
 
 Deno.test("walkProseLines: yields every line when there are no fences", () => {
   const body = "alpha\nbeta\ngamma";
@@ -65,4 +65,54 @@ Deno.test("walkProseLines: empty body yields nothing", () => {
   walkProseLines("", () => calls++);
   // `"".split("\n")` is `[""]`, so one empty line still goes to cb.
   assertEquals(calls, 1);
+});
+
+// --- isLineFenced ---
+
+Deno.test("isLineFenced: false for a plain line outside any fence", () => {
+  const body = ["before", "```", "code", "```", "after"].join("\n");
+  assertEquals(isLineFenced(body, 0), false);
+  assertEquals(isLineFenced(body, 4), false);
+});
+
+Deno.test("isLineFenced: true for content inside a fenced block", () => {
+  const body = ["before", "```", "code", "```", "after"].join("\n");
+  assertEquals(isLineFenced(body, 2), true);
+});
+
+Deno.test("isLineFenced: true for the fence-marker lines themselves", () => {
+  const body = ["before", "```", "code", "```", "after"].join("\n");
+  assertEquals(isLineFenced(body, 1), true);
+  assertEquals(isLineFenced(body, 3), true);
+});
+
+Deno.test("isLineFenced: true for a tilde-fenced line", () => {
+  const body = ["pre", "~~~", "verbatim", "~~~", "post"].join("\n");
+  assertEquals(isLineFenced(body, 2), true);
+});
+
+Deno.test("isLineFenced: agrees with walkProseLines across every line of a document", () => {
+  const body = [
+    "a",
+    "```md",
+    "- [REQ-001] example",
+    "```",
+    "b",
+    "~~~",
+    "c",
+    "~~~",
+    "d",
+  ].join("\n");
+  const skipped = new Set<number>();
+  const lines = body.split("\n");
+  for (let i = 0; i < lines.length; i++) skipped.add(i);
+  walkProseLines(body, (_line, i) => skipped.delete(i));
+  for (let i = 0; i < lines.length; i++) {
+    assertEquals(isLineFenced(body, i), skipped.has(i), `line ${i}`);
+  }
+});
+
+Deno.test("isLineFenced: out-of-range line index returns false", () => {
+  const body = ["a", "b"].join("\n");
+  assertEquals(isLineFenced(body, 99), false);
 });

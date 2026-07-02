@@ -16,6 +16,12 @@
  * `displayId` matches the target (the definition site) is also
  * skipped; the LSP server adds it back when the request's
  * `includeDeclaration` is true.
+ *
+ * Unlike `rename.ts` / `highlights.ts`, this module needs no fence
+ * awareness (#680): it walks parsed `Entry.rawAttributes`, never raw
+ * file text, and the AST-based parser never turns a fenced code
+ * example into a real `Entry` in the first place — so illustrative
+ * trailers inside a fence can never surface here.
  */
 
 import type { Entry } from "../core/model/mod.ts";

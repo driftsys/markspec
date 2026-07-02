@@ -64,6 +64,32 @@ Deno.test("findOccurrencesInFile: empty input yields empty result", () => {
   assertEquals(findOccurrencesInFile("", "REQ-001"), []);
 });
 
+// --- fenced code regions (#680) ---
+
+Deno.test("findOccurrencesInFile: skips an occurrence inside a fenced code example", () => {
+  const text = [
+    `- [REQ-001] Real requirement`,
+    ``,
+    `  Body.`,
+    ``,
+    `\`\`\`markdown`,
+    `- [REQ-001] Illustrative example`,
+    `\`\`\``,
+  ].join("\n");
+  const highlights = findOccurrencesInFile(text, "REQ-001");
+  assertEquals(highlights.length, 1);
+  assertEquals(highlights[0].kind, DocumentHighlightKindWrite);
+});
+
+Deno.test("findOccurrencesInFile: tilde fences are also honored", () => {
+  const text = [
+    `~~~`,
+    `- [REQ-001] Illustrative example`,
+    `~~~`,
+  ].join("\n");
+  assertEquals(findOccurrencesInFile(text, "REQ-001"), []);
+});
+
 Deno.test("findOccurrencesInFile: kind constants are the LSP-defined integers", () => {
   // Spec: Text=1, Read=2, Write=3.
   assertEquals(DocumentHighlightKindText, 1);

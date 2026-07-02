@@ -369,6 +369,10 @@ export {
 } from "./refs/mod.ts";
 export type { RefIndex } from "./refs/mod.ts";
 
+// ── Fenced-code-block detection (#668/#679/#680) ──────────────────────────
+export { FENCE_RE, isLineFenced, walkProseLines } from "./util/fence.ts";
+export type { ProseLineCallback } from "./util/fence.ts";
+
 // ── External sync model (ADR-022) ────────────────────────────────────────
 export {
   aggregateStatusByState,
