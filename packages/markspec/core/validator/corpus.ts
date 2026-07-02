@@ -15,6 +15,7 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
+import { formatEntryOrigin } from "../model/mod.ts";
 
 /** Generic duplicate detectors superseded by MSL-R014 for corpus collisions. */
 const GENERIC_DUP_CODES: ReadonlySet<string> = new Set([
@@ -57,8 +58,7 @@ export function detectCorpusCollisions(
           code: "MSL-R014",
           severity: "error",
           message: `display ID '${e.displayId}' is already delivered by ` +
-            `${displayOwner.origin!.profileId}@` +
-            `${displayOwner.origin!.profileVersion}; rename this entry — ` +
+            `${formatEntryOrigin(displayOwner.origin!)}; rename this entry — ` +
             `delivered corpus entries are read-only`,
           location: e.location,
         });
@@ -71,8 +71,7 @@ export function detectCorpusCollisions(
             code: "MSL-R014",
             severity: "error",
             message: `Id '${e.id}' is already delivered by ` +
-              `${idOwner.origin!.profileId}@` +
-              `${idOwner.origin!.profileVersion}; rename this entry — ` +
+              `${formatEntryOrigin(idOwner.origin!)}; rename this entry — ` +
               `delivered corpus entries are read-only`,
             location: e.location,
           });
@@ -95,8 +94,7 @@ export function detectCorpusCollisions(
         code: "MSL-R014",
         severity: "error",
         message: `display ID '${e.displayId}' is already delivered by ` +
-          `${displayOwner.origin!.profileId}@` +
-          `${displayOwner.origin!.profileVersion}; delivered corpus ` +
+          `${formatEntryOrigin(displayOwner.origin!)}; delivered corpus ` +
           `entries are read-only`,
         location: e.location,
       });
@@ -112,8 +110,7 @@ export function detectCorpusCollisions(
           code: "MSL-R014",
           severity: "error",
           message: `Id '${e.id}' is already delivered by ` +
-            `${idOwner.origin!.profileId}@` +
-            `${idOwner.origin!.profileVersion}; delivered corpus entries ` +
+            `${formatEntryOrigin(idOwner.origin!)}; delivered corpus entries ` +
             `are read-only`,
           location: e.location,
         });
@@ -131,17 +128,19 @@ export function attributeCorpusDiagnostics(
   const corpusFiles = new Map<string, string>();
   for (const e of allEntries) {
     if (e.origin) {
-      corpusFiles.set(
-        e.location.file,
-        `${e.origin.profileId}@${e.origin.profileVersion}`,
-      );
+      corpusFiles.set(e.location.file, formatEntryOrigin(e.origin));
     }
   }
   const out: Diagnostic[] = [];
   for (const d of diagnostics) {
-    // Suppress the generic duplicate codes for corpus collisions; the
-    // validator embeds the offending token in single quotes, which is what
-    // this containment check keys on.
+    // Suppress the generic duplicate codes for a corpus collision (MSL-R014
+    // has already replaced them). This is a load-bearing coupling with the
+    // duplicate validators' message format: MSL-R005/R006/I007/I008 all embed
+    // the offending token wrapped in single quotes (`'<token>'`), and the
+    // containment check below keys on that exact `'${t}'` shape. If any of
+    // those producers stops single-quoting the token, the generic duplicate
+    // would leak through alongside the MSL-R014 — `corpus_test.ts` pins all
+    // four codes to this contract.
     if (
       GENERIC_DUP_CODES.has(d.code) &&
       [...collidedTokens].some((t) => d.message.includes(`'${t}'`))

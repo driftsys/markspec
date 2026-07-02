@@ -66,6 +66,37 @@ Deno.test("detectCorpusCollisions: project entry reusing corpus display ID → M
   assertEquals(collidedTokens.has("PLT_0001"), true);
 });
 
+Deno.test("detectCorpusCollisions: project entry reusing corpus Id (ULID) → MSL-R014", () => {
+  // Distinct display IDs isolate the Id-collision branch: only the shared
+  // ULID collides, so the finding must be the `Id '…'` message, not the
+  // display-ID one.
+  const sharedId = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+  const corpus = makeEntry({
+    displayId: "PLT_0001",
+    id: sharedId,
+    file: "/cache/p/ref.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const project = makeEntry({
+    displayId: "REQ_0009",
+    id: sharedId,
+    file: "/repo/reqs.md",
+  });
+  const { diagnostics, collidedTokens } = detectCorpusCollisions([
+    corpus,
+    project,
+  ]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-R014");
+  assertEquals(diagnostics[0].severity, "error");
+  assertEquals(diagnostics[0].location?.file, "/repo/reqs.md");
+  assertStringIncludes(diagnostics[0].message, `Id '${sharedId}'`);
+  assertStringIncludes(diagnostics[0].message, "p@1.0.0");
+  assertEquals(collidedTokens.has(sharedId), true);
+  // The project entry keeps a unique display ID, so no display-ID token collides.
+  assertEquals(collidedTokens.has("REQ_0009"), false);
+});
+
 Deno.test("detectCorpusCollisions: no corpus entries → no findings", () => {
   const a = makeEntry({ displayId: "STK_0001", file: "/repo/a.md" });
   assertEquals(detectCorpusCollisions([a]).diagnostics, []);
@@ -137,18 +168,46 @@ Deno.test("attributeCorpusDiagnostics: corpus-located error downgrades to attrib
   assertStringIncludes(out[0].message, "delivered by p@1.0.0:");
 });
 
-Deno.test("attributeCorpusDiagnostics: generic duplicate codes suppressed for collided tokens", () => {
-  const out = attributeCorpusDiagnostics(
-    [{
-      code: "MSL-R006",
-      severity: "error",
-      message: "duplicate display ID 'PLT_0001' (also at /cache/p/ref.md:1)",
-      location: { file: "/repo/reqs.md", line: 5, column: 1 },
-    }],
-    [],
-    new Set(["PLT_0001"]),
+Deno.test("attributeCorpusDiagnostics: every generic duplicate code is suppressed for a collided token", () => {
+  // MSL-R014 replaces the generic duplicate codes for a corpus collision, so
+  // all four must be suppressed once their token is in `collidedTokens`. The
+  // suppression keys on the token appearing single-quoted (`'PLT_0001'`) in
+  // the message — a load-bearing coupling with how the R005/R006/I007/I008
+  // validators format their messages. These fixtures mirror that
+  // single-quoted shape; if a producer stops single-quoting the token, the
+  // generic duplicate leaks and this test fails, flagging the drift.
+  for (const code of ["MSL-R005", "MSL-R006", "MSL-I007", "MSL-I008"]) {
+    const out = attributeCorpusDiagnostics(
+      [{
+        code,
+        severity: "error",
+        message: `duplicate token 'PLT_0001' (also at /cache/p/ref.md:1)`,
+        location: { file: "/repo/reqs.md", line: 5, column: 1 },
+      }],
+      [],
+      new Set(["PLT_0001"]),
+    );
+    assertEquals(
+      out,
+      [],
+      `${code} should be suppressed for the collided token`,
+    );
+  }
+});
+
+Deno.test("attributeCorpusDiagnostics: a generic duplicate for a non-collided token is kept", () => {
+  // Only tokens in `collidedTokens` are suppressed; an unrelated duplicate
+  // (a genuine project-side dup) must survive untouched.
+  const input = [{
+    code: "MSL-R006" as const,
+    severity: "error" as const,
+    message: "duplicate display ID 'OTHER_0002' (also at /repo/b.md:1)",
+    location: { file: "/repo/reqs.md", line: 7, column: 1 },
+  }];
+  assertEquals(
+    attributeCorpusDiagnostics(input, [], new Set(["PLT_0001"])),
+    input,
   );
-  assertEquals(out, []);
 });
 
 Deno.test("attributeCorpusDiagnostics: project-side diagnostics untouched", () => {

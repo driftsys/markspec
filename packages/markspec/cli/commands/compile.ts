@@ -8,7 +8,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { VERSION } from "../../core/mod.ts";
+import { formatEntryOrigin, VERSION } from "../../core/mod.ts";
 import { compileProject, csvQuote, requireProjectConfig } from "../helpers.ts";
 
 export const compileCmd = new Command()
@@ -226,9 +226,7 @@ export const exportCmd = new Command()
           // ADR-030 provenance — same cell convention as the reporter's
           // originCell: profile label for corpus entries, "project" for
           // project-authored ones.
-          entry.origin
-            ? `${entry.origin.profileId}@${entry.origin.profileVersion}`
-            : "project",
+          entry.origin ? formatEntryOrigin(entry.origin) : "project",
         ].map(csvQuote);
         lines.push(row.join(","));
       }

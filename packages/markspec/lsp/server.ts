@@ -45,6 +45,7 @@ import {
   type Entry,
   filterEntriesByTraceTargets,
   format,
+  formatEntryOrigin,
   isLineFenced,
   loadConfig,
   loadDeliveredCorpus,
@@ -982,9 +983,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
         ).map((e) => ({
           displayId: e.displayId,
           title: e.title,
-          origin: e.origin
-            ? `${e.origin.profileId}@${e.origin.profileVersion}`
-            : undefined,
+          origin: e.origin ? formatEntryOrigin(e.origin) : undefined,
         }))
         : index.getAllDisplayIds();
       // Server-side prefix filter on the partial the user has typed

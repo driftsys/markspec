@@ -10,6 +10,7 @@ import {
   assertEquals,
   assertExists,
   assertRejects,
+  assertStrictEquals,
   assertStringIncludes,
 } from "@std/assert";
 import { join, resolve } from "@std/path";
@@ -570,6 +571,23 @@ Deno.test("getCompiled: surfaces PROFILE-DELIVERS-001 when a corpus file is miss
     true,
     `diagnostics: ${JSON.stringify(result.diagnostics.map((d) => d.code))}`,
   );
+});
+
+Deno.test("getCompiled: cache hit returns the merged corpus diagnostics (two-call)", async () => {
+  // The corpus-load diagnostics are merged into the cached CompileResult on
+  // the first compile. A second getCompiled() must serve that same cached
+  // object (no tracked file changed), so the merged corpus diagnostics never
+  // vanish on a cache hit — #674 pins this with a two-call assertion rather
+  // than by inspection.
+  const proj = await createProject(makeCorpusEnv(true));
+  const first = await proj.getCompiled();
+  const second = await proj.getCompiled();
+  // Cache hit → the very same object, no recompile.
+  assertStrictEquals(first, second);
+  const hasDelivers = (r: typeof first) =>
+    r.diagnostics.some((d) => d.code === "PROFILE-DELIVERS-001");
+  assertEquals(hasDelivers(first), true);
+  assertEquals(hasDelivers(second), true);
 });
 
 Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => {

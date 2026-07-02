@@ -431,6 +431,17 @@ export interface EntryOrigin {
 }
 
 /**
+ * Human-facing `<profileId>@<profileVersion>` label for an entry's
+ * delivered-corpus origin (ADR-030). The single formatter for the origin
+ * idiom shared across the validator, reporter, CLI, LSP, and MCP surfaces.
+ * Its {@linkcode DeliveredDocument} twin is `corpusOriginLabel`
+ * (`core/profile/delivered.ts`) — same string shape, different input type.
+ */
+export function formatEntryOrigin(origin: EntryOrigin): string {
+  return `${origin.profileId}@${origin.profileVersion}`;
+}
+
+/**
  * A parsed MarkSpec entry — the core AST node.
  *
  * The `shape` field discriminates the two core categories:

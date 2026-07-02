@@ -129,10 +129,15 @@ export const doctorCmd = new Command()
     }
 
     // Delivered-document health (ADR-030): re-load the corpus to report a
-    // per-document count + any surviving PROFILE-DELIVERS diagnostics. Any
-    // corpus file missing an error-severity check already made
-    // compileProject() exit(1) above, so only warning-level issues (e.g. a
-    // missing docs-only file) can reach this point.
+    // per-document count + any surviving corpus diagnostics. compileProject()
+    // above already exited(1) on any error-severity corpus finding, so only
+    // warning/info issues reach here — a missing docs-only file
+    // (PROFILE-DELIVERS-002) or a corpus-file parse warning. Every diagnostic
+    // loadDeliveredCorpus emits is a delivered-document concern by
+    // construction (a missing declared file or a `delivered by …`-attributed
+    // parse finding), so none is filtered out; an earlier `PROFILE-DELIVERS`
+    // prefix filter dropped corpus parse warnings and left this section only
+    // ever able to show the docs-only-missing case.
     let corpusEntryCount = 0;
     const corpusIssues: Array<
       { severity: string; code: string; message: string }
@@ -142,7 +147,6 @@ export const doctorCmd = new Command()
       const corpus = await loadDeliveredCorpus(effective.delivers, readFile);
       corpusEntryCount = corpus.entries.length;
       for (const d of corpus.diagnostics) {
-        if (!d.code.startsWith("PROFILE-DELIVERS")) continue;
         corpusIssues.push({
           severity: d.severity,
           code: d.code,

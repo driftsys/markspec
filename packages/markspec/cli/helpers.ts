@@ -18,7 +18,9 @@ import {
 import type {
   CompileResult,
   DeliveredDocument,
+  Diagnostic,
   DiscoveryIO,
+  Entry,
   ProfileChain,
   ReadFile,
 } from "../core/mod.ts";
@@ -202,8 +204,41 @@ export function renderDiagnosticLocation(
   return `${diag.location.file}:${diag.location.line}`;
 }
 
+/** The delivered corpus of an active profile chain, paired with the
+ * path→document index CLI surfaces use to recognise corpus locations. */
+export interface ProjectCorpus {
+  readonly entries: readonly Entry[];
+  readonly diagnostics: readonly Diagnostic[];
+  readonly corpusIndex: ReadonlyMap<string, DeliveredDocument>;
+}
+
 /**
- * Compile project files and return the result alongside the loaded profile chain.
+ * Load the active profile's delivered corpus (ADR-030) and build its
+ * path→document index in a single pass. The one corpus-load site shared by
+ * {@linkcode compileProject} and the `check` command's composite gate, so the
+ * two never diverge on how the corpus is loaded or indexed. A `null` chain (no
+ * active profile) yields an empty corpus and index.
+ */
+export async function loadProjectCorpus(
+  chain: ProfileChain | null,
+): Promise<ProjectCorpus> {
+  const { loadDeliveredCorpus, buildCorpusIndex } = await import(
+    "../core/mod.ts"
+  );
+  const delivers = chain?.effective.delivers ?? [];
+  const corpus = chain
+    ? await loadDeliveredCorpus(delivers, readFile)
+    : { entries: [], diagnostics: [] };
+  return {
+    entries: corpus.entries,
+    diagnostics: corpus.diagnostics,
+    corpusIndex: buildCorpusIndex(delivers),
+  };
+}
+
+/**
+ * Compile project files and return the result alongside the loaded profile
+ * chain and the delivered-corpus index.
  * Shared helper for commands that need the compiled graph.
  *
  * Loads the active profile's delivered corpus (ADR-030) and injects it into
@@ -211,21 +246,22 @@ export function renderDiagnosticLocation(
  * `dependents`, `report`, `export`) resolves trace targets that live in a
  * profile-delivered document. A corpus-load error (e.g. a declared corpus
  * file missing from the profile package) is fatal — silently compiling with
- * a partial corpus would hide a broken profile package.
+ * a partial corpus would hide a broken profile package. The returned
+ * `corpusIndex` lets callers render corpus locations without rebuilding it.
  */
 export async function compileProject(
   paths: string[],
   opts: { withContributors?: boolean } = {},
-): Promise<{ result: CompileResult; chain: ProfileChain | null }> {
+): Promise<{
+  result: CompileResult;
+  chain: ProfileChain | null;
+  corpusIndex: ReadonlyMap<string, DeliveredDocument>;
+}> {
   const configResult = await requireProjectConfig();
   const chain = await loadActiveProfile(configResult.projectRoot);
-  const { compile, loadDeliveredCorpus, buildCorpusIndex } = await import(
-    "../core/mod.ts"
-  );
-  const corpus = chain
-    ? await loadDeliveredCorpus(chain.effective.delivers, readFile)
-    : { entries: [], diagnostics: [] };
-  const corpusIndex = buildCorpusIndex(chain?.effective.delivers ?? []);
+  const { compile } = await import("../core/mod.ts");
+  const corpus = await loadProjectCorpus(chain);
+  const corpusIndex = corpus.corpusIndex;
   let corpusError = false;
   for (const diag of corpus.diagnostics) {
     console.error(
@@ -268,7 +304,7 @@ export async function compileProject(
     diagnostics: [...corpus.diagnostics, ...result.diagnostics],
   };
 
-  return { result: merged, chain };
+  return { result: merged, chain, corpusIndex };
 }
 
 /**
