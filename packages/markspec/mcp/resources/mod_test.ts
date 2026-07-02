@@ -169,6 +169,22 @@ Deno.test("readResource: routes a delivered URI to the raw file text", async () 
   assertStringIncludes(r.text, "# reference/platform.md");
 });
 
+Deno.test("readResource: a non-Markdown delivered doc reports its own MIME type", async () => {
+  // Delivered docs-only files can be any type; the resource must report the
+  // file's actual MIME type, not a blanket text/markdown (#674).
+  const jsonDoc: DeliveredDocument = {
+    profileId: "platform-arch",
+    profileVersion: "1.2.0",
+    path: "reference/schema.json",
+    absPath: "/profiles/platform-arch/reference/schema.json",
+    corpus: false,
+  };
+  const project = mkProject([E1], [jsonDoc]);
+  const uri = deliveredUri("platform-arch", "reference/schema.json");
+  const r = await readResource(uri, project);
+  assertEquals(r.mimeType, "application/json");
+});
+
 Deno.test("readResource: rejects an unknown delivered path", async () => {
   const project = mkProject([E1], [DOC1]);
   const uri = deliveredUri("platform-arch", "reference/missing.md");

@@ -19,6 +19,7 @@ export {
   CORE_RELATIONS,
   DEFAULT_PROJECT_CONFIG,
   descendantsOf,
+  formatEntryOrigin,
   KNOWN_LINK_KINDS,
   LOCK_EXTRA_INVERSE_KEYS,
   makeDisplayId,

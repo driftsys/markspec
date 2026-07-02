@@ -565,8 +565,12 @@ missing/empty `path` is a `PROFILE-LOAD-003` error.
 
 ### Load-time diagnostics
 
-Existence is checked when the delivered corpus loads (every graph-consuming
-command, the LSP, and the MCP server):
+File existence is checked when the delivered corpus loads (every graph-consuming
+command, the LSP, and the MCP server), raising `PROFILE-DELIVERS-001`/`-002`.
+The table also lists the two structural errors raised earlier, at manifest-parse
+time, when the `delivers:` block is validated: `PROFILE-DELIVERS-003` (a `path`
+escaping the profile directory) and `PROFILE-DELIVERS-004` (`corpus: true` on a
+non-Markdown file).
 
 | Code                   | Severity | Meaning                                       |
 | ---------------------- | -------- | --------------------------------------------- |

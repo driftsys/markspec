@@ -9,7 +9,7 @@
  * `markspec://entry/...` cross-reference labels.
  */
 
-import type { Entry, Link } from "../../core/mod.ts";
+import { type Entry, formatEntryOrigin, type Link } from "../../core/mod.ts";
 import { relativeToRoot } from "../path.ts";
 import { entryUri } from "../uri.ts";
 
@@ -29,7 +29,7 @@ export function renderEntry(
   lines.push(`**Shape**: ${entry.shape}`);
   if (entry.origin) {
     lines.push(
-      `**Origin**: delivered by ${entry.origin.profileId}@${entry.origin.profileVersion} (read-only)`,
+      `**Origin**: delivered by ${formatEntryOrigin(entry.origin)} (read-only)`,
     );
   }
   if (entry.id) lines.push(`**Id**: \`${entry.id}\``);

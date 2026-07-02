@@ -7,6 +7,7 @@
 
 import type { CompileResult } from "../compiler/mod.ts";
 import type { DisplayId, Entry } from "../model/mod.ts";
+import { formatEntryOrigin } from "../model/mod.ts";
 
 /** Supported report kinds. */
 export type ReportKind = "traceability" | "coverage";
@@ -94,9 +95,7 @@ interface TraceRow {
  * Markdown, and JSON rows all agree on the same value.
  */
 function originCell(entry: Entry): string {
-  return entry.origin
-    ? `${entry.origin.profileId}@${entry.origin.profileVersion}`
-    : "project";
+  return entry.origin ? formatEntryOrigin(entry.origin) : "project";
 }
 
 function buildTraceRows(

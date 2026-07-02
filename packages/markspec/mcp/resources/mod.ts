@@ -39,6 +39,34 @@ import {
 import { renderEntriesIndex } from "./entries.ts";
 import { renderEntry } from "./entry.ts";
 import { makeDisplayId } from "../../core/mod.ts";
+import { extname } from "@std/path";
+
+/**
+ * Map a delivered document's file extension to a MIME type. Delivered
+ * documents (ADR-030) can be any readable file — not just Markdown — so the
+ * `markspec://delivered/...` resource reports the file's actual type rather
+ * than a blanket `text/markdown`. Unknown extensions fall back to
+ * `text/plain`.
+ */
+function mimeTypeForPath(path: string): string {
+  switch (extname(path).toLowerCase()) {
+    case ".md":
+    case ".markdown":
+      return "text/markdown";
+    case ".json":
+      return "application/json";
+    case ".yaml":
+    case ".yml":
+      return "application/yaml";
+    case ".csv":
+      return "text/csv";
+    case ".html":
+    case ".htm":
+      return "text/html";
+    default:
+      return "text/plain";
+  }
+}
 
 /** A resource descriptor as returned by resources/list. */
 export interface ResourceDescriptor {
@@ -195,7 +223,7 @@ export async function readResource(
         `delivered document not found: ${parsed.profileId}/${parsed.path}`,
       );
     }
-    return { uri, mimeType: "text/markdown", text };
+    return { uri, mimeType: mimeTypeForPath(parsed.path), text };
   }
 
   throw new Error(`unknown resource URI: ${uri}`);

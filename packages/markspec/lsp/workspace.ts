@@ -15,6 +15,7 @@ import type {
 import {
   attributeCorpusDiagnostics,
   detectCorpusCollisions,
+  formatEntryOrigin,
   parseFile,
   suppressDeclaredAttrR010,
   validate,
@@ -172,9 +173,7 @@ export class WorkspaceIndex {
       result.push({
         displayId,
         title: entry.title,
-        origin: entry.origin
-          ? `${entry.origin.profileId}@${entry.origin.profileVersion}`
-          : undefined,
+        origin: entry.origin ? formatEntryOrigin(entry.origin) : undefined,
       });
     }
     return result;

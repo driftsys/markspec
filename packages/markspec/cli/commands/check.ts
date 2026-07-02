@@ -11,6 +11,7 @@ import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import {
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
+  loadProjectCorpus,
   readFile,
   renderDiagnosticLocation,
   resolveScope,
@@ -68,16 +69,13 @@ export const checkCmd = new Command()
       // Load the delivered corpus (ADR-030) — project-wide only, matching
       // the other composite gates: a file-local `check <file>` cannot
       // distinguish a corpus target from a typo any more than MSL-L006
-      // could, so the corpus stays out of scope there.
-      const { loadDeliveredCorpus, buildCorpusIndex } = await import(
-        "../../core/mod.ts"
+      // could, so the corpus stays out of scope there. `loadProjectCorpus`
+      // is the same load + index `compileProject` uses (a `null` chain yields
+      // an empty corpus + index), so the two surfaces stay in lockstep.
+      const corpus = await loadProjectCorpus(
+        scope.projectWide ? chain : null,
       );
-      const corpus = scope.projectWide && chain
-        ? await loadDeliveredCorpus(chain.effective.delivers, readFile)
-        : { entries: [], diagnostics: [] };
-      const corpusIndex = buildCorpusIndex(
-        scope.projectWide ? chain?.effective.delivers ?? [] : [],
-      );
+      const corpusIndex = corpus.corpusIndex;
 
       const {
         detectDirectives,
