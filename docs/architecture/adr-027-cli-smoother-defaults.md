@@ -92,7 +92,8 @@ Bare `markspec check` runs, over one parsed corpus, in one process:
 | Parse + structure + attributes       | existing pipeline | as today                   | always            |
 | Traceability incl. MSL-L006          | existing          | warning                    | project-wide only |
 | Listing documents                    | existing          | as today                   | always            |
-| fmt drift                            | `core/formatter`  | **error** — new `MSL-F010` | project-wide only |
+| fmt drift (formatter)                | `core/formatter`  | **error** — new `MSL-F010` | project-wide only |
+| fmt drift (reference canon)          | `core/refs`       | **error** — new `MSL-F011` | project-wide only |
 | Lockfile (parse + edge-ledger drift) | `core/lock`       | **error** — `MSL-L212`     | project-wide only |
 | Prose lint (MSL-Q rules)             | `core/lint`       | **warning** (advisory)     | project-wide only |
 
@@ -103,10 +104,23 @@ warnings-only; `--strict` promotes warnings to errors, unchanged semantics).
 **Refinement made during implementation — the extra gates are project-wide only,
 not "the same gates scoped to files."** `markspec check <files>` (file-local)
 runs structural/attribute/listing validation only — identical to pre-branch
-behavior. The fmt-drift gate (`MSL-F010`), the lockfile gate (`MSL-L212`), the
+behavior. The fmt-drift gates (`MSL-F010` formatter drift and `MSL-F011`
+reference-canonicalization drift), the lockfile gate (`MSL-L212`), the
 prose-lint gate (`MSL-Q`), and the `MSL-L006` unresolved- trace-target warning
 do not fire when explicit file arguments are given. This is gated on
 `scope.projectWide` in `cli/commands/check.ts`, not suppressed per-gate ad hoc.
+
+`MSL-F011` closes a gap in the original gate: `MSL-F010` compared only
+`format().changed`, but `markspec fmt` additionally runs the `core/refs`
+canonicalization/heal pass, so a file with a non-canonical-but-formatter-clean
+reference (a ULID or stale display ID) passed `check` while `fmt --check` would
+still rewrite it. The gate now runs the full
+`format() → parse →
+canonicalizeRefs` sequence — from the same exclude-aware
+corpus `fmt` builds — so bare `check` and `fmt --check` never disagree.
+Consciously accepted: bare `check` now hard-fails on reference-canon drift too;
+the canonical `insert → fmt → check` loop runs `fmt` first, so the agent path is
+unaffected.
 
 The refinement exists because `core/formatter`'s `format()` lowercases modal
 verbs and applies other normalisations. Running the fmt-drift check (error
@@ -206,9 +220,12 @@ affecting every command, not scoped to this change.
 
 ## Follow-ups (accepted, non-blocking)
 
-- Document `MSL-F010` and `MSL-L212` in the governed diagnostic-code catalogue
-  (`docs/spec/language/language.md` §8), per the phased-adoption process in
-  [ADR-012](./adr-012-diagnostic-code-scheme.md).
+- **Done (#660).** `MSL-F010`, the new `MSL-F011` (reference-canonicalization
+  drift), and the in-`check` `MSL-L212` are documented in the governed
+  diagnostic-code catalogue (`docs/spec/language/language.md` §8.9 / §8.10), and
+  the `MSL-F` family is recorded in
+  [ADR-012](./adr-012-diagnostic-code-scheme.md) via its ADR-027 amendment, per
+  the phased-adoption process.
 - `mcp/project.ts` still has its own, fourth, unrelated file-walker
   (`SKIP_DIRS`) not yet unified on `core/discovery` — out of scope here because
   the MCP read-surface doesn't feed the `MSL-L212` hash, so there is no parity

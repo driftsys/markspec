@@ -105,15 +105,45 @@ export const checkCmd = new Command()
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
-      // Gate: fmt drift (project-wide only — the composite `check` gate; a
-      // file-local `check <file>` stays a fast structural check, and the
-      // canonical agent path runs `fmt` before `check`). Markdown only —
-      // `markspec fmt` never rewrites source files.
+      // Project-wide-only gates (the composite `check` gate). A file-local
+      // `check <file>` stays a fast structural check, and the canonical agent
+      // path runs `fmt` before `check`.
       const fmtDiagnostics: Diagnostic[] = [];
+      const lockDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const { format } = await import("../../core/mod.ts");
+        const {
+          buildRefIndex,
+          canonicalizeRefs,
+          extractEdgeQuads,
+          format,
+          hashCanonicalEdges,
+          parseLockfile,
+        } = await import("../../core/mod.ts");
+        const { join } = await import("@std/path");
+
+        // Read markspec.lock once: its edge ledger feeds reference healing
+        // (MSL-F011) and its cached edge hash feeds the lockfile gate
+        // (MSL-L212).
+        let lockParse: ReturnType<typeof parseLockfile> | undefined;
+        let lockPath: string | undefined;
+        if (projectRoot !== undefined) {
+          lockPath = join(projectRoot, "markspec.lock");
+          const lockRaw = await readFile(lockPath);
+          if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
+        }
+        const ledger = lockParse?.lockfile?.edges ?? [];
+
+        // Gate: fmt drift. Runs the SAME `format() → parse → canonicalizeRefs`
+        // sequence `markspec fmt` performs, from the same exclude-aware corpus,
+        // so bare `check` and `fmt --check` never disagree. `MSL-F010` is pure
+        // formatter drift; `MSL-F011` is reference-canonicalization drift (a
+        // ULID or stale display ID `fmt` would rewrite) — kept distinct so the
+        // author knows which fmt concern fired. Markdown only — `markspec fmt`
+        // never rewrites source files.
+        const refIndex = buildRefIndex(allEntries);
         for (const [filePath, content] of mdContents) {
-          if (format(content, { file: filePath }).changed) {
+          const formatted = format(content, { file: filePath });
+          if (formatted.changed) {
             fmtDiagnostics.push({
               code: "MSL-F010",
               severity: "error",
@@ -121,37 +151,40 @@ export const checkCmd = new Command()
               location: { file: filePath, line: 1, column: 1 },
             });
           }
+          const parsed = await parseFile(formatted.output, { file: filePath });
+          const refResult = canonicalizeRefs(
+            formatted.output,
+            parsed.entries,
+            refIndex,
+            ledger,
+          );
+          if (refResult.changed) {
+            fmtDiagnostics.push({
+              code: "MSL-F011",
+              severity: "error",
+              message: "references are not canonical (run `markspec fmt`)",
+              location: { file: filePath, line: 1, column: 1 },
+            });
+          }
         }
-      }
 
-      // Gate: lockfile (project-wide only; needs the full corpus to
-      // recompute the canonical edge hash). Offline by design — upstream
-      // resolution (network) stays in `markspec lock --check`.
-      const lockDiagnostics: Diagnostic[] = [];
-      if (scope.projectWide && projectRoot !== undefined) {
-        const { join } = await import("@std/path");
-        const lockRaw = await readFile(join(projectRoot, "markspec.lock"));
-        if (lockRaw !== undefined) {
-          const { extractEdgeQuads, hashCanonicalEdges, parseLockfile } =
-            await import("../../core/mod.ts");
-          const parsed = parseLockfile(lockRaw);
-          if (!parsed.lockfile) {
-            lockDiagnostics.push(...parsed.diagnostics);
+        // Gate: lockfile (needs the full corpus to recompute the canonical
+        // edge hash). Offline by design — upstream resolution (network) stays
+        // in `markspec lock --check`.
+        if (lockParse !== undefined && lockPath !== undefined) {
+          if (!lockParse.lockfile) {
+            lockDiagnostics.push(...lockParse.diagnostics);
           } else {
             const quads = extractEdgeQuads(allEntries);
             const currentHash = await hashCanonicalEdges(quads);
-            const cache = parsed.lockfile.generatedCache;
+            const cache = lockParse.lockfile.generatedCache;
             if (cache.edgesHash !== currentHash) {
               lockDiagnostics.push({
                 code: "MSL-L212",
                 severity: "error",
                 message:
                   `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} (run \`markspec lock\` to refresh)`,
-                location: {
-                  file: join(projectRoot, "markspec.lock"),
-                  line: 1,
-                  column: 1,
-                },
+                location: { file: lockPath, line: 1, column: 1 },
               });
             }
           }
