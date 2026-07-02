@@ -262,6 +262,7 @@ of a raw filesystem path:
 ```text
 PLT_0001  Platform core service
   Type: platform-component
+  Shape: Authored
   Origin: platform-arch@1.2.0
   ...
   Source: platform-arch@1.2.0:reference/platform.md:1:1
@@ -384,16 +385,18 @@ Supported formats: `json`, `yaml`, `csv`.
 # JSON export
 markspec export json "docs/**/*.md" > compiled.json
 
-# CSV — one row per entry with display ID, title, type, shape, id, file, line
+# CSV — one row per entry: display ID, title, type, shape, id, file, line, origin
 markspec export csv "docs/**/*.md" > entries.csv
 
 # YAML
 markspec export yaml "docs/**/*.md"
 ```
 
-Entries injected from a profile's delivered corpus (ADR-029) carry an
-`origin: { kind, profileId, profileVersion }` field in every export format;
-project-authored entries omit it.
+All three formats carry provenance (ADR-029): in `json` and `yaml`, corpus
+entries have an `origin: { kind, profileId, profileVersion }` field
+(project-authored entries omit it); in `csv`, every row has an `origin` column
+holding `<profile-id>@<version>` for corpus entries or `project` for
+project-authored ones.
 
 #### insert
 

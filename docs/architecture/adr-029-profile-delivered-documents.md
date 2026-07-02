@@ -324,15 +324,18 @@ deterministic ordering) into the cached `CompileResult`, so `validate` and
   (`cli/helpers.ts::renderDiagnosticLocation`); machine formats
   (`--format
   json`) still carry the real absolute path.
-- The traceability-matrix and coverage reports, and `export json|yaml|csv`, gain
-  an origin column/field (`"project"` or `<profileId>@<version>`); the
-  deterministic-output rule holds — origin is a stable function of the entry's
-  source, not a timestamp.
-- MCP: docs-only delivered files become resources at
+- The traceability matrix and `export json|yaml|csv` gain an origin column/field
+  (`"project"` or `<profileId>@<version>`); the deterministic-output rule holds
+  — origin is a stable function of the entry's source, not a timestamp. The
+  coverage report is untouched: it has no per-entry surface (aggregate stats and
+  gap ID lists only), so there is no origin cell to add — per-origin coverage
+  policy is the deferred non-feature above.
+- MCP: every delivered file — corpus and docs-only alike — becomes a resource at
   `markspec://delivered/{profileId}/{path}`, listed with the manifest
-  `description`; corpus entries surface automatically through every existing
-  entry surface (`entry_search`, `entry_list`, `markspec://entry/{id}`,
-  `entry_context`) with origin visible in the rendered entry.
+  `description` (or a role-derived fallback); corpus entries additionally
+  surface through every existing entry surface (`entry_search`, `entry_list`,
+  `markspec://entry/{id}`, `entry_context`) with origin visible in the rendered
+  entry.
 - A `local`-specifier profile directory must be `exclude:`d in the consumer's
   `project.yaml` (§D7) — undocumented, this produces a confusing self-collision
   (`MSL-R014` naming the same file on both sides).

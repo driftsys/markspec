@@ -77,6 +77,7 @@ error:
 | `kinds`           | §B.10   | Discipline kinds                                 |
 | `discipline-mode` | §B.10   | `flat` / `tiered` / `none`                       |
 | `documents`       | §B.12   | Document types + front-matter attributes         |
+| `delivers`        | §B.15   | Delivered documents (corpus + docs-only files)   |
 
 ## B.3 Types (`profile.types`)
 
@@ -519,3 +520,61 @@ tag) or npm (`npm publish` with `markspec.yaml` at the package root and a
 `package.json` whose `files` includes it). See
 [Authoring and publishing a profile](../../guide/profiles.md#authoring-and-publishing-a-profile)
 in the guide for the end-to-end workflow.
+
+## B.15 Delivered documents (`profile.delivers`)
+
+`profile.delivers` lists document files the profile ships to consuming projects
+(per [ADR-029](../../architecture/adr-029-profile-delivered-documents.md)). Each
+file is flagged per file: a **corpus** file's entries join the consumer's
+traceability graph (marked with `Entry.origin` provenance); a
+**documentation-only** file is surfaced for reading, never parsed:
+
+```yaml
+profile:
+  delivers:
+    - path: reference/platform-architecture.md
+      corpus: true
+      description: "Shared platform components and interfaces"
+    - path: reference/integration-guide.md
+      # corpus defaults to false → documentation-only
+```
+
+### Delivers-item fields
+
+| Field         | Required | Type    | Notes                                                            |
+| ------------- | -------- | ------- | ---------------------------------------------------------------- |
+| `path`        | Yes      | string  | Relative to the profile directory; no `..`, no absolute paths    |
+| `corpus`      | No       | boolean | Default `false`; `true` → entries join the graph (Markdown only) |
+| `description` | No       | string  | Shown by `profile show` and as the MCP resource description      |
+
+Any unrecognised item key, a non-list `delivers:`, a non-mapping item, or a
+missing/empty `path` is a `PROFILE-LOAD-003` error.
+
+### Rules
+
+- **The path must stay inside the profile directory.** An absolute path (POSIX
+  or drive-letter) or any `..` segment is `PROFILE-DELIVERS-003`.
+- **Only Markdown is corpus-eligible.** `corpus: true` on a non-`.md` path is
+  `PROFILE-DELIVERS-004`. Docs-only files may be any readable file.
+- **No duplicate paths.** The same `path` twice in one manifest is
+  `PROFILE-LOAD-003`.
+- **Merge across the chain is additive.** The effective list is the union of
+  every tier's declarations, keyed by `(profile-id, path)`, parent-tier first. A
+  child cannot remove or override a parent's delivered file; two tiers
+  delivering the same relative path do not collide.
+
+### Load-time diagnostics
+
+Existence is checked when the delivered corpus loads (every graph-consuming
+command, the LSP, and the MCP server):
+
+| Code                   | Severity | Meaning                                       |
+| ---------------------- | -------- | --------------------------------------------- |
+| `PROFILE-DELIVERS-001` | error    | Corpus file declared but missing from package |
+| `PROFILE-DELIVERS-002` | warning  | Docs-only file declared but missing           |
+| `PROFILE-DELIVERS-003` | error    | `path` escapes the profile directory          |
+| `PROFILE-DELIVERS-004` | error    | `corpus: true` on a non-Markdown file         |
+
+A project entry re-declaring a display ID or `Id:` owned by a delivered corpus
+entry fails validation with `MSL-R014` (language spec §8.2) — the fix is to
+rename the project entry; delivered corpus entries are read-only.

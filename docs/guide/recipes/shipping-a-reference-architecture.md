@@ -141,6 +141,7 @@ filesystem path:
 ```text
 PLT_0001  Platform core service
   Type: platform-component
+  Shape: Authored
   Origin: platform-arch@1.2.0
   ...
   Source: platform-arch@1.2.0:reference/platform.md:1:1

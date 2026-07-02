@@ -248,6 +248,20 @@ Deno.test("export json: corpus entries carry origin", async () => {
   assertStringIncludes(stdout, `"profileId": "platform-arch"`);
 });
 
+Deno.test("export csv: origin column distinguishes corpus from project", async () => {
+  const { code, stdout } = await markspec(
+    ["export", "csv", "docs/requirements.md"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 0);
+  const lines = stdout.split("\n").filter((l) => l.length > 0);
+  assertStringIncludes(lines[0], ",origin");
+  const corpusRow = lines.find((l) => l.startsWith("PLT_0001"));
+  const projectRow = lines.find((l) => l.startsWith("STK_0001"));
+  assertEquals(corpusRow?.endsWith(",platform-arch@1.2.0"), true, corpusRow);
+  assertEquals(projectRow?.endsWith(",project"), true, projectRow);
+});
+
 Deno.test("profile show: missing corpus file is surfaced, not '0 entries'", async () => {
   // `profile show` does NOT route through compileProject, so a missing
   // corpus file (PROFILE-DELIVERS-001, fatal everywhere else) is reachable
