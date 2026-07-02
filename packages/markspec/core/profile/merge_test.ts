@@ -5,6 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 import { mergeChain } from "./merge.ts";
 import { parseManifest } from "./manifest.ts";
 import type { LoadedProfile, ProfileChain } from "../model/mod.ts";
@@ -1526,7 +1527,9 @@ profile:
       profileId: "base",
       profileVersion: "1.0.0",
       path: "ref/base.md",
-      absPath: "/fixture/t0/ref/base.md",
+      // Built with `join` so the expected separator matches production
+      // (`deliveredFromTier` uses `join(baseDir, path)`) on Windows too.
+      absPath: join("/fixture/t0", "ref/base.md"),
       corpus: true,
       description: undefined,
     },
@@ -1534,7 +1537,7 @@ profile:
       profileId: "leaf",
       profileVersion: "2.0.0",
       path: "ref/leaf.md",
-      absPath: "/fixture/t1/ref/leaf.md",
+      absPath: join("/fixture/t1", "ref/leaf.md"),
       corpus: false,
       description: undefined,
     },
