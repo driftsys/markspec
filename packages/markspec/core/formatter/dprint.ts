@@ -11,8 +11,20 @@
  * Node-compatible: `node:fs/promises` + WebAssembly only, no `Deno.*`.
  */
 
+/** Per-call options for a {@linkcode ProseFormatter}. */
+export interface ProseFormatOptions {
+  /** Override the effective line width for this fragment. Used by the
+   * entry-body polish: bodies are formatted dedented and re-indented
+   * afterwards, so the budget must shrink by the indent width to stay
+   * in agreement with a whole-file dprint view of the same content. */
+  readonly lineWidth?: number;
+}
+
 /** Formats a Markdown fragment to the canonical MarkSpec style. */
-export type ProseFormatter = (markdown: string) => string;
+export type ProseFormatter = (
+  markdown: string,
+  options?: ProseFormatOptions,
+) => string;
 
 /**
  * The fixed MarkSpec Markdown style (ADR-029). Zero configuration by
@@ -62,6 +74,12 @@ async function instantiate(): Promise<ProseFormatter> {
     MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
     MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
   );
-  return (markdown: string): string =>
-    formatter.formatText({ filePath: "fragment.md", fileText: markdown });
+  return (markdown: string, options?: ProseFormatOptions): string =>
+    formatter.formatText({
+      filePath: "fragment.md",
+      fileText: markdown,
+      overrideConfig: options?.lineWidth !== undefined
+        ? { lineWidth: options.lineWidth }
+        : undefined,
+    });
 }

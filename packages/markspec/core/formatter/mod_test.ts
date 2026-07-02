@@ -599,6 +599,29 @@ Deno.test("format: formatMarkdownProse re-wraps entry bodies (gated)", () => {
   assertStringIncludes(result.output, "  Ragged body prose.");
 });
 
+Deno.test("format: polished entry-body lines never exceed 80 columns including indent", async () => {
+  // Regression (ADR-029 convergence): the body polish formats the body
+  // DEDENTED and re-indents +2 afterwards. Without an indent-adjusted
+  // width budget, a wrap point landing on exactly 80 columns dedented
+  // becomes 82 columns re-indented — which an external whole-file dprint
+  // (78-col budget for list content) re-wraps, ping-ponging forever.
+  const { loadMarkdownFormatter } = await import("./dprint.ts");
+  const proseFormat = await loadMarkdownFormatter();
+  const input = `- [STK_9003] Width budget
+
+  The system shall demonstrate a deliberately very long ragged body paragraph that must reflow under the indent-adjusted width budget so no emitted line exceeds eighty columns.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPD
+`;
+  const result = format(input, {
+    file: "t.md",
+    formatMarkdownProse: proseFormat,
+  });
+  for (const line of result.output.split("\n")) {
+    if (line.length > 80) throw new Error(`line exceeds 80 cols: ${line}`);
+  }
+});
+
 Deno.test("format: body gate rejects destructive output with MSL-F011, keeps canonical body", () => {
   const input = `- [STK_0001] Entry
 

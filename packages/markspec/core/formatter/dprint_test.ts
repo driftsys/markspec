@@ -33,3 +33,17 @@ Deno.test("loadMarkdownFormatter: caches — second call returns same instance f
   const b = await loadMarkdownFormatter();
   assertEquals(a === b, true);
 });
+
+Deno.test("loadMarkdownFormatter: per-call lineWidth override narrows the wrap", async () => {
+  const fmt = await loadMarkdownFormatter();
+  const input =
+    "word word word word word word word word word word word word word word word word\n";
+  const at80 = fmt(input);
+  const at40 = fmt(input, { lineWidth: 40 });
+  for (const line of at40.split("\n")) {
+    if (line.length > 40) throw new Error(`line exceeds 40 cols: ${line}`);
+  }
+  if (at40.split("\n").length <= at80.split("\n").length) {
+    throw new Error("narrower width should produce more lines");
+  }
+});

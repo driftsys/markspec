@@ -215,7 +215,7 @@ export {
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
   MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
 } from "./formatter/dprint.ts";
-export type { ProseFormatter } from "./formatter/dprint.ts";
+export type { ProseFormatOptions, ProseFormatter } from "./formatter/dprint.ts";
 
 // Validator
 export {

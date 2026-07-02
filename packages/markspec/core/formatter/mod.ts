@@ -39,6 +39,10 @@ import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
 import { formatProseSegments } from "./prose.ts";
+import {
+  MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
+  type ProseFormatter,
+} from "./dprint.ts";
 import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
 
 /**
@@ -225,7 +229,7 @@ function emitBodyViaAst(
   file: string,
   diagnostics: Diagnostic[],
   cachedEntries: Entry[] | undefined,
-  proseFormat: ((markdown: string) => string) | undefined,
+  proseFormat: ProseFormatter | undefined,
 ): boolean {
   // When the caller supplies pre-parsed entries whose line numbers are still
   // valid in `lines` (i.e., no line-count-changing operations occurred before
@@ -301,7 +305,18 @@ function emitBodyViaAst(
     // rejection keep the AST-canonical body and say so (info).
     let finalBody = emittedBody;
     if (proseFormat !== undefined) {
-      const polished = proseFormat(emittedBody).replace(/\n$/, "");
+      // The body is formatted DEDENTED and re-indented afterwards, so the
+      // width budget must shrink by the indent — otherwise a wrap point
+      // landing near 80 columns dedented exceeds 80 re-indented, and an
+      // external whole-file dprint view (which sees the indent) re-wraps
+      // it: a formatter ping-pong. Floor of 20 keeps a pathological indent
+      // from degenerating into one-word-per-line output.
+      const polished = proseFormat(emittedBody, {
+        lineWidth: Math.max(
+          20,
+          MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth - indent,
+        ),
+      }).replace(/\n$/, "");
       if (polished !== emittedBody) {
         if (markdownSemanticallyEquivalent(emittedBody, polished)) {
           finalBody = polished;
@@ -371,9 +386,11 @@ export interface FormatOptions {
    * segments outside entry blocks and each entry body are routed
    * through it (dprint-markdown), gated by CommonMark-semantic
    * equivalence. When absent, format() is entry-only — the exact
-   * pre-ADR-029 behaviour.
+   * pre-ADR-029 behaviour. The entry-body polish passes a per-call
+   * `lineWidth` reduced by the body indent (see `emitBodyViaAst`);
+   * one-arg formatter callbacks simply ignore it.
    */
-  readonly formatMarkdownProse?: (markdown: string) => string;
+  readonly formatMarkdownProse?: ProseFormatter;
 }
 
 /** Result of a format operation. */
