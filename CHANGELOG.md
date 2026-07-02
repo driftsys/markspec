@@ -1,5 +1,138 @@
 # Changelog
 
+## [0.10.1] (2026-07-02)
+
+### Features
+
+- **lsp:** seed delivered corpus at first index; guard rename; badge completions
+  ([c6598b1])
+- **mcp:** delivered-document resources + corpus in compiled context ([a8a2fdd])
+- **core:** origin column in reports and serialized export ([573eba2])
+- **cli:** surface delivered documents in show, profile show, doctor ([e00c05d])
+- **cli:** inject delivered corpus into check/compile with attributed locations
+  ([04aec20])
+- **core:** corpus injection in compile + MSL-R014 collision + attribution
+  ([ba90823])
+- **core:** loadDeliveredCorpus + Entry.origin provenance ([2259435])
+- **core:** resolve delivered documents on the effective profile ([6395a87])
+- **core:** parse profile.delivers manifest section (ADR-029) ([4bb2a4a])
+- **lsp:** whole-document markdown formatting in documentFormatting (ADR-029)
+  ([b4502db])
+- **cli:** whole-document markdown formatting in fmt and check (ADR-029, closes
+  [#649]) ([71a9585])
+- **core:** polish entry bodies via the markdown pass in emitBodyViaAst
+  (ADR-029) ([a6b5cd8])
+- **core:** route prose segments through the markdown pass in format() (ADR-029)
+  ([48af70b])
+- **core:** add gated prose-segment formatting pass (ADR-029) ([ad9c01f])
+- **core:** add CommonMark-semantic markdown equivalence gate (ADR-029)
+  ([60147cc])
+- **core:** add embedded dprint-markdown formatter loader (ADR-029) ([37f9ba0])
+
+### Bug Fixes
+
+- **cli:** strip trailing whitespace in init --help snapshot ([634a2ad])
+- **core:** keep fence tracking in sync across trailer continuations (review)
+  ([059896e])
+- **core:** skip fenced code regions in ref canonicalisation ([#668])
+  ([96ae98a])
+- **lsp:** guard formatting and rename edits against corpus files ([5c45c43])
+- **cli:** keep prose lint and --strict corpus-blind in check ([e90992f])
+- **core:** flag corpus-to-corpus inter-tier ID collisions as MSL-R014
+  ([6f9f839])
+- **cli:** add origin column to CSV export; correct ADR-029/guide accuracy
+  ([c09c3a4])
+- **lsp:** guard document sync against corpus files and isolate corpus seed
+  failures ([7d97348])
+- **mcp:** surface corpus-load diagnostics in compiled context ([7caf093])
+- **cli:** surface corpus-load issues in profile show delivers block ([d78ff78])
+- **cli:** keep lock gate corpus-blind and render corpus paths in show
+  ([efb0794])
+- **core:** harden dprint loader (freeze configs, clean load error, LSP fallback
+  visibility) ([#669]) ([0500749])
+- **docs:** serve /schemas/ landing page and fix project.yaml $schema URL
+  ([1b7693e])
+- **core:** distinguish prose-pass throw vs non-equivalent in MSL-F012
+  (self-review) ([f460a34])
+- **core:** harden and scope the ADR-029 markdown pass (review follow-ups)
+  ([31ab80b])
+- **core:** renumber markdown-pass fallback advisory to MSL-F012 (F011 taken by
+  ref-canon drift) ([50a65cc])
+- **core:** restrict the markdown pass to markdown files and unpoison the loader
+  cache (final review) ([c77370c])
+- **core:** budget entry-body polish width for list-item indent (ADR-029
+  convergence) ([f28d49f])
+- **core:** clamp overlapping or malformed extents in prose pass (reviewer
+  finding) ([62d0a4c])
+- **core:** scope md_equiv whitespace collapse to ASCII (reviewer finding)
+  ([2b243b8])
+
+### Refactoring
+
+- **core:** extract loader-or-exit helper + pure F012 message, degrade LSP
+  gracefully (review) ([dc35513])
+
+### Documentation
+
+- **docs:** archive profile-delivered-documents working memory ([115a546])
+- **docs:** ADR-029 profile-delivered documents + guide + schema ([5405b39])
+- **docs:** add profile-delivered documents spec + plan (working memory)
+  ([9f1bd7d])
+- **repo:** garden whole-document markdown formatting working memory (ADR-029)
+  ([3e17c0f])
+- **repo:** ADR-029 whole-document markdown formatting + one-time reformat
+  ([7c78d41])
+- **repo:** add whole-document markdown formatting spec + implementation plan
+  ([40fea8f])
+
+[0.10.1]: https://github.com/driftsys/markspec/compare/v0.9.0...v0.10.1
+[c6598b1]: https://github.com/driftsys/markspec/commit/c6598b1
+[a8a2fdd]: https://github.com/driftsys/markspec/commit/a8a2fdd
+[573eba2]: https://github.com/driftsys/markspec/commit/573eba2
+[e00c05d]: https://github.com/driftsys/markspec/commit/e00c05d
+[04aec20]: https://github.com/driftsys/markspec/commit/04aec20
+[ba90823]: https://github.com/driftsys/markspec/commit/ba90823
+[2259435]: https://github.com/driftsys/markspec/commit/2259435
+[6395a87]: https://github.com/driftsys/markspec/commit/6395a87
+[4bb2a4a]: https://github.com/driftsys/markspec/commit/4bb2a4a
+[b4502db]: https://github.com/driftsys/markspec/commit/b4502db
+[71a9585]: https://github.com/driftsys/markspec/commit/71a9585
+[#649]: https://github.com/driftsys/markspec/issues/649
+[a6b5cd8]: https://github.com/driftsys/markspec/commit/a6b5cd8
+[48af70b]: https://github.com/driftsys/markspec/commit/48af70b
+[ad9c01f]: https://github.com/driftsys/markspec/commit/ad9c01f
+[60147cc]: https://github.com/driftsys/markspec/commit/60147cc
+[37f9ba0]: https://github.com/driftsys/markspec/commit/37f9ba0
+[634a2ad]: https://github.com/driftsys/markspec/commit/634a2ad
+[059896e]: https://github.com/driftsys/markspec/commit/059896e
+[96ae98a]: https://github.com/driftsys/markspec/commit/96ae98a
+[#668]: https://github.com/driftsys/markspec/issues/668
+[5c45c43]: https://github.com/driftsys/markspec/commit/5c45c43
+[e90992f]: https://github.com/driftsys/markspec/commit/e90992f
+[6f9f839]: https://github.com/driftsys/markspec/commit/6f9f839
+[c09c3a4]: https://github.com/driftsys/markspec/commit/c09c3a4
+[7d97348]: https://github.com/driftsys/markspec/commit/7d97348
+[7caf093]: https://github.com/driftsys/markspec/commit/7caf093
+[d78ff78]: https://github.com/driftsys/markspec/commit/d78ff78
+[efb0794]: https://github.com/driftsys/markspec/commit/efb0794
+[0500749]: https://github.com/driftsys/markspec/commit/0500749
+[#669]: https://github.com/driftsys/markspec/issues/669
+[1b7693e]: https://github.com/driftsys/markspec/commit/1b7693e
+[f460a34]: https://github.com/driftsys/markspec/commit/f460a34
+[31ab80b]: https://github.com/driftsys/markspec/commit/31ab80b
+[50a65cc]: https://github.com/driftsys/markspec/commit/50a65cc
+[c77370c]: https://github.com/driftsys/markspec/commit/c77370c
+[f28d49f]: https://github.com/driftsys/markspec/commit/f28d49f
+[62d0a4c]: https://github.com/driftsys/markspec/commit/62d0a4c
+[2b243b8]: https://github.com/driftsys/markspec/commit/2b243b8
+[dc35513]: https://github.com/driftsys/markspec/commit/dc35513
+[115a546]: https://github.com/driftsys/markspec/commit/115a546
+[5405b39]: https://github.com/driftsys/markspec/commit/5405b39
+[9f1bd7d]: https://github.com/driftsys/markspec/commit/9f1bd7d
+[3e17c0f]: https://github.com/driftsys/markspec/commit/3e17c0f
+[7c78d41]: https://github.com/driftsys/markspec/commit/7c78d41
+[40fea8f]: https://github.com/driftsys/markspec/commit/40fea8f
+
 ## [0.9.0] (2026-07-02)
 
 ### Refactoring
