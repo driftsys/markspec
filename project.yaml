@@ -10,3 +10,4 @@ exclude:
   - "docs/examples/"
   - "CHANGELOG.md"
   - "docs/product/ast-fidelity-matrix.md"
+  - "docs/templates/"
