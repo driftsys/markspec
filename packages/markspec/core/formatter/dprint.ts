@@ -9,6 +9,16 @@
  * documentFormatting).
  *
  * Node-compatible: `node:fs/promises` + WebAssembly only, no `Deno.*`.
+ *
+ * Packaging note: `@dprint/formatter` and `@dprint/markdown` are dynamically
+ * imported bare npm specifiers, and their `plugin.wasm` ships inside the npm
+ * package — no vendored copy in this repo. `deno compile` only embeds the
+ * resolved npm tree (and thus the wasm) when the compile entry point itself
+ * lives inside this workspace member (`packages/markspec/`); an entry point
+ * outside that tree can't resolve the import map at runtime. The project's
+ * one real compile target (`packages/markspec/main.ts`) already satisfies
+ * this, so it's a non-issue in production — it only bites a from-scratch
+ * smoke test placed elsewhere.
  */
 
 /** Per-call options for a {@linkcode ProseFormatter}. */

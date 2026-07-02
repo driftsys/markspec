@@ -36,6 +36,13 @@ styles compare equal, content changes do not. A rejected rewrite is kept as-was
 and reported as MSL-F011 (info). ADR-015's byte-verbatim `astEquivalent` is
 unchanged and still guards §5.2 body emission (MSL-F900).
 
+Because a body is formatted dedented and re-indented afterward, the body pass
+budgets its `lineWidth` at `80 − indent` (floor 20, via a per-call
+`ProseFormatOptions.lineWidth` override) so a wrap point landing near column 80
+dedented does not exceed 80 once re-indented — keeping the result in agreement
+with a whole-file dprint view of the same content (e.g. the external dprint CLI
+on this repo's own tree).
+
 Idempotency (`format ∘ format === format`) is a tested hard requirement —
 MSL-F010 depends on it.
 
