@@ -38,6 +38,7 @@ import { buildBodyAst } from "../ast/build.ts";
 import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
+import { formatProseSegments } from "./prose.ts";
 
 /**
  * Decide whether the EARS keyword at `offset` in `line` is at sentence
@@ -332,6 +333,14 @@ export interface FormatOptions {
    * Injectable for deterministic tests.
    */
   readonly today?: () => string;
+  /**
+   * Whole-document Markdown formatter (ADR-029). When supplied, prose
+   * segments outside entry blocks and each entry body are routed
+   * through it (dprint-markdown), gated by CommonMark-semantic
+   * equivalence. When absent, format() is entry-only — the exact
+   * pre-ADR-029 behaviour.
+   */
+  readonly formatMarkdownProse?: (markdown: string) => string;
 }
 
 /** Result of a format operation. */
@@ -405,7 +414,8 @@ export function format(
   const { entries } = parseMarkdown(body, { file });
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
 
-  if (entries.length === 0 && !fm.hadFrontMatter) {
+  const proseFormat = options?.formatMarkdownProse;
+  if (entries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined) {
     // No entries and no front matter — nothing to format. Returning the
     // original `markdown` preserves the source's exact byte sequence,
     // including its line-ending convention.
@@ -549,7 +559,36 @@ export function format(
     )
   ) changed = true;
 
-  const formattedBody = collapsedLines.join("\n");
+  // ADR-029 whole-document Markdown pass: prose segments outside entry
+  // blocks through dprint, gated per segment. Entry bodies were already
+  // polished inside emitBodyViaAst. Re-parse for fresh extents when any
+  // earlier pass changed line positions.
+  let proseLines = collapsedLines;
+  if (proseFormat !== undefined) {
+    const proseEntries = changed
+      ? parseMarkdown(collapsedLines.join("\n"), { file }).entries
+      : entries;
+    const extents = proseEntries.map((e) => {
+      const start = e.location.line - 1;
+      const entryIndent = (e.location.column - 1) + 2;
+      return { start, end: findItemEnd(collapsedLines, start, entryIndent) };
+    });
+    const prose = formatProseSegments(collapsedLines, extents, proseFormat);
+    if (prose.changed) changed = true;
+    for (const lineIdx of prose.fallbackStarts) {
+      diagnostics.push({
+        code: "MSL-F011",
+        severity: "info",
+        message:
+          "Markdown pass produced non-equivalent output for this prose " +
+          "segment — kept the original text",
+        location: { file, line: lineIdx + 1, column: 1 },
+      });
+    }
+    proseLines = prose.lines;
+  }
+
+  const formattedBody = proseLines.join("\n");
 
   if (fm.hadFrontMatter) {
     const canonicalFm = renderFrontMatter(fm.attributes);

@@ -527,3 +527,58 @@ Deno.test("Slice 3 formatter: malformed Discipline-frozen: value is untouched (v
   assertEquals(output.includes("Discipline-frozen: Software"), true);
   assertEquals(output.includes("@ 2026-05-25"), false);
 });
+
+Deno.test("format: formatMarkdownProse formats prose around entries", () => {
+  const input = `# Title
+
+Ragged
+prose.
+
+- [STK_0001] Entry
+
+  Body.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const unwrap = (md: string): string =>
+    md.split(/\n{2,}/).map((p) => p.replace(/\n(?!$)/g, " ")).join("\n\n") +
+    "\n";
+  const result = format(input, {
+    file: "t.md",
+    formatMarkdownProse: unwrap,
+  });
+  assertEquals(result.changed, true);
+  assertStringIncludes(result.output, "Ragged prose.");
+  assertStringIncludes(result.output, "- [STK_0001] Entry");
+  assertStringIncludes(result.output, "      Id: 01JADYKACKQKGVGHT9K7Y6PBPA");
+});
+
+Deno.test("format: formatMarkdownProse formats entry-less documents", () => {
+  const unwrap = (md: string): string => md.replace(/\n(?!$)/g, " ");
+  const result = format("Just\nprose.\n", {
+    file: "t.md",
+    formatMarkdownProse: unwrap,
+  });
+  assertEquals(result.changed, true);
+  assertEquals(result.output, "Just prose.\n");
+});
+
+Deno.test("format: without formatMarkdownProse, entry-less documents are untouched", () => {
+  const result = format("Just\nprose.\n", { file: "t.md" });
+  assertEquals(result.changed, false);
+  assertEquals(result.output, "Just\nprose.\n");
+});
+
+Deno.test("format: prose gate fallback emits MSL-F011 info", () => {
+  const truncate = (md: string): string =>
+    md.trimEnd().split(" ").slice(0, -1).join(" ") + "\n";
+  const result = format("some prose words here\n", {
+    file: "t.md",
+    formatMarkdownProse: truncate,
+  });
+  assertEquals(result.changed, false);
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "MSL-F011"),
+    true,
+  );
+});
