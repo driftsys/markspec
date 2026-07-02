@@ -41,6 +41,11 @@ export const showCmd = new Command()
           console.log(`  Type: ${entry.type}`);
         }
         console.log(`  Shape: ${entry.shape}`);
+        if (entry.origin) {
+          console.log(
+            `  Origin: ${entry.origin.profileId}@${entry.origin.profileVersion}`,
+          );
+        }
         for (const attr of entry.rawAttributes) {
           console.log(`  ${attr.key}: ${attr.value}`);
         }

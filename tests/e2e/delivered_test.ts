@@ -209,3 +209,28 @@ Deno.test("show: a corpus entry is visible without naming its file", async () =>
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Task 6 — show Origin line, profile show delivers block, doctor health
+// ---------------------------------------------------------------------------
+
+Deno.test("show: corpus entry carries Origin line", async () => {
+  const { code, stdout } = await markspec(
+    ["show", "PLT_0001", "docs/requirements.md"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "Origin: platform-arch@1.2.0");
+});
+
+Deno.test("profile show: lists delivered documents", async () => {
+  const { code, stdout } = await markspec(
+    ["profile", "show"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "Delivered documents");
+  assertStringIncludes(stdout, "reference/platform.md");
+  assertStringIncludes(stdout, "corpus");
+  assertStringIncludes(stdout, "reference/guide.md");
+});
