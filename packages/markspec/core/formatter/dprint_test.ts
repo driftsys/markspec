@@ -1,5 +1,17 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { loadMarkdownFormatter } from "./dprint.ts";
+import {
+  loadMarkdownFormatter,
+  MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
+  MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
+} from "./dprint.ts";
+
+Deno.test("MarkSpec markdown config: the exported style objects are frozen", () => {
+  // The single canonical style is exported through the public barrel;
+  // freezing stops a consumer from mutating it out from under the
+  // already-instantiated formatter (#669).
+  assertEquals(Object.isFrozen(MARKSPEC_MARKDOWN_GLOBAL_CONFIG), true);
+  assertEquals(Object.isFrozen(MARKSPEC_MARKDOWN_PLUGIN_CONFIG), true);
+});
 
 Deno.test("loadMarkdownFormatter: wraps ragged prose at 80 columns", async () => {
   const fmt = await loadMarkdownFormatter();

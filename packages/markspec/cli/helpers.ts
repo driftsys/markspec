@@ -94,6 +94,25 @@ export async function loadActiveProfile(projectRoot: string) {
 }
 
 /**
+ * Load the embedded dprint-markdown formatter, or print a clean CLI error
+ * and exit 1. The plugin can fail to load (corrupt/missing WASM, a
+ * restricted filesystem); a raw stack trace would be user-hostile. Shared
+ * by `fmt` and `check`, which both need the formatter before their
+ * write/gate loop — the load happens before any file is written. Lazily
+ * imports core so subcommands that never format don't pull the plugin in.
+ */
+export async function loadMarkdownFormatterOrExit() {
+  const { loadMarkdownFormatter } = await import("../core/mod.ts");
+  try {
+    return await loadMarkdownFormatter();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`error: could not load the Markdown formatter: ${msg}`);
+    Deno.exit(1);
+  }
+}
+
+/**
  * Run `git` with the given args and return non-empty, trimmed stdout
  * lines. Returns `[]` on any failure (non-zero exit, `git` absent,
  * permission denied) so callers degrade gracefully instead of throwing.

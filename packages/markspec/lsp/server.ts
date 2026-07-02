@@ -62,7 +62,10 @@ import { extendsTransitively } from "../core/profile/discipline_mode.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
-import { buildFormattingEdits } from "./formatting.ts";
+import {
+  buildF012FallbackMessage,
+  buildFormattingEdits,
+} from "./formatting.ts";
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildDiagnosticsHistogram } from "./diagnostics_histogram.ts";
 import { buildCodeActions } from "./code_actions.ts";
@@ -1425,10 +1428,31 @@ connection.onDocumentFormatting(async (params) => {
   if (isSourceFile(filePath)) return [];
 
   const currentText = document.getText();
-  const result = format(currentText, {
-    file: filePath,
-    formatMarkdownProse: await loadMarkdownFormatter(),
-  });
+  // If the WASM plugin can't load, degrade to entry-only formatting (ULID
+  // stamping, trailer normalization still apply) rather than failing the
+  // format request — format-on-save keeps working. The loader un-caches a
+  // failed load, so a later request retries.
+  let formatMarkdownProse;
+  try {
+    formatMarkdownProse = await loadMarkdownFormatter();
+  } catch (err) {
+    connection.console.error(
+      `Markdown formatter unavailable — formatting entry blocks only: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    formatMarkdownProse = undefined;
+  }
+  const result = format(currentText, { file: filePath, formatMarkdownProse });
+
+  // Surface Markdown-pass fallbacks (MSL-F012, info): a body or prose
+  // segment whose dprint output was rejected/errored and kept as-is. The
+  // CLI prints these to stderr; in the editor they would otherwise vanish
+  // (format-time diagnostics don't flow through publishDiagnostics). One
+  // logMessage summary keeps the editor's output channel informed without
+  // a toast per save.
+  const fallbackNotice = buildF012FallbackMessage(result.diagnostics);
+  if (fallbackNotice) connection.console.info(fallbackNotice);
 
   // On parse failure the formatter returns `output === input` and emits
   // diagnostics via its existing channel — clients see them through the

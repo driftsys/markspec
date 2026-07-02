@@ -54,3 +54,19 @@ export function buildFormattingEdits(
     newText: formattedText,
   }];
 }
+
+/**
+ * Build the one-line editor notice for Markdown-pass fallbacks (MSL-F012):
+ * body or prose segments whose dprint output was rejected/errored and kept
+ * as-is (#669). Returns `undefined` when there were none, so the caller
+ * logs nothing. Pure — the count and wording are unit-testable without a
+ * live LSP connection (mirrors `buildDiagnosticsHistogram`).
+ */
+export function buildF012FallbackMessage(
+  diagnostics: readonly { readonly code: string }[],
+): string | undefined {
+  const n = diagnostics.filter((d) => d.code === "MSL-F012").length;
+  if (n === 0) return undefined;
+  return `markspec: kept the original text for ${n} segment(s) — ` +
+    `the Markdown formatter was not applied (MSL-F012)`;
+}

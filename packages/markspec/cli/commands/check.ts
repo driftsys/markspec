@@ -10,6 +10,7 @@ import { ConfigError, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import {
   loadActiveProfile,
+  loadMarkdownFormatterOrExit,
   readFile,
   renderDiagnosticLocation,
   resolveScope,
@@ -158,11 +159,10 @@ export const checkCmd = new Command()
           extractEdgeQuads,
           format,
           hashCanonicalEdges,
-          loadMarkdownFormatter,
           parseLockfile,
         } = await import("../../core/mod.ts");
 
-        const formatMarkdownProse = await loadMarkdownFormatter();
+        const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
         // Read markspec.lock once: its edge ledger feeds reference healing
         // (MSL-F011) and its cached edge hash feeds the lockfile gate
