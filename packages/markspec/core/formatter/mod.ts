@@ -39,6 +39,7 @@ import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
 import { formatProseSegments } from "./prose.ts";
+import { markdownSemanticallyEquivalent } from "./md_equiv.ts";
 
 /**
  * Decide whether the EARS keyword at `offset` in `line` is at sentence
@@ -203,6 +204,14 @@ const CANONICAL_ORDER: readonly string[] = [
  *      string, preserving the leading/trailing blank-line delimiters
  *      that separate the body from the title and attr block.
  *
+ * When `proseFormat` (ADR-029) is supplied, the AST-canonical body is
+ * further polished by the whole-document Markdown formatter (dprint),
+ * gated by CommonMark-semantic equivalence — NOT the strict ADR-015
+ * relation above, which is byte-verbatim on inline markup and would
+ * reject every legitimate re-wrap. A rejected polish keeps the
+ * AST-canonical body and raises an info diagnostic (MSL-F011) naming
+ * the entry.
+ *
  * Returns `true` when any entry body was rewritten (so `format()` can
  * keep `changed` accurate for `--check` mode); `false` when every body
  * was already §5.2-canonical.
@@ -216,6 +225,7 @@ function emitBodyViaAst(
   file: string,
   diagnostics: Diagnostic[],
   cachedEntries: Entry[] | undefined,
+  proseFormat: ((markdown: string) => string) | undefined,
 ): boolean {
   // When the caller supplies pre-parsed entries whose line numbers are still
   // valid in `lines` (i.e., no line-count-changing operations occurred before
@@ -284,6 +294,29 @@ function emitBodyViaAst(
       continue;
     }
 
+    // ADR-029: polish the canonical body with the whole-document
+    // Markdown formatter. Gated by CommonMark-semantic equivalence —
+    // NOT the strict ADR-015 relation, which is byte-verbatim on
+    // inline markup and would reject every legitimate re-wrap. On
+    // rejection keep the AST-canonical body and say so (info).
+    let finalBody = emittedBody;
+    if (proseFormat !== undefined) {
+      const polished = proseFormat(emittedBody).replace(/\n$/, "");
+      if (polished !== emittedBody) {
+        if (markdownSemanticallyEquivalent(emittedBody, polished)) {
+          finalBody = polished;
+        } else {
+          diagnostics.push({
+            code: "MSL-F011",
+            severity: "info",
+            message: `${entry.displayId}: Markdown pass produced a ` +
+              `non-equivalent body — kept the canonical body`,
+            location: entry.location,
+          });
+        }
+      }
+    }
+
     // The emitted body is the §5.2-canonical body and re-builds
     // AST-equivalent to the canonical AST. Splice it back into the
     // document — the AST is the load-bearing emission path.
@@ -302,7 +335,7 @@ function emitBodyViaAst(
     while (ei >= si && rawSegment[ei].trim() === "") {
       trailBlanks.unshift(rawSegment[ei--]);
     }
-    const emittedLines = emittedBody.split("\n").map((l) =>
+    const emittedLines = finalBody.split("\n").map((l) =>
       l ? `${indentStr}${l}` : l
     );
     const newSegment = [...leadBlanks, ...emittedLines, ...trailBlanks];
@@ -556,6 +589,7 @@ export function format(
       file,
       diagnostics,
       changed ? undefined : entries,
+      proseFormat,
     )
   ) changed = true;
 

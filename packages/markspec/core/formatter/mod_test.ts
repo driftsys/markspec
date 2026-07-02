@@ -582,3 +582,41 @@ Deno.test("format: prose gate fallback emits MSL-F011 info", () => {
     true,
   );
 });
+
+Deno.test("format: formatMarkdownProse re-wraps entry bodies (gated)", () => {
+  const input = `- [STK_0001] Entry
+
+  Ragged
+  body prose.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const unwrap = (md: string): string =>
+    md.split(/\n{2,}/).map((p) => p.replace(/\n(?!$)/g, " ")).join("\n\n") +
+    "\n";
+  const result = format(input, { file: "t.md", formatMarkdownProse: unwrap });
+  assertEquals(result.changed, true);
+  assertStringIncludes(result.output, "  Ragged body prose.");
+});
+
+Deno.test("format: body gate rejects destructive output with MSL-F011, keeps canonical body", () => {
+  const input = `- [STK_0001] Entry
+
+  Body prose here.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const truncate = (md: string): string =>
+    md.trimEnd().split(" ").slice(0, -1).join(" ") + "\n";
+  const result = format(input, {
+    file: "t.md",
+    formatMarkdownProse: truncate,
+  });
+  assertStringIncludes(result.output, "  Body prose here.");
+  assertEquals(
+    result.diagnostics.some(
+      (d) => d.code === "MSL-F011" && d.message.includes("STK_0001"),
+    ),
+    true,
+  );
+});
