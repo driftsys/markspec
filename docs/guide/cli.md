@@ -254,6 +254,19 @@ markspec show STK_PRJ_0001 "docs/**/*.md"
 markspec show --format json STK_PRJ_0001 docs/requirements.md
 ```
 
+When the active profile [delivers a corpus](profiles.md#delivered-documents)
+(ADR-029), an entry injected from that corpus prints an extra `Origin:` line and
+its `Source:` renders as `<profile-id>@<version>:<path>:<line>:<column>` instead
+of a raw filesystem path:
+
+```text
+PLT_0001  Platform core service
+  Type: platform-component
+  Origin: platform-arch@1.2.0
+  ...
+  Source: platform-arch@1.2.0:reference/platform.md:1:1
+```
+
 #### context
 
 Walk the Satisfies chain upward from an entry to see what it ultimately
@@ -350,6 +363,11 @@ markspec report traceability --output matrix.md "docs/**/*.md"
 markspec report traceability --label ASIL-B "docs/**/*.md"
 ```
 
+The traceability matrix carries an **Origin** column: `project` for a
+project-authored entry, or `<profile-id>@<version>` for an entry injected from a
+profile's delivered corpus (ADR-029). All three formats (`md`, `json`, `csv`)
+include it.
+
 #### export
 
 Emit the compiled traceability graph in a portable format.
@@ -372,6 +390,10 @@ markspec export csv "docs/**/*.md" > entries.csv
 # YAML
 markspec export yaml "docs/**/*.md"
 ```
+
+Entries injected from a profile's delivered corpus (ADR-029) carry an
+`origin: { kind, profileId, profileVersion }` field in every export format;
+project-authored entries omit it.
 
 #### insert
 
@@ -620,6 +642,20 @@ markspec profile show
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
+When the active profile [delivers documents](profiles.md#delivered-documents)
+(ADR-029), the text output gains a **Delivered documents** block listing each
+file's path, role (`corpus` with an entry count, or `doc` with its description),
+and providing tier — plus any missing-file issue
+(`PROFILE-DELIVERS-001`/`-002`):
+
+```text
+Delivered documents (2):
+  - reference/platform.md   corpus   1 entries   [platform-arch]
+  - reference/guide.md   doc      Integration guide (read-only reference)   [platform-arch]
+```
+
+`--format json` includes the same list under a `delivers` key.
+
 #### profile new
 
 Scaffold a new profile directory with a starter manifest.
@@ -694,6 +730,14 @@ markspec doctor
 | Flag       | Type   | Default | Description                   |
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
+
+When the active profile delivers documents (ADR-029), `doctor` reports the
+document count, corpus entry count, and any health issue (declared-but-missing
+file, corpus parse failure):
+
+```text
+Delivered documents: 2 (1 corpus entries)
+```
 
 ### AI agent integration
 

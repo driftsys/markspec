@@ -445,6 +445,11 @@ docs/
   `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots
   deliberately dropped (unimplemented on Claude Code); soft gate names the
   searched dirs
+- `adr-029-profile-delivered-documents.md` — `profile.delivers:` lets a profile
+  ship document files to consumers, per file flagged as a traceable corpus
+  (joins the graph, provenance via `Entry.origin`) or docs-only; one core loader
+  (`loadDeliveredCorpus`) feeds the CLI compiler, LSP, and MCP server;
+  collisions are `MSL-R014`; no `CORE_SCHEMA_VERSION` bump
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

@@ -93,6 +93,75 @@ The normative manifest schema — every block, field, and diagnostic — lives i
 
 ---
 
+## Delivered documents
+
+A profile can deliver document files to every project that consumes it — see
+[ADR-029](../architecture/adr-029-profile-delivered-documents.md). Each file is
+flagged, per file, as either a **traceable corpus** (its entries join the
+consuming project's traceability graph) or **documentation-only** (surfaced for
+humans and agents to read, never parsed).
+
+```yaml
+profile:
+  delivers:
+    - path: reference/platform-architecture.md
+      corpus: true # entries join the consumer's graph
+      description: Shared platform components and interfaces
+    - path: reference/integration-guide.md
+      # corpus defaults to false → documentation-only
+```
+
+| Key           | Type    | Required | Default | Notes                                                                               |
+| ------------- | ------- | -------- | ------- | ----------------------------------------------------------------------------------- |
+| `path`        | string  | yes      | —       | Relative to the profile directory (next to its `markspec.yaml`).                    |
+| `corpus`      | boolean | no       | `false` | `true` → parse the file's entries into the consumer's graph. Markdown (`.md`) only. |
+| `description` | string  | no       | —       | Shown in `profile show` and as the MCP resource description.                        |
+
+**Path constraints.** `path` must stay inside the profile directory — an
+absolute path or any `..` segment is a load-time error (`PROFILE-DELIVERS-003`).
+`corpus: true` on a non-`.md` path is also a load-time error
+(`PROFILE-DELIVERS-004`).
+
+**Corpus eligibility.** Only Markdown files can be corpus files. A
+documentation-only file can be any readable file (rendered as an MCP resource,
+never parsed for entries).
+
+**Merge semantics.** Across an `extends:` chain, `delivers:` is an additive
+union keyed by `(profile-id, path)` — a child profile can add delivered
+documents but never remove or override a parent's, matching every other manifest
+section's non-relaxation rule. Two tiers delivering the same relative path never
+collide; they are namespaced by their own `profile-id`.
+
+**Consuming a delivered corpus.** No project-side configuration is needed beyond
+the ordinary profile chain (`.markspec.yaml`) — `check`, `compile`, `show`,
+`context`, `dependents`, `report`, `export`, the LSP, and the MCP server all
+resolve trace targets living in the corpus automatically. A project entry
+reusing a corpus display ID or `Id:` fails `check` with `MSL-R014` — the fix is
+to rename the project entry; delivered corpus entries are read-only.
+
+> **Local-path profiles must be excluded from project discovery.** A profile
+> referenced with a local path (`./profile` in `.markspec.yaml`) lives inside
+> the consumer's own repository tree. If `project.yaml` does not `exclude:` that
+> directory, the ordinary project walk parses the same corpus file the corpus
+> loader also parses — the entries are indexed twice and self-collide as
+> `MSL-R014`. Add the profile directory to `exclude:`:
+>
+> ```yaml
+> # project.yaml
+> exclude:
+>   - profile/
+> ```
+>
+> Git and npm profile specifiers resolve into `.markspec/cache/<sha>/…`, which
+> project discovery already skips — only a `local` specifier needs this.
+
+See the
+[reference architecture recipe](recipes/shipping-a-reference-architecture.md)
+for a worked example, and ADR-029 for the collision-attribution and
+lockfile-scope rules.
+
+---
+
 ## Authoring and publishing a profile
 
 A profile is a directory with a `markspec.yaml` manifest and a recommended

@@ -1506,6 +1506,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 | `MSL-R011` | error    | No emphasis inside entry blocks.                                                                                                             |
 | `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                                                                       |
 | `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                                                                |
+| `MSL-R014` | error    | Display ID or `Id:` collides with an entry delivered by the active profile's corpus (ADR-029). Rename the project entry.                     |
 
 MSL-R001 and MSL-R011 apply to all entry blocks. MSL-R002–R010 apply to entries
 carrying an `Id:` attribute.
