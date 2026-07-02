@@ -28,10 +28,15 @@ export const lintCmd = new Command()
         verb: "linting",
         quiet: options.quiet === true || options.format === "json",
       });
-      const { result } = await compileProject(scope.files);
+      const { result, chain } = await compileProject(scope.files);
       const { runLint } = await import("../../core/mod.ts");
+      // `result.entries` is the merged project + delivered-corpus set. Pass it
+      // whole with the active profile: `runLint` keeps corpus entries in its
+      // resolver indexes but never emits diagnostics for them (ADR-030 §D4),
+      // and the profile scopes profile-typed entries into prose analysis (#675).
       const lintResult = await runLint({
         entries: [...result.entries.values()],
+        profile: chain?.effective,
       });
 
       let diagnostics = [...lintResult.diagnostics];

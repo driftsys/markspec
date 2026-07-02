@@ -254,10 +254,14 @@ export const checkCmd = new Command()
       const proseDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
         const { runLint } = await import("../../core/mod.ts");
-        // Prose lint never runs on delivered corpus entries (ADR-030) — a
-        // consumer cannot fix an upstream profile's prose.
+        // Pass the FULL entry set (project + corpus) and the active profile.
+        // `runLint` excludes corpus entries from its output but keeps them in
+        // the glossary / $Identifier indexes, so a corpus-defined term still
+        // silences Q500 in project prose (ADR-030 §D4). The profile threads
+        // into `isProseScope` so profile-typed entries are scoped (#675).
         const lintResult = await runLint({
-          entries: allEntries.filter((e) => !e.origin),
+          entries: allEntries,
+          profile: chain?.effective,
         });
         for (const d of lintResult.diagnostics) {
           proseDiagnostics.push({

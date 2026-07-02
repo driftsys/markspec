@@ -5,9 +5,59 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { Entry } from "../model/mod.ts";
+import type {
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  EntryOrigin,
+  ProvenancedMapEntry,
+} from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import { isProseScope, runLint } from "./runner.ts";
+
+/**
+ * Build a minimal {@linkcode EffectiveProfile} declaring a single type that
+ * `extends` a core type. Only `types` (with the `extends` edge) matters for
+ * {@linkcode isProseScope}; every other slot is empty. Mirrors the fixture in
+ * `core/validator/type_resolution_test.ts`.
+ */
+function profileWith(name: string, extendsCore: string): EffectiveProfile {
+  const origin = "@test/p";
+  const typeDef: ProvenancedMapEntry<EffectiveTypeDef> = {
+    value: {
+      name,
+      extends: extendsCore,
+      displayIdPattern: { value: `${name.toUpperCase()}_{n:04d}`, origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+    origin,
+  };
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([[name, typeDef]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -597,4 +647,110 @@ Deno.test("runLint: corpus-scan hook leaves Q500 firing on truly unknown phrases
   const q500 = result.diagnostics.filter((d) => d.code === "MSL-Q500");
   assertEquals(q500.length, 1);
   assertEquals(q500[0].message.includes("UnknownTerm"), true);
+});
+
+// ---------------------------------------------------------------------------
+// #675 — isProseScope threads the profile so profile-typed entries are scoped
+// ---------------------------------------------------------------------------
+
+Deno.test("isProseScope: profile-typed entry enters scope only with the profile (#675)", () => {
+  // `platform-component` extends Requirement in the profile; its `PLT_` IDs
+  // are NOT a core-recognizable prefix, so only the profile's `extends:` chain
+  // can classify it. `resolvedCoreType` needs the profile to do that.
+  const entry = makeEntry({
+    displayId: "PLT_0001",
+    type: "platform-component",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Type", value: "platform-component" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Type", ["platform-component"]],
+    ]),
+  });
+  // Without the profile the type cannot resolve to a core Specification
+  // subtype — the entry is (wrongly, pre-fix) out of scope.
+  assertEquals(isProseScope(entry), false);
+  // With the profile it walks `extends: Requirement` and enters prose scope.
+  assertEquals(
+    isProseScope(entry, profileWith("platform-component", "Requirement")),
+    true,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// #674 f1/f2 — a delivered-corpus entry feeds the resolver indexes but never
+// itself produces diagnostics (ADR-030 §D4)
+// ---------------------------------------------------------------------------
+
+Deno.test("runLint: corpus entry silences Q500 but emits no diagnostics (#674 f1/f2)", async () => {
+  const corpusOrigin: EntryOrigin = {
+    kind: "profile",
+    profileId: "platform-arch",
+    profileVersion: "1.0.0",
+  };
+  // Corpus entry (origin set): carries a `$Framebus` entity-ref token AND a
+  // passive body sentence that WOULD trip MSL-Q300 if it were linted.
+  const passive = "The bus shall be exposed by the service.";
+  const corpus = makeEntry({
+    displayId: "REQ_0900",
+    body: passive,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text: passive },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: passive.length },
+        },
+      },
+    ],
+    bodyTokens: [
+      {
+        kind: "entity-ref",
+        text: "$Framebus",
+        convention: "type",
+        location: { file: "corpus.md", line: 1, column: 1 },
+      },
+    ],
+    location: { file: "corpus.md", line: 1, column: 1 },
+    origin: corpusOrigin,
+  });
+  // Project entry: mentions bare "Framebus" mid-sentence — a Q500 candidate.
+  const usesText = "The gateway shall publish to the Framebus within 10 ms.";
+  const project = makeEntry({
+    displayId: "REQ_0500",
+    body: usesText,
+    bodyAst: [
+      {
+        kind: "paragraph",
+        content: { text: usesText },
+        range: {
+          start: { line: 1, column: 1 },
+          end: { line: 1, column: usesText.length },
+        },
+      },
+    ],
+    location: { file: "project.md", line: 1, column: 1 },
+  });
+  const result = await runLint({ entries: [corpus, project] });
+  // f1: the corpus `$Framebus` token is indexed (full-set scan), so Q500 does
+  // not fire on the project mention.
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-Q500").length,
+    0,
+  );
+  // f2: no diagnostic is located in the corpus file — the corpus is never
+  // linted, so its passive sentence never surfaces as MSL-Q300.
+  assertEquals(
+    result.diagnostics.filter((d) => d.location?.file === "corpus.md").length,
+    0,
+  );
+  assertEquals(result.diagnostics.some((d) => d.code === "MSL-Q300"), false);
+  // The score roll-up excludes the corpus entry entirely.
+  assertEquals(
+    result.score.perEntry.some((e) => e.displayId === "REQ_0900"),
+    false,
+  );
 });

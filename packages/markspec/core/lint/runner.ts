@@ -7,7 +7,7 @@
  * returns the final diagnostics.
  */
 
-import type { Entry } from "../model/mod.ts";
+import type { EffectiveProfile, Entry } from "../model/mod.ts";
 import { CORE_TYPE_HIERARCHY } from "../model/mod.ts";
 import { resolvedCoreType } from "../validator/type_resolution.ts";
 import type { LintDiagnostic } from "./types.ts";
@@ -54,10 +54,19 @@ function isSpecificationDescendant(typeName: string): boolean {
  * In-scope: Authored shape AND resolved core type is Specification or
  * a direct subtype (Requirement, Test, Contract, Record, Risk).
  * Reference-shape entries are always excluded.
+ *
+ * `profile` is threaded into {@linkcode resolvedCoreType} so an entry
+ * classified purely by a profile type (via `Type:` or a profile
+ * display-id pattern, e.g. `platform-component`) resolves to its core
+ * ancestor through the profile's `extends:` chain. Without it (#675),
+ * such entries never enter prose scope and are silently skipped.
  */
-export function isProseScope(entry: Entry): boolean {
+export function isProseScope(
+  entry: Entry,
+  profile?: EffectiveProfile,
+): boolean {
   if (entry.shape === "Reference") return false;
-  const coreType = resolvedCoreType(entry);
+  const coreType = resolvedCoreType(entry, profile);
   if (!coreType) return false;
   return isSpecificationDescendant(coreType);
 }
@@ -68,6 +77,13 @@ export function isProseScope(entry: Entry): boolean {
 
 export interface LintOptions {
   readonly entries: readonly Entry[];
+  /**
+   * Active profile, threaded into {@linkcode isProseScope} so entries
+   * classified purely by a profile type enter prose scope (#675). Optional:
+   * callers with no profile (e.g. file-local prose scoring) pass nothing and
+   * only core-resolvable types are scoped.
+   */
+  readonly profile?: EffectiveProfile;
   /** Profile-extended capitalized-allow lexicon. Defaults to core baseline. */
   readonly capitalizedAllow?: ReadonlySet<string>;
   /** Glossary file paths discovered by the listing-directive validator. */
@@ -102,8 +118,18 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
 /**
  * Run the lint pipeline on a set of entries.
  *
+ * Corpus handling (ADR-030 §D4): the glossary and `$Identifier` indexes are
+ * built from the FULL `entries` set — including delivered-corpus entries — so a
+ * term or `$Identifier` defined only in a corpus document still silences Q500
+ * in project prose (the additive-enrichment invariant). Prose *diagnostics*,
+ * suppression hygiene, and the score roll-up run only on project entries
+ * (`entry.origin === undefined`): a consumer cannot fix an upstream profile's
+ * prose, so corpus findings are never emitted and never skew the score. Callers
+ * therefore pass the merged project + corpus set, not a pre-filtered one.
+ *
  * Pipeline:
- *   1. Filter to in-scope entries (Specification subtypes, Authored shape).
+ *   1. Filter to in-scope entries (Specification subtypes, Authored shape,
+ *      non-corpus).
  *   2. Build glossary index from DefinitionList nodes and glossary files.
  *   3. Run lexicon rules on each in-scope entry's prose blocks.
  *   4. Run structural rules on each in-scope entry.
@@ -124,8 +150,10 @@ function disabledCodes(entry: Entry): ReadonlySet<string> {
  *  14. Return diagnostics and score.
  */
 export async function runLint(options: LintOptions): Promise<LintResult> {
-  const { entries } = options;
+  const { entries, profile } = options;
   const allow = options.capitalizedAllow ?? loadLexicon("capitalized-allow");
+  // Glossary + $Identifier indexes see the FULL entry set (corpus included) so
+  // corpus-defined terms/identifiers silence Q500 additively (ADR-030 §D4).
   const glossary: GlossaryIndex = await buildGlossaryIndex(
     entries,
     options.readFile ?? (() => Promise.resolve(undefined)),
@@ -137,10 +165,14 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   // grows, never *more*.
   const isIdHook = buildIsIdentifierHook(buildIdentifierIndex(entries));
 
-  // Steps 1–9: collect diagnostics keyed by entry
+  // Steps 1–9: collect diagnostics keyed by entry. Delivered-corpus entries
+  // (`entry.origin`) are excluded from rule execution — a consumer cannot fix
+  // upstream prose (ADR-030 §D4) — even though they contribute to the indexes
+  // above.
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
-    if (!isProseScope(entry)) continue;
+    if (entry.origin) continue;
+    if (!isProseScope(entry, profile)) continue;
     const diags: LintDiagnostic[] = [];
     // Step 3: lexicon rules
     diags.push(...runLexiconRules(entry));
@@ -159,10 +191,13 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     inScopeDiags.set(entry, diags);
   }
 
-  // Step 10: suppression hygiene on all Authored entries
+  // Step 10: suppression hygiene on all Authored project entries. Corpus
+  // entries are skipped for the same reason as rule execution — hygiene
+  // findings located in a corpus file are unfixable by the consumer.
   const hygieneDiags: LintDiagnostic[] = [];
   for (const entry of entries) {
     if (entry.shape !== "Authored") continue;
+    if (entry.origin) continue;
     hygieneDiags.push(...runSuppressionRules(entry));
   }
 
@@ -197,8 +232,11 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   // Append hygiene diagnostics (Q900/Q901 — never suppressed)
   out.push(...hygieneDiags);
 
-  // Step 13: compute score roll-up across all entries (including 0-score ones).
-  const score = computeScoreRollup(out, entries);
+  // Step 13: compute score roll-up across project entries (including 0-score
+  // ones). Corpus entries are excluded — counting them would skew band-counts
+  // and the mean on prose a consumer cannot act on (ADR-030 §D4). A no-op when
+  // no corpus is present.
+  const score = computeScoreRollup(out, entries.filter((e) => !e.origin));
 
   return { diagnostics: out, score };
 }
