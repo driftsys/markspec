@@ -163,6 +163,14 @@ export function canonicalizeRefs(
       j++;
       const crj = lines[j].endsWith("\r");
       const barej = crj ? lines[j].slice(0, -1) : lines[j];
+      // A fence marker is never continuation text. An indented one (e.g.
+      // `  ```md`) would otherwise match CONTINUATION_LINE_RE and be
+      // swallowed here without toggling `inFence`, desyncing fence tracking
+      // for the rest of the file. Back out and let the outer loop toggle it.
+      if (FENCE_RE.test(barej)) {
+        j--;
+        break;
+      }
       const cm = CONTINUATION_LINE_RE.exec(barej);
       if (!cm) {
         j--; // not a continuation line — leave it for the outer loop

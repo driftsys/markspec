@@ -215,6 +215,39 @@ Deno.test("canonicalizeRefs: a document that is only a fenced example is a no-op
   assertEquals(output, content);
 });
 
+Deno.test("canonicalizeRefs: an indented fence after a continuation does not desync tracking", () => {
+  // A `\`-continued trailer whose continuation flows straight into an
+  // INDENTED fence marker must not swallow the marker as continuation text
+  // (which would leave inFence=false and heal the trailer inside the fence).
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `      Id: ${SRC}`,
+    `      References: a, \\`,
+    "  ```markdown",
+    `      Satisfies: ${TGT}`,
+    "  ```",
+  ].join("\n");
+
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+    location: { file: "x.md", line: 1, column: 1 },
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 20, column: 1 },
+  });
+
+  const idx = buildRefIndex([src, tgt]);
+  const { output } = canonicalizeRefs(content, [src, tgt], idx, []);
+  // The trailer inside the fence stays the raw ULID (fence tracking held).
+  assertEquals(output.split("\n")[5], `      Satisfies: ${TGT}`);
+});
+
 // ---------------------------------------------------------------------------
 // canonicalizeRefs — rule 2: current display ID → no-op
 // ---------------------------------------------------------------------------
