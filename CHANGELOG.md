@@ -1,5 +1,101 @@
 # Changelog
 
+## [0.9.0] (2026-07-02)
+
+### Refactoring
+
+- **repo:** unify LSP and lock walkers on core/discovery ([131f9a9])
+
+### Features
+
+- **cli:** detect reference-canonicalization drift in check (MSL-F011)
+  ([aa3f89a]), closes 660.
+- **cli:** add GitHub Copilot MCP install client ([83781a8]), closes 635.
+- **release:** add aarch64-unknown-linux-gnu target ([23fe5a2]), closes [#632]
+- **cli:** advisory prose-lint gate in markspec check ([40e5666])
+- **cli:** offline lockfile gate (parse + MSL-L212 edge drift) in check
+  ([954e1f5])
+- **cli:** MSL-F010 fmt-drift gate in markspec check ([5c8415b])
+- **cli:** bare markspec check validates the whole project ([0670ba5])
+- **cli:** markspec lint paths optional, defaults to whole project ([5d977df])
+- **cli:** markspec fmt defaults to whole-project markdown scope ([f74946e])
+- **cli:** resolveScope shared project-wide default scope resolution ([9109929])
+- **core:** exclude patterns in project.yaml for file discovery ([28c8e00])
+- **core:** gitignore-aware project file discovery walker ([a8416ac])
+- **core:** gitignore pattern matcher for project discovery ([0cdcb93])
+
+### Bug Fixes
+
+- **cli:** correct the bare-invocation "no project root" message ([433e3e6]),
+  closes 666.
+- **core:** restore built-in skip for common build-output dirs ([8b578de]),
+  closes 661.
+- **cli:** sharpen MSL-L212 message for the lock source-file widening
+  ([113b76b]), closes 663.
+- **core:** flag only recognized trailer keys as misplaced trailers (P020)
+  ([3b0d848]), closes 654.
+- **core:** stop misparsing colons in body content as trailer attributes
+  ([85fc7c3]), closes 648.
+- **mcp:** resolve project root via env-var + cwd discovery ([#641]) ([#650])
+  ([c419b02])
+- **repo:** make install.sh POSIX-clean so `curl … | sh` works ([#639])
+  ([2cd4a91])
+- **cli:** attach markspec.lock location to MSL-L212 ([ee9b780])
+- **core:** complete gitignore baseDir regex escape (* ? [ ]) ([1b61e73])
+- **cli:** fmt honors project.yaml exclude when building ref index ([59a49c7])
+- **cli:** scope MSL-F010 fmt-drift gate to project-wide check only ([7b92d32])
+- **core:** collapse consecutive gitignore stars, skip invalid patterns
+  ([1f80761])
+- **cli:** bare markspec prints help instead of exiting silently ([3d74120])
+- **core:** listing filename trigger only fires for markdown files ([4d9089e])
+
+### Documentation
+
+- **repo:** garden CLI smoother-defaults into ADR-027, archive working memory
+  ([63786fc])
+- **repo:** clarify project.yaml exclude applies to bare invocation only
+  ([c865e38])
+- **repo:** document project-scope defaults and composite check gate ([76a34a9])
+- **repo:** add CLI smoother-defaults spec and implementation plan ([27a516e])
+
+[0.9.0]: https://github.com/driftsys/markspec/compare/v0.8.0...v0.9.0
+[131f9a9]: https://github.com/driftsys/markspec/commit/131f9a9
+[aa3f89a]: https://github.com/driftsys/markspec/commit/aa3f89a
+[83781a8]: https://github.com/driftsys/markspec/commit/83781a8
+[23fe5a2]: https://github.com/driftsys/markspec/commit/23fe5a2
+[#632]: https://github.com/driftsys/markspec/issues/632
+[40e5666]: https://github.com/driftsys/markspec/commit/40e5666
+[954e1f5]: https://github.com/driftsys/markspec/commit/954e1f5
+[5c8415b]: https://github.com/driftsys/markspec/commit/5c8415b
+[0670ba5]: https://github.com/driftsys/markspec/commit/0670ba5
+[5d977df]: https://github.com/driftsys/markspec/commit/5d977df
+[f74946e]: https://github.com/driftsys/markspec/commit/f74946e
+[9109929]: https://github.com/driftsys/markspec/commit/9109929
+[28c8e00]: https://github.com/driftsys/markspec/commit/28c8e00
+[a8416ac]: https://github.com/driftsys/markspec/commit/a8416ac
+[0cdcb93]: https://github.com/driftsys/markspec/commit/0cdcb93
+[433e3e6]: https://github.com/driftsys/markspec/commit/433e3e6
+[8b578de]: https://github.com/driftsys/markspec/commit/8b578de
+[113b76b]: https://github.com/driftsys/markspec/commit/113b76b
+[3b0d848]: https://github.com/driftsys/markspec/commit/3b0d848
+[85fc7c3]: https://github.com/driftsys/markspec/commit/85fc7c3
+[c419b02]: https://github.com/driftsys/markspec/commit/c419b02
+[#641]: https://github.com/driftsys/markspec/issues/641
+[#650]: https://github.com/driftsys/markspec/issues/650
+[2cd4a91]: https://github.com/driftsys/markspec/commit/2cd4a91
+[#639]: https://github.com/driftsys/markspec/issues/639
+[ee9b780]: https://github.com/driftsys/markspec/commit/ee9b780
+[1b61e73]: https://github.com/driftsys/markspec/commit/1b61e73
+[59a49c7]: https://github.com/driftsys/markspec/commit/59a49c7
+[7b92d32]: https://github.com/driftsys/markspec/commit/7b92d32
+[1f80761]: https://github.com/driftsys/markspec/commit/1f80761
+[3d74120]: https://github.com/driftsys/markspec/commit/3d74120
+[4d9089e]: https://github.com/driftsys/markspec/commit/4d9089e
+[63786fc]: https://github.com/driftsys/markspec/commit/63786fc
+[c865e38]: https://github.com/driftsys/markspec/commit/c865e38
+[76a34a9]: https://github.com/driftsys/markspec/commit/76a34a9
+[27a516e]: https://github.com/driftsys/markspec/commit/27a516e
+
 ## [0.8.0] (2026-06-08)
 
 ### Bug Fixes

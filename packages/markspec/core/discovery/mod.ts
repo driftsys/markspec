@@ -79,6 +79,34 @@ export interface DiscoverOptions {
 }
 
 /**
+ * Directory names pruned by default, in addition to the hidden-dir skip.
+ * These are the common build-output / dependency directories the
+ * pre-`core/discovery` walkers (LSP `walkDirectory`, lockfile
+ * `collectEntries`) hardcoded; keeping them restores that guarantee
+ * independent of a consumer's `.gitignore` — otherwise a project that does
+ * not list them recurses into build artifacts (duplicate-ID noise, slow LSP
+ * indexing, spurious `MSL-L212` edge-hash entries).
+ *
+ * Unlike the hidden-dir skip these are overridable: they are applied as the
+ * LOWEST-precedence rule layer (before `.gitignore` and `exclude:`), so a
+ * negated `!target/` entry in either re-includes them under gitignore
+ * last-match-wins.
+ */
+const BUILTIN_SKIP_DIRS: readonly string[] = [
+  "node_modules",
+  "target",
+  "dist",
+  "build",
+];
+
+/** Compiled once: the built-in skip as unanchored, directory-only gitignore
+ * rules (each matches a directory of that name at any depth). */
+const BUILTIN_SKIP_RULES: readonly GitignoreRule[] = parseGitignore(
+  BUILTIN_SKIP_DIRS.map((d) => `${d}/`).join("\n"),
+  "",
+);
+
+/**
  * Walk `root` recursively, yielding absolute paths of relevant files.
  * Entries are yielded in sorted order per directory — deterministic
  * output across filesystems. Unreadable directories are skipped.
@@ -93,7 +121,16 @@ export async function* discoverFiles(
     (options.exclude ?? []).join("\n"),
     "",
   );
-  yield* walk(root, "", excludeRules, io, extensions);
+  // Built-in build-output skips are the lowest-precedence layer: `.gitignore`
+  // (appended per-directory in `walk`) and `exclude:` both come after, so a
+  // `!target/` negation in either overrides them.
+  yield* walk(
+    root,
+    "",
+    [...BUILTIN_SKIP_RULES, ...excludeRules],
+    io,
+    extensions,
+  );
 }
 
 async function* walk(

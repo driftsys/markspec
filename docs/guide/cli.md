@@ -73,6 +73,12 @@ exclude:
   - "*.gen.md"
 ```
 
+**Built-in skips.** File discovery always skips hidden directories (names
+starting with `.`) and the common build-output / dependency directories
+`node_modules`, `target`, `dist`, and `build`, on top of `.gitignore` and
+`exclude:`. The build-output skip is overridable — re-include one with a negated
+entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
+
 ### Directory conventions
 
 MarkSpec does not enforce a directory layout. By convention:
@@ -219,14 +225,15 @@ gate below over the whole corpus in one pass, merging findings into a single
 diagnostics stream (one text renderer, one `--format json` array, one exit-code
 computation):
 
-| Gate                            | Severity                                     | What it checks                                                                                                                    |
-| ------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Parse + structure + attributes  | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                               |
-| Traceability (incl. `MSL-L006`) | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.            |
-| Listing documents               | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                           |
-| Format drift (`MSL-F010`)       | **error**                                    | The file's current content differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.               |
-| Lockfile drift (`MSL-L212`)     | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network). |
-| Prose lint (`MSL-Q*`)           | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                        |
+| Gate                               | Severity                                     | What it checks                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parse + structure + attributes     | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                                                                                                  |
+| Traceability (incl. `MSL-L006`)    | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.                                                                               |
+| Listing documents                  | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                                                                                              |
+| Format drift (`MSL-F010`)          | **error**                                    | The file's whitespace/attribute form differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.                                                                        |
+| Reference-canon drift (`MSL-F011`) | **error**                                    | A trace value is a ULID or stale display ID that `markspec fmt` would rewrite to its canonical display ID (ADR-026 canonicalization). Distinct from `MSL-F010` so you know which fmt concern to fix. |
+| Lockfile drift (`MSL-L212`)        | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network).                                                                    |
+| Prose lint (`MSL-Q*`)              | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                                                                                           |
 
 **`markspec check <file>` (file-local) runs structural validation only.** The
 format-drift, lockfile, and prose-lint gates, and the `MSL-L006` trace-existence
@@ -539,6 +546,13 @@ markspec lock --check              # CI gate: fail if lockfile is stale
 markspec lock --update             # force re-resolve every upstream
 markspec lock --update github-foo  # force re-resolve one upstream
 ```
+
+**Upgrade note.** `markspec lock` now indexes source-file doc-comment entries in
+addition to Markdown. A project that pinned its lockfile with an older MarkSpec
+and has trace links in source files will see a one-time `MSL-L212` edge-drift
+error from bare `markspec check` until you run `markspec lock` once to refresh
+the pin — the requirements didn't change, only the set of files the lockfile
+indexes did.
 
 #### sync
 
