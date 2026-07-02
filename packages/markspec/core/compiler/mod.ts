@@ -18,7 +18,9 @@ import type {
 import { makeDisplayId } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
+  attributeCorpusDiagnostics,
   classifyEntriesStage,
+  detectCorpusCollisions,
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
@@ -70,6 +72,13 @@ export interface CompileOptions {
    * list is deduplicated and sorted for deterministic output.
    */
   readonly withContributors?: boolean;
+  /**
+   * Profile-delivered corpus entries (ADR-029), pre-loaded and
+   * origin-stamped by `loadDeliveredCorpus`. Injected AHEAD of project
+   * entries so first-entry-wins graph slots resolve to the corpus
+   * deterministically. Optional — absent means no corpus.
+   */
+  readonly corpusEntries?: readonly Entry[];
 }
 
 /**
@@ -196,7 +205,7 @@ export async function compile(
   options: CompileOptions,
 ): Promise<CompileResult> {
   const read = options.readFile;
-  const allEntries: Entry[] = [];
+  const allEntries: Entry[] = [...(options.corpusEntries ?? [])];
   const parseDiagnostics: Diagnostic[] = [];
   const documents = new Map<string, Document>();
 
@@ -352,11 +361,30 @@ export async function compile(
   // them to avoid duplicates in the output.
   const { registry: typeRegistry } = validateTypl([...entries.values()]);
 
-  const diagnostics = [
+  let diagnostics: Diagnostic[] = [
     ...parseDiagnostics,
     ...validationDiagnostics,
     ...linkTargetDiags,
   ];
+
+  // Phase 5: Corpus-aware diagnostic post-pass (ADR-029). A project entry
+  // that reuses a display ID or Id already delivered by a corpus is
+  // MSL-R014, not the generic MSL-R005/R006/I007/I008 duplicate codes —
+  // and findings located inside a corpus file are downgraded to
+  // attributed warnings so consumer builds don't go red over upstream
+  // bugs they cannot fix. No-op (and zero allocation beyond the spread
+  // above) when no corpus was injected.
+  if (options.corpusEntries && options.corpusEntries.length > 0) {
+    const collisions = detectCorpusCollisions(allEntries);
+    diagnostics = [
+      ...attributeCorpusDiagnostics(
+        diagnostics,
+        allEntries,
+        collisions.collidedTokens,
+      ),
+      ...collisions.diagnostics,
+    ];
+  }
 
   return {
     entries,

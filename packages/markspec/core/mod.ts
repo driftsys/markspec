@@ -222,9 +222,11 @@ export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 
 // Validator
 export {
+  attributeCorpusDiagnostics,
   classifyEntriesStage,
   classifyEntry,
   compileDisplayIdPattern,
+  detectCorpusCollisions,
   effectiveScope,
   effectiveTraceRules,
   matchesAnyTarget,
@@ -240,6 +242,7 @@ export {
 export type {
   ClassifyResult,
   ClassifyStageResult,
+  CorpusCollisionResult,
   EffectiveAttrScope,
   ListingFileContext,
   ListingKind,

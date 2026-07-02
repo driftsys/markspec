@@ -548,3 +548,9 @@ export {
   matchesAnyTarget,
   validateTraceabilityForEntry,
 } from "./traceability.ts";
+
+export {
+  attributeCorpusDiagnostics,
+  detectCorpusCollisions,
+} from "./corpus.ts";
+export type { CorpusCollisionResult } from "./corpus.ts";
