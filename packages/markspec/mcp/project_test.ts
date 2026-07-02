@@ -488,8 +488,11 @@ const CORPUS_MD_PATH = join(PROFILE_DIR, "reference", "platform.md");
  * `profile/` — mirroring the e2e fixture's `project.yaml` `exclude:
  * profile/` — so the corpus file reaches the graph exactly once, via
  * `loadDeliveredCorpus`, not also as an ordinary project-walked file.
+ *
+ * @param corpusMissing - When `true`, the delivered corpus file is absent
+ *   from the file map, so `loadDeliveredCorpus` emits PROFILE-DELIVERS-001.
  */
-function makeCorpusEnv(): ProjectEnv {
+function makeCorpusEnv(corpusMissing = false): ProjectEnv {
   const files = new Map<string, string>([
     [PROJECT_YAML_PATH, PROJECT_YAML],
     [MARKSPEC_YAML_PATH, "profiles:\n  - ./profile\n"],
@@ -497,6 +500,7 @@ function makeCorpusEnv(): ProjectEnv {
     [CORPUS_MD_PATH, CORPUS_MD],
     [REQ_MD_PATH, REQ_DOC],
   ]);
+  if (corpusMissing) files.delete(CORPUS_MD_PATH);
   return {
     cwd: () => PROJ,
     rootOverrides: () => [],
@@ -552,6 +556,20 @@ Deno.test("forceRefresh: still injects the delivered corpus after a forced recom
   await proj.getCompiled();
   const result = await proj.forceRefresh();
   assertExists(result.entries.get(makeDisplayId("PLT_0001")));
+});
+
+Deno.test("getCompiled: surfaces PROFILE-DELIVERS-001 when a corpus file is missing", async () => {
+  const proj = await createProject(makeCorpusEnv(true));
+  const result = await proj.getCompiled();
+  // The corpus file never reached the graph…
+  assertEquals(result.entries.get(makeDisplayId("PLT_0001")), undefined);
+  // …and the loader's missing-file error is surfaced in the compiled
+  // context, so the MCP validate tool reports what `markspec check` would.
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "PROFILE-DELIVERS-001"),
+    true,
+    `diagnostics: ${JSON.stringify(result.diagnostics.map((d) => d.code))}`,
+  );
 });
 
 Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => {

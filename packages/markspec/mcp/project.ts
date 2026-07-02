@@ -374,6 +374,18 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         corpusEntries: corpus.entries,
       });
 
+      // Surface corpus-load diagnostics (e.g. PROFILE-DELIVERS-001 for a
+      // missing delivered file) in the compiled context — CLI `check`
+      // parity: without this, the MCP validate tool reports clean on a
+      // project whose `markspec check` fails. Corpus diagnostics lead;
+      // compile diagnostics keep their own order (determinism).
+      const merged = corpus.diagnostics.length > 0
+        ? {
+          ...result,
+          diagnostics: [...corpus.diagnostics, ...result.diagnostics],
+        }
+        : result;
+
       // Snapshot mtime + SHA256 hash for the next invalidation check.
       const snapshot: TrackedFile[] = [];
       for (const path of paths) {
@@ -389,14 +401,14 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         }
       }
       tracked = snapshot;
-      cached = result;
+      cached = merged;
       // Fire handlers AFTER cache is committed but isolate handler errors so
       // one bad subscriber doesn't break others or abort the compile result.
       // Async handlers are not awaited — their rejections are caught and logged.
       for (const h of handlers) {
         const maybePromise = (() => {
           try {
-            return h(result);
+            return h(merged);
           } catch (err) {
             console.error(`InvalidationHandler sync error: ${err}`);
             return undefined;
@@ -408,7 +420,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           });
         }
       }
-      return result;
+      return merged;
     } finally {
       // Always reset the in-flight slot — success or failure — so a subsequent
       // call can retry. Without this, a single compile failure jams the cache

@@ -234,6 +234,41 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "validate tool: reports corpus-load diagnostics from the compiled context",
+  async () => {
+    // The MCP compiled context carries corpus-load diagnostics (ADR-029,
+    // merged by runCompile in project.ts) — the validate tool must render
+    // them so a missing delivered corpus file is not reported as clean.
+    const chain = makeMultiTierChain(makeTier(ROOT_DEFAULT_YAML));
+    const project = stubProject(chain);
+    const withCorpusDiag: Project = {
+      ...project,
+      getCompiled: () =>
+        Promise.resolve({
+          ...emptyCompileResult(),
+          diagnostics: [{
+            code: "PROFILE-DELIVERS-001",
+            severity: "error",
+            message:
+              "delivered corpus file 'reference/platform.md' declared by " +
+              "platform-arch@1.2.0 is missing from the profile package",
+            location: {
+              file: "/profiles/platform-arch/reference/platform.md",
+              line: 1,
+              column: 1,
+            },
+          }],
+        }),
+    };
+
+    const report = await invokeValidate(withCorpusDiag);
+
+    assertStringIncludes(report, "PROFILE-DELIVERS-001");
+    assertStringIncludes(report, "platform-arch@1.2.0");
+  },
+);
+
 import { VALIDATE_DESCRIPTOR } from "./validate.ts";
 
 Deno.test("VALIDATE_DESCRIPTOR.description: has TRIGGER/PREFER/SKIP blocks", () => {
