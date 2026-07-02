@@ -1,0 +1,152 @@
+/**
+ * @module tests/e2e/delivered_test
+ *
+ * E2E tests for profile-delivered documents (ADR-029). The differential
+ * pair below is the feature's only end-to-end proof that injecting a
+ * profile's delivered corpus into `check` actually resolves a project
+ * `Satisfies:` target: the same fixture WITH `delivers:` resolves cleanly,
+ * WITHOUT `delivers:` the identical target is unresolved (MSL-L006).
+ */
+
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { markspec } from "./helpers.ts";
+
+// Minimal project.yaml (see tests/e2e/compile_git_properties_test.ts).
+// `profile/` is excluded from project-wide discovery so the delivered
+// corpus file isn't ALSO walked and parsed as an ordinary project file —
+// it reaches the graph exactly once, via the corpus loader.
+const PROJECT_YAML = `name: profile-delivers-e2e
+version: 0.1.0
+exclude:
+  - profile/
+`;
+
+// A profile that declares two requirement-shaped types with a Satisfies
+// rule from stakeholder-requirement to platform-component, so MSL-L006 has
+// something real to fire against — without a declared trace rule, Stage 4
+// traceability never inspects `Satisfies:` at all, which would make the
+// differential pair vacuous.
+function profileManifest(delivers: string): string {
+  return `id: platform-arch
+version: 1.2.0
+markspec-schema: "1"
+profile:
+  types:
+    platform-component:
+      extends: Requirement
+      display-id-pattern: "PLT_{n:04d}"
+    stakeholder-requirement:
+      extends: Requirement
+      display-id-pattern: "STK_{n:04d}"
+      traceability:
+        Satisfies:
+          target: [platform-component]
+          cardinality: 0..1
+          required: false
+${delivers}`;
+}
+
+const WITH_DELIVERS = profileManifest(`  delivers:
+    - path: reference/platform.md
+      corpus: true
+      description: Reference platform architecture
+    - path: reference/guide.md
+`);
+
+const WITHOUT_DELIVERS = profileManifest("");
+
+// Explicit `Type:` on every entry (matching tests/e2e/check_project_test.ts's
+// convention): without it, `Satisfies` is a core-type-scoped attribute that
+// the validator can't check pre-classification, which fires an unrelated
+// MSL-T024 warning and would falsely block the "resolves cleanly" exit-0
+// assertion below.
+const CORPUS_MD = `- [PLT_0001] Platform core service
+
+  The platform core service shall expose the vehicle state bus within 50 ms of a state change.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+      Type: platform-component
+`;
+
+const GUIDE_MD = `# Integration guide\n`;
+
+const PROJECT_MD = `- [STK_0001] Vehicle state access
+
+  The system shall read the vehicle state from the platform core service within 100 ms.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FB0
+      Type: stakeholder-requirement
+      Satisfies: PLT_0001
+`;
+
+function fixture(profileYaml: string): Record<string, string> {
+  return {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": "profiles:\n  - ./profile\n",
+    "profile/markspec.yaml": profileYaml,
+    "profile/reference/platform.md": CORPUS_MD,
+    "profile/reference/guide.md": GUIDE_MD,
+    "docs/requirements.md": PROJECT_MD,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The non-droppable differential pair
+// ---------------------------------------------------------------------------
+
+Deno.test("check: Satisfies into delivered corpus resolves", async () => {
+  const { code, stderr } = await markspec(["check"], fixture(WITH_DELIVERS));
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("MSL-L006"), false, stderr);
+});
+
+Deno.test("check: without delivers the same target is unresolved", async () => {
+  const { code, stderr } = await markspec(
+    ["check"],
+    fixture(WITHOUT_DELIVERS),
+  );
+  // MSL-L006 is a warning (see core/validator/traceability.ts) — a
+  // warnings-only run exits 2, not 1.
+  assertStringIncludes(stderr, "MSL-L006");
+  assertEquals(code, 2, stderr);
+});
+
+// ---------------------------------------------------------------------------
+// Collision + missing-corpus-file gates
+// ---------------------------------------------------------------------------
+
+Deno.test("check: project entry colliding with corpus ID is MSL-R014", async () => {
+  const files = fixture(WITH_DELIVERS);
+  files["docs/collide.md"] = `- [PLT_0001] My own platform entry
+
+  The colliding entry shall report a distinct status within 10 ms.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FC0
+      Type: platform-component
+`;
+  const { code, stderr } = await markspec(["check"], files);
+  assertEquals(code, 1, stderr);
+  assertStringIncludes(stderr, "MSL-R014");
+  assertStringIncludes(stderr, "platform-arch@1.2.0");
+});
+
+Deno.test("check: missing corpus file is a PROFILE-DELIVERS-001 error", async () => {
+  const files = fixture(WITH_DELIVERS);
+  delete files["profile/reference/platform.md"];
+  const { code, stderr } = await markspec(["check"], files);
+  assertEquals(code, 1, stderr);
+  assertStringIncludes(stderr, "PROFILE-DELIVERS-001");
+});
+
+// ---------------------------------------------------------------------------
+// compileProject wiring — corpus entries reach every graph-consuming command
+// ---------------------------------------------------------------------------
+
+Deno.test("show: a corpus entry is visible without naming its file", async () => {
+  const { code, stdout, stderr } = await markspec(
+    ["show", "PLT_0001", "docs/requirements.md"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stdout, "PLT_0001");
+});

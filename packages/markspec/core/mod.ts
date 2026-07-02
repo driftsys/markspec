@@ -35,6 +35,7 @@ export type {
   CaptionConventions,
   CaptionPosition,
   ConfigFieldError,
+  DeliveredDocument,
   Diagnostic,
   Directive,
   Discipline,

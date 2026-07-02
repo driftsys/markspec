@@ -7,7 +7,12 @@
 import { Command } from "@cliffy/command";
 import { ConfigError } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
-import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
+import {
+  loadActiveProfile,
+  readFile,
+  renderDiagnosticLocation,
+  resolveScope,
+} from "../helpers.ts";
 
 export const checkCmd = new Command()
   .description("Check broken refs, missing Ids, duplicates")
@@ -58,6 +63,20 @@ export const checkCmd = new Command()
         }
       }
 
+      // Load the delivered corpus (ADR-029) — project-wide only, matching
+      // the other composite gates: a file-local `check <file>` cannot
+      // distinguish a corpus target from a typo any more than MSL-L006
+      // could, so the corpus stays out of scope there.
+      const { loadDeliveredCorpus, buildCorpusIndex } = await import(
+        "../../core/mod.ts"
+      );
+      const corpus = scope.projectWide && chain
+        ? await loadDeliveredCorpus(chain.effective.delivers, readFile)
+        : { entries: [], diagnostics: [] };
+      const corpusIndex = buildCorpusIndex(
+        scope.projectWide ? chain?.effective.delivers ?? [] : [],
+      );
+
       const {
         detectDirectives,
         parseFile,
@@ -66,6 +85,7 @@ export const checkCmd = new Command()
       } = await import("../../core/mod.ts");
 
       const allEntries = [];
+      allEntries.push(...corpus.entries);
       const parseDiagnostics: Diagnostic[] = [];
       // deno-lint-ignore no-explicit-any
       const listingContexts: any[] = [];
@@ -102,6 +122,24 @@ export const checkCmd = new Command()
         captionConventions,
         { projectWide: scope.projectWide },
       );
+
+      // Corpus-aware post-pass (ADR-029): a project entry re-declaring a
+      // display ID already delivered by the corpus becomes MSL-R014 (not
+      // the generic duplicate codes), and pipeline findings located inside
+      // a corpus file are downgraded to attributed warnings — a consumer
+      // build must not go red over an upstream bug it cannot fix. No-op
+      // when no corpus was injected.
+      const { attributeCorpusDiagnostics, detectCorpusCollisions } =
+        await import("../../core/mod.ts");
+      const collisions = detectCorpusCollisions(allEntries);
+      const pipelineDiagnostics = [
+        ...attributeCorpusDiagnostics(
+          result.diagnostics,
+          allEntries,
+          collisions.collidedTokens,
+        ),
+        ...collisions.diagnostics,
+      ];
 
       const listingDiagnostics = validateListingDocuments(listingContexts);
 
@@ -179,11 +217,12 @@ export const checkCmd = new Command()
         }
       }
 
-      // Merge parse-level (MSL-P0xx), pipeline, listing, fmt-drift,
-      // lockfile-drift, and prose-lint diagnostics.
+      // Merge parse-level (MSL-P0xx), corpus-load, pipeline, listing,
+      // fmt-drift, lockfile-drift, and prose-lint diagnostics.
       const allDiagnostics = [
         ...parseDiagnostics,
-        ...result.diagnostics,
+        ...corpus.diagnostics,
+        ...pipelineDiagnostics,
         ...listingDiagnostics,
         ...fmtDiagnostics,
         ...lockDiagnostics,
@@ -204,7 +243,7 @@ export const checkCmd = new Command()
         console.log(JSON.stringify(diagnostics, null, 2));
       } else {
         for (const d of diagnostics) {
-          const loc = d.location ? `${d.location.file}:${d.location.line}` : "";
+          const loc = renderDiagnosticLocation(d, corpusIndex);
           console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
         }
       }
