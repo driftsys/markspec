@@ -7,7 +7,12 @@
 import { Command } from "@cliffy/command";
 import { extname } from "@std/path";
 import type { LockEdge, RefIndex } from "../../core/mod.ts";
-import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
+import {
+  loadActiveProfile,
+  loadMarkdownFormatterOrExit,
+  readFile,
+  resolveScope,
+} from "../helpers.ts";
 
 export const fmtCmd = new Command()
   .description("Stamp ULIDs, fix indentation, normalize attributes")
@@ -35,22 +40,8 @@ export const fmtCmd = new Command()
         await loadActiveProfile(projectRoot);
       }
 
-      const { format, loadMarkdownFormatter } = await import(
-        "../../core/mod.ts"
-      );
-      let formatMarkdownProse: Awaited<
-        ReturnType<typeof loadMarkdownFormatter>
-      >;
-      try {
-        formatMarkdownProse = await loadMarkdownFormatter();
-      } catch (err) {
-        // The embedded dprint-markdown plugin could not be loaded (corrupt
-        // or missing WASM, restricted filesystem). Fail with a clean message
-        // rather than a raw stack trace; nothing has been written yet.
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`error: could not load the Markdown formatter: ${msg}`);
-        Deno.exit(1);
-      }
+      const { format } = await import("../../core/mod.ts");
+      const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
       // Project-aware reference canonicalisation/healing (issue #593, Slice 4).
       // Built once and reused for every file. File-local fmt (no project root)

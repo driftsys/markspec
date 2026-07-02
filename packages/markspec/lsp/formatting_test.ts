@@ -7,7 +7,29 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { buildFormattingEdits } from "./formatting.ts";
+import {
+  buildF012FallbackMessage,
+  buildFormattingEdits,
+} from "./formatting.ts";
+
+Deno.test("buildF012FallbackMessage: undefined when no MSL-F012 diagnostics", () => {
+  assertEquals(buildF012FallbackMessage([]), undefined);
+  assertEquals(
+    buildF012FallbackMessage([{ code: "MSL-F010" }, { code: "MSL-F001" }]),
+    undefined,
+  );
+});
+
+Deno.test("buildF012FallbackMessage: counts only MSL-F012 and names the count", () => {
+  const msg = buildF012FallbackMessage([
+    { code: "MSL-F012" },
+    { code: "MSL-F010" },
+    { code: "MSL-F012" },
+  ]);
+  assertEquals(typeof msg, "string");
+  assertEquals(msg!.includes("2 segment(s)"), true);
+  assertEquals(msg!.includes("MSL-F012"), true);
+});
 
 Deno.test("buildFormattingEdits: unchanged text returns empty array", () => {
   const text = "- [STK_0001] Title\n\n  Body.\n";

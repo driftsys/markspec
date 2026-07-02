@@ -8,7 +8,12 @@ import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
 import { ConfigError, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
-import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
+import {
+  loadActiveProfile,
+  loadMarkdownFormatterOrExit,
+  readFile,
+  resolveScope,
+} from "../helpers.ts";
 
 export const checkCmd = new Command()
   .description("Check broken refs, missing Ids, duplicates")
@@ -120,25 +125,10 @@ export const checkCmd = new Command()
           extractEdgeQuads,
           format,
           hashCanonicalEdges,
-          loadMarkdownFormatter,
           parseLockfile,
         } = await import("../../core/mod.ts");
 
-        let formatMarkdownProse: Awaited<
-          ReturnType<typeof loadMarkdownFormatter>
-        >;
-        try {
-          formatMarkdownProse = await loadMarkdownFormatter();
-        } catch (err) {
-          // The embedded dprint-markdown plugin could not be loaded (corrupt
-          // or missing WASM, restricted filesystem). Fail with a clean
-          // message rather than a raw stack trace.
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(
-            `error: could not load the Markdown formatter: ${msg}`,
-          );
-          Deno.exit(1);
-        }
+        const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
         // Read markspec.lock once: its edge ledger feeds reference healing
         // (MSL-F011) and its cached edge hash feeds the lockfile gate
