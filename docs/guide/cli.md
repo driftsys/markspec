@@ -577,7 +577,9 @@ addition to Markdown. A project that pinned its lockfile with an older MarkSpec
 and has trace links in source files will see a one-time `MSL-L212` edge-drift
 error from bare `markspec check` until you run `markspec lock` once to refresh
 the pin — the requirements didn't change, only the set of files the lockfile
-indexes did.
+indexes did. `markspec doctor` surfaces the same drift as a non-blocking warning
+(exit 2), so you can spot and clear it with `markspec lock` before `check`
+blocks on it in CI.
 
 #### sync
 
@@ -776,6 +778,37 @@ file, corpus parse failure):
 ```text
 Delivered documents: 2 (1 corpus entries)
 ```
+
+When a `markspec.lock` is present, `doctor` also reports whether the project's
+traceability edges still match the pin, using the same offline comparison
+`check`'s `MSL-L212` gate performs. Drift is a **warning** (exit 2) here — the
+proactive onramp so a stale lockfile is surfaced before a `markspec check` goes
+red on it (`check` keeps the hard `MSL-L212` error, exit 1):
+
+```text
+⚠ Lockfile: traceability edges drifted (locked 12, current 15) — run `markspec lock`
+```
+
+`--format json` adds a `lockfile` block:
+
+```json
+{
+  "lockfile": {
+    "present": true,
+    "edgeDrift": true,
+    "lockedEdges": 12,
+    "currentEdges": 15
+  }
+}
+```
+
+`present` is `false` when the project has no `markspec.lock`. The
+`edgeDrift`/`lockedEdges`/`currentEdges` fields appear only when the lockfile
+parses; a present-but-malformed lockfile reports `present: true` with the drift
+fields omitted (its validity is `check`'s / `lock`'s concern, not `doctor`'s).
+The drift warning uses the non-`MSL` `doctor` code `lockfile-edge-drift`, listed
+in the shared `diagnostics` array. See the `lock` [Upgrade note](#lock) for the
+one-time post-upgrade drift and how to clear it.
 
 ### AI agent integration
 

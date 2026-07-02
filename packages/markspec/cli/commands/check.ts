@@ -156,9 +156,8 @@ export const checkCmd = new Command()
         const {
           buildRefIndex,
           canonicalizeRefs,
-          extractEdgeQuads,
+          detectOfflineEdgeDrift,
           format,
-          hashCanonicalEdges,
           parseLockfile,
         } = await import("../../core/mod.ts");
 
@@ -228,15 +227,16 @@ export const checkCmd = new Command()
             // consumer gates must not fail on upstream content the consumer
             // cannot re-lock.
             const projectEntries = allEntries.filter((e) => !e.origin);
-            const quads = extractEdgeQuads(projectEntries);
-            const currentHash = await hashCanonicalEdges(quads);
-            const cache = lockParse.lockfile.generatedCache;
-            if (cache.edgesHash !== currentHash) {
+            const drift = await detectOfflineEdgeDrift(
+              projectEntries,
+              lockParse.lockfile.generatedCache,
+            );
+            if (drift.drifted) {
               lockDiagnostics.push({
                 code: "MSL-L212",
                 severity: "error",
                 message:
-                  `traceability edges drifted from markspec.lock: locked ${cache.edgesCount} edge(s), current ${quads.length} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
+                  `traceability edges drifted from markspec.lock: locked ${drift.lockedCount} edge(s), current ${drift.currentCount} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
                 location: { file: lockPath, line: 1, column: 1 },
               });
             }
