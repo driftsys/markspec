@@ -11,7 +11,14 @@ const PROJECT_YAML = `name: test-project\nversion: 0.1.0\n`;
 const MARKSPEC_YAML = `profiles:\n  - ./profiles/test\n`;
 const MINIMAL_PROFILE = `id: "@acme/test"\nversion: 0.2.0\n`;
 
-/** A valid lockfile with the given toolchain floor (or no floor when undefined). */
+/** A valid lockfile with the given toolchain floor (or no floor when undefined).
+ * The edge hash is the canonical hash of an *empty* edge set — these projects
+ * carry no entries, so an in-sync lockfile must record zero edges. A placeholder
+ * hash here would trip `doctor`'s #658 lockfile-edge-drift check and mask the
+ * toolchain-floor behaviour these tests target. */
+const EMPTY_EDGES_HASH =
+  "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945";
+
 function lockfile(floor: string | undefined): string {
   const toolchain = floor === undefined
     ? ""
@@ -23,7 +30,7 @@ markspec-schema = 1
 locked-at = "2026-05-27T12:00:00Z"
 ${toolchain}
 [generated-cache]
-edges-hash = "sha256:abc"
+edges-hash = "${EMPTY_EDGES_HASH}"
 edges-count = 0
 `;
 }

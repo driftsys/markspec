@@ -319,6 +319,7 @@ export * as typl from "./typl/mod.ts";
 export {
   canonicalEdgeJson,
   checkDrift,
+  detectOfflineEdgeDrift,
   extractEdgeLedger,
   extractEdgeQuads,
   hashCanonicalEdges,
@@ -345,6 +346,7 @@ export type {
   Lockfile,
   LockfileMeta,
   LockfileToolchain,
+  OfflineEdgeDrift,
   ParseLockfileResult,
   ReadFile as LockReadFile,
   ResolvedBoundEntry,

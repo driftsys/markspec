@@ -5,8 +5,21 @@
  */
 
 import { Command } from "@cliffy/command";
-import { isBelowFloor, parseLockfile, VERSION } from "../../core/mod.ts";
-import { compileProject, readFile, requireProjectConfig } from "../helpers.ts";
+import {
+  detectOfflineEdgeDrift,
+  discoverFiles,
+  type Entry,
+  isBelowFloor,
+  parseFile,
+  parseLockfile,
+  VERSION,
+} from "../../core/mod.ts";
+import {
+  compileProject,
+  denoDiscoveryIO,
+  readFile,
+  requireProjectConfig,
+} from "../helpers.ts";
 
 export const doctorCmd = new Command()
   .description("Project health check")
@@ -27,16 +40,21 @@ export const doctorCmd = new Command()
     // are fast and idempotent.
     const { config, projectRoot } = await requireProjectConfig();
 
-    // Toolchain floor skew (slice F): compare the running CLI version against
-    // the workspace markspec.lock min-version floor using the slice-B SSOT.
-    // A missing lockfile or missing floor means "no floor declared" — not skew.
+    // Read markspec.lock once — its floor feeds the toolchain-skew check
+    // (slice F) and its generated-cache feeds the lockfile edge-drift check
+    // (#658). A missing/unreadable file means "no lockfile"; a present-but-
+    // malformed one means "no floor / no drift" — lockfile validity is
+    // `markspec check`/`lock`'s concern, not doctor's.
     let floor: string | undefined;
+    let lockfilePresent = false;
+    let parsedLock: ReturnType<typeof parseLockfile>["lockfile"];
     try {
       const lockRaw = await Deno.readTextFile(`${projectRoot}/markspec.lock`);
-      floor = parseLockfile(lockRaw).lockfile?.meta.toolchain?.minVersion;
+      lockfilePresent = true;
+      parsedLock = parseLockfile(lockRaw).lockfile;
+      floor = parsedLock?.meta.toolchain?.minVersion;
     } catch {
-      // No lockfile (or unreadable) → no floor. Lockfile validity is the
-      // concern of `markspec check`/`lock`, not doctor.
+      // No lockfile (or unreadable) → no floor, no drift check.
     }
     const belowFloor = isBelowFloor(VERSION, floor);
 
@@ -49,6 +67,50 @@ export const doctorCmd = new Command()
         message: `CLI version ${VERSION} is below the workspace floor ${floor}`,
       }]
       : [];
+
+    // Lockfile edge-drift (#658): surface the same offline drift `check`'s
+    // MSL-L212 gate errors on, but as a non-blocking warning — the proactive
+    // onramp so a post-upgrade `check` isn't a surprise red build. Only runs
+    // when a parseable lockfile exists; the project walk is skipped otherwise
+    // so doctor stays fast when there is nothing to compare against.
+    let edgeDrift = false;
+    let lockedEdges = 0;
+    let currentEdges = 0;
+    if (parsedLock) {
+      const io = denoDiscoveryIO();
+      const projectEntries: Entry[] = [];
+      for await (
+        // Rely on discoverFiles' default extension set (RELEVANT_EXTENSIONS) —
+        // the same default `markspec lock`'s collectEntries relies on. Pinning
+        // it here would diverge the two edge collections if that default ever
+        // changes, breaking the parity the drift comparison depends on.
+        const file of discoverFiles(projectRoot, io, {
+          exclude: config.exclude,
+        })
+      ) {
+        const content = await readFile(file);
+        if (content === undefined) continue;
+        const parsed = await parseFile(content, { file });
+        projectEntries.push(...parsed.entries);
+      }
+      // Corpus-blind, mirroring `check`'s MSL-L212 gate: the lockfile never
+      // counts delivered-corpus edges (ADR-030), so neither do we.
+      const drift = await detectOfflineEdgeDrift(
+        projectEntries.filter((e) => !e.origin),
+        parsedLock.generatedCache,
+      );
+      edgeDrift = drift.drifted;
+      lockedEdges = drift.lockedCount;
+      currentEdges = drift.currentCount;
+      if (edgeDrift) {
+        diagnostics.push({
+          severity: "warning",
+          code: "lockfile-edge-drift",
+          message:
+            `traceability edges drifted from markspec.lock: locked ${lockedEdges} edge(s), current ${currentEdges} — run \`markspec lock\` to refresh (expected once after a MarkSpec upgrade)`,
+        });
+      }
+    }
 
     const leaf = chain ? chain.tiers[chain.tiers.length - 1] : null;
     const tierCount = chain ? chain.tiers.length : 0;
@@ -120,6 +182,14 @@ export const doctorCmd = new Command()
           floor: floor ?? null,
           belowFloor,
         },
+        // Drift fields only when a lockfile was actually compared (parsedLock)
+        // — a present-but-malformed lockfile reports `present: true` without
+        // the drift fields, mirroring the text output's `parsedLock` guard, so
+        // a JSON consumer never reads `edgeDrift: false` as "in sync" when no
+        // comparison ran. Lockfile validity stays `check`/`lock`'s concern.
+        lockfile: parsedLock
+          ? { present: true, edgeDrift, lockedEdges, currentEdges }
+          : { present: lockfilePresent },
         ...(modeInfo ? { disciplineCounts: counts } : {}),
         ...(effective && effective.delivers.length > 0
           ? {
@@ -153,6 +223,17 @@ export const doctorCmd = new Command()
       } else {
         console.error(`Toolchain: CLI ${VERSION} · workspace floor ${floor} ✓`);
       }
+      // Lockfile status line — only when a parseable lockfile was compared
+      // (a malformed one prints nothing; its validity is `check`'s concern).
+      if (parsedLock) {
+        if (edgeDrift) {
+          console.error(
+            `⚠ Lockfile: traceability edges drifted (locked ${lockedEdges}, current ${currentEdges}) — run \`markspec lock\``,
+          );
+        } else {
+          console.error("Lockfile: traceability edges in sync ✓");
+        }
+      }
       if (modeInfo) {
         console.error(
           `Discipline mode: ${modeInfo.value} (${modeInfo.origin})`,
@@ -177,7 +258,9 @@ export const doctorCmd = new Command()
       }
     }
 
-    // clig.dev: below-floor is a warning → exit 2 so CI can gate on toolchain
-    // skew. Hard errors (no config/profile) throw earlier and yield 1.
-    if (belowFloor || corpusIssues.length > 0) Deno.exit(2);
+    // clig.dev: warnings → exit 2 so CI can gate on toolchain skew, corpus
+    // health, or lockfile drift. Hard errors (no config/profile) throw earlier
+    // and yield 1. Lockfile drift stays exit 2 here (gentle) — the hard
+    // MSL-L212 exit 1 lives in `markspec check` (#658).
+    if (belowFloor || corpusIssues.length > 0 || edgeDrift) Deno.exit(2);
   });

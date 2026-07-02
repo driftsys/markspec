@@ -164,6 +164,18 @@ markdown-only `walkMarkdown`) is what makes the parity hold; it also widened
 `lock`'s collection to include source-file entries (a lockfile generated before
 this change needs one `markspec lock` refresh).
 
+**`doctor` shares the same comparison (#658).** The offline edge-hash comparison
+`check`'s `MSL-L212` gate performs is factored into one pure helper —
+`detectOfflineEdgeDrift(projectEntries, generatedCache)` in `core/lock/` — that
+both `check` and `doctor` call, so the two can never disagree on what "drift"
+means. `markspec doctor` runs it (when a parseable `markspec.lock` exists) and
+reports drift as a non-blocking **warning** (`lockfile-edge-drift`, exit 2) —
+the proactive onramp so a stale lockfile is surfaced before a bare
+`markspec check` hard-fails on it in CI (`check` keeps the `MSL-L212` error,
+exit 1; project policy forbids persistently demoting a real error). The `doctor`
+code is non-`MSL` (like `toolchain-below-floor`), deliberately outside the
+governed diagnostic catalogue and the ADR-012 migration.
+
 ### Known limitation
 
 Bare invocation (`check`/`lint`/`fmt` with no file arguments) discovers the
@@ -215,7 +227,9 @@ not scoped to this work.
   markdown-only corpus. This is expected; run `markspec lock` once to refresh
   the pin. Per the standing "no migration tooling until 1.0" decision, no
   migration is provided — the `MSL-L212` message names the source-file widening
-  as a possible cause so the failure is self-explanatory.
+  as a possible cause so the failure is self-explanatory. `markspec doctor`
+  additionally surfaces this drift as a non-blocking warning (#658), so it can
+  be spotted and cleared with `markspec lock` before `check` blocks on it.
 
 ## Alternatives considered
 
