@@ -9,7 +9,12 @@
  * modules it needs.
  */
 
-import { ConfigError, CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
+import {
+  ConfigError,
+  CORE_SCHEMA_VERSION,
+  corpusOriginLabel,
+  VERSION,
+} from "../core/mod.ts";
 import type {
   CompileResult,
   DeliveredDocument,
@@ -173,7 +178,7 @@ export function renderDiagnosticLocation(
   if (!diag.location) return "";
   const doc = corpusIndex.get(diag.location.file);
   if (doc) {
-    return `${doc.profileId}@${doc.profileVersion}:${doc.path}:${diag.location.line}`;
+    return `${corpusOriginLabel(doc)}:${doc.path}:${diag.location.line}`;
   }
   return `${diag.location.file}:${diag.location.line}`;
 }

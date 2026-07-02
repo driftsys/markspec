@@ -176,7 +176,14 @@ export const checkCmd = new Command()
           if (!parsed.lockfile) {
             lockDiagnostics.push(...parsed.diagnostics);
           } else {
-            const quads = extractEdgeQuads(allEntries);
+            // Corpus-blind by design: the lockfile is not corpus-aware yet
+            // (ADR-029 defers lockfile integration), so `markspec lock`
+            // never counts corpus edges. Counting them here would raise an
+            // MSL-L212 drift error that `markspec lock` can never fix —
+            // consumer gates must not fail on upstream content the consumer
+            // cannot re-lock.
+            const projectEntries = allEntries.filter((e) => !e.origin);
+            const quads = extractEdgeQuads(projectEntries);
             const currentHash = await hashCanonicalEdges(quads);
             const cache = parsed.lockfile.generatedCache;
             if (cache.edgesHash !== currentHash) {

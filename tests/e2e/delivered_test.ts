@@ -9,7 +9,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { markspec } from "./helpers.ts";
+import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
 
 // Minimal project.yaml (see tests/e2e/compile_git_properties_test.ts).
 // `profile/` is excluded from project-wide discovery so the delivered
@@ -35,6 +35,11 @@ profile:
     platform-component:
       extends: Requirement
       display-id-pattern: "PLT_{n:04d}"
+      traceability:
+        Satisfies:
+          target: [platform-component]
+          cardinality: 0..1
+          required: false
     stakeholder-requirement:
       extends: Requirement
       display-id-pattern: "STK_{n:04d}"
@@ -139,14 +144,68 @@ Deno.test("check: missing corpus file is a PROFILE-DELIVERS-001 error", async ()
 });
 
 // ---------------------------------------------------------------------------
+// Lock gate stays corpus-blind (MSL-L212 regression)
+// ---------------------------------------------------------------------------
+
+// A corpus that itself carries a trace edge (PLT_0002 → PLT_0001).
+// `markspec lock` never counts corpus edges (the corpus lives outside
+// discovery scope), so if `check`'s MSL-L212 gate counted them, it would
+// report a drift that `markspec lock` can never fix.
+const CORPUS_WITH_EDGE_MD = `${CORPUS_MD}
+- [PLT_0002] Platform diagnostics service
+
+  The platform diagnostics service shall report the vehicle state bus health within 200 ms.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FA2
+      Type: platform-component
+      Satisfies: PLT_0001
+`;
+
+Deno.test("check: lockfile gate ignores corpus edges (no MSL-L212)", async () => {
+  const files = fixture(WITH_DELIVERS);
+  files["profile/reference/platform.md"] = CORPUS_WITH_EDGE_MD;
+  // 1. Generate a lockfile — lock counts only project edges (the corpus
+  //    is outside discovery scope), so it pins 1 edge.
+  const run = await markspecPersist(["lock"], {
+    files,
+    permissions: ["--allow-net", "--allow-env", "--allow-run"],
+  });
+  try {
+    assertEquals(run.code, 0, `lock failed: ${run.stderr}`);
+    // 2. check must not count the corpus-internal PLT_0002 → PLT_0001
+    //    edge against the lockfile's project-only edge hash.
+    const { code, stderr } = await markspecInDir(run.dir, ["check"]);
+    assertEquals(stderr.includes("MSL-L212"), false, stderr);
+    assertEquals(code, 0, stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // compileProject wiring — corpus entries reach every graph-consuming command
 // ---------------------------------------------------------------------------
 
 Deno.test("show: a corpus entry is visible without naming its file", async () => {
-  const { code, stdout, stderr } = await markspec(
+  const run = await markspecPersist(
     ["show", "PLT_0001", "docs/requirements.md"],
-    fixture(WITH_DELIVERS),
+    { files: fixture(WITH_DELIVERS) },
   );
-  assertEquals(code, 0, stderr);
-  assertStringIncludes(stdout, "PLT_0001");
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertStringIncludes(run.stdout, "PLT_0001");
+    // The Source line renders the ADR-029 stable form — profile label +
+    // manifest-relative path — never the raw on-disk absolute path.
+    assertStringIncludes(
+      run.stdout,
+      "platform-arch@1.2.0:reference/platform.md",
+    );
+    assertEquals(
+      run.stdout.includes(`${run.dir}/profile/reference/platform.md`),
+      false,
+      `raw corpus path leaked into show output:\n${run.stdout}`,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
 });

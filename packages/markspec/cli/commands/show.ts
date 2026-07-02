@@ -5,8 +5,8 @@
  */
 
 import { Command } from "@cliffy/command";
-import { makeDisplayId } from "../../core/mod.ts";
-import { compileProject } from "../helpers.ts";
+import { buildCorpusIndex, makeDisplayId } from "../../core/mod.ts";
+import { compileProject, renderDiagnosticLocation } from "../helpers.ts";
 
 export const showCmd = new Command()
   .description("Show details of a single entry by ID")
@@ -16,7 +16,7 @@ export const showCmd = new Command()
   .arguments("<id:string> <paths...:string>")
   .action(
     async (options: { format?: string }, id: string, ...paths: string[]) => {
-      const { result, chain: _chain } = await compileProject(paths);
+      const { result, chain } = await compileProject(paths);
       const displayId = makeDisplayId(id);
       const entry = result.entries.get(displayId);
 
@@ -44,9 +44,16 @@ export const showCmd = new Command()
         for (const attr of entry.rawAttributes) {
           console.log(`  ${attr.key}: ${attr.value}`);
         }
-        console.log(
-          `  Source: ${entry.location.file}:${entry.location.line}:${entry.location.column}`,
+        // A corpus entry's Source renders in the stable ADR-029 form
+        // (`<profile-id>@<version>:<relative-path>:<line>`) — never the
+        // raw cache/package absolute path. Project entries keep the
+        // plain `<file>:<line>` form. Column is appended in both cases.
+        const corpusIndex = buildCorpusIndex(chain?.effective.delivers ?? []);
+        const source = renderDiagnosticLocation(
+          { location: entry.location },
+          corpusIndex,
         );
+        console.log(`  Source: ${source}:${entry.location.column}`);
         if (forwardLinks.length > 0) {
           console.log("  Outgoing links:");
           for (const link of forwardLinks) {
