@@ -262,6 +262,116 @@ Deno.test("export csv: origin column distinguishes corpus from project", async (
   assertEquals(projectRow?.endsWith(",project"), true, projectRow);
 });
 
+// ---------------------------------------------------------------------------
+// Prose lint is corpus-blind (review fix 1) + --strict stays corpus-blind
+// (review fix 2)
+// ---------------------------------------------------------------------------
+
+// Prose lint's scope filter (`isProseScope`) resolves core types WITHOUT the
+// profile, so entries typed with profile-declared names never enter prose
+// scope — only core-resolvable ones do. `REQ_`-prefixed display IDs resolve
+// via step-4 prefix inference (REQ → Requirement), so a declared `requirement`
+// type with a `REQ_` pattern gives us entries that BOTH classify cleanly (no
+// MSL-T003) AND are prose-scoped. "shall be exposed" trips MSL-Q300 (passive).
+const WITH_DELIVERS_AND_REQ_TYPE = profileManifest(`    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ_{n:04d}"
+  delivers:
+    - path: reference/platform.md
+      corpus: true
+      description: Reference platform architecture
+    - path: reference/guide.md
+`);
+
+// Extra corpus entry with a passive normative sentence. Advisory prose lint
+// must never run on delivered corpus — a consumer cannot fix an upstream
+// profile's prose.
+const PASSIVE_CORPUS_MD = `${CORPUS_MD}
+- [REQ_0900] Bus exposure statement
+
+  The bus shall be exposed by the service.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FA9
+`;
+
+// Project entry tripping the identical rule, proving prose lint still runs
+// on project entries — this isn't a blanket disable of MSL-Q300.
+const PASSIVE_PROJECT_MD = `- [REQ_0901] Diagnostics access
+
+  The fault log shall be exposed by the service.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FD0
+`;
+
+Deno.test("check: prose lint runs on project entries but never on delivered corpus", async () => {
+  const files = fixture(WITH_DELIVERS_AND_REQ_TYPE);
+  files["profile/reference/platform.md"] = PASSIVE_CORPUS_MD;
+  files["docs/passive.md"] = PASSIVE_PROJECT_MD;
+  const { code, stderr } = await markspec(["check"], files);
+  const proseLines = stderr.split("\n").filter((l) => l.includes("MSL-Q"));
+  // Project-side passive sentence still fires — prose lint isn't disabled
+  // outright, only filtered by origin.
+  assertEquals(
+    proseLines.some((l) => l.includes("passive.md") && l.includes("MSL-Q300")),
+    true,
+    `project-side MSL-Q300 missing:\n${stderr}`,
+  );
+  // The corpus file's identical passive sentence must never surface.
+  assertEquals(
+    proseLines.filter((l) => l.includes("platform.md")),
+    [],
+    `corpus-located prose finding leaked into check output:\n${stderr}`,
+  );
+  assertEquals(code, 2, stderr); // advisory only — warnings, no errors
+});
+
+Deno.test("check --strict: corpus-attributed warning is not promoted to error", async () => {
+  const files = fixture(WITH_DELIVERS);
+  // A corpus-internal unresolved trace target (MSL-L006, warning severity)
+  // — same fixture pattern as the lock-gate test above, but the target
+  // doesn't exist anywhere, so it can never resolve.
+  files["profile/reference/platform.md"] = `${CORPUS_MD}
+- [PLT_0002] Platform diagnostics service
+
+  The platform diagnostics service shall report the vehicle state bus health within 200 ms.
+
+      Id: 01ARZ3NDEKTSV4RRFFQ69G5FA2
+      Type: platform-component
+      Satisfies: PLT_9999
+`;
+  const { code, stderr } = await markspec(["check", "--strict"], files);
+  assertStringIncludes(stderr, "MSL-L006");
+  // --strict must not promote the attributed warning to an error the
+  // consumer has no way to fix.
+  assertEquals(code, 2, stderr);
+});
+
+// ---------------------------------------------------------------------------
+// Determinism (spec §10, review fix 5)
+// ---------------------------------------------------------------------------
+
+Deno.test("export json: delivered corpus output is deterministic across runs", async () => {
+  // Two runs against the SAME directory — file observed-facts (mtime)
+  // are then identical, so any stdout difference is real nondeterminism
+  // in corpus injection order or graph serialization.
+  const run1 = await markspecPersist(
+    ["export", "json", "docs/requirements.md"],
+    { files: fixture(WITH_DELIVERS) },
+  );
+  try {
+    assertEquals(run1.code, 0, run1.stderr);
+    const run2 = await markspecInDir(run1.dir, [
+      "export",
+      "json",
+      "docs/requirements.md",
+    ]);
+    assertEquals(run2.code, 0, run2.stderr);
+    assertEquals(run1.stdout, run2.stdout);
+  } finally {
+    await Deno.remove(run1.dir, { recursive: true });
+  }
+});
+
 Deno.test("profile show: missing corpus file is surfaced, not '0 entries'", async () => {
   // `profile show` does NOT route through compileProject, so a missing
   // corpus file (PROFILE-DELIVERS-001, fatal everywhere else) is reachable

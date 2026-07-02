@@ -213,7 +213,11 @@ export const checkCmd = new Command()
       const proseDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
         const { runLint } = await import("../../core/mod.ts");
-        const lintResult = await runLint({ entries: allEntries });
+        // Prose lint never runs on delivered corpus entries (ADR-029) — a
+        // consumer cannot fix an upstream profile's prose.
+        const lintResult = await runLint({
+          entries: allEntries.filter((e) => !e.origin),
+        });
         for (const d of lintResult.diagnostics) {
           proseDiagnostics.push({
             code: d.code,
@@ -236,10 +240,25 @@ export const checkCmd = new Command()
         ...proseDiagnostics,
       ];
 
-      // Apply --strict: promote warnings to errors.
+      // Apply --strict: promote warnings to errors. Corpus-attributed
+      // findings are exempt (ADR-029) — a consumer cannot fix upstream
+      // content, so promoting them would create unfixable red builds.
+      // Tracked by identity, not by message matching: everything the
+      // corpus loader emitted (attributed parse findings + the docs-only
+      // missing-file warning PROFILE-DELIVERS-002), plus every pipeline
+      // finding located inside a delivered corpus file (the downgraded
+      // attributed warnings from attributeCorpusDiagnostics).
+      const strictExempt = new Set<Diagnostic>(corpus.diagnostics);
+      for (const d of pipelineDiagnostics) {
+        if (d.location && corpusIndex.has(d.location.file)) {
+          strictExempt.add(d);
+        }
+      }
       const diagnostics = options.strict
         ? allDiagnostics.map((d) =>
-          d.severity === "warning" ? { ...d, severity: "error" as const } : d
+          d.severity === "warning" && !strictExempt.has(d)
+            ? { ...d, severity: "error" as const }
+            : d
         )
         : allDiagnostics;
 
