@@ -1341,6 +1341,22 @@ connection.onDocumentFormatting(async (params) => {
     formatMarkdownProse: await loadMarkdownFormatter(),
   });
 
+  // Surface Markdown-pass fallbacks (MSL-F012, info): a body or prose
+  // segment whose dprint output was rejected/errored and kept as-is. The
+  // CLI prints these to stderr; in the editor they would otherwise vanish
+  // (format-time diagnostics don't flow through publishDiagnostics). One
+  // logMessage summary keeps the editor's output channel informed without
+  // a toast per save.
+  const fallbackCount = result.diagnostics.filter((d) =>
+    d.code === "MSL-F012"
+  ).length;
+  if (fallbackCount > 0) {
+    connection.console.info(
+      `markspec: kept the original text for ${fallbackCount} ` +
+        `segment(s) — the Markdown formatter was not applied (MSL-F012)`,
+    );
+  }
+
   // On parse failure the formatter returns `output === input` and emits
   // diagnostics via its existing channel — clients see them through the
   // ordinary publishDiagnostics flow. Returning `null` here would be wrong

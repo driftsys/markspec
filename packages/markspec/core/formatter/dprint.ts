@@ -42,21 +42,29 @@ export type ProseFormatter = (
  * "lf" because `format()` operates on a pure-LF buffer and re-applies
  * the file's detected line ending on output.
  */
-export const MARKSPEC_MARKDOWN_GLOBAL_CONFIG: {
+export const MARKSPEC_MARKDOWN_GLOBAL_CONFIG: Readonly<{
   lineWidth: number;
   newLineKind: "lf";
-} = {
+}> = Object.freeze({
   lineWidth: 80,
   newLineKind: "lf",
-};
+});
 
-/** Plugin-level style knobs. See ADR-029 for the rationale per value. */
-export const MARKSPEC_MARKDOWN_PLUGIN_CONFIG: Record<string, unknown> = {
+/** Plugin-level style knobs. See ADR-029 for the rationale per value.
+ *
+ * Frozen: this is the single canonical MarkSpec style, exported through the
+ * public barrel. Freezing stops a consumer from mutating the shared object
+ * after the formatter has already baked these values in at `instantiate()`
+ * (which would drift the entry-body width budget from the whole-document
+ * formatter — see `emitBodyViaAst`). */
+export const MARKSPEC_MARKDOWN_PLUGIN_CONFIG: Readonly<
+  Record<string, unknown>
+> = Object.freeze({
   textWrap: "always",
   emphasisKind: "underscores",
   strongKind: "asterisks",
   unorderedListKind: "dashes",
-};
+});
 
 let cached: Promise<ProseFormatter> | undefined;
 

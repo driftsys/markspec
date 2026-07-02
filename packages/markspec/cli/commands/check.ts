@@ -124,7 +124,21 @@ export const checkCmd = new Command()
           parseLockfile,
         } = await import("../../core/mod.ts");
 
-        const formatMarkdownProse = await loadMarkdownFormatter();
+        let formatMarkdownProse: Awaited<
+          ReturnType<typeof loadMarkdownFormatter>
+        >;
+        try {
+          formatMarkdownProse = await loadMarkdownFormatter();
+        } catch (err) {
+          // The embedded dprint-markdown plugin could not be loaded (corrupt
+          // or missing WASM, restricted filesystem). Fail with a clean
+          // message rather than a raw stack trace.
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(
+            `error: could not load the Markdown formatter: ${msg}`,
+          );
+          Deno.exit(1);
+        }
 
         // Read markspec.lock once: its edge ledger feeds reference healing
         // (MSL-F011) and its cached edge hash feeds the lockfile gate
