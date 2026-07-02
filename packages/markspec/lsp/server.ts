@@ -1331,6 +1331,9 @@ connection.onRenameRequest(async (params) => {
   // and fall back to reading from disk.
   const changes: Record<string, LspTextEdit[]> = {};
   for (const path of index.getFilePaths()) {
+    // Delivered corpus files are read-only (ADR-029) — a project-ID rename
+    // must never emit WorkspaceEdits against the profile cache.
+    if (corpusFilePaths.has(path)) continue;
     const uri = pathToUri(path);
     let text: string | undefined;
     const openDoc = documents.get(uri);
@@ -1409,6 +1412,8 @@ connection.onDocumentFormatting((params) => {
   // Spec §3.4: non-MarkSpec files MUST return an empty TextEdit[], not null
   // (null would be interpreted as "no opinion" / fall through to other formatters).
   if (!isMarkspecFile(filePath)) return [];
+  // Delivered corpus files are read-only (ADR-029) — never format them.
+  if (corpusFilePaths.has(filePath)) return [];
 
   const currentText = document.getText();
   const result = format(currentText, { file: filePath });
