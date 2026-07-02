@@ -7,3 +7,6 @@ license: MIT
 repository: https://github.com/driftsys/markspec
 exclude:
   - "skills/"
+  - "docs/examples/"
+  - "CHANGELOG.md"
+  - "docs/product/ast-fidelity-matrix.md"
