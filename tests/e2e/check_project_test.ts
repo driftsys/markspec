@@ -133,6 +133,20 @@ Deno.test("check: unformatted file fails the gate with MSL-F010", async () => {
   assertEquals(code, 1); // error severity blocks
 });
 
+Deno.test("check: markdown-only prose drift fails the gate with MSL-F010 (ADR-029)", async () => {
+  const { code, stderr } = await markspec(["check"], {
+    files: {
+      ...BASE_FILES,
+      // No entries at all — but the asterisk bullet is not the
+      // canonical dash form, so the ADR-029 whole-document pass
+      // reports fmt drift.
+      "docs/overview.md": "# Overview\n\n* asterisk bullet\n",
+    },
+  });
+  assertStringIncludes(stderr, "MSL-F010");
+  assertEquals(code, 1);
+});
+
 Deno.test("check: formatted project does not emit MSL-F010", async () => {
   const { code, stderr } = await markspec(["check"], {
     files: { ...BASE_FILES, "docs/req.md": CLEAN_REQ },

@@ -34,7 +34,10 @@ export const fmtCmd = new Command()
         await loadActiveProfile(projectRoot);
       }
 
-      const { format } = await import("../../core/mod.ts");
+      const { format, loadMarkdownFormatter } = await import(
+        "../../core/mod.ts"
+      );
+      const formatMarkdownProse = await loadMarkdownFormatter();
 
       // Project-aware reference canonicalisation/healing (issue #593, Slice 4).
       // Built once and reused for every file. File-local fmt (no project root)
@@ -76,7 +79,7 @@ export const fmtCmd = new Command()
           continue;
         }
 
-        const result = format(content, { file: filePath });
+        const result = format(content, { file: filePath, formatMarkdownProse });
         let output = result.output;
         let changed = result.changed;
 

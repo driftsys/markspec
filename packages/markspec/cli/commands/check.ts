@@ -111,9 +111,14 @@ export const checkCmd = new Command()
       // `markspec fmt` never rewrites source files.
       const fmtDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const { format } = await import("../../core/mod.ts");
+        const { format, loadMarkdownFormatter } = await import(
+          "../../core/mod.ts"
+        );
+        const formatMarkdownProse = await loadMarkdownFormatter();
         for (const [filePath, content] of mdContents) {
-          if (format(content, { file: filePath }).changed) {
+          if (
+            format(content, { file: filePath, formatMarkdownProse }).changed
+          ) {
             fmtDiagnostics.push({
               code: "MSL-F010",
               severity: "error",
