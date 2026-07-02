@@ -117,9 +117,12 @@ export const checkCmd = new Command()
           extractEdgeQuads,
           format,
           hashCanonicalEdges,
+          loadMarkdownFormatter,
           parseLockfile,
         } = await import("../../core/mod.ts");
         const { join } = await import("@std/path");
+
+        const formatMarkdownProse = await loadMarkdownFormatter();
 
         // Read markspec.lock once: its edge ledger feeds reference healing
         // (MSL-F011) and its cached edge hash feeds the lockfile gate
@@ -142,7 +145,10 @@ export const checkCmd = new Command()
         // never rewrites source files.
         const refIndex = buildRefIndex(allEntries);
         for (const [filePath, content] of mdContents) {
-          const formatted = format(content, { file: filePath });
+          const formatted = format(content, {
+            file: filePath,
+            formatMarkdownProse,
+          });
           if (formatted.changed) {
             fmtDiagnostics.push({
               code: "MSL-F010",

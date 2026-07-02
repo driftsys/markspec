@@ -4,7 +4,7 @@
  * E2E tests for `markspec fmt` subcommand.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { fromFileUrl, join } from "@std/path";
 
 const CLI_ENTRY = fromFileUrl(
@@ -278,8 +278,10 @@ Deno.test("format: EARS keywords lowercased mid-sentence, preserved sentence-ini
   assertStringIncludes(output, "When invalid");
   // Mid-sentence "When" (after ", and ") → lowercased
   assertStringIncludes(output, "reports when errors");
-  // Mid-sentence "While" (after "and ") → lowercased
-  assertStringIncludes(output, "and while running");
+  // Mid-sentence "While" (after "and ") → lowercased. Match across
+  // whitespace — ADR-029's 80-column prose wrap may re-flow this onto
+  // the next line, so the separator is not always a single space.
+  assertMatch(output, /and\s+while running/);
 });
 
 Deno.test("format: lowercases uppercase modal keywords in body prose", async () => {
@@ -507,7 +509,7 @@ Deno.test(
     //   - UPPERCASE modal keywords (SHALL, MUST) — must be lowercased
     //   - Extra consecutive blank lines in the body — must be collapsed
     //   - A fenced code block — must be preserved verbatim
-    //   - A GFM table — must round-trip byte-identically
+    //   - A GFM table — must survive, realigned to ADR-029's canonical form
     const input = `# Test
 
 - [SRS_BRK_0001] Sensor debouncing
@@ -550,9 +552,10 @@ Deno.test(
       "```rust\n  fn debounce(v: u32) -> u32 { v }\n  ```",
     );
 
-    // Table must be present (byte-identical round-trip via AST).
+    // Table must be present, aligned to ADR-029's canonical dprint form
+    // (padded cells, spaced pipes — not the byte-identical input divider).
     assertStringIncludes(out1, "| Signal | Threshold |");
-    assertStringIncludes(out1, "|--------|-----------|");
+    assertStringIncludes(out1, "| ------ | --------- |");
 
     // Idempotence: second format produces the exact same output.
     const pass2 = await runFormat({ "req.md": out1 });
@@ -639,11 +642,13 @@ Deno.test(
 );
 
 Deno.test(
-  "format: safe fallback — hard line break body preserved and idempotent",
+  "format: hard line break body is canonicalized to backslash form and idempotent (ADR-029)",
   async () => {
     // Two trailing spaces before `\n` form a CommonMark hard line break.
-    // The AST round-trip does not yet guarantee preservation of trailing
-    // spaces, so the mismatch branch must keep the original string.
+    // ADR-029's whole-document Markdown pass (dprint) canonicalizes this
+    // to the backslash-continuation form — CommonMark-semantically
+    // equivalent (gated by `markdownSemanticallyEquivalent`), not
+    // byte-identical to the trailing-space input.
     const body = "Line one.  \nLine two.";
     const doc = makeCanonicalDoc(body);
 
@@ -651,19 +656,14 @@ Deno.test(
     assertEquals(pass1.code, 0);
     const out1 = await pass1.readFile("req.md");
 
-    // The two trailing spaces (hard line break marker) must not be stripped.
-    assertEquals(
-      /Line one\. {2}\n/.test(out1),
-      true,
-      `hard line break (two trailing spaces) should be preserved; output:\n${
+    // The hard line break must survive as a backslash continuation —
+    // not stripped, not merged into a single line.
+    assertStringIncludes(
+      out1,
+      "Line one.\\\n  Line two.",
+      `hard line break should survive as a backslash continuation; output:\n${
         JSON.stringify(out1)
       }`,
-    );
-
-    assertEquals(
-      out1,
-      doc,
-      `format should be a no-op on a canonical doc with a hard-line-break body; output:\n${out1}`,
     );
 
     const pass2 = await runFormat({ "req.md": out1 });
@@ -713,12 +713,14 @@ Deno.test(
 );
 
 Deno.test(
-  "format: safe fallback — setext heading inside body preserved and idempotent (§5.4 no-loss)",
+  "format: setext heading inside body is canonicalized to ATX form and idempotent (§5.4 no-loss, ADR-029)",
   async () => {
     // A setext heading (underline style) is a valid Markdown construct. It is
-    // an MSL-B040 validation error (headings inside entry bodies are not allowed
-    // by the spec) but the FORMATTER must still NOT destroy it — §5.4 guarantees
-    // no loss of information. The safe fallback keeps the original string.
+    // an MSL-B040 validation error (headings inside entry bodies are not
+    // allowed by the spec), but the FORMATTER must still not destroy the
+    // heading text — §5.4 guarantees no loss of information. ADR-029's
+    // Markdown pass (dprint) canonicalizes the setext underline to ATX
+    // (`## Subheading`) rather than preserving the underline byte-identically.
     const body = "Subheading\n----------\n\nBody paragraph.";
     const doc = makeCanonicalDoc(body);
 
@@ -726,22 +728,16 @@ Deno.test(
     assertEquals(pass1.code, 0);
     const out1 = await pass1.readFile("req.md");
 
-    // The setext underline must survive.
+    // The heading text must survive, now in canonical ATX form.
     assertStringIncludes(
       out1,
-      "----------",
-      `setext heading underline should be preserved; output:\n${out1}`,
+      "## Subheading",
+      `setext heading should be canonicalized to ATX form; output:\n${out1}`,
     );
     assertStringIncludes(
       out1,
-      "Subheading",
-      `setext heading text should be preserved; output:\n${out1}`,
-    );
-
-    assertEquals(
-      out1,
-      doc,
-      `format should be a no-op on a canonical doc with a setext-heading body; output:\n${out1}`,
+      "Body paragraph.",
+      `body paragraph should be preserved; output:\n${out1}`,
     );
 
     const pass2 = await runFormat({ "req.md": out1 });
@@ -777,29 +773,29 @@ Deno.test("format: reports summary to stderr", async () => {
 // Formatter fallback guard — regression test (ADR-014 §Decision-2)
 //
 // The formatter's emitBodyViaAst() uses a safe conditional fallback:
-//   render(buildBodyAst(body)) === body  →  emit via AST
-//   otherwise                           →  keep original string body
+//   astEquivalent(buildBodyAst(emittedBody), canonical)  →  emit via AST
+//   otherwise                                           →  keep original body
 //
-// The build/render inverse is NOT total over valid Markdown.  Bodies that
-// contain constructs not yet covered by the equivalence gate (hard line
-// breaks, setext headings, link-reference definitions, thematic breaks, …)
-// do not round-trip and MUST be left byte-identical by the formatter.
-//
-// This test uses a hard line break (`line  \nline`) — verified to NOT
-// round-trip: render(buildBodyAst("Line one  \nLine two")) returns
-// "Line oneLine two" (the two trailing spaces and newline are lost).
+// ADR-029 adds a further polish step, applied AFTER the AST emit succeeds:
+// the emitted body is run through the whole-document Markdown formatter
+// (dprint), gated by CommonMark-semantic equivalence rather than the
+// byte-identical relation this test originally verified. A hard line break
+// (`line  \nline`) round-trips through the AST fine, so it now reaches the
+// polish step, which canonicalizes it to the backslash-continuation form.
 //
 // If someone removes the fallback guard in emitBodyViaAst(), the formatter
-// will corrupt hard-line-break bodies (stripping the trailing spaces +
-// newline) and this test will fail.  That is the INTENDED guard.
+// could still corrupt bodies with constructs the AST doesn't cover at all
+// (thematic breaks, link-reference definitions, …) — see the "safe
+// fallback" tests above, which still hold.
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "format: entry body with hard line break is preserved byte-identically (fallback guard — ADR-014 §Decision-2)",
+  "format: entry body with hard line break is canonicalized to backslash form and idempotent (ADR-029)",
   async () => {
     // The body contains a hard line break: two trailing spaces before \n.
-    // render(buildBodyAst(body)) !== body for this construct, so the
-    // formatter MUST take the string-fallback path, leaving it untouched.
+    // ADR-029's Markdown pass canonicalizes this to a backslash
+    // continuation — CommonMark-semantically equivalent, not
+    // byte-identical to the trailing-space input.
     const input = [
       "# Test",
       "",
@@ -821,11 +817,11 @@ Deno.test(
 
     const out1 = await pass1.readFile("req.md");
 
-    // The hard line break (two trailing spaces before newline) must be intact.
-    assertEquals(
-      out1.includes("This sentence ends here.  \n"),
-      true,
-      `formatter must preserve the hard line break (two trailing spaces) byte-identically; got:\n${out1}`,
+    // The hard line break must survive as a backslash continuation.
+    assertStringIncludes(
+      out1,
+      "This sentence ends here.\\\n  This continues on the next line.",
+      `hard line break should survive as a backslash continuation; got:\n${out1}`,
     );
 
     // Idempotency: a second pass must not touch the already-canonical file.
@@ -936,3 +932,89 @@ Deno.test(
     assertStringIncludes(out, "Id: 01");
   },
 );
+
+// ---------------------------------------------------------------------------
+// Whole-document Markdown formatting (ADR-029, #649)
+// ---------------------------------------------------------------------------
+
+Deno.test("fmt: aligns misaligned tables in entry bodies (#649)", async () => {
+  const input = `- [STK_0006] Misaligned table
+
+  Intro prose.
+
+  | Mode | Longer heading |
+  |--|--|
+  | Fast | x |
+  | Safe | a much longer cell value |
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPA
+`;
+  const { code, readFile } = await runFormat({ "t.md": input });
+  assertEquals(code, 0);
+  const out = await readFile("t.md");
+  assertStringIncludes(out, "| Safe | a much longer cell value |");
+  assertStringIncludes(out, "| Fast | x                        |");
+});
+
+Deno.test("fmt: wraps ragged prose chapters at 80 columns", async () => {
+  const long =
+    "This overview chapter line is deliberately much longer than the eighty column limit so the formatter must wrap it.";
+  const input =
+    `# Overview\n\n${long}\n\n- [STK_0007] E\n\n  B.\n\n      Id: 01JADYKACKQKGVGHT9K7Y6PBPC\n`;
+  const { code, readFile } = await runFormat({ "t.md": input });
+  assertEquals(code, 0);
+  const out = await readFile("t.md");
+  for (const line of out.split("\n")) {
+    if (line.length > 80 && !line.includes("|")) {
+      throw new Error(`prose line exceeds 80 cols: ${line}`);
+    }
+  }
+});
+
+Deno.test("fmt: soft-limit contract — wide tables and long URLs stay single-line", async () => {
+  const url =
+    "<https://example.com/a/very/long/url/that/exceeds/eighty/columns/deliberately/xyz>";
+  const input =
+    `Prose with ${url} inside.\n\n| A wide table heading here | another wide heading here | third wide heading |\n|--|--|--|\n| a | b | c |\n`;
+  const { code, readFile } = await runFormat({ "t.md": input });
+  assertEquals(code, 0);
+  const out = await readFile("t.md");
+  assertStringIncludes(out, "https://example.com/a/very/long/url");
+  assertStringIncludes(
+    out,
+    "| A wide table heading here | another wide heading here | third wide heading |",
+  );
+});
+
+Deno.test("fmt: preserves CRLF line endings through the markdown pass", async () => {
+  const input = "Ragged\r\nprose line that is short.\r\n";
+  const { code, readFile } = await runFormat({ "t.md": input });
+  assertEquals(code, 0);
+  const out = await readFile("t.md");
+  assertStringIncludes(out, "\r\n");
+  assertEquals(
+    out.includes("\n") && !out.replace(/\r\n/g, "").includes("\n"),
+    true,
+  );
+});
+
+Deno.test("fmt --check: exits 1 on markdown-only drift", async () => {
+  const { code } = await runFormat(
+    { "t.md": "* asterisk bullet\n" },
+    ["--check"],
+  );
+  assertEquals(code, 1);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-029 scope guard — the whole-document markdown pass must never touch
+// source files, even when passed explicitly on the command line.
+// ---------------------------------------------------------------------------
+
+Deno.test("fmt: never rewrites source files passed explicitly (ADR-029 scope guard)", async () => {
+  const rust =
+    'fn main() {\n    let x = compute(1, 2);\n    println!("{}", x);\n}\n';
+  const { code, readFile } = await runFormat({ "main.rs": rust });
+  assertEquals(code, 0);
+  assertEquals(await readFile("main.rs"), rust);
+});

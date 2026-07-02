@@ -5,6 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
+import { extname } from "@std/path";
 import type { LockEdge, RefIndex } from "../../core/mod.ts";
 import { loadActiveProfile, readFile, resolveScope } from "../helpers.ts";
 
@@ -34,7 +35,10 @@ export const fmtCmd = new Command()
         await loadActiveProfile(projectRoot);
       }
 
-      const { format } = await import("../../core/mod.ts");
+      const { format, loadMarkdownFormatter } = await import(
+        "../../core/mod.ts"
+      );
+      const formatMarkdownProse = await loadMarkdownFormatter();
 
       // Project-aware reference canonicalisation/healing (issue #593, Slice 4).
       // Built once and reused for every file. File-local fmt (no project root)
@@ -76,7 +80,21 @@ export const fmtCmd = new Command()
           continue;
         }
 
-        const result = format(content, { file: filePath });
+        // ADR-029's whole-document markdown pass is Markdown-only:
+        // `resolveScope`'s explicit-file branch passes any named file
+        // through regardless of extension (its filter only applies to
+        // bare/directory scope), so a source file (e.g. `main.rs`) reaching
+        // here without this guard would have dprint join its lines as
+        // Markdown paragraphs — destructive, and undetectable by the
+        // CommonMark-semantic equivalence gate (line-joining is
+        // wrap-equivalent as Markdown).
+        const isMarkdown = MARKDOWN_EXTENSIONS.has(
+          extname(filePath).toLowerCase(),
+        );
+        const result = format(content, {
+          file: filePath,
+          formatMarkdownProse: isMarkdown ? formatMarkdownProse : undefined,
+        });
         let output = result.output;
         let changed = result.changed;
 

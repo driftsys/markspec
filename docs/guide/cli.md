@@ -105,7 +105,8 @@ Profile configuration (`.markspec.yaml` and profile manifests) is covered in the
 
 #### fmt
 
-Stamp ULIDs, fix indentation, normalize attributes.
+Stamp ULIDs, fix indentation, normalize attributes, and format the whole
+Markdown document — entry mechanics and surrounding prose in one pass (ADR-029).
 
 ```sh
 # the whole project's markdown — what you run before committing
@@ -135,6 +136,26 @@ requires a discoverable `project.yaml`; outside a project it errors rather than
 silently scanning the cwd. `fmt`'s scope is markdown-only — the formatter never
 rewrites source files, unlike `check`/`lint` which also cover source doc
 comments.
+
+**Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
+formats the entire Markdown document — headings, lists, tables, and prose —
+through an embedded dprint-markdown plugin, with one fixed, zero-config style:
+80-column line width, always-wrap prose, underscore emphasis, asterisk strong,
+dash bullet lists, and the file's own line-ending convention preserved.
+
+- **80 columns is a soft target, not a hard cap.** Table rows, links and
+  reference definitions, and inline code spans are never split to fit — they may
+  exceed 80 columns when they can't be broken.
+- **`<!-- dprint-ignore -->` and `<!-- dprint-ignore-start/end -->`** work as a
+  per-block opt-out, same as external dprint. An ignore-start/end pair MUST NOT
+  span an entry block — entry blocks and surrounding prose format as separate
+  segments, so a range that straddles both is not honored across the boundary.
+- **Files that must stay unformatted** (long attribute-value lines in showcase
+  docs, generated files) use `project.yaml` `exclude:` — the same mechanism
+  `check`/`lint` use, not a new flag.
+- **Every rewrite is safety-gated.** If reformatting an entry body would change
+  its meaning, `fmt` keeps the original text for that entry and reports an
+  advisory `MSL-F012` instead of silently doing nothing or corrupting content.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
 recursively with `.gitignore` (and the built-in hidden-directory skip) applied —

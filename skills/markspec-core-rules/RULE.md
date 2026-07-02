@@ -27,6 +27,7 @@ MarkSpec entry blocks, then `markspec check <file>` to verify it. The formatter:
 - stamps missing `Id:` ULIDs
 - normalises trailer indentation to 6 spaces
 - adds missing trailing backslashes on multi-line attribute values
+- formats the surrounding Markdown (wrap at 80, tables, lists — ADR-029)
 
 Committing unformatted files causes the pre-commit hook to fail and creates
 noisy format-only diff commits.

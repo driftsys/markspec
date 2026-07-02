@@ -210,6 +210,12 @@ export type {
 // Formatter
 export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
+export {
+  loadMarkdownFormatter,
+  MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
+  MARKSPEC_MARKDOWN_PLUGIN_CONFIG,
+} from "./formatter/dprint.ts";
+export type { ProseFormatOptions, ProseFormatter } from "./formatter/dprint.ts";
 
 // Validator
 export {

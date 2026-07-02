@@ -222,7 +222,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 
 | Command                               | Module                            | Purpose                                                                                                                                                                                                                      |
 | ------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes. Bare = whole-project markdown scope.                                                                                                                                     |
+| `markspec fmt [...files]`             | `core/formatter`                  | Stamp ULIDs, fix indentation, normalize attributes, and format the whole Markdown document (ADR-029). Bare = whole-project markdown scope.                                                                                   |
 | `markspec check [...files]`           | `core/validator` + gates          | Composite gate: structure, traceability, listing docs, fmt drift (MSL-F010 + MSL-F011 reference canon), offline lockfile drift (MSL-L212), advisory prose lint. Bare = whole project; the extra gates run project-wide only. |
 | `markspec compile <paths...>`         | `core/compiler`                   | Parse all files, build traceability graph, output compiled JSON.                                                                                                                                                             |
 | `markspec show <id> <paths...>`       | `core/compiler`                   | Show details of a single entry by display ID or ULID.                                                                                                                                                                        |
@@ -445,6 +445,12 @@ docs/
   `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots
   deliberately dropped (unimplemented on Claude Code); soft gate names the
   searched dirs
+- `adr-029-whole-document-markdown-formatting.md` — `markspec fmt` formats the
+  entire Markdown document by default via an embedded, exact-pinned
+  dprint-markdown WASM plugin; fixed zero-config style (80-column soft limit,
+  `textWrap: always`); dprint rewrites are gated by a CommonMark-semantic
+  equivalence comparator with an MSL-F012 fallback; `check`'s MSL-F010 now
+  covers prose drift
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

@@ -53,6 +53,8 @@ markspec fmt <file>
 - Stamps any missing `Id:` ULIDs.
 - Normalises trailer indent to 6 spaces.
 - Adds missing trailing backslashes on multi-line attribute values.
+- Formats the whole Markdown document — headings, lists, tables, prose
+  (ADR-029).
 
 Run this before committing. See the
 [git hooks recipe](../../../docs/guide/recipes/git-hooks.md) for pre-commit
