@@ -63,9 +63,18 @@ let cached: Promise<ProseFormatter> | undefined;
 /**
  * Load the dprint-markdown WASM plugin (once — subsequent calls return
  * the cached instance) and return a synchronous prose formatter.
+ *
+ * A failed instantiation is NOT cached: the rejected promise is cleared
+ * before it propagates, so the next call retries from scratch instead of
+ * replaying the same failure forever. This matters for the long-lived LSP
+ * session, where a transient WASM-load failure must not permanently
+ * disable formatting for the rest of the process.
  */
 export function loadMarkdownFormatter(): Promise<ProseFormatter> {
-  cached ??= instantiate();
+  cached ??= instantiate().catch((err) => {
+    cached = undefined;
+    throw err;
+  });
   return cached;
 }
 

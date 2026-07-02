@@ -1329,6 +1329,12 @@ connection.onDocumentFormatting(async (params) => {
   // never loaded for files the server won't format.
   if (!isMarkspecFile(filePath)) return [];
 
+  // Source files are read-only for formatting (ADR-029: Markdown files
+  // only) — doc-comment layout belongs to the host language's formatter.
+  // Returning [] preserves the pre-ADR-029 no-op and the spec §3.4
+  // "empty TextEdit[], not null" contract.
+  if (isSourceFile(filePath)) return [];
+
   const currentText = document.getText();
   const result = format(currentText, {
     file: filePath,

@@ -1005,3 +1005,16 @@ Deno.test("fmt --check: exits 1 on markdown-only drift", async () => {
   );
   assertEquals(code, 1);
 });
+
+// ---------------------------------------------------------------------------
+// ADR-029 scope guard — the whole-document markdown pass must never touch
+// source files, even when passed explicitly on the command line.
+// ---------------------------------------------------------------------------
+
+Deno.test("fmt: never rewrites source files passed explicitly (ADR-029 scope guard)", async () => {
+  const rust =
+    'fn main() {\n    let x = compute(1, 2);\n    println!("{}", x);\n}\n';
+  const { code, readFile } = await runFormat({ "main.rs": rust });
+  assertEquals(code, 0);
+  assertEquals(await readFile("main.rs"), rust);
+});

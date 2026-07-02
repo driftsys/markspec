@@ -103,6 +103,55 @@ Deno.test("lsp formatting: returns empty edits for already-formatted file", asyn
   }
 });
 
+Deno.test("lsp formatting: returns empty edits for a source file (ADR-029 scope guard)", async () => {
+  // Rust doc-comment carries an entry marker so `isDocCommentContext`
+  // would treat this as MarkSpec-relevant on every OTHER position-level
+  // handler — the formatting guard must still refuse to touch it, since
+  // source files are read-only for formatting even when MarkSpec-relevant.
+  const rust = [
+    "/// [STK_0001] Vehicle stops before collision",
+    "///",
+    "/// The vehicle shall stop before an obstacle.",
+    "fn main() {",
+    "    let x = compute(1, 2);",
+    '    println!("{}", x);',
+    "}",
+    "",
+  ].join("\n");
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "main.rs": rust,
+  });
+  try {
+    await client.initialize();
+
+    const fileUri = toFileUrl(join(client.workDir, "main.rs")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: fileUri,
+        languageId: "rust",
+        version: 1,
+        text: rust,
+      },
+    });
+
+    const edits = await client.request("textDocument/formatting", {
+      textDocument: { uri: fileUri },
+      options: { tabSize: 2, insertSpaces: true },
+    });
+
+    // ADR-029: the whole-document markdown pass is Markdown-only. A source
+    // file must yield no edits — never [1 giant paragraph-joined edit].
+    assertEquals(
+      edits,
+      [],
+      "Source files must return empty edits, even when MarkSpec-relevant",
+    );
+  } finally {
+    await client.shutdown();
+  }
+});
+
 Deno.test("lsp formatting: returns empty edits for non-MarkSpec file", async () => {
   const client = await LspTestClient.create({
     "project.yaml": "name: test-project\n",
