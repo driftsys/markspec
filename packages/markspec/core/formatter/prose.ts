@@ -60,7 +60,17 @@ export function formatProseSegments(
       return;
     }
     const chunk = segment.slice(from, to).join("\n");
-    const formatted = proseFormat(chunk).replace(/\n$/, "");
+    let formatted: string;
+    try {
+      formatted = proseFormat(chunk).replace(/\n$/, "");
+    } catch {
+      // The dprint WASM formatter can throw on a pathological fragment.
+      // Treat a throw exactly like a rejected rewrite: keep the original
+      // segment and report the fallback (never crash the whole run).
+      fallbackStarts.push(gapStart + from);
+      out.push(...segment);
+      return;
+    }
     if (formatted === chunk) {
       out.push(...segment);
       return;

@@ -6,6 +6,7 @@
  * and requirement block insertion.
  */
 
+import { extname } from "@std/path";
 import { ulid as defaultUlid } from "@std/ulid";
 import { stringify as stringifyYaml } from "@std/yaml";
 import type {
@@ -19,6 +20,7 @@ import {
   CSV_SPLITTABLE_TYPES,
   IDENTITY_KEY,
 } from "../model/mod.ts";
+import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
@@ -311,13 +313,27 @@ function emitBodyViaAst(
       // external whole-file dprint view (which sees the indent) re-wraps
       // it: a formatter ping-pong. Floor of 20 keeps a pathological indent
       // from degenerating into one-word-per-line output.
-      const polished = proseFormat(emittedBody, {
-        lineWidth: Math.max(
-          20,
-          MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth - indent,
-        ),
-      }).replace(/\n$/, "");
-      if (polished !== emittedBody) {
+      let polished: string | undefined;
+      try {
+        polished = proseFormat(emittedBody, {
+          lineWidth: Math.max(
+            20,
+            MARKSPEC_MARKDOWN_GLOBAL_CONFIG.lineWidth - indent,
+          ),
+        }).replace(/\n$/, "");
+      } catch {
+        // The dprint WASM formatter can throw on a pathological body.
+        // Treat a throw exactly like a rejected rewrite: keep the
+        // canonical body and report the fallback (never crash the run).
+        diagnostics.push({
+          code: "MSL-F012",
+          severity: "info",
+          message: `${entry.displayId}: Markdown pass errored — kept ` +
+            `the canonical body`,
+          location: entry.location,
+        });
+      }
+      if (polished !== undefined && polished !== emittedBody) {
         if (markdownSemanticallyEquivalent(emittedBody, polished)) {
           finalBody = polished;
         } else {
@@ -464,7 +480,15 @@ export function format(
   const { entries } = parseMarkdown(body, { file });
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
 
-  const proseFormat = options?.formatMarkdownProse;
+  // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
+  // file extension HERE so the invariant has one home — a caller that wires
+  // formatMarkdownProse without its own guard (e.g. a future write tool, or
+  // formatSource forwarding options with a source-file label) cannot silently
+  // reflow a source file's doc comment as Markdown. The CommonMark-semantic
+  // gate cannot catch that class, so it must be prevented, not detected. The
+  // CLI/LSP call-site guards remain as defense-in-depth.
+  const isMarkdownFile = MARKDOWN_EXTENSIONS.has(extname(file).toLowerCase());
+  const proseFormat = isMarkdownFile ? options?.formatMarkdownProse : undefined;
   if (entries.length === 0 && !fm.hadFrontMatter && proseFormat === undefined) {
     // No entries and no front matter — nothing to format. Returning the
     // original `markdown` preserves the source's exact byte sequence,

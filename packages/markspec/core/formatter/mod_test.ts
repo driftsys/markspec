@@ -643,3 +643,63 @@ Deno.test("format: body gate rejects destructive output with MSL-F012, keeps can
     true,
   );
 });
+
+// ---------------------------------------------------------------------------
+// ADR-029 follow-ups: scope guard + throw hardening
+// ---------------------------------------------------------------------------
+
+Deno.test("format: markdown pass is disabled for non-.md files even when the callback is wired (ADR-029 scope guard in format())", () => {
+  let called = false;
+  const spy = (md: string): string => {
+    called = true;
+    return md.replace(/\n(?!$)/g, " ");
+  };
+  const src =
+    'fn main() {\n    let x = compute(1, 2);\n    println!("{}", x);\n}\n';
+  const result = format(src, { file: "main.rs", formatMarkdownProse: spy });
+  assertEquals(called, false);
+  assertEquals(result.output, src);
+});
+
+Deno.test("format: markdown pass still runs for .md files (control for the scope guard)", () => {
+  let called = false;
+  const spy = (md: string): string => {
+    called = true;
+    return md;
+  };
+  format("# Heading\n\nsome prose.\n", {
+    file: "doc.md",
+    formatMarkdownProse: spy,
+  });
+  assertEquals(called, true);
+});
+
+Deno.test("format: a throwing markdown formatter degrades to fallback, never crashes (entry body)", () => {
+  const thrower = (): string => {
+    throw new Error("simulated dprint WASM panic");
+  };
+  const input = `- [STK_9004] Throw safety
+
+  The system shall keep its canonical body when the Markdown formatter errors.
+
+      Id: 01JADYKACKQKGVGHT9K7Y6PBPE
+`;
+  const result = format(input, { file: "t.md", formatMarkdownProse: thrower });
+  assertStringIncludes(
+    result.output,
+    "The system shall keep its canonical body when the Markdown formatter errors.",
+  );
+  assertEquals(result.diagnostics.some((d) => d.code === "MSL-F012"), true);
+});
+
+Deno.test("format: a throwing markdown formatter degrades to fallback for prose segments too", () => {
+  const thrower = (): string => {
+    throw new Error("simulated dprint WASM panic");
+  };
+  const result = format("# Overview\n\nragged prose here.\n", {
+    file: "t.md",
+    formatMarkdownProse: thrower,
+  });
+  // No throw; original prose preserved.
+  assertStringIncludes(result.output, "ragged prose here.");
+});
