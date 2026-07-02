@@ -219,23 +219,31 @@ const corpusFilePaths = new Set<string>();
  * `profile` is reassigned.
  */
 async function seedDeliveredCorpus(): Promise<void> {
+  // Always drop the old corpus first — even if the reload below fails,
+  // stale entries from a previous profile must not linger in the index.
   for (const path of corpusFilePaths) index.removeFile(path);
   corpusFilePaths.clear();
   const delivers = profile?.delivers ?? [];
   if (delivers.length === 0) return;
-  const corpus = await loadDeliveredCorpus(delivers, readFile);
-  for (const d of corpus.diagnostics) {
-    connection.console.warn(`${d.code}: ${d.message}`);
-  }
-  const byFile = new Map<string, Entry[]>();
-  for (const e of corpus.entries) {
-    const list = byFile.get(e.location.file) ?? [];
-    list.push(e);
-    byFile.set(e.location.file, list);
-  }
-  for (const [file, entries] of byFile) {
-    index.updateFile(file, entries);
-    corpusFilePaths.add(file);
+  try {
+    const corpus = await loadDeliveredCorpus(delivers, readFile);
+    for (const d of corpus.diagnostics) {
+      connection.console.warn(`${d.code}: ${d.message}`);
+    }
+    const byFile = new Map<string, Entry[]>();
+    for (const e of corpus.entries) {
+      const list = byFile.get(e.location.file) ?? [];
+      list.push(e);
+      byFile.set(e.location.file, list);
+    }
+    for (const [file, entries] of byFile) {
+      index.updateFile(file, entries);
+      corpusFilePaths.add(file);
+    }
+  } catch (err) {
+    // Cold-cache soft-fail (design spec §4): the index proceeds without
+    // corpus rather than aborting initialization or profile reload.
+    connection.console.warn(`Failed to load delivered corpus: ${err}`);
   }
 }
 
@@ -762,6 +770,9 @@ connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
 documents.onDidChangeContent((change) => {
   const filePath = uriToPath(change.document.uri);
   if (!isMarkspecFile(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by
+  // seedDeliveredCorpus (ADR-029) — never reparse from a buffer edit.
+  if (corpusFilePaths.has(filePath)) return;
 
   // Stash latest content so the debounced parse always uses the most
   // recent snapshot, even if multiple edits arrive before the timer fires.
@@ -793,6 +804,10 @@ documents.onDidSave(() => {
 documents.onDidClose((event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by
+  // seedDeliveredCorpus (ADR-029) — closing the buffer must neither
+  // remove the entries nor touch diagnostics (none were published).
+  if (corpusFilePaths.has(filePath)) return;
   // Remove the file from the index and clear its diagnostics so stale
   // entries don't affect cross-file validation after the buffer closes.
   index.removeFile(filePath);
@@ -805,6 +820,9 @@ documents.onDidClose((event) => {
 documents.onDidOpen(async (event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by
+  // seedDeliveredCorpus (ADR-029) — never reparse from an opened buffer.
+  if (corpusFilePaths.has(filePath)) return;
   // Index newly opened files immediately so rename and other workspace
   // operations cover them even before the first edit event fires.
   if (index.getFilePaths().includes(filePath)) return; // already indexed
