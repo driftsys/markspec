@@ -149,17 +149,15 @@ export const checkCmd = new Command()
 
       // Project-wide-only gates (the composite `check` gate). A file-local
       // `check <file>` stays a fast structural check, and the canonical agent
-      // path runs `fmt` before `check`.
-      const fmtDiagnostics: Diagnostic[] = [];
-      const lockDiagnostics: Diagnostic[] = [];
+      // path runs `fmt` before `check`. The diagnostic-producing computation
+      // lives in `core/gates`; the command only gathers inputs (the loaded
+      // Markdown formatter, the parsed lockfile) and calls the stages.
+      let fmtDiagnostics: Diagnostic[] = [];
+      let lockDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const {
-          buildRefIndex,
-          canonicalizeRefs,
-          detectOfflineEdgeDrift,
-          format,
-          parseLockfile,
-        } = await import("../../core/mod.ts");
+        const { fmtDriftGate, lockfileDriftGate, parseLockfile } = await import(
+          "../../core/mod.ts"
+        );
 
         const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
@@ -175,102 +173,28 @@ export const checkCmd = new Command()
         }
         const ledger = lockParse?.lockfile?.edges ?? [];
 
-        // Gate: fmt drift. Runs the SAME `format() → parse → canonicalizeRefs`
-        // sequence `markspec fmt` performs, from the same exclude-aware corpus,
-        // so bare `check` and `fmt --check` never disagree. `MSL-F010` is pure
-        // formatter drift; `MSL-F011` is reference-canonicalization drift (a
-        // ULID or stale display ID `fmt` would rewrite) — kept distinct so the
-        // author knows which fmt concern fired. Markdown only — `markspec fmt`
-        // never rewrites source files.
-        const refIndex = buildRefIndex(allEntries);
-        for (const [filePath, content] of mdContents) {
-          const formatted = format(content, {
-            file: filePath,
-            formatMarkdownProse,
-          });
-          if (formatted.changed) {
-            fmtDiagnostics.push({
-              code: "MSL-F010",
-              severity: "error",
-              message: "file is not formatted (run `markspec fmt`)",
-              location: { file: filePath, line: 1, column: 1 },
-            });
-          }
-          const parsed = await parseFile(formatted.output, { file: filePath });
-          const refResult = canonicalizeRefs(
-            formatted.output,
-            parsed.entries,
-            refIndex,
-            ledger,
-          );
-          if (refResult.changed) {
-            fmtDiagnostics.push({
-              code: "MSL-F011",
-              severity: "error",
-              message: "references are not canonical (run `markspec fmt`)",
-              location: { file: filePath, line: 1, column: 1 },
-            });
-          }
-        }
+        fmtDiagnostics = await fmtDriftGate(
+          mdContents,
+          allEntries,
+          ledger,
+          formatMarkdownProse,
+        );
 
-        // Gate: lockfile (needs the full corpus to recompute the canonical
-        // edge hash). Offline by design — upstream resolution (network) stays
-        // in `markspec lock --check`.
         if (lockParse !== undefined && lockPath !== undefined) {
-          if (!lockParse.lockfile) {
-            lockDiagnostics.push(...lockParse.diagnostics);
-          } else {
-            // Corpus-blind by design: the lockfile is not corpus-aware yet
-            // (ADR-030 defers lockfile integration), so `markspec lock`
-            // never counts corpus edges. Counting them here would raise an
-            // MSL-L212 drift error that `markspec lock` can never fix —
-            // consumer gates must not fail on upstream content the consumer
-            // cannot re-lock.
-            const projectEntries = allEntries.filter((e) => !e.origin);
-            const drift = await detectOfflineEdgeDrift(
-              projectEntries,
-              lockParse.lockfile.generatedCache,
-            );
-            if (drift.drifted) {
-              lockDiagnostics.push({
-                code: "MSL-L212",
-                severity: "error",
-                message:
-                  `traceability edges drifted from markspec.lock: locked ${drift.lockedCount} edge(s), current ${drift.currentCount} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
-                location: { file: lockPath, line: 1, column: 1 },
-              });
-            }
-          }
+          lockDiagnostics = await lockfileDriftGate(
+            lockParse,
+            lockPath,
+            allEntries,
+          );
         }
       }
 
       // Gate: prose lint (project-wide only, advisory — warnings/info
-      // unless --strict). LintDiagnostic carries slug/group/score fields
-      // that must not leak into check's stable JSON schema — project to
-      // plain Diagnostic. `runLint`'s `readFile` option is typed for
-      // glossary-file indexing (`FileReader`, distinct from the CLI's
-      // `ReadFile`) and is only needed when `glossaryFilePaths` is
-      // supplied; omitted here since `check` passes none.
-      const proseDiagnostics: Diagnostic[] = [];
+      // unless --strict).
+      let proseDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const { runLint } = await import("../../core/mod.ts");
-        // Pass the FULL entry set (project + corpus) and the active profile.
-        // `runLint` excludes corpus entries from its output but keeps them in
-        // the glossary / $Identifier indexes, so a corpus-defined term still
-        // silences Q500 in project prose (ADR-030 §D4). The profile threads
-        // into `isProseScope` so profile-typed entries are scoped (#675).
-        const lintResult = await runLint({
-          entries: allEntries,
-          profile: chain?.effective,
-        });
-        for (const d of lintResult.diagnostics) {
-          proseDiagnostics.push({
-            code: d.code,
-            severity: d.severity,
-            message: d.message,
-            location: d.location,
-          });
-        }
+        const { proseLintGate } = await import("../../core/mod.ts");
+        proseDiagnostics = await proseLintGate(allEntries, chain?.effective);
       }
 
       // Merge parse-level (MSL-P0xx), corpus-load, pipeline, listing,
