@@ -9,9 +9,15 @@
  * modules it needs.
  */
 
-import { ConfigError, CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
+import {
+  ConfigError,
+  CORE_SCHEMA_VERSION,
+  corpusOriginLabel,
+  VERSION,
+} from "../core/mod.ts";
 import type {
   CompileResult,
+  DeliveredDocument,
   DiscoveryIO,
   ProfileChain,
   ReadFile,
@@ -158,8 +164,35 @@ export function makeGitFile(withContributors: boolean) {
 }
 
 /**
+ * Render a diagnostic's location for human-facing output. A location
+ * inside a delivered corpus file is mapped to the stable
+ * `<profile-id>@<version>:<relative-path>:<line>` form (ADR-030) instead
+ * of the raw `.markspec/cache/...` (or local package) absolute path —
+ * consumers should never see the cache layout. Locations outside the
+ * corpus render as `<file>:<line>`, unchanged from prior behavior.
+ */
+export function renderDiagnosticLocation(
+  diag: { location?: { file: string; line: number } },
+  corpusIndex: ReadonlyMap<string, DeliveredDocument>,
+): string {
+  if (!diag.location) return "";
+  const doc = corpusIndex.get(diag.location.file);
+  if (doc) {
+    return `${corpusOriginLabel(doc)}:${doc.path}:${diag.location.line}`;
+  }
+  return `${diag.location.file}:${diag.location.line}`;
+}
+
+/**
  * Compile project files and return the result alongside the loaded profile chain.
  * Shared helper for commands that need the compiled graph.
+ *
+ * Loads the active profile's delivered corpus (ADR-030) and injects it into
+ * `compile()` so every graph-consuming command (`show`, `context`,
+ * `dependents`, `report`, `export`) resolves trace targets that live in a
+ * profile-delivered document. A corpus-load error (e.g. a declared corpus
+ * file missing from the profile package) is fatal — silently compiling with
+ * a partial corpus would hide a broken profile package.
  */
 export async function compileProject(
   paths: string[],
@@ -167,7 +200,23 @@ export async function compileProject(
 ): Promise<{ result: CompileResult; chain: ProfileChain | null }> {
   const configResult = await requireProjectConfig();
   const chain = await loadActiveProfile(configResult.projectRoot);
-  const { compile } = await import("../core/mod.ts");
+  const { compile, loadDeliveredCorpus, buildCorpusIndex } = await import(
+    "../core/mod.ts"
+  );
+  const corpus = chain
+    ? await loadDeliveredCorpus(chain.effective.delivers, readFile)
+    : { entries: [], diagnostics: [] };
+  const corpusIndex = buildCorpusIndex(chain?.effective.delivers ?? []);
+  let corpusError = false;
+  for (const diag of corpus.diagnostics) {
+    console.error(
+      `${diag.severity}[${diag.code}]: ` +
+        `${renderDiagnosticLocation(diag, corpusIndex)} ${diag.message}`,
+    );
+    if (diag.severity === "error") corpusError = true;
+  }
+  if (corpusError) Deno.exit(1);
+
   const withContributors = opts.withContributors ?? false;
   const result = await compile(paths, {
     readFile: (p) => Deno.readTextFile(p),
@@ -176,13 +225,15 @@ export async function compileProject(
       Deno.stat(p).then((s) => ({ mtime: s.mtime })).catch(() => undefined),
     gitFile: makeGitFile(withContributors),
     withContributors,
+    corpusEntries: corpus.entries,
   });
 
   for (const diag of result.diagnostics) {
-    const loc = diag.location
-      ? `${diag.location.file}:${diag.location.line}`
-      : "";
-    console.error(`${diag.severity}[${diag.code}]: ${loc} ${diag.message}`);
+    console.error(
+      `${diag.severity}[${diag.code}]: ${
+        renderDiagnosticLocation(diag, corpusIndex)
+      } ${diag.message}`,
+    );
   }
 
   return { result, chain };

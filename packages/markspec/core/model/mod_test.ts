@@ -93,6 +93,7 @@ Deno.test("Slice 2 model: KindDecl + kinds/discipline fields type-check", () => 
     colors: new Map(),
     types: new Map(),
     documents: { types: [], frontMatter: [] },
+    delivers: [],
     kinds: new Map<string, KindDecl>([["firmware", {}]]),
     prose: { lexicons: { "capitalized-allow": [], "sentence-abbrev": [] } },
   };
@@ -118,6 +119,7 @@ Deno.test("Slice 2 model: KindDecl + kinds/discipline fields type-check", () => 
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {
@@ -162,6 +164,7 @@ Deno.test("Slice 5 model: DisciplineMode + disciplineMode fields type-check", ()
     colors: new Map(),
     types: new Map(),
     documents: { types: [], frontMatter: [] },
+    delivers: [],
     kinds: new Map(),
     prose: { lexicons: { "capitalized-allow": [], "sentence-abbrev": [] } },
     // disciplineMode intentionally omitted — must compile
@@ -176,6 +179,7 @@ Deno.test("Slice 5 model: DisciplineMode + disciplineMode fields type-check", ()
     colors: new Map(),
     types: new Map(),
     documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
     kinds: new Map(),
     prose: {
       lexicons: {

@@ -82,8 +82,21 @@ interface TraceRow {
   id: DisplayId;
   title: string;
   entryType: string;
+  origin: string;
   satisfies: string;
   satisfiedBy: string;
+}
+
+/**
+ * Render an entry's provenance cell (ADR-030): `<profileId>@<profileVersion>`
+ * for an entry injected from a profile-delivered corpus, `"project"` for a
+ * project-authored entry. Shared by the traceability matrix builder so CSV,
+ * Markdown, and JSON rows all agree on the same value.
+ */
+function originCell(entry: Entry): string {
+  return entry.origin
+    ? `${entry.origin.profileId}@${entry.origin.profileVersion}`
+    : "project";
 }
 
 function buildTraceRows(
@@ -98,6 +111,7 @@ function buildTraceRows(
       id: entry.displayId,
       title: entry.title,
       entryType: entry.type ?? "",
+      origin: originCell(entry),
       satisfies: fwd
         .filter((l) => l.kind === "satisfies")
         .map((l) => l.to)
@@ -122,12 +136,13 @@ function formatTraceability(
   }
 
   if (format === "csv") {
-    const header = "ID,Title,Type,Satisfies,Satisfied-by";
+    const header = "ID,Title,Type,Origin,Satisfies,Satisfied-by";
     const lines = rows.map((r) =>
       [
         r.id,
         csvEscape(r.title),
         r.entryType,
+        csvEscape(r.origin),
         csvEscape(r.satisfies),
         csvEscape(r.satisfiedBy),
       ].join(",")
@@ -136,13 +151,13 @@ function formatTraceability(
   }
 
   // Markdown table
-  const header = "| ID | Title | Type | Satisfies | Satisfied-by |";
-  const sep = "| -- | ----- | ---- | --------- | ------------ |";
+  const header = "| ID | Title | Type | Origin | Satisfies | Satisfied-by |";
+  const sep = "| -- | ----- | ---- | ------ | --------- | ------------ |";
   const lines = rows.map(
     (r) =>
-      `| ${r.id} | ${r.title} | ${r.entryType} | ${r.satisfies || "\u2014"} | ${
-        r.satisfiedBy || "\u2014"
-      } |`,
+      `| ${r.id} | ${r.title} | ${r.entryType} | ${r.origin} | ${
+        r.satisfies || "\u2014"
+      } | ${r.satisfiedBy || "\u2014"} |`,
   );
   return [header, sep, ...lines].join("\n");
 }

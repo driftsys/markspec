@@ -35,6 +35,7 @@ export type {
   CaptionConventions,
   CaptionPosition,
   ConfigFieldError,
+  DeliveredDocument,
   Diagnostic,
   Directive,
   Discipline,
@@ -45,6 +46,7 @@ export type {
   EffectiveTypeDef,
   EntityRefConvention,
   Entry,
+  EntryOrigin,
   EntryShape,
   EntrySource,
   ExtractorRule,
@@ -182,6 +184,14 @@ export type {
   TypeDetail,
 } from "./profile/mod.ts";
 
+// Delivered corpus loader
+export {
+  buildCorpusIndex,
+  corpusOriginLabel,
+  loadDeliveredCorpus,
+} from "./profile/delivered.ts";
+export type { LoadDeliveredCorpusResult } from "./profile/delivered.ts";
+
 // Parser
 export {
   detectCaptions,
@@ -219,9 +229,11 @@ export type { ProseFormatOptions, ProseFormatter } from "./formatter/dprint.ts";
 
 // Validator
 export {
+  attributeCorpusDiagnostics,
   classifyEntriesStage,
   classifyEntry,
   compileDisplayIdPattern,
+  detectCorpusCollisions,
   effectiveScope,
   effectiveTraceRules,
   matchesAnyTarget,
@@ -237,6 +249,7 @@ export {
 export type {
   ClassifyResult,
   ClassifyStageResult,
+  CorpusCollisionResult,
   EffectiveAttrScope,
   ListingFileContext,
   ListingKind,

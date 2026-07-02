@@ -1,7 +1,7 @@
 /**
  * @module mcp/resources/profile_test
  */
-import { assertStringIncludes } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   buildProfileView,
   renderProfile,
@@ -10,8 +10,9 @@ import {
 import { buildProfileIntrospection } from "../../core/mod.ts";
 import { parseManifest } from "../../core/profile/manifest.ts";
 import { mergeChain } from "../../core/profile/merge.ts";
-import type { ProfileChain } from "../../core/mod.ts";
+import type { DeliveredDocument, ProfileChain } from "../../core/mod.ts";
 import type { LoadedProfile } from "../../core/model/mod.ts";
+import { deliveredUri } from "../uri.ts";
 
 function makeChain(yaml: string): ProfileChain {
   const result = parseManifest(yaml, "<test>");
@@ -138,6 +139,63 @@ Deno.test("renderProfile: two-tier chain shows leaf as Active and root under Inh
   const text = renderProfile(buildProfileIntrospection(chain));
   assertStringIncludes(text, "**Active**: @acme/leaf@0.1.0");
   assertStringIncludes(text, "**Inherits**: @markspec/profile-default@1.0.0");
+});
+
+Deno.test("renderProfile: no delivers → no Delivered documents section", () => {
+  const chain = makeChain(`
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    requirement:
+      extends: Requirement
+`);
+  const text = renderProfile(buildProfileIntrospection(chain));
+  assertEquals(text.includes("## Delivered documents"), false);
+});
+
+Deno.test("renderProfile: delivers → Delivered documents section with links", () => {
+  const chain = makeChain(`
+id: "@test/p"
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    requirement:
+      extends: Requirement
+`);
+  const delivers: DeliveredDocument[] = [
+    {
+      profileId: "platform-arch",
+      profileVersion: "1.2.0",
+      path: "reference/platform.md",
+      absPath: "/profiles/platform-arch/reference/platform.md",
+      corpus: true,
+      description: "Reference platform architecture",
+    },
+    {
+      profileId: "platform-arch",
+      profileVersion: "1.2.0",
+      path: "reference/guide.md",
+      absPath: "/profiles/platform-arch/reference/guide.md",
+      corpus: false,
+    },
+  ];
+  const text = renderProfile(buildProfileIntrospection(chain), delivers);
+  assertStringIncludes(text, "## Delivered documents");
+  assertStringIncludes(
+    text,
+    `- [reference/platform.md](${
+      deliveredUri("platform-arch", "reference/platform.md")
+    }) — corpus (entries in graph) — Reference platform architecture`,
+  );
+  assertStringIncludes(
+    text,
+    `- [reference/guide.md](${
+      deliveredUri("platform-arch", "reference/guide.md")
+    }) — documentation`,
+  );
 });
 
 // Verify buildProfileView is a thin wrapper re-exporting buildProfileIntrospection.

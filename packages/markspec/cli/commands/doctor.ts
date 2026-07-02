@@ -6,7 +6,7 @@
 
 import { Command } from "@cliffy/command";
 import { isBelowFloor, parseLockfile, VERSION } from "../../core/mod.ts";
-import { compileProject, requireProjectConfig } from "../helpers.ts";
+import { compileProject, readFile, requireProjectConfig } from "../helpers.ts";
 
 export const doctorCmd = new Command()
   .description("Project health check")
@@ -66,6 +66,32 @@ export const doctorCmd = new Command()
       }
     }
 
+    // Delivered-document health (ADR-030): re-load the corpus to report a
+    // per-document count + any surviving PROFILE-DELIVERS diagnostics. Any
+    // corpus file missing an error-severity check already made
+    // compileProject() exit(1) above, so only warning-level issues (e.g. a
+    // missing docs-only file) can reach this point.
+    let corpusEntryCount = 0;
+    const corpusIssues: Array<
+      { severity: string; code: string; message: string }
+    > = [];
+    if (effective && effective.delivers.length > 0) {
+      const { loadDeliveredCorpus } = await import("../../core/mod.ts");
+      const corpus = await loadDeliveredCorpus(effective.delivers, readFile);
+      corpusEntryCount = corpus.entries.length;
+      for (const d of corpus.diagnostics) {
+        if (!d.code.startsWith("PROFILE-DELIVERS")) continue;
+        corpusIssues.push({
+          severity: d.severity,
+          code: d.code,
+          message: d.message,
+        });
+      }
+    }
+    // Fold into the same diagnostics list the JSON output already reports
+    // (toolchain-below-floor lives here too) so both are visible together.
+    diagnostics.push(...corpusIssues);
+
     if (options.format === "json") {
       const output: Record<string, unknown> = {
         project: {
@@ -95,6 +121,15 @@ export const doctorCmd = new Command()
           belowFloor,
         },
         ...(modeInfo ? { disciplineCounts: counts } : {}),
+        ...(effective && effective.delivers.length > 0
+          ? {
+            delivers: {
+              documents: effective.delivers.length,
+              corpusEntries: corpusEntryCount,
+              issues: corpusIssues.length,
+            },
+          }
+          : {}),
       };
       console.log(JSON.stringify(output, null, 2));
     } else {
@@ -128,9 +163,21 @@ export const doctorCmd = new Command()
           .join(", ");
         console.error(`Entries by discipline: ${countsLine || "(none)"}`);
       }
+      if (effective && effective.delivers.length > 0) {
+        console.error(
+          `Delivered documents: ${effective.delivers.length} ` +
+            `(${corpusEntryCount} corpus entries` +
+            `${
+              corpusIssues.length > 0 ? `, ${corpusIssues.length} issue(s)` : ""
+            })`,
+        );
+        for (const d of corpusIssues) {
+          console.error(`  ${d.severity}[${d.code}]: ${d.message}`);
+        }
+      }
     }
 
     // clig.dev: below-floor is a warning → exit 2 so CI can gate on toolchain
     // skew. Hard errors (no config/profile) throw earlier and yield 1.
-    if (belowFloor) Deno.exit(2);
+    if (belowFloor || corpusIssues.length > 0) Deno.exit(2);
   });

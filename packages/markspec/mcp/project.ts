@@ -14,9 +14,11 @@ import { join } from "@std/path";
 import {
   compile,
   type CompileResult,
+  type DeliveredDocument,
   discoverProjectRoot,
   type EffectiveProfile,
   loadConfig,
+  loadDeliveredCorpus,
   loadProfileForCommand,
   type ProfileChain,
   type ProjectConfig,
@@ -221,12 +223,19 @@ export interface Project {
   readonly profileChain: ProfileChain | null;
   /** Effective profile derived from the chain, or undefined. */
   readonly profile: EffectiveProfile | undefined;
+  /** Documents delivered by the active profile chain (ADR-030). */
+  readonly delivers: readonly DeliveredDocument[];
   /** Return the current compiled graph, recompiling when stale. */
   getCompiled(): Promise<CompileResult>;
   /** Force a recompile and return the fresh result. */
   forceRefresh(): Promise<CompileResult>;
   /** Subscribe to recompile events. Returns an unsubscribe function. */
   subscribeInvalidation(handler: InvalidationHandler): () => void;
+  /** Read a delivered document's raw text from the profile cache. */
+  readDeliveredDocument(
+    profileId: string,
+    relPath: string,
+  ): Promise<string | undefined>;
 }
 
 /**
@@ -347,6 +356,12 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   async function runCompile(): Promise<CompileResult> {
     try {
       const paths = await discoverTracked();
+      const corpus = profileChain
+        ? await loadDeliveredCorpus(
+          profileChain.effective.delivers,
+          env.readFile,
+        )
+        : { entries: [], diagnostics: [] };
       const result = await compile(paths, {
         readFile: async (p: string) => {
           const content = await env.readFile(p);
@@ -356,7 +371,20 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           return content;
         },
         profile: profileChain?.effective ?? undefined,
+        corpusEntries: corpus.entries,
       });
+
+      // Surface corpus-load diagnostics (e.g. PROFILE-DELIVERS-001 for a
+      // missing delivered file) in the compiled context — CLI `check`
+      // parity: without this, the MCP validate tool reports clean on a
+      // project whose `markspec check` fails. Corpus diagnostics lead;
+      // compile diagnostics keep their own order (determinism).
+      const merged = corpus.diagnostics.length > 0
+        ? {
+          ...result,
+          diagnostics: [...corpus.diagnostics, ...result.diagnostics],
+        }
+        : result;
 
       // Snapshot mtime + SHA256 hash for the next invalidation check.
       const snapshot: TrackedFile[] = [];
@@ -373,14 +401,14 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         }
       }
       tracked = snapshot;
-      cached = result;
+      cached = merged;
       // Fire handlers AFTER cache is committed but isolate handler errors so
       // one bad subscriber doesn't break others or abort the compile result.
       // Async handlers are not awaited — their rejections are caught and logged.
       for (const h of handlers) {
         const maybePromise = (() => {
           try {
-            return h(result);
+            return h(merged);
           } catch (err) {
             console.error(`InvalidationHandler sync error: ${err}`);
             return undefined;
@@ -392,7 +420,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           });
         }
       }
-      return result;
+      return merged;
     } finally {
       // Always reset the in-flight slot — success or failure — so a subsequent
       // call can retry. Without this, a single compile failure jams the cache
@@ -459,6 +487,17 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     config,
     profileChain,
     profile: profileChain?.effective,
+    delivers: profileChain?.effective.delivers ?? [],
+    async readDeliveredDocument(
+      profileId: string,
+      relPath: string,
+    ): Promise<string | undefined> {
+      const doc = (profileChain?.effective.delivers ?? []).find(
+        (d) => d.profileId === profileId && d.path === relPath,
+      );
+      if (!doc) return undefined;
+      return await env.readFile(doc.absPath);
+    },
     async getCompiled(): Promise<CompileResult> {
       if (!projectRoot) {
         throw new Error(

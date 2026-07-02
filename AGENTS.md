@@ -451,6 +451,11 @@ docs/
   `textWrap: always`); dprint rewrites are gated by a CommonMark-semantic
   equivalence comparator with an MSL-F012 fallback; `check`'s MSL-F010 now
   covers prose drift
+- `adr-030-profile-delivered-documents.md` — `profile.delivers:` lets a profile
+  ship document files to consumers, per file flagged as a traceable corpus
+  (joins the graph, provenance via `Entry.origin`) or docs-only; one core loader
+  (`loadDeliveredCorpus`) feeds the CLI compiler, LSP, and MCP server;
+  collisions are `MSL-R014`; no `CORE_SCHEMA_VERSION` bump
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

@@ -89,13 +89,15 @@ Deno.test("export csv: emits header row + one row per entry", async () => {
   assertEquals(lines.length, 2);
   assertEquals(
     lines[0],
-    "displayId,title,type,shape,id,file,line",
+    "displayId,title,type,shape,id,file,line,origin",
   );
   // Row contains the display ID, title, ULID, and "req.md" location.
   assertStringIncludes(lines[1], "REQ-001");
   assertStringIncludes(lines[1], "First requirement");
   assertStringIncludes(lines[1], "01HGW2Q8MNP3RSTVWXYZABCDEF");
   assertStringIncludes(lines[1], "req.md");
+  // Project-authored entry → origin cell is the literal "project".
+  assertEquals(lines[1].endsWith(",project"), true, lines[1]);
 });
 
 Deno.test("export csv: quotes values that contain commas", async () => {
@@ -123,7 +125,7 @@ Deno.test("export csv: empty project emits header only", async () => {
   assertEquals(code, 0);
   const lines = stdout.split("\n").filter((l) => l.length > 0);
   assertEquals(lines.length, 1);
-  assertEquals(lines[0], "displayId,title,type,shape,id,file,line");
+  assertEquals(lines[0], "displayId,title,type,shape,id,file,line,origin");
 });
 
 Deno.test("export json: matches the compile --format json output", async () => {

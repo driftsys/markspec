@@ -419,6 +419,18 @@ export interface EntryProperties {
 }
 
 /**
+ * Provenance of an entry that did not originate in the project's own files
+ * (ADR-030). Absent on project-authored entries. `kind` is a discriminant so
+ * future origins (e.g. ADR-011 SBOM-generated dependency entries) can reuse
+ * the slot.
+ */
+export interface EntryOrigin {
+  readonly kind: "profile";
+  readonly profileId: string;
+  readonly profileVersion: string;
+}
+
+/**
  * A parsed MarkSpec entry — the core AST node.
  *
  * The `shape` field discriminates the two core categories:
@@ -533,6 +545,13 @@ export interface Entry {
    * this value directly.
    */
   readonly derivedDiscipline?: Discipline;
+  /**
+   * Set on entries injected from a profile-delivered corpus document
+   * (ADR-030). Consumers treat such entries as read-only: `fmt` and rename
+   * never touch them, and validation findings inside them are downgraded
+   * to attributed warnings.
+   */
+  readonly origin?: EntryOrigin;
 }
 
 // ---------------------------------------------------------------------------
@@ -893,6 +912,8 @@ export interface Document {
 export type {
   AttrDecl,
   Cardinality,
+  DeliveredDocument,
+  DeliversDecl,
   DisciplineMode,
   DocTypeDef,
   EffectiveProfile,
