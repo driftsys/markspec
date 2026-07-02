@@ -19,6 +19,8 @@ import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
 export interface DisplayIdEntry {
   readonly displayId: DisplayId;
   readonly title: string;
+  /** `"<profileId>@<version>"` when the entry is delivered corpus (ADR-029). */
+  readonly origin?: string;
 }
 
 /** Shared empty reserved-number set — the default for callers that do
@@ -156,11 +158,18 @@ export class WorkspaceIndex {
     return result;
   }
 
-  /** Return all display IDs with their titles — for completion lists. */
+  /** Return all display IDs with their titles — for completion lists.
+   * Delivered-corpus entries (ADR-029) carry an `origin` badge. */
   getAllDisplayIds(): DisplayIdEntry[] {
     const result: DisplayIdEntry[] = [];
     for (const [displayId, entry] of this.byDisplayId) {
-      result.push({ displayId, title: entry.title });
+      result.push({
+        displayId,
+        title: entry.title,
+        origin: entry.origin
+          ? `${entry.origin.profileId}@${entry.origin.profileVersion}`
+          : undefined,
+      });
     }
     return result;
   }

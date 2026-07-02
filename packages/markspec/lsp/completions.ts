@@ -214,14 +214,18 @@ export interface EntryTypeInfo {
 
 /**
  * Build completion items for the ID reference trigger.
- * Returns one item per display ID in the workspace.
+ * Returns one item per display ID in the workspace. Delivered-corpus
+ * entries (ADR-029) get an `— from <origin>` badge appended to their
+ * detail so authors can see the ID is read-only, sourced from a profile.
  */
 export function buildIdReferenceItems(
   displayIds: readonly DisplayIdEntry[],
 ): CompletionItemData[] {
   return displayIds.map((entry) => ({
     label: entry.displayId,
-    detail: entry.title,
+    detail: entry.origin
+      ? `${entry.title} — from ${entry.origin}`
+      : entry.title,
     isSnippet: false,
     kind: KIND_REFERENCE,
   }));

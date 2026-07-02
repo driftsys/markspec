@@ -42,9 +42,11 @@ import {
   discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
+  type Entry,
   filterEntriesByTraceTargets,
   format,
   loadConfig,
+  loadDeliveredCorpus,
   loadProfileForCommand,
   type Lockfile,
   makeDisplayId,
@@ -198,6 +200,45 @@ function _getLockfile(): Lockfile | undefined {
   return lockfile;
 }
 
+/** Absolute paths of delivered corpus files currently seeded into the
+ * index (ADR-029). Diagnostics for these files are never published and
+ * the files are re-seeded, not watched. */
+const corpusFilePaths = new Set<string>();
+
+/**
+ * (Re-)seed the workspace index with the active profile's delivered
+ * corpus (ADR-029). Removes any previously-seeded corpus files first so
+ * a profile reload that drops or changes `delivers:` doesn't leave stale
+ * corpus entries behind, then loads the current `profile.delivers` list
+ * and indexes each corpus file under its own file path — entries carry
+ * `Entry.origin` from {@linkcode loadDeliveredCorpus}, which
+ * `publishAllDiagnostics` and the rename handlers use to treat corpus
+ * files/entries as read-only. Called before the project file walk in
+ * `onInitialized` (so corpus display IDs win "first entry wins"
+ * collisions deterministically) and again in `reloadProfile` after
+ * `profile` is reassigned.
+ */
+async function seedDeliveredCorpus(): Promise<void> {
+  for (const path of corpusFilePaths) index.removeFile(path);
+  corpusFilePaths.clear();
+  const delivers = profile?.delivers ?? [];
+  if (delivers.length === 0) return;
+  const corpus = await loadDeliveredCorpus(delivers, readFile);
+  for (const d of corpus.diagnostics) {
+    connection.console.warn(`${d.code}: ${d.message}`);
+  }
+  const byFile = new Map<string, Entry[]>();
+  for (const e of corpus.entries) {
+    const list = byFile.get(e.location.file) ?? [];
+    list.push(e);
+    byFile.set(e.location.file, list);
+  }
+  for (const [file, entries] of byFile) {
+    index.updateFile(file, entries);
+    corpusFilePaths.add(file);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // File reader for core functions (uses Deno APIs — allowed in entry points)
 // ---------------------------------------------------------------------------
@@ -260,8 +301,11 @@ function publishAllDiagnostics(): void {
 
   const grouped = groupDiagnosticsByFile(allDiags);
 
-  // Send diagnostics for files that have issues
+  // Send diagnostics for files that have issues. Delivered corpus files
+  // (ADR-029) are never published — they are read-only, sourced from a
+  // profile, not the author's own work.
   for (const [file, diags] of grouped) {
+    if (corpusFilePaths.has(file)) continue;
     const uri = pathToUri(file);
     connection.sendDiagnostics({
       uri,
@@ -271,6 +315,7 @@ function publishAllDiagnostics(): void {
 
   // Clear diagnostics for tracked files with no issues
   for (const file of index.getFilePaths()) {
+    if (corpusFilePaths.has(file)) continue;
     if (!grouped.has(file)) {
       connection.sendDiagnostics({
         uri: pathToUri(file),
@@ -556,6 +601,9 @@ async function reloadProfile(): Promise<void> {
       "markspec/profileChanged",
       cachedProfileResponse,
     );
+    // Re-seed the delivered corpus (ADR-029) before republishing — the
+    // new profile may change, add, or drop `delivers:` entirely.
+    await seedDeliveredCorpus();
     // Profile changes can flip MSL-R010 suppression and other
     // attribute-validity decisions — republish cross-file diagnostics.
     publishAllDiagnostics();
@@ -584,6 +632,11 @@ connection.onInitialized(async () => {
   connection.console.log(`Indexing project at ${projectRoot}...`);
 
   try {
+    // Seed the delivered corpus (ADR-029) before the project walk so
+    // corpus display IDs win "first entry wins" collisions
+    // deterministically, regardless of project-file parse order.
+    await seedDeliveredCorpus();
+
     // Discover all relevant files (core/discovery: gitignore-aware,
     // honors project.yaml `exclude:`).
     const files: string[] = [];
@@ -903,7 +956,13 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
           index.getAllEntries(),
           targets,
           profile,
-        ).map((e) => ({ displayId: e.displayId, title: e.title }))
+        ).map((e) => ({
+          displayId: e.displayId,
+          title: e.title,
+          origin: e.origin
+            ? `${e.origin.profileId}@${e.origin.profileVersion}`
+            : undefined,
+        }))
         : index.getAllDisplayIds();
       // Server-side prefix filter on the partial the user has typed
       // after the colon. Case-insensitive to match VS Code's
@@ -1213,6 +1272,11 @@ connection.onPrepareRename((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
+  const id = displayIdAtPosition(line, params.position.character);
+  if (id) {
+    const targetEntry = index.getEntryByDisplayId(makeDisplayId(id));
+    if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-029)
+  }
   return prepareRenameRange(
     line,
     params.position.character,
@@ -1239,6 +1303,8 @@ connection.onRenameRequest(async (params) => {
   });
   const oldId = displayIdAtPosition(line, params.position.character);
   if (!oldId) return null;
+  const targetEntry = index.getEntryByDisplayId(makeDisplayId(oldId));
+  if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-029)
   const newId = params.newName;
   if (!newId || newId === oldId) return null;
 

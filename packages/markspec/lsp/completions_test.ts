@@ -752,3 +752,14 @@ Deno.test("buildMidTypedScaffoldItems: matches a named type by its leading liter
   assertEquals(items[0].named, true);
   assertEquals(items[0].textEdit.newText.startsWith("SWC_${1:NAME}]"), true);
 });
+
+// --- ADR-029: delivered-corpus completion badge ---
+
+Deno.test("buildIdReferenceItems: corpus entries carry origin badge", () => {
+  const items = buildIdReferenceItems([
+    { displayId: makeDisplayId("PLT_0001"), title: "Core", origin: "p@1.0.0" },
+    { displayId: makeDisplayId("STK_0001"), title: "Local" },
+  ]);
+  assertEquals(items[0].detail, "Core — from p@1.0.0");
+  assertEquals(items[1].detail, "Local");
+});
