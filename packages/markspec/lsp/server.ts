@@ -45,6 +45,7 @@ import {
   filterEntriesByTraceTargets,
   format,
   loadConfig,
+  loadMarkdownFormatter,
   loadProfileForCommand,
   type Lockfile,
   makeDisplayId,
@@ -1316,7 +1317,7 @@ connection.onDocumentLinks((params) => {
 // Document formatting (wraps core/formatter — same code path as `markspec format`)
 // ---------------------------------------------------------------------------
 
-connection.onDocumentFormatting((params) => {
+connection.onDocumentFormatting(async (params) => {
   tally("documentFormatting");
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
@@ -1324,10 +1325,15 @@ connection.onDocumentFormatting((params) => {
   const filePath = uriToPath(params.textDocument.uri);
   // Spec §3.4: non-MarkSpec files MUST return an empty TextEdit[], not null
   // (null would be interpreted as "no opinion" / fall through to other formatters).
+  // Checked before loadMarkdownFormatter() so the WASM prose formatter is
+  // never loaded for files the server won't format.
   if (!isMarkspecFile(filePath)) return [];
 
   const currentText = document.getText();
-  const result = format(currentText, { file: filePath });
+  const result = format(currentText, {
+    file: filePath,
+    formatMarkdownProse: await loadMarkdownFormatter(),
+  });
 
   // On parse failure the formatter returns `output === input` and emits
   // diagnostics via its existing channel — clients see them through the
