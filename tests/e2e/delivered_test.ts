@@ -234,3 +234,21 @@ Deno.test("profile show: lists delivered documents", async () => {
   assertStringIncludes(stdout, "corpus");
   assertStringIncludes(stdout, "reference/guide.md");
 });
+
+Deno.test("profile show: missing corpus file is surfaced, not '0 entries'", async () => {
+  // `profile show` does NOT route through compileProject, so a missing
+  // corpus file (PROFILE-DELIVERS-001, fatal everywhere else) is reachable
+  // here — it must render as an explicit issue, never as a silently-empty
+  // `corpus   0 entries` row. Exit code stays 0: profile show is
+  // informational.
+  const files = fixture(WITH_DELIVERS);
+  delete files["profile/reference/platform.md"];
+  const { code, stdout } = await markspec(["profile", "show"], files);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "MISSING (PROFILE-DELIVERS-001)");
+  assertEquals(
+    stdout.includes("0 entries"),
+    false,
+    `missing corpus file silently rendered as 0 entries:\n${stdout}`,
+  );
+});

@@ -68,6 +68,20 @@ export const profileCmd = new Command()
         if (delivers.length > 0) {
           const { loadDeliveredCorpus } = await import("../../core/mod.ts");
           const corpus = await loadDeliveredCorpus(delivers, readFile);
+          // Corpus-load issues (missing delivered files) would otherwise
+          // render as a misleading `corpus   0 entries` — profile show
+          // does not route through compileProject, so this state is
+          // reachable here. Surface them per-row and as detail lines;
+          // exit code stays 0 (profile show is informational).
+          const issues = corpus.diagnostics.filter((d) =>
+            d.code.startsWith("PROFILE-DELIVERS")
+          );
+          const issueByFile = new Map<string, (typeof issues)[number]>();
+          for (const d of issues) {
+            if (d.location && !issueByFile.has(d.location.file)) {
+              issueByFile.set(d.location.file, d);
+            }
+          }
           const countByFile = new Map<string, number>();
           for (const e of corpus.entries) {
             countByFile.set(
@@ -77,10 +91,16 @@ export const profileCmd = new Command()
           }
           console.log(`Delivered documents (${delivers.length}):`);
           for (const doc of delivers) {
-            const role = doc.corpus
+            const issue = issueByFile.get(doc.absPath);
+            const role = issue
+              ? `${doc.corpus ? "corpus" : "doc   "}   MISSING (${issue.code})`
+              : doc.corpus
               ? `corpus   ${countByFile.get(doc.absPath) ?? 0} entries`
               : `doc      ${doc.description ?? ""}`.trimEnd();
             console.log(`  - ${doc.path}   ${role}   [${doc.profileId}]`);
+          }
+          for (const d of issues) {
+            console.log(`  ${d.severity}[${d.code}]: ${d.message}`);
           }
           console.log("");
         }
