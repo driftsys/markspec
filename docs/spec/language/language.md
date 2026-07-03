@@ -212,6 +212,14 @@ fn debounce_input(raw: u16, window_ms: u32) -> u16 {
 ```
 ````
 
+**Opaque DSL content.** A fenced block whose language identifier is unknown to
+the toolchain is passed through verbatim — never parsed, reformatted, or
+prose-analyzed. Inline code spans carrying an unknown declaration or citation
+DSL — for example the interaction-reference form `ux:media.home/play` — are
+likewise left untouched by `markspec fmt` and `markspec check`. External
+profiles rely on this to host their own embedded vocabularies before those
+vocabularies land in core.
+
 #### Math
 
 Inline and block math expressions:

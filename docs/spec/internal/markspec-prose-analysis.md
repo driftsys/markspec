@@ -103,6 +103,20 @@ further by default:
 `prose.scope.blocks` (§4.1) opts the opt-in blocks in. The never-row is not
 profile-overridable (it would contradict core-data-model §2.5).
 
+**Unknown DSL content is opaque (stability guarantee, #719).** A fenced block is
+verbatim regardless of its info-string: an unknown language tag (`uxil`) is
+skipped exactly like `rust`, so no rule sees inside it. The uxil
+declaration/citation surface embedded in inline code spans — lowercase `ux:`
+refs, leading-slash / dot element forms, and `$`-prefixed shape citations — is
+likewise inert to every active rule, which lets the `@ampere/seed` profile host
+those vocabularies via an external linter before uxil lands in core (epic #717,
+Tier 1). The guarantee is scoped to that DSL surface, **not** to arbitrary text:
+inline code spans are not yet _structurally_ excluded (rules read a paragraph's
+verbatim `content.text`, which includes the span), so an uppercase modal keyword
+or a PascalCase term inside a span is still analyzed. Closing that structural
+gap is deferred follow-up #733. Regression-locked by
+`tests/e2e/opaque_dsl_test.ts`.
+
 ### 1.3 Intent and non-goals
 
 - **Inline markers are signal.** `ModalMarker` and `EntityRef` (core-data-model
