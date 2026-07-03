@@ -153,16 +153,29 @@ cross-file target).
 
 ### Lock ↔ check edge-hash parity
 
-`markspec lock`'s entry collection (`cli/commands/lock.ts` `collectEntries`) and
-`check`'s `MSL-L212` gate both walk the file set via `core/discovery` with the
-same `RELEVANT_EXTENSIONS` + the same `exclude:` patterns. This is load-bearing:
-the lockfile gate recomputes the canonical edge hash from the
-currently-discovered corpus and compares it to the locked hash — if `lock` and
-`check` walked different file sets, the hash would drift spuriously on every
-run. Unifying both on `core/discovery` (rather than `lock.ts` keeping its own
-markdown-only `walkMarkdown`) is what makes the parity hold; it also widened
-`lock`'s collection to include source-file entries (a lockfile generated before
-this change needs one `markspec lock` refresh).
+`markspec lock`'s entry collection and `check`'s `MSL-L212` gate both walk the
+file set via `core/discovery` with the same default `RELEVANT_EXTENSIONS` + the
+same `exclude:` patterns. This is load-bearing: the lockfile gate recomputes the
+canonical edge hash from the currently-discovered corpus and compares it to the
+locked hash — if `lock` and `check` walked different file sets, the hash would
+drift spuriously on every run. Unifying both on `core/discovery` (rather than
+`lock.ts` keeping its own markdown-only `walkMarkdown`) is what makes the parity
+hold; it also widened `lock`'s collection to include source-file entries (a
+lockfile generated before this change needs one `markspec lock` refresh).
+
+**One shared collector (#684).** The discover→parse walk is a single core
+function — `collectProjectEntries(root, io, { exclude })` in `core/collect/` —
+that `lock` (the pinner), `compile`, `fmt`, and `doctor` all call, so "the set
+of files whose edges are hashed" has exactly one definition and cannot drift
+between pinner and checkers. It relies on `discoverFiles`' default extension
+set, so no caller pins the extensions independently (a pinned value would
+re-open the divergence). `check` is the one deliberate exception: it needs each
+file's raw content and per-file directives (the fmt-drift `mdContents` and
+listing contexts), not just the flattened entries, so it keeps its
+`resolveScope`-based loop — equivalent by construction (same discovery, same
+`exclude:`, same default extensions). Before #684 the collector lived as a
+private helper in `cli/commands/lock.ts` that `compile`/`fmt` reached into and
+`doctor` re-rolled by hand — three copies that had to stay byte-identical.
 
 **`doctor` shares the same comparison (#658).** The offline edge-hash comparison
 `check`'s `MSL-L212` gate performs is factored into one pure helper —

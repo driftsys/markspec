@@ -90,6 +90,14 @@ export const checkCmd = new Command()
       // deno-lint-ignore no-explicit-any
       const listingContexts: any[] = [];
       const mdContents = new Map<string, string>();
+      // `check` deliberately does not use the shared `collectProjectEntries`
+      // collector (`lock`/`compile`/`fmt`/`doctor` do): it needs each file's
+      // raw content and per-file directives here (for the fmt-drift `mdContents`
+      // and the listing contexts), not just the flattened entries. Its bare-mode
+      // file set is equivalent by construction — `resolveScope` walks
+      // `core/discovery` with the same `exclude:` and default
+      // `RELEVANT_EXTENSIONS` the collector relies on — so the MSL-L212 gate
+      // still compares against exactly the set `markspec lock` pinned.
       for (const filePath of files) {
         let content: string;
         try {

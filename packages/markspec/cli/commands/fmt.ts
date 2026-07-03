@@ -49,17 +49,24 @@ export const fmtCmd = new Command()
       let refIndex: RefIndex | undefined = undefined;
       let ledger: readonly LockEdge[] = [];
       if (projectRoot !== undefined) {
-        const { buildRefIndex, loadConfig, parseLockfile } = await import(
-          "../../core/mod.ts"
-        );
-        const { collectEntries } = await import("./lock.ts");
+        const {
+          buildRefIndex,
+          collectProjectEntries,
+          loadConfig,
+          parseLockfile,
+        } = await import("../../core/mod.ts");
+        const { denoDiscoveryIO } = await import("../helpers.ts");
         const { join } = await import("@std/path");
         // Honor project.yaml `exclude:` so the canonicalisation corpus
         // matches the one `check` (MSL-L006) and `lock` use — an entry in an
         // excluded path (e.g. `skills/`) must not resolve trace references.
         const configResult = await loadConfig(projectRoot, readFile);
         const exclude = configResult?.config.exclude ?? [];
-        const projectEntries = await collectEntries(projectRoot, exclude);
+        const projectEntries = await collectProjectEntries(
+          projectRoot,
+          denoDiscoveryIO(),
+          { exclude },
+        );
         refIndex = buildRefIndex(projectEntries);
         const lockRaw = await readFile(join(projectRoot, "markspec.lock"));
         if (lockRaw !== undefined) {

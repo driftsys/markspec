@@ -45,6 +45,7 @@ export const compileCmd = new Command()
       if (_options.frozen) {
         const {
           checkDrift,
+          collectProjectEntries,
           discoverProjectRoot,
           loadConfig,
           loadProfileForCommand,
@@ -52,8 +53,8 @@ export const compileCmd = new Command()
           resolveUpstreams,
         } = await import("../../core/mod.ts");
         const { join } = await import("@std/path");
+        const { denoDiscoveryIO } = await import("../helpers.ts");
         const {
-          collectEntries,
           defaultFetchUrl,
           defaultReadFile,
           loadAllMappings,
@@ -88,7 +89,12 @@ export const compileCmd = new Command()
           root,
           readFileOrUndefined,
         );
-        const entries = await collectEntries(root);
+        // Honor project.yaml `exclude:` so `--frozen`'s edge set matches the
+        // one `markspec lock` pinned — an entry under an excluded path (e.g.
+        // `skills/`) must not spuriously drift the frozen check (#684).
+        const entries = await collectProjectEntries(root, denoDiscoveryIO(), {
+          exclude: configResult.config.exclude,
+        });
         const mappings = await loadAllMappings(root);
 
         const resolved = await resolveUpstreams({
