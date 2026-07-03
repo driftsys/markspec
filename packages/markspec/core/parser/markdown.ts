@@ -446,11 +446,22 @@ function extractEntry(
       const colonMatch = COLON_SPLIT_RE.exec(trimmed);
       if (!colonMatch) break; // stop at non-colon line
       const key = colonMatch[1].trim();
-      // A genuine trailer key is a single token; it never contains internal
-      // whitespace or a pipe. A colon inside prose ("modes are: fast") or a
-      // Markdown table row ("| Fast | latency: 200ms |") is body content, not
-      // a malformed trailer — stop scanning at it (#648).
-      if (/[\s|]/.test(key)) break;
+      // A colon inside prose ("modes are: fast") or a Markdown table row
+      // ("| Fast | latency: 200ms |") is body content, not a malformed
+      // trailer — stop scanning at it (#648). A pipe always means a table
+      // cell. Internal whitespace usually means prose, EXCEPT a space-for-
+      // hyphen typo of a real trailer key (`Verified by` for `Verified-by`):
+      // that is a malformed trailer the author intended and must still fire
+      // MSL-P022 rather than silently dropping the trace link (#697). Detect
+      // it by normalising spaces to hyphens and checking the recognised
+      // trailer-key vocabulary.
+      if (key.includes("|")) break;
+      if (
+        /\s/.test(key) &&
+        !RECOGNIZED_TRAILER_KEYS.has(key.replace(/\s+/g, "-"))
+      ) {
+        break;
+      }
       if (ATTR_LINE_RE.test(trimmed)) {
         // Valid attr line in body → already caught by P020
         continue;
