@@ -903,6 +903,11 @@ payload.
 5. A new `markspec:` line or `-->` terminates the payload.
 6. Range directives closed by `<!-- markspec:end NAME -->`.
 
+A `markspec:` directive comment is permitted anywhere inside an entry body and
+is inert there — it is not entry content and never a trailer line, regardless of
+its position relative to the trailer block or of whitespace after `<!--`. Only
+non-directive raw HTML in a body is rejected (MSL-B043).
+
 ### 3.2 Document directives
 
 Placed in the first HTML comment after the H1 heading.

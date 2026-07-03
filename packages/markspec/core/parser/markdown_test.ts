@@ -782,3 +782,62 @@ Deno.test("parseMarkdown: detects entry whose title soft-wraps onto a second lin
   // The wrapped continuation belongs to the title, not the body.
   assertEquals(entry.body, "The system shall compute the value within 200 ms.");
 });
+
+// ---------------------------------------------------------------------------
+// Directive-comment-aware trailer scan (#687)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: directive comment as last body element — no MSL-P022 (#687)", () => {
+  // No-space form, body indent (2 spaces), trailer-adjacent.
+  const bodyIndent = `- [STK_0001] Title
+
+  Body prose within 200 ms.
+
+  <!--markspec:pending Q-001-->
+
+      Id: ${ULID}
+`;
+  // No-space form, trailer indent (6 spaces), directly above Id:.
+  const trailerIndent = `- [STK_0002] Title
+
+  Body prose within 200 ms.
+
+      <!--markspec:pending Q-001-->
+      Id: ${ULID}
+`;
+  for (const md of [bodyIndent, trailerIndent]) {
+    const { diagnostics } = parseMarkdown(md);
+    const p02x = diagnostics.filter((d) =>
+      d.code === "MSL-P022" || d.code === "MSL-P021" || d.code === "MSL-P020"
+    );
+    assertEquals(p02x, []);
+  }
+});
+
+Deno.test("parseMarkdown: directive comment mid-body — still clean (#687)", () => {
+  const md = `- [STK_0003] Title
+
+  Body prose within 200 ms.
+
+  <!--markspec:pending Q-001-->
+
+  Trailing prose so the comment is not the last body element.
+
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("MSL-P02")), []);
+});
+
+Deno.test("parseMarkdown: real spaced-key trailer typo still MSL-P022 (#697 regression guard)", () => {
+  const md = `- [STK_0004] Title
+
+  Body prose within 200 ms.
+
+      Verified by: tests/foo.rs
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md);
+  const p022 = diagnostics.filter((d) => d.code === "MSL-P022");
+  assertEquals(p022.length, 1);
+});

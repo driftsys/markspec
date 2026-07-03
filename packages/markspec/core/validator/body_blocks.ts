@@ -30,6 +30,7 @@
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import type { BodyBlock } from "../ast/nodes.ts";
+import { isMarkspecDirectiveComment } from "../parser/directives.ts";
 
 /**
  * HTML tag detection. Matches an opening, closing, or self-closing tag
@@ -44,20 +45,12 @@ const HTML_TAG_RE = /<\/?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?\/?>/;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/;
 
 /**
- * A whole-line markspec directive comment: `<!-- markspec:<rest> -->`
- * occupying the line on its own (optional leading/trailing
- * whitespace). The directive form is the one exception spec §2.4.1
- * carves out from the "no raw HTML" rule.
- */
-const MARKSPEC_DIRECTIVE_LINE_RE = /^\s*<!--\s*markspec:[\s\S]*?-->\s*$/;
-
-/**
  * Return `true` when `line` contains raw HTML the body model forbids:
  * any tag, or any comment that isn't a standalone markspec directive.
  */
 function hasForbiddenHtml(line: string): boolean {
   if (HTML_TAG_RE.test(line)) return true;
-  if (HTML_COMMENT_RE.test(line) && !MARKSPEC_DIRECTIVE_LINE_RE.test(line)) {
+  if (HTML_COMMENT_RE.test(line) && !isMarkspecDirectiveComment(line)) {
     return true;
   }
   return false;
@@ -145,7 +138,7 @@ function violationsFromBlock(
       } else if (block.subkind === "html") {
         // Block-level HTML: check if it is a markspec directive (exempt)
         // or forbidden HTML. The `raw` field carries the verbatim source.
-        if (!MARKSPEC_DIRECTIVE_LINE_RE.test(block.raw)) {
+        if (!isMarkspecDirectiveComment(block.raw)) {
           out.push({ diag: RAW_HTML_DIAG, bodyLine });
         }
       }

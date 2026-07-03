@@ -24,6 +24,25 @@ const COMMENT_RE = /^<!--([\s\S]*?)-->$/;
 const DIRECTIVE_RE = /^markspec:(\S+)\s?(.*)?$/;
 
 /**
+ * A whole-line markspec directive comment: `<!-- markspec:<rest> -->`
+ * occupying the line on its own (optional surrounding whitespace, and
+ * optional whitespace after `<!--`). This is the single definition the
+ * validator's body carve-out (spec §2.4.1) and the parser's trailer
+ * heuristics both consult, so they can never disagree on what a directive
+ * comment is (#687).
+ */
+const DIRECTIVE_COMMENT_LINE_RE = /^\s*<!--\s*markspec:[\s\S]*?-->\s*$/;
+
+/**
+ * Return `true` when `line` is a standalone `<!-- markspec:* -->` directive
+ * comment. Accepts the line trimmed or with surrounding whitespace, and both
+ * the spaced (`<!-- markspec:`) and no-space (`<!--markspec:`) forms.
+ */
+export function isMarkspecDirectiveComment(line: string): boolean {
+  return DIRECTIVE_COMMENT_LINE_RE.test(line);
+}
+
+/**
  * Detect MarkSpec directives in a Markdown string.
  *
  * Walks the mdast AST looking for `html` nodes that are HTML comments.

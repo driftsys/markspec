@@ -144,6 +144,13 @@ Deno.test("validateBodyBlocks: markspec directive comment → allowed, no MSL-B0
   assertEquals(b043, []);
 });
 
+Deno.test("validateBodyBlocks: no-space directive comment allowed, no MSL-B043 (#687 parity)", () => {
+  const body = "Body text.\n\n<!--markspec:pending Q-001-->\n\nMore body.";
+  const entry = makeEntry("REQ-001", body);
+  const diags = validateBodyBlocks(entry);
+  assertEquals(diags.filter((d) => d.code === "MSL-B043"), []);
+});
+
 Deno.test("validateBodyBlocks: excluded construct inside fenced code block — NOT flagged", () => {
   // PR 5 migration: AST does not emit prose-bearing nodes for code blocks,
   // so headings / HR / HTML inside fenced code are automatically excluded.
