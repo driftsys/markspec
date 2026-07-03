@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { detectDirectives } from "./directives.ts";
+import { detectDirectives, isMarkspecDirectiveComment } from "./directives.ts";
 
 // ---------------------------------------------------------------------------
 // Single directive
@@ -138,4 +138,30 @@ Deno.test("detectDirectives: uses '<unknown>' when no file specified", () => {
   const directives = detectDirectives(md);
   assertEquals(directives.length, 1);
   assertEquals(directives[0].location.file, "<unknown>");
+});
+
+// ---------------------------------------------------------------------------
+// isMarkspecDirectiveComment predicate
+// ---------------------------------------------------------------------------
+
+Deno.test("isMarkspecDirectiveComment: truth table", () => {
+  // Accepted — directive comments, spaced and no-space, indented or not.
+  assertEquals(
+    isMarkspecDirectiveComment("<!-- markspec:pending Q-001 -->"),
+    true,
+  );
+  assertEquals(
+    isMarkspecDirectiveComment("<!--markspec:pending Q-001-->"),
+    true,
+  );
+  assertEquals(isMarkspecDirectiveComment("   <!-- markspec:deck -->  "), true);
+  assertEquals(
+    isMarkspecDirectiveComment("<!-- markspec:Q-001 anything -->"),
+    true,
+  );
+  // Rejected — non-directive comment, HTML tag, plain prose, empty.
+  assertEquals(isMarkspecDirectiveComment("<!-- Q-001 -->"), false);
+  assertEquals(isMarkspecDirectiveComment("<div>x</div>"), false);
+  assertEquals(isMarkspecDirectiveComment("Verified by: tests/foo.rs"), false);
+  assertEquals(isMarkspecDirectiveComment(""), false);
 });

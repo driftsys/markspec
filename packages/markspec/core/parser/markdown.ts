@@ -22,6 +22,7 @@ import {
   splitBodyAndAttributes,
 } from "./attributes.ts";
 import { extractBodyTokens } from "./body_tokens.ts";
+import { isMarkspecDirectiveComment } from "./directives.ts";
 import { processor } from "./remark.ts";
 import { buildBodyAstWithTree } from "../ast/build.ts";
 import type { LineMap } from "./line_map.ts";
@@ -443,6 +444,13 @@ function extractEntry(
     for (let i = bodyLines.length - 1; i >= 0; i--) {
       const trimmed = bodyLines[i].trim();
       if (!trimmed) continue; // skip trailing blanks
+      // A `<!-- markspec:* -->` directive comment is legitimate body
+      // content (spec §2.4.1), not a trailer line — skip it so its
+      // `<!--markspec` colon-prefix is never mistaken for a malformed
+      // trailer key. `continue` (not `break`) keeps scanning earlier lines,
+      // so a genuine leaked-trailer typo sitting above a directive comment
+      // still fires MSL-P022 (#687, preserves #697).
+      if (isMarkspecDirectiveComment(trimmed)) continue;
       const colonMatch = COLON_SPLIT_RE.exec(trimmed);
       if (!colonMatch) break; // stop at non-colon line
       const key = colonMatch[1].trim();
