@@ -24,8 +24,7 @@
  * output is unchanged.
  */
 
-import type { BodyBlock } from "../ast/nodes.ts";
-import type { SourceRange } from "../ast/nodes.ts";
+import type { BodyBlock, SourceRange } from "../ast/nodes.ts";
 import type { BodyToken, SourceLocation } from "../model/mod.ts";
 
 /**
