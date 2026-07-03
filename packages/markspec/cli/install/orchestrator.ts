@@ -30,6 +30,8 @@ import { findWorkspaceRoot, NO_WORKSPACE_MARKER_STDERR } from "./workspace.ts";
 import { applyLuaBlock, removeLuaBlock } from "./managed_block.ts";
 import { writeBackup } from "./backup.ts";
 import { renderDiff } from "./preview.ts";
+import { readConfigText } from "./read_config.ts";
+import { writeConfigText } from "./write_config.ts";
 
 /** Options accepted by {@linkcode runLspInstall}. */
 export interface LspInstallOptions {
@@ -153,24 +155,27 @@ export async function runLspInstall(
     workspaceRoot,
   );
 
-  // 4. Read current file content. Missing file → empty string.
+  // 4. Read current file content. Missing file → empty string. The
+  // read goes through readConfigText (Deno.open) rather than
+  // Deno.readTextFile so a stalled read keeps the event loop alive and
+  // the install watchdog can fire instead of hanging silently (#634).
   let current = "";
   let fileExists = true;
   try {
-    current = await Deno.readTextFile(configPath);
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
-      current = "";
+    const existing = await readConfigText(configPath);
+    if (existing === undefined) {
       fileExists = false;
     } else {
-      return {
-        stdout: "",
-        stderr: `${stderrPreamble}error: cannot read ${configPath}: ${
-          (err as Error).message
-        }\n`,
-        exitCode: 1,
-      };
+      current = existing;
     }
+  } catch (err) {
+    return {
+      stdout: "",
+      stderr: `${stderrPreamble}error: cannot read ${configPath}: ${
+        (err as Error).message
+      }\n`,
+      exitCode: 1,
+    };
   }
 
   // 5. Compute next content. Block rendering is only needed for the
@@ -262,7 +267,10 @@ export async function runLspInstall(
   // files on crash mid-write.
   const tmpPath = `${configPath}.tmp`;
   try {
-    await Deno.writeTextFile(tmpPath, next);
+    // writeConfigText (Deno.open) rather than Deno.writeTextFile so a
+    // stalled write keeps the event loop alive and the install watchdog
+    // can fire instead of hanging silently (#634).
+    await writeConfigText(tmpPath, next);
     await Deno.rename(tmpPath, configPath);
   } catch (err) {
     // Best-effort cleanup of the staged tmp file.
