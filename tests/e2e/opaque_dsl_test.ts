@@ -78,6 +78,21 @@ const UX_DOC = [
   "",
 ].join("\n");
 
+/**
+ * The unknown-info-string fenced block, exactly as it appears in {@linkcode
+ * UX_DOC}. The "fmt verbatim" test asserts this block survives byte-for-byte —
+ * scoped to the DSL guarantee rather than the whole document, since `fmt`
+ * reflows the surrounding EARS prose through dprint (a future embedded-dprint
+ * bump could rewrap that sentence while leaving the DSL untouched).
+ */
+const UX_FENCE = [
+  "  ```uxil",
+  "  ux:media.home : screen @ loading, error, ready",
+  "    /play : activate -> ux:media.detail",
+  "    .confirm_dialog @ default",
+  "  ```",
+].join("\n");
+
 const BASE_FILES: Record<string, string> = {
   "project.yaml": PROJECT_YAML,
   ".markspec.yaml": MARKSPEC_YAML,
@@ -144,20 +159,27 @@ Deno.test(
     try {
       assertEquals(run.code, 0, `fmt should exit 0; stderr:\n${run.stderr}`);
       const after = await Deno.readTextFile(join(run.dir, "docs/req.md"));
-      // Whole-document equality is the strongest statement of "fmt does
-      // nothing here": the ux: spans and the ```uxil fence are byte-identical.
-      assertEquals(
+      // The #719 guarantee is that the DSL content survives fmt verbatim — NOT
+      // that the surrounding prose is untouched. `fmt` reflows entry-body prose
+      // through dprint, so asserting whole-document equality would raise a
+      // false "opaque DSL broken" signal on an orthogonal embedded-dprint bump.
+      // Assert exactly the guarantee: the unknown fence block and every ux:
+      // span survive byte-for-byte.
+      assertStringIncludes(
         after,
-        UX_DOC,
-        "fmt must leave the ux: spans and the unknown fence byte-identical",
+        UX_FENCE,
+        "the unknown ```uxil fence must pass through fmt verbatim",
       );
-      // Explicit tokens, for a localized failure message if the above drifts.
       assertStringIncludes(after, "`ux:media.home/play`");
+      assertStringIncludes(
+        after,
+        "`ux:media.home : screen @ loading, error, ready`",
+      );
       assertStringIncludes(after, "`/play : activate`");
       assertStringIncludes(after, "`.confirm_dialog @ default`");
+      assertStringIncludes(after, "`media.home/play`");
       assertStringIncludes(after, "`mediaHome/playButton`");
       assertStringIncludes(after, "`$MediaEvent`");
-      assertStringIncludes(after, "```uxil");
     } finally {
       await Deno.remove(run.dir, { recursive: true });
     }
