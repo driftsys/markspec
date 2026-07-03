@@ -15,6 +15,7 @@ import {
   compile,
   type CompileResult,
   type DeliveredDocument,
+  discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
   loadConfig,
@@ -202,7 +203,13 @@ export type InvalidationHandler = (
 
 /** Project context handle returned by {@linkcode createProject}. */
 export interface Project {
-  /** Discovered project root, or undefined when no `project.yaml` was found. */
+  /**
+   * Discovered project root, or undefined when neither `project.yaml` nor
+   * `.markspec.yaml` was found. Prefers the directory containing
+   * `project.yaml`; when only `.markspec.yaml` is found (a project
+   * activated per ADR-008 without a `project.yaml`), falls back to that
+   * directory (#647) so compile-backed tools still work.
+   */
   readonly projectRoot: string | undefined;
   /**
    * `true` when the workspace contains either `project.yaml` or
@@ -311,7 +318,12 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   for (const candidate of candidates) {
     if (await detectMarkspecProject(candidate, env.readFile)) {
       markspecDetected = true;
-      projectRoot = await discoverProjectRoot(candidate, env.readFile);
+      // A `.markspec.yaml`-only activation (no `project.yaml` anywhere
+      // upward) is valid per ADR-008; fall back to its directory so
+      // compile-backed tools still get a projectRoot instead of throwing
+      // "no project.yaml found" (#647).
+      projectRoot = await discoverProjectRoot(candidate, env.readFile) ??
+        await discoverMarkspecRoot(candidate, env.readFile);
       break;
     }
   }
@@ -501,7 +513,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     async getCompiled(): Promise<CompileResult> {
       if (!projectRoot) {
         throw new Error(
-          "MarkSpec MCP server: no project.yaml found. " +
+          "MarkSpec MCP server: no MarkSpec project found. " +
             "Operations require project context.",
         );
       }
@@ -518,7 +530,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     async forceRefresh(): Promise<CompileResult> {
       if (!projectRoot) {
         throw new Error(
-          "MarkSpec MCP server: no project.yaml found. " +
+          "MarkSpec MCP server: no MarkSpec project found. " +
             "Operations require project context.",
         );
       }

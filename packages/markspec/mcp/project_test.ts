@@ -93,6 +93,32 @@ Deno.test("createProject: returns null when no project.yaml", async () => {
   assertEquals(proj.projectRoot, undefined);
 });
 
+// ---------------------------------------------------------------------------
+// .markspec.yaml-only fallback (#647) — a project activated per ADR-008
+// without a project.yaml must still resolve a projectRoot so compile-backed
+// tools work instead of throwing.
+// ---------------------------------------------------------------------------
+
+Deno.test("createProject: falls back to .markspec.yaml directory when no project.yaml exists", async () => {
+  const { env } = makeEnv({
+    [join(PROJ, ".markspec.yaml")]: { content: "profiles: []\n", mtime: 1 },
+    [REQ_MD_PATH]: { content: REQ_DOC, mtime: 1 },
+  });
+  const proj = await createProject(env);
+  assertEquals(proj.markspecDetected, true);
+  assertEquals(proj.projectRoot, PROJ);
+});
+
+Deno.test("getCompiled: succeeds for a .markspec.yaml-only project", async () => {
+  const { env } = makeEnv({
+    [join(PROJ, ".markspec.yaml")]: { content: "profiles: []\n", mtime: 1 },
+    [REQ_MD_PATH]: { content: REQ_DOC, mtime: 1 },
+  });
+  const proj = await createProject(env);
+  const result = await proj.getCompiled();
+  assertExists(result.entries.get(makeDisplayId("STK_TEST_0001")));
+});
+
 Deno.test("getCompiled: compiles and caches result", async () => {
   const { env } = makeEnv({
     [PROJECT_YAML_PATH]: { content: PROJECT_YAML, mtime: 1 },

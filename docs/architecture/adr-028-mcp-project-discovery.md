@@ -133,10 +133,11 @@ multiple projects. Tracked as follow-up #645.
 - `Project` remains a plain, set-once, synchronously-constructed value — no new
   async re-resolution path, no new mutable state for tools/resources to reason
   about.
-- A `.markspec.yaml`-only candidate still detects a project
-  (`markspecDetected = true`) but can leave `projectRoot` undefined, exactly as
-  before this ADR (`discoverProjectRoot` only recognizes `project.yaml`).
-  Tracked as follow-up #647.
+- A `.markspec.yaml`-only candidate (`markspecDetected = true`, no
+  `project.yaml` anywhere upward) resolves `projectRoot` to the directory
+  containing `.markspec.yaml` (#647, fixed). Compile-backed tools work fully for
+  these projects; `Project.config` stays `undefined` since no `project.yaml`
+  exists to load.
 
 ## Alternatives considered
 
