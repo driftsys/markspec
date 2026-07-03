@@ -54,18 +54,45 @@ export const mcpCmd = new Command()
         remove?: boolean;
       },
     ) => {
+      const {
+        DeadlineExceeded,
+        resolveInstallDeadlineMs,
+        withDeadline,
+      } = await import("../install/deadline.ts");
       const { runMcpInstall } = await import(
         "../install/mcp_orchestrator.ts"
       );
-      const result = await runMcpInstall({
-        client: options.client,
-        scope: options.scope,
-        binaryPath: options.binaryPath,
-        print: options.print,
-        force: options.force,
-        noColor: options.color === false,
-        remove: options.remove,
-      });
+      const deadlineMs = resolveInstallDeadlineMs();
+      let result;
+      try {
+        // Never hang (#634): a config read wedged under host load trips
+        // the watchdog into a fast diagnostic + non-zero exit instead of
+        // an uninterruptible silent stall.
+        result = await withDeadline(
+          runMcpInstall({
+            client: options.client,
+            scope: options.scope,
+            binaryPath: options.binaryPath,
+            print: options.print,
+            force: options.force,
+            noColor: options.color === false,
+            remove: options.remove,
+          }),
+          deadlineMs,
+        );
+      } catch (err) {
+        if (err instanceof DeadlineExceeded) {
+          await Deno.stderr.write(
+            new TextEncoder().encode(
+              `error: mcp install for client '${options.client}' timed out after ${deadlineMs}ms ` +
+                `(host IO/lock contention?). Raise MARKSPEC_INSTALL_TIMEOUT_MS to wait longer, ` +
+                `or register through Claude Code directly: claude mcp add markspec -- markspec mcp\n`,
+            ),
+          );
+          Deno.exit(1);
+        }
+        throw err;
+      }
       if (result.stdout) {
         await Deno.stdout.write(new TextEncoder().encode(result.stdout));
       }

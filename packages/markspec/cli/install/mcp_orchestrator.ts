@@ -33,6 +33,8 @@ import { copilotDescriptor } from "./mcp_adapters_copilot.ts";
 import { applyJsonBlock, removeJsonBlock } from "./managed_block.ts";
 import { writeBackup } from "./backup.ts";
 import { renderDiff } from "./preview.ts";
+import { readConfigText } from "./read_config.ts";
+import { writeConfigText } from "./write_config.ts";
 
 /** Options accepted by {@linkcode runMcpInstall}. */
 export interface McpInstallOptions {
@@ -221,22 +223,25 @@ async function runManagedBlockFlow(
     scope === "workspace" ? cwd : undefined,
   );
 
-  // 5. Read current content. Missing file → empty string.
+  // 5. Read current content. Missing file → empty string. The read goes
+  // through readConfigText (Deno.open) rather than Deno.readTextFile so a
+  // stalled read keeps the event loop alive and the install watchdog can
+  // fire instead of hanging silently (#634).
   let current = "";
   let fileExists = true;
   try {
-    current = await Deno.readTextFile(configPath);
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
-      current = "";
+    const existing = await readConfigText(configPath);
+    if (existing === undefined) {
       fileExists = false;
     } else {
-      return {
-        stdout: "",
-        stderr: `error: cannot read ${configPath}: ${(err as Error).message}\n`,
-        exitCode: 1,
-      };
+      current = existing;
     }
+  } catch (err) {
+    return {
+      stdout: "",
+      stderr: `error: cannot read ${configPath}: ${(err as Error).message}\n`,
+      exitCode: 1,
+    };
   }
 
   // 6. Compute next content.
@@ -318,7 +323,10 @@ async function runManagedBlockFlow(
 
   const tmpPath = `${configPath}.tmp`;
   try {
-    await Deno.writeTextFile(tmpPath, next);
+    // writeConfigText (Deno.open) rather than Deno.writeTextFile so a
+    // stalled write keeps the event loop alive and the install watchdog
+    // can fire instead of hanging silently (#634).
+    await writeConfigText(tmpPath, next);
     await Deno.rename(tmpPath, configPath);
   } catch (err) {
     try {

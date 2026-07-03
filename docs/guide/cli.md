@@ -961,6 +961,26 @@ markspec lsp install --editor zed
 markspec lsp install --editor vscode --binary-path /opt/markspec/bin/markspec
 ```
 
+#### Install timeout (never hang)
+
+`mcp install` and `lsp install` read the target config file before writing.
+Under extreme host load — many concurrent `markspec` processes, a contended
+filesystem, or a locked config file — that read can stall. Rather than hang
+silently, both commands run under a watchdog: if the work does not finish within
+a deadline, they print a diagnostic to stderr and exit non-zero (`1`).
+
+The deadline defaults to 10 seconds (normal runs finish in well under one).
+Override it with the `MARKSPEC_INSTALL_TIMEOUT_MS` environment variable — for
+example `MARKSPEC_INSTALL_TIMEOUT_MS=30000` to wait 30 seconds on a slow host. A
+missing, blank, or non-positive value keeps the 10-second default.
+
+**Limitation.** The watchdog runs inside the process, so it can only fire once
+the runtime has started. If a launch wedges even earlier — in the operating
+system's process loader, which can happen under heavy fork/exec pressure — no
+in-process timer can catch it. In that case, supervise the command externally
+(`timeout 15 markspec mcp install …`) or register the server through your client
+directly, e.g. `claude mcp add markspec -- markspec mcp`.
+
 ### Not yet implemented
 
 These commands are registered but print an error and exit:
