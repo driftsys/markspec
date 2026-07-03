@@ -43,8 +43,9 @@ import { runLint } from "../lint/mod.ts";
  * files, so the caller passes only Markdown file contents.
  *
  * @param mdContents Markdown file path → current on-disk content.
- * @param entries The full parsed entry set (project + corpus), used to build
- *   the reference index `canonicalizeRefs` heals against.
+ * @param entries The full parsed entry set (project + corpus). Only
+ *   project-owned entries (`!e.origin`) build the reference index
+ *   `canonicalizeRefs` heals against — `markspec fmt` is corpus-blind (ADR-030).
  * @param ledger The lockfile's `[[edge]]` ULID ledger (`lockfile.edges`, or
  *   `[]` when there is no lockfile), threaded into `canonicalizeRefs`.
  * @param formatMarkdownProse The loaded ADR-029 whole-document Markdown
@@ -57,7 +58,13 @@ export async function fmtDriftGate(
   formatMarkdownProse: ProseFormatter | undefined,
 ): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
-  const refIndex = buildRefIndex(entries);
+  // Corpus-blind by design (ADR-030): `markspec fmt` never loads the delivered
+  // corpus, so it can only canonicalize references into project-owned entries.
+  // Building the heal index over the full set (including corpus) would flag an
+  // MSL-F011 drift that `fmt` can never fix — a permanently red gate for any
+  // consumer using a delivered corpus. Filter to `!e.origin`, mirroring
+  // lockfileDriftGate.
+  const refIndex = buildRefIndex(entries.filter((e) => !e.origin));
   for (const [filePath, content] of mdContents) {
     const formatted = format(content, {
       file: filePath,

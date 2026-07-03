@@ -99,6 +99,49 @@ Deno.test("fmtDriftGate: a non-canonical ULID reference fails with MSL-F011, not
   assertEquals(diags.some((d) => d.code === "MSL-F010"), false);
 });
 
+Deno.test("fmtDriftGate: a ULID reference to a delivered-corpus entry does not fire MSL-F011 (#698)", async () => {
+  // SREQ-0001 (project) references REQ-0001 (delivered corpus) by raw ULID.
+  // `markspec fmt` is corpus-blind — it never loads the delivered corpus, so
+  // it cannot rewrite that ULID to a display ID. The gate must be corpus-blind
+  // too; otherwise it reports MSL-F011 drift that `fmt` can never heal — a
+  // permanently red gate for any project using a delivered corpus (ADR-030),
+  // mirroring the `!e.origin` filter lockfileDriftGate already applies.
+  const reqFormatted = format(CLEAN_REQ, { file: "req.md" }).output;
+  const sreq = format(
+    `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: Requirement
+      Satisfies: 01REQ000000000000000000001
+`,
+    { file: "sreq.md" },
+  ).output;
+
+  const reqEntries = (await parseFile(reqFormatted, { file: "req.md" }))
+    .entries;
+  const sreqEntries = (await parseFile(sreq, { file: "sreq.md" })).entries;
+
+  // Mark REQ-0001 as delivered corpus (ADR-030).
+  const corpusOrigin = {
+    kind: "profile",
+    profileId: "@acme/platform",
+    profileVersion: "1.0.0",
+  } as const;
+  const corpusEntries = reqEntries.map((e) => ({ ...e, origin: corpusOrigin }));
+
+  const diags = await fmtDriftGate(
+    new Map([["sreq.md", sreq]]),
+    [...corpusEntries, ...sreqEntries],
+    [],
+    undefined,
+  );
+  assertEquals(diags.some((d) => d.code === "MSL-F011"), false);
+});
+
 // ---------------------------------------------------------------------------
 // lockfileDriftGate
 // ---------------------------------------------------------------------------
