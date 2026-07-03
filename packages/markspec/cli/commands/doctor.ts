@@ -6,11 +6,9 @@
 
 import { Command } from "@cliffy/command";
 import {
+  collectProjectEntries,
   detectOfflineEdgeDrift,
-  discoverFiles,
-  type Entry,
   isBelowFloor,
-  parseFile,
   parseLockfile,
   VERSION,
 } from "../../core/mod.ts";
@@ -77,24 +75,16 @@ export const doctorCmd = new Command()
     let lockedEdges = 0;
     let currentEdges = 0;
     if (parsedLock) {
-      const io = denoDiscoveryIO();
-      const projectEntries: Entry[] = [];
-      for await (
-        // Rely on discoverFiles' default extension set (RELEVANT_EXTENSIONS) —
-        // the same default `markspec lock`'s collectEntries relies on. Pinning
-        // it here would diverge the two edge collections if that default ever
-        // changes, breaking the parity the drift comparison depends on.
-        const file of discoverFiles(projectRoot, io, {
-          exclude: config.exclude,
-        })
-      ) {
-        const content = await readFile(file);
-        if (content === undefined) continue;
-        const parsed = await parseFile(content, { file });
-        projectEntries.push(...parsed.entries);
-      }
-      // Corpus-blind, mirroring `check`'s MSL-L212 gate: the lockfile never
-      // counts delivered-corpus edges (ADR-030), so neither do we.
+      // The shared collectProjectEntries walk is exactly what `markspec lock`
+      // pinned with (same discovery + default extensions + `exclude:`), so the
+      // two edge sets cannot diverge. Corpus-blind, mirroring `check`'s
+      // MSL-L212 gate: the lockfile never counts delivered-corpus edges
+      // (ADR-030), so neither do we.
+      const projectEntries = await collectProjectEntries(
+        projectRoot,
+        denoDiscoveryIO(),
+        { exclude: config.exclude },
+      );
       const drift = await detectOfflineEdgeDrift(
         projectEntries.filter((e) => !e.origin),
         parsedLock.generatedCache,

@@ -14,19 +14,20 @@ import { Command } from "@cliffy/command";
 import { join } from "@std/path";
 import {
   checkDrift,
+  collectProjectEntries,
   discoverProjectRoot,
   loadConfig,
   loadProfileForCommand,
   type Lockfile,
   LOCKFILE_SCHEMA_VERSION,
   type Mapping,
-  parseFile,
   parseLockfile,
   parseMapping,
   resolveUpstreams,
   serializeLockfile,
   validateMappings,
 } from "../../core/mod.ts";
+import { denoDiscoveryIO } from "../helpers.ts";
 
 interface LockOptions {
   check?: boolean;
@@ -70,7 +71,9 @@ async function runLock(options: LockOptions): Promise<void> {
   );
   const chain = profileResult.chain;
 
-  const entries = await collectEntries(projectRoot, config.exclude);
+  const entries = await collectProjectEntries(projectRoot, denoDiscoveryIO(), {
+    exclude: config.exclude,
+  });
   const mappings = await loadAllMappings(projectRoot);
 
   const mappingDiags = validateMappings(mappings);
@@ -193,18 +196,6 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
   }
 }
 
-async function collectEntries(root: string, exclude: readonly string[] = []) {
-  const { discoverFiles } = await import("../../core/mod.ts");
-  const { denoDiscoveryIO } = await import("../helpers.ts");
-  const out = [];
-  for await (const f of discoverFiles(root, denoDiscoveryIO(), { exclude })) {
-    const content = await Deno.readTextFile(f);
-    const r = await parseFile(content, { file: f });
-    out.push(...r.entries);
-  }
-  return out;
-}
-
 async function loadAllMappings(root: string): Promise<Mapping[]> {
   const out: Mapping[] = [];
   const dir = join(root, ".markspec", "sync");
@@ -262,7 +253,6 @@ async function defaultReadFile(
 // ---------------------------------------------------------------------------
 
 export {
-  collectEntries,
   defaultFetchUrl,
   defaultReadFile,
   loadAllMappings,

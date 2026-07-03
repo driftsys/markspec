@@ -436,3 +436,7 @@ export type {
   DiscoveryIO,
   GitignoreRule,
 } from "./discovery/mod.ts";
+
+// ── Project-entry collection (discover + parse → Entry[]) ────────────────
+export { collectProjectEntries } from "./collect/mod.ts";
+export type { CollectOptions } from "./collect/mod.ts";
