@@ -232,7 +232,11 @@ async function seedDeliveredCorpus(): Promise<void> {
   const delivers = profile?.delivers ?? [];
   if (delivers.length === 0) return;
   try {
-    const corpus = await loadDeliveredCorpus(delivers, readFile);
+    const corpus = await loadDeliveredCorpus(
+      delivers,
+      readFile,
+      (p) => Deno.realPath(p),
+    );
     for (const d of corpus.diagnostics) {
       connection.console.warn(`${d.code}: ${d.message}`);
     }

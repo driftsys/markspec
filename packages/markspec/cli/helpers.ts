@@ -227,7 +227,7 @@ export async function loadProjectCorpus(
   );
   const delivers = chain?.effective.delivers ?? [];
   const corpus = chain
-    ? await loadDeliveredCorpus(delivers, readFile)
+    ? await loadDeliveredCorpus(delivers, readFile, (p) => Deno.realPath(p))
     : { entries: [], diagnostics: [] };
   return {
     entries: corpus.entries,
