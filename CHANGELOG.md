@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.10.2] (2026-07-03)
+
+### Bug Fixes
+
+- **cli:** refuse to overwrite read-only profile-delivered documents ([#700])
+  ([2933276])
+- **core:** reject symlink-escaping profile-delivered documents ([#699])
+  ([aeddcdd])
+- **mcp:** resolve a relative project-root candidate before the walk ([#701])
+  ([9bb3052])
+- **core:** make the MSL-F011 gate corpus-blind like fmt ([#698]) ([3969213])
+- **core:** still flag spaced-key trailer typos as MSL-P022 ([#697]) ([76f693d])
+- **cli:** watchdog install commands against a stalled config read ([#634])
+  ([16f9e89])
+- **mcp:** fall back to .markspec.yaml directory when no project.yaml exists
+  ([50cc28e]), closes 647.
+
+A .markspec.yaml-only activation (valid per ADR-008)
+  previously left
+projectRoot undefined even though markspecDetected was true,
+  so the
+soft gate never fired and getCompiled/forceRefresh threw an
+  internal
+"no project.yaml found" error instead of working. createProject
+  now
+falls back to discoverMarkspecRoot's directory when
+  discoverProjectRoot
+finds nothing, so compile-backed tools work for these
+  projects too.
+- **core:** detect and collapse soft-wrapped entry titles ([#686]) ([31f1ed3]),
+  closes 686.
+- **lsp:** fence-aware rename/highlights, MSL-R014 for corpus collisions
+  ([#685]) ([8426917]), closes 680.
+Addresses the LSP MSL-R014 item in #674's
+  Polish section (other items in
+that bundle remain open).
+- **core:** compute prose-lint scope with profile and corpus-awareness
+  ([3a4cff5])
+
+### Features
+
+- **cli:** surface lockfile edge-drift in doctor ([#658]) ([be65e3b]), closes
+  658.
+
+### Refactoring
+
+- **core:** single shared project-entry collector ([#684]) ([17a8a90]), closes
+  684.
+- **core:** delivered-documents follow-up — formatEntryOrigin, corpus-load
+  DRY, tests, polish ([36eec94]), closes 674.
+- **core:** lift check gate blocks into pure core/gates stages ([3208e9f]),
+  closes 659.
+
+[0.10.2]: https://github.com/driftsys/markspec/compare/v0.10.1...v0.10.2
+[2933276]: https://github.com/driftsys/markspec/commit/2933276
+[#700]: https://github.com/driftsys/markspec/issues/700
+[aeddcdd]: https://github.com/driftsys/markspec/commit/aeddcdd
+[#699]: https://github.com/driftsys/markspec/issues/699
+[9bb3052]: https://github.com/driftsys/markspec/commit/9bb3052
+[#701]: https://github.com/driftsys/markspec/issues/701
+[3969213]: https://github.com/driftsys/markspec/commit/3969213
+[#698]: https://github.com/driftsys/markspec/issues/698
+[76f693d]: https://github.com/driftsys/markspec/commit/76f693d
+[#697]: https://github.com/driftsys/markspec/issues/697
+[16f9e89]: https://github.com/driftsys/markspec/commit/16f9e89
+[#634]: https://github.com/driftsys/markspec/issues/634
+[50cc28e]: https://github.com/driftsys/markspec/commit/50cc28e
+[31f1ed3]: https://github.com/driftsys/markspec/commit/31f1ed3
+[#686]: https://github.com/driftsys/markspec/issues/686
+[8426917]: https://github.com/driftsys/markspec/commit/8426917
+[#685]: https://github.com/driftsys/markspec/issues/685
+[3a4cff5]: https://github.com/driftsys/markspec/commit/3a4cff5
+[be65e3b]: https://github.com/driftsys/markspec/commit/be65e3b
+[#658]: https://github.com/driftsys/markspec/issues/658
+[17a8a90]: https://github.com/driftsys/markspec/commit/17a8a90
+[#684]: https://github.com/driftsys/markspec/issues/684
+[36eec94]: https://github.com/driftsys/markspec/commit/36eec94
+[3208e9f]: https://github.com/driftsys/markspec/commit/3208e9f
+
 ## [0.10.1] (2026-07-02)
 
 ### Features
