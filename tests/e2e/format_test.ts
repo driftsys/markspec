@@ -1018,3 +1018,41 @@ Deno.test("fmt: never rewrites source files passed explicitly (ADR-029 scope gua
   assertEquals(code, 0);
   assertEquals(await readFile("main.rs"), rust);
 });
+
+// ---------------------------------------------------------------------------
+// Soft-wrapped bracket-title entries (#686)
+// ---------------------------------------------------------------------------
+
+Deno.test("fmt: stamps a wrapped-title entry instead of silently skipping it (#686)", async () => {
+  // Regression: when the `- [ID] Title` line wrapped onto a second physical
+  // line, fmt treated the block as not-an-entry — no Id minted, no
+  // diagnostic. Expected: the wrapped title collapses to one line and an
+  // Id is stamped.
+  const input = [
+    "# Requirements",
+    "",
+    "- [FREQ_0001] The system shall compute a very long descriptive title that",
+    "  wraps onto a second physical line for readability",
+    "",
+    "  The system shall compute the value within 200 ms.",
+    "",
+    "      Satisfies: STK_0001",
+    "",
+  ].join("\n");
+  const { code, readFile } = await runFormat({ "req.md": input });
+  assertEquals(code, 0);
+  const output = await readFile("req.md");
+  // A real ULID (Crockford base32, 26 chars) was minted.
+  assertMatch(output, /^\s*Id: [0-9A-HJKMNP-TV-Z]{26}$/m);
+  // Title collapsed onto a single physical line.
+  assertStringIncludes(
+    output,
+    "- [FREQ_0001] The system shall compute a very long descriptive title " +
+      "that wraps onto a second physical line for readability\n",
+  );
+  // Body preserved.
+  assertStringIncludes(
+    output,
+    "The system shall compute the value within 200 ms.",
+  );
+});

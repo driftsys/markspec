@@ -752,3 +752,33 @@ Deno.test("parseMarkdown: inline typl parse error is bridged to file-relative di
   assertEquals(typlDiag.location?.file, "test.md");
   assertEquals((typlDiag.location?.line ?? 0) >= 1, true);
 });
+
+// ---------------------------------------------------------------------------
+// Soft-wrapped title lines (#686)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: detects entry whose title soft-wraps onto a second line", () => {
+  // A soft-wrapped title is one Markdown paragraph, so remark hands the
+  // parser a single text node containing an embedded newline. The entry
+  // must still be detected (previously silently skipped — #686), with the
+  // wrapped title collapsed to a single logical line.
+  const md = [
+    "- [FREQ_0001] The system shall compute a very long descriptive title that",
+    "  wraps onto a second physical line for readability",
+    "",
+    "  The system shall compute the value within 200 ms.",
+    "",
+    `      Id: ${ULID}`,
+  ].join("\n");
+  const { entries } = parseMarkdown(md, { file: "test.md" });
+  assertEquals(entries.length, 1);
+  const [entry] = entries;
+  assertEquals(entry.displayId, "FREQ_0001");
+  assertEquals(
+    entry.title,
+    "The system shall compute a very long descriptive title that wraps " +
+      "onto a second physical line for readability",
+  );
+  // The wrapped continuation belongs to the title, not the body.
+  assertEquals(entry.body, "The system shall compute the value within 200 ms.");
+});
