@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.10.3] (2026-07-03)
+
+### Features
+
+- **core:** table declaration surface via msTableCaption ([#738]) ([a72b6cf]),
+  closes 721.
+- **core:** entry-local base-resolution engine for declaration surfaces
+  ([80bd338]), closes 722.
+
+### Bug Fixes
+
+- **core:** parse directive comments consistently before the trailer ([#687])
+  ([e721e0e]), closes 687.
+
+### Refactoring
+
+- **core:** extract shared declaration-surface machinery (typl surfaces →
+  core/decl) ([#736]) ([3e5d27c]), closes 720.
+
+[0.10.3]: https://github.com/driftsys/markspec/compare/v0.10.2...v0.10.3
+[a72b6cf]: https://github.com/driftsys/markspec/commit/a72b6cf
+[#738]: https://github.com/driftsys/markspec/issues/738
+[80bd338]: https://github.com/driftsys/markspec/commit/80bd338
+[e721e0e]: https://github.com/driftsys/markspec/commit/e721e0e
+[#687]: https://github.com/driftsys/markspec/issues/687
+[3e5d27c]: https://github.com/driftsys/markspec/commit/3e5d27c
+[#736]: https://github.com/driftsys/markspec/issues/736
+
 ## [0.10.2] (2026-07-03)
 
 ### Bug Fixes
