@@ -1530,6 +1530,7 @@ profile:
       // Built with `join` so the expected separator matches production
       // (`deliveredFromTier` uses `join(baseDir, path)`) on Windows too.
       absPath: join("/fixture/t0", "ref/base.md"),
+      baseDir: "/fixture/t0",
       corpus: true,
       description: undefined,
     },
@@ -1538,6 +1539,7 @@ profile:
       profileVersion: "2.0.0",
       path: "ref/leaf.md",
       absPath: join("/fixture/t1", "ref/leaf.md"),
+      baseDir: "/fixture/t1",
       corpus: false,
       description: undefined,
     },

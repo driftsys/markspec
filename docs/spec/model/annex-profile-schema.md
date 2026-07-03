@@ -567,17 +567,23 @@ missing/empty `path` is a `PROFILE-LOAD-003` error.
 
 File existence is checked when the delivered corpus loads (every graph-consuming
 command, the LSP, and the MCP server), raising `PROFILE-DELIVERS-001`/`-002`.
-The table also lists the two structural errors raised earlier, at manifest-parse
-time, when the `delivers:` block is validated: `PROFILE-DELIVERS-003` (a `path`
-escaping the profile directory) and `PROFILE-DELIVERS-004` (`corpus: true` on a
-non-Markdown file).
+The same load also enforces a containment guard: a delivered file whose real,
+symlink-resolved path escapes the profile package is refused and raises
+`PROFILE-DELIVERS-005` — the structural `path` check (`-003`) validates the
+declared string, but a symlink can still point the resolved file outside the
+package, so the real path is checked before the file is read. The table also
+lists the two structural errors raised earlier, at manifest-parse time, when the
+`delivers:` block is validated: `PROFILE-DELIVERS-003` (a `path` escaping the
+profile directory) and `PROFILE-DELIVERS-004` (`corpus: true` on a non-Markdown
+file).
 
-| Code                   | Severity | Meaning                                       |
-| ---------------------- | -------- | --------------------------------------------- |
-| `PROFILE-DELIVERS-001` | error    | Corpus file declared but missing from package |
-| `PROFILE-DELIVERS-002` | warning  | Docs-only file declared but missing           |
-| `PROFILE-DELIVERS-003` | error    | `path` escapes the profile directory          |
-| `PROFILE-DELIVERS-004` | error    | `corpus: true` on a non-Markdown file         |
+| Code                   | Severity | Meaning                                                  |
+| ---------------------- | -------- | -------------------------------------------------------- |
+| `PROFILE-DELIVERS-001` | error    | Corpus file declared but missing from package            |
+| `PROFILE-DELIVERS-002` | warning  | Docs-only file declared but missing                      |
+| `PROFILE-DELIVERS-003` | error    | `path` escapes the profile directory                     |
+| `PROFILE-DELIVERS-004` | error    | `corpus: true` on a non-Markdown file                    |
+| `PROFILE-DELIVERS-005` | error    | Delivered file's real path escapes the package (symlink) |
 
 A project entry re-declaring a display ID or `Id:` owned by a delivered corpus
 entry fails validation with `MSL-R014` (language spec §8.2) — the fix is to

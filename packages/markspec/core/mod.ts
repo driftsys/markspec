@@ -189,9 +189,13 @@ export type {
 export {
   buildCorpusIndex,
   corpusOriginLabel,
+  deliveredPathIsContained,
   loadDeliveredCorpus,
 } from "./profile/delivered.ts";
-export type { LoadDeliveredCorpusResult } from "./profile/delivered.ts";
+export type {
+  LoadDeliveredCorpusResult,
+  RealPath,
+} from "./profile/delivered.ts";
 
 // Parser
 export {

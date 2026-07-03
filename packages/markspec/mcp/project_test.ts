@@ -49,6 +49,7 @@ function makeEnv(
         const f = store.get(path);
         return Promise.resolve(f?.content);
       },
+      realPath: (path) => Promise.resolve(path),
       stat: (path) => {
         const f = store.get(path);
         if (!f) return Promise.reject(new Error(`ENOENT: ${path}`));
@@ -532,6 +533,7 @@ function makeCorpusEnv(corpusMissing = false): ProjectEnv {
     cwd: () => PROJ,
     rootOverrides: () => [],
     readFile: (path) => Promise.resolve(files.get(path)),
+    realPath: (path) => Promise.resolve(path),
     stat: (path) => {
       if (!files.has(path)) return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve({ mtime: 1 });

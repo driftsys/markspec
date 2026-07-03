@@ -802,6 +802,7 @@ function deliveredFromTier(tier: LoadedProfile): DeliveredDocument[] {
     profileVersion: tier.version,
     path: d.path,
     absPath: join(tier.baseDir, d.path),
+    baseDir: tier.baseDir,
     corpus: d.corpus,
     description: d.description,
   }));

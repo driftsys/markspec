@@ -15,6 +15,7 @@ import {
   compile,
   type CompileResult,
   type DeliveredDocument,
+  deliveredPathIsContained,
   discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
@@ -149,6 +150,10 @@ export interface ProjectEnv {
   rootOverrides(): string[];
   /** Read a file's text content, or undefined if missing. */
   readFile: ReadFile;
+  /** Canonicalise a path, resolving symlinks (e.g. `Deno.realPath`). Used by
+   * the delivered-path containment guard (#699) when serving delivered
+   * documents. */
+  realPath(path: string): Promise<string>;
   /** Return the file's last-modified time in milliseconds since epoch. */
   stat(path: string): Promise<{ mtime: number }>;
   /** Async-iterate every file path under `root` (recursive). */
@@ -275,6 +280,7 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
         return undefined;
       }
     },
+    realPath: (path: string) => Deno.realPath(path),
     stat: async (path: string) => {
       const stat = await Deno.stat(path);
       return { mtime: stat.mtime?.getTime() ?? 0 };
@@ -372,6 +378,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         ? await loadDeliveredCorpus(
           profileChain.effective.delivers,
           env.readFile,
+          env.realPath,
         )
         : { entries: [], diagnostics: [] };
       const result = await compile(paths, {
@@ -508,6 +515,13 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         (d) => d.profileId === profileId && d.path === relPath,
       );
       if (!doc) return undefined;
+      // Containment guard (#699): refuse to serve a delivered document whose
+      // real (symlink-resolved) path escapes the profile package — otherwise a
+      // malicious profile could deliver a `.md` symlinked to an arbitrary local
+      // file and exfiltrate it through this MCP resource.
+      if (!(await deliveredPathIsContained(doc, env.realPath))) {
+        return undefined;
+      }
       return await env.readFile(doc.absPath);
     },
     async getCompiled(): Promise<CompileResult> {

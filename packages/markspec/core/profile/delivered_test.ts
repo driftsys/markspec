@@ -37,6 +37,50 @@ Deno.test("loadDeliveredCorpus: parses corpus entries and stamps origin", async 
   });
 });
 
+Deno.test("loadDeliveredCorpus: a delivered file symlinked outside baseDir is rejected PROFILE-DELIVERS-005, secret never read (#699)", async () => {
+  const base = await Deno.makeTempDir();
+  const outside = await Deno.makeTempDir();
+  try {
+    // A secret file OUTSIDE the profile package, shaped as a valid entry so
+    // that if it were ingested it would surface as an entry in the graph.
+    const secret = `${outside}/secret.md`;
+    await Deno.writeTextFile(
+      secret,
+      `- [SECRET_0001] Leaked private key\n\n  Body.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n`,
+    );
+    // The profile "delivers" ref/arch.md, which is actually a symlink to it.
+    await Deno.mkdir(`${base}/ref`);
+    const linkPath = `${base}/ref/arch.md`;
+    await Deno.symlink(secret, linkPath);
+
+    const { entries, diagnostics } = await loadDeliveredCorpus(
+      [doc({ absPath: linkPath, baseDir: base, path: "ref/arch.md" })],
+      async (p) => {
+        try {
+          return await Deno.readTextFile(p);
+        } catch {
+          return undefined;
+        }
+      },
+      (p) => Deno.realPath(p),
+    );
+
+    assertEquals(
+      entries.length,
+      0,
+      "symlinked-out corpus must not be ingested",
+    );
+    assertEquals(
+      diagnostics.some((d) => d.code === "PROFILE-DELIVERS-005"),
+      true,
+      `expected PROFILE-DELIVERS-005, got ${JSON.stringify(diagnostics)}`,
+    );
+  } finally {
+    await Deno.remove(base, { recursive: true });
+    await Deno.remove(outside, { recursive: true });
+  }
+});
+
 Deno.test("loadDeliveredCorpus: missing corpus file is PROFILE-DELIVERS-001 error", async () => {
   const { entries, diagnostics } = await loadDeliveredCorpus(
     [doc({})],

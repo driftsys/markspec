@@ -67,7 +67,11 @@ export const profileCmd = new Command()
         const delivers = chain.effective.delivers;
         if (delivers.length > 0) {
           const { loadDeliveredCorpus } = await import("../../core/mod.ts");
-          const corpus = await loadDeliveredCorpus(delivers, readFile);
+          const corpus = await loadDeliveredCorpus(
+            delivers,
+            readFile,
+            (p) => Deno.realPath(p),
+          );
           // Corpus-load issues (missing delivered files) would otherwise
           // render as a misleading `corpus   0 entries` — profile show
           // does not route through compileProject, so this state is

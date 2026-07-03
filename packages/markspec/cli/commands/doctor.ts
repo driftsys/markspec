@@ -134,7 +134,11 @@ export const doctorCmd = new Command()
     > = [];
     if (effective && effective.delivers.length > 0) {
       const { loadDeliveredCorpus } = await import("../../core/mod.ts");
-      const corpus = await loadDeliveredCorpus(effective.delivers, readFile);
+      const corpus = await loadDeliveredCorpus(
+        effective.delivers,
+        readFile,
+        (p) => Deno.realPath(p),
+      );
       corpusEntryCount = corpus.entries.length;
       for (const d of corpus.diagnostics) {
         corpusIssues.push({

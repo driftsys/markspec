@@ -194,6 +194,14 @@ export interface DeliveredDocument {
   readonly profileVersion: string;
   readonly path: string;
   readonly absPath: string;
+  /**
+   * The delivering tier's `baseDir` — the profile-package root `absPath` is
+   * resolved against. Used by the delivered-path containment guard (#699) to
+   * reject a `.md` whose real (symlink-resolved) path escapes the package.
+   * Optional so pre-existing fixtures need not set it; production always does
+   * (set in `resolveDelivers`).
+   */
+  readonly baseDir?: string;
   readonly corpus: boolean;
   readonly description?: string;
 }
