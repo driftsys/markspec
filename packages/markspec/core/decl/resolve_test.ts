@@ -71,26 +71,33 @@ Deno.test("resolveRef: relative ref with no base in scope → error", () => {
   });
 });
 
-Deno.test("resolveRef: structural not sequential — siblings do not share bases, order is irrelevant", () => {
-  // Two sibling scopes under a base-less root. Sibling A declares a base;
-  // sibling B declares none. Resolving in B must NOT see A's base — the
-  // engine only follows `parent`, never siblings (rule 4).
+Deno.test("resolveRef: structural not sequential — a sibling's base is invisible to its siblings", () => {
+  // Three sibling scopes under a base-less root. A and B each declare their
+  // OWN base; C declares none. Resolving in A uses only A's base, in B only
+  // B's — never the other sibling's — and C, having no base of its own, falls
+  // through to the base-less root rather than borrowing a sibling's base. The
+  // engine follows `parent` links only, never siblings (rule 4). Order is
+  // irrelevant by construction: the API exposes no sibling ordering at all.
   const root: BaseScope = {};
   const siblingA: BaseScope = { base: "a", parent: root };
-  const siblingB: BaseScope = { parent: root };
+  const siblingB: BaseScope = { base: "b", parent: root };
+  const siblingC: BaseScope = { parent: root };
 
   assertEquals(resolveRef("x", siblingA, OPS), { ok: true, ref: "a/x" });
-  assertEquals(resolveRef("x", siblingB, OPS), {
+  assertEquals(resolveRef("x", siblingB, OPS), { ok: true, ref: "b/x" });
+  assertEquals(resolveRef("x", siblingC, OPS), {
     ok: false,
     reason: "no-base-in-scope",
   });
-  // Declaring a second sibling C after B — and in any order — cannot change
-  // B's resolution, because the engine never reaches a sibling.
-  const _siblingC: BaseScope = { base: "c", parent: root };
-  assertEquals(resolveRef("x", siblingB, OPS), {
-    ok: false,
-    reason: "no-base-in-scope",
-  });
+});
+
+Deno.test("resolveRef: an explicitly empty base still wins innermost (presence, not truthiness)", () => {
+  // The guard is `base !== undefined`, not a truthiness check: a declaration
+  // that establishes an empty-string base is a *present* base and must win
+  // innermost, not fall through to an outer base. Pins that a later
+  // `if (s.base)` "simplification" would be a regression.
+  const scope: BaseScope = { base: "", parent: { base: "outer" } };
+  assertEquals(resolveRef("x", scope, OPS), { ok: true, ref: "/x" });
 });
 
 // --- checkSingleRoot -------------------------------------------------------
