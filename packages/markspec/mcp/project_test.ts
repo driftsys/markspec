@@ -119,6 +119,26 @@ Deno.test("getCompiled: succeeds for a .markspec.yaml-only project", async () =>
   assertExists(result.entries.get(makeDisplayId("STK_TEST_0001")));
 });
 
+// #701: a RELATIVE override candidate (`--root ./typo`,
+// `MARKSPEC_PROJECT_ROOT=../foo`) that does not resolve to a real project must
+// not send the upward walk into an infinite loop. The `parent === dir`
+// termination only holds once `dir` is absolute, so the walk must resolve the
+// candidate first. Deterministic guard: cap the read count so a
+// non-terminating walk fails loudly instead of hanging the suite.
+Deno.test("detectMarkspecProject terminates for a relative non-resolving candidate (#701)", async () => {
+  let reads = 0;
+  const readFile = (_path: string): Promise<string | undefined> => {
+    if (++reads > 1000) {
+      throw new Error(
+        `did not terminate: walked ${reads} reads (infinite loop)`,
+      );
+    }
+    return Promise.resolve(undefined);
+  };
+  const found = await detectMarkspecProject("../does-not-exist-xyz", readFile);
+  assertEquals(found, false);
+});
+
 Deno.test("getCompiled: compiles and caches result", async () => {
   const { env } = makeEnv({
     [PROJECT_YAML_PATH]: { content: PROJECT_YAML, mtime: 1 },

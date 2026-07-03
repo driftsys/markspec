@@ -10,7 +10,7 @@
  * without filesystem access.
  */
 
-import { join } from "@std/path";
+import { isAbsolute, join, resolve } from "@std/path";
 import {
   compile,
   type CompileResult,
@@ -63,7 +63,14 @@ export async function detectMarkspecProject(
   cwd: string,
   readFile: ReadFile,
 ): Promise<boolean> {
-  let dir = cwd;
+  // The `parent === dir` root check below only reaches a fixed point for
+  // absolute paths (`join("/", "..") === "/"`); a RELATIVE candidate
+  // (`--root ./typo`, `MARKSPEC_PROJECT_ROOT=../x`) would otherwise grow `../`
+  // forever and loop indefinitely (#701). Resolve only when the path is
+  // relative — an already-absolute path is left verbatim so we don't rewrite
+  // separators or prepend a drive letter on Windows (which would break callers
+  // that pass POSIX-style absolute paths matched against an OS-native `join`).
+  let dir = isAbsolute(cwd) ? cwd : resolve(cwd);
   while (true) {
     if (await readFile(join(dir, "project.yaml")) !== undefined) return true;
     if (await readFile(join(dir, ".markspec.yaml")) !== undefined) return true;
