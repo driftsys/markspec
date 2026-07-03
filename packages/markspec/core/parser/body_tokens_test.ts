@@ -121,6 +121,20 @@ Deno.test("scope: modal inside ```rust code fence is NOT emitted", () => {
   }
 });
 
+Deno.test("scope: unknown info-string fence is verbatim — no tokens emitted (#719)", () => {
+  // Verbatim-line skipping keys on block kind (`code`), not on a known
+  // language identifier, so an UNKNOWN info-string (e.g. `uxil`) is opaque
+  // exactly like `rust`: a modal verb and a `$Ref` inside it emit nothing.
+  const body =
+    "Prose with shall and $Vehicle.\n\n```uxil\nux:media.home : screen SHALL $Foo\n```\n";
+  const tokens = tokensOf(body);
+  const inFence = tokens.filter((t) => t.location.line >= 3);
+  assertEquals(inFence.length, 0, "no tokens from inside an unknown-tag fence");
+  // The prose modal + entity-ref on line 1 are still emitted (sanity).
+  assertEquals(tokens.filter((t) => t.kind === "modal").length, 1);
+  assertEquals(tokens.filter((t) => t.kind === "entity-ref").length, 1);
+});
+
 Deno.test("scope: entity-ref inside $$ math block is NOT emitted", () => {
   const body = "Use $Vehicle here.\n\n$$\n$x = 1$\n$$\n";
   const refs = tokensOf(body).filter((t) => t.kind === "entity-ref");
