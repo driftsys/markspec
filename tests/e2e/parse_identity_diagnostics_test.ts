@@ -226,6 +226,32 @@ Deno.test("validate: malformed trailer key after a colon table still -> MSL-P022
   assertStringIncludes(stderr, "Bad_Key");
 });
 
+// #697: a trailer key mistyped with a space instead of a hyphen (e.g.
+// `Verified by:` for `Verified-by:`) is a malformed trailer the author
+// intended, not prose -- it must still fire MSL-P022, not be silently
+// swallowed (which would drop the trace link with no error). Regression from
+// the #648 whitespace guard, which broke the backward scan on ANY internal
+// whitespace in the key.
+Deno.test("validate: spaced-key trailer typo still -> MSL-P022 (#697)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Spaced trailer key typo
+
+  The system shall support the modes below.
+
+  Verified by: TST_0001
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P022");
+  assertStringIncludes(stderr, "Verified by");
+});
+
 // ---------------------------------------------------------------------------
 // #654: MSL-P020 (misplaced trailer) must fire only for a RECOGNIZED trailer
 // key. A body paragraph that merely starts with a capitalized word + colon
