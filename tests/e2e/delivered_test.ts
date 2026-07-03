@@ -515,3 +515,27 @@ Deno.test("export json: corpus-load warning reaches serialized diagnostics (#674
   assertEquals(code, 0, stderr);
   assertStringIncludes(stdout, "PROFILE-DELIVERS-002");
 });
+
+// ---------------------------------------------------------------------------
+// #700: delivered documents are read-only. A write command (`fmt`, `insert`)
+// given an explicit path that resolves to a profile-delivered document must
+// refuse rather than overwrite the profile package's file.
+// ---------------------------------------------------------------------------
+
+Deno.test("fmt: refuses to overwrite an explicitly-named delivered corpus file (#700)", async () => {
+  const { code, stderr } = await markspec(
+    ["fmt", "profile/reference/platform.md"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "read-only");
+});
+
+Deno.test("insert: refuses to append to an explicitly-named delivered corpus file (#700)", async () => {
+  const { code, stderr } = await markspec(
+    ["insert", "stakeholder-requirement", "profile/reference/platform.md"],
+    fixture(WITH_DELIVERS),
+  );
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "read-only");
+});

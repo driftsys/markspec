@@ -6,7 +6,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { compileProject } from "../helpers.ts";
+import { assertNotDeliveredTarget, compileProject } from "../helpers.ts";
 import { nextDisplayId, resolveTypePattern } from "./id_helpers.ts";
 
 export const insertCmd = new Command()
@@ -33,6 +33,9 @@ export const insertCmd = new Command()
         console.error(`error: insert requires a profile; none configured`);
         Deno.exit(1);
       }
+      // Delivered corpus/docs files are read-only (ADR-030) — never append to
+      // a profile package's file (#700).
+      assertNotDeliveredTarget([filePath], chain);
       const pattern = resolveTypePattern(typeName, chain, "insert");
       const displayId = nextDisplayId(pattern, result.entries.values());
 

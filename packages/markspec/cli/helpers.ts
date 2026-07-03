@@ -24,8 +24,39 @@ import type {
   ProfileChain,
   ReadFile,
 } from "../core/mod.ts";
+import { resolve } from "@std/path";
 
 export { CORE_SCHEMA_VERSION, VERSION };
+
+/**
+ * Refuse to operate on a profile-delivered document (ADR-030). Delivered
+ * corpus/docs files are read-only — sourced from a profile package, not the
+ * author's own work. A write command (`fmt`, `insert`) given an explicit path
+ * that resolves to a delivered document must not overwrite the package's file
+ * (#700); machine formats intentionally surface a corpus entry's real absolute
+ * path, so it is easy to name one by accident. Compares each target's resolved
+ * absolute path to the active chain's delivered index; on a match prints an
+ * error and exits 1. No-op when the chain has no delivered documents.
+ */
+export function assertNotDeliveredTarget(
+  files: readonly string[],
+  chain: ProfileChain | null | undefined,
+): void {
+  const delivers = chain?.effective.delivers ?? [];
+  if (delivers.length === 0) return;
+  for (const file of files) {
+    const abs = resolve(file);
+    const doc = delivers.find((d) => d.absPath === abs);
+    if (doc) {
+      console.error(
+        `error: ${file}: profile-delivered documents are read-only ` +
+          `(delivered by ${corpusOriginLabel(doc)}); edit it in its profile ` +
+          `package, not here`,
+      );
+      Deno.exit(1);
+    }
+  }
+}
 
 /** Print "not yet implemented" to stderr and exit 1. */
 export function notImplemented(name: string): () => void {

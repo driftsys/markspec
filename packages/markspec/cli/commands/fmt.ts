@@ -8,6 +8,7 @@ import { Command } from "@cliffy/command";
 import { extname } from "@std/path";
 import type { LockEdge, RefIndex } from "../../core/mod.ts";
 import {
+  assertNotDeliveredTarget,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
   readFile,
@@ -36,9 +37,15 @@ export const fmtCmd = new Command()
 
       const { discoverProjectRoot } = await import("../../core/mod.ts");
       const projectRoot = await discoverProjectRoot(Deno.cwd(), readFile);
-      if (projectRoot !== undefined) {
-        await loadActiveProfile(projectRoot);
-      }
+      const chain = projectRoot !== undefined
+        ? await loadActiveProfile(projectRoot)
+        : null;
+
+      // Delivered corpus/docs files are read-only (ADR-030). Refuse an
+      // explicitly-named target that resolves to one rather than overwriting
+      // the profile package's file (#700). Project-wide scope never includes
+      // corpus files (they live outside the walk / under `exclude:`).
+      if (!scope.projectWide) assertNotDeliveredTarget(scope.files, chain);
 
       const { format } = await import("../../core/mod.ts");
       const formatMarkdownProse = await loadMarkdownFormatterOrExit();
