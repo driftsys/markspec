@@ -515,11 +515,45 @@ export function format(
     const indent = (entry.location.column - 1) + 2;
     let attrs = [...entry.rawAttributes];
 
+    const titleLineIdx = entry.location.line - 1;
+
+    // #686: a title that soft-wraps onto extra physical lines is a single
+    // Markdown paragraph, but the line-based passes here and in
+    // `emitBodyViaAst` (which takes `titleLineIdx + 1` as the body start)
+    // assume the title occupies one physical line. Collapse the wrapped
+    // title onto a single line so Id stamping and body splicing land on the
+    // right lines and the continuation is not clobbered or dropped. The
+    // parser already folded the title text on the model side; this repairs
+    // the raw buffer to match. The scan runs from the title line to the
+    // first blank line (the title/body separator), bounded above by the
+    // attribute block so a malformed entry with no blank line before its
+    // trailer cannot swallow it.
+    if (titleLineIdx >= 0 && titleLineIdx < lines.length) {
+      const attrRange = findAttributeBlockRange(
+        lines,
+        entry.location.line,
+        indent,
+      );
+      const limit = attrRange ? attrRange.start : lines.length;
+      let titleEnd = titleLineIdx;
+      while (titleEnd + 1 < limit && lines[titleEnd + 1].trim() !== "") {
+        titleEnd++;
+      }
+      if (titleEnd > titleLineIdx) {
+        const collapsed = lines[titleLineIdx].replace(/\s+$/, "") + " " +
+          lines
+            .slice(titleLineIdx + 1, titleEnd + 1)
+            .map((l) => l.trim())
+            .join(" ");
+        lines.splice(titleLineIdx, titleEnd - titleLineIdx + 1, collapsed);
+        changed = true;
+      }
+    }
+
     // Title-line bullet canonicalisation per spec §3.2: rewrite `*`
     // or `+` to `-`. The list-item position from the parser is the
     // line carrying the bullet marker; we only touch the marker
     // character itself, leaving the rest of the title alone.
-    const titleLineIdx = entry.location.line - 1;
     if (titleLineIdx >= 0 && titleLineIdx < lines.length) {
       const titleLine = lines[titleLineIdx];
       const markerCol = entry.location.column - 1;

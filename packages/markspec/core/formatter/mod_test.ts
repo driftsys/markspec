@@ -710,3 +710,63 @@ Deno.test("format: a throwing markdown formatter degrades to fallback for prose 
     true,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Soft-wrapped title lines (#686)
+// ---------------------------------------------------------------------------
+
+Deno.test("format: collapses a soft-wrapped title to one line and stamps Id", () => {
+  // #686: an entry whose bracket-title line wraps onto a second physical
+  // line was silently skipped — no Id minted, no diagnostic. The formatter
+  // must detect it, collapse the title to a single line, and stamp an Id
+  // without dropping or duplicating the wrapped continuation or the body.
+  const md = [
+    "- [FREQ_0001] The system shall compute a very long descriptive title that",
+    "  wraps onto a second physical line for readability",
+    "",
+    "  The system shall compute the value within 200 ms.",
+    "",
+    "      Satisfies: STK_0001",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, true);
+  // Title collapsed onto a single physical line.
+  assertStringIncludes(
+    result.output,
+    "- [FREQ_0001] The system shall compute a very long descriptive title " +
+      "that wraps onto a second physical line for readability\n",
+  );
+  // Id stamped — no longer silently skipped.
+  assertStringIncludes(result.output, `Id: ${MOCK_ULID}`);
+  // Body preserved; continuation line neither clobbered nor duplicated.
+  assertStringIncludes(
+    result.output,
+    "The system shall compute the value within 200 ms.",
+  );
+  assertEquals(
+    result.output.split("wraps onto a second physical line").length - 1,
+    1,
+    "the wrapped continuation text must appear exactly once",
+  );
+  // Idempotent: re-formatting the output changes nothing.
+  const second = format(result.output, { generateUlid: mockUlid() });
+  assertEquals(second.output, result.output);
+});
+
+Deno.test("format: collapses a title wrapped across three physical lines", () => {
+  const md = [
+    "- [FREQ_0002] Alpha",
+    "  beta",
+    "  gamma",
+    "",
+    "  Body prose.",
+    "",
+    "      Satisfies: STK_0001",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertStringIncludes(result.output, "- [FREQ_0002] Alpha beta gamma\n");
+  assertStringIncludes(result.output, `Id: ${MOCK_ULID}`);
+  assertStringIncludes(result.output, "Body prose.");
+});

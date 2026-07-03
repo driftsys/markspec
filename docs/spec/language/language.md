@@ -250,7 +250,8 @@ without tooling.
 A list item starting with `- [DISPLAY_ID]` followed by a title on the same line,
 and indented body content on subsequent lines. The display ID is the entry's
 human-readable identifier. The title is the rest of the first line after the
-closing `]`.
+closing `]`. A title that soft-wraps onto a second physical line is one logical
+title; `markspec fmt` collapses it back onto a single line.
 
 ```markdown
 - [DISPLAY_ID] Title
@@ -1471,6 +1472,8 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 
 - **Attribute blocks** — sorted to canonical order, trailing backslashes
   normalized.
+- **Entry titles** — a title soft-wrapped across multiple physical lines is
+  collapsed to a single line (§1).
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.

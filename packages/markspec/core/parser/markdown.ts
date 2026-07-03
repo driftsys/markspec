@@ -77,14 +77,34 @@ export interface ParseMarkdownOptions {
  */
 const SLUG_RE = /^[A-Za-z]([A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 
-/** Match `[...]` at the start of a list item paragraph. Captures: [1] = display ID, [2] = title. */
-const ENTRY_START_RE = /^\[([^\]]+)\]\s*(.*)$/;
+/**
+ * Match `[...]` at the start of a list item paragraph. Captures:
+ * [1] = display ID, [2] = title.
+ *
+ * The title group is `[\s\S]*` (not `.*`) so a title that soft-wraps onto
+ * a second physical line is still captured — remark keeps a soft-wrapped
+ * paragraph as one text node with an embedded `\n`, which `.` would not
+ * cross, leaving the entry silently undetected (#686). {@linkcode collapseTitle}
+ * then folds the wrapped title back to a single logical line.
+ */
+const ENTRY_START_RE = /^\[([^\]]+)\]\s*([\s\S]*)$/;
 
 /** Match `[]` at the start — empty brackets. */
 const EMPTY_BRACKET_RE = /^\[\]\s*(.*)$/;
 
 /** Match `[` at the start without a closing `]` on the same logical content — unterminated. */
 const UNTERMINATED_BRACKET_RE = /^\[[^\]]*$/;
+
+/**
+ * Fold a title that may span multiple soft-wrapped physical lines (one
+ * Markdown paragraph) into a single logical line: every run of whitespace
+ * — including the embedded newlines remark preserves inside the paragraph
+ * text node — collapses to a single space, matching how a soft-wrapped
+ * line renders (#686).
+ */
+function collapseTitle(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
 
 /**
  * Find the `Id:` attribute on an entry. Returns undefined when absent. If
@@ -226,7 +246,7 @@ function extractEntry(
     const match = ENTRY_START_RE.exec(textValue);
     if (match) {
       displayId = match[1];
-      title = match[2].trim();
+      title = collapseTitle(match[2]);
     } else if (EMPTY_BRACKET_RE.test(textValue)) {
       // MSL-P001: bracketed content is empty — `- [] Title`
       const entryLine = item.position?.start.line ?? 1;
@@ -278,11 +298,12 @@ function extractEntry(
     // Title comes from subsequent text nodes in the paragraph
     if (displayId && paragraph.children.length > 1) {
       const rest = paragraph.children.slice(1);
-      title = rest
-        .filter((n): n is Text => n.type === "text")
-        .map((n) => n.value)
-        .join("")
-        .trim();
+      title = collapseTitle(
+        rest
+          .filter((n): n is Text => n.type === "text")
+          .map((n) => n.value)
+          .join(""),
+      );
     }
   }
 
