@@ -26,19 +26,17 @@ import type {
   SourceRange,
   TableNode,
 } from "../ast/nodes.ts";
+import type { BlockDeclaration } from "./surfaces.ts";
 
 /**
- * A declaration found on one data row of a table. `source` is the row
- * reduced to a declaration by the DSL's recognizer; `range` is the row's
- * line-precise span; `captionText` is the enclosing table's `Table:`
- * caption text, when the table has an adjacent one — the DSL parses a base
- * ref out of it and hands that to the resolver (S4).
+ * A declaration found on one data row of a table. Extends the shared
+ * {@linkcode BlockDeclaration} (`source` = the row reduced to a declaration
+ * by the DSL's recognizer; `range` = the row's line-precise span) with
+ * `captionText`: the enclosing table's `Table:` caption text, when the table
+ * has an adjacent one — the DSL parses a base ref out of it and hands that
+ * to the resolver (S4).
  */
-export interface TableRowDeclaration {
-  /** The row reduced to a declaration source by `rowToSource`. */
-  readonly source: string;
-  /** The row's line-precise source range. */
-  readonly range: SourceRange;
+export interface TableRowDeclaration extends BlockDeclaration {
   /** The enclosing table's `Table:` caption text, if any. */
   readonly captionText?: string;
 }
@@ -98,20 +96,27 @@ function walk(
 
 /**
  * Return the text of the `Table:` caption that captions the table at
- * `blocks[index]`, or `undefined` when there is none. A caption with
- * position `"above"` captions the block after it (so it must be the table's
- * predecessor); a caption with position `"below"` captions the block before
- * it (so it must be the table's successor) — matching `assignCaptionPositions`
- * in core/ast/build.ts.
+ * `blocks[index]`, or `undefined` when there is none.
+ *
+ * Pairing is by local adjacency, re-deriving the above/below rule from the
+ * neighbours rather than trusting `CaptionNode.position`: the builder assigns
+ * `position` only for top-level blocks (`assignCaptionPositions` in
+ * core/ast/build.ts), so a caption inside a list item keeps the default
+ * `"below"` and cannot be trusted. A `Table:` caption immediately before the
+ * table captions it (the table is the caption's next captionable block); one
+ * immediately after captions it only when no captionable block follows the
+ * caption — otherwise that caption belongs to the following block.
  */
 function adjacentTableCaption(
   blocks: readonly BodyBlock[],
   index: number,
 ): string | undefined {
   const prev = blocks[index - 1];
-  if (isTableCaption(prev) && prev.position === "above") return prev.text;
+  if (isTableCaption(prev)) return prev.text;
   const next = blocks[index + 1];
-  if (isTableCaption(next) && next.position === "below") return next.text;
+  if (isTableCaption(next) && !isCaptionable(blocks[index + 2])) {
+    return next.text;
+  }
   return undefined;
 }
 
@@ -122,9 +127,33 @@ function isTableCaption(
 }
 
 /**
+ * Block kinds a caption can caption (mirrors the captionable set in
+ * `assignCaptionPositions`, core/ast/build.ts). Used to decide whether a
+ * caption that follows a table belongs to that table or to a later
+ * captionable block.
+ */
+function isCaptionable(block: BodyBlock | undefined): boolean {
+  if (block === undefined) return false;
+  switch (block.kind) {
+    case "figure":
+    case "table":
+    case "code":
+    case "feature":
+    case "math":
+    case "list":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
  * The line-precise range of data row `rowIndex`. The table's `range.start`
  * is the header line; the data row sits `HEADER_AND_DELIMITER_LINES +
- * rowIndex` lines below it. The end column spans the row's raw source line.
+ * rowIndex` lines below it, at the table's start column. `raw` is de-indented
+ * by `verbatimSlice`, so adding the de-indented row length to the table's
+ * column yields the true source span — correct for both top-level (column 1)
+ * and list-nested (indented) tables.
  */
 function rowRange(
   table: TableNode,
@@ -132,9 +161,10 @@ function rowRange(
   rowIndex: number,
 ): SourceRange {
   const line = table.range.start.line + HEADER_AND_DELIMITER_LINES + rowIndex;
+  const column = table.range.start.column;
   const rawLine = rawLines[HEADER_AND_DELIMITER_LINES + rowIndex] ?? "";
   return {
-    start: { line, column: 1 },
-    end: { line, column: rawLine.length + 1 },
+    start: { line, column },
+    end: { line, column: column + rawLine.length },
   };
 }

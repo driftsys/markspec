@@ -159,3 +159,52 @@ Deno.test("extractTableDeclarations: recurses into tables nested in list items",
   const result = extractTableDeclarations(blocks, rowToSource);
   assertEquals(result.map((r) => r.source), ["@nested = signal"]);
 });
+
+Deno.test("extractTableDeclarations: caption pairing ignores the stored position (nested captions default to 'below')", () => {
+  // Inside a list item the builder never assigns caption positions, so a
+  // caption sitting directly ABOVE the table keeps the default "below".
+  // Adjacency must still attach it — the stored position is not trusted.
+  const blocks: BodyBlock[] = [
+    list([
+      item([
+        caption("ux:media.home", "below"), // default position, but above the table
+        table([["@play", "activate", "start"]]),
+      ]),
+    ]),
+  ];
+  const result = extractTableDeclarations(blocks, rowToSource);
+  assertEquals(result.length, 1);
+  assertEquals(result[0].captionText, "ux:media.home");
+});
+
+Deno.test("extractTableDeclarations: a caption between two tables captions the following table", () => {
+  // `[t1, caption, t2]` — the caption's next captionable block is t2, so it
+  // captions t2, not t1 (matching assignCaptionPositions' "above" preference).
+  const blocks: BodyBlock[] = [
+    table([["@a", "sig", "x"]]),
+    caption("ux:media.detail", "below"), // position irrelevant to the logic
+    table([["@b", "cmd", "y"]]),
+  ];
+  const result = extractTableDeclarations(blocks, rowToSource);
+  assertEquals(result.length, 2);
+  assertEquals(result[0].captionText, undefined); // t1 row — no caption
+  assertEquals(result[1].captionText, "ux:media.detail"); // t2 row — the caption
+});
+
+Deno.test("extractTableDeclarations: per-row column tracks the table's start column (indented tables)", () => {
+  // A list-nested table starting at column 3 (2-space indent). `raw` is
+  // de-indented by verbatimSlice, so the row's true source columns are
+  // 3 .. 3 + <de-indented row length>.
+  const rawLine = "| @x | signal |";
+  const t: TableNode = {
+    kind: "table",
+    header: cells("a", "b"),
+    rows: [cells("@x", "signal")],
+    raw: ["| a | b |", "| - | - |", rawLine].join("\n"),
+    range: { start: { line: 10, column: 3 }, end: { line: 13, column: 3 } },
+  };
+  const result = extractTableDeclarations([t], rowToSource);
+  assertEquals(result[0].range.start.line, 12); // 10 + header + delimiter
+  assertEquals(result[0].range.start.column, 3);
+  assertEquals(result[0].range.end.column, 3 + rawLine.length);
+});

@@ -2,7 +2,7 @@
  * @module core/decl
  *
  * Shared declaration-surface machinery (uxil epic #717 §A). DSL-agnostic
- * walkers that extract declaration sites from an entry body's three
+ * walkers that extract declaration sites from an entry body's four
  * embedding surfaces — fenced code blocks, bullet paragraphs, inline code
  * spans, and table rows — parameterized by a recognizer. typl consumes
  * these today; uxil (§B) rides on the same substrate.
