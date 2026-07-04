@@ -24,6 +24,7 @@
     "jsr:@std/jsonc@1": "1.0.2",
     "jsr:@std/path@1": "1.1.4",
     "jsr:@std/path@^1.1.4": "1.1.4",
+    "jsr:@std/semver@1": "1.0.8",
     "jsr:@std/semver@^1.0.8": "1.0.8",
     "jsr:@std/streams@^1.0.17": "1.0.17",
     "jsr:@std/tar@*": "0.1.10",
@@ -59,7 +60,7 @@
         "jsr:@cliffy/internal",
         "jsr:@cliffy/table",
         "jsr:@std/fmt@^1.0.9",
-        "jsr:@std/semver",
+        "jsr:@std/semver@^1.0.8",
         "jsr:@std/text"
       ]
     },
@@ -1422,6 +1423,7 @@
       "jsr:@std/fs@1",
       "jsr:@std/jsonc@1",
       "jsr:@std/path@1",
+      "jsr:@std/semver@1",
       "jsr:@std/tar@0.1",
       "jsr:@std/testing@1",
       "jsr:@std/toml@1",
