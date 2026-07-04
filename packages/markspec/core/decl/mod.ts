@@ -14,12 +14,14 @@ export type {
   BlockDeclaration,
   FenceRecognizer,
   InlineDeclaration,
+  NestedBlockDeclaration,
   TextRecognizer,
 } from "./surfaces.ts";
 export {
   extractBulletDeclarations,
   extractFenceDeclarations,
   extractInlineDeclarations,
+  extractNestedBulletDeclarations,
   stripCodeSpanDelimiters,
 } from "./surfaces.ts";
 
