@@ -9,7 +9,7 @@
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { fromFileUrl } from "@std/path";
-import { markspec } from "./helpers.ts";
+import { markspec, markspecPersist } from "./helpers.ts";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -348,6 +348,108 @@ Deno.test("book build: a chapter mapped from index.md becomes index.html — its
       `${dir}/_site/requirements.html`,
     );
     assertStringIncludes(requirementsHtml, "STK_BRK_0001");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// ── Cross-chapter link rewriting (#773) ────────────────────────────────────
+
+const LINKS_SUMMARY = `# Summary
+
+- [Overview](index.md)
+- [Sibling](sibling.md)
+
+# Recipes
+
+- [Deploy](recipes/deploy.md)
+`;
+
+const LINKS_INDEX_MD = `# Overview\n\nSee [Sibling](sibling.md) for details.\n`;
+const LINKS_SIBLING_MD = `# Sibling\n\nSIBLING-MARKER-TEXT.\n`;
+const LINKS_DEPLOY_MD =
+  `# Deploy\n\nSee [Sibling](../sibling.md#section) for prerequisites.\n`;
+
+const LINKS_FIXTURE = {
+  "project.yaml": PROJECT_YAML,
+  "SUMMARY.md": LINKS_SUMMARY,
+  "index.md": LINKS_INDEX_MD,
+  "sibling.md": LINKS_SIBLING_MD,
+  "recipes/deploy.md": LINKS_DEPLOY_MD,
+};
+
+Deno.test("book build: rewrites a same-directory chapter link's .md extension to .html", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: LINKS_FIXTURE,
+  });
+  try {
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    assertStringIncludes(html, 'href="sibling.html"');
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: rewrites a nested chapter's parent-relative link, preserving the fragment", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: LINKS_FIXTURE,
+  });
+  try {
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    const html = await Deno.readTextFile(`${dir}/_site/recipes-deploy.html`);
+    assertStringIncludes(html, 'href="sibling.html#section"');
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// A chapter declared in SUMMARY.md whose file is intentionally never written
+// (a common in-progress-book authoring state — SUMMARY.md scaffolded ahead
+// of content) plus a chapter path with a redundant "./" prefix.
+const GHOST_SUMMARY = `# Summary
+
+- [Overview](./index.md)
+- [Ghost](ghost.md)
+`;
+
+const GHOST_INDEX_MD =
+  `# Overview\n\nSee [Ghost](ghost.md) and back to [self](./index.md).\n`;
+
+const GHOST_FIXTURE = {
+  "project.yaml": PROJECT_YAML,
+  "SUMMARY.md": GHOST_SUMMARY,
+  "index.md": GHOST_INDEX_MD,
+  // "ghost.md" is deliberately absent.
+};
+
+Deno.test("book build: a link to a chapter declared in SUMMARY.md but missing on disk is left unrewritten", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: GHOST_FIXTURE,
+  });
+  try {
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    assertStringIncludes(stderr, "warning: chapter file not found: ghost.md");
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    // "ghost.md" has no backing file and will never get a ghost.html — a
+    // link to it must stay an honest (if dead) .md reference, not be
+    // confidently rewritten to a same-site page that will never exist.
+    assertStringIncludes(html, 'href="ghost.md"');
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: a chapter path declared with a redundant './' prefix in SUMMARY.md still resolves incoming links", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: GHOST_FIXTURE,
+  });
+  try {
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    // "./index.md" (as declared in SUMMARY.md) must match a link resolving
+    // to the plain, normalized "index.md" from within the same chapter.
+    assertStringIncludes(html, 'href="index.html"');
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

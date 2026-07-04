@@ -882,6 +882,16 @@ markspec book build
 markspec book build -o dist -s docs/SUMMARY.md
 ```
 
+Each chapter's output filename is derived from its `SUMMARY.md`-declared path:
+`.md` is stripped and nested directory separators flatten to hyphens
+(`recipes/deploy.md` → `recipes-deploy.html`). A Markdown link (or link
+reference definition) in one chapter that points at another chapter's source
+path — resolved relative to the linking chapter's own directory, not the
+flattened output layout — is rewritten to that chapter's output filename,
+preserving any `#fragment`. Links to files outside the book (external URLs,
+absolute paths, or a chapter declared in `SUMMARY.md` with no backing file) are
+left untouched.
+
 ### Profile and diagnostics
 
 #### profile show
