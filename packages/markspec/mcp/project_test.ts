@@ -653,3 +653,181 @@ Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => 
     else Deno.env.set("CLAUDE_PROJECT_DIR", prevCc);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Locked upstream corpus injection (federated upstream, slice 4, Task 9)
+// ---------------------------------------------------------------------------
+
+/** Cache dir `markspec lock` writes for the `product` upstream. */
+const UPSTREAM_CACHE_DIR = join(
+  PROJ,
+  ".markspec",
+  "cache",
+  "upstreams",
+  "product",
+);
+const LOCKFILE_PATH = join(PROJ, "markspec.lock");
+
+/** A `markspec.lock` with one snapshot-carrying `[[upstream.registry]]` row. */
+const LOCKFILE_TOML = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-07-04T00:00:00Z"
+
+[[upstream.registry]]
+id = "product"
+api = "https://registry.example/product"
+resolved-manifest-hash = "sha256:abc"
+markspec-schema = 1
+version = "v2.1.0"
+snapshot = "sha256:deadbeef"
+
+[generated-cache]
+edges-hash = "sha256:0"
+edges-count = 0
+`;
+
+/** Manifest `markspec lock` writes into an upstream's cache dir — shape
+ * matches `checkSnapshotSchema`'s expectations (schema/coreSchema = 1,
+ * mirroring `core/upstream/mod_test.ts`'s `snapshotFiles` helper). */
+const UPSTREAM_MANIFEST = JSON.stringify({
+  markspecSchemaVersion: 1,
+  generator: { release: "0.0.0-test", coreSchema: 1 },
+  project: { name: "product", root: "/upstream-product" },
+  counts: { entries: 1, edges: 0, byType: {} },
+  entries: { format: "inline", file: "compiled.json" },
+  edges: { format: "inline", file: "compiled.json" },
+  sqliteMirror: null,
+  federation: [],
+  reserved: {},
+});
+
+/** One hand-built serialized entry — the wire shape `deserializeEntry`
+ * consumes (`core/compiler/deserialize.ts`). */
+const UPSTREAM_COMPILED = JSON.stringify({
+  entries: {
+    "SYS_UP_0001": {
+      displayId: "SYS_UP_0001",
+      title: "Upstream requirement",
+      body: "The upstream system shall do X within 10 ms.",
+      rawAttributes: [],
+      typedAttributes: {},
+      shape: "Authored",
+      location: { file: "/upstream-product/req.md", line: 1, column: 1 },
+      source: { kind: "markdown" },
+      bodyTokens: [],
+      id: "01HGW2Q8MNP3RSTVWXYZABCDEG",
+    },
+  },
+});
+
+/**
+ * Build a ProjectEnv wired for a project with a locked upstream. When
+ * `withLockfile` is `false` the lockfile (and its cache) are absent, so
+ * `getCompiled()` sees only the project's own entry — used to prove the
+ * lockfile's presence, not just the cache dir's, gates upstream injection.
+ */
+function makeUpstreamEnv(withLockfile = true): {
+  env: ProjectEnv;
+  bumpMtime: (path: string, content: string, mtime: number) => void;
+} {
+  const files = new Map<string, { content: string; mtime: number }>([
+    [PROJECT_YAML_PATH, { content: PROJECT_YAML, mtime: 1 }],
+    [REQ_MD_PATH, { content: REQ_DOC, mtime: 1 }],
+  ]);
+  if (withLockfile) {
+    files.set(LOCKFILE_PATH, { content: LOCKFILE_TOML, mtime: 1 });
+    files.set(`${UPSTREAM_CACHE_DIR}/manifest.json`, {
+      content: UPSTREAM_MANIFEST,
+      mtime: 1,
+    });
+    files.set(`${UPSTREAM_CACHE_DIR}/compiled.json`, {
+      content: UPSTREAM_COMPILED,
+      mtime: 1,
+    });
+  }
+  return {
+    env: {
+      cwd: () => PROJ,
+      rootOverrides: () => [],
+      readFile: (path) => Promise.resolve(files.get(path)?.content),
+      realPath: (path) => Promise.resolve(path),
+      stat: (path) => {
+        const f = files.get(path);
+        if (!f) return Promise.reject(new Error(`ENOENT: ${path}`));
+        return Promise.resolve({ mtime: f.mtime });
+      },
+      // Only project.yaml + req.md have tracked extensions; the lockfile
+      // and cache JSON files are walked but never picked up as tracked
+      // project files (TRACKED_EXTENSIONS excludes .lock/.json) — same
+      // "walked but ignored" shape as makeCorpusEnv's profile/ files.
+      walk: async function* () {
+        for (const path of files.keys()) yield path;
+      },
+    },
+    bumpMtime(path, content, mtime) {
+      files.set(path, { content, mtime });
+    },
+  };
+}
+
+Deno.test("getCompiled: injects the locked upstream corpus alongside project entries", async () => {
+  const { env } = makeUpstreamEnv();
+  const proj = await createProject(env);
+  const result = await proj.getCompiled();
+  // 1 project entry (STK_TEST_0001) + 1 upstream entry (SYS_UP_0001).
+  assertEquals(result.entries.size, 2);
+  assertExists(result.entries.get(makeDisplayId("SYS_UP_0001")));
+});
+
+Deno.test("getCompiled: no markspec.lock → no upstream entries, no error", async () => {
+  const { env } = makeUpstreamEnv(false);
+  const proj = await createProject(env);
+  const result = await proj.getCompiled();
+  assertEquals(result.entries.size, 1);
+  assertEquals(result.entries.get(makeDisplayId("SYS_UP_0001")), undefined);
+});
+
+Deno.test("forceRefresh: still injects the locked upstream corpus after a forced recompile", async () => {
+  const { env } = makeUpstreamEnv();
+  const proj = await createProject(env);
+  await proj.getCompiled();
+  const result = await proj.forceRefresh();
+  assertExists(result.entries.get(makeDisplayId("SYS_UP_0001")));
+});
+
+Deno.test("getCompiled: a re-lock (new markspec.lock) invalidates the cache", async () => {
+  // Start with no lockfile — first compile has no upstream entries.
+  const { env, bumpMtime } = makeUpstreamEnv(false);
+  const proj = await createProject(env);
+  const first = await proj.getCompiled();
+  assertEquals(first.entries.get(makeDisplayId("SYS_UP_0001")), undefined);
+
+  // Lock the project — the lockfile + cache now appear on disk, at a new
+  // mtime. isStale() must notice the lockfile mtime change even though
+  // `markspec.lock` is not itself a TRACKED_EXTENSIONS project file.
+  bumpMtime(LOCKFILE_PATH, LOCKFILE_TOML, 2);
+  bumpMtime(`${UPSTREAM_CACHE_DIR}/manifest.json`, UPSTREAM_MANIFEST, 2);
+  bumpMtime(`${UPSTREAM_CACHE_DIR}/compiled.json`, UPSTREAM_COMPILED, 2);
+
+  const second = await proj.getCompiled();
+  assertExists(second.entries.get(makeDisplayId("SYS_UP_0001")));
+});
+
+Deno.test("getCompiled: malformed markspec.lock never throws — degrades to no upstream entries", async () => {
+  const { env } = makeUpstreamEnv(false);
+  const brokenEnv: ProjectEnv = {
+    ...env,
+    readFile: (path) =>
+      path === LOCKFILE_PATH
+        ? Promise.resolve("this is not [[[ valid toml")
+        : env.readFile(path),
+    stat: (path) =>
+      path === LOCKFILE_PATH ? Promise.resolve({ mtime: 1 }) : env.stat(path),
+  };
+  const proj = await createProject(brokenEnv);
+  const result = await proj.getCompiled();
+  assertEquals(result.entries.size, 1);
+  assertEquals(result.entries.get(makeDisplayId("SYS_UP_0001")), undefined);
+});
