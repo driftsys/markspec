@@ -76,24 +76,30 @@ export const bookCmd = new Command()
 
     // Write output
     await Deno.mkdir(options.output, { recursive: true });
+    let hasIndexChapter = false;
     for (const chapter of result.chapters) {
       const slug = chapter.path.replace(/\.md$/, "").replace(/\//g, "-");
+      if (slug === "index") hasIndexChapter = true;
       const outPath = join(options.output, `${slug}.html`);
       await Deno.writeTextFile(outPath, _wrapHtml(chapter.title, chapter.html));
       console.error(`wrote ${outPath}`);
     }
 
-    // Write index.html linking all chapters
-    const indexHtml = _indexHtml(
-      config.name ?? "Book",
-      result.chapters.map((c) => ({
-        title: c.title,
-        slug: c.path.replace(/\.md$/, "").replace(/\//g, "-"),
-      })),
-    );
-    const indexPath = join(options.output, "index.html");
-    await Deno.writeTextFile(indexPath, indexHtml);
-    console.error(`wrote ${indexPath}`);
+    // A chapter mapped from e.g. "index.md" already wrote its own content to
+    // index.html above — that's the book's real homepage and must win. Only
+    // synthesize the nav-only index.html when no chapter claims that slug.
+    if (!hasIndexChapter) {
+      const indexHtml = _indexHtml(
+        config.name ?? "Book",
+        result.chapters.map((c) => ({
+          title: c.title,
+          slug: c.path.replace(/\.md$/, "").replace(/\//g, "-"),
+        })),
+      );
+      const indexPath = join(options.output, "index.html");
+      await Deno.writeTextFile(indexPath, indexHtml);
+      console.error(`wrote ${indexPath}`);
+    }
   })
   .command("dev")
   .description("Live preview with hot reload")

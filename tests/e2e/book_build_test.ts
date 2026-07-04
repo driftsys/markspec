@@ -282,3 +282,62 @@ Deno.test("book build: --output flag writes to custom directory", async () => {
   // `wrote out/index.html` on POSIX; `wrote out\index.html` on Windows.
   assertMatch(stderr, /out[\\/]index\.html/);
 });
+
+// ── index.md as a real chapter (not just an auto-generated nav page) ───────
+
+const INDEX_MD_SUMMARY = `# Summary
+
+- [Overview](index.md)
+- [Requirements](requirements.md)
+`;
+
+const INDEX_MD_CONTENT =
+  `# Overview\n\nOVERVIEW-MARKER-TEXT this is the book's real homepage content.\n`;
+
+const INDEX_MD_FIXTURE = {
+  "project.yaml": PROJECT_YAML,
+  "SUMMARY.md": INDEX_MD_SUMMARY,
+  "index.md": INDEX_MD_CONTENT,
+  "requirements.md": REQUIREMENTS_MD,
+};
+
+Deno.test("book build: a chapter mapped from index.md becomes index.html — not clobbered by the auto-generated nav page", async () => {
+  const { code, stderr } = await markspec(["book", "build"], {
+    files: INDEX_MD_FIXTURE,
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+
+  const dir = await Deno.makeTempDir();
+  try {
+    for (const [name, content] of Object.entries(INDEX_MD_FIXTURE)) {
+      await Deno.writeTextFile(`${dir}/${name}`, content);
+    }
+    const cmd = new Deno.Command("deno", {
+      args: [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
+        "book",
+        "build",
+      ],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    await cmd.output();
+
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    assertStringIncludes(html, "OVERVIEW-MARKER-TEXT");
+    // The chapter's own content must win — no separate, redundant nav-only
+    // page should be written for a chapter that already maps to "index".
+    const requirementsHtml = await Deno.readTextFile(
+      `${dir}/_site/requirements.html`,
+    );
+    assertStringIncludes(requirementsHtml, "STK_BRK_0001");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
