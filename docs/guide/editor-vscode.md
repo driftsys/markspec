@@ -166,9 +166,12 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 
 - Confirm the binary is on `PATH`: `markspec --version` in a terminal.
 - Check the MarkSpec output panel (**View → Output → MarkSpec**) for LSP errors.
-- Confirm the file has MarkSpec entry blocks — diagnostics only appear for files
-  the server recognises (`.md` and supported source files with entry markers or
-  trace attributes).
+- Confirm the file extension is recognised — that's the only gate for whether a
+  file's diagnostics publish at all (`.md`, or a supported source extension).
+- In source files, hover/completion/go-to-definition/rename additionally require
+  the cursor to be within ~20 lines of an entry marker or trace attribute
+  keyword — but this proximity rule doesn't apply to `.md` files, and it doesn't
+  gate diagnostics at all.
 
 **"markspec: command not found"**
 
