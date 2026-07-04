@@ -6,7 +6,7 @@
  * later tasks). Each returns a best-effort AST node and a list of
  * source-local {@linkcode UxilDiagnostic}s. Parse-only — no resolution.
  */
-import type { UxKey, UxRef } from "./ast.ts";
+import type { ChildSurfaceDecl, RootDecl, UxKey, UxRef } from "./ast.ts";
 import { type Token, tokenize } from "./lexer.ts";
 import { type UxilDiagnostic, uxilDiagnostic } from "./diagnostics.ts";
 
@@ -153,6 +153,21 @@ function expectEof(c: Cursor, diags: UxilDiagnostic[]): void {
   }
 }
 
+/** Parse an optional `@state, state, …` set; empty array when absent. */
+function parseStateSet(c: Cursor, diags: UxilDiagnostic[]): string[] {
+  const states: string[] = [];
+  if (c.peek().kind !== "AT") return states;
+  c.advance();
+  const first = expectIdent(c, diags, "state");
+  if (first !== undefined) states.push(first);
+  while (c.peek().kind === "COMMA") {
+    c.advance();
+    const s = expectIdent(c, diags, "state");
+    if (s !== undefined) states.push(s);
+  }
+  return states;
+}
+
 /**
  * Parse a `ux:` reference (citation / nav target). The scheme is optional;
  * `media.home/play` and `ux:media.home/play` yield identical AST except for
@@ -222,4 +237,91 @@ export function parseUxRef(
   }
   expectEof(c, diagnostics);
   return { ref, diagnostics };
+}
+
+/**
+ * Parse a root declaration: `[ux:]surface : kind [@state, …]`. The `:` here
+ * introduces the kind (not a ref key). Returns `decl` undefined only when no
+ * surface is present.
+ */
+export function parseRootDecl(
+  source: string,
+): { decl?: RootDecl; diagnostics: UxilDiagnostic[] } {
+  const diagnostics: UxilDiagnostic[] = [];
+  scanReservedChars(source, diagnostics);
+  const c = new Cursor(tokenize(source));
+  consumeScheme(c);
+  const surface = parseSurface(c, diagnostics);
+  if (!surface) {
+    diagnostics.push(
+      uxilDiagnostic(
+        "UXIL-008",
+        { detail: "expected a surface segment" },
+        c.peek().position,
+      ),
+    );
+    return { diagnostics };
+  }
+  if (c.peek().kind !== "COLON") {
+    diagnostics.push(uxilDiagnostic("UXIL-004", {}, c.peek().position));
+    return { diagnostics };
+  }
+  c.advance();
+  const kind = expectIdent(c, diagnostics, "kind");
+  const states = parseStateSet(c, diagnostics);
+  expectEof(c, diagnostics);
+  return {
+    decl: {
+      form: "root",
+      surface,
+      kind: kind ?? "",
+      states,
+      position: { line: 1, column: 1 },
+    },
+    diagnostics,
+  };
+}
+
+/**
+ * Parse a child-surface declaration: `.path[.seg…] [@state, …]`. The leading
+ * dot marks containment; nested bullets (its elements) are stitched in S8.
+ * There is no kind or verb set — kind is inherited (S8).
+ */
+export function parseChildSurfaceDecl(
+  source: string,
+): { decl?: ChildSurfaceDecl; diagnostics: UxilDiagnostic[] } {
+  const diagnostics: UxilDiagnostic[] = [];
+  scanReservedChars(source, diagnostics);
+  const c = new Cursor(tokenize(source));
+  if (c.peek().kind !== "DOT") {
+    diagnostics.push(
+      uxilDiagnostic(
+        "UXIL-008",
+        { detail: "child surface must start with '.'" },
+        c.peek().position,
+      ),
+    );
+    return { diagnostics };
+  }
+  c.advance();
+  const path = parseSurface(c, diagnostics);
+  if (!path) {
+    diagnostics.push(
+      uxilDiagnostic(
+        "UXIL-008",
+        { detail: "expected a child surface name after '.'" },
+        c.peek().position,
+      ),
+    );
+    return { diagnostics };
+  }
+  const states = parseStateSet(c, diagnostics);
+  expectEof(c, diagnostics);
+  const decl: Mut<ChildSurfaceDecl> = {
+    form: "child",
+    path,
+    position: { line: 1, column: 1 },
+  };
+  if (states.length > 0) decl.states = states;
+  return { decl, diagnostics };
 }
