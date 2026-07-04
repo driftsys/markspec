@@ -16,13 +16,7 @@
 ## Decision
 
 <!-- State the decision, then capture each design choice as a SAD or ICD
-     requirement using MarkSpec entry blocks.
-
-     Use SAD for internal architecture decisions.
-     Use ICD for interface contracts between components or systems.
-     Replace XXX with your project/domain abbreviation (e.g., BRK, NAV, COM).
-     Replace NNNN with the next number in your project sequence.
-     Leave Id empty — tooling assigns the ULID on commit. -->
+     entry block. A worked example follows. -->
 
 Write one entry block per decision point. Use `SAD_` for internal architecture
 and `ICD_` for interface contracts; replace `XXX` with your project abbreviation
