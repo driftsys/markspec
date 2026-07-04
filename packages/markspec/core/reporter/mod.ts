@@ -230,7 +230,7 @@ function computeCoverage(
     const rev = result.reverse.get(entry.displayId) ?? [];
     const hasSatisfies = fwd.some((l) => l.kind === "satisfies");
 
-    if (hasSatisfies) {
+    if (hasSatisfies && !isReferenceLeaf) {
       withSatisfies++;
     } else if (entry.shape === "Authored" && !isReferenceLeaf) {
       withoutSatisfies++;

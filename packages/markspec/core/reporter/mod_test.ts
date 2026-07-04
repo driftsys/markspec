@@ -403,6 +403,42 @@ Deno.test("reporter coverage: project entry stays an orphan while a reference-le
   assertEquals(orphansSection.includes("UP_SYS_0001"), false);
 });
 
+// Review fix: `withSatisfies` was not gated by `!isReferenceLeaf` — a
+// reference leaf with a resolving outgoing Satisfies inflated the coverage
+// numerator even though it is excluded from the orphan/unsatisfied gap
+// lists. A reference leaf must participate in NO coverage count.
+Deno.test("reporter coverage: reference-leaf with a resolving outgoing Satisfies is NOT counted in With Satisfies", () => {
+  const ref = withUpstreamOrigin(
+    makeEntry("UP_SYS_0001", "Upstream system req"),
+    "refhub",
+  );
+  const target = withUpstreamOrigin(
+    makeEntry("UP_SYS_0002", "Upstream target req"),
+    "refhub",
+  );
+  const link = makeLink("UP_SYS_0001", "UP_SYS_0002");
+  // No `dependencyUpstreamIds` supplied — "refhub" is therefore a reference.
+  const result = makeResult([ref, target], [link]);
+
+  const output = report(result, { kind: "coverage", format: "json" });
+  const parsed = JSON.parse(output);
+  assertEquals(parsed.withSatisfies, 0);
+  assertEquals(parsed.withoutSatisfies, 0);
+});
+
+// Control: an ordinary project entry with a resolving outgoing Satisfies
+// is still counted — the gating must not over-exclude project entries.
+Deno.test("reporter coverage: project entry with a resolving outgoing Satisfies IS counted in With Satisfies", () => {
+  const stk = makeEntry("STK_001", "Stakeholder req");
+  const swe = makeEntry("SWE_001", "Software req");
+  const link = makeLink("SWE_001", "STK_001");
+  const result = makeResult([stk, swe], [link]);
+
+  const output = report(result, { kind: "coverage", format: "json" });
+  const parsed = JSON.parse(output);
+  assertEquals(parsed.withSatisfies, 1);
+});
+
 // ---------------------------------------------------------------------------
 // Scope filter tests
 // ---------------------------------------------------------------------------

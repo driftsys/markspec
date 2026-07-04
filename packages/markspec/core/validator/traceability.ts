@@ -8,7 +8,10 @@
  * attributes:
  *   - Required (MSL-L001)
  *   - Cardinality bounds (MSL-L002 upper / MSL-L003 lower)
- *   - Target match against the rule's target matchers (MSL-L004)
+ *   - Target match against the rule's target matchers (MSL-L004; skipped
+ *     when the resolved target is an upstream entry — its `type` comes from
+ *     the upstream's own profile, a vocabulary the consumer never
+ *     re-classifies against, federated upstream slice 4)
  *   - Target existence (MSL-L006, warning; scheme-qualified URIs exempt) —
  *     or MSL-T014 (warning) instead of MSL-L006 when the caller declares a
  *     non-empty upstream set (federated upstream, slice 4)
@@ -22,6 +25,7 @@ import {
   type Diagnostic,
   type EffectiveProfile,
   type Entry,
+  isUpstreamEntry,
   type TargetMatcher,
   type TraceRule,
   URI_SCHEME_RE,
@@ -188,6 +192,14 @@ export function validateTraceabilityForEntry(
         });
         continue;
       }
+      // Federated upstream (slice 4): an upstream target's `type` is
+      // classified by the upstream's OWN profile — a foreign vocabulary the
+      // consumer's profile cannot map (design §4.5/D6: the consumer never
+      // re-classifies). The link still resolves (no L006/T014 — handled
+      // above); only the consumer's own target-type enforcement is skipped
+      // for this target. A project-authored target with a mismatched type
+      // still fires MSL-L004 below.
+      if (isUpstreamEntry(target)) continue;
       if (!matchesAnyTarget(target, rule.target)) {
         diagnostics.push({
           code: "MSL-L004",
