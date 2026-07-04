@@ -799,7 +799,11 @@ Deno.test("compile: corpusEntries resolves a project Satisfies: target with no M
 
   const corpusEntry = result.entries.get(makeDisplayId("PLT_0001"));
   assertExists(corpusEntry);
-  assertEquals(corpusEntry.origin?.profileId, "platform-arch");
+  assertEquals(corpusEntry.origin, {
+    kind: "profile",
+    profileId: "platform-arch",
+    profileVersion: "1.2.0",
+  });
 
   const forward = result.forward.get(makeDisplayId("STK_0001")) ?? [];
   assertEquals(

@@ -332,7 +332,11 @@ Deno.test("WorkspaceIndex: corpus seeded first owns colliding display IDs", asyn
   );
   await index.parseAndUpdateFile("/repo/a.md", PROJECT_MD_WITH_SAME_ID);
   const owner = index.getEntryByDisplayId(makeDisplayId("PLT_0001"));
-  assertEquals(owner?.origin?.profileId, "p");
+  assertEquals(owner?.origin, {
+    kind: "profile",
+    profileId: "p",
+    profileVersion: "1.0.0",
+  });
 });
 
 Deno.test("WorkspaceIndex: validateAll reports a project/corpus collision as MSL-R014, not a raw-cache-path MSL-R006 (#674 finding 3)", async () => {

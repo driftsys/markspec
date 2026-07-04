@@ -15,7 +15,7 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { formatEntryOrigin } from "../model/mod.ts";
+import { formatEntryOrigin, sameOriginSource } from "../model/mod.ts";
 
 /** Generic duplicate detectors superseded by MSL-R014 for corpus collisions. */
 const GENERIC_DUP_CODES: ReadonlySet<string> = new Set([
@@ -87,7 +87,7 @@ export function detectCorpusCollisions(
     const displayOwner = corpusByDisplayId.get(e.displayId);
     if (
       displayOwner !== e && displayOwner &&
-      displayOwner.origin!.profileId !== e.origin.profileId
+      !sameOriginSource(displayOwner.origin!, e.origin)
     ) {
       collided.add(e.displayId);
       diagnostics.push({
@@ -103,7 +103,7 @@ export function detectCorpusCollisions(
       const idOwner = corpusById.get(e.id);
       if (
         idOwner !== e && idOwner &&
-        idOwner.origin!.profileId !== e.origin.profileId
+        !sameOriginSource(idOwner.origin!, e.origin)
       ) {
         collided.add(e.id);
         diagnostics.push({
