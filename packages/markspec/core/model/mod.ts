@@ -705,7 +705,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
 
 /** A single field-level validation error in `project.yaml`. */
 export interface ConfigFieldError {
-  /** The YAML field path (e.g., `domain`, `parents[0]`). */
+  /** The YAML field path (e.g., `name`, `references[0].url`). */
   readonly field: string;
   /** Human-readable error message. */
   readonly message: string;
