@@ -137,6 +137,20 @@ class Parser {
     }
 
     const shape = this.parseShapeOptional();
+
+    // A namespace declaration (#723) is scaffolding — it establishes a
+    // base for relative refs and must not carry a shape.
+    if (kind === "namespace" && shape !== undefined) {
+      this.diagnostics.push(
+        typlDiagnostic(
+          "TYPL-006",
+          { detail: "a namespace declaration carries no shape" },
+          nameTok.position,
+        ),
+      );
+      return undefined;
+    }
+
     return {
       statementKind: "binding",
       name: nameTok.value,

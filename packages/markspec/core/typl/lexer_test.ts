@@ -95,3 +95,29 @@ Deno.test("tokenize: unterminated regex emits TYPL-006 diagnostic", () => {
   );
   assertEquals(diagnostics[0].position, { line: 1, column: 1 });
 });
+
+Deno.test("lexer: dotted DOLLAR_IDENT is one token", () => {
+  const { tokens } = tokenize("$powertrain.brake.pedal_position : signal");
+  assertEquals(tokens[0].kind, "DOLLAR_IDENT");
+  assertEquals(tokens[0].value, "$powertrain.brake.pedal_position");
+  assertEquals(tokens[1].kind, "COLON");
+});
+
+Deno.test("lexer: relative $.name is one token", () => {
+  const { tokens } = tokenize("$.pedal_position : signal");
+  assertEquals(tokens[0].kind, "DOLLAR_IDENT");
+  assertEquals(tokens[0].value, "$.pedal_position");
+});
+
+Deno.test("lexer: dot not followed by ident char ends the token", () => {
+  const { tokens } = tokenize("$a..b");
+  assertEquals(tokens[0].value, "$a");
+  assertEquals(tokens[1].kind, "DOTDOT");
+  assertEquals(tokens[2].kind, "IDENT");
+});
+
+Deno.test("lexer: trailing dot is not consumed", () => {
+  const { tokens } = tokenize("$a. x");
+  assertEquals(tokens[0].value, "$a");
+  assertEquals(tokens[1].kind, "DOT");
+});

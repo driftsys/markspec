@@ -95,3 +95,31 @@ Deno.test("parseTyplBlock: binding without shape (e.g. $Idle : state)", () => {
   assertEquals(ast.bindings[0].kind, "state");
   assertEquals(ast.bindings[0].shape, undefined);
 });
+
+Deno.test("grammar: namespace declaration parses without shape", () => {
+  const { ast, diagnostics } = parseTyplBlock(
+    "$powertrain.brake : namespace",
+  );
+  assertEquals(diagnostics.length, 0);
+  assertEquals(ast.bindings.length, 1);
+  assertEquals(ast.bindings[0].name, "$powertrain.brake");
+  assertEquals(ast.bindings[0].kind, "namespace");
+  assertEquals(ast.bindings[0].shape, undefined);
+});
+
+Deno.test("grammar: namespace with a shape is TYPL-006", () => {
+  const { diagnostics } = parseTyplBlock(
+    "$powertrain.brake : namespace float",
+  );
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "TYPL-006");
+});
+
+Deno.test("grammar: relative binding name parses", () => {
+  const { ast, diagnostics } = parseTyplBlock(
+    "$.pedal_position : signal float[0..100]",
+  );
+  assertEquals(diagnostics.length, 0);
+  assertEquals(ast.bindings[0].name, "$.pedal_position");
+  assertEquals(ast.bindings[0].kind, "signal");
+});

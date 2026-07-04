@@ -15,6 +15,8 @@ import type { BodyBlock } from "../ast/nodes.ts";
 import {
   type BlockDeclaration,
   extractBulletDeclarations,
+  extractNestedBulletDeclarations,
+  type NestedBlockDeclaration,
 } from "../decl/mod.ts";
 import { isTyplDeclarationText } from "./recognize.ts";
 
@@ -30,4 +32,17 @@ export function extractTyplBullets(
   blocks: readonly BodyBlock[],
 ): readonly TyplBulletExtraction[] {
   return extractBulletDeclarations(blocks, isTyplDeclarationText);
+}
+
+/** A typl bullet declaration with its structural parent link (#723). */
+export type TyplNestedBulletExtraction = NestedBlockDeclaration;
+
+/**
+ * Nesting-aware variant of {@linkcode extractTyplBullets}: same items in
+ * the same order, plus parent links for base-resolution scope chains.
+ */
+export function extractTyplBulletsNested(
+  blocks: readonly BodyBlock[],
+): readonly TyplNestedBulletExtraction[] {
+  return extractNestedBulletDeclarations(blocks, isTyplDeclarationText);
 }

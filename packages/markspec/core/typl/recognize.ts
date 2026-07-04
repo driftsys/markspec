@@ -10,8 +10,8 @@
  * See ADR-019.
  */
 
-/** Matches a typl binding: `$Name :`. */
-const BINDING_RE = /^\$[A-Za-z_][A-Za-z0-9_]*\s*:/;
+/** Matches a typl binding: `$Name :`, `$a.b :` (published), `$.x :` (relative). */
+const BINDING_RE = /^\$\.?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*\s*:/;
 
 /** Matches a typl typedef: `type Name =`. */
 const TYPEDEF_RE = /^type\s+[A-Za-z_][A-Za-z0-9_]*\s*=/;

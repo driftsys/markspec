@@ -96,28 +96,60 @@ export function extractBulletDeclarations(
   blocks: readonly BodyBlock[],
   matchText: TextRecognizer,
 ): readonly BlockDeclaration[] {
-  const results: BlockDeclaration[] = [];
-  for (const block of blocks) {
-    if (block.kind === "list") {
+  return extractNestedBulletDeclarations(blocks, matchText)
+    .map(({ source, range }) => ({ source, range }));
+}
+
+/**
+ * A bullet declaration with its structural parent: the index (into the
+ * returned array) of the nearest enclosing extracted declaration, or
+ * `undefined` at top level. Parents always precede children in the
+ * depth-first output order, so `parent < index` holds for every link.
+ * The base-resolution engine (resolve.ts) consumes these links to build
+ * its innermost-wins scope chains (#723).
+ */
+export interface NestedBlockDeclaration extends BlockDeclaration {
+  readonly parent?: number;
+}
+
+/**
+ * Nesting-aware variant of {@linkcode extractBulletDeclarations}: same
+ * declarations in the same depth-first source order, plus a `parent`
+ * link per declaration. A DSL host walks the links to build the
+ * {@linkcode BaseScope} chain a nested declaration resolves against.
+ */
+export function extractNestedBulletDeclarations(
+  blocks: readonly BodyBlock[],
+  matchText: TextRecognizer,
+): readonly NestedBlockDeclaration[] {
+  const results: NestedBlockDeclaration[] = [];
+  const walk = (
+    blocks: readonly BodyBlock[],
+    parent: number | undefined,
+  ): void => {
+    for (const block of blocks) {
+      if (block.kind !== "list") continue;
       for (const item of block.items) {
         if (item.blocks.length === 0) continue;
         const first = item.blocks[0];
-        if (first.kind === "paragraph") {
-          if (matchText(first.content.text)) {
-            results.push({ source: first.content.text, range: first.range });
-          }
+        let itemParent = parent;
+        if (first.kind === "paragraph" && matchText(first.content.text)) {
+          results.push({
+            source: first.content.text,
+            range: first.range,
+            parent,
+          });
+          itemParent = results.length - 1;
         }
-        // Recurse into nested blocks (the item may itself contain a list).
         if (item.blocks.length > 1) {
-          results.push(
-            ...extractBulletDeclarations(item.blocks.slice(1), matchText),
-          );
+          walk(item.blocks.slice(1), itemParent);
         } else if (first.kind === "list") {
-          results.push(...extractBulletDeclarations([first], matchText));
+          walk([first], itemParent);
         }
       }
     }
-  }
+  };
+  walk(blocks, undefined);
   return results;
 }
 

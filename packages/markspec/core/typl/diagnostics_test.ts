@@ -2,7 +2,7 @@
 import { assertEquals } from "@std/assert";
 import { TYPL_CODES, typlDiagnostic } from "./diagnostics.ts";
 
-Deno.test("TYPL codes: 001..008 present with severity + template", () => {
+Deno.test("TYPL codes: 001..012 present with severity + template", () => {
   const expected = [
     "TYPL-001",
     "TYPL-002",
@@ -12,6 +12,10 @@ Deno.test("TYPL codes: 001..008 present with severity + template", () => {
     "TYPL-006",
     "TYPL-007",
     "TYPL-008",
+    "TYPL-009",
+    "TYPL-010",
+    "TYPL-011",
+    "TYPL-012",
   ];
   assertEquals(Object.keys(TYPL_CODES).sort(), expected);
 });
@@ -25,6 +29,6 @@ Deno.test("typlDiagnostic: formats template substitutions", () => {
   assertEquals(d.severity, "error");
   assertEquals(
     d.message,
-    "Unknown kind keyword stream. Expected one of: event, signal, command, state, const, config, document, stream.",
+    "Unknown kind keyword stream. Expected one of: event, signal, command, state, const, config, document, stream, namespace.",
   );
 });

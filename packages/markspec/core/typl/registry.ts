@@ -28,7 +28,7 @@ export interface RegistryTypedef {
 /**
  * Corpus-wide index. Each $Name (and each typedef name) maps to ALL
  * declarations found — collisions are NOT collapsed; the validator
- * surfaces them via TYPL-002/003.
+ * surfaces dotted-name (published) collisions via TYPL-009 (#723).
  */
 export interface TypeRegistry {
   /** Keyed by $Name (including leading `$`). */

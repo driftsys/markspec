@@ -1,14 +1,16 @@
 /**
  * @module tests/e2e/typl_validation_test
  *
- * Blackbox E2E tests confirming that `markspec validate` emits TYPL-002,
- * TYPL-003, and TYPL-005 diagnostics for cross-entry and intra-entry typl
- * violations, and that `markspec compile --format json` outputs a populated
+ * Blackbox E2E tests confirming that `markspec validate` emits TYPL-005
+ * diagnostics for intra-entry typl violations, that cross-entry plain-name
+ * (entry-local) mismatches no longer error now that TYPL-002/003 are
+ * retired (#723 — see docs/architecture/adr-019-typl-type-dsl.md
+ * addendum), and that `markspec compile --format json` outputs a populated
  * `typeRegistry` field.
  *
  * Six scenarios:
- *  1. Cross-entry TYPL-002 — same $Name, different kind
- *  2. Cross-entry TYPL-003 — same $Name, same kind, different shape
+ *  1. Cross-entry $Name kind mismatch is silent (TYPL-002 retired)
+ *  2. Cross-entry $Name shape mismatch is silent (TYPL-003 retired)
  *  3. Intra-entry TYPL-005 — binding references an undefined typedef
  *  4. TYPL-005 fires when typedef is defined in a sibling entry (entry-local scope)
  *  5. typeRegistry appears in compile JSON with populated bindings/typedefs
@@ -21,7 +23,8 @@ import { markspec } from "./helpers.ts";
 const PROJECT_YAML = "name: test-project\nversion: 0.1.0\n";
 
 // ---------------------------------------------------------------------------
-// Test 1: Cross-entry TYPL-002 — same $Speed name, different kinds
+// Test 1: Cross-entry $Speed name, different kinds — plain names are
+// entry-local (#723), so this no longer errors (TYPL-002 retired).
 // ---------------------------------------------------------------------------
 
 const DIFF_KIND_MD = `- [STK_TYPL_0001] Speed signal from radar
@@ -46,7 +49,7 @@ const DIFF_KIND_MD = `- [STK_TYPL_0001] Speed signal from radar
 `;
 
 Deno.test(
-  "validate: cross-entry kind mismatch emits TYPL-002",
+  "validate: cross-entry kind mismatch no longer errors (TYPL-002 retired)",
   async () => {
     const { code, stderr } = await markspec(
       ["check", "req.md"],
@@ -54,26 +57,22 @@ Deno.test(
         files: { "project.yaml": PROJECT_YAML, "req.md": DIFF_KIND_MD },
       },
     );
-    if (code === 0) {
+    assertEquals(
+      code,
+      0,
+      `Expected exit code 0 (TYPL-002 retired) but got ${code}; stderr: ${stderr}`,
+    );
+    if (stderr.includes("TYPL-002")) {
       throw new Error(
-        `Expected non-zero exit code for TYPL-002 violation; stderr: ${stderr}`,
+        `TYPL-002 must never be emitted (retired); stderr: ${stderr}`,
       );
     }
-    assertStringIncludes(
-      stderr,
-      "TYPL-002",
-      "TYPL-002 code must appear in stderr",
-    );
-    assertStringIncludes(
-      stderr,
-      "$Speed",
-      "$Speed name must appear in the diagnostic",
-    );
   },
 );
 
 // ---------------------------------------------------------------------------
-// Test 2: Cross-entry TYPL-003 — same $Speed name + kind, different shape
+// Test 2: Cross-entry $Speed name + kind, different shape — plain names are
+// entry-local (#723), so this no longer errors (TYPL-003 retired).
 // ---------------------------------------------------------------------------
 
 const DIFF_SHAPE_MD = `- [STK_TYPL_0003] Speed signal first entry
@@ -98,7 +97,7 @@ const DIFF_SHAPE_MD = `- [STK_TYPL_0003] Speed signal first entry
 `;
 
 Deno.test(
-  "validate: cross-entry shape mismatch emits TYPL-003",
+  "validate: cross-entry shape mismatch no longer errors (TYPL-003 retired)",
   async () => {
     const { code, stderr } = await markspec(
       ["check", "req.md"],
@@ -106,16 +105,16 @@ Deno.test(
         files: { "project.yaml": PROJECT_YAML, "req.md": DIFF_SHAPE_MD },
       },
     );
-    if (code === 0) {
+    assertEquals(
+      code,
+      0,
+      `Expected exit code 0 (TYPL-003 retired) but got ${code}; stderr: ${stderr}`,
+    );
+    if (stderr.includes("TYPL-003")) {
       throw new Error(
-        `Expected non-zero exit code for TYPL-003 violation; stderr: ${stderr}`,
+        `TYPL-003 must never be emitted (retired); stderr: ${stderr}`,
       );
     }
-    assertStringIncludes(
-      stderr,
-      "TYPL-003",
-      "TYPL-003 code must appear in stderr",
-    );
   },
 );
 

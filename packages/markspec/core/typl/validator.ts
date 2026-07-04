@@ -1,9 +1,18 @@
 /**
  * @module typl/validator
  *
- * Cross-entry collision detection (TYPL-002 kind mismatch, TYPL-003
- * shape mismatch) and intra-entry undefined-typedef-reference checks
+ * Published tier (#723): corpus-wide declared-once enforcement for dotted
+ * ($published) names (TYPL-009) and citation resolution for bare
+ * published-shaped code spans (TYPL-010 relative-with-no-root, TYPL-011
+ * undeclared symbol) — plus intra-entry undefined-typedef-reference checks
  * (TYPL-005).
+ *
+ * TYPL-002 (kind mismatch) and TYPL-003 (shape mismatch) are retired: the
+ * v1 cross-entry collision rule they implemented applied to plain (entry-
+ * local) names, which the published tier deliberately leaves unchecked
+ * across entries — only dotted, corpus-wide names are declared exactly
+ * once. The codes remain in the catalogue (deprecated) but this validator
+ * never emits them.
  *
  * Per the v1 entry-local scope rule, typedef references are resolved
  * within the binding's own entry — references to typedefs declared in
@@ -13,8 +22,11 @@
  */
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import type { Binding, Shape } from "./ast.ts";
+import { extractTyplCitations } from "./citations.ts";
+import { resolveRef } from "../decl/mod.ts";
 import { typlDiagnostic } from "./diagnostics.ts";
 import { buildTypeRegistry, type TypeRegistry } from "./registry.ts";
+import { TYPL_REF_OPS } from "./resolve.ts";
 
 /**
  * Validate the typl declarations across all entries.
@@ -29,45 +41,68 @@ export function validateTypl(
   const registry = buildTypeRegistry(entries);
   const diagnostics: Diagnostic[] = [];
 
-  // Cross-entry $Name collisions (TYPL-002 + TYPL-003)
+  // Published tier (#723): dotted names are declared exactly once
+  // corpus-wide — every declaration after the first is TYPL-009. Plain
+  // (entry-local) names have no cross-entry rule: TYPL-002/003 are
+  // retired (deprecated, never emitted — see diagnostics.ts).
   for (const [name, decls] of registry.bindings) {
     if (decls.length < 2) continue;
+    if (!name.includes(".")) continue;
     const first = decls[0];
     for (let i = 1; i < decls.length; i++) {
       const dup = decls[i];
-      if (dup.binding.kind !== first.binding.kind) {
+      const td = typlDiagnostic(
+        "TYPL-009",
+        {
+          name,
+          otherFile: first.entryFile,
+          otherLine: first.binding.position.line,
+        },
+        dup.binding.position,
+      );
+      diagnostics.push({
+        code: td.code,
+        severity: td.severity,
+        message: td.message,
+        location: { file: dup.entryFile, line: 1, column: 1 },
+      });
+    }
+  }
+
+  // Citation validation (#723): bare published-shaped code spans must
+  // resolve (relative → entry root namespace) to a declared symbol.
+  for (const entry of entries) {
+    const citations = extractTyplCitations(entry.bodyTokens);
+    if (citations.length === 0) continue;
+    const root = entry.types?.rootNamespace;
+    const scope = root !== undefined ? { base: root } : undefined;
+    for (const citation of citations) {
+      const res = resolveRef(citation.name, scope, TYPL_REF_OPS);
+      if (!res.ok) {
         const td = typlDiagnostic(
-          "TYPL-002",
-          {
-            name,
-            kindA: dup.binding.kind,
-            kindB: first.binding.kind,
-            otherFile: first.entryFile,
-            otherLine: first.binding.position.line,
-          },
-          dup.binding.position,
+          "TYPL-010",
+          { name: citation.name },
+          { line: citation.location.line, column: citation.location.column },
         );
         diagnostics.push({
           code: td.code,
           severity: td.severity,
           message: td.message,
-          location: { file: dup.entryFile, line: 1, column: 1 },
+          location: citation.location,
         });
-      } else if (!shapesEqual(dup.binding.shape, first.binding.shape)) {
+        continue;
+      }
+      if (!registry.bindings.has(res.ref)) {
         const td = typlDiagnostic(
-          "TYPL-003",
-          {
-            name,
-            otherFile: first.entryFile,
-            otherLine: first.binding.position.line,
-          },
-          dup.binding.position,
+          "TYPL-011",
+          { name: res.ref },
+          { line: citation.location.line, column: citation.location.column },
         );
         diagnostics.push({
           code: td.code,
           severity: td.severity,
           message: td.message,
-          location: { file: dup.entryFile, line: 1, column: 1 },
+          location: citation.location,
         });
       }
     }
@@ -138,56 +173,6 @@ function collectRefDiagnostics(
       break;
       // All other variants (primitive, range, length, pattern, enum, literal)
       // are leaves with no nested shape — nothing to recurse into.
-  }
-}
-
-function shapesEqual(
-  a: Shape | undefined,
-  b: Shape | undefined,
-): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (a.kind !== b.kind) return false;
-  switch (a.kind) {
-    case "primitive":
-      return a.type === (b as typeof a).type;
-    case "range":
-      return a.type === (b as typeof a).type &&
-        a.exact === (b as typeof a).exact &&
-        a.min === (b as typeof a).min &&
-        a.max === (b as typeof a).max;
-    case "length":
-      return a.type === (b as typeof a).type &&
-        a.exact === (b as typeof a).exact &&
-        a.min === (b as typeof a).min &&
-        a.max === (b as typeof a).max;
-    case "pattern":
-      return a.regex === (b as typeof a).regex &&
-        a.flags === (b as typeof a).flags;
-    case "literal":
-      return a.value === (b as typeof a).value;
-    case "enum":
-      return a.values.length === (b as typeof a).values.length &&
-        a.values.every((v, i) => v === (b as typeof a).values[i]);
-    case "array":
-      return a.exact === (b as typeof a).exact &&
-        a.min === (b as typeof a).min &&
-        a.max === (b as typeof a).max &&
-        shapesEqual(a.element, (b as typeof a).element);
-    case "optional":
-      return shapesEqual(a.inner, (b as typeof a).inner);
-    case "record": {
-      const aKeys = Object.keys(a.fields).sort();
-      const bKeys = Object.keys((b as typeof a).fields).sort();
-      if (aKeys.length !== bKeys.length) return false;
-      return aKeys.every((k, i) =>
-        k === bKeys[i] && shapesEqual(a.fields[k], (b as typeof a).fields[k])
-      );
-    }
-    case "ref":
-      return a.name === (b as typeof a).name;
-    default:
-      return false;
   }
 }
 

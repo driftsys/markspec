@@ -342,7 +342,9 @@ Deno.test("validate: complete valid set → no error diagnostics", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Typl cross-entry collision detection (TYPL-002/TYPL-003)
+// Typl cross-entry collision detection — TYPL-002/TYPL-003 retired (#723):
+// plain (entry-local) $Name collisions across entries are silent now that
+// only dotted, corpus-wide published names are declared-once (TYPL-009).
 // ---------------------------------------------------------------------------
 
 /** Build a minimal TyplBlock with a single binding for testing. */
@@ -382,7 +384,7 @@ Deno.test("validate: same $Name + same kind across entries → no TYPL-002", () 
   assertEquals(typl002, []);
 });
 
-Deno.test("validate: $Name with different kinds across entries → TYPL-002", () => {
+Deno.test("validate: $Name with different kinds across entries is silent (TYPL-002 retired, #723)", () => {
   const entryA = entry({
     displayId: "REQ-001",
     rawAttributes: [{ key: "Id", value: ULID_A }],
@@ -399,8 +401,8 @@ Deno.test("validate: $Name with different kinds across entries → TYPL-002", ()
   });
   const result = validate([entryA, entryB]);
   const typl002 = result.diagnostics.filter((d) => d.code === "TYPL-002");
-  assertEquals(typl002.length, 1);
-  assertEquals(result.valid, false);
+  assertEquals(typl002.length, 0);
+  assertEquals(result.valid, true);
 });
 
 // ---------------------------------------------------------------------------

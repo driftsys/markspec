@@ -126,18 +126,41 @@ export function tokenize(
       continue;
     }
 
-    // ── Dollar-prefixed identifier — `$Speed` ────────────────────────
+    // ── Dollar-prefixed identifier — `$Speed`, `$a.b.c`, `$.x` ──────
     // $ identifier — body uses IDENT_BODY_RE (allows digits) intentionally;
-    // names like $1st are lexically valid and rejected by the parser
+    // names like $1st are lexically valid and rejected by the parser.
+    // Dotted paths (published tier, #723): a `.` is consumed only when an
+    // identifier character follows, so `float[0..100]` ranges and trailing
+    // dots never get eaten. A leading `.` right after `$` marks a relative
+    // published ref (`$.name`).
     if (ch === "$") {
       const startCol = column;
       let value = "$";
       i++;
       column++;
-      while (i < source.length && IDENT_BODY_RE.test(source[i])) {
-        value += source[i];
+      if (
+        source[i] === "." && i + 1 < source.length &&
+        IDENT_BODY_RE.test(source[i + 1])
+      ) {
+        value += ".";
         i++;
         column++;
+      }
+      while (i < source.length) {
+        if (IDENT_BODY_RE.test(source[i])) {
+          value += source[i];
+          i++;
+          column++;
+        } else if (
+          source[i] === "." && i + 1 < source.length &&
+          IDENT_BODY_RE.test(source[i + 1])
+        ) {
+          value += ".";
+          i++;
+          column++;
+        } else {
+          break;
+        }
       }
       push("DOLLAR_IDENT", value, startCol);
       continue;

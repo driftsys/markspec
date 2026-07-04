@@ -20,6 +20,7 @@ import {
   extractBulletDeclarations,
   extractFenceDeclarations,
   extractInlineDeclarations,
+  extractNestedBulletDeclarations,
   stripCodeSpanDelimiters,
 } from "./surfaces.ts";
 
@@ -155,6 +156,46 @@ Deno.test("extractBulletDeclarations: recurses into nested list-in-item", () => 
   const blocks: BodyBlock[] = [list([item([para("@outer"), inner])])];
   const result = extractBulletDeclarations(blocks, isAt);
   assertEquals(result.map((r) => r.source), ["@outer", "@inner"]);
+});
+
+// --- nested bullet surface (parent links) ----------------------------------
+
+const isDecl = (text: string) => text.startsWith("DECL");
+
+Deno.test("extractNestedBulletDeclarations: parent links follow nesting", () => {
+  // - DECL root
+  //   - DECL child-a
+  //     - DECL grandchild
+  //   - plain bullet
+  //   - DECL child-b
+  const grandchildList = list([item([para("DECL grandchild")])]);
+  const childA = item([para("DECL child-a"), grandchildList]);
+  const rootNested = list([
+    childA,
+    item([para("plain bullet")]),
+    item([para("DECL child-b")]),
+  ]);
+  const blocks: BodyBlock[] = [list([item([para("DECL root"), rootNested])])];
+  const out = extractNestedBulletDeclarations(blocks, isDecl);
+  assertEquals(out.map((d) => d.source), [
+    "DECL root",
+    "DECL child-a",
+    "DECL grandchild",
+    "DECL child-b",
+  ]);
+  assertEquals(out[0].parent, undefined);
+  assertEquals(out[1].parent, 0);
+  assertEquals(out[2].parent, 1);
+  assertEquals(out[3].parent, 0);
+});
+
+Deno.test("extractBulletDeclarations output is unchanged by the delegation", () => {
+  const blocks: BodyBlock[] = [
+    list([item([para("DECL a")]), item([para("DECL b")])]),
+  ];
+  const flat = extractBulletDeclarations(blocks, isDecl);
+  assertEquals(flat.map((d) => d.source), ["DECL a", "DECL b"]);
+  assertEquals("parent" in flat[0], false);
 });
 
 // --- inline surface --------------------------------------------------------
