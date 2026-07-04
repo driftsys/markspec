@@ -11,9 +11,15 @@
  */
 import type { RefOps } from "../decl/mod.ts";
 
-/** True for `$.x` / `$.a.b` — a relative published ref. */
+/**
+ * True for `$.x` / `$.a.b` — a relative published ref. The first segment
+ * must start with a letter/underscore (matching `BINDING_RE` in
+ * recognize.ts and {@linkcode isPublishedTyplName}'s first-segment rule);
+ * a digit-leading first segment would be citable here but never
+ * declarable, a permanent dead end (#754).
+ */
 export function isRelativeTyplName(name: string): boolean {
-  return /^\$\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/.test(name);
+  return /^\$\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*$/.test(name);
 }
 
 /** True for `$a.b` / `$a.b.c` — an absolute published name (≥2 segments). */

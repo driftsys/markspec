@@ -18,7 +18,6 @@ export type {
   TextRecognizer,
 } from "./surfaces.ts";
 export {
-  extractBulletDeclarations,
   extractFenceDeclarations,
   extractInlineDeclarations,
   extractNestedBulletDeclarations,
@@ -30,3 +29,6 @@ export { extractTableDeclarations } from "./table.ts";
 
 export type { BaseScope, RefOps, RefResolution, RootCheck } from "./resolve.ts";
 export { checkSingleRoot, resolveRef } from "./resolve.ts";
+
+export type { DuplicateDeclaration } from "./duplicates.ts";
+export { findDuplicateDeclarations } from "./duplicates.ts";

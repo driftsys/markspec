@@ -24,7 +24,7 @@ import {
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
-import { type TypeRegistry, validateTypl } from "../typl/mod.ts";
+import { buildTypeRegistry, type TypeRegistry } from "../typl/mod.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
 import { classifyDiscipline } from "./discipline_classifier.ts";
@@ -354,12 +354,12 @@ export async function compile(
   const forward = buildAdjacency(links, (l) => l.from);
   const reverse = buildAdjacency(links, (l) => l.to);
 
-  // Build the corpus typl registry. validateTypl is also called inside
-  // validate() (via validationDiagnostics) for the cross-entry TYPL
-  // diagnostics. Here we call it again only to capture the registry — the
-  // diagnostics are already included in validationDiagnostics, so we discard
-  // them to avoid duplicates in the output.
-  const { registry: typeRegistry } = validateTypl([...entries.values()]);
+  // Build the corpus typl registry directly — validate() (called above)
+  // already ran the full validateTypl pass (citation resolution, TYPL-009,
+  // etc.) for validationDiagnostics; re-running it here just to get
+  // `.registry` would redo that work a second time per compile/show/
+  // context/report/export/MCP call.
+  const typeRegistry = buildTypeRegistry([...entries.values()]);
 
   let diagnostics: Diagnostic[] = [
     ...parseDiagnostics,

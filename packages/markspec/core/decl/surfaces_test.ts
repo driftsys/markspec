@@ -17,7 +17,6 @@ import type {
 } from "../ast/nodes.ts";
 import type { BodyToken } from "../model/mod.ts";
 import {
-  extractBulletDeclarations,
   extractFenceDeclarations,
   extractInlineDeclarations,
   extractNestedBulletDeclarations,
@@ -118,28 +117,29 @@ Deno.test("extractFenceDeclarations: recurses into list-item children", () => {
   assertEquals(result[0].range, nested.range);
 });
 
-// --- bullet surface --------------------------------------------------------
+// --- bullet surface ----------------------------------------------------
 
 const isAt = (text: string) => text.startsWith("@");
 
-Deno.test("extractBulletDeclarations: empty input → empty result", () => {
-  assertEquals(extractBulletDeclarations([], isAt), []);
+Deno.test("extractNestedBulletDeclarations: empty input → empty result", () => {
+  assertEquals(extractNestedBulletDeclarations([], isAt), []);
 });
 
-Deno.test("extractBulletDeclarations: ignores non-list blocks", () => {
-  assertEquals(extractBulletDeclarations([para("@nope")], isAt), []);
+Deno.test("extractNestedBulletDeclarations: ignores non-list blocks", () => {
+  assertEquals(extractNestedBulletDeclarations([para("@nope")], isAt), []);
 });
 
-Deno.test("extractBulletDeclarations: finds a matching bullet with its range", () => {
+Deno.test("extractNestedBulletDeclarations: finds a matching bullet with its range", () => {
   const p = para("@decl one");
   const blocks: BodyBlock[] = [list([item([p])])];
-  const result = extractBulletDeclarations(blocks, isAt);
+  const result = extractNestedBulletDeclarations(blocks, isAt);
   assertEquals(result.length, 1);
   assertEquals(result[0].source, "@decl one");
   assertEquals(result[0].range, p.range);
+  assertEquals(result[0].parent, undefined);
 });
 
-Deno.test("extractBulletDeclarations: mixed list — only matching items", () => {
+Deno.test("extractNestedBulletDeclarations: mixed list — only matching items", () => {
   const blocks: BodyBlock[] = [
     list([
       item([para("@a")]),
@@ -147,18 +147,18 @@ Deno.test("extractBulletDeclarations: mixed list — only matching items", () =>
       item([para("@b")]),
     ]),
   ];
-  const result = extractBulletDeclarations(blocks, isAt);
+  const result = extractNestedBulletDeclarations(blocks, isAt);
   assertEquals(result.map((r) => r.source), ["@a", "@b"]);
 });
 
-Deno.test("extractBulletDeclarations: recurses into nested list-in-item", () => {
+Deno.test("extractNestedBulletDeclarations: recurses into nested list-in-item", () => {
   const inner = list([item([para("@inner")])]);
   const blocks: BodyBlock[] = [list([item([para("@outer"), inner])])];
-  const result = extractBulletDeclarations(blocks, isAt);
+  const result = extractNestedBulletDeclarations(blocks, isAt);
   assertEquals(result.map((r) => r.source), ["@outer", "@inner"]);
 });
 
-// --- nested bullet surface (parent links) ----------------------------------
+// --- bullet surface: parent links follow nesting ------------------------
 
 const isDecl = (text: string) => text.startsWith("DECL");
 
@@ -187,15 +187,6 @@ Deno.test("extractNestedBulletDeclarations: parent links follow nesting", () => 
   assertEquals(out[1].parent, 0);
   assertEquals(out[2].parent, 1);
   assertEquals(out[3].parent, 0);
-});
-
-Deno.test("extractBulletDeclarations output is unchanged by the delegation", () => {
-  const blocks: BodyBlock[] = [
-    list([item([para("DECL a")]), item([para("DECL b")])]),
-  ];
-  const flat = extractBulletDeclarations(blocks, isDecl);
-  assertEquals(flat.map((d) => d.source), ["DECL a", "DECL b"]);
-  assertEquals("parent" in flat[0], false);
 });
 
 // --- inline surface --------------------------------------------------------

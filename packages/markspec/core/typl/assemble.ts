@@ -21,7 +21,7 @@
 import type { BodyBlock } from "../ast/nodes.ts";
 import type { BodyToken, Diagnostic } from "../model/mod.ts";
 import type { Binding, Typedef, TyplBlock } from "./ast.ts";
-import { type BaseScope, resolveRef } from "../decl/mod.ts";
+import { type BaseScope, checkSingleRoot, resolveRef } from "../decl/mod.ts";
 import { bridgeTyplDiagnostic } from "./bridge.ts";
 import { typlDiagnostic } from "./diagnostics.ts";
 import { extractTyplFences } from "./fence.ts";
@@ -42,6 +42,34 @@ interface SurfaceBlock {
   readonly bulletParent?: number;
 }
 
+/** One root-candidate namespace binding, for {@linkcode checkSingleRoot}. */
+interface RootCandidate {
+  readonly path: string;
+  readonly blockIndex: number;
+  readonly position: { line: number; column: number };
+}
+
+/**
+ * Assemble one entry's typl declarations into its `Entry.types` block.
+ *
+ * Extracts declarations from the three embedding surfaces (fenced code,
+ * bullet glossary, inline code spans), resolves every relative `$.x` name
+ * against the root/nested-namespace bases in scope (see the module doc's
+ * resolution rules), and aggregates the result.
+ *
+ * @param bodyAst - The entry body's parsed block AST (fence + bullet
+ *   surfaces walk this).
+ * @param bodyTokens - The entry body's flat token stream (the inline
+ *   surface walks this).
+ * @param file - Source file path, for bridging diagnostics back to
+ *   file-relative positions.
+ * @param bodyStartLine - 1-based line the entry body starts on, added to
+ *   each surface's body-relative range to get a file-relative line.
+ * @returns `types` — the assembled `TyplBlock`, omitted when the entry
+ *   declares nothing (no bindings, no typedefs, no root namespace) — plus
+ *   any diagnostics raised during extraction or resolution (TYPL-010,
+ *   TYPL-012, and bridged parse diagnostics).
+ */
 export function assembleTyplTypes(
   bodyAst: readonly BodyBlock[],
   bodyTokens: readonly BodyToken[],
@@ -120,22 +148,42 @@ export function assembleTyplTypes(
   // ── Pass A: find the root ────────────────────────────────────────────
   // Root candidate = an ABSOLUTE namespace binding with no namespace
   // ancestor in its bullet chain (a relative namespace can never be a
-  // root — it needs a base itself). First candidate in source order wins
-  // (order-independent for authors: the root scopes the whole body);
-  // every additional candidate fires TYPL-012 and establishes nothing.
-  let rootPath: string | undefined;
+  // root — it needs a base itself). checkSingleRoot (core/decl) enforces
+  // the one-root invariant; its bare contract also flags zero candidates
+  // as a failure ("no-root"), but an entry with no namespace binding at
+  // all is a normal, error-free shape here — only "multiple-roots"
+  // produces diagnostics, first candidate in source order wins (order-
+  // independent for authors: the root scopes the whole body).
+  const rootCandidates: RootCandidate[] = [];
   for (let i = 0; i < blocks.length; i++) {
     for (const binding of blocks[i].bindings) {
       if (binding.kind !== "namespace") continue;
       if (!TYPL_REF_OPS.isAbsolute(binding.name)) continue;
       if (hasNamespaceAncestor(i)) continue;
-      if (rootPath === undefined) {
-        rootPath = typlPathOf(binding.name);
-      } else {
-        emit("TYPL-012", { first: `$${rootPath}` }, i, binding.position);
-      }
+      rootCandidates.push({
+        path: typlPathOf(binding.name),
+        blockIndex: i,
+        position: binding.position,
+      });
     }
   }
+  const rootCheck = checkSingleRoot(rootCandidates);
+  let rootPath: string | undefined;
+  if (rootCheck.ok) {
+    rootPath = rootCheck.root.path;
+  } else if (rootCheck.reason === "multiple-roots") {
+    rootPath = rootCheck.roots[0].path;
+    for (let k = 1; k < rootCheck.roots.length; k++) {
+      const extra = rootCheck.roots[k];
+      emit(
+        "TYPL-012",
+        { first: `$${rootPath}` },
+        extra.blockIndex,
+        extra.position,
+      );
+    }
+  }
+  // "no-root" → rootPath stays undefined; not an error.
 
   // basePathOfBlock[i] = the base path blocks[i] provides to its bullet
   // subtree, or undefined. One base slot per block: a block with several

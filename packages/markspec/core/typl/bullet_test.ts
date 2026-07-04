@@ -5,7 +5,7 @@ import type {
   ListNode,
   ParagraphNode,
 } from "../ast/nodes.ts";
-import { extractTyplBullets } from "./bullet.ts";
+import { extractTyplBulletsNested } from "./bullet.ts";
 
 function para(text: string, line = 1): ParagraphNode {
   return {
@@ -41,45 +41,46 @@ function list(items: ListItemNode[], ordered = false): ListNode {
   };
 }
 
-Deno.test("extractTyplBullets: empty input → empty result", () => {
-  assertEquals(extractTyplBullets([]), []);
+Deno.test("extractTyplBulletsNested: empty input → empty result", () => {
+  assertEquals(extractTyplBulletsNested([]), []);
 });
 
-Deno.test("extractTyplBullets: ignores non-list blocks", () => {
+Deno.test("extractTyplBulletsNested: ignores non-list blocks", () => {
   const blocks: BodyBlock[] = [
     para("This is a paragraph, not a list", 1),
   ];
-  assertEquals(extractTyplBullets(blocks), []);
+  assertEquals(extractTyplBulletsNested(blocks), []);
 });
 
-Deno.test("extractTyplBullets: ignores list with no typl-shaped items", () => {
+Deno.test("extractTyplBulletsNested: ignores list with no typl-shaped items", () => {
   const blocks: BodyBlock[] = [
     list([
       item([para("regular bullet 1")]),
       item([para("regular bullet 2")]),
     ]),
   ];
-  assertEquals(extractTyplBullets(blocks), []);
+  assertEquals(extractTyplBulletsNested(blocks), []);
 });
 
-Deno.test("extractTyplBullets: finds typl binding bullet", () => {
+Deno.test("extractTyplBulletsNested: finds typl binding bullet", () => {
   const p = para("$Speed : signal float[0..300]", 5);
   const blocks: BodyBlock[] = [list([item([p])])];
-  const result = extractTyplBullets(blocks);
+  const result = extractTyplBulletsNested(blocks);
   assertEquals(result.length, 1);
   assertEquals(result[0].source, "$Speed : signal float[0..300]");
   assertEquals(result[0].range, p.range);
+  assertEquals(result[0].parent, undefined);
 });
 
-Deno.test("extractTyplBullets: finds typl typedef bullet", () => {
+Deno.test("extractTyplBulletsNested: finds typl typedef bullet", () => {
   const p = para("type Frame = { id: int[0..255] }", 5);
   const blocks: BodyBlock[] = [list([item([p])])];
-  const result = extractTyplBullets(blocks);
+  const result = extractTyplBulletsNested(blocks);
   assertEquals(result.length, 1);
   assertEquals(result[0].source, "type Frame = { id: int[0..255] }");
 });
 
-Deno.test("extractTyplBullets: mixed list — only typl items extracted", () => {
+Deno.test("extractTyplBulletsNested: mixed list — only typl items extracted", () => {
   const p1 = para("regular intro bullet", 3);
   const p2 = para("$A : signal", 4);
   const p3 = para("another regular bullet", 5);
@@ -94,7 +95,7 @@ Deno.test("extractTyplBullets: mixed list — only typl items extracted", () => 
       item([p5]),
     ]),
   ];
-  const result = extractTyplBullets(blocks);
+  const result = extractTyplBulletsNested(blocks);
   assertEquals(result.length, 3);
   assertEquals(result.map((r) => r.source), [
     "$A : signal",
@@ -103,10 +104,11 @@ Deno.test("extractTyplBullets: mixed list — only typl items extracted", () => 
   ]);
 });
 
-Deno.test("extractTyplBullets: recurses into nested list-in-item", () => {
+Deno.test("extractTyplBulletsNested: recurses into nested list-in-item, parent links follow nesting", () => {
   // An item whose first block is a paragraph AND second block is a nested
   // list containing typl bullets — both the outer paragraph (if it matches)
-  // and the nested matching items should be returned.
+  // and the nested matching items should be returned, with the inner one's
+  // `parent` pointing back at the outer one's index.
   const outer = para("$Outer : signal", 3);
   const inner = para("$Inner : event", 5);
   const blocks: BodyBlock[] = [
@@ -114,22 +116,24 @@ Deno.test("extractTyplBullets: recurses into nested list-in-item", () => {
       item([outer, list([item([inner])])]),
     ]),
   ];
-  const result = extractTyplBullets(blocks);
+  const result = extractTyplBulletsNested(blocks);
   assertEquals(result.length, 2);
   assertEquals(result.map((r) => r.source), [
     "$Outer : signal",
     "$Inner : event",
   ]);
+  assertEquals(result[0].parent, undefined);
+  assertEquals(result[1].parent, 0);
 });
 
-Deno.test("extractTyplBullets: ignores `$` not followed by colon (not a binding)", () => {
+Deno.test("extractTyplBulletsNested: ignores `$` not followed by colon (not a binding)", () => {
   const p = para("$Foo is a great name", 3);
   const blocks: BodyBlock[] = [list([item([p])])];
-  assertEquals(extractTyplBullets(blocks), []);
+  assertEquals(extractTyplBulletsNested(blocks), []);
 });
 
-Deno.test("extractTyplBullets: ignores `type` not followed by `=` (not a typedef)", () => {
+Deno.test("extractTyplBulletsNested: ignores `type` not followed by `=` (not a typedef)", () => {
   const p = para("type of error", 3);
   const blocks: BodyBlock[] = [list([item([p])])];
-  assertEquals(extractTyplBullets(blocks), []);
+  assertEquals(extractTyplBulletsNested(blocks), []);
 });

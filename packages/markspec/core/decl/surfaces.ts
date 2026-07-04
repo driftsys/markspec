@@ -8,7 +8,7 @@
  *   - **fence** — a fenced code block whose info-string a DSL claims
  *     (e.g. ```typl). {@linkcode extractFenceDeclarations}
  *   - **bullet** — a list item whose first paragraph is a declaration.
- *     {@linkcode extractBulletDeclarations}
+ *     {@linkcode extractNestedBulletDeclarations}
  *   - **inline** — a CommonMark code span whose text is a declaration.
  *     {@linkcode extractInlineDeclarations}
  *
@@ -85,22 +85,6 @@ export function extractFenceDeclarations(
 }
 
 /**
- * Walk a body AST and return every bullet-list item whose first paragraph
- * satisfies `matchText`. Recurses through ListNode → ListItemNode.blocks
- * for nested lists. Mixed lists are supported: items whose first paragraph
- * matches are extracted; non-matching bullets are left alone.
- *
- * Returns declarations in source order (depth-first).
- */
-export function extractBulletDeclarations(
-  blocks: readonly BodyBlock[],
-  matchText: TextRecognizer,
-): readonly BlockDeclaration[] {
-  return extractNestedBulletDeclarations(blocks, matchText)
-    .map(({ source, range }) => ({ source, range }));
-}
-
-/**
  * A bullet declaration with its structural parent: the index (into the
  * returned array) of the nearest enclosing extracted declaration, or
  * `undefined` at top level. Parents always precede children in the
@@ -113,10 +97,14 @@ export interface NestedBlockDeclaration extends BlockDeclaration {
 }
 
 /**
- * Nesting-aware variant of {@linkcode extractBulletDeclarations}: same
- * declarations in the same depth-first source order, plus a `parent`
- * link per declaration. A DSL host walks the links to build the
- * {@linkcode BaseScope} chain a nested declaration resolves against.
+ * Walk a body AST and return every bullet-list item whose first paragraph
+ * satisfies `matchText`, in depth-first source order, each with a `parent`
+ * link to its nearest enclosing extracted declaration (or `undefined` at
+ * top level). Recurses through ListNode → ListItemNode.blocks for nested
+ * lists. Mixed lists are supported: items whose first paragraph matches
+ * are extracted; non-matching bullets are left alone. A DSL host walks
+ * the `parent` links to build the {@linkcode BaseScope} chain a nested
+ * declaration resolves against.
  */
 export function extractNestedBulletDeclarations(
   blocks: readonly BodyBlock[],
