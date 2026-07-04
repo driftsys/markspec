@@ -19,6 +19,9 @@ export const KINDS = [
   "config",
   "document",
   "stream",
+  // Published-tier scaffolding (#723): a namespace declaration creates a
+  // base for relative refs; it is not a symbol and carries no shape.
+  "namespace",
 ] as const;
 export type Kind = typeof KINDS[number];
 

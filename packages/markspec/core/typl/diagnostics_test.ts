@@ -25,6 +25,6 @@ Deno.test("typlDiagnostic: formats template substitutions", () => {
   assertEquals(d.severity, "error");
   assertEquals(
     d.message,
-    "Unknown kind keyword stream. Expected one of: event, signal, command, state, const, config, document, stream.",
+    "Unknown kind keyword stream. Expected one of: event, signal, command, state, const, config, document, stream, namespace.",
   );
 });
