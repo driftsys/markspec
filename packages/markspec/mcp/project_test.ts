@@ -831,3 +831,24 @@ Deno.test("getCompiled: malformed markspec.lock never throws — degrades to no 
   assertEquals(result.entries.size, 1);
   assertEquals(result.entries.get(makeDisplayId("SYS_UP_0001")), undefined);
 });
+
+// NOTE on a "lock-change recompile that fails" regression test: `compile()`,
+// `loadDeliveredCorpus()`, and `loadLockedUpstreams()` are all deliberately
+// defensive — every per-file read failure downgrades to a diagnostic
+// (`MSL-E000`, `PROFILE-DELIVERS-00x`) or a soft-fail return, never a thrown
+// exception (confirmed by reading `core/compiler/mod.ts`'s per-file try/catch,
+// `core/profile/delivered.ts`, and `loadLockedUpstreams()`'s own catch block).
+// There is no realistic way to make `runCompile()` throw between
+// `loadLockedUpstreams()` returning and the commit-on-success block through
+// the public `ProjectEnv` surface without fabricating a malformed in-memory
+// `Entry` that defeats the type system — too harness-heavy and disproportionate
+// per the plan's own escape hatch. The existing
+// "getCompiled: a re-lock (new markspec.lock) invalidates the cache" test above
+// already exercises the ordering-sensitive success path unchanged by the fix
+// (recompile succeeds → `lockfileMtime`/`tracked`/`cached` commit together);
+// it passes unchanged after moving the `lockfileMtime` assignment down to the
+// commit-on-success block. The ordering fix itself is a straightforward
+// same-block move verified by code reading: `lockfileMtime = upstream.mtime`
+// now sits directly beside `tracked = snapshot; cached = merged;`, so any
+// future throw between `loadLockedUpstreams()` and that block leaves all
+// three fields at their pre-attempt values together.

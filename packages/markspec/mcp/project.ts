@@ -441,7 +441,6 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
         )
         : { entries: [], diagnostics: [] };
       const upstream = await loadLockedUpstreams();
-      lockfileMtime = upstream.mtime;
       const result = await compile(paths, {
         readFile: async (p: string) => {
           const content = await env.readFile(p);
@@ -483,6 +482,13 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           // File disappeared during compile — ignore.
         }
       }
+      // Commit-on-success: mirrors `tracked`/`cached` below. Assigning
+      // `lockfileMtime` here (not right after `loadLockedUpstreams()`)
+      // keeps it in lockstep with the cache it gates — if `compile()`
+      // throws above, the mtime must stay at its pre-attempt value too,
+      // or a later `isStale()` would see the new mtime as already
+      // "seen" and silently serve the stale pre-failure `cached` result.
+      lockfileMtime = upstream.mtime;
       tracked = snapshot;
       cached = merged;
       // Fire handlers AFTER cache is committed but isolate handler errors so
