@@ -6,7 +6,13 @@
  * later tasks). Each returns a best-effort AST node and a list of
  * source-local {@linkcode UxilDiagnostic}s. Parse-only — no resolution.
  */
-import type { ChildSurfaceDecl, RootDecl, UxKey, UxRef } from "./ast.ts";
+import type {
+  ChildSurfaceDecl,
+  ElementDecl,
+  RootDecl,
+  UxKey,
+  UxRef,
+} from "./ast.ts";
 import { type Token, tokenize } from "./lexer.ts";
 import { type UxilDiagnostic, uxilDiagnostic } from "./diagnostics.ts";
 
@@ -323,5 +329,136 @@ export function parseChildSurfaceDecl(
     position: { line: 1, column: 1 },
   };
   if (states.length > 0) decl.states = states;
+  return { decl, diagnostics };
+}
+
+/**
+ * Split the leading inline code span from the rest of a bullet paragraph.
+ * Handles single- and double-backtick spans. Returns `span` undefined when
+ * the paragraph does not begin with a code span.
+ */
+function splitLeadingCodeSpan(text: string): { span?: string; rest: string } {
+  const t = text.replace(/^\s+/, "");
+  if (t.startsWith("``")) {
+    const end = t.indexOf("``", 2);
+    if (end < 0) return { rest: text };
+    return { span: t.slice(2, end), rest: t.slice(end + 2) };
+  }
+  if (t.startsWith("`")) {
+    const end = t.indexOf("`", 1);
+    if (end < 0) return { rest: text };
+    return { span: t.slice(1, end), rest: t.slice(end + 1) };
+  }
+  return { rest: text };
+}
+
+/**
+ * Parse an element bullet: a leading code span
+ * `/element[{key}] : verb[, verb…] [@state, …] [-> nav]` followed by a
+ * mandatory trailing prose event dictionary. See grammar decision K1 — the
+ * key template sits directly after the element name (the `:` is the verb set).
+ */
+export function parseElementBullet(
+  paragraph: string,
+): { decl?: ElementDecl; diagnostics: UxilDiagnostic[] } {
+  const diagnostics: UxilDiagnostic[] = [];
+  const { span, rest } = splitLeadingCodeSpan(paragraph);
+  if (span === undefined) {
+    diagnostics.push(
+      uxilDiagnostic(
+        "UXIL-001",
+        { detail: "element bullet must begin with a code span" },
+        { line: 1, column: 1 },
+      ),
+    );
+    return { diagnostics };
+  }
+  scanReservedChars(span, diagnostics);
+
+  // Peel off an optional `-> nav` tail before tokenizing the structured part.
+  let structPart = span;
+  let navSource: string | undefined;
+  const arrow = span.indexOf("->");
+  if (arrow >= 0) {
+    structPart = span.slice(0, arrow);
+    navSource = span.slice(arrow + 2).trim();
+  }
+
+  const c = new Cursor(tokenize(structPart));
+  if (c.peek().kind !== "SLASH") {
+    diagnostics.push(
+      uxilDiagnostic(
+        "UXIL-001",
+        { detail: "element must start with '/'" },
+        c.peek().position,
+      ),
+    );
+    return { diagnostics };
+  }
+  c.advance();
+  const element = expectIdent(c, diagnostics, "element name");
+  if (element === undefined) return { diagnostics };
+
+  const decl: Mut<ElementDecl> = {
+    form: "element",
+    element,
+    verbs: [],
+    eventDictionary: "",
+    position: { line: 1, column: 1 },
+  };
+
+  // Optional key template, directly after the element name (K1).
+  if (c.peek().kind === "LBRACE") {
+    const k = parseKey(c, diagnostics);
+    if (k) decl.keyTemplate = k;
+  }
+
+  // Verb set: `: verb[, verb…]` (>= 1).
+  if (c.peek().kind !== "COLON") {
+    diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
+  } else {
+    c.advance();
+    const verbs: string[] = [];
+    const first = expectIdent(c, diagnostics, "verb");
+    if (first !== undefined) verbs.push(first);
+    while (c.peek().kind === "COMMA") {
+      c.advance();
+      const v = expectIdent(c, diagnostics, "verb");
+      if (v !== undefined) verbs.push(v);
+    }
+    if (verbs.length === 0) {
+      diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
+    }
+    decl.verbs = verbs;
+  }
+
+  const states = parseStateSet(c, diagnostics);
+  if (states.length > 0) decl.states = states;
+  expectEof(c, diagnostics);
+
+  // Nav target (parsed as a ux ref; may be scheme-less / relative).
+  if (navSource !== undefined) {
+    if (navSource.length === 0) {
+      diagnostics.push(
+        uxilDiagnostic(
+          "UXIL-001",
+          { detail: "missing navigation target after '->'" },
+          { line: 1, column: 1 },
+        ),
+      );
+    } else {
+      const nav = parseUxRef(navSource);
+      diagnostics.push(...nav.diagnostics);
+      if (nav.ref) decl.nav = nav.ref;
+    }
+  }
+
+  // Event dictionary: trailing prose, minus a leading em-dash/hyphen separator.
+  const eventDictionary = rest.replace(/^\s*[—-]\s*/, "").trim();
+  if (eventDictionary.length === 0) {
+    diagnostics.push(uxilDiagnostic("UXIL-006", {}, { line: 1, column: 1 }));
+  }
+  decl.eventDictionary = eventDictionary;
+
   return { decl, diagnostics };
 }

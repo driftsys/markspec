@@ -1,5 +1,10 @@
 import { assertEquals } from "@std/assert";
-import { parseChildSurfaceDecl, parseRootDecl, parseUxRef } from "./grammar.ts";
+import {
+  parseChildSurfaceDecl,
+  parseElementBullet,
+  parseRootDecl,
+  parseUxRef,
+} from "./grammar.ts";
 
 Deno.test("parseUxRef: full ref with scheme, state, element, key, verb", () => {
   const { ref, diagnostics } = parseUxRef(
@@ -65,4 +70,37 @@ Deno.test("parseChildSurfaceDecl: dotted leading path + state", () => {
 Deno.test("parseChildSurfaceDecl: without a leading dot is UXIL-008", () => {
   const { diagnostics } = parseChildSurfaceDecl("confirm_dialog");
   assertEquals(diagnostics.map((d) => d.code), ["UXIL-008"]);
+});
+
+Deno.test("parseElementBullet: verb + event dictionary", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/play : activate` — Pressing play resumes playback.",
+  );
+  assertEquals(diagnostics, []);
+  assertEquals(decl?.form, "element");
+  assertEquals(decl?.element, "play");
+  assertEquals(decl?.verbs, ["activate"]);
+  assertEquals(decl?.eventDictionary, "Pressing play resumes playback.");
+});
+
+Deno.test("parseElementBullet: key template, state set, nav target", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/track{id} : activate, focus @enabled -> media.player` — Selects a track.",
+  );
+  assertEquals(diagnostics, []);
+  assertEquals(decl?.keyTemplate, { kind: "template", name: "id" });
+  assertEquals(decl?.verbs, ["activate", "focus"]);
+  assertEquals(decl?.states, ["enabled"]);
+  assertEquals(decl?.nav?.surface, ["media", "player"]);
+  assertEquals(decl?.nav?.hasScheme, false);
+});
+
+Deno.test("parseElementBullet: missing event dictionary is UXIL-006", () => {
+  const { diagnostics } = parseElementBullet("`/play : activate`");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-006"]);
+});
+
+Deno.test("parseElementBullet: empty verb set is UXIL-005", () => {
+  const { diagnostics } = parseElementBullet("`/play :` — no verb.");
+  assertEquals(diagnostics.some((d) => d.code === "UXIL-005"), true);
 });
