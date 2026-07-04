@@ -216,10 +216,13 @@ need a flat lookup table.
 
 The MarkSpec LSP provides two typl affordances when you open a Markdown file:
 
-- **Hover** — hovering over a `$Name` token shows its kind, shape, and which
-  entry declared it.
-- **Completion** — inside a `typl` fence or after `$`, the LSP offers names
-  already declared in the workspace as completion candidates.
+- **Hover** — hovering over a `$Name` token shows its kind, shape, and where it
+  is declared. A dotted published name (`$powertrain.brake.pedal_position`)
+  shows its full path and declaring file; a relative `$.name` reference resolves
+  against the entry's root namespace.
+- **Completion** — inside a `typl` fence or after `$`, the LSP offers the
+  workspace's declared names. Inside an entry that declares a root namespace,
+  typing `$.` offers relative shorthands for that namespace's symbols.
 
 Both features require the `markspec lsp` server to be running. In VS Code,
 install the MarkSpec extension — it starts the server automatically.

@@ -6,92 +6,175 @@
  * references. Consume the corpus TypeRegistry from
  * core/typl/registry.ts.
  *
+ * Published tier (#723/#750): dotted names (`$powertrain.brake.pedal_position`)
+ * are declared exactly once corpus-wide and citable from any entry; relative
+ * refs (`$.pedal_position`) keep the `$` sigil and resolve against the
+ * enclosing entry's root namespace. This module recognizes both token shapes
+ * and resolves relative refs against the entry **root** only (nested-namespace
+ * bases are not persisted per line — see the S5 LSP-alignment design record).
+ *
  * See ADR-019.
  */
-import type { Shape } from "../core/typl/mod.ts";
-import type { TypeRegistry } from "../core/typl/mod.ts";
+import type { RegistryBinding, Shape, TypeRegistry } from "../core/typl/mod.ts";
+import {
+  isPublishedTyplName,
+  isRelativeTyplName,
+  TYPL_REF_OPS,
+} from "../core/typl/mod.ts";
+
+/** Token continuation set for typl refs: identifier chars plus the `.`
+ * segment separator (dotted published paths + relative `$.x`). */
+const TOKEN_CHAR_RE = /[A-Za-z0-9_.]/;
 
 /**
- * Return the `$Name` token at the given column on `line`, or
- * `undefined` when the column lies on whitespace, past the line end,
- * or outside a `$Name` token. The token starts with `$` and continues
- * through `[A-Za-z0-9_]` characters.
+ * Return the typl reference token at the given column on `line`, or
+ * `undefined` when the column lies on whitespace, past the line end, on a
+ * bare `.` separator, or outside a `$`-anchored token.
+ *
+ * A token starts with `$` and continues through `[A-Za-z0-9_.]`, so it spans
+ * dotted published names (`$powertrain.brake.pedal_position`) and the
+ * relative form (`$.pedal_position`). The `$` sigil breaks the left scan, so
+ * a `$` embedded after prose dots still yields just the sigil-led token
+ * (`path.to.$sig` → `$sig`). A trailing dot (a sentence period, or a dangling
+ * separator) is trimmed, and a bare `$` / `$.` returns `undefined`.
  */
 export function dollarNameAtPosition(
   line: string,
   column: number,
 ): string | undefined {
   if (column < 0 || column >= line.length) return undefined;
-  if (/\s/.test(line[column])) return undefined;
+  const ch = line[column];
+  if (/\s/.test(ch)) return undefined;
 
-  // Handle case where cursor is on the `$` itself.
-  if (line[column] === "$") {
-    let e = column + 1;
-    while (e < line.length && /[A-Za-z0-9_]/.test(line[e])) e++;
-    if (e - column < 2) return undefined; // bare `$` with no name
-    return line.slice(column, e);
+  let start: number;
+  let end: number;
+  if (ch === "$") {
+    start = column;
+    end = column + 1;
+    while (end < line.length && TOKEN_CHAR_RE.test(line[end])) end++;
+  } else {
+    // Cursor on a token char. A lone `.` separator is not an anchor — reject
+    // it so the cursor sitting on a sentence period never yields a token.
+    if (!TOKEN_CHAR_RE.test(ch) || ch === ".") return undefined;
+    start = column;
+    while (start > 0 && TOKEN_CHAR_RE.test(line[start - 1])) start--;
+    if (start === 0 || line[start - 1] !== "$") return undefined;
+    start--; // include the `$`
+    end = column + 1;
+    while (end < line.length && TOKEN_CHAR_RE.test(line[end])) end++;
   }
-
-  // Cursor is on an identifier char — scan left for `$`.
-  if (!/[A-Za-z0-9_]/.test(line[column])) return undefined;
-  let start = column;
-  while (start > 0 && /[A-Za-z0-9_]/.test(line[start - 1])) start--;
-  if (start === 0 || line[start - 1] !== "$") return undefined;
-  start--; // include the `$`
-  // Scan right for token end.
-  let end = column + 1;
-  while (end < line.length && /[A-Za-z0-9_]/.test(line[end])) end++;
-  const token = line.slice(start, end);
-  if (token.length < 2) return undefined; // bare `$`
+  // A typl ref never ends in a dot — trim a trailing sentence period or
+  // dangling separator so `$a.b.` in prose resolves to `$a.b`.
+  const token = line.slice(start, end).replace(/\.+$/, "");
+  if (token.length < 2) return undefined; // bare `$` (or `$.` after trim)
   return token;
 }
 
 /**
- * Format the hover content for a `$Name` from the corpus registry.
- * Returns a short Markdown block describing the kind, the shape (if
- * any), and the entries that declare this name.
+ * Context for {@linkcode formatTyplHoverContent}, supplied by the server from
+ * the entry enclosing the cursor.
+ */
+export interface TyplHoverContext {
+  /** Display ID of the enclosing entry — used to mark "declared in this
+   * entry" and to pick the relevant declaration of an entry-local name. */
+  readonly entryDisplayId?: string;
+  /** The enclosing entry's root namespace path (no `$`), when it declares one
+   * — the base a relative `$.x` ref resolves against. */
+  readonly rootNamespace?: string;
+}
+
+/**
+ * Format the hover content for a typl reference from the corpus registry.
  *
- * Returns `undefined` if the name isn't declared anywhere.
+ * Branches by token shape:
+ *
+ *   - **relative `$.x`** — resolved against `context.rootNamespace` (root
+ *     only) and rendered as the published symbol it names; `undefined` when
+ *     no root namespace is in scope (nothing to resolve against).
+ *   - **published `$a.b`** — the declared-once dotted symbol: full path,
+ *     kind, shape, and its declaring entry/file (or "this entry" when the
+ *     cursor is inside the declaring entry).
+ *   - **plain `$Name`** — an entry-local symbol; kind/shape/declaration with
+ *     no cross-entry collision framing (TYPL-002/003 are retired — two
+ *     entries declaring the same plain name are independent symbols).
+ *
+ * Returns `undefined` when the resolved name isn't declared anywhere.
  */
 export function formatTyplHoverContent(
   name: string,
   registry: TypeRegistry,
+  context?: TyplHoverContext,
 ): string | undefined {
-  const decls = registry.bindings.get(name);
-  if (!decls || decls.length === 0) return undefined;
-  const lines: string[] = [];
-  lines.push(`### ${name}`);
-  // Aggregate kinds — usually one, but cross-entry collisions can show
-  // multiple. The validator surfaces TYPL-002/003 separately.
-  const kinds = new Set(decls.map((d) => d.binding.kind));
-  const kindLabel = kinds.size === 1
-    ? [...kinds][0]
-    : `${[...kinds].join(" / ")} (collision)`;
-  lines.push("");
-  lines.push(`**Kind:** ${kindLabel}`);
-  // Show the first declaration's shape; if multiple shapes, note it.
-  const shapes = new Set(
-    decls.map((d) => JSON.stringify(d.binding.shape ?? null)),
-  );
-  if (shapes.size === 1) {
-    const shapeStr = formatShape(decls[0].binding.shape);
-    if (shapeStr) {
-      lines.push(`**Shape:** \`${shapeStr}\``);
-    }
-  } else {
-    lines.push(`**Shape:** _multiple, see TYPL-003_`);
+  // Resolve a relative ref against the entry root (root-only — see module
+  // doc). Absolute names (plain or dotted) are looked up as-is.
+  let lookupName = name;
+  if (isRelativeTyplName(name)) {
+    const root = context?.rootNamespace;
+    if (root === undefined) return undefined;
+    lookupName = TYPL_REF_OPS.join(root, name);
   }
-  // List declaration sites.
-  if (decls.length === 1) {
-    const d = decls[0];
-    lines.push(`**Declared in:** ${d.entryDisplayId} (${d.entryFile})`);
+
+  const decls = registry.bindings.get(lookupName);
+  if (!decls || decls.length === 0) return undefined;
+
+  const published = isPublishedTyplName(lookupName);
+  const primary = pickPrimaryDecl(decls, context?.entryDisplayId);
+
+  const lines: string[] = [`### ${lookupName}`, ""];
+  lines.push(
+    published
+      ? `**Kind:** ${primary.binding.kind} · **Published**`
+      : `**Kind:** ${primary.binding.kind}`,
+  );
+  const shapeStr = formatShape(primary.binding.shape);
+  if (shapeStr) lines.push(`**Shape:** \`${shapeStr}\``);
+
+  if (published) {
+    if (decls.length > 1) {
+      // Declared-once violated (TYPL-009) — surface every declaring site.
+      lines.push(`**Declared ${decls.length} times** (TYPL-009):`);
+      for (const d of decls) {
+        lines.push(`- ${d.entryDisplayId} (${d.entryFile})`);
+      }
+    } else if (
+      context?.entryDisplayId !== undefined &&
+      context.entryDisplayId === primary.entryDisplayId
+    ) {
+      lines.push(`**Declared in this entry** (${primary.entryDisplayId})`);
+    } else {
+      lines.push(
+        `**Declared in:** ${primary.entryDisplayId} (${primary.entryFile})`,
+      );
+    }
+  } else if (decls.length === 1) {
+    lines.push(
+      `**Declared in:** ${primary.entryDisplayId} (${primary.entryFile})`,
+    );
   } else {
-    lines.push(`**Declared in ${decls.length} entries:**`);
+    // Entry-local names have no cross-entry identity — list the independent
+    // declarations without the retired collision framing.
+    lines.push(
+      `**Entry-local** — declared independently in ${decls.length} entries:`,
+    );
     for (const d of decls) {
       lines.push(`- ${d.entryDisplayId} (${d.entryFile})`);
     }
   }
+
   return lines.join("\n");
+}
+
+/** Pick the declaration to feature: the one in the cursor's entry when it
+ * declares the name (entry-local relevance), else the first. */
+function pickPrimaryDecl(
+  decls: readonly RegistryBinding[],
+  entryDisplayId: string | undefined,
+): RegistryBinding {
+  if (entryDisplayId !== undefined) {
+    const own = decls.find((d) => d.entryDisplayId === entryDisplayId);
+    if (own) return own;
+  }
+  return decls[0];
 }
 
 /**
@@ -149,37 +232,94 @@ export interface TyplCompletionItem {
   readonly documentation: string;
 }
 
+/** Options for {@linkcode buildDollarNameCompletions}. */
+export interface DollarCompletionOptions {
+  /** The enclosing entry's root namespace path (no `$`), when it declares
+   * one. Enables relative `$.tail` shorthands for leaves under the root. */
+  readonly rootNamespace?: string;
+  /** `true` when the trigger is a relative partial (`$.` / `$.ped`): offer
+   * only relative shorthands. `false`/absent: flat corpus list plus this
+   * entry's relative shorthands. */
+  readonly relative?: boolean;
+}
+
 /**
- * Build completion items for `$Name` triggers. Returns one item per
- * unique name in the registry. `detail` shows the kind + shape;
- * `documentation` shows where it's declared.
+ * Build completion items for `$Name` triggers.
+ *
+ * - Relative mode (`opts.relative`) offers only `$.tail` shorthands for
+ *   published leaves under the entry's root namespace; empty when the entry
+ *   has no root namespace (a relative ref is illegal without a base).
+ * - Absolute mode offers the flat corpus list — every entry-local and
+ *   published name — plus this entry's `$.tail` shorthands when it declares a
+ *   root namespace.
+ *
+ * `detail` shows kind + shape; `documentation` shows where the name is
+ * declared (or, for a relative shorthand, what it resolves to).
  */
 export function buildDollarNameCompletions(
   registry: TypeRegistry,
+  opts: DollarCompletionOptions = {},
 ): readonly TyplCompletionItem[] {
+  const { rootNamespace, relative = false } = opts;
+  const rootPrefix = rootNamespace !== undefined
+    ? `$${rootNamespace}.`
+    : undefined;
+
+  const relativeShorthands = (): TyplCompletionItem[] => {
+    const out: TyplCompletionItem[] = [];
+    if (rootPrefix === undefined) return out;
+    for (const [name, decls] of registry.bindings) {
+      if (decls.length === 0) continue;
+      if (!name.startsWith(rootPrefix)) continue;
+      const tail = name.slice(rootPrefix.length);
+      out.push({
+        label: `$.${tail}`,
+        detail: detailOf(decls[0]),
+        documentation: `Resolves to ${name}`,
+      });
+    }
+    return out;
+  };
+
+  if (relative) return relativeShorthands();
+
   const items: TyplCompletionItem[] = [];
   for (const [name, decls] of registry.bindings) {
     if (decls.length === 0) continue;
     const first = decls[0];
-    const shape = formatShape(first.binding.shape);
-    const detail = shape
-      ? `${first.binding.kind} ${shape}`
-      : first.binding.kind;
-    const docLine = decls.length === 1
+    const documentation = decls.length === 1
       ? `Declared in ${first.entryDisplayId}`
-      : `Declared in ${decls.length} entries`;
-    items.push({ label: name, detail, documentation: docLine });
+      : name.includes(".")
+      ? `Declared in ${decls.length} entries`
+      : `Entry-local; declared independently in ${decls.length} entries`;
+    items.push({ label: name, detail: detailOf(first), documentation });
   }
+  items.push(...relativeShorthands());
   return items;
+}
+
+/** One-line "kind shape" detail for a binding declaration. */
+function detailOf(rb: RegistryBinding): string {
+  const shape = formatShape(rb.binding.shape);
+  return shape ? `${rb.binding.kind} ${shape}` : rb.binding.kind;
 }
 
 /**
  * Return true when the text before the cursor ends with a `$`-prefixed
- * partial identifier — the trigger for `$Name` completion.
- *
- * Matches `$` optionally followed by word characters (letters, digits,
- * underscore). Preceded by a non-identifier char or at line start.
+ * partial — the trigger for `$Name` completion. Fires on a plain name
+ * (`$Sp`), a bare sigil (`$`), a relative partial (`$.` / `$.ped`), and a
+ * dotted absolute partial (`$a.b`). Preceded by a non-identifier char or at
+ * line start.
  */
 export function isDollarNameTrigger(textBefore: string): boolean {
-  return /(?:^|[^A-Za-z0-9_$])\$[A-Za-z0-9_]*$/.test(textBefore);
+  return /(?:^|[^A-Za-z0-9_$])\$[A-Za-z0-9_.]*$/.test(textBefore);
+}
+
+/**
+ * Return true when the `$`-prefixed partial before the cursor is a relative
+ * ref (begins `$.`) — the discriminator that switches
+ * {@linkcode buildDollarNameCompletions} into relative mode.
+ */
+export function isRelativeDollarTrigger(textBefore: string): boolean {
+  return /(?:^|[^A-Za-z0-9_$])\$\.[A-Za-z0-9_.]*$/.test(textBefore);
 }

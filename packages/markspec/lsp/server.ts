@@ -139,6 +139,7 @@ import {
   dollarNameAtPosition,
   formatTyplHoverContent,
   isDollarNameTrigger,
+  isRelativeDollarTrigger,
 } from "./typl.ts";
 import { buildVersionNotification } from "./version_notification.ts";
 
@@ -1041,7 +1042,17 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   if (isDollarNameTrigger(line)) {
     return time("onCompletion/dollarName", () => {
       const registry = index.getTypeRegistry();
-      const items = buildDollarNameCompletions(registry);
+      // Published tier (#750): scope relative `$.x` shorthands to the
+      // enclosing entry's root namespace, and switch to relative-only
+      // suggestions when the partial is `$.`-led.
+      const enclosing = findEnclosingEntry(
+        index.getEntriesForFile(filePath),
+        params.position.line + 1, // LSP is 0-based; Entry is 1-based.
+      );
+      const items = buildDollarNameCompletions(registry, {
+        rootNamespace: enclosing?.types?.rootNamespace,
+        relative: isRelativeDollarTrigger(line),
+      });
       return items.map((item) => ({
         label: item.label,
         detail: item.detail,
@@ -1175,7 +1186,17 @@ connection.onHover((params) => {
   const dollarName = dollarNameAtPosition(line, params.position.character);
   if (dollarName) {
     const registry = index.getTypeRegistry();
-    const hoverContent = formatTyplHoverContent(dollarName, registry);
+    // Published tier (#750): give hover the enclosing entry so it can
+    // resolve a relative `$.x` against the entry root namespace and mark a
+    // published symbol as declared "in this entry" vs. cited from another.
+    const enclosing = findEnclosingEntry(
+      index.getEntriesForFile(filePath),
+      params.position.line + 1, // LSP is 0-based; Entry is 1-based.
+    );
+    const hoverContent = formatTyplHoverContent(dollarName, registry, {
+      entryDisplayId: enclosing?.displayId,
+      rootNamespace: enclosing?.types?.rootNamespace,
+    });
     if (hoverContent) {
       return { contents: { kind: "markdown", value: hoverContent } };
     }
