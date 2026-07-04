@@ -26,7 +26,7 @@ the identifiers are self-explanatory from prose context alone.
 
 ## Which surface should I use?
 
-Three Markdown surfaces are available. Choose based on how many declarations you
+Four Markdown surfaces are available. Choose based on how many declarations you
 need and where they live relative to prose.
 
 ### Fence — for dense or structured declarations
@@ -81,6 +81,54 @@ for more.
       Id: 01JZEXAMPLEULID000000000003
 ```
 
+### Table — for many parallel declarations
+
+Use a GFM table when an entry declares many identifiers that share the same
+columns: one row per binding, holding the `$Name`, its `kind shape`, and a
+description. The first two columns are read positionally; the description is
+documentation only. Rows whose first cell is not a `$Name` are ignored, so a
+table may mix declaration rows with plain notes.
+
+```markdown
+- [SYS_HMI_0007] Cluster display signals
+
+  The cluster shall render each signal below within its stated range.
+
+  | Signal        | Kind shape           | Description      |
+  | ------------- | -------------------- | ---------------- |
+  | $VehicleSpeed | signal float[0..300] | km/h, road speed |
+  | $EngineRpm    | signal int[0..8000]  | crankshaft speed |
+
+      Id: 01JZEXAMPLEULID000000000006
+```
+
+A shape that contains `|` (a union or enum) must escape each pipe as `\|` so GFM
+does not read it as a column break; the cell un-escapes before typl parses it
+(`| $Gear | 'P' \| 'R' \| 'N' \| 'D' | selected gear |`).
+
+A `Table:` caption adjacent to the table may carry a published base — an
+absolute name, dotted (`$a.b`) or single-segment (`$vehicle`) — which scopes the
+table's relative rows (`$.x`) through the same entry-local resolver the bullet
+surface uses:
+
+```markdown
+- [SYS_BRAKE_0009] Brake contract
+
+  Table: $powertrain.brake
+
+  | Signal           | Kind shape           | Description |
+  | ---------------- | -------------------- | ----------- |
+  | $.pedal_position | signal float[0..100] | pedal, %    |
+  | $.line_pressure  | signal float[0..250] | bar         |
+
+      Id: 01JZEXAMPLEULID000000000005
+```
+
+A table row resolves against its caption base, then the entry root. Unlike a
+bullet, a table nested inside a namespace does not inherit that namespace's
+base. Only bindings are expressed in tables; typedefs keep the fence, bullet, or
+inline surfaces.
+
 ---
 
 ## Common patterns
@@ -128,9 +176,9 @@ $PedalPressed   : event { force_N: float[0..1500], timestamp: int }
 
 ### Mixing surfaces in one entry
 
-All three surfaces share the same namespace within an entry. You can open a
-fence for typedefs, then use bullets for bindings, or vice versa. The compiler
-merges them.
+All four surfaces share the same namespace within an entry. You can open a fence
+for typedefs, then use bullets or a table for bindings, or vice versa. The
+compiler merges them.
 
 ````markdown
 - [SYS_LOG_0004] Diagnostic log record

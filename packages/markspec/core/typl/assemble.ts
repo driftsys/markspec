@@ -1,8 +1,8 @@
 /**
  * @module typl/assemble
  *
- * Entry-level typl assembly (#723): extracts declarations from the three
- * surfaces (fence / bullet / inline), resolves published names through
+ * Entry-level typl assembly (#723, #724): extracts declarations from the four
+ * surfaces (fence / bullet / inline / table), resolves published names through
  * the base-resolution engine (core/decl/resolve), and aggregates the
  * result into the `Entry.types` TyplBlock. Moved out of parser/markdown.ts
  * so the parser calls one function.
@@ -11,6 +11,10 @@
  *   - a `: namespace` binding establishes a base; nested-bullet namespaces
  *     scope their subtree (innermost wins); the root namespace (no
  *     namespace ancestor) scopes the whole entry body, order-independent;
+ *   - a table's `Table:` caption may carry a base (#724); a table row
+ *     resolves against that caption base first (innermost, #722 rule 3),
+ *     then the root — the caption base is not itself a root and never sets
+ *     `rootNamespace`;
  *   - relative names (`$.x`) resolve to absolute dotted names before
  *     aggregation — Entry.types carries absolute names only;
  *   - namespace bindings are scaffolding: excluded from bindings;
@@ -27,6 +31,7 @@ import { typlDiagnostic } from "./diagnostics.ts";
 import { extractTyplFences } from "./fence.ts";
 import { extractTyplBulletsNested } from "./bullet.ts";
 import { extractTyplInlines } from "./inline.ts";
+import { extractTyplTable, typlTableCaptionBase } from "./table.ts";
 import { parseTyplBlock } from "./grammar.ts";
 import { TYPL_REF_OPS, typlPathOf } from "./resolve.ts";
 
@@ -40,6 +45,10 @@ interface SurfaceBlock {
   /** Index into the bullet-extraction array of the enclosing bullet
    * declaration. Always undefined for fence and inline blocks. */
   readonly bulletParent?: number;
+  /** Base path parsed from the enclosing table's `Table:` caption (#724);
+   * `scopeFor` uses it as the innermost scope for a table row's own
+   * bindings. Always undefined for fence, bullet, and inline blocks. */
+  readonly captionBase?: string;
 }
 
 /** One root-candidate namespace binding, for {@linkcode checkSingleRoot}. */
@@ -52,12 +61,12 @@ interface RootCandidate {
 /**
  * Assemble one entry's typl declarations into its `Entry.types` block.
  *
- * Extracts declarations from the three embedding surfaces (fenced code,
- * bullet glossary, inline code spans), resolves every relative `$.x` name
- * against the root/nested-namespace bases in scope (see the module doc's
- * resolution rules), and aggregates the result.
+ * Extracts declarations from the four embedding surfaces (fenced code,
+ * bullet glossary, inline code spans, table rows), resolves every relative
+ * `$.x` name against the caption/root/nested-namespace bases in scope (see
+ * the module doc's resolution rules), and aggregates the result.
  *
- * @param bodyAst - The entry body's parsed block AST (fence + bullet
+ * @param bodyAst - The entry body's parsed block AST (fence + bullet + table
  *   surfaces walk this).
  * @param bodyTokens - The entry body's flat token stream (the inline
  *   surface walks this).
@@ -115,6 +124,30 @@ export function assembleTyplTypes(
       );
     }
     blocks.push({ ...result.ast, file: inline.location.file, lineOffset });
+  }
+
+  // Table rows (#724): each recognized data row is one binding. Its range
+  // points AT the row's own line (like the bullet surface, not the fence
+  // whose range points at the opening ``` a line above its content), so the
+  // diagnostic offset subtracts 2, matching the bullet path. The `Table:`
+  // caption base — when the caption text is an absolute typl name — scopes
+  // the row's relative refs (see `scopeFor`); the caption base is not a
+  // namespace binding, so it takes no part in Pass A root detection or Pass B.
+  for (const row of extractTyplTable(bodyAst)) {
+    const result = parseTyplBlock(row.source);
+    const lineOffset = bodyStartLine + row.range.start.line - 2;
+    for (const td of result.diagnostics) {
+      diagnostics.push(bridgeTyplDiagnostic(td, file, lineOffset));
+    }
+    const captionBase = row.captionText !== undefined
+      ? typlTableCaptionBase(row.captionText)
+      : undefined;
+    blocks.push({
+      ...result.ast,
+      file,
+      lineOffset,
+      ...(captionBase !== undefined ? { captionBase } : {}),
+    });
   }
 
   // Emit a bridged typl diagnostic for a binding in blocks[i].
@@ -192,9 +225,14 @@ export function assembleTyplTypes(
   const basePathOfBlock: (string | undefined)[] = blocks.map(() => undefined);
 
   /**
-   * Scope chain for blocks[i]: bullet-ancestor bases innermost-first,
-   * terminated by the root base. Built immutably per call; non-bullet
-   * blocks (fence/inline) have no bullet chain and see the root only.
+   * Scope chain for blocks[i], innermost-first, terminated by the root base.
+   * Which frames a block sees depends on its surface: a bullet block walks
+   * its bullet-ancestor bases; a table-row block contributes its `Table:`
+   * caption base (#724); fence/inline blocks have neither and see the root
+   * only. The frame kinds don't combine in practice — a table row carries no
+   * `bulletParent`, so a table nested inside a bullet-namespace subtree sees
+   * only its caption base + the root, not the enclosing bullet base (known
+   * limitation, #724). Built immutably per call.
    */
   const scopeFor = (i: number): BaseScope | undefined => {
     const chain: string[] = []; // innermost first
@@ -211,6 +249,10 @@ export function assembleTyplTypes(
     for (let k = chain.length - 1; k >= 0; k--) {
       scope = { base: chain[k], parent: scope };
     }
+    // A table row resolves against its caption base first (#722 rule 3):
+    // innermost, above the bullet chain and the root.
+    const captionBase = blocks[i].captionBase;
+    if (captionBase !== undefined) scope = { base: captionBase, parent: scope };
     return scope;
   };
 

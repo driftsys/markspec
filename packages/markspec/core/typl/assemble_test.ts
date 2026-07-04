@@ -81,3 +81,121 @@ Deno.test("assemble: namespace bindings never enter Entry.types.bindings", () =>
   const { entries } = parseMarkdown(md, { file: "a.md" });
   assertEquals(entries[0].types!.bindings.map((b) => b.name), ["$local"]);
 });
+
+// ---------------------------------------------------------------------------
+// Table surface (#724 / S6) — a fourth embedding surface. Each data row
+// `$name | kind shape | description` is one binding; a `Table:` caption may
+// carry a base the entry-local resolver consumes.
+// ---------------------------------------------------------------------------
+
+/** Project a binding to its position-independent shape, for parity checks. */
+function bindingShape(b: { name: string; kind: string; shape?: unknown }) {
+  return { name: b.name, kind: b.kind, shape: b.shape };
+}
+
+Deno.test("assemble: a table row produces a binding equal to the inline surface (parity)", () => {
+  const tableMd = `- [REQ_0100] Speed contract
+
+  | Name | Kind shape | Description |
+  | ------ | -------------------- | ------------- |
+  | $speed | signal float[0..300] | vehicle speed |
+`;
+  const inlineMd = `- [REQ_0100] Speed contract
+
+  Declares \`$speed : signal float[0..300]\`.
+`;
+  const table = parseMarkdown(tableMd, { file: "a.md" });
+  const inline = parseMarkdown(inlineMd, { file: "a.md" });
+  assertEquals(
+    table.diagnostics.filter((d) => d.code.startsWith("TYPL")).length,
+    0,
+  );
+  assertEquals(
+    table.entries[0].types!.bindings.map(bindingShape),
+    inline.entries[0].types!.bindings.map(bindingShape),
+  );
+  assertEquals(table.entries[0].types!.bindings.length, 1);
+});
+
+Deno.test("assemble: a Table caption base resolves relative table rows", () => {
+  const md = `- [REQ_0101] Brake contract
+
+  Table: $powertrain.brake
+
+  | Name | Kind shape | Description |
+  | ---------------- | -------------------- | -------- |
+  | $.pedal_position | signal float[0..100] | pedal |
+  | $.line_pressure | signal float[0..250] | pressure |
+`;
+  const { entries, diagnostics } = parseMarkdown(md, { file: "a.md" });
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("TYPL")).length, 0);
+  assertEquals(entries[0].types!.bindings.map((b) => b.name), [
+    "$powertrain.brake.pedal_position",
+    "$powertrain.brake.line_pressure",
+  ]);
+});
+
+Deno.test("assemble: a mixed table extracts only the typl rows", () => {
+  const md = `- [REQ_0102] Config
+
+  | Name | Kind shape | Description |
+  | ------ | -------------------- | ---------------- |
+  | $speed | signal float[0..300] | vehicle speed |
+  | note | see appendix A | not a declaration |
+`;
+  const { entries } = parseMarkdown(md, { file: "a.md" });
+  assertEquals(entries[0].types!.bindings.map((b) => b.name), ["$speed"]);
+});
+
+Deno.test("assemble: a union shape survives a table cell when its pipes are GFM-escaped", () => {
+  // ADR-019 rejected a table surface partly because literal `|` in a union
+  // breaks GFM columns. Escaping each `|` as `\|` (standard GFM) resolves it:
+  // the cell un-escapes to the full union before the recognizer sees it.
+  const md = `- [REQ_0104] Mode
+
+  | Name | Kind shape | Description |
+  | ----- | ------------------------ | ---- |
+  | $mode | 'low' \\| 'mid' \\| 'high' | mode |
+`;
+  const { entries, diagnostics } = parseMarkdown(md, { file: "a.md" });
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("TYPL")).length, 0);
+  const binding = entries[0].types!.bindings[0];
+  assertEquals(binding.name, "$mode");
+  assertEquals(binding.shape, {
+    kind: "enum",
+    values: ["low", "mid", "high"],
+  });
+});
+
+Deno.test("assemble: a table-row parse/resolution diagnostic points at the row's line", () => {
+  // The `$.pedal` row is relative with no base → TYPL-010. The diagnostic
+  // must land on the row's own file line (line 5), not one below it.
+  const md = `- [REQ_0105] Orphan table row
+
+  | Name | Kind shape | Description |
+  | ---- | -------------------- | ----- |
+  | $.pedal | signal float[0..100] | pedal |
+`;
+  const { diagnostics } = parseMarkdown(md, { file: "a.md" });
+  const t010 = diagnostics.find((d) => d.code === "TYPL-010");
+  assertEquals(t010?.location?.line, 5);
+});
+
+Deno.test("assemble: a table composes with the fence surface in one entry", () => {
+  const md = `- [REQ_0103] Mixed surfaces
+
+  \`\`\`typl
+  $rpm : signal int[0..8000]
+  \`\`\`
+
+  | Name | Kind shape | Description |
+  | ------ | -------------------- | ------------- |
+  | $speed | signal float[0..300] | vehicle speed |
+`;
+  const { entries, diagnostics } = parseMarkdown(md, { file: "a.md" });
+  assertEquals(diagnostics.filter((d) => d.code.startsWith("TYPL")).length, 0);
+  assertEquals(entries[0].types!.bindings.map((b) => b.name), [
+    "$rpm",
+    "$speed",
+  ]);
+});

@@ -35,6 +35,9 @@ export { extractTyplBulletsNested } from "./bullet.ts";
 export type { TyplInlineExtraction } from "./inline.ts";
 export { extractTyplInlines } from "./inline.ts";
 
+export type { TyplTableExtraction } from "./table.ts";
+export { extractTyplTable } from "./table.ts";
+
 export type { TyplCitation } from "./citations.ts";
 export { extractTyplCitations, isTyplCitationText } from "./citations.ts";
 
