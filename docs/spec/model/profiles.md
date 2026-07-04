@@ -17,13 +17,16 @@ that governs validation and tooling.
 
 ## Profile manifest structure
 
-A profile manifest is a `markspec.yaml` file in a profile directory:
+A profile manifest is a `markspec.yaml` file in a profile directory. The example
+below uses a fictional `@acme/compliance` profile to illustrate the manifest
+shape — MarkSpec does not bundle an ISO 26262 or ASPICE profile; see
+[Bundled profiles](#bundled-profiles) for what actually ships:
 
 ```yaml
-id: "@markspec/compliance-iso26262"
+id: "@acme/compliance"
 version: 1.0.0
 description: "ISO 26262 compliance vocabulary"
-extends: "@markspec/default"
+extends: "@markspec/profile-default"
 
 profile:
   types:
@@ -68,9 +71,9 @@ Profiles form an inheritance chain; each tier inherits all declarations from its
 parent and can add or override them (closest tier wins on conflicts):
 
 ```text
-@markspec/default
+@markspec/profile-default
        ↓  extends
-@markspec/compliance-iso26262
+@acme/compliance
        ↓  extends
 @myorg/safety-profile
        ↓  extends (project selects in .markspec.yaml)
@@ -83,8 +86,8 @@ project's `.markspec.yaml` activates profiles:
 ```yaml
 # .markspec.yaml  (at project root)
 profiles:
-  - "@markspec/default"
-  - "@markspec/compliance-iso26262"
+  - "@markspec/profile-default"
+  - "@acme/compliance"
   - "./profiles/myorg"
 ```
 
@@ -97,7 +100,7 @@ Run `markspec profile show` to inspect the active chain and its effective
 vocabulary:
 
 ```text
-Active profile: @markspec/compliance-iso26262@1.0.0
+Active profile: @acme/compliance@1.0.0
 
 Entry types (2):
   - requirement: Stakeholder, system, or software requirement (SRS_{n:4d})
@@ -254,11 +257,20 @@ Profiles extend core — they cannot weaken or redefine it:
 
 ## Bundled profiles
 
-| Profile                         | Purpose                                                                                                                                                    |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@markspec/default`             | RFC 2119 modal keywords, `Reference-url`/`Reference-document`/`License` attributes, core relations (`Satisfies`, `Verifies`, …), `DRAFT`/`RELEASED` labels |
-| `@markspec/compliance-iso26262` | `ASIL` labels, functional-safety relations, Part 6 reference entries                                                                                       |
-| `@markspec/compliance-aspice`   | ASPICE process attributes, traceability relations                                                                                                          |
+MarkSpec ships one bundled profile:
+
+| Profile                     | Purpose                                                                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@markspec/profile-default` | RFC 2119 modal keywords, `Reference-url`/`Reference-document`/`License` attributes, core relations (`Satisfies`, `Verifies`, …), `DRAFT`/`RELEASED` labels |
+
+There is no bundled ISO 26262 or ASPICE profile. A compliance profile (`ASIL`
+labels, functional-safety relations, ASPICE process attributes, …) is something
+a project or organization authors itself, either as a local profile directory
+(`markspec profile new`) or one it publishes and version-pins via
+`markspec.lock` (see
+[ADR-022](../../architecture/adr-022-lockfile-and-external-sync.md)). The
+`@acme/compliance` example used earlier on this page illustrates that shape; it
+is not a real package.
 
 ## Profile commands
 
