@@ -177,6 +177,7 @@ Deno.test("restore mismatch: moved site → MSL-L214, pin kept", async () => {
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L214");
   assertEquals(result.registries, locked.registries);
+  assertEquals(restored.cache.size, 0); // mismatched content never written to cache
 });
 
 Deno.test("update: refetches and moves the pin", async () => {
@@ -245,6 +246,7 @@ Deno.test("duplicate derived ids → MSL-L213 for the duplicate", async () => {
     lockedAt: "2026-07-04T12:00:00Z",
   });
   assertEquals(result.registries.length, 1);
+  assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L213");
 });
 
@@ -264,6 +266,7 @@ Deno.test("schema-skewed published site → MSL-L213 at lock time", async () => 
     lockedAt: "2026-07-04T12:00:00Z",
   });
   assertEquals(result.registries, []);
+  assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L213");
 });
 
