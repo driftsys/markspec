@@ -13,13 +13,17 @@ import type {
   Link,
   LinkKind,
 } from "../../core/mod.ts";
-import { makeDisplayId } from "../../core/mod.ts";
+import { formatEntryOrigin, makeDisplayId } from "../../core/mod.ts";
 
 /** One visited node — display ID, title, and hops from the start (0 = start). */
 export interface WalkNode {
   readonly displayId: string;
   readonly title: string;
   readonly depth: number;
+  /** `"<id>@<version>"` when the node was hydrated from a profile-delivered
+   * corpus (ADR-030) or a locked upstream (federated-upstream slice 5).
+   * Absent for project-authored nodes. */
+  readonly origin?: string;
 }
 
 /** Which adjacency map to traverse: outgoing (`forward`) or incoming (`reverse`). */
@@ -59,7 +63,12 @@ export function walkLinks(
 
   const out: WalkNode[] = [];
   if (includeStart) {
-    out.push({ displayId: startId, title: start.title, depth: 0 });
+    out.push({
+      displayId: startId,
+      title: start.title,
+      depth: 0,
+      ...(start.origin ? { origin: formatEntryOrigin(start.origin) } : {}),
+    });
   }
 
   const visited = new Set<DisplayId>([brandedStart]);
@@ -82,6 +91,9 @@ export function walkLinks(
           displayId: neighbour,
           title: target.title,
           depth: depth + 1,
+          ...(target.origin
+            ? { origin: formatEntryOrigin(target.origin) }
+            : {}),
         });
         next.push(neighbour);
         emitted++;

@@ -40,13 +40,16 @@ export function renderContext(
   ];
   for (const node of chain) {
     const indent = "  ".repeat(node.depth);
+    const originSuffix = node.origin ? ` — from ${node.origin}` : "";
     if (node.depth === 0) {
-      lines.push(`${indent}- **${node.displayId}** — ${node.title}`);
+      lines.push(
+        `${indent}- **${node.displayId}** — ${node.title}${originSuffix}`,
+      );
     } else {
       lines.push(
         `${indent}- satisfies → [${node.displayId}](${
           entryUri(node.displayId)
-        }) — ${node.title}`,
+        }) — ${node.title}${originSuffix}`,
       );
     }
   }
