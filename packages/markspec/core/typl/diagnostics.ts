@@ -2,7 +2,7 @@
  * @module typl/diagnostics
  *
  * Diagnostic codes emitted by the typl parser and validator (TYPL-001
- * through TYPL-008). Each code carries a severity and a template; the
+ * through TYPL-012). Each code carries a severity and a template; the
  * `typlDiagnostic` helper performs `${var}` substitution.
  */
 import type { Position } from "./ast.ts";
