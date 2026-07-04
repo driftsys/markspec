@@ -28,6 +28,20 @@ use on the command line.
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
+### Upstream entries (federated projects)
+
+When a project locks upstream repositories (`dependencies:` / `references:` in
+`project.yaml`, resolved by `markspec lock`), the imported entries appear in the
+editor as read-only citizens:
+
+- **Completion** offers their display IDs with an `— from <name>@<version>`
+  badge, so you can see an ID is imported, not local.
+- **Hover** renders the imported entry the same as a local one.
+- **Go-to-definition is a no-op** — an upstream entry lives in another
+  repository and has no file in this workspace to open.
+- **Rename and formatting never touch them**, and no diagnostics are published
+  against them; their validation happened in their own repository.
+
 ## Install
 
 **VS Code Marketplace:**
