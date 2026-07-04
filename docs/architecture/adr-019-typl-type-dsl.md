@@ -66,8 +66,11 @@ S5 of the uxil epic (#717) added a **published** tier beside the entry-local
 tier this ADR defines. Dots discriminate: `$name` stays entry-local (unchanged);
 `$a.b`-style dotted names (≥ 2 segments) are **published** — declared exactly
 once corpus-wide, citable from any entry. An explicit `: namespace` kind clause
-establishes a base; relative refs keep the sigil with a leading dot (`$.name`)
-and resolve through the entry-local base-resolution engine
+establishes a base; a namespace declaration is scaffolding, not a symbol, so it
+is exempt from the declared-once rule and the same namespace may serve as root
+in more than one entry (e.g. a large contract split across files) — only leaf
+bindings are declared exactly once. Relative refs keep the sigil with a leading
+dot (`$.name`) and resolve through the entry-local base-resolution engine
 (`core/decl/resolve.ts`, innermost base wins; at most one root namespace per
 entry). Citations — bare published-shaped code spans — are validated against the
 corpus registry. New diagnostics: TYPL-009 (duplicate published declaration),
