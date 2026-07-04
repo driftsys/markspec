@@ -9,6 +9,7 @@ import {
   collectProjectEntries,
   detectOfflineEdgeDrift,
   isBelowFloor,
+  loadToolConfig,
   parseLockfile,
   VERSION,
 } from "../../core/mod.ts";
@@ -76,14 +77,15 @@ export const doctorCmd = new Command()
     let currentEdges = 0;
     if (parsedLock) {
       // The shared collectProjectEntries walk is exactly what `markspec lock`
-      // pinned with (same discovery + default extensions + `exclude:`), so the
-      // two edge sets cannot diverge. Corpus-blind, mirroring `check`'s
-      // MSL-L212 gate: the lockfile never counts delivered-corpus edges
-      // (ADR-030), so neither do we.
+      // pinned with (same discovery + default extensions + `.markspec.yaml`
+      // `exclude:`), so the two edge sets cannot diverge. Corpus-blind,
+      // mirroring `check`'s MSL-L212 gate: the lockfile never counts
+      // delivered-corpus edges (ADR-030), so neither do we.
+      const toolConfigResult = await loadToolConfig(projectRoot, readFile);
       const projectEntries = await collectProjectEntries(
         projectRoot,
         denoDiscoveryIO(),
-        { exclude: config.exclude },
+        { exclude: toolConfigResult.config.exclude },
       );
       const drift = await detectOfflineEdgeDrift(
         projectEntries.filter((e) => !e.origin),

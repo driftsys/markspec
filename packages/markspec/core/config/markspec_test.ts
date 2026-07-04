@@ -8,7 +8,9 @@ import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { join, resolve } from "@std/path";
 import {
   addProfileSpecifier,
+  DEFAULT_TOOL_CONFIG,
   discoverMarkspecRoot,
+  loadToolConfig,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,
@@ -346,4 +348,133 @@ Deno.test("discoverMarkspecRoot: ignores a sibling project.yaml (marker is .mark
       path === join(a, "project.yaml") ? "name: test\n" : undefined,
     );
   assertEquals(await discoverMarkspecRoot(a, readFile), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// exclude (Task 8: migrated from project.yaml)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkspecYaml: exclude parses as string array", () => {
+  const result = parseMarkspecYaml(
+    `exclude:\n  - "skills/"\n  - "*.gen.md"\n`,
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.config?.exclude, ["skills/", "*.gen.md"]);
+});
+
+Deno.test("parseMarkspecYaml: exclude defaults to empty", () => {
+  const result = parseMarkspecYaml("profiles: []\n", "/p/.markspec.yaml");
+  assertEquals(result.config?.exclude, []);
+});
+
+Deno.test("parseMarkspecYaml: non-array exclude emits MARKSPEC-YAML-003", () => {
+  const result = parseMarkspecYaml("exclude: nope\n", "/p/.markspec.yaml");
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+});
+
+Deno.test("parseMarkspecYaml: empty-string exclude entry emits MARKSPEC-YAML-003", () => {
+  const result = parseMarkspecYaml(
+    `exclude:\n  - ""\n`,
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+  assertStringIncludes(result.diagnostics[0].message, "exclude[0]");
+});
+
+// ---------------------------------------------------------------------------
+// caption-conventions (Task 8: migrated from project.yaml)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkspecYaml: caption-conventions parses valid mapping", () => {
+  const result = parseMarkspecYaml(
+    "caption-conventions:\n  Figure: above\n  Table: below\n",
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.config?.captionConventions, {
+    Figure: "above",
+    Table: "below",
+  });
+});
+
+Deno.test("parseMarkspecYaml: caption-conventions defaults to empty", () => {
+  const result = parseMarkspecYaml("profiles: []\n", "/p/.markspec.yaml");
+  assertEquals(result.config?.captionConventions, {});
+});
+
+Deno.test("parseMarkspecYaml: unknown caption keyword emits MARKSPEC-YAML-003", () => {
+  const result = parseMarkspecYaml(
+    "caption-conventions:\n  unknown-keyword: above\n",
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+  assertStringIncludes(result.diagnostics[0].message, "unknown-keyword");
+});
+
+Deno.test("parseMarkspecYaml: bad caption-conventions position value emits MARKSPEC-YAML-003", () => {
+  const result = parseMarkspecYaml(
+    "caption-conventions:\n  Figure: sideways\n",
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+});
+
+Deno.test("parseMarkspecYaml: non-mapping caption-conventions emits MARKSPEC-YAML-003", () => {
+  const result = parseMarkspecYaml(
+    "caption-conventions: nope\n",
+    "/p/.markspec.yaml",
+  );
+  assertEquals(result.config, null);
+  assertEquals(result.diagnostics[0].code, "MARKSPEC-YAML-003");
+});
+
+// ---------------------------------------------------------------------------
+// loadToolConfig
+// ---------------------------------------------------------------------------
+
+Deno.test("loadToolConfig: defaults when .markspec.yaml is absent", async () => {
+  const result = await loadToolConfig(
+    "/proj",
+    () => Promise.resolve(undefined),
+  );
+  assertEquals(result.config, DEFAULT_TOOL_CONFIG);
+  assertEquals(result.diagnostics, []);
+});
+
+Deno.test("loadToolConfig: reads exclude + captionConventions", async () => {
+  const project = resolve("/proj");
+  const yaml =
+    `exclude:\n  - "skills/"\ncaption-conventions:\n  Figure: below\n`;
+  const result = await loadToolConfig(
+    project,
+    (path) =>
+      Promise.resolve(
+        path === join(project, MARKSPEC_YAML_FILENAME) ? yaml : undefined,
+      ),
+  );
+  assertEquals(result.config.exclude, ["skills/"]);
+  assertEquals(result.config.captionConventions, { Figure: "below" });
+  assertEquals(result.diagnostics, []);
+});
+
+Deno.test("loadToolConfig: malformed .markspec.yaml yields defaults + error diagnostics", async () => {
+  const project = resolve("/proj");
+  const yaml = "exclude: nope\n";
+  const result = await loadToolConfig(
+    project,
+    (path) =>
+      Promise.resolve(
+        path === join(project, MARKSPEC_YAML_FILENAME) ? yaml : undefined,
+      ),
+  );
+  assertEquals(result.config, DEFAULT_TOOL_CONFIG);
+  assertEquals(
+    result.diagnostics.some((d) => d.severity === "error"),
+    true,
+  );
 });

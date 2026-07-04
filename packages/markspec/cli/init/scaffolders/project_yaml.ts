@@ -9,8 +9,7 @@
 import { join } from "@std/path";
 import type { MemFs } from "../fake_fs.ts";
 
-const SCHEMA_URL =
-  "https://driftsys.github.io/markspec/schemas/project/v1.json";
+const SCHEMA_URL = "https://driftsys.github.io/schemas/project/v1.json";
 
 export interface ProjectYamlInput {
   /** Final segment of the target dir; basis for the `name` field. */

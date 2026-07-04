@@ -15,6 +15,19 @@
     "default-profile": {
       "type": "boolean",
       "description": "Set false to opt out of the bundled default profile."
+    },
+    "exclude": {
+      "type": "array",
+      "description": "Gitignore-syntax patterns excluded from project file discovery, anchored at the project root.",
+      "items": { "type": "string" }
+    },
+    "caption-conventions": {
+      "type": "object",
+      "description": "Per-keyword caption placement: where the caption sits relative to its block.",
+      "propertyNames": {
+        "enum": ["Figure", "Table", "Listing", "Feature", "Equation", "List"]
+      },
+      "additionalProperties": { "enum": ["above", "below"] }
     }
   }
 }

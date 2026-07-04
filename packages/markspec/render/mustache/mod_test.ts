@@ -22,11 +22,6 @@ function makeConfig(
   return {
     name: "io.driftsys.markspec",
     version: "0.2.0",
-    labels: [],
-    parents: [],
-    parentFallback: "",
-    captionConventions: {},
-    exclude: [],
     dependencies: [],
     references: [],
     ...overrides,

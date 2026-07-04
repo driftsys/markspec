@@ -50,6 +50,7 @@ export const compileCmd = new Command()
           discoverProjectRoot,
           loadConfig,
           loadProfileForCommand,
+          loadToolConfig,
           parseLockfile,
           resolveUpstreams,
         } = await import("../../core/mod.ts");
@@ -90,11 +91,15 @@ export const compileCmd = new Command()
           root,
           readFileOrUndefined,
         );
-        // Honor project.yaml `exclude:` so `--frozen`'s edge set matches the
-        // one `markspec lock` pinned — an entry under an excluded path (e.g.
-        // `skills/`) must not spuriously drift the frozen check (#684).
+        // Honor .markspec.yaml `exclude:` so `--frozen`'s edge set matches
+        // the one `markspec lock` pinned — an entry under an excluded path
+        // (e.g. `skills/`) must not spuriously drift the frozen check (#684).
+        const toolConfigResult = await loadToolConfig(
+          root,
+          readFileOrUndefined,
+        );
         const entries = await collectProjectEntries(root, denoDiscoveryIO(), {
-          exclude: configResult.config.exclude,
+          exclude: toolConfigResult.config.exclude,
         });
         const mappings = await loadAllMappings(root);
 

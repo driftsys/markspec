@@ -1916,7 +1916,9 @@ Deno.test("validate: MSL-C072 fires when Figure caption is below but convention=
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": `name: test-project
-caption-conventions:
+version: 0.1.0
+`,
+      ".markspec.yaml": `caption-conventions:
   Figure: above
 `,
       "req.md": `# Requirements
@@ -1947,7 +1949,9 @@ Deno.test("validate: MSL-C072 does not fire when Figure caption is below and con
   const { code: _code, stderr } = await markspec(["check", "req.md"], {
     files: {
       "project.yaml": `name: test-project
-caption-conventions:
+version: 0.1.0
+`,
+      ".markspec.yaml": `caption-conventions:
   Figure: below
 `,
       "req.md": `# Requirements

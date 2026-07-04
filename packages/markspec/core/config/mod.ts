@@ -8,8 +8,6 @@
 import { parse as parseYaml } from "@std/yaml";
 import { dirname, join, resolve } from "@std/path";
 import {
-  type CaptionConventions,
-  type CaptionPosition,
   ConfigError,
   type ConfigFieldError,
   DEFAULT_PROJECT_CONFIG,
@@ -78,6 +76,46 @@ function findLineNumber(
   return rawYaml.slice(0, match.index).split("\n").length;
 }
 
+/** `name:` must be lowercase, start with a letter, and contain only
+ * letters, digits, `.`, and `-` (org project schema). */
+const NAME_PATTERN = /^[a-z][a-z0-9.-]*$/;
+
+/**
+ * Org keys `project.yaml` accepts but never parses or acts on — free-form
+ * classification/metadata fields owned by the org schema, not MarkSpec.
+ */
+const ORG_INERT_KEYS = new Set([
+  "$schema",
+  "category",
+  "description",
+  "license",
+  "keywords",
+  "labels",
+  "authors",
+  "homepage",
+  "bugs",
+  "repository",
+  "upstream",
+  "process",
+  "classification",
+  "metadata",
+]);
+
+/** Keys `parseProjectConfig` actually parses into `ProjectConfig`. */
+const PARSED_KEYS = new Set(["name", "version", "dependencies", "references"]);
+
+/**
+ * Keys retired or relocated by the Task 8 closed-schema flip. Present only
+ * to produce an actionable migration message; the key itself is never
+ * accepted.
+ */
+const MIGRATED_KEY_HINTS: Readonly<Record<string, string>> = {
+  "exclude": "has moved to .markspec.yaml (markspec tool config)",
+  "caption-conventions": "has moved to .markspec.yaml (markspec tool config)",
+  "parents": "is retired — declare a 'references:' projectRef instead",
+  "parent-fallback": "is retired — declare a 'references:' projectRef instead",
+};
+
 /**
  * Parse a YAML string and validate it as a MarkSpec project configuration.
  *
@@ -119,7 +157,7 @@ export function parseProjectConfig(
   const obj = raw as Record<string, unknown>;
   const errors: ConfigFieldError[] = [];
 
-  // name: required string
+  // name: required string, matching the org name pattern
   if (obj.name === undefined || obj.name === null || obj.name === "") {
     errors.push({
       field: "name",
@@ -132,10 +170,16 @@ export function parseProjectConfig(
       message: `expected string, got ${typeof obj.name}`,
       line: findLineNumber(yaml, "name"),
     });
+  } else if (!NAME_PATTERN.test(obj.name)) {
+    errors.push({
+      field: "name",
+      message:
+        "must match ^[a-z][a-z0-9.-]*$ (lowercase letters, digits, '.', '-'; starts with a letter)",
+      line: findLineNumber(yaml, "name"),
+    });
   }
 
-  // version: optional string
-  // version: optional string
+  // version: required string (org project schema)
   let version = DEFAULT_PROJECT_CONFIG.version;
   if (obj.version !== undefined && obj.version !== null) {
     if (typeof obj.version === "number") {
@@ -146,157 +190,12 @@ export function parseProjectConfig(
       );
     }
     version = String(obj.version);
-  }
-
-  // labels: optional string[]
-  let labels: readonly string[] = DEFAULT_PROJECT_CONFIG.labels;
-  if (obj.labels !== undefined && obj.labels !== null) {
-    if (!Array.isArray(obj.labels)) {
-      errors.push({
-        field: "labels",
-        message: `expected array, got ${typeof obj.labels}`,
-        line: findLineNumber(yaml, "labels"),
-      });
-    } else {
-      const bad = obj.labels.findIndex(
-        (v: unknown) => typeof v !== "string" || v === "",
-      );
-      if (bad !== -1) {
-        errors.push({
-          field: `labels[${bad}]`,
-          message: "each label must be a non-empty string",
-          line: findLineNumber(yaml, "labels"),
-        });
-      } else {
-        labels = obj.labels as string[];
-      }
-    }
-  }
-
-  // parents: optional string[] of URLs
-  let parents: readonly string[] = DEFAULT_PROJECT_CONFIG.parents;
-  if (obj.parents !== undefined && obj.parents !== null) {
-    if (!Array.isArray(obj.parents)) {
-      errors.push({
-        field: "parents",
-        message: `expected array, got ${typeof obj.parents}`,
-        line: findLineNumber(yaml, "parents"),
-      });
-    } else {
-      const bad = obj.parents.findIndex(
-        (v: unknown) => typeof v !== "string" || !isValidUrl(v),
-      );
-      if (bad !== -1) {
-        errors.push({
-          field: `parents[${bad}]`,
-          message: "each parent must be a valid URL",
-          line: findLineNumber(yaml, "parents"),
-        });
-      } else {
-        parents = obj.parents as string[];
-      }
-    }
-  }
-
-  // parent-fallback: optional URL string
-  let parentFallback = DEFAULT_PROJECT_CONFIG.parentFallback;
-  const fallbackKey = "parent-fallback";
-  if (obj[fallbackKey] !== undefined && obj[fallbackKey] !== null) {
-    const val = obj[fallbackKey];
-    if (typeof val !== "string" || !isValidUrl(val)) {
-      errors.push({
-        field: "parent-fallback",
-        message: "must be a valid URL",
-        line: findLineNumber(yaml, "parent-fallback"),
-      });
-    } else {
-      parentFallback = val;
-    }
-  }
-
-  // caption-conventions: optional mapping of keyword → "above" | "below"
-  let captionConventions: CaptionConventions =
-    DEFAULT_PROJECT_CONFIG.captionConventions;
-  const captionConventionsKey = "caption-conventions";
-  if (
-    obj[captionConventionsKey] !== undefined &&
-    obj[captionConventionsKey] !== null
-  ) {
-    const raw = obj[captionConventionsKey];
-    if (typeof raw !== "object" || Array.isArray(raw)) {
-      errors.push({
-        field: captionConventionsKey,
-        message: `expected a mapping of caption-keyword: above|below, got ${
-          Array.isArray(raw) ? "array" : typeof raw
-        }`,
-        line: findLineNumber(yaml, captionConventionsKey),
-      });
-    } else {
-      const rawMap = raw as Record<string, unknown>;
-      const VALID_KEYWORDS = new Set([
-        "Figure",
-        "Table",
-        "Listing",
-        "Feature",
-        "Equation",
-        "List",
-      ]);
-      const parsed: Record<string, CaptionPosition> = {};
-      let badKey: string | undefined;
-      const captionErrsBefore = errors.length;
-      for (const [kw, pos] of Object.entries(rawMap)) {
-        if (!VALID_KEYWORDS.has(kw)) {
-          badKey = kw;
-          break;
-        }
-        if (pos !== "above" && pos !== "below") {
-          errors.push({
-            field: `${captionConventionsKey}.${kw}`,
-            message: `expected "above" or "below", got ${JSON.stringify(pos)}`,
-            line: findLineNumber(yaml, captionConventionsKey),
-          });
-          continue;
-        }
-        parsed[kw] = pos as CaptionPosition;
-      }
-      if (badKey !== undefined) {
-        errors.push({
-          field: `${captionConventionsKey}.${badKey}`,
-          message: `unknown caption keyword '${badKey}'; valid keywords: ${
-            [...VALID_KEYWORDS].join(", ")
-          }`,
-          line: findLineNumber(yaml, captionConventionsKey),
-        });
-      }
-      if (errors.length === captionErrsBefore) {
-        captionConventions = parsed;
-      }
-    }
-  }
-
-  // exclude: optional string[] of gitignore-syntax patterns
-  let exclude: readonly string[] = DEFAULT_PROJECT_CONFIG.exclude;
-  if (obj.exclude !== undefined && obj.exclude !== null) {
-    if (!Array.isArray(obj.exclude)) {
-      errors.push({
-        field: "exclude",
-        message: `expected array, got ${typeof obj.exclude}`,
-        line: findLineNumber(yaml, "exclude"),
-      });
-    } else {
-      const bad = obj.exclude.findIndex(
-        (v: unknown) => typeof v !== "string" || v === "",
-      );
-      if (bad !== -1) {
-        errors.push({
-          field: `exclude[${bad}]`,
-          message: "each exclude pattern must be a non-empty string",
-          line: findLineNumber(yaml, "exclude"),
-        });
-      } else {
-        exclude = obj.exclude as string[];
-      }
-    }
+  } else {
+    errors.push({
+      field: "version",
+      message: "version is required (org project schema)",
+      line: undefined,
+    });
   }
 
   // dependencies / references: optional projectRef[] (org project-manifest)
@@ -313,6 +212,23 @@ export function parseProjectConfig(
     errors,
   );
 
+  // Closed-schema key classifier: every key must be one this parser reads
+  // (PARSED_KEYS), an org-owned free-form field MarkSpec ignores
+  // (ORG_INERT_KEYS), or a migrated/retired key with an actionable hint
+  // (MIGRATED_KEY_HINTS). Anything else is unknown to the closed schema.
+  for (const key of Object.keys(obj)) {
+    if (PARSED_KEYS.has(key) || ORG_INERT_KEYS.has(key)) continue;
+    const hint = MIGRATED_KEY_HINTS[key];
+    errors.push({
+      field: key,
+      message: hint !== undefined
+        ? `'${key}' ${hint}`
+        : `unknown key '${key}' (project.yaml follows the closed org schema ` +
+          `https://driftsys.github.io/schemas/project/v1.json)`,
+      line: findLineNumber(yaml, key),
+    });
+  }
+
   if (errors.length > 0) {
     throw new ConfigError(filePath, errors);
   }
@@ -320,11 +236,6 @@ export function parseProjectConfig(
   return {
     name: obj.name as string,
     version,
-    labels,
-    parents,
-    parentFallback,
-    captionConventions,
-    exclude,
     dependencies,
     references,
   };
@@ -473,17 +384,4 @@ export async function loadConfig(
 
   const config = parseProjectConfig(content, configPath);
   return { config, projectRoot: root, configPath };
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function isValidUrl(value: string): boolean {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
 }

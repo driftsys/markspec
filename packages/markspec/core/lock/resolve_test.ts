@@ -21,11 +21,6 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
     config: {
       name: "x",
       version: "0.0.0",
-      labels: [],
-      parents: [],
-      parentFallback: "",
-      captionConventions: {},
-      exclude: [],
       dependencies: [],
       references: [],
     },
@@ -323,11 +318,6 @@ Deno.test(
     const config = {
       name: "p",
       version: "0",
-      labels: [],
-      parents: [],
-      parentFallback: "",
-      captionConventions: {},
-      exclude: [],
       dependencies: [],
       references: [],
     };
@@ -598,11 +588,6 @@ Deno.test(
       config: {
         name: "x",
         version: "0.0.0",
-        labels: [],
-        parents: [],
-        parentFallback: "",
-        captionConventions: {},
-        exclude: [],
         dependencies: [],
         references: [],
       },

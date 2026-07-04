@@ -5,3 +5,11 @@ $schema: https://driftsys.github.io/markspec/schemas/markspec/v1.json
 # activates here. Empty `profiles` keeps the bundled default profile active —
 # behaviorally identical to having no file at all (ADR-010).
 profiles: []
+# markspec tool config (Task 8): file-discovery excludes, moved here from
+# project.yaml's closed org schema.
+exclude:
+  - "skills/"
+  - "docs/examples/"
+  - "CHANGELOG.md"
+  - "docs/product/ast-fidelity-matrix.md"
+  - "docs/templates/"

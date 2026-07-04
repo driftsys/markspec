@@ -22,6 +22,7 @@ import {
   ensureCacheGitignored,
   loadConfig,
   loadProfileForCommand,
+  loadToolConfig,
   type Lockfile,
   LOCKFILE_SCHEMA_VERSION,
   type Mapping,
@@ -77,8 +78,12 @@ async function runLock(options: LockOptions): Promise<void> {
   );
   const chain = profileResult.chain;
 
+  const toolConfigResult = await loadToolConfig(
+    projectRoot,
+    readFileOrUndefined,
+  );
   const entries = await collectProjectEntries(projectRoot, denoDiscoveryIO(), {
-    exclude: config.exclude,
+    exclude: toolConfigResult.config.exclude,
   });
   const mappings = await loadAllMappings(projectRoot);
 

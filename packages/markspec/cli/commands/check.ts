@@ -6,7 +6,7 @@
 
 import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
-import { ConfigError, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
+import { loadToolConfig, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import {
   loadActiveProfile,
@@ -38,32 +38,28 @@ export const checkCmd = new Command()
       const files = scope.files;
       const projectRoot = scope.projectRoot;
 
-      const { loadConfig } = await import("../../core/mod.ts");
-
       const chain = projectRoot !== undefined
         ? await loadActiveProfile(projectRoot)
         : null;
 
-      // Load project config for config-driven rules (e.g. MSL-C072
-      // caption-position convention). Absent config → defaults (rules inactive).
-      // A malformed config (ConfigError) IS surfaced — a bad caption-conventions
-      // block silently disabling MSL-C072 would be invisible debt (M-1 fix).
+      // Load the markspec tool config (.markspec.yaml) for config-driven
+      // rules (e.g. MSL-C072 caption-position convention). Absent config →
+      // defaults (rules inactive). A malformed .markspec.yaml IS surfaced —
+      // a bad caption-conventions block silently disabling MSL-C072 would be
+      // invisible debt (M-1 fix).
       let captionConventions: CaptionConventions = {};
       if (projectRoot !== undefined) {
-        try {
-          const configResult = await loadConfig(projectRoot, readFile);
-          if (configResult) {
-            captionConventions = configResult.config.captionConventions;
+        const toolConfigResult = await loadToolConfig(projectRoot, readFile);
+        const toolConfigErrors = toolConfigResult.diagnostics.filter(
+          (d) => d.severity === "error",
+        );
+        if (toolConfigErrors.length > 0) {
+          for (const d of toolConfigErrors) {
+            console.error(`error: ${d.message}`);
           }
-        } catch (err) {
-          if (err instanceof ConfigError) {
-            console.error(`error: ${err.message}`);
-            Deno.exit(1);
-          }
-          // Other unexpected errors (I/O, etc.) remain non-fatal — the rule
-          // simply stays inactive; the file-missing path already returns undefined
-          // from readFile and never throws.
+          Deno.exit(1);
         }
+        captionConventions = toolConfigResult.config.captionConventions;
       }
 
       // Load the delivered corpus (ADR-030) — project-wide only, matching

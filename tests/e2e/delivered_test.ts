@@ -17,8 +17,6 @@ import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
 // it reaches the graph exactly once, via the corpus loader.
 const PROJECT_YAML = `name: profile-delivers-e2e
 version: 0.1.0
-exclude:
-  - profile/
 `;
 
 // A profile that declares two requirement-shaped types with a Satisfies
@@ -87,7 +85,7 @@ const PROJECT_MD = `- [STK_0001] Vehicle state access
 function fixture(profileYaml: string): Record<string, string> {
   return {
     "project.yaml": PROJECT_YAML,
-    ".markspec.yaml": "profiles:\n  - ./profile\n",
+    ".markspec.yaml": "profiles:\n  - ./profile\nexclude:\n  - profile/\n",
     "profile/markspec.yaml": profileYaml,
     "profile/reference/platform.md": CORPUS_MD,
     "profile/reference/guide.md": GUIDE_MD,

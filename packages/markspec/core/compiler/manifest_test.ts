@@ -32,11 +32,6 @@ function makeLink(from: string, to: string): Link {
 const BASE_CONFIG: ProjectConfig = {
   name: "test-project",
   version: "1.0.0",
-  labels: [],
-  parents: [],
-  parentFallback: "https://example.com",
-  captionConventions: {},
-  exclude: [],
   dependencies: [],
   references: [],
 };

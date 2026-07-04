@@ -73,22 +73,23 @@ const VALID_REQ = `# Test
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `;
 
-Deno.test("validate: malformed caption-conventions in project.yaml surfaces error (M-1 fix)", async () => {
-  // "unknown-keyword" is not a valid caption keyword; loadConfig throws
-  // ConfigError.  The validate command must surface it rather than silently
-  // continuing with MSL-C072 disabled.
+Deno.test("validate: malformed caption-conventions in .markspec.yaml surfaces error (M-1 fix)", async () => {
+  // "unknown-keyword" is not a valid caption keyword; loadToolConfig
+  // (backed by parseMarkspecYaml) reports MARKSPEC-YAML-003. The validate
+  // command must surface it rather than silently continuing with
+  // MSL-C072 disabled.
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
-      "project.yaml":
-        "name: test-project\ncaption-conventions:\n  unknown-keyword: above\n",
+      "project.yaml": "name: test-project\nversion: 0.1.0\n",
+      ".markspec.yaml": "caption-conventions:\n  unknown-keyword: above\n",
       "req.md": VALID_REQ,
     },
   });
   assertEquals(code, 1, `expected exit 1, got ${code}; stderr:\n${stderr}`);
   assertStringIncludes(
     stderr,
-    "error:",
-    "expected an error message on stderr for malformed caption-conventions",
+    "MARKSPEC-YAML-003",
+    "expected a MARKSPEC-YAML-003 error on stderr for malformed caption-conventions",
   );
 });
 
@@ -109,11 +110,11 @@ Deno.test("validate: absent project.yaml still works silently — no false error
   );
 });
 
-Deno.test("validate: well-formed caption-conventions in project.yaml succeeds silently", async () => {
+Deno.test("validate: well-formed caption-conventions in .markspec.yaml succeeds silently", async () => {
   const { code, stderr } = await markspec(["check", "req.md"], {
     files: {
-      "project.yaml":
-        "name: test-project\ncaption-conventions:\n  Figure: above\n",
+      "project.yaml": "name: test-project\nversion: 0.1.0\n",
+      ".markspec.yaml": "caption-conventions:\n  Figure: above\n",
       "req.md": VALID_REQ,
     },
   });

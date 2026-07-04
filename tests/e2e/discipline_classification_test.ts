@@ -2,7 +2,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 const ADR_017_FIXTURE = {
-  "project.yaml": `name: discipline-test\n`,
+  "project.yaml": `name: discipline-test\nversion: 0.1.0\n`,
   "requirements.md": `# Requirements
 
 - [REQ_0001] Brake controller debounces pedal input

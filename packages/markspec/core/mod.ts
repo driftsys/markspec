@@ -26,7 +26,6 @@ export {
   makeUlid,
   MIXED_DISCIPLINE,
   PALETTE_HUES,
-  REFHUB_URL,
   sameOriginSource,
 } from "./model/mod.ts";
 export type {
@@ -111,7 +110,9 @@ export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 export {
   addProfileSpecifier,
+  DEFAULT_TOOL_CONFIG,
   discoverMarkspecRoot,
+  loadToolConfig,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,
@@ -119,6 +120,7 @@ export {
 export type {
   MarkspecYaml,
   ParseMarkspecYamlResult,
+  ToolConfig,
 } from "./config/markspec.ts";
 
 // Profile system (ADR-008)

@@ -403,7 +403,7 @@ export async function resolveScope(
   const {
     discoverFiles,
     discoverProjectRoot,
-    loadConfig,
+    loadToolConfig,
     RELEVANT_EXTENSIONS,
   } = await import("../core/mod.ts");
   const extensions = opts.extensions ?? RELEVANT_EXTENSIONS;
@@ -412,10 +412,9 @@ export async function resolveScope(
 
   if (args.length === 0) {
     if (projectRoot === undefined) {
-      // project.yaml is the project-root marker (it carries name / version /
-      // exclude). A `.markspec.yaml` only activates a profile (ADR-008) and
-      // does not, on its own, mark a root — so the message must not imply it
-      // does (#666).
+      // project.yaml is the project-root marker (it carries name / version).
+      // A `.markspec.yaml` only activates a profile (ADR-008) and does not,
+      // on its own, mark a root — so the message must not imply it does (#666).
       console.error("error: no project root found (project.yaml required)");
       console.error(`  searched from ${Deno.cwd()} to filesystem root`);
       console.error(
@@ -426,17 +425,21 @@ export async function resolveScope(
       );
       Deno.exit(1);
     }
-    let exclude: readonly string[] = [];
-    try {
-      const configResult = await loadConfig(projectRoot, readFile);
-      if (configResult) exclude = configResult.config.exclude;
-    } catch (err) {
-      if (err instanceof ConfigError) {
-        console.error(`error: ${err.message}`);
-        Deno.exit(1);
+    // exclude: (markspec tool config) lives in .markspec.yaml (Task 8).
+    // A malformed .markspec.yaml IS surfaced — silently falling back to
+    // "no excludes" would widen file discovery in a way the author never
+    // intended, matching the prior ConfigError-is-fatal posture.
+    const toolConfigResult = await loadToolConfig(projectRoot, readFile);
+    const toolConfigErrors = toolConfigResult.diagnostics.filter(
+      (d) => d.severity === "error",
+    );
+    if (toolConfigErrors.length > 0) {
+      for (const d of toolConfigErrors) {
+        console.error(`error: ${d.message}`);
       }
-      // Other errors: discovery proceeds without exclude patterns.
+      Deno.exit(1);
     }
+    const exclude = toolConfigResult.config.exclude;
     const files: string[] = [];
     for await (
       const f of discoverFiles(projectRoot, io, { extensions, exclude })

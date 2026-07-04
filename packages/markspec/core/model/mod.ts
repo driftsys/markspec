@@ -624,9 +624,6 @@ export interface Diagnostic {
 // Project configuration
 // ---------------------------------------------------------------------------
 
-/** Default RefHub URL used as implicit fallback for parent registries. */
-export const REFHUB_URL = "https://driftsys.github.io/refhub";
-
 /**
  * Caption-position convention for a specific caption keyword.
  * `"above"` — caption must appear above its block.
@@ -670,31 +667,17 @@ export interface ProjectRef {
   readonly name?: string;
 }
 
-/** MarkSpec project configuration from `project.yaml`. */
+/**
+ * MarkSpec project configuration from `project.yaml` — the org project
+ * schema's closed shape (Task 8). Markspec-tool-specific config (`exclude`,
+ * `caption-conventions`) lives in `.markspec.yaml` — see `ToolConfig` /
+ * `loadToolConfig` in `core/config/markspec.ts`.
+ */
 export interface ProjectConfig {
   /** Project name (e.g., `io.driftsys.markspec`). */
   readonly name: string;
   /** Project version string. */
   readonly version: string;
-  /** Allowed label vocabulary (e.g., `["ASIL-A", "ASIL-B"]`). Empty = no constraint. */
-  readonly labels: readonly string[];
-  /** Upstream parent registry URLs, searched in order. */
-  readonly parents: readonly string[];
-  /** Fallback registry URL when parents don't resolve a reference. */
-  readonly parentFallback: string;
-  /**
-   * Per-keyword caption-position conventions (spec §4.7 MSL-C072).
-   * When a key is present, the validator emits MSL-C072 if a caption
-   * of that keyword appears on the wrong side of its block. An empty
-   * or absent map means all keywords are unconstrained.
-   */
-  readonly captionConventions: CaptionConventions;
-  /**
-   * Gitignore-syntax patterns excluded from project file discovery,
-   * anchored at the project root (e.g. `["skills/", "*.gen.md"]`).
-   * Applied after `.gitignore` rules by `core/discovery`.
-   */
-  readonly exclude: readonly string[];
   /**
    * Upstream git repositories this project depends on (org
    * project-manifest contract `dependencies:`). Each entry resolves to a
@@ -712,11 +695,6 @@ export interface ProjectConfig {
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   name: "",
   version: "0.0.0",
-  labels: [],
-  parents: [],
-  parentFallback: REFHUB_URL,
-  captionConventions: {},
-  exclude: [],
   dependencies: [],
   references: [],
 };

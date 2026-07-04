@@ -8,7 +8,7 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 const FIXTURE = {
-  "project.yaml": "name: test-project\n",
+  "project.yaml": "name: test-project\nversion: 0.1.0\n",
   "req.md": `# Requirements
 
 - [STK_BRK_0001] Stakeholder requirement

@@ -4,7 +4,6 @@ import { markspec } from "./helpers.ts";
 
 const PROJECT_YAML = `\
 name: io.test.project
-domain: TST
 version: "1.0.0"
 `;
 
