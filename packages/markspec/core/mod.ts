@@ -381,6 +381,7 @@ export { fmtDriftGate, lockfileDriftGate, proseLintGate } from "./gates/mod.ts";
 // ── Fenced-code-block detection (#668/#679/#680) ──────────────────────────
 export { FENCE_RE, isLineFenced, walkProseLines } from "./util/fence.ts";
 export type { ProseLineCallback } from "./util/fence.ts";
+export { isUnsafeRelPath } from "./util/paths.ts";
 
 // ── External sync model (ADR-022) ────────────────────────────────────────
 export {

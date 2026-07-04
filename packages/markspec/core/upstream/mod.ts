@@ -17,6 +17,7 @@ import {
   deserializeEntry,
   extractSerializedEntries,
 } from "../compiler/deserialize.ts";
+import { isUnsafeRelPath } from "../util/paths.ts";
 
 /** One locked upstream's cached snapshot (dir written by `markspec lock`). */
 export interface UpstreamSnapshotRef {
@@ -128,20 +129,4 @@ export async function loadUpstreamCorpus(
     }
   }
   return { entries, diagnostics };
-}
-
-/** Absolute path prefix — POSIX `/…` or a Windows drive letter (`C:\…` /
- * `C:/…`). */
-const ABSOLUTE_PATH_RE = /^(\/|[A-Za-z]:[\\/])/;
-
-/** A `..` path segment anywhere in the string, POSIX or Windows separators. */
-const PARENT_SEGMENT_RE = /(^|[\\/])\.\.([\\/]|$)/;
-
-/**
- * Reject a manifest-controlled relative path that could escape the
- * upstream's cache directory when joined as `${up.dir}/${relPath}` —
- * an absolute path or any `..` segment both qualify.
- */
-function isUnsafeRelPath(relPath: string): boolean {
-  return ABSOLUTE_PATH_RE.test(relPath) || PARENT_SEGMENT_RE.test(relPath);
 }
