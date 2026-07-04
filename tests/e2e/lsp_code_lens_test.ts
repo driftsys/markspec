@@ -107,6 +107,66 @@ Deno.test("lsp codeLens: returns empty array for non-MarkSpec file", async () =>
   }
 });
 
+Deno.test("lsp codeLens: a cross-file Satisfies edge triggers workspace/codeLens/refresh", async () => {
+  // Regression test for #752: opening a target entry with zero known
+  // dependents, then opening a second file that adds a Satisfies edge
+  // to it, must invalidate the target's cached codeLens client-side —
+  // otherwise the "↑ N dependents" lens never updates once a document
+  // is already open. The server can only do that by sending
+  // `workspace/codeLens/refresh` (LSP 3.16+); there is no other signal
+  // that tells the client to re-request `textDocument/codeLens`.
+  const targetMd = `- [STK_AEB_0001] Target requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "target.md": targetMd,
+  });
+  try {
+    await client.initialize();
+
+    const targetUri = toFileUrl(join(client.workDir, "target.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: targetUri,
+        languageId: "markdown",
+        version: 1,
+        text: targetMd,
+      },
+    });
+    await new Promise((r) => setTimeout(r, 500));
+
+    const before = await client.request("textDocument/codeLens", {
+      textDocument: { uri: targetUri },
+    }) as CodeLens[];
+    assertEquals(before, [], "no dependents before the child file opens");
+
+    const childMd = `- [SAD_AEB_0001] Child architecture item
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Satisfies: STK_AEB_0001
+`;
+    const childUri = toFileUrl(join(client.workDir, "child.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: childUri,
+        languageId: "markdown",
+        version: 1,
+        text: childMd,
+      },
+    });
+
+    await client.waitForNotification("workspace/codeLens/refresh", 5000);
+  } finally {
+    await client.shutdown();
+  }
+});
+
 Deno.test("lsp codeLens: isolated entry yields no lenses", async () => {
   const md = `- [STK_AEB_0001] Isolated requirement
 

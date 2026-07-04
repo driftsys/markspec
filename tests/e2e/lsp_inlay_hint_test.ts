@@ -107,6 +107,59 @@ Deno.test("lsp inlayHint: returns empty array for non-MarkSpec file", async () =
   }
 });
 
+Deno.test("lsp inlayHint: a cross-file Satisfies edge triggers workspace/inlayHint/refresh", async () => {
+  // Regression test for #752: same staleness class as the codeLens
+  // refresh test — opening a second file that adds a Satisfies edge
+  // to an already-open target must invalidate that target's cached
+  // "(N dependents)" inlay hint. The server can only do that by
+  // sending `workspace/inlayHint/refresh` (LSP 3.16+).
+  const targetMd = `- [STK_AEB_0001] Target requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const client = await LspTestClient.create({
+    "project.yaml": "name: test-project\n",
+    "target.md": targetMd,
+  });
+  try {
+    await client.initialize();
+
+    const targetUri = toFileUrl(join(client.workDir, "target.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: targetUri,
+        languageId: "markdown",
+        version: 1,
+        text: targetMd,
+      },
+    });
+    await new Promise((r) => setTimeout(r, 500));
+
+    const childMd = `- [SAD_AEB_0001] Child architecture item
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Satisfies: STK_AEB_0001
+`;
+    const childUri = toFileUrl(join(client.workDir, "child.md")).href;
+    await client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: childUri,
+        languageId: "markdown",
+        version: 1,
+        text: childMd,
+      },
+    });
+
+    await client.waitForNotification("workspace/inlayHint/refresh", 5000);
+  } finally {
+    await client.shutdown();
+  }
+});
+
 Deno.test("lsp inlayHint: isolated entry yields no hints", async () => {
   // Single entry, no Satisfies refs, default-profile opted out → no
   // type inference, no dependents.
