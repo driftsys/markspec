@@ -654,6 +654,22 @@ export type CaptionConventions = Readonly<
   Partial<Record<string, CaptionPosition>>
 >;
 
+/**
+ * Reference to an external project (org project-manifest contract,
+ * `driftsys/schemas` `project/v1.json` `$defs/projectRef`). Used by the
+ * `dependencies:` (git repositories) and `references:` (published sites)
+ * lists. `version` carries intent: an exact tag is a frozen baseline, a
+ * branch name tracks its head, absent means auto (latest semver release
+ * tag, else default-branch head). `name` is the upstream id used for the
+ * cache directory, lockfile rows, and origin badges; derived from the URL
+ * when absent.
+ */
+export interface ProjectRef {
+  readonly url: string;
+  readonly version?: string;
+  readonly name?: string;
+}
+
 /** MarkSpec project configuration from `project.yaml`. */
 export interface ProjectConfig {
   /** Project name (e.g., `io.driftsys.markspec`). */
@@ -679,6 +695,17 @@ export interface ProjectConfig {
    * Applied after `.gitignore` rules by `core/discovery`.
    */
   readonly exclude: readonly string[];
+  /**
+   * Upstream git repositories this project depends on (org
+   * project-manifest contract `dependencies:`). Each entry resolves to a
+   * pinned snapshot in `markspec.lock`.
+   */
+  readonly dependencies: readonly ProjectRef[];
+  /**
+   * Published reference sites this project cites but does not depend on
+   * (org project-manifest contract `references:`) — e.g. a shared RefHub.
+   */
+  readonly references: readonly ProjectRef[];
 }
 
 /** Default configuration used when no `project.yaml` is found. */
@@ -690,6 +717,8 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   parentFallback: REFHUB_URL,
   captionConventions: {},
   exclude: [],
+  dependencies: [],
+  references: [],
 };
 
 // ---------------------------------------------------------------------------

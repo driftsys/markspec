@@ -27,6 +27,8 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
       parentFallback: "",
       captionConventions: {},
       exclude: [],
+      dependencies: [],
+      references: [],
     },
     mappings: [],
     fetchUrl: () => Promise.resolve({ error: "stub" }),
@@ -237,6 +239,8 @@ Deno.test(
       parentFallback: "",
       captionConventions: {},
       exclude: [],
+      dependencies: [],
+      references: [],
     };
     const result = await resolveRegistries(
       config,
@@ -258,6 +262,8 @@ Deno.test("resolveRegistries: fetch failure emits MSL-L101", async () => {
     parentFallback: "",
     captionConventions: {},
     exclude: [],
+    dependencies: [],
+    references: [],
   };
   const result = await resolveRegistries(
     config,
@@ -277,6 +283,8 @@ Deno.test(
       parentFallback: "https://b/",
       captionConventions: {},
       exclude: [],
+      dependencies: [],
+      references: [],
     };
     const result = await resolveRegistries(
       config,
@@ -392,6 +400,8 @@ Deno.test(
       parentFallback: "",
       captionConventions: {},
       exclude: [],
+      dependencies: [],
+      references: [],
     };
     const result = await resolveUpstreams({
       entries: [],
@@ -666,6 +676,8 @@ Deno.test(
         parentFallback: "",
         captionConventions: {},
         exclude: [],
+        dependencies: [],
+        references: [],
       },
       mappings: [],
       fetchUrl: () => Promise.resolve({ error: "no network in test" }),

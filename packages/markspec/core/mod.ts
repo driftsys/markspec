@@ -65,6 +65,7 @@ export type {
   ProfileChain,
   ProfileConvention,
   ProjectConfig,
+  ProjectRef,
   ProvenancedMap,
   ProvenancedMapEntry,
   ProvenancedValue,

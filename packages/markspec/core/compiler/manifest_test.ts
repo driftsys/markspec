@@ -37,6 +37,8 @@ const BASE_CONFIG: ProjectConfig = {
   parentFallback: "https://example.com",
   captionConventions: {},
   exclude: [],
+  dependencies: [],
+  references: [],
 };
 
 function makeResult(

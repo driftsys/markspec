@@ -14,6 +14,7 @@ import {
   type ConfigFieldError,
   DEFAULT_PROJECT_CONFIG,
   type ProjectConfig,
+  type ProjectRef,
 } from "../model/mod.ts";
 
 /** The config file name used as the project root marker. */
@@ -298,6 +299,20 @@ export function parseProjectConfig(
     }
   }
 
+  // dependencies / references: optional projectRef[] (org project-manifest)
+  const dependencies = parseProjectRefList(
+    obj["dependencies"],
+    "dependencies",
+    yaml,
+    errors,
+  );
+  const references = parseProjectRefList(
+    obj["references"],
+    "references",
+    yaml,
+    errors,
+  );
+
   if (errors.length > 0) {
     throw new ConfigError(filePath, errors);
   }
@@ -310,7 +325,103 @@ export function parseProjectConfig(
     parentFallback,
     captionConventions,
     exclude,
+    dependencies,
+    references,
   };
+}
+
+// ---------------------------------------------------------------------------
+// projectRef parsing (org project-manifest contract: dependencies/references)
+// ---------------------------------------------------------------------------
+
+/** Safe upstream id: single path segment, no separators or traversal. */
+const PROJECT_REF_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+const PROJECT_REF_KEYS = new Set(["url", "version", "name"]);
+
+/**
+ * Parse a `dependencies:` or `references:` list of projectRef objects
+ * (`{ url (required), version?, name? }`). Pushes field errors onto
+ * `errors` and returns whatever refs parsed cleanly; the caller throws
+ * once all fields have been checked, so a single invalid entry doesn't
+ * mask other unrelated errors.
+ */
+function parseProjectRefList(
+  value: unknown,
+  field: "dependencies" | "references",
+  yaml: string,
+  errors: ConfigFieldError[],
+): ProjectRef[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    errors.push({
+      field,
+      message:
+        "must be a list of projectRef objects ({ url, version?, name? })",
+      line: findLineNumber(yaml, field),
+    });
+    return [];
+  }
+  const out: ProjectRef[] = [];
+  value.forEach((item, i) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      errors.push({
+        field: `${field}[${i}]`,
+        message: "must be a mapping with a required 'url' key",
+        line: findLineNumber(yaml, field),
+      });
+      return;
+    }
+    const record = item as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (!PROJECT_REF_KEYS.has(key)) {
+        errors.push({
+          field: `${field}[${i}]`,
+          message:
+            `unknown projectRef key '${key}' (allowed: url, version, name)`,
+          line: findLineNumber(yaml, key),
+        });
+      }
+    }
+    const url = record.url;
+    if (typeof url !== "string" || url.length === 0) {
+      errors.push({
+        field: `${field}[${i}].url`,
+        message: "projectRef requires a non-empty 'url' string",
+        line: findLineNumber(yaml, field),
+      });
+      return;
+    }
+    const ref: { url: string; version?: string; name?: string } = { url };
+    if (record.version !== undefined) {
+      if (typeof record.version !== "string" || record.version.length === 0) {
+        errors.push({
+          field: `${field}[${i}].version`,
+          message: "must be a non-empty string when present",
+          line: findLineNumber(yaml, field),
+        });
+      } else {
+        ref.version = record.version;
+      }
+    }
+    if (record.name !== undefined) {
+      if (
+        typeof record.name !== "string" ||
+        !PROJECT_REF_NAME_RE.test(record.name)
+      ) {
+        errors.push({
+          field: `${field}[${i}].name`,
+          message:
+            "must match [A-Za-z0-9][A-Za-z0-9._-]* (used as a cache directory name)",
+          line: findLineNumber(yaml, field),
+        });
+      } else {
+        ref.name = record.name;
+      }
+    }
+    out.push(ref);
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------------------

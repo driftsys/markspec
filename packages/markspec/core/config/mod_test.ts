@@ -265,3 +265,74 @@ Deno.test("loadConfig: non-array exclude is a ConfigError", async () => {
   }
   assertEquals(threw, true);
 });
+
+// ---------------------------------------------------------------------------
+// dependencies / references (org project-manifest projectRef lists)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseProjectConfig: parses dependencies and references projectRefs", () => {
+  const config = parseProjectConfig(
+    `name: io.acme.brake
+version: "1.0.0"
+dependencies:
+  - url: https://github.com/acme/aeb-product
+    name: product
+  - url: ../aeb-sensor
+    name: sensor
+    version: main
+references:
+  - url: https://driftsys.github.io/refhub
+    name: refhub
+`,
+    "/proj/project.yaml",
+  );
+  assertEquals(config.dependencies, [
+    { url: "https://github.com/acme/aeb-product", name: "product" },
+    { url: "../aeb-sensor", name: "sensor", version: "main" },
+  ]);
+  assertEquals(config.references, [
+    { url: "https://driftsys.github.io/refhub", name: "refhub" },
+  ]);
+});
+
+Deno.test("parseProjectConfig: dependencies/references default to empty", () => {
+  const config = parseProjectConfig("name: t\n", "/proj/project.yaml");
+  assertEquals(config.dependencies, []);
+  assertEquals(config.references, []);
+});
+
+Deno.test("parseProjectConfig: projectRef without url is a ConfigError", () => {
+  assertThrows(
+    () =>
+      parseProjectConfig(
+        "name: t\nreferences:\n  - name: refhub\n",
+        "/proj/project.yaml",
+      ),
+    ConfigError,
+    "url",
+  );
+});
+
+Deno.test("parseProjectConfig: unknown projectRef key is a ConfigError", () => {
+  assertThrows(
+    () =>
+      parseProjectConfig(
+        "name: t\nreferences:\n  - url: https://x.example\n    kind: git\n",
+        "/proj/project.yaml",
+      ),
+    ConfigError,
+    "kind",
+  );
+});
+
+Deno.test("parseProjectConfig: unsafe projectRef name is a ConfigError", () => {
+  assertThrows(
+    () =>
+      parseProjectConfig(
+        "name: t\nreferences:\n  - url: https://x.example\n    name: ../evil\n",
+        "/proj/project.yaml",
+      ),
+    ConfigError,
+    "name",
+  );
+});

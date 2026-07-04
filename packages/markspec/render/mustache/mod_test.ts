@@ -27,6 +27,8 @@ function makeConfig(
     parentFallback: "",
     captionConventions: {},
     exclude: [],
+    dependencies: [],
+    references: [],
     ...overrides,
   };
 }

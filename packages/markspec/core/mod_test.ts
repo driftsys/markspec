@@ -83,6 +83,8 @@ Deno.test("model types are constructible", () => {
     parentFallback: REFHUB_URL,
     captionConventions: {},
     exclude: [],
+    dependencies: [],
+    references: [],
   };
   assertEquals(config.name, "test-project");
 });
