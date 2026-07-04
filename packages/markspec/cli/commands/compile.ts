@@ -46,6 +46,7 @@ export const compileCmd = new Command()
         const {
           checkDrift,
           collectProjectEntries,
+          deriveUpstreamId,
           discoverProjectRoot,
           loadConfig,
           loadProfileForCommand,
@@ -105,7 +106,14 @@ export const compileCmd = new Command()
           fetchUrl: defaultFetchUrl,
           readFile: defaultReadFile,
         });
-        const drift = checkDrift(parsed.lockfile, resolved);
+        const declaredReferenceIds = configResult.config.references
+          .map((ref) => deriveUpstreamId(ref))
+          .filter((id): id is string => id !== undefined);
+        const drift = checkDrift(
+          parsed.lockfile,
+          resolved,
+          declaredReferenceIds,
+        );
         if (drift.length > 0) {
           for (const d of drift) {
             console.error(`${d.severity}: ${d.code}: ${d.message}`);

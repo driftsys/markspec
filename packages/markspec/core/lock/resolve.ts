@@ -30,7 +30,6 @@ import type {
   LockEdge,
   UpstreamProfile,
   UpstreamReference,
-  UpstreamRegistry,
 } from "./model.ts";
 import { sha256Bytes } from "./hash.ts";
 import { type EdgeQuad, hashCanonicalEdges } from "./canonical_edges.ts";
@@ -84,12 +83,6 @@ export interface ResolvedProfile {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-/** A federated registry that resolved. */
-export interface ResolvedRegistry {
-  readonly upstream: UpstreamRegistry;
-  readonly diagnostics: readonly Diagnostic[];
-}
-
 /** A bound entry's locked-attribute snapshot. */
 export interface ResolvedBoundEntry {
   readonly boundEntry: BoundEntry;
@@ -100,7 +93,6 @@ export interface ResolvedBoundEntry {
 export interface ResolvedUpstreams {
   readonly references: readonly ResolvedReference[];
   readonly profiles: readonly ResolvedProfile[];
-  readonly registries: readonly ResolvedRegistry[];
   readonly boundEntries: readonly ResolvedBoundEntry[];
   /** sha256:* of the canonical edge serialization. */
   readonly canonicalEdgeHash: string;
@@ -278,11 +270,14 @@ export function extractEdgeLedger(
 
 /**
  * Resolve every upstream the lockfile needs: References, profile chain
- * tiers, federated registries, and bound entries. Computes the
- * canonical edge hash from the same entry set. Returns the aggregate
- * `ResolvedUpstreams` payload ready for {@link serializeLockfile}.
+ * tiers, and bound entries. Computes the canonical edge hash from the
+ * same entry set. Returns the aggregate `ResolvedUpstreams` payload
+ * ready for {@link serializeLockfile}. Federated registry rows (org
+ * `references:`) are resolved separately by
+ * {@linkcode resolveProjectReferences} in `upstream_refs.ts` — the CLI
+ * composes both into the final lockfile's `upstreams` list.
  *
- * The four sub-resolvers run sequentially (not concurrently) because
+ * The sub-resolvers run sequentially (not concurrently) because
  * (a) the callbacks they share — `fetchUrl`, `readFile` — may themselves
  * serialize work, and (b) the diagnostics output is easier to reason
  * about with a deterministic order. Wrap inside `Promise.all` only when
@@ -299,7 +294,6 @@ export async function resolveUpstreams(
     opts.profileChain,
     opts.readFile,
   );
-  const regResults = await resolveRegistries(opts.config, opts.fetchUrl);
   const boundResults = await resolveBoundEntries(opts.entries, opts.mappings);
 
   const edges = extractEdgeQuads(opts.entries);
@@ -318,14 +312,12 @@ export async function resolveUpstreams(
   const diagnostics: Diagnostic[] = [
     ...refResults.flatMap((r) => r.diagnostics),
     ...profResults.flatMap((r) => r.diagnostics),
-    ...regResults.flatMap((r) => r.diagnostics),
     ...boundResults.flatMap((r) => r.diagnostics),
   ];
 
   return {
     references: refResults,
     profiles: profResults,
-    registries: regResults,
     boundEntries: boundResults,
     canonicalEdgeHash,
     canonicalEdgeCount: edges.length,
@@ -413,70 +405,6 @@ export async function resolveProfileChain(
       diagnostics,
     });
     parentId = tier.id;
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// Registry resolution (Task 16)
-// ---------------------------------------------------------------------------
-
-/**
- * Resolve federated parent registries (and the fallback, when not already
- * listed). Each URL's `<url>/manifest` is fetched; the body is parsed
- * loosely for `markspec-schema` (defaults to 1 on parse failure).
- */
-export async function resolveRegistries(
-  config: ProjectConfig,
-  fetchUrl: FetchUrl,
-): Promise<ResolvedRegistry[]> {
-  const urls = [...config.parents];
-  if (config.parentFallback && !urls.includes(config.parentFallback)) {
-    urls.push(config.parentFallback);
-  }
-  const out: ResolvedRegistry[] = [];
-  for (const url of urls) {
-    const manifestUrl = url.endsWith("/")
-      ? `${url}manifest`
-      : `${url}/manifest`;
-    const fetched = await fetchUrl(manifestUrl);
-    if (fetched instanceof Uint8Array) {
-      const hash = await sha256Bytes(fetched);
-      let markspecSchema = 1;
-      try {
-        const parsed = JSON.parse(new TextDecoder().decode(fetched));
-        if (typeof parsed["markspec-schema"] === "number") {
-          markspecSchema = parsed["markspec-schema"];
-        }
-      } catch { /* leave default */ }
-      out.push({
-        upstream: {
-          kind: "registry",
-          id: `urn:markspec:registry:${url}`,
-          api: url,
-          resolvedManifestHash: hash,
-          markspecSchema,
-        },
-        diagnostics: [],
-      });
-    } else {
-      out.push({
-        upstream: {
-          kind: "registry",
-          id: `urn:markspec:registry:${url}`,
-          api: url,
-          resolvedManifestHash: "sha256:0",
-          markspecSchema: 1,
-        },
-        diagnostics: [{
-          code: "MSL-L101",
-          severity: "warning",
-          message:
-            `Failed to fetch registry manifest from ${manifestUrl}: ${fetched.error}`,
-          location: undefined,
-        }],
-      });
-    }
   }
   return out;
 }

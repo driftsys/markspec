@@ -45,7 +45,6 @@ export {
   resolveBoundEntries,
   resolveProfileChain,
   resolveReferences,
-  resolveRegistries,
   resolveUpstreams,
 } from "./resolve.ts";
 export type {
@@ -54,7 +53,6 @@ export type {
   ResolvedBoundEntry,
   ResolvedProfile,
   ResolvedReference,
-  ResolvedRegistry,
   ResolvedUpstreams,
   ResolveUpstreamsOptions,
 } from "./resolve.ts";

@@ -15,7 +15,6 @@ const EMPTY_LOCKED: Lockfile = {
 const EMPTY_RESOLVED: ResolvedUpstreams = {
   references: [],
   profiles: [],
-  registries: [],
   boundEntries: [],
   canonicalEdgeHash: "sha256:0",
   canonicalEdgeCount: 0,
@@ -25,7 +24,7 @@ const EMPTY_RESOLVED: ResolvedUpstreams = {
 };
 
 Deno.test("checkDrift: identical → no diagnostics", () => {
-  const d = checkDrift(EMPTY_LOCKED, EMPTY_RESOLVED);
+  const d = checkDrift(EMPTY_LOCKED, EMPTY_RESOLVED, []);
   assertEquals(d.length, 0);
 });
 
@@ -44,7 +43,7 @@ Deno.test("checkDrift: new Reference not in lockfile → MSL-L202", () => {
       diagnostics: [],
     }],
   };
-  const d = checkDrift(EMPTY_LOCKED, resolved);
+  const d = checkDrift(EMPTY_LOCKED, resolved, []);
   assertEquals(d.some((x) => x.code === "MSL-L202"), true);
 });
 
@@ -58,7 +57,7 @@ Deno.test("checkDrift: locked Reference absent from current → MSL-L203", () =>
       hash: "sha256:abc",
     }],
   };
-  const d = checkDrift(locked, EMPTY_RESOLVED);
+  const d = checkDrift(locked, EMPTY_RESOLVED, []);
   assertEquals(d.some((x) => x.code === "MSL-L203"), true);
 });
 
@@ -84,7 +83,7 @@ Deno.test("checkDrift: Reference hash mismatch → MSL-L210", () => {
       diagnostics: [],
     }],
   };
-  const d = checkDrift(locked, resolved);
+  const d = checkDrift(locked, resolved, []);
   assertEquals(d.some((x) => x.code === "MSL-L210"), true);
 });
 
@@ -112,7 +111,7 @@ Deno.test("checkDrift: profile resolved-version drift → MSL-L211", () => {
       diagnostics: [],
     }],
   };
-  const d = checkDrift(locked, resolved);
+  const d = checkDrift(locked, resolved, []);
   assertEquals(d.some((x) => x.code === "MSL-L211"), true);
 });
 
@@ -121,6 +120,58 @@ Deno.test("checkDrift: canonical edge hash drift → MSL-L212", () => {
     ...EMPTY_RESOLVED,
     canonicalEdgeHash: "sha256:CHANGED",
   };
-  const d = checkDrift(EMPTY_LOCKED, resolved);
+  const d = checkDrift(EMPTY_LOCKED, resolved, []);
   assertEquals(d.some((x) => x.code === "MSL-L212"), true);
 });
+
+// ---------------------------------------------------------------------------
+// Federated registries — pure id-presence against declaredReferenceIds
+// (Task 7). No hash comparison: content integrity is the offline cache
+// gate (a later task).
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "checkDrift: declared reference with no lockfile row → MSL-L202",
+  () => {
+    const d = checkDrift(EMPTY_LOCKED, EMPTY_RESOLVED, ["refhub"]);
+    assertEquals(d.some((x) => x.code === "MSL-L202"), true);
+  },
+);
+
+Deno.test(
+  "checkDrift: locked registry row no longer declared → MSL-L203",
+  () => {
+    const locked: Lockfile = {
+      ...EMPTY_LOCKED,
+      upstreams: [{
+        kind: "registry",
+        id: "refhub",
+        api: "https://example/refhub",
+        resolvedManifestHash: "sha256:abc",
+        markspecSchema: 1,
+      }],
+    };
+    const d = checkDrift(locked, EMPTY_RESOLVED, []);
+    assertEquals(d.some((x) => x.code === "MSL-L203"), true);
+  },
+);
+
+Deno.test(
+  "checkDrift: registry row present + declared → no diagnostics (hash drift not reported)",
+  () => {
+    const locked: Lockfile = {
+      ...EMPTY_LOCKED,
+      upstreams: [{
+        kind: "registry",
+        id: "refhub",
+        api: "https://example/refhub",
+        // A hash that would never match any "current" value — proves the
+        // registry hash is not compared at all, only id-presence is.
+        resolvedManifestHash: "sha256:stale",
+        markspecSchema: 1,
+      }],
+    };
+    const d = checkDrift(locked, EMPTY_RESOLVED, ["refhub"]);
+    assertEquals(d.length, 0);
+  },
+);

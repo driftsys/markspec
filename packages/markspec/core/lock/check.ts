@@ -6,25 +6,42 @@
  * category. Pure function — no I/O.
  *
  * Drift categories:
- *   - MSL-L202 — upstream in resolved but missing from lockfile
- *   - MSL-L203 — upstream in lockfile but missing from resolved
+ *   - MSL-L202 — upstream in resolved but missing from lockfile (also:
+ *     a declared reference with no lockfile registry row)
+ *   - MSL-L203 — upstream in lockfile but missing from resolved (also:
+ *     a locked registry row no longer declared in project.yaml)
  *   - MSL-L210 — hash mismatch (same identity, different bytes)
  *   - MSL-L211 — profile resolved-version drift (npm range now resolves a different exact version)
  *   - MSL-L212 — canonical edge hash drift (traceability graph changed)
+ *
+ * Federated registry rows (org `references:`) are checked by pure
+ * id-presence against `declaredReferenceIds` — no hash comparison.
+ * Content integrity for those rows is the offline cache gate (a later
+ * task), not this online-vs-lockfile comparison.
  */
 
 import type { Diagnostic } from "../model/mod.ts";
-import type { Lockfile, UpstreamProfile, UpstreamReference } from "./model.ts";
+import type {
+  Lockfile,
+  UpstreamProfile,
+  UpstreamReference,
+  UpstreamRegistry,
+} from "./model.ts";
 import type { ResolvedUpstreams } from "./resolve.ts";
 
 /**
  * Compare locked vs resolved upstreams; return one diagnostic per drift
  * case. An empty result means the lockfile is in sync with the current
  * project state.
+ *
+ * @param declaredReferenceIds - Upstream ids derived from
+ *   `config.references` (via `deriveUpstreamId`) — the id-presence
+ *   comparison set for federated registry rows.
  */
 export function checkDrift(
   locked: Lockfile,
   resolved: ResolvedUpstreams,
+  declaredReferenceIds: readonly string[],
 ): Diagnostic[] {
   const diags: Diagnostic[] = [];
 
@@ -126,6 +143,39 @@ export function checkDrift(
         code: "MSL-L203",
         severity: "error",
         message: `Locked profile tier '${id}' is no longer in the chain.`,
+        location: undefined,
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Federated registries — pure id-presence against declared references.
+  // No hash comparison: content integrity is the offline cache gate.
+  // -------------------------------------------------------------------------
+
+  const lockedRegistries = locked.upstreams.filter(
+    (u): u is UpstreamRegistry => u.kind === "registry",
+  );
+  const lockedRegistryIds = new Set(lockedRegistries.map((r) => r.id));
+  for (const id of declaredReferenceIds) {
+    if (!lockedRegistryIds.has(id)) {
+      diags.push({
+        code: "MSL-L202",
+        severity: "error",
+        message:
+          `declared reference '${id}' has no lockfile row — run 'markspec lock'`,
+        location: undefined,
+      });
+    }
+  }
+  const declaredRegistryIds = new Set(declaredReferenceIds);
+  for (const row of lockedRegistries) {
+    if (!declaredRegistryIds.has(row.id)) {
+      diags.push({
+        code: "MSL-L203",
+        severity: "error",
+        message:
+          `locked reference '${row.id}' is no longer declared in project.yaml — run 'markspec lock'`,
         location: undefined,
       });
     }
