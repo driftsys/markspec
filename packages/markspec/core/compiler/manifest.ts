@@ -7,6 +7,7 @@
  * indirection blocks.
  */
 
+import { CORE_SCHEMA_VERSION } from "../model/mod.ts";
 import type { EffectiveProfile, ProjectConfig } from "../model/mod.ts";
 import type { CompileResult } from "./mod.ts";
 
@@ -23,6 +24,9 @@ export type ManifestEntriesBlock =
 export type ManifestEdgesBlock =
   | { readonly format: "inline"; readonly file: string }
   | { readonly format: "ndjson"; readonly file: string };
+
+/** Version of the compile-output wire schema (`manifest.json` et al.). */
+export const MANIFEST_SCHEMA_VERSION = 1;
 
 /** `manifest.json` schema (spec §4.2). */
 export interface ManifestJson {
@@ -70,10 +74,10 @@ export function buildManifest(
   }
 
   return {
-    markspecSchemaVersion: 1,
+    markspecSchemaVersion: MANIFEST_SCHEMA_VERSION,
     generator: {
       release: version,
-      coreSchema: 1,
+      coreSchema: CORE_SCHEMA_VERSION,
     },
     project: {
       name: config.name ?? "",

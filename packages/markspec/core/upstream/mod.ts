@@ -17,6 +17,7 @@ import {
   deserializeEntry,
   extractSerializedEntries,
 } from "../compiler/deserialize.ts";
+import type { ReadFile } from "../config/mod.ts";
 import { isUnsafeRelPath } from "../util/paths.ts";
 
 /** One locked upstream's cached snapshot (dir written by `markspec lock`). */
@@ -36,7 +37,7 @@ export interface LoadUpstreamCorpusResult {
 }
 
 /** File reader injected by the caller (CLI/LSP own the I/O). */
-export type ReadFile = (path: string) => Promise<string | undefined>;
+export type { ReadFile };
 
 /**
  * Hydrate every locked upstream's cached snapshot into `Entry[]`.

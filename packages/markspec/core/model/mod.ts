@@ -4,6 +4,13 @@
  * MarkSpec document model — AST types, ID types, and project configuration.
  */
 
+/**
+ * Version of the core entry/graph schema. Bumped only when the compiled
+ * representation changes incompatibly; compared by the snapshot skew
+ * guard (`checkSnapshotSchema`) and printed by `--version`.
+ */
+export const CORE_SCHEMA_VERSION = 1;
+
 // model/mod.ts ↔ ast/nodes.ts is a mutual type-only import cycle
 // (nodes.ts imports EntityRefConvention here); TypeScript resolves it
 // cleanly because both directions are `import type`.

@@ -9,7 +9,6 @@
  */
 
 export const VERSION = "0.10.3";
-export const CORE_SCHEMA_VERSION = 1;
 
 // Model types
 export {
@@ -17,6 +16,7 @@ export {
   CORE_DISCIPLINE_REGISTRY,
   CORE_KINDS,
   CORE_RELATIONS,
+  CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   descendantsOf,
   formatEntryOrigin,
@@ -453,6 +453,7 @@ export {
   deserializeEntry,
   extractSerializedEntries,
 } from "./compiler/deserialize.ts";
+export type { ExtractedEntries } from "./compiler/deserialize.ts";
 
 // ── Upstream corpus loader (federated upstream, slice 1) ─────────────────
 export { loadUpstreamCorpus } from "./upstream/mod.ts";
