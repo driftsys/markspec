@@ -36,7 +36,9 @@ export const bookCmd = new Command()
       Deno.exit(1);
     }
 
-    const { parseSummary, buildBook } = await import("../../book/mod.ts");
+    const { parseSummary, buildBook, slugForChapterPath } = await import(
+      "../../book/mod.ts"
+    );
     const { compile } = await import("../../core/mod.ts");
 
     const structure = parseSummary(summaryMd);
@@ -78,11 +80,11 @@ export const bookCmd = new Command()
     await Deno.mkdir(options.output, { recursive: true });
     const chapterLinks = result.chapters.map((c) => ({
       title: c.title,
-      slug: _slugFor(c.path),
+      slug: slugForChapterPath(c.path),
     }));
     const hasIndexChapter = chapterLinks.some((c) => c.slug === "index");
     for (const chapter of result.chapters) {
-      const slug = _slugFor(chapter.path);
+      const slug = slugForChapterPath(chapter.path);
       const outPath = join(options.output, `${slug}.html`);
       // A chapter mapped from e.g. "index.md" is the book's real homepage —
       // its own content wins over the synthesized nav-only page. But every
@@ -141,11 +143,6 @@ ${body}
 </body>
 </html>
 `;
-}
-
-/** Slug for a chapter's output filename, derived from its source path. */
-function _slugFor(path: string): string {
-  return path.replace(/\.md$/, "").replace(/\//g, "-");
 }
 
 /**

@@ -15,7 +15,8 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
-import type { Blockquote, Root, Text } from "mdast";
+import { dirname, join, normalize } from "@std/path/posix";
+import type { Blockquote, Link, Root, Text } from "mdast";
 import type { Caption, EffectiveProfile, Entry } from "../../core/mod.ts";
 import { detectCaptions, parse, resolveEntryColor } from "../../core/mod.ts";
 
@@ -30,6 +31,17 @@ export interface RenderChapterOptions {
   readonly file?: string;
   /** Active profile, if any. Drives per-entry color resolution. */
   readonly profile?: EffectiveProfile;
+  /**
+   * Every chapter's source path (as declared in `SUMMARY.md`, e.g.
+   * `"recipes/deploy.md"`) mapped to its book-build output slug (e.g.
+   * `"recipes-deploy"`, written as `recipes-deploy.html`). When supplied,
+   * a Markdown link in this chapter that resolves — relative to this
+   * chapter's own source directory — to another chapter's path is
+   * rewritten to `<slug>.html`, preserving any `#fragment`. A link that
+   * resolves to a path absent from this map (external URL, a file outside
+   * the book, or an absolute path) is left untouched.
+   */
+  readonly chapterSlugs?: ReadonlyMap<string, string>;
 }
 
 /** Result of rendering a chapter to HTML. */
@@ -89,6 +101,11 @@ export function renderChapterHtml(
   // Merge all special regions, sorted by start line (0-based)
   const regions = _buildRegions(lines, entries, alertRegions, captions);
 
+  const chapterSlugs = options.chapterSlugs;
+  const rewriteLink = chapterSlugs
+    ? (href: string) => _resolveChapterLink(file, href, chapterSlugs)
+    : undefined;
+
   const parts: string[] = [];
   let cursor = 0; // current position (0-based line index)
   let figCounter = 0;
@@ -98,14 +115,14 @@ export function renderChapterHtml(
     // Prose before this region
     if (region.start > cursor) {
       const prose = lines.slice(cursor, region.start).join("\n");
-      if (prose.trim()) parts.push(_proseToHtml(prose));
+      if (prose.trim()) parts.push(_proseToHtml(prose, rewriteLink));
     }
 
     if (region.kind === "entry") {
-      parts.push(_entryToHtml(region.entry!, options.profile));
+      parts.push(_entryToHtml(region.entry!, options.profile, rewriteLink));
     } else if (region.kind === "alert") {
       const raw = lines.slice(region.start, region.end);
-      parts.push(_alertToHtml(region.alertType!, raw));
+      parts.push(_alertToHtml(region.alertType!, raw, rewriteLink));
     } else if (region.kind === "caption") {
       const cap = region.caption!;
       const counter = cap.kind === "figure" ? ++figCounter : ++tblCounter;
@@ -118,10 +135,49 @@ export function renderChapterHtml(
   // Trailing prose
   if (cursor < lines.length) {
     const prose = lines.slice(cursor).join("\n");
-    if (prose.trim()) parts.push(_proseToHtml(prose));
+    if (prose.trim()) parts.push(_proseToHtml(prose, rewriteLink));
   }
 
   return { html: parts.join("\n") };
+}
+
+/**
+ * Resolve a Markdown link `href` found in chapter `fromChapterPath` to
+ * another chapter's book-build output slug, or `undefined` when the href
+ * doesn't resolve to a known chapter (external URL, absolute path, or a
+ * file outside the book).
+ *
+ * Resolution happens against `fromChapterPath`'s own source directory —
+ * not the flattened output directory every chapter is written to — so a
+ * nested chapter's `../sibling.md` resolves the same way it would on
+ * disk, before `chapterSlugs`' keys (also source paths) are consulted.
+ */
+function _resolveChapterLink(
+  fromChapterPath: string,
+  href: string,
+  chapterSlugs: ReadonlyMap<string, string>,
+): string | undefined {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return undefined; // scheme:// URL
+  if (href.startsWith("/") || href.startsWith("#")) return undefined; // root-relative / anchor-only
+  const hashIdx = href.indexOf("#");
+  const pathPart = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+  const fragment = hashIdx >= 0 ? href.slice(hashIdx) : "";
+  if (!pathPart) return undefined;
+  const resolved = normalize(join(dirname(fromChapterPath), pathPart));
+  const slug = chapterSlugs.get(resolved);
+  if (!slug) return undefined;
+  return `${slug}.html${fragment}`;
+}
+
+/** Recursively visit every mdast `link` node under `node`, in place. */
+function _visitLinks(node: Root, visit: (link: Link) => void): void {
+  const walk = (n: Root | Root["children"][number]): void => {
+    if (n.type === "link") visit(n as Link);
+    if ("children" in n) {
+      for (const child of n.children) walk(child);
+    }
+  };
+  walk(node);
 }
 
 // ── Region detection ──────────────────────────────────────────────────────
@@ -244,8 +300,26 @@ function _findEntryEnd(lines: readonly string[], start: number): number {
 
 // ── Renderers ─────────────────────────────────────────────────────────────
 
-function _proseToHtml(markdown: string): string {
-  return String(_htmlPipeline.processSync(markdown));
+function _proseToHtml(
+  markdown: string,
+  rewriteLink?: (href: string) => string | undefined,
+): string {
+  if (!rewriteLink) return String(_htmlPipeline.processSync(markdown));
+  // Built fresh per call (only when link rewriting is active) since the
+  // rewriter closes over this chapter's own path — unlike `_htmlPipeline`,
+  // it can't be a shared singleton.
+  const pipeline = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(() => (tree: Root) => {
+      _visitLinks(tree, (link) => {
+        const rewritten = rewriteLink(link.url);
+        if (rewritten !== undefined) link.url = rewritten;
+      });
+    })
+    .use(remarkRehype)
+    .use(rehypeStringify);
+  return String(pipeline.processSync(markdown));
 }
 
 function _escapeHtml(s: string): string {
@@ -270,6 +344,7 @@ function _entryClass(
 function _entryToHtml(
   entry: Entry,
   profile: EffectiveProfile | undefined,
+  rewriteLink?: (href: string) => string | undefined,
 ): string {
   const blockClass = _entryClass(entry, profile);
 
@@ -289,7 +364,7 @@ function _entryToHtml(
     : "";
 
   const bodyHtml = entry.body.trim()
-    ? `<div class="req-body">${_proseToHtml(entry.body)}</div>`
+    ? `<div class="req-body">${_proseToHtml(entry.body, rewriteLink)}</div>`
     : "";
 
   const metaHtml = metaAttrs.length > 0
@@ -316,12 +391,16 @@ function _entryToHtml(
 </div>`;
 }
 
-function _alertToHtml(alertType: AlertType, rawLines: string[]): string {
+function _alertToHtml(
+  alertType: AlertType,
+  rawLines: string[],
+  rewriteLink?: (href: string) => string | undefined,
+): string {
   // Strip the `> [!NOTE]` first line; remove `> ` prefix from the rest
   const contentLines = rawLines
     .slice(1)
     .map((l) => l.replace(/^>\s?/, ""));
-  const content = _proseToHtml(contentLines.join("\n"));
+  const content = _proseToHtml(contentLines.join("\n"), rewriteLink);
   const label = alertType.charAt(0).toUpperCase() + alertType.slice(1);
   return `<div class="alert ${alertType}">
   <strong class="alert-label">${label}</strong>

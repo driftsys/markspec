@@ -76,7 +76,14 @@ export function buildBook(
   const chapters: BuiltChapter[] = [];
   const diagnostics: Diagnostic[] = [];
 
-  for (const chapter of _allChapters(structure)) {
+  const allChapters = _allChapters(structure);
+  const chapterSlugs = new Map(
+    allChapters
+      .filter((c): c is Chapter & { path: string } => Boolean(c.path))
+      .map((c) => [c.path, slugForChapterPath(c.path)] as const),
+  );
+
+  for (const chapter of allChapters) {
     if (!chapter.path) continue; // skip drafts
     const markdown = options.files.get(chapter.path);
     if (!markdown) continue; // skip missing files
@@ -84,6 +91,7 @@ export function buildBook(
     const { html } = renderChapterHtml(markdown, {
       file: chapter.path,
       profile: options.profile,
+      chapterSlugs,
     });
     chapters.push({
       kind: chapter.kind,
@@ -94,6 +102,18 @@ export function buildBook(
   }
 
   return { chapters, diagnostics };
+}
+
+/**
+ * Output slug for a chapter's rendered filename, derived from its source
+ * path (e.g. `"recipes/deploy.md"` → `"recipes-deploy"`, written as
+ * `recipes-deploy.html`). The single source of truth for this mapping —
+ * both the CLI's write step and in-content cross-chapter link rewriting
+ * (`RenderChapterOptions.chapterSlugs`) must agree on it, or a rewritten
+ * link would point at a filename the write step never produces.
+ */
+export function slugForChapterPath(path: string): string {
+  return path.replace(/\.md$/, "").replace(/\//g, "-");
 }
 
 /** Flatten all chapters from a structure into document order. */
