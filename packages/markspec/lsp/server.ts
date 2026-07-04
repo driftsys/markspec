@@ -55,6 +55,7 @@ import {
   loadMarkdownFormatter,
   loadProfileForCommand,
   loadToolConfig,
+  loadUpstreamCorpus,
   type Lockfile,
   makeDisplayId,
   parseDisplayIdPattern,
@@ -62,6 +63,7 @@ import {
   type ProjectConfig,
   targetsForRelation,
   type ToolConfig,
+  upstreamRefsFromLockfile,
   validateDisplayIdPattern,
   VERSION,
 } from "../core/mod.ts";
@@ -216,9 +218,16 @@ function _getLockfile(): Lockfile | undefined {
   return lockfile;
 }
 
-/** Absolute paths of delivered corpus files currently seeded into the
- * index (ADR-030). Diagnostics for these files are never published and
- * the files are re-seeded, not watched. */
+/** Absolute paths of delivered-corpus (ADR-030) and locked-upstream
+ * (federated-upstream slice 4) files currently seeded into the index.
+ * Diagnostics for these files are never published and the files are
+ * re-seeded, not watched. Shared by {@linkcode seedDeliveredCorpus} and
+ * {@linkcode seedUpstreamCorpus} so every existing read-only guard
+ * (diagnostics publish, buffer edit/open/close, rename, format) covers
+ * both origins without change; each seeder also tracks its own files in
+ * a private set (`upstreamFilePaths` for the latter) so one seeder's
+ * clear pass never drops the other's entries — see
+ * {@linkcode seedUpstreamCorpus}'s doc comment for why that matters. */
 const corpusFilePaths = new Set<string>();
 
 /**
@@ -264,6 +273,112 @@ async function seedDeliveredCorpus(): Promise<void> {
     // Cold-cache soft-fail (design spec §4): the index proceeds without
     // corpus rather than aborting initialization or profile reload.
     connection.console.warn(`Failed to load delivered corpus: ${err}`);
+  }
+}
+
+/** Absolute paths of locked-upstream corpus files currently seeded into
+ * the index (federated-upstream slice 4). Tracked separately from the
+ * shared `corpusFilePaths` guard set so `seedUpstreamCorpus`'s own clear
+ * pass never removes delivered-corpus (ADR-030) files that happen to
+ * share the set — each file is still added to `corpusFilePaths` too, so
+ * the existing read-only guards cover upstream files for free. */
+const upstreamFilePaths = new Set<string>();
+
+/**
+ * (Re-)seed the workspace index with the locked upstream corpus
+ * (federated-upstream slice 4: docs/wip/2026-07-04-federated-upstream-resolution-design.md).
+ * Mirrors {@linkcode seedDeliveredCorpus}: always drops the previously
+ * seeded upstream files first (so a re-lock that drops or replaces an
+ * upstream doesn't leave stale entries behind), maps the loaded
+ * `markspec.lock`'s snapshot-carrying upstream rows via
+ * {@linkcode upstreamRefsFromLockfile}, and hydrates them with
+ * {@linkcode loadUpstreamCorpus}. Entries carry `Entry.origin = { kind:
+ * "upstream", ... }`; adding their file to the shared `corpusFilePaths`
+ * set makes every existing read-only guard (diagnostics publish, buffer
+ * edit/open/close, rename, format) treat them as read-only, same as
+ * delivered corpus.
+ *
+ * Called after `seedDeliveredCorpus()` at both call sites
+ * (`onInitialized`, `reloadProfile`) so upstream entries lose
+ * "first entry wins" ties to delivered corpus but still win over the
+ * project walk that follows.
+ *
+ * Clear/re-seed interaction with `seedDeliveredCorpus` (the subtle
+ * part): `seedDeliveredCorpus` clears by iterating the *shared*
+ * `corpusFilePaths` set, so its clear pass also calls
+ * `index.removeFile` on any upstream file already tracked there —
+ * transiently dropping upstream entries from the index. That is safe
+ * only because `seedUpstreamCorpus` always runs immediately afterward
+ * at both call sites and re-adds them. `seedUpstreamCorpus` itself
+ * clears via its *own* `upstreamFilePaths` set, never the shared one,
+ * so the reverse never happens: re-seeding upstream (e.g. on a
+ * `markspec.lock`-only change) cannot remove delivered-corpus entries.
+ */
+async function seedUpstreamCorpus(): Promise<void> {
+  // Always drop the previously-seeded upstream files first — even if
+  // the reload below fails or the lockfile now declares no upstreams,
+  // stale entries from a previous lockfile must not linger in the index.
+  for (const path of upstreamFilePaths) {
+    index.removeFile(path);
+    corpusFilePaths.delete(path);
+  }
+  upstreamFilePaths.clear();
+  if (!lockfile || !projectRoot) return;
+  const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
+  if (refs.length === 0) return;
+  try {
+    const corpus = await loadUpstreamCorpus(refs, readFile);
+    for (const d of corpus.diagnostics) {
+      connection.console.warn(`${d.code}: ${d.message}`);
+    }
+    const byFile = new Map<string, Entry[]>();
+    for (const e of corpus.entries) {
+      const list = byFile.get(e.location.file) ?? [];
+      list.push(e);
+      byFile.set(e.location.file, list);
+    }
+    for (const [file, entries] of byFile) {
+      index.updateFile(file, entries);
+      upstreamFilePaths.add(file);
+      corpusFilePaths.add(file);
+    }
+  } catch (err) {
+    // Cold-cache soft-fail, mirroring seedDeliveredCorpus: the index
+    // proceeds without the upstream corpus rather than aborting
+    // initialization or a profile/lockfile reload.
+    connection.console.warn(`Failed to load upstream corpus: ${err}`);
+  }
+}
+
+/**
+ * (Re-)load `markspec.lock` from disk into the module-scoped `lockfile`.
+ * A missing file sets `lockfile` to `undefined` — including on reload,
+ * so a deleted lockfile drops the upstream corpus on the next
+ * `seedUpstreamCorpus()` call. A malformed lockfile logs its parse
+ * diagnostics and leaves `lockfile` at its previous value. The LSP never
+ * writes the lockfile; drift detection stays in the CLI.
+ */
+async function reloadLockfile(): Promise<void> {
+  if (!projectRoot) return;
+  try {
+    const lockRaw = await readFile(`${projectRoot}/markspec.lock`);
+    if (lockRaw === undefined) {
+      lockfile = undefined;
+      return;
+    }
+    const parsed = parseLockfile(lockRaw);
+    if (parsed.lockfile) {
+      lockfile = parsed.lockfile;
+      connection.console.log(
+        `Loaded markspec.lock: ${lockfile.upstreams.length} upstreams, locked at ${lockfile.meta.lockedAt}`,
+      );
+    } else {
+      for (const d of parsed.diagnostics) {
+        connection.console.warn(`Lockfile parse: ${d.code}: ${d.message}`);
+      }
+    }
+  } catch {
+    /* no lockfile is fine */
   }
 }
 
@@ -572,29 +687,10 @@ connection.onInitialize(
         connection.console.warn("Failed to load profile");
       }
 
-      // Load markspec.lock if present. Used by future federated-registry
-      // pinning + stale-pin hints. The LSP never writes the lockfile;
-      // drift detection stays in the CLI.
-      try {
-        const lockRaw = await readFile(`${projectRoot}/markspec.lock`);
-        if (lockRaw !== undefined) {
-          const parsed = parseLockfile(lockRaw);
-          if (parsed.lockfile) {
-            lockfile = parsed.lockfile;
-            connection.console.log(
-              `Loaded markspec.lock: ${lockfile.upstreams.length} upstreams, locked at ${lockfile.meta.lockedAt}`,
-            );
-          } else {
-            for (const d of parsed.diagnostics) {
-              connection.console.warn(
-                `Lockfile parse: ${d.code}: ${d.message}`,
-              );
-            }
-          }
-        }
-      } catch {
-        /* no lockfile is fine */
-      }
+      // Load markspec.lock if present — feeds the locked upstream corpus
+      // (federated-upstream slice 4) via seedUpstreamCorpus() below, plus
+      // the `markspec/version` notification's stale-pin hints.
+      await reloadLockfile();
     }
 
     logEvent("info", "lifecycle", { event: "onInitialize.end" });
@@ -636,8 +732,10 @@ connection.onInitialize(
 );
 
 // ---------------------------------------------------------------------------
-// Profile reload — fires `markspec/profileChanged` after watched profile files
-// change. Debounced 500ms so rapid-fire saves coalesce into one reload.
+// Profile reload — fires `markspec/profileChanged` after watched profile
+// files change; also reloads markspec.lock and re-seeds the delivered +
+// upstream corpora, since the same watcher covers all three files.
+// Debounced 500ms so rapid-fire saves coalesce into one reload.
 // ---------------------------------------------------------------------------
 
 async function reloadProfile(): Promise<void> {
@@ -653,9 +751,17 @@ async function reloadProfile(): Promise<void> {
       "markspec/profileChanged",
       cachedProfileResponse,
     );
+    // The watched-file change that triggered this reload may be to
+    // markspec.lock itself (a re-lock) rather than the profile — refresh
+    // the module-scoped lockfile before re-seeding the upstream corpus.
+    await reloadLockfile();
     // Re-seed the delivered corpus (ADR-030) before republishing — the
     // new profile may change, add, or drop `delivers:` entirely.
     await seedDeliveredCorpus();
+    // Re-seed the locked upstream corpus (federated-upstream slice 4)
+    // after the delivered corpus — see seedUpstreamCorpus()'s doc comment
+    // for why the ordering is load-bearing.
+    await seedUpstreamCorpus();
     // Profile changes can flip MSL-R010 suppression and other
     // attribute-validity decisions — republish cross-file diagnostics.
     publishAllDiagnostics();
@@ -684,10 +790,12 @@ connection.onInitialized(async () => {
   connection.console.log(`Indexing project at ${projectRoot}...`);
 
   try {
-    // Seed the delivered corpus (ADR-030) before the project walk so
-    // corpus display IDs win "first entry wins" collisions
+    // Seed the delivered corpus (ADR-030), then the locked upstream
+    // corpus (federated-upstream slice 4), before the project walk so
+    // corpus/upstream display IDs win "first entry wins" collisions
     // deterministically, regardless of project-file parse order.
     await seedDeliveredCorpus();
+    await seedUpstreamCorpus();
 
     // Discover all relevant files (core/discovery: gitignore-aware,
     // honors .markspec.yaml `exclude:`).
@@ -760,9 +868,12 @@ connection.onInitialized(async () => {
       buildVersionNotification(VERSION, CORE_SCHEMA_VERSION, lockfile),
     );
 
-    // Register the profile-file watcher. We do this even when no profile
-    // is currently loaded so a later `.markspec.yaml` creation triggers
-    // a reload. See design doc §4 step 2.
+    // Register the profile-file + lockfile watcher. We do this even when
+    // no profile/lockfile is currently loaded so a later
+    // `.markspec.yaml`/`markspec.lock` creation triggers a reload. See
+    // design doc §4 step 2. `markspec.lock` is watched so a re-lock (new
+    // or dropped upstreams) re-seeds the upstream corpus
+    // (federated-upstream slice 4).
     if (projectRoot) {
       try {
         await connection.client.register(
@@ -775,6 +886,10 @@ connection.onInitialized(async () => {
               },
               {
                 globPattern: "**/project.yaml",
+                kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+              },
+              {
+                globPattern: "**/markspec.lock",
                 kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
               },
             ],
@@ -801,8 +916,10 @@ connection.onInitialized(async () => {
 // ---------------------------------------------------------------------------
 
 connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
-  // We only watch `.markspec.yaml` + `project.yaml`, so any change here
-  // affects the profile chain. Debounce 500ms — see design doc §4.1.
+  // We only watch `.markspec.yaml`, `project.yaml`, and `markspec.lock`,
+  // so any change here affects the profile chain and/or the locked
+  // upstream corpus — `reloadProfile` reloads both. Debounce 500ms — see
+  // design doc §4.1.
   if (params.changes.length === 0) return;
   debouncedReloadProfile();
 });
