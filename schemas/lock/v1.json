@@ -67,7 +67,27 @@
               "id": { "type": "string" },
               "api": { "type": "string" },
               "resolved-manifest-hash": { "type": "string" },
-              "markspec-schema": { "type": "integer" }
+              "markspec-schema": { "type": "integer" },
+              "version": { "type": "string" },
+              "snapshot": { "type": "string" },
+              "locked-at": { "type": "string" }
+            }
+          }
+        },
+        "dependency": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "url", "intent", "resolved", "sha", "snapshot", "locked-at"],
+            "properties": {
+              "id": { "type": "string" },
+              "url": { "type": "string" },
+              "intent": { "type": "string" },
+              "resolved": { "type": "string" },
+              "sha": { "type": "string" },
+              "snapshot": { "type": "string" },
+              "locked-at": { "type": "string" }
             }
           }
         }
