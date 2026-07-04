@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import type { Entry } from "../model/mod.ts";
+import type { BodyToken, Entry } from "../model/mod.ts";
 import { validateTypl } from "./validator.ts";
 
 function entry(
@@ -24,6 +24,29 @@ function entry(
   };
 }
 
+/**
+ * An entry carrying body tokens (for published-tier citation checks)
+ * instead of — or in addition to — typl declarations.
+ */
+function entryWithTokens(
+  displayId: string,
+  file: string,
+  bodyTokens: readonly BodyToken[],
+  types?: Entry["types"],
+): Entry {
+  return { ...entry(displayId, file, types), bodyTokens };
+}
+
+/** An `inline-code` body token wrapping a citation candidate. */
+function inlineCode(
+  text: string,
+  file: string,
+  line: number,
+  column: number,
+): BodyToken {
+  return { kind: "inline-code", text, location: { file, line, column } };
+}
+
 Deno.test("validateTypl: empty input → no diagnostics", () => {
   const { diagnostics } = validateTypl([]);
   assertEquals(diagnostics.length, 0);
@@ -43,7 +66,7 @@ Deno.test("validateTypl: same $Name same kind+shape across entries → no diagno
   assertEquals(diagnostics.length, 0);
 });
 
-Deno.test("validateTypl: TYPL-002 on different kind", () => {
+Deno.test("validateTypl: plain-name cross-entry kind mismatch is silent (TYPL-002 retired)", () => {
   const a = entry("REQ_A", "a.md", {
     bindings: [{
       statementKind: "binding",
@@ -63,11 +86,10 @@ Deno.test("validateTypl: TYPL-002 on different kind", () => {
     typedefs: [],
   });
   const { diagnostics } = validateTypl([a, b]);
-  assertEquals(diagnostics.length, 1);
-  assertEquals(diagnostics[0].code, "TYPL-002");
+  assertEquals(diagnostics.length, 0);
 });
 
-Deno.test("validateTypl: TYPL-003 on different shape (same kind)", () => {
+Deno.test("validateTypl: plain-name cross-entry shape mismatch is silent (TYPL-003 retired)", () => {
   const a = entry("REQ_A", "a.md", {
     bindings: [{
       statementKind: "binding",
@@ -89,8 +111,7 @@ Deno.test("validateTypl: TYPL-003 on different shape (same kind)", () => {
     typedefs: [],
   });
   const { diagnostics } = validateTypl([a, b]);
-  assertEquals(diagnostics.length, 1);
-  assertEquals(diagnostics[0].code, "TYPL-003");
+  assertEquals(diagnostics.length, 0);
 });
 
 Deno.test("validateTypl: TYPL-005 on undefined typedef ref in binding", () => {
@@ -173,4 +194,75 @@ Deno.test("validateTypl: ref inside record field is checked", () => {
   });
   const { diagnostics } = validateTypl([e]);
   assertEquals(diagnostics.some((d) => d.code === "TYPL-005"), true);
+});
+
+// ---------------------------------------------------------------------------
+// Published tier (#723): declared-once (TYPL-009) + citations (TYPL-010/011)
+// ---------------------------------------------------------------------------
+
+Deno.test("validateTypl: duplicate published declaration is TYPL-009", () => {
+  const a = entry("REQ_1", "a.md", {
+    bindings: [{
+      statementKind: "binding",
+      name: "$powertrain.brake.pedal",
+      kind: "signal",
+      position: { line: 3, column: 1 },
+    }],
+    typedefs: [],
+  });
+  const b = entry("REQ_2", "b.md", {
+    bindings: [{
+      statementKind: "binding",
+      name: "$powertrain.brake.pedal",
+      kind: "signal",
+      position: { line: 7, column: 1 },
+    }],
+    typedefs: [],
+  });
+  const { diagnostics } = validateTypl([a, b]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "TYPL-009");
+  assertEquals(diagnostics[0].location?.file, "b.md");
+});
+
+Deno.test("validateTypl: plain-name cross-entry difference is silent (002/003 retired)", () => {
+  const a = entry("REQ_1", "a.md", {
+    bindings: [{
+      statementKind: "binding",
+      name: "$speed",
+      kind: "signal",
+      position: { line: 3, column: 1 },
+    }],
+    typedefs: [],
+  });
+  const b = entry("REQ_2", "b.md", {
+    bindings: [{
+      statementKind: "binding",
+      name: "$speed",
+      kind: "state",
+      position: { line: 7, column: 1 },
+    }],
+    typedefs: [],
+  });
+  const { diagnostics } = validateTypl([a, b]);
+  assertEquals(diagnostics.length, 0);
+});
+
+Deno.test("validateTypl: undeclared published citation is TYPL-011", () => {
+  const citing = entryWithTokens("REQ_3", "c.md", [
+    inlineCode("`$powertrain.brake.ghost`", "c.md", 4, 8),
+  ]);
+  const { diagnostics } = validateTypl([citing]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "TYPL-011");
+  assertEquals(diagnostics[0].location, { file: "c.md", line: 4, column: 8 });
+});
+
+Deno.test("validateTypl: relative citation with no root is TYPL-010", () => {
+  const citing = entryWithTokens("REQ_4", "c.md", [
+    inlineCode("`$.ghost`", "c.md", 4, 8),
+  ]);
+  const { diagnostics } = validateTypl([citing]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "TYPL-010");
 });

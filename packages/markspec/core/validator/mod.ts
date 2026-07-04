@@ -71,9 +71,9 @@ export function validate(entries: readonly Entry[]): ValidateResult {
   checkStructural(entries, diagnostics);
   checkReferences(entries, diagnostics);
 
-  // Typl cross-entry collisions (TYPL-002/003) and undefined-typedef-refs
-  // (TYPL-005). Per-block diagnostics (TYPL-001/004/006/007/008) already
-  // fired during parse via the bridge.
+  // Typl declared-once (TYPL-009), citation resolution (TYPL-010/011), and
+  // undefined-typedef-refs (TYPL-005). Per-block diagnostics
+  // (TYPL-001/004/006/007/008) already fired during parse via the bridge.
   const typlResult = validateTypl(entries);
   diagnostics.push(...typlResult.diagnostics);
 
