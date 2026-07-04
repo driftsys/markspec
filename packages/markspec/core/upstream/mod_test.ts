@@ -168,3 +168,52 @@ Deno.test("loadUpstreamCorpus: missing snapshot data file → 002", async () => 
   assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-002");
   assertEquals(result.entries, []);
 });
+
+Deno.test("loadUpstreamCorpus: isolation — a non-object entry value in one upstream doesn't abort the others", async () => {
+  // Regression pin for the loader's documented isolation contract: a
+  // malformed entry value (valid JSON, wrong shape) in one upstream's
+  // snapshot must not reject the whole call or block a sibling upstream
+  // from loading.
+  const badFiles = await snapshotFiles("/c/up/bad", UP_A_MD, "/up/a.md");
+  badFiles.set(
+    "/c/up/bad/compiled.json",
+    JSON.stringify({ entries: { X: null } }),
+  );
+  const goodFiles = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  const files = new Map([...badFiles, ...goodFiles]);
+  const result = await loadUpstreamCorpus(
+    [
+      { id: "bad", version: "v1.0.0", dir: "/c/up/bad" },
+      { id: "product", version: "v2.1.0", dir: "/c/up/product" },
+    ],
+    readerFor(files),
+  );
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.entries.length, 1);
+  assertEquals(result.entries[0].origin, {
+    kind: "upstream",
+    upstreamId: "product",
+    version: "v2.1.0",
+  });
+});
+
+Deno.test("loadUpstreamCorpus: relFile escaping the cache dir → 003, never read outside the upstream dir", async () => {
+  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  const manifest = JSON.parse(files.get("/c/up/product/manifest.json")!);
+  manifest.entries = { format: "inline", file: "../../evil.json" };
+  files.set("/c/up/product/manifest.json", JSON.stringify(manifest));
+  const requested: string[] = [];
+  const result = await loadUpstreamCorpus(
+    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    recordingReaderFor(files, requested),
+  );
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.entries, []);
+  assertEquals(requested.includes("/c/up/product/manifest.json"), true);
+  assertEquals(
+    requested.some((p) => p.includes("evil.json")),
+    false,
+  );
+});

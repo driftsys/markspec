@@ -93,6 +93,22 @@ export async function loadUpstreamCorpus(
     // extractor is sync; pre-read the single file the manifest points at.
     const block = (manifest as { entries?: { file?: string } }).entries;
     const relFile = block?.file;
+    // The manifest is untrusted input (a hostile or corrupted upstream) —
+    // reject a data-file path that could escape the cache directory
+    // before ever joining it into a read. Latent today (fixtures only);
+    // becomes live once slice 2 populates caches from remote sites (repo
+    // precedent #699 treated the analogous symlink case as a security
+    // blocker).
+    if (relFile !== undefined && isUnsafeRelPath(relFile)) {
+      diagnostics.push({
+        code: "UPSTREAM-SNAPSHOT-003",
+        severity: "error",
+        message:
+          "malformed upstream snapshot: snapshot data-file path escapes the cache directory",
+        location: { file: manifestPath, line: 1, column: 1 },
+      });
+      continue;
+    }
     const snapshotContent = relFile !== undefined
       ? await readFile(`${up.dir}/${relFile}`)
       : undefined;
@@ -112,4 +128,20 @@ export async function loadUpstreamCorpus(
     }
   }
   return { entries, diagnostics };
+}
+
+/** Absolute path prefix — POSIX `/…` or a Windows drive letter (`C:\…` /
+ * `C:/…`). */
+const ABSOLUTE_PATH_RE = /^(\/|[A-Za-z]:[\\/])/;
+
+/** A `..` path segment anywhere in the string, POSIX or Windows separators. */
+const PARENT_SEGMENT_RE = /(^|[\\/])\.\.([\\/]|$)/;
+
+/**
+ * Reject a manifest-controlled relative path that could escape the
+ * upstream's cache directory when joined as `${up.dir}/${relPath}` —
+ * an absolute path or any `..` segment both qualify.
+ */
+function isUnsafeRelPath(relPath: string): boolean {
+  return ABSOLUTE_PATH_RE.test(relPath) || PARENT_SEGMENT_RE.test(relPath);
 }

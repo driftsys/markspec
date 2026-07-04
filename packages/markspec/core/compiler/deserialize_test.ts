@@ -225,3 +225,48 @@ Deno.test("extractSerializedEntries: empty and whitespace-only NDJSON lines are 
   assertEquals(padded.diagnostics, []);
   assertEquals(padded.entries.length, 2);
 });
+
+Deno.test("extractSerializedEntries: inline non-object entry value (null) → UPSTREAM-SNAPSHOT-003, no crash", () => {
+  const compiled = JSON.stringify({ entries: { X: null } });
+  const result = extractSerializedEntries(
+    GOOD_MANIFEST,
+    (rel) => (rel === "compiled.json" ? compiled : undefined),
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});
+
+Deno.test("extractSerializedEntries: NDJSON line 'null' → UPSTREAM-SNAPSHOT-003, no crash", () => {
+  const manifest = {
+    ...GOOD_MANIFEST,
+    entries: { format: "ndjson", file: "entries.ndjson" },
+  };
+  const result = extractSerializedEntries(
+    manifest,
+    (rel) => (rel === "entries.ndjson" ? "null\n" : undefined),
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});
+
+Deno.test("extractSerializedEntries: NDJSON primitive lines (number, string) → UPSTREAM-SNAPSHOT-003, no garbage entries", () => {
+  const manifest = {
+    ...GOOD_MANIFEST,
+    entries: { format: "ndjson", file: "entries.ndjson" },
+  };
+  const result = extractSerializedEntries(
+    manifest,
+    (rel) => (rel === "entries.ndjson" ? '5\n"abc"\n' : undefined),
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});

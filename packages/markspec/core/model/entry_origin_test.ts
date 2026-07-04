@@ -3,8 +3,10 @@
  *
  * Unit test for {@linkcode formatEntryOrigin} — the shared
  * `<profileId>@<profileVersion>` label for a delivered-corpus origin (ADR-030,
- * #674). The `corpusOriginLabel` twin (`core/profile/delivered.ts`) is covered
- * by the delivered-corpus loader tests.
+ * #674) — and {@linkcode sameOriginSource} — whether two origins come from
+ * the same source regardless of version. The `corpusOriginLabel` twin
+ * (`core/profile/delivered.ts`) is covered by the delivered-corpus loader
+ * tests.
  */
 
 import { assertEquals } from "@std/assert";

@@ -38,7 +38,7 @@ export function deserializeEntry(s: SerializedEntry): Entry {
     type,
     id,
     typedAttributes: new Map(Object.entries(typedAttributes ?? {})),
-  } as Entry;
+  };
 }
 
 /** Result of {@linkcode extractSerializedEntries}. */
@@ -116,17 +116,25 @@ export function extractSerializedEntries(
     return { entries: [], diagnostics };
   }
   try {
+    let candidates: unknown[];
     if (block.format === "inline") {
-      const json = JSON.parse(raw) as {
-        entries?: Record<string, SerializedEntry>;
-      };
-      return { entries: Object.values(json.entries ?? {}), diagnostics };
+      const json = JSON.parse(raw) as { entries?: Record<string, unknown> };
+      candidates = Object.values(json.entries ?? {});
+    } else {
+      candidates = raw
+        .split("\n")
+        .filter((line) => line.trim().length > 0)
+        .map((line) => JSON.parse(line));
     }
-    const entries = raw
-      .split("\n")
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as SerializedEntry);
-    return { entries, diagnostics };
+    const { valid, rejectedCount } = partitionEntryCandidates(candidates);
+    if (rejectedCount > 0) {
+      diagnostics.push(malformed(
+        manifestPath,
+        `snapshot file '${file}' contains ${rejectedCount} non-object ` +
+          `entry value(s)`,
+      ));
+    }
+    return { entries: valid, diagnostics };
   } catch (err) {
     diagnostics.push(malformed(
       manifestPath,
@@ -136,6 +144,33 @@ export function extractSerializedEntries(
     ));
     return { entries: [], diagnostics };
   }
+}
+
+/**
+ * Keep only candidates that are non-null, non-array plain objects — the
+ * shape a serialized entry must have. A snapshot line/value that parses
+ * as valid JSON but isn't an object (`null`, a bare string, a number, an
+ * array) would otherwise crash downstream (`deserializeEntry` destructures
+ * fields off it) or produce a garbage entry with an `undefined` displayId.
+ * Rejected candidates are dropped silently here; the caller emits a single
+ * summary diagnostic when `rejectedCount > 0`.
+ */
+function partitionEntryCandidates(
+  candidates: readonly unknown[],
+): { valid: SerializedEntry[]; rejectedCount: number } {
+  const valid: SerializedEntry[] = [];
+  let rejectedCount = 0;
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === "object" && candidate !== null &&
+      !Array.isArray(candidate)
+    ) {
+      valid.push(candidate as SerializedEntry);
+    } else {
+      rejectedCount++;
+    }
+  }
+  return { valid, rejectedCount };
 }
 
 function malformed(file: string, detail: string): Diagnostic {
