@@ -197,7 +197,7 @@ Syntax: any shape followed by `?`. Optional wraps the innermost shape:
 
 ## Markdown surfaces
 
-typl declarations may appear in three Markdown surfaces. All three parse to the
+typl declarations may appear in four Markdown surfaces. All four parse to the
 same Shape AST.
 
 ### Fence block
@@ -253,6 +253,33 @@ identifier in-prose without interrupting the surrounding text.
       Id: 01JZEXAMPLEULID000000000003
 ```
 
+### Table
+
+Use a GFM table to declare many identifiers that share the same columns. Each
+data row holds a `$Name` in its first cell and the binding's `kind shape` in its
+second; a third description column, and any further columns, carry documentation
+and are ignored. Rows whose first cell is not a `$Name` are skipped, so
+declaration rows may be mixed with plain rows. Only bindings are recognised in a
+table — typedefs use the other three surfaces. A shape that contains `|` (a
+union or enum) must escape each pipe as `\|` so it is not read as a column
+separator; the cell un-escapes before typl parses it.
+
+```markdown
+- [SYS_HMI_0007] Cluster display signals
+
+  | Signal        | Kind shape           | Description      |
+  | ------------- | -------------------- | ---------------- |
+  | $VehicleSpeed | signal float[0..300] | km/h, road speed |
+  | $EngineRpm    | signal int[0..8000]  | crankshaft speed |
+
+      Id: 01JZEXAMPLEULID000000000004
+```
+
+A `Table:` caption adjacent to the table may carry a published base — an
+absolute `$a.b` name — that scopes the table's relative rows (`$.x`) through the
+entry-local base resolver, the same mechanism the bullet glossary uses for
+nested namespaces.
+
 ---
 
 ## Scope
@@ -261,9 +288,9 @@ In v1, typl declarations are **entry-local**. A typedef declared in one entry
 cannot be referenced by name from a different entry. Cross-entry type sharing is
 deferred to a future profile-level scope mechanism.
 
-Within a single entry, all surfaces (fence, bullet, inline) share one namespace.
-A `$Name` binding or `type Name` declared in one surface is visible to the
-others in the same entry.
+Within a single entry, all surfaces (fence, bullet, inline, table) share one
+namespace. A `$Name` binding or `type Name` declared in one surface is visible
+to the others in the same entry.
 
 ---
 

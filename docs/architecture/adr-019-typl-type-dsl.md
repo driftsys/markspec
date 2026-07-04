@@ -82,3 +82,29 @@ applies. `CORE_SCHEMA_VERSION` unchanged.
 Full design record: `docs/wip/2026-07-04-typl-published-tier-design.md`
 (gardened to `docs/archive/` when this branch lands). The complete namespacing
 rewrite of this ADR plus guide chapter is story #730.
+
+## Addendum: table surface (#724, 2026-07-05)
+
+S6 of the uxil epic (#717) adds a **fourth** Markdown surface: a GFM table. Each
+data row `$name | kind shape | description` is one binding — the first two cells
+are read positionally (the description column and any further columns are
+documentation), rows whose first cell is not a `$Name` are skipped, and only
+bindings (not typedefs) are expressed this way. Like its siblings it is a thin
+adapter (`core/typl/table.ts`) over the shared declaration machinery
+(`core/decl/table.ts`, S3): the row recognizer reconstructs a
+`$name : kind
+shape` source that `parseTyplBlock` parses, so a table row yields
+the identical `Binding` as the fence, bullet, or inline form.
+
+A table's `Table:` caption may carry a published base (an absolute `$a.b` name);
+the table's relative rows (`$.x`) resolve against that caption base first, then
+the entry root, through the entry-local base-resolution engine (#722 rule 3).
+The caption base is not a root declaration and never sets `rootNamespace`.
+
+This revisits the "GFM bindings table … rejected" alternative above. Two things
+changed since 2026-05-25: a shape carrying `|` (a union or enum) is authored
+with the standard GFM `\|` escape — the cell un-escapes before typl parses it —
+and ADR-029's whole-document dprint pass preserves table line structure. The
+table is therefore offered as an _additional_ surface, not the primary one;
+dense or `|`-heavy declarations still read best in a fence.
+`CORE_SCHEMA_VERSION` unchanged.
