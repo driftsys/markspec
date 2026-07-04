@@ -12,12 +12,24 @@
  * Pure module: network and file access only via {@linkcode UpstreamRefsIO}.
  */
 
+import { join } from "@std/path";
 import type { Diagnostic, ProjectRef } from "../model/mod.ts";
 import type { UpstreamRegistry } from "./model.ts";
 import type { FetchUrl, ReadFile } from "./resolve.ts";
 import { sha256Bytes } from "./hash.ts";
 import { checkSnapshotSchema } from "../compiler/deserialize.ts";
 import { isUnsafeRelPath } from "../util/paths.ts";
+
+/**
+ * Root directory under which every upstream's cached snapshot is stored,
+ * one subdirectory per upstream id (`<root>/<id>/manifest.json`, etc.).
+ * Shared by `markspec lock` (the writer) and `markspec check` (the
+ * offline MSL-L212 prober) so the two commands can never disagree on
+ * where the cache lives.
+ */
+export function upstreamCacheRoot(projectRoot: string): string {
+  return join(projectRoot, ".markspec", "cache", "upstreams");
+}
 
 /** IO seam — the CLI supplies Deno-backed implementations. */
 export interface UpstreamRefsIO {
@@ -269,7 +281,14 @@ export async function resolveProjectReferences(
         registries.push(existing); // keep the pin; cache stays broken
         continue;
       }
-      if (fetched.snapshotHash !== existing.snapshot) {
+      // A snapshot-less existing row (representable — e.g. a hand-edited
+      // or pre-existing lockfile entry) has no pin to verify the fetch
+      // against; comparing against `undefined` would always "mismatch".
+      // Treat it as a first-lock/re-pin instead of MSL-L214.
+      if (
+        existing.snapshot !== undefined &&
+        fetched.snapshotHash !== existing.snapshot
+      ) {
         diagnostics.push({
           code: "MSL-L214",
           severity: "error",
@@ -283,8 +302,19 @@ export async function resolveProjectReferences(
         continue;
       }
       const writeError = await writeCache(id, dir, fetched, opts.io);
-      if (writeError) diagnostics.push(writeError);
-      registries.push(existing);
+      if (writeError) {
+        diagnostics.push(writeError);
+        registries.push(existing);
+        continue;
+      }
+      if (existing.snapshot === undefined) {
+        const manifestHash = await sha256Bytes(fetched.manifestBytes);
+        registries.push(
+          buildRow(id, baseUrl, fetched, manifestHash, opts.lockedAt),
+        );
+      } else {
+        registries.push(existing);
+      }
       continue;
     }
 

@@ -180,6 +180,35 @@ Deno.test("restore mismatch: moved site → MSL-L214, pin kept", async () => {
   assertEquals(restored.cache.size, 0); // mismatched content never written to cache
 });
 
+Deno.test("keep: snapshot-less existing row re-pins instead of MSL-L214", async () => {
+  const existing = {
+    kind: "registry" as const,
+    id: "refhub",
+    api: "https://x.example/refhub",
+    resolvedManifestHash: "deadbeef",
+    markspecSchema: 1,
+    // `snapshot` intentionally omitted — a representable pre-existing row
+    // with no pin to verify a fetch against.
+  };
+  const { io, cache } = makeIO(SITE);
+  const result = await resolveProjectReferences({
+    references: [{ url: "https://x.example/refhub" }],
+    existing: [existing],
+    cacheRoot: "/c",
+    update: false,
+    io,
+    lockedAt: "2026-07-05T00:00:00Z",
+  });
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.registries.length, 1);
+  const row = result.registries[0];
+  assertEquals(row.id, "refhub");
+  assertEquals(row.snapshot, await sha256Bytes(enc.encode(COMPILED)));
+  assertEquals(row.lockedAt, "2026-07-05T00:00:00Z");
+  assertEquals(cache.has("/c/refhub/manifest.json"), true);
+  assertEquals(cache.has("/c/refhub/compiled.json"), true);
+});
+
 Deno.test("update: refetches and moves the pin", async () => {
   const first = makeIO(SITE);
   const locked = await resolveProjectReferences({

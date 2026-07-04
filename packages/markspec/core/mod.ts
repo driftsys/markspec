@@ -344,6 +344,7 @@ export {
   serializeLockfile,
   sha256Bytes,
   sha256String,
+  upstreamCacheRoot,
   verifyUpstreamCache,
 } from "./lock/mod.ts";
 export type {

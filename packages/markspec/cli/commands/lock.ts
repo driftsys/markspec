@@ -31,6 +31,7 @@ import {
   resolveProjectReferences,
   resolveUpstreams,
   serializeLockfile,
+  upstreamCacheRoot,
   type UpstreamRegistry,
   validateMappings,
 } from "../../core/mod.ts";
@@ -186,7 +187,7 @@ async function runLock(options: LockOptions): Promise<void> {
   const refResult = await resolveProjectReferences({
     references: config.references,
     existing: existingRegistries,
-    cacheRoot: join(projectRoot, ".markspec", "cache", "upstreams"),
+    cacheRoot: upstreamCacheRoot(projectRoot),
     update: options.update ?? false,
     io: {
       fetchUrl: defaultFetchUrl,

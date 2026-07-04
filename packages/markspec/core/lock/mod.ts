@@ -59,7 +59,11 @@ export type {
   ResolveUpstreamsOptions,
 } from "./resolve.ts";
 
-export { deriveUpstreamId, resolveProjectReferences } from "./upstream_refs.ts";
+export {
+  deriveUpstreamId,
+  resolveProjectReferences,
+  upstreamCacheRoot,
+} from "./upstream_refs.ts";
 export type {
   ResolveProjectReferencesOptions,
   ResolveProjectReferencesResult,

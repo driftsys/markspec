@@ -6,7 +6,11 @@
 
 import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
-import { loadToolConfig, MARKDOWN_EXTENSIONS } from "../../core/mod.ts";
+import {
+  loadToolConfig,
+  MARKDOWN_EXTENSIONS,
+  upstreamCacheRoot,
+} from "../../core/mod.ts";
 import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
 import {
   loadActiveProfile,
@@ -172,7 +176,7 @@ export const checkCmd = new Command()
         let cacheRoot: string | undefined;
         if (projectRoot !== undefined) {
           lockPath = join(projectRoot, "markspec.lock");
-          cacheRoot = join(projectRoot, ".markspec", "cache", "upstreams");
+          cacheRoot = upstreamCacheRoot(projectRoot);
           const lockRaw = await readFile(lockPath);
           if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
         }
