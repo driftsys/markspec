@@ -78,7 +78,7 @@ import {
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildDiagnosticsHistogram } from "./diagnostics_histogram.ts";
 import { buildCodeActions } from "./code_actions.ts";
-import { entryToLspLocation } from "./definition.ts";
+import { entryToLspLocation, resolveDefinitionLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 import { findOccurrencesInFile } from "./highlights.ts";
@@ -1380,7 +1380,7 @@ connection.onDefinition((params) => {
   const entry = index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
 
-  return entryToLspLocation(entry);
+  return resolveDefinitionLocation(entry);
 });
 
 // ---------------------------------------------------------------------------

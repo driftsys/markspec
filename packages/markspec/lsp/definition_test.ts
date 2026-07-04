@@ -9,7 +9,7 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
 import { makeDisplayId } from "../core/model/mod.ts";
-import { entryToLspLocation } from "./definition.ts";
+import { entryToLspLocation, resolveDefinitionLocation } from "./definition.ts";
 
 function makeEntry(file: string, line: number, column: number): Entry {
   return {
@@ -53,4 +53,32 @@ Deno.test("entryToLspLocation: line 1 column 1 → 0,0 range", () => {
   const loc = entryToLspLocation(entry);
   assertEquals(loc.range.start.line, 0);
   assertEquals(loc.range.start.character, 0);
+});
+
+function makeUpstreamEntry(file: string): Entry {
+  return {
+    ...makeEntry(file, 12, 1),
+    origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+  };
+}
+
+Deno.test("resolveDefinitionLocation: project entry resolves to its location", () => {
+  const entry = makeEntry("/abs/req.md", 5, 1);
+  const loc = resolveDefinitionLocation(entry);
+  assertEquals(loc, entryToLspLocation(entry));
+});
+
+Deno.test("resolveDefinitionLocation: upstream entry is a no-op (null)", () => {
+  const entry = makeUpstreamEntry("docs/product/stk.md");
+  assertEquals(resolveDefinitionLocation(entry), null);
+});
+
+Deno.test("resolveDefinitionLocation: delivered-corpus (profile) entry still resolves", () => {
+  const entry: Entry = {
+    ...makeEntry("/abs/cache/req.md", 5, 1),
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  };
+  // Delivered-corpus entries have a real local file — go-to-definition must
+  // still navigate (only upstream entries are the no-op).
+  assertEquals(resolveDefinitionLocation(entry), entryToLspLocation(entry));
 });
