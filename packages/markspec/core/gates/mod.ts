@@ -151,13 +151,22 @@ export async function lockfileDriftGate(
     }]
     : [];
   if (cache !== undefined) {
-    diagnostics.push(
-      ...await verifyUpstreamCache(
-        lockParse.lockfile.upstreams,
-        cache.cacheRoot,
-        cache.readFile,
-      ),
+    const cacheDiags = await verifyUpstreamCache(
+      lockParse.lockfile.upstreams,
+      cache.cacheRoot,
+      cache.readFile,
     );
+    // verifyUpstreamCache is a reusable, lockfile-path-agnostic probe and
+    // emits `location: undefined` (see cache_check.ts). Stamp the same
+    // lockfile location the sibling edge-drift MSL-L212 above uses, so both
+    // findings from the same `markspec.lock` group under one file for a
+    // JSON consumer keyed on `location.file`.
+    for (const d of cacheDiags) {
+      diagnostics.push({
+        ...d,
+        location: { file: lockPath, line: 1, column: 1 },
+      });
+    }
   }
   return diagnostics;
 }

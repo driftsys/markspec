@@ -262,9 +262,10 @@ Deno.test("lockfileDriftGate: a `cache` option appends MSL-L212 for a broken ups
     },
     diagnostics: [],
   };
+  const lockPath = "/x/markspec.lock";
   const diags = await lockfileDriftGate(
     lockParse,
-    "/x/markspec.lock",
+    lockPath,
     parsed.entries,
     {
       cacheRoot: "/x/.markspec/cache/upstreams",
@@ -274,6 +275,7 @@ Deno.test("lockfileDriftGate: a `cache` option appends MSL-L212 for a broken ups
   assertEquals(diags.length, 1);
   assertEquals(diags[0].code, "MSL-L212");
   assertEquals(diags[0].message.includes("refhub"), true);
+  assertEquals(diags[0].location?.file, lockPath);
 });
 
 // ---------------------------------------------------------------------------

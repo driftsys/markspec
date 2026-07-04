@@ -99,6 +99,31 @@ Deno.test("verifyUpstreamCache: rows without a snapshot (legacy) are skipped", a
   assertEquals(diags, []);
 });
 
+Deno.test("verifyUpstreamCache: an unsafe entries-file path in the manifest fails with one MSL-L212", async () => {
+  // The manifest names an entries file that escapes the cache directory
+  // (`../escape`) — probeCacheSnapshot's isUnsafeRelPath guard rejects it,
+  // which must surface here as a cache miss, not a thrown error or a
+  // silent pass. Self-guarding coverage for cache_check.ts rather than
+  // relying only on upstream_refs_test.ts's transitive coverage (Task 5).
+  const files = new Map<string, Uint8Array>([
+    [
+      "/root/upstreams/refhub/manifest.json",
+      enc.encode(JSON.stringify({ entries: { file: "../escape" } })),
+    ],
+  ]);
+  const row = registryRow("refhub", "sha256:deadbeef");
+
+  const diags = await verifyUpstreamCache(
+    [row],
+    "/root/upstreams",
+    makeReadFile(files),
+  );
+
+  assertEquals(diags.length, 1);
+  assertEquals(diags[0].code, "MSL-L212");
+  assertEquals(diags[0].message.includes("refhub"), true);
+});
+
 Deno.test("verifyUpstreamCache: multiple rows only report the broken one", async () => {
   const dataBytes = enc.encode(JSON.stringify({ entries: {} }));
   const snapshot = await sha256Bytes(dataBytes);
