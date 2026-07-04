@@ -185,12 +185,51 @@ export function parseLockfile(toml: string): ParseLockfileResult {
           `[[upstream.registry]] entry ${i}: missing required field 'id', 'api', 'resolved-manifest-hash', or 'markspec-schema'`,
         );
       }
+      const version = reg.version as string | undefined;
+      const snapshot = reg.snapshot as string | undefined;
+      const lockedAt = reg["locked-at"] as string | undefined;
       upstreams.push({
         kind: "registry",
         id,
         api,
         resolvedManifestHash,
         markspecSchema: markspecSchemaN,
+        ...(version !== undefined ? { version } : {}),
+        ...(snapshot !== undefined ? { snapshot } : {}),
+        ...(lockedAt !== undefined ? { lockedAt } : {}),
+      });
+    }
+
+    const deps =
+      (upstreamRoot.dependency as readonly Record<string, unknown>[]) ?? [];
+    for (let i = 0; i < deps.length; i++) {
+      const dep = deps[i];
+      const id = requireString(dep, "id");
+      const url = requireString(dep, "url");
+      const intent = requireString(dep, "intent");
+      const resolved = requireString(dep, "resolved");
+      const sha = requireString(dep, "sha");
+      const snapshot = requireString(dep, "snapshot");
+      const lockedAt = requireString(dep, "locked-at");
+      if (
+        id === undefined || url === undefined || intent === undefined ||
+        resolved === undefined || sha === undefined ||
+        snapshot === undefined || lockedAt === undefined
+      ) {
+        return diag(
+          "MSL-L001",
+          `[[upstream.dependency]] entry ${i}: missing required field 'id', 'url', 'intent', 'resolved', 'sha', 'snapshot', or 'locked-at'`,
+        );
+      }
+      upstreams.push({
+        kind: "dependency",
+        id,
+        url,
+        intent,
+        resolved,
+        sha,
+        snapshot,
+        lockedAt,
       });
     }
   }

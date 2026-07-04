@@ -2,7 +2,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { serializeLockfile } from "./serializer.ts";
 import { parseLockfile } from "./parser.ts";
-import type { Lockfile } from "./model.ts";
+import type { Lockfile, UpstreamRegistry } from "./model.ts";
 
 const EMPTY_LOCKFILE: Lockfile = {
   schema: 1,
@@ -303,4 +303,66 @@ Deno.test("serializeLockfile: edge order is total — colliding edges sort by ta
   const forward = serializeLockfile({ ...base, edges: [edgeA, edgeB] });
   const reversed = serializeLockfile({ ...base, edges: [edgeB, edgeA] });
   assertEquals(forward, reversed); // permutation-independent → total order
+});
+
+// ---------------------------------------------------------------------------
+// Federated-upstream lockfile rows (extended registry + dependency kind)
+// ---------------------------------------------------------------------------
+
+Deno.test("serialize/parse round-trip: extended registry row", () => {
+  const lockfile: Lockfile = {
+    ...EMPTY_LOCKFILE,
+    upstreams: [{
+      kind: "registry",
+      id: "refhub",
+      api: "https://driftsys.github.io/refhub",
+      resolvedManifestHash: "sha256:aaa",
+      markspecSchema: 1,
+      version: "1.4.0",
+      snapshot: "sha256:bbb",
+      lockedAt: "2026-07-04T12:00:00Z",
+    }],
+  };
+  const toml = serializeLockfile(lockfile);
+  const parsed = parseLockfile(toml);
+  assertEquals(parsed.diagnostics, []);
+  assertEquals(parsed.lockfile?.upstreams, lockfile.upstreams);
+});
+
+Deno.test("serialize/parse round-trip: dependency row", () => {
+  const lockfile: Lockfile = {
+    ...EMPTY_LOCKFILE,
+    upstreams: [{
+      kind: "dependency",
+      id: "product",
+      url: "https://github.com/acme/aeb-product",
+      intent: "auto",
+      resolved: "tag:v2.1.0",
+      sha: "3cdde94aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      snapshot: "sha256:ccc",
+      lockedAt: "2026-07-04T12:00:00Z",
+    }],
+  };
+  const toml = serializeLockfile(lockfile);
+  const parsed = parseLockfile(toml);
+  assertEquals(parsed.diagnostics, []);
+  assertEquals(parsed.lockfile?.upstreams, lockfile.upstreams);
+});
+
+Deno.test("parse: registry row without new optional fields still parses", () => {
+  const minimal = serializeLockfile({
+    ...EMPTY_LOCKFILE,
+    upstreams: [{
+      kind: "registry",
+      id: "urn:markspec:registry:https://x",
+      api: "https://x",
+      resolvedManifestHash: "sha256:aaa",
+      markspecSchema: 1,
+    }],
+  });
+  const parsed = parseLockfile(minimal);
+  assertEquals(parsed.diagnostics, []);
+  const row = parsed.lockfile?.upstreams[0];
+  assertEquals(row?.kind, "registry");
+  assertEquals((row as UpstreamRegistry).snapshot, undefined);
 });

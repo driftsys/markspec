@@ -16,6 +16,7 @@ export type {
   LockfileMeta,
   LockfileToolchain,
   Upstream,
+  UpstreamDependency,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,

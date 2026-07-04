@@ -363,6 +363,7 @@ export type {
   ResolvedUpstreams,
   ResolveUpstreamsOptions,
   Upstream,
+  UpstreamDependency,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,
