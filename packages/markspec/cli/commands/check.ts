@@ -7,6 +7,8 @@
 import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
 import {
+  deriveUpstreamId,
+  loadConfig,
   loadToolConfig,
   MARKDOWN_EXTENSIONS,
   upstreamCacheRoot,
@@ -106,6 +108,26 @@ export const checkCmd = new Command()
         ? await loadProjectUpstreams(projectRoot, lockParse?.lockfile)
         : { entries: [], diagnostics: [] };
 
+      // Declared upstream ids (federated upstream, slice 4) — derived from
+      // project.yaml's `dependencies:`/`references:` via `deriveUpstreamId`.
+      // Stage 4 uses this to fire MSL-T014 (naming the searched upstream
+      // set) instead of the generic MSL-L006 for a trace target unresolved
+      // after federation. Project-wide only — file-local `check <file>`
+      // already suppresses both codes regardless (Stage 4's projectWide
+      // filter), so there is nothing to gain from computing this otherwise.
+      let declaredUpstreamIds: string[] = [];
+      if (scope.projectWide && projectRoot !== undefined) {
+        const projectConfig = await loadConfig(projectRoot, readFile);
+        if (projectConfig) {
+          declaredUpstreamIds = [
+            ...projectConfig.config.dependencies,
+            ...projectConfig.config.references,
+          ]
+            .map((ref) => deriveUpstreamId(ref))
+            .filter((id): id is string => id !== undefined);
+        }
+      }
+
       const {
         detectDirectives,
         parseFile,
@@ -160,7 +182,7 @@ export const checkCmd = new Command()
         allEntries,
         chain?.effective ?? null,
         captionConventions,
-        { projectWide: scope.projectWide },
+        { projectWide: scope.projectWide, declaredUpstreamIds },
       );
 
       // Corpus-aware post-pass (ADR-030): a project entry re-declaring a

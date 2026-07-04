@@ -1530,22 +1530,20 @@ carrying an `Id:` attribute.
 
 ### 8.3 Traceability (MSL-T)
 
-| ID         | Severity | Rule                                                                                              |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                       |
-| `MSL-T004` | warning  | `Derived-from:` target must resolve to an existing spec entry.                                    |
-| `MSL-T005` | error    | `References:` slug must resolve to an existing reference entry.                                   |
-| `MSL-T006` | error    | `Allocated-to:` target must resolve to an existing element entry.                                 |
-| `MSL-T007` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                          |
-| `MSL-T008` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                             |
-| `MSL-T009` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                             |
-| `MSL-T010` | error    | `Part-of:` target must resolve to an existing element entry.                                      |
-| `MSL-T011` | error    | `Depends-on:` target must resolve to an existing element entry.                                   |
-| `MSL-T012` | error    | `Supersedes:` target must resolve to an existing same-family entry.                               |
-| `MSL-T013` | tiered   | Link target is non-active: `DRAFT` label=info; `Superseded-by:` set or `Deprecated:` set=warning. |
-
-`MSL-T014` is reserved for a future registry-chain check on `References:`
-(warning severity) when reference resolution via upstream registries lands.
+| ID         | Severity | Rule                                                                                                                                                                                         |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-T001` | error    | `Satisfies:` target must resolve to an existing spec entry.                                                                                                                                  |
+| `MSL-T004` | warning  | `Derived-from:` target must resolve to an existing spec entry.                                                                                                                               |
+| `MSL-T005` | error    | `References:` slug must resolve to an existing reference entry.                                                                                                                              |
+| `MSL-T006` | error    | `Allocated-to:` target must resolve to an existing element entry.                                                                                                                            |
+| `MSL-T007` | error    | `Realizes:` target (on elements) must resolve to an existing spec entry.                                                                                                                     |
+| `MSL-T008` | error    | `Verifies:` target (on tests) must resolve to an existing spec entry.                                                                                                                        |
+| `MSL-T009` | error    | `Tests:` target (on tests) must resolve to an existing element entry.                                                                                                                        |
+| `MSL-T010` | error    | `Part-of:` target must resolve to an existing element entry.                                                                                                                                 |
+| `MSL-T011` | error    | `Depends-on:` target must resolve to an existing element entry.                                                                                                                              |
+| `MSL-T012` | error    | `Supersedes:` target must resolve to an existing same-family entry.                                                                                                                          |
+| `MSL-T013` | tiered   | Link target is non-active: `DRAFT` label=info; `Superseded-by:` set or `Deprecated:` set=warning.                                                                                            |
+| `MSL-T014` | warning  | Trace target unresolved after upstream federation — the downstream project declares `dependencies:`/`references:`, but the target resolves in neither the project nor any declared upstream. |
 
 Type resolution and per-type attribute validation (spec §1.3, §1.6):
 

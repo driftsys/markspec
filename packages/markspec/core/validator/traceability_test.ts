@@ -728,3 +728,100 @@ Deno.test("validateTraceabilityForEntry: scheme-qualified URI target is not flag
   );
   assertEquals(diags.filter((d) => d.code === "MSL-L006"), []);
 });
+
+// ---------------------------------------------------------------------------
+// MSL-T014 — unresolved-after-federation (federated upstream, slice 4)
+// ---------------------------------------------------------------------------
+
+Deno.test("validateTraceabilityForEntry: no upstreams declared + unresolved ref → MSL-L006 (unchanged)", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-9999"] }, // exists nowhere
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+    [], // no declared upstreams
+  );
+  const l006 = diags.filter((d) => d.code === "MSL-L006");
+  const t014 = diags.filter((d) => d.code === "MSL-T014");
+  assertEquals(l006.length, 1);
+  assertEquals(t014.length, 0);
+});
+
+Deno.test("validateTraceabilityForEntry: upstreams declared + unresolved ref → MSL-T014, no MSL-L006", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-9999"] }, // exists nowhere
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+    ["upstream-a", "upstream-b"],
+  );
+  const l006 = diags.filter((d) => d.code === "MSL-L006");
+  const t014 = diags.filter((d) => d.code === "MSL-T014");
+  assertEquals(l006.length, 0);
+  assertEquals(t014.length, 1);
+  assertEquals(t014[0].severity, "warning");
+  const msg = t014[0].message;
+  if (
+    !msg.includes("Verifies") || !msg.includes("REQ-9999") ||
+    !msg.includes("upstream-a") || !msg.includes("upstream-b")
+  ) {
+    throw new Error(`message lacks searched-set context: ${msg}`);
+  }
+});
+
+Deno.test("validateTraceabilityForEntry: upstreams declared + ref resolves to upstream entry → neither L006 nor T014", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const upstreamTarget = entryWithAttrs({
+    id: "01UPSTREAM0000000000000000",
+    displayId: "REQ-0001",
+    shape: "Authored",
+    type: "requirement",
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-0001"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, upstreamTarget]),
+    byDisplayIdOf([e, upstreamTarget]),
+    ["upstream-a"],
+  );
+  assertEquals(diags.filter((d) => d.code === "MSL-L006"), []);
+  assertEquals(diags.filter((d) => d.code === "MSL-T014"), []);
+});

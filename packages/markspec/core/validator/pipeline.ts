@@ -59,6 +59,16 @@ export interface PipelineOptions {
    * Defaults to `true` (full-project scope — emit MSL-L006 normally).
    */
   readonly projectWide?: boolean;
+
+  /**
+   * Declared upstream ids (federated upstream, slice 4) — derived from
+   * `project.yaml`'s `dependencies:`/`references:` via `deriveUpstreamId`.
+   * When non-empty, Stage 4 fires `MSL-T014` (warning), naming the
+   * searched upstream set, instead of `MSL-L006` for an otherwise-
+   * unresolved trace target. Defaults to empty — `MSL-L006` unchanged.
+   * Scope-gated identically to `MSL-L006` (see `projectWide` above).
+   */
+  readonly declaredUpstreamIds?: readonly string[];
 }
 
 /**
@@ -191,12 +201,19 @@ export function runPipeline(
         profile,
         graph,
         byDisplayId,
+        opts.declaredUpstreamIds,
       );
-      // Suppress MSL-L006 ("link target does not resolve") when running
-      // file-locally: the checked subset cannot distinguish a typo from a
-      // valid cross-file target. Only emit when the full entry set is present.
+      // Suppress MSL-L006 ("link target does not resolve") and its
+      // federated-upstream replacement MSL-T014 when running file-locally:
+      // the checked subset cannot distinguish a typo from a valid
+      // cross-file/upstream target. Only emit when the full entry set is
+      // present.
       diagnostics.push(
-        ...projectWide ? stage4 : stage4.filter((d) => d.code !== "MSL-L006"),
+        ...projectWide
+          ? stage4
+          : stage4.filter((d) =>
+            d.code !== "MSL-L006" && d.code !== "MSL-T014"
+          ),
       );
     }
   }
