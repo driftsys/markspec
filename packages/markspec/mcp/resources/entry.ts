@@ -28,15 +28,21 @@ export function renderEntry(
   if (entry.type) lines.push(`**Type**: ${entry.type}`);
   lines.push(`**Shape**: ${entry.shape}`);
   if (entry.origin) {
+    const verb = entry.origin.kind === "upstream"
+      ? "from upstream"
+      : "delivered by";
     lines.push(
-      `**Origin**: delivered by ${formatEntryOrigin(entry.origin)} (read-only)`,
+      `**Origin**: ${verb} ${formatEntryOrigin(entry.origin)} (read-only)`,
     );
   }
   if (entry.id) lines.push(`**Id**: \`${entry.id}\``);
+  const location = `${
+    relativeToRoot(entry.location.file, projectRoot)
+  }:${entry.location.line}`;
   lines.push(
-    `**Location**: ${
-      relativeToRoot(entry.location.file, projectRoot)
-    }:${entry.location.line}`,
+    entry.origin?.kind === "upstream"
+      ? `**Location**: ${location} (in upstream ${entry.origin.upstreamId})`
+      : `**Location**: ${location}`,
   );
   lines.push("");
 

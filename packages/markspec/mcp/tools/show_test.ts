@@ -98,3 +98,17 @@ Deno.test(
     assertEquals(md.includes(TARGET_ULID), false);
   },
 );
+
+Deno.test("renderShow: upstream entry surfaces the 'from upstream' origin", () => {
+  const upstream = {
+    ...entry("PRODUCT_STK_0001", "Product req"),
+    origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+    location: { file: "docs/product/stk.md", line: 12, column: 1 },
+  } as unknown as Entry;
+  const result = compiled([upstream], []);
+  const md = renderShow(result, "PRODUCT_STK_0001", undefined);
+  assertStringIncludes(
+    md,
+    "**Origin**: from upstream product@v2.1.0 (read-only)",
+  );
+});
