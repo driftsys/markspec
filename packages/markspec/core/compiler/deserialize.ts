@@ -18,21 +18,24 @@ import type { SerializedEntry } from "./schema.ts";
  * `Map` (absent → empty). All other fields — including `origin` — pass
  * through verbatim.
  *
- * `type` is re-keyed explicitly (rather than left to the `...rest`
- * spread) to restore field-presence parity with a freshly parsed
- * {@linkcode Entry}: the parser always includes `type` as an own
- * property (`undefined` when no profile classified the entry), but
- * `JSON.stringify` drops `undefined`-valued keys entirely, so the wire
- * form loses the key when it round-trips through `JSON.parse`. Without
- * this, `deserializeEntry(wire)` would be missing the `type` key while
- * the original entry still carries it (with value `undefined`),
- * breaking the deep-equality round-trip contract.
+ * `type` and `id` are re-keyed explicitly (rather than left to the
+ * `...rest` spread) to restore field-presence parity with a freshly
+ * parsed {@linkcode Entry}: the parser always includes both as own
+ * properties (`type` is `undefined` when no profile classified the
+ * entry; `id` is `undefined` on Reference-shaped entries with no `Id:`
+ * trailer), but `JSON.stringify` drops `undefined`-valued keys
+ * entirely, so the wire form loses the keys when it round-trips
+ * through `JSON.parse`. Without this, `deserializeEntry(wire)` would
+ * be missing those keys while the original entry still carries them
+ * (with value `undefined`), breaking the deep-equality round-trip
+ * contract.
  */
 export function deserializeEntry(s: SerializedEntry): Entry {
-  const { typedAttributes, type, ...rest } = s;
+  const { typedAttributes, type, id, ...rest } = s;
   return {
     ...rest,
     type,
+    id,
     typedAttributes: new Map(Object.entries(typedAttributes ?? {})),
   } as Entry;
 }
