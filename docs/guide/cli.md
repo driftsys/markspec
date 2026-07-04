@@ -101,6 +101,40 @@ Profile configuration (`.markspec.yaml` and profile manifests) is covered in the
 
 ## Commands
 
+### Project setup
+
+#### init
+
+Scaffold a new MarkSpec project — writes `project.yaml`, `.markspec.yaml`, and
+(unless opted out) client MCP configs and skills.
+
+```sh
+markspec init [target-dir]
+```
+
+| Flag            | Type   | Default | Description                                                              |
+| --------------- | ------ | ------- | ------------------------------------------------------------------------ |
+| `--client`      | string | —       | Force write for the named client (repeatable): `claude-code`, `opencode` |
+| `--all-clients` | bool   | false   | Write configs for `claude-code` + `opencode` regardless of detection     |
+| `--no-mcp`      | bool   | false   | Skip all MCP scaffolding                                                 |
+| `--no-skills`   | bool   | false   | Skip `upskill add`                                                       |
+| `--profile`     | string | —       | Profile spec (conflicts with `--no-profile`)                             |
+| `--no-profile`  | bool   | false   | Core-only mode (`default-profile: false`)                                |
+| `--binary-path` | string | —       | Absolute path to the markspec binary for MCP configs                     |
+| `--dry-run`     | bool   | false   | Report decisions, write nothing                                          |
+| `--force`       | bool   | false   | Overwrite skip-on-exists files; required for a non-empty dir or non-TTY  |
+| `--format`      | string | `text`  | Summary format: `json`, `text`                                           |
+
+**Examples:**
+
+```sh
+markspec init                                             # scaffold in cwd
+markspec init ./my-project                                # scaffold in a new subdir
+markspec init --profile git+https://github.com/org/profile
+markspec init --all-clients --binary-path /opt/markspec/bin/markspec
+markspec init --dry-run --format json                     # report, write nothing
+```
+
 ### Authoring
 
 #### fmt
@@ -544,6 +578,29 @@ markspec lint --format json
 markspec lint docs/requirements.md
 ```
 
+#### score
+
+Score a single piece of requirement prose against the PA-3 rule catalog. Unlike
+`lint`, which walks a file's entries, `score` takes prose directly — useful for
+a review-time or editor-integration check of one requirement.
+
+```sh
+markspec score --text "The system shall …"
+```
+
+| Flag       | Type   | Default | Description                                                            |
+| ---------- | ------ | ------- | ---------------------------------------------------------------------- |
+| `--text`   | string | —       | Inline prose to score                                                  |
+| `--id`     | string | —       | Identifier to echo back in the result                                  |
+| `--format` | string | —       | Output format: `json`, `text` (default: `text` on a TTY, `json` piped) |
+
+**Examples:**
+
+```sh
+markspec score --text "The controller shall respond within 200 ms."
+markspec score --id SRS_BRK_0001 --text "The system shall be fast." --format json
+```
+
 ### Lockfile and external sync
 
 #### lock
@@ -809,6 +866,31 @@ fields omitted (its validity is `check`'s / `lock`'s concern, not `doctor`'s).
 The drift warning uses the non-`MSL` `doctor` code `lockfile-edge-drift`, listed
 in the shared `diagnostics` array. See the `lock` [Upgrade note](#lock) for the
 one-time post-upgrade drift and how to clear it.
+
+### Maintenance
+
+#### self-upgrade
+
+Download and atomically replace the running `markspec` binary with the latest
+release (or a pinned version).
+
+```sh
+markspec self-upgrade
+```
+
+| Flag        | Type   | Default | Description                                          |
+| ----------- | ------ | ------- | ---------------------------------------------------- |
+| `--check`   | bool   | false   | Check only; exit `1` if a newer release is available |
+| `--version` | string | —       | Pin a specific release (downgrade allowed)           |
+| `--format`  | string | `text`  | Output format: `json`, `text`                        |
+
+**Examples:**
+
+```sh
+markspec self-upgrade              # upgrade to the latest release
+markspec self-upgrade --check      # CI/cron: exit 1 when an update exists
+markspec self-upgrade --version 0.10.2
+```
 
 ### AI agent integration
 
