@@ -83,7 +83,9 @@ export function buildManifest(
     project: {
       name: config.name ?? "",
       root: projectRoot,
-      ...(config.version ? { version: config.version } : {}),
+      ...(config.version && config.version !== "0.0.0"
+        ? { version: config.version }
+        : {}),
     },
     counts: {
       entries: result.entries.size,

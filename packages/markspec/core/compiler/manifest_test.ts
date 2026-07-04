@@ -270,3 +270,16 @@ Deno.test("buildManifest: records project.version and references federation", ()
   assertEquals(manifest.project.version, "1.4.0");
   assertEquals(manifest.federation, ["https://driftsys.github.io/refhub"]);
 });
+
+Deno.test("buildManifest: suppresses project.version when it is the 0.0.0 sentinel default", () => {
+  const config: ProjectConfig = { ...BASE_CONFIG, version: "0.0.0" };
+  const result = makeResult([], []);
+  const manifest = buildManifest(
+    result,
+    config,
+    "/proj",
+    undefined,
+    "0.0.0-test",
+  );
+  assertEquals(manifest.project.version, undefined);
+});
