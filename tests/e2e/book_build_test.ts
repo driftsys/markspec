@@ -289,8 +289,12 @@ const INDEX_MD_SUMMARY = `# Summary
 
 - [Overview](index.md)
 - [Requirements](requirements.md)
+- [Specs](specs.md)
 `;
 
+// Deliberately mentions neither other chapter — regression fixture for the
+// "chapter content wins but strands the rest of the book" bug: an index.md
+// chapter's own prose is not a substitute for full site navigation.
 const INDEX_MD_CONTENT =
   `# Overview\n\nOVERVIEW-MARKER-TEXT this is the book's real homepage content.\n`;
 
@@ -299,9 +303,10 @@ const INDEX_MD_FIXTURE = {
   "SUMMARY.md": INDEX_MD_SUMMARY,
   "index.md": INDEX_MD_CONTENT,
   "requirements.md": REQUIREMENTS_MD,
+  "specs.md": SPECS_MD,
 };
 
-Deno.test("book build: a chapter mapped from index.md becomes index.html — not clobbered by the auto-generated nav page", async () => {
+Deno.test("book build: a chapter mapped from index.md becomes index.html — its content wins, but every chapter stays linked from it", async () => {
   const { code, stderr } = await markspec(["book", "build"], {
     files: INDEX_MD_FIXTURE,
   });
@@ -333,6 +338,12 @@ Deno.test("book build: a chapter mapped from index.md becomes index.html — not
     assertStringIncludes(html, "OVERVIEW-MARKER-TEXT");
     // The chapter's own content must win — no separate, redundant nav-only
     // page should be written for a chapter that already maps to "index".
+    // But every OTHER chapter — including one index.md's own prose never
+    // mentions — must still be reachable from the homepage: the auto nav
+    // section is appended, not skipped, when a real chapter claims "index".
+    assertStringIncludes(html, 'href="requirements.html"');
+    assertStringIncludes(html, 'href="specs.html"');
+
     const requirementsHtml = await Deno.readTextFile(
       `${dir}/_site/requirements.html`,
     );

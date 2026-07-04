@@ -76,26 +76,28 @@ export const bookCmd = new Command()
 
     // Write output
     await Deno.mkdir(options.output, { recursive: true });
-    let hasIndexChapter = false;
+    const chapterLinks = result.chapters.map((c) => ({
+      title: c.title,
+      slug: _slugFor(c.path),
+    }));
+    const hasIndexChapter = chapterLinks.some((c) => c.slug === "index");
     for (const chapter of result.chapters) {
-      const slug = chapter.path.replace(/\.md$/, "").replace(/\//g, "-");
-      if (slug === "index") hasIndexChapter = true;
+      const slug = _slugFor(chapter.path);
       const outPath = join(options.output, `${slug}.html`);
-      await Deno.writeTextFile(outPath, _wrapHtml(chapter.title, chapter.html));
+      // A chapter mapped from e.g. "index.md" is the book's real homepage —
+      // its own content wins over the synthesized nav-only page. But every
+      // chapter must still be reachable from index.html regardless of what
+      // that chapter's own prose happens to link to, so the full chapter
+      // nav is always appended to whichever page becomes index.html.
+      const body = slug === "index"
+        ? chapter.html + _navSectionHtml(chapterLinks)
+        : chapter.html;
+      await Deno.writeTextFile(outPath, _wrapHtml(chapter.title, body));
       console.error(`wrote ${outPath}`);
     }
 
-    // A chapter mapped from e.g. "index.md" already wrote its own content to
-    // index.html above — that's the book's real homepage and must win. Only
-    // synthesize the nav-only index.html when no chapter claims that slug.
     if (!hasIndexChapter) {
-      const indexHtml = _indexHtml(
-        config.name ?? "Book",
-        result.chapters.map((c) => ({
-          title: c.title,
-          slug: c.path.replace(/\.md$/, "").replace(/\//g, "-"),
-        })),
-      );
+      const indexHtml = _indexHtml(config.name ?? "Book", chapterLinks);
       const indexPath = join(options.output, "index.html");
       await Deno.writeTextFile(indexPath, indexHtml);
       console.error(`wrote ${indexPath}`);
@@ -141,14 +143,32 @@ ${body}
 `;
 }
 
-/** Generate a minimal index page. */
-function _indexHtml(
-  bookTitle: string,
+/** Slug for a chapter's output filename, derived from its source path. */
+function _slugFor(path: string): string {
+  return path.replace(/\.md$/, "").replace(/\//g, "-");
+}
+
+/**
+ * A "Chapters" nav section listing every chapter, appended to whichever
+ * page becomes a book's `index.html` — its own synthesized nav page, or a
+ * real chapter's rendered content when one maps to the "index" slug. Every
+ * chapter stays reachable from the homepage this way, regardless of
+ * whether that chapter's own prose links to the rest of the book.
+ */
+function _navSectionHtml(
   chapters: readonly { title: string; slug: string }[],
 ): string {
   const links = chapters
     .map((c) => `  <li><a href="${c.slug}.html">${_escHtml(c.title)}</a></li>`)
     .join("\n");
+  return `\n<h2>Chapters</h2>\n<ul>\n${links}\n</ul>\n`;
+}
+
+/** Generate a minimal index page (used when no chapter claims the "index" slug). */
+function _indexHtml(
+  bookTitle: string,
+  chapters: readonly { title: string; slug: string }[],
+): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -158,9 +178,7 @@ function _indexHtml(
 </head>
 <body>
 <h1>${_escHtml(bookTitle)}</h1>
-<ul>
-${links}
-</ul>
+${_navSectionHtml(chapters)}
 </body>
 </html>
 `;
