@@ -403,3 +403,54 @@ Deno.test("book build: rewrites a nested chapter's parent-relative link, preserv
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// A chapter declared in SUMMARY.md whose file is intentionally never written
+// (a common in-progress-book authoring state — SUMMARY.md scaffolded ahead
+// of content) plus a chapter path with a redundant "./" prefix.
+const GHOST_SUMMARY = `# Summary
+
+- [Overview](./index.md)
+- [Ghost](ghost.md)
+`;
+
+const GHOST_INDEX_MD =
+  `# Overview\n\nSee [Ghost](ghost.md) and back to [self](./index.md).\n`;
+
+const GHOST_FIXTURE = {
+  "project.yaml": PROJECT_YAML,
+  "SUMMARY.md": GHOST_SUMMARY,
+  "index.md": GHOST_INDEX_MD,
+  // "ghost.md" is deliberately absent.
+};
+
+Deno.test("book build: a link to a chapter declared in SUMMARY.md but missing on disk is left unrewritten", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: GHOST_FIXTURE,
+  });
+  try {
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    assertStringIncludes(stderr, "warning: chapter file not found: ghost.md");
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    // "ghost.md" has no backing file and will never get a ghost.html — a
+    // link to it must stay an honest (if dead) .md reference, not be
+    // confidently rewritten to a same-site page that will never exist.
+    assertStringIncludes(html, 'href="ghost.md"');
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("book build: a chapter path declared with a redundant './' prefix in SUMMARY.md still resolves incoming links", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: GHOST_FIXTURE,
+  });
+  try {
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    // "./index.md" (as declared in SUMMARY.md) must match a link resolving
+    // to the plain, normalized "index.md" from within the same chapter.
+    assertStringIncludes(html, 'href="index.html"');
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

@@ -17,6 +17,7 @@ export type {
 export { renderChapterHtml } from "./site/mod.ts";
 export type { RenderChapterOptions, RenderChapterResult } from "./site/mod.ts";
 
+import { normalize } from "@std/path/posix";
 import type {
   CompileResult,
   Diagnostic,
@@ -77,10 +78,20 @@ export function buildBook(
   const diagnostics: Diagnostic[] = [];
 
   const allChapters = _allChapters(structure);
+  // Only chapters with a resolved file get a slug: a chapter declared in
+  // SUMMARY.md but missing on disk (a common in-progress-book state, already
+  // tolerated below with a "chapter file not found" warning) must not have
+  // links to it confidently rewritten to a page that will never be written.
+  // Keys are normalized so a SUMMARY.md path written with a redundant form
+  // (e.g. "./index.md") still matches hrefs resolved to the plain form —
+  // see RenderChapterOptions.chapterSlugs's doc comment for the contract.
   const chapterSlugs = new Map(
     allChapters
-      .filter((c): c is Chapter & { path: string } => Boolean(c.path))
-      .map((c) => [c.path, slugForChapterPath(c.path)] as const),
+      .filter(
+        (c): c is Chapter & { path: string } =>
+          Boolean(c.path) && options.files.has(c.path!),
+      )
+      .map((c) => [normalize(c.path), slugForChapterPath(c.path)] as const),
   );
 
   for (const chapter of allChapters) {
@@ -111,9 +122,14 @@ export function buildBook(
  * both the CLI's write step and in-content cross-chapter link rewriting
  * (`RenderChapterOptions.chapterSlugs`) must agree on it, or a rewritten
  * link would point at a filename the write step never produces.
+ *
+ * Normalizes `path` first so a redundant SUMMARY.md-declared form (e.g.
+ * `"./index.md"`) still produces the same slug as its canonical form
+ * (`"index.md"` → `"index"`), rather than a mangled one (`"./index.md"`
+ * would otherwise slugify to `".-index"`).
  */
 export function slugForChapterPath(path: string): string {
-  return path.replace(/\.md$/, "").replace(/\//g, "-");
+  return normalize(path).replace(/\.md$/, "").replace(/\//g, "-");
 }
 
 /** Flatten all chapters from a structure into document order. */

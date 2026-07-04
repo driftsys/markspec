@@ -16,7 +16,7 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
 import { dirname, join, normalize } from "@std/path/posix";
-import type { Blockquote, Link, Root, Text } from "mdast";
+import type { Blockquote, Definition, Link, Root, Text } from "mdast";
 import type { Caption, EffectiveProfile, Entry } from "../../core/mod.ts";
 import { detectCaptions, parse, resolveEntryColor } from "../../core/mod.ts";
 
@@ -32,14 +32,21 @@ export interface RenderChapterOptions {
   /** Active profile, if any. Drives per-entry color resolution. */
   readonly profile?: EffectiveProfile;
   /**
-   * Every chapter's source path (as declared in `SUMMARY.md`, e.g.
-   * `"recipes/deploy.md"`) mapped to its book-build output slug (e.g.
-   * `"recipes-deploy"`, written as `recipes-deploy.html`). When supplied,
-   * a Markdown link in this chapter that resolves — relative to this
-   * chapter's own source directory — to another chapter's path is
-   * rewritten to `<slug>.html`, preserving any `#fragment`. A link that
-   * resolves to a path absent from this map (external URL, a file outside
-   * the book, or an absolute path) is left untouched.
+   * Every chapter's source path mapped to its book-build output slug
+   * (e.g. `"recipes-deploy"`, written as `recipes-deploy.html`). When
+   * supplied, a Markdown link (or link reference definition) in this
+   * chapter that resolves — relative to this chapter's own source
+   * directory — to another chapter's path is rewritten to `<slug>.html`,
+   * preserving any `#fragment`. A link that resolves to a path absent
+   * from this map (external URL, a file outside the book, an absolute
+   * path, or a chapter declared in `SUMMARY.md` with no backing file) is
+   * left untouched.
+   *
+   * Keys MUST be `@std/path/posix`-normalized (e.g. `slugForChapterPath`'s
+   * caller should key this map with `normalize(chapter.path)`, not the raw
+   * `SUMMARY.md` path) — link resolution normalizes the href side before
+   * looking it up, so an un-normalized key (e.g. `"./index.md"` instead of
+   * `"index.md"`) would never match.
    */
   readonly chapterSlugs?: ReadonlyMap<string, string>;
 }
@@ -105,6 +112,8 @@ export function renderChapterHtml(
   const rewriteLink = chapterSlugs
     ? (href: string) => _resolveChapterLink(file, href, chapterSlugs)
     : undefined;
+  // Built once per chapter (not per prose fragment) — see _buildProseProcessor.
+  const processor = _buildProseProcessor(rewriteLink);
 
   const parts: string[] = [];
   let cursor = 0; // current position (0-based line index)
@@ -115,14 +124,14 @@ export function renderChapterHtml(
     // Prose before this region
     if (region.start > cursor) {
       const prose = lines.slice(cursor, region.start).join("\n");
-      if (prose.trim()) parts.push(_proseToHtml(prose, rewriteLink));
+      if (prose.trim()) parts.push(_proseToHtml(prose, processor));
     }
 
     if (region.kind === "entry") {
-      parts.push(_entryToHtml(region.entry!, options.profile, rewriteLink));
+      parts.push(_entryToHtml(region.entry!, options.profile, processor));
     } else if (region.kind === "alert") {
       const raw = lines.slice(region.start, region.end);
-      parts.push(_alertToHtml(region.alertType!, raw, rewriteLink));
+      parts.push(_alertToHtml(region.alertType!, raw, processor));
     } else if (region.kind === "caption") {
       const cap = region.caption!;
       const counter = cap.kind === "figure" ? ++figCounter : ++tblCounter;
@@ -135,7 +144,7 @@ export function renderChapterHtml(
   // Trailing prose
   if (cursor < lines.length) {
     const prose = lines.slice(cursor).join("\n");
-    if (prose.trim()) parts.push(_proseToHtml(prose, rewriteLink));
+    if (prose.trim()) parts.push(_proseToHtml(prose, processor));
   }
 
   return { html: parts.join("\n") };
@@ -158,7 +167,7 @@ function _resolveChapterLink(
   chapterSlugs: ReadonlyMap<string, string>,
 ): string | undefined {
   if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return undefined; // scheme:// URL
-  if (href.startsWith("/") || href.startsWith("#")) return undefined; // root-relative / anchor-only
+  if (href.startsWith("/")) return undefined; // root-relative
   const hashIdx = href.indexOf("#");
   const pathPart = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
   const fragment = hashIdx >= 0 ? href.slice(hashIdx) : "";
@@ -169,10 +178,21 @@ function _resolveChapterLink(
   return `${slug}.html${fragment}`;
 }
 
-/** Recursively visit every mdast `link` node under `node`, in place. */
-function _visitLinks(node: Root, visit: (link: Link) => void): void {
+/**
+ * Recursively visit every mdast `link` or `definition` node under `node`,
+ * in place. `definition` carries the URL for reference-style links
+ * (`[text][id]` + a separate `[id]: target` line, whose `linkReference`
+ * node has no `url` of its own) — both node types expose a mutable `url`
+ * string field, so callers can rewrite either uniformly.
+ */
+function _visitLinks(
+  node: Root,
+  visit: (linkOrDefinition: Link | Definition) => void,
+): void {
   const walk = (n: Root | Root["children"][number]): void => {
-    if (n.type === "link") visit(n as Link);
+    if (n.type === "link" || n.type === "definition") {
+      visit(n as Link | Definition);
+    }
     if ("children" in n) {
       for (const child of n.children) walk(child);
     }
@@ -300,26 +320,45 @@ function _findEntryEnd(lines: readonly string[], start: number): number {
 
 // ── Renderers ─────────────────────────────────────────────────────────────
 
-function _proseToHtml(
-  markdown: string,
-  rewriteLink?: (href: string) => string | undefined,
-): string {
-  if (!rewriteLink) return String(_htmlPipeline.processSync(markdown));
-  // Built fresh per call (only when link rewriting is active) since the
-  // rewriter closes over this chapter's own path — unlike `_htmlPipeline`,
-  // it can't be a shared singleton.
-  const pipeline = unified()
+/**
+ * Minimal shape `_proseToHtml` needs from a built unified processor —
+ * narrow enough that both `_htmlPipeline` and the link-rewrite variant
+ * `_buildProseProcessor` builds satisfy it structurally, without fighting
+ * unified's generic `Processor<...>` type across two different plugin
+ * chains.
+ */
+interface _ProseProcessor {
+  processSync(markdown: string): { toString(): string };
+}
+
+/**
+ * Build the prose-rendering processor for one chapter. Returns the shared
+ * `_htmlPipeline` singleton when no rewriter is supplied (the common case
+ * — most chapters, and every chapter when the book has no `chapterSlugs`
+ * map at all); otherwise builds a one-off pipeline with the link-rewrite
+ * transform installed. Called once per `renderChapterHtml` invocation —
+ * not once per prose fragment — since `rewriteLink` closes over the
+ * chapter's own path and is invariant across every fragment in it.
+ */
+function _buildProseProcessor(
+  rewriteLink: ((href: string) => string | undefined) | undefined,
+): _ProseProcessor {
+  if (!rewriteLink) return _htmlPipeline;
+  return unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(() => (tree: Root) => {
-      _visitLinks(tree, (link) => {
-        const rewritten = rewriteLink(link.url);
-        if (rewritten !== undefined) link.url = rewritten;
+      _visitLinks(tree, (node) => {
+        const rewritten = rewriteLink(node.url);
+        if (rewritten !== undefined) node.url = rewritten;
       });
     })
     .use(remarkRehype)
     .use(rehypeStringify);
-  return String(pipeline.processSync(markdown));
+}
+
+function _proseToHtml(markdown: string, processor: _ProseProcessor): string {
+  return processor.processSync(markdown).toString();
 }
 
 function _escapeHtml(s: string): string {
@@ -344,7 +383,7 @@ function _entryClass(
 function _entryToHtml(
   entry: Entry,
   profile: EffectiveProfile | undefined,
-  rewriteLink?: (href: string) => string | undefined,
+  processor: _ProseProcessor,
 ): string {
   const blockClass = _entryClass(entry, profile);
 
@@ -364,7 +403,7 @@ function _entryToHtml(
     : "";
 
   const bodyHtml = entry.body.trim()
-    ? `<div class="req-body">${_proseToHtml(entry.body, rewriteLink)}</div>`
+    ? `<div class="req-body">${_proseToHtml(entry.body, processor)}</div>`
     : "";
 
   const metaHtml = metaAttrs.length > 0
@@ -394,13 +433,13 @@ function _entryToHtml(
 function _alertToHtml(
   alertType: AlertType,
   rawLines: string[],
-  rewriteLink?: (href: string) => string | undefined,
+  processor: _ProseProcessor,
 ): string {
   // Strip the `> [!NOTE]` first line; remove `> ` prefix from the rest
   const contentLines = rawLines
     .slice(1)
     .map((l) => l.replace(/^>\s?/, ""));
-  const content = _proseToHtml(contentLines.join("\n"), rewriteLink);
+  const content = _proseToHtml(contentLines.join("\n"), processor);
   const label = alertType.charAt(0).toUpperCase() + alertType.slice(1);
   return `<div class="alert ${alertType}">
   <strong class="alert-label">${label}</strong>

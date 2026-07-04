@@ -90,3 +90,16 @@ Deno.test("renderChapterHtml: rewrites a query-string-free link exactly, ignorin
   assertStringIncludes(html, 'href="types.html"');
   assertStringIncludes(html, 'href="/absolute/path.md"');
 });
+
+Deno.test("renderChapterHtml: rewrites reference-style links ([text][id] + [id]: target)", () => {
+  const md = `See [Entry format][ef] for details.
+
+[ef]: entry-format.md
+`;
+  const chapterSlugs = new Map([
+    ["index.md", "index"],
+    ["entry-format.md", "entry-format"],
+  ]);
+  const { html } = renderChapterHtml(md, { file: "index.md", chapterSlugs });
+  assertStringIncludes(html, 'href="entry-format.html"');
+});

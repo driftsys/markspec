@@ -11,3 +11,7 @@ Deno.test("slugForChapterPath: flattens nested directory separators to hyphens",
     "recipes-shipping-a-reference-architecture",
   );
 });
+
+Deno.test("slugForChapterPath: normalizes a redundant './' prefix before slugifying", () => {
+  assertEquals(slugForChapterPath("./index.md"), "index");
+});
