@@ -470,3 +470,6 @@ export type {
   LoadUpstreamCorpusResult,
   UpstreamSnapshotRef,
 } from "./upstream/mod.ts";
+
+// ── Lockfile → upstream-snapshot-ref mapping (federated upstream, slice 4) ──
+export { upstreamRefsFromLockfile } from "./upstream/refs.ts";

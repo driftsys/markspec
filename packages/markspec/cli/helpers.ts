@@ -21,6 +21,7 @@ import type {
   Diagnostic,
   DiscoveryIO,
   Entry,
+  Lockfile,
   ProfileChain,
   ReadFile,
 } from "../core/mod.ts";
@@ -265,6 +266,35 @@ export async function loadProjectCorpus(
     diagnostics: corpus.diagnostics,
     corpusIndex: buildCorpusIndex(delivers),
   };
+}
+
+/** Result of {@linkcode loadProjectUpstreams}. */
+export interface ProjectUpstreams {
+  readonly entries: Entry[];
+  readonly diagnostics: readonly Diagnostic[];
+}
+
+/**
+ * Hydrate locked upstream snapshots (federated upstream, slice 4) into
+ * read-only `Entry[]`. Maps the lockfile's snapshot-carrying upstream rows to
+ * cache directories via {@linkcode upstreamRefsFromLockfile}, then reads each
+ * cached snapshot via {@linkcode loadUpstreamCorpus}. Returns empty when
+ * there's no lockfile or no snapshot-carrying rows. Cold-cache soft-fail: a
+ * missing/corrupt cache surfaces `UPSTREAM-SNAPSHOT-00x` diagnostics but never
+ * throws — mirrors {@linkcode loadProjectCorpus}'s soft-fail posture.
+ */
+export async function loadProjectUpstreams(
+  projectRoot: string,
+  lockfile: Lockfile | undefined,
+): Promise<ProjectUpstreams> {
+  if (!lockfile) return { entries: [], diagnostics: [] };
+  const { upstreamRefsFromLockfile, loadUpstreamCorpus } = await import(
+    "../core/mod.ts"
+  );
+  const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
+  if (refs.length === 0) return { entries: [], diagnostics: [] };
+  const result = await loadUpstreamCorpus(refs, readFile);
+  return { entries: result.entries, diagnostics: result.diagnostics };
 }
 
 /**
