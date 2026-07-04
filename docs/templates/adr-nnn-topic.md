@@ -16,30 +16,23 @@
 ## Decision
 
 <!-- State the decision, then capture each design choice as a SAD or ICD
-     requirement using MarkSpec entry blocks.
+     entry block. A worked example follows. -->
 
-     Use SAD for internal architecture decisions.
-     Use ICD for interface contracts between components or systems.
-     Replace XXX with your project/domain abbreviation (e.g., BRK, NAV, COM).
-     Replace NNNN with the next number in your project sequence.
-     Leave Id empty — tooling assigns the ULID on commit. -->
+Write one entry block per decision point. Use `SAD_` for internal architecture
+and `ICD_` for interface contracts; replace `XXX` with your project abbreviation
+and `NNNN` with the next number. Leave `Id:` empty — `markspec fmt` stamps the
+ULID — and remove attributes you do not use rather than leaving them blank.
 
-- [SAD_XXX_NNNN] Decision title
+```markdown
+- [SAD_BRK_0001] Interrupt-driven acquisition pipeline
 
-  <!-- One or two paragraphs describing what the system shall do and why.
-       Use "shall" for normative statements.
-
-       Example: "The sensor pipeline shall use an interrupt-driven architecture
-       with a lock-free ring buffer to decouple acquisition from processing." -->
+  The sensor pipeline shall use an interrupt-driven architecture with a
+  lock-free ring buffer to decouple acquisition from processing.
 
       Id:
-      Satisfies:
-      Labels:
-
-  <!-- Id: left empty, assigned by `markspec doc format`.
-       Satisfies: upstream requirement ID (e.g., STK_BRK_0001, SYS_BRK_0042).
-       Labels: classification tags (e.g., ASIL-B, security, performance).
-       Remove unused attributes rather than leaving them blank. -->
+      Satisfies: STK_BRK_0001
+      Labels: ASIL-B
+```
 
 <!-- Add more entry blocks as needed. One block per distinct decision point.
      Mix SAD and ICD blocks when the decision spans both internal architecture
