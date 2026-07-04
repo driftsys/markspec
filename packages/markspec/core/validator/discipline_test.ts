@@ -59,6 +59,25 @@ Deno.test("MSL-T025: known core kind override is silent", () => {
   assertEquals(diags.some((d) => d.code === "MSL-T025"), false);
 });
 
+Deno.test("MSL-T025: upstream entry with unknown override kind is silent (upstream is validation-exempt)", () => {
+  // Upstream entries (federated-upstream epic) are validation-exempt
+  // graph citizens (design §4.7) — an unknown Discipline: kind on an
+  // upstream entry must not emit MSL-T025, even though the same value
+  // on a project entry (see "unknown override kind emits error" above)
+  // does.
+  const e = fixture({
+    displayId: makeDisplayId("REQ_001"),
+    rawAttributes: [{ key: "Discipline", value: "nonsense" }],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  });
+  const diags = validateDiscipline(
+    [e],
+    new Map<DisplayId, Entry>(),
+    CORE_DISCIPLINE_REGISTRY,
+  );
+  assertEquals(diags.some((d) => d.code === "MSL-T025"), false);
+});
+
 Deno.test("MSL-T025: empty override value is silent (no false positive)", () => {
   const e = fixture({
     displayId: makeDisplayId("REQ_001"),

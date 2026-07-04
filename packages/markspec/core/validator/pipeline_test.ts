@@ -676,6 +676,10 @@ Deno.test("runPipeline: Stage 4 — PROJECT entry's required link resolves to an
 
   // Upstream target — must still be a resolution target for the project
   // entry's `Verifies:` link, even though it is itself validation-exempt.
+  // Its `type` is pre-set here to "requirement", simulating what real
+  // hydration produces: an upstream entry's type comes from its OWN
+  // compile (design §4.5/D6) — the consumer's Stage 2 never classifies
+  // it, so a hydrated snapshot always arrives with `type` already set.
   const upstreamTarget: Entry = {
     displayId: makeDisplayId("REQ-0001"),
     id: "01UPSTREAMTARGET0000000001",
@@ -683,6 +687,7 @@ Deno.test("runPipeline: Stage 4 — PROJECT entry's required link resolves to an
     source: { kind: "markdown" },
     title: "",
     body: "",
+    type: "requirement",
     rawAttributes: [
       { key: "Id", value: "01UPSTREAMTARGET0000000001" },
     ],
@@ -720,6 +725,70 @@ Deno.test("runPipeline: Stage 4 — PROJECT entry's required link resolves to an
   assertEquals(l001, []);
   assertEquals(l004, []);
   assertEquals(l006, []);
+});
+
+Deno.test("runPipeline: Stage 2 — upstream entry matching no profile type pattern emits no MSL-T001/T002/T003/T004", () => {
+  const profile = buildProfileWithRequirement();
+
+  // Upstream entry whose display ID matches the "requirement" type's
+  // pattern (REQ-{n:04d}) for none of the profile's declared types —
+  // a strict (types.size > 0) consumer profile would classify this as
+  // MSL-T003 for a project entry. Upstream entries are validation-exempt
+  // graph citizens (design §4.7): Stage 2 must not classify or emit for
+  // them at all.
+  const e: Entry = {
+    displayId: makeDisplayId("ZZZ-9999"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "upstream.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  };
+
+  const result = runPipeline([e], profile);
+  const classifyCodes = result.diagnostics.filter((d) =>
+    ["MSL-T001", "MSL-T002", "MSL-T003", "MSL-T004"].includes(d.code)
+  );
+  assertEquals(classifyCodes, []);
+});
+
+Deno.test("runPipeline: Stage 2 — upstream entry's pre-set type is preserved, not overwritten by classification", () => {
+  const profile = buildProfileWithRequirement();
+
+  // Display ID matches the "requirement" type's pattern (REQ-{n:04d}) —
+  // if Stage 2 classified this entry, it would overwrite `type` to
+  // "requirement". Per design §4.5/D6 an upstream entry's type comes
+  // from its OWN compile; the consumer must never re-classify it.
+  const e: Entry = {
+    displayId: makeDisplayId("REQ-0001"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    type: "foreign-req",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "upstream.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  };
+
+  const result = runPipeline([e], profile);
+  assertEquals(result.entries[0].type, "foreign-req");
 });
 
 Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {

@@ -13,7 +13,11 @@
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { CORE_RELATIONS, CORE_TYPE_HIERARCHY } from "../model/mod.ts";
+import {
+  CORE_RELATIONS,
+  CORE_TYPE_HIERARCHY,
+  isUpstreamEntry,
+} from "../model/mod.ts";
 import { resolvedCoreType } from "./type_resolution.ts";
 
 /**
@@ -119,6 +123,12 @@ export function validateTraceTargetTypes(
   const diagnostics: Diagnostic[] = [];
 
   for (const entry of entries) {
+    // Upstream entries (federated-upstream epic) are validation-exempt
+    // emitters (design §4.7) — skip checking trace rules FROM an upstream
+    // entry. `byDisplayId`/`byId` above still include them, so a project
+    // entry's link targeting an upstream entry keeps resolving.
+    if (isUpstreamEntry(entry)) continue;
+
     // MSL-R084: Supersedes target must be the same shape as the source.
     for (const attr of entry.rawAttributes) {
       if (attr.key !== "Supersedes") continue;
