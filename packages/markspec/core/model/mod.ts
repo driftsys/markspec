@@ -4,6 +4,13 @@
  * MarkSpec document model — AST types, ID types, and project configuration.
  */
 
+/**
+ * Version of the core entry/graph schema. Bumped only when the compiled
+ * representation changes incompatibly; compared by the snapshot skew
+ * guard (`checkSnapshotSchema`) and printed by `--version`.
+ */
+export const CORE_SCHEMA_VERSION = 1;
+
 // model/mod.ts ↔ ast/nodes.ts is a mutual type-only import cycle
 // (nodes.ts imports EntityRefConvention here); TypeScript resolves it
 // cleanly because both directions are `import type`.
@@ -617,9 +624,6 @@ export interface Diagnostic {
 // Project configuration
 // ---------------------------------------------------------------------------
 
-/** Default RefHub URL used as implicit fallback for parent registries. */
-export const REFHUB_URL = "https://driftsys.github.io/refhub";
-
 /**
  * Caption-position convention for a specific caption keyword.
  * `"above"` — caption must appear above its block.
@@ -647,42 +651,52 @@ export type CaptionConventions = Readonly<
   Partial<Record<string, CaptionPosition>>
 >;
 
-/** MarkSpec project configuration from `project.yaml`. */
+/**
+ * Reference to an external project (org project-manifest contract,
+ * `driftsys/schemas` `project/v1.json` `$defs/projectRef`). Used by the
+ * `dependencies:` (git repositories) and `references:` (published sites)
+ * lists. `version` carries intent: an exact tag is a frozen baseline, a
+ * branch name tracks its head, absent means auto (latest semver release
+ * tag, else default-branch head). `name` is the upstream id used for the
+ * cache directory, lockfile rows, and origin badges; derived from the URL
+ * when absent.
+ */
+export interface ProjectRef {
+  readonly url: string;
+  readonly version?: string;
+  readonly name?: string;
+}
+
+/**
+ * MarkSpec project configuration from `project.yaml` — the org project
+ * schema's closed shape (Task 8). Markspec-tool-specific config (`exclude`,
+ * `caption-conventions`) lives in `.markspec.yaml` — see `ToolConfig` /
+ * `loadToolConfig` in `core/config/markspec.ts`.
+ */
 export interface ProjectConfig {
   /** Project name (e.g., `io.driftsys.markspec`). */
   readonly name: string;
   /** Project version string. */
   readonly version: string;
-  /** Allowed label vocabulary (e.g., `["ASIL-A", "ASIL-B"]`). Empty = no constraint. */
-  readonly labels: readonly string[];
-  /** Upstream parent registry URLs, searched in order. */
-  readonly parents: readonly string[];
-  /** Fallback registry URL when parents don't resolve a reference. */
-  readonly parentFallback: string;
   /**
-   * Per-keyword caption-position conventions (spec §4.7 MSL-C072).
-   * When a key is present, the validator emits MSL-C072 if a caption
-   * of that keyword appears on the wrong side of its block. An empty
-   * or absent map means all keywords are unconstrained.
+   * Upstream git repositories this project depends on (org
+   * project-manifest contract `dependencies:`). Each entry resolves to a
+   * pinned snapshot in `markspec.lock`.
    */
-  readonly captionConventions: CaptionConventions;
+  readonly dependencies: readonly ProjectRef[];
   /**
-   * Gitignore-syntax patterns excluded from project file discovery,
-   * anchored at the project root (e.g. `["skills/", "*.gen.md"]`).
-   * Applied after `.gitignore` rules by `core/discovery`.
+   * Published reference sites this project cites but does not depend on
+   * (org project-manifest contract `references:`) — e.g. a shared RefHub.
    */
-  readonly exclude: readonly string[];
+  readonly references: readonly ProjectRef[];
 }
 
 /** Default configuration used when no `project.yaml` is found. */
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   name: "",
   version: "0.0.0",
-  labels: [],
-  parents: [],
-  parentFallback: REFHUB_URL,
-  captionConventions: {},
-  exclude: [],
+  dependencies: [],
+  references: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -691,7 +705,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
 
 /** A single field-level validation error in `project.yaml`. */
 export interface ConfigFieldError {
-  /** The YAML field path (e.g., `domain`, `parents[0]`). */
+  /** The YAML field path (e.g., `name`, `references[0].url`). */
   readonly field: string;
   /** Human-readable error message. */
   readonly message: string;

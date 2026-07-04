@@ -9,8 +9,9 @@
  * Pure module: no I/O, no Deno APIs.
  */
 
+import { CORE_SCHEMA_VERSION } from "../model/mod.ts";
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { CORE_SCHEMA_VERSION } from "../mod.ts";
+import { MANIFEST_SCHEMA_VERSION } from "./manifest.ts";
 import type { SerializedEntry } from "./schema.ts";
 
 /**
@@ -61,7 +62,7 @@ export function checkSnapshotSchema(
     generator?: { coreSchema?: unknown };
   };
   if (
-    m?.markspecSchemaVersion === 1 &&
+    m?.markspecSchemaVersion === MANIFEST_SCHEMA_VERSION &&
     m?.generator?.coreSchema === CORE_SCHEMA_VERSION
   ) {
     return undefined;
@@ -75,7 +76,7 @@ export function checkSnapshotSchema(
       }, ` +
       `core-schema ${
         String(m?.generator?.coreSchema)
-      } vs expected 1/${CORE_SCHEMA_VERSION}); ` +
+      } vs expected ${MANIFEST_SCHEMA_VERSION}/${CORE_SCHEMA_VERSION}); ` +
       `re-run 'markspec lock' with a compatible markspec version`,
     location: { file: manifestPath, line: 1, column: 1 },
   };

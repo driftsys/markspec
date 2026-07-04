@@ -24,7 +24,8 @@ import type { CaptionConventions, Diagnostic, Entry } from "../model/mod.ts";
  *
  * @param entry - The entry whose body AST is scanned for captions.
  * @param conventions - The configured position conventions from
- *   `ProjectConfig.captionConventions`. An empty record means no
+ *   `.markspec.yaml` `caption-conventions:` (`ToolConfig.captionConventions`).
+ *   An empty record means no
  *   conventions are set and the function returns immediately.
  */
 export function validateCaptionConvention(

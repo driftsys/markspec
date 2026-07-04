@@ -13,7 +13,7 @@ import { markspec } from "./helpers.ts";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
-const PROJECT_YAML = `name: io.test.book\ndomain: TST\nversion: "1.0.0"\n`;
+const PROJECT_YAML = `name: io.test.book\nversion: "1.0.0"\n`;
 
 const SUMMARY_MD = `# Summary
 

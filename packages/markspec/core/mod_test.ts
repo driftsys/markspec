@@ -7,7 +7,6 @@ import {
   format,
   makeDisplayId,
   parse,
-  REFHUB_URL,
   report,
   validate,
   VERSION,
@@ -78,11 +77,8 @@ Deno.test("model types are constructible", () => {
   const config: ProjectConfig = {
     name: "test-project",
     version: "1.0.0",
-    labels: ["ASIL-B"],
-    parents: [],
-    parentFallback: REFHUB_URL,
-    captionConventions: {},
-    exclude: [],
+    dependencies: [],
+    references: [],
   };
   assertEquals(config.name, "test-project");
 });
@@ -94,9 +90,8 @@ Deno.test("model types are constructible", () => {
 Deno.test("DEFAULT_PROJECT_CONFIG has expected defaults", () => {
   assertEquals(DEFAULT_PROJECT_CONFIG.name, "");
   assertEquals(DEFAULT_PROJECT_CONFIG.version, "0.0.0");
-  assertEquals(DEFAULT_PROJECT_CONFIG.labels, []);
-  assertEquals(DEFAULT_PROJECT_CONFIG.parents, []);
-  assertEquals(DEFAULT_PROJECT_CONFIG.parentFallback, REFHUB_URL);
+  assertEquals(DEFAULT_PROJECT_CONFIG.dependencies, []);
+  assertEquals(DEFAULT_PROJECT_CONFIG.references, []);
 });
 
 Deno.test("ConfigError is constructible", () => {

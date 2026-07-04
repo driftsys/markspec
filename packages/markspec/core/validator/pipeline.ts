@@ -68,7 +68,8 @@ export interface PipelineOptions {
  * assignments).
  *
  * @param captionConventions - Optional project-configured caption-position
- *   conventions (from `ProjectConfig.captionConventions`). When supplied
+ *   conventions (from `.markspec.yaml` `caption-conventions:`, via
+ *   `ToolConfig.captionConventions`). When supplied
  *   and non-empty, MSL-C072 is checked for each entry. Defaults to no
  *   conventions (rule inactive).
  * @param opts - Pipeline options. Pass `{ projectWide: false }` when

@@ -12,6 +12,7 @@
 import type {
   LockEdge,
   Lockfile,
+  UpstreamDependency,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,
@@ -82,6 +83,30 @@ export function serializeLockfile(lf: Lockfile): string {
       `resolved-manifest-hash = ${tomlString(r.resolvedManifestHash)}\n`,
     );
     parts.push(`markspec-schema        = ${r.markspecSchema}\n`);
+    if (r.version !== undefined) {
+      parts.push(`version                = ${tomlString(r.version)}\n`);
+    }
+    if (r.snapshot !== undefined) {
+      parts.push(`snapshot               = ${tomlString(r.snapshot)}\n`);
+    }
+    if (r.lockedAt !== undefined) {
+      parts.push(`locked-at              = ${tomlString(r.lockedAt)}\n`);
+    }
+  }
+
+  const deps = lf.upstreams
+    .filter((u): u is UpstreamDependency => u.kind === "dependency")
+    .slice()
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const d of deps) {
+    parts.push("\n[[upstream.dependency]]\n");
+    parts.push(`id        = ${tomlString(d.id)}\n`);
+    parts.push(`url       = ${tomlString(d.url)}\n`);
+    parts.push(`intent    = ${tomlString(d.intent)}\n`);
+    parts.push(`resolved  = ${tomlString(d.resolved)}\n`);
+    parts.push(`sha       = ${tomlString(d.sha)}\n`);
+    parts.push(`snapshot  = ${tomlString(d.snapshot)}\n`);
+    parts.push(`locked-at = ${tomlString(d.lockedAt)}\n`);
   }
 
   const bounds = lf.boundEntries.slice().sort((a, b) =>

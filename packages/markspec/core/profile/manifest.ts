@@ -34,6 +34,7 @@ import {
   type ValueType,
 } from "../model/mod.ts";
 import { validateDisplayIdPattern } from "./display_id.ts";
+import { isUnsafeRelPath } from "../util/paths.ts";
 
 const VALUE_TYPE_SET: ReadonlySet<string> = new Set(VALUE_TYPES);
 
@@ -1392,13 +1393,10 @@ function parseDeliversSection(
       });
       continue;
     }
+    const normalized = path.replaceAll("\\", "/");
     // PROFILE-DELIVERS-003 — the path must stay inside the profile
     // directory: no absolute paths (POSIX or drive-letter), no `..`.
-    const normalized = path.replaceAll("\\", "/");
-    if (
-      normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized) ||
-      normalized.split("/").includes("..")
-    ) {
+    if (isUnsafeRelPath(path)) {
       diagnostics.push({
         code: "PROFILE-DELIVERS-003",
         severity: "error",

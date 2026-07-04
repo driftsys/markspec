@@ -42,13 +42,38 @@ export interface UpstreamRegistry {
   readonly api: string;
   readonly resolvedManifestHash: string;
   readonly markspecSchema: number;
+  /** Upstream project.version, when published. */
+  readonly version?: string;
+  /** sha256 of the entries data-file bytes. */
+  readonly snapshot?: string;
+  /** RFC3339 — when this pin was created/moved. */
+  readonly lockedAt?: string;
+}
+
+/** A resolved federated git-repository upstream dependency. */
+export interface UpstreamDependency {
+  readonly kind: "dependency";
+  readonly id: string;
+  /** Git repository URL (remote or local path). */
+  readonly url: string;
+  /** `"auto"` | `<tag>` | `<branch>` — the requested resolution intent. */
+  readonly intent: string;
+  /** `"tag:<t>"` | `"branch:<b>"` | `"sha:<s>"` — what actually resolved. */
+  readonly resolved: string;
+  /** Exact resolved commit. */
+  readonly sha: string;
+  /** sha256 of the cached entries data file. */
+  readonly snapshot: string;
+  /** RFC3339 — when this pin was created/moved. */
+  readonly lockedAt: string;
 }
 
 /** Discriminated union of upstream kinds. */
 export type Upstream =
   | UpstreamReference
   | UpstreamProfile
-  | UpstreamRegistry;
+  | UpstreamRegistry
+  | UpstreamDependency;
 
 /** A locked attribute on a binding — attribute name → upstream value hash. */
 export type LockedAttributes = ReadonlyMap<string, string>;

@@ -1327,8 +1327,8 @@ Slugs use the GFM algorithm: lowercase, spaces to hyphens, punctuation stripped.
 ### 6.1 Project properties
 
 Shared across all documents. Every property always resolves. The `project.yaml`
-schema is defined at
-`https://driftsys.github.io/markspec/schemas/project/v1.json`.
+schema is the closed org project schema, defined at
+`https://driftsys.github.io/schemas/project/v1.json`.
 
 | Property       | Source                        | Fallback                    |
 | -------------- | ----------------------------- | --------------------------- |

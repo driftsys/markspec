@@ -59,16 +59,16 @@ export const fmtCmd = new Command()
         const {
           buildRefIndex,
           collectProjectEntries,
-          loadConfig,
+          loadToolConfig,
           parseLockfile,
         } = await import("../../core/mod.ts");
         const { denoDiscoveryIO } = await import("../helpers.ts");
         const { join } = await import("@std/path");
-        // Honor project.yaml `exclude:` so the canonicalisation corpus
+        // Honor .markspec.yaml `exclude:` so the canonicalisation corpus
         // matches the one `check` (MSL-L006) and `lock` use — an entry in an
         // excluded path (e.g. `skills/`) must not resolve trace references.
-        const configResult = await loadConfig(projectRoot, readFile);
-        const exclude = configResult?.config.exclude ?? [];
+        const toolConfigResult = await loadToolConfig(projectRoot, readFile);
+        const exclude = toolConfigResult.config.exclude;
         const projectEntries = await collectProjectEntries(
           projectRoot,
           denoDiscoveryIO(),

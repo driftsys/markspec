@@ -32,11 +32,8 @@ function makeLink(from: string, to: string): Link {
 const BASE_CONFIG: ProjectConfig = {
   name: "test-project",
   version: "1.0.0",
-  labels: [],
-  parents: [],
-  parentFallback: "https://example.com",
-  captionConventions: {},
-  exclude: [],
+  dependencies: [],
+  references: [],
 };
 
 function makeResult(
@@ -190,12 +187,12 @@ Deno.test("buildManifest: sqliteMirror is null", () => {
   assertEquals(manifest.sqliteMirror, null);
 });
 
-Deno.test("buildManifest: federation from config.parents", () => {
+Deno.test("buildManifest: federation from config.references", () => {
   const config: ProjectConfig = {
     ...BASE_CONFIG,
-    parents: [
-      "https://upstream.example.com/api",
-      "https://other.example.com/api",
+    references: [
+      { url: "https://upstream.example.com/api" },
+      { url: "https://other.example.com/api" },
     ],
   };
   const result = makeResult([], []);
@@ -212,7 +209,7 @@ Deno.test("buildManifest: federation from config.parents", () => {
   ]);
 });
 
-Deno.test("buildManifest: federation is empty array when no parents", () => {
+Deno.test("buildManifest: federation is empty array when no references", () => {
   const result = makeResult([], []);
   const manifest = buildManifest(
     result,
@@ -248,4 +245,36 @@ Deno.test("buildManifest: project.name is empty string when config.name is empty
     "0.4.0",
   );
   assertEquals(manifest.project.name, "");
+});
+
+Deno.test("buildManifest: records project.version and references federation", () => {
+  const config: ProjectConfig = {
+    ...BASE_CONFIG,
+    name: "up",
+    version: "1.4.0",
+    references: [{ url: "https://driftsys.github.io/refhub" }],
+  };
+  const result = makeResult([], []);
+  const manifest = buildManifest(
+    result,
+    config,
+    "/proj",
+    undefined,
+    "0.0.0-test",
+  );
+  assertEquals(manifest.project.version, "1.4.0");
+  assertEquals(manifest.federation, ["https://driftsys.github.io/refhub"]);
+});
+
+Deno.test("buildManifest: suppresses project.version when it is the 0.0.0 sentinel default", () => {
+  const config: ProjectConfig = { ...BASE_CONFIG, version: "0.0.0" };
+  const result = makeResult([], []);
+  const manifest = buildManifest(
+    result,
+    config,
+    "/proj",
+    undefined,
+    "0.0.0-test",
+  );
+  assertEquals(manifest.project.version, undefined);
 });

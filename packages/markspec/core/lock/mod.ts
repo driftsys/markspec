@@ -16,6 +16,7 @@ export type {
   LockfileMeta,
   LockfileToolchain,
   Upstream,
+  UpstreamDependency,
   UpstreamProfile,
   UpstreamReference,
   UpstreamRegistry,
@@ -38,13 +39,14 @@ export type { EdgeQuad } from "./canonical_edges.ts";
 export { detectOfflineEdgeDrift } from "./edge_drift.ts";
 export type { OfflineEdgeDrift } from "./edge_drift.ts";
 
+export { verifyUpstreamCache } from "./cache_check.ts";
+
 export {
   extractEdgeLedger,
   extractEdgeQuads,
   resolveBoundEntries,
   resolveProfileChain,
   resolveReferences,
-  resolveRegistries,
   resolveUpstreams,
 } from "./resolve.ts";
 export type {
@@ -53,7 +55,17 @@ export type {
   ResolvedBoundEntry,
   ResolvedProfile,
   ResolvedReference,
-  ResolvedRegistry,
   ResolvedUpstreams,
   ResolveUpstreamsOptions,
 } from "./resolve.ts";
+
+export {
+  deriveUpstreamId,
+  resolveProjectReferences,
+  upstreamCacheRoot,
+} from "./upstream_refs.ts";
+export type {
+  ResolveProjectReferencesOptions,
+  ResolveProjectReferencesResult,
+  UpstreamRefsIO,
+} from "./upstream_refs.ts";

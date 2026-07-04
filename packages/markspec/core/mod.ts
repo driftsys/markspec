@@ -9,7 +9,6 @@
  */
 
 export const VERSION = "0.10.3";
-export const CORE_SCHEMA_VERSION = 1;
 
 // Model types
 export {
@@ -17,6 +16,7 @@ export {
   CORE_DISCIPLINE_REGISTRY,
   CORE_KINDS,
   CORE_RELATIONS,
+  CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   descendantsOf,
   formatEntryOrigin,
@@ -26,7 +26,6 @@ export {
   makeUlid,
   MIXED_DISCIPLINE,
   PALETTE_HUES,
-  REFHUB_URL,
   sameOriginSource,
 } from "./model/mod.ts";
 export type {
@@ -65,6 +64,7 @@ export type {
   ProfileChain,
   ProfileConvention,
   ProjectConfig,
+  ProjectRef,
   ProvenancedMap,
   ProvenancedMapEntry,
   ProvenancedValue,
@@ -110,7 +110,9 @@ export type { LoadConfigResult, ReadFile } from "./config/mod.ts";
 
 export {
   addProfileSpecifier,
+  DEFAULT_TOOL_CONFIG,
   discoverMarkspecRoot,
+  loadToolConfig,
   MARKSPEC_YAML_FILENAME,
   parseMarkspecYaml,
   readMarkspecYaml,
@@ -118,6 +120,7 @@ export {
 export type {
   MarkspecYaml,
   ParseMarkspecYamlResult,
+  ToolConfig,
 } from "./config/markspec.ts";
 
 // Profile system (ADR-008)
@@ -325,6 +328,7 @@ export * as typl from "./typl/mod.ts";
 export {
   canonicalEdgeJson,
   checkDrift,
+  deriveUpstreamId,
   detectOfflineEdgeDrift,
   extractEdgeLedger,
   extractEdgeQuads,
@@ -334,12 +338,14 @@ export {
   parseLockfile,
   resolveBoundEntries,
   resolveProfileChain,
+  resolveProjectReferences,
   resolveReferences,
-  resolveRegistries,
   resolveUpstreams,
   serializeLockfile,
   sha256Bytes,
   sha256String,
+  upstreamCacheRoot,
+  verifyUpstreamCache,
 } from "./lock/mod.ts";
 export type {
   BoundEntry as LockBoundEntry,
@@ -358,12 +364,15 @@ export type {
   ResolvedBoundEntry,
   ResolvedProfile,
   ResolvedReference,
-  ResolvedRegistry,
   ResolvedUpstreams,
+  ResolveProjectReferencesOptions,
+  ResolveProjectReferencesResult,
   ResolveUpstreamsOptions,
   Upstream,
+  UpstreamDependency,
   UpstreamProfile,
   UpstreamReference,
+  UpstreamRefsIO,
   UpstreamRegistry,
 } from "./lock/mod.ts";
 
@@ -381,6 +390,7 @@ export { fmtDriftGate, lockfileDriftGate, proseLintGate } from "./gates/mod.ts";
 // ── Fenced-code-block detection (#668/#679/#680) ──────────────────────────
 export { FENCE_RE, isLineFenced, walkProseLines } from "./util/fence.ts";
 export type { ProseLineCallback } from "./util/fence.ts";
+export { isUnsafeRelPath } from "./util/paths.ts";
 
 // ── External sync model (ADR-022) ────────────────────────────────────────
 export {
@@ -452,6 +462,7 @@ export {
   deserializeEntry,
   extractSerializedEntries,
 } from "./compiler/deserialize.ts";
+export type { ExtractedEntries } from "./compiler/deserialize.ts";
 
 // ── Upstream corpus loader (federated upstream, slice 1) ─────────────────
 export { loadUpstreamCorpus } from "./upstream/mod.ts";

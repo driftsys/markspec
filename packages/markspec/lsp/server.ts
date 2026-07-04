@@ -39,6 +39,7 @@ import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
+  DEFAULT_TOOL_CONFIG,
   type Diagnostic as CoreDiagnostic,
   discoverFiles,
   discoverMarkspecRoot,
@@ -53,12 +54,14 @@ import {
   loadDeliveredCorpus,
   loadMarkdownFormatter,
   loadProfileForCommand,
+  loadToolConfig,
   type Lockfile,
   makeDisplayId,
   parseDisplayIdPattern,
   parseLockfile,
   type ProjectConfig,
   targetsForRelation,
+  type ToolConfig,
   validateDisplayIdPattern,
   VERSION,
 } from "../core/mod.ts";
@@ -189,6 +192,10 @@ const sessionStartedAt = performance.now();
 
 let projectRoot: string | undefined;
 let _config: ProjectConfig = DEFAULT_PROJECT_CONFIG;
+/** Markspec tool config (`exclude`, `caption-conventions`) from
+ * `.markspec.yaml` — distinct from `_config`, which holds `project.yaml`'s
+ * org-schema fields (Task 8). */
+let _toolConfig: ToolConfig = DEFAULT_TOOL_CONFIG;
 let profile: EffectiveProfile | undefined;
 let cachedProfileResponse: MarkspecProfileResponse = EMPTY_PROFILE_RESPONSE;
 let lockfile: Lockfile | undefined;
@@ -533,6 +540,21 @@ connection.onInitialize(
         connection.console.warn("Failed to load project.yaml");
       }
 
+      // Load the markspec tool config (exclude, caption-conventions) from
+      // .markspec.yaml. loadToolConfig never throws — a malformed file just
+      // yields DEFAULT_TOOL_CONFIG plus diagnostics, which are logged here.
+      try {
+        const toolConfigResult = await loadToolConfig(projectRoot, readFile);
+        _toolConfig = toolConfigResult.config;
+        for (const diag of toolConfigResult.diagnostics) {
+          if (diag.severity === "error") {
+            connection.console.warn(`${diag.code}: ${diag.message}`);
+          }
+        }
+      } catch {
+        connection.console.warn("Failed to load .markspec.yaml tool config");
+      }
+
       // Load profile
       try {
         const profileResult = await loadProfileForCommand(
@@ -668,12 +690,12 @@ connection.onInitialized(async () => {
     await seedDeliveredCorpus();
 
     // Discover all relevant files (core/discovery: gitignore-aware,
-    // honors project.yaml `exclude:`).
+    // honors .markspec.yaml `exclude:`).
     const files: string[] = [];
     const io = { readDir: (p: string) => Deno.readDir(p), readFile };
     for await (
       const entry of discoverFiles(projectRoot, io, {
-        exclude: _config.exclude,
+        exclude: _toolConfig.exclude,
       })
     ) {
       files.push(entry);

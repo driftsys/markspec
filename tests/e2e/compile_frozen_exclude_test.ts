@@ -13,8 +13,7 @@ import { assertEquals } from "@std/assert";
 import { markspecInDir, markspecPersist } from "./helpers.ts";
 import { CLEAN_REQ } from "./check_project_test.ts";
 
-const PROJECT_WITH_EXCLUDE =
-  `name: frozen-exclude-e2e\nversion: 0.1.0\nexclude:\n  - excluded/\n`;
+const PROJECT_WITH_EXCLUDE = `name: frozen-exclude-e2e\nversion: 0.1.0\n`;
 
 const PROFILE_YAML = `id: "@acme/frozen-exclude"
 version: 0.1.0
@@ -48,7 +47,7 @@ const EXCLUDED_SREQ = `# System Requirements
 Deno.test("compile --frozen honors project.yaml exclude (no spurious lock drift)", async () => {
   const files = {
     "project.yaml": PROJECT_WITH_EXCLUDE,
-    ".markspec.yaml": `profiles:\n  - ./profiles/p\n`,
+    ".markspec.yaml": `profiles:\n  - ./profiles/p\nexclude:\n  - excluded/\n`,
     "profiles/p/markspec.yaml": PROFILE_YAML,
     "docs/req.md": CLEAN_REQ,
     // Its trace edge (SREQ-0001 → REQ-0001) must NOT be pinned or checked —

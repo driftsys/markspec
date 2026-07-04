@@ -12,7 +12,9 @@ import { markspecPersist } from "./helpers.ts";
 
 const PROJECT_YAML = `name: fmt-exclude-e2e
 version: 0.1.0
-exclude:
+`;
+
+const MARKSPEC_YAML = `exclude:
   - skills/
 `;
 
@@ -44,6 +46,7 @@ Deno.test("fmt: excluded entry does not resolve trace refs (ref index honors exc
   const run = await markspecPersist(["fmt"], {
     files: {
       "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": MARKSPEC_YAML,
       "docs/req.md": REQ_ENTRY,
       "skills/x.md": SKILL_ENTRY,
     },

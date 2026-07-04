@@ -214,6 +214,70 @@ Deno.test("lockfileDriftGate: a stale edge hash fails with MSL-L212 at the lockf
   assertEquals(diags[0].location?.file, lockPath);
 });
 
+Deno.test("lockfileDriftGate: no `cache` option means no upstream-cache check runs (backward compatible)", async () => {
+  const parsed = await parseFile(SATISFIES_GRAPH, { file: "reqs.md" });
+  const quads = extractEdgeQuads(parsed.entries);
+  const edgesHash = await hashCanonicalEdges(quads);
+  const lockfile = lockfileWithCache({ edgesHash, edgesCount: quads.length });
+  const lockParse: ParseLockfileResult = {
+    lockfile: {
+      ...lockfile,
+      upstreams: [{
+        kind: "registry",
+        id: "refhub",
+        api: "https://x.example/refhub",
+        resolvedManifestHash: "sha256:0",
+        markspecSchema: 1,
+        snapshot: "sha256:deadbeef", // would fail if ever checked
+        lockedAt: "2026-01-01T00:00:00Z",
+      }],
+    },
+    diagnostics: [],
+  };
+  const diags = await lockfileDriftGate(
+    lockParse,
+    "/x/markspec.lock",
+    parsed.entries,
+  );
+  assertEquals(diags, []);
+});
+
+Deno.test("lockfileDriftGate: a `cache` option appends MSL-L212 for a broken upstream cache", async () => {
+  const parsed = await parseFile(SATISFIES_GRAPH, { file: "reqs.md" });
+  const quads = extractEdgeQuads(parsed.entries);
+  const edgesHash = await hashCanonicalEdges(quads);
+  const lockfile = lockfileWithCache({ edgesHash, edgesCount: quads.length });
+  const lockParse: ParseLockfileResult = {
+    lockfile: {
+      ...lockfile,
+      upstreams: [{
+        kind: "registry",
+        id: "refhub",
+        api: "https://x.example/refhub",
+        resolvedManifestHash: "sha256:0",
+        markspecSchema: 1,
+        snapshot: "sha256:deadbeef",
+        lockedAt: "2026-01-01T00:00:00Z",
+      }],
+    },
+    diagnostics: [],
+  };
+  const lockPath = "/x/markspec.lock";
+  const diags = await lockfileDriftGate(
+    lockParse,
+    lockPath,
+    parsed.entries,
+    {
+      cacheRoot: "/x/.markspec/cache/upstreams",
+      readFile: () => Promise.resolve({ error: "not found" }),
+    },
+  );
+  assertEquals(diags.length, 1);
+  assertEquals(diags[0].code, "MSL-L212");
+  assertEquals(diags[0].message.includes("refhub"), true);
+  assertEquals(diags[0].location?.file, lockPath);
+});
+
 // ---------------------------------------------------------------------------
 // proseLintGate
 // ---------------------------------------------------------------------------

@@ -27,6 +27,8 @@ import {
   detectOfflineEdgeDrift,
   type LockEdge,
   type ParseLockfileResult,
+  type ReadFile as LockReadFile,
+  verifyUpstreamCache,
 } from "../lock/mod.ts";
 import { runLint } from "../lint/mod.ts";
 
@@ -112,15 +114,24 @@ export async function fmtDriftGate(
  * re-lock. The gate therefore filters to project-owned entries (`!e.origin`),
  * mirroring `markspec lock`.
  *
+ * Also carries the MSL-L212 offline cache-drift case (Task 9): when `cache`
+ * is supplied and the lockfile parsed, every snapshot-carrying upstream row
+ * is verified against its on-disk cache under `cache.cacheRoot` and any
+ * cache-drift diagnostics are appended to the edge-drift result. Offline by
+ * design, like the edge-drift check — no network fetch.
+ *
  * @param lockParse The parsed `markspec.lock` (already read from disk).
  * @param lockPath Absolute path to `markspec.lock`, used as the diagnostic
  *   location so JSON consumers that group by `location.file` keep the finding.
  * @param entries The full parsed entry set; corpus entries are filtered out.
+ * @param cache Optional upstream cache-verification inputs. Omitted →
+ *   backward-compatible with callers that only want the edge-drift case.
  */
 export async function lockfileDriftGate(
   lockParse: ParseLockfileResult,
   lockPath: string,
   entries: readonly Entry[],
+  cache?: { readonly cacheRoot: string; readonly readFile: LockReadFile },
 ): Promise<Diagnostic[]> {
   if (!lockParse.lockfile) {
     return [...lockParse.diagnostics];
@@ -130,14 +141,34 @@ export async function lockfileDriftGate(
     projectEntries,
     lockParse.lockfile.generatedCache,
   );
-  if (!drift.drifted) return [];
-  return [{
-    code: "MSL-L212",
-    severity: "error",
-    message:
-      `traceability edges drifted from markspec.lock: locked ${drift.lockedCount} edge(s), current ${drift.currentCount} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
-    location: { file: lockPath, line: 1, column: 1 },
-  }];
+  const diagnostics: Diagnostic[] = drift.drifted
+    ? [{
+      code: "MSL-L212",
+      severity: "error",
+      message:
+        `traceability edges drifted from markspec.lock: locked ${drift.lockedCount} edge(s), current ${drift.currentCount} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
+      location: { file: lockPath, line: 1, column: 1 },
+    }]
+    : [];
+  if (cache !== undefined) {
+    const cacheDiags = await verifyUpstreamCache(
+      lockParse.lockfile.upstreams,
+      cache.cacheRoot,
+      cache.readFile,
+    );
+    // verifyUpstreamCache is a reusable, lockfile-path-agnostic probe and
+    // emits `location: undefined` (see cache_check.ts). Stamp the same
+    // lockfile location the sibling edge-drift MSL-L212 above uses, so both
+    // findings from the same `markspec.lock` group under one file for a
+    // JSON consumer keyed on `location.file`.
+    for (const d of cacheDiags) {
+      diagnostics.push({
+        ...d,
+        location: { file: lockPath, line: 1, column: 1 },
+      });
+    }
+  }
+  return diagnostics;
 }
 
 /**

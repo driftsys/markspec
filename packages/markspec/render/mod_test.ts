@@ -20,11 +20,8 @@ function testConfig(): ProjectConfig {
   return {
     name: "io.test.project",
     version: "1.0.0",
-    labels: [],
-    parents: [],
-    parentFallback: "",
-    captionConventions: {},
-    exclude: [],
+    dependencies: [],
+    references: [],
   };
 }
 

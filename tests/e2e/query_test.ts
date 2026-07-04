@@ -5,7 +5,7 @@ import { markspec } from "./helpers.ts";
 // Fixtures shared across tests
 // ---------------------------------------------------------------------------
 
-const PROJECT_YAML = "name: test-project\n";
+const PROJECT_YAML = "name: test-project\nversion: 0.1.0\n";
 
 const REQUIREMENTS = `# Requirements
 

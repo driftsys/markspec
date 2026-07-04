@@ -87,12 +87,13 @@ inside the same repository tree, so without an `exclude:` entry the ordinary
 project walk would parse `profile/reference/platform.md` a second time as an
 ordinary project file — the same entries would be indexed once via discovery (no
 `origin`) and once via the corpus loader (`origin` set), self-colliding as
-`MSL-R014` against itself:
+`MSL-R014` against itself. `exclude:` is markspec tool config, so it lives in
+the same `.markspec.yaml` alongside `profiles:`:
 
 ```yaml
-# project.yaml
-name: my-project
-version: 0.1.0
+# .markspec.yaml
+profiles:
+  - ./profile
 exclude:
   - profile/
 ```

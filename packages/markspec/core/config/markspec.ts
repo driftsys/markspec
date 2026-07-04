@@ -10,7 +10,12 @@
 
 import { parse as parseYaml } from "@std/yaml";
 import { dirname, join, resolve } from "@std/path";
-import type { Diagnostic, ProfileSpecifier } from "../model/mod.ts";
+import type {
+  CaptionConventions,
+  CaptionPosition,
+  Diagnostic,
+  ProfileSpecifier,
+} from "../model/mod.ts";
 import type { ReadFile } from "./mod.ts";
 
 /** The consumer-binding config filename, placed next to `project.yaml`. */
@@ -75,6 +80,18 @@ export interface MarkspecYaml {
    * `undefined` (key absent) means the default is active.
    */
   readonly defaultProfile?: boolean;
+  /**
+   * Gitignore-syntax patterns excluded from project file discovery,
+   * anchored at the project root (e.g. `["skills/", "*.gen.md"]`).
+   * Applied after `.gitignore` rules by `core/discovery`. Defaults to
+   * `[]` when the key is absent.
+   */
+  readonly exclude: readonly string[];
+  /**
+   * Per-keyword caption-position conventions (spec §4.7 MSL-C072).
+   * Defaults to `{}` when the key is absent.
+   */
+  readonly captionConventions: CaptionConventions;
 }
 
 /** Result of parsing a `.markspec.yaml` string. */
@@ -87,6 +104,18 @@ export const ALLOWED_MARKSPEC_YAML_KEYS = new Set([
   "$schema",
   "profiles",
   "default-profile",
+  "exclude",
+  "caption-conventions",
+]);
+
+/** Valid `caption-conventions` keywords (spec §4.7 MSL-C072). */
+const VALID_CAPTION_KEYWORDS = new Set([
+  "Figure",
+  "Table",
+  "Listing",
+  "Feature",
+  "Equation",
+  "List",
 ]);
 
 /**
@@ -105,7 +134,10 @@ export function parseMarkspecYaml(
   // Empty file is equivalent to `profiles: []`
   const trimmed = rawYaml.trim();
   if (trimmed.length === 0) {
-    return { config: { profiles: [] }, diagnostics };
+    return {
+      config: { profiles: [], exclude: [], captionConventions: {} },
+      diagnostics,
+    };
   }
 
   let parsed: unknown;
@@ -186,13 +218,106 @@ export function parseMarkspecYaml(
     defaultProfile = rawDefaultProfile;
   }
 
+  // exclude: optional string[] of gitignore-syntax patterns.
+  let exclude: readonly string[] = [];
+  const rawExclude = root.exclude;
+  if (rawExclude !== undefined && rawExclude !== null) {
+    if (!Array.isArray(rawExclude)) {
+      diagnostics.push({
+        code: "MARKSPEC-YAML-003",
+        severity: "error",
+        message:
+          `.markspec.yaml: 'exclude' expected array, got ${typeof rawExclude}`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    } else {
+      const bad = rawExclude.findIndex(
+        (v: unknown) => typeof v !== "string" || v === "",
+      );
+      if (bad !== -1) {
+        diagnostics.push({
+          code: "MARKSPEC-YAML-003",
+          severity: "error",
+          message:
+            `.markspec.yaml: 'exclude[${bad}]': each exclude pattern must be a non-empty string`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+      } else {
+        exclude = rawExclude as string[];
+      }
+    }
+  }
+
+  // caption-conventions: optional mapping of keyword → "above" | "below".
+  let captionConventions: CaptionConventions = {};
+  const rawCaptionConventions = root["caption-conventions"];
+  if (rawCaptionConventions !== undefined && rawCaptionConventions !== null) {
+    if (
+      typeof rawCaptionConventions !== "object" ||
+      Array.isArray(rawCaptionConventions)
+    ) {
+      diagnostics.push({
+        code: "MARKSPEC-YAML-003",
+        severity: "error",
+        message:
+          `.markspec.yaml: 'caption-conventions' expected a mapping of caption-keyword: above|below, got ${
+            Array.isArray(rawCaptionConventions)
+              ? "array"
+              : typeof rawCaptionConventions
+          }`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+    } else {
+      const rawMap = rawCaptionConventions as Record<string, unknown>;
+      const parsedConventions: Record<string, CaptionPosition> = {};
+      let badKey: string | undefined;
+      const captionErrsBefore = diagnostics.length;
+      for (const [kw, pos] of Object.entries(rawMap)) {
+        if (!VALID_CAPTION_KEYWORDS.has(kw)) {
+          badKey = kw;
+          break;
+        }
+        if (pos !== "above" && pos !== "below") {
+          diagnostics.push({
+            code: "MARKSPEC-YAML-003",
+            severity: "error",
+            message:
+              `.markspec.yaml: 'caption-conventions.${kw}' expected "above" or "below", got ${
+                JSON.stringify(pos)
+              }`,
+            location: { file: sourcePath, line: 1, column: 1 },
+          });
+          continue;
+        }
+        parsedConventions[kw] = pos as CaptionPosition;
+      }
+      if (badKey !== undefined) {
+        diagnostics.push({
+          code: "MARKSPEC-YAML-003",
+          severity: "error",
+          message:
+            `.markspec.yaml: 'caption-conventions.${badKey}': unknown caption keyword '${badKey}'; valid keywords: ${
+              [...VALID_CAPTION_KEYWORDS].join(", ")
+            }`,
+          location: { file: sourcePath, line: 1, column: 1 },
+        });
+      }
+      if (diagnostics.length === captionErrsBefore) {
+        captionConventions = parsedConventions;
+      }
+    }
+  }
+
   // If any specifier failed to parse, treat the whole file as invalid.
   const hasErrors = diagnostics.some((d) => d.severity === "error");
   if (hasErrors) {
     return { config: null, diagnostics };
   }
 
-  return { config: { profiles, defaultProfile }, diagnostics };
+  return {
+    config: { profiles, defaultProfile, exclude, captionConventions },
+    diagnostics,
+  };
 }
 
 /**
@@ -339,4 +464,57 @@ export async function addProfileSpecifier(
   }
 
   await writeFileFn(filePath, lines.join("\n"));
+}
+
+// ---------------------------------------------------------------------------
+// Tool config — the markspec-tool-specific slice of `.markspec.yaml`
+// ---------------------------------------------------------------------------
+
+/**
+ * The markspec-tool configuration read from `.markspec.yaml`: file-
+ * discovery exclusions and caption-position conventions. Distinct from
+ * {@linkcode MarkspecYaml}'s `profiles` / `defaultProfile` fields, which
+ * drive profile-chain resolution rather than tool behavior.
+ */
+export interface ToolConfig {
+  readonly exclude: readonly string[];
+  readonly captionConventions: CaptionConventions;
+}
+
+/** Defaults used when `.markspec.yaml` is absent or carries neither key. */
+export const DEFAULT_TOOL_CONFIG: ToolConfig = {
+  exclude: [],
+  captionConventions: {},
+};
+
+/**
+ * Load the markspec tool config (`exclude`, `caption-conventions`) from
+ * `.markspec.yaml` at `projectRoot`.
+ *
+ * An absent file, or one that parses to a `null` config (a schema or YAML
+ * error — see {@linkcode parseMarkspecYaml}), yields
+ * {@linkcode DEFAULT_TOOL_CONFIG}; callers inspect the returned
+ * diagnostics to decide whether that default is acceptable or fatal.
+ */
+export async function loadToolConfig(
+  projectRoot: string,
+  readFile: ReadFile,
+): Promise<{ config: ToolConfig; diagnostics: readonly Diagnostic[] }> {
+  const rawYaml = await readMarkspecYaml(projectRoot, readFile);
+  if (rawYaml === null) {
+    return { config: DEFAULT_TOOL_CONFIG, diagnostics: [] };
+  }
+
+  const sourcePath = join(projectRoot, MARKSPEC_YAML_FILENAME);
+  const { config, diagnostics } = parseMarkspecYaml(rawYaml, sourcePath);
+  if (config === null) {
+    return { config: DEFAULT_TOOL_CONFIG, diagnostics };
+  }
+  return {
+    config: {
+      exclude: config.exclude,
+      captionConventions: config.captionConventions,
+    },
+    diagnostics,
+  };
 }

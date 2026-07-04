@@ -4,7 +4,6 @@ import {
   resolveBoundEntries,
   resolveProfileChain,
   resolveReferences,
-  resolveRegistries,
 } from "./resolve.ts";
 import { parseMapping } from "../sync/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
@@ -22,11 +21,8 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
     config: {
       name: "x",
       version: "0.0.0",
-      labels: [],
-      parents: [],
-      parentFallback: "",
-      captionConventions: {},
-      exclude: [],
+      dependencies: [],
+      references: [],
     },
     mappings: [],
     fetchUrl: () => Promise.resolve({ error: "stub" }),
@@ -38,7 +34,6 @@ Deno.test("ResolveUpstreamsOptions: type compiles with empty inputs", () => {
   const resolved: ResolvedUpstreams = {
     references: [],
     profiles: [],
-    registries: [],
     boundEntries: [],
     canonicalEdgeHash: "sha256:0",
     canonicalEdgeCount: 0,
@@ -223,70 +218,6 @@ Deno.test(
 );
 
 // ---------------------------------------------------------------------------
-// resolveRegistries tests (Task 16)
-// ---------------------------------------------------------------------------
-
-Deno.test(
-  "resolveRegistries: each parent URL becomes a registry upstream when manifest fetch succeeds",
-  async () => {
-    const config = {
-      name: "p",
-      version: "0",
-      labels: [],
-      parents: ["https://reg.example/"],
-      parentFallback: "",
-      captionConventions: {},
-      exclude: [],
-    };
-    const result = await resolveRegistries(
-      config,
-      () => Promise.resolve(new TextEncoder().encode('{"markspec-schema":1}')),
-    );
-    assertEquals(result.length, 1);
-    assertEquals(result[0].upstream.api, "https://reg.example/");
-    assertEquals(typeof result[0].upstream.resolvedManifestHash, "string");
-    assertEquals(result[0].upstream.markspecSchema, 1);
-  },
-);
-
-Deno.test("resolveRegistries: fetch failure emits MSL-L101", async () => {
-  const config = {
-    name: "p",
-    version: "0",
-    labels: [],
-    parents: ["https://broken/"],
-    parentFallback: "",
-    captionConventions: {},
-    exclude: [],
-  };
-  const result = await resolveRegistries(
-    config,
-    () => Promise.resolve({ error: "503" }),
-  );
-  assertEquals(result[0].diagnostics.some((d) => d.code === "MSL-L101"), true);
-});
-
-Deno.test(
-  "resolveRegistries: parentFallback is included when not already in parents",
-  async () => {
-    const config = {
-      name: "p",
-      version: "0",
-      labels: [],
-      parents: ["https://a/"],
-      parentFallback: "https://b/",
-      captionConventions: {},
-      exclude: [],
-    };
-    const result = await resolveRegistries(
-      config,
-      () => Promise.resolve(new TextEncoder().encode("{}")),
-    );
-    assertEquals(result.length, 2);
-  },
-);
-
-// ---------------------------------------------------------------------------
 // resolveBoundEntries tests (Task 17)
 // ---------------------------------------------------------------------------
 
@@ -387,11 +318,8 @@ Deno.test(
     const config = {
       name: "p",
       version: "0",
-      labels: [],
-      parents: [],
-      parentFallback: "",
-      captionConventions: {},
-      exclude: [],
+      dependencies: [],
+      references: [],
     };
     const result = await resolveUpstreams({
       entries: [],
@@ -404,7 +332,6 @@ Deno.test(
     });
     assertEquals(result.references.length, 0);
     assertEquals(result.profiles.length, 0);
-    assertEquals(result.registries.length, 0);
     assertEquals(result.boundEntries.length, 0);
     assertEquals(result.canonicalEdgeCount, 0);
     // hash of empty edge list (canonical JSON "[]" → known SHA-256)
@@ -661,11 +588,8 @@ Deno.test(
       config: {
         name: "x",
         version: "0.0.0",
-        labels: [],
-        parents: [],
-        parentFallback: "",
-        captionConventions: {},
-        exclude: [],
+        dependencies: [],
+        references: [],
       },
       mappings: [],
       fetchUrl: () => Promise.resolve({ error: "no network in test" }),
