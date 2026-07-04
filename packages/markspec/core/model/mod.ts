@@ -476,6 +476,20 @@ export function sameOriginSource(a: EntryOrigin, b: EntryOrigin): boolean {
 }
 
 /**
+ * Whether an entry was hydrated from a locked upstream snapshot
+ * (federated-upstream epic) rather than the project's own files or a
+ * profile-delivered corpus (ADR-030). Upstream entries are validation-exempt
+ * graph citizens: every per-entry validator and lint loop skips them
+ * entirely (no structural, attribute, trace, or prose checks), while they
+ * remain resolution targets — refs FROM a project entry TO an upstream
+ * entry still resolve. This is distinct from `kind: "profile"` corpus
+ * entries, which stay fully validated and are only downgraded post-hoc.
+ */
+export function isUpstreamEntry(entry: Entry): boolean {
+  return entry.origin?.kind === "upstream";
+}
+
+/**
  * A parsed MarkSpec entry — the core AST node.
  *
  * The `shape` field discriminates the two core categories:

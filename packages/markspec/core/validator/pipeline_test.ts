@@ -391,6 +391,337 @@ Deno.test("Slice 3 pipeline: validateDiscipline runs and emits MSL-T025 on unkno
   assertEquals(diagnostics.some((d) => d.code === "MSL-T025"), true);
 });
 
+// ---------------------------------------------------------------------------
+// Upstream entries (federated-upstream epic, slice 4) — validation-exempt
+// graph citizens. Stage 3 (typed attributes) and Stage 4 (traceability)
+// per-entry emit loops must skip `kind:"upstream"` entries, while the
+// Stage 4 resolution maps (`graph`/`byDisplayId`) must still include them
+// so project refs targeting an upstream entry resolve cleanly.
+// ---------------------------------------------------------------------------
+
+Deno.test("runPipeline: Stage 3 — upstream entry missing a required attribute emits no MSL-A001", () => {
+  const origin = "@test/p";
+  const rationaleAttr = {
+    name: "Rationale",
+    type: "text" as const,
+    required: true,
+    cardinality: { lower: 1, upper: 1 },
+  };
+  const reqType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "requirement",
+      extends: "Requirement",
+      displayIdPattern: { value: "REQ-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: ["Rationale"], origin },
+      attributes: new Map([
+        ["Rationale", { value: rationaleAttr, origin }],
+      ]),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["requirement", reqType]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  // Upstream entry classified as requirement but missing Rationale. A real
+  // hydrated snapshot entry would never be malformed like this, but the
+  // test proves the emit loop skips upstream entries unconditionally.
+  const e: Entry = {
+    displayId: makeDisplayId("REQ-0001"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  };
+
+  const result = runPipeline([e], profile);
+  const a001 = result.diagnostics.filter((d) => d.code === "MSL-A001");
+  assertEquals(a001, []);
+});
+
+Deno.test("runPipeline: Stage 3 — kind:profile corpus entry missing a required attribute STILL emits MSL-A001 (corpus unchanged)", () => {
+  const origin = "@test/p";
+  const rationaleAttr = {
+    name: "Rationale",
+    type: "text" as const,
+    required: true,
+    cardinality: { lower: 1, upper: 1 },
+  };
+  const reqType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "requirement",
+      extends: "Requirement",
+      displayIdPattern: { value: "REQ-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: ["Rationale"], origin },
+      attributes: new Map([
+        ["Rationale", { value: rationaleAttr, origin }],
+      ]),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["requirement", reqType]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  const e: Entry = {
+    displayId: makeDisplayId("REQ-0001"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: {
+      kind: "profile",
+      profileId: "acme/profile",
+      profileVersion: "1.0.0",
+    },
+  };
+
+  const result = runPipeline([e], profile);
+  const a001 = result.diagnostics.find((d) => d.code === "MSL-A001");
+  if (!a001) {
+    throw new Error(
+      `expected MSL-A001, got: ${result.diagnostics.map((d) => d.code)}`,
+    );
+  }
+});
+
+Deno.test("runPipeline: Stage 4 — upstream entry's own missing required link emits no MSL-L001", () => {
+  const origin = "@test/p";
+  const requiredRule = {
+    target: ["requirement"] as const,
+    cardinality: { lower: 1, upper: Infinity },
+    required: true,
+  };
+  const testType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "test",
+      extends: "Requirement",
+      displayIdPattern: { value: "TEST-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map([
+        ["Verifies", { value: requiredRule, origin }],
+      ]),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["test", testType]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  const e: Entry = {
+    displayId: makeDisplayId("TEST-0001"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  };
+
+  const result = runPipeline([e], profile);
+  const l001 = result.diagnostics.filter((d) => d.code === "MSL-L001");
+  assertEquals(l001, []);
+});
+
+Deno.test("runPipeline: Stage 4 — PROJECT entry's required link resolves to an UPSTREAM entry (resolution map preserved, no MSL-L006/L004)", () => {
+  const origin = "@test/p";
+  const requiredRule = {
+    target: ["requirement"] as const,
+    cardinality: { lower: 1, upper: Infinity },
+    required: true,
+  };
+  const reqType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "requirement",
+      extends: "Requirement",
+      displayIdPattern: { value: "REQ-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+  };
+  const testType: ProvenancedMapEntry<EffectiveTypeDef> = {
+    origin,
+    value: {
+      name: "test",
+      extends: "Requirement",
+      displayIdPattern: { value: "TEST-{n:04d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map([
+        ["Verifies", { value: requiredRule, origin }],
+      ]),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+    },
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["requirement", reqType], ["test", testType]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  // Upstream target — must still be a resolution target for the project
+  // entry's `Verifies:` link, even though it is itself validation-exempt.
+  const upstreamTarget: Entry = {
+    displayId: makeDisplayId("REQ-0001"),
+    id: "01UPSTREAMTARGET0000000001",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01UPSTREAMTARGET0000000001" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01UPSTREAMTARGET0000000001"]],
+    ]),
+    location: { file: "upstream.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  };
+
+  const project: Entry = {
+    displayId: makeDisplayId("TEST-0001"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Verifies", value: "REQ-0001" },
+    ],
+    typedAttributes: new Map([
+      ["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]],
+      ["Verifies", ["REQ-0001"]],
+    ]),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+  };
+
+  const result = runPipeline([project, upstreamTarget], profile);
+  const l001 = result.diagnostics.filter((d) => d.code === "MSL-L001");
+  const l004 = result.diagnostics.filter((d) => d.code === "MSL-L004");
+  const l006 = result.diagnostics.filter((d) => d.code === "MSL-L006");
+  assertEquals(l001, []);
+  assertEquals(l004, []);
+  assertEquals(l006, []);
+});
+
 Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {
   const origin = "@test/p";
   const verifiesAttr = {

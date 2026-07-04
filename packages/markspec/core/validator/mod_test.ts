@@ -28,6 +28,7 @@ function entry(
     typedAttributes: partial.typedAttributes ?? new Map(),
     bodyTokens: partial.bodyTokens ?? [],
     types: partial.types,
+    origin: partial.origin,
   };
 }
 
@@ -422,6 +423,92 @@ Deno.test("validate: CSV attribute with empty element emits MSL-A006", () => {
   const a006 = result.diagnostics.filter((d) => d.code === "MSL-A006");
   assertEquals(a006.length, 1);
   assertEquals(a006[0].severity, "warning");
+});
+
+// ---------------------------------------------------------------------------
+// Upstream entries (federated-upstream epic, slice 4) — validation-exempt
+// graph citizens: skipped entirely from per-entry checks, but they must
+// remain resolution targets so refs TO them still resolve.
+// ---------------------------------------------------------------------------
+
+Deno.test("validate: upstream entry with missing Id emits no MSL-R003 (structural skip)", () => {
+  const result = validate([
+    entry({
+      displayId: "REQ-001",
+      origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+    }),
+  ]);
+  const r003 = result.diagnostics.filter((d) => d.code === "MSL-R003");
+  assertEquals(r003, []);
+});
+
+Deno.test("validate: upstream entry with unresolved Supersedes emits no MSL-T012 (refs FROM upstream are inert)", () => {
+  const result = validate([
+    entry({
+      displayId: "REQ-001",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Supersedes", value: "REQ-GONE" },
+      ],
+      id: ULID_A,
+      origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+    }),
+  ]);
+  const t012 = result.diagnostics.filter((d) => d.code === "MSL-T012");
+  assertEquals(t012, []);
+});
+
+Deno.test("validate: upstream entry with unresolved References emits no MSL-T005 (refs FROM upstream are inert)", () => {
+  const result = validate([
+    entry({
+      displayId: "REQ-001",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "References", value: "UNKNOWN-STANDARD" },
+      ],
+      id: ULID_A,
+      origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+    }),
+  ]);
+  const t005 = result.diagnostics.filter((d) => d.code === "MSL-T005");
+  assertEquals(t005, []);
+});
+
+Deno.test("validate: PROJECT entry Supersedes an UPSTREAM entry resolves cleanly (upstream stays a resolution target)", () => {
+  const result = validate([
+    entry({
+      displayId: "REQ-001",
+      rawAttributes: [{ key: "Id", value: ULID_A }],
+      id: ULID_A,
+      origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+    }),
+    entry({
+      displayId: "REQ-002",
+      rawAttributes: [
+        { key: "Id", value: ULID_B },
+        { key: "Supersedes", value: "REQ-001" },
+      ],
+      id: ULID_B,
+      location: { file: "test.md", line: 5, column: 1 },
+    }),
+  ]);
+  const t012 = result.diagnostics.filter((d) => d.code === "MSL-T012");
+  assertEquals(t012, []);
+});
+
+Deno.test("validate: kind:profile corpus entry with missing Id STILL emits MSL-R003 (corpus unchanged)", () => {
+  const result = validate([
+    entry({
+      displayId: "REQ-001",
+      origin: {
+        kind: "profile",
+        profileId: "acme/profile",
+        profileVersion: "1.0.0",
+      },
+    }),
+  ]);
+  const r003 = result.diagnostics.filter((d) => d.code === "MSL-R003");
+  assertEquals(r003.length, 1);
 });
 
 Deno.test("validate: CSV attribute without empty element does not emit MSL-A006", () => {

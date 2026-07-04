@@ -20,6 +20,7 @@ export {
   DEFAULT_PROJECT_CONFIG,
   descendantsOf,
   formatEntryOrigin,
+  isUpstreamEntry,
   KNOWN_LINK_KINDS,
   LOCK_EXTRA_INVERSE_KEYS,
   makeDisplayId,
