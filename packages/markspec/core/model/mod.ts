@@ -422,23 +422,50 @@ export interface EntryProperties {
  * Provenance of an entry that did not originate in the project's own files
  * (ADR-030). Absent on project-authored entries. `kind` is a discriminant so
  * future origins (e.g. ADR-011 SBOM-generated dependency entries) can reuse
- * the slot.
+ * the slot. The `upstream` member covers entries hydrated from another
+ * repository's traceability graph (federated-upstream epic).
  */
-export interface EntryOrigin {
-  readonly kind: "profile";
-  readonly profileId: string;
-  readonly profileVersion: string;
-}
+export type EntryOrigin =
+  | {
+    readonly kind: "profile";
+    readonly profileId: string;
+    readonly profileVersion: string;
+  }
+  | {
+    readonly kind: "upstream";
+    readonly upstreamId: string;
+    readonly version: string;
+  };
 
 /**
- * Human-facing `<profileId>@<profileVersion>` label for an entry's
- * delivered-corpus origin (ADR-030). The single formatter for the origin
+ * Human-facing `<profileId>@<profileVersion>` (or `<upstreamId>@<version>`)
+ * label for an entry's origin (ADR-030). The single formatter for the origin
  * idiom shared across the validator, reporter, CLI, LSP, and MCP surfaces.
  * Its {@linkcode DeliveredDocument} twin is `corpusOriginLabel`
  * (`core/profile/delivered.ts`) — same string shape, different input type.
  */
 export function formatEntryOrigin(origin: EntryOrigin): string {
-  return `${origin.profileId}@${origin.profileVersion}`;
+  switch (origin.kind) {
+    case "profile":
+      return `${origin.profileId}@${origin.profileVersion}`;
+    case "upstream":
+      return `${origin.upstreamId}@${origin.version}`;
+  }
+}
+
+/**
+ * Whether two origins come from the same source (same profile id or same
+ * upstream id), ignoring versions. Used by the corpus collision pass to
+ * decide "same owner" — version bumps must not split ownership.
+ */
+export function sameOriginSource(a: EntryOrigin, b: EntryOrigin): boolean {
+  if (a.kind === "profile" && b.kind === "profile") {
+    return a.profileId === b.profileId;
+  }
+  if (a.kind === "upstream" && b.kind === "upstream") {
+    return a.upstreamId === b.upstreamId;
+  }
+  return false;
 }
 
 /**

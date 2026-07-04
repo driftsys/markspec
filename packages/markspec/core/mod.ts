@@ -27,6 +27,7 @@ export {
   MIXED_DISCIPLINE,
   PALETTE_HUES,
   REFHUB_URL,
+  sameOriginSource,
 } from "./model/mod.ts";
 export type {
   Attribute,
