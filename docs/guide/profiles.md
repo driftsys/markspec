@@ -141,13 +141,13 @@ to rename the project entry; delivered corpus entries are read-only.
 
 > **Local-path profiles must be excluded from project discovery.** A profile
 > referenced with a local path (`./profile` in `.markspec.yaml`) lives inside
-> the consumer's own repository tree. If `project.yaml` does not `exclude:` that
-> directory, the ordinary project walk parses the same corpus file the corpus
-> loader also parses — the entries are indexed twice and self-collide as
+> the consumer's own repository tree. If `.markspec.yaml` does not `exclude:`
+> that directory, the ordinary project walk parses the same corpus file the
+> corpus loader also parses — the entries are indexed twice and self-collide as
 > `MSL-R014`. Add the profile directory to `exclude:`:
 >
 > ```yaml
-> # project.yaml
+> # .markspec.yaml
 > exclude:
 >   - profile/
 > ```

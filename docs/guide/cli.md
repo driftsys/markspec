@@ -24,7 +24,10 @@ stderr).
 ### project.yaml
 
 Every MarkSpec project requires a `project.yaml` in the project root. MarkSpec
-discovers it by walking up from the current directory.
+discovers it by walking up from the current directory. `project.yaml` follows
+the org project-manifest contract — the closed schema published at
+[`https://driftsys.github.io/schemas/project/v1.json`](https://driftsys.github.io/schemas/project/v1.json)
+— shared with other DriftSys tooling, not a MarkSpec-only format.
 
 #### Minimal example
 
@@ -38,36 +41,71 @@ version: "1.0.0"
 ```yaml
 name: io.acme.braking-system
 version: "2.3.0"
-labels:
-  - ASIL-A
-  - ASIL-B
-  - ASIL-C
-  - ASIL-D
-parents:
-  - https://acme.com/refhub
-parent-fallback: https://driftsys.github.io/refhub
+
+dependencies: # projects this project uses (git repositories)
+  - url: git@github.com:acme/aeb-icd.git
+    name: icd # short id: cache dir, lock rows, badges
+    version: "v2.1.0" # frozen baseline (exact tag)
+
+references: # citation sources (published sites)
+  - url: https://driftsys.github.io/refhub
+    name: refhub
 ```
 
 #### Fields
 
-| Field             | Type     | Required | Default                             | Description                                                                                                                                                      |
-| ----------------- | -------- | -------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`            | string   | yes      | —                                   | Project name. Reverse-DNS convention recommended.                                                                                                                |
-| `version`         | string   | yes      | `"0.0.0"`                           | Project version. Quote in YAML to avoid number coercion.                                                                                                         |
-| `labels`          | string[] | no       | `[]`                                | Allowed label vocabulary. Empty means no constraint.                                                                                                             |
-| `parents`         | string[] | no       | `[]`                                | Upstream parent registry URLs, searched in order.                                                                                                                |
-| `parent-fallback` | string   | no       | `https://driftsys.github.io/refhub` | Fallback registry when parents don't resolve a reference.                                                                                                        |
-| `exclude`         | string[] | no       | `[]`                                | Gitignore-syntax patterns excluded from project-wide file discovery (bare `check`/`lint`/`fmt`), anchored at the project root. Applied after `.gitignore` rules. |
+| Field          | Type         | Required | Description                                                                                                      |
+| -------------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `name`         | string       | yes      | Project name. Must match `^[a-z][a-z0-9.-]*$` (lowercase, digits, `.`, `-`). Reverse-DNS convention recommended. |
+| `version`      | string       | yes      | Project version. Quote in YAML to avoid number coercion.                                                         |
+| `dependencies` | projectRef[] | no       | Defaults to `[]`. Projects this project uses (git repositories). See the projectRef shape below.                 |
+| `references`   | projectRef[] | no       | Defaults to `[]`. Registries and external sources this project cites (published sites). See below.               |
 
-`project.yaml` has no JSON schema (unlike `.markspec.yaml`, which validates
-against `schemas/markspec/v1.json`) — the fields above are the full contract.
+`name` and `version` are required — a `project.yaml` missing either is rejected
+before any MarkSpec command runs. The schema is **closed**: an unrecognized key
+is an error, not a silent no-op. A handful of org-owned fields MarkSpec accepts
+but never acts on (`description`, `license`, `keywords`, `labels`, `authors`,
+`homepage`, `repository`, `process`, …) are metadata for other org tooling, not
+MarkSpec configuration — notably, `labels:` here is inert project metadata and
+does not constrain which `Labels:` values entries may carry.
+
+**markspec-specific tool config lives in `.markspec.yaml`, not `project.yaml`.**
+`exclude:` and `caption-conventions:` moved there — see below.
+
+#### The projectRef shape
+
+`dependencies:` and `references:` are both lists of the same shape:
+
+| Key       | Type   | Required | Description                                                                                                                                       |
+| --------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`     | string | yes      | Git repository URL (`dependencies:`) or published-site base URL (`references:`; `file://` accepted).                                              |
+| `version` | string | no       | Version intent: an exact tag freezes a baseline, a branch name tracks its head, absent means auto (latest release tag, else default-branch head). |
+| `name`    | string | no       | Upstream id — cache-directory name, lockfile row id, origin badge. Must match `[A-Za-z0-9][A-Za-z0-9._-]*`. Derived from the URL when absent.     |
+
+- **`dependencies:`** — other projects this project builds on (git
+  repositories). **Declared but not yet acquired**: `markspec lock` reports each
+  one on stderr but does not clone, compile, or pin it. Git dependency
+  resolution is planned for a future release.
+- **`references:`** — registries or external sources this project cites, such as
+  another project's published compile output. `markspec lock` fetches and pins
+  these against a cache — see [`lock`](#lock) below.
+
+### .markspec.yaml
+
+`.markspec.yaml` carries markspec's own tool configuration: profile binding
+(covered in the [Profile guide](profiles.md)) plus two file-discovery /
+rendering settings that used to live in `project.yaml`:
+
+| Field                 | Type                      | Default | Description                                                                                                                                                      |
+| --------------------- | ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `exclude`             | string[]                  | `[]`    | Gitignore-syntax patterns excluded from project-wide file discovery (bare `check`/`lint`/`fmt`), anchored at the project root. Applied after `.gitignore` rules. |
+| `caption-conventions` | map<string, above\|below> | `{}`    | Per-keyword caption-position convention (`Figure`, `Table`, `Listing`, `Feature`, `Equation`, `List`) enforced by `MSL-C072`.                                    |
 
 **`exclude:` example** — skip a directory of example entry blocks that aren't
 real requirements, plus a generated-file pattern:
 
 ```yaml
-name: io.acme.braking-system
-version: "2.3.0"
+# .markspec.yaml
 exclude:
   - skills/
   - "*.gen.md"
@@ -78,6 +116,19 @@ starting with `.`) and the common build-output / dependency directories
 `node_modules`, `target`, `dist`, and `build`, on top of `.gitignore` and
 `exclude:`. The build-output skip is overridable — re-include one with a negated
 entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
+
+**`caption-conventions:` example** — require every `Table` caption above its
+block and every `Figure` caption below:
+
+```yaml
+# .markspec.yaml
+caption-conventions:
+  Table: above
+  Figure: below
+```
+
+See the [Profile guide](profiles.md) for the profile-binding keys (`profiles:`,
+`default-profile:`) this file also carries.
 
 ### Directory conventions
 
@@ -164,12 +215,12 @@ markspec fmt --check [...files]
 
 **Bare invocation = whole-project markdown scope.** With no file arguments,
 `fmt` discovers every `.md` file under the project root (gitignore +
-`project.yaml` `exclude:` honored) and prints a one-line scope header to stderr
-(`formatting N file(s) under <root>`), suppressed by `-q`. Bare invocation
-requires a discoverable `project.yaml`; outside a project it errors rather than
-silently scanning the cwd. `fmt`'s scope is markdown-only — the formatter never
-rewrites source files, unlike `check`/`lint` which also cover source doc
-comments.
+`.markspec.yaml` `exclude:` honored) and prints a one-line scope header to
+stderr (`formatting N file(s) under <root>`), suppressed by `-q`. Bare
+invocation requires a discoverable `project.yaml`; outside a project it errors
+rather than silently scanning the cwd. `fmt`'s scope is markdown-only — the
+formatter never rewrites source files, unlike `check`/`lint` which also cover
+source doc comments.
 
 **Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
 formats the entire Markdown document — headings, lists, tables, and prose —
@@ -185,7 +236,7 @@ dash bullet lists, and the file's own line-ending convention preserved.
   span an entry block — entry blocks and surrounding prose format as separate
   segments, so a range that straddles both is not honored across the boundary.
 - **Files that must stay unformatted** (long attribute-value lines in showcase
-  docs, generated files) use `project.yaml` `exclude:` — the same mechanism
+  docs, generated files) use `.markspec.yaml` `exclude:` — the same mechanism
   `check`/`lint` use, not a new flag.
 - **Every rewrite is safety-gated.** If reformatting an entry body would change
   its meaning, `fmt` keeps the original text for that entry and reports an
@@ -193,7 +244,7 @@ dash bullet lists, and the file's own line-ending convention preserved.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
 recursively with `.gitignore` (and the built-in hidden-directory skip) applied —
-`project.yaml` `exclude:` patterns are honored only for bare whole-project
+`.markspec.yaml` `exclude:` patterns are honored only for bare whole-project
 invocation, not for explicitly-named directories:
 
 ```sh
@@ -249,10 +300,11 @@ markspec check [...files]
 
 **Bare invocation = whole-project gate.** With no file arguments, `check`
 discovers every relevant file (markdown + source doc comments) under the project
-root (gitignore + `project.yaml` `exclude:` honored) and prints a one-line scope
-header to stderr (`checking N file(s) under <root>`), suppressed by `-q` and in
-`--format json` mode. Bare invocation requires a discoverable `project.yaml`;
-outside a project it errors rather than silently scanning the cwd.
+root (gitignore + `.markspec.yaml` `exclude:` honored) and prints a one-line
+scope header to stderr (`checking N file(s) under <root>`), suppressed by `-q`
+and in `--format json` mode. Bare invocation requires a discoverable
+`project.yaml`; outside a project it errors rather than silently scanning the
+cwd.
 
 **The composite gate is project-wide only.** Bare `markspec check` runs every
 gate below over the whole corpus in one pass, merging findings into a single
@@ -562,7 +614,7 @@ markspec lint [...paths]
 | `--strict` | bool   | false   | Promote warnings to errors    |
 
 **Bare invocation = whole-project scope**, same discovery rules (gitignore +
-`project.yaml` `exclude:`) as `check`/`fmt`, with a scope header on stderr
+`.markspec.yaml` `exclude:`) as `check`/`fmt`, with a scope header on stderr
 suppressed by `-q` / `--format json`.
 
 A project-wide `markspec check` already runs these same prose rules as an
@@ -606,27 +658,67 @@ markspec score --id SRS_BRK_0001 --text "The system shall be fast." --format jso
 #### lock
 
 Generate or refresh `markspec.lock`. The lockfile pins upstream profile and
-language-pack versions, and records the sync mappings discovered from
-`project.yaml`. See
+language-pack versions, resolves `references:` projectRefs (see
+[project.yaml](#projectyaml) above) against their published compile output, and
+records sync mappings discovered under `.markspec/sync/`. See
 [ADR-022](../architecture/adr-022-lockfile-and-external-sync.md).
 
 ```sh
 markspec lock
 ```
 
-| Flag       | Type   | Default | Description                                            |
-| ---------- | ------ | ------- | ------------------------------------------------------ |
-| `--check`  | bool   | false   | CI mode: read-only, exit `1` on drift.                 |
-| `--update` | string | —       | Force re-resolve all upstreams, or one by `id`/`slug`. |
-| `--format` | string | `text`  | Output format: `json`, `text`.                         |
+| Flag       | Type   | Default | Description                                                                 |
+| ---------- | ------ | ------- | --------------------------------------------------------------------------- |
+| `--check`  | bool   | false   | CI mode: read-only, exit `1` on drift.                                      |
+| `--update` | string | —       | Force re-resolve every `references:` entry, or one by id (`--update=<id>`). |
+| `--format` | string | `text`  | Output format: `json`, `text`.                                              |
 
 **Examples:**
 
 ```sh
 markspec lock                      # write or refresh markspec.lock
 markspec lock --check              # CI gate: fail if lockfile is stale
-markspec lock --update             # force re-resolve every upstream
-markspec lock --update github-foo  # force re-resolve one upstream
+markspec lock --update             # force re-resolve every reference
+markspec lock --update=refhub      # force re-resolve one reference by id
+```
+
+**`references:` resolution — three flows.** Only `markspec lock` touches the
+network; `check`, `compile`, the LSP, and the MCP server resolve entirely
+offline from the pinned cache under `.markspec/cache/upstreams/<id>/`.
+`markspec lock` keeps that directory gitignored automatically — it appends
+`.markspec/cache/` to `.gitignore` the first time it runs, so nothing has to be
+done by hand.
+
+| Flow       | When                                                                                          | Behavior                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| First lock | A `references:` entry has no lockfile row yet.                                                | Fetch the published snapshot, cache it, write a pinned `[[upstream.registry]]` row.                                                           |
+| Restore    | A row is already pinned but its cache is missing or broken (fresh clone, CI, a cleaned tree). | Re-fetch the pinned content and verify its hash still matches the lockfile, then repopulate the cache. The pin itself never moves on restore. |
+| Update     | `markspec lock --update` (every reference) or `--update=<id>` (one).                          | Re-fetch and move the pin to whatever the source currently serves.                                                                            |
+
+**Diagnostic codes:**
+
+| Code       | When                           | Meaning                                                                                                                                                                                                                                                                                     |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-L213` | `markspec lock`                | A declared `references:` entry could not be locked — no derivable id, a fetch failure, a malformed manifest, or a schema-version mismatch.                                                                                                                                                  |
+| `MSL-L214` | `markspec lock` (restore flow) | The cache needed restoring, but the re-fetched content's hash no longer matches the pinned snapshot — the published site moved. Run `markspec lock --update=<id>` to move the pin deliberately.                                                                                             |
+| `MSL-L212` | `markspec check` (offline)     | Also covers upstream cache drift in this release: fires when a locked reference's cache under `.markspec/cache/upstreams/<id>/` is missing or its hash no longer matches `markspec.lock`, in addition to the existing traceability-edge-drift case. Either way, the fix is `markspec lock`. |
+
+**`dependencies:` are declared, not yet acquired.** For each declared
+`dependencies:` entry, `markspec lock` prints
+`dependency '<id>' declared — git dependency acquisition lands in a future release; row not written`
+to stderr, but does not clone, compile, or write a lockfile row for it — that
+lands in a future release.
+
+**CI caching.** `.markspec/cache/upstreams/` is safe to cache between CI runs —
+key it on `markspec.lock`'s contents so a job only re-fetches a reference when a
+pin actually moved:
+
+```yaml
+# .github/workflows/ci.yml (excerpt)
+- uses: actions/cache@v4
+  with:
+    path: .markspec/cache/upstreams/
+    key: markspec-upstreams-${{ hashFiles('markspec.lock') }}
 ```
 
 **Upgrade note.** `markspec lock` now indexes source-file doc-comment entries in
