@@ -82,6 +82,7 @@ Deno.test("buildCodeLenses: entry with 1 dependent yields singular '1 dependent'
   assertEquals(depLens?.command?.arguments, [
     "file:///proj/r.md",
     { line: 0, character: 0 },
+    [{ uri: "file:///proj/r.md", line: 9, character: 0 }],
   ]);
 });
 
@@ -109,6 +110,33 @@ Deno.test("buildCodeLenses: entry with N>1 dependents yields plural lens", () =>
   const lenses = buildCodeLenses([target], [target, a, b], idUri);
   const depLens = lenses.find((l) => l.command?.title.startsWith("↑"));
   assertEquals(depLens?.command?.title, "↑ 2 dependents");
+  assertEquals(depLens?.command?.arguments?.[2], [
+    { uri: "file:///proj/r.md", line: 9, character: 0 },
+    { uri: "file:///proj/r.md", line: 19, character: 0 },
+  ]);
+});
+
+Deno.test("buildCodeLenses: dependent lens locations resolve across files", () => {
+  const target = fakeEntry({
+    displayId: "XREQ_001",
+    title: "Target",
+    file: "/proj/xreq.md",
+    line: 5,
+  });
+  const child = fakeEntry({
+    displayId: "FREQ_001",
+    title: "Child",
+    file: "/proj/freq.md",
+    line: 20,
+    satisfies: "XREQ_001",
+  });
+  const lenses = buildCodeLenses([target], [target, child], idUri);
+  const depLens = lenses.find((l) => l.command?.title.startsWith("↑"));
+  assertEquals(depLens?.command?.arguments, [
+    "file:///proj/xreq.md",
+    { line: 4, character: 0 },
+    [{ uri: "file:///proj/freq.md", line: 19, character: 0 }],
+  ]);
 });
 
 Deno.test("buildCodeLenses: entry with Satisfies to resolved target emits '↓ Satisfies: ID — Title'", () => {

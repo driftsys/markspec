@@ -18,6 +18,7 @@ import {
   LanguageModelChatMessage,
   languages,
   lm,
+  Location,
   McpStdioServerDefinition,
   type OutputChannel,
   Position,
@@ -28,7 +29,10 @@ import {
   window,
   workspace,
 } from "vscode";
-import { parseCodeLensTarget } from "./codeLensCommands";
+import {
+  parseCodeLensTarget,
+  parseReferenceLocations,
+} from "./codeLensCommands";
 import process from "node:process";
 import * as nodePath from "node:path";
 import {
@@ -220,11 +224,22 @@ export function activate(context: ExtensionContext): void {
       async (...args: unknown[]) => {
         const target = parseCodeLensTarget(args);
         if (target.kind === "missing") return;
+        // The lens's own position sits at the entry's line start (not a
+        // display-ID token), so it can't be re-resolved client-side via
+        // `vscode.executeReferenceProvider` — the LSP already resolved the
+        // referencing entries' locations when it built the lens
+        // (`findReferencingEntries`); use those directly.
+        const locations = parseReferenceLocations(args).map((loc) =>
+          new Location(
+            Uri.parse(loc.uri),
+            new Position(loc.line, loc.character),
+          )
+        );
         await commands.executeCommand(
           "editor.action.showReferences",
           Uri.parse(target.uri),
           new Position(target.line, target.character),
-          [],
+          locations,
         );
       },
     ),

@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { parseCodeLensTarget } from "./codeLensCommands";
+import {
+  parseCodeLensTarget,
+  parseReferenceLocations,
+} from "./codeLensCommands";
 
 test("parseCodeLensTarget: well-formed [uri, position] → open", () => {
   const result = parseCodeLensTarget([
@@ -88,4 +91,55 @@ test("parseCodeLensTarget: extra trailing args are tolerated", () => {
     line: 5,
     character: 2,
   });
+});
+
+test("parseReferenceLocations: well-formed locations array", () => {
+  const result = parseReferenceLocations([
+    "file:///foo/bar.md",
+    { line: 0, character: 0 },
+    [
+      { uri: "file:///foo/a.md", line: 3, character: 0 },
+      { uri: "file:///foo/b.md", line: 7, character: 0 },
+    ],
+  ]);
+  assert.deepEqual(result, [
+    { uri: "file:///foo/a.md", line: 3, character: 0 },
+    { uri: "file:///foo/b.md", line: 7, character: 0 },
+  ]);
+});
+
+test("parseReferenceLocations: missing third argument → empty list", () => {
+  assert.deepEqual(
+    parseReferenceLocations(["file:///foo/bar.md", { line: 0, character: 0 }]),
+    [],
+  );
+});
+
+test("parseReferenceLocations: non-array third argument → empty list", () => {
+  assert.deepEqual(
+    parseReferenceLocations([
+      "file:///foo/bar.md",
+      { line: 0, character: 0 },
+      "not-an-array",
+    ]),
+    [],
+  );
+});
+
+test("parseReferenceLocations: malformed entries are dropped individually", () => {
+  const result = parseReferenceLocations([
+    "file:///foo/bar.md",
+    { line: 0, character: 0 },
+    [
+      { uri: "file:///foo/a.md", line: 3, character: 0 },
+      { uri: 42, line: 3, character: 0 },
+      { uri: "file:///foo/b.md", line: -1, character: 0 },
+      { uri: "file:///foo/c.md", line: 5, character: Number.NaN },
+      null,
+      "garbage",
+    ],
+  ]);
+  assert.deepEqual(result, [
+    { uri: "file:///foo/a.md", line: 3, character: 0 },
+  ]);
 });
