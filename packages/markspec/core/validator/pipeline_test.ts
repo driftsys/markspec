@@ -791,6 +791,39 @@ Deno.test("runPipeline: Stage 2 — upstream entry's pre-set type is preserved, 
   assertEquals(result.entries[0].type, "foreign-req");
 });
 
+Deno.test("runPipeline: Stage 2.4 — upstream entry is exempt from late-stage MSL-T021 inference", () => {
+  const profile = buildProfileWithRequirement();
+
+  // A type-less entry whose display ID carries a path-like separator drives
+  // late-stage display-ID-shape inference (MSL-T021). As a project entry it
+  // fires; as an upstream entry it must be exempt (design §4.7).
+  const base: Entry = {
+    displayId: makeDisplayId("svc/handler"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    rawAttributes: [{ key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" }],
+    typedAttributes: new Map([["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]]]),
+    location: { file: "upstream.md", line: 1, column: 1 },
+    bodyTokens: [],
+  };
+
+  // Control: as a project entry the fixture genuinely triggers MSL-T021.
+  const projectT021 = runPipeline([{ ...base }], profile).diagnostics.filter(
+    (d) => d.code === "MSL-T021",
+  );
+  assertEquals(projectT021.length > 0, true);
+
+  // Upstream: exempt — no MSL-T021.
+  const upstreamT021 = runPipeline([{
+    ...base,
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  }], profile).diagnostics.filter((d) => d.code === "MSL-T021");
+  assertEquals(upstreamT021, []);
+});
+
 Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {
   const origin = "@test/p";
   const verifiesAttr = {

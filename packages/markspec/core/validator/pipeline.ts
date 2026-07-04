@@ -146,6 +146,7 @@ export function runPipeline(
   // and `entry.type` is always undefined, so this stage produces the same
   // diagnostics regardless of mode.
   for (const entry of finalEntries) {
+    if (isUpstreamEntry(entry)) continue;
     diagnostics.push(...inferTypeFromLateStageChain(entry));
   }
 
