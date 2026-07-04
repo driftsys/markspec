@@ -14,7 +14,11 @@ import type {
   EffectiveProfile,
   Entry,
 } from "../model/mod.ts";
-import { CORE_DISCIPLINE_REGISTRY, makeDisplayId } from "../model/mod.ts";
+import {
+  CORE_DISCIPLINE_REGISTRY,
+  isUpstreamEntry,
+  makeDisplayId,
+} from "../model/mod.ts";
 import { validate } from "./mod.ts";
 import {
   classifyEntriesStage,
@@ -55,6 +59,16 @@ export interface PipelineOptions {
    * Defaults to `true` (full-project scope — emit MSL-L006 normally).
    */
   readonly projectWide?: boolean;
+
+  /**
+   * Declared upstream ids (federated upstream, slice 4) — derived from
+   * `project.yaml`'s `dependencies:`/`references:` via `deriveUpstreamId`.
+   * When non-empty, Stage 4 fires `MSL-T014` (warning), naming the
+   * searched upstream set, instead of `MSL-L006` for an otherwise-
+   * unresolved trace target. Defaults to empty — `MSL-L006` unchanged.
+   * Scope-gated identically to `MSL-L006` (see `projectWide` above).
+   */
+  readonly declaredUpstreamIds?: readonly string[];
 }
 
 /**
@@ -95,7 +109,10 @@ export function runPipeline(
   // included) so unknown `Type:` values fail fast regardless of profile.
   // Also covers late-stage display-ID-shape inference (step 8 → MSL-T021)
   // and caption-adjacency rules (§2.6 → MSL-C070).
+  // Upstream entries (federated-upstream epic) are validation-exempt graph
+  // citizens (design §4.7) — skip every per-entry check in this loop.
   for (const entry of entries) {
+    if (isUpstreamEntry(entry)) continue;
     diagnostics.push(...validateCoreTypeAttribute(entry, profile));
     diagnostics.push(...inferTypeFromDisplayIdShape(entry));
     diagnostics.push(...validateCaptions(entry));
@@ -139,6 +156,7 @@ export function runPipeline(
   // and `entry.type` is always undefined, so this stage produces the same
   // diagnostics regardless of mode.
   for (const entry of finalEntries) {
+    if (isUpstreamEntry(entry)) continue;
     diagnostics.push(...inferTypeFromLateStageChain(entry));
   }
 
@@ -149,9 +167,12 @@ export function runPipeline(
     finalEntries = finalEntries.map((e) => normalizeListValues(e, profile));
   }
 
-  // Stage 3 — typed attributes (only when a profile is loaded).
+  // Stage 3 — typed attributes (only when a profile is loaded). Upstream
+  // entries are validation-exempt (design §4.7) — skip the emit call, but
+  // they remain in `finalEntries` for Stage 4's resolution maps below.
   if (profile !== null) {
     for (const entry of finalEntries) {
+      if (isUpstreamEntry(entry)) continue;
       const stage3 = validateAttributesForEntry(entry, profile);
       diagnostics.push(...stage3);
     }
@@ -159,7 +180,9 @@ export function runPipeline(
 
   // Stage 4 — traceability rules (only when a profile is loaded). Builds two
   // indexes: by `entry.id` (ULID) and by `entry.displayId`, so trace values
-  // resolve in either form (issue #593).
+  // resolve in either form (issue #593). Upstream entries MUST stay in both
+  // indexes — a project entry's link targeting an upstream entry must still
+  // resolve (design §4.7) — so this map-building loop is never filtered.
   if (profile !== null) {
     const graph = new Map<string, Entry>();
     const byDisplayId = new Map<string, Entry>();
@@ -168,18 +191,29 @@ export function runPipeline(
       if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
     }
     const projectWide = opts.projectWide !== false;
+    // Upstream entries are validation-exempt emitters (design §4.7): skip
+    // checking trace rules FROM an upstream entry. They remain resolution
+    // targets via the maps built above.
     for (const entry of finalEntries) {
+      if (isUpstreamEntry(entry)) continue;
       const stage4 = validateTraceabilityForEntry(
         entry,
         profile,
         graph,
         byDisplayId,
+        opts.declaredUpstreamIds,
       );
-      // Suppress MSL-L006 ("link target does not resolve") when running
-      // file-locally: the checked subset cannot distinguish a typo from a
-      // valid cross-file target. Only emit when the full entry set is present.
+      // Suppress MSL-L006 ("link target does not resolve") and its
+      // federated-upstream replacement MSL-T014 when running file-locally:
+      // the checked subset cannot distinguish a typo from a valid
+      // cross-file/upstream target. Only emit when the full entry set is
+      // present.
       diagnostics.push(
-        ...projectWide ? stage4 : stage4.filter((d) => d.code !== "MSL-L006"),
+        ...projectWide
+          ? stage4
+          : stage4.filter((d) =>
+            d.code !== "MSL-L006" && d.code !== "MSL-T014"
+          ),
       );
     }
   }

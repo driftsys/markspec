@@ -15,7 +15,7 @@ import type {
   Entry,
   ProvenancedMapEntry,
 } from "../model/mod.ts";
-import { CORE_TYPES } from "../model/mod.ts";
+import { CORE_TYPES, isUpstreamEntry } from "../model/mod.ts";
 import { tryCompileDisplayIdPattern } from "./pattern.ts";
 import {
   explicitType,
@@ -260,6 +260,17 @@ export function classifyEntriesStage(
   const out: Entry[] = [];
 
   for (const entry of entries) {
+    // Upstream entries (federated-upstream epic) are validation-exempt
+    // graph citizens (design §4.7); their `type` comes from their OWN
+    // compile (design §4.5/D6) — the consumer never re-classifies. Pass
+    // the entry through unchanged: no MSL-T001..T004 emit, no type
+    // overwrite. It still lands in `out`, so it remains a resolution
+    // target for later stages (Stage 3/4 index-building).
+    if (isUpstreamEntry(entry)) {
+      out.push(entry);
+      continue;
+    }
+
     const classified = classifyEntry(entry, profile);
     diagnostics.push(...classified.diagnostics);
 

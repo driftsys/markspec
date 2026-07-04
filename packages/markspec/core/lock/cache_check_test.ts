@@ -1,10 +1,21 @@
 import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 import { verifyUpstreamCache } from "./cache_check.ts";
 import { sha256Bytes } from "./hash.ts";
 import type { UpstreamRegistry } from "./model.ts";
 import type { ReadFile } from "./resolve.ts";
 
 const enc = new TextEncoder();
+
+/** Cache dirs used across the fixtures below, built via `join()` rather
+ * than a hardcoded forward-slash literal — `verifyUpstreamCache` reads
+ * `join(dir, "manifest.json")` / `join(dir, entriesFile)` internally
+ * (via `probeCacheSnapshot`), which normalises to backslashes on
+ * Windows. A hardcoded literal `"/root/upstreams/refhub/manifest.json"`
+ * map key would never match that request on Windows; building both
+ * sides with `join()` keeps them in exact agreement on every platform. */
+const REFHUB_DIR = join("/root/upstreams", "refhub");
+const GOOD_DIR = join("/root/upstreams", "good");
 
 /** In-memory bytes reader over a path → bytes map (missing → `{error}`). */
 function makeReadFile(files: ReadonlyMap<string, Uint8Array>): ReadFile {
@@ -34,10 +45,10 @@ Deno.test("verifyUpstreamCache: intact cache emits nothing", async () => {
   const snapshot = await sha256Bytes(dataBytes);
   const files = new Map<string, Uint8Array>([
     [
-      "/root/upstreams/refhub/manifest.json",
+      join(REFHUB_DIR, "manifest.json"),
       enc.encode(JSON.stringify({ entries: { file: "compiled.json" } })),
     ],
-    ["/root/upstreams/refhub/compiled.json", dataBytes],
+    [join(REFHUB_DIR, "compiled.json"), dataBytes],
   ]);
   const row = registryRow("refhub", snapshot);
 
@@ -69,10 +80,10 @@ Deno.test("verifyUpstreamCache: hash mismatch fails with one MSL-L212", async ()
   const dataBytes = enc.encode(JSON.stringify({ entries: {} }));
   const files = new Map<string, Uint8Array>([
     [
-      "/root/upstreams/refhub/manifest.json",
+      join(REFHUB_DIR, "manifest.json"),
       enc.encode(JSON.stringify({ entries: { file: "compiled.json" } })),
     ],
-    ["/root/upstreams/refhub/compiled.json", dataBytes],
+    [join(REFHUB_DIR, "compiled.json"), dataBytes],
   ]);
   // Deliberately wrong — does not match the sha256 of dataBytes.
   const row = registryRow("refhub", "sha256:0000000000000000");
@@ -107,7 +118,7 @@ Deno.test("verifyUpstreamCache: an unsafe entries-file path in the manifest fail
   // relying only on upstream_refs_test.ts's transitive coverage (Task 5).
   const files = new Map<string, Uint8Array>([
     [
-      "/root/upstreams/refhub/manifest.json",
+      join(REFHUB_DIR, "manifest.json"),
       enc.encode(JSON.stringify({ entries: { file: "../escape" } })),
     ],
   ]);
@@ -129,10 +140,10 @@ Deno.test("verifyUpstreamCache: multiple rows only report the broken one", async
   const snapshot = await sha256Bytes(dataBytes);
   const files = new Map<string, Uint8Array>([
     [
-      "/root/upstreams/good/manifest.json",
+      join(GOOD_DIR, "manifest.json"),
       enc.encode(JSON.stringify({ entries: { file: "compiled.json" } })),
     ],
-    ["/root/upstreams/good/compiled.json", dataBytes],
+    [join(GOOD_DIR, "compiled.json"), dataBytes],
   ]);
   const good = registryRow("good", snapshot);
   const broken = registryRow("broken", "sha256:mismatch");

@@ -14,6 +14,7 @@ import type {
   EffectiveProfile,
   EffectiveTypeDef,
   Entry,
+  EntryOrigin,
   EntryShape,
   ProvenancedMapEntry,
   TraceRule,
@@ -280,6 +281,7 @@ function entryWithAttrs(opts: {
   shape: EntryShape;
   type?: string;
   attrs?: Record<string, readonly string[]>;
+  origin?: EntryOrigin;
 }): Entry {
   const attrs = opts.attrs ?? {};
   const attributes = [];
@@ -300,6 +302,7 @@ function entryWithAttrs(opts: {
     ),
     location: { file: "t.md", line: 1, column: 1 },
     bodyTokens: [],
+    origin: opts.origin,
   };
 }
 
@@ -727,4 +730,208 @@ Deno.test("validateTraceabilityForEntry: scheme-qualified URI target is not flag
     byDisplayIdOf([e]),
   );
   assertEquals(diags.filter((d) => d.code === "MSL-L006"), []);
+});
+
+// ---------------------------------------------------------------------------
+// MSL-T014 — unresolved-after-federation (federated upstream, slice 4)
+// ---------------------------------------------------------------------------
+
+Deno.test("validateTraceabilityForEntry: no upstreams declared + unresolved ref → MSL-L006 (unchanged)", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-9999"] }, // exists nowhere
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+    [], // no declared upstreams
+  );
+  const l006 = diags.filter((d) => d.code === "MSL-L006");
+  const t014 = diags.filter((d) => d.code === "MSL-T014");
+  assertEquals(l006.length, 1);
+  assertEquals(t014.length, 0);
+});
+
+Deno.test("validateTraceabilityForEntry: upstreams declared + unresolved ref → MSL-T014, no MSL-L006", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-9999"] }, // exists nowhere
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+    ["upstream-a", "upstream-b"],
+  );
+  const l006 = diags.filter((d) => d.code === "MSL-L006");
+  const t014 = diags.filter((d) => d.code === "MSL-T014");
+  assertEquals(l006.length, 0);
+  assertEquals(t014.length, 1);
+  assertEquals(t014[0].severity, "warning");
+  const msg = t014[0].message;
+  if (
+    !msg.includes("Verifies") || !msg.includes("REQ-9999") ||
+    !msg.includes("upstream-a") || !msg.includes("upstream-b")
+  ) {
+    throw new Error(`message lacks searched-set context: ${msg}`);
+  }
+});
+
+Deno.test("validateTraceabilityForEntry: upstreams declared + ref resolves to upstream entry → neither L006 nor T014", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const upstreamTarget = entryWithAttrs({
+    id: "01UPSTREAM0000000000000000",
+    displayId: "REQ-0001",
+    shape: "Authored",
+    type: "requirement",
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-0001"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, upstreamTarget]),
+    byDisplayIdOf([e, upstreamTarget]),
+    ["upstream-a"],
+  );
+  assertEquals(diags.filter((d) => d.code === "MSL-L006"), []);
+  assertEquals(diags.filter((d) => d.code === "MSL-T014"), []);
+});
+
+// ---------------------------------------------------------------------------
+// MSL-L004 target-type exemption for upstream targets (federated upstream,
+// review fix — the slice-4 exemption covered the source side but missed the
+// resolved-target side)
+// ---------------------------------------------------------------------------
+
+Deno.test("validateTraceabilityForEntry: upstream target with foreign type → no MSL-L004 (link still resolves)", () => {
+  const rule: TraceRule = {
+    target: ["requirement"], // downstream vocabulary
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  // Upstream target classified under the UPSTREAM's own vocabulary —
+  // "SystemRequirement", not the downstream rule's "requirement".
+  const upstreamTarget = entryWithAttrs({
+    id: "01UPSTREAM0000000000000000",
+    displayId: "REQ-0001",
+    shape: "Authored",
+    type: "SystemRequirement",
+    origin: { kind: "upstream", upstreamId: "upstream-a", version: "1.0.0" },
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-0001"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, upstreamTarget]),
+    byDisplayIdOf([e, upstreamTarget]),
+    ["upstream-a"],
+  );
+  assertEquals(diags.filter((d) => d.code === "MSL-L004"), []);
+  assertEquals(diags.filter((d) => d.code === "MSL-L006"), []);
+  assertEquals(diags.filter((d) => d.code === "MSL-T014"), []);
+});
+
+Deno.test("validateTraceabilityForEntry: upstream target whose type DOES match rule → still resolves cleanly", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const upstreamTarget = entryWithAttrs({
+    id: "01UPSTREAM0000000000000001",
+    displayId: "REQ-0002",
+    shape: "Authored",
+    type: "requirement", // same-vocabulary case — matches the rule anyway
+    origin: { kind: "upstream", upstreamId: "upstream-a", version: "1.0.0" },
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-0002"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, upstreamTarget]),
+    byDisplayIdOf([e, upstreamTarget]),
+    ["upstream-a"],
+  );
+  assertEquals(diags, []);
+});
+
+Deno.test("validateTraceabilityForEntry: project→project target with mismatched type still fires MSL-L004 (control)", () => {
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  // Same foreign type as the upstream case above, but NO origin — a plain
+  // project-authored target. The exemption must not over-skip this.
+  const wrongTarget = entryWithAttrs({
+    id: "01PROJECT000000000000000",
+    displayId: "REQ-0003",
+    shape: "Authored",
+    type: "SystemRequirement",
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["REQ-0003"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e, wrongTarget]),
+    byDisplayIdOf([e, wrongTarget]),
+    ["upstream-a"],
+  );
+  const l004 = diags.find((d) => d.code === "MSL-L004");
+  if (!l004) {
+    throw new Error(`expected MSL-L004, got: ${diags.map((d) => d.code)}`);
+  }
 });

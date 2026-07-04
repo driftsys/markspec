@@ -25,6 +25,17 @@ export interface ReportOptions {
   readonly scope?: string;
   /** Filter entries by label value. */
   readonly label?: string;
+  /**
+   * Declared upstream ids from `project.yaml`'s `dependencies:` (federated
+   * upstream, slice 4), derived via `deriveUpstreamId`. Used by the
+   * `coverage` report to classify an upstream-origin entry: an id in this
+   * set participates in coverage like a project entry (a `dependencies:`
+   * upstream); an upstream-origin entry whose id is NOT in this set is a
+   * `references:` leaf, excluded from the orphan/unsatisfied gap lists.
+   * Defaults to empty — every upstream-origin entry is treated as a
+   * reference leaf.
+   */
+  readonly dependencyUpstreamIds?: ReadonlySet<string>;
 }
 
 /**
@@ -40,7 +51,12 @@ export function report(result: CompileResult, options: ReportOptions): string {
   if (options.kind === "traceability") {
     return formatTraceability(result, entries, options.format);
   }
-  return formatCoverage(result, entries, options.format);
+  return formatCoverage(
+    result,
+    entries,
+    options.format,
+    options.dependencyUpstreamIds,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -176,10 +192,18 @@ interface CoverageStats {
   };
 }
 
+/** Options for {@linkcode computeCoverage}. */
+interface ComputeCoverageOptions {
+  /** See {@linkcode ReportOptions.dependencyUpstreamIds}. */
+  readonly dependencyUpstreamIds?: ReadonlySet<string>;
+}
+
 function computeCoverage(
   result: CompileResult,
   entries: Entry[],
+  opts: ComputeCoverageOptions = {},
 ): CoverageStats {
+  const { dependencyUpstreamIds } = opts;
   const byType: Record<string, number> = {};
   const orphans: DisplayId[] = [];
   const unsatisfied: DisplayId[] = [];
@@ -191,13 +215,24 @@ function computeCoverage(
     const t = entry.type ?? (entry.shape === "Reference" ? "ref" : "untyped");
     byType[t] = (byType[t] ?? 0) + 1;
 
+    // Federated upstream (slice 4): a `references:` upstream entry is a
+    // traceability leaf — no coverage expectation points at or from it, so
+    // it is excluded from both gap lists below. A `dependencies:` upstream
+    // entry (its upstreamId present in `dependencyUpstreamIds`) participates
+    // like a project entry — this branch is inert until slice 3 loads
+    // dependency entries, but the classification is exercised here so it's
+    // ready when they do.
+    const origin = entry.origin;
+    const isReferenceLeaf = origin?.kind === "upstream" &&
+      !(dependencyUpstreamIds?.has(origin.upstreamId) ?? false);
+
     const fwd = result.forward.get(entry.displayId) ?? [];
     const rev = result.reverse.get(entry.displayId) ?? [];
     const hasSatisfies = fwd.some((l) => l.kind === "satisfies");
 
-    if (hasSatisfies) {
+    if (hasSatisfies && !isReferenceLeaf) {
       withSatisfies++;
-    } else if (entry.shape === "Authored") {
+    } else if (entry.shape === "Authored" && !isReferenceLeaf) {
       withoutSatisfies++;
       orphans.push(entry.displayId);
     }
@@ -208,7 +243,8 @@ function computeCoverage(
     const hasSatisfiedBy = rev.some((l) => l.kind === "satisfies");
     if (
       entry.type &&
-      !hasSatisfiedBy
+      !hasSatisfiedBy &&
+      !isReferenceLeaf
     ) {
       unsatisfied.push(entry.displayId);
     }
@@ -227,8 +263,9 @@ function formatCoverage(
   result: CompileResult,
   entries: Entry[],
   format: ReportFormat,
+  dependencyUpstreamIds?: ReadonlySet<string>,
 ): string {
-  const stats = computeCoverage(result, entries);
+  const stats = computeCoverage(result, entries, { dependencyUpstreamIds });
 
   if (format === "json") {
     return JSON.stringify(stats, null, 2);

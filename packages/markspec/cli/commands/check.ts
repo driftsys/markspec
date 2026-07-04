@@ -7,6 +7,8 @@
 import { extname, join } from "@std/path";
 import { Command } from "@cliffy/command";
 import {
+  deriveUpstreamId,
+  loadConfig,
   loadToolConfig,
   MARKDOWN_EXTENSIONS,
   upstreamCacheRoot,
@@ -16,6 +18,7 @@ import {
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
   loadProjectCorpus,
+  loadProjectUpstreams,
   readFile,
   renderDiagnosticLocation,
   resolveScope,
@@ -67,6 +70,25 @@ export const checkCmd = new Command()
         captionConventions = toolConfigResult.config.captionConventions;
       }
 
+      // Read + parse markspec.lock once, project-wide only, BEFORE
+      // `allEntries` is finalized — its snapshot-carrying upstream rows
+      // (federated upstream, slice 4) must join the graph ahead of
+      // `runPipeline` so a cross-repo `Satisfies:` resolves. Reused
+      // below by the fmt/lockfile drift gates so the file is read and
+      // parsed exactly once. A file-local `check <file>` skips this the
+      // same way it skips the corpus load below — it cannot distinguish
+      // a valid cross-repo target from a typo any more than MSL-L006 could.
+      const { parseLockfile } = await import("../../core/mod.ts");
+      let lockParse: ReturnType<typeof parseLockfile> | undefined;
+      let lockPath: string | undefined;
+      let cacheRoot: string | undefined;
+      if (scope.projectWide && projectRoot !== undefined) {
+        lockPath = join(projectRoot, "markspec.lock");
+        cacheRoot = upstreamCacheRoot(projectRoot);
+        const lockRaw = await readFile(lockPath);
+        if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
+      }
+
       // Load the delivered corpus (ADR-030) — project-wide only, matching
       // the other composite gates: a file-local `check <file>` cannot
       // distinguish a corpus target from a typo any more than MSL-L006
@@ -78,6 +100,34 @@ export const checkCmd = new Command()
       );
       const corpusIndex = corpus.corpusIndex;
 
+      // Load locked upstream snapshots (federated upstream, slice 4) —
+      // project-wide only, same rationale as the corpus load above.
+      // Soft-fail (mirrors `compileProject`): a stale or missing upstream
+      // cache surfaces diagnostics but never aborts `check`.
+      const upstreams = scope.projectWide && projectRoot !== undefined
+        ? await loadProjectUpstreams(projectRoot, lockParse?.lockfile)
+        : { entries: [], diagnostics: [] };
+
+      // Declared upstream ids (federated upstream, slice 4) — derived from
+      // project.yaml's `dependencies:`/`references:` via `deriveUpstreamId`.
+      // Stage 4 uses this to fire MSL-T014 (naming the searched upstream
+      // set) instead of the generic MSL-L006 for a trace target unresolved
+      // after federation. Project-wide only — file-local `check <file>`
+      // already suppresses both codes regardless (Stage 4's projectWide
+      // filter), so there is nothing to gain from computing this otherwise.
+      let declaredUpstreamIds: string[] = [];
+      if (scope.projectWide && projectRoot !== undefined) {
+        const projectConfig = await loadConfig(projectRoot, readFile);
+        if (projectConfig) {
+          declaredUpstreamIds = [
+            ...projectConfig.config.dependencies,
+            ...projectConfig.config.references,
+          ]
+            .map((ref) => deriveUpstreamId(ref))
+            .filter((id): id is string => id !== undefined);
+        }
+      }
+
       const {
         detectDirectives,
         parseFile,
@@ -87,6 +137,7 @@ export const checkCmd = new Command()
 
       const allEntries = [];
       allEntries.push(...corpus.entries);
+      allEntries.push(...upstreams.entries);
       const parseDiagnostics: Diagnostic[] = [];
       // deno-lint-ignore no-explicit-any
       const listingContexts: any[] = [];
@@ -131,7 +182,7 @@ export const checkCmd = new Command()
         allEntries,
         chain?.effective ?? null,
         captionConventions,
-        { projectWide: scope.projectWide },
+        { projectWide: scope.projectWide, declaredUpstreamIds },
       );
 
       // Corpus-aware post-pass (ADR-030): a project entry re-declaring a
@@ -162,24 +213,17 @@ export const checkCmd = new Command()
       let fmtDiagnostics: Diagnostic[] = [];
       let lockDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const { fmtDriftGate, lockfileDriftGate, parseLockfile } = await import(
+        const { fmtDriftGate, lockfileDriftGate } = await import(
           "../../core/mod.ts"
         );
 
         const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
-        // Read markspec.lock once: its edge ledger feeds reference healing
-        // (MSL-F011) and its cached edge hash feeds the lockfile gate
-        // (MSL-L212).
-        let lockParse: ReturnType<typeof parseLockfile> | undefined;
-        let lockPath: string | undefined;
-        let cacheRoot: string | undefined;
-        if (projectRoot !== undefined) {
-          lockPath = join(projectRoot, "markspec.lock");
-          cacheRoot = upstreamCacheRoot(projectRoot);
-          const lockRaw = await readFile(lockPath);
-          if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
-        }
+        // markspec.lock was already read + parsed above (before allEntries
+        // was finalized, so upstream entries could join the graph); reuse
+        // `lockParse`/`lockPath`/`cacheRoot` here rather than re-reading it.
+        // Its edge ledger feeds reference healing (MSL-F011) and its cached
+        // edge hash feeds the lockfile gate (MSL-L212).
         const ledger = lockParse?.lockfile?.edges ?? [];
 
         fmtDiagnostics = await fmtDriftGate(
@@ -210,9 +254,10 @@ export const checkCmd = new Command()
         proseDiagnostics = await proseLintGate(allEntries, chain?.effective);
       }
 
-      // Merge parse-level (MSL-P0xx), corpus-load, pipeline, listing,
-      // fmt-drift, lockfile-drift, and prose-lint diagnostics.
+      // Merge upstream-load, parse-level (MSL-P0xx), corpus-load, pipeline,
+      // listing, fmt-drift, lockfile-drift, and prose-lint diagnostics.
       const allDiagnostics = [
+        ...upstreams.diagnostics,
         ...parseDiagnostics,
         ...corpus.diagnostics,
         ...pipelineDiagnostics,

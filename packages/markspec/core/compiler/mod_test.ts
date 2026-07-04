@@ -834,3 +834,74 @@ Deno.test("compile: project entry colliding with a corpus display ID → exactly
 
   assertEquals(result.diagnostics.filter((d) => d.code === "MSL-R006"), []);
 });
+
+// ---------------------------------------------------------------------------
+// Federated upstream (slice 4): upstream-origin entries injected via the
+// same corpusEntries bucket as delivered-profile corpus (ADR-030)
+// ---------------------------------------------------------------------------
+
+const UPSTREAM_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FBW";
+
+/** Build one origin-stamped upstream entry the way `loadUpstreamCorpus`
+ * does: parse a hydrated-snapshot fixture, then stamp `origin: {kind:
+ * "upstream", ...}`. */
+async function upstreamEntries(): Promise<Entry[]> {
+  const md = `- [SYS_0001] Braking system interface
+
+  The braking system shall expose a deceleration command channel.
+
+      Id: ${UPSTREAM_ULID}
+`;
+  const { entries } = await parseFile(md, {
+    file: "/cache/upstream/brk-platform/reference/system.md",
+  });
+  return entries.map((e) => ({
+    ...e,
+    origin: {
+      kind: "upstream" as const,
+      upstreamId: "brk-platform",
+      version: "2.4.0",
+    },
+  }));
+}
+
+Deno.test("compile: upstream-origin corpusEntries resolves a project Satisfies: target with no broken-ref diagnostic", async () => {
+  const files = {
+    "/repo/reqs.md": `- [STK_0001] Deceleration request
+
+  The system shall issue a deceleration command via the braking system interface.
+
+      Id: ${ULID_A}
+      Satisfies: SYS_0001
+`,
+  };
+  const result = await compile(["/repo/reqs.md"], {
+    readFile: reader(files),
+    corpusEntries: await upstreamEntries(),
+  });
+
+  const upstreamEntry = result.entries.get(makeDisplayId("SYS_0001"));
+  assertExists(upstreamEntry);
+  assertEquals(upstreamEntry.origin, {
+    kind: "upstream",
+    upstreamId: "brk-platform",
+    version: "2.4.0",
+  });
+
+  const forward = result.forward.get(makeDisplayId("STK_0001")) ?? [];
+  assertEquals(
+    forward.some((l) => l.to === makeDisplayId("SYS_0001")),
+    true,
+  );
+
+  // No broken-ref / unresolved-target diagnostic for the resolved Satisfies:.
+  assertEquals(result.diagnostics.filter((d) => d.code === "MSL-L006"), []);
+  assertEquals(
+    result.diagnostics.some((d) =>
+      d.location?.file === "/repo/reqs.md" &&
+      /SYS_0001/.test(d.message) &&
+      d.severity === "error"
+    ),
+    false,
+  );
+});

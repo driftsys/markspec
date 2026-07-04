@@ -94,6 +94,53 @@ does not constrain which `Labels:` values entries may carry.
   tag or branch name; version-selecting resolution is planned for a future
   release.
 
+#### Upstream entries resolve in the graph
+
+Once `markspec lock` has pinned a `references:` entry, its entries join this
+project's own traceability graph as read-only, origin-tagged citizens — not just
+cached files on disk:
+
+- **Trace links resolve across the repo boundary.** A `Satisfies:` (or any other
+  trace attribute) value that names an upstream display ID resolves exactly like
+  a same-project reference. `check`, `show`, `context`, `dependents`, and
+  `report` all see the upstream entry, tagged with an `Origin:` line / column
+  showing `<upstreamId>@<version>` — see [`show`](#show) and [`report`](#report)
+  below.
+- **`MSL-T014` replaces `MSL-L006`** for a trace value that still doesn't
+  resolve once the project declares any `dependencies:`/`references:`: the
+  warning names every upstream searched, e.g.
+  `not found in project or
+  upstreams: producta, icd`. A project with no
+  declared upstreams keeps the plain `MSL-L006` behavior.
+- **A project entry that reuses an upstream's display ID or `Id:` fails `check`
+  with `MSL-R014`**, naming the colliding upstream origin — the same shape as
+  the collision that fires when a profile
+  [delivers a corpus](profiles.md#delivered-documents) (ADR-030), generalized to
+  cover upstream origins too. Fix it by renaming the project entry; upstream
+  entries are read-only.
+- **`references:` entries are traceability leaves.** `report coverage` never
+  reports one as an orphan or unsatisfied gap — a citation isn't something your
+  own project is expected to cover. `dependencies:` entries participate in
+  coverage like a project entry — but since git dependency acquisition hasn't
+  shipped yet (above), no `dependencies:` entry hydrates into the graph today,
+  so this only takes effect once that lands.
+- **Upstream entries are validation-exempt, not edge-inert.** No structural
+  checks or prose lint run against them — that already happened in their own
+  repo's `check` — but they remain full resolution targets: a project entry's
+  trace link to one still resolves, and so does an edge between two upstream
+  entries once both are hydrated into the same graph.
+
+**Root/program project pattern.** A root or program repository that references
+every member repo aggregates the whole program's graph for free: each member's
+entries hydrate into the root's compile, cross-repo trace edges resolve there,
+and `report`, `dependents`, and `context` run against the entire program from
+the root — both ends of every cross-repo edge are present. A repo referenced
+through more than one path (a diamond — e.g. the root references both a
+component and something that itself references that component) is still counted
+exactly once: an upstream snapshot's own re-exported entries are skipped in
+favor of that entry's authoring repo, so aggregating never double-counts or
+collides.
+
 ### .markspec.yaml
 
 `.markspec.yaml` carries markspec's own tool configuration: profile binding
@@ -271,7 +318,10 @@ reference values:
   `markspec.lock` records the stable `target-ulid`; `fmt` uses it to rewrite the
   stale display ID to the target's new name.
 - **Unresolved references are left as-is** — `markspec check` reports them via
-  MSL-L006.
+  `MSL-L006`, or `MSL-T014` when the project declares `dependencies:`/
+  `references:` (see
+  [Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)
+  above).
 
 Neither action is performed when no `project.yaml` is discoverable (file-local
 invocation). `fmt` reads the edge ledger but never writes `markspec.lock`; the
@@ -315,15 +365,15 @@ gate below over the whole corpus in one pass, merging findings into a single
 diagnostics stream (one text renderer, one `--format json` array, one exit-code
 computation):
 
-| Gate                               | Severity                                     | What it checks                                                                                                                                                                                       |
-| ---------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Parse + structure + attributes     | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                                                                                                  |
-| Traceability (incl. `MSL-L006`)    | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry.                                                                               |
-| Listing documents                  | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                                                                                              |
-| Format drift (`MSL-F010`)          | **error**                                    | The file's whitespace/attribute form differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.                                                                        |
-| Reference-canon drift (`MSL-F011`) | **error**                                    | A trace value is a ULID or stale display ID that `markspec fmt` would rewrite to its canonical display ID (ADR-026 canonicalization). Distinct from `MSL-F010` so you know which fmt concern to fix. |
-| Lockfile drift (`MSL-L212`)        | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network).                                                                    |
-| Prose lint (`MSL-Q*`)              | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                                                                                           |
+| Gate                               | Severity                                     | What it checks                                                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Parse + structure + attributes     | as today                                     | Malformed entry blocks, missing `Id:`, duplicate display IDs, malformed attributes.                                                                                                                                                                                                  |
+| Traceability (incl. `MSL-L006`)    | as today (`MSL-L006` = warning)              | Broken `Satisfies:`/`Derived-from:`/etc. references; `MSL-L006` flags a trace value that doesn't resolve to any entry — or `MSL-T014` when the project declares `dependencies:`/`references:` (see [Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)). |
+| Listing documents                  | as today                                     | Listing-file conventions (e.g. `SUMMARY.md` structure).                                                                                                                                                                                                                              |
+| Format drift (`MSL-F010`)          | **error**                                    | The file's whitespace/attribute form differs from what `markspec fmt` would produce — i.e. it wasn't formatted before commit.                                                                                                                                                        |
+| Reference-canon drift (`MSL-F011`) | **error**                                    | A trace value is a ULID or stale display ID that `markspec fmt` would rewrite to its canonical display ID (ADR-026 canonicalization). Distinct from `MSL-F010` so you know which fmt concern to fix.                                                                                 |
+| Lockfile drift (`MSL-L212`)        | **error** (only when `markspec.lock` exists) | Traceability edges have changed since `markspec lock` last ran. Checked offline against the on-disk `markspec.lock` (no network).                                                                                                                                                    |
+| Prose lint (`MSL-Q*`)              | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                                                                                                                                                                           |
 
 **`markspec check <file>` (file-local) runs structural validation only.** The
 format-drift, lockfile, and prose-lint gates, and the `MSL-L006` trace-existence
@@ -373,9 +423,11 @@ markspec show --format json STK_PRJ_0001 docs/requirements.md
 ```
 
 When the active profile [delivers a corpus](profiles.md#delivered-documents)
-(ADR-030), an entry injected from that corpus prints an extra `Origin:` line and
-its `Source:` renders as `<profile-id>@<version>:<path>:<line>:<column>` instead
-of a raw filesystem path:
+(ADR-030), or the entry hydrates from a locked `references:` upstream (see
+[Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)),
+the entry prints an extra `Origin:` line and its `Source:` renders as
+`<profile-id-or-upstream-id>@<version>:<path>:<line>:<column>` instead of a raw
+filesystem path:
 
 ```text
 PLT_0001  Platform core service
@@ -483,9 +535,15 @@ markspec report traceability --label ASIL-B "docs/**/*.md"
 ```
 
 The traceability matrix carries an **Origin** column: `project` for a
-project-authored entry, or `<profile-id>@<version>` for an entry injected from a
-profile's delivered corpus (ADR-030). All three formats (`md`, `json`, `csv`)
-include it.
+project-authored entry, or `<profile-id>@<version>` / `<upstream-id>@<version>`
+for an entry injected from a profile's delivered corpus (ADR-030) or a locked
+`references:` upstream (see
+[Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)).
+All three formats (`md`, `json`, `csv`) include it.
+
+The coverage report treats a `references:` upstream entry as a traceability leaf
+— it never appears in the orphan/unsatisfied gap lists, since a citation isn't
+something your own project is expected to cover.
 
 #### export
 
@@ -510,11 +568,14 @@ markspec export csv "docs/**/*.md" > entries.csv
 markspec export yaml "docs/**/*.md"
 ```
 
-All three formats carry provenance (ADR-030): in `json` and `yaml`, corpus
-entries have an `origin: { kind, profileId, profileVersion }` field
-(project-authored entries omit it); in `csv`, every row has an `origin` column
-holding `<profile-id>@<version>` for corpus entries or `project` for
-project-authored ones.
+All three formats carry provenance (ADR-030): in `json` and `yaml`, a corpus
+entry has an `origin: { kind: "profile", profileId, profileVersion }` field and
+a federated-upstream entry (see
+[Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph))
+has `origin: { kind: "upstream", upstreamId, version }` (project-authored
+entries omit it); in `csv`, every row has an `origin` column holding
+`<profile-id>@<version>` for corpus entries, `<upstream-id>@<version>` for
+upstream entries, or `project` for project-authored ones.
 
 #### insert
 

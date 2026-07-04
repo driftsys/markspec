@@ -20,6 +20,7 @@ function entry(opts: {
   type?: string;
   id?: string;
   rawAttributes?: Array<{ key: string; value: string }>;
+  origin?: Entry["origin"];
 }): Entry {
   const id = opts.id ?? ULID_A;
   return {
@@ -34,6 +35,7 @@ function entry(opts: {
     location: { file: "test.md", line: 1, column: 1 },
     source: { kind: "markdown" },
     bodyTokens: [],
+    origin: opts.origin,
   };
 }
 
@@ -92,6 +94,38 @@ Deno.test("Caused-by on Record with Component target → MSL-R083 (Record-cause 
     true,
     `expected message to identify Record source role; got ${msg}`,
   );
+});
+
+Deno.test("Caused-by on upstream Record with Component target → no MSL-R083 (upstream source is validation-exempt)", () => {
+  // Same fixture shape as "Caused-by on Record with Component target →
+  // MSL-R083 (Record-cause set)" above, but the source entry carries a
+  // `kind:"upstream"` origin. Upstream entries are validation-exempt
+  // graph citizens (design §4.7) — Stage 1.6 must skip emitting from
+  // them entirely, even though the target-type mismatch would otherwise
+  // fire MSL-R083.
+  const result = validateTraceTargetTypes([
+    entry({
+      displayId: "REC-001",
+      type: "Record",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "Record" },
+        { key: "Caused-by", value: ULID_B },
+      ],
+      origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+    }),
+    entry({
+      displayId: "comp-1",
+      type: "Component",
+      id: ULID_B,
+      rawAttributes: [
+        { key: "Id", value: ULID_B },
+        { key: "Type", value: "Component" },
+      ],
+    }),
+  ]);
+  const r083 = result.filter((d) => d.code === "MSL-R083");
+  assertEquals(r083.length, 0);
 });
 
 Deno.test("Caused-by on Risk with Component target → OK", () => {

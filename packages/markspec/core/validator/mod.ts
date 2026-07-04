@@ -20,6 +20,7 @@ import {
   CORE_TYPE_SCOPED_ATTRS,
   CSV_SPLITTABLE_TYPES,
   IDENTITY_KEY,
+  isUpstreamEntry,
   ULID_RE,
   UNIVERSAL_ATTRIBUTE_KEYS,
   URI_SCHEME_RE,
@@ -90,6 +91,12 @@ function checkStructural(
   const ids = new Map<string, Entry>();
 
   for (const entry of entries) {
+    // Upstream entries (federated-upstream epic) are validation-exempt
+    // graph citizens (design §4.7): skip every structural check entirely.
+    // Unlike `kind:"profile"` corpus entries (validated then downgraded),
+    // upstream entries never enter these checks in the first place.
+    if (isUpstreamEntry(entry)) continue;
+
     // MSL-R003: exactly one `Id:` attribute per entry.
     // Dual-emit: MSL-I002 (Reference missing Id), MSL-I003 (Authored missing
     // Id), MSL-I004 (multiple Id) — nextgen §4.2 codes alongside legacy.
@@ -455,7 +462,11 @@ function checkReferences(
 
   // MSL-T012: `Supersedes:` — the one baked-in relation. Target must
   // resolve; profile rules check type/shape compatibility separately.
+  // Upstream entries are skipped as emitters — refs FROM an upstream entry
+  // are never checked — but they remain in `byDisplayId`/`byId` above so
+  // refs TO them (from project entries) still resolve.
   for (const entry of entries) {
+    if (isUpstreamEntry(entry)) continue;
     const supersedes = entry.rawAttributes.find((a) => a.key === "Supersedes");
     if (!supersedes) continue;
     const target = supersedes.value.trim();
@@ -472,7 +483,10 @@ function checkReferences(
 
   // MSL-T005: `References:` — citations must resolve to a referenced
   // entry. This is a universal relation (citing identified → referenced).
+  // Upstream entries are skipped as emitters — same rationale as the
+  // Supersedes loop above.
   for (const entry of entries) {
+    if (isUpstreamEntry(entry)) continue;
     const citations = entry.rawAttributes.filter((a) => a.key === "References");
     for (const attr of citations) {
       // Citation format: "slug [free-text locator]"; take the first token.

@@ -16,15 +16,21 @@ import {
   type CompileResult,
   type DeliveredDocument,
   deliveredPathIsContained,
+  type Diagnostic,
   discoverMarkspecRoot,
   discoverProjectRoot,
   type EffectiveProfile,
+  type Entry,
   loadConfig,
   loadDeliveredCorpus,
   loadProfileForCommand,
+  loadUpstreamCorpus,
+  type Lockfile,
+  parseLockfile,
   type ProfileChain,
   type ProjectConfig,
   type ReadFile,
+  upstreamRefsFromLockfile,
 } from "../core/mod.ts";
 
 /**
@@ -361,6 +367,12 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   let inFlight: Promise<CompileResult> | null = null;
   let cached: CompileResult | null = null;
   let tracked: TrackedFile[] = [];
+  // markspec.lock's mtime as of the last compile (federated upstream, slice
+  // 4). `undefined` means "no lockfile at last compile". Tracked separately
+  // from `tracked` because `markspec.lock`'s extension isn't in
+  // TRACKED_EXTENSIONS — the loop in `isStale()` would never notice it
+  // appear, change, or disappear otherwise.
+  let lockfileMtime: number | undefined;
   const handlers = new Set<InvalidationHandler>();
 
   /** Discover all tracked file paths under `projectRoot`. */
@@ -377,6 +389,46 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     return out;
   }
 
+  /**
+   * Read `markspec.lock` (if present) and hydrate its locked upstream
+   * snapshots into read-only `Entry[]` (federated upstream, slice 4).
+   * Mirrors `cli/helpers.ts`'s `compileProject` load site. Soft-fail: a
+   * missing, malformed, or cold/stale-cache lockfile must never abort a
+   * compile — the MCP server degrades to "no upstream entries" instead of
+   * throwing. Also returns the lockfile's current mtime (`undefined` when
+   * absent) so the caller can update `lockfileMtime` for `isStale()`.
+   */
+  async function loadLockedUpstreams(): Promise<
+    { entries: Entry[]; diagnostics: Diagnostic[]; mtime: number | undefined }
+  > {
+    if (!projectRoot) return { entries: [], diagnostics: [], mtime: undefined };
+    const lockPath = join(projectRoot, "markspec.lock");
+    let mtime: number | undefined;
+    try {
+      mtime = (await env.stat(lockPath)).mtime;
+    } catch {
+      mtime = undefined; // no lockfile
+    }
+    try {
+      const lockRaw = await env.readFile(lockPath);
+      const lockfile: Lockfile | undefined = lockRaw !== undefined
+        ? parseLockfile(lockRaw).lockfile
+        : undefined;
+      if (!lockfile) return { entries: [], diagnostics: [], mtime };
+      const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
+      if (refs.length === 0) return { entries: [], diagnostics: [], mtime };
+      const upstream = await loadUpstreamCorpus(refs, env.readFile);
+      return {
+        entries: upstream.entries,
+        diagnostics: upstream.diagnostics,
+        mtime,
+      };
+    } catch (err) {
+      console.error(`Failed to load locked upstream corpus: ${err}`);
+      return { entries: [], diagnostics: [], mtime };
+    }
+  }
+
   /** Run compile() over current tracked set; update cache. */
   async function runCompile(): Promise<CompileResult> {
     try {
@@ -388,6 +440,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           env.realPath,
         )
         : { entries: [], diagnostics: [] };
+      const upstream = await loadLockedUpstreams();
       const result = await compile(paths, {
         readFile: async (p: string) => {
           const content = await env.readFile(p);
@@ -397,18 +450,21 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           return content;
         },
         profile: profileChain?.effective ?? undefined,
-        corpusEntries: corpus.entries,
+        corpusEntries: [...corpus.entries, ...upstream.entries],
       });
 
-      // Surface corpus-load diagnostics (e.g. PROFILE-DELIVERS-001 for a
-      // missing delivered file) in the compiled context — CLI `check`
-      // parity: without this, the MCP validate tool reports clean on a
-      // project whose `markspec check` fails. Corpus diagnostics lead;
-      // compile diagnostics keep their own order (determinism).
-      const merged = corpus.diagnostics.length > 0
+      // Surface corpus-load and upstream-load diagnostics (e.g.
+      // PROFILE-DELIVERS-001 for a missing delivered file, or
+      // UPSTREAM-SNAPSHOT-00x for a cold/stale lock cache) in the compiled
+      // context — CLI `check` parity: without this, the MCP validate tool
+      // reports clean on a project whose `markspec check` fails. Corpus
+      // diagnostics lead, then upstream, then compile diagnostics keep
+      // their own order (determinism).
+      const extraDiagnostics = [...corpus.diagnostics, ...upstream.diagnostics];
+      const merged = extraDiagnostics.length > 0
         ? {
           ...result,
-          diagnostics: [...corpus.diagnostics, ...result.diagnostics],
+          diagnostics: [...extraDiagnostics, ...result.diagnostics],
         }
         : result;
 
@@ -426,6 +482,13 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
           // File disappeared during compile — ignore.
         }
       }
+      // Commit-on-success: mirrors `tracked`/`cached` below. Assigning
+      // `lockfileMtime` here (not right after `loadLockedUpstreams()`)
+      // keeps it in lockstep with the cache it gates — if `compile()`
+      // throws above, the mtime must stay at its pre-attempt value too,
+      // or a later `isStale()` would see the new mtime as already
+      // "seen" and silently serve the stale pre-failure `cached` result.
+      lockfileMtime = upstream.mtime;
       tracked = snapshot;
       cached = merged;
       // Fire handlers AFTER cache is committed but isolate handler errors so
@@ -469,6 +532,17 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   /** Detect any change in the tracked file set since the last compile. */
   async function isStale(): Promise<boolean> {
     if (!projectRoot) return false;
+    // 0) markspec.lock mtime change (federated upstream, slice 4) — a
+    // re-lock must invalidate the cache even though `markspec.lock` isn't a
+    // TRACKED_EXTENSIONS project file, so the loops below never notice it.
+    let currentLockMtime: number | undefined;
+    try {
+      currentLockMtime =
+        (await env.stat(join(projectRoot, "markspec.lock"))).mtime;
+    } catch {
+      currentLockMtime = undefined;
+    }
+    if (currentLockMtime !== lockfileMtime) return true;
     // 1) Any tracked file that is stale (mtime fast path → SHA256 truth gate)?
     for (const t of tracked) {
       try {

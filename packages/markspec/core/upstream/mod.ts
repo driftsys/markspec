@@ -11,6 +11,7 @@
  * {@linkcode ReadFile}.
  */
 
+import { join } from "@std/path";
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import {
   checkSnapshotSchema,
@@ -59,7 +60,7 @@ export async function loadUpstreamCorpus(
   const entries: Entry[] = [];
   const diagnostics: Diagnostic[] = [];
   for (const up of upstreams) {
-    const manifestPath = `${up.dir}/manifest.json`;
+    const manifestPath = join(up.dir, "manifest.json");
     const manifestRaw = await readFile(manifestPath);
     if (manifestRaw === undefined) {
       diagnostics.push({
@@ -112,7 +113,7 @@ export async function loadUpstreamCorpus(
       continue;
     }
     const snapshotContent = relFile !== undefined
-      ? await readFile(`${up.dir}/${relFile}`)
+      ? await readFile(join(up.dir, relFile))
       : undefined;
     const extracted = extractSerializedEntries(
       manifest,

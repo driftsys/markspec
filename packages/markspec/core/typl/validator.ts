@@ -21,6 +21,7 @@
  * See ADR-019.
  */
 import type { Diagnostic, Entry } from "../model/mod.ts";
+import { isUpstreamEntry } from "../model/mod.ts";
 import type { Binding, Shape } from "./ast.ts";
 import { extractTyplCitations } from "./citations.ts";
 import { findDuplicateDeclarations, resolveRef } from "../decl/mod.ts";
@@ -31,14 +32,26 @@ import { TYPL_REF_OPS } from "./resolve.ts";
 /**
  * Validate the typl declarations across all entries.
  *
- * Returns the built corpus registry plus any diagnostics. The registry
- * is returned even when diagnostics are present so callers (compiler,
- * LSP) can use it for navigation and emission.
+ * Upstream entries (federated-upstream epic) are typl-inert: they are
+ * excluded from the working set before the registry is built, so their
+ * declarations neither emit their own TYPL diagnostics nor count toward
+ * the corpus-wide declared-once (TYPL-009) accounting — a project entry
+ * re-declaring a dotted name an upstream also publishes is not a
+ * collision. Cross-repo typl resolution is out of scope for this slice
+ * (see ADR-019 / federated-upstream design §4.7); this mirrors the
+ * validation exemption every other per-entry validator stage applies via
+ * `isUpstreamEntry`.
+ *
+ * Returns the built corpus registry (scoped to non-upstream entries)
+ * plus any diagnostics. The registry is returned even when diagnostics
+ * are present so callers (compiler, LSP) can use it for navigation and
+ * emission.
  */
 export function validateTypl(
   entries: readonly Entry[],
 ): { registry: TypeRegistry; diagnostics: readonly Diagnostic[] } {
-  const registry = buildTypeRegistry(entries);
+  const localEntries = entries.filter((entry) => !isUpstreamEntry(entry));
+  const registry = buildTypeRegistry(localEntries);
   const diagnostics: Diagnostic[] = [];
 
   // Published tier (#723): dotted names are declared exactly once
@@ -72,7 +85,7 @@ export function validateTypl(
 
   // Citation validation (#723): bare published-shaped code spans must
   // resolve (relative → entry root namespace) to a declared symbol.
-  for (const entry of entries) {
+  for (const entry of localEntries) {
     const citations = extractTyplCitations(entry.bodyTokens);
     if (citations.length === 0) continue;
     const root = entry.types?.rootNamespace;
@@ -110,7 +123,7 @@ export function validateTypl(
   }
 
   // Intra-entry undefined typedef ref (TYPL-005)
-  for (const entry of entries) {
+  for (const entry of localEntries) {
     if (!entry.types) continue;
     const localTypedefs = new Set(entry.types.typedefs.map((t) => t.name));
     for (const binding of entry.types.bindings) {

@@ -8,8 +8,13 @@
  * attributes:
  *   - Required (MSL-L001)
  *   - Cardinality bounds (MSL-L002 upper / MSL-L003 lower)
- *   - Target match against the rule's target matchers (MSL-L004)
- *   - Target existence (MSL-L006, warning; scheme-qualified URIs exempt)
+ *   - Target match against the rule's target matchers (MSL-L004; skipped
+ *     when the resolved target is an upstream entry — its `type` comes from
+ *     the upstream's own profile, a vocabulary the consumer never
+ *     re-classifies against, federated upstream slice 4)
+ *   - Target existence (MSL-L006, warning; scheme-qualified URIs exempt) —
+ *     or MSL-T014 (warning) instead of MSL-L006 when the caller declares a
+ *     non-empty upstream set (federated upstream, slice 4)
  *
  * Referenced entries are skipped entirely — the profile manifest parser
  * rejects `referenced.traceability` at load time, so referenced entries
@@ -20,6 +25,7 @@ import {
   type Diagnostic,
   type EffectiveProfile,
   type Entry,
+  isUpstreamEntry,
   type TargetMatcher,
   type TraceRule,
   URI_SCHEME_RE,
@@ -86,12 +92,20 @@ export function matchesAnyTarget(
  * @param graph - Index keyed by entry.id (ULID) for target lookup
  * @param byDisplayId - Index keyed by entry.displayId for target lookup
  *                      (issue #593 — display-ID targets). Defaults to empty.
+ * @param declaredUpstreamIds - Upstream ids the downstream project declares
+ *                      via `project.yaml` `dependencies:`/`references:`
+ *                      (federated upstream, slice 4). When non-empty, an
+ *                      otherwise-unresolved trace target fires MSL-T014
+ *                      (warning), naming the searched upstream set, instead
+ *                      of the generic MSL-L006. Defaults to empty — MSL-L006
+ *                      unchanged.
  */
 export function validateTraceabilityForEntry(
   entry: Entry,
   profile: EffectiveProfile,
   graph: ReadonlyMap<string, Entry>,
   byDisplayId: ReadonlyMap<string, Entry> = new Map(),
+  declaredUpstreamIds: readonly string[] = [],
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   if (entry.shape !== "Authored") return diagnostics;
@@ -151,6 +165,23 @@ export function validateTraceabilityForEntry(
         // Scheme-qualified URIs are intentionally external — never local
         // graph targets, so they are not "broken references".
         if (URI_SCHEME_RE.test(v)) continue;
+        // Federated upstream (slice 4): when the project declares an
+        // upstream set, an unresolved target replaces MSL-L006 with
+        // MSL-T014, naming the searched set — the same target fires
+        // exactly one of the two codes, never both.
+        if (declaredUpstreamIds.length > 0) {
+          diagnostics.push({
+            code: "MSL-T014",
+            severity: "warning",
+            message:
+              `${entry.displayId}: link '${linkName}' target '${v}' not ` +
+              `found in project or upstreams: ${
+                declaredUpstreamIds.join(", ")
+              }`,
+            location: entry.location,
+          });
+          continue;
+        }
         diagnostics.push({
           code: "MSL-L006",
           severity: "warning",
@@ -161,6 +192,14 @@ export function validateTraceabilityForEntry(
         });
         continue;
       }
+      // Federated upstream (slice 4): an upstream target's `type` is
+      // classified by the upstream's OWN profile — a foreign vocabulary the
+      // consumer's profile cannot map (design §4.5/D6: the consumer never
+      // re-classifies). The link still resolves (no L006/T014 — handled
+      // above); only the consumer's own target-type enforcement is skipped
+      // for this target. A project-authored target with a mismatched type
+      // still fires MSL-L004 below.
+      if (isUpstreamEntry(target)) continue;
       if (!matchesAnyTarget(target, rule.target)) {
         diagnostics.push({
           code: "MSL-L004",

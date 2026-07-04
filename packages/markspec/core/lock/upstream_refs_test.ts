@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 import {
   deriveUpstreamId,
   resolveProjectReferences,
@@ -10,6 +11,18 @@ import { parseFile } from "../parser/mod.ts";
 import { serializeEntry } from "../compiler/schema.ts";
 
 const enc = new TextEncoder();
+
+/** Cache dirs used by the `cache.has(...)` assertions below, built via
+ * `join()` rather than a hardcoded forward-slash literal —
+ * `resolveProjectReferences` writes through `writeCache`, which calls
+ * `join(dir, "manifest.json")` / `join(dir, rel)` internally and
+ * normalises to backslashes on Windows. A hardcoded literal
+ * `"/proj/.markspec/cache/upstreams/refhub/manifest.json"` map key
+ * would never match that write on Windows; building both sides with
+ * `join()` keeps them in exact agreement on every platform. */
+const PROJ_CACHE_ROOT = "/proj/.markspec/cache/upstreams";
+const PROJ_REFHUB_DIR = join(PROJ_CACHE_ROOT, "refhub");
+const C_REFHUB_DIR = join("/c", "refhub");
 
 function makeManifest(entriesFile = "compiled.json"): string {
   return JSON.stringify({
@@ -78,7 +91,7 @@ Deno.test("first lock: fetches, caches, and pins a reference", async () => {
   const result = await resolveProjectReferences({
     references: [{ url: "https://x.example/refhub" }],
     existing: [],
-    cacheRoot: "/proj/.markspec/cache/upstreams",
+    cacheRoot: PROJ_CACHE_ROOT,
     update: false,
     io,
     lockedAt: "2026-07-04T12:00:00Z",
@@ -92,11 +105,11 @@ Deno.test("first lock: fetches, caches, and pins a reference", async () => {
   assertEquals(row.snapshot, await sha256Bytes(enc.encode(COMPILED)));
   assertEquals(row.lockedAt, "2026-07-04T12:00:00Z");
   assertEquals(
-    cache.has("/proj/.markspec/cache/upstreams/refhub/manifest.json"),
+    cache.has(join(PROJ_REFHUB_DIR, "manifest.json")),
     true,
   );
   assertEquals(
-    cache.has("/proj/.markspec/cache/upstreams/refhub/compiled.json"),
+    cache.has(join(PROJ_REFHUB_DIR, "compiled.json")),
     true,
   );
 });
@@ -205,8 +218,8 @@ Deno.test("keep: snapshot-less existing row re-pins instead of MSL-L214", async 
   assertEquals(row.id, "refhub");
   assertEquals(row.snapshot, await sha256Bytes(enc.encode(COMPILED)));
   assertEquals(row.lockedAt, "2026-07-05T00:00:00Z");
-  assertEquals(cache.has("/c/refhub/manifest.json"), true);
-  assertEquals(cache.has("/c/refhub/compiled.json"), true);
+  assertEquals(cache.has(join(C_REFHUB_DIR, "manifest.json")), true);
+  assertEquals(cache.has(join(C_REFHUB_DIR, "compiled.json")), true);
 });
 
 Deno.test("update: refetches and moves the pin", async () => {
@@ -324,7 +337,7 @@ Deno.test("lock-written cache is loadable by loadUpstreamCorpus", async () => {
   assertEquals(locked.diagnostics, []);
   const row = locked.registries[0];
   const corpus = await loadUpstreamCorpus(
-    [{ id: row.id, version: row.version ?? "unversioned", dir: "/c/refhub" }],
+    [{ id: row.id, version: row.version ?? "unversioned", dir: C_REFHUB_DIR }],
     (path) => {
       const bytes = cache.get(path);
       return Promise.resolve(

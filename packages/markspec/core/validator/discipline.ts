@@ -24,7 +24,12 @@ import type {
   DisplayId,
   Entry,
 } from "../model/mod.ts";
-import { CORE_KINDS, makeDisplayId, MIXED_DISCIPLINE } from "../model/mod.ts";
+import {
+  CORE_KINDS,
+  isUpstreamEntry,
+  makeDisplayId,
+  MIXED_DISCIPLINE,
+} from "../model/mod.ts";
 import {
   classifyDerivationOnly,
   parseFrozenValue,
@@ -128,6 +133,12 @@ export function validateDiscipline(
   const knownKinds = effectiveKindSet(registry);
 
   for (const entry of entries) {
+    // Upstream entries (federated-upstream epic) are validation-exempt
+    // emitters (design §4.7) — skip discipline checks sourced from an
+    // upstream entry. `entriesByDisplayId` still includes them for
+    // channel-4 (Allocated-to) derivation on project entries.
+    if (isUpstreamEntry(entry)) continue;
+
     const override = singleAttrValue(entry, "Discipline");
     if (override !== undefined && !knownKinds.has(override)) {
       out.push({

@@ -162,9 +162,9 @@ async function writeCache(
   io: UpstreamRefsIO,
 ): Promise<Diagnostic | undefined> {
   const writes: Array<[string, Uint8Array]> = [
-    [`${dir}/manifest.json`, fetched.manifestBytes],
+    [join(dir, "manifest.json"), fetched.manifestBytes],
     ...[...fetched.files].map(([rel, bytes]) =>
-      [`${dir}/${rel}`, bytes] as [string, Uint8Array]
+      [join(dir, rel), bytes] as [string, Uint8Array]
     ),
   ];
   for (const [path, bytes] of writes) {
@@ -192,7 +192,7 @@ export async function probeCacheSnapshot(
   snapshot: string,
   readFile: ReadFile,
 ): Promise<boolean> {
-  const manifestBytes = await readFile(`${dir}/manifest.json`);
+  const manifestBytes = await readFile(join(dir, "manifest.json"));
   if ("error" in manifestBytes) return false;
   let entriesFile: string | undefined;
   try {
@@ -204,7 +204,7 @@ export async function probeCacheSnapshot(
     return false;
   }
   if (entriesFile === undefined || isUnsafeRelPath(entriesFile)) return false;
-  const dataBytes = await readFile(`${dir}/${entriesFile}`);
+  const dataBytes = await readFile(join(dir, entriesFile));
   if ("error" in dataBytes) return false;
   return await sha256Bytes(dataBytes) === snapshot;
 }

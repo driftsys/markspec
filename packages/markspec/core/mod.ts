@@ -20,6 +20,7 @@ export {
   DEFAULT_PROJECT_CONFIG,
   descendantsOf,
   formatEntryOrigin,
+  isUpstreamEntry,
   KNOWN_LINK_KINDS,
   LOCK_EXTRA_INVERSE_KEYS,
   makeDisplayId,
@@ -470,3 +471,6 @@ export type {
   LoadUpstreamCorpusResult,
   UpstreamSnapshotRef,
 } from "./upstream/mod.ts";
+
+// ── Lockfile → upstream-snapshot-ref mapping (federated upstream, slice 4) ──
+export { upstreamRefsFromLockfile } from "./upstream/refs.ts";

@@ -21,10 +21,11 @@ import type {
   Diagnostic,
   DiscoveryIO,
   Entry,
+  Lockfile,
   ProfileChain,
   ReadFile,
 } from "../core/mod.ts";
-import { resolve } from "@std/path";
+import { join, resolve } from "@std/path";
 
 export { CORE_SCHEMA_VERSION, VERSION };
 
@@ -267,6 +268,35 @@ export async function loadProjectCorpus(
   };
 }
 
+/** Result of {@linkcode loadProjectUpstreams}. */
+export interface ProjectUpstreams {
+  readonly entries: Entry[];
+  readonly diagnostics: readonly Diagnostic[];
+}
+
+/**
+ * Hydrate locked upstream snapshots (federated upstream, slice 4) into
+ * read-only `Entry[]`. Maps the lockfile's snapshot-carrying upstream rows to
+ * cache directories via {@linkcode upstreamRefsFromLockfile}, then reads each
+ * cached snapshot via {@linkcode loadUpstreamCorpus}. Returns empty when
+ * there's no lockfile or no snapshot-carrying rows. Cold-cache soft-fail: a
+ * missing/corrupt cache surfaces `UPSTREAM-SNAPSHOT-00x` diagnostics but never
+ * throws — mirrors {@linkcode loadProjectCorpus}'s soft-fail posture.
+ */
+export async function loadProjectUpstreams(
+  projectRoot: string,
+  lockfile: Lockfile | undefined,
+): Promise<ProjectUpstreams> {
+  if (!lockfile) return { entries: [], diagnostics: [] };
+  const { upstreamRefsFromLockfile, loadUpstreamCorpus } = await import(
+    "../core/mod.ts"
+  );
+  const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
+  if (refs.length === 0) return { entries: [], diagnostics: [] };
+  const result = await loadUpstreamCorpus(refs, readFile);
+  return { entries: result.entries, diagnostics: result.diagnostics };
+}
+
 /**
  * Compile project files and return the result alongside the loaded profile
  * chain and the delivered-corpus index.
@@ -279,6 +309,17 @@ export async function loadProjectCorpus(
  * file missing from the profile package) is fatal — silently compiling with
  * a partial corpus would hide a broken profile package. The returned
  * `corpusIndex` lets callers render corpus locations without rebuilding it.
+ *
+ * Also loads locked upstream snapshots (federated upstream, slice 4) via
+ * {@linkcode loadProjectUpstreams} and injects them into the same
+ * `corpusEntries` bucket passed to `compile()` — both delivered-profile
+ * corpus and hydrated upstream entries are origin-carrying, read-only, and
+ * injected ahead of project entries, so `compile()`'s Phase-5 corpus
+ * post-pass (gated on a non-empty `corpusEntries`) covers both without a
+ * compiler signature change. Unlike the corpus load, a failed upstream load
+ * is soft-fail: a stale or missing `.markspec/cache/upstreams/` must not
+ * abort `show`/`compile`/etc., so its diagnostics are surfaced but never
+ * trigger `Deno.exit`.
  */
 export async function compileProject(
   paths: string[],
@@ -290,7 +331,7 @@ export async function compileProject(
 }> {
   const configResult = await requireProjectConfig();
   const chain = await loadActiveProfile(configResult.projectRoot);
-  const { compile } = await import("../core/mod.ts");
+  const { compile, parseLockfile } = await import("../core/mod.ts");
   const corpus = await loadProjectCorpus(chain);
   const corpusIndex = corpus.corpusIndex;
   let corpusError = false;
@@ -303,6 +344,27 @@ export async function compileProject(
   }
   if (corpusError) Deno.exit(1);
 
+  // Federated upstream (slice 4): read markspec.lock and hydrate its
+  // locked upstream snapshots. Soft-fail — no corpusError-style guard;
+  // a missing/malformed lockfile or a cold/stale upstream cache must
+  // never abort `show`/`compile`/etc.
+  const lockRaw = await readFile(
+    join(configResult.projectRoot, "markspec.lock"),
+  );
+  const lockfile = lockRaw !== undefined
+    ? parseLockfile(lockRaw).lockfile
+    : undefined;
+  const upstreams = await loadProjectUpstreams(
+    configResult.projectRoot,
+    lockfile,
+  );
+  for (const diag of upstreams.diagnostics) {
+    console.error(
+      `${diag.severity}[${diag.code}]: ` +
+        `${renderDiagnosticLocation(diag, corpusIndex)} ${diag.message}`,
+    );
+  }
+
   const withContributors = opts.withContributors ?? false;
   const result = await compile(paths, {
     readFile: (p) => Deno.readTextFile(p),
@@ -311,7 +373,7 @@ export async function compileProject(
       Deno.stat(p).then((s) => ({ mtime: s.mtime })).catch(() => undefined),
     gitFile: makeGitFile(withContributors),
     withContributors,
-    corpusEntries: corpus.entries,
+    corpusEntries: [...corpus.entries, ...upstreams.entries],
   });
 
   for (const diag of result.diagnostics) {
@@ -322,17 +384,23 @@ export async function compileProject(
     );
   }
 
-  // Merge the corpus-load diagnostics into the returned result so
-  // serialized artifacts (`export`/`compile --format json`) surface them
-  // too — otherwise a machine consumer parsing the JSON would believe the
-  // corpus is healthy while other surfaces (`check`, MCP) flag it (#674 f4).
-  // Only warning/info corpus diagnostics reach here: error-severity ones
-  // already exited above. Prepended so they read as load-time findings,
-  // ahead of the compiler's own diagnostics. Both sets were already printed
-  // to stderr above, so this changes serialization only, never the console.
+  // Merge the corpus-load and upstream-load diagnostics into the returned
+  // result so serialized artifacts (`export`/`compile --format json`)
+  // surface them too — otherwise a machine consumer parsing the JSON would
+  // believe the corpus/upstream state is healthy while other surfaces
+  // (`check`, MCP) flag it (#674 f4). Only warning/info corpus diagnostics
+  // reach here: error-severity ones already exited above; upstream
+  // diagnostics reach here regardless of severity (soft-fail). Prepended so
+  // they read as load-time findings, ahead of the compiler's own
+  // diagnostics. All three sets were already printed to stderr above, so
+  // this changes serialization only, never the console.
   const merged: CompileResult = {
     ...result,
-    diagnostics: [...corpus.diagnostics, ...result.diagnostics],
+    diagnostics: [
+      ...corpus.diagnostics,
+      ...upstreams.diagnostics,
+      ...result.diagnostics,
+    ],
   };
 
   return { result: merged, chain, corpusIndex };

@@ -1,7 +1,21 @@
 import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 import { parseFile } from "../parser/mod.ts";
 import { serializeEntry } from "../compiler/schema.ts";
 import { loadUpstreamCorpus } from "./mod.ts";
+
+/** Cache dirs used across the fixtures below, built via `join()` rather
+ * than a hardcoded forward-slash literal — `loadUpstreamCorpus` now reads
+ * `join(up.dir, "manifest.json")` internally, which normalises to
+ * backslashes on Windows. A hardcoded literal `"/c/up/product/manifest.json"`
+ * map key would never match that request on Windows; building both sides
+ * with `join()` keeps them in exact agreement on every platform. */
+const PRODUCT_DIR = join("/c", "up", "product");
+const GHOST_DIR = join("/c", "up", "ghost");
+const BAD_DIR = join("/c", "up", "bad");
+const PRODUCT_MANIFEST = join(PRODUCT_DIR, "manifest.json");
+const PRODUCT_COMPILED = join(PRODUCT_DIR, "compiled.json");
+const BAD_COMPILED = join(BAD_DIR, "compiled.json");
 
 const UP_A_MD = `# A
 
@@ -41,8 +55,8 @@ async function snapshotFiles(
     entries: Object.fromEntries(serialized.map((s) => [s.displayId, s])),
   };
   return new Map([
-    [`${dir}/manifest.json`, JSON.stringify(manifest)],
-    [`${dir}/compiled.json`, JSON.stringify(compiled)],
+    [join(dir, "manifest.json"), JSON.stringify(manifest)],
+    [join(dir, "compiled.json"), JSON.stringify(compiled)],
   ]);
 }
 
@@ -62,9 +76,9 @@ function recordingReaderFor(files: Map<string, string>, requested: string[]) {
 }
 
 Deno.test("loadUpstreamCorpus: hydrates and stamps upstream origin", async () => {
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     readerFor(files),
   );
   assertEquals(result.diagnostics, []);
@@ -79,12 +93,12 @@ Deno.test("loadUpstreamCorpus: hydrates and stamps upstream origin", async () =>
 
 Deno.test("loadUpstreamCorpus: authoritative-source rule skips re-exports", async () => {
   // product's snapshot re-exports an entry it pulled from 'icd' — skip it.
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md", {
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md", {
     upstreamId: "icd",
     version: "v1.0.0",
   });
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     readerFor(files),
   );
   assertEquals(result.diagnostics, []);
@@ -92,11 +106,11 @@ Deno.test("loadUpstreamCorpus: authoritative-source rule skips re-exports", asyn
 });
 
 Deno.test("loadUpstreamCorpus: missing manifest → 002, other upstreams still load", async () => {
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
   const result = await loadUpstreamCorpus(
     [
-      { id: "ghost", version: "v0", dir: "/c/up/ghost" },
-      { id: "product", version: "v2.1.0", dir: "/c/up/product" },
+      { id: "ghost", version: "v0", dir: GHOST_DIR },
+      { id: "product", version: "v2.1.0", dir: PRODUCT_DIR },
     ],
     readerFor(files),
   );
@@ -106,12 +120,12 @@ Deno.test("loadUpstreamCorpus: missing manifest → 002, other upstreams still l
 });
 
 Deno.test("loadUpstreamCorpus: schema skew → 001, upstream skipped", async () => {
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
-  const manifest = JSON.parse(files.get("/c/up/product/manifest.json")!);
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
+  const manifest = JSON.parse(files.get(PRODUCT_MANIFEST)!);
   manifest.generator.coreSchema = 99;
-  files.set("/c/up/product/manifest.json", JSON.stringify(manifest));
+  files.set(PRODUCT_MANIFEST, JSON.stringify(manifest));
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     readerFor(files),
   );
   assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-001");
@@ -124,18 +138,18 @@ Deno.test("loadUpstreamCorpus: skew check runs before any data-file read", async
   // the outcome. Reordering the loader to pre-read compiled.json before
   // (or regardless of) the skew check would fail this test even though
   // the 001-diagnostic outcome stays the same.
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
-  const manifest = JSON.parse(files.get("/c/up/product/manifest.json")!);
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
+  const manifest = JSON.parse(files.get(PRODUCT_MANIFEST)!);
   manifest.generator.coreSchema = 99;
-  files.set("/c/up/product/manifest.json", JSON.stringify(manifest));
+  files.set(PRODUCT_MANIFEST, JSON.stringify(manifest));
   const requested: string[] = [];
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     recordingReaderFor(files, requested),
   );
   assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-001");
-  assertEquals(requested.includes("/c/up/product/manifest.json"), true);
-  assertEquals(requested.includes("/c/up/product/compiled.json"), false);
+  assertEquals(requested.includes(PRODUCT_MANIFEST), true);
+  assertEquals(requested.includes(PRODUCT_COMPILED), false);
 });
 
 Deno.test("loadUpstreamCorpus: no upstreams → empty result", async () => {
@@ -145,10 +159,10 @@ Deno.test("loadUpstreamCorpus: no upstreams → empty result", async () => {
 });
 
 Deno.test("loadUpstreamCorpus: empty snapshot entries → no entries, no diagnostics", async () => {
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
-  files.set("/c/up/product/compiled.json", JSON.stringify({ entries: {} }));
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
+  files.set(PRODUCT_COMPILED, JSON.stringify({ entries: {} }));
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     readerFor(files),
   );
   assertEquals(result.diagnostics, []);
@@ -158,10 +172,10 @@ Deno.test("loadUpstreamCorpus: empty snapshot entries → no entries, no diagnos
 Deno.test("loadUpstreamCorpus: missing snapshot data file → 002", async () => {
   // Data-file-level failure: valid manifest, but the compiled.json it
   // names is gone — distinct from the manifest-level 002 tested above.
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
-  files.delete("/c/up/product/compiled.json");
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
+  files.delete(PRODUCT_COMPILED);
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     readerFor(files),
   );
   assertEquals(result.diagnostics.length, 1);
@@ -174,17 +188,17 @@ Deno.test("loadUpstreamCorpus: isolation — a non-object entry value in one ups
   // malformed entry value (valid JSON, wrong shape) in one upstream's
   // snapshot must not reject the whole call or block a sibling upstream
   // from loading.
-  const badFiles = await snapshotFiles("/c/up/bad", UP_A_MD, "/up/a.md");
+  const badFiles = await snapshotFiles(BAD_DIR, UP_A_MD, "/up/a.md");
   badFiles.set(
-    "/c/up/bad/compiled.json",
+    BAD_COMPILED,
     JSON.stringify({ entries: { X: null } }),
   );
-  const goodFiles = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  const goodFiles = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
   const files = new Map([...badFiles, ...goodFiles]);
   const result = await loadUpstreamCorpus(
     [
-      { id: "bad", version: "v1.0.0", dir: "/c/up/bad" },
-      { id: "product", version: "v2.1.0", dir: "/c/up/product" },
+      { id: "bad", version: "v1.0.0", dir: BAD_DIR },
+      { id: "product", version: "v2.1.0", dir: PRODUCT_DIR },
     ],
     readerFor(files),
   );
@@ -199,19 +213,19 @@ Deno.test("loadUpstreamCorpus: isolation — a non-object entry value in one ups
 });
 
 Deno.test("loadUpstreamCorpus: relFile escaping the cache dir → 003, never read outside the upstream dir", async () => {
-  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
-  const manifest = JSON.parse(files.get("/c/up/product/manifest.json")!);
+  const files = await snapshotFiles(PRODUCT_DIR, UP_A_MD, "/up/a.md");
+  const manifest = JSON.parse(files.get(PRODUCT_MANIFEST)!);
   manifest.entries = { format: "inline", file: "../../evil.json" };
-  files.set("/c/up/product/manifest.json", JSON.stringify(manifest));
+  files.set(PRODUCT_MANIFEST, JSON.stringify(manifest));
   const requested: string[] = [];
   const result = await loadUpstreamCorpus(
-    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    [{ id: "product", version: "v2.1.0", dir: PRODUCT_DIR }],
     recordingReaderFor(files, requested),
   );
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
   assertEquals(result.entries, []);
-  assertEquals(requested.includes("/c/up/product/manifest.json"), true);
+  assertEquals(requested.includes(PRODUCT_MANIFEST), true);
   assertEquals(
     requested.some((p) => p.includes("evil.json")),
     false,
