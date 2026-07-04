@@ -38,6 +38,7 @@ export interface ManifestJson {
   readonly project: {
     readonly name: string;
     readonly root: string;
+    readonly version?: string;
   };
   readonly counts: {
     readonly entries: number;
@@ -82,6 +83,7 @@ export function buildManifest(
     project: {
       name: config.name ?? "",
       root: projectRoot,
+      ...(config.version ? { version: config.version } : {}),
     },
     counts: {
       entries: result.entries.size,
@@ -95,7 +97,7 @@ export function buildManifest(
       ? { format: "ndjson", file: "edges.ndjson" }
       : { format: "inline", file: "compiled.json" },
     sqliteMirror: null,
-    federation: config.parents ?? [],
+    federation: (config.references ?? []).map((r) => r.url),
     reserved: {},
   };
 }
