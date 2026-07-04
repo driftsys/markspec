@@ -11,7 +11,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { dirname, join } from "@std/path";
+import { dirname, fromFileUrl, join } from "@std/path";
 import {
   checkDrift,
   collectProjectEntries,
@@ -296,7 +296,10 @@ async function defaultFetchUrl(
 ): Promise<Uint8Array | { error: string }> {
   try {
     if (url.startsWith("file://")) {
-      const path = url.replace(/^file:\/\//, "");
+      // Map the file URL to a native path via the std helper so a Windows
+      // `file:///C:/…` URL becomes `C:\…` (a plain `file://` strip would
+      // leave a leading-slash-before-drive path Deno.readFile can't open).
+      const path = fromFileUrl(url);
       return await Deno.readFile(path);
     }
     const res = await fetch(url);

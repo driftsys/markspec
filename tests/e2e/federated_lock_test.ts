@@ -17,6 +17,7 @@
  */
 
 import { assertEquals, assertMatch, assertNotEquals } from "@std/assert";
+import { join, toFileUrl } from "@std/path";
 import { markspec, markspecInDir } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
@@ -116,7 +117,10 @@ Deno.test(
       ]);
       assertEquals(compileA.code, 0, compileA.stderr);
 
-      const fileUrl = `file://${dirA}/api`;
+      // Build the file URL via toFileUrl so the drive letter + separators
+      // are correct on Windows (a raw `file://${dir}` yields a malformed
+      // URL there); this is exactly how a user authors a file:// reference.
+      const fileUrl = toFileUrl(join(dirA, "api")).href;
       await Deno.writeTextFile(`${dirB}/project.yaml`, projectBYaml(fileUrl));
       await Deno.writeTextFile(`${dirB}/.markspec.yaml`, "");
       await Deno.writeTextFile(`${dirB}/reqs.md`, REQS_B);
