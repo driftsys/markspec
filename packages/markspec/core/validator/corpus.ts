@@ -57,9 +57,9 @@ export function detectCorpusCollisions(
         diagnostics.push({
           code: "MSL-R014",
           severity: "error",
-          message: `display ID '${e.displayId}' is already delivered by ` +
+          message: `display ID '${e.displayId}' is already provided by ` +
             `${formatEntryOrigin(displayOwner.origin!)}; rename this entry — ` +
-            `delivered corpus entries are read-only`,
+            `upstream and delivered-corpus entries are read-only`,
           location: e.location,
         });
       }
@@ -70,9 +70,9 @@ export function detectCorpusCollisions(
           diagnostics.push({
             code: "MSL-R014",
             severity: "error",
-            message: `Id '${e.id}' is already delivered by ` +
+            message: `Id '${e.id}' is already provided by ` +
               `${formatEntryOrigin(idOwner.origin!)}; rename this entry — ` +
-              `delivered corpus entries are read-only`,
+              `upstream and delivered-corpus entries are read-only`,
             location: e.location,
           });
         }
@@ -93,9 +93,10 @@ export function detectCorpusCollisions(
       diagnostics.push({
         code: "MSL-R014",
         severity: "error",
-        message: `display ID '${e.displayId}' is already delivered by ` +
-          `${formatEntryOrigin(displayOwner.origin!)}; delivered corpus ` +
-          `entries are read-only`,
+        message: `display ID '${e.displayId}' is provided by both ` +
+          `${formatEntryOrigin(displayOwner.origin!)} and ` +
+          `${formatEntryOrigin(e.origin)} — one must rename its entry to ` +
+          `resolve the collision`,
         location: e.location,
       });
     }
@@ -109,9 +110,10 @@ export function detectCorpusCollisions(
         diagnostics.push({
           code: "MSL-R014",
           severity: "error",
-          message: `Id '${e.id}' is already delivered by ` +
-            `${formatEntryOrigin(idOwner.origin!)}; delivered corpus entries ` +
-            `are read-only`,
+          message: `Id '${e.id}' is provided by both ` +
+            `${formatEntryOrigin(idOwner.origin!)} and ` +
+            `${formatEntryOrigin(e.origin)} — one must rename its entry to ` +
+            `resolve the collision`,
           location: e.location,
         });
       }

@@ -63,6 +63,13 @@ Deno.test("detectCorpusCollisions: project entry reusing corpus display ID → M
   assertEquals(diagnostics[0].severity, "error");
   assertEquals(diagnostics[0].location?.file, "/repo/reqs.md");
   assertStringIncludes(diagnostics[0].message, "p@1.0.0");
+  // The remedy prose is origin-generic — it must not read as
+  // corpus-exclusive, since the same MSL-R014 shape now also fires for
+  // upstream origins (federated-upstream epic, slice 4).
+  assertStringIncludes(
+    diagnostics[0].message,
+    "upstream and delivered-corpus entries are read-only",
+  );
   assertEquals(collidedTokens.has("PLT_0001"), true);
 });
 
@@ -92,6 +99,10 @@ Deno.test("detectCorpusCollisions: project entry reusing corpus Id (ULID) → MS
   assertEquals(diagnostics[0].location?.file, "/repo/reqs.md");
   assertStringIncludes(diagnostics[0].message, `Id '${sharedId}'`);
   assertStringIncludes(diagnostics[0].message, "p@1.0.0");
+  assertStringIncludes(
+    diagnostics[0].message,
+    "upstream and delivered-corpus entries are read-only",
+  );
   assertEquals(collidedTokens.has(sharedId), true);
   // The project entry keeps a unique display ID, so no display-ID token collides.
   assertEquals(collidedTokens.has("REQ_0009"), false);
@@ -121,8 +132,87 @@ Deno.test("detectCorpusCollisions: corpus entries from different profiles sharin
   assertEquals(diagnostics[0].code, "MSL-R014");
   assertEquals(diagnostics[0].severity, "error");
   assertEquals(diagnostics[0].location?.file, "/cache/q/ref.md");
+  // Both origins are known (owner + colliding entry) — the design (D5:
+  // "any collision is a hard diagnostic naming both origins") requires
+  // naming both, not just the first-registered owner.
   assertStringIncludes(diagnostics[0].message, "p@1.0.0");
+  assertStringIncludes(diagnostics[0].message, "q@2.0.0");
   assertEquals(collidedTokens.has("PLT_0001"), true);
+});
+
+Deno.test("detectCorpusCollisions: project entry reusing an UPSTREAM display ID → MSL-R014 naming the upstream origin", () => {
+  const upstream = makeEntry({
+    displayId: "PLT_2001",
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FD0",
+    file: "/repo/.markspec/cache/upstream/productX/ref.md",
+    origin: { kind: "upstream", upstreamId: "productX", version: "2.1.0" },
+  });
+  const project = makeEntry({
+    displayId: "PLT_2001",
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FD1",
+    file: "/repo/reqs.md",
+  });
+  const { diagnostics, collidedTokens } = detectCorpusCollisions([
+    upstream,
+    project,
+  ]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-R014");
+  assertEquals(diagnostics[0].severity, "error");
+  assertEquals(diagnostics[0].location?.file, "/repo/reqs.md");
+  assertStringIncludes(diagnostics[0].message, "productX@2.1.0");
+  // The remedy must be origin-generic, not corpus-specific prose — this
+  // collision was caused by an upstream entry, not a delivered corpus one.
+  assertStringIncludes(
+    diagnostics[0].message,
+    "upstream and delivered-corpus entries are read-only",
+  );
+  assertEquals(collidedTokens.has("PLT_2001"), true);
+});
+
+Deno.test("detectCorpusCollisions: two upstreams declaring the same display ID → MSL-R014 naming both upstream origins", () => {
+  const first = makeEntry({
+    displayId: "PLT_3001",
+    file: "/repo/.markspec/cache/upstream/productX/ref.md",
+    origin: { kind: "upstream", upstreamId: "productX", version: "2.1.0" },
+  });
+  const second = makeEntry({
+    displayId: "PLT_3001",
+    file: "/repo/.markspec/cache/upstream/productY/ref.md",
+    origin: { kind: "upstream", upstreamId: "productY", version: "1.0.0" },
+  });
+  const { diagnostics, collidedTokens } = detectCorpusCollisions([
+    first,
+    second,
+  ]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-R014");
+  assertEquals(diagnostics[0].severity, "error");
+  assertEquals(
+    diagnostics[0].location?.file,
+    "/repo/.markspec/cache/upstream/productY/ref.md",
+  );
+  assertStringIncludes(diagnostics[0].message, "productX@2.1.0");
+  assertStringIncludes(diagnostics[0].message, "productY@1.0.0");
+  assertEquals(collidedTokens.has("PLT_3001"), true);
+});
+
+Deno.test("detectCorpusCollisions: upstream entry colliding with a profile-delivered corpus entry → MSL-R014 naming both origins", () => {
+  const corpus = makeEntry({
+    displayId: "PLT_4001",
+    file: "/cache/p/ref.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const upstream = makeEntry({
+    displayId: "PLT_4001",
+    file: "/repo/.markspec/cache/upstream/productX/ref.md",
+    origin: { kind: "upstream", upstreamId: "productX", version: "2.1.0" },
+  });
+  const { diagnostics } = detectCorpusCollisions([corpus, upstream]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-R014");
+  assertStringIncludes(diagnostics[0].message, "p@1.0.0");
+  assertStringIncludes(diagnostics[0].message, "productX@2.1.0");
 });
 
 Deno.test("detectCorpusCollisions: same-profile duplicate display ID stays generic (no R014)", () => {
