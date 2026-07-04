@@ -584,10 +584,12 @@ export interface Entry {
    */
   readonly derivedDiscipline?: Discipline;
   /**
-   * Set on entries injected from a profile-delivered corpus document
-   * (ADR-030). Consumers treat such entries as read-only: `fmt` and rename
-   * never touch them, and validation findings inside them are downgraded
-   * to attributed warnings.
+   * Provenance of an entry not authored in the project's own files:
+   * injected from a profile-delivered corpus document (ADR-030,
+   * `kind: "profile"`) or hydrated from a locked upstream snapshot
+   * (`kind: "upstream"`). Consumers treat any origin-carrying entry as
+   * read-only: `fmt` and rename never touch them, and validation findings
+   * inside them are downgraded to attributed warnings.
    */
   readonly origin?: EntryOrigin;
 }
