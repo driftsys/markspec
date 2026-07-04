@@ -5,7 +5,7 @@
  */
 
 import { Command } from "@cliffy/command";
-import { compileProject } from "../helpers.ts";
+import { compileProject, requireProjectConfig } from "../helpers.ts";
 
 export const reportCmd = new Command()
   .description("Generate traceability matrix or coverage report")
@@ -45,13 +45,25 @@ export const reportCmd = new Command()
       }
 
       const { result: compiled, chain: _chain } = await compileProject(paths);
-      const { report } = await import("../../core/mod.ts");
+      const { deriveUpstreamId, report } = await import("../../core/mod.ts");
+
+      // Federated upstream (slice 4): an upstream entry declared under
+      // `dependencies:` participates in coverage like a project entry; one
+      // declared only under `references:` is a traceability leaf. See
+      // `computeCoverage` in `core/reporter/mod.ts`.
+      const { config } = await requireProjectConfig();
+      const dependencyUpstreamIds = new Set(
+        config.dependencies
+          .map((ref) => deriveUpstreamId(ref))
+          .filter((id): id is string => id !== undefined),
+      );
 
       const output = report(compiled, {
         kind,
         format: fmt,
         scope: options.scope,
         label: options.label,
+        dependencyUpstreamIds,
       });
 
       if (options.output) {

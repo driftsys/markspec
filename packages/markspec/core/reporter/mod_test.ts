@@ -50,6 +50,16 @@ function makeEntry(
   };
 }
 
+/** Clone an entry with an upstream origin (federated upstream, slice 4) —
+ * used to test the reference-vs-dependency coverage-leaf classification. */
+function withUpstreamOrigin(
+  entry: Entry,
+  upstreamId: string,
+  version = "1.0.0",
+): Entry {
+  return { ...entry, origin: { kind: "upstream", upstreamId, version } };
+}
+
 /** Build a Link between two entries. */
 function makeLink(
   from: string,
@@ -323,6 +333,74 @@ Deno.test("reporter coverage csv: contains Metric,Value header", () => {
   const output = report(result, { kind: "coverage", format: "csv" });
   assertStringIncludes(output, "Metric,Value");
   assertStringIncludes(output, "Total entries,1");
+});
+
+// ---------------------------------------------------------------------------
+// Federated-upstream coverage leaf semantics (slice 4): a `references:`
+// upstream entry is a traceability leaf — no coverage expectation points at
+// or from it. A `dependencies:` upstream entry participates like a project
+// entry (inert in slice 4, proven here via a hand-built dependency-origin
+// entry so the mechanism is ready for slice 3).
+// ---------------------------------------------------------------------------
+
+Deno.test("reporter coverage: reference-origin upstream entry with no Satisfies is not an orphan", () => {
+  const ref = withUpstreamOrigin(
+    makeEntry("UP_SYS_0001", "Upstream system req"),
+    "refhub",
+  );
+  const result = makeResult([ref], []);
+
+  // No `dependencyUpstreamIds` supplied — "refhub" is therefore a reference.
+  const output = report(result, { kind: "coverage", format: "md" });
+
+  assertEquals(output.includes("Orphan entries"), false);
+  assertStringIncludes(output, "Without Satisfies (orphans): 0");
+});
+
+Deno.test("reporter coverage: reference-origin typed upstream entry with no incoming Satisfies is not unsatisfied", () => {
+  const ref = withUpstreamOrigin(
+    makeEntry("UP_SYS_0001", "Upstream system req", { type: "SYS" }),
+    "refhub",
+  );
+  const result = makeResult([ref], []);
+
+  const output = report(result, { kind: "coverage", format: "md" });
+
+  assertEquals(output.includes("Unsatisfied parents"), false);
+});
+
+Deno.test("reporter coverage: dependency-origin upstream entry with no coverage participates like a project entry", () => {
+  const dep = withUpstreamOrigin(
+    makeEntry("UP_SYS_0001", "Upstream system req"),
+    "gitdep",
+  );
+  const result = makeResult([dep], []);
+
+  const output = report(result, {
+    kind: "coverage",
+    format: "md",
+    dependencyUpstreamIds: new Set(["gitdep"]),
+  });
+
+  assertStringIncludes(output, "Without Satisfies (orphans): 1");
+  const orphansSection = output.split("## Orphan entries")[1] ?? "";
+  assertStringIncludes(orphansSection, "UP_SYS_0001");
+});
+
+Deno.test("reporter coverage: project entry stays an orphan while a reference-leaf beside it is excluded", () => {
+  const project = makeEntry("STK_001", "Stakeholder req");
+  const ref = withUpstreamOrigin(
+    makeEntry("UP_SYS_0001", "Upstream system req"),
+    "refhub",
+  );
+  const result = makeResult([project, ref], []);
+
+  const output = report(result, { kind: "coverage", format: "md" });
+
+  assertStringIncludes(output, "Without Satisfies (orphans): 1");
+  const orphansSection = output.split("## Orphan entries")[1] ?? "";
+  assertStringIncludes(orphansSection, "STK_001");
+  assertEquals(orphansSection.includes("UP_SYS_0001"), false);
 });
 
 // ---------------------------------------------------------------------------
