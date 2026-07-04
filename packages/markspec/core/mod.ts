@@ -445,3 +445,17 @@ export type {
 // ── Project-entry collection (discover + parse → Entry[]) ────────────────
 export { collectProjectEntries } from "./collect/mod.ts";
 export type { CollectOptions } from "./collect/mod.ts";
+
+// ── Compiled-snapshot deserialization (federated upstream, slice 1) ──────
+export {
+  checkSnapshotSchema,
+  deserializeEntry,
+  extractSerializedEntries,
+} from "./compiler/deserialize.ts";
+
+// ── Upstream corpus loader (federated upstream, slice 1) ─────────────────
+export { loadUpstreamCorpus } from "./upstream/mod.ts";
+export type {
+  LoadUpstreamCorpusResult,
+  UpstreamSnapshotRef,
+} from "./upstream/mod.ts";
