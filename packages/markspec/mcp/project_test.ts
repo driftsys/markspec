@@ -738,11 +738,11 @@ function makeUpstreamEnv(withLockfile = true): {
   ]);
   if (withLockfile) {
     files.set(LOCKFILE_PATH, { content: LOCKFILE_TOML, mtime: 1 });
-    files.set(`${UPSTREAM_CACHE_DIR}/manifest.json`, {
+    files.set(join(UPSTREAM_CACHE_DIR, "manifest.json"), {
       content: UPSTREAM_MANIFEST,
       mtime: 1,
     });
-    files.set(`${UPSTREAM_CACHE_DIR}/compiled.json`, {
+    files.set(join(UPSTREAM_CACHE_DIR, "compiled.json"), {
       content: UPSTREAM_COMPILED,
       mtime: 1,
     });
@@ -808,8 +808,8 @@ Deno.test("getCompiled: a re-lock (new markspec.lock) invalidates the cache", as
   // mtime. isStale() must notice the lockfile mtime change even though
   // `markspec.lock` is not itself a TRACKED_EXTENSIONS project file.
   bumpMtime(LOCKFILE_PATH, LOCKFILE_TOML, 2);
-  bumpMtime(`${UPSTREAM_CACHE_DIR}/manifest.json`, UPSTREAM_MANIFEST, 2);
-  bumpMtime(`${UPSTREAM_CACHE_DIR}/compiled.json`, UPSTREAM_COMPILED, 2);
+  bumpMtime(join(UPSTREAM_CACHE_DIR, "manifest.json"), UPSTREAM_MANIFEST, 2);
+  bumpMtime(join(UPSTREAM_CACHE_DIR, "compiled.json"), UPSTREAM_COMPILED, 2);
 
   const second = await proj.getCompiled();
   assertExists(second.entries.get(makeDisplayId("SYS_UP_0001")));

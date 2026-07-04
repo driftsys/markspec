@@ -1,6 +1,13 @@
 import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 import { upstreamRefsFromLockfile } from "./refs.ts";
 import type { Lockfile } from "../lock/mod.ts";
+import { upstreamCacheRoot } from "../lock/upstream_refs.ts";
+
+/** Expected cache dir for the `"/proj"` fixture root, built the same
+ * `join()`-based way production does — a hardcoded forward-slash literal
+ * would never match the backslash path Windows produces. */
+const REFHUB_DIR = join(upstreamCacheRoot("/proj"), "refhub");
 
 function lf(upstreams: Lockfile["upstreams"]): Lockfile {
   return {
@@ -30,7 +37,7 @@ Deno.test("upstreamRefsFromLockfile: registry row → ref with cache dir", () =>
   assertEquals(refs, [{
     id: "refhub",
     version: "1.4.0",
-    dir: "/proj/.markspec/cache/upstreams/refhub",
+    dir: REFHUB_DIR,
   }]);
 });
 

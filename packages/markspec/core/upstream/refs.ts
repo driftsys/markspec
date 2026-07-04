@@ -5,6 +5,7 @@
  * UpstreamSnapshotRef[] loadUpstreamCorpus consumes. Pure — no I/O.
  */
 
+import { join } from "@std/path";
 import type { Lockfile } from "../lock/model.ts";
 import { upstreamCacheRoot } from "../lock/upstream_refs.ts";
 import type { UpstreamSnapshotRef } from "./mod.ts";
@@ -32,7 +33,7 @@ export function upstreamRefsFromLockfile(
     refs.push({
       id: u.id,
       version: ("version" in u && u.version) ? u.version : UNVERSIONED,
-      dir: `${cacheRoot}/${u.id}`,
+      dir: join(cacheRoot, u.id),
     });
   }
   return refs;
