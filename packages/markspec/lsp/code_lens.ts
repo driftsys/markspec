@@ -5,7 +5,12 @@
  * kinds of lenses per entry, positioned on the entry's title line:
  *
  *   - "↑ N dependents" (when N > 0) — clicks dispatch
- *     `markspec.openReferences` with `[uri, position]` arguments.
+ *     `markspec.openReferences` with `[uri, position, locations]`
+ *     arguments, where `locations` is the resolved list of referencing
+ *     entries' `{uri, line, character}` positions (from
+ *     `findReferencingEntries`) for the client to hand straight to
+ *     `editor.action.showReferences` — no client-side position lookup
+ *     needed.
  *   - "↓ Satisfies: ID — Title" per `Satisfies:` value — clicks
  *     dispatch `markspec.openDefinition` with `[targetUri, targetPosition]`
  *     when the target resolves, or `[]` when it doesn't (lens still
@@ -20,6 +25,7 @@
 
 import type { DisplayId, Entry } from "../core/mod.ts";
 import { buildIncomingCount } from "./incoming_index.ts";
+import { findReferencingEntries } from "./references.ts";
 
 /** A subset of the LSP `Command` interface. */
 export interface Command {
@@ -77,12 +83,18 @@ export function buildCodeLenses(
     // ↑ N dependents
     const depCount = incomingCount.get(entry.displayId) ?? 0;
     if (depCount > 0) {
+      const referencing = findReferencingEntries(allEntries, entry.displayId);
+      const referenceLocations = referencing.map((ref) => ({
+        uri: pathToUri(ref.location.file),
+        line: Math.max(0, ref.location.line - 1),
+        character: 0,
+      }));
       out.push({
         range,
         command: {
           title: depCount === 1 ? "↑ 1 dependent" : `↑ ${depCount} dependents`,
           command: "markspec.openReferences",
-          arguments: [uri, position],
+          arguments: [uri, position, referenceLocations],
         },
       });
     }
