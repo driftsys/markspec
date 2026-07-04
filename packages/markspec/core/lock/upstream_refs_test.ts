@@ -189,6 +189,7 @@ Deno.test("restore mismatch: moved site → MSL-L214, pin kept", async () => {
   });
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L214");
+  assertEquals(result.diagnostics[0].severity, "warning");
   assertEquals(result.registries, locked.registries);
   assertEquals(restored.cache.size, 0); // mismatched content never written to cache
 });
@@ -270,6 +271,7 @@ Deno.test("fetch failure → MSL-L213, other references still resolve", async ()
   });
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L213");
+  assertEquals(result.diagnostics[0].severity, "warning");
   assertEquals(result.registries.length, 1);
   assertEquals(result.registries[0].id, "refhub");
 });
@@ -290,6 +292,7 @@ Deno.test("duplicate derived ids → MSL-L213 for the duplicate", async () => {
   assertEquals(result.registries.length, 1);
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L213");
+  assertEquals(result.diagnostics[0].severity, "warning");
 });
 
 Deno.test("schema-skewed published site → MSL-L213 at lock time", async () => {
@@ -310,6 +313,7 @@ Deno.test("schema-skewed published site → MSL-L213 at lock time", async () => 
   assertEquals(result.registries, []);
   assertEquals(result.diagnostics.length, 1);
   assertEquals(result.diagnostics[0].code, "MSL-L213");
+  assertEquals(result.diagnostics[0].severity, "warning");
 });
 
 Deno.test("lock-written cache is loadable by loadUpstreamCorpus", async () => {

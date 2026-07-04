@@ -97,7 +97,7 @@ interface FetchedSnapshot {
 function l213(id: string, detail: string): Diagnostic {
   return {
     code: "MSL-L213",
-    severity: "error",
+    severity: "warning",
     message: `upstream reference '${id}' could not be locked: ${detail}`,
     location: undefined,
   };
@@ -291,7 +291,7 @@ export async function resolveProjectReferences(
       ) {
         diagnostics.push({
           code: "MSL-L214",
-          severity: "error",
+          severity: "warning",
           message:
             `upstream reference '${id}' restore mismatch: fetched snapshot ` +
             `${fetched.snapshotHash} does not match locked ${existing.snapshot} — ` +
