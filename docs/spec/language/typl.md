@@ -45,19 +45,20 @@ $CurrentTrack : signal Track
 
 ## Kind vocabulary
 
-The kind vocabulary is closed. Nine keywords are defined:
+The kind vocabulary is closed. Ten keywords are defined:
 
-| Kind       | Meaning                                                               |
-| ---------- | --------------------------------------------------------------------- |
-| `value`    | A plain data value with no lifecycle semantics. Default when omitted. |
-| `event`    | A named occurrence, optionally carrying a payload.                    |
-| `signal`   | A continuously observable quantity with a measurable shape.           |
-| `command`  | A request to perform an action, optionally with parameters.           |
-| `state`    | A named mode or state-machine state.                                  |
-| `const`    | A named constant whose value does not change at runtime.              |
-| `config`   | A configuration parameter supplied before system start.               |
-| `document` | A structured artefact (log record, report, notification).             |
-| `stream`   | A sequence of values produced over time.                              |
+| Kind        | Meaning                                                                                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `value`     | A plain data value with no lifecycle semantics. Default when omitted.                                                                                                       |
+| `event`     | A named occurrence, optionally carrying a payload.                                                                                                                          |
+| `signal`    | A continuously observable quantity with a measurable shape.                                                                                                                 |
+| `command`   | A request to perform an action, optionally with parameters.                                                                                                                 |
+| `state`     | A named mode or state-machine state.                                                                                                                                        |
+| `const`     | A named constant whose value does not change at runtime.                                                                                                                    |
+| `config`    | A configuration parameter supplied before system start.                                                                                                                     |
+| `document`  | A structured artefact (log record, report, notification).                                                                                                                   |
+| `stream`    | A sequence of values produced over time.                                                                                                                                    |
+| `namespace` | Declares a base path for relative references in the published tier. Scaffolding, not a symbol — it carries no shape. See [Published declarations](#published-declarations). |
 
 ---
 
@@ -257,9 +258,17 @@ identifier in-prose without interrupting the surrounding text.
 
 ## Scope
 
-In v1, typl declarations are **entry-local**. A typedef declared in one entry
-cannot be referenced by name from a different entry. Cross-entry type sharing is
-deferred to a future profile-level scope mechanism.
+typl has two declaration tiers.
+
+**Entry-local** — a plain `$Name` binding (no dots) and every `type Name`
+typedef are scoped to their declaring entry. A typedef declared in one entry
+cannot be referenced by name from another. Two entries that each declare
+`$Speed` declare two independent symbols; there is no cross-entry consistency
+rule for plain names.
+
+**Published** — a dotted `$a.b.c` binding is a corpus-wide symbol, declared
+exactly once and citable from any entry. See
+[Published declarations](#published-declarations).
 
 Within a single entry, all surfaces (fence, bullet, inline) share one namespace.
 A `$Name` binding or `type Name` declared in one surface is visible to the
@@ -267,18 +276,65 @@ others in the same entry.
 
 ---
 
+## Published declarations
+
+A **published symbol** is a `$Name` whose path has two or more dot-separated
+segments (`$powertrain.brake.pedal_position`). Unlike an entry-local plain
+`$Name`, a published symbol is declared **exactly once** across the whole corpus
+and may be cited from any entry. A published symbol cannot be a bare name —
+publication forces namespace ownership.
+
+### Namespace declarations
+
+A `namespace`-kind declaration establishes a **base** path that relative
+references resolve against. It is scaffolding, not a symbol: it carries no shape
+and is not itself subject to declared-once.
+
+```markdown
+`$powertrain.brake : namespace`
+```
+
+### Relative references
+
+A reference of the form `$.name` is **relative**: it resolves against the base
+of the nearest enclosing namespace declaration (innermost wins), falling back to
+the entry's root namespace. An absolute reference has an identifier character
+immediately after the sigil (`$powertrain.brake.pedal_position`); a relative
+reference has a dot (`$.pedal_position`). There is no form in between, and the
+`$` sigil stays on the relative form.
+
+```markdown
+- `$powertrain.brake : namespace` — brake subsystem signals
+  - `$.pedal_position : signal float[0..100]` — resolves to
+    `$powertrain.brake.pedal_position`
+  - `$.line_pressure : signal float[0..250]`
+
+  Latency budgets apply to `$.pedal_position`.
+```
+
+A cross-entry citation must be **absolute** — a relative reference never leaves
+its declaring entry. An entry may declare **at most one** root (top-level)
+namespace; a second is an error ([TYPL-012](#diagnostic-catalogue)). Zero is
+fine — that is every entry without published symbols.
+
+---
+
 ## Diagnostic catalogue
 
-| Code     | Severity | Description                                                              |
-| -------- | -------- | ------------------------------------------------------------------------ |
-| TYPL-001 | error    | Duplicate `$Name` binding within the same entry — first occurrence wins. |
-| TYPL-002 | error    | Same `$Name` declared with a different kind in another entry.            |
-| TYPL-003 | error    | Same `$Name` declared with a different shape in another entry.           |
-| TYPL-004 | error    | Typedef name redefined within the same entry.                            |
-| TYPL-005 | error    | Reference to an undefined typedef name.                                  |
-| TYPL-006 | error    | Malformed schema — unparseable shape expression.                         |
-| TYPL-007 | error    | Unknown kind keyword; expected one of the nine closed-vocabulary kinds.  |
-| TYPL-008 | error    | Literal value violates the declared constraint.                          |
+| Code     | Severity | Description                                                                                 |
+| -------- | -------- | ------------------------------------------------------------------------------------------- |
+| TYPL-001 | error    | Duplicate `$Name` binding within the same entry — first occurrence wins.                    |
+| TYPL-002 | error    | _Deprecated — retired by the published tier; never emitted._ Kind mismatch across entries.  |
+| TYPL-003 | error    | _Deprecated — retired by the published tier; never emitted._ Shape mismatch across entries. |
+| TYPL-004 | error    | Typedef name redefined within the same entry.                                               |
+| TYPL-005 | error    | Reference to an undefined typedef name.                                                     |
+| TYPL-006 | error    | Malformed schema — unparseable shape expression.                                            |
+| TYPL-007 | error    | Unknown kind keyword; expected one of the ten closed-vocabulary kinds.                      |
+| TYPL-008 | error    | Literal value violates the declared constraint.                                             |
+| TYPL-009 | error    | Published symbol declared more than once — declared-once violation.                         |
+| TYPL-010 | error    | Relative reference has no namespace base in scope.                                          |
+| TYPL-011 | error    | Citation of an undeclared published symbol.                                                 |
+| TYPL-012 | error    | More than one root namespace declaration in a single entry.                                 |
 
 ---
 

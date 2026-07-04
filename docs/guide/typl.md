@@ -12,7 +12,7 @@ Use typl when an entry references `$Name` identifiers that represent typed
 quantities, and you want:
 
 - **Tooling support** — LSP hover shows the kind and shape of `$Name`; the
-  compiler reports undefined references and cross-entry collisions.
+  compiler reports undefined references and duplicate published declarations.
 - **Downstream codegen** — the `typeRegistry` in
   `markspec compile --format json` maps each identifier to its shape, ready for
   RIDL emitters or custom scripts.
@@ -150,6 +150,56 @@ merges them.
 
 ---
 
+## Publishing a symbol across entries
+
+Everything above is **entry-local**: a plain `$Name` lives in the entry that
+declares it, and two entries may declare `$Speed` independently. When a signal
+is a shared contract — an interface every consumer must agree on — declare it
+**once** as a _published_ symbol and cite it from the other entries.
+
+A published symbol is a dotted, namespaced name declared exactly once across the
+whole project. Declare a namespace, then hang the leaf signals off it with
+relative `$.` references:
+
+```markdown
+- [ICD_BRAKE_0001] Brake subsystem signal interface
+
+  `$powertrain.brake : namespace`
+
+  - `$.pedal_position : signal float[0..100]` — pedal travel, percent
+  - `$.line_pressure : signal float[0..250]` — hydraulic line pressure, bar
+
+    Id: 01JZEXAMPLEULID000000000005
+```
+
+This declares two published symbols — `$powertrain.brake.pedal_position` and
+`$powertrain.brake.line_pressure`. Any other entry cites one by its full dotted
+path:
+
+```markdown
+- [SRS_BRAKE_0040] Emergency brake trigger
+
+  The controller shall engage the emergency brake when
+  `$powertrain.brake.line_pressure` drops below 50 bar within 20 ms.
+
+      Id: 01JZEXAMPLEULID000000000006
+      Satisfies: SYS_BRAKE_0007
+```
+
+Three rules to keep in mind:
+
+- **Declared once.** Re-declaring a published symbol anywhere in the project is
+  an error (TYPL-009).
+- **Citations are absolute.** The relative `$.` form only works inside the
+  declaring entry; another entry must spell out the full dotted path.
+- **A published name is never bare.** Publication needs a namespace — `$speed`
+  cannot be published as-is; give it an owner (`$vehicle.speed`).
+
+See the [language reference](../spec/language/typl.md#published-declarations)
+for the full base-resolution rules.
+
+---
+
 ## Compile output
 
 Running `markspec compile --format json` on a project that contains typl
@@ -243,28 +293,61 @@ declaration exists in the same entry.
 **Fix:** Add the typedef before the binding, or replace the ref with an inline
 shape.
 
-### TYPL-002 — kind collision across entries
+### TYPL-002 / TYPL-003 — cross-entry collisions (deprecated)
+
+`TYPL-002` (kind collision) and `TYPL-003` (shape collision) are **retired** and
+never emitted. Under the published tier, two entries that declare the same plain
+`$Name` are independent entry-local symbols, so there is no cross-entry
+consistency rule for plain names. Corpus-wide agreement is now enforced only for
+published (dotted) symbols — see TYPL-009 below.
+
+### TYPL-009 — duplicate published declaration
 
 ```
-TYPL-002: $Speed is declared as kind signal here and kind value in SYS_CTRL_0001:14.
+TYPL-009: $powertrain.brake.pedal_position is already declared in icd/brake.md:12 (published symbols are declared exactly once).
 ```
 
-**Cause:** Two entries declare `$Speed` with different kind keywords.
+**Cause:** A published (dotted) symbol is declared in more than one place. A
+published symbol must be declared exactly once across the whole project.
 
-**Fix:** Align the kind declaration across all entries that use `$Speed`. If the
-identifiers are genuinely different quantities, rename one of them.
+**Fix:** Keep the single authoritative declaration and cite it from the other
+entries by its full dotted path.
 
-### TYPL-003 — shape collision across entries
+### TYPL-010 — relative reference with no base
 
 ```
-TYPL-003: $Speed is declared with a different shape than in SYS_CTRL_0001:14.
+TYPL-010: Relative reference $.pedal_position has no namespace base in scope.
 ```
 
-**Cause:** Two entries agree on the kind but use a different shape for `$Speed`
-(e.g., `float[0..300]` in one entry, `float[0..200]` in another).
+**Cause:** A `$.` relative reference appears with no enclosing `namespace`
+declaration and no entry root namespace to resolve against.
 
-**Fix:** Decide which shape is authoritative and update the other entry. If both
-ranges are intentional, use distinct names.
+**Fix:** Declare a namespace in scope (`` `$powertrain.brake : namespace` ``),
+or write the reference as an absolute dotted path.
+
+### TYPL-011 — citation of an undeclared published symbol
+
+```
+TYPL-011: Citation of undeclared published symbol $powertrain.brake.pedal_position.
+```
+
+**Cause:** An entry cites a dotted published symbol that is never declared
+anywhere in the project.
+
+**Fix:** Declare the symbol in its owning entry, or correct the dotted path in
+the citation.
+
+### TYPL-012 — multiple root namespaces in one entry
+
+```
+TYPL-012: Multiple root namespace declarations in one entry (root is $powertrain.brake).
+```
+
+**Cause:** An entry declares more than one top-level `namespace`. An entry may
+have at most one root namespace.
+
+**Fix:** Keep a single root namespace; nest the others beneath it, or move them
+to their own entries.
 
 ### TYPL-001 — duplicate binding in the same entry
 
