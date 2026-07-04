@@ -372,3 +372,30 @@ Deno.test("WorkspaceIndex: validateAll reports a project/corpus collision as MSL
     false,
   );
 });
+
+function upstreamEntry(displayId: string): Entry {
+  return {
+    ...entry(displayId, { file: "docs/product/stk.md", title: "Product req" }),
+    origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+  };
+}
+
+Deno.test("getAllDisplayIds: upstream entry carries the origin badge (completion)", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("docs/product/stk.md", [upstreamEntry("PRODUCT_STK_0001")]);
+  const all = index.getAllDisplayIds();
+  const row = all.find((e) => e.displayId === "PRODUCT_STK_0001");
+  assertEquals(row?.origin, "product@v2.1.0");
+});
+
+Deno.test("getEntryByDisplayId: upstream entry exposes origin (rename read-only guard input)", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("docs/product/stk.md", [upstreamEntry("PRODUCT_STK_0001")]);
+  // The server's onPrepareRename / onRenameRequest block on
+  // `targetEntry?.origin`; proving the indexed entry carries `origin`
+  // proves the guard fires for upstream entries.
+  assertEquals(
+    index.getEntryByDisplayId(makeDisplayId("PRODUCT_STK_0001"))?.origin?.kind,
+    "upstream",
+  );
+});
