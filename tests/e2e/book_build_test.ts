@@ -282,3 +282,73 @@ Deno.test("book build: --output flag writes to custom directory", async () => {
   // `wrote out/index.html` on POSIX; `wrote out\index.html` on Windows.
   assertMatch(stderr, /out[\\/]index\.html/);
 });
+
+// ── index.md as a real chapter (not just an auto-generated nav page) ───────
+
+const INDEX_MD_SUMMARY = `# Summary
+
+- [Overview](index.md)
+- [Requirements](requirements.md)
+- [Specs](specs.md)
+`;
+
+// Deliberately mentions neither other chapter — regression fixture for the
+// "chapter content wins but strands the rest of the book" bug: an index.md
+// chapter's own prose is not a substitute for full site navigation.
+const INDEX_MD_CONTENT =
+  `# Overview\n\nOVERVIEW-MARKER-TEXT this is the book's real homepage content.\n`;
+
+const INDEX_MD_FIXTURE = {
+  "project.yaml": PROJECT_YAML,
+  "SUMMARY.md": INDEX_MD_SUMMARY,
+  "index.md": INDEX_MD_CONTENT,
+  "requirements.md": REQUIREMENTS_MD,
+  "specs.md": SPECS_MD,
+};
+
+Deno.test("book build: a chapter mapped from index.md becomes index.html — its content wins, but every chapter stays linked from it", async () => {
+  const { code, stderr } = await markspec(["book", "build"], {
+    files: INDEX_MD_FIXTURE,
+  });
+  assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+
+  const dir = await Deno.makeTempDir();
+  try {
+    for (const [name, content] of Object.entries(INDEX_MD_FIXTURE)) {
+      await Deno.writeTextFile(`${dir}/${name}`, content);
+    }
+    const cmd = new Deno.Command("deno", {
+      args: [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        fromFileUrl(
+          new URL("../../packages/markspec/main.ts", import.meta.url),
+        ),
+        "book",
+        "build",
+      ],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    await cmd.output();
+
+    const html = await Deno.readTextFile(`${dir}/_site/index.html`);
+    assertStringIncludes(html, "OVERVIEW-MARKER-TEXT");
+    // The chapter's own content must win — no separate, redundant nav-only
+    // page should be written for a chapter that already maps to "index".
+    // But every OTHER chapter — including one index.md's own prose never
+    // mentions — must still be reachable from the homepage: the auto nav
+    // section is appended, not skipped, when a real chapter claims "index".
+    assertStringIncludes(html, 'href="requirements.html"');
+    assertStringIncludes(html, 'href="specs.html"');
+
+    const requirementsHtml = await Deno.readTextFile(
+      `${dir}/_site/requirements.html`,
+    );
+    assertStringIncludes(requirementsHtml, "STK_BRK_0001");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
