@@ -50,6 +50,17 @@ function readerFor(files: Map<string, string>) {
   return (path: string) => Promise.resolve(files.get(path));
 }
 
+/** Wrap {@linkcode readerFor} to record every requested path — lets the
+ * skew test pin that the snapshot data file is never read (ordering
+ * contract: skew check before any data-file read). */
+function recordingReaderFor(files: Map<string, string>, requested: string[]) {
+  const inner = readerFor(files);
+  return (path: string) => {
+    requested.push(path);
+    return inner(path);
+  };
+}
+
 Deno.test("loadUpstreamCorpus: hydrates and stamps upstream origin", async () => {
   const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
   const result = await loadUpstreamCorpus(
@@ -104,5 +115,56 @@ Deno.test("loadUpstreamCorpus: schema skew → 001, upstream skipped", async () 
     readerFor(files),
   );
   assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-001");
+  assertEquals(result.entries, []);
+});
+
+Deno.test("loadUpstreamCorpus: skew check runs before any data-file read", async () => {
+  // Ordering pin (contract 1): a skewed snapshot must never reach the
+  // data file — assert on the paths the reader was asked for, not just
+  // the outcome. Reordering the loader to pre-read compiled.json before
+  // (or regardless of) the skew check would fail this test even though
+  // the 001-diagnostic outcome stays the same.
+  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  const manifest = JSON.parse(files.get("/c/up/product/manifest.json")!);
+  manifest.generator.coreSchema = 99;
+  files.set("/c/up/product/manifest.json", JSON.stringify(manifest));
+  const requested: string[] = [];
+  const result = await loadUpstreamCorpus(
+    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    recordingReaderFor(files, requested),
+  );
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-001");
+  assertEquals(requested.includes("/c/up/product/manifest.json"), true);
+  assertEquals(requested.includes("/c/up/product/compiled.json"), false);
+});
+
+Deno.test("loadUpstreamCorpus: no upstreams → empty result", async () => {
+  const result = await loadUpstreamCorpus([], readerFor(new Map()));
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics, []);
+});
+
+Deno.test("loadUpstreamCorpus: empty snapshot entries → no entries, no diagnostics", async () => {
+  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  files.set("/c/up/product/compiled.json", JSON.stringify({ entries: {} }));
+  const result = await loadUpstreamCorpus(
+    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    readerFor(files),
+  );
+  assertEquals(result.diagnostics, []);
+  assertEquals(result.entries, []);
+});
+
+Deno.test("loadUpstreamCorpus: missing snapshot data file → 002", async () => {
+  // Data-file-level failure: valid manifest, but the compiled.json it
+  // names is gone — distinct from the manifest-level 002 tested above.
+  const files = await snapshotFiles("/c/up/product", UP_A_MD, "/up/a.md");
+  files.delete("/c/up/product/compiled.json");
+  const result = await loadUpstreamCorpus(
+    [{ id: "product", version: "v2.1.0", dir: "/c/up/product" }],
+    readerFor(files),
+  );
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-002");
   assertEquals(result.entries, []);
 });
