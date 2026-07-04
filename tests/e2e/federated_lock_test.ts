@@ -267,7 +267,118 @@ Deno.test(
 );
 
 // ---------------------------------------------------------------------------
-// 6. Migration errors — org project.yaml closed-schema validation. These are
+// 6. `check` resolves a cross-repo `Satisfies:` against a locked upstream
+// snapshot (federated-upstream epic, slice 4). Project B's entry satisfies
+// an upstream (A) entry; `check` must feed the hydrated upstream entries
+// into its own pipeline so the reference resolves — no MSL-L006. Each
+// project declares its own small profile so the entries classify cleanly
+// (an unclassified entry authoring `Satisfies:` would otherwise trip
+// unrelated MSL-T024/MSL-A005 attribute-scope warnings that have nothing to
+// do with this scenario) — mirrors `tests/e2e/check_project_test.ts`'s
+// requirement / system-requirement fixture.
+// ---------------------------------------------------------------------------
+
+const TRACE_PROFILE_A_YAML = `id: "@acme/federated-a"
+version: 0.1.0
+profile:
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "STK_{n:04d}"
+`;
+
+const TRACE_REQS_A = `# Product A requirements
+
+- [STK_0001] First requirement
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Type: requirement
+`;
+
+const TRACE_PROFILE_B_YAML = `id: "@acme/federated-b"
+version: 0.1.0
+profile:
+  types:
+    system-requirement:
+      extends: Requirement
+      display-id-pattern: "SREQ-{n:04d}"
+      traceability:
+        Satisfies:
+          target: [requirement]
+          cardinality: 0..3
+          required: false
+`;
+
+const TRACE_REQS_B = `# Product B requirements
+
+- [SREQ-0001] Derived requirement satisfying the upstream
+
+  Body text.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+      Type: system-requirement
+      Satisfies: STK_0001
+`;
+
+Deno.test(
+  "check: cross-repo Satisfies against a locked upstream resolves (no MSL-L006)",
+  async () => {
+    const root = await Deno.makeTempDir();
+    const dirA = `${root}/a`;
+    const dirB = `${root}/b`;
+
+    try {
+      await Deno.mkdir(dirA, { recursive: true });
+      await Deno.mkdir(dirB, { recursive: true });
+      await Deno.writeTextFile(`${dirA}/project.yaml`, PROJECT_A_YAML);
+      await Deno.writeTextFile(
+        `${dirA}/.markspec.yaml`,
+        "profiles:\n  - ./profiles/p\n",
+      );
+      await Deno.mkdir(`${dirA}/profiles/p`, { recursive: true });
+      await Deno.writeTextFile(
+        `${dirA}/profiles/p/markspec.yaml`,
+        TRACE_PROFILE_A_YAML,
+      );
+      await Deno.writeTextFile(`${dirA}/reqs.md`, TRACE_REQS_A);
+
+      const compileA = await markspecInDir(dirA, [
+        "compile",
+        "--output",
+        "api",
+        "reqs.md",
+      ]);
+      assertEquals(compileA.code, 0, compileA.stderr);
+
+      const fileUrl = toFileUrl(join(dirA, "api")).href;
+      await Deno.writeTextFile(`${dirB}/project.yaml`, projectBYaml(fileUrl));
+      await Deno.writeTextFile(
+        `${dirB}/.markspec.yaml`,
+        "profiles:\n  - ./profiles/p\n",
+      );
+      await Deno.mkdir(`${dirB}/profiles/p`, { recursive: true });
+      await Deno.writeTextFile(
+        `${dirB}/profiles/p/markspec.yaml`,
+        TRACE_PROFILE_B_YAML,
+      );
+      await Deno.writeTextFile(`${dirB}/reqs.md`, TRACE_REQS_B);
+
+      const lock = await markspecInDir(dirB, ["lock"], LOCK_PERMISSIONS);
+      assertEquals(lock.code, 0, lock.stderr);
+
+      const check = await markspecInDir(dirB, ["check"]);
+      assertEquals(check.code, 0, check.stderr);
+      assertEquals(/MSL-L006/.test(check.stderr), false, check.stderr);
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 7. Migration errors — org project.yaml closed-schema validation. These are
 // independent of the A/B fixture above: any command that loads project.yaml
 // (here, `markspec lock`) surfaces a ConfigError before doing any lock work.
 // ---------------------------------------------------------------------------
