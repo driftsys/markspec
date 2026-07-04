@@ -91,4 +91,10 @@ export type Statement = Binding | Typedef;
 export interface TyplBlock {
   readonly bindings: readonly Binding[];
   readonly typedefs: readonly Typedef[];
+  /**
+   * The entry's root namespace path (no `$`, e.g. `"powertrain.brake"`),
+   * when the entry declares one (#723). The validator resolves relative
+   * citations against it.
+   */
+  readonly rootNamespace?: string;
 }

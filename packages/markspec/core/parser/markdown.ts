@@ -27,14 +27,7 @@ import { processor } from "./remark.ts";
 import { buildBodyAstWithTree } from "../ast/build.ts";
 import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
-import {
-  bridgeTyplDiagnostic,
-  extractTyplBullets,
-  extractTyplFences,
-  extractTyplInlines,
-  parseTyplBlock,
-  type TyplBlock,
-} from "../typl/mod.ts";
+import { assembleTyplTypes } from "../typl/mod.ts";
 
 /**
  * Canonical set of trailer attribute keys the core recognizes: the union of
@@ -594,62 +587,12 @@ function extractEntry(
     mdastTree,
   );
 
-  // Extract typl declarations from all three surfaces in the body:
-  // (1) ```typl fences, (2) bullet-glossary items, (3) inline code spans.
-  // Per-surface diagnostics are bridged to file-relative positions and
-  // pushed into the parser's diagnostic stream. Cross-entry collision
-  // detection lands in a later PR; this PR aggregates all intra-entry
-  // bindings + typedefs from every surface.
-  let types: TyplBlock | undefined;
-  const allBindings: TyplBlock["bindings"][number][] = [];
-  const allTypedefs: TyplBlock["typedefs"][number][] = [];
-
-  for (const fence of extractTyplFences(bodyAst)) {
-    const result = parseTyplBlock(fence.source);
-    allBindings.push(...result.ast.bindings);
-    allTypedefs.push(...result.ast.typedefs);
-    // Fence content starts on the line AFTER the opening ```, so the
-    // bridge offset is the file line of the opening fence.
-    const fenceFileStartLine = bodyStartLine + fence.range.start.line - 1;
-    for (const td of result.diagnostics) {
-      diagnostics.push(bridgeTyplDiagnostic(td, file, fenceFileStartLine));
-    }
-  }
-
-  for (const bullet of extractTyplBullets(bodyAst)) {
-    const result = parseTyplBlock(bullet.source);
-    allBindings.push(...result.ast.bindings);
-    allTypedefs.push(...result.ast.typedefs);
-    // A bullet item IS the typl content (single line). The bridge
-    // computes line as `offset + diag.position.line`; we want diag
-    // position.line 1 to map to the item's file line, so offset is
-    // `itemFileLine - 1` = `bodyStartLine + bullet.range.start.line - 2`.
-    const bulletFileOffset = bodyStartLine + bullet.range.start.line - 2;
-    for (const td of result.diagnostics) {
-      diagnostics.push(bridgeTyplDiagnostic(td, file, bulletFileOffset));
-    }
-  }
-
-  for (const inline of extractTyplInlines(bodyTokens)) {
-    const result = parseTyplBlock(inline.source);
-    allBindings.push(...result.ast.bindings);
-    allTypedefs.push(...result.ast.typedefs);
-    // inline.location is already file-relative (translated by the
-    // bodyTokens extractor). The bridge computes file line as
-    // `offset + diag.position.line`; for inline content where
-    // diag.position.line is 1 (single-line span), offset is
-    // `inline.location.line - 1`.
-    const inlineFileOffset = inline.location.line - 1;
-    for (const td of result.diagnostics) {
-      diagnostics.push(
-        bridgeTyplDiagnostic(td, inline.location.file, inlineFileOffset),
-      );
-    }
-  }
-
-  if (allBindings.length > 0 || allTypedefs.length > 0) {
-    types = { bindings: allBindings, typedefs: allTypedefs };
-  }
+  // Extract + resolve typl declarations from all three surfaces (#723):
+  // published names resolve to absolute dotted form at parse time, so
+  // Entry.types carries absolute names only. See typl/assemble.ts.
+  const typl = assembleTyplTypes(bodyAst, bodyTokens, file, bodyStartLine);
+  diagnostics.push(...typl.diagnostics);
+  const types = typl.types;
 
   return {
     displayId: makeDisplayId(displayId),

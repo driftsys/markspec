@@ -22,6 +22,8 @@ export { TYPL_CODES, typlDiagnostic } from "./diagnostics.ts";
 
 export { parseTyplBlock } from "./grammar.ts";
 
+export { assembleTyplTypes } from "./assemble.ts";
+
 export type { TyplFenceExtraction } from "./fence.ts";
 export { extractTyplFences } from "./fence.ts";
 
