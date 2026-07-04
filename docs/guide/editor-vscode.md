@@ -166,7 +166,9 @@ markspec lsp install --editor neovim --binary-path /opt/markspec/bin/markspec
 
 - Confirm the binary is on `PATH`: `markspec --version` in a terminal.
 - Check the MarkSpec output panel (**View → Output → MarkSpec**) for LSP errors.
-- Verify the project has a `project.yaml` — `markspec check` requires one.
+- Confirm the file has MarkSpec entry blocks — diagnostics only appear for files
+  the server recognises (`.md` and supported source files with entry markers or
+  trace attributes).
 
 **"markspec: command not found"**
 

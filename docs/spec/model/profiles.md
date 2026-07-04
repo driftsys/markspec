@@ -226,9 +226,14 @@ for the full lexical grammar and validator interaction matrix.
 The optional `profile.discipline-mode:` field declares whether the profile tiers
 requirements by discipline (`tiered`), keeps them flat with discipline derived
 via allocation (`flat`), or doesn't use discipline at all (`none`). When
-omitted, MarkSpec infers the mode from the profile's type graph — see the
-[Slice 5 design spec](../../superpowers/specs/2026-05-25-discipline-mode-flag-and-ux-design.md)
-for the full inference algorithm.
+omitted, MarkSpec infers the mode from the profile's type graph, in order:
+
+1. **`tiered`** — any requirement-shaped type declares `discipline:`.
+2. **`flat`** — the profile declares extended kinds (`profile.kinds:`), extends
+   a core discipline-bearing type (`SoftwareComponent`, `HardwareComponent`,
+   `SoftwareInterface`, `HardwareInterface`, `SoftwareUnit`, `HardwareUnit`), or
+   declares any requirement-shaped type at all (even without `discipline:`).
+3. **`none`** — otherwise; the profile contributes nothing discipline-relevant.
 
 The resolved mode shapes three behaviours today:
 
