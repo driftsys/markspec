@@ -27,11 +27,21 @@ export { extractTyplFences } from "./fence.ts";
 
 export { bridgeTyplDiagnostic } from "./bridge.ts";
 
-export type { TyplBulletExtraction } from "./bullet.ts";
-export { extractTyplBullets } from "./bullet.ts";
+export type {
+  TyplBulletExtraction,
+  TyplNestedBulletExtraction,
+} from "./bullet.ts";
+export { extractTyplBullets, extractTyplBulletsNested } from "./bullet.ts";
 
 export type { TyplInlineExtraction } from "./inline.ts";
 export { extractTyplInlines } from "./inline.ts";
+
+export {
+  isPublishedTyplName,
+  isRelativeTyplName,
+  TYPL_REF_OPS,
+  typlPathOf,
+} from "./resolve.ts";
 
 export type {
   RegistryBinding,

@@ -27,7 +27,11 @@ export type TyplCode =
   | "TYPL-005"
   | "TYPL-006"
   | "TYPL-007"
-  | "TYPL-008";
+  | "TYPL-008"
+  | "TYPL-009"
+  | "TYPL-010"
+  | "TYPL-011"
+  | "TYPL-012";
 
 /** Shape of each entry in {@linkcode TYPL_CODES}. */
 export interface TyplCodeEntry {
@@ -57,11 +61,13 @@ export const TYPL_CODES: Record<TyplCode, TyplCodeEntry> = {
     template:
       "Duplicate binding for ${name} in the same entry (first wins, this is a duplicate).",
   },
+  // Deprecated (#723): retired by the published tier. Kept resolvable for tooling; never emitted.
   "TYPL-002": {
     severity: "error",
     template:
       "${name} is declared as kind ${kindA} here and ${kindB} in ${otherFile}:${otherLine}.",
   },
+  // Deprecated (#723): retired by the published tier. Kept resolvable for tooling; never emitted.
   "TYPL-003": {
     severity: "error",
     template:
@@ -87,6 +93,24 @@ export const TYPL_CODES: Record<TyplCode, TyplCodeEntry> = {
   "TYPL-008": {
     severity: "error",
     template: "Literal ${value} violates declared ${constraint} (${detail}).",
+  },
+  "TYPL-009": {
+    severity: "error",
+    template:
+      "${name} is already declared in ${otherFile}:${otherLine} (published symbols are declared exactly once).",
+  },
+  "TYPL-010": {
+    severity: "error",
+    template: "Relative reference ${name} has no namespace base in scope.",
+  },
+  "TYPL-011": {
+    severity: "error",
+    template: "Citation of undeclared published symbol ${name}.",
+  },
+  "TYPL-012": {
+    severity: "error",
+    template:
+      "Multiple root namespace declarations in one entry (root is ${first}).",
   },
 };
 
