@@ -9,7 +9,8 @@
  * Pure module: no I/O, no Deno APIs.
  */
 
-import type { Entry } from "../model/mod.ts";
+import type { Diagnostic, Entry } from "../model/mod.ts";
+import { CORE_SCHEMA_VERSION } from "../mod.ts";
 import type { SerializedEntry } from "./schema.ts";
 
 /**
@@ -38,4 +39,110 @@ export function deserializeEntry(s: SerializedEntry): Entry {
     id,
     typedAttributes: new Map(Object.entries(typedAttributes ?? {})),
   } as Entry;
+}
+
+/** Result of {@linkcode extractSerializedEntries}. */
+export interface ExtractedEntries {
+  readonly entries: SerializedEntry[];
+  readonly diagnostics: Diagnostic[];
+}
+
+/**
+ * Reject a snapshot whose schema versions don't match this build — a
+ * skewed snapshot must never silently misparse. Returns the diagnostic to
+ * publish, or `undefined` when the snapshot is compatible.
+ */
+export function checkSnapshotSchema(
+  manifest: unknown,
+  manifestPath: string,
+): Diagnostic | undefined {
+  const m = manifest as {
+    markspecSchemaVersion?: unknown;
+    generator?: { coreSchema?: unknown };
+  };
+  if (
+    m?.markspecSchemaVersion === 1 &&
+    m?.generator?.coreSchema === CORE_SCHEMA_VERSION
+  ) {
+    return undefined;
+  }
+  return {
+    code: "UPSTREAM-SNAPSHOT-001",
+    severity: "error",
+    message:
+      `upstream snapshot schema mismatch (manifest v${
+        String(m?.markspecSchemaVersion)
+      }, ` +
+      `core-schema ${
+        String(m?.generator?.coreSchema)
+      } vs expected 1/${CORE_SCHEMA_VERSION}); ` +
+      `re-run 'markspec lock' with a compatible markspec version`,
+    location: { file: manifestPath, line: 1, column: 1 },
+  };
+}
+
+/**
+ * Follow the manifest's `entries` block and return the raw serialized
+ * entries. `readSnapshotFile` resolves a path relative to the snapshot
+ * directory (injected — this module does no I/O).
+ */
+export function extractSerializedEntries(
+  manifest: unknown,
+  readSnapshotFile: (relPath: string) => string | undefined,
+  manifestPath: string,
+): ExtractedEntries {
+  const diagnostics: Diagnostic[] = [];
+  const block = (manifest as { entries?: { format?: string; file?: string } })
+    ?.entries;
+  const file = block?.file;
+  if (!file || (block?.format !== "inline" && block?.format !== "ndjson")) {
+    diagnostics.push(
+      malformed(
+        manifestPath,
+        "manifest entries block missing or unknown format",
+      ),
+    );
+    return { entries: [], diagnostics };
+  }
+  const raw = readSnapshotFile(file);
+  if (raw === undefined) {
+    diagnostics.push({
+      code: "UPSTREAM-SNAPSHOT-002",
+      severity: "error",
+      message: `upstream snapshot file '${file}' is missing or unreadable; ` +
+        `run 'markspec lock' to restore the cache`,
+      location: { file: manifestPath, line: 1, column: 1 },
+    });
+    return { entries: [], diagnostics };
+  }
+  try {
+    if (block.format === "inline") {
+      const json = JSON.parse(raw) as {
+        entries?: Record<string, SerializedEntry>;
+      };
+      return { entries: Object.values(json.entries ?? {}), diagnostics };
+    }
+    const entries = raw
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line) as SerializedEntry);
+    return { entries, diagnostics };
+  } catch (err) {
+    diagnostics.push(malformed(
+      manifestPath,
+      `snapshot file '${file}' is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    ));
+    return { entries: [], diagnostics };
+  }
+}
+
+function malformed(file: string, detail: string): Diagnostic {
+  return {
+    code: "UPSTREAM-SNAPSHOT-003",
+    severity: "error",
+    message: `malformed upstream snapshot: ${detail}`,
+    location: { file, line: 1, column: 1 },
+  };
 }
