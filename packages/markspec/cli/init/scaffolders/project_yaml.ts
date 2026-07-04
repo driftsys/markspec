@@ -57,6 +57,7 @@ function sanitiseName(raw: string): string {
   const sanitised = last
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .replace(/^[^a-z]+/, ""); // org name pattern requires a leading letter
   return sanitised || "project";
 }

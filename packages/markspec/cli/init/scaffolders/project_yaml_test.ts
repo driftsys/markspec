@@ -24,6 +24,16 @@ Deno.test("buildProjectYaml: falls back to 'project' when dirname sanitises to e
   assertStringIncludes(out, 'name: "project"');
 });
 
+Deno.test("buildProjectYaml: strips a leading digit run so the name matches the org pattern", () => {
+  const out = buildProjectYaml({ dirname: "2024-project" });
+  assertStringIncludes(out, 'name: "project"');
+});
+
+Deno.test("buildProjectYaml: keeps a normal name unchanged", () => {
+  const out = buildProjectYaml({ dirname: "my-lib" });
+  assertStringIncludes(out, 'name: "my-lib"');
+});
+
 Deno.test("scaffoldProjectYaml: writes the file when absent", async () => {
   const fs = createMemFs();
   await scaffoldProjectYaml(fs, "/repo", "repo");

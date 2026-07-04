@@ -181,7 +181,9 @@ export function parseProjectConfig(
 
   // version: required string (org project schema)
   let version = DEFAULT_PROJECT_CONFIG.version;
-  if (obj.version !== undefined && obj.version !== null) {
+  if (
+    obj.version !== undefined && obj.version !== null && obj.version !== ""
+  ) {
     if (typeof obj.version === "number") {
       console.error(
         `warning: ${filePath}: version is a number (${obj.version}), ` +
