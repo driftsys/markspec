@@ -88,7 +88,11 @@ does not constrain which `Labels:` values entries may carry.
   resolution is planned for a future release.
 - **`references:`** — registries or external sources this project cites, such as
   another project's published compile output. `markspec lock` fetches and pins
-  these against a cache — see [`lock`](#lock) below.
+  these against a cache — see [`lock`](#lock) below. The declared `version:` is
+  recorded but not yet consulted when resolving a `references:` entry — `lock`
+  currently fetches the site's latest published snapshot regardless of an exact
+  tag or branch name; version-selecting resolution is planned for a future
+  release.
 
 ### .markspec.yaml
 
