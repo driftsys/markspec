@@ -20,28 +20,32 @@
 
 <!-- ![Architecture diagram](diagrams/sad-nnn-architecture.svg) -->
 
-- [SAD_XXX_NNNN] Architectural decision title
+```markdown
+- [SAD_BRK_0001] Lock-free acquisition buffer
 
-  <!-- Example: "The acquisition module shall use a lock-free ring buffer
-       to decouple sensor sampling from processing." -->
+  The acquisition module shall use a lock-free ring buffer to decouple sensor
+  sampling from processing.
 
       Id:
-      Satisfies:
-      Labels:
+      Satisfies: STK_BRK_0001
+      Labels: ASIL-B
+```
 
 ## Interfaces
 
 <!-- One ICD entry per external interface between the components above.
      Describe protocol, data format, direction, rate, and constraints. -->
 
-- [ICD_XXX_NNNN] Interface title
+```markdown
+- [ICD_BRK_0001] Sensor frame publication interface
 
-  <!-- Example: "The sensor gateway shall expose a CAN 2.0B interface
-       publishing filtered sensor frames at 100 Hz." -->
+  The sensor gateway shall expose a CAN 2.0B interface publishing filtered
+  sensor frames at 100 Hz.
 
       Id:
-      Satisfies:
-      Labels:
+      Satisfies: SAD_BRK_0001
+      Labels: ASIL-B
+```
 
 ## Constraints
 
