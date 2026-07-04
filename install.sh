@@ -71,9 +71,11 @@ main() {
   echo "Installing markspec $version ($target)" >&2
   echo "  to: $INSTALL_DIR" >&2
 
-  local tmpdir
+  # `tmpdir` is intentionally global (not `local`): the EXIT trap fires at
+  # global scope, so a function-local would be unbound there under `set -u`
+  # and the cleanup would both error and leak the temp dir.
   tmpdir="$(mktemp -d)"
-  trap 'rm -rf "$tmpdir"' EXIT
+  trap 'rm -rf "${tmpdir:-}"' EXIT
 
   curl -fsSL "$url" -o "$tmpdir/$tarball"
   curl -fsSL "$checksum_url" -o "$tmpdir/$tarball.sha256"
