@@ -326,6 +326,7 @@ export * as typl from "./typl/mod.ts";
 export {
   canonicalEdgeJson,
   checkDrift,
+  deriveUpstreamId,
   detectOfflineEdgeDrift,
   extractEdgeLedger,
   extractEdgeQuads,
@@ -335,6 +336,7 @@ export {
   parseLockfile,
   resolveBoundEntries,
   resolveProfileChain,
+  resolveProjectReferences,
   resolveReferences,
   resolveRegistries,
   resolveUpstreams,
@@ -361,11 +363,14 @@ export type {
   ResolvedReference,
   ResolvedRegistry,
   ResolvedUpstreams,
+  ResolveProjectReferencesOptions,
+  ResolveProjectReferencesResult,
   ResolveUpstreamsOptions,
   Upstream,
   UpstreamDependency,
   UpstreamProfile,
   UpstreamReference,
+  UpstreamRefsIO,
   UpstreamRegistry,
 } from "./lock/mod.ts";
 
