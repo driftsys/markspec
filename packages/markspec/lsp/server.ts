@@ -12,6 +12,7 @@
  */
 
 import {
+  CodeLensRefreshRequest,
   type CompletionItem,
   CompletionItemKind,
   type CompletionList,
@@ -21,6 +22,7 @@ import {
   type FileEvent,
   type InitializeParams,
   type InitializeResult,
+  InlayHintRefreshRequest,
   InsertTextFormat,
   ProposedFeatures,
   StreamMessageReader,
@@ -341,6 +343,15 @@ function publishAllDiagnostics(): void {
       });
     }
   }
+
+  // Cross-file validation just re-ran, so any already-open document's
+  // "↑ N dependents" codeLens / "(N dependents)" inlay hint may now be
+  // stale — the client only re-requests textDocument/codeLens|inlayHint
+  // on its own document changing, never on a change to a *different*
+  // file. Fire-and-forget: an older client that never declared refresh
+  // support may reject the request, which must not block diagnostics.
+  connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+  connection.sendRequest(InlayHintRefreshRequest.type).catch(() => {});
 }
 
 // Debounced cross-file validation (1000ms)
