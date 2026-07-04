@@ -39,6 +39,8 @@ export type { EdgeQuad } from "./canonical_edges.ts";
 export { detectOfflineEdgeDrift } from "./edge_drift.ts";
 export type { OfflineEdgeDrift } from "./edge_drift.ts";
 
+export { verifyUpstreamCache } from "./cache_check.ts";
+
 export {
   extractEdgeLedger,
   extractEdgeQuads,

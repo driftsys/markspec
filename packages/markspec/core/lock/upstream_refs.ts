@@ -164,13 +164,22 @@ async function writeCache(
   return undefined;
 }
 
-/** Is the cached snapshot for `row` present and hash-intact? */
-async function cacheIntact(
-  row: UpstreamRegistry,
+/**
+ * Probe whether the cached snapshot under `dir` is present and hash-intact
+ * against `snapshot`: `manifest.json` must exist and parse, its
+ * `entries.file` must name a safe relative path, and the hashed bytes of
+ * that file must equal `snapshot`.
+ *
+ * Shared by {@linkcode cacheIntact} (this module's keep/restore flow) and
+ * `verifyUpstreamCache` (`cache_check.ts`'s MSL-L212 offline cache-drift
+ * gate) so the two never disagree on what "cache intact" means — the
+ * single probe implementation, not a duplicate.
+ */
+export async function probeCacheSnapshot(
   dir: string,
+  snapshot: string,
   readFile: ReadFile,
 ): Promise<boolean> {
-  if (row.snapshot === undefined) return false;
   const manifestBytes = await readFile(`${dir}/manifest.json`);
   if ("error" in manifestBytes) return false;
   let entriesFile: string | undefined;
@@ -185,7 +194,17 @@ async function cacheIntact(
   if (entriesFile === undefined || isUnsafeRelPath(entriesFile)) return false;
   const dataBytes = await readFile(`${dir}/${entriesFile}`);
   if ("error" in dataBytes) return false;
-  return await sha256Bytes(dataBytes) === row.snapshot;
+  return await sha256Bytes(dataBytes) === snapshot;
+}
+
+/** Is the cached snapshot for `row` present and hash-intact? */
+async function cacheIntact(
+  row: UpstreamRegistry,
+  dir: string,
+  readFile: ReadFile,
+): Promise<boolean> {
+  if (row.snapshot === undefined) return false;
+  return await probeCacheSnapshot(dir, row.snapshot, readFile);
 }
 
 function buildRow(

@@ -16,6 +16,7 @@ import {
   renderDiagnosticLocation,
   resolveScope,
 } from "../helpers.ts";
+import { defaultReadFile } from "./lock.ts";
 
 export const checkCmd = new Command()
   .description("Check broken refs, missing Ids, duplicates")
@@ -168,8 +169,10 @@ export const checkCmd = new Command()
         // (MSL-L212).
         let lockParse: ReturnType<typeof parseLockfile> | undefined;
         let lockPath: string | undefined;
+        let cacheRoot: string | undefined;
         if (projectRoot !== undefined) {
           lockPath = join(projectRoot, "markspec.lock");
+          cacheRoot = join(projectRoot, ".markspec", "cache", "upstreams");
           const lockRaw = await readFile(lockPath);
           if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
         }
@@ -182,11 +185,15 @@ export const checkCmd = new Command()
           formatMarkdownProse,
         );
 
-        if (lockParse !== undefined && lockPath !== undefined) {
+        if (
+          lockParse !== undefined && lockPath !== undefined &&
+          cacheRoot !== undefined
+        ) {
           lockDiagnostics = await lockfileDriftGate(
             lockParse,
             lockPath,
             allEntries,
+            { cacheRoot, readFile: defaultReadFile },
           );
         }
       }
