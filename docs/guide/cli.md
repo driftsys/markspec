@@ -879,7 +879,7 @@ markspec profile add <spec>
 
 ```sh
 markspec profile add ./profiles/my-profile
-markspec profile add @driftsys/iso26262
+markspec profile add @acme/compliance-profile
 ```
 
 #### profile publish

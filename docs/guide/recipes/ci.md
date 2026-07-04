@@ -109,11 +109,14 @@ Generate a coverage or traceability matrix and upload it as an artifact:
 
 ## Caching the binary
 
-Cache `~/.local/bin/markspec` between runs to avoid downloading on every job:
+Cache `~/.local/bin/markspec` between runs to avoid downloading on every job.
+Bump the version in the cache key whenever you bump `MARKSPEC_VERSION` (or the
+"latest" you're tracking), so the cache invalidates instead of serving a stale
+binary:
 
 ```yaml
 - uses: actions/cache@v4
   with:
     path: ~/.local/bin/markspec
-    key: markspec-${{ runner.os }}-0.6.0
+    key: markspec-${{ runner.os }}-0.10.3
 ```

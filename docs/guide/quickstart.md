@@ -37,18 +37,19 @@ markspec --version
 
 ## Step 2 — Create a project (1 min)
 
-> **Coming soon: `markspec init`**
->
-> A future release will scaffold a project with a single command. For now,
-> create the files by hand — it takes 30 seconds.
-
-Create a project directory and two configuration files:
-
 ```sh
 mkdir my-project && cd my-project
+markspec init
 ```
 
-Create `project.yaml`:
+`markspec init` writes `project.yaml` (minimal project metadata),
+`.markspec.yaml` (activates the bundled default profile), and `markspec.lock`,
+plus editor/agent config for any detected clients. See
+[AI agents and skillset](ai-agents.md#setting-up-a-new-project) for the full
+list of generated files and client-targeting flags.
+
+**Prefer to set it up by hand?** Two files are all you need. Create
+`project.yaml`:
 
 ```yaml
 name: my-project
