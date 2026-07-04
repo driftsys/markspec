@@ -8,7 +8,16 @@ Deno.test("isUnsafeRelPath: plain relative paths are safe", () => {
 });
 
 Deno.test("isUnsafeRelPath: absolute paths are unsafe", () => {
-  for (const p of ["/etc/passwd", "C:\\win\\x", "c:/win/x"]) {
+  for (
+    const p of [
+      "/etc/passwd",
+      "C:\\win\\x",
+      "c:/win/x",
+      "\\foo",
+      "\\\\server\\share",
+      "C:foo",
+    ]
+  ) {
     assertEquals(isUnsafeRelPath(p), true, p);
   }
 });

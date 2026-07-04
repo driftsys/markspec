@@ -6,9 +6,11 @@
  * (upstream snapshot cache, profile `delivers:` lists).
  */
 
-/** Absolute path prefix — POSIX `/…` or a Windows drive letter (`C:\…` /
- * `C:/…`). */
-const ABSOLUTE_PATH_RE = /^(\/|[A-Za-z]:[\\/])/;
+/** Absolute path prefix — a POSIX `/…` root, a leading backslash (Windows
+ * drive-root-relative `\foo` and UNC `\\server\share`), or a Windows
+ * drive-letter prefix `C:` (drive-absolute `C:\…` / `C:/…` and
+ * drive-relative `C:foo`). */
+const ABSOLUTE_PATH_RE = /^(\/|\\|[A-Za-z]:)/;
 
 /** A `..` path segment anywhere in the string, POSIX or Windows separators. */
 const PARENT_SEGMENT_RE = /(^|[\\/])\.\.([\\/]|$)/;
