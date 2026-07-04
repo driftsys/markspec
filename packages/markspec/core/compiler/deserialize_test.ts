@@ -138,3 +138,90 @@ Deno.test("extractSerializedEntries: missing snapshot file → UPSTREAM-SNAPSHOT
   assertEquals(result.entries, []);
   assertEquals(result.diagnostics[0]?.code, "UPSTREAM-SNAPSHOT-002");
 });
+
+Deno.test("extractSerializedEntries: unknown entries format → UPSTREAM-SNAPSHOT-003", () => {
+  const manifest = {
+    ...GOOD_MANIFEST,
+    entries: { format: "exotic", file: "x" },
+  };
+  const result = extractSerializedEntries(
+    manifest,
+    () => "{}",
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});
+
+Deno.test("extractSerializedEntries: entries block missing file → UPSTREAM-SNAPSHOT-003", () => {
+  const manifest = { ...GOOD_MANIFEST, entries: { format: "inline" } };
+  const result = extractSerializedEntries(
+    manifest,
+    () => "{}",
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});
+
+Deno.test("extractSerializedEntries: invalid inline JSON → UPSTREAM-SNAPSHOT-003", () => {
+  const result = extractSerializedEntries(
+    GOOD_MANIFEST,
+    () => "{ not json",
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});
+
+Deno.test("extractSerializedEntries: invalid NDJSON line → UPSTREAM-SNAPSHOT-003", async () => {
+  const { entries } = await parseFile(FIXTURE, { file: "/up/sample.md" });
+  const ndjson = JSON.stringify(serializeEntry(entries[0])) + "\n{ not json\n";
+  const manifest = {
+    ...GOOD_MANIFEST,
+    entries: { format: "ndjson", file: "entries.ndjson" },
+  };
+  const result = extractSerializedEntries(
+    manifest,
+    (rel) => (rel === "entries.ndjson" ? ndjson : undefined),
+    "/c/manifest.json",
+  );
+  assertEquals(result.entries, []);
+  assertEquals(result.diagnostics.length, 1);
+  assertEquals(result.diagnostics[0].code, "UPSTREAM-SNAPSHOT-003");
+  assertEquals(result.diagnostics[0].severity, "error");
+});
+
+Deno.test("extractSerializedEntries: empty and whitespace-only NDJSON lines are filtered", async () => {
+  const { entries } = await parseFile(FIXTURE, { file: "/up/sample.md" });
+  const manifest = {
+    ...GOOD_MANIFEST,
+    entries: { format: "ndjson", file: "entries.ndjson" },
+  };
+
+  // Empty body → no entries, no diagnostics.
+  const empty = extractSerializedEntries(
+    manifest,
+    () => "",
+    "/c/manifest.json",
+  );
+  assertEquals(empty.entries, []);
+  assertEquals(empty.diagnostics, []);
+
+  // Whitespace-only lines interleaved with real ones are skipped.
+  const ndjson = "\n   \n" + JSON.stringify(serializeEntry(entries[0])) +
+    "\n\t\n" + JSON.stringify(serializeEntry(entries[1])) + "\n  \n";
+  const padded = extractSerializedEntries(
+    manifest,
+    () => ndjson,
+    "/c/manifest.json",
+  );
+  assertEquals(padded.diagnostics, []);
+  assertEquals(padded.entries.length, 2);
+});
