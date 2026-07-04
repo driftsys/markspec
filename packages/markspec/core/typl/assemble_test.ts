@@ -167,6 +167,20 @@ Deno.test("assemble: a union shape survives a table cell when its pipes are GFM-
   });
 });
 
+Deno.test("assemble: a table-row parse/resolution diagnostic points at the row's line", () => {
+  // The `$.pedal` row is relative with no base → TYPL-010. The diagnostic
+  // must land on the row's own file line (line 5), not one below it.
+  const md = `- [REQ_0105] Orphan table row
+
+  | Name | Kind shape | Description |
+  | ---- | -------------------- | ----- |
+  | $.pedal | signal float[0..100] | pedal |
+`;
+  const { diagnostics } = parseMarkdown(md, { file: "a.md" });
+  const t010 = diagnostics.find((d) => d.code === "TYPL-010");
+  assertEquals(t010?.location?.line, 5);
+});
+
 Deno.test("assemble: a table composes with the fence surface in one entry", () => {
   const md = `- [REQ_0103] Mixed surfaces
 

@@ -99,7 +99,7 @@ table may mix declaration rows with plain notes.
   | $VehicleSpeed | signal float[0..300] | km/h, road speed |
   | $EngineRpm    | signal int[0..8000]  | crankshaft speed |
 
-      Id: 01JZEXAMPLEULID000000000004
+      Id: 01JZEXAMPLEULID000000000006
 ```
 
 A shape that contains `|` (a union or enum) must escape each pipe as `\|` so GFM
@@ -107,8 +107,9 @@ does not read it as a column break; the cell un-escapes before typl parses it
 (`| $Gear | 'P' \| 'R' \| 'N' \| 'D' | selected gear |`).
 
 A `Table:` caption adjacent to the table may carry a published base — an
-absolute `$a.b` name — which scopes the table's relative rows (`$.x`) through
-the same entry-local resolver the bullet surface uses:
+absolute name, dotted (`$a.b`) or single-segment (`$vehicle`) — which scopes the
+table's relative rows (`$.x`) through the same entry-local resolver the bullet
+surface uses:
 
 ```markdown
 - [SYS_BRAKE_0009] Brake contract
@@ -123,7 +124,9 @@ the same entry-local resolver the bullet surface uses:
       Id: 01JZEXAMPLEULID000000000005
 ```
 
-Only bindings are expressed in tables; typedefs keep the fence, bullet, or
+A table row resolves against its caption base, then the entry root. Unlike a
+bullet, a table nested inside a namespace does not inherit that namespace's
+base. Only bindings are expressed in tables; typedefs keep the fence, bullet, or
 inline surfaces.
 
 ---

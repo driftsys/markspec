@@ -276,9 +276,11 @@ separator; the cell un-escapes before typl parses it.
 ```
 
 A `Table:` caption adjacent to the table may carry a published base — an
-absolute `$a.b` name — that scopes the table's relative rows (`$.x`) through the
-entry-local base resolver, the same mechanism the bullet glossary uses for
-nested namespaces.
+absolute name, dotted (`$a.b`) or single-segment (`$vehicle`) — that scopes the
+table's relative rows (`$.x`) through the same entry-local base resolver the
+bullet glossary's nested namespaces use. A table row resolves against its
+caption base, then the entry root; unlike a bullet, a table nested inside a
+namespace does not inherit that namespace's base.
 
 ---
 

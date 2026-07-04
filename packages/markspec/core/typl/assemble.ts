@@ -126,14 +126,16 @@ export function assembleTyplTypes(
     blocks.push({ ...result.ast, file: inline.location.file, lineOffset });
   }
 
-  // Table rows (#724): each recognized data row is one binding. Its range is
-  // line-precise, so the diagnostic offset mirrors the fence surface. A
-  // `Table:` caption base — when the caption text is an absolute typl name —
-  // scopes the row's relative refs (see `scopeFor`); it is not a namespace
-  // binding, so it takes no part in Pass A root detection or Pass B.
+  // Table rows (#724): each recognized data row is one binding. Its range
+  // points AT the row's own line (like the bullet surface, not the fence
+  // whose range points at the opening ``` a line above its content), so the
+  // diagnostic offset subtracts 2, matching the bullet path. The `Table:`
+  // caption base — when the caption text is an absolute typl name — scopes
+  // the row's relative refs (see `scopeFor`); the caption base is not a
+  // namespace binding, so it takes no part in Pass A root detection or Pass B.
   for (const row of extractTyplTable(bodyAst)) {
     const result = parseTyplBlock(row.source);
-    const lineOffset = bodyStartLine + row.range.start.line - 1;
+    const lineOffset = bodyStartLine + row.range.start.line - 2;
     for (const td of result.diagnostics) {
       diagnostics.push(bridgeTyplDiagnostic(td, file, lineOffset));
     }
@@ -223,10 +225,14 @@ export function assembleTyplTypes(
   const basePathOfBlock: (string | undefined)[] = blocks.map(() => undefined);
 
   /**
-   * Scope chain for blocks[i]: a table-row block's `Table:` caption base
-   * innermost (#724), then bullet-ancestor bases innermost-first, terminated
-   * by the root base. Built immutably per call; fence/inline blocks have
-   * neither a caption base nor a bullet chain and see the root only.
+   * Scope chain for blocks[i], innermost-first, terminated by the root base.
+   * Which frames a block sees depends on its surface: a bullet block walks
+   * its bullet-ancestor bases; a table-row block contributes its `Table:`
+   * caption base (#724); fence/inline blocks have neither and see the root
+   * only. The frame kinds don't combine in practice — a table row carries no
+   * `bulletParent`, so a table nested inside a bullet-namespace subtree sees
+   * only its caption base + the root, not the enclosing bullet base (known
+   * limitation, #724). Built immutably per call.
    */
   const scopeFor = (i: number): BaseScope | undefined => {
     const chain: string[] = []; // innermost first
