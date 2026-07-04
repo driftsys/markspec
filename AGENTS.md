@@ -877,6 +877,13 @@ severity/effort/priority, and review flow.
   (`source_body_tokens_test.ts`, `source_jsfamily_test.ts`). Fetch them with
   `deno task fetch-grammars`, or copy from the main checkout:
   `cp <main-checkout>/grammars/*.wasm grammars/`.
+- **Working memory is worktree-first.** Create the story worktree _before_
+  writing any `docs/wip/` file (Superpowers specs and plans). Specs and plans
+  are born, committed, and gardened on the story branch; the main checkout's
+  `docs/wip/` stays empty. If a wip file was accidentally created in the main
+  checkout, move it into the worktree at kickoff (copy, commit there, delete the
+  untracked original) — never commit it to the main working tree, and do not
+  garden unlanded work.
 - **Start from the issue.** Read the acceptance criteria and
   `docs/spec/language/language.md`, propose an approach, and wait for approval
   before implementing.
