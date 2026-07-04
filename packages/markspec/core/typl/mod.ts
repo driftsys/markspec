@@ -29,11 +29,8 @@ export { extractTyplFences } from "./fence.ts";
 
 export { bridgeTyplDiagnostic } from "./bridge.ts";
 
-export type {
-  TyplBulletExtraction,
-  TyplNestedBulletExtraction,
-} from "./bullet.ts";
-export { extractTyplBullets, extractTyplBulletsNested } from "./bullet.ts";
+export type { TyplNestedBulletExtraction } from "./bullet.ts";
+export { extractTyplBulletsNested } from "./bullet.ts";
 
 export type { TyplInlineExtraction } from "./inline.ts";
 export { extractTyplInlines } from "./inline.ts";

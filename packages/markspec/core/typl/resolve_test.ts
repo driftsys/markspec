@@ -16,6 +16,16 @@ Deno.test("resolve: name predicates", () => {
   assertEquals(typlPathOf("$powertrain.brake"), "powertrain.brake");
 });
 
+Deno.test("resolve: digit-leading first segment is rejected, matching BINDING_RE (#754)", () => {
+  // A citable name that could never be declared (BINDING_RE requires the
+  // first segment to start with a letter/underscore) is a dead end — the
+  // predicate must reject it too, not just the declaration recognizer.
+  assertEquals(isRelativeTyplName("$.1abc"), false);
+  // A digit-leading segment after the first is unaffected — BINDING_RE
+  // allows it there too.
+  assertEquals(isRelativeTyplName("$.a.1b"), true);
+});
+
 Deno.test("resolve: relative joins innermost base", () => {
   const scope = { base: "powertrain.brake", parent: { base: "powertrain" } };
   const r = resolveRef("$.pedal_position", scope, TYPL_REF_OPS);

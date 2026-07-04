@@ -23,7 +23,7 @@
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import type { Binding, Shape } from "./ast.ts";
 import { extractTyplCitations } from "./citations.ts";
-import { resolveRef } from "../decl/mod.ts";
+import { findDuplicateDeclarations, resolveRef } from "../decl/mod.ts";
 import { typlDiagnostic } from "./diagnostics.ts";
 import { buildTypeRegistry, type TypeRegistry } from "./registry.ts";
 import { TYPL_REF_OPS } from "./resolve.ts";
@@ -45,12 +45,13 @@ export function validateTypl(
   // corpus-wide — every declaration after the first is TYPL-009. Plain
   // (entry-local) names have no cross-entry rule: TYPL-002/003 are
   // retired (deprecated, never emitted — see diagnostics.ts).
-  for (const [name, decls] of registry.bindings) {
-    if (decls.length < 2) continue;
-    if (!name.includes(".")) continue;
-    const first = decls[0];
-    for (let i = 1; i < decls.length; i++) {
-      const dup = decls[i];
+  for (
+    const { name, first, duplicates } of findDuplicateDeclarations(
+      registry.bindings,
+      (name) => name.includes("."),
+    )
+  ) {
+    for (const dup of duplicates) {
       const td = typlDiagnostic(
         "TYPL-009",
         {
