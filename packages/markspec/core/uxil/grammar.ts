@@ -5,6 +5,16 @@
  * ({@linkcode parseUxRef}) plus the three declaration-form parsers (added in
  * later tasks). Each returns a best-effort AST node and a list of
  * source-local {@linkcode UxilDiagnostic}s. Parse-only — no resolution.
+ *
+ * Diagnostics policy (#780): a single malformed region reports one specific
+ * code. After a parse error fires, leftover-token noise from the same
+ * region is suppressed (see {@linkcode expectEof}) rather than re-flagged
+ * as a redundant or contradictory second code, and a reserved character
+ * stops structural parsing outright (the lexer dropped the char, so the
+ * token stream is corrupt). Orthogonal region checks — the nav tail's
+ * reserved-char scan, the missing event dictionary (UXIL-006) — still
+ * co-report. Editors reparse per keystroke, so within a region errors
+ * surface progressively.
  */
 import type {
   ChildSurfaceDecl,
@@ -39,17 +49,30 @@ class Cursor {
   }
 }
 
-/** Push UXIL-002 for a reserved `?`/`#` character anywhere in `source`. */
-function scanReservedChars(source: string, diags: UxilDiagnostic[]): void {
+/**
+ * Push UXIL-002 for a reserved `?`/`#` character anywhere in `source`.
+ * Returns whether one was found — callers stop structural parsing on a hit,
+ * because the lexer silently drops the char and every diagnostic derived
+ * from the mangled token stream would be noise (#780). `baseColumn` shifts
+ * the reported column for callers scanning a slice of a larger span (the
+ * peeled `-> nav` tail), keeping positions span-relative.
+ */
+function scanReservedChars(
+  source: string,
+  diags: UxilDiagnostic[],
+  baseColumn = 0,
+): boolean {
   const idx = source.search(/[?#]/);
   if (idx >= 0) {
     diags.push(
       uxilDiagnostic("UXIL-002", { char: source[idx] }, {
         line: 1,
-        column: idx + 1,
+        column: baseColumn + idx + 1,
       }),
     );
+    return true;
   }
+  return false;
 }
 
 /** Consume `IDENT`, or push UXIL-001 describing what was expected. */
@@ -134,7 +157,13 @@ function parseKey(c: Cursor, diags: UxilDiagnostic[]): UxKey | undefined {
   return undefined;
 }
 
-/** Consume a leading `ux:` scheme if present. Returns whether it was consumed. */
+/**
+ * Consume a leading `ux:` scheme if present. Returns whether it was consumed.
+ * Known limitation (#780 case 6, S7 design doc): a surface literally named
+ * `ux` followed by `:` is greedily read as the scheme, so
+ * `parseRootDecl("ux : screen")` misparses. Revisit only if a real
+ * `ux`-named surface is ever needed.
+ */
 function consumeScheme(c: Cursor): boolean {
   if (
     c.peek().kind === "IDENT" && c.peek().value === "ux" &&
@@ -147,8 +176,14 @@ function consumeScheme(c: Cursor): boolean {
   return false;
 }
 
-/** Push UXIL-001 for any leftover tokens before EOF. */
+/**
+ * Push UXIL-001 for any leftover tokens before EOF. No-ops when a prior
+ * diagnostic exists — a specific parse error already explains the malformed
+ * tail, and re-flagging the leftovers produced the redundant second code
+ * (#780). One clear error per span; the editor reparses on the next edit.
+ */
 function expectEof(c: Cursor, diags: UxilDiagnostic[]): void {
+  if (diags.length > 0) return;
   if (!c.atEof()) {
     const t = c.peek();
     diags.push(
@@ -178,13 +213,13 @@ function parseStateSet(c: Cursor, diags: UxilDiagnostic[]): string[] {
  * Parse a `ux:` reference (citation / nav target). The scheme is optional;
  * `media.home/play` and `ux:media.home/play` yield identical AST except for
  * `hasScheme`. Returns `ref` undefined only for a wholly malformed input
- * (reserved authority, no surface).
+ * (reserved char, reserved authority, no surface).
  */
 export function parseUxRef(
   source: string,
 ): { ref?: UxRef; diagnostics: UxilDiagnostic[] } {
   const diagnostics: UxilDiagnostic[] = [];
-  scanReservedChars(source, diagnostics);
+  if (scanReservedChars(source, diagnostics)) return { diagnostics };
   const c = new Cursor(tokenize(source));
   const hasScheme = consumeScheme(c);
 
@@ -248,13 +283,17 @@ export function parseUxRef(
 /**
  * Parse a root declaration: `[ux:]surface : kind [@state, …]`. The `:` here
  * introduces the kind (not a ref key). Returns `decl` undefined only when no
- * surface is present.
+ * surface is present or a reserved char corrupted the source. A missing kind
+ * (no `:`, or a `:` with nothing after it) is UXIL-004 with a best-effort
+ * partial decl (`kind: ""`, surface and states still captured) — S8's
+ * assemble must gate uxRegistry registration on a clean parse, never on the
+ * partial decl alone (#780).
  */
 export function parseRootDecl(
   source: string,
 ): { decl?: RootDecl; diagnostics: UxilDiagnostic[] } {
   const diagnostics: UxilDiagnostic[] = [];
-  scanReservedChars(source, diagnostics);
+  if (scanReservedChars(source, diagnostics)) return { diagnostics };
   const c = new Cursor(tokenize(source));
   consumeScheme(c);
   const surface = parseSurface(c, diagnostics);
@@ -268,12 +307,19 @@ export function parseRootDecl(
     );
     return { diagnostics };
   }
+  // Missing kind — with or without the introducing `:` — is the same defect
+  // (#780 case 5): one UXIL-004, one partial-decl return shape.
+  let kind: string | undefined;
   if (c.peek().kind !== "COLON") {
     diagnostics.push(uxilDiagnostic("UXIL-004", {}, c.peek().position));
-    return { diagnostics };
+  } else {
+    c.advance();
+    if (c.peek().kind === "IDENT") {
+      kind = c.advance().value;
+    } else {
+      diagnostics.push(uxilDiagnostic("UXIL-004", {}, c.peek().position));
+    }
   }
-  c.advance();
-  const kind = expectIdent(c, diagnostics, "kind");
   const states = parseStateSet(c, diagnostics);
   expectEof(c, diagnostics);
   return {
@@ -297,7 +343,7 @@ export function parseChildSurfaceDecl(
   source: string,
 ): { decl?: ChildSurfaceDecl; diagnostics: UxilDiagnostic[] } {
   const diagnostics: UxilDiagnostic[] = [];
-  scanReservedChars(source, diagnostics);
+  if (scanReservedChars(source, diagnostics)) return { diagnostics };
   const c = new Cursor(tokenize(source));
   if (c.peek().kind !== "DOT") {
     diagnostics.push(
@@ -375,8 +421,6 @@ export function parseElementBullet(
     );
     return { diagnostics };
   }
-  scanReservedChars(span, diagnostics);
-
   // Peel off an optional `-> nav` tail before tokenizing the structured part.
   let structPart = span;
   let navSource: string | undefined;
@@ -384,6 +428,25 @@ export function parseElementBullet(
   if (arrow >= 0) {
     structPart = span.slice(0, arrow);
     navSource = span.slice(arrow + 2).trim();
+  }
+
+  // 0-based index of the trimmed nav source within the span — shifts nav
+  // diagnostic columns back to span-relative.
+  const navOffset = navSource ? span.indexOf(navSource, arrow + 2) : 0;
+  // The nav tail is an orthogonal region: every return path must still
+  // surface a reserved char in it, even when the struct part fails first.
+  const scanNavReserved = (): void => {
+    if (navSource) scanReservedChars(navSource, diagnostics, navOffset);
+  };
+
+  // Scan the structured part only — the nav tail is scanned separately
+  // (scanNavReserved / parseUxRef below), so scanning the whole span would
+  // report a single `?`/`#` in the nav target twice (#780 case 2). A hit
+  // poisons the token stream (the lexer drops the char): stop before the
+  // structure checks turn the mangled tokens into contradictory codes.
+  if (scanReservedChars(structPart, diagnostics)) {
+    scanNavReserved();
+    return { diagnostics };
   }
 
   const c = new Cursor(tokenize(structPart));
@@ -395,11 +458,15 @@ export function parseElementBullet(
         c.peek().position,
       ),
     );
+    scanNavReserved();
     return { diagnostics };
   }
   c.advance();
   const element = expectIdent(c, diagnostics, "element name");
-  if (element === undefined) return { diagnostics };
+  if (element === undefined) {
+    scanNavReserved();
+    return { diagnostics };
+  }
 
   const decl: Mut<ElementDecl> = {
     form: "element",
@@ -424,16 +491,31 @@ export function parseElementBullet(
 
   // Verb set: `: verb[, verb…]` (>= 1).
   if (c.peek().kind !== "COLON") {
-    diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
+    if (c.peek().kind === "IDENT") {
+      // A verb is present but the introducing `:` is missing — reporting
+      // "empty verb set" here would be contradictory (#780 case 4).
+      diagnostics.push(
+        uxilDiagnostic(
+          "UXIL-001",
+          { detail: "expected ':' before the verb set" },
+          c.peek().position,
+        ),
+      );
+    } else {
+      diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
+    }
   } else {
     c.advance();
     const verbs: string[] = [];
-    const first = expectIdent(c, diagnostics, "verb");
-    if (first !== undefined) verbs.push(first);
-    while (c.peek().kind === "COMMA") {
-      c.advance();
-      const v = expectIdent(c, diagnostics, "verb");
-      if (v !== undefined) verbs.push(v);
+    // Peek rather than expectIdent for the first verb: a truly empty set
+    // reports only UXIL-005, not a redundant UXIL-001 too (#780 case 1).
+    if (c.peek().kind === "IDENT") {
+      verbs.push(c.advance().value);
+      while (c.peek().kind === "COMMA") {
+        c.advance();
+        const v = expectIdent(c, diagnostics, "verb");
+        if (v !== undefined) verbs.push(v);
+      }
     }
     if (verbs.length === 0) {
       diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
@@ -460,9 +542,15 @@ export function parseElementBullet(
 
   const states = parseStateSet(c, diagnostics);
   if (states.length > 0) decl.states = states;
+  // Order is load-bearing: expectEof suppresses itself once any diagnostic
+  // exists, so it MUST run before the nav and event-dictionary checks below
+  // push theirs — moving it later would let those orthogonal regions hide a
+  // real leftover-token error in the struct part.
   expectEof(c, diagnostics);
 
-  // Nav target (parsed as a ux ref; may be scheme-less / relative).
+  // Nav target (parsed as a ux ref; may be scheme-less / relative). Nav
+  // diagnostics carry positions relative to the sliced nav source — shift
+  // them by navOffset so editor squiggles land on the span's own columns.
   if (navSource !== undefined) {
     if (navSource.length === 0) {
       diagnostics.push(
@@ -474,7 +562,15 @@ export function parseElementBullet(
       );
     } else {
       const nav = parseUxRef(navSource);
-      diagnostics.push(...nav.diagnostics);
+      diagnostics.push(
+        ...nav.diagnostics.map((d) => ({
+          ...d,
+          position: {
+            line: d.position.line,
+            column: d.position.column + navOffset,
+          },
+        })),
+      );
       if (nav.ref) decl.nav = nav.ref;
     }
   }
