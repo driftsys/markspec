@@ -7,7 +7,8 @@ Every command supports `--help`. Commands that produce structured output support
 `--format json` for machine-readable output to stdout (diagnostics always go to
 stderr).
 
-**Exit codes:** `0` success, `1` error, `2` warnings only (`check`, `lint`).
+**Exit codes:** `0` success, `1` error, `2` warnings only (`check`, `lint`,
+`lock`).
 
 **Global options** (available on every command):
 
@@ -771,6 +772,15 @@ done by hand.
 | `MSL-L214` | `markspec lock` (restore flow) | The cache needed restoring, but the re-fetched content's hash no longer matches the pinned snapshot — the published site moved. Run `markspec lock --update=<id>` to move the pin deliberately.                                                                                             |
 | `MSL-L212` | `markspec check` (offline)     | Also covers upstream cache drift in this release: fires when a locked reference's cache under `.markspec/cache/upstreams/<id>/` is missing or its hash no longer matches `markspec.lock`, in addition to the existing traceability-edge-drift case. Either way, the fix is `markspec lock`. |
 | `MSL-L215` | `markspec check`               | A `dependencies:` pin resolved to a branch or bare sha rather than a tag — an unreleased state. Advisory by default; `markspec check --strict` promotes it to a hard error, so a release build cannot pass against an unbaselined dependency.                                               |
+| `MSL-L216` | `markspec lock`                | A `dependencies:` entry derives the same upstream id as a `references:` entry. The dependency is skipped — the reference snapshot owns the shared `.markspec/cache/upstreams/<id>/` namespace — so set a distinct `name:` on one of them. Warn-and-write: every other pin still locks.      |
+
+**Exit codes.** `markspec lock` exits `0` when every upstream resolved cleanly.
+Following the clig.dev convention (`2` for warnings only), it exits `2` — while
+still writing `markspec.lock` (warn-and-write) — when any upstream could not be
+cleanly locked (`MSL-L213`/`MSL-L214`/`MSL-L216`), so a bare `markspec lock` in
+CI surfaces a dropped or stale pin. A hard error (e.g. an invalid `project.yaml`
+or sync mapping) exits `1`. `markspec lock --check` is unaffected: it stays a
+read-only drift gate that exits `1` on drift.
 
 **`dependencies:` are acquired and compiled during `lock`.** For each declared
 `dependencies:` entry, `markspec lock` resolves the declared version intent

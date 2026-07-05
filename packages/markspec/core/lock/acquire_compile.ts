@@ -41,13 +41,28 @@ export async function compileAcquiredTree(
   io: AcquireCompileIO,
   release: string,
 ): Promise<CompiledSnapshot | { error: string }> {
-  const configResult = await loadConfig(treeRoot, io.readFile);
+  // Memoize by path: loadConfig, loadProfileForCommand, and loadToolConfig
+  // each walk + read the same project.yaml/.markspec.yaml, so cache the
+  // in-flight promise per path to read each file exactly once per acquired
+  // tree. The tree is immutable (just fetched at a fixed sha), so a
+  // per-call cache is sound and deterministic.
+  const readCache = new Map<string, Promise<string | undefined>>();
+  const readFile = (path: string): Promise<string | undefined> => {
+    let pending = readCache.get(path);
+    if (pending === undefined) {
+      pending = io.readFile(path);
+      readCache.set(path, pending);
+    }
+    return pending;
+  };
+
+  const configResult = await loadConfig(treeRoot, readFile);
   if (!configResult) {
     return { error: "dependency tree has no discoverable project.yaml" };
   }
-  const profileResult = await loadProfileForCommand(treeRoot, io.readFile);
+  const profileResult = await loadProfileForCommand(treeRoot, readFile);
   const profile = profileResult.chain?.effective;
-  const toolConfig = await loadToolConfig(treeRoot, io.readFile);
+  const toolConfig = await loadToolConfig(treeRoot, readFile);
 
   // Discover → relativize → normalize to POSIX separators → sort. The
   // `\\`→`/` normalization is load-bearing for cross-machine determinism:

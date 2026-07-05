@@ -19,6 +19,7 @@ import type { Diagnostic, ProjectRef } from "../model/mod.ts";
 import type { UpstreamDependency } from "./model.ts";
 import type { ReadFile } from "./resolve.ts";
 import { deriveUpstreamId, probeCacheSnapshot } from "./upstream_refs.ts";
+import { upstreamNotLockable, writeCacheFiles } from "./upstream_common.ts";
 import { type RefList, resolveIntent } from "./git_intent.ts";
 import type { CompiledSnapshot } from "./acquire_compile.ts";
 
@@ -52,6 +53,15 @@ export interface ResolveProjectDependenciesOptions {
   readonly update: boolean | string;
   readonly io: UpstreamDepsIO;
   readonly lockedAt: string;
+  /**
+   * Upstream ids already claimed by declared `references:` entries. A
+   * dependency whose derived id collides with one is skipped with an
+   * MSL-L216 warning (warn-and-write) — the reference snapshot owns that
+   * cache namespace, and two rows under one id would clobber each other's
+   * cache and double-map the corpus. Defaults to empty (no cross-kind
+   * dedup) for callers that resolve dependencies in isolation.
+   */
+  readonly reservedIds?: ReadonlySet<string>;
 }
 
 export interface ResolveProjectDependenciesResult {
@@ -61,21 +71,41 @@ export interface ResolveProjectDependenciesResult {
 
 /** Warn-and-write diagnostic — one dependency could not be locked (decision 1). */
 function l213(id: string, detail: string): Diagnostic {
+  return upstreamNotLockable("dependency", id, detail);
+}
+
+/** Cross-kind id-collision diagnostic — a dependency id is already claimed
+ * by a `references:` entry (warn-and-write: the dependency is skipped). */
+function l216(id: string): Diagnostic {
   return {
-    code: "MSL-L213",
+    code: "MSL-L216",
     severity: "warning",
-    message: `upstream dependency '${id}' could not be locked: ${detail}`,
+    message:
+      `upstream id '${id}' is claimed by both a 'references:' entry and a ` +
+      `'dependencies:' entry — skipping the dependency (the reference ` +
+      `snapshot owns the cache); set a distinct 'name:' on one of them`,
     location: undefined,
   };
 }
 
-/** Acquire the tree at `sha` into a fresh temp dir, compile it, clean up. */
+/** Acquire the tree at `sha` into a fresh temp dir, compile it, clean up.
+ * A temp-dir creation failure is turned into a warn-and-write `{ error }`
+ * rather than propagating and aborting the whole lock. */
 async function acquireAndCompile(
   url: string,
   sha: string,
   io: UpstreamDepsIO,
 ): Promise<CompiledSnapshot | { error: string }> {
-  const tmp = await io.makeTempDir();
+  let tmp: string;
+  try {
+    tmp = await io.makeTempDir();
+  } catch (err) {
+    return {
+      error: `temp dir creation failed (${
+        err instanceof Error ? err.message : String(err)
+      })`,
+    };
+  }
   try {
     const acq = await io.git.acquireTree(url, sha, tmp);
     if (acq.error !== undefined) {
@@ -87,8 +117,11 @@ async function acquireAndCompile(
   }
 }
 
-/** Write `manifest.json` + `compiled.json` for a snapshot under `dir`. */
-async function writeSnapshotCache(
+/** Write `manifest.json` + `compiled.json` for a snapshot under `dir`. The
+ * clean `id` (not `dir`) is threaded through so a cache-write-failure
+ * warning names the upstream, not the raw cache path. */
+function writeSnapshotCache(
+  id: string,
   dir: string,
   snap: CompiledSnapshot,
   io: UpstreamDepsIO,
@@ -100,13 +133,68 @@ async function writeSnapshotCache(
     ],
     [join(dir, "compiled.json"), snap.compiledBytes],
   ];
-  for (const [path, bytes] of writes) {
-    const res = await io.writeFile(path, bytes);
-    if (res.error !== undefined) {
-      return l213(dir, `cache write of '${path}' failed (${res.error})`);
-    }
+  return writeCacheFiles(writes, "dependency", id, io.writeFile);
+}
+
+/**
+ * RESTORE — the pin exists but its cache is missing or hash-broken. Re-acquire
+ * the *pinned* sha (intent is NOT re-resolved) purely to repopulate the cache;
+ * the pin never moves. Returns a warning on any failure (unreachable, markspec
+ * version skew, or cache-write error) and `undefined` on a clean repopulate.
+ * In every case the caller keeps the existing row.
+ */
+async function restore(
+  id: string,
+  existing: UpstreamDependency,
+  dir: string,
+  io: UpstreamDepsIO,
+): Promise<Diagnostic | undefined> {
+  const snap = await acquireAndCompile(existing.url, existing.sha, io);
+  if ("error" in snap) return l213(id, `restore failed: ${snap.error}`);
+  if (snap.snapshot !== existing.snapshot) {
+    // Same sha but a different compiled hash → markspec wire-format skew
+    // (the source is byte-identical by git's guarantee). Keep the pin, do
+    // not clobber the cache; tell the user to re-pin explicitly.
+    return l213(
+      id,
+      `restore recompiled to a different snapshot (markspec version skew?) — run 'markspec lock --update=${id}' to re-pin`,
+    );
   }
-  return undefined;
+  return await writeSnapshotCache(id, dir, snap, io);
+}
+
+/**
+ * FIRST-LOCK or UPDATE — resolve the declared intent to a sha, acquire,
+ * compile, and write the cache. Returns the new pinned row, or a warning
+ * (ls-remote / intent / acquire / cache-write failure). The caller decides
+ * whether to fall back to a prior `existing` row.
+ */
+async function firstLockOrUpdate(
+  ref: ProjectRef,
+  id: string,
+  dir: string,
+  intent: string,
+  io: UpstreamDepsIO,
+  lockedAt: string,
+): Promise<UpstreamDependency | Diagnostic> {
+  const refs = await io.git.lsRemote(ref.url);
+  if ("error" in refs) return l213(id, `ls-remote failed (${refs.error})`);
+  const ri = resolveIntent(intent, refs);
+  if ("error" in ri) return l213(id, ri.error);
+  const snap = await acquireAndCompile(ref.url, ri.sha, io);
+  if ("error" in snap) return l213(id, snap.error);
+  const writeErr = await writeSnapshotCache(id, dir, snap, io);
+  if (writeErr) return writeErr;
+  return {
+    kind: "dependency",
+    id,
+    url: ref.url,
+    intent,
+    resolved: ri.resolved,
+    sha: ri.sha,
+    snapshot: snap.snapshot,
+    lockedAt,
+  };
 }
 
 export async function resolveProjectDependencies(
@@ -126,6 +214,12 @@ export async function resolveProjectDependencies(
       ));
       continue;
     }
+    // Cross-kind collision: a `references:` entry already owns this id.
+    // Skip the dependency (warn-and-write) — it must not clobber the cache.
+    if (opts.reservedIds?.has(id)) {
+      diagnostics.push(l216(id));
+      continue;
+    }
     if (seen.has(id)) {
       diagnostics.push(
         l213(id, "duplicate upstream id — set distinct 'name:'"),
@@ -143,70 +237,28 @@ export async function resolveProjectDependencies(
         dependencies.push(existing); // idempotent — no git
         continue;
       }
-      // Restore: re-acquire the *pinned* sha (intent is NOT re-resolved).
-      const snap = await acquireAndCompile(existing.url, existing.sha, opts.io);
-      if ("error" in snap) {
-        diagnostics.push(l213(id, `restore failed: ${snap.error}`));
-        dependencies.push(existing);
-        continue;
-      }
-      if (snap.snapshot !== existing.snapshot) {
-        // Same sha but a different compiled hash → markspec wire-format skew
-        // (the source is byte-identical by git's guarantee). Keep the pin,
-        // do not clobber the cache; tell the user to re-pin explicitly.
-        diagnostics.push(l213(
-          id,
-          `restore recompiled to a different snapshot (markspec version skew?) — run 'markspec lock --update=${id}' to re-pin`,
-        ));
-        dependencies.push(existing);
-        continue;
-      }
-      const writeErr = await writeSnapshotCache(dir, snap, opts.io);
-      if (writeErr) {
-        diagnostics.push(writeErr);
-        dependencies.push(existing);
-        continue;
-      }
-      dependencies.push(existing);
+      const restoreDiag = await restore(id, existing, dir, opts.io);
+      if (restoreDiag) diagnostics.push(restoreDiag);
+      dependencies.push(existing); // the pin never moves on restore
       continue;
     }
 
-    // FIRST-LOCK or UPDATE — resolve the declared intent → sha.
+    // FIRST-LOCK or UPDATE.
     const intent = ref.version ?? "auto";
-    const refs = await opts.io.git.lsRemote(ref.url);
-    if ("error" in refs) {
-      diagnostics.push(l213(id, `ls-remote failed (${refs.error})`));
-      if (existing !== undefined) dependencies.push(existing);
-      continue;
-    }
-    const ri = resolveIntent(intent, refs);
-    if ("error" in ri) {
-      diagnostics.push(l213(id, ri.error));
-      if (existing !== undefined) dependencies.push(existing);
-      continue;
-    }
-    const snap = await acquireAndCompile(ref.url, ri.sha, opts.io);
-    if ("error" in snap) {
-      diagnostics.push(l213(id, snap.error));
-      if (existing !== undefined) dependencies.push(existing);
-      continue;
-    }
-    const writeErr = await writeSnapshotCache(dir, snap, opts.io);
-    if (writeErr) {
-      diagnostics.push(writeErr);
-      if (existing !== undefined) dependencies.push(existing);
-      continue;
-    }
-    dependencies.push({
-      kind: "dependency",
+    const outcome = await firstLockOrUpdate(
+      ref,
       id,
-      url: ref.url,
+      dir,
       intent,
-      resolved: ri.resolved,
-      sha: ri.sha,
-      snapshot: snap.snapshot,
-      lockedAt: opts.lockedAt,
-    });
+      opts.io,
+      opts.lockedAt,
+    );
+    if ("code" in outcome) {
+      diagnostics.push(outcome);
+      if (existing !== undefined) dependencies.push(existing);
+    } else {
+      dependencies.push(outcome);
+    }
   }
 
   return { dependencies, diagnostics };

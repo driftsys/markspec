@@ -217,11 +217,13 @@ Deno.test(
 
           const r = await markspecInDir(dirB, ["lock"], LOCK_PERMISSIONS);
           // Warn-and-write (decision 1): a restore mismatch is a warning,
-          // not a command-level abort. `lock` still exits 0, still emits
-          // the MSL-L214 warning on stderr, and still writes markspec.lock
-          // — keeping the existing (pre-mismatch) pin rather than adopting
-          // the moved snapshot.
-          assertEquals(r.code, 0, r.stdout + r.stderr);
+          // not a command-level abort. `lock` still writes markspec.lock —
+          // keeping the existing (pre-mismatch) pin rather than adopting the
+          // moved snapshot — and emits the MSL-L214 warning on stderr. Per
+          // the clig.dev exit contract ("2 for warnings only"), an upstream
+          // that could not be cleanly restored makes `lock` exit 2 so CI
+          // sees the stale pin, while the lockfile is still produced.
+          assertEquals(r.code, 2, r.stdout + r.stderr);
           assertMatch(r.stderr, /MSL-L214/);
           assertMatch(r.stderr, /producta/);
           assertMatch(r.stderr, /restore mismatch/);

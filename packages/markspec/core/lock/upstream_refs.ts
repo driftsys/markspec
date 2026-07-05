@@ -17,6 +17,7 @@ import type { Diagnostic, ProjectRef } from "../model/mod.ts";
 import type { UpstreamRegistry } from "./model.ts";
 import type { FetchUrl, ReadFile } from "./resolve.ts";
 import { sha256Bytes } from "./hash.ts";
+import { upstreamNotLockable, writeCacheFiles } from "./upstream_common.ts";
 import { checkSnapshotSchema } from "../compiler/deserialize.ts";
 import { isUnsafeRelPath } from "../util/paths.ts";
 
@@ -95,12 +96,7 @@ interface FetchedSnapshot {
 }
 
 function l213(id: string, detail: string): Diagnostic {
-  return {
-    code: "MSL-L213",
-    severity: "warning",
-    message: `upstream reference '${id}' could not be locked: ${detail}`,
-    location: undefined,
-  };
+  return upstreamNotLockable("reference", id, detail);
 }
 
 async function fetchSnapshot(
@@ -155,7 +151,7 @@ async function fetchSnapshot(
   };
 }
 
-async function writeCache(
+function writeCache(
   id: string,
   dir: string,
   fetched: FetchedSnapshot,
@@ -167,13 +163,7 @@ async function writeCache(
       [join(dir, rel), bytes] as [string, Uint8Array]
     ),
   ];
-  for (const [path, bytes] of writes) {
-    const result = await io.writeFile(path, bytes);
-    if (result.error !== undefined) {
-      return l213(id, `cache write of '${path}' failed (${result.error})`);
-    }
-  }
-  return undefined;
+  return writeCacheFiles(writes, "reference", id, io.writeFile);
 }
 
 /**

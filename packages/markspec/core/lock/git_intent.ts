@@ -27,7 +27,7 @@ export interface ResolvedIntent {
   readonly resolved: string;
 }
 
-const SHA_RE = /^[0-9a-f]{40}$/;
+const SHA_RE = /^[0-9a-fA-F]{40}$/;
 /** Strip a single leading `v`/`V` so `v2.1.0` parses as semver. */
 function semverText(tag: string): string {
   return /^[vV]/.test(tag) ? tag.slice(1) : tag;
@@ -89,7 +89,10 @@ export function parseLsRemote(stdout: string): RefList {
  *   default-branch head.
  * - a name matching a tag → `tag:<name>` (tag wins if a branch shares the name).
  * - a name matching a branch → `branch:<name>`.
- * - a 40-hex string → `sha:<sha>` (passthrough; the acquire step validates it).
+ * - a 40-hex string (any case) → normalized to lowercase → `sha:<sha>` (the
+ *   acquire step validates it). Lowercasing keeps the pin byte-identical
+ *   regardless of the case a developer typed, so two lockfiles never differ
+ *   on sha case alone.
  * - otherwise → `{ error }`.
  */
 export function resolveIntent(
@@ -123,6 +126,9 @@ export function resolveIntent(
     r.kind === "branch" && r.name === intent
   );
   if (branch) return { sha: branch.sha, resolved: `branch:${branch.name}` };
-  if (SHA_RE.test(intent)) return { sha: intent, resolved: `sha:${intent}` };
+  if (SHA_RE.test(intent)) {
+    const sha = intent.toLowerCase();
+    return { sha, resolved: `sha:${sha}` };
+  }
   return { error: `intent '${intent}' matched no tag or branch on the remote` };
 }

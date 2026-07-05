@@ -148,6 +148,43 @@ Deno.test("warn-and-write: ls-remote failure is a warning, others still resolve"
   assertEquals(r.diagnostics[0].severity, "warning");
 });
 
+Deno.test("cross-kind collision: reserved reference id → MSL-L216, dependency skipped, no cache write", async () => {
+  const { io, fs, acquired } = makeIO();
+  const r = await resolveProjectDependencies({
+    dependencies: [{ url: "https://example.test/dep.git" }], // derives id "dep"
+    existing: [],
+    cacheRoot: "/cache",
+    update: false,
+    io,
+    lockedAt: "2026-07-04T00:00:00Z",
+    reservedIds: new Set(["dep"]),
+  });
+  assertEquals(r.dependencies.length, 0); // dependency skipped
+  assertEquals(r.diagnostics.length, 1);
+  assertEquals(r.diagnostics[0].code, "MSL-L216");
+  assertEquals(r.diagnostics[0].severity, "warning");
+  assertEquals(acquired, []); // never touched the network
+  // Critically: the reference snapshot's cache was NOT clobbered.
+  assertEquals(fs.has("/cache/dep/manifest.json"), false);
+  assertEquals(fs.has("/cache/dep/compiled.json"), false);
+});
+
+Deno.test("cross-kind: a non-colliding reserved id set does not block resolution", async () => {
+  const { io } = makeIO();
+  const r = await resolveProjectDependencies({
+    dependencies: [{ url: "https://example.test/dep.git" }], // derives id "dep"
+    existing: [],
+    cacheRoot: "/cache",
+    update: false,
+    io,
+    lockedAt: "2026-07-04T00:00:00Z",
+    reservedIds: new Set(["other"]),
+  });
+  assertEquals(r.diagnostics, []);
+  assertEquals(r.dependencies.length, 1);
+  assertEquals(r.dependencies[0].id, "dep");
+});
+
 Deno.test("update: re-resolves and moves the pin", async () => {
   const { io, acquired } = makeIO();
   const existing = {
