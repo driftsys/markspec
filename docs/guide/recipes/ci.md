@@ -120,3 +120,21 @@ binary:
     path: ~/.local/bin/markspec
     key: markspec-${{ runner.os }}-0.10.3
 ```
+
+## Caching upstream snapshots
+
+`markspec lock` is the only step that touches the network for `references:` and
+`dependencies:` upstreams — `check` and `compile` read the pinned snapshots
+under `.markspec/cache/upstreams/` entirely offline. Cache that directory
+between CI runs, keyed on the lockfile's contents, so `lock` only re-acquires an
+upstream when its pin has actually moved:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: .markspec/cache/upstreams
+    key: markspec-upstreams-${{ hashFiles('markspec.lock') }}
+```
+
+With a warm cache, `markspec lock` is idempotent — it verifies each pinned
+snapshot's hash and skips re-acquiring an upstream whose pin hasn't moved.

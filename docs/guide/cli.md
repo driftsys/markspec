@@ -83,9 +83,13 @@ does not constrain which `Labels:` values entries may carry.
 | `name`    | string | no       | Upstream id — cache-directory name, lockfile row id, origin badge. Must match `[A-Za-z0-9][A-Za-z0-9._-]*`. Derived from the URL when absent.     |
 
 - **`dependencies:`** — other projects this project builds on (git
-  repositories). **Declared but not yet acquired**: `markspec lock` reports each
-  one on stderr but does not clone, compile, or pin it. Git dependency
-  resolution is planned for a future release.
+  repositories). `markspec lock` resolves the declared `version:` intent against
+  the repo, acquires the tree at the resolved sha (a shallow `git fetch`, no
+  clone, no history), compiles it in-process, and pins the result as an
+  `[[upstream.dependency]]` lockfile row. A pin that resolves to a branch or
+  bare sha rather than a tag is an unreleased state — advisory by default,
+  promoted to a hard error under `markspec check --strict` (`MSL-L215`; see
+  [`lock`](#lock) below).
 - **`references:`** — registries or external sources this project cites, such as
   another project's published compile output. `markspec lock` fetches and pins
   these against a cache — see [`lock`](#lock) below. The declared `version:` is
@@ -96,9 +100,9 @@ does not constrain which `Labels:` values entries may carry.
 
 #### Upstream entries resolve in the graph
 
-Once `markspec lock` has pinned a `references:` entry, its entries join this
-project's own traceability graph as read-only, origin-tagged citizens — not just
-cached files on disk:
+Once `markspec lock` has pinned a `references:` or `dependencies:` entry, its
+entries join this project's own traceability graph as read-only, origin-tagged
+citizens — not just cached files on disk:
 
 - **Trace links resolve across the repo boundary.** A `Satisfies:` (or any other
   trace attribute) value that names an upstream display ID resolves exactly like
@@ -121,9 +125,8 @@ cached files on disk:
 - **`references:` entries are traceability leaves.** `report coverage` never
   reports one as an orphan or unsatisfied gap — a citation isn't something your
   own project is expected to cover. `dependencies:` entries participate in
-  coverage like a project entry — but since git dependency acquisition hasn't
-  shipped yet (above), no `dependencies:` entry hydrates into the graph today,
-  so this only takes effect once that lands.
+  coverage like a project entry — a product requirement with no component
+  coverage is a reported gap.
 - **Upstream entries are validation-exempt, not edge-inert.** No structural
   checks or prose lint run against them — that already happened in their own
   repo's `check` — but they remain full resolution targets: a project entry's
@@ -764,19 +767,23 @@ done by hand.
 
 | Code       | When                           | Meaning                                                                                                                                                                                                                                                                                     |
 | ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-L213` | `markspec lock`                | A declared `references:` entry could not be locked — no derivable id, a fetch failure, a malformed manifest, or a schema-version mismatch.                                                                                                                                                  |
+| `MSL-L213` | `markspec lock`                | A declared `references:` or `dependencies:` entry could not be locked — no derivable id, a fetch failure, a malformed manifest/tree, or a schema-version mismatch. Warn-and-write: `markspec lock` still writes every pin that did resolve.                                                 |
 | `MSL-L214` | `markspec lock` (restore flow) | The cache needed restoring, but the re-fetched content's hash no longer matches the pinned snapshot — the published site moved. Run `markspec lock --update=<id>` to move the pin deliberately.                                                                                             |
 | `MSL-L212` | `markspec check` (offline)     | Also covers upstream cache drift in this release: fires when a locked reference's cache under `.markspec/cache/upstreams/<id>/` is missing or its hash no longer matches `markspec.lock`, in addition to the existing traceability-edge-drift case. Either way, the fix is `markspec lock`. |
+| `MSL-L215` | `markspec check`               | A `dependencies:` pin resolved to a branch or bare sha rather than a tag — an unreleased state. Advisory by default; `markspec check --strict` promotes it to a hard error, so a release build cannot pass against an unbaselined dependency.                                               |
 
-**`dependencies:` are declared, not yet acquired.** For each declared
-`dependencies:` entry, `markspec lock` prints
-`dependency '<id>' declared — git dependency acquisition lands in a future release; row not written`
-to stderr, but does not clone, compile, or write a lockfile row for it — that
-lands in a future release.
+**`dependencies:` are acquired and compiled during `lock`.** For each declared
+`dependencies:` entry, `markspec lock` resolves the declared version intent
+(`auto`, an exact tag, or a branch name) against the upstream repo, acquires the
+tree at the resolved sha via a shallow `git fetch` (no clone, no history),
+compiles it in-process, and writes the result to
+`.markspec/cache/upstreams/<id>/` alongside a pinned `[[upstream.dependency]]`
+row. Use `markspec check --strict` to enforce that every dependency is
+tag-pinned before release (`MSL-L215` above).
 
 **CI caching.** `.markspec/cache/upstreams/` is safe to cache between CI runs —
-key it on `markspec.lock`'s contents so a job only re-fetches a reference when a
-pin actually moved:
+key it on `markspec.lock`'s contents so a job only re-acquires an upstream when
+its pin actually moved:
 
 ```yaml
 # .github/workflows/ci.yml (excerpt)

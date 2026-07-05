@@ -1652,6 +1652,7 @@ amendment). The offline composite `markspec check` gate emits one of them:
 | ID         | Severity | Rule                                                                                                                                                                                                                                                               |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `MSL-L212` | error    | Canonical edge-hash drift: the project's traceability edges no longer match the hash pinned in `markspec.lock` (run `markspec lock`). Fires only when `markspec.lock` exists; checked offline (no network — upstream resolution stays in `markspec lock --check`). |
+| `MSL-L215` | warning  | A `dependencies:` pin resolved to a branch or bare sha, not a tag (an unreleased state). Advisory by default; promoted to an error under `markspec check --strict` — release builds require every dependency to be tag-pinned.                                     |
 
 > **Prefix overlap (known, pre-existing).** The `MSL-L###` lockfile family
 > shares its prefix with §8.4's link rules (`MSL-L006`), and the `MSL-S###`

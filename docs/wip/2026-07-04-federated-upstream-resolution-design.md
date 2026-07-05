@@ -166,6 +166,15 @@ Snapshots live under `.markspec/cache/upstreams/<id>/` (gitignored). The
 `MSL-L212` drift gate gains one case: a locked upstream whose cache snapshot is
 missing or hash-mismatched → error instructing `markspec lock`.
 
+**Failure handling — warn-and-write (decision 1).** An upstream that fails to
+acquire — unreachable network, a malformed manifest or tree, a git fetch or
+compile error, no derivable id — produces an `MSL-L213` warning naming the
+upstream and the reason. `markspec lock` still writes every pin that _did_
+resolve; one bad upstream never blocks the others from locking. This applies
+uniformly to both `references:` and `dependencies:` rows — the two fetchers
+share one failure posture, replacing the all-or-nothing abort this design
+originally assumed.
+
 ### 4.3 Dependency acquisition — the ladder
 
 The acquisition cost is bounded by _lock events_, not daily work: `check`,
@@ -177,17 +186,30 @@ once per pin movement per machine.
 1. **Never clone to resolve.** Version-intent resolution is `git ls-remote` only
    (tags + heads) — a few KB even against huge repos. Auto/tag intents
    semver-sort the tag list (default pattern `v*`).
-2. **Never fetch history.** Acquire the tree at one sha: prefer the forge
-   tarball endpoint when the URL is a recognized GitHub/GitLab host (one authed
-   API request, no `.git` directory); else fall back to
-   `git clone --depth 1 --filter=blob:none` at the sha. Full clones never
-   happen.
+2. **Never fetch history.** Acquire the tree at one sha via a shallow
+   `git fetch`-by-sha: `git init`, then
+   `git fetch --depth 1 --filter=blob:none origin <sha>`, then
+   `git checkout FETCH_HEAD` — the `.git` directory is dropped once the checkout
+   completes, so it never enters project discovery or lingers on disk. Full
+   clones never happen.
 3. **Content-addressed cache.** Snapshots are immutable per sha — acquire once,
-   reuse until the pin moves. Compile runs in-process on the acquired tree
-   (`compileProject`), producing the same JSON a published reference serves.
+   reuse until the pin moves. Compile runs in-process on the acquired tree,
+   producing the same JSON a published reference serves.
 4. **CI recipe (documented in the guide):** cache `.markspec/cache/upstreams/`
    keyed on the lockfile hash, so CI pays acquisition only when a pin actually
    moved.
+
+**Determinism.** The acquired tree is compiled with sorted, tree-relative file
+paths and no stat/git callbacks — no absolute path, mtime, or git-history
+artifact leaks into the output. This makes the cached `compiled.json` (and the
+`snapshot` hash `markspec.lock` records) byte-reproducible across machines: two
+machines acquiring the same pinned sha and compiling with the same markspec
+version produce identical cache bytes.
+
+**Deferred — forge-tarball rung (decision 2).** Preferring the GitHub/GitLab
+tarball endpoint (one authed API request, no `.git` directory at all) for
+recognized forge hosts is a fast-follow, not v1 — item 2 above (shallow
+`git fetch`-by-sha) is the only acquisition mechanism this slice ships.
 
 v1 constraint: the acquired dependency tree must be self-contained enough to
 compile — its profile chain resolvable from its own tree (a profile-fetch during
@@ -224,8 +246,12 @@ Two stacked guarantees:
    the trace referenced unreleased requirements.
 
 Below `--strict`, a branch-resolved pin produces a non-blocking project-level
-advisory ("dependency 'icd' is pinned to an unreleased state (main @ abc123)"),
-following the gentle-by-default posture.
+advisory — `MSL-L215`: "dependency 'icd' is pinned to an unreleased state
+(branch:main @ abc123def456); release builds (check --strict) require a tagged
+pin — ask the upstream to cut a tag, then run 'markspec lock --update=icd'" —
+following the gentle-by-default posture. **Ships in slice 3 (decision 3):** both
+the `MSL-L215` advisory and its `--strict` promotion to a hard error are
+implemented now, not deferred.
 
 `references:` entries have no tags; they are released-by-publication (the
 publisher publishes their baseline). Their manifest may carry the upstream's
