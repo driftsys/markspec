@@ -24,12 +24,7 @@ import type {
   DisplayId,
   Entry,
 } from "../model/mod.ts";
-import {
-  CORE_KINDS,
-  isUpstreamEntry,
-  makeDisplayId,
-  MIXED_DISCIPLINE,
-} from "../model/mod.ts";
+import { CORE_KINDS, makeDisplayId, MIXED_DISCIPLINE } from "../model/mod.ts";
 import {
   classifyDerivationOnly,
   parseFrozenValue,
@@ -116,10 +111,12 @@ function channel4Kind(
  * every entry. Pure function: takes the entries, a lookup map (used by
  * later tasks for channel-4 derivation), and the effective registry.
  *
- * @param entries Entries to walk.
- * @param entriesByDisplayId Lookup map for channel-4 derivation. Tasks 5–8
- *   will use this; Task 4 ignores it but keeps the parameter to fix the
- *   signature now.
+ * @param entries Emittable entries to walk — the caller passes the #771
+ *   partition (upstream entries are exempt emitters, ADR-031 §4.7).
+ * @param entriesByDisplayId Lookup map for channel-4 derivation, built from
+ *   the FULL entry set (upstream included) so Allocated-to targets in
+ *   upstream entries still resolve. Tasks 5–8 will use this; Task 4
+ *   ignores it but keeps the parameter to fix the signature now.
  * @param registry Effective discipline registry from Slice 2's
  *   `buildEffectiveDisciplineRegistry()`, or `CORE_DISCIPLINE_REGISTRY` in
  *   core-only mode.
@@ -133,12 +130,6 @@ export function validateDiscipline(
   const knownKinds = effectiveKindSet(registry);
 
   for (const entry of entries) {
-    // Upstream entries (federated-upstream epic) are validation-exempt
-    // emitters (design §4.7) — skip discipline checks sourced from an
-    // upstream entry. `entriesByDisplayId` still includes them for
-    // channel-4 (Allocated-to) derivation on project entries.
-    if (isUpstreamEntry(entry)) continue;
-
     const override = singleAttrValue(entry, "Discipline");
     if (override !== undefined && !knownKinds.has(override)) {
       out.push({

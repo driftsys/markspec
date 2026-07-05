@@ -485,8 +485,25 @@ export function sameOriginSource(a: EntryOrigin, b: EntryOrigin): boolean {
  * entry still resolve. This is distinct from `kind: "profile"` corpus
  * entries, which stay fully validated and are only downgraded post-hoc.
  */
-export function isUpstreamEntry(entry: Entry): boolean {
+export function isUpstreamEntry(
+  entry: Entry,
+): entry is Entry & { origin: Extract<EntryOrigin, { kind: "upstream" }> } {
   return entry.origin?.kind === "upstream";
+}
+
+/**
+ * The emit side of the federated-upstream validation partition (#771;
+ * ADR-031 design §4.7). Upstream entries are read-only graph citizens:
+ * they stay in every RESOLUTION map (so project links targeting them
+ * resolve) but no validation stage may EMIT diagnostics against them.
+ * Validators loop over this filtered list; resolution-map builders keep
+ * the full input list. Adding a new validation stage? Iterate the
+ * emittable list — never the raw entry set.
+ */
+export function emittableEntries(
+  entries: readonly Entry[],
+): readonly Entry[] {
+  return entries.filter((entry) => !isUpstreamEntry(entry));
 }
 
 /**

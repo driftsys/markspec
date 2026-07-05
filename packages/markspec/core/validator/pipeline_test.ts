@@ -902,3 +902,111 @@ Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list v
   // Stage 3 should see split values → no MSL-A004.
   assertEquals(result.diagnostics.filter((d) => d.code === "MSL-A004"), []);
 });
+
+Deno.test("runPipeline: upstream entry violating every emit stage stays silent but resolves (#771 partition anchor)", () => {
+  const profile = buildProfileWithRequirement();
+
+  // One upstream entry engineered to trip a rule in EVERY per-entry emit
+  // surface, were it emittable:
+  // - Stage 1  checkStructural: missing Id (MSL-R003/I003), empty title
+  //   (MSL-P010), unknown attribute (MSL-R010)
+  // - Stage 1  checkReferences: unresolvable Supersedes (MSL-T012),
+  //   unresolvable References citation (MSL-T005)
+  // - Stage 1.5 validateCoreTypeAttribute: unknown Type value (MSL-T020)
+  // - Stage 1.6 trace_types: Satisfies target carrying Deprecated
+  //   (MSL-R081)
+  // - Stage 1.7 discipline: unknown Discipline kind (MSL-T025)
+  // This is the #765-class regression net: it pins the partition itself,
+  // so a future stage that forgets the emittable list fails here.
+  const upstream: Entry = {
+    displayId: makeDisplayId("UP-0001"),
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "",
+    body: "",
+    type: "foreign-req",
+    rawAttributes: [
+      { key: "Frobnicate", value: "x" },
+      { key: "Type", value: "not-a-type" },
+      { key: "Supersedes", value: "GHOST-0001" },
+      { key: "References", value: "ghost-slug" },
+      { key: "Discipline", value: "quantum" },
+      { key: "Satisfies", value: "REQ-0002" },
+    ],
+    typedAttributes: new Map(),
+    location: { file: "upstream.md", line: 1, column: 1 },
+    bodyTokens: [],
+    origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+  };
+
+  // Retired project entry — the upstream's Satisfies target (MSL-R081 bait:
+  // a project source pointing here would warn "target is retired").
+  const retired: Entry = {
+    displayId: makeDisplayId("REQ-0002"),
+    id: "01T2T2T2T2T2T2T2T2T2T2T2T2",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "Retired requirement",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01T2T2T2T2T2T2T2T2T2T2T2T2" },
+      { key: "Deprecated", value: "superseded 2026-01" },
+    ],
+    typedAttributes: new Map([["Id", ["01T2T2T2T2T2T2T2T2T2T2T2T2"]]]),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+  };
+
+  // Project entry whose link targets the upstream entry — resolution must
+  // keep working while the upstream stays silent.
+  const project: Entry = {
+    displayId: makeDisplayId("REQ-0001"),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    title: "Project requirement",
+    body: "",
+    rawAttributes: [
+      { key: "Id", value: "01HGW2Q8MNP3RSTVWXYZABCDEF" },
+      { key: "Supersedes", value: "UP-0001" },
+    ],
+    typedAttributes: new Map([["Id", ["01HGW2Q8MNP3RSTVWXYZABCDEF"]]]),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+  };
+
+  const result = runPipeline([upstream, project, retired], profile);
+
+  // None of the upstream entry's baited codes may fire...
+  const baitCodes = [
+    "MSL-R003",
+    "MSL-I003",
+    "MSL-P010",
+    "MSL-R010",
+    "MSL-T012",
+    "MSL-T005",
+    "MSL-T020",
+    "MSL-T025",
+    "MSL-R081",
+  ];
+  assertEquals(
+    result.diagnostics.filter((d) => baitCodes.includes(d.code)),
+    [],
+  );
+  // ...no diagnostic of any code may be attributed to the upstream entry...
+  assertEquals(
+    result.diagnostics.filter(
+      (d) =>
+        d.message.includes("UP-0001") ||
+        d.location?.file === "upstream.md",
+    ),
+    [],
+  );
+  // ...and the upstream entry stayed a live resolution target: the project
+  // entry's Supersedes resolved (a missing target would be MSL-T012 at the
+  // project entry, already excluded above) and passed through to output.
+  assertEquals(
+    result.entries.some((e) => e.displayId === "UP-0001"),
+    true,
+  );
+});

@@ -16,7 +16,7 @@ import type {
 } from "../model/mod.ts";
 import {
   CORE_DISCIPLINE_REGISTRY,
-  isUpstreamEntry,
+  emittableEntries,
   makeDisplayId,
 } from "../model/mod.ts";
 import { validate } from "./mod.ts";
@@ -97,6 +97,12 @@ export function runPipeline(
 ): PipelineResult {
   const diagnostics: Diagnostic[] = [];
 
+  // Partition once (#771): emit loops iterate `emittable` /
+  // `finalEmittable`; resolution maps build from the full lists so
+  // upstream entries stay live link targets (ADR-031 §4.7). A new stage
+  // added to this pipeline must loop over the emittable list.
+  const emittable = emittableEntries(entries);
+
   // Stage 1 — core hygiene. When a profile is loaded, suppress MSL-R010
   // warnings for attributes the profile actually declares (Stage 3's scope
   // validates them directly — the core-only R010 check would be noise).
@@ -109,10 +115,7 @@ export function runPipeline(
   // included) so unknown `Type:` values fail fast regardless of profile.
   // Also covers late-stage display-ID-shape inference (step 8 → MSL-T021)
   // and caption-adjacency rules (§2.6 → MSL-C070).
-  // Upstream entries (federated-upstream epic) are validation-exempt graph
-  // citizens (design §4.7) — skip every per-entry check in this loop.
-  for (const entry of entries) {
-    if (isUpstreamEntry(entry)) continue;
+  for (const entry of emittable) {
     diagnostics.push(...validateCoreTypeAttribute(entry, profile));
     diagnostics.push(...inferTypeFromDisplayIdShape(entry));
     diagnostics.push(...validateCaptions(entry));
@@ -125,8 +128,9 @@ export function runPipeline(
 
   // Stage 1.6 — cross-file trace target-type compatibility (MSL-R083).
   // Runs project-wide because targets may live in any entry; needs the
-  // whole batch indexed.
-  diagnostics.push(...validateTraceTargetTypes(entries));
+  // whole batch indexed (resolution side) while emitting only from the
+  // partition.
+  diagnostics.push(...validateTraceTargetTypes(emittable, entries));
 
   // Stage 1.7 — discipline attribute validation (ADR-017 Slice 3).
   // Runs in both core-only and profile modes. In core-only mode the
@@ -139,10 +143,12 @@ export function runPipeline(
     entries.map((e) => [makeDisplayId(e.displayId), e] as const),
   );
   diagnostics.push(
-    ...validateDiscipline(entries, entriesByDisplayId, disciplineRegistry),
+    ...validateDiscipline(emittable, entriesByDisplayId, disciplineRegistry),
   );
 
   // Stage 2 — classification (only when a profile is loaded).
+  // classifyEntriesStage handles upstream itself (pass-through, never
+  // re-classified) — it is a transform, not an emit loop; see types.ts.
   let finalEntries: readonly Entry[] = entries;
   if (profile !== null) {
     const stage2 = classifyEntriesStage(entries, profile);
@@ -150,13 +156,17 @@ export function runPipeline(
     diagnostics.push(...stage2.diagnostics);
   }
 
+  // Post-classification generation: Stage 2 produced new Entry objects,
+  // so re-derive the emit partition for the stages below (and again after
+  // Stage 2.5's normalization pass reassigns `finalEntries`).
+  let finalEmittable = emittableEntries(finalEntries);
+
   // Stage 2.4 — late-stage inference warnings (MSL-T021 for steps 5/6).
   // Runs after Stage 2 so that profile-classified `entry.type` suppresses
   // the warning correctly. In core-only mode `finalEntries === entries`
   // and `entry.type` is always undefined, so this stage produces the same
   // diagnostics regardless of mode.
-  for (const entry of finalEntries) {
-    if (isUpstreamEntry(entry)) continue;
+  for (const entry of finalEmittable) {
     diagnostics.push(...inferTypeFromLateStageChain(entry));
   }
 
@@ -165,14 +175,15 @@ export function runPipeline(
   // didn't see so that Stage 3 sees already-split values.
   if (profile !== null) {
     finalEntries = finalEntries.map((e) => normalizeListValues(e, profile));
+    finalEmittable = emittableEntries(finalEntries);
   }
 
   // Stage 3 — typed attributes (only when a profile is loaded). Upstream
-  // entries are validation-exempt (design §4.7) — skip the emit call, but
-  // they remain in `finalEntries` for Stage 4's resolution maps below.
+  // entries are validation-exempt (design §4.7) — outside the emit
+  // partition, but they remain in `finalEntries` for Stage 4's resolution
+  // maps below.
   if (profile !== null) {
-    for (const entry of finalEntries) {
-      if (isUpstreamEntry(entry)) continue;
+    for (const entry of finalEmittable) {
       const stage3 = validateAttributesForEntry(entry, profile);
       diagnostics.push(...stage3);
     }
@@ -191,11 +202,10 @@ export function runPipeline(
       if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
     }
     const projectWide = opts.projectWide !== false;
-    // Upstream entries are validation-exempt emitters (design §4.7): skip
-    // checking trace rules FROM an upstream entry. They remain resolution
-    // targets via the maps built above.
-    for (const entry of finalEntries) {
-      if (isUpstreamEntry(entry)) continue;
+    // Upstream entries are validation-exempt emitters (design §4.7): trace
+    // rules FROM an upstream entry are never checked. They remain
+    // resolution targets via the maps built above.
+    for (const entry of finalEmittable) {
       const stage4 = validateTraceabilityForEntry(
         entry,
         profile,

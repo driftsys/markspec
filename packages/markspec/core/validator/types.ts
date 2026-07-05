@@ -260,12 +260,12 @@ export function classifyEntriesStage(
   const out: Entry[] = [];
 
   for (const entry of entries) {
-    // Upstream entries (federated-upstream epic) are validation-exempt
-    // graph citizens (design §4.7); their `type` comes from their OWN
-    // compile (design §4.5/D6) — the consumer never re-classifies. Pass
-    // the entry through unchanged: no MSL-T001..T004 emit, no type
-    // overwrite. It still lands in `out`, so it remains a resolution
-    // target for later stages (Stage 3/4 index-building).
+    // Deliberately NOT the #771 emittableEntries partition: this stage is
+    // a TRANSFORM, not an emit loop — upstream entries must pass through
+    // into the output (they stay in finalEntries as resolution targets,
+    // in original order for first-entry-wins ties), and their `type`
+    // comes from their OWN compile (design §4.5/D6) — the consumer never
+    // re-classifies. No MSL-T001..T004 emit, no type overwrite.
     if (isUpstreamEntry(entry)) {
       out.push(entry);
       continue;

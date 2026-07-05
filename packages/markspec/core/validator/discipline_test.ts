@@ -10,6 +10,7 @@ import { assertEquals } from "@std/assert";
 import {
   CORE_DISCIPLINE_REGISTRY,
   type DisplayId,
+  emittableEntries,
   type Entry,
   makeDisplayId,
 } from "../mod.ts";
@@ -70,8 +71,11 @@ Deno.test("MSL-T025: upstream entry with unknown override kind is silent (upstre
     rawAttributes: [{ key: "Discipline", value: "nonsense" }],
     origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
   });
+  // Since #771 the exemption lives in the caller's partition: compose
+  // `emittableEntries` the way `runPipeline` Stage 1.7 does, so the test
+  // exercises the production caller contract.
   const diags = validateDiscipline(
-    [e],
+    emittableEntries([e]),
     new Map<DisplayId, Entry>(),
     CORE_DISCIPLINE_REGISTRY,
   );
