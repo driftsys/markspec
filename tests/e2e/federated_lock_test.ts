@@ -199,7 +199,7 @@ Deno.test(
       );
 
       await t.step(
-        "4. restore mismatch: a moved snapshot is refused with MSL-L214",
+        "4. restore mismatch: a moved snapshot warns with MSL-L214 but still locks (warn-and-write)",
         async () => {
           // Regenerate A's published snapshot with an extra entry, so the
           // published site now hashes differently than B's locked pin.
@@ -216,14 +216,23 @@ Deno.test(
           await Deno.remove(cacheDir, { recursive: true });
 
           const r = await markspecInDir(dirB, ["lock"], LOCK_PERMISSIONS);
-          assertEquals(r.code, 1, r.stdout + r.stderr);
+          // Warn-and-write (decision 1): a restore mismatch is a warning,
+          // not a command-level abort. `lock` still exits 0, still emits
+          // the MSL-L214 warning on stderr, and still writes markspec.lock
+          // — keeping the existing (pre-mismatch) pin rather than adopting
+          // the moved snapshot.
+          assertEquals(r.code, 0, r.stdout + r.stderr);
           assertMatch(r.stderr, /MSL-L214/);
           assertMatch(r.stderr, /producta/);
           assertMatch(r.stderr, /restore mismatch/);
 
-          // Lockfile is left untouched — a mismatch aborts before writing.
+          // The lockfile is rewritten (a fresh `locked-at` stamp, same as
+          // every invocation — see step 3's note) but the pin itself is
+          // unchanged: the mismatch keeps the existing registry row rather
+          // than adopting the fetched (moved) snapshot.
           const afterLock = await Deno.readTextFile(`${dirB}/markspec.lock`);
-          assertEquals(afterLock, beforeLock);
+          assertNotEquals(afterLock, beforeLock);
+          assertEquals(registryBlock(afterLock), registryBlock(beforeLock));
 
           // Cache is NOT repopulated with the mismatched content either.
           let cacheExists = true;
