@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   parseChildSurfaceDecl,
   parseElementBullet,
@@ -37,9 +37,33 @@ Deno.test("parseUxRef: reserved authority is UXIL-003", () => {
   assertEquals(diagnostics.map((d) => d.code), ["UXIL-003"]);
 });
 
-Deno.test("parseUxRef: reserved query char is UXIL-002", () => {
+Deno.test("parseUxRef: reserved query char is exactly one UXIL-002", () => {
+  // #780 case 3: the lexer drops the reserved char and orphans the trailing
+  // token — the orphan must not surface as a spurious UXIL-001.
   const { diagnostics } = parseUxRef("media.home?x");
-  assertEquals(diagnostics.some((d) => d.code === "UXIL-002"), true);
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-002"]);
+});
+
+Deno.test("parseRootDecl: reserved char is exactly one UXIL-002", () => {
+  // #796 review: the reserved-char scan poisons the token stream (the lexer
+  // drops the char), so downstream structure checks (here: missing kind)
+  // must not fire on the mangled tokens.
+  const { diagnostics } = parseRootDecl("media.home?x");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-002"]);
+});
+
+Deno.test("parseElementBullet: reserved char in the struct part is exactly one UXIL-002", () => {
+  // #796 review: after the lexer drops '?', the orphaned 'x' must not turn
+  // into a contradictory "expected ':' before the verb set" (a ':' IS there).
+  const { diagnostics } = parseElementBullet("`/play?x : activate` — Press.");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-002"]);
+});
+
+Deno.test("parseUxRef: doubled dot is exactly one UXIL-008", () => {
+  // #780 case 3: the specific surface error must not be followed by a
+  // spurious UXIL-001 for the tokens after the bad dot.
+  const { diagnostics } = parseUxRef("media..home");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-008"]);
 });
 
 Deno.test("parseRootDecl: surface, kind, state set", () => {
@@ -53,9 +77,32 @@ Deno.test("parseRootDecl: surface, kind, state set", () => {
   assertEquals(decl?.states, ["loading", "error", "ready"]);
 });
 
-Deno.test("parseRootDecl: missing kind is UXIL-004", () => {
-  const { diagnostics } = parseRootDecl("ux:media.home");
+Deno.test("parseRootDecl: missing kind is UXIL-004 with a partial decl", () => {
+  // #780 case 5: a surface is present, so per the parser contract a
+  // best-effort decl (kind empty) is returned alongside the diagnostic.
+  const { decl, diagnostics } = parseRootDecl("ux:media.home");
   assertEquals(diagnostics.map((d) => d.code), ["UXIL-004"]);
+  assertEquals(decl?.surface, ["media", "home"]);
+  assertEquals(decl?.kind, "");
+});
+
+Deno.test("parseRootDecl: dangling colon (no kind) is also UXIL-004 + partial decl", () => {
+  // #780 case 5: this adjacent input previously reported UXIL-001 with a
+  // different return shape than the no-colon form. Both missing-kind cases
+  // must emit the same code and the same partial-decl shape.
+  const { decl, diagnostics } = parseRootDecl("ux:media.home :");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-004"]);
+  assertEquals(decl?.surface, ["media", "home"]);
+  assertEquals(decl?.kind, "");
+});
+
+Deno.test("parseRootDecl: missing kind still captures the state set", () => {
+  // Best-effort AST: mid-edit (kind deleted, states intact) the surface and
+  // states survive so editor tooling degrades gracefully.
+  const { decl, diagnostics } = parseRootDecl("ux:media.home : @ ready");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-004"]);
+  assertEquals(decl?.kind, "");
+  assertEquals(decl?.states, ["ready"]);
 });
 
 Deno.test("parseChildSurfaceDecl: dotted leading path + state", () => {
@@ -137,9 +184,57 @@ Deno.test("parseElementBullet: missing event dictionary is UXIL-006", () => {
   assertEquals(diagnostics.map((d) => d.code), ["UXIL-006"]);
 });
 
-Deno.test("parseElementBullet: empty verb set is UXIL-005", () => {
+Deno.test("parseElementBullet: empty verb set is exactly one UXIL-005", () => {
+  // #780 case 1: expectIdent previously added a redundant UXIL-001 for the
+  // same empty verb set.
   const { diagnostics } = parseElementBullet("`/play :` — no verb.");
-  assertEquals(diagnostics.some((d) => d.code === "UXIL-005"), true);
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-005"]);
+});
+
+Deno.test("parseElementBullet: missing ':' with verb present is a single UXIL-001", () => {
+  // #780 case 4: a verb IS present, so 'empty verb set' (UXIL-005) would be
+  // contradictory — the real defect is the omitted ':'.
+  const { decl, diagnostics } = parseElementBullet(
+    "`/play activate` — Pressing play.",
+  );
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-001"]);
+  assertStringIncludes(
+    diagnostics[0].message,
+    "expected ':' before the verb set",
+  );
+  assertEquals(decl?.verbs, []);
+});
+
+Deno.test("parseElementBullet: reserved char in the nav target is reported once, span-relative", () => {
+  // #780 case 2: the span-level scan and parseUxRef(navSource) both scanned
+  // the nav tail, double-reporting a single reserved char. The surviving
+  // diagnostic's column must stay span-relative (#796 review): the '?' sits
+  // at span column 31, not at column 11 of the sliced nav source.
+  const { diagnostics } = parseElementBullet(
+    "`/play : activate -> media.home?x` — Goes home.",
+  );
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-002"]);
+  assertEquals(diagnostics[0].position.column, 31);
+});
+
+Deno.test("parseElementBullet: reserved char in the nav survives a malformed struct part", () => {
+  // #796 review: the struct-part early return must still scan the peeled nav
+  // tail — otherwise the '?' is reported by neither scan (the pre-#780 full-
+  // span scan covered it). Struct error and nav reserved char are orthogonal
+  // regions, so both report.
+  const { diagnostics } = parseElementBullet(
+    "`foo -> media.home?x` — Goes home.",
+  );
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-001", "UXIL-002"]);
+});
+
+Deno.test("parseElementBullet: leftover token and missing dictionary co-report", () => {
+  // Pins the load-bearing order in parseElementBullet (#796 review):
+  // expectEof runs BEFORE the UXIL-006 event-dictionary check, so a real
+  // leftover-token error is never suppressed by the (orthogonal) missing-
+  // dictionary diagnostic.
+  const { diagnostics } = parseElementBullet("`/play : activate junk`");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-001", "UXIL-006"]);
 });
 
 Deno.test("parseElementBullet: preserves a leading hyphen in the event dictionary", () => {
