@@ -8,10 +8,15 @@ Deno.test("LSP_EDITOR_IDS contains expected editors", () => {
 });
 
 Deno.test("MCP_CLIENT_IDS contains expected clients", () => {
-  assertEquals(MCP_CLIENT_IDS.includes("claude-desktop"), true);
+  assertEquals(MCP_CLIENT_IDS.includes("claude"), true);
   assertEquals(MCP_CLIENT_IDS.includes("cursor"), true);
   assertEquals(MCP_CLIENT_IDS.includes("vscode"), true);
   assertEquals(MCP_CLIENT_IDS.includes("copilot"), true);
+  // claude-desktop was removed (#637, sanctioned-surfaces policy).
+  assertEquals(
+    (MCP_CLIENT_IDS as readonly string[]).includes("claude-desktop"),
+    false,
+  );
 });
 
 Deno.test("suggestId: returns closest match within distance 3", () => {
@@ -25,6 +30,6 @@ Deno.test("suggestId: returns undefined when no close match", () => {
   assertEquals(suggestId("intellij", MCP_CLIENT_IDS), undefined);
 });
 
-Deno.test("suggestId: claude-desktop typo", () => {
-  assertEquals(suggestId("cladue-desktop", MCP_CLIENT_IDS), "claude-desktop");
+Deno.test("suggestId: claude typo", () => {
+  assertEquals(suggestId("cladue", MCP_CLIENT_IDS), "claude");
 });

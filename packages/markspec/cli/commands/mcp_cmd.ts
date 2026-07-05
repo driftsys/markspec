@@ -3,7 +3,7 @@
  *
  * `markspec mcp` — start the MCP server or install its configuration.
  *
- * Slice C: claude-desktop runs through the full `runMcpInstall`
+ * claude, opencode, and copilot run through the full `runMcpInstall`
  * orchestrator — JSON managed-block, timestamped sidecar backup,
  * diff preview, atomic write. vscode remains verify-only (parity
  * with Slice B's LSP vscode adapter). Cursor remains print-only.
@@ -26,7 +26,7 @@ export const mcpCmd = new Command()
   .description("Install or print MCP server configuration for a client")
   .option(
     "--client <client:string>",
-    "Client ID (claude-desktop|claude-code|cursor|opencode|vscode|copilot)",
+    "Client ID (claude|cursor|opencode|vscode|copilot)",
     { required: true },
   )
   .option("--scope <scope:string>", "Config scope: user|workspace")

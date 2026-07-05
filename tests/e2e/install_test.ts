@@ -44,12 +44,12 @@ Deno.test(
 );
 
 Deno.test(
-  "mcp install --client=claude-desktop --print: exits 0, stdout contains mcpServers",
+  "mcp install --client=claude --print: exits 0, stdout contains mcpServers",
   async () => {
-    // Slice C: claude-desktop now flows through the orchestrator;
-    // passing --print keeps the test side-effect-free.
+    // --print keeps the test side-effect-free; claude writes a workspace
+    // .mcp.json, so no --scope is needed.
     const { code, stdout } = await markspec(
-      ["mcp", "install", "--client=claude-desktop", "--print", "--scope=user"],
+      ["mcp", "install", "--client=claude", "--print"],
       { permissions: ["--allow-run", "--allow-env"] },
     );
     assertEquals(code, 0);

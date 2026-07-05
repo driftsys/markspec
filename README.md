@@ -68,8 +68,8 @@ markspec book build         # multi-chapter → static HTML site
 markspec lsp                # LSP server (stdio JSON-RPC)
 markspec lsp install        # print LSP config for vscode, neovim, zed
 markspec mcp                # MCP server (stdio JSON-RPC)
-markspec mcp install        # print MCP config for claude-desktop,
-                            #   cursor, vscode
+markspec mcp install        # write/print MCP config for claude,
+                            #   copilot, cursor, opencode, vscode
 ```
 
 **Not yet implemented** (registered but exit with an error):

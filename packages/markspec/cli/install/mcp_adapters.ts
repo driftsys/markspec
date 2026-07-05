@@ -3,10 +3,7 @@
  *
  * MCP install adapters for `markspec mcp install --client=<id>`.
  *
- * Two new shapes:
- * - `claudeDesktopDescriptor: McpAdapter` — full managed-block path
- *   (resolves to platform-specific Claude Desktop config, returns
- *   `{ command, args }` for the `mcpServers.markspec` JSON key).
+ * Shapes:
  * - `vscodeMcpAdapter(options)` — verify-only, mirrors Slice B's
  *   vscodeAdapter (checks the markspec-ide extension is installed).
  *
@@ -14,12 +11,7 @@
  * Cursor remains in the print-only tier per spec §5.2.
  */
 
-import { join } from "@std/path";
-import type {
-  AdapterResult,
-  McpAdapter,
-  RenderBlockInput,
-} from "./adapters.ts";
+import type { AdapterResult } from "./adapters.ts";
 
 /** Marketplace extension ID shared with the LSP path. */
 const VSCODE_EXTENSION_ID = "driftsys.markspec-ide";
@@ -27,49 +19,6 @@ const VSCODE_EXTENSION_ID = "driftsys.markspec-ide";
 /** Marketplace listing URL printed when the extension is missing. */
 const VSCODE_MARKETPLACE_URL =
   "https://marketplace.visualstudio.com/items?itemName=driftsys.markspec-ide";
-
-// ---------------------------------------------------------------------------
-// claudeDesktopDescriptor — full managed-block flow (spec §5.2 / §6.1)
-// ---------------------------------------------------------------------------
-
-/**
- * Claude Desktop is a per-user app — no workspace scope.
- * - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
- * - Windows: `%APPDATA%/Claude/claude_desktop_config.json`
- * - Linux: `~/.config/Claude/claude_desktop_config.json`
- *
- * The orchestrator rejects `--scope=workspace` for this client before
- * calling `resolveConfigPath`; the implementation throws as a
- * defensive guard.
- */
-export const claudeDesktopDescriptor: McpAdapter = {
-  id: "claude-desktop",
-  jsonPath: ["mcpServers", "markspec"],
-  resolveConfigPath(scope, _cwd, home, appData, _workspaceRoot) {
-    if (scope === "workspace") {
-      throw new Error(
-        "claude-desktop does not support workspace scope (per-user app)",
-      );
-    }
-    if (Deno.build.os === "darwin") {
-      return join(
-        home,
-        "Library",
-        "Application Support",
-        "Claude",
-        "claude_desktop_config.json",
-      );
-    }
-    if (Deno.build.os === "windows") {
-      const base = appData ?? join(home, "AppData", "Roaming");
-      return join(base, "Claude", "claude_desktop_config.json");
-    }
-    return join(home, ".config", "Claude", "claude_desktop_config.json");
-  },
-  renderBlock(input: RenderBlockInput): Record<string, unknown> {
-    return { command: input.binaryPath, args: ["mcp"] };
-  },
-};
 
 // ---------------------------------------------------------------------------
 // cursorAdapter — preserved legacy print-only (spec §5.2 — `--print` only)

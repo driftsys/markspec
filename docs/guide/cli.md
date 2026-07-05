@@ -219,18 +219,18 @@ Scaffold a new MarkSpec project — writes `project.yaml`, `.markspec.yaml`, and
 markspec init [target-dir]
 ```
 
-| Flag            | Type   | Default | Description                                                              |
-| --------------- | ------ | ------- | ------------------------------------------------------------------------ |
-| `--client`      | string | —       | Force write for the named client (repeatable): `claude-code`, `opencode` |
-| `--all-clients` | bool   | false   | Write configs for `claude-code` + `opencode` regardless of detection     |
-| `--no-mcp`      | bool   | false   | Skip all MCP scaffolding                                                 |
-| `--no-skills`   | bool   | false   | Skip `upskill add`                                                       |
-| `--profile`     | string | —       | Profile spec (conflicts with `--no-profile`)                             |
-| `--no-profile`  | bool   | false   | Core-only mode (`default-profile: false`)                                |
-| `--binary-path` | string | —       | Absolute path to the markspec binary for MCP configs                     |
-| `--dry-run`     | bool   | false   | Report decisions, write nothing                                          |
-| `--force`       | bool   | false   | Overwrite skip-on-exists files; required for a non-empty dir or non-TTY  |
-| `--format`      | string | `text`  | Summary format: `json`, `text`                                           |
+| Flag            | Type   | Default | Description                                                             |
+| --------------- | ------ | ------- | ----------------------------------------------------------------------- |
+| `--client`      | string | —       | Force write for the named client (repeatable): `claude`, `opencode`     |
+| `--all-clients` | bool   | false   | Write configs for `claude` + `opencode` regardless of detection         |
+| `--no-mcp`      | bool   | false   | Skip all MCP scaffolding                                                |
+| `--no-skills`   | bool   | false   | Skip `upskill add`                                                      |
+| `--profile`     | string | —       | Profile spec (conflicts with `--no-profile`)                            |
+| `--no-profile`  | bool   | false   | Core-only mode (`default-profile: false`)                               |
+| `--binary-path` | string | —       | Absolute path to the markspec binary for MCP configs                    |
+| `--dry-run`     | bool   | false   | Report decisions, write nothing                                         |
+| `--force`       | bool   | false   | Overwrite skip-on-exists files; required for a non-empty dir or non-TTY |
+| `--format`      | string | `text`  | Summary format: `json`, `text`                                          |
 
 **Examples:**
 
@@ -1199,19 +1199,19 @@ markspec mcp install --client <client>
 
 | Flag            | Type   | Default             | Description                                                                                                                |
 | --------------- | ------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `--client`      | string | —                   | Client ID: `claude-desktop`, `claude-code`, `cursor`, `opencode`, `vscode`, `copilot`.                                     |
+| `--client`      | string | —                   | Client ID: `claude`, `cursor`, `opencode`, `vscode`, `copilot`.                                                            |
 | `--scope`       | string | client default      | Config scope: `user` or `workspace`. Honoured by `copilot`; other clients are fixed to one scope.                          |
 | `--binary-path` | string | invoked binary name | Explicit path to the `markspec` binary. Default writes the invoked name (resolves via `PATH`, surviving package upgrades). |
 
 **Examples:**
 
 ```sh
-markspec mcp install --client claude-desktop
+markspec mcp install --client claude                  # → .mcp.json (workspace)
 markspec mcp install --client cursor
 markspec mcp install --client vscode
 markspec mcp install --client copilot                 # → .github/mcp.json
 markspec mcp install --client copilot --scope user     # → ~/.copilot/mcp-config.json
-markspec mcp install --client claude-desktop --binary-path /opt/markspec/bin/markspec
+markspec mcp install --client claude --binary-path /opt/markspec/bin/markspec
 ```
 
 #### lsp install

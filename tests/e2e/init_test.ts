@@ -60,7 +60,7 @@ Deno.test(
 );
 
 Deno.test(
-  "e2e[2] init with --client claude-code --client opencode → writes both MCP configs",
+  "e2e[2] init with --client claude --client opencode → writes both MCP configs",
   async () => {
     const dir = await tempDir();
     try {
@@ -71,14 +71,14 @@ Deno.test(
           "--no-skills",
           "--force",
           "--client",
-          "claude-code",
+          "claude",
           "--client",
           "opencode",
         ],
         PERMS,
         {
           MARKSPEC_TEST_MODE: "1",
-          MARKSPEC_FAKE_CLIENT_DETECT: "claude-code,opencode",
+          MARKSPEC_FAKE_CLIENT_DETECT: "claude,opencode",
         },
       );
       assertEquals(
@@ -366,14 +366,14 @@ Deno.test("e2e[14] init --binary-path /nonexistent warns or exits 1", async () =
         "--no-skills",
         "--force",
         "--client",
-        "claude-code",
+        "claude",
         "--binary-path",
         "/nonexistent/markspec",
       ],
       PERMS,
       {
         MARKSPEC_TEST_MODE: "1",
-        MARKSPEC_FAKE_CLIENT_DETECT: "claude-code",
+        MARKSPEC_FAKE_CLIENT_DETECT: "claude",
       },
     );
     // Spec §6 maps non-existent --binary-path to a warning (exit 2),

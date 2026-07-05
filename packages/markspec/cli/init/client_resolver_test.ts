@@ -23,7 +23,7 @@ Deno.test("resolveClientSet: detected clients are written", async () => {
     allClients: false,
     noMcp: false,
   });
-  assertEquals(set.write.has("claude-code"), true);
+  assertEquals(set.write.has("claude"), true);
   assertEquals(set.write.has("opencode"), true);
 });
 
@@ -37,31 +37,31 @@ Deno.test("resolveClientSet: --no-mcp returns empty", async () => {
   assertEquals(set.write.size, 0);
 });
 
-Deno.test("resolveClientSet: --all-clients overrides detection (claude-code + opencode only)", async () => {
+Deno.test("resolveClientSet: --all-clients overrides detection (claude + opencode only)", async () => {
   const set = await resolveClientSet({
     env: NONE_DETECTED,
     forcedClients: [],
     allClients: true,
     noMcp: false,
   });
-  assertEquals(set.write.has("claude-code"), true);
+  assertEquals(set.write.has("claude"), true);
   assertEquals(set.write.has("opencode"), true);
 });
 
-Deno.test("resolveClientSet: --client claude-code forces despite no detection", async () => {
+Deno.test("resolveClientSet: --client claude forces despite no detection", async () => {
   const set = await resolveClientSet({
     env: NONE_DETECTED,
-    forcedClients: ["claude-code"],
+    forcedClients: ["claude"],
     allClients: false,
     noMcp: false,
   });
-  assertEquals(set.write.has("claude-code"), true);
+  assertEquals(set.write.has("claude"), true);
 });
 
 Deno.test("resolveClientSet: --no-mcp wins over --client", async () => {
   const set = await resolveClientSet({
     env: ALL_DETECTED,
-    forcedClients: ["claude-code"],
+    forcedClients: ["claude"],
     allClients: false,
     noMcp: true,
   });

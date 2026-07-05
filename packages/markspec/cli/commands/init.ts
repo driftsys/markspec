@@ -12,7 +12,7 @@ import { VERSION } from "../../core/mod.ts";
 import { parseProfileSpec } from "../init/mod.ts";
 import { parseWhichOutput } from "../init/which_command.ts";
 
-const clientType = new EnumType(["claude-code", "opencode"]);
+const clientType = new EnumType(["claude", "opencode"]);
 const formatType = new EnumType(["text", "json"]);
 
 interface InitOptions {
@@ -42,7 +42,7 @@ export const initCmd = new Command()
   )
   .option(
     "--all-clients",
-    "Write configs for claude-code + opencode regardless of detection",
+    "Write configs for claude + opencode regardless of detection",
   )
   .option("--no-mcp", "Skip all MCP scaffolding")
   .option("--no-skills", "Skip 'upskill add'")
@@ -80,7 +80,7 @@ export const initCmd = new Command()
     const fs = createDenoFs();
     const profileChoice = resolveProfileFromFlags(options);
     const forcedClients = (options.client ?? []) as Array<
-      "claude-code" | "opencode"
+      "claude" | "opencode"
     >;
 
     const whichCommand = async (name: string): Promise<string | undefined> => {
@@ -127,7 +127,7 @@ export const initCmd = new Command()
       "../install/mcp_adapters_opencode.ts"
     );
     const mcpAdapters = new Map([
-      ["claude-code" as const, claudeCodeDescriptor],
+      ["claude" as const, claudeCodeDescriptor],
       ["opencode" as const, opencodeDescriptor],
     ]);
 

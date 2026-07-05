@@ -5,7 +5,7 @@ import { claudeCodeDescriptor } from "../install/mcp_adapters_claude_code.ts";
 import { opencodeDescriptor } from "../install/mcp_adapters_opencode.ts";
 
 const adapters = new Map([
-  ["claude-code" as const, claudeCodeDescriptor],
+  ["claude" as const, claudeCodeDescriptor],
   ["opencode" as const, opencodeDescriptor],
 ]);
 
@@ -44,7 +44,7 @@ Deno.test("planner: existing project.yaml + --force → overwrite", async () => 
 
 Deno.test("planner: clients in set → one action per client", async () => {
   const plan = await computeWritePlan(baseInputs({
-    clientSet: { write: new Set(["claude-code", "opencode"]) },
+    clientSet: { write: new Set(["claude", "opencode"]) },
   }));
   const mcpActions = plan.actions.filter((a) =>
     a.file === ".mcp.json" || a.file === "opencode.json"
@@ -80,14 +80,14 @@ Deno.test("planner: MCP filename comes from adapter.resolveConfigPath (no hardco
   // must surface it verbatim; if it ever reverts to a hardcoded
   // client → filename map this test fails.
   const stubAdapter = {
-    id: "claude-code" as const,
+    id: "claude" as const,
     jsonPath: ["mcpServers", "markspec"] as const,
     resolveConfigPath: () => "/r/.stub-mcp.json",
     renderBlock: () => ({}),
   };
-  const stubAdapters = new Map([["claude-code" as const, stubAdapter]]);
+  const stubAdapters = new Map([["claude" as const, stubAdapter]]);
   const plan = await computeWritePlan(baseInputs({
-    clientSet: { write: new Set(["claude-code"]) },
+    clientSet: { write: new Set(["claude"]) },
     mcpAdapters: stubAdapters,
   }));
   const stubAction = plan.actions.find((a) => a.file === ".stub-mcp.json");

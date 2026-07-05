@@ -12,8 +12,8 @@ snapshot[`init --help snapshot 1`] = `
 [1mOptions:[22m
 
   [94m-h[39m, [94m--help[39m             [31m[1m-[22m[39m Show this help.
-  [94m--client[39m       [33m<[39m[95mid[39m[33m>[39m    [31m[1m-[22m[39m Force write for the named client (repeatable)                                  ([1mValues: [22m[32m"claude-code"[39m, [32m"opencode"[39m)
-  [94m--all-clients[39m          [31m[1m-[22m[39m Write configs for claude-code + opencode regardless of detection
+  [94m--client[39m       [33m<[39m[95mid[39m[33m>[39m    [31m[1m-[22m[39m Force write for the named client (repeatable)                                  ([1mValues: [22m[32m"claude"[39m, [32m"opencode"[39m)
+  [94m--all-clients[39m          [31m[1m-[22m[39m Write configs for claude + opencode regardless of detection
   [94m--no-mcp[39m               [31m[1m-[22m[39m Skip all MCP scaffolding
   [94m--no-skills[39m            [31m[1m-[22m[39m Skip 'upskill add'
   [94m--profile[39m      [33m<[39m[95mspec[39m[33m>[39m  [31m[1m-[22m[39m Profile spec; see --help for grammar                                           ([31m[1mConflicts: [22m[39m[3m--no-profile[23m)
