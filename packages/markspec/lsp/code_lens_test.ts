@@ -208,6 +208,98 @@ Deno.test("buildCodeLenses: entry with multiple Satisfies values yields one lens
   assertEquals(satLenses[1].command?.title, "↓ Satisfies: STK_B — B");
 });
 
+// --- upstream entries (#783) ---
+//
+// Federated-upstream entries carry a tree-relative location.file (e.g.
+// "docs/x.md") — pathToUri (@std/path toFileUrl, or any well-behaved
+// implementation) cannot convert a relative path. This stub THROWS on a
+// relative path, so any of these tests would fail if an unguarded relative
+// path reached it — the linchpin proving no relative path reaches
+// pathToUri at all.
+const throwingPathToUri = (p: string): string => {
+  if (!p.startsWith("/")) {
+    throw new Error(`relative path reached pathToUri: ${p}`);
+  }
+  return "file://" + p;
+};
+
+/** Build an upstream-origin fixture on top of {@linkcode fakeEntry}. */
+function fakeUpstreamEntry(opts: {
+  displayId: string;
+  title: string;
+  file: string;
+  line: number;
+  satisfies?: string;
+}): Entry {
+  return {
+    ...fakeEntry(opts),
+    origin: { kind: "upstream", upstreamId: "product", version: "v1" },
+    // deno-lint-ignore no-explicit-any
+  } as any;
+}
+
+Deno.test("buildCodeLenses: local entry Satisfies an upstream target — no throw, non-clickable Satisfies lens keeps the resolved title", () => {
+  const upstreamTarget = fakeUpstreamEntry({
+    displayId: "PRODUCT_SYS_0001",
+    title: "Upstream target",
+    file: "docs/x.md",
+    line: 1,
+  });
+  const child = fakeEntry({
+    displayId: "SAD_001",
+    title: "Child",
+    file: "/proj/r.md",
+    line: 10,
+    satisfies: "PRODUCT_SYS_0001",
+  });
+  const lenses = buildCodeLenses(
+    [child],
+    [upstreamTarget, child],
+    throwingPathToUri,
+  );
+  const satLens = lenses.find((l) => l.command?.title.startsWith("↓"));
+  assertEquals(
+    satLens?.command?.title,
+    "↓ Satisfies: PRODUCT_SYS_0001 — Upstream target",
+  );
+  assertEquals(satLens?.command?.arguments, []);
+});
+
+Deno.test("buildCodeLenses: upstream entry among dependents is excluded from dependents referenceLocations (no throw)", () => {
+  const target = fakeEntry({
+    displayId: "STK_001",
+    title: "Target",
+    file: "/proj/r.md",
+    line: 1,
+  });
+  const upstreamDependent = fakeUpstreamEntry({
+    displayId: "PRODUCT_SYS_0002",
+    title: "Upstream child",
+    file: "docs/x.md",
+    line: 5,
+    satisfies: "STK_001",
+  });
+  const localDependent = fakeEntry({
+    displayId: "SAD_001",
+    title: "Local child",
+    file: "/proj/r.md",
+    line: 10,
+    satisfies: "STK_001",
+  });
+  const lenses = buildCodeLenses(
+    [target],
+    [target, upstreamDependent, localDependent],
+    throwingPathToUri,
+  );
+  const depLens = lenses.find((l) => l.command?.title.startsWith("↑"));
+  // referenceLocations excludes the upstream dependent; depCount (a
+  // display count from incomingCount) still counts both, per the brief's
+  // documented acceptable mismatch.
+  assertEquals(depLens?.command?.arguments?.[2], [
+    { uri: "file:///proj/r.md", line: 9, character: 0 },
+  ]);
+});
+
 Deno.test("buildCodeLenses: multiple entries each get their own lens set", () => {
   const a = fakeEntry({
     displayId: "STK_A",

@@ -9,7 +9,11 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
 import { makeDisplayId } from "../core/model/mod.ts";
-import { entryToLspLocation, resolveDefinitionLocation } from "./definition.ts";
+import {
+  entryToLspLocation,
+  hasNavigableLocation,
+  resolveNavigableLocation,
+} from "./definition.ts";
 
 function makeEntry(file: string, line: number, column: number): Entry {
   return {
@@ -62,23 +66,43 @@ function makeUpstreamEntry(file: string): Entry {
   };
 }
 
-Deno.test("resolveDefinitionLocation: project entry resolves to its location", () => {
+Deno.test("resolveNavigableLocation: project entry resolves to its location", () => {
   const entry = makeEntry("/abs/req.md", 5, 1);
-  const loc = resolveDefinitionLocation(entry);
+  const loc = resolveNavigableLocation(entry);
   assertEquals(loc, entryToLspLocation(entry));
 });
 
-Deno.test("resolveDefinitionLocation: upstream entry is a no-op (null)", () => {
+Deno.test("resolveNavigableLocation: upstream entry is a no-op (null)", () => {
   const entry = makeUpstreamEntry("docs/product/stk.md");
-  assertEquals(resolveDefinitionLocation(entry), null);
+  assertEquals(resolveNavigableLocation(entry), null);
 });
 
-Deno.test("resolveDefinitionLocation: delivered-corpus (profile) entry still resolves", () => {
+Deno.test("resolveNavigableLocation: delivered-corpus (profile) entry still resolves", () => {
   const entry: Entry = {
     ...makeEntry("/abs/cache/req.md", 5, 1),
     origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
   };
   // Delivered-corpus entries have a real local file — go-to-definition must
   // still navigate (only upstream entries are the no-op).
-  assertEquals(resolveDefinitionLocation(entry), entryToLspLocation(entry));
+  assertEquals(resolveNavigableLocation(entry), entryToLspLocation(entry));
+});
+
+// --- hasNavigableLocation ---
+
+Deno.test("hasNavigableLocation: upstream entry has no navigable location", () => {
+  const entry = makeUpstreamEntry("docs/product/stk.md");
+  assertEquals(hasNavigableLocation(entry), false);
+});
+
+Deno.test("hasNavigableLocation: project entry has a navigable location", () => {
+  const entry = makeEntry("/abs/req.md", 5, 1);
+  assertEquals(hasNavigableLocation(entry), true);
+});
+
+Deno.test("hasNavigableLocation: delivered-corpus (profile) entry has a navigable location", () => {
+  const entry: Entry = {
+    ...makeEntry("/abs/cache/req.md", 5, 1),
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  };
+  assertEquals(hasNavigableLocation(entry), true);
 });

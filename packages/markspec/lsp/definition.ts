@@ -42,15 +42,26 @@ export function entryToLspLocation(entry: Entry): LspLocation {
 }
 
 /**
- * Resolve the go-to-definition target for an entry. Returns the entry's
- * LSP `Location` for project- and delivered-corpus-authored entries;
- * `null` for a locked upstream entry (federated-upstream slice 5) whose
- * `location.file` is a path inside the upstream repo that does not exist
- * in this workspace — navigating there would open a non-existent file.
- * Delivered corpus (`kind:"profile"`) keeps working: its file is a real
- * local `.markspec/cache/…` path.
+ * Whether an entry has a location that can be opened in this workspace.
+ * Upstream entries (federated corpus) live in another repository and carry
+ * a tree-relative `location.file` that pathToUri cannot convert — they have
+ * no navigable local location. Project + delivered-corpus entries always do.
  */
-export function resolveDefinitionLocation(entry: Entry): LspLocation | null {
-  if (isUpstreamEntry(entry)) return null;
-  return entryToLspLocation(entry);
+export function hasNavigableLocation(entry: Entry): boolean {
+  return !isUpstreamEntry(entry);
+}
+
+/**
+ * Resolve the navigable target for an entry — used by both go-to-definition
+ * and find-references. Returns the entry's LSP `Location` for project- and
+ * delivered-corpus-authored entries; `null` for a locked upstream entry
+ * (federated-upstream slice 5) whose `location.file` is a path inside the
+ * upstream repo that does not exist in this workspace — navigating there
+ * would open a non-existent file, and converting it via `pathToUri` would
+ * throw (#783). Delivered corpus (`kind:"profile"`) keeps working: its file
+ * is a real local `.markspec/cache/…` path. Total — never throws on an
+ * upstream entry.
+ */
+export function resolveNavigableLocation(entry: Entry): LspLocation | null {
+  return hasNavigableLocation(entry) ? entryToLspLocation(entry) : null;
 }

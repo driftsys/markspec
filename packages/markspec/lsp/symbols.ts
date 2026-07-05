@@ -9,6 +9,7 @@
  */
 
 import type { Entry } from "../core/model/mod.ts";
+import { hasNavigableLocation } from "./definition.ts";
 import { pathToUri } from "./util.ts";
 
 /** LSP `SymbolKind.Class` numeric constant. */
@@ -69,6 +70,10 @@ export function entriesToWorkspaceSymbols(
   const needle = query.toLowerCase();
   const out: SymbolInformation[] = [];
   for (const entry of entries) {
+    // Upstream entries (federated corpus, #783) have no navigable local
+    // location — their location.file is a tree-relative path pathToUri
+    // cannot convert. Omit them rather than throwing.
+    if (!hasNavigableLocation(entry)) continue;
     if (needle.length > 0) {
       const matches = entry.displayId.toLowerCase().includes(needle) ||
         entry.title.toLowerCase().includes(needle);
