@@ -454,3 +454,57 @@ Deno.test("book build: a chapter path declared with a redundant './' prefix in S
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// ── Chapter slug collision (#778) ──────────────────────────────────────────
+
+// Two distinct chapters whose source paths both flatten to the slug
+// "recipes-deploy": "recipes/deploy.md" (nested) and "recipes-deploy.md"
+// (hyphenated top-level). Left undetected, the second write silently
+// overwrites the first and #776's link rewriting sends "Deploy" links to
+// whichever chapter won the write race — a reader lands on the wrong content.
+const COLLISION_SUMMARY = `# Summary
+
+- [Deploy](recipes/deploy.md)
+- [Recipes Deploy](recipes-deploy.md)
+- [Specs](specs.md)
+`;
+
+const COLLISION_FIXTURE = {
+  "project.yaml": PROJECT_YAML,
+  "SUMMARY.md": COLLISION_SUMMARY,
+  "recipes/deploy.md": `# Deploy\n\nDEPLOY-CHAPTER-MARKER content.\n`,
+  "recipes-deploy.md":
+    `# Recipes Deploy\n\nRECIPES-DEPLOY-CHAPTER-MARKER content.\n`,
+  "specs.md": SPECS_MD,
+};
+
+Deno.test("book build: colliding chapter slugs fail the build with MSL-K001 and write nothing", async () => {
+  const { code, stderr, dir } = await markspecPersist(["book", "build"], {
+    files: COLLISION_FIXTURE,
+  });
+  try {
+    // Fail loud: a build that would silently serve the wrong chapter aborts.
+    assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+    assertStringIncludes(stderr, "MSL-K001");
+    // The message must name both colliding source paths and the shared slug
+    // so the author knows exactly which two chapters to disambiguate.
+    assertStringIncludes(stderr, "recipes/deploy.md");
+    assertStringIncludes(stderr, "recipes-deploy.md");
+    assertStringIncludes(stderr, "recipes-deploy.html");
+    // No output is produced — the abort happens before any file is written,
+    // so the wrong-content page never reaches disk.
+    let siteExists = true;
+    try {
+      await Deno.stat(`${dir}/_site`);
+    } catch {
+      siteExists = false;
+    }
+    assertEquals(
+      siteExists,
+      false,
+      "expected no _site output on a failed build",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
