@@ -467,6 +467,11 @@ docs/
 - `adr-032-process-profile-boundary.md` — the org `process:` field and
   `.markspec.yaml` profile activation are orthogonal; no `check` coupling
   between them (would breach ADR-009/010)
+- `adr-033-mdbook-interim-restoration.md` — reverts the #77/PR #762 native-
+  renderer cutover for the 4 published books back to mdBook (book.toml,
+  `justfile`, `pages.yaml`); native `markspec book build` code/tests kept but
+  unwired from the public site pending chrome parity (nav, search, syntax
+  highlighting, print, theme toggle)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
