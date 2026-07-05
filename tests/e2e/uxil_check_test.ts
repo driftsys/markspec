@@ -1,0 +1,140 @@
+/**
+ * E2E acceptance tests for the UXIL-0xx diagnostics family (S9, #727).
+ * Blackbox: drives `markspec check` only. See the design spec
+ * docs/wip/2026-07-05-uxil-diagnostics-s9-design.md.
+ */
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { markspec } from "./helpers.ts";
+
+const PROJECT_YAML = `name: uxil-e2e\nversion: 0.1.0\n`;
+const MARKSPEC_YAML = `profiles:\n  - ./profiles/seed\n`;
+
+const PROFILE_YAML = `id: "@seed/uxil-e2e"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      display-id-pattern: "UXI_{n:4d}"
+      declares: ux-surface
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ_{n:4d}"
+`;
+
+const PROFILE_YAML_NO_DECLARES = `id: "@seed/uxil-e2e"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      display-id-pattern: "UXI_{n:4d}"
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ_{n:4d}"
+`;
+
+const CONTRACT = `- [UXI_0001] Media home contract
+
+  \`ux:media.home : screen @ loading, ready\` offers:
+
+  - \`/play : activate\` — starts playback.
+
+      Id: 01HZZZ0000000000000000010A
+`;
+
+Deno.test("uxil: clean designated corpus passes check", async () => {
+  const { code, stderr } = await markspec(["check", "contract.md"], {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": MARKSPEC_YAML,
+    "profiles/seed/markspec.yaml": PROFILE_YAML,
+    "contract.md": CONTRACT,
+  });
+  assertEquals(code, 0, stderr);
+});
+
+Deno.test("uxil: unknown verb in a contract entry is UXIL-010", async () => {
+  const bad = `- [UXI_0001] Media home contract
+
+  \`ux:media.home : screen\` offers:
+
+  - \`/play : frobnicate\` — an unknown verb.
+
+      Id: 01HZZZ0000000000000000010A
+`;
+  const { code, stderr } = await markspec(["check", "contract.md"], {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": MARKSPEC_YAML,
+    "profiles/seed/markspec.yaml": PROFILE_YAML,
+    "contract.md": bad,
+  });
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "UXIL-010");
+});
+
+Deno.test("uxil: root declaration in a requirement entry is UXIL-023", async () => {
+  const rogue = `- [REQ_0001] Not a contract
+
+  \`ux:rogue.surface : screen\` — declared in the wrong entry type.
+
+      Id: 01HZZZ0000000000000000020A
+`;
+  const { code, stderr } = await markspec(
+    ["check", "contract.md", "req.md"],
+    {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": MARKSPEC_YAML,
+      "profiles/seed/markspec.yaml": PROFILE_YAML,
+      "contract.md": CONTRACT,
+      "req.md": rogue,
+    },
+  );
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "UXIL-023");
+});
+
+Deno.test("uxil: dangling citation from a requirement entry is UXIL-018", async () => {
+  const citing = `- [REQ_0001] Journey step
+
+  Tap \`ux:media.ghost/play!activate\` to start playback.
+
+      Id: 01HZZZ0000000000000000020A
+`;
+  const { code, stderr } = await markspec(
+    ["check", "contract.md", "req.md"],
+    {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": MARKSPEC_YAML,
+      "profiles/seed/markspec.yaml": PROFILE_YAML,
+      "contract.md": CONTRACT,
+      "req.md": citing,
+    },
+  );
+  assertEquals(code, 1);
+  assertStringIncludes(stderr, "UXIL-018");
+});
+
+Deno.test("uxil: without a declares designation the family is inert", async () => {
+  const prose = `- [REQ_0001] Ordinary prose
+
+  Config files live in bullets:
+
+  - \`.gitignore\` — repository excludes.
+
+      Id: 01HZZZ0000000000000000020A
+`;
+  const { code, stderr } = await markspec(
+    ["check", "contract.md", "req.md"],
+    {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": MARKSPEC_YAML,
+      "profiles/seed/markspec.yaml": PROFILE_YAML_NO_DECLARES,
+      "contract.md": CONTRACT,
+      "req.md": prose,
+    },
+  );
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("UXIL"), false);
+});
