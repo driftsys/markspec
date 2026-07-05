@@ -314,13 +314,26 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
       scopeFor(bullets[i].parent),
       UX_REF_OPS,
     );
-    // A relative child-surface ref fails to resolve when there is no root
-    // anywhere in its ancestor chain (already reported once via UXIL-011
-    // above, or an already-reported malformed root) or when its nearest
-    // ancestor is itself a broken child declaration (already reported via
-    // that ancestor's own diagnostic). Skip silently rather than emit a
-    // second, cascading diagnostic.
-    if (res.ok) info.resolvedPath = res.ref;
+    if (res.ok) {
+      info.resolvedPath = res.ref;
+      continue;
+    }
+    // UXIL-024 (S9 #727), reserved: emitted only when a relative ref's
+    // failure is NOT attributable to a missing/broken root (already
+    // UXIL-011 or a root parse diagnostic) or a blocked ancestor (its own
+    // diagnostic) — the cascade suppression S8 chose. With the root as the
+    // universal fallback base this branch is structurally unreachable
+    // today; it becomes live when a surface with a non-root base (the
+    // table caption base, epic §A) lands.
+    const nearest = nearestAncestorBase(bullets[i].parent);
+    const blocked = nearest !== undefined && "blocked" in nearest;
+    if (!blocked && rootCandidates.length > 0) {
+      diagnostics.push(uxilDiagnosticAt(
+        "UXIL-024",
+        { ref: `.${info.childPath.join(".")}` },
+        toLocation(entry, bullets[i].range),
+      ));
+    }
   }
 
   // Nearest enclosing surface path for a bullet's `.parent` — the closest

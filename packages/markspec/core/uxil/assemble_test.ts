@@ -135,3 +135,18 @@ Deno.test("assembleUxSurface: a broken intermediate child surface drops its desc
   const home = tree.surfaces.find((s) => s.path === "media.home");
   assertEquals(home?.elements, []);
 });
+
+Deno.test("UXIL-024 stays suppressed when the missing root already reported (#727)", () => {
+  const md = `- [UXI_A_0001] X
+
+  No root at all:
+
+  - \`.confirm\` — child surface with nothing to resolve against.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { entries } = parseMarkdown(md, { file: "a.md" });
+  const tree = assembleUxSurface(entries[0]);
+  assertEquals(tree.diagnostics.some((d) => d.code === "UXIL-011"), true);
+  assertEquals(tree.diagnostics.some((d) => d.code === "UXIL-024"), false);
+});
