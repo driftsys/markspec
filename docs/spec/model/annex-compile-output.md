@@ -48,8 +48,8 @@ edge data.
 {
   "markspecSchemaVersion": 1,
   "generator": {
-    "name": "markspec",
-    "version": "0.6.0"
+    "release": "0.6.0",
+    "coreSchema": 1
   },
   "project": {
     "name": "my-project",
@@ -79,8 +79,8 @@ For small projects, `entries.format` is `"inline"` and `entries.file` is
 | Field                   | Type                     | Notes                                                |
 | ----------------------- | ------------------------ | ---------------------------------------------------- |
 | `markspecSchemaVersion` | integer                  | Schema version; currently `1`                        |
-| `generator.name`        | string                   | Always `"markspec"`                                  |
-| `generator.version`     | string                   | MarkSpec release version (informational only)        |
+| `generator.release`     | string                   | MarkSpec release version (informational only)        |
+| `generator.coreSchema`  | integer                  | Core schema version; currently `1`                   |
 | `project.name`          | string                   | From `project.yaml`                                  |
 | `project.version`       | string                   | From `project.yaml`                                  |
 | `counts.entries`        | integer                  | Total number of entries                              |
@@ -90,7 +90,7 @@ For small projects, `entries.format` is `"inline"` and `entries.file` is
 | `edges.format`          | `"ndjson"` \| `"inline"` | Which form is present                                |
 | `edges.file`            | string                   | Relative path to the edge data                       |
 | `sqliteMirror`          | string \| null           | Relative path to `mirror.db`, or `null`              |
-| `federation`            | array                    | Upstream registries (see Federation section)         |
+| `federation`            | string[]                 | Declared upstream reference URLs (see Federation)    |
 | `reserved`              | object                   | Reserved for future use; consumers must ignore       |
 
 ## Entry record
@@ -273,35 +273,35 @@ migration guide is published.
 
 ## Federation
 
-`manifest.federation` lists upstream registries that this project federates
-against. Downstream projects can resolve display IDs that refer to entries in an
-upstream project's compile output.
+`manifest.federation` lists the upstreams this project federates against — the
+URLs of the `references:` upstreams declared in `project.yaml`. Downstream
+projects can resolve trace targets that refer to entries in an upstream
+project's compile output.
 
 ```json
 {
-  "federation": [
-    {
-      "id": "upstream-safety",
-      "url": "https://ci.example.com/safety-project/api/",
-      "markspecSchemaVersion": 1
-    }
-  ]
+  "federation": ["https://ci.example.com/safety-project/api/"]
 }
 ```
 
-Resolution works as follows:
+Upstream entries are **never fetched at resolution time**. Acquisition happens
+once, during `markspec lock`:
 
-1. A display ID is not found in the local `entries.idx`.
-2. MarkSpec walks the federation list in order.
-3. For each federated entry, it fetches `<url>/manifest.json` to confirm the
-   schema version is compatible.
-4. It then fetches `<url>/entries.idx` and looks up the display ID.
-5. If found, it fetches the specific byte range from `<url>/entries.ndjson`
-   using an HTTP Range request.
+1. `markspec lock` reads `project.yaml`'s `dependencies:` (federated git
+   repositories) and `references:` (published upstream compile-output sites).
+2. It resolves and pins each upstream in `markspec.lock`:
+   `[[upstream.dependency]]` rows for git repositories, `[[upstream.registry]]`
+   rows for published sites.
+3. It caches each upstream's compiled snapshot (a `manifest.json` +
+   `compiled.json`/NDJSON pair) under `.markspec/cache/upstreams/<id>/`.
+4. `check`, `compile`, and the LSP hydrate those cached snapshots **offline** —
+   no network access, no live HTTP fetch — so resolution is deterministic.
 
-Federation is **read-only** and **acyclic** — the protocol is just static file
-fetches. There is no federation server. A federated project cannot modify the
-local compile output.
+Federation is **read-only** and **acyclic**: a consumer may resolve a trace
+target _into_ an upstream's entries, but an upstream's own re-exported targets
+never re-enter the consumer's graph — each entry keeps a single authoritative
+source. A consumer never re-validates or re-classifies upstream entries, and an
+upstream cannot modify the consumer's compile output. See ADR-031.
 
 ## SQLite mirror
 

@@ -456,6 +456,17 @@ docs/
   (joins the graph, provenance via `Entry.origin`) or docs-only; one core loader
   (`loadDeliveredCorpus`) feeds the CLI compiler, LSP, and MCP server;
   collisions are `MSL-R014`; no `CORE_SCHEMA_VERSION` bump
+- `adr-031-federated-upstream-resolution.md` — cross-repo trace references via
+  org `project.yaml` `dependencies:`/`references:` resolved offline from
+  lock-pinned snapshots (only `markspec lock` touches the network); upstream
+  entries join the graph as read-only citizens (`Entry.origin` upstream kind,
+  reuses ADR-030); flat ID space with `MSL-R014` collisions; `MSL-T014`
+  unresolved-after-federation, `MSL-L213`/`L214` lock failures, `MSL-L215`
+  unreleased-pin advisory (promoted under `check --strict`); manifest gains
+  optional `project.version`
+- `adr-032-process-profile-boundary.md` — the org `process:` field and
+  `.markspec.yaml` profile activation are orthogonal; no `check` coupling
+  between them (would breach ADR-009/010)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

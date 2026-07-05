@@ -269,4 +269,6 @@ line that matches what you are working on.
   [ADR-020](./adr-020-sqlite-indexing-eval.md),
   [ADR-023](./adr-023-mcp-trigger-language.md),
   [ADR-028](./adr-028-mcp-project-discovery.md),
-  [ADR-030](./adr-030-profile-delivered-documents.md).
+  [ADR-030](./adr-030-profile-delivered-documents.md),
+  [ADR-031](./adr-031-federated-upstream-resolution.md),
+  [ADR-032](./adr-032-process-profile-boundary.md).

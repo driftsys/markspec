@@ -4,8 +4,9 @@
 
 Accepted (2026-07-05). Closes #747. Settles open question §9 #2 of the
 federated-upstream resolution design
-(`docs/wip/2026-07-04-federated-upstream-resolution-design.md`, epic #741),
-which deliberately left this out of scope.
+(`docs/archive/specs/2026-07-04-federated-upstream-resolution-design.md`, epic
+#741; recorded as [ADR-031](./adr-031-federated-upstream-resolution.md)), which
+deliberately left this out of scope.
 
 ## Context
 

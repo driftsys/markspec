@@ -286,7 +286,8 @@ const upstreamFilePaths = new Set<string>();
 
 /**
  * (Re-)seed the workspace index with the locked upstream corpus
- * (federated-upstream slice 4: docs/wip/2026-07-04-federated-upstream-resolution-design.md).
+ * (federated-upstream slice 4; see ADR-031,
+ * docs/architecture/adr-031-federated-upstream-resolution.md).
  * Mirrors {@linkcode seedDeliveredCorpus}: always drops the previously
  * seeded upstream files first (so a re-lock that drops or replaces an
  * upstream doesn't leave stale entries behind), maps the loaded

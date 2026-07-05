@@ -5,7 +5,7 @@
  * that `markspec lock` writes under `.markspec/cache/upstreams/<id>/`
  * into read-only graph citizens carrying an `upstream` origin.
  *
- * Design: docs/wip/2026-07-04-federated-upstream-resolution-design.md §4.5.
+ * Design: ADR-031 (docs/architecture/adr-031-federated-upstream-resolution.md).
  * Sibling of `core/profile/delivered.ts` (`loadDeliveredCorpus`), same
  * purity rules: no I/O of its own — file access via the injected
  * {@linkcode ReadFile}.
