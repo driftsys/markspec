@@ -529,11 +529,22 @@ Deno.test("getUxRegistry: builds the registry when a declaring type is designate
   assertEquals(registry?.surfaces.has("media.home"), true);
 });
 
-Deno.test("getUxRegistry: excludes upstream entries", () => {
+Deno.test("getUxRegistry: excludes upstream entries", async () => {
+  const md = `- [PRODUCT_UXI_0001] Contract
+
+  \`ux:media.home : screen\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const parsed = await parseFile(md, { file: "docs/product/stk.md" });
   const index = new WorkspaceIndex();
-  index.updateFile("docs/product/stk.md", [
-    upstreamEntry("PRODUCT_UXI_0001"),
-  ]);
+  index.updateFile(
+    "docs/product/stk.md",
+    parsed.entries.map((e) => ({
+      ...e,
+      origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+    })),
+  );
 
   const origin = "@test/p";
   const uxContract: ProvenancedMapEntry<EffectiveTypeDef> = {
@@ -572,9 +583,9 @@ Deno.test("getUxRegistry: excludes upstream entries", () => {
     disciplineMode: { value: "none", origin: "inferred" },
   };
 
-  // The upstream entry has no uxil content, but this test's point is that
-  // getUxRegistry never even considers it — proven indirectly by confirming
-  // the call doesn't throw and returns an empty (not populated) registry.
+  // The upstream entry genuinely declares ux:media.home — if emittableEntries
+  // did not filter it out, the registry would contain it. An empty registry
+  // here proves exclusion, not merely "nothing to exclude."
   const registry = index.getUxRegistry(profile);
   assertEquals(registry?.surfaces.size, 0);
 });
