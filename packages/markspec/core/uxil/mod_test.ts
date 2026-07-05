@@ -1,10 +1,14 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
+  buildUxRegistry,
   classifyUxilForm,
   parseChildSurfaceDecl,
   parseElementBullet,
   parseRootDecl,
   parseUxRef,
+  projectUxRegistry,
+  UX_VERBS,
+  validateUxil,
 } from "./mod.ts";
 
 // Acceptance 1: grammar parses/round-trips all four forms + refs.
@@ -47,4 +51,11 @@ Deno.test("acceptance: parse errors carry code + position", () => {
   assertEquals(diagnostics[0].code, "UXIL-006");
   assertEquals(typeof diagnostics[0].position.line, "number");
   assertEquals(typeof diagnostics[0].position.column, "number");
+});
+
+Deno.test("mod.ts re-exports the S8 compiler surface", () => {
+  assert(typeof buildUxRegistry === "function");
+  assert(typeof validateUxil === "function");
+  assert(typeof projectUxRegistry === "function");
+  assert(UX_VERBS.size === 11);
 });

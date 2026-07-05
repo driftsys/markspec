@@ -1,14 +1,14 @@
 /**
  * @module uxil/diagnostics
  *
- * Diagnostic codes emitted by the uxil parser (UXIL-001 through UXIL-008).
- * Source-local positions only — S9 bridges these to file-anchored core
- * `Diagnostic`s. Shape and helper mirror typl's `typlDiagnostic`.
+ * Diagnostic codes emitted by the uxil parser and compiler (UXIL-001 through
+ * UXIL-022). Source-local positions only — S9 bridges these to file-anchored
+ * core `Diagnostic`s. Shape and helper mirror typl's `typlDiagnostic`.
  */
 import type { Position } from "./ast.ts";
 import type { Severity } from "../model/mod.ts";
 
-/** Union of all uxil parser diagnostic codes. */
+/** Union of all uxil parser + compiler diagnostic codes. */
 export type UxilCode =
   | "UXIL-001"
   | "UXIL-002"
@@ -17,7 +17,21 @@ export type UxilCode =
   | "UXIL-005"
   | "UXIL-006"
   | "UXIL-007"
-  | "UXIL-008";
+  | "UXIL-008"
+  | "UXIL-009"
+  | "UXIL-010"
+  | "UXIL-011"
+  | "UXIL-012"
+  | "UXIL-013"
+  | "UXIL-014"
+  | "UXIL-015"
+  | "UXIL-016"
+  | "UXIL-017"
+  | "UXIL-018"
+  | "UXIL-019"
+  | "UXIL-020"
+  | "UXIL-021"
+  | "UXIL-022";
 
 /** Shape of each entry in {@linkcode UXIL_CODES}. */
 export interface UxilCodeEntry {
@@ -68,6 +82,71 @@ export const UXIL_CODES: Record<UxilCode, UxilCodeEntry> = {
   "UXIL-008": {
     severity: "error",
     template: "Malformed surface: ${detail}.",
+  },
+  "UXIL-009": {
+    severity: "error",
+    template:
+      "Unknown surface kind '${kind}' (expected screen, panel, or agent).",
+  },
+  "UXIL-010": {
+    severity: "error",
+    template: "Unknown interaction verb '${verb}'.",
+  },
+  "UXIL-011": {
+    severity: "error",
+    template:
+      "A ux-contract entry must declare exactly one root surface; none was found.",
+  },
+  "UXIL-012": {
+    severity: "error",
+    template:
+      "A ux-contract entry must declare exactly one root surface; found another after '${first}'.",
+  },
+  "UXIL-013": {
+    severity: "error",
+    template: "Kind '${kind}' is stateless and cannot declare @ states.",
+  },
+  "UXIL-014": {
+    severity: "error",
+    template:
+      "'observe' is exclusive and cannot be combined with other verbs on element '${element}'.",
+  },
+  "UXIL-015": {
+    severity: "error",
+    template:
+      "Surface '${surface}' is already declared (first at ${otherFile}:${otherLine}).",
+  },
+  "UXIL-016": {
+    severity: "error",
+    template:
+      "Surface '${surface}' has no declared parent surface '${parent}'.",
+  },
+  "UXIL-017": {
+    severity: "error",
+    template:
+      "navigate target '${target}' does not resolve to a navigable (screen) surface.",
+  },
+  "UXIL-018": {
+    severity: "error",
+    template: "Unknown surface '${surface}'.",
+  },
+  "UXIL-019": {
+    severity: "error",
+    template: "Unknown element '${element}' on surface '${surface}'.",
+  },
+  "UXIL-020": {
+    severity: "error",
+    template:
+      "Verb '${verb}' is not in the declared verb set of element '${element}'.",
+  },
+  "UXIL-021": {
+    severity: "error",
+    template: "State '${state}' is not declared on surface '${surface}'.",
+  },
+  "UXIL-022": {
+    severity: "error",
+    template:
+      "Element '${element}' declares a key template; cite it with a '{name}' template, not a concrete key.",
   },
 };
 
