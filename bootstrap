@@ -124,3 +124,8 @@ else
   printf '\nwarning: deno not found — skipping grammar fetch\n' >&2
   printf 'run "deno task fetch-grammars" after installing deno\n' >&2
 fi
+
+# mdbook (like Typst) is a local-preview dependency this script does not
+# install — see AGENTS.md's "Post-clone setup" for install pointers.
+printf '\nnote: this script does not install mdbook or Typst\n'
+printf 'install them separately to run "just book"/"just book-dev" locally\n'

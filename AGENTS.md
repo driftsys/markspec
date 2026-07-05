@@ -239,7 +239,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec lock`                       | `core/lock`                       | Generate or refresh `markspec.lock` (upstream pins, sync mappings).                                                                                                                                                          |
 | `markspec sync {status\|log\|show}`   | `core/sync`                       | Read-only surface over lockfile + per-system sync log (NDJSON).                                                                                                                                                              |
 | `markspec doc build <file>`           | `render/typst`                    | Single document → PDF via Typst WASM.                                                                                                                                                                                        |
-| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site.                                                                                                                                                                                            |
+| `markspec book build`                 | `book/site`                       | Multi-chapter → static HTML site. Not used for the published docs site yet — mdBook is, pending chrome parity (#804).                                                                                                        |
 | `markspec lsp`                        | `lsp/server`                      | LSP server for editor integration (stdio JSON-RPC).                                                                                                                                                                          |
 | `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).                                                                                                                                                          |
 | `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                                                                                                                                                                        |
@@ -467,6 +467,11 @@ docs/
 - `adr-032-process-profile-boundary.md` — the org `process:` field and
   `.markspec.yaml` profile activation are orthogonal; no `check` coupling
   between them (would breach ADR-009/010)
+- `adr-033-mdbook-interim-restoration.md` — reverts the #77/PR #762 native-
+  renderer cutover for the 4 published books back to mdBook (book.toml,
+  `justfile`, `pages.yaml`); native `markspec book build` code/tests kept but
+  unwired from the public site pending chrome parity (nav, search, syntax
+  highlighting, print, theme toggle)
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
@@ -932,3 +937,10 @@ severity/effort/priority, and review flow.
 ## Post-clone setup
 
 Run `./bootstrap` after `git clone` or `git worktree add`.
+
+`./bootstrap` installs `git-std` and fetches tree-sitter grammars only — it does
+not install [`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
+`just book`/`just book-dev` for local docs preview, install `mdbook` separately
+(e.g. `cargo install mdbook`, or a platform package manager such as
+`brew install mdbook`). CI installs it automatically via
+`peaceiris/actions-mdbook@v2`; only local contributors need this step.

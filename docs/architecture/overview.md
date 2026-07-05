@@ -249,7 +249,9 @@ line that matches what you are working on.
   matter), [ADR-004](./adr-004-book-structure.md) (book),
   [ADR-003](./adr-003-diagram-authoring.md) (diagrams),
   [ADR-006](./adr-006-property-model.md) (observed properties),
-  [ADR-005](./adr-005-cli-architecture.md) (CLI architecture).
+  [ADR-005](./adr-005-cli-architecture.md) (CLI architecture),
+  [ADR-033](./adr-033-mdbook-interim-restoration.md) (mdBook interim
+  restoration).
 - **Body model & formatting:** [ADR-014](./adr-014-canonical-body-ast.md),
   [ADR-015](./adr-015-ast-equivalence-formatting-contract.md),
   [ADR-016](./adr-016-body-token-ast.md),
