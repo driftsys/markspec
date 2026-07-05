@@ -1661,6 +1661,23 @@ amendment). The offline composite `markspec check` gate emits one of them:
 > is deferred to the sequenced ADR-012 scheme migration, not resolved here (code
 > names are a public interface — renumbering is a breaking change).
 
+### 8.11 Book build (MSL-K)
+
+Build-time diagnostics raised by `markspec book build` when a book's chapter set
+cannot produce a coherent static site. Emitted to stderr as
+`error[MSL-K001]: …`; an error aborts the build before any file is written, so a
+broken site is never emitted.
+
+| ID         | Severity | Rule                                                                                                                                                                                                      |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-K001` | error    | Chapter slug collision: two distinct chapter source paths flatten to the same output slug (e.g. `recipes/deploy.md` and `recipes-deploy.md` → `recipes-deploy.html`). Rename one chapter to disambiguate. |
+
+The `MSL-K` prefix is a bounded early adoption of a nextgen "book build" family,
+recorded on the same footing as the `MSL-F` formatting family (§8.9) and the
+`MSL-L` / `MSL-S` families (§8.10); see
+[ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md)'s book-build
+amendment.
+
 ---
 
 ## Part 9 — Configuration

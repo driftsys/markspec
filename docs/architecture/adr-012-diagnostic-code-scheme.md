@@ -230,3 +230,43 @@ also fires for a file-local `markspec fmt <file>`.
 
 Published in the language spec at
 [`docs/spec/language/language.md` §8.9](../spec/language/language.md).
+
+## Amendment (#778): MSL-K book-build family
+
+`markspec book build` needs a build-time diagnostic channel for a book whose
+chapter set cannot produce a coherent static site. The first such rule
+(`MSL-K001`, #778) fires when two distinct chapter source paths flatten to the
+same output slug (e.g. `recipes/deploy.md` and `recipes-deploy.md` both →
+`recipes-deploy.html`) — left undetected, the second write silently overwrites
+the first and cross-chapter link rewriting (#776) resolves links to whichever
+chapter won the write race.
+
+This introduces the `MSL-K###` family — a **bounded addition** on the same
+footing as the `MSL-F` family in the ADR-027 amendment and the `MSL-L` / `MSL-S`
+families in the ADR-022 amendment. `MSL-K###` has no current-scheme equivalent
+(the legacy scheme had no book-build family), so no code is renamed. The letter
+`K` (book) was chosen because it collides with neither the current-scheme
+families (`MSL-R/T/M/D/G/S`) nor the nextgen catalogue's `MSL-P/I/M/F`, and —
+unlike `O` — is unambiguous in a code string. The codes are stable from first
+emission.
+
+### Family overview (#778 addition)
+
+| Family     | Concern                                     | Authority |
+| ---------- | ------------------------------------------- | --------- |
+| `MSL-K###` | Book-build failures (`markspec book build`) | #778      |
+
+### MSL-K (Book build, #778)
+
+Emitted by `buildBook` into `BuildBookResult.diagnostics` and rendered to stderr
+by the CLI as `error[MSL-K001]: …`. An error-severity `MSL-K` diagnostic aborts
+`markspec book build` before any file is written (non-zero exit), so a
+wrong-content site is never produced. Unlike the `check`-gate families, `MSL-K`
+is not part of the validator contract and is not suppressible.
+
+| Code     | Severity | Concern                                                                                                                        |
+| -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| MSL-K001 | error    | Chapter slug collision — two distinct chapter source paths flatten to the same output `.html` slug; rename one to disambiguate |
+
+Published in the language spec at
+[`docs/spec/language/language.md` §8.11](../spec/language/language.md).

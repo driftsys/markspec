@@ -899,6 +899,11 @@ preserving any `#fragment`. Links to files outside the book (external URLs,
 absolute paths, or a chapter declared in `SUMMARY.md` with no backing file) are
 left untouched.
 
+If two distinct chapters flatten to the same output slug (e.g.
+`recipes/deploy.md` and `recipes-deploy.md` both → `recipes-deploy.html`), the
+build fails with `error[MSL-K001]` and writes nothing rather than silently
+overwriting one chapter with the other — rename one chapter to disambiguate.
+
 ### Profile and diagnostics
 
 #### profile show

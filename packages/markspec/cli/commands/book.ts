@@ -76,6 +76,14 @@ export const bookCmd = new Command()
       console.error(`${d.severity}[${d.code}]: ${d.message}`);
     }
 
+    // Abort before writing anything if the build produced an error (e.g. a
+    // chapter-slug collision, MSL-K001) — writing would silently overwrite one
+    // chapter with another and serve the wrong content (#778). Fail loud with
+    // a non-zero exit rather than emit a confidently-wrong site.
+    if (result.diagnostics.some((d) => d.severity === "error")) {
+      Deno.exit(1);
+    }
+
     // Write output
     await Deno.mkdir(options.output, { recursive: true });
     const chapterLinks = result.chapters.map((c) => ({
