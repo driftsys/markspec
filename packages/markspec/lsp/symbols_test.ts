@@ -135,3 +135,32 @@ Deno.test("entriesToWorkspaceSymbols: kind is the Class constant", () => {
   const sym = entriesToWorkspaceSymbols(entries, "")[0];
   assertEquals(sym.kind, SymbolKindClass);
 });
+
+// --- upstream entries (#783) ---
+//
+// Federated-upstream entries carry a tree-relative location.file (e.g.
+// "docs/product/stk.md") — pathToUri (@std/path toFileUrl) throws
+// `Path must be absolute` on a relative path. Upstream entries have no
+// navigable local location, so they must be omitted rather than reaching
+// pathToUri at all.
+
+function makeUpstreamEntry(opts: {
+  displayId: string;
+  title: string;
+  line: number;
+}): Entry {
+  return {
+    ...makeEntry(opts),
+    location: { file: "docs/product/stk.md", line: opts.line, column: 1 },
+    origin: { kind: "upstream", upstreamId: "product", version: "v1" },
+  };
+}
+
+Deno.test("entriesToWorkspaceSymbols: upstream entry is omitted (no throw), project entry with same query still appears", () => {
+  const entries = [
+    makeUpstreamEntry({ displayId: "STK_001", title: "Upstream req", line: 1 }),
+    makeEntry({ displayId: "STK_002", title: "Project req", line: 5 }),
+  ];
+  const symbols = entriesToWorkspaceSymbols(entries, "req");
+  assertEquals(symbols.map((s) => s.name), ["STK_002"]);
+});

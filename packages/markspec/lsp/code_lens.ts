@@ -24,6 +24,7 @@
  */
 
 import type { DisplayId, Entry } from "../core/mod.ts";
+import { isUpstreamEntry } from "../core/mod.ts";
 import { buildIncomingCount } from "./incoming_index.ts";
 import { findReferencingEntries } from "./references.ts";
 
@@ -84,11 +85,18 @@ export function buildCodeLenses(
     const depCount = incomingCount.get(entry.displayId) ?? 0;
     if (depCount > 0) {
       const referencing = findReferencingEntries(allEntries, entry.displayId);
-      const referenceLocations = referencing.map((ref) => ({
-        uri: pathToUri(ref.location.file),
-        line: Math.max(0, ref.location.line - 1),
-        character: 0,
-      }));
+      // Upstream entries (federated corpus, #783) carry a tree-relative
+      // location.file that pathToUri cannot convert — filter them out
+      // before conversion rather than throwing. depCount above still
+      // counts them; the rare count/location mismatch is acceptable, the
+      // invariant that matters is "no throw".
+      const referenceLocations = referencing
+        .filter((ref) => !isUpstreamEntry(ref))
+        .map((ref) => ({
+          uri: pathToUri(ref.location.file),
+          line: Math.max(0, ref.location.line - 1),
+          character: 0,
+        }));
       out.push({
         range,
         command: {
@@ -110,12 +118,18 @@ export function buildCodeLenses(
         if (target) {
           const targetLine = Math.max(0, target.location.line - 1);
           const targetPos = { line: targetLine, character: 0 };
+          // A resolved-but-upstream target keeps its informative title but
+          // becomes non-clickable — its location.file is a tree-relative
+          // path pathToUri cannot convert (#783).
+          const navigable = !isUpstreamEntry(target);
           out.push({
             range,
             command: {
               title: `↓ Satisfies: ${tok} — ${target.title}`,
               command: "markspec.openDefinition",
-              arguments: [pathToUri(target.location.file), targetPos],
+              arguments: navigable
+                ? [pathToUri(target.location.file), targetPos]
+                : [],
             },
           });
         } else {

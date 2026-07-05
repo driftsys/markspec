@@ -78,7 +78,7 @@ import {
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildDiagnosticsHistogram } from "./diagnostics_histogram.ts";
 import { buildCodeActions } from "./code_actions.ts";
-import { entryToLspLocation, resolveDefinitionLocation } from "./definition.ts";
+import { resolveNavigableLocation } from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 import { findOccurrencesInFile } from "./highlights.ts";
@@ -1380,7 +1380,7 @@ connection.onDefinition((params) => {
   const entry = index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
 
-  return resolveDefinitionLocation(entry);
+  return resolveNavigableLocation(entry);
 });
 
 // ---------------------------------------------------------------------------
@@ -1409,12 +1409,17 @@ connection.onReferences((params) => {
   if (!id) return null;
 
   const referencing = findReferencingEntries(index.getAllEntries(), id);
-  const locations = referencing.map(entryToLspLocation);
+  const locations = referencing
+    .map(resolveNavigableLocation)
+    .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
 
   // includeDeclaration: prepend the declaration's location when asked.
   if (params.context?.includeDeclaration) {
     const decl = index.getEntryByDisplayId(makeDisplayId(id));
-    if (decl) locations.unshift(entryToLspLocation(decl));
+    if (decl) {
+      const declLoc = resolveNavigableLocation(decl);
+      if (declLoc) locations.unshift(declLoc);
+    }
   }
 
   return locations;
