@@ -4,26 +4,21 @@
  * Enforced uxil semantics (S8 #726): closed-vocabulary checks, corpus
  * structural rules (declared-once, dangling namespace parent, navigate
  * resolution), and citation resolution (Pass 3, added alongside Task 9).
- * Mirrors typl/validator.ts's shape. Positions are the assembled records'
- * own `location` — source-local-safe; S9 owns file-anchoring.
+ * Mirrors typl/validator.ts's shape. Diagnostics are file-anchored as of
+ * S9 (#727).
  */
-import type { Entry } from "../model/mod.ts";
-import type { Position } from "./ast.ts";
+import type { Diagnostic, Entry } from "../model/mod.ts";
 import { assembleUxSurface } from "./assemble.ts";
 import { extractUxCitations } from "./citations.ts";
 import { findDuplicateDeclarations } from "../decl/mod.ts";
-import { type UxilDiagnostic, uxilDiagnostic } from "./diagnostics.ts";
+import { uxilDiagnosticAt } from "./diagnostics.ts";
 import { buildUxRegistry, type UxRegistry } from "./registry.ts";
 import { isKnownKind, isKnownVerb, UX_KINDS } from "./vocab.ts";
 
 /** Result of {@linkcode validateUxil}: the corpus registry plus diagnostics. */
 export interface UxilValidation {
   readonly registry: UxRegistry;
-  readonly diagnostics: readonly UxilDiagnostic[];
-}
-
-function positionOf(loc: { line: number; column: number }): Position {
-  return { line: loc.line, column: loc.column };
+  readonly diagnostics: readonly Diagnostic[];
 }
 
 /**
@@ -34,7 +29,7 @@ function positionOf(loc: { line: number; column: number }): Position {
  * for navigation/projection.
  */
 export function validateUxil(entries: readonly Entry[]): UxilValidation {
-  const diagnostics: UxilDiagnostic[] = [];
+  const diagnostics: Diagnostic[] = [];
 
   // ── Pass 1: per-entry structural + vocabulary ────────────────────────────
   for (const entry of entries) {
@@ -42,30 +37,42 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
     diagnostics.push(...tree.diagnostics);
 
     for (const surface of tree.surfaces) {
-      const pos = positionOf(surface.location);
       if (!isKnownKind(surface.kind)) {
         diagnostics.push(
-          uxilDiagnostic("UXIL-009", { kind: surface.kind }, pos),
+          uxilDiagnosticAt(
+            "UXIL-009",
+            { kind: surface.kind },
+            surface.location,
+          ),
         );
       } else {
         const kindInfo = UX_KINDS.get(surface.kind)!;
         if (!kindInfo.stateful && surface.states.length > 0) {
           diagnostics.push(
-            uxilDiagnostic("UXIL-013", { kind: surface.kind }, pos),
+            uxilDiagnosticAt(
+              "UXIL-013",
+              { kind: surface.kind },
+              surface.location,
+            ),
           );
         }
       }
 
       for (const element of surface.elements) {
-        const elPos = positionOf(element.location);
         for (const verb of element.verbs) {
           if (!isKnownVerb(verb)) {
-            diagnostics.push(uxilDiagnostic("UXIL-010", { verb }, elPos));
+            diagnostics.push(
+              uxilDiagnosticAt("UXIL-010", { verb }, element.location),
+            );
           }
         }
         if (element.verbs.includes("observe") && element.verbs.length > 1) {
           diagnostics.push(
-            uxilDiagnostic("UXIL-014", { element: element.name }, elPos),
+            uxilDiagnosticAt(
+              "UXIL-014",
+              { element: element.name },
+              element.location,
+            ),
           );
         }
       }
@@ -82,11 +89,11 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
   ) {
     for (const dup of duplicates) {
       diagnostics.push(
-        uxilDiagnostic("UXIL-015", {
+        uxilDiagnosticAt("UXIL-015", {
           surface: dup.path,
           otherFile: first.owningEntryFile,
           otherLine: first.location.line,
-        }, positionOf(dup.location)),
+        }, dup.location),
       );
     }
   }
@@ -110,10 +117,10 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
     if (registry.surfaces.has(parent)) continue;
     for (const record of records) {
       diagnostics.push(
-        uxilDiagnostic(
+        uxilDiagnosticAt(
           "UXIL-016",
           { surface: path, parent },
-          positionOf(record.location),
+          record.location,
         ),
       );
     }
@@ -129,10 +136,10 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
           UX_KINDS.get(targetKind)?.navigable === true;
         if (!navigable) {
           diagnostics.push(
-            uxilDiagnostic(
+            uxilDiagnosticAt(
               "UXIL-017",
               { target: element.navTarget },
-              positionOf(element.location),
+              element.location,
             ),
           );
         }
@@ -144,12 +151,11 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
   for (const entry of entries) {
     for (const citation of extractUxCitations(entry.bodyTokens)) {
       const { ref, location } = citation;
-      const pos = positionOf(location);
       const surfacePath = ref.surface.join(".");
       const records = registry.surfaces.get(surfacePath);
       if (!records || records.length === 0) {
         diagnostics.push(
-          uxilDiagnostic("UXIL-018", { surface: surfacePath }, pos),
+          uxilDiagnosticAt("UXIL-018", { surface: surfacePath }, location),
         );
         continue;
       }
@@ -158,10 +164,10 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
 
       if (ref.state !== undefined && !surface.states.includes(ref.state)) {
         diagnostics.push(
-          uxilDiagnostic(
+          uxilDiagnosticAt(
             "UXIL-021",
             { state: ref.state, surface: surfacePath },
-            pos,
+            location,
           ),
         );
       }
@@ -170,19 +176,19 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
         const element = surface.elements.find((e) => e.name === ref.element);
         if (!element) {
           diagnostics.push(
-            uxilDiagnostic(
+            uxilDiagnosticAt(
               "UXIL-019",
               { element: ref.element, surface: surfacePath },
-              pos,
+              location,
             ),
           );
         } else {
           if (ref.verb !== undefined && !element.verbs.includes(ref.verb)) {
             diagnostics.push(
-              uxilDiagnostic(
+              uxilDiagnosticAt(
                 "UXIL-020",
                 { verb: ref.verb, element: element.name },
-                pos,
+                location,
               ),
             );
           }
@@ -190,7 +196,7 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
             ref.key?.kind === "concrete" && element.keyTemplate !== undefined
           ) {
             diagnostics.push(
-              uxilDiagnostic("UXIL-022", { element: element.name }, pos),
+              uxilDiagnosticAt("UXIL-022", { element: element.name }, location),
             );
           }
         }

@@ -17,18 +17,20 @@
  *
  * A declaration whose parse produced any diagnostic is never registered
  * (gated on a clean parse, never on decl truthiness — grammar.ts #780);
- * its diagnostics are still collected and returned.
+ * its diagnostics are still collected and returned, file-anchored as of
+ * S9 (#727).
  */
 import type { SourceRange } from "../ast/nodes.ts";
-import type { Entry, SourceLocation } from "../model/mod.ts";
+import type { Diagnostic, Entry, SourceLocation } from "../model/mod.ts";
 import type { UxKey } from "./ast.ts";
 import {
   type BaseScope,
   checkSingleRoot,
+  type InlineDeclaration,
   type RefOps,
   resolveRef,
 } from "../decl/mod.ts";
-import { type UxilDiagnostic, uxilDiagnostic } from "./diagnostics.ts";
+import { type UxilDiagnostic, uxilDiagnosticAt } from "./diagnostics.ts";
 import {
   parseChildSurfaceDecl,
   parseElementBullet,
@@ -73,7 +75,7 @@ export interface UxSurface {
 /** Result of assembling one entry's uxil declarations. */
 export interface UxSurfaceTree {
   readonly surfaces: readonly UxSurface[];
-  readonly diagnostics: readonly UxilDiagnostic[];
+  readonly diagnostics: readonly Diagnostic[];
 }
 
 /** Per-bullet parse state, indexed in parallel with the filtered bullet list. */
@@ -99,12 +101,62 @@ function toLocation(entry: Entry, range: SourceRange): SourceLocation {
 }
 
 /**
+ * Anchor a span-relative grammar diagnostic at its inline span's file
+ * location (#727). Line always composes; column composes only on the
+ * diagnostic's first line (grammar positions currently always carry
+ * line 1 — the line math is defensive).
+ */
+function anchorSpanDiagnostic(
+  file: string,
+  span: InlineDeclaration,
+  d: UxilDiagnostic,
+): Diagnostic {
+  return {
+    code: d.code,
+    severity: d.severity,
+    message: d.message,
+    location: {
+      file,
+      line: span.location.line + (d.position.line - 1),
+      column: d.position.line === 1
+        ? span.innerColumn + (d.position.column - 1)
+        : d.position.column,
+    },
+  };
+}
+
+/**
+ * Anchor a paragraph-relative grammar diagnostic (#781) at its bullet's
+ * file location (#727). Columns are body-indent-relative — the same
+ * accepted dedent wart typl's bridge documents; line math is exact.
+ */
+function anchorBulletDiagnostic(
+  entry: Entry,
+  range: SourceRange,
+  d: UxilDiagnostic,
+): Diagnostic {
+  const base = toLocation(entry, range);
+  return {
+    code: d.code,
+    severity: d.severity,
+    message: d.message,
+    location: {
+      file: base.file,
+      line: base.line + (d.position.line - 1),
+      column: d.position.line === 1
+        ? base.column + (d.position.column - 1)
+        : d.position.column,
+    },
+  };
+}
+
+/**
  * Assemble one entry's uxil declarations into its surface tree. Reads
  * `entry.bodyTokens` (root spans) and `entry.bodyAst` (element/child
  * bullets) — no parser or model change; S8 is a pure downstream reader.
  */
 export function assembleUxSurface(entry: Entry): UxSurfaceTree {
-  const diagnostics: UxilDiagnostic[] = [];
+  const diagnostics: Diagnostic[] = [];
 
   // ── Root ──────────────────────────────────────────────────────────────
   const rootSpans = extractUxRootSpans(entry.bodyTokens);
@@ -116,7 +168,11 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
   }[] = [];
   for (const span of rootSpans) {
     const { decl, diagnostics: parseDiags } = parseRootDecl(span.source);
-    diagnostics.push(...parseDiags);
+    diagnostics.push(
+      ...parseDiags.map((d) =>
+        anchorSpanDiagnostic(entry.location.file, span, d)
+      ),
+    );
     if (decl && parseDiags.length === 0) {
       rootCandidates.push({
         surface: decl.surface,
@@ -143,7 +199,8 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
     // this module's concern (ADR-009: entry-type policy is S9/profile's).
     if (rootSpans.length === 0 && bullets.length > 0) {
       diagnostics.push(
-        uxilDiagnostic("UXIL-011", {}, {
+        uxilDiagnosticAt("UXIL-011", {}, {
+          file: entry.location.file,
           line: entry.bodyStartLine ?? 1,
           column: 1,
         }),
@@ -161,10 +218,11 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
       for (let k = 1; k < check.roots.length; k++) {
         const extra = check.roots[k];
         diagnostics.push(
-          uxilDiagnostic("UXIL-012", { first: `ux:${rootPath}` }, {
-            line: extra.location.line,
-            column: extra.location.column,
-          }),
+          uxilDiagnosticAt(
+            "UXIL-012",
+            { first: `ux:${rootPath}` },
+            extra.location,
+          ),
         );
       }
     }
@@ -176,7 +234,11 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
     const form = span !== undefined ? classifyUxilForm(span) : undefined;
     if (form === "child") {
       const { decl, diagnostics: parseDiags } = parseChildSurfaceDecl(span!);
-      diagnostics.push(...parseDiags);
+      diagnostics.push(
+        ...parseDiags.map((d) =>
+          anchorBulletDiagnostic(entry, bullet.range, d)
+        ),
+      );
       if (decl && parseDiags.length === 0) {
         return {
           form: "child",
@@ -190,7 +252,9 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
     const { decl, diagnostics: parseDiags } = parseElementBullet(
       bullet.source,
     );
-    diagnostics.push(...parseDiags);
+    diagnostics.push(
+      ...parseDiags.map((d) => anchorBulletDiagnostic(entry, bullet.range, d)),
+    );
     if (decl && parseDiags.length === 0) {
       return {
         form: "element",
