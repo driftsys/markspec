@@ -190,3 +190,41 @@ flags already shipped in `vocab.ts`.
   ADR-009 (core mechanics / profile policy split), #722 (base-resolution rules),
   #771 (upstream partition), S10 #728 (LSP surfaces, parallel), S12 #730
   (docs/ADR).
+
+## As-built addendum (2026-07-05)
+
+A post-review finding on Task 9 surfaced a gap this design didn't anticipate:
+three of the family's codes — `UXIL-016` (dangling namespace parent), `UXIL-017`
+(unresolved `navigate ->` target), `UXIL-018` (citation of an undeclared
+surface) — depend on the corpus-wide uxil registry built inside `validateUxil`.
+When `markspec check` runs against an explicit file-local subset
+(`opts.projectWide === false`), that registry is built from only the checked
+files, so it cannot distinguish "the referenced surface genuinely doesn't exist"
+from "the referenced surface is declared in a file outside this invocation" —
+the identical false-positive class the pre-existing `MSL-L006` ("link target
+does not resolve") suppression was built to guard against.
+
+**Decision:** mirror the `MSL-L006`/`MSL-T014` pattern rather than invent a new
+mechanism. `runPipeline`'s Stage 5 filters `UXIL-016`/`017`/`018` out of
+`validateUxilFamily`'s output whenever `projectWide` is `false`; every other
+UXIL code (entry-local — grammar, vocabulary, `UXIL-023`/`025`/`026`) is
+unaffected because they never depend on cross-entry registry state. Alternatives
+considered and rejected: always building the registry from the full project
+regardless of the `check` invocation's file scope (defeats the purpose of
+file-local `check <file>`, and is a bigger change than the bug warrants);
+leaving the three codes unsuppressed (reintroduces exactly the false-positive
+class `MSL-L006`'s suppression exists to prevent).
+
+**Where implemented:**
+
+- `packages/markspec/core/validator/pipeline.ts` — the
+  `FILE_LOCAL_SUPPRESSED_UXIL` set (Stage 5, right after the Stage 4
+  `MSL-L006`/`MSL-T014` filter) drops `UXIL-016`/`017`/`018` from
+  `validateUxilFamily`'s output when `!opts.projectWide`.
+- `docs/spec/language/uxil.md` — the "Activation" section gained a bullet
+  documenting the scope split (cross-entry codes fire on project scope; a
+  file-local check of an explicit subset suppresses them).
+
+Landed in commit `1d6ba5a` ("fix(core): suppress cross-entry uxil codes on
+file-local check (#727)"), after the four decisions in the table above were
+settled and implementation was already under way.
