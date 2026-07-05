@@ -186,3 +186,23 @@ Deno.test(
     assertEquals(md.includes(TARGET_ULID), false);
   },
 );
+
+// --- federated-upstream slice 5: origin badge in the context chain ---
+
+Deno.test(
+  "renderContext: upstream parent in the chain shows its origin badge (slice 5)",
+  () => {
+    const upstreamParent = {
+      ...mk("PRODUCT_SYS_0001", "Product system req"),
+      origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+    } as unknown as Entry;
+    const result = buildResult(
+      [mk("SWE_0001", "Local child"), upstreamParent],
+      [{ from: "SWE_0001", to: "PRODUCT_SYS_0001", kind: "satisfies" }],
+    );
+    const chain = walkContext(result, "SWE_0001", 10);
+    const md = renderContext(chain, "SWE_0001");
+    assertStringIncludes(md, "PRODUCT_SYS_0001");
+    assertStringIncludes(md, "— from product@v2.1.0");
+  },
+);

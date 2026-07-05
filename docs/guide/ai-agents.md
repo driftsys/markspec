@@ -76,6 +76,14 @@ following tools:
 | `markspec_refresh`   | Re-index the workspace after file changes                       |
 | `profile_describe`   | Describe the active profile's types, attributes, and relations  |
 
+Upstream entries (imported from locked `dependencies:` / `references:`) are
+visible to `entry_show`, `entry_list`, and `entry_context` through the shared
+compile cache — no separate tool. `entry_show` marks them with a
+`from upstream <name>@<version> (read-only)` origin badge and annotates their
+location as `(in upstream <name>)` because the file lives in another repository;
+`entry_context` tags each upstream node in the chain with a lighter
+`— from <name>@<version>` suffix.
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)

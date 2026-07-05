@@ -154,3 +154,31 @@ Deno.test("renderEntry: omits Origin for a project-authored entry", () => {
   const md = renderEntry(ENTRY, [], [], TITLES);
   assertEquals(md.includes("**Origin**"), false);
 });
+
+Deno.test("renderEntry: upstream entry shows 'from upstream' origin (slice 5)", () => {
+  const upstream: Entry = {
+    ...ENTRY,
+    origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+    location: { file: "docs/product/stk.md", line: 12, column: 1 },
+  };
+  const md = renderEntry(upstream, [], [], TITLES);
+  assertStringIncludes(
+    md,
+    "**Origin**: from upstream product@v2.1.0 (read-only)",
+  );
+});
+
+Deno.test("renderEntry: upstream entry annotates its Location as upstream (slice 5)", () => {
+  const upstream: Entry = {
+    ...ENTRY,
+    origin: { kind: "upstream", upstreamId: "product", version: "v2.1.0" },
+    location: { file: "docs/product/stk.md", line: 12, column: 1 },
+  };
+  // projectRoot undefined → relativeToRoot returns the (already relative)
+  // upstream path unchanged; the annotation marks it as non-local.
+  const md = renderEntry(upstream, [], [], TITLES);
+  assertStringIncludes(
+    md,
+    "**Location**: docs/product/stk.md:12 (in upstream product)",
+  );
+});

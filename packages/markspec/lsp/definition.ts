@@ -12,6 +12,7 @@
  */
 
 import type { Entry } from "../core/model/mod.ts";
+import { isUpstreamEntry } from "../core/mod.ts";
 import { pathToUri } from "./util.ts";
 
 /** A subset of the LSP `Location` type — sufficient for `onDefinition`. */
@@ -38,4 +39,18 @@ export function entryToLspLocation(entry: Entry): LspLocation {
       end: { line, character },
     },
   };
+}
+
+/**
+ * Resolve the go-to-definition target for an entry. Returns the entry's
+ * LSP `Location` for project- and delivered-corpus-authored entries;
+ * `null` for a locked upstream entry (federated-upstream slice 5) whose
+ * `location.file` is a path inside the upstream repo that does not exist
+ * in this workspace — navigating there would open a non-existent file.
+ * Delivered corpus (`kind:"profile"`) keeps working: its file is a real
+ * local `.markspec/cache/…` path.
+ */
+export function resolveDefinitionLocation(entry: Entry): LspLocation | null {
+  if (isUpstreamEntry(entry)) return null;
+  return entryToLspLocation(entry);
 }
