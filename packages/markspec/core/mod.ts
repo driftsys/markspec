@@ -326,6 +326,12 @@ export type {
 
 export * as typl from "./typl/mod.ts";
 
+export {
+  uxilDeclaringTypes,
+  validateUxilFamily,
+} from "./validator/uxil_family.ts";
+export * as uxil from "./uxil/mod.ts";
+
 // ── Lockfile (ADR-022) ───────────────────────────────────────────────────
 export {
   canonicalEdgeJson,

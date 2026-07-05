@@ -64,7 +64,7 @@ types:
 - No `CORE_SCHEMA_VERSION` bump: optional profile field, `Entry` untouched (same
   reasoning as ADR-030).
 
-### 2. Family orchestrator: `core/uxil/family.ts`
+### 2. Family orchestrator: `core/validator/uxil_family.ts`
 
 ```ts
 export function validateUxilFamily(
@@ -72,6 +72,10 @@ export function validateUxilFamily(
   profile: EffectiveProfile | null,
 ): readonly Diagnostic[];
 ```
+
+Lives in `validator/` (not `uxil/`) so the `pipeline → family →
+classifyEntry`
+imports stay one-directional — `uxil/` must not import from `validator/`.
 
 Behavior, in order:
 

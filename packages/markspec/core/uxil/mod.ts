@@ -4,9 +4,9 @@
  * uxil DSL layer: `ux:` reference + declaration-form parsers (S7 #725),
  * the declaration AST, structured parse diagnostics, the form recognizer,
  * and the compiler — corpus registry, enforced semantics, and a
- * deterministic machine projection (S8 #726). Not wired into
- * `core/mod.ts` — uxil stays out of the public library boundary until
- * S9/S10 wire the compiler/LSP into the CLI and editor surfaces.
+ * deterministic machine projection (S8 #726). The compiler is now
+ * reachable from `check`/LSP through `core/validator/uxil_family.ts`
+ * (S9 #727); the family + LSP wiring itself lands in S9/S10.
  */
 export type {
   ChildSurfaceDecl,
@@ -18,7 +18,7 @@ export type {
   UxRef,
 } from "./ast.ts";
 export type { UxilCode, UxilCodeEntry, UxilDiagnostic } from "./diagnostics.ts";
-export { UXIL_CODES, uxilDiagnostic } from "./diagnostics.ts";
+export { UXIL_CODES, uxilDiagnostic, uxilDiagnosticAt } from "./diagnostics.ts";
 export type { Token, TokenKind } from "./lexer.ts";
 export { tokenize } from "./lexer.ts";
 export {
@@ -37,6 +37,11 @@ export type { SurfaceRecord, UxRegistry } from "./registry.ts";
 export { buildUxRegistry } from "./registry.ts";
 export type { UxCitation } from "./citations.ts";
 export { extractUxCitations, isUxCitationText } from "./citations.ts";
+export {
+  extractUxBullets,
+  extractUxRootSpans,
+  stripUxilLeadingSpan,
+} from "./surfaces.ts";
 export type { UxilValidateOptions, UxilValidation } from "./validator.ts";
 export { validateUxil } from "./validator.ts";
 export type {
