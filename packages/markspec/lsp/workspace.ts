@@ -19,6 +19,7 @@ import {
   parseFile,
   suppressDeclaredAttrR010,
   validate,
+  validateUxilFamily,
 } from "../core/mod.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
 
@@ -268,6 +269,9 @@ export class WorkspaceIndex {
    * corpus was seeded. Diagnostics located in a corpus file (including
    * the corpus↔corpus branch of MSL-R014) are still filtered out at
    * publish time by the server's `corpusFilePaths` guard.
+   *
+   * Also runs the uxil diagnostics family (S9 #727) — inert unless the
+   * profile designates a declaring type (`declares: ux-surface`).
    */
   validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();
@@ -285,6 +289,10 @@ export class WorkspaceIndex {
         collisions.collidedTokens,
       ),
       ...collisions.diagnostics,
+      // uxil diagnostics family (S9 #727) — profile-gated; inert without a
+      // `declares: ux-surface` designation, so non-uxil projects pay only
+      // a Map scan per validateAll.
+      ...validateUxilFamily(allEntries, profile),
     ];
   }
 

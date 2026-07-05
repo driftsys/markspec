@@ -38,6 +38,7 @@ import { validateFeatureAc } from "./feature_ac.ts";
 import { validateCaptionConvention } from "./caption_convention.ts";
 import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
+import { validateUxilFamily } from "./uxil_family.ts";
 
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
@@ -230,6 +231,13 @@ export function runPipeline(
       );
     }
   }
+
+  // Stage 5 — uxil diagnostics family (S9 #727). Inert unless some profile
+  // tier designates a declaring type (`declares: ux-surface`). Receives the
+  // FULL classified list on purpose: the family derives its own #771
+  // partition and its own declaring/citing split — registry scope is the
+  // module's contract, not this orchestrator's (mirrors validateTypl).
+  diagnostics.push(...validateUxilFamily(finalEntries, profile));
 
   const valid = !diagnostics.some((d) => d.severity === "error");
   return { entries: finalEntries, diagnostics, valid };

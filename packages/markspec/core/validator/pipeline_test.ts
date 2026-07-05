@@ -14,6 +14,62 @@ import type {
   ProvenancedMapEntry,
 } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
+import { parseMarkdown } from "../parser/markdown.ts";
+
+/** Parse each `file → markdown` pair and flatten into one Entry[] (#727). */
+function entriesOf(files: Record<string, string>): Entry[] {
+  const out: Entry[] = [];
+  for (const [file, md] of Object.entries(files)) {
+    const { entries } = parseMarkdown(md, { file });
+    out.push(...entries);
+  }
+  return out;
+}
+
+/** Build an EffectiveProfile from a compact type-shorthand map (#727). */
+function makeProfile(
+  types: Record<string, { pattern: string; declares?: string }>,
+): EffectiveProfile {
+  const origin = "@test/p";
+  const map = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
+  for (const [name, t] of Object.entries(types)) {
+    map.set(name, {
+      value: {
+        name,
+        extends: "Requirement",
+        displayIdPattern: { value: t.pattern, origin },
+        displayIdPatternEnforcement: { value: "off", origin },
+        color: { value: undefined, origin },
+        required: { value: [], origin },
+        attributes: new Map(),
+        traceability: new Map(),
+        description: { value: undefined, origin },
+        attrDescriptions: new Map(),
+        relationDescriptions: new Map(),
+        discipline: { value: undefined, origin },
+        declares: { value: t.declares, origin },
+      },
+      origin,
+    });
+  }
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: map,
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+}
 
 function buildEntry(opts: {
   displayId: string;
@@ -1009,4 +1065,27 @@ Deno.test("runPipeline: upstream entry violating every emit stage stays silent b
     result.entries.some((e) => e.displayId === "UP-0001"),
     true,
   );
+});
+
+Deno.test("pipeline: uxil family fires for a designated profile (#727)", () => {
+  const profile = makeProfile({
+    "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },
+  });
+  const entries = entriesOf({
+    "a.md": `- [UXI_0001] Contract
+
+  \`ux:media.home : widget\` — bad kind.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`,
+  });
+  const result = runPipeline(entries, profile);
+  assertEquals(result.diagnostics.some((d) => d.code === "UXIL-009"), true);
+
+  // Same corpus, no designation → inert.
+  const inertProfile = makeProfile({
+    "ux-contract": { pattern: "UXI_{n:4d}" },
+  });
+  const inert = runPipeline(entries, inertProfile);
+  assertEquals(inert.diagnostics.some((d) => d.code.startsWith("UXIL")), false);
 });
