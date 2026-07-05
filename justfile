@@ -37,16 +37,19 @@ diagrams:
     find docs -name "*.svg" -exec sed -i '' 's/preserveAspectRatio="none"/preserveAspectRatio="xMidYMid meet"/g' {} \;
     find docs -name "*.svg" -exec perl -i -0pe 's/\s+width="100%"//g' {} \;
 
-# Build spec and guide books
+# Build spec and guide books (requires mdbook)
 book: tokens
-    cd docs/spec/language && deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/spec
-    cd docs/spec/typography && deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/typography
-    cd docs/spec/model && deno run --allow-read --allow-write ../../../packages/markspec/main.ts book build --output ../../../_site/model
-    cd docs/guide && deno run --allow-read --allow-write ../../packages/markspec/main.ts book build --output ../../_site/guide
+    mdbook build docs/spec/language
+    mdbook build docs/spec/typography
+    mdbook build docs/spec/model
+    mdbook build docs/guide
     typst compile --font-path packages/markspec-typst/fonts docs/cheatsheet/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
     mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
-    for book in spec typography model guide; do cp theme/markspec.css _site/$book/markspec.css; done
     cp docs/index.html _site/index.html
+
+# Serve a book locally with live reload (default: spec/language)
+book-dev book="spec/language":
+    mdbook serve docs/{{book}} --open
 
 # Bump version, update changelog, commit, and tag
 bump:
