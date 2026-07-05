@@ -134,6 +134,36 @@ Deno.test("uxil: bare check reports a dangling citation as UXIL-018", async () =
   assertStringIncludes(stderr, "UXIL-018");
 });
 
+Deno.test("uxil: compile surfaces UXIL codes for a designated corpus", async () => {
+  const bad = `- [UXI_0001] Media home contract
+
+  \`ux:media.home : screen\` offers:
+
+  - \`/play : frobnicate\` — an unknown verb.
+
+      Id: 01HZZZ0000000000000000010A
+`;
+  const { code, stdout, stderr } = await markspec(
+    ["compile", "contract.md"],
+    {
+      "project.yaml": PROJECT_YAML,
+      ".markspec.yaml": MARKSPEC_YAML,
+      "profiles/seed/markspec.yaml": PROFILE_YAML,
+      "contract.md": bad,
+    },
+  );
+  // `compile` never fails the process on validation-error diagnostics —
+  // only a corpus-load error or `--frozen` lockfile drift does (see
+  // cli/helpers.ts's compileProject and cli/commands/compile.ts). It
+  // still parses and reports the graph on stdout and surfaces every
+  // diagnostic, uxil included, on stderr — this is the behavior #727
+  // finding 1 was about restoring: compile-backed surfaces must not
+  // silently pass a corpus that `check` flags.
+  assertEquals(code, 0, stderr);
+  assertStringIncludes(stdout, "1 entries");
+  assertStringIncludes(stderr, "UXIL-010");
+});
+
 Deno.test("uxil: without a declares designation the family is inert", async () => {
   const prose = `- [REQ_0001] Ordinary prose
 
