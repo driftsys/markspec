@@ -106,21 +106,24 @@ export type EntryOrigin =
 `product@v2.1.0`). `emittableEntries` (`core/model`) partitions the validators'
 emit side once per run — upstream entries never enter an emit loop but stay in
 every resolution map (#771); `isUpstreamEntry` remains the target-side and
-reporter predicate. `loadUpstreamCorpus` (`core/upstream/mod.ts`) — the sibling
-of ADR-030's `loadDeliveredCorpus`, same purity rules (injected `readFile`, no
-I/O of its own) — hydrates each cached snapshot into `Entry[]` and stamps the
-origin. `loadProjectUpstreams` (`core/upstream/project.ts`) wraps the
-lockfile→refs→hydration chain — including the no-lockfile and empty-refs
-short-circuits — behind one call, so every feed surface shares the same
-soft-fail and diagnostic semantics (#771). Upstream entries seed at the same
-three sites as the ADR-030 corpus, after it, before project files: the CLI
-compiler, the LSP `seedUpstreamCorpus()`, and the MCP server via the shared
-compile cache. Read-only is structural, not a runtime flag — upstream entries
-have no local `.md` file, so `fmt`/`insert` cannot touch them and rename is
-refused by the existing `origin` guard. The one new rule: **go-to-definition is
-a no-op** for an upstream entry (`resolveNavigableLocation` returns `null`) —
-its `location.file` is an upstream-repo path that does not exist locally. Hover,
-`show`, `context`, and completion work from the hydrated entry.
+reporter predicate. The prose-lint runner and the check gates apply a
+deliberately broader origin-based partition — profile-corpus and upstream prose
+are both lint-exempt (ADR-030 §D4). `loadUpstreamCorpus`
+(`core/upstream/mod.ts`) — the sibling of ADR-030's `loadDeliveredCorpus`, same
+purity rules (injected `readFile`, no I/O of its own) — hydrates each cached
+snapshot into `Entry[]` and stamps the origin. `loadProjectUpstreams`
+(`core/upstream/project.ts`) wraps the lockfile→refs→hydration chain — including
+the no-lockfile and empty-refs short-circuits — behind one call, so every feed
+surface shares the same soft-fail and diagnostic semantics (#771). Upstream
+entries seed at the same three sites as the ADR-030 corpus, after it, before
+project files: the CLI compiler, the LSP `seedUpstreamCorpus()`, and the MCP
+server via the shared compile cache. Read-only is structural, not a runtime flag
+— upstream entries have no local `.md` file, so `fmt`/`insert` cannot touch them
+and rename is refused by the existing `origin` guard. The one new rule:
+**go-to-definition is a no-op** for an upstream entry
+(`resolveNavigableLocation` returns `null`) — its `location.file` is an
+upstream-repo path that does not exist locally. Hover, `show`, `context`, and
+completion work from the hydrated entry.
 
 ### D5 — Keep one flat display-ID space; collisions are hard diagnostics
 

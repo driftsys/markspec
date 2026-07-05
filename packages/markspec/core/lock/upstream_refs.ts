@@ -255,7 +255,10 @@ export async function resolveProjectReferences(
     }
     seen.add(id);
     const baseUrl = ref.url.replace(/\/+$/, "");
-    const dir = `${opts.cacheRoot}/${id}`;
+    // join() at construction (#771): a template concat would mix the
+    // platform separator with a literal `/` — the Windows drift class
+    // that bit slices 2 and 4. Writer and reader must agree byte-for-byte.
+    const dir = join(opts.cacheRoot, id);
     const existing = byId.get(id);
     const selectedForUpdate = opts.update === true || opts.update === id;
 

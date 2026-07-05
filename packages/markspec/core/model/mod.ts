@@ -497,8 +497,19 @@ export function isUpstreamEntry(
  * they stay in every RESOLUTION map (so project links targeting them
  * resolve) but no validation stage may EMIT diagnostics against them.
  * Validators loop over this filtered list; resolution-map builders keep
- * the full input list. Adding a new validation stage? Iterate the
+ * the full input list. Adding a new VALIDATOR stage? Iterate the
  * emittable list — never the raw entry set.
+ *
+ * NOT for lint/gates: the prose-lint runner and the check gates apply a
+ * deliberately BROADER `!entry.origin` partition — profile-corpus prose
+ * is also lint-exempt (ADR-030 §D4), while the structural validators
+ * keep validating corpus entries and downgrade them post-hoc. Swapping
+ * their filters for this helper would re-enable prose lint on delivered
+ * corpus files.
+ *
+ * Lives in `core/model` (not `validator/`) because `core/typl` consumes
+ * it too — a validator/ home would cycle against the one-directional
+ * model ← validator dependency flow.
  */
 export function emittableEntries(
   entries: readonly Entry[],

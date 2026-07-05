@@ -9,7 +9,12 @@
  * `markspec://entry/...` cross-reference labels.
  */
 
-import { type Entry, formatEntryOrigin, type Link } from "../../core/mod.ts";
+import {
+  type Entry,
+  formatEntryOrigin,
+  isUpstreamEntry,
+  type Link,
+} from "../../core/mod.ts";
 import { relativeToRoot } from "../path.ts";
 import { entryUri } from "../uri.ts";
 
@@ -28,9 +33,7 @@ export function renderEntry(
   if (entry.type) lines.push(`**Type**: ${entry.type}`);
   lines.push(`**Shape**: ${entry.shape}`);
   if (entry.origin) {
-    const verb = entry.origin.kind === "upstream"
-      ? "from upstream"
-      : "delivered by";
+    const verb = isUpstreamEntry(entry) ? "from upstream" : "delivered by";
     lines.push(
       `**Origin**: ${verb} ${formatEntryOrigin(entry.origin)} (read-only)`,
     );
@@ -40,7 +43,7 @@ export function renderEntry(
     relativeToRoot(entry.location.file, projectRoot)
   }:${entry.location.line}`;
   lines.push(
-    entry.origin?.kind === "upstream"
+    isUpstreamEntry(entry)
       ? `**Location**: ${location} (in upstream ${entry.origin.upstreamId})`
       : `**Location**: ${location}`,
   );

@@ -17,6 +17,7 @@
  * Pure module: file access only via the injected {@linkcode ReadFile}.
  */
 
+import { join } from "@std/path";
 import type { Diagnostic } from "../model/mod.ts";
 import type { Upstream } from "./model.ts";
 import type { ReadFile } from "./resolve.ts";
@@ -48,7 +49,10 @@ export async function verifyUpstreamCache(
       continue; // references/profiles never carry a cache snapshot
     }
     if (upstream.snapshot === undefined) continue; // legacy row — skip
-    const dir = `${cacheRoot}/${upstream.id}`;
+    // join() at construction (#771): a template concat would mix the
+    // platform separator with a literal `/` — the Windows drift class
+    // that bit slices 2 and 4. Writer and reader must agree byte-for-byte.
+    const dir = join(cacheRoot, upstream.id);
     const intact = await probeCacheSnapshot(dir, upstream.snapshot, readFile);
     if (!intact) diagnostics.push(cacheDriftDiagnostic(upstream.id));
   }

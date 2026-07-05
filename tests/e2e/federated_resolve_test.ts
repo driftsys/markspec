@@ -639,3 +639,38 @@ Deno.test(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// 7. Cold/missing upstream cache is soft-fail through compileProject (#771):
+//    graph-consuming commands surface UPSTREAM-SNAPSHOT-002 on stderr but
+//    never abort — the project's own entries stay fully queryable.
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "show: a missing upstream cache surfaces UPSTREAM-SNAPSHOT-002 but does not abort",
+  async () => {
+    const root = await Deno.makeTempDir();
+    try {
+      const dirA = `${root}/a`;
+      const dirB = `${root}/b`;
+      const fileUrl = await setupProducerA(dirA);
+      await setupConsumerB(dirB, fileUrl, REQS_B_SATISFIES_OK);
+
+      const lock = await markspecInDir(dirB, ["lock"], LOCK_PERMISSIONS);
+      assertEquals(lock.code, 0, lock.stderr);
+
+      // Simulate a cold cache: the lockfile still pins the upstream, but
+      // its hydration snapshot is gone (fresh clone, cache eviction).
+      await Deno.remove(join(dirB, ".markspec", "cache", "upstreams"), {
+        recursive: true,
+      });
+
+      const show = await markspecInDir(dirB, ["show", "SWE_0001", "reqs.md"]);
+      assertEquals(show.code, 0, show.stderr);
+      assertMatch(show.stderr, /UPSTREAM-SNAPSHOT-002/);
+      assertMatch(show.stdout, /SWE_0001/);
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  },
+);

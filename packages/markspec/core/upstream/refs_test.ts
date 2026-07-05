@@ -87,3 +87,28 @@ Deno.test("upstreamRefsFromLockfile: reference/profile (non-snapshot) rows skipp
   );
   assertEquals(refs, []);
 });
+
+Deno.test("upstreamRefsFromLockfile: dependency row → ref with cache dir", () => {
+  // Git dependencies (slice 3) share the registry rows' snapshot-carrying
+  // shape and cache namespace; the mapper must include them identically.
+  const refs = upstreamRefsFromLockfile(
+    lf([{
+      kind: "dependency",
+      id: "product",
+      url: "git@github.com:acme/product.git",
+      intent: "auto",
+      resolved: "tag:v2.1.0",
+      sha: "a".repeat(40),
+      snapshot: "sha256:c",
+      lockedAt: "2026-07-04T00:00:00Z",
+    }]),
+    "/proj",
+  );
+  assertEquals(refs, [{
+    id: "product",
+    // UpstreamDependency carries no `version` field — the badge label
+    // falls back to "unversioned" (the resolved pin lives in `resolved`).
+    version: "unversioned",
+    dir: join(upstreamCacheRoot("/proj"), "product"),
+  }]);
+});

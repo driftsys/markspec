@@ -97,10 +97,13 @@ export function runPipeline(
 ): PipelineResult {
   const diagnostics: Diagnostic[] = [];
 
-  // Partition once (#771): emit loops iterate `emittable` /
-  // `finalEmittable`; resolution maps build from the full lists so
-  // upstream entries stay live link targets (ADR-031 §4.7). A new stage
-  // added to this pipeline must loop over the emittable list.
+  // Partition per orchestrator (#771): emit loops here iterate
+  // `emittable` / `finalEmittable`; resolution maps build from the full
+  // lists so upstream entries stay live link targets (ADR-031 §4.7).
+  // `validate()` (Stage 1) and `validateTypl` derive their own partitions
+  // for their standalone callers — the guarantee is convention plus the
+  // upstream-silence anchor test, not a distinct type. A new stage added
+  // to this pipeline must loop over the emittable list.
   const emittable = emittableEntries(entries);
 
   // Stage 1 — core hygiene. When a profile is loaded, suppress MSL-R010
@@ -156,17 +159,14 @@ export function runPipeline(
     diagnostics.push(...stage2.diagnostics);
   }
 
-  // Post-classification generation: Stage 2 produced new Entry objects,
-  // so re-derive the emit partition for the stages below (and again after
-  // Stage 2.5's normalization pass reassigns `finalEntries`).
-  let finalEmittable = emittableEntries(finalEntries);
-
   // Stage 2.4 — late-stage inference warnings (MSL-T021 for steps 5/6).
   // Runs after Stage 2 so that profile-classified `entry.type` suppresses
   // the warning correctly. In core-only mode `finalEntries === entries`
   // and `entry.type` is always undefined, so this stage produces the same
-  // diagnostics regardless of mode.
-  for (const entry of finalEmittable) {
+  // diagnostics regardless of mode. Partitions inline: `finalEmittable`
+  // below is derived from the post-normalization generation, which does
+  // not exist yet at this point.
+  for (const entry of emittableEntries(finalEntries)) {
     diagnostics.push(...inferTypeFromLateStageChain(entry));
   }
 
@@ -175,8 +175,11 @@ export function runPipeline(
   // didn't see so that Stage 3 sees already-split values.
   if (profile !== null) {
     finalEntries = finalEntries.map((e) => normalizeListValues(e, profile));
-    finalEmittable = emittableEntries(finalEntries);
   }
+
+  // Final generation reached — Stages 2 and 2.5 both produced new Entry
+  // objects, so the emit partition for Stages 3/4 is derived here, once.
+  const finalEmittable = emittableEntries(finalEntries);
 
   // Stage 3 — typed attributes (only when a profile is loaded). Upstream
   // entries are validation-exempt (design §4.7) — outside the emit
