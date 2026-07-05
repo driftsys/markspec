@@ -67,6 +67,7 @@ import {
   VERSION,
 } from "../core/mod.ts";
 import { extendsTransitively } from "../core/profile/discipline_mode.ts";
+import { parseUxRef } from "../core/uxil/mod.ts";
 import { WorkspaceIndex } from "./workspace.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
@@ -77,7 +78,10 @@ import {
 import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
 import { buildDiagnosticsHistogram } from "./diagnostics_histogram.ts";
 import { buildCodeActions } from "./code_actions.ts";
-import { resolveNavigableLocation } from "./definition.ts";
+import {
+  resolveNavigableLocation,
+  sourceLocationToLspLocation,
+} from "./definition.ts";
 import { displayIdAtPosition, formatHoverContent } from "./hover.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 import { findOccurrencesInFile } from "./highlights.ts";
@@ -146,6 +150,14 @@ import {
   isDollarNameTrigger,
   isRelativeDollarTrigger,
 } from "./typl.ts";
+import {
+  buildUxCompletionItems,
+  extractUxRefPartial,
+  formatUxHoverContent,
+  isUxRefTrigger,
+  resolveUxRef,
+  uxRefTokenAtPosition,
+} from "./uxil.ts";
 import { buildVersionNotification } from "./version_notification.ts";
 
 // ---------------------------------------------------------------------------
@@ -1280,6 +1292,25 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
     });
   }
 
+  // Trigger 6: ux: reference — known surface paths from the uxil registry
+  // (S10 #728). Empty when no profile type designates ux-surface.
+  if (isUxRefTrigger(line)) {
+    return time("onCompletion/uxRef", () => {
+      const uxRegistry = index.getUxRegistry(profile ?? null);
+      if (!uxRegistry) return [];
+      const partial = extractUxRefPartial(line);
+      const items = buildUxCompletionItems(uxRegistry, partial);
+      return {
+        isIncomplete: partial.length > 0,
+        items: items.map((item) => ({
+          label: item.label,
+          detail: item.detail,
+          kind: CompletionItemKind.Reference,
+        })),
+      };
+    });
+  }
+
   return [];
 });
 
@@ -1420,6 +1451,22 @@ connection.onHover((params) => {
     }
   }
 
+  // Try a ux: ref next (S10 #728) — inert (no registry) unless the
+  // profile designates a declaring type (uxilDeclaringTypes).
+  const uxToken = uxRefTokenAtPosition(line, params.position.character);
+  if (uxToken) {
+    const uxRegistry = index.getUxRegistry(profile ?? null);
+    if (uxRegistry) {
+      const { ref } = parseUxRef(uxToken);
+      if (ref) {
+        const hoverContent = formatUxHoverContent(ref, uxRegistry);
+        if (hoverContent) {
+          return { contents: { kind: "markdown", value: hoverContent } };
+        }
+      }
+    }
+  }
+
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
   const entry = index.getEntryByDisplayId(makeDisplayId(id));
@@ -1453,6 +1500,20 @@ connection.onDefinition((params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
+
+  // Try a ux: ref first (S10 #728) — its token grammar (colon-bearing)
+  // never overlaps a display-ID token's.
+  const uxToken = uxRefTokenAtPosition(line, params.position.character);
+  if (uxToken) {
+    const uxRegistry = index.getUxRegistry(profile ?? null);
+    if (uxRegistry) {
+      const { ref } = parseUxRef(uxToken);
+      const surface = ref ? resolveUxRef(ref, uxRegistry) : undefined;
+      if (surface) {
+        return sourceLocationToLspLocation(surface.location);
+      }
+    }
+  }
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
