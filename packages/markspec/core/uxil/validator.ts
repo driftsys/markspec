@@ -37,7 +37,10 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
     diagnostics.push(...tree.diagnostics);
 
     for (const surface of tree.surfaces) {
-      if (!isKnownKind(surface.kind)) {
+      const kindInfo = isKnownKind(surface.kind)
+        ? UX_KINDS.get(surface.kind)!
+        : undefined;
+      if (kindInfo === undefined) {
         diagnostics.push(
           uxilDiagnosticAt(
             "UXIL-009",
@@ -45,17 +48,14 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
             surface.location,
           ),
         );
-      } else {
-        const kindInfo = UX_KINDS.get(surface.kind)!;
-        if (!kindInfo.stateful && surface.states.length > 0) {
-          diagnostics.push(
-            uxilDiagnosticAt(
-              "UXIL-013",
-              { kind: surface.kind },
-              surface.location,
-            ),
-          );
-        }
+      } else if (!kindInfo.stateful && surface.states.length > 0) {
+        diagnostics.push(
+          uxilDiagnosticAt(
+            "UXIL-013",
+            { kind: surface.kind },
+            surface.location,
+          ),
+        );
       }
 
       for (const element of surface.elements) {
@@ -70,6 +70,34 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
           diagnostics.push(
             uxilDiagnosticAt(
               "UXIL-014",
+              { element: element.name },
+              element.location,
+            ),
+          );
+        }
+
+        // UXIL-025 (#727): 'observe' anchors a visibility assertion — the
+        // issue's "visibility of a non-screen". Only when the kind is known
+        // (an unknown kind is already UXIL-009; don't cascade).
+        if (
+          kindInfo !== undefined && !kindInfo.visual &&
+          element.verbs.includes("observe")
+        ) {
+          diagnostics.push(
+            uxilDiagnosticAt("UXIL-025", {
+              element: element.name,
+              surface: surface.path,
+              kind: surface.kind,
+            }, element.location),
+          );
+        }
+        // UXIL-026 (#727): vocab's requiresNavTarget, previously unenforced.
+        if (
+          element.verbs.includes("navigate") && element.navTarget === undefined
+        ) {
+          diagnostics.push(
+            uxilDiagnosticAt(
+              "UXIL-026",
               { element: element.name },
               element.location,
             ),

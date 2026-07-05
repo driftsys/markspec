@@ -347,3 +347,55 @@ Deno.test("anchoring: UXIL-011 anchors at the body start (#727)", () => {
   const d = diagnostics.find((x) => x.code === "UXIL-011");
   assertEquals(d?.location, { file: "a.md", line: 3, column: 1 });
 });
+
+Deno.test("UXIL-025 observe on a non-visual kind (agent)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:voice : agent\` offers:
+
+  - \`/hint : observe\` — a visibility anchor on a non-visual kind.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assert(has(diagnostics, "UXIL-025"));
+});
+
+Deno.test("UXIL-025 does not fire on a visual kind (screen)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/hint : observe\` — a legitimate visibility anchor.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assertEquals(has(diagnostics, "UXIL-025"), false);
+});
+
+Deno.test("UXIL-026 navigate without a target", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/go : navigate\` — missing its target.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assert(has(diagnostics, "UXIL-026"));
+});
+
+Deno.test("UXIL-026 does not fire when a target is declared", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/go : navigate -> a.b\` — self-target, resolvable.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assertEquals(has(diagnostics, "UXIL-026"), false);
+});
