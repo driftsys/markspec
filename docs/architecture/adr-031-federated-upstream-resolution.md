@@ -107,15 +107,18 @@ export type EntryOrigin =
 `loadUpstreamCorpus` (`core/upstream/mod.ts`) — the sibling of ADR-030's
 `loadDeliveredCorpus`, same purity rules (injected `readFile`, no I/O of its
 own) — hydrates each cached snapshot into `Entry[]` and stamps the origin.
-Upstream entries seed at the same three sites as the ADR-030 corpus, after it,
-before project files: the CLI compiler, the LSP `seedUpstreamCorpus()`, and the
-MCP server via the shared compile cache. Read-only is structural, not a runtime
-flag — upstream entries have no local `.md` file, so `fmt`/`insert` cannot touch
-them and rename is refused by the existing `origin` guard. The one new rule:
-**go-to-definition is a no-op** for an upstream entry
-(`resolveNavigableLocation` returns `null`) — its `location.file` is an
-upstream-repo path that does not exist locally. Hover, `show`, `context`, and
-completion work from the hydrated entry.
+`loadProjectUpstreams` (`core/upstream/project.ts`) wraps the
+lockfile→refs→hydration chain — including the no-lockfile and empty-refs
+short-circuits — behind one call, so every feed surface shares the same
+soft-fail and diagnostic semantics (#771). Upstream entries seed at the same
+three sites as the ADR-030 corpus, after it, before project files: the CLI
+compiler, the LSP `seedUpstreamCorpus()`, and the MCP server via the shared
+compile cache. Read-only is structural, not a runtime flag — upstream entries
+have no local `.md` file, so `fmt`/`insert` cannot touch them and rename is
+refused by the existing `origin` guard. The one new rule: **go-to-definition is
+a no-op** for an upstream entry (`resolveNavigableLocation` returns `null`) —
+its `location.file` is an upstream-repo path that does not exist locally. Hover,
+`show`, `context`, and completion work from the hydrated entry.
 
 ### D5 — Keep one flat display-ID space; collisions are hard diagnostics
 
@@ -378,14 +381,15 @@ are byte-reproducible across machines from `(tree, markspec version)`.
 - As-built: `core/model/mod.ts` (`EntryOrigin`, `formatEntryOrigin`,
   `isUpstreamEntry`, `ProjectRef`, `ProjectConfig`), `core/upstream/mod.ts`
   (`loadUpstreamCorpus`), `core/upstream/refs.ts` (`upstreamRefsFromLockfile`),
-  `core/lock/model.ts` + `serializer.ts` (`UpstreamDependency`, extended
-  `UpstreamRegistry`), `core/lock/upstream_refs.ts` (`resolveProjectReferences`,
-  `MSL-L213`/`L214`), `core/lock/upstream_deps.ts`
-  (`resolveProjectDependencies`, `MSL-L216`), `core/lock/git_intent.ts`
-  (`resolveIntent`), `core/lock/acquire_compile.ts` (`compileAcquiredTree`),
-  `core/lock/pin_assurance.ts` (`MSL-L215`), `core/validator/traceability.ts`
-  (`MSL-T014`), `core/compiler/manifest.ts` (`ManifestJson.project.version`,
-  `federation`), `core/compiler/deserialize.ts` (`checkSnapshotSchema`,
-  `deserializeEntry`), `cli/commands/lock.ts` (`denoGitIO` shallow
-  fetch-by-sha), `lsp/server.ts` (`seedUpstreamCorpus`), `lsp/definition.ts`
-  (`resolveNavigableLocation`).
+  `core/upstream/project.ts` (`loadProjectUpstreams`, shared by all four feed
+  surfaces — #771), `core/lock/model.ts` + `serializer.ts`
+  (`UpstreamDependency`, extended `UpstreamRegistry`),
+  `core/lock/upstream_refs.ts` (`resolveProjectReferences`, `MSL-L213`/`L214`),
+  `core/lock/upstream_deps.ts` (`resolveProjectDependencies`, `MSL-L216`),
+  `core/lock/git_intent.ts` (`resolveIntent`), `core/lock/acquire_compile.ts`
+  (`compileAcquiredTree`), `core/lock/pin_assurance.ts` (`MSL-L215`),
+  `core/validator/traceability.ts` (`MSL-T014`), `core/compiler/manifest.ts`
+  (`ManifestJson.project.version`, `federation`), `core/compiler/deserialize.ts`
+  (`checkSnapshotSchema`, `deserializeEntry`), `cli/commands/lock.ts`
+  (`denoGitIO` shallow fetch-by-sha), `lsp/server.ts` (`seedUpstreamCorpus`),
+  `lsp/definition.ts` (`resolveNavigableLocation`).

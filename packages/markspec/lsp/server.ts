@@ -54,8 +54,8 @@ import {
   loadDeliveredCorpus,
   loadMarkdownFormatter,
   loadProfileForCommand,
+  loadProjectUpstreams,
   loadToolConfig,
-  loadUpstreamCorpus,
   type Lockfile,
   makeDisplayId,
   parseDisplayIdPattern,
@@ -63,7 +63,6 @@ import {
   type ProjectConfig,
   targetsForRelation,
   type ToolConfig,
-  upstreamRefsFromLockfile,
   validateDisplayIdPattern,
   VERSION,
 } from "../core/mod.ts";
@@ -126,6 +125,7 @@ import {
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
+import { isLockfileOnlyChange } from "./watched_files.ts";
 import {
   debounce,
   type DebouncedFunction,
@@ -290,10 +290,10 @@ const upstreamFilePaths = new Set<string>();
  * docs/architecture/adr-031-federated-upstream-resolution.md).
  * Mirrors {@linkcode seedDeliveredCorpus}: always drops the previously
  * seeded upstream files first (so a re-lock that drops or replaces an
- * upstream doesn't leave stale entries behind), maps the loaded
- * `markspec.lock`'s snapshot-carrying upstream rows via
- * {@linkcode upstreamRefsFromLockfile}, and hydrates them with
- * {@linkcode loadUpstreamCorpus}. Entries carry `Entry.origin = { kind:
+ * upstream doesn't leave stale entries behind), then hydrates the loaded
+ * `markspec.lock`'s snapshot-carrying upstream rows via the shared core
+ * {@linkcode loadProjectUpstreams} (#771) — the same loader the CLI
+ * compiler, `check`, and the MCP server use. Entries carry `Entry.origin = { kind:
  * "upstream", ... }`; adding their file to the shared `corpusFilePaths`
  * set makes every existing read-only guard (diagnostics publish, buffer
  * edit/open/close, rename, format) treat them as read-only, same as
@@ -324,11 +324,9 @@ async function seedUpstreamCorpus(): Promise<void> {
     corpusFilePaths.delete(path);
   }
   upstreamFilePaths.clear();
-  if (!lockfile || !projectRoot) return;
-  const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
-  if (refs.length === 0) return;
+  if (!projectRoot) return;
   try {
-    const corpus = await loadUpstreamCorpus(refs, readFile);
+    const corpus = await loadProjectUpstreams(projectRoot, lockfile, readFile);
     for (const d of corpus.diagnostics) {
       connection.console.warn(`${d.code}: ${d.message}`);
     }
@@ -733,10 +731,12 @@ connection.onInitialize(
 );
 
 // ---------------------------------------------------------------------------
-// Profile reload — fires `markspec/profileChanged` after watched profile
-// files change; also reloads markspec.lock and re-seeds the delivered +
-// upstream corpora, since the same watcher covers all three files.
-// Debounced 500ms so rapid-fire saves coalesce into one reload.
+// Profile reload — fires `markspec/profileChanged` after a watched
+// profile file changes; also reloads markspec.lock and re-seeds the
+// delivered + upstream corpora. Routing lives in `reloadWatchedFiles`
+// below: `reloadProfile` handles the profile-affecting branch, while a
+// `markspec.lock`-only change takes the cheap upstream-re-seed branch
+// (#771). Debounced 500ms so rapid-fire saves coalesce into one reload.
 // ---------------------------------------------------------------------------
 
 async function reloadProfile(): Promise<void> {
@@ -771,7 +771,34 @@ async function reloadProfile(): Promise<void> {
   }
 }
 
-const debouncedReloadProfile = debounce(reloadProfile, 500);
+/** `true` when a profile-affecting file (`.markspec.yaml`,
+ * `project.yaml`) changed since the last watched-files reload fired.
+ * Accumulates across the debounce window so a lock-only change
+ * followed by a profile change escalates to the full reload. */
+let pendingProfileFileChange = false;
+
+/**
+ * Debounced dispatcher for watched-file changes. A window that saw any
+ * profile-file change runs the full {@linkcode reloadProfile} (which
+ * also reloads the lockfile and re-seeds both corpora). A
+ * `markspec.lock`-only window (#771: a bare `markspec lock` re-run)
+ * skips the profile re-resolve, the delivered-corpus re-seed, and the
+ * `markspec/profileChanged` push — it refreshes the lockfile, re-seeds
+ * the upstream corpus, and republishes diagnostics.
+ */
+async function reloadWatchedFiles(): Promise<void> {
+  const profileChanged = pendingProfileFileChange;
+  pendingProfileFileChange = false;
+  if (profileChanged) {
+    await reloadProfile();
+    return;
+  }
+  await reloadLockfile();
+  await seedUpstreamCorpus();
+  publishAllDiagnostics();
+}
+
+const debouncedReloadWatchedFiles = debounce(reloadWatchedFiles, 500);
 
 // ---------------------------------------------------------------------------
 // Initialized — build the workspace index
@@ -917,12 +944,15 @@ connection.onInitialized(async () => {
 // ---------------------------------------------------------------------------
 
 connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
-  // We only watch `.markspec.yaml`, `project.yaml`, and `markspec.lock`,
-  // so any change here affects the profile chain and/or the locked
-  // upstream corpus — `reloadProfile` reloads both. Debounce 500ms — see
-  // design doc §4.1.
+  // We only watch `.markspec.yaml`, `project.yaml`, and `markspec.lock`.
+  // Debounce 500ms (design doc §4.1); the dispatcher routes a
+  // markspec.lock-only window to the cheap upstream re-seed and anything
+  // else to the full profile reload (#771).
   if (params.changes.length === 0) return;
-  debouncedReloadProfile();
+  if (!isLockfileOnlyChange(params.changes.map((c) => c.uri))) {
+    pendingProfileFileChange = true;
+  }
+  debouncedReloadWatchedFiles();
 });
 
 // ---------------------------------------------------------------------------
@@ -1789,7 +1819,7 @@ connection.onRequest(
 connection.onShutdown(() => {
   logEvent("info", "lifecycle", { event: "onShutdown" });
   debouncedValidateAll.cancel();
-  debouncedReloadProfile.cancel();
+  debouncedReloadWatchedFiles.cancel();
   // Roll up per-method counters + session duration into one final
   // `kind=shutdown` event. Emitted from `onShutdown` (orderly exit)
   // rather than `onExit` (hard close) so the summary still lands in

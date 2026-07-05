@@ -488,3 +488,6 @@ export type {
 
 // ── Lockfile → upstream-snapshot-ref mapping (federated upstream, slice 4) ──
 export { upstreamRefsFromLockfile } from "./upstream/refs.ts";
+
+// ── Shared lockfile → upstream-corpus hydration (#771) ──────────────────
+export { loadProjectUpstreams } from "./upstream/project.ts";
