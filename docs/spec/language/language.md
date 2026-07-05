@@ -882,17 +882,18 @@ the payload.
 <!-- markspec:glossary -->
 ```
 
-**Example 14 — multiple directives with multiline payload:**
+**Example 14 — multiple directives in one comment:**
 
 ```markdown
 <!--
 markspec:deck
-markspec:references https://safety.company.io/registry
+markspec:paginate
 -->
 ```
 
-Continuation lines without `markspec:` are part of the previous directive's
-payload.
+Each `markspec:` line begins a separate directive; see the parsing rules below
+for how a directive that takes a payload (such as the range directives
+`markspec:columns` or `markspec:section`) extends it onto continuation lines.
 
 **Parsing rules:**
 
@@ -912,25 +913,29 @@ non-directive raw HTML in a body is rejected (MSL-B043).
 
 Placed in the first HTML comment after the H1 heading.
 
-| Directive             | Payload      | Context |
-| --------------------- | ------------ | ------- |
-| `markspec:glossary`   | none         | doc     |
-| `markspec:summary`    | none         | doc     |
-| `markspec:deck`       | none         | deck    |
-| `markspec:specs`      | none         | doc     |
-| `markspec:tests`      | none         | doc     |
-| `markspec:elements`   | none         | doc     |
-| `markspec:references` | registry URL | both    |
-| `markspec:paginate`   | none         | deck    |
+| Directive             | Payload | Context |
+| --------------------- | ------- | ------- |
+| `markspec:glossary`   | none    | doc     |
+| `markspec:summary`    | none    | doc     |
+| `markspec:deck`       | none    | deck    |
+| `markspec:specs`      | none    | doc     |
+| `markspec:tests`      | none    | doc     |
+| `markspec:elements`   | none    | doc     |
+| `markspec:references` | none    | doc     |
+| `markspec:paginate`   | none    | deck    |
 
 Type directives (`glossary`, `summary`, `deck`) are mutually exclusive.
-Family-hint directives (`specs`, `tests`, `elements`, `references` without a
-payload) hint at the predominant entry family in the document — used by
-`markspec fmt` to classify new entries before they carry an identity attribute.
-`references` (with a URL payload) can coexist with any type directive. `doc` is
-the default — no directive for it. Multiple `markspec:references` directives
-with URL payloads declare multiple upstream registries; order matters, with an
-implicit fallback to RefHub.
+Family-hint directives (`specs`, `tests`, `elements`, `references`) hint at the
+predominant entry family in the document — used by `markspec fmt` to classify
+new entries before they carry an identity attribute. `markspec:references`
+additionally marks the document as a **references listing** whose entries are
+validated as bibliographic Reference citations (§6.5). `doc` is the default — no
+directive for it.
+
+Cross-repository federation is **not** declared with a directive. A project
+declares its upstreams in `project.yaml` via the `dependencies:` and
+`references:` lists; those upstreams are pinned in `markspec.lock` and resolved
+offline from a local snapshot cache. See §6.5.
 
 Document-level retirement uses the `deprecated:` front-matter key (or
 `supersedes:` for replacement retirement), not a directive. See §6.2.
@@ -981,20 +986,21 @@ deprecated: "Archived after platform migration; content no longer maintained."
 # Legacy Terms
 ```
 
-**Example 17 — upstream registries:**
+**Example 17 — references listing directive:**
 
 ```markdown
-# Braking Controller
+# Braking Standards
 
 <!--
-markspec:references https://safety.company.io/registry
-markspec:references https://driftsys.github.io/refhub
+markspec:references
 -->
 ```
 
-Each `markspec:references` declares one upstream registry. Order matters —
-registries are searched first to last. RefHub is the implicit final fallback
-even if not declared.
+The `markspec:references` directive marks the file as a references listing, so
+its Reference-shape entries are validated as bibliographic citations (§6.5). It
+takes no payload; the filename `references.md` triggers the same listing without
+the directive. Federating against another project's entries is a `project.yaml`
+concern, not a directive — see §6.5.
 
 ### 3.3 Inline directives
 
@@ -1438,11 +1444,13 @@ distinguishes only the two shapes; everything finer is profile-declared.
 ### 6.5 References
 
 References (standards, regulations, external specifications) are resolved
-through a resolution chain. Projects declare upstream registries in
-`project.yaml` via the `references` field (project-wide) and per-file via
-`markspec:references` directives. Resolution order: local project → declared
-dependencies (in order) → declared references (in order) → per-file
-`markspec:references` directives → RefHub (implicit fallback).
+through a resolution chain. Projects declare their upstreams in `project.yaml`
+via the `dependencies:` field (federated git repositories) and the `references:`
+field (published upstream compile-output sites). Resolution order: local project
+→ declared dependencies (in declaration order) → declared references (in
+declaration order). Every tier is resolved **offline** from the snapshot cache
+that `markspec lock` pins under `.markspec/cache/upstreams/`; no upstream is
+fetched at build time.
 
 `{{ref.ID}}` inline references and `Derived-from:` attribute values are
 validated against the resolution chain at build time.
@@ -1508,22 +1516,22 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 
 ### 8.2 Entry format (MSL-R)
 
-| ID         | Severity | Rule                                                                                                                                         |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (Reference-entry body is optional).                                                         |
-| `MSL-R002` | error    | Display ID is non-empty; matches the active profile's `display-id-pattern:` for its inferred type when one applies.                          |
-| `MSL-R003` | error    | Exactly one `Id:` attribute per entry.                                                                                                       |
-| `MSL-R004` | error    | `Id:` value well-formed: bare ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) for Authored entries; scheme-qualified URI (RFC 3986) for Reference entries. |
-| `MSL-R005` | error    | ULID unique across repository.                                                                                                               |
-| `MSL-R006` | error    | Display ID unique within project and registry chain.                                                                                         |
-| `MSL-R007` | warning  | When a profile declares a `display-id-pattern:` for the entry's inferred type, the display ID matches it.                                    |
-| `MSL-R008` | error    | Slug-shaped display ID (no scheme, not a ULID) on a Reference entry must match the slug regex.                                               |
-| `MSL-R009` | warning  | Sequence number > 0 in patterned display IDs.                                                                                                |
-| `MSL-R010` | warning  | Unknown attributes (not in core universal set, not declared by active profile). Generated attributes must not appear in source.              |
-| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                                                             |
-| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                                                                       |
-| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                                                                |
-| `MSL-R014` | error    | Display ID or `Id:` reuses one owned by the profile's delivered corpus, or an earlier corpus tier (ADR-030). Rename the reusing entry.       |
+| ID         | Severity | Rule                                                                                                                                                                                                                                                                                                |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-R001` | error    | Entry block: `- [DISPLAY_ID]` with indented body (Reference-entry body is optional).                                                                                                                                                                                                                |
+| `MSL-R002` | error    | Display ID is non-empty; matches the active profile's `display-id-pattern:` for its inferred type when one applies.                                                                                                                                                                                 |
+| `MSL-R003` | error    | Exactly one `Id:` attribute per entry.                                                                                                                                                                                                                                                              |
+| `MSL-R004` | error    | `Id:` value well-formed: bare ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) for Authored entries; scheme-qualified URI (RFC 3986) for Reference entries.                                                                                                                                                        |
+| `MSL-R005` | error    | ULID unique across repository.                                                                                                                                                                                                                                                                      |
+| `MSL-R006` | error    | Display ID unique within project and registry chain.                                                                                                                                                                                                                                                |
+| `MSL-R007` | warning  | When a profile declares a `display-id-pattern:` for the entry's inferred type, the display ID matches it.                                                                                                                                                                                           |
+| `MSL-R008` | error    | Slug-shaped display ID (no scheme, not a ULID) on a Reference entry must match the slug regex.                                                                                                                                                                                                      |
+| `MSL-R009` | warning  | Sequence number > 0 in patterned display IDs.                                                                                                                                                                                                                                                       |
+| `MSL-R010` | warning  | Unknown attributes (not in core universal set, not declared by active profile). Generated attributes must not appear in source.                                                                                                                                                                     |
+| `MSL-R011` | error    | No emphasis inside entry blocks.                                                                                                                                                                                                                                                                    |
+| `MSL-R012` | warning  | Canonical attribute order. Auto-fixed.                                                                                                                                                                                                                                                              |
+| `MSL-R013` | warning  | Sequential numbering expected within a scope.                                                                                                                                                                                                                                                       |
+| `MSL-R014` | error    | Display ID or `Id:` collides with one owned by a read-only corpus — a profile-delivered corpus tier (ADR-030) or a locked upstream (ADR-031). Covers project↔corpus, project↔upstream, upstream↔upstream, and upstream↔corpus collisions; the message names both origins. Rename the reusing entry. |
 
 MSL-R001 and MSL-R011 apply to all entry blocks. MSL-R002–R010 apply to entries
 carrying an `Id:` attribute.
@@ -1647,16 +1655,17 @@ The lockfile (`MSL-L###`) and external-sync (`MSL-S###`) diagnostic families are
 governed by [ADR-022](../../architecture/adr-022-lockfile-and-external-sync.md)
 and catalogued in
 [ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md) (ADR-022
-amendment). The offline composite `markspec check` gate and `markspec lock` emit
-these lockfile diagnostics:
+amendment). The offline composite `markspec check` gate emits `MSL-L212` and
+`MSL-L215`; the network `markspec lock` flow emits `MSL-L213`, `MSL-L214`, and
+`MSL-L216`:
 
-| ID         | Severity | Rule                                                                                                                                                                                                                                                               |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MSL-L212` | error    | Canonical edge-hash drift: the project's traceability edges no longer match the hash pinned in `markspec.lock` (run `markspec lock`). Fires only when `markspec.lock` exists; checked offline (no network — upstream resolution stays in `markspec lock --check`). |
-| `MSL-L213` | warning  | An upstream `references:` or `dependencies:` entry could not be locked (unreachable remote, malformed manifest, cache-write failure). Warn-and-write: the resolvable pins still lock. Emitted by `markspec lock`, which then exits 2.                              |
-| `MSL-L214` | warning  | A `references:` restore fetched a snapshot that no longer matches the locked pin (the published site moved). The pin is kept unchanged — run `markspec lock --update=<id>` to move it. Emitted by `markspec lock`, which then exits 2.                             |
-| `MSL-L215` | warning  | A `dependencies:` pin resolved to a branch or bare sha, not a tag (an unreleased state). Advisory by default; promoted to an error under `markspec check --strict` — release builds require every dependency to be tag-pinned.                                     |
-| `MSL-L216` | warning  | An upstream id is claimed by both a `references:` and a `dependencies:` entry. The dependency is skipped (the reference snapshot owns the shared cache); set a distinct `name:` on one of them. Emitted by `markspec lock`, which then exits 2.                    |
+| ID         | Severity | Rule                                                                                                                                                                                                                                                                                           |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-L212` | error    | Canonical edge-hash drift: the project's traceability edges no longer match the hash pinned in `markspec.lock` (run `markspec lock`). Fires only when `markspec.lock` exists; checked offline (no network — upstream resolution stays in `markspec lock --check`).                             |
+| `MSL-L213` | warning  | A declared `dependencies:` or `references:` upstream could not be locked — no derivable id, a fetch/`ls-remote` failure, a malformed manifest or tree, or a schema-version mismatch. Emitted during `markspec lock` (warn-and-write: `markspec lock` still writes every pin that did resolve). |
+| `MSL-L214` | warning  | Restore-flow snapshot mismatch: a `references:` cache needed restoring, but the re-fetched content's hash no longer matches the pinned snapshot (the published site moved). Emitted during `markspec lock`; run `markspec lock --update=<id>` to move the pin deliberately.                    |
+| `MSL-L215` | warning  | A `dependencies:` pin resolved to a branch or bare sha, not a tag (an unreleased state). Advisory by default; promoted to an error under `markspec check --strict` — release builds require every dependency to be tag-pinned.                                                                 |
+| `MSL-L216` | warning  | An upstream id is claimed by both a `references:` and a `dependencies:` entry. The dependency is skipped (the reference snapshot owns the shared cache); set a distinct `name:` on one of them. Emitted by `markspec lock`, which then exits 2.                                                |
 
 > **Prefix overlap (known, pre-existing).** The `MSL-L###` lockfile family
 > shares its prefix with §8.4's link rules (`MSL-L006`), and the `MSL-S###`

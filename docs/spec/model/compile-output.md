@@ -29,7 +29,7 @@ data:
 ```json
 {
   "markspecSchemaVersion": 1,
-  "generator": { "name": "markspec", "version": "0.6.0" },
+  "generator": { "release": "0.6.0", "coreSchema": 1 },
   "project": { "name": "my-project", "version": "1.0.0" },
   "counts": { "entries": 1234, "edges": 456 },
   "entries": { "format": "ndjson", "file": "entries.ndjson" },
@@ -76,9 +76,19 @@ and `git.contributors` is opt-in.
 
 ## Federation
 
-`manifest.federation` lists upstream registries. Resolution walks each federated
-manifest's `entries.idx` (O(1) per upstream). Federation is **read-only and
-acyclic** — the registry protocol is just static files.
+`manifest.federation` lists the upstreams this project federates against — the
+URLs of the `references:` upstreams declared in `project.yaml` (empty when none
+are declared). Upstream entries are **not** fetched at resolution time.
+`markspec lock` acquires each upstream once, over the network, and caches its
+compiled snapshot under `.markspec/cache/upstreams/<id>/`; `check`, `compile`,
+and the LSP then hydrate those snapshots **offline**, so resolution is
+deterministic and reproducible.
+
+Federation is **read-only and acyclic**: a project may resolve trace targets
+that point _into_ an upstream's entries, but an upstream's own re-exported trace
+targets never re-enter the consumer's graph — each entry keeps a single
+authoritative source. A consumer never re-validates or re-classifies upstream
+entries; their types come from the upstream's own profile.
 
 For the normative schema see
 [Core Data Model — Annex C](../internal/markspec-core-data-model.md#annex-c--serialized-form-compile-output).

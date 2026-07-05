@@ -1343,7 +1343,11 @@ Always JSON, always small (target < 100 KB at 100k entries — holds no bodies):
 {
   "markspecSchemaVersion": 1,
   "generator": { "release": "0.6.0", "coreSchema": 1 },
-  "project": { "name": "...", "root": "urn:markspec:project:<id>" },
+  "project": {
+    "name": "...",
+    "root": "urn:markspec:project:<id>",
+    "version": "1.2.0", // optional; from project.yaml `version:`
+  },
   "counts": {
     "entries": 1234,
     "edges": 5678,
@@ -1405,3 +1409,21 @@ type or disappear. Consumers **must** ignore unknown keys.
 Pre-1.0 there is no cross-version compatibility guarantee — the compile output
 is a derived artifact; recompile from source is the upgrade path. The
 additive-only rule becomes binding at 1.0.
+
+### C.7 Federation
+
+`federation` is the list of upstreams the project federates against — the URLs
+of the `references:` upstreams declared in `project.yaml` (empty when none are
+declared). Upstream entries are acquired only during `markspec lock`, which pins
+each upstream in `markspec.lock` (`[[upstream.dependency]]` rows for federated
+git repositories, `[[upstream.registry]]` rows for published compile-output
+sites) and caches its compiled snapshot under `.markspec/cache/upstreams/<id>/`.
+`check`, `compile`, and the LSP hydrate those snapshots **offline** — there is
+no live-fetch resolution step, so the compile output stays deterministic.
+
+Federation is **read-only** and **acyclic**: a consumer resolves trace targets
+_into_ upstream entries, but an upstream's re-exported targets never re-enter
+the consumer's graph (each entry keeps one authoritative source), and upstream
+entries are never re-validated or re-classified by the consumer. See
+[compile-output.md — Federation](../model/compile-output.md#federation) and
+ADR-031 (federated upstream resolution).

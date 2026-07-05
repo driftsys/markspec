@@ -138,3 +138,5 @@ upstream when its pin has actually moved:
 
 With a warm cache, `markspec lock` is idempotent — it verifies each pinned
 snapshot's hash and skips re-acquiring an upstream whose pin hasn't moved.
+
+See also: [Multi-repo dependencies](multi-repo-dependencies.md).

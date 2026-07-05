@@ -84,6 +84,12 @@ parsed, plus individually addressable entry records.
 
 ## 5. Cross-project federation via the registry protocol
 
+> **Superseded.** The live registry-fetch model described in this section was
+> never built. The shipped model is lock-mediated: upstreams are pinned in
+> `markspec.lock` and hydrated offline from a local snapshot cache — see ADR-031
+> and
+> [core-data-model.md — Annex C](markspec-core-data-model.md#annex-c--serialized-form-compile-output).
+
 `manifest.federation` lists upstream registries. Resolution walks each federated
 manifest's `entries.idx` (O(1) per upstream). A federated upstream on a
 different `markspecSchemaVersion` is a hard resolution error unless the consumer

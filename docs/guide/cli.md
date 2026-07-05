@@ -103,7 +103,8 @@ does not constrain which `Labels:` values entries may carry.
 
 Once `markspec lock` has pinned a `references:` or `dependencies:` entry, its
 entries join this project's own traceability graph as read-only, origin-tagged
-citizens — not just cached files on disk:
+citizens — not just cached files on disk
+([ADR-031](../architecture/adr-031-federated-upstream-resolution.md)):
 
 - **Trace links resolve across the repo boundary.** A `Satisfies:` (or any other
   trace attribute) value that names an upstream display ID resolves exactly like
@@ -427,11 +428,9 @@ markspec show --format json STK_PRJ_0001 docs/requirements.md
 ```
 
 When the active profile [delivers a corpus](profiles.md#delivered-documents)
-(ADR-030), or the entry hydrates from a locked `references:` upstream (see
-[Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)),
-the entry prints an extra `Origin:` line and its `Source:` renders as
-`<profile-id-or-upstream-id>@<version>:<path>:<line>:<column>` instead of a raw
-filesystem path:
+(ADR-030), the entry prints an extra `Origin:` line and its `Source:` renders as
+`<profile-id>@<version>:<path>:<line>:<column>` instead of a raw filesystem
+path:
 
 ```text
 PLT_0001  Platform core service
@@ -441,6 +440,12 @@ PLT_0001  Platform core service
   ...
   Source: platform-arch@1.2.0:reference/platform.md:1:1
 ```
+
+An entry that hydrates from a locked `references:`/`dependencies:` upstream
+([ADR-031](../architecture/adr-031-federated-upstream-resolution.md); see
+[Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph))
+also prints an `Origin:` line; its `Source:` gives the entry's location in the
+upstream repo's own tree.
 
 #### context
 
@@ -541,7 +546,8 @@ markspec report traceability --label ASIL-B "docs/**/*.md"
 The traceability matrix carries an **Origin** column: `project` for a
 project-authored entry, or `<profile-id>@<version>` / `<upstream-id>@<version>`
 for an entry injected from a profile's delivered corpus (ADR-030) or a locked
-`references:` upstream (see
+`references:` upstream
+([ADR-031](../architecture/adr-031-federated-upstream-resolution.md); see
 [Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)).
 All three formats (`md`, `json`, `csv`) include it.
 
