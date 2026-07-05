@@ -54,8 +54,9 @@ class Cursor {
  * Returns whether one was found — callers stop structural parsing on a hit,
  * because the lexer silently drops the char and every diagnostic derived
  * from the mangled token stream would be noise (#780). `baseColumn` shifts
- * the reported column for callers scanning a slice of a larger span (the
- * peeled `-> nav` tail), keeping positions span-relative.
+ * the reported column for callers scanning a slice of a larger source (the
+ * peeled `-> nav` tail, or a code span offset into its paragraph — #781),
+ * keeping positions relative to the caller's chosen origin.
  */
 function scanReservedChars(
   source: string,
@@ -382,20 +383,41 @@ export function parseChildSurfaceDecl(
  * Split the leading inline code span from the rest of a bullet paragraph.
  * Handles single- and double-backtick spans. Returns `span` undefined when
  * the paragraph does not begin with a code span.
+ *
+ * `spanStart` is the number of paragraph characters consumed before the
+ * span's inner text — leading whitespace plus the opening backtick
+ * delimiter(s). {@linkcode parseElementBullet} adds it to every span-derived
+ * diagnostic column so positions are paragraph-relative (#781): the parser is
+ * handed the whole paragraph, so — like every other uxil parser, which
+ * reports columns relative to the source string it receives — its diagnostics
+ * must be relative to that paragraph, not the de-backticked span. `0` when
+ * there is no span (the only diagnostic on that path anchors at paragraph
+ * column 1).
  */
-function splitLeadingCodeSpan(text: string): { span?: string; rest: string } {
+function splitLeadingCodeSpan(
+  text: string,
+): { span?: string; rest: string; spanStart: number } {
   const t = text.replace(/^\s+/, "");
+  const leading = text.length - t.length;
   if (t.startsWith("``")) {
     const end = t.indexOf("``", 2);
-    if (end < 0) return { rest: text };
-    return { span: t.slice(2, end), rest: t.slice(end + 2) };
+    if (end < 0) return { rest: text, spanStart: 0 };
+    return {
+      span: t.slice(2, end),
+      rest: t.slice(end + 2),
+      spanStart: leading + 2,
+    };
   }
   if (t.startsWith("`")) {
     const end = t.indexOf("`", 1);
-    if (end < 0) return { rest: text };
-    return { span: t.slice(1, end), rest: t.slice(end + 1) };
+    if (end < 0) return { rest: text, spanStart: 0 };
+    return {
+      span: t.slice(1, end),
+      rest: t.slice(end + 1),
+      spanStart: leading + 1,
+    };
   }
-  return { rest: text };
+  return { rest: text, spanStart: 0 };
 }
 
 /**
@@ -405,12 +427,19 @@ function splitLeadingCodeSpan(text: string): { span?: string; rest: string } {
  * per the epic design doc): the key template is its own `:` clause after
  * the verb set — never attached to the element name, so declarations
  * cannot collide with the ref grammar's `element:{key}` form.
+ *
+ * Diagnostic columns are paragraph-relative (#781): the parser receives the
+ * whole paragraph and splits the leading code span itself, so every
+ * span-derived column is shifted by the span's start offset
+ * ({@linkcode splitLeadingCodeSpan}'s `spanStart`). The two whole-bullet
+ * diagnostics — no leading code span, and the missing event dictionary —
+ * anchor at paragraph column 1.
  */
 export function parseElementBullet(
   paragraph: string,
 ): { decl?: ElementDecl; diagnostics: UxilDiagnostic[] } {
   const diagnostics: UxilDiagnostic[] = [];
-  const { span, rest } = splitLeadingCodeSpan(paragraph);
+  const { span, rest, spanStart } = splitLeadingCodeSpan(paragraph);
   if (span === undefined) {
     diagnostics.push(
       uxilDiagnostic(
@@ -430,26 +459,40 @@ export function parseElementBullet(
     navSource = span.slice(arrow + 2).trim();
   }
 
-  // 0-based index of the trimmed nav source within the span — shifts nav
-  // diagnostic columns back to span-relative.
-  const navOffset = navSource ? span.indexOf(navSource, arrow + 2) : 0;
+  // Paragraph-relative base column for the nav tail (#781): the span's own
+  // start offset plus the nav source's 0-based index within the span. Nav
+  // diagnostics add this so their columns compose both offsets and land on
+  // the paragraph — "the -> nav sub-parse offset should compose too".
+  const navBase = navSource
+    ? spanStart + span.indexOf(navSource, arrow + 2)
+    : 0;
   // The nav tail is an orthogonal region: every return path must still
   // surface a reserved char in it, even when the struct part fails first.
   const scanNavReserved = (): void => {
-    if (navSource) scanReservedChars(navSource, diagnostics, navOffset);
+    if (navSource) scanReservedChars(navSource, diagnostics, navBase);
   };
 
   // Scan the structured part only — the nav tail is scanned separately
   // (scanNavReserved / parseUxRef below), so scanning the whole span would
   // report a single `?`/`#` in the nav target twice (#780 case 2). A hit
   // poisons the token stream (the lexer drops the char): stop before the
-  // structure checks turn the mangled tokens into contradictory codes.
-  if (scanReservedChars(structPart, diagnostics)) {
+  // structure checks turn the mangled tokens into contradictory codes. The
+  // scan's base column is the span start so its column is paragraph-relative
+  // (#781).
+  if (scanReservedChars(structPart, diagnostics, spanStart)) {
     scanNavReserved();
     return { diagnostics };
   }
 
-  const c = new Cursor(tokenize(structPart));
+  // Shift every struct-part token column by the span start so all downstream
+  // diagnostics (slash, element, verb set, key clause, states, expectEof)
+  // come out paragraph-relative (#781) without threading the offset through
+  // each individual call site.
+  const structTokens = tokenize(structPart).map((t) => ({
+    ...t,
+    position: { line: t.position.line, column: t.position.column + spanStart },
+  }));
+  const c = new Cursor(structTokens);
   if (c.peek().kind !== "SLASH") {
     diagnostics.push(
       uxilDiagnostic(
@@ -550,14 +593,18 @@ export function parseElementBullet(
 
   // Nav target (parsed as a ux ref; may be scheme-less / relative). Nav
   // diagnostics carry positions relative to the sliced nav source — shift
-  // them by navOffset so editor squiggles land on the span's own columns.
+  // them by navBase so editor squiggles land on the paragraph's own columns
+  // (#781).
   if (navSource !== undefined) {
     if (navSource.length === 0) {
+      // No nav source to point into — anchor at the '->' arrow, paragraph-
+      // relative (#781): spanStart shifts past the code-span delimiter, arrow
+      // is the 0-based index of '->' within the span, +1 makes it 1-based.
       diagnostics.push(
         uxilDiagnostic(
           "UXIL-001",
           { detail: "missing navigation target after '->'" },
-          { line: 1, column: 1 },
+          { line: 1, column: spanStart + arrow + 1 },
         ),
       );
     } else {
@@ -567,7 +614,7 @@ export function parseElementBullet(
           ...d,
           position: {
             line: d.position.line,
-            column: d.position.column + navOffset,
+            column: d.position.column + navBase,
           },
         })),
       );
@@ -580,6 +627,9 @@ export function parseElementBullet(
   // opens with a hyphen — e.g. "-5 dB is the floor" — keeps its first character.
   const eventDictionary = rest.replace(/^\s*—\s*/, "").trim();
   if (eventDictionary.length === 0) {
+    // Whole-bullet diagnostic — the missing dictionary is the trailing prose,
+    // so anchor at paragraph column 1 (the bullet start) rather than a
+    // span-derived column (#781).
     diagnostics.push(uxilDiagnostic("UXIL-006", {}, { line: 1, column: 1 }));
   }
   decl.eventDictionary = eventDictionary;
