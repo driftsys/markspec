@@ -24,13 +24,12 @@ import {
   loadConfig,
   loadDeliveredCorpus,
   loadProfileForCommand,
-  loadUpstreamCorpus,
+  loadProjectUpstreams,
   type Lockfile,
   parseLockfile,
   type ProfileChain,
   type ProjectConfig,
   type ReadFile,
-  upstreamRefsFromLockfile,
 } from "../core/mod.ts";
 
 /**
@@ -391,12 +390,13 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
 
   /**
    * Read `markspec.lock` (if present) and hydrate its locked upstream
-   * snapshots into read-only `Entry[]` (federated upstream, slice 4).
-   * Mirrors `cli/helpers.ts`'s `compileProject` load site. Soft-fail: a
-   * missing, malformed, or cold/stale-cache lockfile must never abort a
-   * compile — the MCP server degrades to "no upstream entries" instead of
-   * throwing. Also returns the lockfile's current mtime (`undefined` when
-   * absent) so the caller can update `lockfileMtime` for `isStale()`.
+   * snapshots into read-only `Entry[]` (federated upstream, slice 4) via
+   * the shared core `loadProjectUpstreams` (#771) — the same loader the
+   * CLI compiler, `check`, and the LSP use. Soft-fail: a missing,
+   * malformed, or cold/stale-cache lockfile must never abort a compile —
+   * the MCP server degrades to "no upstream entries" instead of throwing.
+   * Also returns the lockfile's current mtime (`undefined` when absent)
+   * so the caller can update `lockfileMtime` for `isStale()`.
    */
   async function loadLockedUpstreams(): Promise<
     { entries: Entry[]; diagnostics: Diagnostic[]; mtime: number | undefined }
@@ -414,10 +414,11 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       const lockfile: Lockfile | undefined = lockRaw !== undefined
         ? parseLockfile(lockRaw).lockfile
         : undefined;
-      if (!lockfile) return { entries: [], diagnostics: [], mtime };
-      const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
-      if (refs.length === 0) return { entries: [], diagnostics: [], mtime };
-      const upstream = await loadUpstreamCorpus(refs, env.readFile);
+      const upstream = await loadProjectUpstreams(
+        projectRoot,
+        lockfile,
+        env.readFile,
+      );
       return {
         entries: upstream.entries,
         diagnostics: upstream.diagnostics,

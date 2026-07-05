@@ -18,7 +18,6 @@ import {
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
   loadProjectCorpus,
-  loadProjectUpstreams,
   readFile,
   renderDiagnosticLocation,
   resolveScope,
@@ -78,7 +77,9 @@ export const checkCmd = new Command()
       // parsed exactly once. A file-local `check <file>` skips this the
       // same way it skips the corpus load below — it cannot distinguish
       // a valid cross-repo target from a typo any more than MSL-L006 could.
-      const { parseLockfile } = await import("../../core/mod.ts");
+      const { loadProjectUpstreams, parseLockfile } = await import(
+        "../../core/mod.ts"
+      );
       let lockParse: ReturnType<typeof parseLockfile> | undefined;
       let lockPath: string | undefined;
       let cacheRoot: string | undefined;
@@ -105,7 +106,7 @@ export const checkCmd = new Command()
       // Soft-fail (mirrors `compileProject`): a stale or missing upstream
       // cache surfaces diagnostics but never aborts `check`.
       const upstreams = scope.projectWide && projectRoot !== undefined
-        ? await loadProjectUpstreams(projectRoot, lockParse?.lockfile)
+        ? await loadProjectUpstreams(projectRoot, lockParse?.lockfile, readFile)
         : { entries: [], diagnostics: [] };
 
       // Declared upstream ids (federated upstream, slice 4) — derived from

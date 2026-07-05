@@ -21,8 +21,8 @@ import type {
   Diagnostic,
   DiscoveryIO,
   Entry,
-  Lockfile,
   ProfileChain,
+  ProjectConfig,
   ReadFile,
 } from "../core/mod.ts";
 import { join, resolve } from "@std/path";
@@ -268,35 +268,6 @@ export async function loadProjectCorpus(
   };
 }
 
-/** Result of {@linkcode loadProjectUpstreams}. */
-export interface ProjectUpstreams {
-  readonly entries: Entry[];
-  readonly diagnostics: readonly Diagnostic[];
-}
-
-/**
- * Hydrate locked upstream snapshots (federated upstream, slice 4) into
- * read-only `Entry[]`. Maps the lockfile's snapshot-carrying upstream rows to
- * cache directories via {@linkcode upstreamRefsFromLockfile}, then reads each
- * cached snapshot via {@linkcode loadUpstreamCorpus}. Returns empty when
- * there's no lockfile or no snapshot-carrying rows. Cold-cache soft-fail: a
- * missing/corrupt cache surfaces `UPSTREAM-SNAPSHOT-00x` diagnostics but never
- * throws — mirrors {@linkcode loadProjectCorpus}'s soft-fail posture.
- */
-export async function loadProjectUpstreams(
-  projectRoot: string,
-  lockfile: Lockfile | undefined,
-): Promise<ProjectUpstreams> {
-  if (!lockfile) return { entries: [], diagnostics: [] };
-  const { upstreamRefsFromLockfile, loadUpstreamCorpus } = await import(
-    "../core/mod.ts"
-  );
-  const refs = upstreamRefsFromLockfile(lockfile, projectRoot);
-  if (refs.length === 0) return { entries: [], diagnostics: [] };
-  const result = await loadUpstreamCorpus(refs, readFile);
-  return { entries: result.entries, diagnostics: result.diagnostics };
-}
-
 /**
  * Compile project files and return the result alongside the loaded profile
  * chain and the delivered-corpus index.
@@ -311,7 +282,7 @@ export async function loadProjectUpstreams(
  * `corpusIndex` lets callers render corpus locations without rebuilding it.
  *
  * Also loads locked upstream snapshots (federated upstream, slice 4) via
- * {@linkcode loadProjectUpstreams} and injects them into the same
+ * the shared core `loadProjectUpstreams` (#771) and injects them into the same
  * `corpusEntries` bucket passed to `compile()` — both delivered-profile
  * corpus and hydrated upstream entries are origin-carrying, read-only, and
  * injected ahead of project entries, so `compile()`'s Phase-5 corpus
@@ -320,6 +291,10 @@ export async function loadProjectUpstreams(
  * is soft-fail: a stale or missing `.markspec/cache/upstreams/` must not
  * abort `show`/`compile`/etc., so its diagnostics are surfaced but never
  * trigger `Deno.exit`.
+ *
+ * The returned `config` is the `project.yaml` this compile already resolved
+ * via {@linkcode requireProjectConfig} — callers that need org-schema fields
+ * (e.g. `report`'s `dependencies:`) use it instead of re-loading the file.
  */
 export async function compileProject(
   paths: string[],
@@ -328,10 +303,13 @@ export async function compileProject(
   result: CompileResult;
   chain: ProfileChain | null;
   corpusIndex: ReadonlyMap<string, DeliveredDocument>;
+  config: ProjectConfig;
 }> {
   const configResult = await requireProjectConfig();
   const chain = await loadActiveProfile(configResult.projectRoot);
-  const { compile, parseLockfile } = await import("../core/mod.ts");
+  const { compile, loadProjectUpstreams, parseLockfile } = await import(
+    "../core/mod.ts"
+  );
   const corpus = await loadProjectCorpus(chain);
   const corpusIndex = corpus.corpusIndex;
   let corpusError = false;
@@ -357,6 +335,7 @@ export async function compileProject(
   const upstreams = await loadProjectUpstreams(
     configResult.projectRoot,
     lockfile,
+    readFile,
   );
   for (const diag of upstreams.diagnostics) {
     console.error(
@@ -403,7 +382,7 @@ export async function compileProject(
     ],
   };
 
-  return { result: merged, chain, corpusIndex };
+  return { result: merged, chain, corpusIndex, config: configResult.config };
 }
 
 /**
