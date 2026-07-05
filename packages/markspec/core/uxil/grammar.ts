@@ -409,6 +409,19 @@ export function parseElementBullet(
     position: { line: 1, column: 1 },
   };
 
+  // Old glued form `/element{key}` (pre-#786): one targeted diagnostic
+  // pointing at the clause form, then consume-and-discard the braces so
+  // the verb set still parses instead of cascading UXIL-005 + UXIL-001.
+  if (c.peek().kind === "LBRACE") {
+    diagnostics.push(
+      uxilDiagnostic("UXIL-007", {
+        detail:
+          "the key template is a clause after the verb set (write '/element : verb : {key}')",
+      }, c.peek().position),
+    );
+    parseKey(c, diagnostics);
+  }
+
   // Verb set: `: verb[, verb…]` (>= 1).
   if (c.peek().kind !== "COLON") {
     diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
@@ -428,14 +441,21 @@ export function parseElementBullet(
     decl.verbs = verbs;
   }
 
-  // Optional key-template clause after the verb set (K1, #786): the design
-  // doc places the key as its own `:` clause — `/favorite_toggle : toggle :
-  // {track_id}` — never glued to the element name, so the first `:` clause
-  // is always the verb set.
+  // Optional key-template clause: `: {key}` after the verb set (K1, #786).
+  // Declarations declare templates — a concrete key is a citation-only form.
   if (c.peek().kind === "COLON") {
     c.advance();
+    const keyAt = c.peek().position;
     const k = parseKey(c, diagnostics);
-    if (k) decl.keyTemplate = k;
+    if (k?.kind === "template") {
+      decl.keyTemplate = k;
+    } else if (k) {
+      diagnostics.push(
+        uxilDiagnostic("UXIL-007", {
+          detail: "expected a '{name}' template, not a concrete key",
+        }, keyAt),
+      );
+    }
   }
 
   const states = parseStateSet(c, diagnostics);

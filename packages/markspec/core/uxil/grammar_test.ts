@@ -107,10 +107,22 @@ Deno.test("parseElementBullet: key-template clause after the verb set (design-do
 });
 
 Deno.test("parseElementBullet: braces glued to the element name are rejected (#786)", () => {
-  const { diagnostics } = parseElementBullet(
+  const { decl, diagnostics } = parseElementBullet(
     "`/track{id} : activate` — Selects a track.",
   );
-  assertEquals(diagnostics.some((d) => d.code === "UXIL-005"), true);
+  // One targeted UXIL-007 pointing at the moved key clause — not a
+  // misleading empty-verb-set (UXIL-005) / unexpected-token cascade.
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-007"]);
+  assertEquals(decl?.verbs, ["activate"]);
+  assertEquals(decl?.keyTemplate, undefined);
+});
+
+Deno.test("parseElementBullet: concrete key in a declaration is UXIL-007", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/track : activate : trackid` — Selects a track.",
+  );
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-007"]);
+  assertEquals(decl?.keyTemplate, undefined);
 });
 
 Deno.test("parseElementBullet: key clause with no key is UXIL-001", () => {
