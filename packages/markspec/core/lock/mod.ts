@@ -27,6 +27,8 @@ export { serializeLockfile } from "./serializer.ts";
 export { parseLockfile } from "./parser.ts";
 export type { ParseLockfileResult } from "./parser.ts";
 
+export { dependencyPinAssurance } from "./pin_assurance.ts";
+
 export { isBelowFloor } from "./compare.ts";
 
 export { checkDrift } from "./check.ts";
@@ -69,3 +71,23 @@ export type {
   ResolveProjectReferencesResult,
   UpstreamRefsIO,
 } from "./upstream_refs.ts";
+
+export {
+  type GitIO,
+  resolveProjectDependencies,
+  type ResolveProjectDependenciesOptions,
+  type ResolveProjectDependenciesResult,
+  type UpstreamDepsIO,
+} from "./upstream_deps.ts";
+export {
+  type AcquireCompileIO,
+  compileAcquiredTree,
+  type CompiledSnapshot,
+} from "./acquire_compile.ts";
+export {
+  type GitRef,
+  parseLsRemote,
+  type RefList,
+  type ResolvedIntent,
+  resolveIntent,
+} from "./git_intent.ts";

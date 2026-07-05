@@ -212,10 +212,21 @@ export const checkCmd = new Command()
       // Markdown formatter, the parsed lockfile) and calls the stages.
       let fmtDiagnostics: Diagnostic[] = [];
       let lockDiagnostics: Diagnostic[] = [];
+      // MSL-L215 (design §4.4): unreleased-dependency-pin advisory, one
+      // warning per `[[upstream.dependency]]` row not pinned to a tag.
+      // Project-wide only, reusing the `lockParse` already read above — a
+      // file-local `check <file>` cannot distinguish "no lockfile" from
+      // "irrelevant to this file" any more than the other lockfile-backed
+      // gates can, so it stays out of scope there. Below `--strict` this is
+      // the gentle project-level advisory; `--strict` promotes it to an
+      // error via the existing warning→error map below (it is deliberately
+      // NOT added to `strictExempt` — an unreleased pin is the consumer's
+      // own, fixable choice, unlike corpus-attributed findings).
+      let pinDiagnostics: Diagnostic[] = [];
       if (scope.projectWide) {
-        const { fmtDriftGate, lockfileDriftGate } = await import(
-          "../../core/mod.ts"
-        );
+        const { dependencyPinAssurance, fmtDriftGate, lockfileDriftGate } =
+          await import("../../core/mod.ts");
+        pinDiagnostics = dependencyPinAssurance(lockParse?.lockfile);
 
         const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
@@ -255,7 +266,8 @@ export const checkCmd = new Command()
       }
 
       // Merge upstream-load, parse-level (MSL-P0xx), corpus-load, pipeline,
-      // listing, fmt-drift, lockfile-drift, and prose-lint diagnostics.
+      // listing, fmt-drift, lockfile-drift, pin-assurance, and prose-lint
+      // diagnostics.
       const allDiagnostics = [
         ...upstreams.diagnostics,
         ...parseDiagnostics,
@@ -264,6 +276,7 @@ export const checkCmd = new Command()
         ...listingDiagnostics,
         ...fmtDiagnostics,
         ...lockDiagnostics,
+        ...pinDiagnostics,
         ...proseDiagnostics,
       ];
 

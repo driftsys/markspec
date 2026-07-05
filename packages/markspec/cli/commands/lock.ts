@@ -15,11 +15,13 @@ import { dirname, fromFileUrl, join } from "@std/path";
 import {
   checkDrift,
   collectProjectEntries,
+  compileAcquiredTree,
   defaultAppendFile,
   deriveUpstreamId,
   type Diagnostic,
   discoverProjectRoot,
   ensureCacheGitignored,
+  type GitIO,
   loadConfig,
   loadProfileForCommand,
   loadToolConfig,
@@ -27,15 +29,142 @@ import {
   LOCKFILE_SCHEMA_VERSION,
   type Mapping,
   parseLockfile,
+  parseLsRemote,
   parseMapping,
+  resolveProjectDependencies,
   resolveProjectReferences,
   resolveUpstreams,
   serializeLockfile,
   upstreamCacheRoot,
+  type UpstreamDependency,
   type UpstreamRegistry,
   validateMappings,
+  VERSION,
 } from "../../core/mod.ts";
 import { denoDiscoveryIO } from "../helpers.ts";
+
+/**
+ * Reject a git URL that git could parse as an option rather than a remote.
+ * A URL beginning with `-` is read by git as a flag (e.g.
+ * `--upload-pack=sh -c '…'` → argument-injection RCE); an empty URL is
+ * meaningless. Returns an error string when unsafe, `undefined` when the
+ * URL is safe to hand to git. The complementary `ext::`/`fd::`
+ * transport-helper RCE class is blocked separately by `GIT_ALLOW_PROTOCOL`
+ * in {@linkcode runGit}. Both guards target `dependencies[].url` values
+ * that arrive from an untrusted `project.yaml`.
+ */
+function unsafeGitUrl(url: string): string | undefined {
+  if (url === "" || url.startsWith("-")) {
+    return "refusing unsafe git URL (leading '-' could be parsed as a git option)";
+  }
+  return undefined;
+}
+
+/**
+ * Repo-context env vars git reads to locate the repository it operates on.
+ * When `markspec lock` runs inside a git hook (e.g. the pre-push hook that
+ * runs the test suite), these are exported by the outer git and would be
+ * inherited by our `git init`/`fetch` subprocess — redirecting dependency
+ * acquisition into the ambient repo instead of the temp dir. `runGit`
+ * strips them so every git subprocess discovers its own working tree.
+ */
+const GIT_DISCOVERY_ENV_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_PREFIX",
+  "GIT_NAMESPACE",
+] as const;
+
+/** Run a git subprocess, returning stdout or `{ error }`. Never throws. */
+async function runGit(
+  args: string[],
+): Promise<{ stdout: string } | { error: string }> {
+  try {
+    // Start from a COPY of the full parent env so PATH, HOME, SSH_AUTH_SOCK,
+    // proxy vars, and credential-helper config survive (real https/ssh
+    // remotes need them), then strip the repo-discovery vars an ambient git
+    // hook would export, and add the protocol allowlist. `clearEnv: true`
+    // makes ONLY this curated env reach git — the stripped vars can't leak
+    // back in.
+    const env = { ...Deno.env.toObject() };
+    for (const key of GIT_DISCOVERY_ENV_VARS) delete env[key];
+    // Protocol allowlist — git will only speak these transports, blocking
+    // the `ext::`/`fd::` transport-helper RCE reachable from a
+    // `dependencies[].url` in an untrusted project.yaml. `file` is
+    // required: the e2e fixtures acquire from local bare-repo paths (git's
+    // `file` transport).
+    env.GIT_ALLOW_PROTOCOL = "https:ssh:git:file";
+    const cmd = new Deno.Command("git", {
+      args,
+      stdout: "piped",
+      stderr: "piped",
+      env,
+      clearEnv: true,
+    });
+    const out = await cmd.output();
+    if (!out.code) return { stdout: new TextDecoder().decode(out.stdout) };
+    return {
+      error: new TextDecoder().decode(out.stderr).trim() ||
+        `git exit ${out.code}`,
+    };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+const denoGitIO: GitIO = {
+  async lsRemote(url) {
+    const bad = unsafeGitUrl(url);
+    if (bad) return { error: bad };
+    const r = await runGit(["ls-remote", "--symref", url]);
+    return "error" in r ? r : parseLsRemote(r.stdout);
+  },
+  async acquireTree(url, sha, destDir) {
+    const bad = unsafeGitUrl(url);
+    if (bad) return { error: bad };
+    // Shallow fetch-by-sha, no history, no blobs until needed, then detach.
+    // (Requires the remote to allow reachable-sha fetches — GitHub/GitLab do;
+    // the e2e bare-repo fixture sets uploadpack.allowReachableSHA1InWant.)
+    for (
+      const args of [
+        ["-C", destDir, "init", "-q"],
+        ["-C", destDir, "remote", "add", "origin", url],
+        [
+          "-C",
+          destDir,
+          "fetch",
+          "-q",
+          "--depth",
+          "1",
+          "--filter=blob:none",
+          "origin",
+          sha,
+        ],
+        ["-C", destDir, "checkout", "-q", "FETCH_HEAD"],
+      ]
+    ) {
+      const r = await runGit(args);
+      if ("error" in r) return { error: r.error };
+    }
+    // Drop the .git directory so it never enters discovery or lingers on disk.
+    try {
+      await Deno.remove(`${destDir}/.git`, { recursive: true });
+    } catch { /* best-effort */ }
+    return {};
+  },
+};
+
+/** Compile an acquired tree with Deno-backed IO. */
+function denoCompileTree(treeRoot: string) {
+  return compileAcquiredTree(treeRoot, {
+    readFile: readFileOrUndefined,
+    readText: (p) => Deno.readTextFile(p),
+    discovery: denoDiscoveryIO(),
+  }, VERSION);
+}
 
 interface LockOptions {
   check?: boolean;
@@ -164,16 +293,6 @@ async function runLock(options: LockOptions): Promise<void> {
     console.error(`${d.severity}: ${d.code}: ${d.message}`);
   }
 
-  // Git-repository dependencies are declared but not yet acquired — slice
-  // 3 lands `dependencies:` resolution. Surface the gap per-entry rather
-  // than silently dropping the declaration.
-  for (const dep of config.dependencies) {
-    const id = deriveUpstreamId(dep) ?? dep.url;
-    console.error(
-      `dependency '${id}' declared — git dependency acquisition lands in a future release; row not written`,
-    );
-  }
-
   // Idempotent — no-op once `.markspec/cache/` is already ignored.
   await ensureCacheGitignored(
     projectRoot,
@@ -200,10 +319,27 @@ async function runLock(options: LockOptions): Promise<void> {
   for (const d of refResult.diagnostics) {
     console.error(`${d.severity}: ${d.code}: ${d.message}`);
   }
-  if (refResult.diagnostics.some((d) => d.severity === "error")) {
-    // A reference failed to lock — abort before writing so markspec.lock
-    // never records a partial/broken pin.
-    Deno.exit(1);
+
+  const existingDependencies = (existingLockfile?.upstreams ?? [])
+    .filter((u): u is UpstreamDependency => u.kind === "dependency");
+
+  const depResult = await resolveProjectDependencies({
+    dependencies: config.dependencies,
+    existing: existingDependencies,
+    cacheRoot: upstreamCacheRoot(projectRoot),
+    update: options.update ?? false,
+    io: {
+      git: denoGitIO,
+      compileTree: denoCompileTree,
+      readFile: defaultReadFile,
+      writeFile: defaultWriteFile,
+      makeTempDir: () => Deno.makeTempDir({ prefix: "markspec-dep-" }),
+      removeDir: (p) => Deno.remove(p, { recursive: true }).catch(() => {}),
+    },
+    lockedAt: resolved.lockedAt,
+  });
+  for (const d of depResult.diagnostics) {
+    console.error(`${d.severity}: ${d.code}: ${d.message}`);
   }
 
   const lockfile: Lockfile = {
@@ -216,6 +352,7 @@ async function runLock(options: LockOptions): Promise<void> {
       ...resolved.references.map((r) => r.upstream),
       ...resolved.profiles.map((p) => p.upstream),
       ...refResult.registries,
+      ...depResult.dependencies,
     ],
     boundEntries: resolved.boundEntries.map((b) => b.boundEntry),
     edges: resolved.edges,
@@ -239,6 +376,7 @@ async function runLock(options: LockOptions): Promise<void> {
           references: { resolved: resolved.references.length },
           profiles: { resolved: resolved.profiles.length },
           registries: { resolved: refResult.registries.length },
+          dependencies: { resolved: depResult.dependencies.length },
           "bound-entries": { resolved: resolved.boundEntries.length },
           "canonical-edges": { count: resolved.canonicalEdgeCount },
           "ledger-edges": { count: resolved.edges.length },
@@ -252,7 +390,7 @@ async function runLock(options: LockOptions): Promise<void> {
     );
   } else {
     console.error(
-      `wrote markspec.lock (${resolved.references.length} references, ${resolved.profiles.length} profiles, ${refResult.registries.length} registries, ${resolved.boundEntries.length} bound entries, ${resolved.canonicalEdgeCount} edges, ${resolved.edges.length} ledger edges)`,
+      `wrote markspec.lock (${resolved.references.length} references, ${resolved.profiles.length} profiles, ${refResult.registries.length} registries, ${depResult.dependencies.length} dependencies, ${resolved.boundEntries.length} bound entries, ${resolved.canonicalEdgeCount} edges, ${resolved.edges.length} ledger edges)`,
     );
   }
 
