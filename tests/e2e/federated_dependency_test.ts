@@ -21,7 +21,7 @@
  * `--allow-run`.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 
 const CLI = new URL("../../packages/markspec/main.ts", import.meta.url)
@@ -86,13 +86,52 @@ profile:
       display-id-pattern: "STK_ICD_{n:04d}"
 `;
 
+/** The upstream's ICD document at v1.0.0 — one entry. */
+const ICD_V1 = [
+  "# ICD",
+  "",
+  "- [STK_ICD_0001] Brake torque interface",
+  "",
+  "  The interface shall carry brake torque within 5 ms.",
+  "",
+  "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  "      Type: requirement",
+  "",
+].join("\n");
+
+/** The upstream's ICD document at v2.0.0 — adds a second entry so the
+ * v2.0.0 commit is a genuinely different tree than v1.0.0. */
+const ICD_V2 = [
+  "# ICD",
+  "",
+  "- [STK_ICD_0001] Brake torque interface",
+  "",
+  "  The interface shall carry brake torque within 5 ms.",
+  "",
+  "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  "      Type: requirement",
+  "",
+  "- [STK_ICD_0002] Wheel-speed interface",
+  "",
+  "  The interface shall report wheel speed within 10 ms.",
+  "",
+  "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG",
+  "      Type: requirement",
+  "",
+].join("\n");
+
 /**
- * Create an upstream repo with one entry, commit, tag v1.0.0; return the
- * bare repo's path (used as a `dependencies:` `url:`) and the tag's sha.
+ * Create an upstream repo with two tagged releases. First commit is
+ * tagged `v1.0.0` (one entry); a second commit adds a second entry and
+ * is tagged `v2.0.0`. Two tags are essential so the `auto` intent has a
+ * real choice to make — a lone `v1.0.0` would let a "picks any tag"
+ * regression pass. Both tags travel in the bare clone (cloned after both
+ * exist). Returns the bare repo's path (used as a `dependencies:` `url:`)
+ * plus each tag's resolved sha.
  */
 async function makeUpstream(
   root: string,
-): Promise<{ bare: string; sha: string }> {
+): Promise<{ bare: string; shaV1: string; shaV2: string }> {
   const work = join(root, "up-work");
   await Deno.mkdir(join(work, "docs"), { recursive: true });
   await Deno.writeTextFile(
@@ -108,34 +147,33 @@ async function makeUpstream(
     join(work, "profiles", "p", "markspec.yaml"),
     UPSTREAM_PROFILE_YAML,
   );
-  await Deno.writeTextFile(
-    join(work, "docs", "icd.md"),
-    [
-      "# ICD",
-      "",
-      "- [STK_ICD_0001] Brake torque interface",
-      "",
-      "  The interface shall carry brake torque within 5 ms.",
-      "",
-      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
-      "      Type: requirement",
-      "",
-    ].join("\n"),
-  );
   await git(["init", "-q", "-b", "main"], work);
   await git(["config", "user.email", "t@t.test"], work);
   await git(["config", "user.name", "t"], work);
+
+  // v1.0.0 — one entry.
+  await Deno.writeTextFile(join(work, "docs", "icd.md"), ICD_V1);
   await git(["add", "."], work);
   await git(["commit", "-q", "-m", "init"], work);
   await git(["tag", "v1.0.0"], work);
-  // Bare clone as the "remote"; allow fetch-by-sha for the acquire path
-  // (`markspec lock`'s `acquireTree` fetches the resolved sha directly
-  // rather than a ref name — a plain bare repo rejects that fetch).
+  const shaV1 = await git(["rev-parse", "v1.0.0"], work);
+
+  // v2.0.0 — a second commit + higher tag, so `auto` picks v2.0.0 over
+  // v1.0.0 (proving "highest tag", not just "a tag").
+  await Deno.writeTextFile(join(work, "docs", "icd.md"), ICD_V2);
+  await git(["add", "."], work);
+  await git(["commit", "-q", "-m", "add wheel-speed interface"], work);
+  await git(["tag", "v2.0.0"], work);
+  const shaV2 = await git(["rev-parse", "v2.0.0"], work);
+
+  // Bare clone as the "remote" (after BOTH tags exist so it carries
+  // them); allow fetch-by-sha for the acquire path (`markspec lock`'s
+  // `acquireTree` fetches the resolved sha directly rather than a ref
+  // name — a plain bare repo rejects that fetch).
   const bare = join(root, "up.git");
   await git(["clone", "-q", "--bare", work, bare], root);
   await git(["config", "uploadpack.allowReachableSHA1InWant", "true"], bare);
-  const sha = await git(["rev-parse", "v1.0.0"], work);
-  return { bare, sha };
+  return { bare, shaV1, shaV2 };
 }
 
 /**
@@ -161,7 +199,9 @@ profile:
 Deno.test("lock acquires a git dependency and resolves a cross-repo Satisfies", async () => {
   const root = await Deno.makeTempDir();
   try {
-    const { bare, sha } = await makeUpstream(root);
+    // Explicit `version: v1.0.0` pins v1.0.0 even though v2.0.0 exists —
+    // an explicit tag intent overrides "highest".
+    const { bare, shaV1 } = await makeUpstream(root);
     const proj = join(root, "consumer");
     await Deno.mkdir(join(proj, "docs"), { recursive: true });
     await Deno.writeTextFile(
@@ -198,11 +238,12 @@ Deno.test("lock acquires a git dependency and resolves a cross-repo Satisfies", 
     assertEquals(lock1.code, 0, `lock1 stderr: ${lock1.stderr}`);
     const lockText = await Deno.readTextFile(join(proj, "markspec.lock"));
     assertStringIncludes(lockText, "[[upstream.dependency]]");
-    // The serializer column-aligns `=` within the `[[upstream.dependency]]`
-    // table (see core/lock/serializer.ts) — `resolved` gets two spaces of
-    // padding there, not one.
-    assertStringIncludes(lockText, 'resolved  = "tag:v1.0.0"');
-    assertStringIncludes(lockText, sha);
+    // Whitespace-tolerant so a future lockfile column-alignment change in
+    // core/lock/serializer.ts doesn't break this spuriously (the emitter
+    // currently pads `resolved` with two spaces before `=`). Still asserts
+    // the full `tag:v1.0.0` value; the sha is checked separately below.
+    assertMatch(lockText, /resolved\s*=\s*"tag:v1\.0\.0"/);
+    assertStringIncludes(lockText, shaV1);
 
     // check resolves the cross-repo Satisfies (no broken-ref error).
     const chk = await run(["check"], proj);
@@ -235,7 +276,9 @@ Deno.test("lock acquires a git dependency and resolves a cross-repo Satisfies", 
 Deno.test("auto intent pins the highest tag; --strict passes on a tag pin", async () => {
   const root = await Deno.makeTempDir();
   try {
-    const { bare } = await makeUpstream(root);
+    // No `version:` → `auto` intent. The upstream has both v1.0.0 and
+    // v2.0.0, so a correct resolver MUST pick the higher (v2.0.0).
+    const { bare, shaV2 } = await makeUpstream(root);
     const proj = join(root, "consumer");
     await Deno.mkdir(proj, { recursive: true });
     await Deno.writeTextFile(
@@ -244,10 +287,12 @@ Deno.test("auto intent pins the highest tag; --strict passes on a tag pin", asyn
     );
     const lock = await run(["lock"], proj);
     assertEquals(lock.code, 0, `lock stderr: ${lock.stderr}`);
-    assertStringIncludes(
-      await Deno.readTextFile(join(proj, "markspec.lock")),
-      'resolved  = "tag:v1.0.0"',
-    );
+    const lockText = await Deno.readTextFile(join(proj, "markspec.lock"));
+    // Highest tag wins (v2.0.0, not v1.0.0), and the pinned sha is
+    // v2.0.0's — both must hold, or a "picks any/lowest tag" regression
+    // slips through. Whitespace-tolerant match (see scenario 1's note).
+    assertMatch(lockText, /resolved\s*=\s*"tag:v2\.0\.0"/);
+    assertStringIncludes(lockText, shaV2);
     // Tag pin → --strict has no unreleased-pin error.
     const strict = await run(["check", "--strict"], proj);
     assertEquals(strict.stderr.includes("MSL-L215"), false);
