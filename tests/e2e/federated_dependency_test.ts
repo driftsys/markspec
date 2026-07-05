@@ -54,13 +54,39 @@ async function run(
   };
 }
 
+/**
+ * Repo-context env vars git reads to locate the repository it operates on.
+ * The `git()` helper strips these so a fixture `git init`/`commit` in a temp
+ * dir isn't redirected to the ambient repo when the suite itself runs inside
+ * a git hook (e.g. the pre-push hook that runs the test suite exports
+ * GIT_DIR/GIT_WORK_TREE). Mirrors the same strip the CLI's own `runGit`
+ * applies in `packages/markspec/cli/commands/lock.ts` (blackbox e2e can't
+ * import it).
+ */
+const GIT_DISCOVERY_ENV_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_PREFIX",
+  "GIT_NAMESPACE",
+] as const;
+
 /** Run real `git`, returning trimmed stdout. Throws on non-zero exit. */
 async function git(args: string[], cwd: string): Promise<string> {
+  // Copy the full parent env, strip the repo-discovery vars an ambient git
+  // hook would export, and pass clearEnv so only the curated env reaches
+  // git — the fixture's own temp-dir working tree is what git discovers.
+  const env = { ...Deno.env.toObject() };
+  for (const key of GIT_DISCOVERY_ENV_VARS) delete env[key];
   const o = await new Deno.Command("git", {
     args,
     cwd,
     stdout: "piped",
     stderr: "piped",
+    env,
+    clearEnv: true,
   }).output();
   if (o.code) throw new Error(new TextDecoder().decode(o.stderr));
   return new TextDecoder().decode(o.stdout).trim();

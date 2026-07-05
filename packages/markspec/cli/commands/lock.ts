@@ -60,22 +60,49 @@ function unsafeGitUrl(url: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Repo-context env vars git reads to locate the repository it operates on.
+ * When `markspec lock` runs inside a git hook (e.g. the pre-push hook that
+ * runs the test suite), these are exported by the outer git and would be
+ * inherited by our `git init`/`fetch` subprocess — redirecting dependency
+ * acquisition into the ambient repo instead of the temp dir. `runGit`
+ * strips them so every git subprocess discovers its own working tree.
+ */
+const GIT_DISCOVERY_ENV_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_PREFIX",
+  "GIT_NAMESPACE",
+] as const;
+
 /** Run a git subprocess, returning stdout or `{ error }`. Never throws. */
 async function runGit(
   args: string[],
 ): Promise<{ stdout: string } | { error: string }> {
   try {
+    // Start from a COPY of the full parent env so PATH, HOME, SSH_AUTH_SOCK,
+    // proxy vars, and credential-helper config survive (real https/ssh
+    // remotes need them), then strip the repo-discovery vars an ambient git
+    // hook would export, and add the protocol allowlist. `clearEnv: true`
+    // makes ONLY this curated env reach git — the stripped vars can't leak
+    // back in.
+    const env = { ...Deno.env.toObject() };
+    for (const key of GIT_DISCOVERY_ENV_VARS) delete env[key];
+    // Protocol allowlist — git will only speak these transports, blocking
+    // the `ext::`/`fd::` transport-helper RCE reachable from a
+    // `dependencies[].url` in an untrusted project.yaml. `file` is
+    // required: the e2e fixtures acquire from local bare-repo paths (git's
+    // `file` transport).
+    env.GIT_ALLOW_PROTOCOL = "https:ssh:git:file";
     const cmd = new Deno.Command("git", {
       args,
       stdout: "piped",
       stderr: "piped",
-      // Protocol allowlist — git will only speak these transports, blocking
-      // the `ext::`/`fd::` transport-helper RCE reachable from a
-      // `dependencies[].url` in an untrusted project.yaml. `file` is
-      // required: the e2e fixtures acquire from local bare-repo paths (git's
-      // `file` transport). Deno.Command defaults `clearEnv:false`, so this
-      // key merges on top of the inherited parent env — PATH/HOME preserved.
-      env: { GIT_ALLOW_PROTOCOL: "https:ssh:git:file" },
+      env,
+      clearEnv: true,
     });
     const out = await cmd.output();
     if (!out.code) return { stdout: new TextDecoder().decode(out.stdout) };
