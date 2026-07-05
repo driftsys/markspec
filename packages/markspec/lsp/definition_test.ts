@@ -7,12 +7,13 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { Entry } from "../core/model/mod.ts";
+import type { Entry, SourceLocation } from "../core/model/mod.ts";
 import { makeDisplayId } from "../core/model/mod.ts";
 import {
   entryToLspLocation,
   hasNavigableLocation,
   resolveNavigableLocation,
+  sourceLocationToLspLocation,
 } from "./definition.ts";
 
 function makeEntry(file: string, line: number, column: number): Entry {
@@ -57,6 +58,31 @@ Deno.test("entryToLspLocation: line 1 column 1 → 0,0 range", () => {
   const loc = entryToLspLocation(entry);
   assertEquals(loc.range.start.line, 0);
   assertEquals(loc.range.start.character, 0);
+});
+
+Deno.test("sourceLocationToLspLocation: converts file path to file:// URI", () => {
+  const loc: SourceLocation = { file: "/abs/path/req.md", line: 5, column: 1 };
+  assertEquals(
+    sourceLocationToLspLocation(loc).uri,
+    "file:///abs/path/req.md",
+  );
+});
+
+Deno.test("sourceLocationToLspLocation: line and column are 0-based (LSP convention)", () => {
+  const loc: SourceLocation = { file: "/x/req.md", line: 5, column: 3 };
+  const result = sourceLocationToLspLocation(loc);
+  assertEquals(result.range.start.line, 4);
+  assertEquals(result.range.start.character, 2);
+  assertEquals(result.range.end.line, 4);
+  assertEquals(result.range.end.character, 2);
+});
+
+Deno.test("entryToLspLocation: matches sourceLocationToLspLocation(entry.location)", () => {
+  const entry = makeEntry("/abs/path/req.md", 5, 1);
+  assertEquals(
+    entryToLspLocation(entry),
+    sourceLocationToLspLocation(entry.location),
+  );
 });
 
 function makeUpstreamEntry(file: string): Entry {
