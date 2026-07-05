@@ -1300,12 +1300,25 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
       if (!uxRegistry) return [];
       const partial = extractUxRefPartial(line);
       const items = buildUxCompletionItems(uxRegistry, partial);
+      // Explicit textEdit spanning the typed partial — without it, the
+      // client's default word-boundary heuristic excludes '.' from a
+      // "word," so accepting a dotted label like "media.home" after
+      // typing past a dot would only replace the text after the last
+      // dot (mirrors the mid-typed scaffold's replacementRange fix).
+      const replaceRange = {
+        start: {
+          line: params.position.line,
+          character: params.position.character - partial.length,
+        },
+        end: params.position,
+      };
       return {
         isIncomplete: partial.length > 0,
         items: items.map((item) => ({
           label: item.label,
           detail: item.detail,
           kind: CompletionItemKind.Reference,
+          textEdit: { range: replaceRange, newText: item.label },
         })),
       };
     });
