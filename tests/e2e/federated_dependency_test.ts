@@ -14,44 +14,31 @@
  * source modules, only `Deno.Command` against the real CLI binary
  * (`deno run … main.ts`) and real `git`.
  *
- * This suite does NOT route through `tests/e2e/helpers.ts`'s shared
- * `markspec()` helper — that helper only grants `--allow-read
- * --allow-write`, but the `lock` command spawns `git` as a subprocess
- * to acquire a dependency tree, which additionally requires
- * `--allow-run`.
+ * This suite routes CLI invocations through `tests/e2e/helpers.ts`'s
+ * shared {@linkcode markspecInDir} helper (granting the extra
+ * `--allow-run --allow-env` the `lock` command needs to spawn `git`),
+ * rather than the base `markspec()` helper which only grants
+ * `--allow-read --allow-write`.
  */
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
+import { markspecInDir } from "./helpers.ts";
 
-const CLI = new URL("../../packages/markspec/main.ts", import.meta.url)
-  .pathname;
-
-/** Run the real CLI binary with the permissions `lock` needs to spawn `git`. */
-async function run(
+/**
+ * Run the real CLI binary in `cwd` with the permissions `lock` needs to
+ * spawn `git` (`--allow-run --allow-env`). Delegates to the shared
+ * {@linkcode markspecInDir} helper, which resolves the CLI entry via
+ * `fromFileUrl` (correct on Windows, unlike a raw `URL.pathname` that
+ * yields a `/D:/…` leading-slash path Deno can't map to the workspace
+ * config) and scrubs `GIT_*` env so a fixture running inside a git hook
+ * isn't redirected to the ambient repo.
+ */
+function run(
   args: string[],
   cwd: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const cmd = new Deno.Command("deno", {
-    args: [
-      "run",
-      "--allow-read",
-      "--allow-write",
-      "--allow-run",
-      "--allow-env",
-      CLI,
-      ...args,
-    ],
-    cwd,
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const o = await cmd.output();
-  return {
-    code: o.code,
-    stdout: new TextDecoder().decode(o.stdout),
-    stderr: new TextDecoder().decode(o.stderr),
-  };
+  return markspecInDir(cwd, args, ["--allow-run", "--allow-env"]);
 }
 
 /**
