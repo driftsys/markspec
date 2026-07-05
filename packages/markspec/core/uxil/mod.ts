@@ -1,10 +1,12 @@
 /**
  * @module uxil
  *
- * Parse-only uxil DSL layer (S7 #725): `ux:` reference + declaration-form
- * parsers, the declaration AST, structured parse diagnostics, and the
- * form recognizer. Not wired into `core/mod.ts` — S8 (uxil compiler +
- * uxRegistry) consumes these; S9 wires diagnostics to the CLI/LSP.
+ * uxil DSL layer: `ux:` reference + declaration-form parsers (S7 #725),
+ * the declaration AST, structured parse diagnostics, the form recognizer,
+ * and the compiler — corpus registry, enforced semantics, and a
+ * deterministic machine projection (S8 #726). Not wired into
+ * `core/mod.ts` — uxil stays out of the public library boundary until
+ * S9/S10 wire the compiler/LSP into the CLI and editor surfaces.
  */
 export type {
   ChildSurfaceDecl,
@@ -27,3 +29,21 @@ export {
 } from "./grammar.ts";
 export type { UxilForm } from "./recognize.ts";
 export { classifyUxilForm } from "./recognize.ts";
+
+// ── S8: compiler + registry + projection ────────────────────────────────
+export type { UxElement, UxSurface, UxSurfaceTree } from "./assemble.ts";
+export { assembleUxSurface, UX_REF_OPS } from "./assemble.ts";
+export type { SurfaceRecord, UxRegistry } from "./registry.ts";
+export { buildUxRegistry } from "./registry.ts";
+export type { UxCitation } from "./citations.ts";
+export { extractUxCitations, isUxCitationText } from "./citations.ts";
+export type { UxilValidation } from "./validator.ts";
+export { validateUxil } from "./validator.ts";
+export type {
+  ProjectedElement,
+  ProjectedSurface,
+  UxProjection,
+} from "./projection.ts";
+export { projectUxRegistry } from "./projection.ts";
+export type { KindInfo, VerbInfo } from "./vocab.ts";
+export { isKnownKind, isKnownVerb, UX_KINDS, UX_VERBS } from "./vocab.ts";
