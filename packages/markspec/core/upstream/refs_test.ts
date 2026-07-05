@@ -106,9 +106,43 @@ Deno.test("upstreamRefsFromLockfile: dependency row → ref with cache dir", () 
   );
   assertEquals(refs, [{
     id: "product",
-    // UpstreamDependency carries no `version` field — the badge label
-    // falls back to "unversioned" (the resolved pin lives in `resolved`).
-    version: "unversioned",
+    // UpstreamDependency carries no `version` field — the badge label is
+    // derived from the `resolved` pin. A `tag:` pin renders bare (#800).
+    version: "v2.1.0",
     dir: join(upstreamCacheRoot("/proj"), "product"),
   }]);
+});
+
+Deno.test("upstreamRefsFromLockfile: dependency branch pin → bare branch name", () => {
+  const refs = upstreamRefsFromLockfile(
+    lf([{
+      kind: "dependency",
+      id: "product",
+      url: "git@github.com:acme/product.git",
+      intent: "main",
+      resolved: "branch:main",
+      sha: "a".repeat(40),
+      snapshot: "sha256:c",
+      lockedAt: "2026-07-04T00:00:00Z",
+    }]),
+    "/proj",
+  );
+  assertEquals(refs[0].version, "main");
+});
+
+Deno.test("upstreamRefsFromLockfile: dependency sha pin → 7-char short hash", () => {
+  const refs = upstreamRefsFromLockfile(
+    lf([{
+      kind: "dependency",
+      id: "product",
+      url: "git@github.com:acme/product.git",
+      intent: "auto",
+      resolved: "sha:abcdef0123456789abcdef0123456789abcdef01",
+      sha: "abcdef0123456789abcdef0123456789abcdef01",
+      snapshot: "sha256:c",
+      lockedAt: "2026-07-04T00:00:00Z",
+    }]),
+    "/proj",
+  );
+  assertEquals(refs[0].version, "abcdef0");
 });
