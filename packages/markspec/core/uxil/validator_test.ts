@@ -149,3 +149,125 @@ Deno.test("validateUxil: clean corpus has no diagnostics and returns the registr
   assertEquals(diagnostics, []);
   assertEquals(registry.surfaces.get("home")?.length, 1);
 });
+
+Deno.test("UXIL-018 citation of an unknown surface", () => {
+  const decl = `- [UXI_A_0001] A
+
+  \`ux:home : screen\` — declared.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const cite = `- [FREQ_A_0001] Cite
+
+  Pressing does \`ux:other.surface/foo!activate\`.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZC
+`;
+  const { diagnostics } = validateUxil(
+    entriesOf({ "a.md": decl, "c.md": cite }),
+  );
+  assert(has(diagnostics, "UXIL-018"));
+});
+
+Deno.test("UXIL-019 citation of an unknown element", () => {
+  const decl = `- [UXI_A_0001] A
+
+  \`ux:home : screen\` offers:
+
+  - \`/play : activate\` — play.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const cite = `- [FREQ_A_0001] Cite
+
+  Pressing does \`ux:home/nonexistent!activate\`.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZC
+`;
+  const { diagnostics } = validateUxil(
+    entriesOf({ "a.md": decl, "c.md": cite }),
+  );
+  assert(has(diagnostics, "UXIL-019"));
+});
+
+Deno.test("UXIL-020 verb not in element's declared set", () => {
+  const decl = `- [UXI_A_0001] A
+
+  \`ux:home : screen\` offers:
+
+  - \`/play : activate\` — play.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const cite = `- [FREQ_A_0001] Cite
+
+  Pressing does \`ux:home/play!toggle\`.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZC
+`;
+  const { diagnostics } = validateUxil(
+    entriesOf({ "a.md": decl, "c.md": cite }),
+  );
+  assert(has(diagnostics, "UXIL-020"));
+});
+
+Deno.test("UXIL-021 undeclared state cited", () => {
+  const decl = `- [UXI_A_0001] A
+
+  \`ux:home : screen @ ready\` — only "ready" declared.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const cite = `- [FREQ_A_0001] Cite
+
+  While \`ux:home@loading\` is shown.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZC
+`;
+  const { diagnostics } = validateUxil(
+    entriesOf({ "a.md": decl, "c.md": cite }),
+  );
+  assert(has(diagnostics, "UXIL-021"));
+});
+
+Deno.test("UXIL-022 concrete key cited where a template is declared", () => {
+  const decl = `- [UXI_A_0001] A
+
+  \`ux:home : screen\` offers:
+
+  - \`/favorite_toggle : toggle : {track_id}\` — marks a favourite.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const cite = `- [FREQ_A_0001] Cite
+
+  Pressing does \`ux:home/favorite_toggle:abc123!toggle\`.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZC
+`;
+  const { diagnostics } = validateUxil(
+    entriesOf({ "a.md": decl, "c.md": cite }),
+  );
+  assert(has(diagnostics, "UXIL-022"));
+});
+
+Deno.test("validateUxil: a clean citation resolves with no diagnostics", () => {
+  const decl = `- [UXI_A_0001] A
+
+  \`ux:home : screen @ ready\` offers:
+
+  - \`/play : activate\` — play.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const cite = `- [FREQ_A_0001] Cite
+
+  Pressing does \`ux:home@ready/play!activate\`.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZC
+`;
+  const { diagnostics } = validateUxil(
+    entriesOf({ "a.md": decl, "c.md": cite }),
+  );
+  assertEquals(diagnostics, []);
+});

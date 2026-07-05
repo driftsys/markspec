@@ -10,6 +10,7 @@
 import type { Entry } from "../model/mod.ts";
 import type { Position } from "./ast.ts";
 import { assembleUxSurface } from "./assemble.ts";
+import { extractUxCitations } from "./citations.ts";
 import { findDuplicateDeclarations } from "../decl/mod.ts";
 import { type UxilDiagnostic, uxilDiagnostic } from "./diagnostics.ts";
 import { buildUxRegistry, type UxRegistry } from "./registry.ts";
@@ -122,6 +123,64 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
               positionOf(element.location),
             ),
           );
+        }
+      }
+    }
+  }
+
+  // ── Pass 3: citation resolution ──────────────────────────────────────────
+  for (const entry of entries) {
+    for (const citation of extractUxCitations(entry.bodyTokens)) {
+      const { ref, location } = citation;
+      const pos = positionOf(location);
+      const surfacePath = ref.surface.join(".");
+      const records = registry.surfaces.get(surfacePath);
+      if (!records || records.length === 0) {
+        diagnostics.push(
+          uxilDiagnostic("UXIL-018", { surface: surfacePath }, pos),
+        );
+        continue;
+      }
+      // First-declaration-wins, matching the navigate-resolution check above.
+      const surface = records[0];
+
+      if (ref.state !== undefined && !surface.states.includes(ref.state)) {
+        diagnostics.push(
+          uxilDiagnostic(
+            "UXIL-021",
+            { state: ref.state, surface: surfacePath },
+            pos,
+          ),
+        );
+      }
+
+      if (ref.element !== undefined) {
+        const element = surface.elements.find((e) => e.name === ref.element);
+        if (!element) {
+          diagnostics.push(
+            uxilDiagnostic(
+              "UXIL-019",
+              { element: ref.element, surface: surfacePath },
+              pos,
+            ),
+          );
+        } else {
+          if (ref.verb !== undefined && !element.verbs.includes(ref.verb)) {
+            diagnostics.push(
+              uxilDiagnostic(
+                "UXIL-020",
+                { verb: ref.verb, element: element.name },
+                pos,
+              ),
+            );
+          }
+          if (
+            ref.key?.kind === "concrete" && element.keyTemplate !== undefined
+          ) {
+            diagnostics.push(
+              uxilDiagnostic("UXIL-022", { element: element.name }, pos),
+            );
+          }
         }
       }
     }
