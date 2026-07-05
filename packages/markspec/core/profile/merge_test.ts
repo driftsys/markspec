@@ -1545,3 +1545,51 @@ profile:
     },
   ]);
 });
+
+Deno.test("mergeChain: declares flows into a fresh effective type (#727)", () => {
+  const chain = singleTierChain(`
+id: "@acme/single"
+version: 1.0.0
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      declares: ux-surface
+`);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  assertEquals(
+    result.effective!.types.get("ux-contract")?.value.declares?.value,
+    "ux-surface",
+  );
+});
+
+Deno.test("mergeChain: tightened type keeps the parent's declares (#727)", () => {
+  const chain = multiTierChain([
+    `
+id: "@acme/parent"
+version: 1.0.0
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      declares: ux-surface
+`,
+    `
+id: "@acme/child"
+version: 1.0.0
+extends: "../parent"
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      description: tightened by the child
+`,
+  ]);
+  const result = mergeChain(chain);
+  assertEquals(result.diagnostics, []);
+  assertEquals(
+    result.effective!.types.get("ux-contract")?.value.declares?.value,
+    "ux-surface",
+  );
+});

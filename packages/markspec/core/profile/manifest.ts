@@ -72,6 +72,7 @@ export const ALLOWED_TYPE_KEYS = new Set([
   "traceability",
   "color",
   "discipline",
+  "declares",
 ]);
 
 export const ALLOWED_DOC_TYPE_KEYS = new Set(["id", "contains", "description"]);
@@ -1185,6 +1186,23 @@ function parseTypeDef(
     discipline = r.discipline;
   }
 
+  // uxil S9 (#727): `declares: ux-surface` designates a uxil declaring
+  // entry type. Closed vocabulary — reject anything else at load time.
+  let declares: string | undefined;
+  if (r.declares !== undefined) {
+    if (r.declares !== "ux-surface") {
+      diagnostics.push({
+        code: "PROFILE-TYPE-009",
+        severity: "error",
+        message:
+          `${ctx}: 'declares' value '${r.declares}' is not recognised (expected 'ux-surface')`,
+        location: { file: sourcePath, line: 1, column: 1 },
+      });
+      return undefined;
+    }
+    declares = r.declares;
+  }
+
   const description = typeof r.description === "string"
     ? r.description
     : undefined;
@@ -1219,6 +1237,7 @@ function parseTypeDef(
     color,
     description,
     discipline,
+    declares,
   };
 }
 

@@ -5,13 +5,19 @@
  * entry-graph construction, link extraction, and diagnostic propagation.
  */
 
-import { assertArrayIncludes, assertEquals, assertExists } from "@std/assert";
+import {
+  assert,
+  assertArrayIncludes,
+  assertEquals,
+  assertExists,
+} from "@std/assert";
 import { compile } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import type {
   EffectiveProfile,
   EffectiveTypeDef,
   Entry,
+  ProvenancedMapEntry,
 } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
 
@@ -902,6 +908,102 @@ Deno.test("compile: upstream-origin corpusEntries resolves a project Satisfies: 
       /SYS_0001/.test(d.message) &&
       d.severity === "error"
     ),
+    false,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.6: uxil diagnostics family (S9 #727) — compile-backed surfaces
+// (CLI compile/export/show, MCP) must agree with `check`/LSP on a
+// designated corpus rather than silently passing it.
+// ---------------------------------------------------------------------------
+
+/** Minimal profile builder mirroring `uxil_family_test.ts`'s `makeProfile` —
+ * a 5th copy of this compact helper (accepted; dedup is a tracked
+ * follow-up). Each entry maps a type name to its display-ID pattern and
+ * optional `declares:` designation. */
+function makeUxilProfile(
+  types: Record<string, { pattern: string; declares?: string }>,
+): EffectiveProfile {
+  const origin = "@test/p";
+  const map = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>();
+  for (const [name, t] of Object.entries(types)) {
+    map.set(name, {
+      value: {
+        name,
+        extends: "Requirement",
+        displayIdPattern: { value: t.pattern, origin },
+        displayIdPatternEnforcement: { value: "off", origin },
+        color: { value: undefined, origin },
+        required: { value: [], origin },
+        attributes: new Map(),
+        traceability: new Map(),
+        description: { value: undefined, origin },
+        attrDescriptions: new Map(),
+        relationDescriptions: new Map(),
+        discipline: { value: undefined, origin },
+        declares: { value: t.declares, origin },
+      },
+      origin,
+    });
+  }
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: map,
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+}
+
+/** A uxil contract entry whose root span has a bad kind (`widget` is not a
+ * valid ux-surface kind) — same fixture as uxil_family_test's
+ * CONTRACT_BAD_KIND, which trips UXIL-009. */
+const UXIL_CONTRACT_BAD_KIND = `- [UXI_0001] Contract
+
+  \`ux:media.home : widget\` — bad kind.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+
+Deno.test("compile: designated corpus surfaces UXIL-009 for a bad root-span kind", async () => {
+  const files = { "/repo/contract.md": UXIL_CONTRACT_BAD_KIND };
+  const profile = makeUxilProfile({
+    "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },
+  });
+  const result = await compile(["/repo/contract.md"], {
+    readFile: reader(files),
+    profile,
+  });
+  assert(
+    result.diagnostics.some((d) => d.code === "UXIL-009"),
+    `expected UXIL-009 among: ${
+      result.diagnostics.map((d) => d.code).join(", ")
+    }`,
+  );
+});
+
+Deno.test("compile: no declaring type in the profile → uxil family stays inert", async () => {
+  const files = { "/repo/contract.md": UXIL_CONTRACT_BAD_KIND };
+  const profile = makeUxilProfile({
+    "ux-contract": { pattern: "UXI_{n:4d}" }, // no `declares:`
+  });
+  const result = await compile(["/repo/contract.md"], {
+    readFile: reader(files),
+    profile,
+  });
+  assertEquals(
+    result.diagnostics.some((d) => d.code.startsWith("UXIL")),
     false,
   );
 });

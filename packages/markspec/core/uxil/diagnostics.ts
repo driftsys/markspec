@@ -2,11 +2,11 @@
  * @module uxil/diagnostics
  *
  * Diagnostic codes emitted by the uxil parser and compiler (UXIL-001 through
- * UXIL-022). Source-local positions only — S9 bridges these to file-anchored
+ * UXIL-026). Source-local positions only — S9 bridges these to file-anchored
  * core `Diagnostic`s. Shape and helper mirror typl's `typlDiagnostic`.
  */
 import type { Position } from "./ast.ts";
-import type { Severity } from "../model/mod.ts";
+import type { Diagnostic, Severity, SourceLocation } from "../model/mod.ts";
 
 /** Union of all uxil parser + compiler diagnostic codes. */
 export type UxilCode =
@@ -31,7 +31,11 @@ export type UxilCode =
   | "UXIL-019"
   | "UXIL-020"
   | "UXIL-021"
-  | "UXIL-022";
+  | "UXIL-022"
+  | "UXIL-023"
+  | "UXIL-024"
+  | "UXIL-025"
+  | "UXIL-026";
 
 /** Shape of each entry in {@linkcode UXIL_CODES}. */
 export interface UxilCodeEntry {
@@ -148,6 +152,25 @@ export const UXIL_CODES: Record<UxilCode, UxilCodeEntry> = {
     template:
       "Element '${element}' declares a key template; cite it with a '{name}' template, not a concrete key.",
   },
+  "UXIL-023": {
+    severity: "error",
+    template:
+      "uxil declaration outside a declaring entry type: '${entry}' (type '${type}') may not declare surfaces (requires 'declares: ux-surface').",
+  },
+  "UXIL-024": {
+    severity: "error",
+    template: "Relative reference '${ref}' has no base in scope.",
+  },
+  "UXIL-025": {
+    severity: "error",
+    template:
+      "Element '${element}' declares 'observe' but surface '${surface}' has non-visual kind '${kind}'.",
+  },
+  "UXIL-026": {
+    severity: "error",
+    template:
+      "Element '${element}' declares 'navigate' without a '-> target' clause.",
+  },
 };
 
 /**
@@ -167,4 +190,23 @@ export function uxilDiagnostic(
     message = message.replaceAll(`\${${k}}`, String(v));
   }
   return { code, severity: entry.severity, message, position };
+}
+
+/**
+ * Construct a file-anchored core {@linkcode Diagnostic} for a uxil code —
+ * the S9 sibling of {@linkcode uxilDiagnostic} (#727). Assembly, the
+ * validator, and the family orchestrator know their file coordinates, so
+ * they emit core diagnostics directly; only the file-agnostic grammar
+ * layer still uses the source-local shape.
+ */
+export function uxilDiagnosticAt(
+  code: UxilCode,
+  params: Record<string, string | number>,
+  location: SourceLocation,
+): Diagnostic {
+  const d = uxilDiagnostic(code, params, {
+    line: location.line,
+    column: location.column,
+  });
+  return { code: d.code, severity: d.severity, message: d.message, location };
 }

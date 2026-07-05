@@ -233,6 +233,16 @@ Deno.test("extractInlineDeclarations: multiple spans in source order", () => {
   );
 });
 
+// --- innerColumn: span-relative column anchoring ----------------------------
+
+Deno.test("extractInlineDeclarations: innerColumn skips the delimiter (#727)", () => {
+  const span = inlineCode("`ux:a.b : screen`", 3, 3);
+  const result = extractInlineDeclarations([span], () => true);
+  assertEquals(result.length, 1);
+  assertEquals(result[0].source, "ux:a.b : screen");
+  assertEquals(result[0].innerColumn, 4);
+});
+
 // --- backtick stripping ----------------------------------------------------
 
 Deno.test("stripCodeSpanDelimiters: single, double, and non-fenced", () => {

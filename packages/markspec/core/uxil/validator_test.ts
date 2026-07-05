@@ -291,3 +291,134 @@ Deno.test("validateUxil: a clean citation resolves with no diagnostics", () => {
   );
   assertEquals(diagnostics, []);
 });
+
+Deno.test("anchoring: bullet parse diagnostic is file-anchored (#727)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/play :\` — empty verb set.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  const d = diagnostics.find((x) => x.code === "UXIL-005");
+  // bodyStartLine 3 + body-relative bullet line 3 − 1 = file line 5.
+  // Paragraph column 3 + (diag column 9 − 1) = 11 (body-indent-relative;
+  // known dedent wart — see typl/bridge.ts).
+  assertEquals(d?.location, { file: "a.md", line: 5, column: 11 });
+});
+
+Deno.test("anchoring: root-span parse diagnostic composes the inner column (#727)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a. : screen\` — trailing dot.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  const d = diagnostics.find((x) => x.code === "UXIL-008");
+  // Span at file (3,3); innerColumn 4; diag column 7 → 4 + 7 − 1 = 10.
+  assertEquals(d?.location, { file: "a.md", line: 3, column: 10 });
+});
+
+Deno.test("anchoring: semantic diagnostics carry file locations (#727)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : widget\` — bad kind.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  const d = diagnostics.find((x) => x.code === "UXIL-009");
+  assertEquals(d?.location, { file: "a.md", line: 3, column: 3 });
+});
+
+Deno.test("anchoring: UXIL-011 anchors at the body start (#727)", () => {
+  const md = `- [UXI_A_0001] X
+
+  Just an element bullet:
+
+  - \`/e : activate\` — no root anywhere.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  const d = diagnostics.find((x) => x.code === "UXIL-011");
+  assertEquals(d?.location, { file: "a.md", line: 3, column: 1 });
+});
+
+Deno.test("UXIL-025 observe on a non-visual kind (agent)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:voice : agent\` offers:
+
+  - \`/hint : observe\` — a visibility anchor on a non-visual kind.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assert(has(diagnostics, "UXIL-025"));
+});
+
+Deno.test("UXIL-025 does not fire on a visual kind (screen)", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/hint : observe\` — a legitimate visibility anchor.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assertEquals(has(diagnostics, "UXIL-025"), false);
+});
+
+Deno.test("UXIL-026 navigate without a target", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/go : navigate\` — missing its target.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assert(has(diagnostics, "UXIL-026"));
+});
+
+Deno.test("UXIL-026 does not fire when a target is declared", () => {
+  const md = `- [UXI_A_0001] X
+
+  \`ux:a.b : screen\` offers:
+
+  - \`/go : navigate -> a.b\` — self-target, resolvable.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assertEquals(has(diagnostics, "UXIL-026"), false);
+});
+
+Deno.test("citationEntries: citations resolve from entries outside the declaring set (#727)", () => {
+  const contract = `- [UXI_A_0001] Contract
+
+  \`ux:media.home : screen\` offers:
+
+  - \`/play : activate\` — starts playback.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const citing = `- [REQ_0001] Journey step
+
+  Tap \`ux:media.ghost/play!activate\` to start playback.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZB
+`;
+  const [contractEntry] = entriesOf({ "a.md": contract });
+  const [citingEntry] = entriesOf({ "b.md": citing });
+  const { diagnostics } = validateUxil([contractEntry], {
+    citationEntries: [contractEntry, citingEntry],
+  });
+  assert(has(diagnostics, "UXIL-018"));
+});

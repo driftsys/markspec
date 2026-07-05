@@ -24,6 +24,7 @@ import {
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
+import { validateUxilFamily } from "../validator/uxil_family.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../typl/mod.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { ATTR_TO_LINK_KIND } from "./constants.ts";
@@ -302,6 +303,17 @@ export async function compile(
     parseDiagnostics.push(...stage2.diagnostics);
   }
 
+  // Phase 2.6: uxil diagnostics family (S9 #727) — profile-gated (inert
+  // without a `declares: ux-surface` designation), mirroring runPipeline's
+  // Stage 5 so compile-backed surfaces (CLI compile/export/show, the MCP
+  // server) agree with `check` and the LSP on designated corpora. No
+  // file-local filter here: the requested path set IS the corpus being
+  // compiled — the same full-set semantics MSL-L006 assumes in compile.
+  const uxilDiagnostics = validateUxilFamily(
+    classifiedEntries,
+    options.profile ?? null,
+  );
+
   // Phase 3: Build traceability graph.
   // Keep first occurrence of each display ID (validator catches duplicates).
   const entries = new Map<DisplayId, Entry>();
@@ -364,6 +376,7 @@ export async function compile(
   let diagnostics: Diagnostic[] = [
     ...parseDiagnostics,
     ...validationDiagnostics,
+    ...uxilDiagnostics,
     ...linkTargetDiags,
   ];
 

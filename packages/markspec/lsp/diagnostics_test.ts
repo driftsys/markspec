@@ -102,6 +102,20 @@ Deno.test("toLspDiagnostic: PA-1 diagnostic without range still works", () => {
   assertEquals(lsp.range.end.character, Number.MAX_SAFE_INTEGER);
 });
 
+Deno.test("toLspDiagnostic: UXIL codes carry a spec-chapter codeDescription (#727)", () => {
+  const lsp = toLspDiagnostic({
+    code: "UXIL-009",
+    severity: "error",
+    message:
+      "Unknown surface kind 'widget' (expected screen, panel, or agent).",
+    location: { file: "a.md", line: 3, column: 3 },
+  });
+  assertEquals(
+    lsp.codeDescription?.href,
+    "https://markspec.dev/spec/uxil#uxil-009",
+  );
+});
+
 Deno.test("groupDiagnosticsByFile: groups diagnostics by file path", () => {
   const diagnostics: CoreDiagnostic[] = [
     {

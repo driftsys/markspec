@@ -6,7 +6,13 @@
 
 import { assertEquals } from "@std/assert";
 import { WorkspaceIndex } from "./workspace.ts";
-import type { EffectiveProfile, Entry, SourceLocation } from "../core/mod.ts";
+import type {
+  EffectiveProfile,
+  EffectiveTypeDef,
+  Entry,
+  ProvenancedMapEntry,
+  SourceLocation,
+} from "../core/mod.ts";
 import { makeDisplayId, parseFile } from "../core/mod.ts";
 
 /** Helper to create a minimal identified entry. */
@@ -398,4 +404,61 @@ Deno.test("getEntryByDisplayId: upstream entry exposes origin (rename read-only 
     index.getEntryByDisplayId(makeDisplayId("PRODUCT_STK_0001"))?.origin?.kind,
     "upstream",
   );
+});
+
+Deno.test("WorkspaceIndex: validateAll runs the uxil family when designated (#727)", async () => {
+  const md = `- [UXI_0001] Contract
+
+  \`ux:media.home : widget\` — bad kind.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+
+  const origin = "@test/p";
+  const uxContract: ProvenancedMapEntry<EffectiveTypeDef> = {
+    value: {
+      name: "ux-contract",
+      extends: "Requirement",
+      displayIdPattern: { value: "UXI_{n:4d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+      declares: { value: "ux-surface", origin },
+    },
+    origin,
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["ux-contract", uxContract]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  // No profile → the family is inert.
+  const bare = index.validateAll();
+  assertEquals(bare.some((d) => d.code === "UXIL-009"), false);
+
+  // Designated profile → UXIL-009 surfaces in the editor path.
+  const withProfile = index.validateAll(profile);
+  assertEquals(withProfile.some((d) => d.code === "UXIL-009"), true);
 });

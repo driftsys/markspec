@@ -155,6 +155,13 @@ export interface TypeDef {
    * ancestor (see core/profile/discipline_registry.ts).
    */
   readonly discipline?: string;
+  /**
+   * Declaration-DSL designation (uxil S9 #727). `"ux-surface"` marks this
+   * type as a uxil declaring entry type: its entries may declare ux
+   * surfaces; entries of other types may not (UXIL-023). Closed
+   * vocabulary — `parseTypeDef` rejects anything else (PROFILE-TYPE-009).
+   */
+  readonly declares?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +378,12 @@ export interface EffectiveTypeDef {
    * registry builder then walks the `extends:` chain to resolve.
    */
   readonly discipline: ProvenancedValue<string | undefined>;
+  /**
+   * Declaration-DSL designation (uxil S9 #727), folded child-wins like
+   * `discipline`. Optional so pre-existing hand-built test fixtures need
+   * not set it; the merge always does (mirrors `DeliveredDocument.baseDir`).
+   */
+  readonly declares?: ProvenancedValue<string | undefined>;
 }
 
 /**

@@ -27,7 +27,7 @@ export interface LspDiagnostic {
   readonly source: string;
   readonly code: string;
   readonly message: string;
-  /** Link to rule documentation, populated for MSL-Q codes. */
+  /** Link to rule documentation, populated for MSL-Q and UXIL codes. */
   readonly codeDescription?: { readonly href: string };
 }
 
@@ -53,6 +53,11 @@ export function toLspSeverity(severity: Severity): number {
 /** Build a rule documentation URL for MSL-Q lint codes. */
 function buildRuleDocUrl(code: string): string {
   return `https://markspec.dev/lint/rules/${code.toLowerCase()}`;
+}
+
+/** Build a spec-chapter anchor URL for UXIL diagnostic codes (#727). */
+function buildUxilDocUrl(code: string): string {
+  return `https://markspec.dev/spec/uxil#${code.toLowerCase()}`;
 }
 
 export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
@@ -91,6 +96,12 @@ export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {
     return {
       ...base,
       codeDescription: { href: buildRuleDocUrl(diagnostic.code) },
+    };
+  }
+  if (diagnostic.code.startsWith("UXIL-")) {
+    return {
+      ...base,
+      codeDescription: { href: buildUxilDocUrl(diagnostic.code) },
     };
   }
   return base;

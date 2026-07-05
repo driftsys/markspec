@@ -50,6 +50,15 @@ export interface InlineDeclaration {
   readonly source: string;
   /** File-relative location of the code span. */
   readonly location: SourceLocation;
+  /**
+   * Column of the span's inner text: `location.column` plus the opening
+   * delimiter width. A DSL host composes span-relative parse-diagnostic
+   * columns against this, not `location.column` (#727). Note the token
+   * model canonicalises `text` to single-backtick delimiters, so the
+   * width is 1 in practice — a double-backtick original anchors one
+   * column left (accepted wart, same class as the typl indent wart).
+   */
+  readonly innerColumn: number;
 }
 
 /** Recognizer for the fence surface: does this info-string host the DSL? */
@@ -180,7 +189,12 @@ export function extractInlineDeclarations(
     if (token.kind !== "inline-code") continue;
     const inner = stripCodeSpanDelimiters(token.text);
     if (!matchText(inner)) continue;
-    results.push({ source: inner, location: token.location });
+    const delim = token.text.startsWith("``") ? 2 : 1;
+    results.push({
+      source: inner,
+      location: token.location,
+      innerColumn: token.location.column + delim,
+    });
   }
   return results;
 }
