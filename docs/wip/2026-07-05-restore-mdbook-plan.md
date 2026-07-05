@@ -526,54 +526,50 @@ markspec book build
 ```
 ````
 
-````
 Replace with:
 
-```markdown
+````markdown
 #### book build
 
 Generate a multi-chapter static HTML site from a SUMMARY.md.
 
-Not currently used to build the published MarkSpec docs site — that still
-builds via mdBook until the native renderer reaches chrome parity (sidebar
-navigation, search, syntax highlighting, a print stylesheet, and a
-light/dark theme toggle). See
-[#804](https://github.com/driftsys/markspec/issues/804) for the tracking
+Not currently used to build the published MarkSpec docs site — that still builds
+via mdBook until the native renderer reaches chrome parity (sidebar navigation,
+search, syntax highlighting, a print stylesheet, and a light/dark theme toggle).
+See [#804](https://github.com/driftsys/markspec/issues/804) for the tracking
 issue and exit criteria.
 
 ```sh
 markspec book build
+```
 ````
 
-````
 Use the Edit tool with the exact "Current" block as `old_string` (note: the
 old_string spans from the `#### book build` heading through the closing
-` ``` ` of the shell fence) and the "Replace with" block as `new_string`.
+`` ``` `` of the shell fence) and the "Replace with" block as `new_string`.
 
 - [ ] **Step 2: Update the CLI reference table row in `AGENTS.md`**
 
 Current `AGENTS.md:242`:
-````
 
+```
 | `markspec book build` | `book/site` | Multi-chapter → static HTML site. |
-
 ```
+
 Replace with:
+
+```
+| `markspec book build` | `book/site` | Multi-chapter → static HTML site. Not used for the published docs site yet — mdBook is, pending chrome parity (#804). |
 ```
 
-| `markspec book build` | `book/site` | Multi-chapter → static HTML site. Not
-used for the published docs site yet — mdBook is, pending chrome parity (#804).
-|
-
-````
-(Column padding will be re-aligned automatically by `dprint fmt` in the
-commit step below — don't hand-align it.)
+(Column padding will be re-aligned automatically by `dprint fmt` in the commit
+step below — don't hand-align it.)
 
 - [ ] **Step 3: Verify both edits render sensibly**
 
 ```bash
 cd /Users/sebastientasson/Workspace/driftsys/markspec-worktrees/804-restore-mdbook && grep -A4 "^#### book build" docs/guide/cli.md && grep "markspec book build" AGENTS.md
-````
+```
 
 Expected: the `cli.md` grep shows the new note between the description and the
 code fence; the `AGENTS.md` grep shows the updated row mentioning `#804`.
