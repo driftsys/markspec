@@ -400,7 +400,7 @@ interface MsDirectiveEntry {
 ```markdown
 <!--
 markspec:deck
-markspec:references https://safety.company.io/registry
+markspec:disable MSL-R011
 -->
 ```
 
@@ -410,7 +410,7 @@ markspec:references https://safety.company.io/registry
 msDirective
   directives:
     { name: "deck", payload: "" }
-    { name: "references", payload: "https://safety.company.io/registry" }
+    { name: "disable", payload: "MSL-R011" }
 ```
 
 Range directives (`markspec:columns`, `markspec:disable`, `markspec:ignore`)

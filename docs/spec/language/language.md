@@ -1302,15 +1302,15 @@ build time: resolved to links.
 
 ### 5.2 Namespaces
 
-| Namespace | References                        | ID source         |
-| --------- | --------------------------------- | ----------------- |
-| `spec`    | Spec entries (any TYPE)           | Display ID        |
-| `test`    | Test entries                      | Display ID        |
-| `element` | Element entries                   | Display ID        |
-| `ref`     | Reference entries, registry chain | Slug              |
-| `fig`     | Figures                           | Slug from caption |
-| `tbl`     | Tables                            | Slug from caption |
-| `h`       | Headings                          | GFM anchor        |
+| Namespace | References                          | ID source         |
+| --------- | ----------------------------------- | ----------------- |
+| `spec`    | Spec entries (any TYPE)             | Display ID        |
+| `test`    | Test entries                        | Display ID        |
+| `element` | Element entries                     | Display ID        |
+| `ref`     | Reference entries, resolution chain | Slug              |
+| `fig`     | Figures                             | Slug from caption |
+| `tbl`     | Tables                              | Slug from caption |
+| `h`       | Headings                            | GFM anchor        |
 
 Slugs use the GFM algorithm: lowercase, spaces to hyphens, punctuation stripped.
 
@@ -1523,7 +1523,7 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
 | `MSL-R003` | error    | Exactly one `Id:` attribute per entry.                                                                                                                                                                                                                                                              |
 | `MSL-R004` | error    | `Id:` value well-formed: bare ULID (`^[0-9A-HJKMNP-TV-Z]{26}$`) for Authored entries; scheme-qualified URI (RFC 3986) for Reference entries.                                                                                                                                                        |
 | `MSL-R005` | error    | ULID unique across repository.                                                                                                                                                                                                                                                                      |
-| `MSL-R006` | error    | Display ID unique within project and registry chain.                                                                                                                                                                                                                                                |
+| `MSL-R006` | error    | Display ID unique within project and resolution chain.                                                                                                                                                                                                                                              |
 | `MSL-R007` | warning  | When a profile declares a `display-id-pattern:` for the entry's inferred type, the display ID matches it.                                                                                                                                                                                           |
 | `MSL-R008` | error    | Slug-shaped display ID (no scheme, not a ULID) on a Reference entry must match the slug regex.                                                                                                                                                                                                      |
 | `MSL-R009` | warning  | Sequence number > 0 in patterned display IDs.                                                                                                                                                                                                                                                       |

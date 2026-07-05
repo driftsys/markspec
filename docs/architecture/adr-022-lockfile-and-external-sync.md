@@ -150,3 +150,16 @@ Slice B is foundation-only. Downstream consumers:
 
 The SSOT comparison function is `isBelowFloor(actual, floor)` exported from
 `core/lock/`.
+
+## Addendum (2026-07-05): `[[upstream.dependency]]` row + widened `[[upstream.registry]]`
+
+[ADR-031](./adr-031-federated-upstream-resolution.md) (federated upstream
+resolution) extends `markspec.lock`'s upstream tables with a new
+`[[upstream.dependency]]` row kind (pinning a `project.yaml` `dependencies:` git
+repository — `id`, `url`, `intent`, `resolved`, `sha`, `snapshot`, `locked-at`)
+and widens the existing `[[upstream.registry]]` row to also cover `references:`
+entries, alongside its pre-existing identity-only Reference use. The full row
+shapes, resolution flow, and rationale live in ADR-031; this addendum only
+records that the lockfile schema itself changed, so a reader of this ADR knows
+to look there for the current upstream-table shape rather than assuming the
+registry-only model this ADR originally described is still complete.
