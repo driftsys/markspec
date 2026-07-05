@@ -28,8 +28,14 @@ const LS = parseLsRemote(
     "cccccccccccccccccccccccccccccccccccccccc\trefs/tags/v2.0.0",
 );
 
+// Normalize `\` → `/` so the in-memory FS keys match on Windows, where the
+// production code builds cache paths with `join()` (backslash separators)
+// while the seeds/assertions below use readable forward-slash literals
+// (slice-2/4 Windows gotcha).
+const norm = (p: string) => p.replaceAll("\\", "/");
+
 // Fake IO: records git calls; compileTree returns a fixed snapshot; writes go
-// to an in-memory FS keyed by join()'d path (Windows-safe per slice-2/4 gotcha).
+// to an in-memory FS keyed by the normalized path.
 function makeIO(overrides: Partial<GitIO> = {}) {
   const fs = new Map<string, Uint8Array>();
   const acquired: string[] = [];
@@ -53,11 +59,11 @@ function makeIO(overrides: Partial<GitIO> = {}) {
       };
     },
     readFile: (p) => {
-      const b = fs.get(p);
+      const b = fs.get(norm(p));
       return Promise.resolve(b ?? { error: "ENOENT" });
     },
     writeFile: (p, bytes) => {
-      fs.set(p, bytes);
+      fs.set(norm(p), bytes);
       return Promise.resolve({});
     },
     makeTempDir: () => Promise.resolve("/tmp/acq"),

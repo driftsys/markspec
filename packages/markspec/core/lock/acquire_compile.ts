@@ -49,8 +49,15 @@ export async function compileAcquiredTree(
   const profile = profileResult.chain?.effective;
   const toolConfig = await loadToolConfig(treeRoot, io.readFile);
 
-  // Discover → relativize → sort. Sorting fixes compile()'s entry order,
-  // which fixes the JSON key order in serializeCompileResult's output.
+  // Discover → relativize → normalize to POSIX separators → sort. The
+  // `\\`→`/` normalization is load-bearing for cross-machine determinism:
+  // `relative()` yields OS-native separators, so a Windows host would emit
+  // `docs\reqs.md` while POSIX emits `docs/reqs.md`, giving two different
+  // `location.file`/`properties.file.path` values → two different snapshot
+  // hashes for the same source → spurious MSL-L212 drift between a Windows
+  // and a macOS/Linux developer sharing one lockfile. Normalizing before
+  // the sort also makes the entry order (hence JSON key order) identical
+  // on every platform.
   const abs: string[] = [];
   for await (
     const f of discoverFiles(treeRoot, io.discovery, {
@@ -59,7 +66,9 @@ export async function compileAcquiredTree(
   ) {
     abs.push(f);
   }
-  const rel = abs.map((p) => relative(treeRoot, p)).sort();
+  const rel = abs
+    .map((p) => relative(treeRoot, p).replaceAll("\\", "/"))
+    .sort();
 
   // Compile with a root-resolving reader and NO stat/git callbacks →
   // deterministic properties (no mtime, no contributors, relative path).
