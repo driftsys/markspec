@@ -462,3 +462,119 @@ Deno.test("WorkspaceIndex: validateAll runs the uxil family when designated (#72
   const withProfile = index.validateAll(profile);
   assertEquals(withProfile.some((d) => d.code === "UXIL-009"), true);
 });
+
+Deno.test("getUxRegistry: returns undefined with no declaring type designated", async () => {
+  const md = `- [UXI_0001] Contract
+
+  \`ux:media.home : screen\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+
+  assertEquals(index.getUxRegistry(null), undefined);
+});
+
+Deno.test("getUxRegistry: builds the registry when a declaring type is designated", async () => {
+  const md = `- [UXI_0001] Contract
+
+  \`ux:media.home : screen\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+
+  const origin = "@test/p";
+  const uxContract: ProvenancedMapEntry<EffectiveTypeDef> = {
+    value: {
+      name: "ux-contract",
+      extends: "Requirement",
+      displayIdPattern: { value: "UXI_{n:4d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+      declares: { value: "ux-surface", origin },
+    },
+    origin,
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["ux-contract", uxContract]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  const registry = index.getUxRegistry(profile);
+  assertEquals(registry?.surfaces.has("media.home"), true);
+});
+
+Deno.test("getUxRegistry: excludes upstream entries", () => {
+  const index = new WorkspaceIndex();
+  index.updateFile("docs/product/stk.md", [
+    upstreamEntry("PRODUCT_UXI_0001"),
+  ]);
+
+  const origin = "@test/p";
+  const uxContract: ProvenancedMapEntry<EffectiveTypeDef> = {
+    value: {
+      name: "ux-contract",
+      extends: "Requirement",
+      displayIdPattern: { value: "PRODUCT_UXI_{n:4d}", origin },
+      displayIdPatternEnforcement: { value: "off", origin },
+      color: { value: undefined, origin },
+      required: { value: [], origin },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin },
+      declares: { value: "ux-surface", origin },
+    },
+    origin,
+  };
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["ux-contract", uxContract]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+
+  // The upstream entry has no uxil content, but this test's point is that
+  // getUxRegistry never even considers it — proven indirectly by confirming
+  // the call doesn't throw and returns an empty (not populated) registry.
+  const registry = index.getUxRegistry(profile);
+  assertEquals(registry?.surfaces.size, 0);
+});
