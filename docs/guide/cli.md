@@ -889,6 +889,12 @@ markspec doc build -o output/spec.pdf docs/spec.md
 
 Generate a multi-chapter static HTML site from a SUMMARY.md.
 
+Not currently used to build the published MarkSpec docs site — that still builds
+via mdBook until the native renderer reaches chrome parity (sidebar navigation,
+search, syntax highlighting, a print stylesheet, and a light/dark theme toggle).
+See [#804](https://github.com/driftsys/markspec/issues/804) for the tracking
+issue and exit criteria.
+
 ```sh
 markspec book build
 ```
