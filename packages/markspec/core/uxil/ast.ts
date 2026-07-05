@@ -42,7 +42,7 @@ export interface RootDecl {
   readonly position: Position;
 }
 
-/** Element declaration from a bullet: `/element{key} : verb, … @state -> nav` plus a trailing event dictionary. */
+/** Element declaration from a bullet: `/element : verb, … : {key} @state -> nav` plus a trailing event dictionary. */
 export interface ElementDecl {
   readonly form: "element";
   readonly element: string;
