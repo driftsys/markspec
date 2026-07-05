@@ -84,9 +84,9 @@ Deno.test("parseElementBullet: verb + event dictionary", () => {
   assertEquals(decl?.eventDictionary, "Pressing play resumes playback.");
 });
 
-Deno.test("parseElementBullet: key template, state set, nav target", () => {
+Deno.test("parseElementBullet: key-template clause, state set, nav target", () => {
   const { decl, diagnostics } = parseElementBullet(
-    "`/track{id} : activate, focus @enabled -> media.player` — Selects a track.",
+    "`/track : activate, focus : {id} @enabled -> media.player` — Selects a track.",
   );
   assertEquals(diagnostics, []);
   assertEquals(decl?.keyTemplate, { kind: "template", name: "id" });
@@ -94,6 +94,42 @@ Deno.test("parseElementBullet: key template, state set, nav target", () => {
   assertEquals(decl?.states, ["enabled"]);
   assertEquals(decl?.nav?.surface, ["media", "player"]);
   assertEquals(decl?.nav?.hasScheme, false);
+});
+
+Deno.test("parseElementBullet: key-template clause after the verb set (design-doc form)", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/favorite_toggle : toggle : {track_id}` — marks a track favourite.",
+  );
+  assertEquals(diagnostics, []);
+  assertEquals(decl?.element, "favorite_toggle");
+  assertEquals(decl?.verbs, ["toggle"]);
+  assertEquals(decl?.keyTemplate, { kind: "template", name: "track_id" });
+});
+
+Deno.test("parseElementBullet: braces glued to the element name are rejected (#786)", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/track{id} : activate` — Selects a track.",
+  );
+  // One targeted UXIL-007 pointing at the moved key clause — not a
+  // misleading empty-verb-set (UXIL-005) / unexpected-token cascade.
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-007"]);
+  assertEquals(decl?.verbs, ["activate"]);
+  assertEquals(decl?.keyTemplate, undefined);
+});
+
+Deno.test("parseElementBullet: concrete key in a declaration is UXIL-007", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/track : activate : trackid` — Selects a track.",
+  );
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-007"]);
+  assertEquals(decl?.keyTemplate, undefined);
+});
+
+Deno.test("parseElementBullet: key clause with no key is UXIL-001", () => {
+  const { diagnostics } = parseElementBullet(
+    "`/track : activate :` — Selects a track.",
+  );
+  assertEquals(diagnostics.some((d) => d.code === "UXIL-001"), true);
 });
 
 Deno.test("parseElementBullet: missing event dictionary is UXIL-006", () => {

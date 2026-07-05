@@ -951,6 +951,12 @@ activate`), NOT after a colon — the colon is reserved for the
 verb set, so the ref-grammar's `/element:{key}` form cannot be reused here
 without a double-colon clash.
 
+> **Resolution (#786, PR #790):** checked against the seed design doc, which
+> uses a third form — the key template is its own `:` clause **after the verb
+> set** (`/favorite_toggle : toggle : {track_id}`). The braces-after-name form
+> described above was reversed; the shipped shape is
+> `/element : verb[, verb…] [: {key}] [@state, …] [-> nav-ref]`.
+
 - [ ] **Step 1: Write the failing tests (append to grammar_test.ts)**
 
 ```ts

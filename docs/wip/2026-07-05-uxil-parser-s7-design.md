@@ -95,8 +95,9 @@ marks a root **declaration**. A `:` that appears _after_ `/element` is a ref
 ```
 
 - Leading `/` → element name (`play`).
-- Optional key template (`{id}`) on the element.
 - `: activate[, …]` → **verb set** (one or more verbs; comma list).
+- Optional key template as its own `: {key}` clause after the verb set
+  (`/track : activate : {id}` — resolved by #786, PR #790).
 - Optional `@state[, …]` → state set.
 - Optional `-> <ux-ref>` → **nav target**, parsed as a `UxRef` (may be
   scheme-less / relative).

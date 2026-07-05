@@ -354,9 +354,11 @@ function splitLeadingCodeSpan(text: string): { span?: string; rest: string } {
 
 /**
  * Parse an element bullet: a leading code span
- * `/element[{key}] : verb[, verb…] [@state, …] [-> nav]` followed by a
- * mandatory trailing prose event dictionary. See grammar decision K1 — the
- * key template sits directly after the element name (the `:` is the verb set).
+ * `/element : verb[, verb…] [: {key}] [@state, …] [-> nav]` followed by a
+ * mandatory trailing prose event dictionary. Grammar decision K1 (#786,
+ * per the epic design doc): the key template is its own `:` clause after
+ * the verb set — never attached to the element name, so declarations
+ * cannot collide with the ref grammar's `element:{key}` form.
  */
 export function parseElementBullet(
   paragraph: string,
@@ -407,10 +409,17 @@ export function parseElementBullet(
     position: { line: 1, column: 1 },
   };
 
-  // Optional key template, directly after the element name (K1).
+  // Old glued form `/element{key}` (pre-#786): one targeted diagnostic
+  // pointing at the clause form, then consume-and-discard the braces so
+  // the verb set still parses instead of cascading UXIL-005 + UXIL-001.
   if (c.peek().kind === "LBRACE") {
-    const k = parseKey(c, diagnostics);
-    if (k) decl.keyTemplate = k;
+    diagnostics.push(
+      uxilDiagnostic("UXIL-007", {
+        detail:
+          "the key template is a clause after the verb set (write '/element : verb : {key}')",
+      }, c.peek().position),
+    );
+    parseKey(c, diagnostics);
   }
 
   // Verb set: `: verb[, verb…]` (>= 1).
@@ -430,6 +439,23 @@ export function parseElementBullet(
       diagnostics.push(uxilDiagnostic("UXIL-005", {}, c.peek().position));
     }
     decl.verbs = verbs;
+  }
+
+  // Optional key-template clause: `: {key}` after the verb set (K1, #786).
+  // Declarations declare templates — a concrete key is a citation-only form.
+  if (c.peek().kind === "COLON") {
+    c.advance();
+    const keyAt = c.peek().position;
+    const k = parseKey(c, diagnostics);
+    if (k?.kind === "template") {
+      decl.keyTemplate = k;
+    } else if (k) {
+      diagnostics.push(
+        uxilDiagnostic("UXIL-007", {
+          detail: "expected a '{name}' template, not a concrete key",
+        }, keyAt),
+      );
+    }
   }
 
   const states = parseStateSet(c, diagnostics);
