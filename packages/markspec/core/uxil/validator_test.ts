@@ -107,6 +107,26 @@ Deno.test("UXIL-016 dangling namespace parent", () => {
   assert(has(diagnostics, "UXIL-016"));
 });
 
+Deno.test("UXIL-016 does not misfire on an ordinary two-segment root name", () => {
+  // media.home is the epic's own canonical worked-example root naming
+  // convention — an ordinary namespaced root, not a promoted child surface.
+  // "media" is a namespace prefix, never itself a surface that must be
+  // separately declared.
+  const md = `- [UXI_A_0001] Media home surface
+
+  \`ux:media.home : screen\` — an ordinary root, no other entries declare "media".
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
+  assert(
+    !has(diagnostics, "UXIL-016"),
+    `expected no UXIL-016 for an ordinary root name; got: ${
+      JSON.stringify(diagnostics)
+    }`,
+  );
+});
+
 Deno.test("UXIL-017 navigate target not navigable", () => {
   const controls = `- [UXI_A_0001] Controls
 

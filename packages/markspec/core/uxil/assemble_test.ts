@@ -104,3 +104,34 @@ Deno.test("assembleUxSurface: malformed root span reports its own diagnostic, no
   assert(tree.diagnostics.some((d) => d.code === "UXIL-004"));
   assert(!tree.diagnostics.some((d) => d.code === "UXIL-011"));
 });
+
+Deno.test("assembleUxSurface: a broken intermediate child surface drops its descendants instead of silently reparenting them", () => {
+  // `.settings @` is malformed (a trailing `@` with no state name — UXIL-001).
+  // The nested `.dialog` child and its `/confirm` element must NOT silently
+  // reattach to the grandparent (media.home) — that would produce a
+  // plausible-looking but wrong surface with no diagnostic explaining the
+  // reparenting.
+  const md = `- [UXI_BROKEN_0001] Broken nesting
+
+  \`ux:media.home : screen\` offers:
+
+  - \`.settings @\` — malformed, missing state name.
+    - \`.dialog @ default\` — nested under the malformed one.
+      - \`/confirm : activate\` — nested two levels deep.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZZ
+`;
+  const tree = assembleUxSurface(entryOf(md));
+  assert(tree.diagnostics.some((d) => d.code === "UXIL-001"));
+  const paths = tree.surfaces.map((s) => s.path);
+  assert(
+    !paths.includes("media.home.dialog"),
+    `descendant of a broken ancestor must not silently reparent; got surfaces: ${
+      JSON.stringify(paths)
+    }`,
+  );
+  // media.home itself is unaffected and still registered, with no elements
+  // silently absorbed from the broken subtree.
+  const home = tree.surfaces.find((s) => s.path === "media.home");
+  assertEquals(home?.elements, []);
+});

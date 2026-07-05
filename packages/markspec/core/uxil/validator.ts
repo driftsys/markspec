@@ -95,6 +95,18 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
     const dot = path.lastIndexOf(".");
     if (dot < 0) continue;
     const parent = path.slice(0, dot);
+    // A single-segment parent (e.g. "media" in "media.home") is an
+    // ordinary namespace prefix a root can use freely — it is never
+    // itself required to be a separately declared surface (the design's
+    // own worked examples name roots this way: "media.home",
+    // "controls.hvac"). Only a surface nested 2+ levels deep, whose
+    // parent is itself dotted, plausibly represents a promoted child
+    // surface (design §6) whose intermediate ancestor is expected to
+    // exist somewhere in the corpus. A genuinely-nested same-entry child
+    // never reaches this branch — assembleUxSurface always registers its
+    // resolved ancestor alongside it — so this only ever fires across
+    // entries, exactly the promoted-surface scenario it targets.
+    if (!parent.includes(".")) continue;
     if (registry.surfaces.has(parent)) continue;
     for (const record of records) {
       diagnostics.push(

@@ -205,28 +205,38 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
     return { form: "element" };
   });
 
-  // Base-resolution scope for bulletInfo[i]: walk the `.parent` chain,
-  // collecting resolved child-surface ancestor bases (innermost first),
-  // terminated by the root base. Elements never establish a base — the
-  // walk passes over them without pushing, matching "only declarations
-  // create bases; citations/leaves never do" (core/decl/resolve rule 1).
-  const scopeFor = (parent: number | undefined): BaseScope | undefined => {
-    const chain: string[] = [];
+  // Nearest ancestor base for a bullet's `.parent` chain: the closest
+  // "child" ancestor (skipping over "element" ancestors, which never
+  // establish a base — core/decl/resolve rule 1), or root when there is
+  // none. A "child" ancestor whose OWN declaration failed to resolve
+  // reports `blocked: true` rather than being skipped past — everything
+  // nested beneath a broken intermediate declaration is unscopeable, and
+  // must not silently reattach to a grandparent or root (that would
+  // produce a plausible-looking but wrong path with no diagnostic
+  // explaining the reparenting). `resolveRef` only ever consults the
+  // single nearest base (rule 3, "not accumulated up the chain"), so
+  // finding just this one ancestor is sufficient — no chain to build.
+  const nearestAncestorBase = (
+    parent: number | undefined,
+  ): { readonly path: string } | { readonly blocked: true } | undefined => {
     let p = parent;
     while (p !== undefined) {
       const info = bulletInfo[p];
-      if (info.form === "child" && info.resolvedPath !== undefined) {
-        chain.push(info.resolvedPath);
+      if (info.form === "child") {
+        return info.resolvedPath !== undefined
+          ? { path: info.resolvedPath }
+          : { blocked: true };
       }
       p = bullets[p].parent;
     }
-    let scope: BaseScope | undefined = rootPath !== undefined
-      ? { base: rootPath }
-      : undefined;
-    for (let k = chain.length - 1; k >= 0; k--) {
-      scope = { base: chain[k], parent: scope };
-    }
-    return scope;
+    return undefined;
+  };
+
+  const scopeFor = (parent: number | undefined): BaseScope | undefined => {
+    const nearest = nearestAncestorBase(parent);
+    if (nearest && "blocked" in nearest) return undefined;
+    const base = nearest?.path ?? rootPath;
+    return base !== undefined ? { base } : undefined;
   };
 
   // Resolve child-surface paths in source order. Parents always precede
@@ -240,27 +250,25 @@ export function assembleUxSurface(entry: Entry): UxSurfaceTree {
       scopeFor(bullets[i].parent),
       UX_REF_OPS,
     );
-    // A relative child-surface ref only fails to resolve when there is no
-    // root anywhere in its ancestor chain — already reported once via
-    // UXIL-011 above (or an already-reported malformed root). Skip
-    // silently rather than emit a second, cascading diagnostic.
+    // A relative child-surface ref fails to resolve when there is no root
+    // anywhere in its ancestor chain (already reported once via UXIL-011
+    // above, or an already-reported malformed root) or when its nearest
+    // ancestor is itself a broken child declaration (already reported via
+    // that ancestor's own diagnostic). Skip silently rather than emit a
+    // second, cascading diagnostic.
     if (res.ok) info.resolvedPath = res.ref;
   }
 
   // Nearest enclosing surface path for a bullet's `.parent` — the closest
-  // resolved child-surface ancestor, or the root when there is none.
+  // resolved child-surface ancestor, or the root when there is none (or
+  // `undefined` when the nearest ancestor is itself unresolved — see
+  // nearestAncestorBase).
   const enclosingSurfacePath = (
     parent: number | undefined,
   ): string | undefined => {
-    let p = parent;
-    while (p !== undefined) {
-      const info = bulletInfo[p];
-      if (info.form === "child" && info.resolvedPath !== undefined) {
-        return info.resolvedPath;
-      }
-      p = bullets[p].parent;
-    }
-    return rootPath;
+    const nearest = nearestAncestorBase(parent);
+    if (nearest && "blocked" in nearest) return undefined;
+    return nearest?.path ?? rootPath;
   };
 
   // ── Group elements under their enclosing surface ────────────────────────

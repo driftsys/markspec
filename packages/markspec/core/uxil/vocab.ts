@@ -25,12 +25,14 @@ export interface VerbInfo {
   readonly exclusive: boolean;
 }
 
+/** The three closed, core-owned surface kinds. */
 export const UX_KINDS: ReadonlyMap<string, KindInfo> = new Map([
   ["screen", { navigable: true, stateful: true, visual: true }],
   ["panel", { navigable: false, stateful: false, visual: true }],
   ["agent", { navigable: false, stateful: true, visual: false }],
 ]);
 
+/** The eleven closed, core-owned interaction verbs. */
 export const UX_VERBS: ReadonlyMap<string, VerbInfo> = new Map([
   ["activate", { requiresNavTarget: false, exclusive: false }],
   ["toggle", { requiresNavTarget: false, exclusive: false }],
