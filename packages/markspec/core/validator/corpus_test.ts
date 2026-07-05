@@ -309,3 +309,78 @@ Deno.test("attributeCorpusDiagnostics: project-side diagnostics untouched", () =
   }];
   assertEquals(attributeCorpusDiagnostics(input, [], new Set()), input);
 });
+
+// ---------------------------------------------------------------------------
+// #771 polish: upstream-aware remedies and attribution
+// ---------------------------------------------------------------------------
+
+Deno.test("detectCorpusCollisions: upstream↔upstream display-ID collision → consumer-actionable remedy", () => {
+  const upstreamA = makeEntry({
+    displayId: "SYS_0042",
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    file: "docs/a.md",
+    origin: { kind: "upstream", upstreamId: "product", version: "v1" },
+  });
+  const upstreamB = makeEntry({
+    displayId: "SYS_0042",
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+    file: "docs/b.md",
+    origin: { kind: "upstream", upstreamId: "icd", version: "v2" },
+  });
+  const { diagnostics } = detectCorpusCollisions([upstreamA, upstreamB]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].code, "MSL-R014");
+  // The consumer can rename neither read-only upstream entry — the remedy
+  // must name an action the consumer CAN take, not "one must rename".
+  assertEquals(diagnostics[0].message.includes("one must rename"), false);
+  assertStringIncludes(diagnostics[0].message, "product@v1");
+  assertStringIncludes(diagnostics[0].message, "icd@v2");
+  assertStringIncludes(diagnostics[0].message, "project.yaml");
+});
+
+Deno.test("detectCorpusCollisions: corpus↔upstream collision also gets the consumer-actionable remedy", () => {
+  // Mixed tiers: the consumer reading the diagnostic still owns
+  // neither entry (the profile author does, but they are not the
+  // audience) — same consumer-actionable wording as upstream↔upstream
+  // (#799 review).
+  const corpus = makeEntry({
+    displayId: "STD_0001",
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    file: "/cache/p/ref.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const upstream = makeEntry({
+    displayId: "STD_0001",
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+    file: "docs/a.md",
+    origin: { kind: "upstream", upstreamId: "product", version: "v1" },
+  });
+  const { diagnostics } = detectCorpusCollisions([corpus, upstream]);
+  assertEquals(diagnostics.length, 1);
+  assertEquals(diagnostics[0].message.includes("one must rename"), false);
+  assertStringIncludes(diagnostics[0].message, ".markspec.yaml");
+});
+
+Deno.test("attributeCorpusDiagnostics: upstream-located finding gets 'from upstream' attribution, not 'delivered by'", () => {
+  const upstream = makeEntry({
+    displayId: "SYS_0042",
+    file: "docs/a.md",
+    origin: { kind: "upstream", upstreamId: "product", version: "v1" },
+  });
+  // Vehicle is a generic per-entry code — NOT MSL-R014: collision
+  // diagnostics are appended AFTER this post-pass at every production
+  // call site and stay hard errors (ADR-031 D5); pinning a downgrade
+  // for them here would spec a composition production never takes
+  // (#799 review).
+  const input = [{
+    code: "MSL-M060",
+    severity: "error" as const,
+    message: "SYS_0042: modal keyword 'SHALL' must be lowercase",
+    location: { file: "docs/a.md", line: 1, column: 1 },
+  }];
+  const out = attributeCorpusDiagnostics(input, [upstream], new Set());
+  assertEquals(out.length, 1);
+  assertEquals(out[0].severity, "warning");
+  assertStringIncludes(out[0].message, "from upstream product@v1:");
+  assertEquals(out[0].message.includes("delivered by"), false);
+});

@@ -789,13 +789,44 @@ Deno.test("validateTraceabilityForEntry: upstreams declared + unresolved ref →
   assertEquals(l006.length, 0);
   assertEquals(t014.length, 1);
   assertEquals(t014[0].severity, "warning");
-  const msg = t014[0].message;
-  if (
-    !msg.includes("Verifies") || !msg.includes("REQ-9999") ||
-    !msg.includes("upstream-a") || !msg.includes("upstream-b")
-  ) {
-    throw new Error(`message lacks searched-set context: ${msg}`);
-  }
+  // Exact-equality pin (#771 test hardening): an `.includes` probe would
+  // let the searched-set wording drift unnoticed; tooling greps this
+  // message shape.
+  assertEquals(
+    t014[0].message,
+    "REQ-0001: link 'Verifies' target 'REQ-9999' not found in project or " +
+      "upstreams: upstream-a, upstream-b",
+  );
+});
+
+Deno.test("validateTraceabilityForEntry: URI target with upstreams declared → no MSL-T014/L006 (external by design)", () => {
+  // Scheme-qualified URIs are intentionally external — the URI
+  // short-circuit precedes the federation branch, so declaring upstreams
+  // must not start flagging URI values as unresolved-after-federation.
+  const rule: TraceRule = {
+    target: ["requirement"],
+    cardinality: { lower: 0, upper: Infinity },
+    required: false,
+  };
+  const p = profile({
+    types: [typeDef({ name: "test", traceability: { Verifies: rule } })],
+  });
+  const e = entryWithAttrs({
+    shape: "Authored",
+    type: "test",
+    attrs: { Verifies: ["https://example.com/spec#section-3"] },
+  });
+  const diags = validateTraceabilityForEntry(
+    e,
+    p,
+    graphOf([e]),
+    byDisplayIdOf([e]),
+    ["upstream-a"],
+  );
+  assertEquals(
+    diags.filter((d) => d.code === "MSL-T014" || d.code === "MSL-L006"),
+    [],
+  );
 });
 
 Deno.test("validateTraceabilityForEntry: upstreams declared + ref resolves to upstream entry → neither L006 nor T014", () => {

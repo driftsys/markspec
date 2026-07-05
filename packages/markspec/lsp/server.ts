@@ -125,7 +125,7 @@ import {
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
-import { isLockfileOnlyChange } from "./watched_files.ts";
+import { isLockfileOnlyChange, relevantWatchedUris } from "./watched_files.ts";
 import {
   debounce,
   type DebouncedFunction,
@@ -739,8 +739,15 @@ connection.onInitialize(
 // (#771). Debounced 500ms so rapid-fire saves coalesce into one reload.
 // ---------------------------------------------------------------------------
 
-async function reloadProfile(): Promise<void> {
-  if (!projectRoot) return;
+/**
+ * @returns `true` on success; `false` when the reload failed and the
+ *   caller should keep the profile-change flag pending so the next
+ *   watched event (of any kind) retries the full reload (#797 review:
+ *   consuming the flag before a failed reload used to strand the
+ *   editor on stale profile state until the next profile-file save).
+ */
+async function reloadProfile(): Promise<boolean> {
+  if (!projectRoot) return true;
   try {
     const profileResult = await loadProfileForCommand(projectRoot, readFile);
     profile = profileResult.chain?.effective;
@@ -766,8 +773,10 @@ async function reloadProfile(): Promise<void> {
     // Profile changes can flip MSL-R010 suppression and other
     // attribute-validity decisions — republish cross-file diagnostics.
     publishAllDiagnostics();
+    return true;
   } catch (err) {
     connection.console.warn(`Failed to reload profile: ${err}`);
+    return false;
   }
 }
 
@@ -787,10 +796,20 @@ let pendingProfileFileChange = false;
  * the upstream corpus, and republishes diagnostics.
  */
 async function reloadWatchedFiles(): Promise<void> {
+  // A queued chain link can start after onShutdown ran (cancel() only
+  // clears the un-fired debounce timer, not an already-appended link) —
+  // bail instead of writing to the log or a dead connection (#799
+  // review).
+  if (shuttingDown) return;
   const profileChanged = pendingProfileFileChange;
   pendingProfileFileChange = false;
   if (profileChanged) {
-    await reloadProfile();
+    if (!(await reloadProfile())) {
+      // Keep the escalation pending: the next watched event of ANY kind
+      // (including a lock-only one) retries the full reload, restoring
+      // the pre-#797 self-healing property.
+      pendingProfileFileChange = true;
+    }
     return;
   }
   await reloadLockfile();
@@ -798,7 +817,31 @@ async function reloadWatchedFiles(): Promise<void> {
   publishAllDiagnostics();
 }
 
-const debouncedReloadWatchedFiles = debounce(reloadWatchedFiles, 500);
+/** Serializes {@linkcode reloadWatchedFiles} runs (#797 review): the
+ * debounce fires-and-forgets, so a second window expiring while a reload
+ * is still in flight would otherwise interleave the seeders' shared-set
+ * mutations (`seedDeliveredCorpus`'s clear pass is safe only because
+ * `seedUpstreamCorpus` runs immediately after it — an invariant a
+ * concurrent run breaks). Run-next-after-current closes the class,
+ * including the pre-existing full∥full pairing. */
+let watchedReloadChain: Promise<void> = Promise.resolve();
+
+/** Set by `onShutdown` so a chain link queued behind an in-flight
+ * reload never starts after the final event-log flush. */
+let shuttingDown = false;
+
+const debouncedReloadWatchedFiles = debounce(() => {
+  watchedReloadChain = watchedReloadChain
+    .then(() => reloadWatchedFiles())
+    .catch((err) => {
+      // Scoped handling replaced the old fire-and-forget path, whose
+      // rejections reached the global unhandledrejection handler — keep
+      // that handler's event-log write so reload failures stay visible
+      // in .markspec/lsp.log (#799 review).
+      logEvent("error", "reload", { err: String(err) });
+      connection.console.warn(`Watched-file reload failed: ${err}`);
+    });
+}, 500);
 
 // ---------------------------------------------------------------------------
 // Initialized — build the workspace index
@@ -944,12 +987,17 @@ connection.onInitialized(async () => {
 // ---------------------------------------------------------------------------
 
 connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
-  // We only watch `.markspec.yaml`, `project.yaml`, and `markspec.lock`.
-  // Debounce 500ms (design doc §4.1); the dispatcher routes a
-  // markspec.lock-only window to the cheap upstream re-seed and anything
-  // else to the full profile reload (#771).
-  if (params.changes.length === 0) return;
-  if (!isLockfileOnlyChange(params.changes.map((c) => c.uri))) {
+  // The dispatcher owns `.markspec.yaml`, `project.yaml`, and
+  // `markspec.lock` — but the client can forward broader fileEvents
+  // than our dynamic registration (the VS Code extension synchronizes
+  // every Markdown file), so filter first: without it every .md save
+  // escalated to a full profile reload (#799 review). Debounce 500ms
+  // (design doc §4.1); the dispatcher routes a markspec.lock-only
+  // window to the cheap upstream re-seed and anything else to the full
+  // profile reload (#771).
+  const relevant = relevantWatchedUris(params.changes.map((c) => c.uri));
+  if (relevant.length === 0) return;
+  if (!isLockfileOnlyChange(relevant)) {
     pendingProfileFileChange = true;
   }
   debouncedReloadWatchedFiles();
@@ -1818,6 +1866,7 @@ connection.onRequest(
 
 connection.onShutdown(() => {
   logEvent("info", "lifecycle", { event: "onShutdown" });
+  shuttingDown = true;
   debouncedValidateAll.cancel();
   debouncedReloadWatchedFiles.cancel();
   // Roll up per-method counters + session duration into one final

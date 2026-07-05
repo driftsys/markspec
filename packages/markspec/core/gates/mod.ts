@@ -65,7 +65,8 @@ export async function fmtDriftGate(
   // Building the heal index over the full set (including corpus) would flag an
   // MSL-F011 drift that `fmt` can never fix — a permanently red gate for any
   // consumer using a delivered corpus. Filter to `!e.origin`, mirroring
-  // lockfileDriftGate.
+  // lockfileDriftGate — deliberately BROADER than the validators'
+  // `emittableEntries` (upstream-only, #771); do not "unify" it.
   const refIndex = buildRefIndex(entries.filter((e) => !e.origin));
   for (const [filePath, content] of mdContents) {
     const formatted = format(content, {
@@ -136,6 +137,9 @@ export async function lockfileDriftGate(
   if (!lockParse.lockfile) {
     return [...lockParse.diagnostics];
   }
+  // `!e.origin` (project-owned only) — deliberately BROADER than the
+  // validators' `emittableEntries` partition (upstream-only, #771): the
+  // edge ledger records only edges the project authors.
   const projectEntries = entries.filter((e) => !e.origin);
   const drift = await detectOfflineEdgeDrift(
     projectEntries,

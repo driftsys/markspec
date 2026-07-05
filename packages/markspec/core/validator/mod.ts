@@ -81,6 +81,9 @@ export function validate(entries: readonly Entry[]): ValidateResult {
   // Typl declared-once (TYPL-009), citation resolution (TYPL-010/011), and
   // undefined-typedef-refs (TYPL-005). Per-block diagnostics
   // (TYPL-001/004/006/007/008) already fired during parse via the bridge.
+  // Receives the FULL list on purpose: validateTypl applies the partition
+  // itself — its typl-inert-upstream working set is the module's own
+  // registry-scope contract, not this orchestrator's to enforce.
   const typlResult = validateTypl(entries);
   diagnostics.push(...typlResult.diagnostics);
 

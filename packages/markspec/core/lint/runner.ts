@@ -168,7 +168,9 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   // Steps 1–9: collect diagnostics keyed by entry. Delivered-corpus entries
   // (`entry.origin`) are excluded from rule execution — a consumer cannot fix
   // upstream prose (ADR-030 §D4) — even though they contribute to the indexes
-  // above.
+  // above. Deliberately BROADER than the validators' `emittableEntries`
+  // partition (upstream-only, #771): profile corpus stays structurally
+  // validated but is never prose-linted — do not "unify" this filter.
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
     if (entry.origin) continue;
