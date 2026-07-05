@@ -205,16 +205,17 @@ Deno.test("parseElementBullet: missing ':' with verb present is a single UXIL-00
   assertEquals(decl?.verbs, []);
 });
 
-Deno.test("parseElementBullet: reserved char in the nav target is reported once, span-relative", () => {
+Deno.test("parseElementBullet: reserved char in the nav target is reported once, paragraph-relative (#781)", () => {
   // #780 case 2: the span-level scan and parseUxRef(navSource) both scanned
-  // the nav tail, double-reporting a single reserved char. The surviving
-  // diagnostic's column must stay span-relative (#796 review): the '?' sits
-  // at span column 31, not at column 11 of the sliced nav source.
+  // the nav tail, double-reporting a single reserved char — exactly one
+  // survives. #781: its column is paragraph-relative — the '?' sits at
+  // paragraph column 32 (span column 31 + 1 for the leading backtick), not at
+  // column 11 of the sliced nav source.
   const { diagnostics } = parseElementBullet(
     "`/play : activate -> media.home?x` — Goes home.",
   );
   assertEquals(diagnostics.map((d) => d.code), ["UXIL-002"]);
-  assertEquals(diagnostics[0].position.column, 31);
+  assertEquals(diagnostics[0].position.column, 32);
 });
 
 Deno.test("parseElementBullet: reserved char in the nav survives a malformed struct part", () => {
@@ -243,4 +244,46 @@ Deno.test("parseElementBullet: preserves a leading hyphen in the event dictionar
   );
   assertEquals(diagnostics, []);
   assertEquals(decl?.eventDictionary, "-5 dB is the floor");
+});
+
+Deno.test("parseElementBullet: struct diagnostic column is paragraph-relative, not span-relative (#781)", () => {
+  // #781: splitLeadingCodeSpan used to discard the code-span's start offset,
+  // so every diagnostic column was relative to the de-backticked span rather
+  // than the paragraph the parser was handed. The 'activate' token sits at
+  // paragraph column 8 — span column 7 plus 1 for the leading backtick.
+  const { diagnostics } = parseElementBullet("`/play activate` — x");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-001"]);
+  assertEquals(diagnostics[0].position.column, 8);
+});
+
+Deno.test("parseElementBullet: list-item indent before the code span shifts the diagnostic column (#781)", () => {
+  // #781: leading whitespace consumed by splitLeadingCodeSpan must count
+  // toward the span start. Three spaces of list indent shift every column
+  // right by three.
+  const flush = parseElementBullet("`/play activate` — x");
+  const indented = parseElementBullet("   `/play activate` — x");
+  assertEquals(
+    indented.diagnostics[0].position.column -
+      flush.diagnostics[0].position.column,
+    3,
+  );
+});
+
+Deno.test("parseElementBullet: double-backtick delimiter counts two chars toward the span start (#781)", () => {
+  // #781: a ``…`` span consumes two delimiter chars before its inner text,
+  // so the 'activate' token lands at paragraph column 9 (span column 7 + 2).
+  const { diagnostics } = parseElementBullet("``/play activate`` — x");
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-001"]);
+  assertEquals(diagnostics[0].position.column, 9);
+});
+
+Deno.test("parseElementBullet: nav reserved-char column composes the span start with the nav offset (#781)", () => {
+  // #781: the '-> nav' sub-parse offset must compose with the span start.
+  // Two spaces of indent (span start 3, vs 1 for a bare backtick) push the
+  // paragraph-relative '?' column from 32 to 34.
+  const { diagnostics } = parseElementBullet(
+    "  `/play : activate -> media.home?x` — Goes home.",
+  );
+  assertEquals(diagnostics.map((d) => d.code), ["UXIL-002"]);
+  assertEquals(diagnostics[0].position.column, 34);
 });
