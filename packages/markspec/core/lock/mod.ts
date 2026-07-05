@@ -27,6 +27,8 @@ export { serializeLockfile } from "./serializer.ts";
 export { parseLockfile } from "./parser.ts";
 export type { ParseLockfileResult } from "./parser.ts";
 
+export { dependencyPinAssurance } from "./pin_assurance.ts";
+
 export { isBelowFloor } from "./compare.ts";
 
 export { checkDrift } from "./check.ts";

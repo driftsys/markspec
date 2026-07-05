@@ -330,6 +330,7 @@ export {
   canonicalEdgeJson,
   checkDrift,
   compileAcquiredTree,
+  dependencyPinAssurance,
   deriveUpstreamId,
   detectOfflineEdgeDrift,
   extractEdgeLedger,
