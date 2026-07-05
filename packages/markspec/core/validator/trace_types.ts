@@ -108,27 +108,29 @@ function isTargetTypeCompatible(
  *
  * Unresolved targets are silently skipped — they're caught elsewhere
  * (MSL-R080 / MSL-T012 / MSL-T005). Targets without a resolvable core
- * type are also skipped (no compat call to make).
+ * type are also skipped (no compat call to make). Upstream TARGETS are
+ * exempt from the MSL-R083 type-compat checks (#771) — their type comes
+ * from a foreign vocabulary, the target-side twin of #765's MSL-L004 fix.
+ *
+ * @param emittable The #771 emit partition — trace rules are never
+ *   checked FROM an upstream entry.
+ * @param all The full entry set (upstream included) — resolution maps
+ *   index it so links TO an upstream entry keep resolving.
  */
 export function validateTraceTargetTypes(
-  entries: readonly Entry[],
+  emittable: readonly Entry[],
+  all: readonly Entry[],
 ): readonly Diagnostic[] {
   const byDisplayId = new Map<string, Entry>();
   const byId = new Map<string, Entry>();
-  for (const e of entries) {
+  for (const e of all) {
     if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
     if (e.id && !byId.has(e.id)) byId.set(e.id, e);
   }
 
   const diagnostics: Diagnostic[] = [];
 
-  for (const entry of entries) {
-    // Upstream entries (federated-upstream epic) are validation-exempt
-    // emitters (design §4.7) — skip checking trace rules FROM an upstream
-    // entry. `byDisplayId`/`byId` above still include them, so a project
-    // entry's link targeting an upstream entry keeps resolving.
-    if (isUpstreamEntry(entry)) continue;
-
+  for (const entry of emittable) {
     // MSL-R084: Supersedes target must be the same shape as the source.
     for (const attr of entry.rawAttributes) {
       if (attr.key !== "Supersedes") continue;
@@ -152,6 +154,10 @@ export function validateTraceTargetTypes(
         const target = attr.value.trim();
         const resolved = byId.get(target) ?? byDisplayId.get(target);
         if (!resolved) continue;
+        // Target-side exemption (#771, matching #765's MSL-L004 fix): an
+        // upstream target's type comes from a foreign vocabulary — never
+        // judge core-type compatibility against it.
+        if (isUpstreamEntry(resolved)) continue;
         const targetType = resolvedCoreType(resolved);
         if (!targetType) continue;
         if (isTargetTypeCompatible(targetType, rule.allowedTargetTypes)) {
@@ -189,6 +195,9 @@ export function validateTraceTargetTypes(
         const target = attr.value.trim();
         const resolved = byId.get(target) ?? byDisplayId.get(target);
         if (!resolved) continue;
+        // Target-side exemption (#771) — same rationale as the
+        // TRACE_RULES loop above.
+        if (isUpstreamEntry(resolved)) continue;
         const targetType = resolvedCoreType(resolved);
         if (!targetType) continue;
         if (isTargetTypeCompatible(targetType, sourceRole.allowed)) continue;

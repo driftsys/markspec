@@ -10,8 +10,13 @@
  */
 
 import { assertEquals } from "@std/assert";
-import type { EntryOrigin } from "./mod.ts";
-import { formatEntryOrigin, sameOriginSource } from "./mod.ts";
+import type { Entry, EntryOrigin } from "./mod.ts";
+import {
+  emittableEntries,
+  formatEntryOrigin,
+  makeDisplayId,
+  sameOriginSource,
+} from "./mod.ts";
 
 Deno.test("formatEntryOrigin: joins profile id and version with '@'", () => {
   const origin: EntryOrigin = {
@@ -67,4 +72,35 @@ Deno.test("sameOriginSource: profile vs upstream → false", () => {
     version: "1",
   };
   assertEquals(sameOriginSource(a, b), false);
+});
+
+function buildOriginEntry(displayId: string, origin?: EntryOrigin): Entry {
+  return {
+    displayId: makeDisplayId(displayId),
+    title: displayId,
+    body: "",
+    shape: "Authored",
+    source: { kind: "markdown" },
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    location: { file: "t.md", line: 1, column: 1 },
+    bodyTokens: [],
+    ...(origin ? { origin } : {}),
+  };
+}
+
+Deno.test("emittableEntries: drops upstream, keeps project + corpus, preserves order", () => {
+  const upstream = buildOriginEntry("SYS-0001", {
+    kind: "upstream",
+    upstreamId: "product",
+    version: "v1",
+  });
+  const project = buildOriginEntry("STK-0001");
+  const corpus = buildOriginEntry("STD-0001", {
+    kind: "profile",
+    profileId: "@acme/safety",
+    profileVersion: "1.0.0",
+  });
+  const result = emittableEntries([upstream, project, corpus]);
+  assertEquals(result.map((e) => e.displayId), ["STK-0001", "STD-0001"]);
 });

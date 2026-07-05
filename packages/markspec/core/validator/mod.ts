@@ -19,8 +19,8 @@ import {
   attributeSpec,
   CORE_TYPE_SCOPED_ATTRS,
   CSV_SPLITTABLE_TYPES,
+  emittableEntries,
   IDENTITY_KEY,
-  isUpstreamEntry,
   ULID_RE,
   UNIVERSAL_ATTRIBUTE_KEYS,
   URI_SCHEME_RE,
@@ -69,8 +69,14 @@ export interface ValidateResult {
 export function validate(entries: readonly Entry[]): ValidateResult {
   const diagnostics: Diagnostic[] = [];
 
-  checkStructural(entries, diagnostics);
-  checkReferences(entries, diagnostics);
+  // Partition once (#771): upstream entries are read-only graph citizens
+  // (ADR-031 §4.7) — emit loops iterate `emittable`; resolution maps
+  // (checkReferences) still index the full `entries` list so links TO an
+  // upstream entry keep resolving.
+  const emittable = emittableEntries(entries);
+
+  checkStructural(emittable, diagnostics);
+  checkReferences(emittable, entries, diagnostics);
 
   // Typl declared-once (TYPL-009), citation resolution (TYPL-010/011), and
   // undefined-typedef-refs (TYPL-005). Per-block diagnostics
@@ -82,21 +88,18 @@ export function validate(entries: readonly Entry[]): ValidateResult {
   return { diagnostics, valid };
 }
 
-/** MSL-R structural checks on individual entries and cross-entry uniqueness. */
+/** MSL-R structural checks on individual entries and cross-entry uniqueness.
+ * Receives the pre-partitioned emittable list (#771) — upstream entries never
+ * enter these checks or the duplicate maps below (same as before the
+ * partition: the maps were built inside the guarded loop). */
 function checkStructural(
-  entries: readonly Entry[],
+  emittable: readonly Entry[],
   diagnostics: Diagnostic[],
 ): void {
   const displayIds = new Map<string, Entry>();
   const ids = new Map<string, Entry>();
 
-  for (const entry of entries) {
-    // Upstream entries (federated-upstream epic) are validation-exempt
-    // graph citizens (design §4.7): skip every structural check entirely.
-    // Unlike `kind:"profile"` corpus entries (validated then downgraded),
-    // upstream entries never enter these checks in the first place.
-    if (isUpstreamEntry(entry)) continue;
-
+  for (const entry of emittable) {
     // MSL-R003: exactly one `Id:` attribute per entry.
     // Dual-emit: MSL-I002 (Reference missing Id), MSL-I003 (Authored missing
     // Id), MSL-I004 (multiple Id) — nextgen §4.2 codes alongside legacy.
@@ -438,14 +441,17 @@ function checkStructural(
   }
 }
 
-/** Cross-reference integrity checks. */
+/** Cross-reference integrity checks. Emit loops iterate the pre-partitioned
+ * `emittable` list (#771 — refs FROM an upstream entry are never checked);
+ * the resolution maps index `all` so refs TO an upstream entry resolve. */
 function checkReferences(
-  entries: readonly Entry[],
+  emittable: readonly Entry[],
+  all: readonly Entry[],
   diagnostics: Diagnostic[],
 ): void {
   // Build a display-ID index for cross-reference resolution.
   const byDisplayId = new Map<string, Entry>();
-  for (const entry of entries) {
+  for (const entry of all) {
     if (!byDisplayId.has(entry.displayId)) {
       byDisplayId.set(entry.displayId, entry);
     }
@@ -454,7 +460,7 @@ function checkReferences(
   // Also index by `Id:` value so references may target ULIDs or URIs
   // directly (profile tooling commonly accepts either).
   const byId = new Map<string, Entry>();
-  for (const entry of entries) {
+  for (const entry of all) {
     if (entry.id && !byId.has(entry.id)) {
       byId.set(entry.id, entry);
     }
@@ -462,11 +468,7 @@ function checkReferences(
 
   // MSL-T012: `Supersedes:` — the one baked-in relation. Target must
   // resolve; profile rules check type/shape compatibility separately.
-  // Upstream entries are skipped as emitters — refs FROM an upstream entry
-  // are never checked — but they remain in `byDisplayId`/`byId` above so
-  // refs TO them (from project entries) still resolve.
-  for (const entry of entries) {
-    if (isUpstreamEntry(entry)) continue;
+  for (const entry of emittable) {
     const supersedes = entry.rawAttributes.find((a) => a.key === "Supersedes");
     if (!supersedes) continue;
     const target = supersedes.value.trim();
@@ -483,10 +485,7 @@ function checkReferences(
 
   // MSL-T005: `References:` — citations must resolve to a referenced
   // entry. This is a universal relation (citing identified → referenced).
-  // Upstream entries are skipped as emitters — same rationale as the
-  // Supersedes loop above.
-  for (const entry of entries) {
-    if (isUpstreamEntry(entry)) continue;
+  for (const entry of emittable) {
     const citations = entry.rawAttributes.filter((a) => a.key === "References");
     for (const attr of citations) {
       // Citation format: "slug [free-text locator]"; take the first token.

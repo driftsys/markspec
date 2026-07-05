@@ -19,6 +19,7 @@ export {
   CORE_SCHEMA_VERSION,
   DEFAULT_PROJECT_CONFIG,
   descendantsOf,
+  emittableEntries,
   formatEntryOrigin,
   isUpstreamEntry,
   KNOWN_LINK_KINDS,

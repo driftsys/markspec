@@ -103,11 +103,13 @@ export type EntryOrigin =
 ```
 
 `formatEntryOrigin` renders the upstream badge as `<upstreamId>@<version>` (e.g.
-`product@v2.1.0`); `isUpstreamEntry` gates the validator and lint loops.
-`loadUpstreamCorpus` (`core/upstream/mod.ts`) — the sibling of ADR-030's
-`loadDeliveredCorpus`, same purity rules (injected `readFile`, no I/O of its
-own) — hydrates each cached snapshot into `Entry[]` and stamps the origin.
-`loadProjectUpstreams` (`core/upstream/project.ts`) wraps the
+`product@v2.1.0`). `emittableEntries` (`core/model`) partitions the validators'
+emit side once per run — upstream entries never enter an emit loop but stay in
+every resolution map (#771); `isUpstreamEntry` remains the target-side and
+reporter predicate. `loadUpstreamCorpus` (`core/upstream/mod.ts`) — the sibling
+of ADR-030's `loadDeliveredCorpus`, same purity rules (injected `readFile`, no
+I/O of its own) — hydrates each cached snapshot into `Entry[]` and stamps the
+origin. `loadProjectUpstreams` (`core/upstream/project.ts`) wraps the
 lockfile→refs→hydration chain — including the no-lockfile and empty-refs
 short-circuits — behind one call, so every feed surface shares the same
 soft-fail and diagnostic semantics (#771). Upstream entries seed at the same
@@ -379,8 +381,9 @@ are byte-reproducible across machines from `(tree, markspec version)`.
 - [ADR-032](./adr-032-process-profile-boundary.md) — settles the sibling
   `process:` ↔ profile-activation question this design scoped out (§9 #2).
 - As-built: `core/model/mod.ts` (`EntryOrigin`, `formatEntryOrigin`,
-  `isUpstreamEntry`, `ProjectRef`, `ProjectConfig`), `core/upstream/mod.ts`
-  (`loadUpstreamCorpus`), `core/upstream/refs.ts` (`upstreamRefsFromLockfile`),
+  `isUpstreamEntry`, `emittableEntries` — the #771 emit-partition helper,
+  `ProjectRef`, `ProjectConfig`), `core/upstream/mod.ts` (`loadUpstreamCorpus`),
+  `core/upstream/refs.ts` (`upstreamRefsFromLockfile`),
   `core/upstream/project.ts` (`loadProjectUpstreams`, shared by all four feed
   surfaces — #771), `core/lock/model.ts` + `serializer.ts`
   (`UpstreamDependency`, extended `UpstreamRegistry`),

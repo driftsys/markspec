@@ -7,7 +7,7 @@
 
 import type { CompileResult } from "../compiler/mod.ts";
 import type { DisplayId, Entry } from "../model/mod.ts";
-import { formatEntryOrigin } from "../model/mod.ts";
+import { formatEntryOrigin, isUpstreamEntry } from "../model/mod.ts";
 
 /** Supported report kinds. */
 export type ReportKind = "traceability" | "coverage";
@@ -222,9 +222,8 @@ function computeCoverage(
     // like a project entry — this branch is inert until slice 3 loads
     // dependency entries, but the classification is exercised here so it's
     // ready when they do.
-    const origin = entry.origin;
-    const isReferenceLeaf = origin?.kind === "upstream" &&
-      !(dependencyUpstreamIds?.has(origin.upstreamId) ?? false);
+    const isReferenceLeaf = isUpstreamEntry(entry) &&
+      !(dependencyUpstreamIds?.has(entry.origin.upstreamId) ?? false);
 
     const fwd = result.forward.get(entry.displayId) ?? [];
     const rev = result.reverse.get(entry.displayId) ?? [];

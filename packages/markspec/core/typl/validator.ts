@@ -21,7 +21,7 @@
  * See ADR-019.
  */
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import { isUpstreamEntry } from "../model/mod.ts";
+import { emittableEntries } from "../model/mod.ts";
 import type { Binding, Shape } from "./ast.ts";
 import { extractTyplCitations } from "./citations.ts";
 import { findDuplicateDeclarations, resolveRef } from "../decl/mod.ts";
@@ -38,9 +38,8 @@ import { TYPL_REF_OPS } from "./resolve.ts";
  * the corpus-wide declared-once (TYPL-009) accounting — a project entry
  * re-declaring a dotted name an upstream also publishes is not a
  * collision. Cross-repo typl resolution is out of scope for this slice
- * (see ADR-019 / federated-upstream design §4.7); this mirrors the
- * validation exemption every other per-entry validator stage applies via
- * `isUpstreamEntry`.
+ * (see ADR-019 / federated-upstream design §4.7); this is the same #771
+ * `emittableEntries` partition the validator orchestrators apply.
  *
  * Returns the built corpus registry (scoped to non-upstream entries)
  * plus any diagnostics. The registry is returned even when diagnostics
@@ -50,7 +49,7 @@ import { TYPL_REF_OPS } from "./resolve.ts";
 export function validateTypl(
   entries: readonly Entry[],
 ): { registry: TypeRegistry; diagnostics: readonly Diagnostic[] } {
-  const localEntries = entries.filter((entry) => !isUpstreamEntry(entry));
+  const localEntries = emittableEntries(entries);
   const registry = buildTypeRegistry(localEntries);
   const diagnostics: Diagnostic[] = [];
 

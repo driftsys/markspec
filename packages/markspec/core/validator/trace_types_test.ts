@@ -9,8 +9,14 @@
 
 import { assertEquals } from "@std/assert";
 import { validateTraceTargetTypes } from "./trace_types.ts";
-import type { Entry } from "../model/mod.ts";
-import { makeDisplayId } from "../model/mod.ts";
+import type { Diagnostic, Entry } from "../model/mod.ts";
+import { emittableEntries, makeDisplayId } from "../model/mod.ts";
+
+/** Compose the #771 emit partition the way `runPipeline` Stage 1.6 does —
+ * tests exercise the same caller contract the production pipeline uses. */
+function run(entries: readonly Entry[]): readonly Diagnostic[] {
+  return validateTraceTargetTypes(emittableEntries(entries), entries);
+}
 
 const ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 const ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
@@ -40,7 +46,7 @@ function entry(opts: {
 }
 
 Deno.test("Caused-by on Record with Requirement target → OK", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "REC-001",
       type: "Record",
@@ -65,7 +71,7 @@ Deno.test("Caused-by on Record with Requirement target → OK", () => {
 });
 
 Deno.test("Caused-by on Record with Component target → MSL-R083 (Record-cause set)", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "REC-001",
       type: "Record",
@@ -103,7 +109,7 @@ Deno.test("Caused-by on upstream Record with Component target → no MSL-R083 (u
   // graph citizens (design §4.7) — Stage 1.6 must skip emitting from
   // them entirely, even though the target-type mismatch would otherwise
   // fire MSL-R083.
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "REC-001",
       type: "Record",
@@ -128,8 +134,39 @@ Deno.test("Caused-by on upstream Record with Component target → no MSL-R083 (u
   assertEquals(r083.length, 0);
 });
 
+Deno.test("Caused-by on Record with UPSTREAM Component target → no MSL-R083 (target-side exemption, #771)", () => {
+  // Mirror of "Caused-by on Record with Component target → MSL-R083"
+  // above, but the TARGET carries a `kind:"upstream"` origin. An upstream
+  // target's type comes from a foreign vocabulary — core-type
+  // compatibility must never be judged against it (the target-side twin
+  // of #765's MSL-L004 fix).
+  const result = run([
+    entry({
+      displayId: "REC-001",
+      type: "Record",
+      rawAttributes: [
+        { key: "Id", value: ULID_A },
+        { key: "Type", value: "Record" },
+        { key: "Caused-by", value: ULID_B },
+      ],
+    }),
+    entry({
+      displayId: "comp-1",
+      type: "Component",
+      id: ULID_B,
+      rawAttributes: [
+        { key: "Id", value: ULID_B },
+        { key: "Type", value: "Component" },
+      ],
+      origin: { kind: "upstream", upstreamId: "acme/reqs", version: "v1.0" },
+    }),
+  ]);
+  const r083 = result.filter((d) => d.code === "MSL-R083");
+  assertEquals(r083.length, 0);
+});
+
 Deno.test("Caused-by on Risk with Component target → OK", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "RSK-001",
       type: "Risk",
@@ -158,7 +195,7 @@ Deno.test("Caused-by on Requirement (neither Record nor Risk) → no MSL-R083 (s
   // rule applies only to Record / Risk; if the source is neither (or
   // unresolved), the check is silent — a useful diagnostic would need
   // attribute-applicability rules, not type-target mismatch.
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "REQ-001",
       type: "Requirement",
@@ -191,7 +228,7 @@ Deno.test("Caused-by on Requirement (neither Record nor Risk) → no MSL-R083 (s
 const ULID_C = "01HGW2Q8MNP3RSTVWXYZABCDEH";
 
 Deno.test("Provides: SoftwareInterface target → no MSL-R083 (Contract subtype)", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "SWC-001",
       type: "SoftwareComponent",
@@ -216,7 +253,7 @@ Deno.test("Provides: SoftwareInterface target → no MSL-R083 (Contract subtype)
 });
 
 Deno.test("Provides: plain Contract target → no MSL-R083", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "SWC-001",
       type: "SoftwareComponent",
@@ -241,7 +278,7 @@ Deno.test("Provides: plain Contract target → no MSL-R083", () => {
 });
 
 Deno.test("Tests: SoftwareInterface target → no MSL-R083 (Contract subtype)", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "TST-001",
       type: "Test",
@@ -266,7 +303,7 @@ Deno.test("Tests: SoftwareInterface target → no MSL-R083 (Contract subtype)", 
 });
 
 Deno.test("Requires: HardwareInterface target → no MSL-R083 (Contract subtype)", () => {
-  const result = validateTraceTargetTypes([
+  const result = run([
     entry({
       displayId: "HWC-001",
       type: "HardwareComponent",
