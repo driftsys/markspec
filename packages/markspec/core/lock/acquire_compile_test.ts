@@ -11,7 +11,13 @@ function fixtureIO(
   files: Record<string, string>,
   enumOrder: "forward" | "reverse" = "forward",
 ) {
-  const norm = (p: string) => p.replaceAll("\\", "/");
+  // Normalize `\`→`/` AND strip a leading drive letter. The fake tree is
+  // keyed on a Unix-style `/dep` root, but `compileAcquiredTree` runs the
+  // real `loadConfig`, whose `discoverProjectRoot` calls `resolve()` — on
+  // Windows that turns `/dep` into `C:\dep`, so a candidate path arrives
+  // here as `C:/dep/project.yaml`. Dropping the `C:` makes it match the
+  // `/dep`-rooted fixture keys on every platform (no-op on POSIX).
+  const norm = (p: string) => p.replaceAll("\\", "/").replace(/^[a-zA-Z]:/, "");
   return {
     readFile: (p: string) => Promise.resolve(files[norm(p)]),
     readText: (p: string) => {
