@@ -50,13 +50,23 @@ Concretely, on `story/804-restore-mdbook`:
   shipped without issue for 3+ months pre-cutover) and changed the 4 book-build
   steps from `deno run ... book build --output ...` back to
   `mdbook build <dir>`. Dropped the per-book `markspec.css` copy loop the native
-  path needed — mdBook's `additional-css` setting already copies the stylesheet
-  into each book's own build-dir. The checkout/upload-pages-artifact action
-  versions, the `schemas/**` trigger path and copy step, the landing-page copy,
-  and the Typst cheat-sheet step were left untouched — none are specific to the
-  renderer choice.
+  path needed — mdBook does not copy `additional-css` files anywhere; each
+  `book.toml`'s `additional-css = ["../../theme/markspec.css"]` instead makes
+  every generated page emit a `<link>` with a depth-adjusted relative `../` path
+  that climbs out of the book's own `build-dir` to a single shared
+  `_site/theme/markspec.css`. That file is supplied by the pre-existing
+  top-level "Copy theme, schemas, and landing page" step
+  (`mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css`),
+  which this restoration keeps as-is — it is now load-bearing for all 4
+  mdBook-built books' stylesheets, not just the Pages landing page, so it must
+  not be removed. The checkout/upload-pages-artifact action versions, the
+  `schemas/**` trigger path and copy step, the landing-page copy, and the Typst
+  cheat-sheet step were left untouched — none are specific to the renderer
+  choice.
 - **`justfile`** — reverted the `book` recipe's 4 build lines to `mdbook build`,
-  dropped the same copy loop, and restored the
+  dropped the same per-book copy loop (the shared `_site/theme/markspec.css`
+  copy that every book's relative-path CSS link resolves to stays, for the same
+  reason as above), and restored the
   `book-dev book="spec/language": mdbook serve docs/{{book}} --open` recipe for
   local live-reload preview.
 - **Doc-accuracy notes** added to `docs/guide/cli.md`'s `book build` section and

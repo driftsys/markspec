@@ -60,6 +60,11 @@ jobs:
 
       - name: Copy theme, schemas, and landing page
         run: |
+          # Load-bearing for all 4 mdBook books, not just the landing page:
+          # mdBook never copies additional-css — each book.toml's
+          # additional-css instead links out via a relative ../ path to this
+          # one shared file. Do not remove without updating every book's
+          # stylesheet link (see ADR-033).
           mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
           mkdir -p _site/schemas && cp -R schemas/. _site/schemas/
           cp docs/index.html _site/index.html

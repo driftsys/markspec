@@ -44,6 +44,10 @@ book: tokens
     mdbook build docs/spec/model
     mdbook build docs/guide
     typst compile --font-path packages/markspec-typst/fonts docs/cheatsheet/markspec-cheatsheet.typ _site/markspec-cheatsheet.pdf
+    # Load-bearing for all 4 mdBook books, not just the landing page: mdBook
+    # never copies additional-css — each book.toml's additional-css instead
+    # links out via a relative ../ path to this one shared file. Do not
+    # remove without updating every book's stylesheet link (see ADR-033).
     mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
     cp docs/index.html _site/index.html
 
