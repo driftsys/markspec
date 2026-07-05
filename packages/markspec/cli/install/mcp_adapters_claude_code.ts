@@ -1,7 +1,7 @@
 /**
  * @module cli/install/mcp_adapters_claude_code
  *
- * `claude-code` MCP install adapter — project-scoped. Writes the
+ * `claude` MCP install adapter — project-scoped. Writes the
  * managed `markspec` entry to `<workspaceRoot>/.mcp.json`, which
  * Claude Code reads on session start. See ADR-023 for the broader
  * trigger-language context.
@@ -20,14 +20,14 @@ import type {
 } from "./adapters.ts";
 
 export const claudeCodeDescriptor: McpAdapter = {
-  id: "claude-code",
-  // Same JSON path as claude-desktop — the .mcp.json shape mirrors the
-  // user-scope Claude Desktop config but lives at the project root.
+  id: "claude",
+  // JSON path `["mcpServers", "markspec"]`; `.mcp.json` lives at the
+  // project root and Claude Code reads it on session start.
   jsonPath: ["mcpServers", "markspec"],
   resolveConfigPath(scope, cwd, _home, _appData, workspaceRoot) {
     if (scope !== "workspace") {
       throw new Error(
-        "claude-code does not support user scope (project-scoped only)",
+        "claude does not support user scope (project-scoped only)",
       );
     }
     const root = workspaceRoot ?? cwd;
@@ -44,7 +44,7 @@ export const claudeCodeDescriptor: McpAdapter = {
     // Both vars must be set together; the test harness owns both.
     if (Deno.env.get("MARKSPEC_TEST_MODE") === "1") {
       const fake = Deno.env.get("MARKSPEC_FAKE_CLIENT_DETECT");
-      if (fake !== undefined && fake.split(",").includes("claude-code")) {
+      if (fake !== undefined && fake.split(",").includes("claude")) {
         signals.push("env-fake");
         return { detected: true, signals };
       }

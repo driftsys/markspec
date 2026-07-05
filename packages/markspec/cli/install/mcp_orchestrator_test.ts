@@ -14,34 +14,18 @@ const USER_COPILOT_CONFIG = join("/home/u", ".copilot", "mcp-config.json");
 
 Deno.test("runMcpInstall: unknown client → exit 1 with suggestion", async () => {
   const r = await runMcpInstall({
-    client: "claude-desktp", // typo
+    client: "claud", // typo for claude
     binaryPath: "markspec",
     env: { cwd: "/tmp", home: "/home/test", isTty: false },
   });
   assertEquals(r.exitCode, 1);
-  assertStringIncludes(r.stderr, "unknown client 'claude-desktp'");
-  assertStringIncludes(r.stderr, "did you mean: claude-desktop");
+  assertStringIncludes(r.stderr, "unknown client 'claud'");
+  assertStringIncludes(r.stderr, "did you mean: claude");
 });
-
-Deno.test(
-  "runMcpInstall: claude-desktop + --scope=workspace → exit 1 with clear message",
-  async () => {
-    const r = await runMcpInstall({
-      client: "claude-desktop",
-      scope: "workspace",
-      binaryPath: "markspec",
-      env: { cwd: "/tmp", home: "/home/test", isTty: false },
-    });
-    assertEquals(r.exitCode, 1);
-    assertStringIncludes(r.stderr, "--scope=workspace is not supported");
-    assertStringIncludes(r.stderr, "claude-desktop");
-    assertStringIncludes(r.stderr, "per-user");
-  },
-);
 
 Deno.test("runMcpInstall: unknown scope → exit 1", async () => {
   const r = await runMcpInstall({
-    client: "claude-desktop",
+    client: "claude",
     scope: "global",
     binaryPath: "markspec",
     env: { cwd: "/tmp", home: "/home/test", isTty: false },
@@ -61,10 +45,10 @@ Deno.test("runMcpInstall: cursor → delegates to legacy print-only adapter", as
   assertStringIncludes(r.stderr, "mcp.json");
 });
 
-Deno.test("runMcpInstall: --client=claude-code routes through managed-block flow", async () => {
+Deno.test("runMcpInstall: --client=claude routes through managed-block flow", async () => {
   // Use --print path so we don't write any file.
   const result = await runMcpInstall({
-    client: "claude-code",
+    client: "claude",
     scope: "workspace",
     binaryPath: "markspec",
     print: true,
@@ -82,9 +66,9 @@ Deno.test("runMcpInstall: --client=claude-code routes through managed-block flow
   assertStringIncludes(result.stderr, REPO_MCP_JSON);
 });
 
-Deno.test("runMcpInstall: --client=claude-code --scope=user is rejected", async () => {
+Deno.test("runMcpInstall: --client=claude --scope=user is rejected", async () => {
   const result = await runMcpInstall({
-    client: "claude-code",
+    client: "claude",
     scope: "user",
     binaryPath: "markspec",
     print: true,
@@ -93,7 +77,7 @@ Deno.test("runMcpInstall: --client=claude-code --scope=user is rejected", async 
   assertEquals(result.exitCode, 1);
   assertStringIncludes(
     result.stderr,
-    "--scope=user is not supported for --client=claude-code",
+    "--scope=user is not supported for --client=claude",
   );
 });
 
@@ -147,7 +131,7 @@ Deno.test("runMcpInstall: --client=copilot --scope=workspace → .github/mcp.jso
     env: { cwd: REPO_CWD, home: "/home/u", isTty: true },
   });
   assertEquals(result.exitCode, 0);
-  // Copilot local-server schema differs from claude-code: adds type + tools.
+  // Copilot local-server schema differs from claude: adds type + tools.
   assertStringIncludes(result.stdout, `"mcpServers"`);
   assertStringIncludes(result.stdout, `"markspec"`);
   assertStringIncludes(result.stdout, `"type": "local"`);

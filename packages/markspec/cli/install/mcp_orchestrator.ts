@@ -6,8 +6,8 @@
  *
  * 1. The managed block is a JSON-key value (under `mcpServers.markspec`)
  *    edited via `applyJsonBlock` / `removeJsonBlock`, not a Lua fence.
- * 2. `--scope=workspace` is rejected for `--client=claude-desktop` —
- *    Claude Desktop is a per-user app with no workspace config.
+ * 2. `--scope=user` is rejected for the project-scoped clients
+ *    (`claude`, `opencode`), which write a per-repo config file.
  *
  * Boundary contract (kept pure for testability): `runMcpInstall(options)`
  * returns an `OrchestratorResult`. No `process.exit`, no global state.
@@ -22,11 +22,7 @@ import {
   type McpClientId,
   suggestId,
 } from "./adapters.ts";
-import {
-  claudeDesktopDescriptor,
-  cursorAdapter,
-  vscodeMcpAdapter,
-} from "./mcp_adapters.ts";
+import { cursorAdapter, vscodeMcpAdapter } from "./mcp_adapters.ts";
 import { claudeCodeDescriptor } from "./mcp_adapters_claude_code.ts";
 import { opencodeDescriptor } from "./mcp_adapters_opencode.ts";
 import { copilotDescriptor } from "./mcp_adapters_copilot.ts";
@@ -108,16 +104,13 @@ export async function runMcpInstall(
     };
   }
 
-  // 4. Managed-block flow — claude-desktop, claude-code, opencode, copilot.
+  // 4. Managed-block flow — claude, opencode, copilot.
   if (
-    clientId === "claude-desktop" ||
-    clientId === "claude-code" ||
+    clientId === "claude" ||
     clientId === "opencode" ||
     clientId === "copilot"
   ) {
-    const adapter: McpAdapter = clientId === "claude-desktop"
-      ? claudeDesktopDescriptor
-      : clientId === "claude-code"
+    const adapter: McpAdapter = clientId === "claude"
       ? claudeCodeDescriptor
       : clientId === "opencode"
       ? opencodeDescriptor
@@ -135,8 +128,8 @@ export async function runMcpInstall(
 }
 
 /**
- * Shared managed-block flow used by claude-desktop, claude-code, opencode,
- * and copilot. Reads current content, computes next via `applyJsonBlock` /
+ * Shared managed-block flow used by claude, opencode, and copilot.
+ * Reads current content, computes next via `applyJsonBlock` /
  * `removeJsonBlock`, handles --print / --force / atomic write /
  * sidecar backup.
  */
@@ -144,23 +137,13 @@ async function runManagedBlockFlow(
   adapter: McpAdapter,
   options: McpInstallOptions,
 ): Promise<OrchestratorResult> {
-  const isClaudeDesktop = adapter.id === "claude-desktop";
-  const isProjectScoped = adapter.id === "claude-code" ||
+  const isProjectScoped = adapter.id === "claude" ||
     adapter.id === "opencode";
   // Copilot is the one dual-scope client: --scope=workspace →
   // .github/mcp.json, --scope=user → ~/.copilot/mcp-config.json. It
   // rejects neither scope; an omitted scope defaults to workspace
   // (per-repo, matching `markspec init`).
-  const isDualScope = adapter.id === "copilot";
 
-  if (isClaudeDesktop && options.scope === "workspace") {
-    return {
-      stdout: "",
-      stderr:
-        `error: --scope=workspace is not supported for --client=claude-desktop (per-user app); use --scope=user or omit\n`,
-      exitCode: 1,
-    };
-  }
   if (isProjectScoped && options.scope === "user") {
     return {
       stdout: "",
@@ -203,17 +186,16 @@ async function runManagedBlockFlow(
   };
   const isTty = options.env?.isTty ?? Deno.stdin.isTerminal();
 
-  // Resolve the effective scope. claude-desktop is user-only; claude-code
-  // and opencode are workspace-only; copilot honours --scope and defaults
-  // to workspace when omitted. The unknown-scope guard above has already
-  // narrowed options.scope to user | workspace | undefined.
+  // Resolve the effective scope. claude and opencode are workspace-only;
+  // copilot (the only non-project-scoped client) honours --scope and
+  // defaults to workspace when omitted. The unknown-scope guard above has
+  // already narrowed options.scope to user | workspace | undefined.
   let scope: "user" | "workspace";
   if (isProjectScoped) {
     scope = "workspace";
-  } else if (isDualScope) {
-    scope = options.scope === "user" ? "user" : "workspace";
   } else {
-    scope = "user"; // claude-desktop
+    // copilot: dual-scope.
+    scope = options.scope === "user" ? "user" : "workspace";
   }
   const configPath = adapter.resolveConfigPath(
     scope,

@@ -32,12 +32,12 @@ This writes:
 Auto-detection covers Claude Code and opencode. Force a client with `--client`:
 
 ```bash
-markspec init --client claude-code --client opencode
+markspec init --client claude --client opencode
 ```
 
-For `claude-desktop`, run `markspec mcp install --client claude-desktop`
-separately — it writes to user-scope config (`~/.claude/`) outside the project
-directory and is intentionally not part of `markspec init`.
+Claude Desktop is not a markspec target — its `claude_desktop_config.json` is
+the desktop app's private state file, so markspec never writes it. Configure it
+by hand (see [Claude Desktop](#claude-desktop) below).
 
 For VS Code + Copilot, no MCP file is written — the bundled
 `driftsys.markspec-ide` extension handles the wiring once the
@@ -86,8 +86,12 @@ location as `(in upstream <name>)` because the file lives in another repository;
 
 ### Claude Desktop
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
-or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+markspec does **not** configure Claude Desktop — its
+`claude_desktop_config.json` is the desktop app's own private state file, so
+markspec leaves it to you (there is no `--client claude-desktop`). Add the
+`markspec` server by hand to
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or
+`%APPDATA%\Claude\claude_desktop_config.json` (Windows), then restart the app:
 
 ```json
 {
@@ -100,34 +104,20 @@ or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 }
 ```
 
-Generate the snippet automatically:
-
-```sh
-markspec mcp install --client claude-desktop
-```
-
-Pin a specific binary path (useful when the binary is not on `PATH` or when
-package-manager upgrades would change the install location):
-
-```sh
-markspec mcp install --client claude-desktop \
-  --binary-path /opt/markspec/bin/markspec
-```
-
 ### Claude Code
 
-`markspec mcp install --client claude-code` writes `.mcp.json` at the project
-root. The file uses the same `mcpServers.markspec` shape as Claude Desktop and
-is read automatically by Claude Code when it opens the directory.
+`markspec mcp install --client claude` writes `.mcp.json` at the project root.
+The file uses the standard `mcpServers.markspec` shape and is read automatically
+by Claude Code when it opens the directory.
 
 ```sh
-markspec mcp install --client claude-code --scope workspace
-markspec mcp install --client claude-code --scope workspace \
+markspec mcp install --client claude --scope workspace
+markspec mcp install --client claude --scope workspace \
   --binary-path /opt/markspec/bin/markspec
 ```
 
-The `--scope=user` flag is not supported for `claude-code` — the config is
-always project-scoped (`.mcp.json` at the repo root).
+The `--scope=user` flag is not supported for `claude` — the config is always
+project-scoped (`.mcp.json` at the repo root).
 
 ### Cursor
 
@@ -170,8 +160,8 @@ markspec mcp install --client copilot --scope workspace \
   --binary-path /opt/markspec/bin/markspec
 ```
 
-The entry nests under `mcpServers.markspec` like Claude Desktop, but the
-local-server shape differs — it adds `type` and `tools`:
+The entry nests under `mcpServers.markspec` like Claude Code's `.mcp.json`, but
+the local-server shape differs — it adds `type` and `tools`:
 
 ```json
 {
@@ -188,8 +178,8 @@ local-server shape differs — it adds `type` and `tools`:
 
 An omitted `--scope` defaults to `workspace`, matching the per-repo model of
 `markspec init`. The `.github/mcp.json` path (verified against
-`GitHub Copilot CLI 1.0.66`) is deliberately distinct from the `claude-code`
-client's `.mcp.json` so the two clients never contend for one file.
+`GitHub Copilot CLI 1.0.66`) is deliberately distinct from the `claude` client's
+`.mcp.json` so the two clients never contend for one file.
 
 **Editor / agent-mode surface.** `--client copilot` covers Copilot's _CLI_
 surfaces only — the file-based sources the terminal reads (`.github/mcp.json`,

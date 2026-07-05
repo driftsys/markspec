@@ -15,14 +15,14 @@ export type ProfileChoice =
 
 /** Clients init will write MCP configs for, after detection + flags. */
 export interface ClientSet {
-  /** Set of client IDs to write. Subset of {claude-code, opencode, claude-desktop}. */
+  /** Set of client IDs to write. Subset of {claude, opencode}. */
   readonly write: ReadonlySet<InitClientId>;
 }
 
-export type InitClientId = "claude-code" | "opencode";
+export type InitClientId = "claude" | "opencode";
 
 export const INIT_CLIENT_IDS: readonly InitClientId[] = [
-  "claude-code",
+  "claude",
   "opencode",
 ];
 

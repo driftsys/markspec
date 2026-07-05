@@ -13,37 +13,7 @@
 
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { dirname, fromFileUrl, join } from "@std/path";
-import { markspec } from "./helpers.ts";
-
-// ---------------------------------------------------------------------------
-// Test 1: --print emits full file to stdout, "would write to" to stderr
-// ---------------------------------------------------------------------------
-
-Deno.test(
-  "mcp install claude-desktop: --print emits full file to stdout, would-write to stderr",
-  async () => {
-    const { code, stdout, stderr } = await markspec(
-      [
-        "mcp",
-        "install",
-        "--client=claude-desktop",
-        "--print",
-        "--binary-path=markspec",
-      ],
-      { permissions: ["--allow-env"] },
-    );
-    assertEquals(code, 0);
-    assertStringIncludes(stdout, '"mcpServers"');
-    assertStringIncludes(stdout, '"markspec"');
-    assertStringIncludes(stdout, '"command": "markspec"');
-    assertStringIncludes(stdout, '"args"');
-    assertStringIncludes(stderr, "would write to ");
-    assertStringIncludes(
-      stderr.replaceAll("\\", "/"),
-      "claude_desktop_config.json",
-    );
-  },
-);
+import { markspec, markspecInDir, markspecPersist } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Test 2: unknown client suggests correction
@@ -53,12 +23,12 @@ Deno.test(
   "mcp install: unknown client suggests correction",
   async () => {
     const { code, stderr } = await markspec(
-      ["mcp", "install", "--client=claude-desktp", "--print"],
+      ["mcp", "install", "--client=claud", "--print"],
       { permissions: ["--allow-env"] },
     );
     assertEquals(code, 1);
-    assertStringIncludes(stderr, "unknown client 'claude-desktp'");
-    assertStringIncludes(stderr, "did you mean: claude-desktop");
+    assertStringIncludes(stderr, "unknown client 'claud'");
+    assertStringIncludes(stderr, "did you mean: claude");
   },
 );
 
@@ -67,10 +37,16 @@ Deno.test(
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-desktop: non-TTY without --force → exit 1 with remediation",
+  "mcp install claude: non-TTY without --force → exit 1 with remediation",
   async () => {
     const { code, stderr } = await markspec(
-      ["mcp", "install", "--client=claude-desktop", "--binary-path=markspec"],
+      [
+        "mcp",
+        "install",
+        "--client=claude",
+        "--scope=workspace",
+        "--binary-path=markspec",
+      ],
       { permissions: ["--allow-env"] },
     );
     assertEquals(code, 1);
@@ -82,25 +58,25 @@ Deno.test(
 );
 
 // ---------------------------------------------------------------------------
-// Test 4: --scope=workspace rejected for claude-desktop
+// Test 4: --scope=user rejected for claude (project-scoped)
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-desktop: --scope=workspace → exit 1 (per-user app)",
+  "mcp install claude: --scope=user → exit 1 (project-scoped)",
   async () => {
     const { code, stderr } = await markspec(
       [
         "mcp",
         "install",
-        "--client=claude-desktop",
-        "--scope=workspace",
+        "--client=claude",
+        "--scope=user",
         "--print",
       ],
       { permissions: ["--allow-env"] },
     );
     assertEquals(code, 1);
-    assertStringIncludes(stderr, "--scope=workspace is not supported");
-    assertStringIncludes(stderr, "claude-desktop");
+    assertStringIncludes(stderr, "--scope=user is not supported");
+    assertStringIncludes(stderr, "claude");
   },
 );
 
@@ -178,53 +154,30 @@ async function runMcpInstallE2e(
   };
 }
 
-function expectedConfigPath(homeDir: string): string {
-  if (Deno.build.os === "darwin") {
-    return join(
-      homeDir,
-      "Library",
-      "Application Support",
-      "Claude",
-      "claude_desktop_config.json",
-    );
-  }
-  if (Deno.build.os === "windows") {
-    return join(
-      homeDir,
-      "AppData",
-      "Roaming",
-      "Claude",
-      "claude_desktop_config.json",
-    );
-  }
-  return join(homeDir, ".config", "Claude", "claude_desktop_config.json");
-}
-
 // ---------------------------------------------------------------------------
 // Test 6: --force writes managed entry; re-run is no-op (idempotence)
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-desktop: --force writes managed entry; re-run is no-op",
+  "mcp install claude: --force writes managed entry; re-run is no-op",
   async () => {
-    const homeDir = await Deno.makeTempDir();
+    const args = [
+      "mcp",
+      "install",
+      "--client=claude",
+      "--scope=workspace",
+      "--binary-path=/opt/markspec/markspec",
+      "--force",
+    ];
+    const first = await markspecPersist(args, {
+      permissions: ["--allow-env"],
+    });
     try {
-      const first = await runMcpInstallE2e(
-        [
-          "mcp",
-          "install",
-          "--client=claude-desktop",
-          "--binary-path=/opt/markspec/markspec",
-          "--force",
-        ],
-        homeDir,
-      );
       assertEquals(first.code, 0, first.stderr);
       assertStringIncludes(first.stderr, "wrote ");
 
-      const configPath = expectedConfigPath(homeDir);
-      const written = await Deno.readTextFile(configPath);
-      const parsed = JSON.parse(written);
+      const configPath = join(first.dir, ".mcp.json");
+      const parsed = JSON.parse(await Deno.readTextFile(configPath));
       assertEquals(
         parsed.mcpServers.markspec.command,
         "/opt/markspec/markspec",
@@ -232,20 +185,11 @@ Deno.test(
       assertEquals(parsed.mcpServers.markspec.args, ["mcp"]);
 
       // Second run with identical args must be a no-op.
-      const second = await runMcpInstallE2e(
-        [
-          "mcp",
-          "install",
-          "--client=claude-desktop",
-          "--binary-path=/opt/markspec/markspec",
-          "--force",
-        ],
-        homeDir,
-      );
+      const second = await markspecInDir(first.dir, args, ["--allow-env"]);
       assertEquals(second.code, 0, second.stderr);
       assertStringIncludes(second.stderr, "already up to date");
     } finally {
-      await Deno.remove(homeDir, { recursive: true });
+      await Deno.remove(first.dir, { recursive: true });
     }
   },
 );
@@ -255,59 +199,54 @@ Deno.test(
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-desktop: preserves sibling keys and JSONC comments",
+  "mcp install claude: preserves sibling keys and JSONC comments",
   async () => {
-    const homeDir = await Deno.makeTempDir();
-    try {
-      const configPath = expectedConfigPath(homeDir);
-      const configDir = dirname(configPath);
-      await Deno.mkdir(configDir, { recursive: true });
-      const initial = `{
+    const initial = `{
   // top comment
   "mcpServers": {
     "other-server": { "command": "other", "args": ["run"] }
   },
-  /* block */ "globalShortcut": "Cmd+Space"
+  /* block */ "someKey": "value"
 }
 `;
-      await Deno.writeTextFile(configPath, initial);
+    const run = await markspecPersist(
+      [
+        "mcp",
+        "install",
+        "--client=claude",
+        "--scope=workspace",
+        "--binary-path=markspec",
+        "--force",
+      ],
+      { files: { ".mcp.json": initial }, permissions: ["--allow-env"] },
+    );
+    try {
+      assertEquals(run.code, 0, run.stderr);
 
-      const r = await runMcpInstallE2e(
-        [
-          "mcp",
-          "install",
-          "--client=claude-desktop",
-          "--binary-path=markspec",
-          "--force",
-        ],
-        homeDir,
-      );
-      assertEquals(r.code, 0, r.stderr);
-
-      const written = await Deno.readTextFile(configPath);
+      const written = await Deno.readTextFile(join(run.dir, ".mcp.json"));
       assertStringIncludes(written, "// top comment");
       assertStringIncludes(written, "/* block */");
       assertStringIncludes(written, '"other-server"');
-      assertStringIncludes(written, '"globalShortcut"');
+      assertStringIncludes(written, '"someKey"');
       assertStringIncludes(written, '"markspec"');
     } finally {
-      await Deno.remove(homeDir, { recursive: true });
+      await Deno.remove(run.dir, { recursive: true });
     }
   },
 );
 
 // ---------------------------------------------------------------------------
-// Test: claude-code --print emits JSON for .mcp.json
+// Test: claude --print emits JSON for .mcp.json
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-code: --print emits JSON for .mcp.json",
+  "mcp install claude: --print emits JSON for .mcp.json",
   async () => {
     const { code, stdout, stderr } = await markspec(
       [
         "mcp",
         "install",
-        "--client=claude-code",
+        "--client=claude",
         "--scope=workspace",
         "--print",
       ],
@@ -317,21 +256,22 @@ Deno.test(
     assertStringIncludes(stdout, '"mcpServers"');
     assertStringIncludes(stdout, '"markspec"');
     assertStringIncludes(stderr.replaceAll("\\", "/"), ".mcp.json");
+    assertStringIncludes(stderr, "would write to ");
   },
 );
 
 // ---------------------------------------------------------------------------
-// Test: claude-code --force writes .mcp.json
+// Test: claude --force writes .mcp.json
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-code: --force writes .mcp.json",
+  "mcp install claude: --force writes .mcp.json",
   async () => {
     const { code, stderr } = await markspec(
       [
         "mcp",
         "install",
-        "--client=claude-code",
+        "--client=claude",
         "--scope=workspace",
         "--force",
       ],
@@ -395,50 +335,48 @@ Deno.test(
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "mcp install claude-desktop: --remove strips only the markspec entry",
+  "mcp install claude: --remove strips only the markspec entry",
   async () => {
-    const homeDir = await Deno.makeTempDir();
+    const installArgs = [
+      "mcp",
+      "install",
+      "--client=claude",
+      "--scope=workspace",
+      "--binary-path=markspec",
+      "--force",
+    ];
+    const removeArgs = [
+      "mcp",
+      "install",
+      "--client=claude",
+      "--scope=workspace",
+      "--remove",
+      "--force",
+    ];
+    // First: install to create the entry.
+    const first = await markspecPersist(installArgs, {
+      permissions: ["--allow-env"],
+    });
     try {
-      // First: install to create the entry.
-      await runMcpInstallE2e(
-        [
-          "mcp",
-          "install",
-          "--client=claude-desktop",
-          "--binary-path=markspec",
-          "--force",
-        ],
-        homeDir,
-      );
+      assertEquals(first.code, 0, first.stderr);
 
       // Remove it.
-      const r = await runMcpInstallE2e(
-        [
-          "mcp",
-          "install",
-          "--client=claude-desktop",
-          "--remove",
-          "--force",
-        ],
-        homeDir,
-      );
+      const r = await markspecInDir(first.dir, removeArgs, ["--allow-env"]);
       assertEquals(r.code, 0, r.stderr);
       assertStringIncludes(r.stderr, "wrote ");
 
-      const configPath = expectedConfigPath(homeDir);
-      const written = await Deno.readTextFile(configPath);
+      const written = await Deno.readTextFile(join(first.dir, ".mcp.json"));
       const parsed = JSON.parse(written);
       assertEquals(parsed.mcpServers?.markspec, undefined);
 
       // Re-remove must be a no-op.
-      const second = await runMcpInstallE2e(
-        ["mcp", "install", "--client=claude-desktop", "--remove", "--force"],
-        homeDir,
-      );
+      const second = await markspecInDir(first.dir, removeArgs, [
+        "--allow-env",
+      ]);
       assertEquals(second.code, 0, second.stderr);
       assertStringIncludes(second.stderr, "already removed");
     } finally {
-      await Deno.remove(homeDir, { recursive: true });
+      await Deno.remove(first.dir, { recursive: true });
     }
   },
 );

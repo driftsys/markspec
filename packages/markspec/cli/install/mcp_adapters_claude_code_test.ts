@@ -1,7 +1,7 @@
 /**
  * @module cli/install/mcp_adapters_claude_code_test
  *
- * Tests for the claude-code adapter — slice G0 of the install/upgrade
+ * Tests for the claude adapter — slice G0 of the install/upgrade
  * devex epic.
  */
 
@@ -27,7 +27,7 @@ const HOME_CLAUDE = join(HOME_DIR, ".claude");
 // ---------------------------------------------------------------------------
 
 Deno.test("claudeCodeDescriptor: id and jsonPath", () => {
-  assertEquals(claudeCodeDescriptor.id, "claude-code");
+  assertEquals(claudeCodeDescriptor.id, "claude");
   assertEquals(claudeCodeDescriptor.jsonPath, ["mcpServers", "markspec"]);
 });
 
@@ -59,7 +59,7 @@ Deno.test("claudeCodeDescriptor: user scope throws", () => {
   assertThrows(
     () => claudeCodeDescriptor.resolveConfigPath("user", "/cwd", "/home"),
     Error,
-    "claude-code does not support user scope",
+    "claude does not support user scope",
   );
 });
 
@@ -181,15 +181,15 @@ async function withFakeEnv(
   }
 }
 
-Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude-code forces detected=true (with TEST_MODE)", async () => {
-  await withFakeEnv("1", "claude-code", async () => {
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude forces detected=true (with TEST_MODE)", async () => {
+  await withFakeEnv("1", "claude", async () => {
     const r = await claudeCodeDescriptor.detect!(makeEnv());
     assertEquals(r.detected, true);
     assertEquals(r.signals.includes("env-fake"), true);
   });
 });
 
-Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode does NOT force claude-code (with TEST_MODE)", async () => {
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode does NOT force claude (with TEST_MODE)", async () => {
   await withFakeEnv("1", "opencode", async () => {
     const r = await claudeCodeDescriptor.detect!(makeEnv());
     assertEquals(r.detected, false);
@@ -199,7 +199,7 @@ Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode does NOT force claude-co
 Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT without MARKSPEC_TEST_MODE is ignored", async () => {
   // Env-bleed guard: a stray MARKSPEC_FAKE_CLIENT_DETECT in a parent
   // shell / .env / CI environment must not trick a production run.
-  await withFakeEnv(undefined, "claude-code", async () => {
+  await withFakeEnv(undefined, "claude", async () => {
     const r = await claudeCodeDescriptor.detect!(makeEnv());
     assertEquals(r.detected, false);
     assertEquals(r.signals.includes("env-fake"), false);

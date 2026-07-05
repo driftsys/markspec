@@ -7,7 +7,7 @@ import { claudeCodeDescriptor } from "../install/mcp_adapters_claude_code.ts";
 import { opencodeDescriptor } from "../install/mcp_adapters_opencode.ts";
 
 const adapters = new Map([
-  ["claude-code" as const, claudeCodeDescriptor],
+  ["claude" as const, claudeCodeDescriptor],
   ["opencode" as const, opencodeDescriptor],
 ]);
 
@@ -132,7 +132,7 @@ Deno.test("runInit: clients detected → mcpRunner invoked per client", async ()
     version: "0.6.0",
     mcpAdapters: adapters,
   });
-  assertEquals(calls.sort(), ["claude-code", "opencode"]);
+  assertEquals(calls.sort(), ["claude", "opencode"]);
 });
 
 Deno.test("runInit: --no-skills skips upskill", async () => {
@@ -328,7 +328,7 @@ Deno.test("runInit: mcpRunner failure → MCP_INSTALL_FAILED warning + exit 2", 
   const result = await runInit({
     targetDir: "/repo",
     profileChoice: { kind: "bundled" },
-    forcedClients: ["claude-code"],
+    forcedClients: ["claude"],
     allClients: false,
     noMcp: false,
     noSkills: true,
@@ -347,13 +347,13 @@ Deno.test("runInit: mcpRunner failure → MCP_INSTALL_FAILED warning + exit 2", 
   assertEquals(result.exitCode, 2);
   const warn = result.warnings.find((w) => w.code === "MCP_INSTALL_FAILED");
   assertEquals(warn !== undefined, true);
-  assertEquals(warn!.message.includes("claude-code"), true);
+  assertEquals(warn!.message.includes("claude"), true);
   // The failed write must not appear in actions — otherwise the
   // summary advertises a config that was never written.
   const mcpAction = result.actions.find((a) => a.file === ".mcp.json");
   assertEquals(mcpAction, undefined);
   // …and the failed client must not be advertised as written (#575).
-  assertEquals(result.clientsWritten.includes("claude-code"), false);
+  assertEquals(result.clientsWritten.includes("claude"), false);
 });
 
 Deno.test("runInit: clientsWritten lists the client whose MCP config landed", async () => {
@@ -361,7 +361,7 @@ Deno.test("runInit: clientsWritten lists the client whose MCP config landed", as
   const result = await runInit({
     targetDir: "/repo",
     profileChoice: { kind: "bundled" },
-    forcedClients: ["claude-code"],
+    forcedClients: ["claude"],
     allClients: false,
     noMcp: false,
     noSkills: true,
@@ -377,7 +377,7 @@ Deno.test("runInit: clientsWritten lists the client whose MCP config landed", as
     version: "0.6.0",
     mcpAdapters: adapters,
   });
-  assertEquals(result.clientsWritten, ["claude-code"]);
+  assertEquals(result.clientsWritten, ["claude"]);
 });
 
 // ---------------------------------------------------------------------------
@@ -424,7 +424,7 @@ Deno.test("runInit: BINARY_PATH_WARNING still fires when an MCP client is writte
   const result = await runInit({
     targetDir: "/repo",
     profileChoice: { kind: "bundled" },
-    forcedClients: ["claude-code"],
+    forcedClients: ["claude"],
     allClients: false,
     noMcp: false,
     noSkills: true,

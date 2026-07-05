@@ -15,8 +15,7 @@ export interface AdapterResult {
 
 export type LspEditorId = "vscode" | "neovim" | "zed";
 export type McpClientId =
-  | "claude-desktop"
-  | "claude-code"
+  | "claude"
   | "cursor"
   | "opencode"
   | "vscode"
@@ -28,8 +27,7 @@ export const LSP_EDITOR_IDS: readonly LspEditorId[] = [
   "zed",
 ];
 export const MCP_CLIENT_IDS: readonly McpClientId[] = [
-  "claude-desktop",
-  "claude-code",
+  "claude",
   "cursor",
   "opencode",
   "vscode",
@@ -125,7 +123,7 @@ export interface McpAdapter {
   readonly id: McpClientId;
   /**
    * JSON path of the managed entry under the target config file's root.
-   * For claude-desktop / claude-code this is `["mcpServers", "markspec"]`.
+   * For claude this is `["mcpServers", "markspec"]`.
    * For opencode it differs — see `mcp_adapters_opencode.ts`.
    */
   readonly jsonPath: readonly (string | number)[];

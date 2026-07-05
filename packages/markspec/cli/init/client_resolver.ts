@@ -33,7 +33,7 @@ export async function resolveClientSet(
     for (const c of INIT_CLIENT_IDS) write.add(c);
   } else {
     if ((await claudeCodeDescriptor.detect!(options.env)).detected) {
-      write.add("claude-code");
+      write.add("claude");
     }
     if ((await opencodeDescriptor.detect!(options.env)).detected) {
       write.add("opencode");

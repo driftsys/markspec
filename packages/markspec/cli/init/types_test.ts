@@ -9,7 +9,7 @@ import {
 Deno.test("types: INIT_CLIENT_IDS contains the two init-supported clients", () => {
   assertEquals(INIT_CLIENT_IDS.length, 2);
   const set = new Set<InitClientId>(INIT_CLIENT_IDS);
-  assertEquals(set.has("claude-code"), true);
+  assertEquals(set.has("claude"), true);
   assertEquals(set.has("opencode"), true);
 });
 

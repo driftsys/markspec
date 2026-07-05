@@ -211,8 +211,8 @@ Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=opencode forces detected=true (wi
   });
 });
 
-Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude-code does NOT force opencode (with TEST_MODE)", async () => {
-  await withFakeEnv("1", "claude-code", async () => {
+Deno.test("detect: MARKSPEC_FAKE_CLIENT_DETECT=claude does NOT force opencode (with TEST_MODE)", async () => {
+  await withFakeEnv("1", "claude", async () => {
     const r = await opencodeDescriptor.detect!(makeEnv());
     assertEquals(r.detected, false);
   });

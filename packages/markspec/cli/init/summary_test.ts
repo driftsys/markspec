@@ -7,7 +7,7 @@ const ok: InitResult = {
   exitCode: 0,
   target: "/repo",
   profile: { kind: "bundled" },
-  clientsWritten: ["claude-code"],
+  clientsWritten: ["claude"],
   actions: [
     { kind: "create", file: "project.yaml" },
     { kind: "skip", file: ".markspec.yaml", reason: "exists" },
@@ -20,7 +20,7 @@ Deno.test("renderJsonSummary: ok shape", () => {
   const parsed = JSON.parse(renderJsonSummary(ok));
   assertEquals(parsed.ok, true);
   assertEquals(parsed.exitCode, 0);
-  assertEquals(parsed.clientsWritten, ["claude-code"]);
+  assertEquals(parsed.clientsWritten, ["claude"]);
   assertEquals(parsed.actions.length, 2);
 });
 
