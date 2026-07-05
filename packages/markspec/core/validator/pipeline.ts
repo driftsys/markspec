@@ -40,6 +40,16 @@ import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { validateUxilFamily } from "./uxil_family.ts";
 
+/** Cross-entry uxil codes suppressed under file-local scope (#727): a
+ * subset registry cannot distinguish a dangling reference from an
+ * unchecked file — the same false-positive class the MSL-L006 filter
+ * guards. Entry-local UXIL codes are unaffected. */
+const FILE_LOCAL_SUPPRESSED_UXIL: ReadonlySet<string> = new Set([
+  "UXIL-016",
+  "UXIL-017",
+  "UXIL-018",
+]);
+
 /** Result of running the full validator pipeline. */
 export interface PipelineResult {
   /** Entries after classification — `type` set on those that classified. */
@@ -198,6 +208,7 @@ export function runPipeline(
   // resolve in either form (issue #593). Upstream entries MUST stay in both
   // indexes — a project entry's link targeting an upstream entry must still
   // resolve (design §4.7) — so this map-building loop is never filtered.
+  const projectWide = opts.projectWide !== false;
   if (profile !== null) {
     const graph = new Map<string, Entry>();
     const byDisplayId = new Map<string, Entry>();
@@ -205,7 +216,6 @@ export function runPipeline(
       if (e.id && !graph.has(e.id)) graph.set(e.id, e);
       if (!byDisplayId.has(e.displayId)) byDisplayId.set(e.displayId, e);
     }
-    const projectWide = opts.projectWide !== false;
     // Upstream entries are validation-exempt emitters (design §4.7): trace
     // rules FROM an upstream entry are never checked. They remain
     // resolution targets via the maps built above.
@@ -237,7 +247,16 @@ export function runPipeline(
   // FULL classified list on purpose: the family derives its own #771
   // partition and its own declaring/citing split — registry scope is the
   // module's contract, not this orchestrator's (mirrors validateTypl).
-  diagnostics.push(...validateUxilFamily(finalEntries, profile));
+  // File-local scope (projectWide: false) suppresses the cross-entry codes
+  // (UXIL-016/017/018) — a subset registry cannot distinguish a dangling
+  // reference from an unchecked file, the same false-positive class the
+  // MSL-L006 suppression guards (#727 review).
+  const uxilDiagnostics = validateUxilFamily(finalEntries, profile);
+  diagnostics.push(
+    ...(projectWide ? uxilDiagnostics : uxilDiagnostics.filter(
+      (d) => !FILE_LOCAL_SUPPRESSED_UXIL.has(d.code),
+    )),
+  );
 
   const valid = !diagnostics.some((d) => d.severity === "error");
   return { entries: finalEntries, diagnostics, valid };

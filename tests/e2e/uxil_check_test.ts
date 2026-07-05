@@ -95,7 +95,7 @@ Deno.test("uxil: root declaration in a requirement entry is UXIL-023", async () 
   assertStringIncludes(stderr, "UXIL-023");
 });
 
-Deno.test("uxil: dangling citation from a requirement entry is UXIL-018", async () => {
+Deno.test("uxil: cross-entry citation codes are suppressed on file-local check", async () => {
   const citing = `- [REQ_0001] Journey step
 
   Tap \`ux:media.ghost/play!activate\` to start playback.
@@ -112,7 +112,25 @@ Deno.test("uxil: dangling citation from a requirement entry is UXIL-018", async 
       "req.md": citing,
     },
   );
-  assertEquals(code, 1);
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("UXIL-018"), false);
+});
+
+Deno.test("uxil: bare check reports a dangling citation as UXIL-018", async () => {
+  const citing = `- [REQ_0001] Journey step
+
+  Tap \`ux:media.ghost/play!activate\` to start playback.
+
+      Id: 01HZZZ0000000000000000020A
+`;
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
+    ".markspec.yaml": MARKSPEC_YAML,
+    "profiles/seed/markspec.yaml": PROFILE_YAML,
+    "contract.md": CONTRACT,
+    "req.md": citing,
+  });
+  assertEquals(code, 1, stderr);
   assertStringIncludes(stderr, "UXIL-018");
 });
 
