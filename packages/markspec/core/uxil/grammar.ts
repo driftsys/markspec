@@ -453,8 +453,10 @@ export function parseElementBullet(
     }
   }
 
-  // Event dictionary: trailing prose, minus a leading em-dash/hyphen separator.
-  const eventDictionary = rest.replace(/^\s*[—-]\s*/, "").trim();
+  // Event dictionary: trailing prose, minus a leading em-dash separator. Only
+  // an em-dash "—" is stripped (never an ASCII "-"), so prose that legitimately
+  // opens with a hyphen — e.g. "-5 dB is the floor" — keeps its first character.
+  const eventDictionary = rest.replace(/^\s*—\s*/, "").trim();
   if (eventDictionary.length === 0) {
     diagnostics.push(uxilDiagnostic("UXIL-006", {}, { line: 1, column: 1 }));
   }

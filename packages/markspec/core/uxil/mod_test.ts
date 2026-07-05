@@ -30,14 +30,14 @@ Deno.test("acceptance: all four forms parse through the public surface", () => {
 
 // Acceptance 2: scheme-less relative form parses identically (wire-compat).
 Deno.test("acceptance: scheme-less wire form is byte-compatible", () => {
-  const scheme = parseUxRef("ux:media.home/play");
-  const wire = parseUxRef("media.home/play");
+  const scheme = parseUxRef("ux:media.home@ready/play:{id}!activate");
+  const wire = parseUxRef("media.home@ready/play:{id}!activate");
   assertEquals(scheme.diagnostics, []);
   assertEquals(wire.diagnostics, []);
-  assertEquals(scheme.ref?.surface, wire.ref?.surface);
-  assertEquals(scheme.ref?.element, wire.ref?.element);
   assertEquals(scheme.ref?.hasScheme, true);
   assertEquals(wire.ref?.hasScheme, false);
+  // Full structural equality modulo hasScheme (surface, state, element, key, verb).
+  assertEquals(scheme.ref, { ...wire.ref, hasScheme: true });
 });
 
 // Acceptance 3: parse errors are structured (feed S9).

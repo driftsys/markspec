@@ -20,15 +20,16 @@ Deno.test("parseUxRef: full ref with scheme, state, element, key, verb", () => {
 });
 
 Deno.test("parseUxRef: scheme-less wire form parses identically (wire-compat)", () => {
-  const withScheme = parseUxRef("ux:media.home/play");
-  const wire = parseUxRef("media.home/play");
+  const withScheme = parseUxRef("ux:media.home@ready/play:{id}!activate");
+  const wire = parseUxRef("media.home@ready/play:{id}!activate");
   assertEquals(wire.diagnostics, []);
   assertEquals(withScheme.diagnostics, []);
-  // Identical modulo hasScheme.
-  assertEquals(wire.ref?.surface, withScheme.ref?.surface);
-  assertEquals(wire.ref?.element, withScheme.ref?.element);
   assertEquals(withScheme.ref?.hasScheme, true);
   assertEquals(wire.ref?.hasScheme, false);
+  // Every other field is byte-identical — normalize hasScheme and deep-compare
+  // the full node so a regression in surface/state/element/key/verb cannot pass
+  // silently.
+  assertEquals({ ...wire.ref, hasScheme: true }, withScheme.ref);
 });
 
 Deno.test("parseUxRef: reserved authority is UXIL-003", () => {
@@ -103,4 +104,12 @@ Deno.test("parseElementBullet: missing event dictionary is UXIL-006", () => {
 Deno.test("parseElementBullet: empty verb set is UXIL-005", () => {
   const { diagnostics } = parseElementBullet("`/play :` — no verb.");
   assertEquals(diagnostics.some((d) => d.code === "UXIL-005"), true);
+});
+
+Deno.test("parseElementBullet: preserves a leading hyphen in the event dictionary", () => {
+  const { decl, diagnostics } = parseElementBullet(
+    "`/vol : set` -5 dB is the floor",
+  );
+  assertEquals(diagnostics, []);
+  assertEquals(decl?.eventDictionary, "-5 dB is the floor");
 });

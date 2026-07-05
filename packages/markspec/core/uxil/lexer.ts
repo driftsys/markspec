@@ -9,6 +9,7 @@
  */
 import type { Position } from "./ast.ts";
 
+/** All token kinds produced by the uxil tokenizer. */
 export type TokenKind =
   | "IDENT"
   | "DOT"
@@ -22,6 +23,7 @@ export type TokenKind =
   | "RBRACE"
   | "EOF";
 
+/** A single token emitted by {@linkcode tokenize}. */
 export interface Token {
   readonly kind: TokenKind;
   /** Raw text (empty for EOF). */
