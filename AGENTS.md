@@ -937,3 +937,10 @@ severity/effort/priority, and review flow.
 ## Post-clone setup
 
 Run `./bootstrap` after `git clone` or `git worktree add`.
+
+`./bootstrap` installs `git-std` and fetches tree-sitter grammars only — it does
+not install [`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
+`just book`/`just book-dev` for local docs preview, install `mdbook` separately
+(e.g. `cargo install mdbook`, or a platform package manager such as
+`brew install mdbook`). CI installs it automatically via
+`peaceiris/actions-mdbook@v2`; only local contributors need this step.

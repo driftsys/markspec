@@ -78,6 +78,25 @@ Concretely, on `story/804-restore-mdbook`:
 - **`docs/index.html`'s FontAwesome→inline-SVG fix from PR #762 was kept** — an
   unrelated improvement to the Pages landing page, not part of the renderer
   choice.
+- **Post-review path-depth correction.** The verbatim-restored `additional-css`
+  values (2 levels for `docs/guide`, 3 for the 3 `docs/spec/*` books) were
+  derived from each book's _source_ directory nesting, not from the deployed
+  site's _build-dir_ nesting — which is uniformly 1 level under `_site/` for all
+  4 books. That mismatch made every book's stylesheet `<link>` climb one level
+  too high once served from GitHub Pages, 404ing outside the `/markspec/` site
+  root — confirmed by building the site, copying the output into a directory
+  tree simulating the real deployed URL structure, and serving it locally. All 4
+  `book.toml` files were corrected to
+  `additional-css = ["../theme/markspec.css"]` (a single `../`, uniform across
+  all 4 books). mdBook additionally resolves that same string a second time
+  against each book's _source_ root, to locate a real file for its own internal
+  copy step (separate from, and in addition to, the shared
+  `_site/theme/markspec.css` copy step described above) — so the correction also
+  required adding a `docs/theme/markspec.css` symlink (for `docs/guide`) and a
+  `docs/spec/theme/markspec.css` symlink (shared by the 3 `docs/spec/*` books),
+  both pointing at the canonical `theme/markspec.css`. Without one of these
+  symlinks present, `mdbook build` fails outright on the corrected value with
+  "Unable to copy across static files".
 
 Deliberately **not touched**: `packages/markspec/book/` (the native site
 renderer + `SUMMARY.md` parser), `packages/markspec/cli/commands/

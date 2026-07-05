@@ -9,6 +9,12 @@ build-dir = "../../_site/guide"
 
 [output.html]
 no-section-label = true
-additional-css = ["../../theme/markspec.css"]
+# mdBook resolves this path twice: from the book's source root (to find the
+# real file to copy) and from `build-dir` (to build the deployed <link>
+# href). `build-dir` is 1 level under the shared `_site/`, so the href must
+# stay a single `../` — the source-side lookup is satisfied by the
+# docs/theme/markspec.css symlink to the canonical theme/markspec.css. See
+# ADR-033. Do not delete that symlink.
+additional-css = ["../theme/markspec.css"]
 git-repository-url = "https://github.com/driftsys/markspec"
 edit-url-template = "https://github.com/driftsys/markspec/edit/main/docs/guide/{path}"
