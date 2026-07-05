@@ -113,7 +113,7 @@ MCP server via the shared compile cache. Read-only is structural, not a runtime
 flag — upstream entries have no local `.md` file, so `fmt`/`insert` cannot touch
 them and rename is refused by the existing `origin` guard. The one new rule:
 **go-to-definition is a no-op** for an upstream entry
-(`resolveDefinitionLocation` returns `null`) — its `location.file` is an
+(`resolveNavigableLocation` returns `null`) — its `location.file` is an
 upstream-repo path that does not exist locally. Hover, `show`, `context`, and
 completion work from the hydrated entry.
 
@@ -297,7 +297,10 @@ are byte-reproducible across machines from `(tree, markspec version)`.
   upstreams are declared, naming the searched set); `MSL-L213` (upstream could
   not be locked, unified across both fields); `MSL-L214` (restore-flow snapshot
   hash mismatch — the published site or recompile moved); `MSL-L215` (unreleased
-  pin advisory, error under `--strict`); plus the `MSL-L212` cache-drift case.
+  pin advisory, error under `--strict`); `MSL-L216` (an id claimed by both a
+  `references:` and a `dependencies:` entry — the dependency is skipped, the
+  reference snapshot owns the shared cache); plus the `MSL-L212` cache-drift
+  case.
 - `check`, `compile`, `show`, `context`, `dependents`, `report`, the LSP, and
   the MCP server all see upstream entries with their origin badge; `report`
   coverage counts `dependencies:` and ignores `references:`; LSP completion
@@ -378,11 +381,11 @@ are byte-reproducible across machines from `(tree, markspec version)`.
   `core/lock/model.ts` + `serializer.ts` (`UpstreamDependency`, extended
   `UpstreamRegistry`), `core/lock/upstream_refs.ts` (`resolveProjectReferences`,
   `MSL-L213`/`L214`), `core/lock/upstream_deps.ts`
-  (`resolveProjectDependencies`), `core/lock/git_intent.ts` (`resolveIntent`),
-  `core/lock/acquire_compile.ts` (`compileAcquiredTree`),
+  (`resolveProjectDependencies`, `MSL-L216`), `core/lock/git_intent.ts`
+  (`resolveIntent`), `core/lock/acquire_compile.ts` (`compileAcquiredTree`),
   `core/lock/pin_assurance.ts` (`MSL-L215`), `core/validator/traceability.ts`
   (`MSL-T014`), `core/compiler/manifest.ts` (`ManifestJson.project.version`,
   `federation`), `core/compiler/deserialize.ts` (`checkSnapshotSchema`,
   `deserializeEntry`), `cli/commands/lock.ts` (`denoGitIO` shallow
   fetch-by-sha), `lsp/server.ts` (`seedUpstreamCorpus`), `lsp/definition.ts`
-  (`resolveDefinitionLocation`).
+  (`resolveNavigableLocation`).

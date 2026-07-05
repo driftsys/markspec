@@ -171,6 +171,18 @@ Individual codes shipped to `main`:
 | MSL-L211 | error    | Profile resolved-version drift                          |
 | MSL-L212 | error    | Canonical edge hash drift                               |
 
+[ADR-031](./adr-031-federated-upstream-resolution.md) (federated upstream
+resolution) extends this same `MSL-L###` family with the `markspec lock`
+acquisition/collision diagnostics for `dependencies:`/`references:` upstreams —
+recorded here on the same footing, not a new family:
+
+| Code     | Severity | Concern                                                                               |
+| -------- | -------- | ------------------------------------------------------------------------------------- |
+| MSL-L213 | warning  | Declared upstream could not be locked (unified across `dependencies:`/`references:`)  |
+| MSL-L214 | warning  | Restore-flow snapshot hash mismatch (published site or recompile moved)               |
+| MSL-L215 | warning  | `dependencies:` pin resolved to a branch/bare sha, not a tag (error under `--strict`) |
+| MSL-L216 | warning  | An id claimed by both a `references:` and a `dependencies:` entry                     |
+
 ### MSL-S (External sync, ADR-022)
 
 | Sub-range | Concern                           |

@@ -65,7 +65,7 @@ url = "git@github.com:acme/aeb-icd.git"
 intent = "v2.1.0"
 resolved = "tag:v2.1.0"
 sha = "9f3c1a2e5b7d0c4f6a81b2d3e4f5069718293a4b"
-snapshot = "b1946ac92492d2347c6235b4d2611184..."
+snapshot = "sha256:b1946ac92492d2347c6235b4d2611184..."
 locked-at = "2026-07-05T12:00:00Z"
 ```
 
@@ -146,7 +146,10 @@ model different relationships and are treated differently by coverage:
   orphan or an unsatisfied gap, because a citation isn't something your own
   project is expected to cover.
 
-See [The projectRef shape](../cli.md#the-projectref-shape) for the full field
+See
+[Upstream entries resolve in the graph](../cli.md#upstream-entries-resolve-in-the-graph)
+in the CLI guide for the authoritative coverage-treatment rule, and
+[The projectRef shape](../cli.md#the-projectref-shape) for the full field
 reference shared by both lists.
 
 ## Notes
@@ -158,7 +161,9 @@ reference shared by both lists.
   `compile`, the LSP, and the MCP server read the pinned cache and never fetch.
 - **Upstream entries are read-only and validation-exempt.** No structural checks
   or prose lint run against them — that already happened in their own repo — but
-  they remain full resolution targets for cross-repo trace edges.
+  they remain full resolution targets for cross-repo trace edges. See
+  [Upstream entries resolve in the graph](../cli.md#upstream-entries-resolve-in-the-graph)
+  for the full rule.
 - **Aggregate a whole program from one root.** A root or program repo that
   depends on every member repo resolves the entire program's cross-repo graph in
   one compile — see the
