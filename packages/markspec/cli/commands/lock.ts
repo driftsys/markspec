@@ -43,6 +43,23 @@ import {
 } from "../../core/mod.ts";
 import { denoDiscoveryIO } from "../helpers.ts";
 
+/**
+ * Reject a git URL that git could parse as an option rather than a remote.
+ * A URL beginning with `-` is read by git as a flag (e.g.
+ * `--upload-pack=sh -c '…'` → argument-injection RCE); an empty URL is
+ * meaningless. Returns an error string when unsafe, `undefined` when the
+ * URL is safe to hand to git. The complementary `ext::`/`fd::`
+ * transport-helper RCE class is blocked separately by `GIT_ALLOW_PROTOCOL`
+ * in {@linkcode runGit}. Both guards target `dependencies[].url` values
+ * that arrive from an untrusted `project.yaml`.
+ */
+function unsafeGitUrl(url: string): string | undefined {
+  if (url === "" || url.startsWith("-")) {
+    return "refusing unsafe git URL (leading '-' could be parsed as a git option)";
+  }
+  return undefined;
+}
+
 /** Run a git subprocess, returning stdout or `{ error }`. Never throws. */
 async function runGit(
   args: string[],
@@ -52,6 +69,13 @@ async function runGit(
       args,
       stdout: "piped",
       stderr: "piped",
+      // Protocol allowlist — git will only speak these transports, blocking
+      // the `ext::`/`fd::` transport-helper RCE reachable from a
+      // `dependencies[].url` in an untrusted project.yaml. `file` is
+      // required: the e2e fixtures acquire from local bare-repo paths (git's
+      // `file` transport). Deno.Command defaults `clearEnv:false`, so this
+      // key merges on top of the inherited parent env — PATH/HOME preserved.
+      env: { GIT_ALLOW_PROTOCOL: "https:ssh:git:file" },
     });
     const out = await cmd.output();
     if (!out.code) return { stdout: new TextDecoder().decode(out.stdout) };
@@ -66,10 +90,14 @@ async function runGit(
 
 const denoGitIO: GitIO = {
   async lsRemote(url) {
+    const bad = unsafeGitUrl(url);
+    if (bad) return { error: bad };
     const r = await runGit(["ls-remote", "--symref", url]);
     return "error" in r ? r : parseLsRemote(r.stdout);
   },
   async acquireTree(url, sha, destDir) {
+    const bad = unsafeGitUrl(url);
+    if (bad) return { error: bad };
     // Shallow fetch-by-sha, no history, no blobs until needed, then detach.
     // (Requires the remote to allow reachable-sha fetches — GitHub/GitLab do;
     // the e2e bare-repo fixture sets uploadpack.allowReachableSHA1InWant.)
