@@ -22,7 +22,7 @@
  */
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
-import { join } from "@std/path";
+import { join, toFileUrl } from "@std/path";
 import { markspecInDir } from "./helpers.ts";
 
 /**
@@ -46,9 +46,11 @@ function run(
  * The `git()` helper strips these so a fixture `git init`/`commit` in a temp
  * dir isn't redirected to the ambient repo when the suite itself runs inside
  * a git hook (e.g. the pre-push hook that runs the test suite exports
- * GIT_DIR/GIT_WORK_TREE). Mirrors the same strip the CLI's own `runGit`
- * applies in `packages/markspec/cli/commands/lock.ts` (blackbox e2e can't
- * import it).
+ * GIT_DIR/GIT_WORK_TREE). This is the repo-discovery subset of the wider
+ * scrub the CLI's own `runGit` applies in
+ * `packages/markspec/cli/commands/lock.ts` — enough for a fixture `git init`
+ * (which never touches a config-injection var), and a blackbox e2e can't
+ * import the CLI's list anyway.
  */
 const GIT_DISCOVERY_ENV_VARS = [
   "GIT_DIR",
@@ -330,6 +332,93 @@ Deno.test("branch pin trips MSL-L215 under --strict", async () => {
     const strict = await run(["check", "--strict"], proj);
     assertStringIncludes(strict.stderr, "MSL-L215");
     assertEquals(strict.code, 1);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+/** A tiny publishable reference source — one unclassified entry, compiled
+ * via `compile --output` into a snapshot a `references:` URL can point at
+ * (mirrors `federated_lock_test.ts`'s project A, no profile needed). */
+const REF_REQS = [
+  "# Ref",
+  "",
+  "- [STK_0500] A published requirement",
+  "",
+  "  Body text.",
+  "",
+  "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+  "",
+].join("\n");
+
+Deno.test("cross-kind id collision: a references + dependencies pair sharing an id → MSL-L216, dependency dropped", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const { bare } = await makeUpstream(root);
+
+    // Publish a reference snapshot from a tiny source project.
+    const refsrc = join(root, "refsrc");
+    await Deno.mkdir(refsrc, { recursive: true });
+    await Deno.writeTextFile(
+      join(refsrc, "project.yaml"),
+      "name: refsrc\nversion: 0.1.0\n",
+    );
+    await Deno.writeTextFile(join(refsrc, "reqs.md"), REF_REQS);
+    const compiled = await run(
+      ["compile", "--output", "api", "reqs.md"],
+      refsrc,
+    );
+    assertEquals(compiled.code, 0, `compile stderr: ${compiled.stderr}`);
+    const fileUrl = toFileUrl(join(refsrc, "api")).href;
+
+    // The consumer declares BOTH a reference and a dependency named `shared`
+    // — they derive the same upstream id and would otherwise fight over the
+    // same `.markspec/cache/upstreams/shared` namespace.
+    const proj = join(root, "consumer");
+    await Deno.mkdir(proj, { recursive: true });
+    await Deno.writeTextFile(
+      join(proj, "project.yaml"),
+      "name: consumer\nversion: 0.1.0\n" +
+        `references:\n  - url: ${JSON.stringify(fileUrl)}\n    name: shared\n` +
+        `dependencies:\n  - url: ${bare}\n    name: shared\n`,
+    );
+
+    const lock = await run(["lock"], proj);
+    // Warn-and-write: the lockfile is written, the collision is a warning,
+    // and the presence of a warning makes lock exit 2.
+    assertEquals(lock.code, 2, `lock stderr: ${lock.stderr}`);
+    assertStringIncludes(lock.stderr, "MSL-L216");
+    const lockText = await Deno.readTextFile(join(proj, "markspec.lock"));
+    // The reference wins the shared cache namespace; the dependency row is
+    // dropped rather than clobbering it.
+    assertStringIncludes(lockText, "[[upstream.registry]]");
+    assertEquals(lockText.includes("[[upstream.dependency]]"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("unreachable dependency: warn-and-write exits 2 and still writes the lockfile", async () => {
+  const root = await Deno.makeTempDir();
+  try {
+    const proj = join(root, "consumer");
+    await Deno.mkdir(proj, { recursive: true });
+    // A dependency URL pointing at a path that is not a git repository —
+    // ls-remote fails, so the dependency drops with an MSL-L213 warning.
+    await Deno.writeTextFile(
+      join(proj, "project.yaml"),
+      "name: consumer\nversion: 0.1.0\n" +
+        `dependencies:\n  - url: ${
+          join(root, "does-not-exist.git")
+        }\n    name: icd\n`,
+    );
+
+    const lock = await run(["lock"], proj);
+    assertEquals(lock.code, 2, `lock stderr: ${lock.stderr}`);
+    assertStringIncludes(lock.stderr, "MSL-L213");
+    // warn-and-write: the lockfile is still produced, minus the failed pin.
+    const lockText = await Deno.readTextFile(join(proj, "markspec.lock"));
+    assertEquals(lockText.includes("[[upstream.dependency]]"), false);
   } finally {
     await Deno.remove(root, { recursive: true });
   }

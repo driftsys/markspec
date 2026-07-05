@@ -61,47 +61,75 @@ function unsafeGitUrl(url: string): string | undefined {
 }
 
 /**
- * Repo-context env vars git reads to locate the repository it operates on.
- * When `markspec lock` runs inside a git hook (e.g. the pre-push hook that
- * runs the test suite), these are exported by the outer git and would be
- * inherited by our `git init`/`fetch` subprocess — redirecting dependency
- * acquisition into the ambient repo instead of the temp dir. `runGit`
- * strips them so every git subprocess discovers its own working tree.
+ * Env vars that would let an ambient git (e.g. the pre-push hook that runs
+ * the test suite, which exports GIT_DIR/GIT_WORK_TREE) or a hostile parent
+ * env redirect our dependency-acquisition subprocess away from its temp dir.
+ * Two classes are scrubbed:
+ *
+ *   1. Repo-discovery / object-store vars — redirect where git thinks its
+ *      working tree, index, and objects live.
+ *   2. Config-injection vars — `GIT_CONFIG*` would let the parent env inject
+ *      arbitrary config (e.g. a `core.fsmonitor`/`core.hooksPath` hook) into
+ *      our subprocess. Dropping `GIT_CONFIG_COUNT` neutralizes the paired
+ *      `GIT_CONFIG_KEY_<n>`/`GIT_CONFIG_VALUE_<n>` entries.
+ *
+ * The user's real `~/.gitconfig` and `/etc/gitconfig` (credential helpers,
+ * proxies) are deliberately NOT disturbed — `runGit` keeps HOME/PATH so real
+ * https/ssh remotes still authenticate; only these override hooks are removed.
  */
-const GIT_DISCOVERY_ENV_VARS = [
+const GIT_SCRUBBED_ENV_VARS = [
+  // 1. Repo discovery / object store.
   "GIT_DIR",
   "GIT_WORK_TREE",
   "GIT_INDEX_FILE",
   "GIT_COMMON_DIR",
   "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_CEILING_DIRECTORIES",
   "GIT_PREFIX",
   "GIT_NAMESPACE",
+  // 2. Config injection.
+  "GIT_CONFIG",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_PARAMETERS",
 ] as const;
+
+/**
+ * The curated env every git subprocess runs under, computed once. Starts
+ * from a COPY of the full parent env so PATH, HOME, SSH_AUTH_SOCK, proxy
+ * vars, and credential-helper config survive (real https/ssh remotes need
+ * them), strips {@linkcode GIT_SCRUBBED_ENV_VARS}, and adds the protocol
+ * allowlist. Recomputing this per git call (≈5× per dependency) is wasted
+ * work — the process env does not change mid-lock.
+ */
+let curatedGitEnvCache: Record<string, string> | undefined;
+function curatedGitEnv(): Record<string, string> {
+  if (curatedGitEnvCache) return curatedGitEnvCache;
+  const env = { ...Deno.env.toObject() };
+  for (const key of GIT_SCRUBBED_ENV_VARS) delete env[key];
+  // Protocol allowlist — git will only speak these transports, blocking the
+  // `ext::`/`fd::` transport-helper RCE reachable from a `dependencies[].url`
+  // in an untrusted project.yaml. `file` is required: the e2e fixtures
+  // acquire from local bare-repo paths (git's `file` transport).
+  env.GIT_ALLOW_PROTOCOL = "https:ssh:git:file";
+  curatedGitEnvCache = env;
+  return env;
+}
 
 /** Run a git subprocess, returning stdout or `{ error }`. Never throws. */
 async function runGit(
   args: string[],
 ): Promise<{ stdout: string } | { error: string }> {
   try {
-    // Start from a COPY of the full parent env so PATH, HOME, SSH_AUTH_SOCK,
-    // proxy vars, and credential-helper config survive (real https/ssh
-    // remotes need them), then strip the repo-discovery vars an ambient git
-    // hook would export, and add the protocol allowlist. `clearEnv: true`
-    // makes ONLY this curated env reach git — the stripped vars can't leak
-    // back in.
-    const env = { ...Deno.env.toObject() };
-    for (const key of GIT_DISCOVERY_ENV_VARS) delete env[key];
-    // Protocol allowlist — git will only speak these transports, blocking
-    // the `ext::`/`fd::` transport-helper RCE reachable from a
-    // `dependencies[].url` in an untrusted project.yaml. `file` is
-    // required: the e2e fixtures acquire from local bare-repo paths (git's
-    // `file` transport).
-    env.GIT_ALLOW_PROTOCOL = "https:ssh:git:file";
+    // `clearEnv: true` makes ONLY the curated env reach git — the scrubbed
+    // vars can't leak back in.
     const cmd = new Deno.Command("git", {
       args,
       stdout: "piped",
       stderr: "piped",
-      env,
+      env: curatedGitEnv(),
       clearEnv: true,
     });
     const out = await cmd.output();
@@ -125,24 +153,21 @@ const denoGitIO: GitIO = {
   async acquireTree(url, sha, destDir) {
     const bad = unsafeGitUrl(url);
     if (bad) return { error: bad };
-    // Shallow fetch-by-sha, no history, no blobs until needed, then detach.
-    // (Requires the remote to allow reachable-sha fetches — GitHub/GitLab do;
-    // the e2e bare-repo fixture sets uploadpack.allowReachableSHA1InWant.)
+    // Shallow fetch-by-sha (one commit, no history), fetching from the URL
+    // directly — no named remote is needed because we detach at FETCH_HEAD
+    // and never fetch again. (Requires the remote to allow reachable-sha
+    // fetches — GitHub/GitLab do; the e2e bare-repo fixture sets
+    // uploadpack.allowReachableSHA1InWant.)
+    //
+    // No `--filter=blob:none`: `compileAcquiredTree` reads the *entire* tree,
+    // so `checkout` would fetch every filtered blob back immediately anyway —
+    // the filter saves nothing here, and dropping it also drops the promisor
+    // remote it needs to lazily backfill (which is why `remote add origin`
+    // is gone too). The `url` is validated by `unsafeGitUrl` above.
     for (
       const args of [
         ["-C", destDir, "init", "-q"],
-        ["-C", destDir, "remote", "add", "origin", url],
-        [
-          "-C",
-          destDir,
-          "fetch",
-          "-q",
-          "--depth",
-          "1",
-          "--filter=blob:none",
-          "origin",
-          sha,
-        ],
+        ["-C", destDir, "fetch", "-q", "--depth", "1", url, sha],
         ["-C", destDir, "checkout", "-q", "FETCH_HEAD"],
       ]
     ) {
@@ -328,6 +353,10 @@ async function runLock(options: LockOptions): Promise<void> {
     existing: existingDependencies,
     cacheRoot: upstreamCacheRoot(projectRoot),
     update: options.update ?? false,
+    // Cross-kind dedup: a `dependencies:` entry deriving an id already
+    // claimed by a `references:` entry is skipped (MSL-L216) so the two
+    // never clobber the shared `.markspec/cache/upstreams/<id>` namespace.
+    reservedIds: new Set(declaredReferenceIds),
     io: {
       git: denoGitIO,
       compileTree: denoCompileTree,
@@ -365,6 +394,18 @@ async function runLock(options: LockOptions): Promise<void> {
   const toml = serializeLockfile(lockfile);
   await Deno.writeTextFile(lockPath, toml);
 
+  // Every upstream diagnostic across the three resolvers — the reference /
+  // profile resolution (`resolved`), the published `references:` acquirer
+  // (`refResult`), and the git `dependencies:` acquirer (`depResult`). The
+  // JSON `diagnostics` field and the exit code both key on this combined
+  // set so a `references:`/`dependencies:` warning is neither hidden from
+  // agents consuming `--format json` nor swallowed at exit.
+  const allUpstreamDiags = [
+    ...resolved.diagnostics,
+    ...refResult.diagnostics,
+    ...depResult.diagnostics,
+  ];
+
   if (options.format === "json") {
     // JSON to stdout (machine-readable); diagnostics already emitted to stderr.
     console.log(
@@ -381,7 +422,7 @@ async function runLock(options: LockOptions): Promise<void> {
           "canonical-edges": { count: resolved.canonicalEdgeCount },
           "ledger-edges": { count: resolved.edges.length },
         },
-        diagnostics: resolved.diagnostics.map((d) => ({
+        diagnostics: allUpstreamDiags.map((d) => ({
           code: d.code,
           severity: d.severity,
           message: d.message,
@@ -394,9 +435,23 @@ async function runLock(options: LockOptions): Promise<void> {
     );
   }
 
-  Deno.exit(
-    resolved.diagnostics.some((d) => d.severity === "error") ? 1 : 0,
-  );
+  // Exit contract (clig.dev: "1 for errors, 2 for warnings only"). The
+  // lockfile is written in every non-fatal case (warn-and-write, decision
+  // 1); the exit code signals whether resolution was clean:
+  //   - any hard error → 1 (as before);
+  //   - else an upstream *acquisition* warning — a `references:`/
+  //     `dependencies:` pin that was dropped or bypassed (MSL-L213/L214/
+  //     L216, from `refResult`/`depResult`) → 2, so CI running a bare
+  //     `markspec lock` sees the dropped pin.
+  // Benign resolution advisories in `resolved.diagnostics` (e.g. MSL-L102
+  // "recording identity-only hash" when a bundled profile manifest is
+  // unresolvable) are surfaced in output but deliberately do NOT gate the
+  // exit code — they are not a locking failure.
+  const hasError = allUpstreamDiags.some((d) => d.severity === "error");
+  const upstreamAcquisitionWarned =
+    refResult.diagnostics.some((d) => d.severity === "warning") ||
+    depResult.diagnostics.some((d) => d.severity === "warning");
+  Deno.exit(hasError ? 1 : upstreamAcquisitionWarned ? 2 : 0);
 }
 
 async function readFileOrUndefined(path: string): Promise<string | undefined> {

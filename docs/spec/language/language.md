@@ -1647,12 +1647,16 @@ The lockfile (`MSL-L###`) and external-sync (`MSL-S###`) diagnostic families are
 governed by [ADR-022](../../architecture/adr-022-lockfile-and-external-sync.md)
 and catalogued in
 [ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md) (ADR-022
-amendment). The offline composite `markspec check` gate emits one of them:
+amendment). The offline composite `markspec check` gate and `markspec lock` emit
+these lockfile diagnostics:
 
 | ID         | Severity | Rule                                                                                                                                                                                                                                                               |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `MSL-L212` | error    | Canonical edge-hash drift: the project's traceability edges no longer match the hash pinned in `markspec.lock` (run `markspec lock`). Fires only when `markspec.lock` exists; checked offline (no network — upstream resolution stays in `markspec lock --check`). |
+| `MSL-L213` | warning  | An upstream `references:` or `dependencies:` entry could not be locked (unreachable remote, malformed manifest, cache-write failure). Warn-and-write: the resolvable pins still lock. Emitted by `markspec lock`, which then exits 2.                              |
+| `MSL-L214` | warning  | A `references:` restore fetched a snapshot that no longer matches the locked pin (the published site moved). The pin is kept unchanged — run `markspec lock --update=<id>` to move it. Emitted by `markspec lock`, which then exits 2.                             |
 | `MSL-L215` | warning  | A `dependencies:` pin resolved to a branch or bare sha, not a tag (an unreleased state). Advisory by default; promoted to an error under `markspec check --strict` — release builds require every dependency to be tag-pinned.                                     |
+| `MSL-L216` | warning  | An upstream id is claimed by both a `references:` and a `dependencies:` entry. The dependency is skipped (the reference snapshot owns the shared cache); set a distinct `name:` on one of them. Emitted by `markspec lock`, which then exits 2.                    |
 
 > **Prefix overlap (known, pre-existing).** The `MSL-L###` lockfile family
 > shares its prefix with §8.4's link rules (`MSL-L006`), and the `MSL-S###`

@@ -73,6 +73,18 @@ Deno.test("resolveIntent: bare sha passthrough", () => {
   );
 });
 
+Deno.test("resolveIntent: uppercase 40-hex sha is accepted and lowercased", () => {
+  const rl = parseLsRemote(LS_REMOTE);
+  // A mixed-case sha that matches no tag/branch must resolve as a bare-sha
+  // pin, normalized to lowercase so the lockfile is byte-identical whatever
+  // case the author typed.
+  const r = resolveIntent("ABCDEF0123456789ABCDEF0123456789ABCDEF01", rl);
+  assertEquals(r, {
+    sha: "abcdef0123456789abcdef0123456789abcdef01",
+    resolved: "sha:abcdef0123456789abcdef0123456789abcdef01",
+  });
+});
+
 Deno.test("resolveIntent: unknown ref errors", () => {
   const rl = parseLsRemote(LS_REMOTE);
   const r = resolveIntent("v9.9.9", rl);
