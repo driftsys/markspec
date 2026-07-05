@@ -21,6 +21,18 @@ export interface UxilValidation {
   readonly diagnostics: readonly Diagnostic[];
 }
 
+/** Options for {@linkcode validateUxil}. */
+export interface UxilValidateOptions {
+  /**
+   * Entries whose `ux:` citations resolve against the registry (Pass 3).
+   * Defaults to `entries`. The family orchestrator (S9 #727) passes every
+   * non-upstream project entry here while `entries` carries only the
+   * declaring-type entries — citations are legal from any entry type;
+   * declarations are not.
+   */
+  readonly citationEntries?: readonly Entry[];
+}
+
 /**
  * Validate the uxil declarations across all entries: per-entry structural
  * and vocabulary checks (Pass 1), corpus structural checks over the
@@ -28,7 +40,10 @@ export interface UxilValidation {
  * registry even when diagnostics are present, so callers can still use it
  * for navigation/projection.
  */
-export function validateUxil(entries: readonly Entry[]): UxilValidation {
+export function validateUxil(
+  entries: readonly Entry[],
+  opts: UxilValidateOptions = {},
+): UxilValidation {
   const diagnostics: Diagnostic[] = [];
 
   // ── Pass 1: per-entry structural + vocabulary ────────────────────────────
@@ -176,7 +191,7 @@ export function validateUxil(entries: readonly Entry[]): UxilValidation {
   }
 
   // ── Pass 3: citation resolution ──────────────────────────────────────────
-  for (const entry of entries) {
+  for (const entry of opts.citationEntries ?? entries) {
     for (const citation of extractUxCitations(entry.bodyTokens)) {
       const { ref, location } = citation;
       const surfacePath = ref.surface.join(".");

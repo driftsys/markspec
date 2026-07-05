@@ -37,7 +37,7 @@ export type { SurfaceRecord, UxRegistry } from "./registry.ts";
 export { buildUxRegistry } from "./registry.ts";
 export type { UxCitation } from "./citations.ts";
 export { extractUxCitations, isUxCitationText } from "./citations.ts";
-export type { UxilValidation } from "./validator.ts";
+export type { UxilValidateOptions, UxilValidation } from "./validator.ts";
 export { validateUxil } from "./validator.ts";
 export type {
   ProjectedElement,

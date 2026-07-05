@@ -399,3 +399,26 @@ Deno.test("UXIL-026 does not fire when a target is declared", () => {
   const { diagnostics } = validateUxil(entriesOf({ "a.md": md }));
   assertEquals(has(diagnostics, "UXIL-026"), false);
 });
+
+Deno.test("citationEntries: citations resolve from entries outside the declaring set (#727)", () => {
+  const contract = `- [UXI_A_0001] Contract
+
+  \`ux:media.home : screen\` offers:
+
+  - \`/play : activate\` — starts playback.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZA
+`;
+  const citing = `- [REQ_0001] Journey step
+
+  Tap \`ux:media.ghost/play!activate\` to start playback.
+
+      Id: 01JZZZZZZZZZZZZZZZZZZZZZZB
+`;
+  const [contractEntry] = entriesOf({ "a.md": contract });
+  const [citingEntry] = entriesOf({ "b.md": citing });
+  const { diagnostics } = validateUxil([contractEntry], {
+    citationEntries: [contractEntry, citingEntry],
+  });
+  assert(has(diagnostics, "UXIL-018"));
+});
