@@ -186,6 +186,7 @@ function foldTier(
         attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
         relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
         discipline: { value: td.discipline, origin },
+        declares: { value: td.declares, origin },
       };
       types.set(name, { value: eff, origin });
     } else {
@@ -604,6 +605,12 @@ function tightenType(
       ? { value: child.discipline, origin: childOrigin }
       : effExisting.discipline;
 
+  // Declares (uxil S9 #727): child wins when set; otherwise parent stays.
+  const declares: ProvenancedValue<string | undefined> =
+    child.declares !== undefined
+      ? { value: child.declares, origin: childOrigin }
+      : effExisting.declares ?? { value: undefined, origin: existing.origin };
+
   const attrDescriptions = mergeDescriptionMap(
     effExisting.attrDescriptions,
     child.attributes.map((a) => ({ name: a.name, desc: a.description })),
@@ -632,6 +639,7 @@ function tightenType(
     attrDescriptions,
     relationDescriptions,
     discipline,
+    declares,
   };
   const overrides = [
     ...(existing.overrides ?? []),
@@ -1065,6 +1073,7 @@ function mapFromTypes(
       attrDescriptions: mapFromAttrDescriptions(td.attributes, origin),
       relationDescriptions: mapFromTraceDescriptions(td.traceability, origin),
       discipline: { value: td.discipline, origin },
+      declares: { value: td.declares, origin },
     };
     out.set(name, { value: eff, origin });
   }

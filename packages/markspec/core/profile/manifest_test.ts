@@ -1434,3 +1434,39 @@ Deno.test("parseManifest: manifest without delivers has empty list", () => {
   );
   assertEquals(manifest?.delivers, []);
 });
+
+Deno.test("parseManifest: type-level declares: ux-surface accepted (#727)", () => {
+  const result = parseManifest(`id: "@t/p"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      declares: ux-surface
+`);
+  assertEquals(
+    result.diagnostics.filter((d) => d.severity === "error"),
+    [],
+  );
+  assertEquals(
+    result.manifest?.types.get("ux-contract")?.declares,
+    "ux-surface",
+  );
+});
+
+Deno.test("parseManifest: unknown declares value is PROFILE-TYPE-009 (#727)", () => {
+  const result = parseManifest(`id: "@t/p"
+version: 0.1.0
+markspec-schema: "1"
+profile:
+  types:
+    ux-contract:
+      extends: Contract
+      declares: something-else
+`);
+  assertEquals(
+    result.diagnostics.some((d) => d.code === "PROFILE-TYPE-009"),
+    true,
+  );
+});

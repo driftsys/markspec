@@ -70,7 +70,8 @@
           "additionalProperties": { "$ref": "#/$defs/traceRule" }
         },
         "color": { "type": "string" },
-        "discipline": { "type": "string" }
+        "discipline": { "type": "string" },
+        "declares": { "type": "string" }
       }
     },
     "attribute": {
