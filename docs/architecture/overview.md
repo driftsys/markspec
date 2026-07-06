@@ -184,8 +184,12 @@ Above the raw graph, the core derives structure and lets profiles constrain it.
   from the `Allocated-to` graph, with a single source of truth in the core that
   profiles extend but never override.
 - **typl type DSL** ([ADR-019](./adr-019-typl-type-dsl.md)) — an inline
-  constraint/type declaration language for entry attributes, with three
-  authoring surfaces and a corpus-wide type registry.
+  constraint/type declaration language for entry attributes, with four authoring
+  surfaces and a corpus-wide type registry.
+- **uxil interaction DSL** ([ADR-034](./adr-034-uxil-interaction-dsl.md)) — a
+  sibling DSL for typed UI/HMI interaction surfaces: `ux:` references, closed
+  kind/verb vocabularies, a corpus registry, and a deterministic machine
+  projection.
 - **Interface as contract** ([ADR-024](./adr-024-interface-as-contract.md)) —
   software/hardware interfaces are re-parented from `Component` to `Contract`
   (an interface is a specification, not a building block), with symmetric
@@ -262,6 +266,7 @@ line that matches what you are working on.
   [ADR-017](./adr-017-discipline-classification.md),
   [ADR-018](./adr-018-core-discipline-ssot.md),
   [ADR-019](./adr-019-typl-type-dsl.md),
+  [ADR-034](./adr-034-uxil-interaction-dsl.md),
   [ADR-024](./adr-024-interface-as-contract.md),
   [ADR-025](./adr-025-counter-less-display-id-pattern.md),
   [ADR-026](./adr-026-display-id-trace-resolution.md).

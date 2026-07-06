@@ -11,6 +11,7 @@
 - [Entry blocks](authoring.md)
 - [Profiles](profiles.md)
 - [Type declarations (typl)](typl.md)
+- [Interaction surfaces (uxil)](uxil.md)
 
 # Tools
 
