@@ -14,14 +14,18 @@ import type {
 } from "../core/mod.ts";
 import {
   attributeCorpusDiagnostics,
+  classifyEntry,
   detectCorpusCollisions,
+  emittableEntries,
   formatEntryOrigin,
   parseFile,
   suppressDeclaredAttrR010,
+  uxilDeclaringTypes,
   validate,
   validateUxilFamily,
 } from "../core/mod.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
+import { buildUxRegistry, type UxRegistry } from "../core/uxil/mod.ts";
 
 /** A display ID paired with its entry title, for completion items. */
 export interface DisplayIdEntry {
@@ -233,6 +237,29 @@ export class WorkspaceIndex {
    */
   getTypeRegistry(): TypeRegistry {
     return buildTypeRegistry(this.getAllEntries());
+  }
+
+  /**
+   * Build the uxil corpus registry (S8 #726), gated on
+   * `uxilDeclaringTypes(profile)` — returns `undefined` when no profile
+   * type designates `declares: ux-surface`, preserving the diagnostics
+   * family's Tier-1 opacity guarantee for hover/completion/go-to-
+   * declaration (S10 #728). Mirrors `uxil_family.ts`'s own gating:
+   * upstream entries excluded via `emittableEntries`, then filtered to
+   * declaring-type entries via `entry.type ?? classifyEntry(...).type`
+   * (the LSP path never runs pipeline Stage 2, so entries typically
+   * arrive unclassified). Rebuilt on every call — no caching, matching
+   * `getTypeRegistry()`'s precedent.
+   */
+  getUxRegistry(profile: EffectiveProfile | null): UxRegistry | undefined {
+    const declaring = uxilDeclaringTypes(profile);
+    if (declaring.size === 0) return undefined;
+    const local = emittableEntries(this.getAllEntries());
+    const declaringEntries = local.filter((e) => {
+      const type = e.type ?? classifyEntry(e, profile!).type;
+      return type !== undefined && declaring.has(type);
+    });
+    return buildUxRegistry(declaringEntries);
   }
 
   // -----------------------------------------------------------------------

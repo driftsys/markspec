@@ -11,7 +11,7 @@
  * `hover.ts`) and the workspace index to implement `onDefinition`.
  */
 
-import type { Entry } from "../core/model/mod.ts";
+import type { Entry, SourceLocation } from "../core/model/mod.ts";
 import { isUpstreamEntry } from "../core/mod.ts";
 import { pathToUri } from "./util.ts";
 
@@ -25,20 +25,31 @@ export interface LspLocation {
 }
 
 /**
- * Convert an Entry's source location to an LSP `Location` pointing at
- * the entry's start (zero-width range). 1-based core line/column are
- * shifted to 0-based per the LSP spec.
+ * Convert a raw `SourceLocation` (1-based line/column) to an LSP
+ * `Location` (URI + zero-based, zero-width range). Shared by
+ * `entryToLspLocation` (below) and the uxil go-to-declaration path
+ * (`SurfaceRecord.location`, S10 #728), which has no `Entry` to hang
+ * off of.
  */
-export function entryToLspLocation(entry: Entry): LspLocation {
-  const line = Math.max(0, entry.location.line - 1);
-  const character = Math.max(0, entry.location.column - 1);
+export function sourceLocationToLspLocation(loc: SourceLocation): LspLocation {
+  const line = Math.max(0, loc.line - 1);
+  const character = Math.max(0, loc.column - 1);
   return {
-    uri: pathToUri(entry.location.file),
+    uri: pathToUri(loc.file),
     range: {
       start: { line, character },
       end: { line, character },
     },
   };
+}
+
+/**
+ * Convert an Entry's source location to an LSP `Location` pointing at
+ * the entry's start (zero-width range). 1-based core line/column are
+ * shifted to 0-based per the LSP spec.
+ */
+export function entryToLspLocation(entry: Entry): LspLocation {
+  return sourceLocationToLspLocation(entry.location);
 }
 
 /**
