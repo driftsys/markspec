@@ -5,7 +5,11 @@
 // updating every book.toml that references it.
 (function () {
   function addHomeLink() {
-    const rightButtons = document.querySelector("#menu-bar .right-buttons");
+    // Not scoped by the menu bar's own id: mdBook has renamed it before
+    // (plain "menu-bar" -> "mdbook-menu-bar") across versions, while the
+    // ".right-buttons" class name has stayed stable — depend on the stable
+    // part.
+    const rightButtons = document.querySelector(".right-buttons");
     if (!rightButtons || document.getElementById("home-button")) return;
 
     // path_to_root is declared by mdBook's own inline script (head.hbs) as a
