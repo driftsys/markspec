@@ -58,19 +58,19 @@ Three surface kinds:
 
 Eleven interaction verbs:
 
-| Verb       | Requires `-> target` | Exclusive |
-| ---------- | -------------------- | --------- |
-| `activate` | no                   | no        |
-| `toggle`   | no                   | no        |
-| `select`   | no                   | no        |
-| `adjust`   | no                   | no        |
-| `input`    | no                   | no        |
-| `scroll`   | no                   | no        |
-| `drag`     | no                   | no        |
-| `dismiss`  | no                   | no        |
-| `ask`      | no                   | no        |
-| `navigate` | yes                  | no        |
-| `observe`  | no                   | yes       |
+| Verb       | Requires nav target | Exclusive |
+| ---------- | ------------------- | --------- |
+| `activate` | no                  | no        |
+| `toggle`   | no                  | no        |
+| `select`   | no                  | no        |
+| `adjust`   | no                  | no        |
+| `input`    | no                  | no        |
+| `scroll`   | no                  | no        |
+| `drag`     | no                  | no        |
+| `navigate` | yes                 | no        |
+| `dismiss`  | no                  | no        |
+| `ask`      | no                  | no        |
+| `observe`  | no                  | yes       |
 
 `navigate` is the only verb requiring a nav target; `observe` is exclusive — it
 cannot combine with other verbs on the same element.

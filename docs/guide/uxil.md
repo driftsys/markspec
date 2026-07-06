@@ -63,7 +63,7 @@ A contract entry — the type your profile designated with `declares: ux-surface
 dotted path, its kind, and its states.
 
 ```markdown
-- [UXI_MEDIA_0001] Media home surface
+- [UXI_0001] Media home surface
 
   The media home screen (`ux:media.home : screen @loading, ready`) offers
   playback control to the driver.
@@ -132,7 +132,7 @@ bullets are its elements. It inherits its kind from the root and resolves to a
 corpus-wide path by joining onto its nearest enclosing surface.
 
 ```markdown
-- [UXI_MEDIA_0001] Media home surface
+- [UXI_0001] Media home surface
 
   The media home screen (`ux:media.home : screen @loading, ready`) offers
   playback control to the driver.
@@ -247,7 +247,7 @@ gesture's velocity — declare it as its own typl binding in the same entry and
 reference it by name from the event dictionary prose:
 
 ```markdown
-- [UXI_MEDIA_0001] Media home surface
+- [UXI_0001] Media home surface
 
   The media home screen (`ux:media.home : screen @loading, ready`) offers
   playback control to the driver.

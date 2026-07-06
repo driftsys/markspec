@@ -52,6 +52,8 @@ may carry a published base that scopes the table's relative rows.
   namespaces).
 - LSP layers hover / completion / diagnostics over the registry (PR 7).
 - Downstream RIDL emitters consume the corpus registry.
+- Neither the published tier (S5) nor the table surface (S6) bumped
+  `CORE_SCHEMA_VERSION`.
 
 ## Alternatives considered
 
