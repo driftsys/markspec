@@ -112,7 +112,7 @@ Deno.test("toLspDiagnostic: UXIL codes carry a spec-chapter codeDescription (#72
   });
   assertEquals(
     lsp.codeDescription?.href,
-    "https://markspec.dev/spec/uxil#uxil-009",
+    "https://markspec.dev/extensions/uxil#uxil-009",
   );
 });
 

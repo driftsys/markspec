@@ -49,6 +49,9 @@ jobs:
       - name: Build model reference book
         run: mdbook build docs/spec/model
 
+      - name: Build extensions book
+        run: mdbook build docs/spec/extensions
+
       - name: Build guide book
         run: mdbook build docs/guide
 
@@ -60,12 +63,14 @@ jobs:
 
       - name: Copy theme, schemas, and landing page
         run: |
-          # Load-bearing for all 4 mdBook books, not just the landing page:
-          # mdBook never copies additional-css — each book.toml's
-          # additional-css instead links out via a relative ../ path to this
-          # one shared file. Do not remove without updating every book's
-          # stylesheet link (see ADR-033).
-          mkdir -p _site/theme && cp theme/markspec.css _site/theme/markspec.css
+          # Load-bearing for all 5 mdBook books, not just the landing page:
+          # mdBook never copies additional-css/additional-js — each
+          # book.toml's additional-css/additional-js instead link out via a
+          # relative ../ path to these shared files. Do not remove without
+          # updating every book's stylesheet/script link (see ADR-033).
+          mkdir -p _site/theme
+          cp theme/markspec.css _site/theme/markspec.css
+          cp theme/markspec-home.js _site/theme/markspec-home.js
           mkdir -p _site/schemas && cp -R schemas/. _site/schemas/
           cp docs/index.html _site/index.html
 

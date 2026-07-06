@@ -94,7 +94,7 @@ name, states sorted, verbs kept in declaration order.
 
 The 26-code `UXIL-0xx` family (`core/uxil/diagnostics.ts`) is documented in full
 in the spec chapter. This ADR does not repeat the catalogue table — see
-[Language reference: uxil](../spec/language/uxil.md).
+[Language reference: uxil](../spec/extensions/uxil.md).
 
 ### 7. Activation
 
@@ -165,5 +165,5 @@ S11 (#729) deferred — no PR.
 
 - [ADR-019 — typl: Type Specification DSL](adr-019-typl-type-dsl.md)
 - [ADR-009 — Core / Profile Boundary](adr-009-core-profile-boundary.md)
-- [Language reference: uxil](../spec/language/uxil.md)
+- [Language reference: uxil](../spec/extensions/uxil.md)
 - [Guide: Using uxil in your entries](../guide/uxil.md)

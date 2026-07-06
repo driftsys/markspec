@@ -369,5 +369,4 @@ fine — that is every entry without published symbols.
 
 ## See also
 
-- [ADR-019 — typl: Type Specification DSL](../../architecture/adr-019-typl-type-dsl.md)
 - [Guide: Using typl in your entries](../../guide/typl.md)

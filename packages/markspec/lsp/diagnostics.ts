@@ -55,9 +55,9 @@ function buildRuleDocUrl(code: string): string {
   return `https://markspec.dev/lint/rules/${code.toLowerCase()}`;
 }
 
-/** Build a spec-chapter anchor URL for UXIL diagnostic codes (#727). */
+/** Build an extensions-book anchor URL for UXIL diagnostic codes (#727). */
 function buildUxilDocUrl(code: string): string {
-  return `https://markspec.dev/spec/uxil#${code.toLowerCase()}`;
+  return `https://markspec.dev/extensions/uxil#${code.toLowerCase()}`;
 }
 
 export function toLspDiagnostic(diagnostic: CoreDiagnostic): LspDiagnostic {

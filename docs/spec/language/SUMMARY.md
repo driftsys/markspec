@@ -2,5 +2,3 @@
 
 - [Language](language.md)
 - [AST](ast.md)
-- [typl DSL](typl.md)
-- [uxil DSL](uxil.md)

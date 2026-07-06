@@ -33,6 +33,44 @@ name.
 
 ---
 
+## The `ux:` reference format
+
+A `ux:` reference always starts with a dot-separated surface path, then
+optionally narrows to a state or an element on that surface:
+
+| Reference                     | Cites                                            |
+| ----------------------------- | ------------------------------------------------ |
+| `ux:media.home`               | the `media.home` surface itself                  |
+| `ux:media.home@loading`       | the surface's `loading` state                    |
+| `ux:media.home/play`          | the `play` element on that surface               |
+| `ux:media.home/play!activate` | the `activate` verb on the `play` element        |
+| `ux:media.list/item:{id}`     | the `item` element, keyed by its `{id}` template |
+
+The leading `ux:` scheme is optional — `media.home/play` parses identically to
+`ux:media.home/play`. You'll write the scheme-prefixed form in prose citations
+and the bare form inside a navigation target (`-> media.settings`).
+
+### The eleven verbs
+
+Every element declares one or more verbs from this closed set — the compiler
+rejects anything outside it (UXIL-010):
+
+| Verb       | Meaning                                                                   |
+| ---------- | ------------------------------------------------------------------------- |
+| `activate` | press or tap — a momentary action                                         |
+| `toggle`   | flip a two-state control on/off                                           |
+| `select`   | choose one item from a set                                                |
+| `adjust`   | move a continuous control — a slider, a dial                              |
+| `input`    | enter free-form data — text, a search query                               |
+| `scroll`   | pan or page through content                                               |
+| `drag`     | a drag-and-drop or reposition gesture                                     |
+| `navigate` | go to another screen — requires a `-> target` clause                      |
+| `dismiss`  | close or cancel                                                           |
+| `ask`      | a conversational or voice query                                           |
+| `observe`  | a passive visibility anchor — exclusive, never combined with another verb |
+
+---
+
 ## Activation
 
 uxil is **profile-gated**. Until a profile designates a contract entry type with
@@ -50,9 +88,9 @@ profile:
 
 With the designation active, entries of that type are compiled and validated in
 full, and `ux:` citations are checked from every entry in the project, whatever
-its own type. See the [language reference](../spec/language/uxil.md) for the
-full activation rules, including how a declaration outside the declaring type is
-handled.
+its own type. A root, element, or child-surface declaration written inside an
+entry whose type is not the declaring type is UXIL-023 — see
+[Common diagnostics and fixes](#common-diagnostics-and-fixes) below.
 
 ---
 
@@ -259,13 +297,10 @@ reference it by name from the event dictionary prose:
 ```
 
 This is a naming convention today, not a checked cross-reference — the compiler
-does not tie the element's key template to the typl binding. See
-[ADR-034's "Deferred" section](../architecture/adr-034-uxil-interaction-dsl.md#deferred)
-for why that link isn't built yet.
+does not tie the element's key template to the typl binding.
 
 ---
 
 ## See also
 
-- [ADR-034 — uxil: UX Interaction DSL](../architecture/adr-034-uxil-interaction-dsl.md)
-- [Language reference: uxil](../spec/language/uxil.md)
+- [Language reference: uxil](../spec/extensions/uxil.md)

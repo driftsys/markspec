@@ -1,8 +1,5 @@
 # uxil — UX Interaction Language
 
-> **Status:** diagnostics catalogue (S9,
-> [#727](https://github.com/driftsys/markspec/issues/727)).
-
 uxil is a declaration DSL for typed UI/HMI surfaces and interactions: `ux:` URI
 references, one root surface per contract entry, element and child-surface
 bullets, and a corpus-wide surface registry. It is the sibling of the
@@ -12,10 +9,41 @@ bullets, and a corpus-wide surface registry. It is the sibling of the
 
 ## Reference grammar
 
-A `ux:` reference cites a surface and, optionally, a state, an element on that
-surface, a key, or a verb. The `ux:` scheme is optional: a bare wire form parses
-identically to its scheme-prefixed counterpart, differing only in the
-`hasScheme` flag captured on the parsed `UxRef`.
+### Lexical tokens
+
+A `ux:` reference or declaration is tokenized on a single line; whitespace
+(space, tab) between tokens is insignificant.
+
+| Token               | Matches                       |
+| ------------------- | ----------------------------- |
+| `IDENT`             | one or more of `[A-Za-z0-9_]` |
+| `DOT`               | `.`                           |
+| `AT`                | `@`                           |
+| `SLASH`             | `/`                           |
+| `COLON`             | `:`                           |
+| `BANG`              | `!`                           |
+| `COMMA`             | `,`                           |
+| `ARROW`             | `->`                          |
+| `LBRACE` / `RBRACE` | `{` / `}`                     |
+
+`?` and `#` are reserved and never valid anywhere in a reference or declaration;
+either fires UXIL-002 and stops structural parsing of that span (the lexer drops
+the character, so no downstream token is trustworthy). Unrecognised characters
+outside this reserved pair are skipped silently by the lexer — the parser, not
+the lexer, is responsible for turning the resulting gap into a diagnostic.
+
+### Reference (citation / nav-target) form
+
+```ebnf
+ux-ref  ::= [ "ux:" ] surface [ "@" state ] [ "/" element [ ":" key ] [ "!" verb ] ]
+surface ::= IDENT ( "." IDENT )*
+key     ::= IDENT | "{" IDENT "}"
+```
+
+`state`, `element`, and `verb` are each a single `IDENT`. The `ux:` scheme is
+optional: a bare wire form parses identically to its scheme-prefixed
+counterpart, differing only in the `hasScheme` flag captured on the parsed
+`UxRef`.
 
 ```
 ux:media.home/play
@@ -24,12 +52,6 @@ media.home/play
 
 Both references resolve to the same surface (`media.home`) and element (`play`)
 — only `hasScheme` differs (`true` for the first, `false` for the second).
-
-The grammar shape, from the `UxRef` interface in `ast.ts`:
-
-```
-[ux:]surface[.surface]* [@state] [/element[:key][!verb]]
-```
 
 - **surface** — one or more dot-separated path segments (`media.home`).
 - **@state** — an optional single state name. A reference cites at most one
@@ -44,6 +66,28 @@ ux:media.home@loading
 ux:media.list/item:{id}
 ux:media.home/play!activate
 ```
+
+### Declaration forms (grammar summary)
+
+The three declaration forms below are documented with worked examples in
+[Declaration forms](#declaration-forms); their grammar, for reference:
+
+```ebnf
+root-decl    ::= [ "ux:" ] surface ":" kind [ "@" state ( "," state )* ]
+element-decl ::= "/" element ":" verb ( "," verb )* [ ":" key-template ]
+                 [ "@" state ( "," state )* ] [ "->" ux-ref ]
+child-decl   ::= "." surface [ "@" state ( "," state )* ]
+key-template ::= "{" IDENT "}"
+kind         ::= IDENT   (* one of the three closed kinds — see Closed vocabularies *)
+verb         ::= IDENT   (* one of the eleven closed verbs — see Closed vocabularies *)
+```
+
+A `root-decl`'s `:` introduces its `kind`, not a reference key — the two `:`
+productions never collide because a reference's `key` only appears after a
+`/element`, while a root declaration's surface is never followed by `/`. An
+`element-decl`'s key clause is a `key-template` only (a concrete key is a
+citation-only form); its `-> ux-ref` nav target is itself a full reference,
+scheme-optional, most often relative (`-> media.settings`).
 
 ---
 
@@ -329,12 +373,11 @@ With a designation:
 | UXIL-026 | error    | `navigate` declared without a `-> target` clause.                                                                                                                |
 
 Editor integrations receive each code's documentation link as an LSP
-`codeDescription` targeting `https://markspec.dev/spec/uxil#uxil-0xx` anchors in
-this chapter.
+`codeDescription` targeting `https://markspec.dev/extensions/uxil#uxil-0xx`
+anchors in this chapter.
 
 ---
 
 ## See also
 
-- [ADR-034 — uxil: UX Interaction DSL](../../architecture/adr-034-uxil-interaction-dsl.md)
 - [Guide: Using uxil in your entries](../../guide/uxil.md)

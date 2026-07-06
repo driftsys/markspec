@@ -1,11 +1,11 @@
 [book]
-title = "MarkSpec Typography"
+title = "MarkSpec Language Extensions"
 authors = ["DriftSys"]
 language = "en"
 src = "."
 
 [build]
-build-dir = "../../../_site/typography"
+build-dir = "../../../_site/extensions"
 
 [output.html]
 no-section-label = true
@@ -19,4 +19,4 @@ no-section-label = true
 additional-css = ["../theme/markspec.css"]
 additional-js = ["../theme/markspec-home.js"]
 git-repository-url = "https://github.com/driftsys/markspec"
-edit-url-template = "https://github.com/driftsys/markspec/edit/main/docs/spec/typography/{path}"
+edit-url-template = "https://github.com/driftsys/markspec/edit/main/docs/spec/extensions/{path}"

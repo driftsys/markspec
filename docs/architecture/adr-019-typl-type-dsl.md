@@ -91,5 +91,5 @@ via `TYPL-009`.
 ## See also
 
 - Design history: brainstorming output (not in repo — local design folder).
-- [Language reference: typl](../spec/language/typl.md)
+- [Language reference: typl](../spec/extensions/typl.md)
 - [Guide: Using typl in your entries](../guide/typl.md)

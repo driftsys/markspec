@@ -243,9 +243,6 @@ Three rules to keep in mind:
 - **A published name is never bare.** Publication needs a namespace — `$speed`
   cannot be published as-is; give it an owner (`$vehicle.speed`).
 
-See the [language reference](../spec/language/typl.md#published-declarations)
-for the full base-resolution rules.
-
 ---
 
 ## Compile output
@@ -412,5 +409,4 @@ mix of surfaces).
 
 ## See also
 
-- [Language reference: typl](../spec/language/typl.md)
-- [ADR-019 — typl: Type Specification DSL](../architecture/adr-019-typl-type-dsl.md)
+- [Language reference: typl](../spec/extensions/typl.md)
