@@ -96,7 +96,7 @@ interaction does. Every element bullet must have one (UXIL-006).
 
 An element that stands for a family of instances — one per track, one per row —
 declares a `{name}` key template instead of a single fixed identity. A citation
-against a templated element must supply a concrete key; citing it with a bare
+against a templated element must repeat the `{name}` template form; supplying a
 concrete key where a template is declared is UXIL-022.
 
 ```markdown
@@ -143,7 +143,7 @@ corpus-wide path by joining onto its nearest enclosing surface.
     - `/confirm : activate` — confirms the deletion.
     - `/cancel : activate` — dismisses the dialog without deleting.
 
-      Id: 01JZEXAMPLEULID000000000001
+      Id: 01JZEXAMPLEULID000000000002
 ```
 
 `.confirm` registers as `media.home.confirm` in the corpus registry — its own
@@ -255,7 +255,7 @@ reference it by name from the event dictionary prose:
   - `/track : select : {track_id}` — selects a track, carrying its
     `$TrackId : signal int[0..999]` identifier.
 
-    Id: 01JZEXAMPLEULID000000000001
+    Id: 01JZEXAMPLEULID000000000003
 ```
 
 This is a naming convention today, not a checked cross-reference — the compiler
