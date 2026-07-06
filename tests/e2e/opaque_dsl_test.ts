@@ -11,7 +11,7 @@
  *      form `media.home/play`, and a `$`-prefixed typl shape citation;
  *   2. fenced blocks with an unknown info-string — e.g. ```uxil.
  *
- * The guarantee lets the `@ampere/seed` profile host the uxil vocabularies
+ * The guarantee lets the `@acme/hmi` profile host the uxil vocabularies
  * via an external linter before uxil lands in core (epic #717, Staging
  * Tier 1). Locking it here means a future change to prose lint, the
  * formatter, or the typl surfaces cannot silently start flagging unknown

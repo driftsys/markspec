@@ -7,9 +7,9 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
 const PROJECT_YAML = `name: uxil-e2e\nversion: 0.1.0\n`;
-const MARKSPEC_YAML = `profiles:\n  - ./profiles/seed\n`;
+const MARKSPEC_YAML = `profiles:\n  - ./profiles/acme\n`;
 
-const PROFILE_YAML = `id: "@seed/uxil-e2e"
+const PROFILE_YAML = `id: "@acme/uxil-e2e"
 version: 0.1.0
 markspec-schema: "1"
 profile:
@@ -23,7 +23,7 @@ profile:
       display-id-pattern: "REQ_{n:4d}"
 `;
 
-const PROFILE_YAML_NO_DECLARES = `id: "@seed/uxil-e2e"
+const PROFILE_YAML_NO_DECLARES = `id: "@acme/uxil-e2e"
 version: 0.1.0
 markspec-schema: "1"
 profile:
@@ -49,7 +49,7 @@ Deno.test("uxil: clean designated corpus passes check", async () => {
   const { code, stderr } = await markspec(["check", "contract.md"], {
     "project.yaml": PROJECT_YAML,
     ".markspec.yaml": MARKSPEC_YAML,
-    "profiles/seed/markspec.yaml": PROFILE_YAML,
+    "profiles/acme/markspec.yaml": PROFILE_YAML,
     "contract.md": CONTRACT,
   });
   assertEquals(code, 0, stderr);
@@ -67,7 +67,7 @@ Deno.test("uxil: unknown verb in a contract entry is UXIL-010", async () => {
   const { code, stderr } = await markspec(["check", "contract.md"], {
     "project.yaml": PROJECT_YAML,
     ".markspec.yaml": MARKSPEC_YAML,
-    "profiles/seed/markspec.yaml": PROFILE_YAML,
+    "profiles/acme/markspec.yaml": PROFILE_YAML,
     "contract.md": bad,
   });
   assertEquals(code, 1);
@@ -86,7 +86,7 @@ Deno.test("uxil: root declaration in a requirement entry is UXIL-023", async () 
     {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": MARKSPEC_YAML,
-      "profiles/seed/markspec.yaml": PROFILE_YAML,
+      "profiles/acme/markspec.yaml": PROFILE_YAML,
       "contract.md": CONTRACT,
       "req.md": rogue,
     },
@@ -107,7 +107,7 @@ Deno.test("uxil: cross-entry citation codes are suppressed on file-local check",
     {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": MARKSPEC_YAML,
-      "profiles/seed/markspec.yaml": PROFILE_YAML,
+      "profiles/acme/markspec.yaml": PROFILE_YAML,
       "contract.md": CONTRACT,
       "req.md": citing,
     },
@@ -126,7 +126,7 @@ Deno.test("uxil: bare check reports a dangling citation as UXIL-018", async () =
   const { code, stderr } = await markspec(["check"], {
     "project.yaml": PROJECT_YAML,
     ".markspec.yaml": MARKSPEC_YAML,
-    "profiles/seed/markspec.yaml": PROFILE_YAML,
+    "profiles/acme/markspec.yaml": PROFILE_YAML,
     "contract.md": CONTRACT,
     "req.md": citing,
   });
@@ -148,7 +148,7 @@ Deno.test("uxil: compile surfaces UXIL codes for a designated corpus", async () 
     {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": MARKSPEC_YAML,
-      "profiles/seed/markspec.yaml": PROFILE_YAML,
+      "profiles/acme/markspec.yaml": PROFILE_YAML,
       "contract.md": bad,
     },
   );
@@ -178,7 +178,7 @@ Deno.test("uxil: without a declares designation the family is inert", async () =
     {
       "project.yaml": PROJECT_YAML,
       ".markspec.yaml": MARKSPEC_YAML,
-      "profiles/seed/markspec.yaml": PROFILE_YAML_NO_DECLARES,
+      "profiles/acme/markspec.yaml": PROFILE_YAML_NO_DECLARES,
       "contract.md": CONTRACT,
       "req.md": prose,
     },

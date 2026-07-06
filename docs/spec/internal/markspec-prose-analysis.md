@@ -108,7 +108,7 @@ verbatim regardless of its info-string: an unknown language tag (`uxil`) is
 skipped exactly like `rust`, so no rule sees inside it. The uxil
 declaration/citation surface embedded in inline code spans — lowercase `ux:`
 refs, leading-slash / dot element forms, and `$`-prefixed shape citations — is
-likewise inert to every active rule, which lets the `@ampere/seed` profile host
+likewise inert to every active rule, which lets the `@acme/hmi` profile host
 those vocabularies via an external linter before uxil lands in core (epic #717,
 Tier 1). The guarantee is scoped to that DSL surface, **not** to arbitrary text:
 inline code spans are not yet _structurally_ excluded (rules read a paragraph's
