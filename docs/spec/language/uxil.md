@@ -1,15 +1,269 @@
 # uxil — UX Interaction Language
 
 > **Status:** diagnostics catalogue (S9,
-> [#727](https://github.com/driftsys/markspec/issues/727)). The full chapter —
-> reference grammar, declaration forms, base resolution, registry, and machine
-> projection — lands with the uxil ADR (S12,
-> [#730](https://github.com/driftsys/markspec/issues/730)).
+> [#727](https://github.com/driftsys/markspec/issues/727)).
 
 uxil is a declaration DSL for typed UI/HMI surfaces and interactions: `ux:` URI
 references, one root surface per contract entry, element and child-surface
 bullets, and a corpus-wide surface registry. It is the sibling of the
 [typl DSL](typl.md) on the shared declaration-surface machinery.
+
+---
+
+## Reference grammar
+
+A `ux:` reference cites a surface and, optionally, a state, an element on that
+surface, a key, or a verb. The `ux:` scheme is optional: a bare wire form parses
+identically to its scheme-prefixed counterpart, differing only in the
+`hasScheme` flag captured on the parsed `UxRef`.
+
+```
+ux:media.home/play
+media.home/play
+```
+
+Both references resolve to the same surface (`media.home`) and element (`play`)
+— only `hasScheme` differs (`true` for the first, `false` for the second).
+
+The grammar shape, from the `UxRef` interface in `ast.ts`:
+
+```
+[ux:]surface[.surface]* [@state] [/element[:key][!verb]]
+```
+
+- **surface** — one or more dot-separated path segments (`media.home`).
+- **@state** — an optional single state name. A reference cites at most one
+  state; a declaration (below) allows a comma-separated state set.
+- **/element** — an optional element name on that surface.
+- **:key** — an optional key, valid only after an element: a concrete value
+  (`:track42`) or a `{name}` template placeholder (`:{track_id}`).
+- **!verb** — an optional verb, valid only after an element (and after any key).
+
+```
+ux:media.home@loading
+ux:media.list/item:{id}
+ux:media.home/play!activate
+```
+
+---
+
+## Declaration forms
+
+uxil declarations are written as inline code spans (the root form) or as the
+leading code span of a bullet paragraph (element and child-surface forms) inside
+a declaring entry's body.
+
+### Root
+
+```
+ux:surface : kind @state, state, …
+```
+
+Exactly one root declaration is required per declaring entry — none is UXIL-011,
+more than one is UXIL-012 for every declaration past the first. The scheme is
+optional here too: `media.home : screen @ ready` classifies as a root
+declaration exactly like `` `ux:media.home : screen @ ready` ``.
+
+```markdown
+- [UXI_0012] Media home screen contract
+
+  The media home screen (`ux:media.home : screen @ loading, ready`) offers
+  playback control.
+
+      Id: 01JZEXAMPLEULID000000000010
+```
+
+### Element bullet
+
+```
+/element : verb[, verb…] [: {key}] [@state, …] [-> nav-ref]
+```
+
+The leading code span declares the element's verb set (one or more verbs), an
+optional key template for a repeated element, an optional state set, and an
+optional navigation target. A navigation target is itself a `ux:` reference and
+may likewise omit the scheme, e.g. `` `/queue : navigate -> media.queue` ``. The
+prose that follows the code span — with a leading em dash separator stripped —
+is the element's **event dictionary**; it is mandatory (UXIL-006 when absent).
+
+```markdown
+- [UXI_0012] Media home screen contract
+
+  The media home screen (`ux:media.home : screen @ loading, ready`) offers
+  playback control.
+
+  - `/play : activate` — starts playback of the currently highlighted track.
+  - `/favorite_toggle : toggle : {track_id}` — marks a track favourite.
+
+    Id: 01JZEXAMPLEULID000000000010
+```
+
+### Child-surface bullet
+
+```
+.path @state, state, …
+```
+
+A child-surface bullet declares a nested surface. Its own nested bullets are its
+elements; kind is never re-declared on a child surface — every descendant
+surface inherits the root's kind (see [Base resolution](#base-resolution) for
+how `.path` resolves).
+
+```markdown
+- [UXI_0012] Media home screen contract
+
+  The media home screen (`ux:media.home : screen @ loading, ready`) offers
+  playback control.
+
+  - `/play : activate` — starts playback of the currently highlighted track.
+  - `.confirm_dialog @ default` — delete confirmation dialog.
+    - `/confirm : activate` — confirms the deletion.
+
+      Id: 01JZEXAMPLEULID000000000010
+```
+
+---
+
+## Closed vocabularies
+
+Two vocabularies are closed and core-owned — extension is a markspec release
+decision, not a profile concern (ADR-009).
+
+### Kinds
+
+| Kind     | Navigable | Stateful | Visual |
+| -------- | --------- | -------- | ------ |
+| `screen` | yes       | yes      | yes    |
+| `panel`  | no        | no       | yes    |
+| `agent`  | no        | yes      | no     |
+
+- **Navigable** — a valid `navigate ->` target. Only `screen`.
+- **Stateful** — may declare `@` states (UXIL-013 otherwise). `screen` and
+  `agent`.
+- **Visual** — subject to visibility assertions and `observe` anchors (UXIL-025
+  otherwise). `screen` and `panel`.
+
+### Verbs
+
+| Verb       | Requires nav target | Exclusive |
+| ---------- | ------------------- | --------- |
+| `activate` | no                  | no        |
+| `toggle`   | no                  | no        |
+| `select`   | no                  | no        |
+| `adjust`   | no                  | no        |
+| `input`    | no                  | no        |
+| `scroll`   | no                  | no        |
+| `drag`     | no                  | no        |
+| `navigate` | yes                 | no        |
+| `dismiss`  | no                  | no        |
+| `ask`      | no                  | no        |
+| `observe`  | no                  | yes       |
+
+- **Requires nav target** — the element must carry a `-> target` clause
+  (UXIL-026 otherwise). Only `navigate`.
+- **Exclusive** — cannot combine with any other verb on the same element
+  (UXIL-014 otherwise). Only `observe`.
+
+---
+
+## Base resolution
+
+A child-surface bullet's path is always a relative reference. It resolves
+against the base of the nearest enclosing ancestor surface — innermost wins —
+through the same DSL-agnostic engine typl's published tier uses: `resolveRef` in
+`core/decl/resolve.ts`. uxil supplies its own reference operations (`UX_REF_OPS`
+in `assemble.ts`): joining a base with a relative path is dot-concatenation, and
+there is no absolute internal path form. Unlike typl, which parses a genuinely
+absolute `$a.b.c` form, every uxil internal join is relative — `UX_REF_OPS`'s
+`isAbsolute` is kept only for API symmetry with the shared engine and never
+fires on a real child-surface path.
+
+The nearest ancestor is the closest enclosing child-surface bullet; an element
+bullet never establishes a base. With no child-surface ancestor in scope, the
+base is the entry's root surface. A child-surface bullet nested under a broken
+(diagnostic-producing) ancestor is never silently reparented to a grandparent or
+the root — its descendants are dropped rather than resolved against the wrong
+base.
+
+---
+
+## Corpus registry
+
+`UxRegistry` (built by `buildUxRegistry` in `registry.ts`) is the corpus-wide
+index of every declared surface, keyed by absolute surface path. A path's
+declarations are not collapsed: every declaration found across the corpus is
+kept, in source order. A surface declared more than once is not an error at the
+registry layer — the validator surfaces the collision as UXIL-015.
+
+Each declaration is a `SurfaceRecord`:
+
+| Field                  | Type                   | Description                                                      |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `path`                 | `string`               | Absolute, dot-joined surface path (`media.home.confirm_dialog`). |
+| `kind`                 | `string`               | The surface kind — one of the three closed kinds.                |
+| `states`               | `readonly string[]`    | The declared state set, in declaration order.                    |
+| `owningEntryDisplayId` | `string`               | Display ID of the entry that declared this surface.              |
+| `owningEntryFile`      | `string`               | File path of the owning entry.                                   |
+| `elements`             | `readonly UxElement[]` | The surface's declared interaction elements.                     |
+| `location`             | `SourceLocation`       | Source position of the declaration.                              |
+
+---
+
+## Machine projection
+
+`projectUxRegistry` (in `projection.ts`) turns a `UxRegistry` into a
+`UxProjection`: a deterministic, JSON-serialisable manifest for downstream
+codegen and other tooling. `projectUxRegistry(registry)` is byte-identical
+across repeated calls on the same registry:
+
+- surfaces are sorted by `id` (the surface path);
+- elements within a surface are sorted by `name`;
+- states are sorted;
+- verbs are kept in **declaration order** — order is load-bearing for compound
+  controls, so it is not sorted.
+
+A surface declared more than once corpus-wide (UXIL-015) projects using only its
+first-declared record; the duplicate itself stays a validator concern.
+
+A `ProjectedSurface` carries `id`, `kind`, `states`, `parent` (the dot-truncated
+parent path, when it is itself a registered surface — else `null`), and
+`elements`. A `ProjectedElement` carries `name`, `verbs`, `keyTemplate` (the
+template name, or `null`), `nav` (the resolved navigation target path, or
+`null`), and `states`.
+
+The `media.home` screen declared in [Declaration forms](#declaration-forms)
+projects to:
+
+```json
+{
+  "surfaces": [
+    {
+      "id": "media.home",
+      "kind": "screen",
+      "states": ["loading", "ready"],
+      "parent": null,
+      "elements": [
+        {
+          "name": "favorite_toggle",
+          "verbs": ["toggle"],
+          "keyTemplate": "track_id",
+          "nav": null,
+          "states": []
+        },
+        {
+          "name": "play",
+          "verbs": ["activate"],
+          "keyTemplate": null,
+          "nav": null,
+          "states": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
 
 ## Activation — the declaring entry type
 
@@ -40,6 +294,8 @@ With a designation:
   project scope (bare check, the editor); a file-local check of an explicit
   subset suppresses them — a subset registry cannot tell a dangling reference
   from an unchecked file.
+
+---
 
 ## Diagnostic catalogue
 
@@ -75,3 +331,10 @@ With a designation:
 Editor integrations receive each code's documentation link as an LSP
 `codeDescription` targeting `https://markspec.dev/spec/uxil#uxil-0xx` anchors in
 this chapter.
+
+---
+
+## See also
+
+- [ADR-034 — uxil: UX Interaction DSL](../../architecture/adr-034-uxil-interaction-dsl.md)
+- [Guide: Using uxil in your entries](../../guide/uxil.md)
