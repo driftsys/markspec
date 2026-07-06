@@ -404,9 +404,3 @@ TYPL-001: Duplicate binding for $Speed in the same entry (first wins, this is a 
 mix of surfaces).
 
 **Fix:** Remove the duplicate. The first declaration wins.
-
----
-
-## See also
-
-- [Language reference: typl](../spec/extensions/typl.md)

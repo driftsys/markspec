@@ -375,9 +375,3 @@ With a designation:
 Editor integrations receive each code's documentation link as an LSP
 `codeDescription` targeting `https://markspec.dev/extensions/uxil#uxil-0xx`
 anchors in this chapter.
-
----
-
-## See also
-
-- [Guide: Using uxil in your entries](../../guide/uxil.md)

@@ -364,9 +364,3 @@ fine — that is every entry without published symbols.
 | TYPL-010 | error    | Relative reference has no namespace base in scope.                                          |
 | TYPL-011 | error    | Citation of an undeclared published symbol.                                                 |
 | TYPL-012 | error    | More than one root namespace declaration in a single entry.                                 |
-
----
-
-## See also
-
-- [Guide: Using typl in your entries](../../guide/typl.md)

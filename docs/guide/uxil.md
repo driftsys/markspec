@@ -298,9 +298,3 @@ reference it by name from the event dictionary prose:
 
 This is a naming convention today, not a checked cross-reference — the compiler
 does not tie the element's key template to the typl binding.
-
----
-
-## See also
-
-- [Language reference: uxil](../spec/extensions/uxil.md)
