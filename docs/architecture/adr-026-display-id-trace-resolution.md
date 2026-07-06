@@ -10,9 +10,9 @@ ULID ledger, `fmt` write-back, LSP/MCP guarantees).
 Profile-declared trace relations (`Satisfies:`, `Derived-from:`, `Realizes:`,
 `Tests:`, `Depends-on:`, `Part-of:`, `Allocated-to:`, `Provides:`, `Requires:`,
 …) previously accepted only a 26-char ULID or a scheme-qualified URI as a value.
-A human-readable display ID — the natural authoring form in tools like the SEED
-profile (`@ampere/seed`, XREQ/FREQ/CREQ chains) — was rejected at the
-value-format gate (`MSL-A004`) before any graph resolution could occur.
+A human-readable display ID — the natural authoring form in tools like the ACME
+profile (`@acme/hmi`, XREQ/FREQ/CREQ chains) — was rejected at the value-format
+gate (`MSL-A004`) before any graph resolution could occur.
 
 Two deeper problems were uncovered during investigation:
 
