@@ -406,8 +406,8 @@ docs/
 - `adr-018-core-discipline-ssot.md` — single source of truth for SW/HW
   discipline lives in core (R3 / Path A++); profile extends, never overrides
 - `adr-019-typl-type-dsl.md` — typl Type Specification DSL for inline
-  constraint/type declarations on entry attributes; parser + three surfaces
-  (inline, bullet, fenced) + validation + corpus type registry
+  constraint/type declarations on entry attributes; parser + four surfaces
+  (inline, bullet, fenced, table) + validation + corpus type registry
 - `adr-020-sqlite-indexing-eval.md` — evaluation scope for on-demand SQLite
   indexing as Phase 1 of the background-indexing epic (no FS watcher, surgical
   invalidation, lockfile-pinned federated cache)
@@ -472,6 +472,10 @@ docs/
   `justfile`, `pages.yaml`); native `markspec book build` code/tests kept but
   unwired from the public site pending chrome parity (nav, search, syntax
   highlighting, print, theme toggle)
+- `adr-034-uxil-interaction-dsl.md` — uxil UX Interaction DSL: `ux:` reference
+  grammar, closed kind/verb vocabularies, base resolution via `core/decl`,
+  corpus registry + machine projection, `declares: ux-surface` profile gate;
+  sibling of ADR-019
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
