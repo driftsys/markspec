@@ -1,5 +1,285 @@
 # Changelog
 
+## [0.11.0] (2026-07-06)
+
+### Bug Fixes
+
+- **core:** uxil element-bullet diagnostics report paragraph-relative columns
+  ([#801]) ([2ea6c29])
+- **core:** derive upstream badge label from the resolved git pin ([#802])
+  ([ace8d03])
+- **core:** federated-upstream polish — remedies, path hygiene, hardening
+  ([#799]) ([9dfbbda]), closes 771.
+
+The final batch of the slice-4 follow-up
+  issue, plus the accumulated
+non-blocking review findings from PRs #797 and
+  #798.
+
+Issue items:
+
+- cacheRoot cache-dir construction uses join() in
+  upstream_refs.ts and
+  cache_check.ts — the template concat mixed the
+  platform separator
+  with a literal '/', the Windows drift class that bit
+  slices 2 and 4.
+- MSL-R014 upstream↔upstream collisions get a
+  consumer-actionable
+  remedy (drop one upstream from project.yaml / coordinate
+  an upstream
+  rename) instead of "one must rename its entry", which the
+  consumer
+  cannot perform on two read-only entries. Mixed-tier collisions
+  keep
+  the rename wording.
+- attributeCorpusDiagnostics attributes
+  upstream-located findings as
+  "from upstream X:" instead of the ADR-030
+  "delivered by X:".
+- Test hardening: kind:"dependency" fixture in refs_test;
+  exact
+  MSL-T014 message equality; URI-target-with-upstreams-declared stays
+ 
+  silent; e2e cold-cache soft-fail through compileProject
+ 
+  (UPSTREAM-SNAPSHOT-002 on stderr, show still exits 0).
+- **core:** uxil parser emits one specific diagnostic per malformed input
+  ([#796]) ([2da9167]), closes 780.
+- **core:** uxil element key template becomes a clause after the verb set
+  ([#790]) ([364e380])
+- **core:** resolve federated upstream slice-3 review follow-ups ([#785])
+  ([#791]) ([37c8f01]), closes 785. Addresses the non-blocking findings from the
+  /review of #784
+(the git dependency fetcher, slice 3 of epic #741).
+
+Important
+  — cross-kind id collision: a dependencies: entry deriving an id
+already
+  claimed by a references: entry is now skipped with an MSL-L216
+warning
+  (warn-and-write) instead of silently clobbering the
+  shared
+.markspec/cache/upstreams/<id> namespace. Declared reference ids flow
+  into
+resolveProjectDependencies via a reservedIds set.
+
+lock exit code:
+  markspec lock now exits 2 (still writing the lockfile) when
+an upstream
+  acquisition warning fires (MSL-L213/L214/L216), per the clig.dev
+"2 for
+  warnings only" convention, so a bare lock in CI surfaces a dropped or
+stale
+  pin. Benign resolution advisories (MSL-L102) deliberately do not gate
+the exit
+  code. lock --format json now surfaces the reference + dependency
+warnings, not
+  just the resolved-set diagnostics.
+- **book:** fail book build on colliding chapter slugs (MSL-K001) ([#788])
+  ([4594ac9]), closes 778.
+- **lsp:** guard pathToUri against upstream entries with relative locations
+  ([#787]) ([0c4c5ca]), closes 783.
+
+Federated-upstream entries carry a
+  tree-relative location.file, which
+pathToUri (@std/path toFileUrl) cannot
+  convert -- it throws
+- **book:** rewrite cross-chapter links to their book-build output slugs
+  ([#776]) ([536ebb3]), closes 773.
+
+markspec book build's renderer ran plain
+  remark-rehype with no
+awareness that chapters get renamed (.md -> <slug>.html)
+  and flattened
+into one output directory. Two consequences:
+
+- A link like
+  [Entry format](entry-format.md) kept its .md extension
+  in the rendered
+  output, 404ing against the real entry-format.html.
+- A nested chapter's
+  relative link (e.g. ../profiles.md from
+  recipes/deploy.md) resolved against
+  the flattened output layout
+  instead of the original source tree, landing
+  outside the book
+  entirely.
+
+buildBook() now computes a chapterSlugs map
+  (source path -> output
+slug) via the newly-shared slugForChapterPath
+  (previously duplicated
+as a private _slugFor in cli/commands/book.ts) and
+  passes it to
+renderChapterHtml. A remark plugin resolves each link's href
+  against
+its own chapter's source directory (not the flattened output
+  layout)
+and rewrites it to the target chapter's slug when one matches,
+  preserving any #fragment. Links to paths outside the book are left
+untouched.
+
+### Features
+
+- **mcp:** consolidate Claude client to `--claude`, drop claude-desktop ([#794])
+  ([8d6b214]), closes 637.
+
+`markspec mcp install` and `markspec init` now
+  expose a single `claude`
+client (= Claude Code) instead of `claude-code`, and
+  the `claude-desktop`
+target is removed. Claude Desktop's
+  `claude_desktop_config.json` is the
+desktop app's private state file; per the
+  sanctioned-surfaces policy
+markspec no longer writes it (configure it by hand
+  — see
+docs/guide/ai-agents.md).
+
+Internal symbol/file names
+  (`claudeCodeDescriptor`, `mcp_adapters_claude_code.ts`) keep their
+  product-accurate names; only the
+CLI-facing id string changes. E2e coverage of
+  the shared managed-block flow
+(force-write + no-op, sibling/JSONC
+  preservation, --remove, non-TTY safety)
+is retargeted from claude-desktop to
+  claude, not dropped.
+- federated upstream slice 3 — git dependency fetcher ([#743]) ([#784])
+  ([86abb32])
+- **lsp:** federated upstream slice 5 — LSP + MCP surfaces ([#782])
+  ([99eaa93])
+- **core:** uxil parser — ux: reference grammar + declaration forms ([#725])
+  ([#779]) ([618ecf9])
+- **core:** typl table declaration surface ([#724]) ([#772]) ([12f92f3]), closes
+  724.
+
+### Documentation
+
+- **docs:** fix uxil docs review findings ([438ebba])
+- **docs:** garden S12 uxil docs working memory to archive ([735d17c])
+- **docs:** add ADR-034 to architecture indexes, fix stale typl surface count
+  ([ff55b47])
+- **docs:** fix UXIL-022 description in uxil guide chapter ([08c2ef2])
+- **docs:** add uxil guide chapter ([1de1f72])
+- **docs:** expand uxil language reference chapter ([a0e3bef])
+- **docs:** fold typl namespacing + table surface into ADR-019 ([9b76658])
+- **docs:** add ADR-034 uxil interaction DSL ([0e06536])
+- **docs:** S12 uxil docs implementation plan ([b3d9f43])
+- **docs:** S12 uxil docs design spec ([24d6e3b])
+- **docs:** surface typl and AST chapters on the docs landing page ([1a94353])
+- **docs:** fix review findings from 8-angle audit of [#746]'s garden PR
+  ([#795]) ([3afcf93])
+- **docs:** federated upstream slice 6 — ADR-031, spec/guide, garden ([#746])
+  ([#792]) ([fd513fb]), closes 746.
+- **docs:** fix editor-vscode.md diagnostics-gating troubleshooting text
+  ([#775]) ([76f1d72]), closes 774.
+
+The prior text implied a file needs entry
+  markers or trace attributes
+nearby to get diagnostics. That conflated
+  isMarkspecFile (the actual, extension-only diagnostics gate) with
+  isDocCommentContext (a separate, position-level guard used only by
+  hover/completion/definition/rename in
+source files, never by diagnostics or
+  .md files).
+- **docs:** ADR-032 — process metadata and profile activation are orthogonal
+  ([#777]) ([998f83b]), closes 747.
+
+Records the design decision that the org
+  SSOT `process:` field and
+`.markspec.yaml` `profiles:` activation stay
+  decoupled: markspec neither
+resolves nor validates one against the other.
+  Detecting a divergence would
+require a canonical process-framework →
+  profile-package map that does not
+exist and would drag process vocabulary into
+  core, against the ADR-009/010
+boundary. Names the deferred profile-manifest
+  bridge (a `realizes-process:`
+declaration consumed by an org dashboard, never
+  by core) as the future seam
+if reconciliation is ever wanted.
+
+Settles open
+  question §9 #2 of the federated-upstream resolution design, which scoped this
+  out. Index integration (overview.md reading order, AGENTS.md ADR list) is
+  deferred to batch with ADR-031 (federated-upstream
+slice 6, #746) to avoid a
+  numbering gap.
+
+### Refactoring
+
+- **core:** partition upstream-exempt entries once in the validator ([#798])
+  ([210b63e])
+- **core:** consolidate lockfile→upstream hydration into core/upstream
+  ([#797]) ([d0ed4b1])
+
+### BREAKING CHANGES
+
+- `--client claude-code` becomes `--client claude`; `--client
+claude-desktop` is removed (configure Claude Desktop manually). Pre-1.0.
+
+[0.11.0]: https://github.com/driftsys/markspec/compare/v2.0.0...v0.11.0
+[2ea6c29]: https://github.com/driftsys/markspec/commit/2ea6c29
+[#801]: https://github.com/driftsys/markspec/issues/801
+[ace8d03]: https://github.com/driftsys/markspec/commit/ace8d03
+[#802]: https://github.com/driftsys/markspec/issues/802
+[9dfbbda]: https://github.com/driftsys/markspec/commit/9dfbbda
+[#799]: https://github.com/driftsys/markspec/issues/799
+[2da9167]: https://github.com/driftsys/markspec/commit/2da9167
+[#796]: https://github.com/driftsys/markspec/issues/796
+[364e380]: https://github.com/driftsys/markspec/commit/364e380
+[#790]: https://github.com/driftsys/markspec/issues/790
+[37c8f01]: https://github.com/driftsys/markspec/commit/37c8f01
+[#785]: https://github.com/driftsys/markspec/issues/785
+[#791]: https://github.com/driftsys/markspec/issues/791
+[4594ac9]: https://github.com/driftsys/markspec/commit/4594ac9
+[#788]: https://github.com/driftsys/markspec/issues/788
+[0c4c5ca]: https://github.com/driftsys/markspec/commit/0c4c5ca
+[#787]: https://github.com/driftsys/markspec/issues/787
+[536ebb3]: https://github.com/driftsys/markspec/commit/536ebb3
+[#776]: https://github.com/driftsys/markspec/issues/776
+[8d6b214]: https://github.com/driftsys/markspec/commit/8d6b214
+[#794]: https://github.com/driftsys/markspec/issues/794
+[86abb32]: https://github.com/driftsys/markspec/commit/86abb32
+[#743]: https://github.com/driftsys/markspec/issues/743
+[#784]: https://github.com/driftsys/markspec/issues/784
+[99eaa93]: https://github.com/driftsys/markspec/commit/99eaa93
+[#782]: https://github.com/driftsys/markspec/issues/782
+[618ecf9]: https://github.com/driftsys/markspec/commit/618ecf9
+[#725]: https://github.com/driftsys/markspec/issues/725
+[#779]: https://github.com/driftsys/markspec/issues/779
+[12f92f3]: https://github.com/driftsys/markspec/commit/12f92f3
+[#724]: https://github.com/driftsys/markspec/issues/724
+[#772]: https://github.com/driftsys/markspec/issues/772
+[438ebba]: https://github.com/driftsys/markspec/commit/438ebba
+[735d17c]: https://github.com/driftsys/markspec/commit/735d17c
+[ff55b47]: https://github.com/driftsys/markspec/commit/ff55b47
+[08c2ef2]: https://github.com/driftsys/markspec/commit/08c2ef2
+[1de1f72]: https://github.com/driftsys/markspec/commit/1de1f72
+[a0e3bef]: https://github.com/driftsys/markspec/commit/a0e3bef
+[9b76658]: https://github.com/driftsys/markspec/commit/9b76658
+[0e06536]: https://github.com/driftsys/markspec/commit/0e06536
+[b3d9f43]: https://github.com/driftsys/markspec/commit/b3d9f43
+[24d6e3b]: https://github.com/driftsys/markspec/commit/24d6e3b
+[1a94353]: https://github.com/driftsys/markspec/commit/1a94353
+[3afcf93]: https://github.com/driftsys/markspec/commit/3afcf93
+[#746]: https://github.com/driftsys/markspec/issues/746
+[#795]: https://github.com/driftsys/markspec/issues/795
+[fd513fb]: https://github.com/driftsys/markspec/commit/fd513fb
+[#792]: https://github.com/driftsys/markspec/issues/792
+[76f1d72]: https://github.com/driftsys/markspec/commit/76f1d72
+[#775]: https://github.com/driftsys/markspec/issues/775
+[998f83b]: https://github.com/driftsys/markspec/commit/998f83b
+[#777]: https://github.com/driftsys/markspec/issues/777
+[210b63e]: https://github.com/driftsys/markspec/commit/210b63e
+[#798]: https://github.com/driftsys/markspec/issues/798
+[d0ed4b1]: https://github.com/driftsys/markspec/commit/d0ed4b1
+[#797]: https://github.com/driftsys/markspec/issues/797
+
 ## [0.10.3] (2026-07-03)
 
 ### Features

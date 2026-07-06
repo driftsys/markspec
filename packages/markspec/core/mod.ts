@@ -8,7 +8,7 @@
  * from core/mod.ts, never from internal paths.
  */
 
-export const VERSION = "0.10.3";
+export const VERSION = "0.11.0";
 
 // Model types
 export {
