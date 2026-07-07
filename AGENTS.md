@@ -945,6 +945,13 @@ Run `./bootstrap` after `git clone` or `git worktree add`.
 `./bootstrap` installs `git-std` and fetches tree-sitter grammars only — it does
 not install [`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
 `just book`/`just book-dev` for local docs preview, install `mdbook` separately
-(e.g. `cargo install mdbook`, or a platform package manager such as
-`brew install mdbook`). CI installs it automatically via
-`peaceiris/actions-mdbook@v2`; only local contributors need this step.
+(e.g. `cargo install mdbook --version <pinned>`, or a platform package manager
+such as `brew install mdbook`). CI installs a **pinned** version via
+`peaceiris/actions-mdbook@v2` (`mdbook-version:` in
+`.github/workflows/pages.yaml`) rather than `latest` — match that exact version
+locally. A stale local mdbook renders a book successfully but can silently
+diverge from what CI actually deploys (0.4 → 0.5 renamed the menu bar's DOM id
+and replaced icon-font glyphs with inline SVG; a local build against 0.4 gave no
+warning that a custom `additional-js` script had broken on the live 0.5 site).
+Verify with `mdbook --version` before trusting a local build/preview of any
+book-chrome change (theme, `additional-css`/`additional-js`, book.toml).

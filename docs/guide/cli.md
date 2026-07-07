@@ -103,8 +103,7 @@ does not constrain which `Labels:` values entries may carry.
 
 Once `markspec lock` has pinned a `references:` or `dependencies:` entry, its
 entries join this project's own traceability graph as read-only, origin-tagged
-citizens — not just cached files on disk
-([ADR-031](../architecture/adr-031-federated-upstream-resolution.md)):
+citizens — not just cached files on disk:
 
 - **Trace links resolve across the repo boundary.** A `Satisfies:` (or any other
   trace attribute) value that names an upstream display ID resolves exactly like
@@ -441,8 +440,7 @@ PLT_0001  Platform core service
   Source: platform-arch@1.2.0:reference/platform.md:1:1
 ```
 
-An entry that hydrates from a locked `references:`/`dependencies:` upstream
-([ADR-031](../architecture/adr-031-federated-upstream-resolution.md); see
+An entry that hydrates from a locked `references:`/`dependencies:` upstream (see
 [Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph))
 also prints an `Origin:` line; its `Source:` gives the entry's location in the
 upstream repo's own tree.
@@ -546,8 +544,7 @@ markspec report traceability --label ASIL-B "docs/**/*.md"
 The traceability matrix carries an **Origin** column: `project` for a
 project-authored entry, or `<profile-id>@<version>` / `<upstream-id>@<version>`
 for an entry injected from a profile's delivered corpus (ADR-030) or a locked
-`references:` upstream
-([ADR-031](../architecture/adr-031-federated-upstream-resolution.md); see
+`references:` upstream (see
 [Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)).
 All three formats (`md`, `json`, `csv`) include it.
 
@@ -735,8 +732,7 @@ markspec score --id SRS_BRK_0001 --text "The system shall be fast." --format jso
 Generate or refresh `markspec.lock`. The lockfile pins upstream profile and
 language-pack versions, resolves `references:` projectRefs (see
 [project.yaml](#projectyaml) above) against their published compile output, and
-records sync mappings discovered under `.markspec/sync/`. See
-[ADR-022](../architecture/adr-022-lockfile-and-external-sync.md).
+records sync mappings discovered under `.markspec/sync/`.
 
 ```sh
 markspec lock

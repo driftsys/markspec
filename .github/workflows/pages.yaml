@@ -31,7 +31,14 @@ jobs:
       - name: Install mdBook
         uses: peaceiris/actions-mdbook@v2
         with:
-          mdbook-version: latest
+          # Pinned, not "latest": mdBook 0.5 changed the menu-bar's DOM (id
+          # renamed, icon-font glyphs replaced with inline SVG) in a way that
+          # broke a custom additional-js script silently — contributors
+          # testing against an older local mdbook (e.g. Homebrew's cached
+          # version) got no warning locally. Bump deliberately, and re-verify
+          # any additional-css/additional-js customization against the new
+          # version's live output before bumping.
+          mdbook-version: "0.5.3"
 
       - uses: denoland/setup-deno@v2
         with:

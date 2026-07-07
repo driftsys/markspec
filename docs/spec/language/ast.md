@@ -1,10 +1,8 @@
 # MarkSpec AST Extensions
 
 > **Status (2026-04-23): partially updated.** The `entryKind` field has been
-> renamed to `shape` with values `identified | referenced` per
-> [ADR-009](../../architecture/adr-009-core-profile-boundary.md) and
-> [ADR-002](../../architecture/adr-002-entry-model.md). Entry-identity uses a
-> single `Id:` attribute (ULID or URI). Examples below reflect these changes.
+> renamed to `shape` with values `identified | referenced`. Entry-identity uses
+> a single `Id:` attribute (ULID or URI). Examples below reflect these changes.
 > The AST node interface (`MsEntry`) has not yet been updated in the actual
 > codebase — the parser produces flat `Entry` objects, not mdast extension
 > nodes. This document describes the planned AST layer.

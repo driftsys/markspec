@@ -95,11 +95,10 @@ The normative manifest schema — every block, field, and diagnostic — lives i
 
 ## Delivered documents
 
-A profile can deliver document files to every project that consumes it — see
-[ADR-030](../architecture/adr-030-profile-delivered-documents.md). Each file is
-flagged, per file, as either a **traceable corpus** (its entries join the
-consuming project's traceability graph) or **documentation-only** (surfaced for
-humans and agents to read, never parsed).
+A profile can deliver document files to every project that consumes it. Each
+file is flagged, per file, as either a **traceable corpus** (its entries join
+the consuming project's traceability graph) or **documentation-only** (surfaced
+for humans and agents to read, never parsed).
 
 ```yaml
 profile:
@@ -230,9 +229,7 @@ requirement, and tagging the requirement with the union of disciplines reached.
 The result lands on `Entry.derivedDiscipline?` in compile output and flows into
 reports.
 
-See [ADR-017](../architecture/adr-017-discipline-classification.md) and
-[ADR-018](../architecture/adr-018-core-discipline-ssot.md) for the design. Three
-modes ship out of the box, selectable via the profile's `discipline-mode:`
+Three modes ship out of the box, selectable via the profile's `discipline-mode:`
 field:
 
 | Mode     | Behavior                                                                                   |

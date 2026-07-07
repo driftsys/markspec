@@ -1646,18 +1646,15 @@ before `check`). `MSL-F012` is emitted directly by `fmt` (and format-on-save)
 when the whole-document Markdown pass (ADR-029) falls back on a single entry, so
 it fires file-locally too — it is not gated on the composite `check` corpus. The
 `MSL-F` prefix is a bounded early adoption of the nextgen "format reports"
-family named in [ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md),
-the same pattern as `MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
+family (ADR-012), the same pattern as `MSL-B044` / `MSL-C072`; see ADR-012's
+ADR-027 amendment.
 
 ### 8.10 Lockfile and external sync (MSL-L, MSL-S)
 
-The lockfile (`MSL-L###`) and external-sync (`MSL-S###`) diagnostic families are
-governed by [ADR-022](../../architecture/adr-022-lockfile-and-external-sync.md)
-and catalogued in
-[ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md) (ADR-022
-amendment). The offline composite `markspec check` gate emits `MSL-L212` and
-`MSL-L215`; the network `markspec lock` flow emits `MSL-L213`, `MSL-L214`, and
-`MSL-L216`:
+The lockfile (`MSL-L###`) and external-sync (`MSL-S###`) diagnostic families
+(ADR-022, ADR-012 amendment) are catalogued below. The offline composite
+`markspec check` gate emits `MSL-L212` and `MSL-L215`; the network
+`markspec lock` flow emits `MSL-L213`, `MSL-L214`, and `MSL-L216`:
 
 | ID         | Severity | Rule                                                                                                                                                                                                                                                                                           |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1687,9 +1684,7 @@ broken site is never emitted.
 
 The `MSL-K` prefix is a bounded early adoption of a nextgen "book build" family,
 recorded on the same footing as the `MSL-F` formatting family (§8.9) and the
-`MSL-L` / `MSL-S` families (§8.10); see
-[ADR-012](../../architecture/adr-012-diagnostic-code-scheme.md)'s book-build
-amendment.
+`MSL-L` / `MSL-S` families (§8.10) (ADR-012's book-build amendment).
 
 ---
 
