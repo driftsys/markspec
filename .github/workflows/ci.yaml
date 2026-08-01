@@ -16,8 +16,8 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - run: deno fmt --check
@@ -26,26 +26,26 @@ jobs:
     name: Dprint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.0
       - uses: dprint/check@v2.3
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - run: deno lint
-      - uses: DavidAnson/markdownlint-cli2-action@v23
+      - uses: DavidAnson/markdownlint-cli2-action@v23.2.0
 
   check:
     name: Type check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - run: deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts
@@ -58,13 +58,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - name: Cache tree-sitter grammars
         id: grammars-cache
-        uses: actions/cache@v5.0.5
+        uses: actions/cache@v6.1.0
         with:
           path: grammars/*.wasm
           key: grammars-${{ hashFiles('grammars/grammars.lock') }}
@@ -95,8 +95,8 @@ jobs:
     name: Design tokens
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - run: bash scripts/check_tokens.sh
@@ -105,8 +105,8 @@ jobs:
     name: AST fidelity matrix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - run: bash scripts/check_ast_fidelity_matrix.sh
@@ -115,7 +115,7 @@ jobs:
     name: PowerShell installer syntax
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.0
       - name: Parse install.ps1
         shell: pwsh
         run: |
@@ -133,7 +133,7 @@ jobs:
     name: POSIX installer syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.0
       - name: Lint install.sh (POSIX sh)
         run: shellcheck -s sh install.sh
 
@@ -141,13 +141,13 @@ jobs:
     name: Compiled binary smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v7.0.0
+      - uses: denoland/setup-deno@v2.0.4
         with:
           deno-version: v2.x
       - name: Cache tree-sitter grammars
         id: grammars-cache
-        uses: actions/cache@v5.0.5
+        uses: actions/cache@v6.1.0
         with:
           path: grammars/*.wasm
           key: grammars-${{ hashFiles('grammars/grammars.lock') }}
@@ -186,7 +186,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
       - run: |
