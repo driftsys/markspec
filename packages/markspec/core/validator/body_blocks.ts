@@ -20,7 +20,8 @@
  *   - Inline HTML — remains inside `ParagraphNode.content.text` (remark
  *     does not extract inline HTML nodes into block-level nodes); each
  *     paragraph's text is scanned line-by-line using the same regex
- *     approach as the old walkProseLines path, but bounded to prose-only
+ *     approach as the old walkProseLines path (with inline code spans
+ *     masked out first — they are literal text, never HTML), bounded to prose-only
  *     nodes (code/feature/math blocks are automatically excluded because
  *     the builder does not emit prose-bearing nodes for verbatim content).
  *
@@ -43,6 +44,18 @@ const HTML_TAG_RE = /<\/?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?\/?>/;
 
 /** Any HTML comment, `<!--…-->`. */
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/;
+
+/**
+ * A CommonMark raw HTML open or closing tag (§6.6) anchored at the scan
+ * position. Stricter than {@linkcode HTML_TAG_RE} on purpose: it decides
+ * code-span precedence, so `` a<b and `c>` `` must not read as a tag
+ * (a backtick cannot start an attribute name) and hide the code span.
+ */
+const HTML_TAG_AT_RE =
+  /^(?:<[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?>|<\/[A-Za-z][A-Za-z0-9-]*\s*>)/;
+
+/** {@linkcode HTML_COMMENT_RE} anchored at the scan position. */
+const HTML_COMMENT_AT_RE = new RegExp(`^${HTML_COMMENT_RE.source}`);
 
 /**
  * Return `true` when `line` contains raw HTML the body model forbids:
@@ -87,6 +100,73 @@ const RAW_HTML_DIAG: BodyDiag = {
 };
 
 /**
+ * Blank out every CommonMark code span in `text` (delimiters included),
+ * keeping newlines so line offsets are preserved. A code span is literal
+ * text, never HTML (CommonMark §6.1), so `` `tool --root <ws>` `` must
+ * not reach the tag regex.
+ *
+ * Follows the CommonMark rules the regex scan would otherwise ignore:
+ * a backslash-escaped backtick does not open a span; an opening run of N
+ * backticks closes only at the next run of exactly N; an unmatched run
+ * is literal. Raw HTML and code spans bind left-to-right, so a tag that
+ * starts before a backtick run is skipped intact and still flagged.
+ */
+function maskCodeSpans(text: string): string {
+  const blank = (s: string): string => s.replace(/[^\n]/g, " ");
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\" && i + 1 < text.length) {
+      out += text.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (ch === "<") {
+      const rest = text.slice(i);
+      const tag = HTML_TAG_AT_RE.exec(rest) ?? HTML_COMMENT_AT_RE.exec(rest);
+      if (tag) {
+        out += tag[0];
+        i += tag[0].length;
+        continue;
+      }
+    }
+    if (ch !== "`") {
+      out += ch;
+      i++;
+      continue;
+    }
+    let runEnd = i;
+    while (runEnd < text.length && text[runEnd] === "`") runEnd++;
+    const runLength = runEnd - i;
+    let close = -1;
+    let j = runEnd;
+    while (j < text.length) {
+      if (text[j] !== "`") {
+        j++;
+        continue;
+      }
+      let k = j;
+      while (k < text.length && text[k] === "`") k++;
+      if (k - j === runLength) {
+        close = k;
+        break;
+      }
+      j = k;
+    }
+    if (close < 0) {
+      // Unmatched opener — the backticks are literal text.
+      out += text.slice(i, runEnd);
+      i = runEnd;
+      continue;
+    }
+    out += blank(text.slice(i, close));
+    i = close;
+  }
+  return out;
+}
+
+/**
  * Scan `text` line-by-line for forbidden inline HTML, starting at
  * `startLine` (1-based body-relative). Returns one `{ diag, bodyLine }`
  * pair per violating line — the same shape returned by
@@ -102,7 +182,7 @@ function htmlViolations(
   startLine: number,
 ): Array<{ diag: BodyDiag; bodyLine: number }> {
   const out: Array<{ diag: BodyDiag; bodyLine: number }> = [];
-  const lines = text.split("\n");
+  const lines = maskCodeSpans(text).split("\n");
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     if (line.trim() === "") continue;

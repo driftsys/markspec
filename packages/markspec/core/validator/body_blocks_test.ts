@@ -218,3 +218,75 @@ Deno.test("MSL-B043: real inline HTML is still flagged with markup present", asy
   );
   assertEquals(b043.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// MSL-B043 — inline code spans are literal text, never HTML (CommonMark §6.1)
+// ---------------------------------------------------------------------------
+
+Deno.test("MSL-B043: angle brackets inside an inline code span are NOT HTML", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const doc =
+    "- [TST_BB_0004] Probe\n\n  Run `tool --root <ws>` to start.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const b043 = validateBodyBlocks(entries[0]).filter((d) =>
+    d.code === "MSL-B043"
+  );
+  assertEquals(b043, []);
+});
+
+Deno.test("MSL-B043: code span on a later body line is NOT HTML", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const doc =
+    "- [TST_BB_0005] Probe\n\n  First line of prose.\n  Then run ``cmd <path> `x` `` here.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const b043 = validateBodyBlocks(entries[0]).filter((d) =>
+    d.code === "MSL-B043"
+  );
+  assertEquals(b043, []);
+});
+
+Deno.test("MSL-B043: code span spanning a line break is NOT HTML", () => {
+  const body = "Run `tool\n<ws>` to start.";
+  const diags = validateBodyBlocks(makeEntry("REQ-001", body));
+  assertEquals(diags.filter((d) => d.code === "MSL-B043"), []);
+});
+
+Deno.test("MSL-B043: raw HTML next to a code span is still flagged", async () => {
+  const { parseFile } = await import("../mod.ts");
+  const doc =
+    "- [TST_BB_0006] Probe\n\n  Run `tool <ws>` then <span>x</span>.\n\n      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n";
+  const { entries } = await parseFile(doc, { file: "t.md" });
+  const b043 = validateBodyBlocks(entries[0]).filter((d) =>
+    d.code === "MSL-B043"
+  );
+  assertEquals(b043.length, 1);
+});
+
+Deno.test("MSL-B043: escaped or unmatched backticks do not hide raw HTML", () => {
+  const escaped = "Literal \\` then <div>x</div> \\` here.";
+  assertEquals(
+    validateBodyBlocks(makeEntry("REQ-001", escaped)).filter((d) =>
+      d.code === "MSL-B043"
+    ).length,
+    1,
+  );
+  const unmatched = "Lone `` run then <div>x</div> and ` one.";
+  assertEquals(
+    validateBodyBlocks(makeEntry("REQ-002", unmatched)).filter((d) =>
+      d.code === "MSL-B043"
+    ).length,
+    1,
+  );
+});
+
+Deno.test("MSL-B043: HTML tag that starts before a backtick wins precedence", () => {
+  const body = 'See <a title="`">link</a>` text.';
+  const diags = validateBodyBlocks(makeEntry("REQ-001", body));
+  assertEquals(diags.filter((d) => d.code === "MSL-B043").length, 1);
+});
+
+Deno.test("MSL-B043: tag-like prose before a code span does not swallow it", () => {
+  const body = "Holds when a<b and `c>` here.";
+  const diags = validateBodyBlocks(makeEntry("REQ-001", body));
+  assertEquals(diags.filter((d) => d.code === "MSL-B043"), []);
+});
