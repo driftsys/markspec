@@ -1130,3 +1130,42 @@ Deno.test("pipeline: file-local scope suppresses UXIL-018 but not UXIL-009 (#727
   assertEquals(fileLocal.diagnostics.some((d) => d.code === "UXIL-018"), false);
   assertEquals(fileLocal.diagnostics.some((d) => d.code === "UXIL-009"), true);
 });
+
+Deno.test("runPipeline: per-type attrs (MSL-T024) see the profile-classified type", () => {
+  // `SYS_BRK_0001` carries no `Type:` and no inferable signal — only the
+  // profile's display-id-pattern classifies it. Before the fix the per-type
+  // check ran ahead of Stage 2, so `Satisfies:` fired MSL-T024.
+  const profile = makeProfile({
+    "stakeholder-requirement": { pattern: "STK_BRK_{n:04d}" },
+    "system-requirement": { pattern: "SYS_BRK_{n:04d}" },
+  });
+  const entries = entriesOf({
+    "req.md": `- [STK_BRK_0001] Stop
+
+  The vehicle shall stop.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCD01
+
+- [SYS_BRK_0001] Actuate
+
+  The system shall actuate the brakes.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCD02
+      Satisfies: STK_BRK_0001
+`,
+  });
+  const result = runPipeline(entries, profile);
+  const sys = result.entries.find((e) => e.displayId === "SYS_BRK_0001");
+  assertEquals(sys?.type, "system-requirement");
+  assertEquals(
+    result.diagnostics.filter((d) => d.code === "MSL-T024"),
+    [],
+  );
+
+  // Core-only mode keeps reporting the unresolvable type.
+  const coreOnly = runPipeline(entries, null);
+  assertEquals(
+    coreOnly.diagnostics.filter((d) => d.code === "MSL-T024").length,
+    1,
+  );
+});

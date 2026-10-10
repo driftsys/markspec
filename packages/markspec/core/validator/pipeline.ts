@@ -136,7 +136,6 @@ export function runPipeline(
     diagnostics.push(...validateCaptionConvention(entry, captionConventions));
     diagnostics.push(...validateBodyBlocks(entry));
     diagnostics.push(...validateFeatureAc(entry));
-    diagnostics.push(...validatePerTypeAttributes(entry, profile ?? undefined));
     diagnostics.push(...validateModalKeywords(entry));
   }
 
@@ -170,15 +169,19 @@ export function runPipeline(
     diagnostics.push(...stage2.diagnostics);
   }
 
-  // Stage 2.4 — late-stage inference warnings (MSL-T021 for steps 5/6).
-  // Runs after Stage 2 so that profile-classified `entry.type` suppresses
-  // the warning correctly. In core-only mode `finalEntries === entries`
-  // and `entry.type` is always undefined, so this stage produces the same
-  // diagnostics regardless of mode. Partitions inline: `finalEmittable`
-  // below is derived from the post-normalization generation, which does
-  // not exist yet at this point.
+  // Stage 2.4 — late-stage inference warnings (MSL-T021 for steps 5/6)
+  // and per-type attribute compatibility (MSL-T022 / MSL-T024). Both run
+  // after Stage 2 so that a profile-classified `entry.type` (display-ID
+  // pattern match, no explicit `Type:`) resolves to its `extends:` core
+  // type — run before classification, MSL-T024 fired on every
+  // pattern-classified entry carrying `Satisfies:`/`Derived-from:`. In
+  // core-only mode `finalEntries === entries` and `entry.type` is always
+  // undefined, so this stage produces the same diagnostics regardless of
+  // mode. Partitions inline: `finalEmittable` below is derived from the
+  // post-normalization generation, which does not exist yet at this point.
   for (const entry of emittableEntries(finalEntries)) {
     diagnostics.push(...inferTypeFromLateStageChain(entry));
+    diagnostics.push(...validatePerTypeAttributes(entry, profile ?? undefined));
   }
 
   // Stage 2.5 — normalize profile-declared list-value attributes. Splits
