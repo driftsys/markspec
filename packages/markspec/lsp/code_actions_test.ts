@@ -113,6 +113,234 @@ Deno.test("buildCodeActions: MSL-A012 with missing source text yields no action"
   assertEquals(actions, []);
 });
 
+const DOC_WITH_EMPTY_SATISFIES = `# Test
+
+- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies:
+`;
+
+Deno.test("buildCodeActions: MSL-P021 empty-valued trailer → remove line", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message:
+        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`,
+      line: 2,
+      character: 0,
+    }),
+  ], DOC_WITH_EMPTY_SATISFIES);
+  assertEquals(actions.length, 1);
+  const a = actions[0];
+  assertEquals(a.title, "Remove empty 'Satisfies' line");
+  assertEquals(a.kind, "quickfix");
+  assertEquals(a.isPreferred, true);
+  const edit = a.edit!.changes!["file:///x.md"][0];
+  // Satisfies line is line 7 (0-based); the edit deletes the whole line.
+  assertEquals(edit.newText, "");
+  assertEquals(edit.range.start, { line: 7, character: 0 });
+  assertEquals(edit.range.end, { line: 8, character: 0 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 empty Id: with trailing spaces → remove line", () => {
+  const doc = `- [REQ-001] My requirement
+
+  Body.
+
+      Id:\u0020\u0020
+      Labels: ASIL-B
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message:
+        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Id:"`,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title, "Remove empty 'Id' line");
+  const edit = actions[0].edit!.changes!["file:///x.md"][0];
+  assertEquals(edit.range.start, { line: 4, character: 0 });
+  assertEquals(edit.range.end, { line: 5, character: 0 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 non-empty malformed line yields no action", () => {
+  const doc = `- [REQ-001] My requirement
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      not a trailer
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message:
+        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "not a trailer"`,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-P021 with missing source text yields no action", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message:
+        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`,
+      line: 2,
+      character: 0,
+    }),
+  ]);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-P021 ignores prose and unindented lines", () => {
+  // The quoted empty key appears only unindented — not a trailer line.
+  const doc = `- [REQ-001] My requirement
+
+  Satisfies:
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message:
+        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+const P021_SATISFIES_MSG =
+  `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`;
+
+Deno.test("buildCodeActions: MSL-P021 never reaches into the next entry", () => {
+  // REQ-001's empty line is not matchable here, but REQ-002 has one —
+  // the fix for REQ-001 must not delete REQ-002's line.
+  const doc = `- [REQ-001] First
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+
+- [REQ-002] Second
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Satisfies:
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: P021_SATISFIES_MSG,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions, []);
+});
+
+Deno.test("buildCodeActions: MSL-P021 matches a tab-indented trailer", () => {
+  const doc =
+    "- [REQ-001] First\n\n  Body.\n\n\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF\n\tSatisfies:\n";
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: P021_SATISFIES_MSG,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edit = actions[0].edit!.changes!["file:///x.md"][0];
+  assertEquals(edit.range.start, { line: 5, character: 0 });
+  assertEquals(edit.range.end, { line: 6, character: 0 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 targets the trailer, not a body example", () => {
+  const doc = `- [REQ-001] First
+
+  Example:
+
+      Satisfies:
+
+  More body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies:
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: P021_SATISFIES_MSG,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].range.start, { line: 9, character: 0 });
+  assertEquals(edits[0].range.end, { line: 10, character: 0 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 drops an all-empty block and its leading blank", () => {
+  const doc = `- [REQ-001] First
+
+  Body.
+
+      Id:
+      Satisfies:
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: P021_SATISFIES_MSG,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title, "Remove empty trailer lines");
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  // Lines 3 (blank) through 5 removed: the body ends at "  Body.".
+  assertEquals(edits[0].range.start, { line: 3, character: 0 });
+  assertEquals(edits[0].range.end, { line: 6, character: 0 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 removes every empty line in the block", () => {
+  const doc = `- [REQ-001] First
+
+  Body.
+
+      Id:
+      Labels: ASIL-B
+      Satisfies:
+`;
+  const actions = buildCodeActions("file:///x.md", [
+    diag({
+      code: "MSL-P021",
+      message: P021_SATISFIES_MSG,
+      line: 0,
+      character: 0,
+    }),
+  ], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.map((e) => e.range.start.line), [4, 6]);
+});
+
 Deno.test("buildCodeActions: MSL-A011 → rewrite citation CSV as multi-line", () => {
   const actions = buildCodeActions("file:///x.md", [
     diag({

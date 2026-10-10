@@ -21,6 +21,10 @@
  *     canonical multi-line form), splitting on top-level commas.
  *   - **MSL-A012** — repeatable attribute with an empty value list.
  *     Action: remove the empty trailer line.
+ *   - **MSL-P021** — malformed trailer line, only when the quoted line
+ *     is an empty-valued `Key:` (e.g. `Satisfies:`). Action: remove the
+ *     empty trailer line(s) in that entry's trailing block, matching
+ *     what `markspec fmt` drops. Other P021 shapes get no fix.
  *   - **MSL-L010** — lockfile reference entry has no `Reference-url:`.
  *     Action: insert a placeholder `Reference-url:` trailer line.
  *   - **MSL-S002** — sync attribute mapping has `locked: true` but
@@ -72,6 +76,16 @@ const ATTRIBUTE_KEY_RE = /'([A-Z][A-Za-z-]*)'/;
 /** Capture the bad type value inside `'…'` in an MSL-T020 message. */
 const T020_VALUE_RE = /Type: '([^']+)'/;
 
+/** Capture the quoted offending line at the end of an MSL-P021 message. */
+const P021_LINE_RE = /"([^"]*)"$/;
+
+/** An empty-valued trailer line: `Key:` with nothing after the colon.
+ * Same key grammar as the formatter's `removeEmptyTrailerLines`. */
+const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
+
+/** A list-item entry title line (`- [ID] Title`) — bounds a P021 search. */
+const ENTRY_TITLE_RE = /^\s*[-*+]\s+\[[^\]]+\]/;
+
 /** All core type names — search target for MSL-T020 "did you mean" fixes. */
 const ALL_CORE_TYPES: readonly string[] = [
   ...CORE_ABSTRACT_TYPES,
@@ -113,6 +127,9 @@ export function buildCodeActions(
       if (action) out.push(action);
     } else if (diag.code === "MSL-A012" && documentText !== undefined) {
       const action = buildA012Fix(uri, diag, documentText);
+      if (action) out.push(action);
+    } else if (diag.code === "MSL-P021" && documentText !== undefined) {
+      const action = buildP021Fix(uri, diag, documentText);
       if (action) out.push(action);
     } else if (diag.code === "MSL-L010" && documentText !== undefined) {
       const action = buildL010Fix(uri, diag, documentText);
@@ -162,6 +179,84 @@ function buildA012Fix(
     };
   }
   return undefined;
+}
+
+function buildP021Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  // Only the empty-valued `Key:` shape is mechanically fixable — the
+  // parser never admits it as a trailer, so MSL-A012 cannot fire for it.
+  const quoted = P021_LINE_RE.exec(diag.message);
+  if (!quoted) return undefined;
+  const empty = EMPTY_TRAILER_RE.exec(quoted[1]);
+  if (!empty) return undefined;
+  const attrKey = empty[1];
+  const lines = documentText.split("\n");
+  // P021 is located at the entry's title line, so bound the search to
+  // this entry (up to the next list-item title) — otherwise the fix
+  // could delete another entry's line. Take the last match: the parser
+  // reports the trailing block, and an earlier indented `Key:` may be a
+  // body example.
+  const start = diag.range.start.line;
+  let stop = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (ENTRY_TITLE_RE.test(lines[i])) {
+      stop = i;
+      break;
+    }
+  }
+  const lineRe = new RegExp(`^(?: {4,}|\\t)[ \\t]*${attrKey}:\\s*$`);
+  let target = -1;
+  for (let i = start; i < stop; i++) {
+    if (lineRe.test(lines[i])) target = i;
+  }
+  if (target < 0) return undefined;
+  // Mirror `markspec fmt` (removeEmptyTrailerLines): drop every empty
+  // `Key:` line in the contiguous trailer block, and when nothing else
+  // remains, the blank line before it too — so no MSL-F010 drift is left.
+  const isBlockLine = (i: number) =>
+    i >= start && i < stop && /^(?: {4,}|\t)/.test(lines[i]) &&
+    lines[i].trim() !== "";
+  let blockStart = target;
+  while (isBlockLine(blockStart - 1)) blockStart--;
+  let blockEnd = target + 1;
+  while (isBlockLine(blockEnd)) blockEnd++;
+  const emptyLines: number[] = [];
+  for (let i = blockStart; i < blockEnd; i++) {
+    if (EMPTY_TRAILER_RE.test(lines[i].trim())) emptyLines.push(i);
+  }
+  const wholeBlock = emptyLines.length === blockEnd - blockStart;
+  const edits: TextEdit[] = wholeBlock
+    ? [{
+      range: {
+        start: {
+          line: blockStart > 0 && lines[blockStart - 1].trim() === ""
+            ? blockStart - 1
+            : blockStart,
+          character: 0,
+        },
+        end: { line: blockEnd, character: 0 },
+      },
+      newText: "",
+    }]
+    : emptyLines.map((i) => ({
+      range: {
+        start: { line: i, character: 0 },
+        end: { line: i + 1, character: 0 },
+      },
+      newText: "",
+    }));
+  return {
+    title: emptyLines.length > 1
+      ? "Remove empty trailer lines"
+      : `Remove empty '${attrKey}' line`,
+    kind: "quickfix",
+    diagnostics: [diag],
+    isPreferred: true,
+    edit: { changes: { [uri]: edits } },
+  };
 }
 
 function buildA011Fix(
