@@ -11,6 +11,7 @@ export { compileCmd, exportCmd } from "./compile.ts";
 export { contextCmd } from "./context_cmd.ts";
 export { createCmd } from "./create.ts";
 export { deckCmd } from "./deck.ts";
+export { deskCmd } from "./desk_cmd.ts";
 export { dependentsCmd } from "./dependents.ts";
 export { docCmd } from "./doc.ts";
 export { doctorCmd } from "./doctor.ts";

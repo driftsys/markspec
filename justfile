@@ -4,7 +4,7 @@ default:
 
 # Type-check, lint, and test all packages
 check: lint test
-    deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts
+    deno check packages/markspec/main.ts packages/markspec/core/mod.ts packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts packages/markspec/desk/server.ts
 
 # Run tests
 test:

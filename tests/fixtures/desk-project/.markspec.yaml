@@ -1,0 +1,4 @@
+profiles:
+  - ./profiles/brk
+exclude:
+  - profiles/

@@ -227,6 +227,10 @@ external sync, and agent integration — are their own line of decisions.
   [ADR-028](./adr-028-mcp-project-discovery.md)) — the MCP server's agent-facing
   trigger language and soft project-detection gate, plus how `markspec mcp`
   resolves its project root from an ordered candidate list.
+- **MarkDesk** ([ADR-035](./adr-035-markdesk.md)) — the desktop authoring app
+  for non-engineer authors: a React UI in a thin Tauri shell over a
+  `markspec desk --serve` loopback API that reuses the core unchanged, with
+  `schemas/desk-api.json` as the contract.
 
 ## Reading order for new contributors
 
@@ -278,4 +282,5 @@ line that matches what you are working on.
   [ADR-028](./adr-028-mcp-project-discovery.md),
   [ADR-030](./adr-030-profile-delivered-documents.md),
   [ADR-031](./adr-031-federated-upstream-resolution.md),
-  [ADR-032](./adr-032-process-profile-boundary.md).
+  [ADR-032](./adr-032-process-profile-boundary.md),
+  [ADR-035](./adr-035-markdesk.md).

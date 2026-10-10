@@ -168,3 +168,193 @@ p.caption {
   margin-bottom: var(--space-3);
 }
 
+/* ── Application layer (MarkDesk) ───────────────────────── */
+
+:root {
+  /* App type scale (px) */
+  --md-type-label-size: 11px;
+  --md-type-label-leading: 16px;
+  --md-type-label-weight: 600;
+  --md-type-label-tracking: 0.06em;
+  --md-type-ui-sm-size: 12px;
+  --md-type-ui-sm-leading: 16px;
+  --md-type-ui-sm-weight: 400;
+  --md-type-ui-size: 13px;
+  --md-type-ui-leading: 18px;
+  --md-type-ui-weight: 400;
+  --md-type-ui-strong-size: 13px;
+  --md-type-ui-strong-leading: 18px;
+  --md-type-ui-strong-weight: 500;
+  --md-type-title-size: 16px;
+  --md-type-title-leading: 22px;
+  --md-type-title-weight: 600;
+  --md-type-display-size: 20px;
+  --md-type-display-leading: 26px;
+  --md-type-display-weight: 600;
+  --md-type-doc-title-size: 26px;
+  --md-type-doc-title-leading: 32px;
+  --md-type-doc-title-weight: 600;
+  --md-type-doc-h2-size: 19px;
+  --md-type-doc-h2-leading: 26px;
+  --md-type-doc-h2-weight: 600;
+  --md-type-doc-h3-size: 16px;
+  --md-type-doc-h3-leading: 23px;
+  --md-type-doc-h3-weight: 600;
+  --md-type-doc-body-size: 15px;
+  --md-type-doc-body-leading: 24px;
+  --md-type-doc-body-weight: 400;
+  --md-type-doc-strong-size: 15px;
+  --md-type-doc-strong-leading: 24px;
+  --md-type-doc-strong-weight: 600;
+  --md-type-doc-caption-size: 12px;
+  --md-type-doc-caption-leading: 18px;
+  --md-type-doc-caption-weight: 400;
+  --md-type-code-size: 12px;
+  --md-type-code-leading: 19px;
+  --md-type-code-weight: 400;
+  --md-type-code-id-size: 13px;
+  --md-type-code-id-leading: 18px;
+  --md-type-code-id-weight: 500;
+
+  /* App spacing (4px grid) */
+  --md-space-0\.5: 2px;
+  --md-space-1: 4px;
+  --md-space-2: 8px;
+  --md-space-3: 12px;
+  --md-space-4: 16px;
+  --md-space-5: 20px;
+  --md-space-6: 24px;
+  --md-space-8: 32px;
+  --md-space-10: 40px;
+
+  /* App radius */
+  --md-radius-sm: 4px;
+  --md-radius-md: 6px;
+  --md-radius-lg: 10px;
+  --md-radius-pill: 999px;
+
+  /* App control heights */
+  --md-control-dense: 28px;
+  --md-control-default: 36px;
+  --md-control-touch: 44px;
+  --md-control-header: 44px;
+
+  /* App page (A4 document sheet) */
+  --md-page-width: 794px;
+  --md-page-margin: 56px;
+  --md-page-measure: 76ch;
+  --md-page-gutter: 32px;
+
+  /* App document family */
+  --md-document-family: var(--font-serif);
+
+  /* App motion (ease-out) */
+  --md-motion-state: 120ms;
+  --md-motion-enter: 200ms;
+
+  /* App chrome (light) */
+  --md-bg: #f4f5f7;
+  --md-panel: #ffffff;
+  --md-elevated: #ffffff;
+  --md-inset: #fafbfc;
+  --md-hover: #eceef1;
+  --md-selected: #e4e9ef;
+  --md-border: #dcdfe4;
+  --md-border-strong: #c3c8d0;
+  --md-text: #1b1f24;
+  --md-text-secondary: #5a6270;
+  --md-text-muted: #8a919c;
+  --md-action: #1b1f24;
+  --md-action-text: #ffffff;
+  --md-focus: #0072b2;
+
+  /* App status (light) */
+  --md-status-info-fg: #0077bb;
+  --md-status-info-bg: #eef5fc;
+  --md-status-ok-fg: #009988;
+  --md-status-ok-bg: #eef7f5;
+  --md-status-warn-fg: #ee7733;
+  --md-status-warn-bg: #fdf4ee;
+  --md-status-error-fg: #cc3311;
+  --md-status-error-bg: #fdeeed;
+
+  /* App source syntax (light) */
+  --md-code-id: #005580;
+  --md-code-modal: #a9480f;
+  --md-code-key: #5a6270;
+  --md-code-value: #00695f;
+  --md-code-comment: #8a919c;
+
+  /* App shadows (light) */
+  --md-shadow-sm: 0 1px 2px rgba(27, 31, 36, 0.08);
+  --md-shadow-md: 0 6px 18px rgba(27, 31, 36, 0.14);
+
+  /* App document sheet (light) */
+  --md-document-edge: #e2e4e8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --md-motion-state: 0ms;
+    --md-motion-enter: 0ms;
+  }
+}
+
+[data-theme="dark"] {
+  /* App chrome (dark) */
+  --md-bg: #14171a;
+  --md-panel: #1d2125;
+  --md-elevated: #24292e;
+  --md-inset: #191d21;
+  --md-hover: #2a3036;
+  --md-selected: #32393f;
+  --md-border: #343a41;
+  --md-border-strong: #474e56;
+  --md-text: #e6e9ed;
+  --md-text-secondary: #a8b0ba;
+  --md-text-muted: #777f89;
+  --md-action: #e6e9ed;
+  --md-action-text: #14171a;
+  --md-focus: #56b4e9;
+
+  /* App status (dark) */
+  --md-status-info-fg: #77aadd;
+  --md-status-info-bg: #1b2733;
+  --md-status-ok-fg: #44bb99;
+  --md-status-ok-bg: #162623;
+  --md-status-warn-fg: #ee8866;
+  --md-status-warn-bg: #2b2017;
+  --md-status-error-fg: #ff8a75;
+  --md-status-error-bg: #2d1a17;
+
+  /* App source syntax (dark) */
+  --md-code-id: #77aadd;
+  --md-code-modal: #ee8866;
+  --md-code-key: #a8b0ba;
+  --md-code-value: #44bb99;
+  --md-code-comment: #777f89;
+
+  /* App shadows (dark) */
+  --md-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --md-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.55);
+
+  /* App document sheet (dark) */
+  --md-document-edge: #0f1113;
+}
+
+/* App type-scale classes */
+.app-label { font-family: var(--font-sans); font-size: var(--md-type-label-size); line-height: var(--md-type-label-leading); font-weight: var(--md-type-label-weight); letter-spacing: var(--md-type-label-tracking); }
+.app-ui-sm { font-family: var(--font-sans); font-size: var(--md-type-ui-sm-size); line-height: var(--md-type-ui-sm-leading); font-weight: var(--md-type-ui-sm-weight); }
+.app-ui { font-family: var(--font-sans); font-size: var(--md-type-ui-size); line-height: var(--md-type-ui-leading); font-weight: var(--md-type-ui-weight); }
+.app-ui-strong { font-family: var(--font-sans); font-size: var(--md-type-ui-strong-size); line-height: var(--md-type-ui-strong-leading); font-weight: var(--md-type-ui-strong-weight); }
+.app-title { font-family: var(--font-sans); font-size: var(--md-type-title-size); line-height: var(--md-type-title-leading); font-weight: var(--md-type-title-weight); }
+.app-display { font-family: var(--font-sans); font-size: var(--md-type-display-size); line-height: var(--md-type-display-leading); font-weight: var(--md-type-display-weight); }
+.app-doc-title { font-family: var(--md-document-family); font-size: var(--md-type-doc-title-size); line-height: var(--md-type-doc-title-leading); font-weight: var(--md-type-doc-title-weight); }
+.app-doc-h2 { font-family: var(--md-document-family); font-size: var(--md-type-doc-h2-size); line-height: var(--md-type-doc-h2-leading); font-weight: var(--md-type-doc-h2-weight); }
+.app-doc-h3 { font-family: var(--md-document-family); font-size: var(--md-type-doc-h3-size); line-height: var(--md-type-doc-h3-leading); font-weight: var(--md-type-doc-h3-weight); }
+.app-doc-body { font-family: var(--md-document-family); font-size: var(--md-type-doc-body-size); line-height: var(--md-type-doc-body-leading); font-weight: var(--md-type-doc-body-weight); }
+.app-doc-strong { font-family: var(--md-document-family); font-size: var(--md-type-doc-strong-size); line-height: var(--md-type-doc-strong-leading); font-weight: var(--md-type-doc-strong-weight); }
+.app-doc-caption { font-family: var(--font-sans); font-size: var(--md-type-doc-caption-size); line-height: var(--md-type-doc-caption-leading); font-weight: var(--md-type-doc-caption-weight); font-style: italic; }
+.app-code { font-family: var(--font-mono); font-size: var(--md-type-code-size); line-height: var(--md-type-code-leading); font-weight: var(--md-type-code-weight); }
+.app-code-id { font-family: var(--font-mono); font-size: var(--md-type-code-id-size); line-height: var(--md-type-code-id-leading); font-weight: var(--md-type-code-id-weight); }
+

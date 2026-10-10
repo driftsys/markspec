@@ -97,8 +97,12 @@ markspec/
 │       │   │                          MSL-P021 empty `Key:` remove)
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
-│       └── mcp/
-│           └── server.ts            ← MCP protocol adapter
+│       ├── mcp/
+│       │   └── server.ts            ← MCP protocol adapter
+│       └── desk/                    ← MarkDesk backend (ADR-035): `markspec
+│           ├── server.ts              desk --serve` loopback listener + nonce
+│           └── api.ts               ← pure Request → Response handler
+│                                      (contract: schemas/desk-api.json)
 ├── editors/
 │   └── vscode/                      ← markspec-ide VSCode extension
 │       ├── package.json
@@ -185,7 +189,8 @@ optimize; start with pure TypeScript.
 
 ```bash
 deno check packages/markspec/main.ts packages/markspec/core/mod.ts \
-  packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts  # type-check
+  packages/markspec/lsp/server.ts packages/markspec/mcp/server.ts \
+  packages/markspec/desk/server.ts                                 # type-check
 deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi  # run all tests
 deno lint                                                           # lint
 deno fmt && dprint fmt                                              # format (TS + MD/JSON/YAML)
@@ -245,6 +250,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).                                                                                                                                                          |
 | `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                                                                                                                                                                        |
 | `markspec mcp install`                | `mcp/server`                      | Print MCP server configuration for a client (claude-desktop, cursor, vscode).                                                                                                                                                |
+| `markspec desk --serve`               | `desk/server`                     | Hidden walking skeleton (ADR-035): loopback HTTP API for MarkDesk — product tree + one entry, nonce token, `--port 0`.                                                                                                       |
 
 ### Not yet implemented
 
@@ -477,6 +483,10 @@ docs/
   grammar, closed kind/verb vocabularies, base resolution via `core/decl`,
   corpus registry + machine projection, `declares: ux-surface` profile gate;
   sibling of ADR-019
+- `adr-035-markdesk.md` — MarkDesk desktop authoring app: React + Vite UI in a
+  thin Tauri shell, `markspec desk --serve` loopback API inside the one binary,
+  `schemas/desk-api.json` contract, core stays TypeScript, GitLab-first `Forge`
+  interface, agents propose / author accepts, `--md-*` chrome tokens, one repo
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
