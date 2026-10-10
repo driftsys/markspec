@@ -89,3 +89,132 @@ diagram:
   red: { print: "#EE6677", screen: "#CC3311" }
   purple: { print: "#AA3377", screen: "#EE3377" }
   grey: { print: "#BBBBBB", screen: "#BBBBBB" }
+
+# ── Application layer (MarkDesk) ───────────────────────────────────────────
+# Chrome, controls and editor theme for the MarkDesk app. Emitted as --md-*.
+# The document layer above (--ms-*) is unchanged and is what the app's Spec
+# view renders with, so app and book stay identical.
+# Canonical source: driftsys/markdesk design system.
+app:
+
+  # Chrome type scale, in px (the document scale above stays in pt for print).
+  scale:
+    # App — family: sans
+    label:      { size: 11px, leading: 16px, weight: 600, tracking: 0.06em }
+    ui-sm:      { size: 12px, leading: 16px, weight: 400 }
+    ui:         { size: 13px, leading: 18px, weight: 400 }
+    ui-strong:  { size: 13px, leading: 18px, weight: 500 }
+    title:      { size: 16px, leading: 22px, weight: 600 }
+    display:    { size: 20px, leading: 26px, weight: 600 }
+    # Document — family: serif
+    doc-title:  { size: 26px, leading: 32px, weight: 600 }
+    doc-h2:     { size: 19px, leading: 26px, weight: 600 }
+    doc-h3:     { size: 16px, leading: 23px, weight: 600 }
+    doc-body:   { size: 15px, leading: 24px, weight: 400 }
+    doc-strong: { size: 15px, leading: 24px, weight: 600 }
+    doc-caption: { size: 12px, leading: 18px, weight: 400, style: italic, family: sans }
+    # Code — family: mono
+    code:       { size: 12px, leading: 19px, weight: 400 }
+    code-id:    { size: 13px, leading: 18px, weight: 500 }
+
+  # MarkSpec's 4pt document grid, read as 4px.
+  spacing:
+    "space-0.5":    2px
+    space-1:        4px
+    space-2:        8px
+    space-3:        12px
+    space-4:        16px
+    space-5:        20px
+    space-6:        24px
+    space-8:        32px
+    space-10:       40px
+
+  radius:
+    radius-sm:      4px
+    radius-md:      6px
+    radius-lg:      10px
+    radius-pill:    999px
+
+  # Control heights. Dense is for panel chrome; comfortable is the default; touch is the minimum for anything a stylus or finger hits.
+  control:
+    control-dense:  28px
+    control-default: 36px
+    control-touch:  44px
+    control-header: 44px
+
+  # The document pane is a page, not a pane. These give it the proportions of a printed A4 spec.
+  page:
+    page-width:     794px
+    page-margin:    56px
+    page-measure:   76ch
+    page-gutter:    32px
+
+  # Two levels only; nothing on the document page casts a shadow.
+  shadow:
+    shadow-sm:
+      light: "0 1px 2px rgba(27, 31, 36, 0.08)"
+      dark:  "0 1px 2px rgba(0, 0, 0, 0.4)"
+    shadow-md:
+      light: "0 6px 18px rgba(27, 31, 36, 0.14)"
+      dark:  "0 6px 18px rgba(0, 0, 0, 0.55)"
+
+  themes:
+    light:
+      bg:               "#f4f5f7"
+      panel:            "#ffffff"
+      elevated:         "#ffffff"
+      inset:            "#fafbfc"
+      hover:            "#eceef1"
+      selected:         "#e4e9ef"
+      border:           "#dcdfe4"
+      border-strong:    "#c3c8d0"
+      text:             "#1b1f24"
+      text-secondary:   "#5a6270"
+      text-muted:       "#8a919c"
+      action:           "#1b1f24"
+      action-text:      "#ffffff"
+      focus:            "#0072b2"
+    dark:
+      bg:               "#14171a"
+      panel:            "#1d2125"
+      elevated:         "#24292e"
+      inset:            "#191d21"
+      hover:            "#2a3036"
+      selected:         "#32393f"
+      border:           "#343a41"
+      border-strong:    "#474e56"
+      text:             "#e6e9ed"
+      text-secondary:   "#a8b0ba"
+      text-muted:       "#777f89"
+      action:           "#e6e9ed"
+      action-text:      "#14171a"
+      focus:            "#56b4e9"
+
+  # Status: the dot or border carries the hue, the label carries the contrast.
+  # warn and error do not reach 4.5:1 on light grounds — never use them for prose.
+  status:
+    info: { light: { fg: "#0077bb", bg: "#eef5fc" }, dark: { fg: "#77aadd", bg: "#1b2733" } }
+    ok: { light: { fg: "#009988", bg: "#eef7f5" }, dark: { fg: "#44bb99", bg: "#162623" } }
+    warn: { light: { fg: "#ee7733", bg: "#fdf4ee" }, dark: { fg: "#ee8866", bg: "#2b2017" } }
+    error: { light: { fg: "#cc3311", bg: "#fdeeed" }, dark: { fg: "#ff8a75", bg: "#2d1a17" } }
+
+  # Source-drawer syntax theme. Five colours, reusing the entry hues:
+  # an ID is the same blue that means "requirement" everywhere else.
+  code:
+    id:       { light: "#005580", dark: "#77aadd" }
+    modal:    { light: "#a9480f", dark: "#ee8866" }
+    key:      { light: "#5a6270", dark: "#a8b0ba" }
+    value:    { light: "#00695f", dark: "#44bb99" }
+    comment:  { light: "#8a919c", dark: "#777f89" }
+
+  # The document sheet in the app. page.* above gives its geometry.
+  document:
+    edge:   { light: "#e2e4e8", dark: "#0f1113" }
+    family: serif   # Plex Serif at 15/24 — an 11pt technical document, not a web page.
+                    # A project that prefers sans sets this to sans; the app follows the book.
+
+  # Motion is two numbers and a rule, so it gets no token family.
+  motion:
+    state: 120ms    # ease-out: hover, selection, toggle
+    enter: 200ms    # ease-out: popover, toast, drawer
+    reduced: none   # honour prefers-reduced-motion

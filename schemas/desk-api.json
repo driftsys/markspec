@@ -1,0 +1,256 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MarkDesk API",
+    "version": "1",
+    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request carries that token as a bearer credential and a loopback Host header."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:{port}",
+      "variables": { "port": { "default": "0" } }
+    }
+  ],
+  "security": [{ "nonce": [] }],
+  "paths": {
+    "/api/v1/tree": {
+      "get": {
+        "operationId": "getTree",
+        "summary": "The product tree",
+        "description": "Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. Roots have no such link to another entry; an entry with two parents appears under both.",
+        "responses": {
+          "200": {
+            "description": "The product tree",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProductTree" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/ForbiddenHost" }
+        }
+      }
+    },
+    "/api/v1/entries/{id}": {
+      "get": {
+        "operationId": "getEntry",
+        "summary": "One entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Display ID (`STK_BRK_0001`) or `Id:` value (ULID or URI), percent-encoded.",
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry and its links",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EntryView" }
+              }
+            }
+          },
+          "400": {
+            "description": "The id is not valid percent-encoding",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/ForbiddenHost" },
+          "404": {
+            "description": "No entry with that display ID or Id",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "nonce": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Per-launch token from the server's stdout handshake."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid bearer token",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "ForbiddenHost": {
+        "description": "Host header is not loopback (DNS-rebinding guard)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ProductTree": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["apiVersion", "project", "nodes"],
+        "properties": {
+          "apiVersion": { "const": 1 },
+          "project": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "`project.yaml` name, when present."
+              }
+            }
+          },
+          "nodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TreeNode" }
+          }
+        }
+      },
+      "TreeNode": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["displayId", "title", "children"],
+        "properties": {
+          "displayId": { "type": "string" },
+          "title": { "type": "string" },
+          "type": {
+            "type": "string",
+            "description": "Profile type name, when classified."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Core type the profile type extends: Requirement, Risk, Test, Contract, …"
+          },
+          "relation": {
+            "type": "string",
+            "description": "Link kind placing this node under its parent. Absent on roots.",
+            "enum": ["satisfies", "derived-from", "verifies"]
+          },
+          "origin": {
+            "type": "string",
+            "description": "`<profile-id>@<version>` for delivered-corpus entries."
+          },
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TreeNode" }
+          }
+        }
+      },
+      "EntryView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiVersion",
+          "displayId",
+          "title",
+          "body",
+          "attributes",
+          "location",
+          "links"
+        ],
+        "properties": {
+          "apiVersion": { "const": 1 },
+          "displayId": { "type": "string" },
+          "id": {
+            "type": "string",
+            "description": "The `Id:` value (ULID or URI), when stamped."
+          },
+          "title": { "type": "string" },
+          "type": { "type": "string" },
+          "kind": { "type": "string" },
+          "body": { "type": "string" },
+          "attributes": {
+            "type": "array",
+            "description": "Trailer attributes in authored order.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "value"],
+              "properties": {
+                "key": { "type": "string" },
+                "value": { "type": "string" }
+              }
+            }
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "line", "column"],
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "Path relative to the project root."
+              },
+              "line": { "type": "integer", "minimum": 1 },
+              "column": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "origin": { "type": "string" },
+          "links": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["outgoing", "incoming"],
+            "properties": {
+              "outgoing": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/LinkView" }
+              },
+              "incoming": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/LinkView" }
+              }
+            }
+          }
+        }
+      },
+      "LinkView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "displayId"],
+        "properties": {
+          "kind": { "type": "string" },
+          "displayId": { "type": "string" },
+          "title": {
+            "type": "string",
+            "description": "Title of the linked entry, when it is in the graph."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

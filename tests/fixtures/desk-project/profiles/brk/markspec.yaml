@@ -1,0 +1,43 @@
+id: "@example/brk"
+version: 0.1.0
+markspec-schema: "1"
+description: Braking example profile for the MarkDesk API fixture
+profile:
+  types:
+    stakeholder-requirement:
+      extends: Requirement
+      display-id-pattern: "STK_BRK_{n:04d}"
+    system-requirement:
+      extends: Requirement
+      display-id-pattern: "SYS_BRK_{n:04d}"
+      traceability:
+        Satisfies:
+          target: [stakeholder-requirement]
+          cardinality: 1..N
+        Derived-from:
+          target: [hazard]
+          cardinality: 0..N
+    software-requirement:
+      extends: Requirement
+      display-id-pattern: "SRS_BRK_{n:04d}"
+      traceability:
+        Satisfies:
+          target: [system-requirement]
+          cardinality: 1..N
+    hazard:
+      extends: Risk
+      display-id-pattern: "HAZ_BRK_{n:04d}"
+    system-test:
+      extends: Test
+      display-id-pattern: "SIT_BRK_{n:04d}"
+      traceability:
+        Verifies:
+          target: [system-requirement]
+          cardinality: 1..N
+    software-test:
+      extends: Test
+      display-id-pattern: "SWT_BRK_{n:04d}"
+      traceability:
+        Verifies:
+          target: [software-requirement]
+          cardinality: 1..N

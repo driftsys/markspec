@@ -19,6 +19,7 @@ import {
   createCmd,
   deckCmd,
   dependentsCmd,
+  deskCmd,
   docCmd,
   doctorCmd,
   exportCmd,
@@ -79,6 +80,7 @@ const cli = new Command()
   // Server commands
   .command("lsp", lspCmd)
   .command("mcp", mcpCmd)
+  .command("desk", deskCmd)
   // Version subcommand (alias for --version)
   .command("version")
   .description("Print version")

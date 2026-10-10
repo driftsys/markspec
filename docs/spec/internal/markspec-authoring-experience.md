@@ -4,6 +4,14 @@
 **Editor target:** VS Code only (v1). The LSP stays editor-agnostic; the
 extension-side surfaces (wizard, TextMate grammars, decorations) target VS Code.
 
+**Amended 2026-10-10 (ADR-035):** Marie also gets a second, non-editor surface —
+**MarkDesk**, a desktop authoring app where she never sees Markdown, Git, or
+MarkSpec syntax. Its journeys (DESK-1 to DESK-7) are derived from Marie's CUJs
+below and live in [docs/product/markdesk.md](../../product/markdesk.md). This
+spec's scope is unchanged: it still designs the editor surfaces (LSP, VS Code,
+MCP), and MarkDesk consumes the same `AuthoringPlan` (§3) rather than defining a
+parallel model.
+
 **Relationship to existing specs:** this is the umbrella authoring-experience
 design. It builds on and coordinates
 [markspec-vscode-authoring.md](markspec-vscode-authoring.md) (extension
@@ -56,7 +64,9 @@ agent write path and the interactive path are **two separate mental models**.
 **Non-goals (YAGNI):** owning inline ghost-text completion (that belongs to the
 client model — we make the agent's output correct, we do not drive Copilot's
 ghost text); putting an LLM in the LSP lane; a new profile schema (enum
-attributes already exist); non-VS-Code editors.
+attributes already exist); other code editors (Neovim, Zed, JetBrains) beyond
+what the editor-agnostic LSP already gives them. A non-editor authoring app is
+not a non-goal — that is MarkDesk (ADR-035).
 
 ---
 
