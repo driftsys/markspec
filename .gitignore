@@ -34,8 +34,11 @@ Thumbs.db
 # dprint
 .dprint/
 
-# Claude Code local state (per-developer worktrees and settings)
-.claude/
+# Claude Code local state (per-developer worktrees and settings). The shared
+# settings.json and hooks/ are committed so cloud sessions pick them up.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 
 # Superpowers handoff documents (per-developer, regenerated)
 docs/superpowers/
