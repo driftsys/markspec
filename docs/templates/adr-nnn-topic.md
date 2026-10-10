@@ -20,8 +20,10 @@
 
 Write one entry block per decision point. Use `SAD_` for internal architecture
 and `ICD_` for interface contracts; replace `XXX` with your project abbreviation
-and `NNNN` with the next number. Leave `Id:` empty — `markspec fmt` stamps the
-ULID — and remove attributes you do not use rather than leaving them blank.
+and `NNNN` with the next number. Omit the `Id:` line — `markspec fmt` adds it
+with a fresh ULID — and remove attributes you do not use rather than leaving
+them blank: a trailer line with an empty value (`Id:`, `Satisfies:`) is not a
+valid trailer (`markspec check` reports `MSL-P021`).
 
 ```markdown
 - [SAD_BRK_0001] Interrupt-driven acquisition pipeline
@@ -29,7 +31,6 @@ ULID — and remove attributes you do not use rather than leaving them blank.
   The sensor pipeline shall use an interrupt-driven architecture with a
   lock-free ring buffer to decouple acquisition from processing.
 
-      Id:
       Satisfies: STK_BRK_0001
       Labels: ASIL-B
 ```
@@ -42,9 +43,8 @@ ULID — and remove attributes you do not use rather than leaving them blank.
 
   Description of the interface contract.
 
-      Id:
-      Satisfies:
-      Labels:
+      Satisfies: SAD_XXX_NNNN
+      Labels: LABEL
 
 -->
 

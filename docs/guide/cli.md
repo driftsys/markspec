@@ -297,6 +297,12 @@ dash bullet lists, and the file's own line-ending convention preserved.
   its meaning, `fmt` keeps the original text for that entry and reports an
   advisory `MSL-F012` instead of silently doing nothing or corrupting content.
 
+**Empty trailer placeholders are dropped.** A trailer line with no value (`Id:`,
+`Satisfies:`) is not a valid trailer — `markspec check` reports it as
+`MSL-P021`. `fmt` removes such lines from an entry's trailing attribute block
+(reported as `MSL-F001` info) so the rest of the block stays trailers, then
+stamps `Id:` as usual. To get an `Id:`, omit the line; don't leave it blank.
+
 Explicit arguments scope exactly to what's named; a directory argument expands
 recursively with `.gitignore` (and the built-in hidden-directory skip) applied —
 `.markspec.yaml` `exclude:` patterns are honored only for bare whole-project
