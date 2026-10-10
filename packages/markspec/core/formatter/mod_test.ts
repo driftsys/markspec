@@ -41,6 +41,127 @@ Deno.test("format: assigns Id to identified entry with no identity", () => {
   assertStringIncludes(result.output, `Id: ${MOCK_ULID}`);
 });
 
+Deno.test("format: stamps Id at the head of a trailer block that omits it", () => {
+  // The documented authoring path (docs/templates): omit `Id:` and let
+  // fmt add it into the existing trailer block.
+  const md = `- [SAD_BRK_0001] Title
+
+  Body.
+
+      Satisfies: STK_BRK_0001
+      Labels: ASIL-B
+`;
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(
+    result.output,
+    `- [SAD_BRK_0001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+      Satisfies: STK_BRK_0001
+      Labels: ASIL-B
+`,
+  );
+});
+
+Deno.test("format: empty Id: placeholder is replaced in place, not fenced", () => {
+  const md = `- [SAD_X_0001] Title
+
+  Body.
+
+      Id:
+      Satisfies: STK_X_0001
+`;
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(
+    result.output,
+    `- [SAD_X_0001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+      Satisfies: STK_X_0001
+`,
+  );
+  assert(
+    result.diagnostics.some((d) =>
+      d.code === "MSL-F001" && d.message.includes("removed empty 'Id:'")
+    ),
+  );
+});
+
+Deno.test("format: empty-valued trailer keeps sibling trace links as trailers", () => {
+  // Regression: one blank `Labels:` used to demote the whole block — and
+  // its `Satisfies:` link — to fenced body text.
+  const md = `- [SAD_X_0001] Title
+
+  Body.
+
+      Satisfies: STK_X_0001
+      Labels:
+`;
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(
+    result.output,
+    `- [SAD_X_0001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+      Satisfies: STK_X_0001
+`,
+  );
+});
+
+Deno.test("format: all-placeholder trailer block is replaced by a stamped Id", () => {
+  const md = `- [SAD_X_0001] Title
+
+  Body.
+
+      Id:
+      Satisfies:
+      Labels:
+
+- [SAD_X_0002] Two
+
+  Body two.
+
+      Id: ${MOCK_ULID_2}
+`;
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(
+    result.output,
+    `- [SAD_X_0001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+
+- [SAD_X_0002] Two
+
+  Body two.
+
+      Id: ${MOCK_ULID_2}
+`,
+  );
+});
+
+Deno.test("format: body code block with a non-trailer line is left alone", () => {
+  const md = `- [SAD_X_0001] Title
+
+  Body.
+
+      Config:
+      run --fast
+`;
+  // Trailing indented code that is not all trailer-shaped is body code:
+  // its empty `Config:` line must survive.
+  const result = format(md, { generateUlid: mockUlid() });
+  assertStringIncludes(result.output, "Config:");
+  assertStringIncludes(result.output, "run --fast");
+});
+
 Deno.test("format: existing Id is preserved", () => {
   const md = `- [REQ-001] Title
 

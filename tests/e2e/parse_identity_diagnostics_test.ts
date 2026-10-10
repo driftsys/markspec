@@ -126,6 +126,27 @@ Deno.test("validate: malformed trailer line → MSL-P021", async () => {
   assertStringIncludes(stderr, "MSL-P021");
 });
 
+Deno.test("validate: empty-valued `Id:` placeholder → MSL-P021", async () => {
+  // Spec §2 (attribute blocks): a trailer line is `Key:` followed by a
+  // space and a value. An empty `Id:` placeholder is not a trailer line —
+  // authors omit `Id:` entirely and let `markspec fmt` add it.
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Valid title
+
+  Body text.
+
+      Id:
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P021");
+  assertStringIncludes(stderr, `"Id:"`);
+});
+
 // ---------------------------------------------------------------------------
 // MSL-P022: trailer key contains invalid characters
 // ---------------------------------------------------------------------------

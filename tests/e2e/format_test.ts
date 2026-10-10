@@ -371,6 +371,83 @@ Deno.test("format: assigns Id to identified entry missing identity", async () =>
   assertStringIncludes(output, "Id: ");
 });
 
+// The documented authoring path (docs/templates, entry-authoring skill):
+// omit `Id:` and let fmt add it. An empty `Id:` placeholder is not a valid
+// trailer line (spec §2, MSL-P021), so the templates must not use one.
+
+Deno.test("format: entry with no trailer block gets a canonical Id: trailer", async () => {
+  const input = [
+    "- [SAD_X_0001] Title",
+    "",
+    "  The system shall do a thing.",
+    "",
+  ].join("\n");
+  const { code, readFile } = await runFormat({ "a.md": input });
+  assertEquals(code, 0);
+  const output = await readFile("a.md");
+  assertMatch(
+    output,
+    /^- \[SAD_X_0001\] Title\n\n {2}The system shall do a thing\.\n\n {6}Id: [0-9A-HJKMNP-TV-Z]{26}\n$/,
+  );
+});
+
+Deno.test("format: trailer block without Id: gets Id: stamped in place", async () => {
+  // Shape of the docs/templates worked examples.
+  const input = [
+    "- [SAD_BRK_0001] Interrupt-driven acquisition pipeline",
+    "",
+    "  The sensor pipeline shall use an interrupt-driven architecture.",
+    "",
+    "      Satisfies: STK_BRK_0001",
+    "      Labels: ASIL-B",
+    "",
+  ].join("\n");
+  const { code, readFile } = await runFormat({ "a.md": input });
+  assertEquals(code, 0);
+  const output = await readFile("a.md");
+  assertMatch(
+    output,
+    new RegExp(
+      "^- \\[SAD_BRK_0001\\] Interrupt-driven acquisition pipeline\\n\\n" +
+        " {2}The sensor pipeline shall use an interrupt-driven architecture\\.\\n\\n" +
+        " {6}Id: [0-9A-HJKMNP-TV-Z]{26}\\n" +
+        " {6}Satisfies: STK_BRK_0001\\n" +
+        " {6}Labels: ASIL-B\\n$",
+    ),
+  );
+  // No body code block (fenced or indented) was synthesized.
+  assertEquals(output.includes("```"), false);
+});
+
+Deno.test("format: old-template blank placeholders are repaired losslessly", async () => {
+  // Entries copied from the pre-fix templates carry `Id:` and blank
+  // trailers. fmt drops the empty lines, stamps Id in place, keeps every
+  // real trace link a trailer.
+  const input = [
+    "- [SAD_BRK_0001] Interrupt-driven acquisition pipeline",
+    "",
+    "  The sensor pipeline shall use an interrupt-driven architecture.",
+    "",
+    "      Id:",
+    "      Satisfies: STK_BRK_0001",
+    "      Labels:",
+    "",
+  ].join("\n");
+  const { code, stderr, readFile } = await runFormat({ "a.md": input });
+  assertEquals(code, 0);
+  assertStringIncludes(stderr, "removed empty 'Id:'");
+  assertStringIncludes(stderr, "removed empty 'Labels:'");
+  const output = await readFile("a.md");
+  assertMatch(
+    output,
+    new RegExp(
+      "\\n\\n {6}Id: [0-9A-HJKMNP-TV-Z]{26}\\n" +
+        " {6}Satisfies: STK_BRK_0001\\n$",
+    ),
+  );
+  assertEquals(output.includes("```"), false);
+});
+
 Deno.test("format: synthesized origin derives deterministic ULID from Source", async () => {
   // First run: Origin: synthesized + Source: → ULID derived per §3.5.
   const input = `# Test
@@ -916,8 +993,6 @@ Deno.test(
       "",
       "  The formatter shall stamp a ULID.",
       "",
-      "      Id:",
-      "",
     ].join("\n");
     const crlfInput = lfInput.replace(/\n/g, "\r\n");
 
@@ -927,9 +1002,35 @@ Deno.test(
     const out = await readFile("req.md");
     assertEquals(out.includes("\r\n"), true);
     assertEquals(/(?<!\r)\n/.test(out), false);
-    // The stamped Id must be a valid ULID — i.e. format actually wrote
-    // one rather than passing through the empty `Id:` line.
-    assertStringIncludes(out, "Id: 01");
+    // The stamped Id must be a valid ULID on a canonical trailer line.
+    assertMatch(out, /^ {6}Id: [0-9A-HJKMNP-TV-Z]{26}\r$/m);
+  },
+);
+
+Deno.test(
+  "format: CRLF file — Id stamped above existing trailers keeps CRLF endings",
+  async () => {
+    // Mid-block insertion: the new Id line lands between CRLF trailer
+    // lines and must not introduce a bare LF.
+    const crlfInput = [
+      "- [REQ-004] Needs a ULID",
+      "",
+      "  The formatter shall stamp a ULID.",
+      "",
+      "      Satisfies: STK_1",
+      "      Labels: X",
+      "",
+    ].join("\r\n");
+
+    const { code, readFile } = await runFormat({ "req.md": crlfInput });
+    assertEquals(code, 0);
+
+    const out = await readFile("req.md");
+    assertEquals(/(?<!\r)\n/.test(out), false);
+    assertMatch(
+      out,
+      /\r\n {6}Id: [0-9A-HJKMNP-TV-Z]{26}\r\n {6}Satisfies: STK_1\r\n {6}Labels: X\r\n$/,
+    );
   },
 );
 

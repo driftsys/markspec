@@ -483,9 +483,16 @@ export function format(
   // `normalizeBodyAst` (more spec-correct: respects §2.5 verbatim
   // boundaries and per-node sentence-initial context). `normalizeModalKeywords`
   // stays exported/defined for other callers/tests but is not invoked here.
-  const body = rawBody;
-  const { entries } = parseMarkdown(body, { file });
   const diagnostics: Diagnostic[] = [...fm.diagnostics];
+  // Drop empty-valued trailer lines (`Id:`, `Satisfies:`) before the main
+  // pass; left in place they demote the whole trailer block to body code.
+  const repaired = removeEmptyTrailerLines(
+    rawBody,
+    parseMarkdown(rawBody, { file }).entries,
+    diagnostics,
+  );
+  const body = repaired ?? rawBody;
+  const { entries } = parseMarkdown(body, { file });
 
   // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
   // file extension HERE so the invariant has one home — a caller that wires
@@ -504,7 +511,7 @@ export function format(
   }
 
   const lines = body.split("\n");
-  let changed = false;
+  let changed = repaired !== undefined;
 
   // Process bottom-to-top so line splicing doesn't shift earlier entries.
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
@@ -904,6 +911,74 @@ export function findItemEnd(
     if (!line.startsWith(indentStr)) return i;
   }
   return lines.length;
+}
+
+/** A trailer-shaped line whose value may be empty: `Key:` or `Key: value`. */
+const TRAILER_SHAPED_RE = /^[A-Z][A-Za-z-]*:(?:\s.*)?$/;
+
+/** A trailer-shaped line with no value: `Key:` (spec §2 makes it MSL-P021). */
+const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
+
+/**
+ * Remove empty-valued `Key:` lines from each entry's trailing trailer block.
+ *
+ * An empty-valued line is not a valid trailer (spec §2, MSL-P021), so the
+ * parser treats the whole trailing block as body code. Left alone, the
+ * main pass would fence that block and append a fresh `Id:`, silently
+ * turning real trace links into inert body text. An empty value carries no
+ * information, so dropping the line is lossless: an `Id:` placeholder then
+ * gets stamped in place and the remaining trailers stay trailers.
+ *
+ * Only touches a block of contiguous lines at the very end of an entry,
+ * indented at least four columns past the entry body, in which every line
+ * is trailer-shaped. Emits one MSL-F001 info diagnostic per removed line.
+ *
+ * @returns The repaired text, or `undefined` when nothing was removed.
+ */
+function removeEmptyTrailerLines(
+  body: string,
+  entries: readonly Entry[],
+  diagnostics: Diagnostic[],
+): string | undefined {
+  const lines = body.split("\n");
+  let removedAny = false;
+  const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
+  for (const entry of sorted) {
+    const indent = (entry.location.column - 1) + 2;
+    const startIdx = entry.location.line - 1;
+    let end = findItemEnd(lines, startIdx, indent);
+    while (end > startIdx && lines[end - 1].trim() === "") end--;
+    let start = end;
+    while (start - 1 > startIdx && lines[start - 1].trim() !== "") start--;
+    if (start >= end || start - 1 <= startIdx) continue;
+    const trailerIndent = " ".repeat(indent + 4);
+    const block = lines.slice(start, end);
+    const isTrailerBlock = block.every((l) =>
+      l.startsWith(trailerIndent) && TRAILER_SHAPED_RE.test(l.trim())
+    );
+    if (!isTrailerBlock) continue;
+    const kept = block.filter((l) => !EMPTY_TRAILER_RE.test(l.trim()));
+    if (kept.length === block.length) continue;
+    for (const l of block) {
+      const key = EMPTY_TRAILER_RE.exec(l.trim())?.[1];
+      if (key === undefined) continue;
+      diagnostics.push({
+        code: "MSL-F001",
+        severity: "info",
+        message: `removed empty '${key}:' trailer line from ${entry.displayId}`,
+        location: entry.location,
+      });
+    }
+    if (kept.length > 0) {
+      lines.splice(start, end - start, ...kept);
+    } else {
+      // Whole block was placeholders: drop it and its leading blank line.
+      const from = lines[start - 1].trim() === "" ? start - 1 : start;
+      lines.splice(from, end - from);
+    }
+    removedAny = true;
+  }
+  return removedAny ? lines.join("\n") : undefined;
 }
 
 /**

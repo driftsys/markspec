@@ -28,7 +28,6 @@ Use for properties that hold in all system states.
   The data logger shall record each sensor sample with a UTC timestamp accurate
   to within 1 ms.
 
-      Id:
       Type: requirement
       Satisfies: SYS_0003
 ```
@@ -60,7 +59,6 @@ Use when the system must react to something that happens.
   When the ignition signal transitions from HIGH to LOW, the power management
   module shall initiate a controlled shutdown sequence within 500 ms.
 
-      Id:
       Type: requirement
       Satisfies: SYS_0008
 ```
@@ -91,7 +89,6 @@ Use when the system must behave differently in a persistent mode.
   While the torque sensor reports a fault, the drive controller shall limit
   output torque to no more than 50 % of nominal.
 
-      Id:
       Type: requirement
       Satisfies: SYS_0015
       Labels: ASIL-B
@@ -124,7 +121,6 @@ Use when a capability is not universally present.
   Where the user's locale setting is "en-US", the instrument cluster shall
   display vehicle speed in miles per hour rounded to the nearest integer.
 
-      Id:
       Type: requirement
       Satisfies: STK_0002
 ```
@@ -158,7 +154,6 @@ within `<time>`."_
   monitor shall assert the brake request signal and set diagnostic code 0x4A
   within 10 ms of timeout detection.
 
-      Id:
       Type: requirement
       Satisfies: SYS_0022
       Labels: ASIL-D

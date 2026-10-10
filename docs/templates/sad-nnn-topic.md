@@ -16,7 +16,12 @@
 ## Architecture
 
 <!-- How is the system built? Include a diagram showing components and
-     their relationships. One SAD entry per significant design decision. -->
+     their relationships. One SAD entry per significant design decision.
+
+     Omit the `Id:` line — `markspec fmt` adds it with a fresh ULID — and
+     remove attributes you do not use rather than leaving them blank: a
+     trailer line with an empty value (`Id:`, `Satisfies:`) is not a valid
+     trailer (`markspec check` reports `MSL-P021`). -->
 
 <!-- ![Architecture diagram](diagrams/sad-nnn-architecture.svg) -->
 
@@ -26,7 +31,6 @@
   The acquisition module shall use a lock-free ring buffer to decouple sensor
   sampling from processing.
 
-      Id:
       Satisfies: STK_BRK_0001
       Labels: ASIL-B
 ```
@@ -42,7 +46,6 @@
   The sensor gateway shall expose a CAN 2.0B interface publishing filtered
   sensor frames at 100 Hz.
 
-      Id:
       Satisfies: SAD_BRK_0001
       Labels: ASIL-B
 ```
@@ -65,9 +68,8 @@ Not applicable.
 
   Description of the regulatory constraint.
 
-      Id:
-      Satisfies:
-      Labels:
+      Satisfies: STK_XXX_NNNN
+      Labels: LABEL
 
 -->
 
@@ -82,9 +84,8 @@ Not applicable.
 
   Description of the privacy constraint.
 
-      Id:
-      Satisfies:
-      Labels:
+      Satisfies: STK_XXX_NNNN
+      Labels: LABEL
 
 -->
 
@@ -99,9 +100,8 @@ Not applicable.
 
   Description of the safety constraint.
 
-      Id:
-      Satisfies:
-      Labels:
+      Satisfies: STK_XXX_NNNN
+      Labels: LABEL
 
 -->
 
@@ -116,9 +116,8 @@ Not applicable.
 
   Description of the cybersecurity constraint.
 
-      Id:
-      Satisfies:
-      Labels:
+      Satisfies: SYS_XXX_NNNN
+      Labels: LABEL
 
 -->
 
@@ -133,8 +132,7 @@ Not applicable.
 
   Description of the performance or reliability constraint.
 
-      Id:
-      Satisfies:
-      Labels:
+      Satisfies: SYS_XXX_NNNN
+      Labels: LABEL
 
 -->

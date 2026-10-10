@@ -35,7 +35,6 @@ MarkSpec entry; the inner `gherkin` fence holds the scenarios):
     Then the displayed value is 100 km/h
   ```
 
-      Id:
       Type: requirement
       Satisfies: STK_0002
       Verified-by: SWT_0060
