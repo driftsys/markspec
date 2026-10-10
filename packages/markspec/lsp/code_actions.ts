@@ -21,10 +21,11 @@
  *     canonical multi-line form), splitting on top-level commas.
  *   - **MSL-A012** — repeatable attribute with an empty value list.
  *     Action: remove the empty trailer line.
- *   - **MSL-P021** — malformed trailer line, only when the quoted line
- *     is an empty-valued `Key:` (e.g. `Satisfies:`). Action: remove the
- *     empty trailer line(s) in that entry's trailing block, matching
- *     what `markspec fmt` drops. Other P021 shapes get no fix.
+ *   - **MSL-P021** — malformed trailer line, only when the line the
+ *     diagnostic points at is an empty-valued `Key:` trailer (e.g.
+ *     `Satisfies:`). Action: remove the empty trailer line(s) in that
+ *     trailer block, matching what `markspec fmt` drops. Other P021
+ *     shapes get no fix.
  *   - **MSL-L010** — lockfile reference entry has no `Reference-url:`.
  *     Action: insert a placeholder `Reference-url:` trailer line.
  *   - **MSL-S002** — sync attribute mapping has `locked: true` but
@@ -76,15 +77,13 @@ const ATTRIBUTE_KEY_RE = /'([A-Z][A-Za-z-]*)'/;
 /** Capture the bad type value inside `'…'` in an MSL-T020 message. */
 const T020_VALUE_RE = /Type: '([^']+)'/;
 
-/** Capture the quoted offending line at the end of an MSL-P021 message. */
-const P021_LINE_RE = /"([^"]*)"$/;
-
 /** An empty-valued trailer line: `Key:` with nothing after the colon.
  * Same key grammar as the formatter's `removeEmptyTrailerLines`. */
 const EMPTY_TRAILER_RE = /^([A-Z][A-Za-z-]*):\s*$/;
 
-/** A list-item entry title line (`- [ID] Title`) — bounds a P021 search. */
-const ENTRY_TITLE_RE = /^\s*[-*+]\s+\[[^\]]+\]/;
+/** Trailer indentation: ≥4 spaces or a tab (a canonical indented code
+ * block line). */
+const TRAILER_INDENT_RE = /^(?: {4,}|\t)/;
 
 /** All core type names — search target for MSL-T020 "did you mean" fixes. */
 const ALL_CORE_TYPES: readonly string[] = [
@@ -156,29 +155,11 @@ function buildA012Fix(
   const match = ATTRIBUTE_KEY_RE.exec(diag.message);
   if (!match) return undefined;
   const attrKey = match[1];
-  const lines = documentText.split("\n");
-  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
-  for (let i = diag.range.start.line; i < lines.length; i++) {
-    if (!lineRe.test(lines[i])) continue;
-    return {
-      title: `Remove empty '${attrKey}' line`,
-      kind: "quickfix",
-      diagnostics: [diag],
-      isPreferred: true,
-      edit: {
-        changes: {
-          [uri]: [{
-            range: {
-              start: { line: i, character: 0 },
-              end: { line: i + 1, character: 0 },
-            },
-            newText: "",
-          }],
-        },
-      },
-    };
-  }
-  return undefined;
+  const i = findTrailerLine(documentText, diag.range.start.line, attrKey);
+  if (i === undefined) return undefined;
+  return quickFix(uri, diag, `Remove empty '${attrKey}' line`, [
+    deleteLines(i, i + 1),
+  ]);
 }
 
 function buildP021Fix(
@@ -186,38 +167,23 @@ function buildP021Fix(
   diag: LspDiagnosticLike,
   documentText: string,
 ): CodeAction | undefined {
-  // Only the empty-valued `Key:` shape is mechanically fixable — the
-  // parser never admits it as a trailer, so MSL-A012 cannot fire for it.
-  const quoted = P021_LINE_RE.exec(diag.message);
-  if (!quoted) return undefined;
-  const empty = EMPTY_TRAILER_RE.exec(quoted[1]);
+  // The diagnostic points at the offending trailer line. Only the
+  // empty-valued `Key:` shape is mechanically fixable — the parser never
+  // admits it as a trailer, so MSL-A012 cannot fire for it.
+  const lines = documentText.split("\n");
+  const target = diag.range.start.line;
+  const targetLine = lines[target];
+  if (targetLine === undefined || !TRAILER_INDENT_RE.test(targetLine)) {
+    return undefined;
+  }
+  const empty = EMPTY_TRAILER_RE.exec(targetLine.trim());
   if (!empty) return undefined;
   const attrKey = empty[1];
-  const lines = documentText.split("\n");
-  // P021 is located at the entry's title line, so bound the search to
-  // this entry (up to the next list-item title) — otherwise the fix
-  // could delete another entry's line. Take the last match: the parser
-  // reports the trailing block, and an earlier indented `Key:` may be a
-  // body example.
-  const start = diag.range.start.line;
-  let stop = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (ENTRY_TITLE_RE.test(lines[i])) {
-      stop = i;
-      break;
-    }
-  }
-  const lineRe = new RegExp(`^(?: {4,}|\\t)[ \\t]*${attrKey}:\\s*$`);
-  let target = -1;
-  for (let i = start; i < stop; i++) {
-    if (lineRe.test(lines[i])) target = i;
-  }
-  if (target < 0) return undefined;
   // Mirror `markspec fmt` (removeEmptyTrailerLines): drop every empty
   // `Key:` line in the contiguous trailer block, and when nothing else
   // remains, the blank line before it too — so no MSL-F010 drift is left.
   const isBlockLine = (i: number) =>
-    i >= start && i < stop && /^(?: {4,}|\t)/.test(lines[i]) &&
+    i >= 0 && i < lines.length && TRAILER_INDENT_RE.test(lines[i]) &&
     lines[i].trim() !== "";
   let blockStart = target;
   while (isBlockLine(blockStart - 1)) blockStart--;
@@ -229,34 +195,21 @@ function buildP021Fix(
   }
   const wholeBlock = emptyLines.length === blockEnd - blockStart;
   const edits: TextEdit[] = wholeBlock
-    ? [{
-      range: {
-        start: {
-          line: blockStart > 0 && lines[blockStart - 1].trim() === ""
-            ? blockStart - 1
-            : blockStart,
-          character: 0,
-        },
-        end: { line: blockEnd, character: 0 },
-      },
-      newText: "",
-    }]
-    : emptyLines.map((i) => ({
-      range: {
-        start: { line: i, character: 0 },
-        end: { line: i + 1, character: 0 },
-      },
-      newText: "",
-    }));
-  return {
-    title: emptyLines.length > 1
+    ? [deleteLines(
+      blockStart > 0 && lines[blockStart - 1].trim() === ""
+        ? blockStart - 1
+        : blockStart,
+      blockEnd,
+    )]
+    : emptyLines.map((i) => deleteLines(i, i + 1));
+  return quickFix(
+    uri,
+    diag,
+    emptyLines.length > 1
       ? "Remove empty trailer lines"
       : `Remove empty '${attrKey}' line`,
-    kind: "quickfix",
-    diagnostics: [diag],
-    isPreferred: true,
-    edit: { changes: { [uri]: edits } },
-  };
+    edits,
+  );
 }
 
 function buildA011Fix(
@@ -351,34 +304,11 @@ function buildA030Fix(
   const match = ATTRIBUTE_KEY_RE.exec(diag.message);
   if (!match) return undefined;
   const attrKey = match[1];
-  // Walk forward from the diagnostic's line and find the trailer
-  // line that defines this attribute — `<indent><Key>:`. The parser
-  // canonicalises trailer indent to 6 spaces but accepts any indent
-  // ≥4 (one tab), so we match leniently.
-  const lines = documentText.split("\n");
-  const startLine = diag.range.start.line;
-  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
-  for (let i = startLine; i < lines.length; i++) {
-    if (!lineRe.test(lines[i])) continue;
-    return {
-      title: `Remove '${attrKey}' line`,
-      kind: "quickfix",
-      diagnostics: [diag],
-      isPreferred: true,
-      edit: {
-        changes: {
-          [uri]: [{
-            range: {
-              start: { line: i, character: 0 },
-              end: { line: i + 1, character: 0 },
-            },
-            newText: "",
-          }],
-        },
-      },
-    };
-  }
-  return undefined;
+  const i = findTrailerLine(documentText, diag.range.start.line, attrKey);
+  if (i === undefined) return undefined;
+  return quickFix(uri, diag, `Remove '${attrKey}' line`, [
+    deleteLines(i, i + 1),
+  ]);
 }
 
 function buildT020Fix(
@@ -451,15 +381,54 @@ function buildA013Fix(
     }
   }
   if (dupLines.length === 0) return undefined;
-  const edits: TextEdit[] = dupLines.map((i) => ({
+  return quickFix(
+    uri,
+    diag,
+    `Remove duplicate '${attrKey}' line(s)`,
+    dupLines.map((i) => deleteLines(i, i + 1)),
+  );
+}
+
+/**
+ * Find the first trailer line defining `attrKey` — `<indent><Key>:` —
+ * at or after the 0-based `fromLine`. The parser canonicalises trailer
+ * indent to 6 spaces but accepts any indent ≥4 (one tab), so the match
+ * is lenient. Returns the 0-based line index, or `undefined`.
+ */
+function findTrailerLine(
+  documentText: string,
+  fromLine: number,
+  attrKey: string,
+): number | undefined {
+  const lines = documentText.split("\n");
+  const lineRe = new RegExp(`^\\s{4,}${attrKey}\\s*:`);
+  for (let i = fromLine; i < lines.length; i++) {
+    if (lineRe.test(lines[i])) return i;
+  }
+  return undefined;
+}
+
+/** A TextEdit deleting whole lines `[startLine, endLine)` (0-based),
+ * including the trailing newline of the last one. */
+function deleteLines(startLine: number, endLine: number): TextEdit {
+  return {
     range: {
-      start: { line: i, character: 0 },
-      end: { line: i + 1, character: 0 },
+      start: { line: startLine, character: 0 },
+      end: { line: endLine, character: 0 },
     },
     newText: "",
-  }));
+  };
+}
+
+/** Wrap `edits` on `uri` as a preferred quick fix for `diag`. */
+function quickFix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  title: string,
+  edits: TextEdit[],
+): CodeAction {
   return {
-    title: `Remove duplicate '${attrKey}' line(s)`,
+    title,
     kind: "quickfix",
     diagnostics: [diag],
     isPreferred: true,

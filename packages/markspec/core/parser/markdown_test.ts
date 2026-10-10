@@ -8,7 +8,8 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
-import type { LineMap } from "./line_map.ts";
+import { buildBlockLineMap, type LineMap } from "./line_map.ts";
+import { wrapAsListItem } from "./source.ts";
 
 const ULID = "01HGW2Q8MNP3RSTVWXYZABCDEF";
 
@@ -840,4 +841,77 @@ Deno.test("parseMarkdown: real spaced-key trailer typo still MSL-P022 (#697 regr
   const { diagnostics } = parseMarkdown(md);
   const p022 = diagnostics.filter((d) => d.code === "MSL-P022");
   assertEquals(p022.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// P021 / P022 locate the offending trailer line, not the title line
+// ---------------------------------------------------------------------------
+
+Deno.test("parseMarkdown: MSL-P022 location is the offending trailer line", () => {
+  const md = `# Doc
+
+- [STK_0005] Title
+
+  Body prose within 200 ms.
+
+      Verified by: tests/foo.rs
+      Id: ${ULID}
+`;
+  const { diagnostics } = parseMarkdown(md, { file: "a.md" });
+  const p022 = diagnostics.filter((d) => d.code === "MSL-P022");
+  assertEquals(p022.length, 1);
+  assertEquals(p022[0].location, { file: "a.md", line: 7, column: 7 });
+});
+
+Deno.test("parseMarkdown: MSL-P021 empty `Key:` location is the offending trailer line", () => {
+  const md = `- [STK_0006] Title
+
+  Body prose within 200 ms.
+
+      Satisfies:
+`;
+  const { diagnostics } = parseMarkdown(md, { file: "a.md" });
+  const p021 = diagnostics.filter((d) => d.code === "MSL-P021");
+  assertEquals(p021.length, 1);
+  assertEquals(p021[0].location, { file: "a.md", line: 5, column: 7 });
+});
+
+Deno.test("parseMarkdown: MSL-P021 location after a multi-paragraph body", () => {
+  const md = `- [STK_0007] Title
+
+  Body prose within 200 ms.
+
+  More prose.
+
+      Satisfies:
+`;
+  const { diagnostics } = parseMarkdown(md, { file: "a.md" });
+  const p021 = diagnostics.filter((d) => d.code === "MSL-P021");
+  assertEquals(p021.length, 1);
+  assertEquals(p021[0].location, { file: "a.md", line: 7, column: 7 });
+});
+
+Deno.test("parseMarkdown: MSL-P021 location translates through a doc-comment LineMap", () => {
+  // Rust `///` block starting at file line 10, column 1 — each cleaned
+  // line had `/// ` (4 chars) stripped.
+  const cleaned = [
+    "[SWE_0001] Title",
+    "",
+    "Body prose within 200 ms.",
+    "",
+    "    Satisfies:",
+  ];
+  const lineMap = buildBlockLineMap({
+    startLine: 10,
+    startColumn: 1,
+    prefixWidths: cleaned.map(() => 4),
+  });
+  const { diagnostics } = parseMarkdown(wrapAsListItem(cleaned), {
+    file: "lib.rs",
+    lineMap,
+  });
+  const p021 = diagnostics.filter((d) => d.code === "MSL-P021");
+  assertEquals(p021.length, 1);
+  // `///     Satisfies:` — the key starts at file column 9 on line 14.
+  assertEquals(p021[0].location, { file: "lib.rs", line: 14, column: 9 });
 });
