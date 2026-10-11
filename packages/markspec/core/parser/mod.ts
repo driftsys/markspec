@@ -150,7 +150,15 @@ export async function parseFile(
   }
 
   const fm = extractFrontMatter(normalised, { file: options.file });
-  const body = fm.hadFrontMatter ? fm.markdown : normalised;
+  // Replace the stripped front matter with blank lines so every location
+  // the Markdown parser reports stays file-relative (CommonMark ignores
+  // leading blank lines).
+  const body = fm.hadFrontMatter
+    ? "\n".repeat(
+      normalised.slice(0, normalised.length - fm.markdown.length)
+        .split("\n").length - 1,
+    ) + fm.markdown
+    : normalised;
   const isReferencesDoc = isReferencesDocument(options.file);
   const { entries, diagnostics: parseDiagnostics } = parseMarkdown(body, {
     file: options.file,

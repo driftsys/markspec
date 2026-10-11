@@ -7,7 +7,9 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { parseFile } from "../core/mod.ts";
 import { buildCodeActions, type LspDiagnosticLike } from "./code_actions.ts";
+import { toLspDiagnostic } from "./diagnostics.ts";
 
 function diag(opts: {
   code: string;
@@ -123,15 +125,17 @@ const DOC_WITH_EMPTY_SATISFIES = `# Test
       Satisfies:
 `;
 
+const P021_SATISFIES_MSG =
+  `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`;
+
+/** An MSL-P021 diagnostic located on the offending trailer line. */
+function p021(line: number, message = P021_SATISFIES_MSG): LspDiagnosticLike {
+  return diag({ code: "MSL-P021", message, line, character: 6 });
+}
+
 Deno.test("buildCodeActions: MSL-P021 empty-valued trailer → remove line", () => {
   const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message:
-        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`,
-      line: 2,
-      character: 0,
-    }),
+    p021(7),
   ], DOC_WITH_EMPTY_SATISFIES);
   assertEquals(actions.length, 1);
   const a = actions[0];
@@ -145,6 +149,14 @@ Deno.test("buildCodeActions: MSL-P021 empty-valued trailer → remove line", () 
   assertEquals(edit.range.end, { line: 8, character: 0 });
 });
 
+Deno.test("buildCodeActions: MSL-P021 does not depend on the message wording", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    p021(7, "REQ-001: some future wording without a quoted line"),
+  ], DOC_WITH_EMPTY_SATISFIES);
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title, "Remove empty 'Satisfies' line");
+});
+
 Deno.test("buildCodeActions: MSL-P021 empty Id: with trailing spaces → remove line", () => {
   const doc = `- [REQ-001] My requirement
 
@@ -153,15 +165,7 @@ Deno.test("buildCodeActions: MSL-P021 empty Id: with trailing spaces → remove 
       Id:\u0020\u0020
       Labels: ASIL-B
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message:
-        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Id:"`,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(4)], doc);
   assertEquals(actions.length, 1);
   assertEquals(actions[0].title, "Remove empty 'Id' line");
   const edit = actions[0].edit!.changes!["file:///x.md"][0];
@@ -177,60 +181,40 @@ Deno.test("buildCodeActions: MSL-P021 non-empty malformed line yields no action"
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       not a trailer
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message:
-        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "not a trailer"`,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(5)], doc);
   assertEquals(actions, []);
 });
 
 Deno.test("buildCodeActions: MSL-P021 with missing source text yields no action", () => {
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message:
-        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`,
-      line: 2,
-      character: 0,
-    }),
-  ]);
+  const actions = buildCodeActions("file:///x.md", [p021(7)]);
   assertEquals(actions, []);
 });
 
-Deno.test("buildCodeActions: MSL-P021 ignores prose and unindented lines", () => {
-  // The quoted empty key appears only unindented — not a trailer line.
+Deno.test("buildCodeActions: MSL-P021 ignores an unindented line", () => {
   const doc = `- [REQ-001] My requirement
 
   Satisfies:
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message:
-        `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(2)], doc);
   assertEquals(actions, []);
 });
 
-const P021_SATISFIES_MSG =
-  `REQ-001: trailer line does not match 'Key: Value' syntax (spec section 4.1): "Satisfies:"`;
+Deno.test("buildCodeActions: MSL-P021 on a non-trailer line yields no action", () => {
+  // A diagnostic pointing at a title line (or out of range) is not
+  // fixable — the fix never scans for a matching line elsewhere.
+  const actions = buildCodeActions("file:///x.md", [
+    p021(2),
+    p021(99),
+  ], DOC_WITH_EMPTY_SATISFIES);
+  assertEquals(actions, []);
+});
 
 Deno.test("buildCodeActions: MSL-P021 never reaches into the next entry", () => {
-  // REQ-001's empty line is not matchable here, but REQ-002 has one —
-  // the fix for REQ-001 must not delete REQ-002's line.
   const doc = `- [REQ-001] First
 
   Body.
 
-      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies:
 
 - [REQ-002] Second
 
@@ -239,28 +223,19 @@ Deno.test("buildCodeActions: MSL-P021 never reaches into the next entry", () => 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
       Satisfies:
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message: P021_SATISFIES_MSG,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
-  assertEquals(actions, []);
+  const actions = buildCodeActions("file:///x.md", [p021(4)], doc);
+  assertEquals(actions.length, 1);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.length, 1);
+  // REQ-001's block (and its leading blank) only — REQ-002 untouched.
+  assertEquals(edits[0].range.start, { line: 3, character: 0 });
+  assertEquals(edits[0].range.end, { line: 5, character: 0 });
 });
 
 Deno.test("buildCodeActions: MSL-P021 matches a tab-indented trailer", () => {
   const doc =
     "- [REQ-001] First\n\n  Body.\n\n\tId: 01HGW2Q8MNP3RSTVWXYZABCDEF\n\tSatisfies:\n";
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message: P021_SATISFIES_MSG,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(5)], doc);
   assertEquals(actions.length, 1);
   const edit = actions[0].edit!.changes!["file:///x.md"][0];
   assertEquals(edit.range.start, { line: 5, character: 0 });
@@ -279,14 +254,7 @@ Deno.test("buildCodeActions: MSL-P021 targets the trailer, not a body example", 
       Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
       Satisfies:
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message: P021_SATISFIES_MSG,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(9)], doc);
   assertEquals(actions.length, 1);
   const edits = actions[0].edit!.changes!["file:///x.md"];
   assertEquals(edits.length, 1);
@@ -302,14 +270,7 @@ Deno.test("buildCodeActions: MSL-P021 drops an all-empty block and its leading b
       Id:
       Satisfies:
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message: P021_SATISFIES_MSG,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(5)], doc);
   assertEquals(actions.length, 1);
   assertEquals(actions[0].title, "Remove empty trailer lines");
   const edits = actions[0].edit!.changes!["file:///x.md"];
@@ -328,14 +289,7 @@ Deno.test("buildCodeActions: MSL-P021 removes every empty line in the block", ()
       Labels: ASIL-B
       Satisfies:
 `;
-  const actions = buildCodeActions("file:///x.md", [
-    diag({
-      code: "MSL-P021",
-      message: P021_SATISFIES_MSG,
-      line: 0,
-      character: 0,
-    }),
-  ], doc);
+  const actions = buildCodeActions("file:///x.md", [p021(6)], doc);
   assertEquals(actions.length, 1);
   const edits = actions[0].edit!.changes!["file:///x.md"];
   assertEquals(edits.map((e) => e.range.start.line), [4, 6]);
@@ -644,4 +598,37 @@ Deno.test("MSL-S010: code action surfaces connector-required workflow note", () 
   );
   assertEquals(actions.length, 1);
   assertEquals(actions[0].title.toLowerCase().includes("upstream"), true);
+});
+
+Deno.test("buildCodeActions: MSL-P021 fix lines up with the parser's location", async () => {
+  const { diagnostics } = await parseFile(DOC_WITH_EMPTY_SATISFIES, {
+    file: "/x.md",
+  });
+  const lspDiags = diagnostics
+    .filter((d) => d.code === "MSL-P021")
+    .map(toLspDiagnostic);
+  assertEquals(lspDiags.length, 1);
+  assertEquals(lspDiags[0].range.start, { line: 7, character: 6 });
+  const actions = buildCodeActions(
+    "file:///x.md",
+    lspDiags,
+    DOC_WITH_EMPTY_SATISFIES,
+  );
+  assertEquals(actions.length, 1);
+  const edit = actions[0].edit!.changes!["file:///x.md"][0];
+  assertEquals(edit.range.start, { line: 7, character: 0 });
+});
+
+Deno.test("buildCodeActions: MSL-P021 fix lines up after YAML front matter", async () => {
+  const doc = `---\ndocument-id: DOC-1\n---\n\n${DOC_WITH_EMPTY_SATISFIES}`;
+  const { diagnostics } = await parseFile(doc, { file: "/x.md" });
+  const lspDiags = diagnostics
+    .filter((d) => d.code === "MSL-P021")
+    .map(toLspDiagnostic);
+  assertEquals(lspDiags.length, 1);
+  const actions = buildCodeActions("file:///x.md", lspDiags, doc);
+  assertEquals(actions.length, 1);
+  const edit = actions[0].edit!.changes!["file:///x.md"][0];
+  // DOC_WITH_EMPTY_SATISFIES's `Satisfies:` (line 7) shifted by 4 lines.
+  assertEquals(edit.range.start, { line: 11, character: 0 });
 });

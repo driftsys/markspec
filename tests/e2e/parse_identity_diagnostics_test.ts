@@ -145,6 +145,8 @@ Deno.test("validate: empty-valued `Id:` placeholder → MSL-P021", async () => {
   assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
   assertStringIncludes(stderr, "MSL-P021");
   assertStringIncludes(stderr, `"Id:"`);
+  // Located on the offending trailer line, not the entry title (line 3).
+  assertStringIncludes(stderr, "error[MSL-P021]: req.md:7 ");
 });
 
 // ---------------------------------------------------------------------------
@@ -167,6 +169,8 @@ Deno.test("validate: invalid trailer key chars → MSL-P022", async () => {
   });
   assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
   assertStringIncludes(stderr, "MSL-P022");
+  // Located on the offending trailer line, not the entry title (line 3).
+  assertStringIncludes(stderr, "error[MSL-P022]: req.md:8 ");
 });
 
 // ---------------------------------------------------------------------------

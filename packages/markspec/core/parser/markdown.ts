@@ -179,10 +179,28 @@ export function parseMarkdown(
     }
   }
 
-  const finalEntries = options?.lineMap
-    ? translateEntryLocations(entries, options.lineMap)
-    : entries;
-  return { entries: finalEntries, diagnostics };
+  const lineMap = options?.lineMap;
+  if (!lineMap) return { entries, diagnostics };
+  return {
+    entries: translateEntryLocations(entries, lineMap),
+    diagnostics: translateDiagnosticLocations(diagnostics, lineMap),
+  };
+}
+
+/**
+ * Translate parse-diagnostic locations from wrapped-buffer coordinates to
+ * source-file coordinates (doc-comment parsing). A location the map cannot
+ * translate is kept as-is.
+ */
+function translateDiagnosticLocations(
+  diagnostics: readonly Diagnostic[],
+  lineMap: LineMap,
+): Diagnostic[] {
+  return diagnostics.map((d) => {
+    if (!d.location) return d;
+    const mapped = lineMap.translate(d.location.line, d.location.column);
+    return mapped ? { ...d, location: { ...d.location, ...mapped } } : d;
+  });
 }
 
 /**
@@ -388,8 +406,24 @@ function extractEntry(
   const TRAILER_KEY_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
   const COLON_SPLIT_RE = /^([^:]+):\s*(.*)$/;
 
+  // P021/P022 point at the offending trailer line itself, not the title, so
+  // editors underline the bad line and quick fixes can target it directly.
+  // `bodyContent` starts at the second list-item child's line and has only
+  // trailing blank lines trimmed, so content index `i` sits on file line
+  // `contentStartLine + i`. The column is the line's first non-blank char.
+  const contentStartLine = item.children[1]?.position?.start.line ??
+    entryLine + 1;
+  const trailerLineLocation = (contentIndex: number) => {
+    const line = contentStartLine + contentIndex;
+    const firstNonBlank = (markdownLines[line - 1] ?? "").search(/\S/);
+    return { file, line, column: firstNonBlank >= 0 ? firstNonBlank + 1 : 1 };
+  };
+  // `attrLines` is the contiguous, blank-free tail of `bodyContent`.
+  const attrContentStart = bodyContent.split("\n").length - attrLines.length;
+
   // Check lines that DID end up in attrLines but might have key issues
-  for (const rawLine of attrLines) {
+  for (const [attrIndex, rawLine] of attrLines.entries()) {
+    const trailerLocation = trailerLineLocation(attrContentStart + attrIndex);
     const trimmed = rawLine.trim();
     if (!trimmed) continue;
     if (!ATTR_LINE_RE.test(trimmed)) {
@@ -402,7 +436,7 @@ function extractEntry(
             severity: "error",
             message: `${displayId}: trailer key '${key}' contains characters ` +
               `outside [A-Za-z][A-Za-z0-9-]* (spec section 4.1)`,
-            location: { file, line: entryLine, column: 1 },
+            location: trailerLocation,
           });
         } else {
           diagnostics.push({
@@ -410,7 +444,7 @@ function extractEntry(
             severity: "error",
             message: `${displayId}: trailer line does not match 'Key: Value' ` +
               `syntax (spec section 4.1): "${trimmed}"`,
-            location: { file, line: entryLine, column: 1 },
+            location: trailerLocation,
           });
         }
       } else {
@@ -419,7 +453,7 @@ function extractEntry(
           severity: "error",
           message: `${displayId}: trailer line does not match 'Key: Value' ` +
             `syntax (spec section 4.1): "${trimmed}"`,
-          location: { file, line: entryLine, column: 1 },
+          location: trailerLocation,
         });
       }
     }
@@ -437,6 +471,7 @@ function extractEntry(
     for (let i = bodyLines.length - 1; i >= 0; i--) {
       const trimmed = bodyLines[i].trim();
       if (!trimmed) continue; // skip trailing blanks
+      const trailerLocation = trailerLineLocation(i);
       // A `<!-- markspec:* -->` directive comment is legitimate body
       // content (spec §2.4.1), not a trailer line — skip it so its
       // `<!--markspec` colon-prefix is never mistaken for a malformed
@@ -473,7 +508,7 @@ function extractEntry(
           severity: "error",
           message: `${displayId}: trailer key '${key}' contains characters ` +
             `outside [A-Za-z][A-Za-z0-9-]* (spec section 4.1)`,
-          location: { file, line: entryLine, column: 1 },
+          location: trailerLocation,
         });
       } else if (colonMatch[2].trim().length === 0) {
         diagnostics.push({
@@ -481,7 +516,7 @@ function extractEntry(
           severity: "error",
           message: `${displayId}: trailer line does not match 'Key: Value' ` +
             `syntax (spec section 4.1): "${trimmed}"`,
-          location: { file, line: entryLine, column: 1 },
+          location: trailerLocation,
         });
       }
       break; // one diagnostic per trailing suspect line is sufficient
