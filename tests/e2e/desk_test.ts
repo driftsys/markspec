@@ -58,7 +58,7 @@ Deno.test({
         apiVersion: number;
       };
       assertMatch(handshake.url, /^http:\/\/127\.0\.0\.1:\d+$/);
-      assertEquals(handshake.apiVersion, 2);
+      assertEquals(handshake.apiVersion, 3);
       const auth = { authorization: `Bearer ${handshake.token}` };
 
       const anonymous = await fetch(`${handshake.url}/api/v1/tree`);
@@ -89,6 +89,18 @@ Deno.test({
         ),
         true,
       );
+
+      const noToken = await fetch(
+        `${handshake.url}/api/v1/files?path=docs/system.md`,
+      );
+      assertEquals(noToken.status, 401);
+      await noToken.body?.cancel();
+      const file = await fetch(
+        `${handshake.url}/api/v1/files?path=docs/system.md`,
+        { headers: auth },
+      );
+      assertEquals(file.status, 200);
+      assertEquals((await file.json()).path, "docs/system.md");
 
       const entry = await fetch(
         `${handshake.url}/api/v1/entries/SRS_BRK_0001`,

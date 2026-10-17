@@ -6,11 +6,11 @@
  * loopback only, guarded by a per-launch nonce token.
  *
  * Dynamically imported by `cli/commands/desk_cmd.ts`, so no other
- * subcommand pays for it. Walking skeleton: two read endpoints, no
+ * subcommand pays for it. Read endpoints only, no
  * WebSocket, no forge, no agents yet.
  *
  * Handshake: once listening, the server prints exactly one JSON line to
- * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":2,"root":"<absolute product root>"}`
+ * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":3,"root":"<absolute product root>"}`
  * — which the MarkDesk shell (or a test) reads to connect. Everything else
  * goes to stderr (clig.dev: stdout for data).
  */
@@ -84,6 +84,13 @@ export async function startDeskServer(
       projectName: project.config?.name,
       profile: project.profile,
       getCompiled: () => project.getCompiled(),
+      readFile: async (path) => {
+        try {
+          return await Deno.readTextFile(path);
+        } catch {
+          return undefined;
+        }
+      },
     },
   });
 
@@ -109,7 +116,9 @@ export async function startDeskServer(
       try {
         for await (const _chunk of Deno.stdin.readable) { /* discard */ }
       } catch { /* a read error also means the parent is gone */ }
-      await server.shutdown();
+      try {
+        await server.shutdown();
+      } catch { /* the server may already be stopped */ }
     })();
   }
 

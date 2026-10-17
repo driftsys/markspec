@@ -2,16 +2,24 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MarkDesk API",
-    "version": "2",
-    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
+    "version": "3",
+    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Read-only: product tree, entries, rendered documents, rendered entries, and project source text. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
   },
   "servers": [
     {
       "url": "http://127.0.0.1:{port}",
-      "variables": { "port": { "default": "0" } }
+      "variables": {
+        "port": {
+          "default": "0"
+        }
+      }
     }
   ],
-  "security": [{ "nonce": [] }],
+  "security": [
+    {
+      "nonce": []
+    }
+  ],
   "paths": {
     "/api/v1/tree": {
       "options": {
@@ -25,23 +33,33 @@
             "headers": {
               "Access-Control-Allow-Origin": {
                 "description": "The request Origin, echoed.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
               "Access-Control-Allow-Methods": {
                 "description": "`GET, OPTIONS`.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
               "Access-Control-Allow-Headers": {
                 "description": "`Authorization`.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
               "Access-Control-Max-Age": {
                 "description": "`600` seconds.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
-          "403": { "$ref": "#/components/responses/Forbidden" }
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       },
       "get": {
@@ -53,12 +71,18 @@
             "description": "The product tree",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ProductTree" }
+                "schema": {
+                  "$ref": "#/components/schemas/ProductTree"
+                }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       }
     },
@@ -74,23 +98,33 @@
             "headers": {
               "Access-Control-Allow-Origin": {
                 "description": "The request Origin, echoed.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
               "Access-Control-Allow-Methods": {
                 "description": "`GET, OPTIONS`.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
               "Access-Control-Allow-Headers": {
                 "description": "`Authorization`.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
               "Access-Control-Max-Age": {
                 "description": "`600` seconds.",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
-          "403": { "$ref": "#/components/responses/Forbidden" }
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       },
       "get": {
@@ -102,7 +136,10 @@
             "in": "path",
             "required": true,
             "description": "Display ID (`STK_BRK_0001`) or `Id:` value (ULID or URI), percent-encoded.",
-            "schema": { "type": "string", "minLength": 1 }
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
@@ -110,7 +147,9 @@
             "description": "The entry and its links",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/EntryView" }
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
               }
             }
           },
@@ -118,17 +157,316 @@
             "description": "The id is not valid percent-encoding",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "description": "No entry with that display ID or Id",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents": {
+      "options": {
+        "operationId": "preflightDocuments",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, OPTIONS`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getDocument",
+        "summary": "One rendered document",
+        "description": "Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Project-relative path with `/` separators.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rendered document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`path` is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "The path is not a Markdown file holding project entries (including any path outside the project)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/entries/{id}/html": {
+      "options": {
+        "operationId": "preflightEntryHtml",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, OPTIONS`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getEntryHtml",
+        "summary": "One rendered entry",
+        "description": "Renders one entry as the same entry-block markup a document uses. Works for delivered and upstream entries; the response carries `origin` for them.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Display ID or `Id:` value, percent-encoded.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rendered entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryHtmlView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The id is not valid percent-encoding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "No entry with that display ID or Id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "options": {
+        "operationId": "preflightFiles",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, OPTIONS`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getFile",
+        "summary": "Project source text",
+        "description": "Returns the text of a Markdown or source file that holds at least one project entry.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Project-relative path with `/` separators.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceText"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`path` is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "The path is not a file holding project entries (including any path outside the project)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           }
@@ -149,7 +487,9 @@
         "description": "Missing or invalid bearer token",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
           }
         }
       },
@@ -157,7 +497,9 @@
         "description": "Host is not loopback, or Origin is not allowed",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
           }
         }
       }
@@ -166,9 +508,17 @@
       "ProductTree": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["apiVersion", "project", "roots", "nodes", "edges"],
+        "required": [
+          "apiVersion",
+          "project",
+          "roots",
+          "nodes",
+          "edges"
+        ],
         "properties": {
-          "apiVersion": { "const": 2 },
+          "apiVersion": {
+            "const": 3
+          },
           "project": {
             "type": "object",
             "additionalProperties": false,
@@ -182,27 +532,40 @@
           "roots": {
             "type": "array",
             "description": "Display IDs of the entries with no parent, sorted, then the lowest display ID of each link cycle that has no parent outside the cycle.",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "nodes": {
             "type": "array",
             "description": "Every entry once, sorted by display ID.",
-            "items": { "$ref": "#/components/schemas/ProductNode" }
+            "items": {
+              "$ref": "#/components/schemas/ProductNode"
+            }
           },
           "edges": {
             "type": "array",
             "description": "One edge per (child, parent) pair, sorted by parent, then refinement before verification, then child. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited.",
-            "items": { "$ref": "#/components/schemas/ProductEdge" }
+            "items": {
+              "$ref": "#/components/schemas/ProductEdge"
+            }
           }
         }
       },
       "ProductNode": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["displayId", "title"],
+        "required": [
+          "displayId",
+          "title"
+        ],
         "properties": {
-          "displayId": { "type": "string" },
-          "title": { "type": "string" },
+          "displayId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
           "type": {
             "type": "string",
             "description": "Profile type name, when classified."
@@ -220,7 +583,11 @@
       "ProductEdge": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["from", "to", "relation"],
+        "required": [
+          "from",
+          "to",
+          "relation"
+        ],
         "properties": {
           "from": {
             "type": "string",
@@ -233,7 +600,11 @@
           "relation": {
             "type": "string",
             "description": "Link kind.",
-            "enum": ["satisfies", "derived-from", "verifies"]
+            "enum": [
+              "satisfies",
+              "derived-from",
+              "verifies"
+            ]
           }
         }
       },
@@ -250,55 +621,93 @@
           "links"
         ],
         "properties": {
-          "apiVersion": { "const": 2 },
-          "displayId": { "type": "string" },
+          "apiVersion": {
+            "const": 3
+          },
+          "displayId": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "description": "The `Id:` value (ULID or URI), when stamped."
           },
-          "title": { "type": "string" },
-          "type": { "type": "string" },
-          "kind": { "type": "string" },
-          "body": { "type": "string" },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
           "attributes": {
             "type": "array",
             "description": "Trailer attributes in authored order.",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["key", "value"],
+              "required": [
+                "key",
+                "value"
+              ],
               "properties": {
-                "key": { "type": "string" },
-                "value": { "type": "string" }
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
               }
             }
           },
           "location": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["file", "line", "column"],
+            "required": [
+              "file",
+              "line",
+              "column"
+            ],
             "properties": {
               "file": {
                 "type": "string",
                 "description": "Path relative to the project root."
               },
-              "line": { "type": "integer", "minimum": 1 },
-              "column": { "type": "integer", "minimum": 1 }
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 1
+              }
             }
           },
-          "origin": { "type": "string" },
+          "origin": {
+            "type": "string"
+          },
           "links": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["outgoing", "incoming"],
+            "required": [
+              "outgoing",
+              "incoming"
+            ],
             "properties": {
               "outgoing": {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/LinkView" }
+                "items": {
+                  "$ref": "#/components/schemas/LinkView"
+                }
               },
               "incoming": {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/LinkView" }
+                "items": {
+                  "$ref": "#/components/schemas/LinkView"
+                }
               }
             }
           }
@@ -307,10 +716,17 @@
       "LinkView": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["kind", "displayId"],
+        "required": [
+          "kind",
+          "displayId"
+        ],
         "properties": {
-          "kind": { "type": "string" },
-          "displayId": { "type": "string" },
+          "kind": {
+            "type": "string"
+          },
+          "displayId": {
+            "type": "string"
+          },
           "title": {
             "type": "string",
             "description": "Title of the linked entry, when it is in the graph."
@@ -320,16 +736,110 @@
       "Error": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
-              "code": { "type": "string" },
-              "message": { "type": "string" }
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
             }
+          }
+        }
+      },
+      "DocumentView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiVersion",
+          "path",
+          "html",
+          "entries"
+        ],
+        "properties": {
+          "apiVersion": {
+            "const": 3
+          },
+          "path": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string",
+            "description": "Rendered HTML fragment. Entry blocks carry `id=\"entry-<displayId>\"` and `data-display-id`."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "displayId",
+                "anchor"
+              ],
+              "properties": {
+                "displayId": {
+                  "type": "string"
+                },
+                "anchor": {
+                  "type": "string",
+                  "description": "Element id of the entry block, `entry-<displayId>`."
+                }
+              }
+            }
+          }
+        }
+      },
+      "EntryHtmlView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiVersion",
+          "displayId",
+          "html"
+        ],
+        "properties": {
+          "apiVersion": {
+            "const": 3
+          },
+          "displayId": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          }
+        }
+      },
+      "SourceText": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiVersion",
+          "path",
+          "text"
+        ],
+        "properties": {
+          "apiVersion": {
+            "const": 3
+          },
+          "path": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
           }
         }
       }

@@ -89,6 +89,19 @@ stays TypeScript. Everything lives in this repository.
 
       Id: 01M55JNXSH4RRPH8Z1SQ6M1V54
 
+- [SAD_DESK_0012] Read endpoints for documents, rendered entries, and source
+  text
+
+  The desk backend shall serve `GET /api/v1/documents?path=P`,
+  `GET /api/v1/entries/{id}/html`, and `GET /api/v1/files?path=P`. The backend
+  shall answer HTTP status 404 with code `not-found` for a `path` that is not
+  the project-relative path of a Markdown or source file holding at least one
+  entry without an `origin`, and shall require a `.md` extension for
+  `/documents`. The backend shall answer HTTP status 400 with code `bad-request`
+  for a request without `path`.
+
+      Id: 01M5607VYZ373VZA9KAAYW1VZF
+
 The per-launch nonce token is the only credential of the desk API. The `Origin`
 check limits which browser pages can call the API; it does not authenticate the
 caller. The `tauri://localhost` origin is shared by every Tauri application on
@@ -178,12 +191,14 @@ nonce check therefore stays mandatory and must never be relaxed because the
       Id: 01M4JXA5WN174DN8AKM7WCMYRG
 
 The walking skeleton that ships with this ADR implements the first slice of
-SAD_DESK_0002 and SAD_DESK_0004: `markspec desk --serve` with two read endpoints
-(`GET /api/v1/tree`, `GET /api/v1/entries/{id}`), loopback binding, the nonce
-token, and the stdout handshake. It is hidden from `markspec --help` until the
-API is a stable surface. It reuses the MCP server's project service
-(`mcp/project.ts` — discovery, profile, delivered corpus, locked upstreams, and
-an mtime-refreshed compiled cache) instead of building a third index.
+SAD_DESK_0002 and SAD_DESK_0004: `markspec desk --serve` with its first read
+endpoints (`GET /api/v1/tree`, `GET /api/v1/entries/{id}`; the document,
+rendered-entry, and source-text endpoints follow under SAD_DESK_0012), loopback
+binding, the nonce token, and the stdout handshake. It is hidden from
+`markspec --help` until the API is a stable surface. It reuses the MCP server's
+project service (`mcp/project.ts` — discovery, profile, delivered corpus, locked
+upstreams, and an mtime-refreshed compiled cache) instead of building a third
+index.
 
 `GET /api/v1/tree` returns a flat graph, not a nested tree: `roots` (display
 IDs), one node per entry, and one edge per (child, parent) pair, with a
