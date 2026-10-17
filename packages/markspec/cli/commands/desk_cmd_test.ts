@@ -10,6 +10,10 @@ Deno.test("parseAllowOrigin: accepts a bare origin, with or without a trailing s
     parseAllowOrigin("http://localhost:5173/"),
     "http://localhost:5173",
   );
+  assertEquals(
+    parseAllowOrigin("https://dev.example:8443"),
+    "https://dev.example:8443",
+  );
 });
 
 Deno.test("parseAllowOrigin: rejects values that are not a canonical http(s) origin", () => {
@@ -22,6 +26,8 @@ Deno.test("parseAllowOrigin: rejects values that are not a canonical http(s) ori
     "http://localhost:5173/path",
     "http://LOCALHOST:5173",
     "http://localhost:80",
+    "http://localhost:5173//",
+    "not a url",
   ];
   for (const value of rejected) {
     assertEquals(parseAllowOrigin(value), undefined, value);
