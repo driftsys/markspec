@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MarkDesk API",
-    "version": "1",
+    "version": "2",
     "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
   },
   "servers": [
@@ -47,7 +47,7 @@
       "get": {
         "operationId": "getTree",
         "summary": "The product tree",
-        "description": "Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. Roots have no such link to another entry; an entry with two parents appears under both.",
+        "description": "Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. The response is a flat graph: `nodes` lists every entry once, `edges` lists one edge per (child, parent) pair, and `roots` lists the entries with no parent, then the lowest display ID of each link cycle that has no parent outside the cycle. Clients expand the graph from `roots` through the edges. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited.",
         "responses": {
           "200": {
             "description": "The product tree",
@@ -166,9 +166,9 @@
       "ProductTree": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["apiVersion", "project", "nodes"],
+        "required": ["apiVersion", "project", "roots", "nodes", "edges"],
         "properties": {
-          "apiVersion": { "const": 1 },
+          "apiVersion": { "const": 2 },
           "project": {
             "type": "object",
             "additionalProperties": false,
@@ -179,16 +179,27 @@
               }
             }
           },
+          "roots": {
+            "type": "array",
+            "description": "Display IDs of the entries with no parent, sorted, then the lowest display ID of each link cycle that has no parent outside the cycle.",
+            "items": { "type": "string" }
+          },
           "nodes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/TreeNode" }
+            "description": "Every entry once, sorted by display ID.",
+            "items": { "$ref": "#/components/schemas/ProductNode" }
+          },
+          "edges": {
+            "type": "array",
+            "description": "One edge per (child, parent) pair, sorted by parent, then refinement before verification, then child. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited.",
+            "items": { "$ref": "#/components/schemas/ProductEdge" }
           }
         }
       },
-      "TreeNode": {
+      "ProductNode": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["displayId", "title", "children"],
+        "required": ["displayId", "title"],
         "properties": {
           "displayId": { "type": "string" },
           "title": { "type": "string" },
@@ -200,18 +211,29 @@
             "type": "string",
             "description": "Core type the profile type extends: Requirement, Risk, Test, Contract, …"
           },
-          "relation": {
-            "type": "string",
-            "description": "Link kind placing this node under its parent. Absent on roots.",
-            "enum": ["satisfies", "derived-from", "verifies"]
-          },
           "origin": {
             "type": "string",
             "description": "`<profile-id>@<version>` for delivered-corpus entries."
+          }
+        }
+      },
+      "ProductEdge": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "relation"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Display ID of the refining or verifying entry (the child)."
           },
-          "children": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/TreeNode" }
+          "to": {
+            "type": "string",
+            "description": "Display ID of the link target (the parent)."
+          },
+          "relation": {
+            "type": "string",
+            "description": "Link kind.",
+            "enum": ["satisfies", "derived-from", "verifies"]
           }
         }
       },
@@ -228,7 +250,7 @@
           "links"
         ],
         "properties": {
-          "apiVersion": { "const": 1 },
+          "apiVersion": { "const": 2 },
           "displayId": { "type": "string" },
           "id": {
             "type": "string",

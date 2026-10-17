@@ -10,7 +10,7 @@
  * WebSocket, no forge, no agents yet.
  *
  * Handshake: once listening, the server prints exactly one JSON line to
- * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":1}`
+ * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":2}`
  * — which the MarkDesk shell (or a test) reads to connect. Everything else
  * goes to stderr (clig.dev: stdout for data).
  */

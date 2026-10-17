@@ -180,7 +180,31 @@ API is a stable surface. It reuses the MCP server's project service
 (`mcp/project.ts` — discovery, profile, delivered corpus, locked upstreams, and
 an mtime-refreshed compiled cache) instead of building a third index.
 
+`GET /api/v1/tree` returns a flat graph, not a nested tree: `roots` (display
+IDs), one node per entry, and one edge per (child, parent) pair, with a
+refinement link kept over a verification link. Its size is proportional to
+entries plus links, and the UI expands it lazily. A nested tree would rebuild an
+entry under each of its parents, so its size grows with the number of
+root-to-leaf paths, which is exponential in depth on diamond-shaped
+traceability. Edges may form cycles; the lowest display ID of each link cycle
+that has no parent outside the cycle is added as an extra root, so every entry
+is reachable from a root. The change was breaking, so `DESK_API_VERSION` is 2.
+The contract is `schemas/desk-api.json`.
+
 ## Alternatives rejected
+
+### A nested tree with stubs for shared subtrees
+
+Keeping the nested response and emitting each shared subtree once, with `ref`
+stubs elsewhere, would still hand the UI a recursive shape. Which parent holds
+the full subtree would depend on sort order, which is harder to reason about
+than a flat graph.
+
+### Keeping `apiVersion` 1 for the graph response
+
+The version constant exists to signal breaking changes, and the handshake
+carries it so the shell can detect a mismatch. Changing the tree shape without a
+bump would hide the break.
 
 ### All-Rust (Tauri UI plus a Rust port of the core)
 
