@@ -47,12 +47,17 @@ export const deskCmd = new Command()
     "Extra browser origin allowed to call the API (repeatable), e.g. the Vite dev server",
     { collect: true },
   )
+  .option(
+    "--exit-on-stdin-eof",
+    "Exit when stdin closes (for app-managed sidecars)",
+  )
   .action(async function (
     options: {
       serve?: boolean;
       port: number;
       root?: string;
       allowOrigin?: string[];
+      exitOnStdinEof?: boolean;
     },
   ) {
     if (!options.serve) {
@@ -79,5 +84,6 @@ export const deskCmd = new Command()
       port: options.port,
       root: options.root,
       allowedOrigins,
+      exitOnStdinEof: options.exitOnStdinEof,
     });
   });

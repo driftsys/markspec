@@ -60,7 +60,11 @@ stays TypeScript. Everything lives in this repository.
   CORS preflight answered under SAD_DESK_0011. It owns the workspace and index
   service, the forge client, the agent adapters, and the secrets bridge. It
   ships inside the one `markspec` binary rather than as an additional compile
-  target.
+  target. When `--root` is given, the backend shall search only that folder and
+  its parent folders for a MarkSpec project and shall exit with status 1,
+  without printing a handshake, when it finds none; it shall not fall back to
+  the process working directory. When `--exit-on-stdin-eof` is given, the
+  backend shall stop and exit with status 0 when its standard input closes.
 
       Id: 01M4JXA5WQQY7VB23KBP23TRFK
 
@@ -99,10 +103,11 @@ nonce check therefore stays mandatory and must never be relaxed because the
   Rust shell in `apps/markdesk/src-tauri/` shall own only the window, the
   installer, the updater, OS keychain access, and the OAuth deep link. The shell
   shall bundle the `markspec` binary as a sidecar, launch it with
-  `desk --serve --port 0 --root` and the workspace path, and read the one-line
-  JSON handshake (`url`, `token`, `apiVersion`) from its stdout. In development
-  the shell shall run the sidecar from this repository's sources, not from a
-  release.
+  `desk --serve --port 0 --exit-on-stdin-eof --root` and the workspace path, and
+  read the one-line JSON handshake (`url`, `token`, `apiVersion`, `root`) from
+  its stdout, where `root` is the absolute path of the discovered product root.
+  In development the shell shall run the sidecar from this repository's sources,
+  not from a release.
 
       Id: 01M4JXA5WQCDQ77Y81K0G90BGK
 
