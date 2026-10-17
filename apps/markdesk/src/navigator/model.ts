@@ -41,6 +41,7 @@ export function buildNavigatorModel(tree: ProductTree): NavigatorModel {
   const nodes = new Map(tree.nodes.map((n) => [n.displayId, n]));
   const kids = new Map<string, NavigatorChildren>();
   for (const edge of tree.edges) {
+    if (!nodes.has(edge.from) || !nodes.has(edge.to)) continue;
     let entry = kids.get(edge.to);
     if (!entry) {
       entry = { refining: [], verifying: [] };

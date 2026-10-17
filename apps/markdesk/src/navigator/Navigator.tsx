@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { ProductTree } from "../api/client";
+import { useEffect, useMemo, useState } from "react";
+import { DeskError, type ProductTree } from "../api/client";
 import { useOpenProduct } from "../app/useProduct";
 import { useSelection } from "../app/selection";
 import { buildNavigatorModel, type NavigatorModel } from "./model";
@@ -103,23 +103,24 @@ export function NavigatorPane() {
   const { client } = useOpenProduct();
   const { selected, select } = useSelection();
   const [tree, setTree] = useState<ProductTree>();
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let current = true;
+    setTree(undefined);
+    setFailed(false);
     client.tree().then((loaded) => {
       if (current) setTree(loaded);
-    }, () => {
+    }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
+      if (error instanceof DeskError && error.code === "network") return;
+      if (current) setFailed(true);
     });
     return () => {
       current = false;
     };
   }, [client]);
-  if (!tree) return <p>…</p>;
-  return (
-    <Navigator
-      model={buildNavigatorModel(tree)}
-      selected={selected}
-      onSelect={select}
-    />
-  );
+  const model = useMemo(() => tree && buildNavigatorModel(tree), [tree]);
+  if (failed) return <p role="alert">MarkDesk could not load this product.</p>;
+  if (!model) return <p>…</p>;
+  return <Navigator model={model} selected={selected} onSelect={select} />;
 }
