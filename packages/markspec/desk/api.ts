@@ -196,10 +196,10 @@ export function coreKindOf(
  * same pair, the refinement link wins over the verification link, then the
  * lowest kind name. Edges sort by parent, then refinement before
  * verification, then child. `roots` lists the entries with no parent, sorted
- * by display ID, then for each link cycle that no root reaches, its lowest
- * display ID, so no entry drops out of the graph. Edges can form a cycle (a
- * link cycle in the project); a client that walks the edges must track the
- * entries it has already visited.
+ * by display ID, then the lowest display ID of each link cycle that has no
+ * parent outside the cycle, sorted by display ID. Every entry is reachable
+ * from a root. Edges can form a cycle (a link cycle in the project); a client
+ * that walks the edges must track the entries it has already visited.
  */
 export function buildProductTree(
   compiled: CompileResult,
@@ -207,7 +207,7 @@ export function buildProductTree(
   projectName?: string,
 ): ProductTree {
   const kindRank = (kind: TreeLinkKind) => kind === "verifies" ? 1 : 0;
-  // Orders relations: refinement before verification, then by kind name.
+  // Chooses the edge kept when several links join one (child, parent) pair.
   const compareRelations = (a: TreeLinkKind, b: TreeLinkKind) =>
     kindRank(a) - kindRank(b) || compareIds(a, b);
 
@@ -240,61 +240,14 @@ export function buildProductTree(
     }
   }
   const edges = [...best.values()].sort((a, b) =>
-    compareIds(a.to, b.to) || compareRelations(a.relation, b.relation) ||
+    compareIds(a.to, b.to) || kindRank(a.relation) - kindRank(b.relation) ||
     compareIds(a.from, b.from)
   );
 
-  // Children by parent and the lowest-ID parent per child, in edge order.
-  const childrenOf = new Map<string, string[]>();
-  const firstParent = new Map<string, string>();
-  for (const e of edges) {
-    const list = childrenOf.get(e.to);
-    if (list) list.push(e.from);
-    else childrenOf.set(e.to, [e.from]);
-    if (!firstParent.has(e.from)) firstParent.set(e.from, e.to);
-  }
-  const reached = new Set<string>();
-  const markReached = (rootId: string) => {
-    const stack = [rootId];
-    reached.add(rootId);
-    while (stack.length > 0) {
-      for (const child of childrenOf.get(stack.pop()!) ?? []) {
-        if (reached.has(child)) continue;
-        reached.add(child);
-        stack.push(child);
-      }
-    }
-  };
   const roots: string[] = entries.map((e) => e.displayId as string).filter(
     (id) => !hasParent.has(id),
   );
-  roots.forEach(markReached);
-
-  // Every unreached entry has no parentless ancestor, so walking up through
-  // first parents ends in a cycle. Promote the lowest ID of that cycle. Each
-  // entry is walked once, so the pass is linear.
-  const walked = new Set<string>();
-  for (const entry of entries) {
-    if (reached.has(entry.displayId) || walked.has(entry.displayId)) continue;
-    const path: string[] = [];
-    const position = new Map<string, number>();
-    let cursor: string | undefined = entry.displayId;
-    while (
-      cursor !== undefined && !reached.has(cursor) && !walked.has(cursor)
-    ) {
-      walked.add(cursor);
-      position.set(cursor, path.length);
-      path.push(cursor);
-      cursor = firstParent.get(cursor);
-    }
-    const start = cursor === undefined ? undefined : position.get(cursor);
-    if (start === undefined) continue; // joins a cycle already promoted
-    const root = path.slice(start).reduce((low, id) =>
-      compareIds(id, low) < 0 ? id : low
-    );
-    roots.push(root);
-    markReached(root);
-  }
+  roots.push(...sourceCycleRoots(entries.map((e) => e.displayId), edges));
 
   return {
     apiVersion: DESK_API_VERSION,
@@ -501,6 +454,84 @@ function errorResponse(
   message: string,
 ): Response {
   return jsonResponse(status, { error: { code, message } });
+}
+
+/**
+ * The lowest display ID of each link cycle that has no parent outside the
+ * cycle, sorted by display ID. A link cycle is a strongly connected component
+ * of more than one entry, found with an iterative Tarjan pass (linear, no
+ * recursion). An edge runs from child to parent, so a parent outside the
+ * component of an edge's `from` is a parent outside that cycle.
+ */
+function sourceCycleRoots(
+  ids: readonly string[],
+  edges: readonly ProductEdge[],
+): string[] {
+  const childrenOf = new Map<string, string[]>();
+  for (const e of edges) {
+    const list = childrenOf.get(e.to);
+    if (list) list.push(e.from);
+    else childrenOf.set(e.to, [e.from]);
+  }
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const onStack = new Set<string>();
+  const stack: string[] = [];
+  const component = new Map<string, number>();
+  const members: string[][] = [];
+  for (const start of ids) {
+    if (index.has(start)) continue;
+    const frames: { id: string; next: number }[] = [{ id: start, next: 0 }];
+    index.set(start, index.size);
+    low.set(start, index.get(start)!);
+    stack.push(start);
+    onStack.add(start);
+    while (frames.length > 0) {
+      const frame = frames[frames.length - 1];
+      const children = childrenOf.get(frame.id) ?? [];
+      if (frame.next < children.length) {
+        const child = children[frame.next++];
+        if (!index.has(child)) {
+          index.set(child, index.size);
+          low.set(child, index.get(child)!);
+          stack.push(child);
+          onStack.add(child);
+          frames.push({ id: child, next: 0 });
+        } else if (onStack.has(child)) {
+          low.set(frame.id, Math.min(low.get(frame.id)!, index.get(child)!));
+        }
+        continue;
+      }
+      frames.pop();
+      if (frames.length > 0) {
+        const parent = frames[frames.length - 1].id;
+        low.set(parent, Math.min(low.get(parent)!, low.get(frame.id)!));
+      }
+      if (low.get(frame.id) === index.get(frame.id)) {
+        const group: string[] = [];
+        let member: string;
+        do {
+          member = stack.pop()!;
+          onStack.delete(member);
+          component.set(member, members.length);
+          group.push(member);
+        } while (member !== frame.id);
+        members.push(group);
+      }
+    }
+  }
+  const hasOutsideParent = new Set<number>();
+  for (const e of edges) {
+    if (component.get(e.from) !== component.get(e.to)) {
+      hasOutsideParent.add(component.get(e.from)!);
+    }
+  }
+  return members
+    .filter((group, c) => group.length > 1 && !hasOutsideParent.has(c))
+    .map((group) =>
+      group.reduce((low, id) => compareIds(id, low) < 0 ? id : low)
+    )
+    .sort(compareIds);
 }
 
 /** Locale-independent display-ID ordering, so output never varies by host. */

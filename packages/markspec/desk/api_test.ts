@@ -487,6 +487,127 @@ Deno.test("buildProductTree: each unreached cycle gets one root", async () => {
   assertEquals(tree.roots, ["REQ_0001", "REQ_0003"]);
 });
 
+Deno.test("buildProductTree: Satisfies before Verifies keeps satisfies", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] Parent
+
+  Body.
+
+- [TST_0001] Child
+
+  Body.
+
+      Satisfies: REQ_0001
+      Verifies: REQ_0001
+`);
+  assertEquals(buildProductTree(compiled, undefined).edges, [
+    { from: "TST_0001", to: "REQ_0001", relation: "satisfies" },
+  ]);
+});
+
+Deno.test("buildProductTree: Derived-from before Satisfies keeps derived-from", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] Parent
+
+  Body.
+
+- [REQ_0002] Child
+
+  Body.
+
+      Derived-from: REQ_0001
+      Satisfies: REQ_0001
+`);
+  assertEquals(buildProductTree(compiled, undefined).edges, [
+    { from: "REQ_0002", to: "REQ_0001", relation: "derived-from" },
+  ]);
+});
+
+Deno.test("buildProductTree: a cycle with a parent in another cycle is not a root", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] One
+
+  Body.
+
+      Satisfies: REQ_0002
+      Satisfies: REQ_0003
+
+- [REQ_0002] Two
+
+  Body.
+
+      Satisfies: REQ_0001
+
+- [REQ_0003] Three
+
+  Body.
+
+      Satisfies: REQ_0004
+
+- [REQ_0004] Four
+
+  Body.
+
+      Satisfies: REQ_0003
+`);
+  assertEquals(buildProductTree(compiled, undefined).roots, ["REQ_0003"]);
+});
+
+Deno.test("buildProductTree: a cycle entered elsewhere is rooted at its lowest ID", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] Entered child
+
+  Body.
+
+      Satisfies: REQ_0003
+
+- [REQ_0002] Two
+
+  Body.
+
+      Satisfies: REQ_0003
+
+- [REQ_0003] Three
+
+  Body.
+
+      Satisfies: REQ_0002
+`);
+  assertEquals(buildProductTree(compiled, undefined).roots, ["REQ_0002"]);
+});
+
+Deno.test("buildProductTree: parentless entries precede source cycle roots", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] A
+
+  Body.
+
+      Satisfies: REQ_0002
+
+- [REQ_0002] B
+
+  Body.
+
+      Satisfies: REQ_0001
+
+- [REQ_0003] C
+
+  Body.
+
+      Satisfies: REQ_0004
+
+- [REQ_0004] D
+
+  Body.
+
+      Satisfies: REQ_0003
+
+- [REQ_0009] Parentless
+
+  Body.
+`);
+  assertEquals(buildProductTree(compiled, undefined).roots, [
+    "REQ_0009",
+    "REQ_0001",
+    "REQ_0003",
+  ]);
+});
+
 Deno.test("buildProductTree: edges with the same parent sort by child", async () => {
   const compiled = await compileDocs(`- [REQ_0001] Parent
 

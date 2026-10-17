@@ -47,7 +47,7 @@
       "get": {
         "operationId": "getTree",
         "summary": "The product tree",
-        "description": "Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. The response is a flat graph: `nodes` lists every entry once, `edges` lists one edge per (child, parent) pair, and `roots` lists the entries with no parent, then the lowest display ID of each link cycle that no root reaches. Clients expand the graph from `roots` through the edges. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited.",
+        "description": "Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. The response is a flat graph: `nodes` lists every entry once, `edges` lists one edge per (child, parent) pair, and `roots` lists the entries with no parent, then the lowest display ID of each link cycle that has no parent outside the cycle. Clients expand the graph from `roots` through the edges. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited.",
         "responses": {
           "200": {
             "description": "The product tree",
@@ -181,7 +181,7 @@
           },
           "roots": {
             "type": "array",
-            "description": "Display IDs of the entries with no parent, sorted, then for each link cycle that no root reaches, its lowest display ID.",
+            "description": "Display IDs of the entries with no parent, sorted, then the lowest display ID of each link cycle that has no parent outside the cycle.",
             "items": { "type": "string" }
           },
           "nodes": {
