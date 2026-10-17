@@ -58,7 +58,7 @@ Deno.test({
         apiVersion: number;
       };
       assertMatch(handshake.url, /^http:\/\/127\.0\.0\.1:\d+$/);
-      assertEquals(handshake.apiVersion, 1);
+      assertEquals(handshake.apiVersion, 2);
       const auth = { authorization: `Bearer ${handshake.token}` };
 
       const anonymous = await fetch(`${handshake.url}/api/v1/tree`);
@@ -71,8 +71,23 @@ Deno.test({
       assertEquals(tree.status, 200);
       const treeBody = await tree.json();
       assertEquals(
-        treeBody.nodes.map((n: { displayId: string }) => n.displayId),
+        treeBody.roots,
         ["HAZ_BRK_0001", "STK_BRK_0001"],
+      );
+      assertEquals(
+        treeBody.edges.some((
+          e: { from: string; to: string; relation: string },
+        ) =>
+          e.from === "SYS_BRK_0001" && e.to === "STK_BRK_0001" &&
+          e.relation === "satisfies"
+        ),
+        true,
+      );
+      assertEquals(
+        treeBody.nodes.some((n: { displayId: string }) =>
+          n.displayId === "SYS_BRK_0001"
+        ),
+        true,
       );
 
       const entry = await fetch(
