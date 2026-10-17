@@ -181,13 +181,14 @@ API is a stable surface. It reuses the MCP server's project service
 an mtime-refreshed compiled cache) instead of building a third index.
 
 `GET /api/v1/tree` returns a flat graph, not a nested tree: `roots` (display
-IDs), one node per entry, and one edge per child-to-parent tree link. Its size
-is proportional to entries plus links, and the UI expands it lazily. A nested
-tree would rebuild an entry under each of its parents, so its size grows with
-the number of root-to-leaf paths, which is exponential in depth on
-diamond-shaped traceability. Edges may form cycles; entries not reachable from a
-parentless root are added as extra roots so no entry is dropped. The change was
-breaking, so `DESK_API_VERSION` is 2. The contract is `schemas/desk-api.json`.
+IDs), one node per entry, and one edge per (child, parent) pair, with a
+refinement link kept over a verification link. Its size is proportional to
+entries plus links, and the UI expands it lazily. A nested tree would rebuild an
+entry under each of its parents, so its size grows with the number of
+root-to-leaf paths, which is exponential in depth on diamond-shaped
+traceability. Edges may form cycles; entries not reachable from a parentless
+root are added as extra roots so no entry is dropped. The change was breaking,
+so `DESK_API_VERSION` is 2. The contract is `schemas/desk-api.json`.
 
 ## Alternatives rejected
 

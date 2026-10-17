@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertExists } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertNotEquals,
+} from "@std/assert";
 import { fromFileUrl, join } from "@std/path";
 import { Ajv } from "ajv";
 import {
@@ -6,6 +11,7 @@ import {
   type CompileResult,
   type EffectiveProfile,
   loadProfileForCommand,
+  makeDisplayId,
 } from "../core/mod.ts";
 import {
   buildProductTree,
@@ -78,6 +84,22 @@ async function assertMatchesSchema(component: string, body: unknown) {
   assert(ok, JSON.stringify(validate.errors, null, 2));
 }
 
+/** Entry blocks for the link cycle REQ_0001 <-> REQ_0002. */
+function cycleBlocks(): string {
+  return `- [REQ_0001] First
+
+  Body.
+
+      Satisfies: REQ_0002
+
+- [REQ_0002] Second
+
+  Body.
+
+      Satisfies: REQ_0001
+`;
+}
+
 /** Compile one in-memory Markdown document without a profile. */
 function compileDocs(markdown: string): Promise<CompileResult> {
   const path = "/graph/doc.md";
@@ -131,6 +153,13 @@ Deno.test("desk api: tree reads the product as nodes and edges", async () => {
 
   assertEquals(tree.apiVersion, 2);
   assertEquals(tree.project.name, "io.example.braking");
+  // Nodes are sorted by display ID even though the fixture compiles in file
+  // order.
+  const { compiled } = await fixture;
+  const compileOrder = [...compiled.entries.keys()] as string[];
+  const sortedIds = [...compileOrder].sort();
+  assertNotEquals(compileOrder, sortedIds);
+  assertEquals(tree.nodes.map((n) => n.displayId), sortedIds);
   // Roots: the hazard and the stakeholder need — nothing above them.
   assertEquals(tree.roots, ["HAZ_BRK_0001", "STK_BRK_0001"]);
   const stk = tree.nodes.find((n) => n.displayId === "STK_BRK_0001")!;
@@ -227,6 +256,24 @@ Deno.test("buildProductTree: output is deterministic", async () => {
   );
 });
 
+Deno.test("buildProductTree: output does not depend on file order", async () => {
+  const { profile } = await fixture;
+  const files = ["hazards", "software", "stakeholder", "system"].map((f) =>
+    join(FIXTURE_ROOT, "docs", `${f}.md`)
+  );
+  const build = async (paths: string[]) =>
+    JSON.stringify(
+      buildProductTree(
+        await compile(paths, {
+          readFile: (p) => Deno.readTextFile(p),
+          profile,
+        }),
+        profile,
+      ),
+    );
+  assertEquals(await build(files), await build([...files].reverse()));
+});
+
 Deno.test("desk api: malformed percent-encoding is 400 bad-request", async () => {
   const res = await (await handler())(get("/api/v1/entries/%E0%A4%A"));
   assertEquals(res.status, 400);
@@ -304,8 +351,8 @@ Deno.test("buildProductTree: duplicate links keep the refinement edge", async ()
 
   Body.
 
-      Satisfies: REQ_0001
       Verifies: REQ_0001
+      Satisfies: REQ_0001
 `);
   const tree = buildProductTree(compiled, undefined);
   assertEquals(tree.edges, [
@@ -332,7 +379,7 @@ Deno.test("buildProductTree: Satisfies and Derived-from keep the first kind name
 });
 
 Deno.test("buildProductTree: a deep diamond stays linear in size", async () => {
-  const levels = 10;
+  const levels = 40;
   const blocks: string[] = [];
   for (let level = 0; level < levels; level++) {
     for (const side of ["A", "B"]) {
@@ -348,22 +395,140 @@ Deno.test("buildProductTree: a deep diamond stays linear in size", async () => {
   }
   const compiled = await compileDocs(blocks.join("\n"));
   const tree = buildProductTree(compiled, undefined);
-  assertEquals(tree.nodes.length, 20);
-  assertEquals(tree.edges.length, 36);
+  assertEquals(tree.nodes.length, 80);
+  assertEquals(tree.edges.length, 156);
   assertEquals(tree.roots, ["REQ_L0A", "REQ_L0B"]);
 });
 
 Deno.test("buildProductTree: dangling and self links produce no edge", async () => {
-  const compiled = await compileDocs(`- [REQ_0001] Alone
+  const compiled = await compileDocs(`- [REQ_0001] Linked to nothing real
 
   Body.
 
       Satisfies: REQ_9999
       Satisfies: REQ_0001
+
+- [REQ_0002] Plain
+
+  Body.
 `);
   const tree = buildProductTree(compiled, undefined);
   assertEquals(tree.edges, []);
+  assertEquals(tree.roots, ["REQ_0001", "REQ_0002"]);
+});
+
+Deno.test("buildProductTree: only refinement and verification links are edges", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] Parent
+
+  Body.
+
+- [REQ_0002] Other
+
+  Body.
+
+- [REQ_0003] Child
+
+  Body.
+
+      Satisfies: REQ_0001
+      Depends-on: REQ_0002
+
+- [REQ_0004] Depends only
+
+  Body.
+
+      Depends-on: REQ_0001
+`);
+  const tree = buildProductTree(compiled, undefined);
+  assertEquals(tree.edges, [
+    { from: "REQ_0003", to: "REQ_0001", relation: "satisfies" },
+  ]);
+  assertEquals(tree.roots, ["REQ_0001", "REQ_0002", "REQ_0004"]);
+  await assertMatchesSchema("ProductTree", tree);
+});
+
+Deno.test("buildProductTree: cycle root follows the parentless roots", async () => {
+  const compiled = await compileDocs(`${cycleBlocks()}
+- [REQ_0003] Parentless
+
+  Body.
+`);
+  const tree = buildProductTree(compiled, undefined);
+  assertEquals(tree.roots, ["REQ_0003", "REQ_0001"]);
+});
+
+Deno.test("buildProductTree: a descendant of a cycle is not promoted as a root", async () => {
+  const compiled = await compileDocs(`${cycleBlocks()}
+- [REQ_0000] Child of the cycle
+
+  Body.
+
+      Satisfies: REQ_0001
+`);
+  const tree = buildProductTree(compiled, undefined);
   assertEquals(tree.roots, ["REQ_0001"]);
+});
+
+Deno.test("buildProductTree: each unreached cycle gets one root", async () => {
+  const compiled = await compileDocs(`${cycleBlocks()}
+- [REQ_0003] Third
+
+  Body.
+
+      Satisfies: REQ_0004
+
+- [REQ_0004] Fourth
+
+  Body.
+
+      Satisfies: REQ_0003
+`);
+  const tree = buildProductTree(compiled, undefined);
+  assertEquals(tree.roots, ["REQ_0001", "REQ_0003"]);
+});
+
+Deno.test("buildProductTree: edges with the same parent sort by child", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] Parent
+
+  Body.
+
+- [REQ_0003] Later child
+
+  Body.
+
+      Satisfies: REQ_0001
+
+- [REQ_0002] Earlier child
+
+  Body.
+
+      Satisfies: REQ_0001
+`);
+  const tree = buildProductTree(compiled, undefined);
+  assertEquals(tree.edges, [
+    { from: "REQ_0002", to: "REQ_0001", relation: "satisfies" },
+    { from: "REQ_0003", to: "REQ_0001", relation: "satisfies" },
+  ]);
+});
+
+Deno.test("buildProductTree: origin is formatted on delivered entries only", async () => {
+  const compiled = await compileDocs(`- [REQ_0001] Delivered
+
+  Body.
+
+- [REQ_0002] Local
+
+  Body.
+`);
+  const delivered = compiled.entries.get(makeDisplayId("REQ_0001"))!;
+  const entries = new Map(compiled.entries);
+  entries.set(delivered.displayId, {
+    ...delivered,
+    origin: { kind: "profile", profileId: "acme", profileVersion: "1.2.0" },
+  });
+  const tree = buildProductTree({ ...compiled, entries }, undefined);
+  assertEquals(tree.nodes[0].origin, "acme@1.2.0");
+  assertEquals("origin" in tree.nodes[1], false);
 });
 
 // ---------------------------------------------------------------------------

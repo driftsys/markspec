@@ -40,7 +40,6 @@ import {
   type EffectiveProfile,
   type Entry,
   formatEntryOrigin,
-  type Link,
   makeDisplayId,
 } from "../core/mod.ts";
 
@@ -48,16 +47,19 @@ import {
 export const DESK_API_VERSION = 2;
 
 /**
- * Link kinds that place an entry *under* its target in the product tree:
- * refinement (`Satisfies`, `Derived-from`) and verification (`Verifies`).
- * Links point from the refining/verifying entry up to its target, so a
- * node's children are its incoming links of these kinds.
+ * Link kinds that become edges of the product graph: refinement (`Satisfies`,
+ * `Derived-from`) and verification (`Verifies`). A link points from the
+ * refining or verifying entry (the child) up to its target (the parent).
  */
-const TREE_LINK_KINDS: ReadonlySet<string> = new Set<string>([
-  "satisfies",
-  "derived-from",
-  "verifies",
-]);
+const TREE_LINK_KINDS = ["satisfies", "derived-from", "verifies"] as const;
+
+/** Link kinds that appear as the relation of a {@linkcode ProductEdge}. */
+export type TreeLinkKind = typeof TREE_LINK_KINDS[number];
+
+/** Whether a link kind is one of {@linkcode TREE_LINK_KINDS}. */
+function isTreeLinkKind(kind: string): kind is TreeLinkKind {
+  return (TREE_LINK_KINDS as readonly string[]).includes(kind);
+}
 
 /** One entry of the product graph. */
 export interface ProductNode {
@@ -70,9 +72,6 @@ export interface ProductNode {
   /** `"<profile-id>@<version>"` for delivered-corpus entries (ADR-030). */
   readonly origin?: string;
 }
-
-/** Link kinds that appear as the relation of a {@linkcode ProductEdge}. */
-export type TreeLinkKind = "satisfies" | "derived-from" | "verifies";
 
 /** One tree link: the child entry refines or verifies the parent entry. */
 export interface ProductEdge {
@@ -88,7 +87,10 @@ export interface ProductEdge {
 export interface ProductTree {
   readonly apiVersion: number;
   readonly project: { readonly name?: string };
-  /** Display IDs of the entries that have no parent, then cycle roots. */
+  /**
+   * Display IDs of the entries with no parent, sorted, then for each link
+   * cycle that no root reaches, its lowest display ID.
+   */
   readonly roots: readonly string[];
   /** Every entry of the graph once, sorted by display ID. */
   readonly nodes: readonly ProductNode[];
@@ -193,22 +195,21 @@ export function coreKindOf(
  * pair for the refinement and verification links; when several links join the
  * same pair, the refinement link wins over the verification link, then the
  * lowest kind name. Edges sort by parent, then refinement before
- * verification, then child, then relation. `roots` lists the entries with no
- * parent, then one entry per link cycle that no root reaches (lowest display
- * ID first), so no entry drops out of the graph. Edges can form a cycle (a
+ * verification, then child. `roots` lists the entries with no parent, sorted
+ * by display ID, then for each link cycle that no root reaches, its lowest
+ * display ID, so no entry drops out of the graph. Edges can form a cycle (a
  * link cycle in the project); a client that walks the edges must track the
- * entries it has already visited. A client expands the graph
- * lazily from `roots` through the edges.
+ * entries it has already visited.
  */
 export function buildProductTree(
   compiled: CompileResult,
   profile: EffectiveProfile | undefined,
   projectName?: string,
 ): ProductTree {
-  const kindRank = (kind: string) => kind === "verifies" ? 1 : 0;
-  // True when link `a` ranks before link `b`: kind rank, then kind name.
-  const outranks = (a: Link, b: Link) =>
-    (kindRank(a.kind) - kindRank(b.kind) || compareIds(a.kind, b.kind)) < 0;
+  const kindRank = (kind: TreeLinkKind) => kind === "verifies" ? 1 : 0;
+  // Orders relations: refinement before verification, then by kind name.
+  const compareRelations = (a: TreeLinkKind, b: TreeLinkKind) =>
+    kindRank(a) - kindRank(b) || compareIds(a, b);
 
   const entries = [...compiled.entries.values()].sort((a, b) =>
     compareIds(a.displayId, b.displayId)
@@ -223,38 +224,34 @@ export function buildProductTree(
     })
   );
 
-  // One pass over the forward links. Keep the best link per (child, parent).
-  const best = new Map<string, Link>();
+  // One pass over all links. Keep the best edge per (child, parent).
+  const best = new Map<string, ProductEdge>();
   const hasParent = new Set<string>();
-  for (const links of compiled.forward.values()) {
-    for (const l of links) {
-      if (
-        !TREE_LINK_KINDS.has(l.kind) || !compiled.entries.has(l.from) ||
-        !compiled.entries.has(l.to) || l.from === l.to
-      ) continue;
-      hasParent.add(l.from);
-      const key = `${l.from}\u0000${l.to}`;
-      const current = best.get(key);
-      if (!current || outranks(l, current)) best.set(key, l);
+  for (const l of compiled.links) {
+    if (
+      !isTreeLinkKind(l.kind) || !compiled.entries.has(l.from) ||
+      !compiled.entries.has(l.to) || l.from === l.to
+    ) continue;
+    hasParent.add(l.from);
+    const key = `${l.from}\u0000${l.to}`;
+    const current = best.get(key);
+    if (!current || compareRelations(l.kind, current.relation) < 0) {
+      best.set(key, { from: l.from, to: l.to, relation: l.kind });
     }
   }
-  const chosen = [...best.values()].sort((a, b) =>
-    compareIds(a.to, b.to) || kindRank(a.kind) - kindRank(b.kind) ||
-    compareIds(a.from, b.from) || compareIds(a.kind, b.kind)
+  const edges = [...best.values()].sort((a, b) =>
+    compareIds(a.to, b.to) || compareRelations(a.relation, b.relation) ||
+    compareIds(a.from, b.from)
   );
-  const edges: ProductEdge[] = chosen.map((l) => ({
-    from: l.from,
-    to: l.to,
-    // TREE_LINK_KINDS filtering above guarantees one of the three kinds.
-    relation: l.kind as TreeLinkKind,
-  }));
 
-  // Children by parent, in edge order, for the reachability walk.
+  // Children by parent and the lowest-ID parent per child, in edge order.
   const childrenOf = new Map<string, string[]>();
+  const firstParent = new Map<string, string>();
   for (const e of edges) {
     const list = childrenOf.get(e.to);
     if (list) list.push(e.from);
     else childrenOf.set(e.to, [e.from]);
+    if (!firstParent.has(e.from)) firstParent.set(e.from, e.to);
   }
   const reached = new Set<string>();
   const markReached = (rootId: string) => {
@@ -268,16 +265,35 @@ export function buildProductTree(
       }
     }
   };
-  const roots = entries.map((e) => e.displayId as string).filter((id) =>
-    !hasParent.has(id)
+  const roots: string[] = entries.map((e) => e.displayId as string).filter(
+    (id) => !hasParent.has(id),
   );
   roots.forEach(markReached);
-  // An entry whose every parent chain loops back on itself has no root above
-  // it. Walk in display-ID order and promote each unreached entry to a root.
+
+  // Every unreached entry has no parentless ancestor, so walking up through
+  // first parents ends in a cycle. Promote the lowest ID of that cycle. Each
+  // entry is walked once, so the pass is linear.
+  const walked = new Set<string>();
   for (const entry of entries) {
-    if (reached.has(entry.displayId)) continue;
-    roots.push(entry.displayId);
-    markReached(entry.displayId);
+    if (reached.has(entry.displayId) || walked.has(entry.displayId)) continue;
+    const path: string[] = [];
+    const position = new Map<string, number>();
+    let cursor: string | undefined = entry.displayId;
+    while (
+      cursor !== undefined && !reached.has(cursor) && !walked.has(cursor)
+    ) {
+      walked.add(cursor);
+      position.set(cursor, path.length);
+      path.push(cursor);
+      cursor = firstParent.get(cursor);
+    }
+    const start = cursor === undefined ? undefined : position.get(cursor);
+    if (start === undefined) continue; // joins a cycle already promoted
+    const root = path.slice(start).reduce((low, id) =>
+      compareIds(id, low) < 0 ? id : low
+    );
+    roots.push(root);
+    markReached(root);
   }
 
   return {
