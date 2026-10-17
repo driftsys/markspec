@@ -250,7 +250,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).                                                                                                                                                          |
 | `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                                                                                                                                                                        |
 | `markspec mcp install`                | `mcp/server`                      | Print MCP server configuration for a client (claude-desktop, cursor, vscode).                                                                                                                                                |
-| `markspec desk --serve`               | `desk/server`                     | Hidden walking skeleton (ADR-035): loopback HTTP API for MarkDesk — product tree + one entry, nonce token, `--port 0`.                                                                                                       |
+| `markspec desk --serve`               | `desk/server`                     | Hidden walking skeleton (ADR-035): loopback MarkDesk API — product tree + one entry, nonce token, Origin allowlist (`--allow-origin`), `--port 0`.                                                                           |
 
 ### Not yet implemented
 

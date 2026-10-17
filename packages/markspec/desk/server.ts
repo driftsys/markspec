@@ -26,6 +26,8 @@ export interface DeskServerOptions {
   readonly port: number;
   /** Explicit project root. Defaults to discovery from the cwd. */
   readonly root?: string;
+  /** Extra browser origins (`URL.origin` form) added to the Tauri allowlist. */
+  readonly allowedOrigins?: readonly string[];
 }
 
 /** The line printed to stdout once the server is listening. */
@@ -65,6 +67,7 @@ export async function startDeskServer(
   const token = generateToken();
   const handler = createDeskHandler({
     token,
+    allowedOrigins: options.allowedOrigins,
     source: {
       projectRoot,
       projectName: project.config?.name,

@@ -14,6 +14,22 @@
  *
  * Every request must carry `Authorization: Bearer <token>` and a loopback
  * `Host` header (DNS-rebinding guard). Errors are `{ error: { code, message } }`.
+ *
+ * Origin policy (CORS): a request with no `Origin` header (CLI tools, curl)
+ * is unaffected. A request with an `Origin` header must name an allowed
+ * origin — {@linkcode TAURI_ORIGINS} plus `allowedOrigins` — or it gets 403
+ * `forbidden-origin`. An `OPTIONS` preflight from an allowed origin gets 204
+ * before the bearer check, because browsers send no `Authorization` header on
+ * a preflight. Every other response to an allowed origin carries
+ * `Access-Control-Allow-Origin` and `Vary: Origin`, so the UI can read error
+ * bodies too.
+ *
+ * The `Origin` check is not an authentication boundary. The per-launch nonce
+ * token is the only credential. The check only limits which browser pages can
+ * call the API: `tauri://localhost` is shared by every Tauri app on the
+ * machine, a non-browser local process can send any `Origin` value, and
+ * `--allow-origin http://localhost:5173` admits any page served on that port.
+ * Never relax the token check on the strength of the `Origin` check.
  */
 
 import { isAbsolute, relative } from "@std/path";
@@ -112,7 +128,23 @@ export interface DeskHandlerOptions {
   readonly source: DeskSource;
   /** Per-launch nonce every request must present as a bearer token. */
   readonly token: string;
+  /**
+   * Extra origins allowed in addition to {@linkcode TAURI_ORIGINS}, e.g. the
+   * Vite dev server. Values are in `URL.origin` form.
+   */
+  readonly allowedOrigins?: readonly string[];
 }
+
+/**
+ * Origins of the Tauri webview that hosts the MarkDesk UI, always allowed:
+ * `tauri://localhost` (macOS and Linux), `http://tauri.localhost` and
+ * `https://tauri.localhost` (Windows and Android).
+ */
+export const TAURI_ORIGINS: readonly string[] = [
+  "tauri://localhost",
+  "http://tauri.localhost",
+  "https://tauri.localhost",
+];
 
 /**
  * Walk a profile type's `extends:` chain to the first name the profile does
@@ -300,6 +332,10 @@ export function createDeskHandler(
   options: DeskHandlerOptions,
 ): (request: Request) => Promise<Response> {
   const { source, token } = options;
+  const allowedOrigins: ReadonlySet<string> = new Set([
+    ...TAURI_ORIGINS,
+    ...(options.allowedOrigins ?? []),
+  ]);
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     const host = (request.headers.get("host") ?? url.host).replace(
@@ -309,6 +345,33 @@ export function createDeskHandler(
     if (!LOOPBACK_HOSTS.has(host)) {
       return errorResponse(403, "forbidden-host", "Host is not loopback");
     }
+
+    const origin = request.headers.get("origin");
+    if (origin === null) return await route(request, url);
+    if (!allowedOrigins.has(origin)) {
+      return errorResponse(403, "forbidden-origin", "Origin is not allowed");
+    }
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          ...corsHeaders(origin),
+          "access-control-allow-methods": "GET, OPTIONS",
+          "access-control-allow-headers": "Authorization",
+          "access-control-max-age": "600",
+          "cache-control": "no-store",
+        },
+      });
+    }
+    const response = await route(request, url);
+    for (const [name, value] of Object.entries(corsHeaders(origin))) {
+      response.headers.set(name, value);
+    }
+    return response;
+  };
+
+  /** Bearer check, method check, and routing — the policy after Origin. */
+  async function route(request: Request, url: URL): Promise<Response> {
     if (!hasBearer(request, token)) {
       return errorResponse(401, "unauthorized", "Missing or invalid token");
     }
@@ -344,12 +407,17 @@ export function createDeskHandler(
     }
 
     return errorResponse(404, "not-found", `No route for ${url.pathname}`);
-  };
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------
+
+/** Headers that let a browser on `origin` read the response. */
+function corsHeaders(origin: string): Record<string, string> {
+  return { "access-control-allow-origin": origin, vary: "Origin" };
+}
 
 /** Constant-time bearer-token comparison. */
 function hasBearer(request: Request, token: string): boolean {

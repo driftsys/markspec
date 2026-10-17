@@ -3,7 +3,7 @@
   "info": {
     "title": "MarkDesk API",
     "version": "1",
-    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request carries that token as a bearer credential and a loopback Host header."
+    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request carries that token as a bearer credential and a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
   },
   "servers": [
     {
@@ -14,6 +14,36 @@
   "security": [{ "nonce": [] }],
   "paths": {
     "/api/v1/tree": {
+      "options": {
+        "operationId": "preflightTree",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry.",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": { "type": "string" }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, OPTIONS`.",
+                "schema": { "type": "string" }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization`.",
+                "schema": { "type": "string" }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/ForbiddenOrigin" }
+        }
+      },
       "get": {
         "operationId": "getTree",
         "summary": "The product tree",
@@ -28,11 +58,41 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/ForbiddenHost" }
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       }
     },
     "/api/v1/entries/{id}": {
+      "options": {
+        "operationId": "preflightEntry",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry.",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": { "type": "string" }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, OPTIONS`.",
+                "schema": { "type": "string" }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization`.",
+                "schema": { "type": "string" }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/ForbiddenOrigin" }
+        }
+      },
       "get": {
         "operationId": "getEntry",
         "summary": "One entry",
@@ -63,7 +123,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/ForbiddenHost" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "404": {
             "description": "No entry with that display ID or Id",
             "content": {
@@ -93,8 +153,16 @@
           }
         }
       },
-      "ForbiddenHost": {
-        "description": "Host header is not loopback (DNS-rebinding guard)",
+      "ForbiddenOrigin": {
+        "description": "Origin header is present and not in the allowlist (`forbidden-origin`)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Host is not loopback, or Origin is not allowed",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/Error" }
