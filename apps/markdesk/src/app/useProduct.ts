@@ -38,17 +38,25 @@ export interface OpenProduct {
 
 /** An error to show to the user, with optional technical details. */
 export interface ProductError {
-  kind: "not-a-product" | "failed" | "version" | "lost";
+  kind: "not-a-product" | "failed" | "version";
   message: string;
   details?: string;
 }
 
 /** State of the open flow. */
 export interface ProductState {
-  status: "start" | "opening" | "open" | "error";
-  /** Kept while an error is shown after a failed open or a lost connection. */
+  /**
+   * `launching` lasts until the recent list is read and the launch open, if
+   * any, has started. `opening` lasts while an open is in progress.
+   */
+  status: "launching" | "start" | "opening" | "open" | "error";
+  /** Kept while an error is shown or the connection is lost. */
   product?: OpenProduct;
   error?: ProductError;
+  /** `true` when the connection to `product` was lost. Independent of `error`. */
+  lost?: boolean;
+  /** Folder being opened, while `status` is `opening`. */
+  openingPath?: string;
 }
 
 /** Result of {@linkcode useProduct}. */
@@ -130,7 +138,7 @@ export function useProduct(
   bridge: ShellBridge,
   createClient: (url: string, token: string) => DeskClient = createDeskClient,
 ): ProductController {
-  const [state, setState] = useState<ProductState>({ status: "start" });
+  const [state, setState] = useState<ProductState>({ status: "launching" });
   const [recents, setRecents] = useState<RecentProduct[]>([]);
   const productRef = useRef<OpenProduct | undefined>(undefined);
   const busyRef = useRef(false);
@@ -147,25 +155,32 @@ export function useProduct(
     if (busyRef.current) return;
     busyRef.current = true;
     const previous = productRef.current;
-    setState({ status: "opening", product: previous });
+    setState((current) => ({
+      status: "opening",
+      product: previous,
+      lost: current.lost,
+      openingPath: path,
+    }));
     try {
       let opened: OpenedProduct;
       try {
         opened = await bridge.openProduct(path);
       } catch (failure) {
-        setState({
+        setState((current) => ({
           status: "error",
           product: previous,
+          lost: current.lost,
           error: describeFailure(failure),
-        });
+        }));
         return;
       }
       if (opened.apiVersion !== EXPECTED_API_VERSION) {
-        setState({
+        setState((current) => ({
           status: "error",
           product: previous,
+          lost: current.lost,
           error: { kind: "version", message: MESSAGES.versionMismatch },
-        });
+        }));
         return;
       }
       const raw = createClient(opened.url, opened.token);
@@ -174,11 +189,12 @@ export function useProduct(
         const tree = await raw.tree();
         name = tree.project.name ?? basename(opened.root);
       } catch (failure) {
-        setState({
+        setState((current) => ({
           status: "error",
           product: previous,
+          lost: current.lost,
           error: describeFailure(failure),
-        });
+        }));
         return;
       }
       try {
@@ -190,18 +206,13 @@ export function useProduct(
         root: opened.root,
         name,
         client: watchConnection(raw, () => {
-          if (productRef.current?.root !== opened.root) return;
-          setState((current) =>
-            current.status === "error" ? current : {
-              status: "error",
-              product: productRef.current,
-              error: { kind: "lost", message: MESSAGES.lostConnection },
-            }
-          );
+          // Ignore a late failure from a client of an earlier open.
+          if (productRef.current !== product) return;
+          setState((current) => ({ ...current, lost: true }));
         }),
       };
       productRef.current = product;
-      setState({ status: "open", product });
+      setState({ status: "open", product, lost: false });
       await refreshRecents();
     } finally {
       busyRef.current = false;
@@ -220,12 +231,12 @@ export function useProduct(
       if (cancelled) return;
       setRecents(list);
       if (list[0]?.exists) await open(list[0].root);
+      else setState({ status: "start" });
     })();
     return () => {
       cancelled = true;
     };
     // Launch runs once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reopen = useCallback(async () => {
@@ -233,18 +244,32 @@ export function useProduct(
     if (root !== undefined) await open(root);
   }, [open]);
 
+  const showFailure = useCallback((failure: unknown) => {
+    setState((current) => ({
+      ...current,
+      status: "error",
+      error: describeFailure(failure),
+    }));
+  }, []);
+
   const removeRecent = useCallback(async (root: string) => {
     try {
       await bridge.removeRecent(root);
-    } finally {
-      await refreshRecents();
+    } catch (failure) {
+      showFailure(failure);
+      return;
     }
-  }, [bridge, refreshRecents]);
+    await refreshRecents();
+  }, [bridge, refreshRecents, showFailure]);
 
   const pickAndOpen = useCallback(async () => {
-    const picked = await bridge.pickFolder();
-    if (picked !== null) await open(picked);
-  }, [bridge, open]);
+    try {
+      const picked = await bridge.pickFolder();
+      if (picked !== null) await open(picked);
+    } catch (failure) {
+      showFailure(failure);
+    }
+  }, [bridge, open, showFailure]);
 
   return { ...state, recents, open, reopen, removeRecent, pickAndOpen };
 }

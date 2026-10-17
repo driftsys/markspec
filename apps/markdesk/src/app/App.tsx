@@ -3,7 +3,7 @@ import { createDeskClient, type DeskClient } from "../api/client";
 import type { ShellBridge } from "../shell/bridge";
 import { ProductMenu } from "./ProductMenu";
 import { ErrorDetails, StartScreen } from "./StartScreen";
-import { ProductContext, useProduct } from "./useProduct";
+import { MESSAGES, ProductContext, useProduct } from "./useProduct";
 
 /** Three-pane layout. Later tasks fill the three slots. */
 export function Workspace(props: {
@@ -41,6 +41,17 @@ export function Workspace(props: {
   );
 }
 
+/** Neutral view shown while a product opens and none is open yet. */
+function OpeningView({ path }: { path?: string }) {
+  const folder = path?.split(/[\\/]/).filter((part) => part.length > 0).pop();
+  return (
+    <main className="opening">
+      <p>Opening product…</p>
+      {folder && <small>{folder}</small>}
+    </main>
+  );
+}
+
 /** Root component: start screen until a product is open, then the workspace. */
 export function App(props: {
   bridge: ShellBridge;
@@ -58,6 +69,13 @@ export function App(props: {
   );
   const { product, error } = controller;
 
+  const busy = controller.status === "launching" ||
+    controller.status === "opening";
+
+  if (product === undefined && busy) {
+    return <OpeningView path={controller.openingPath} />;
+  }
+
   if (product === undefined) {
     return (
       <StartScreen
@@ -70,18 +88,22 @@ export function App(props: {
     );
   }
 
-  const banner = error && (
+  const banner = (error || controller.lost) && (
     <div role="alert">
-      <p>{error.message}</p>
-      {error.kind === "lost" && (
-        <button
-          type="button"
-          onClick={() => void controller.reopen()}
-        >
-          Reopen
-        </button>
+      {error && <p>{error.message}</p>}
+      {error && <ErrorDetails details={error.details} />}
+      {controller.lost && (
+        <>
+          <p>{MESSAGES.lostConnection}</p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void controller.reopen()}
+          >
+            Reopen
+          </button>
+        </>
       )}
-      <ErrorDetails details={error.details} />
     </div>
   );
 
@@ -94,6 +116,7 @@ export function App(props: {
             recents={controller.recents}
             onPick={() => void controller.pickAndOpen()}
             onOpenRecent={(root) => void controller.open(root)}
+            disabled={busy}
           />
         }
         banner={banner}

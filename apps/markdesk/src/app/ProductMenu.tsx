@@ -7,6 +7,8 @@ export function ProductMenu(props: {
   recents: RecentProduct[];
   onPick(): void;
   onOpenRecent(root: string): void;
+  /** Disables the open actions while an open is in progress. */
+  disabled?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const close = () => setExpanded(false);
@@ -26,6 +28,7 @@ export function ProductMenu(props: {
               <button
                 type="button"
                 role="menuitem"
+                disabled={props.disabled}
                 onClick={() => {
                   close();
                   props.onOpenRecent(recent.root);
@@ -39,6 +42,7 @@ export function ProductMenu(props: {
             <button
               type="button"
               role="menuitem"
+              disabled={props.disabled}
               onClick={() => {
                 close();
                 props.onPick();
