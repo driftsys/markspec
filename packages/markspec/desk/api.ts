@@ -12,24 +12,26 @@
  *   GET /api/v1/tree               → {@linkcode ProductTree}
  *   GET /api/v1/entries/{id}       → {@linkcode EntryView} (display ID or Id)
  *
- * Every request must carry `Authorization: Bearer <token>` and a loopback
- * `Host` header (DNS-rebinding guard). Errors are `{ error: { code, message } }`.
+ * Every request must carry a loopback `Host` header (DNS-rebinding guard),
+ * and every request except an allowed-origin CORS preflight must carry
+ * `Authorization: Bearer <token>`. Errors are `{ error: { code, message } }`.
  *
  * Origin policy (CORS): a request with no `Origin` header (CLI tools, curl)
  * is unaffected. A request with an `Origin` header must name an allowed
  * origin — {@linkcode TAURI_ORIGINS} plus `allowedOrigins` — or it gets 403
  * `forbidden-origin`. An `OPTIONS` preflight from an allowed origin gets 204
  * before the bearer check, because browsers send no `Authorization` header on
- * a preflight. Every other response to an allowed origin carries
- * `Access-Control-Allow-Origin` and `Vary: Origin`, so the UI can read error
- * bodies too.
+ * a preflight. Each response produced after the Origin check for an allowed origin
+ * (200, 400, 401, 404, 405) carries `Access-Control-Allow-Origin` and
+ * `Vary: Origin`, so the UI can read error bodies too. The 403 responses
+ * (`forbidden-host`, `forbidden-origin`) carry no CORS headers.
  *
  * The `Origin` check is not an authentication boundary. The per-launch nonce
  * token is the only credential. The check only limits which browser pages can
  * call the API: `tauri://localhost` is shared by every Tauri app on the
  * machine, a non-browser local process can send any `Origin` value, and
  * `--allow-origin http://localhost:5173` admits any page served on that port.
- * Never relax the token check on the strength of the `Origin` check.
+ * Never relax the token check because the `Origin` check passed.
  */
 
 import { isAbsolute, relative } from "@std/path";

@@ -345,6 +345,7 @@ Deno.test("desk api: 401 from an allowed origin is readable by the UI", async ()
     res.headers.get("access-control-allow-origin"),
     "tauri://localhost",
   );
+  assertEquals(res.headers.get("vary"), "Origin");
   await res.body?.cancel();
 });
 
@@ -398,5 +399,95 @@ Deno.test("desk api: 404 from an allowed origin carries CORS headers", async () 
     "tauri://localhost",
   );
   assertEquals(res.headers.get("vary"), "Origin");
+  await res.body?.cancel();
+});
+
+function preflight(origin: string, headers: HeadersInit = {}): Request {
+  return new Request(`${BASE}/api/v1/tree`, {
+    method: "OPTIONS",
+    headers: { origin, ...headers },
+  });
+}
+
+Deno.test("desk api: allowedOrigins adds to the Tauri origins, not replaces", async () => {
+  const res = await (await handler(["http://localhost:5173"]))(
+    preflight("tauri://localhost"),
+  );
+  assertEquals(res.status, 204);
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: preflight from https://tauri.localhost is 204", async () => {
+  const res = await (await handler())(preflight("https://tauri.localhost"));
+  assertEquals(res.status, 204);
+  assertEquals(
+    res.headers.get("access-control-allow-origin"),
+    "https://tauri.localhost",
+  );
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: near-miss Tauri origins are 403 forbidden-origin", async () => {
+  const nearMisses = [
+    "tauri://localhost/",
+    "TAURI://localhost",
+    "http://tauri.localhost.evil.example",
+    "tauri://localhost:1",
+  ];
+  for (const origin of nearMisses) {
+    const res = await (await handler())(preflight(origin));
+    assertEquals(res.status, 403, origin);
+    assertEquals((await res.json()).error.code, "forbidden-origin", origin);
+  }
+});
+
+Deno.test("desk api: Host guard runs before the preflight answer", async () => {
+  const res = await (await handler())(
+    preflight("tauri://localhost", { host: "evil.example" }),
+  );
+  assertEquals(res.status, 403);
+  assertEquals((await res.json()).error.code, "forbidden-host");
+});
+
+Deno.test("desk api: 405 from an allowed origin carries CORS headers", async () => {
+  const res = await (await handler())(
+    get("/api/v1/tree", {
+      method: "POST",
+      headers: { origin: "tauri://localhost" },
+    }),
+  );
+  assertEquals(res.status, 405);
+  assertEquals(
+    res.headers.get("access-control-allow-origin"),
+    "tauri://localhost",
+  );
+  assertEquals(res.headers.get("vary"), "Origin");
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: forbidden-origin 403 carries no CORS headers", async () => {
+  const res = await (await handler())(
+    get("/api/v1/tree", { headers: { origin: "http://evil.example" } }),
+  );
+  assertEquals(res.status, 403);
+  assertEquals(res.headers.get("access-control-allow-origin"), null);
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: Origin check runs before the bearer check", async () => {
+  const res = await (await handler())(
+    new Request(`${BASE}/api/v1/tree`, {
+      headers: { origin: "http://evil.example" },
+    }),
+  );
+  assertEquals(res.status, 403);
+  assertEquals((await res.json()).error.code, "forbidden-origin");
+});
+
+Deno.test("desk api: OPTIONS without Origin and with a valid token is 405", async () => {
+  const res = await (await handler())(
+    get("/api/v1/tree", { method: "OPTIONS" }),
+  );
+  assertEquals(res.status, 405);
   await res.body?.cancel();
 });

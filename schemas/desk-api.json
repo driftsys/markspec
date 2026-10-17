@@ -3,7 +3,7 @@
   "info": {
     "title": "MarkDesk API",
     "version": "1",
-    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request carries that token as a bearer credential and a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
+    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Walking skeleton: read-only, two endpoints. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
   },
   "servers": [
     {
@@ -17,7 +17,7 @@
       "options": {
         "operationId": "preflightTree",
         "summary": "CORS preflight",
-        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry.",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
         "security": [],
         "responses": {
           "204": {
@@ -41,7 +41,7 @@
               }
             }
           },
-          "403": { "$ref": "#/components/responses/ForbiddenOrigin" }
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       },
       "get": {
@@ -66,7 +66,7 @@
       "options": {
         "operationId": "preflightEntry",
         "summary": "CORS preflight",
-        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry.",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
         "security": [],
         "responses": {
           "204": {
@@ -90,7 +90,7 @@
               }
             }
           },
-          "403": { "$ref": "#/components/responses/ForbiddenOrigin" }
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       },
       "get": {
@@ -147,14 +147,6 @@
     "responses": {
       "Unauthorized": {
         "description": "Missing or invalid bearer token",
-        "content": {
-          "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
-          }
-        }
-      },
-      "ForbiddenOrigin": {
-        "description": "Origin header is present and not in the allowlist (`forbidden-origin`)",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/Error" }

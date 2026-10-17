@@ -11,10 +11,11 @@
 import { Command } from "@cliffy/command";
 
 /**
- * Normalize one `--allow-origin` value to its `URL.origin` form, or return
- * `undefined` when the value is not a bare http(s) origin. A bare origin has
- * no path (a single trailing `/` is accepted), query, fragment, or
- * credentials.
+ * Return the `URL.origin` form of one `--allow-origin` value, or `undefined`
+ * when the value is not a bare http(s) origin in canonical spelling. A single
+ * trailing `/` is removed. Any other non-canonical spelling is rejected, not
+ * normalised: a path, query, fragment, credentials, an uppercase host, or an
+ * explicit default port.
  */
 export function parseAllowOrigin(value: string): string | undefined {
   let url: URL;
