@@ -157,6 +157,18 @@ Deno.test("renderChapterHtml: known ID in prose becomes a cross-ref, not inside 
   assertStringIncludes(html, "<code>SYS_BRK_0003</code>");
 });
 
+Deno.test("renderChapterHtml: known ID before sentence punctuation becomes a cross-ref", () => {
+  const md = "See SYS_BRK_0003.\n";
+  const { html } = renderChapterHtml(md, {
+    file: "a.md",
+    knownDisplayIds: KNOWN,
+  });
+  assertStringIncludes(
+    html,
+    '<span class="cross-ref" data-display-id="SYS_BRK_0003">SYS_BRK_0003</span>.',
+  );
+});
+
 Deno.test("renderChapterHtml: known ID is matched as a whole token only", () => {
   const md = "See SYS_BRK_00031 and XSYS_BRK_0003.\n";
   const { html } = renderChapterHtml(md, {

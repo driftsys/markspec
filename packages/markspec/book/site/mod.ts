@@ -419,7 +419,7 @@ interface _HastNode {
 const _CROSS_REF_SKIP_TAGS = new Set(["code", "pre", "a"]);
 
 /** Matches a run of display-ID characters, as the LSP token grammar does. */
-const _ID_TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9._/-]*/g;
+const _ID_TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]|[A-Za-z0-9]/g;
 
 /**
  * Replace whole-token occurrences of known display IDs in text nodes with
