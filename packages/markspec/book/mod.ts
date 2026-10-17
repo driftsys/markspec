@@ -14,8 +14,12 @@ export type {
   Part,
 } from "./summary/mod.ts";
 
-export { renderChapterHtml } from "./site/mod.ts";
-export type { RenderChapterOptions, RenderChapterResult } from "./site/mod.ts";
+export { renderChapterHtml, renderEntryHtml } from "./site/mod.ts";
+export type {
+  RenderChapterOptions,
+  RenderChapterResult,
+  RenderEntryOptions,
+} from "./site/mod.ts";
 
 import { normalize } from "@std/path/posix";
 import type {

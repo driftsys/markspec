@@ -1,5 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
-import { renderChapterHtml } from "./mod.ts";
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertSnapshot } from "@std/testing/snapshot";
+import { parse } from "../../core/mod.ts";
+import { renderChapterHtml, renderEntryHtml } from "./mod.ts";
 
 Deno.test("renderChapterHtml: rewrites a same-directory chapter link's .md extension to .html", () => {
   const md = `# Overview
@@ -102,4 +104,83 @@ Deno.test("renderChapterHtml: rewrites reference-style links ([text][id] + [id]:
   ]);
   const { html } = renderChapterHtml(md, { file: "index.md", chapterSlugs });
   assertStringIncludes(html, 'href="entry-format.html"');
+});
+
+const ANCHOR_FIXTURE = `# Braking
+
+Intro mentions SYS_BRK_0003 in prose.
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  The driver shall debounce inputs, see SYS_BRK_0003.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_BRK_0003
+      Labels: ASIL-B
+`;
+
+const KNOWN = new Set(["SYS_BRK_0003"]);
+
+Deno.test("renderChapterHtml: entry block carries id and data-display-id", () => {
+  const { html } = renderChapterHtml(ANCHOR_FIXTURE, { file: "a.md" });
+  assertStringIncludes(html, 'id="entry-SRS_BRK_0001"');
+  assertStringIncludes(html, 'data-display-id="SRS_BRK_0001"');
+});
+
+Deno.test("renderChapterHtml: trace value in knownDisplayIds becomes a cross-ref", () => {
+  const { html } = renderChapterHtml(ANCHOR_FIXTURE, {
+    file: "a.md",
+    knownDisplayIds: KNOWN,
+  });
+  assertStringIncludes(
+    html,
+    '<code><span class="cross-ref" data-display-id="SYS_BRK_0003">SYS_BRK_0003</span></code>',
+  );
+});
+
+Deno.test("renderChapterHtml: unknown trace value stays plain", () => {
+  const { html } = renderChapterHtml(ANCHOR_FIXTURE, {
+    file: "a.md",
+    knownDisplayIds: new Set(),
+  });
+  assertEquals(html.includes("cross-ref"), false);
+  assertStringIncludes(html, "Satisfies: <code>SYS_BRK_0003</code>");
+});
+
+Deno.test("renderChapterHtml: known ID in prose becomes a cross-ref, not inside code", () => {
+  const md = "See SYS_BRK_0003 and `SYS_BRK_0003`.\n";
+  const { html } = renderChapterHtml(md, {
+    file: "a.md",
+    knownDisplayIds: KNOWN,
+  });
+  assertEquals(html.split('class="cross-ref"').length - 1, 1);
+  assertStringIncludes(html, "<code>SYS_BRK_0003</code>");
+});
+
+Deno.test("renderChapterHtml: known ID is matched as a whole token only", () => {
+  const md = "See SYS_BRK_00031 and XSYS_BRK_0003.\n";
+  const { html } = renderChapterHtml(md, {
+    file: "a.md",
+    knownDisplayIds: KNOWN,
+  });
+  assertEquals(html.includes("cross-ref"), false);
+});
+
+Deno.test("renderChapterHtml: without knownDisplayIds only anchors are added", async (t) => {
+  const { html } = renderChapterHtml(ANCHOR_FIXTURE, { file: "a.md" });
+  await assertSnapshot(t, html);
+});
+
+Deno.test("renderEntryHtml: renders one entry like the chapter renderer", () => {
+  const md = `- [SRS_BRK_0001] Sensor debouncing
+
+  The driver shall debounce inputs, see SYS_BRK_0003.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_BRK_0003
+`;
+  const options = { knownDisplayIds: KNOWN };
+  const { html } = renderChapterHtml(md, { file: "a.md", ...options });
+  const [entry] = parse(md, { file: "a.md" });
+  assertEquals(renderEntryHtml(entry, options), html);
 });
