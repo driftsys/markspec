@@ -6,15 +6,14 @@ pub mod recents;
 pub mod sidecar;
 
 use std::path::Path;
-use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_store::StoreExt;
 
 use handshake::Handshake;
 use recents::Recent;
-use sidecar::{OpenError, Sidecar};
+use sidecar::{OpenError, SidecarSlot};
 
 /// Store file holding the recents list, in the app-data directory.
 const RECENTS_STORE: &str = "recents.json";
@@ -37,20 +36,6 @@ pub struct RecentProduct {
     pub exists: bool,
 }
 
-/// The single live sidecar, if a product is open.
-#[derive(Default)]
-struct OpenProduct(Mutex<Option<Sidecar>>);
-
-impl OpenProduct {
-    /// Kill the live sidecar, if any.
-    fn stop(&self) {
-        let previous = self.0.lock().map(|mut slot| slot.take()).unwrap_or(None);
-        if let Some(sidecar) = previous {
-            sidecar.stop();
-        }
-    }
-}
-
 fn load_recents(app: &AppHandle) -> Result<Vec<Recent>, String> {
     let store = app.store(RECENTS_STORE).map_err(|err| err.to_string())?;
     Ok(store
@@ -70,30 +55,19 @@ fn save_recents(app: &AppHandle, list: &[Recent]) -> Result<(), String> {
 /// previous sidecar is stopped and the product root moves to the front of
 /// the recents list. On failure the previous sidecar keeps running.
 #[tauri::command]
-async fn open_product(
-    app: AppHandle,
-    state: State<'_, OpenProduct>,
-    path: String,
-) -> Result<OpenedProduct, OpenError> {
-    let started = tauri::async_runtime::spawn_blocking(move || {
+async fn open_product(app: AppHandle, path: String) -> Result<OpenedProduct, OpenError> {
+    let worker_app = app.clone();
+    let handshake = tauri::async_runtime::spawn_blocking(move || {
         let command = sidecar::markspec_command(&path)?;
-        sidecar::start(command, sidecar::HANDSHAKE_TIMEOUT)
+        worker_app
+            .state::<SidecarSlot>()
+            .open(command, sidecar::HANDSHAKE_TIMEOUT)
     })
     .await
     .map_err(|err| OpenError {
         kind: sidecar::OpenErrorKind::SpawnFailed,
         details: err.to_string(),
-    })?;
-    let (new_sidecar, handshake) = started?;
-
-    let previous = state
-        .0
-        .lock()
-        .map(|mut slot| slot.replace(new_sidecar))
-        .unwrap_or(None);
-    if let Some(sidecar) = previous {
-        sidecar.stop();
-    }
+    })??;
 
     let recorded = load_recents(&app)
         .and_then(|list| save_recents(&app, &recents::touch(list, &handshake.root)));
@@ -137,7 +111,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .manage(OpenProduct::default())
+        .manage(SidecarSlot::default())
         .invoke_handler(tauri::generate_handler![
             open_product,
             list_recents,
@@ -153,7 +127,7 @@ pub fn run() {
             | RunEvent::WindowEvent {
                 event: WindowEvent::Destroyed,
                 ..
-            } => app.state::<OpenProduct>().stop(),
+            } => app.state::<SidecarSlot>().stop(),
             _ => {}
         });
 }

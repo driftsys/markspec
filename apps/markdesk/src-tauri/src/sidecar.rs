@@ -1,6 +1,6 @@
 //! Lifecycle of the `markspec desk --serve` sidecar process.
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -66,6 +66,43 @@ impl OpenError {
         OpenError {
             kind: OpenErrorKind::SpawnFailed,
             details: details.into(),
+        }
+    }
+}
+
+/// Holds the single live sidecar of the app.
+#[derive(Default)]
+pub struct SidecarSlot(Mutex<Option<Sidecar>>);
+
+impl SidecarSlot {
+    /// Start `command` and, only when its handshake succeeds, replace the
+    /// live sidecar with it and stop the previous one. On failure the
+    /// previous sidecar keeps running.
+    pub fn open(&self, command: Command, timeout: Duration) -> Result<Handshake, OpenError> {
+        // Start without holding the lock: the handshake can take seconds.
+        let (sidecar, handshake) = start(command, timeout)?;
+        // A poisoned lock still holds a valid Option; recover it so the new
+        // sidecar is always stored rather than dropped (which would kill it).
+        let previous = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .replace(sidecar);
+        if let Some(previous) = previous {
+            previous.stop();
+        }
+        Ok(handshake)
+    }
+
+    /// Stop the live sidecar, if any.
+    pub fn stop(&self) {
+        let previous = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+        if let Some(previous) = previous {
+            previous.stop();
         }
     }
 }
@@ -142,6 +179,14 @@ pub fn start(mut command: Command, timeout: Duration) -> Result<(Sidecar, Handsh
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        /// `CREATE_NO_WINDOW`: the console sidecar of a windows-subsystem
+        /// GUI app would otherwise open a visible console window.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     let mut child = command.spawn().map_err(|err| {
         OpenError::spawn_failed(format!("could not start the markspec sidecar: {err}"))
     })?;
@@ -211,7 +256,9 @@ fn forward_stderr(
     thread::spawn(move || {
         for line in BufReader::new(stderr).lines() {
             let Ok(line) = line else { break };
-            eprintln!("[markspec] {line}");
+            // A failed write (for example EPIPE on the shell's own stderr)
+            // must not stop this thread: it keeps the sidecar's pipe drained.
+            let _ = writeln!(std::io::stderr(), "[markspec] {line}");
             if let Ok(mut text) = captured.lock() {
                 if text.len() < STDERR_CAPTURE_LIMIT {
                     text.push_str(&line);
@@ -385,6 +432,66 @@ mod tests {
             with_origin[with_origin.len() - 2..],
             ["--allow-origin", "http://localhost:5173"]
         );
+    }
+
+    impl SidecarSlot {
+        fn pid(&self) -> Option<u32> {
+            self.0
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|sidecar| sidecar.child.id())
+        }
+    }
+
+    /// Whether a process with `pid` exists (`kill -0`).
+    fn process_exists(pid: u32) -> bool {
+        Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    fn running_sidecar_script() -> String {
+        format!("echo '{LINE}'; cat > /dev/null")
+    }
+
+    #[test]
+    fn slot_failed_open_keeps_the_previous_sidecar_running() {
+        let slot = SidecarSlot::default();
+        slot.open(sh(&running_sidecar_script()), timeout())
+            .expect("first open");
+        let first = slot.pid().expect("first pid");
+        let err = slot
+            .open(
+                sh("echo 'No MarkSpec project found' >&2; exit 1"),
+                timeout(),
+            )
+            .expect_err("second open fails");
+        assert_eq!(err.kind, OpenErrorKind::NotAProduct);
+        assert_eq!(slot.pid(), Some(first));
+        assert!(process_exists(first));
+        slot.stop();
+        assert!(!process_exists(first));
+    }
+
+    #[test]
+    fn slot_successful_open_stops_the_previous_sidecar() {
+        let slot = SidecarSlot::default();
+        slot.open(sh(&running_sidecar_script()), timeout())
+            .expect("first open");
+        let first = slot.pid().expect("first pid");
+        slot.open(sh(&running_sidecar_script()), timeout())
+            .expect("second open");
+        let second = slot.pid().expect("second pid");
+        assert_ne!(first, second);
+        assert!(!process_exists(first));
+        assert!(process_exists(second));
+        slot.stop();
+        assert_eq!(slot.pid(), None);
+        assert!(!process_exists(second));
     }
 
     #[test]
