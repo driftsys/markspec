@@ -55,12 +55,43 @@ stays TypeScript. Everything lives in this repository.
   `packages/markspec/desk/` and dynamically imported by `main.ts` like the `lsp`
   and `mcp` subcommands, so no other command pays for it. It shall serve an HTTP
   and WebSocket API bound to 127.0.0.1 only, on a port chosen with `--port 0`,
-  and shall reject any request that lacks the per-launch nonce token or carries
-  a non-loopback `Host` header. It owns the workspace and index service, the
-  forge client, the agent adapters, and the secrets bridge. It ships inside the
-  one `markspec` binary rather than as an additional compile target.
+  and shall reject any request that carries a non-loopback `Host` header. It
+  shall also reject any request that lacks the per-launch nonce token, except a
+  CORS preflight answered under SAD_DESK_0011. It owns the workspace and index
+  service, the forge client, the agent adapters, and the secrets bridge. It
+  ships inside the one `markspec` binary rather than as an additional compile
+  target.
 
       Id: 01M4JXA5WQQY7VB23KBP23TRFK
+
+- [SAD_DESK_0010] Origin allowlist for browser callers
+
+  The desk backend shall reject with HTTP status 403 any request that carries an
+  `Origin` header which is not an origin passed with `--allow-origin` or one of
+  the three built-in Tauri origins: `https://tauri.localhost`,
+  `http://tauri.localhost`, and `tauri://localhost`. The backend shall not apply
+  this rejection to a request that carries no `Origin` header.
+
+      Id: 01M55JJWA39HEQ7P5T2WXAQ805
+
+- [SAD_DESK_0011] CORS preflight answered before the token check
+
+  The desk backend shall answer an `OPTIONS` request from an allowed origin with
+  HTTP status 204 before the backend checks the bearer token. The response shall
+  carry `Access-Control-Allow-Origin` set to the request `Origin`,
+  `Access-Control-Allow-Methods: GET, OPTIONS`,
+  `Access-Control-Allow-Headers: Authorization`, `Access-Control-Max-Age: 600`,
+  and `Vary: Origin`.
+
+      Id: 01M55JNXSH4RRPH8Z1SQ6M1V54
+
+The per-launch nonce token is the only credential of the desk API. The `Origin`
+check limits which browser pages can call the API; it does not authenticate the
+caller. The `tauri://localhost` origin is shared by every Tauri application on
+the machine, a non-browser local process can send any `Origin` value, and
+`--allow-origin http://localhost:5173` admits any page served on that port. The
+nonce check therefore stays mandatory and must never be relaxed because the
+`Origin` check passed.
 
 - [SAD_DESK_0003] React UI in a thin Tauri shell with the binary as sidecar
 
@@ -201,6 +232,17 @@ agents' MCP server are one file at one version, and the release pipeline is
 unchanged (toolchain-distribution spec §2). If sidecar size becomes a problem, a
 desk-only entry point is a small, local change that this decision does not
 block.
+
+### A fixed Vite dev origin, a `*` wildcard, or preflight header validation
+
+The Origin policy (SAD_DESK_0010, SAD_DESK_0011) rejected three simpler shapes.
+Always allowing `http://localhost:5173` would admit any local page on that port;
+the nonce would still protect the data, but the opt-in `--allow-origin` flag
+keeps the default policy at the Tauri origins only. Answering every preflight
+with `*` would remove the Origin check as an additional protection layer next to
+the Host guard and the nonce. Validating `Access-Control-Request-Method` and
+`Access-Control-Request-Headers` on preflight adds code without adding
+protection, because the browser enforces the response headers itself.
 
 ## Consequences
 
