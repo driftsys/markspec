@@ -180,6 +180,8 @@ jobs:
           cp tests/fixtures/in-code-tsx.tsx /tmp/smoke-project/component.tsx
           cp tests/fixtures/requirement-block.md /tmp/smoke-project/requirements.md
           ./dist/markspec compile --format json /tmp/smoke-project
+      - name: Smoke test — desk serves and stops when stdin closes
+        run: bash scripts/check_desk_binary.sh dist/markspec tests/fixtures/desk-project
 
   commits:
     name: Conventional commits

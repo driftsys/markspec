@@ -130,6 +130,8 @@ async function runDenoCompile(mirrors: readonly Mirror[]): Promise<number> {
       "--allow-run",
       "--allow-env",
       "--allow-ffi",
+      // `markspec desk --serve` listens on loopback only.
+      "--allow-net=127.0.0.1",
       ...(target ? ["--target", target] : []),
       "--include",
       "grammars/",
