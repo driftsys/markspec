@@ -64,5 +64,10 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      # Download the CLI dependencies first, so the download does not count
+      # against the 30 s sidecar handshake timeout.
+      - name: Cache markspec dependencies
+        working-directory: .
+        run: deno cache packages/markspec/main.ts
       - name: Real sidecar tests
         run: cargo test --locked -- --ignored
