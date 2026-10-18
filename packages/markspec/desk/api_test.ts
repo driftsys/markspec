@@ -1063,6 +1063,36 @@ Deno.test("toApiPath: converts Windows separators", () => {
   assertEquals(toApiPath("/p/", "docs\\a.md"), "docs/a.md");
 });
 
+Deno.test("desk api: entry location uses forward slashes for Windows paths", async () => {
+  const { compiled, profile } = await fixture;
+  const entries = new Map(compiled.entries);
+  for (const [id, entry] of compiled.entries) {
+    entries.set(id, {
+      ...entry,
+      location: {
+        ...entry.location,
+        file: `C:\\proj\\${
+          entry.location.file.slice(FIXTURE_ROOT.length + 1)
+            .replace(/\//g, "\\")
+        }`,
+      },
+    });
+  }
+  const handle = createDeskHandler({
+    token: TOKEN,
+    source: {
+      projectRoot: "C:\\proj",
+      profile,
+      getCompiled: () => Promise.resolve({ ...compiled, entries }),
+      readFile,
+    },
+  });
+  const res = await handle(get("/api/v1/entries/SYS_BRK_0001"));
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.location.file, "docs/system.md");
+});
+
 Deno.test("desk api: tree and entry carry origin for upstream entries", async () => {
   const compiled = await withUpstreamFile("hazards.md");
   const h = await handlerFor(compiled);

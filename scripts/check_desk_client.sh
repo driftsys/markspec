@@ -4,7 +4,10 @@
 
 set -euo pipefail
 
-bash apps/markdesk/scripts/gen-client.sh > /dev/null 2>&1
+if ! bash apps/markdesk/scripts/gen-client.sh > /dev/null 2>&1; then
+  echo "error: desk client generation failed — run 'npm ci' in apps/markdesk"
+  exit 1
+fi
 
 if ! git diff --quiet apps/markdesk/src/api/schema.d.ts 2>/dev/null; then
   echo "error: generated desk client is stale — run 'npm --prefix apps/markdesk run gen:client' and stage the results"

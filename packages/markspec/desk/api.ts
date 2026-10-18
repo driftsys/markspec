@@ -41,7 +41,7 @@
  * Never relax the token check because the `Origin` check passed.
  */
 
-import { isAbsolute, join, relative } from "@std/path";
+import { join } from "@std/path";
 import {
   type CompileResult,
   type EffectiveProfile,
@@ -54,6 +54,7 @@ import {
   buildEntryHtmlView,
   projectEntriesOf,
   type SourceText,
+  toApiPath,
 } from "./render.ts";
 
 export { toApiPath } from "./render.ts";
@@ -322,7 +323,7 @@ export function buildEntryView(
       value: a.value,
     })),
     location: {
-      file: isAbsolute(file) ? relative(projectRoot, file) : file,
+      file: toApiPath(projectRoot, file),
       line: entry.location.line,
       column: entry.location.column,
     },
