@@ -527,7 +527,7 @@ button[aria-pressed="true"] {
   flex: 1;
   overflow: auto;
   padding: var(--md-space-4);
-  color: var(--md-text-primary);
+  color: var(--md-text);
 }
 .settings-header {
   display: flex;
