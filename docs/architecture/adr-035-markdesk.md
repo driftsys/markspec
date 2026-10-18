@@ -292,21 +292,23 @@ navigator, and shows the whole document an entry lives in.
   in the standard install directories. A signed-out check is available for
   Claude Code and Codex (`codex login status` exits 1 when signed out and 0 when
   signed in). Copilot sign-in cannot be checked without running it, so only a
-  successful Test confirms it, and only a `failed` Test result clears that
-  confirmation. A Test returns `{ outcome, reply, error }` with `outcome` one of
-  `ok`, `usage`, `timeout`, `cancelled`, or `failed`. The Claude Code Test
-  arguments omit `--max-turns`, which the installed `claude --help` does not
-  list. The Test runs in a newly created directory with mode 0700 that must not
-  already exist. On Unix, each assistant process runs in its own process group,
-  and a timeout or cancel kills the whole group with
-  `/bin/kill -KILL --
-  -<pgid>`, because npm and Homebrew launchers start the
-  real binary as a grandchild process. On Windows only the direct child is
-  killed (Windows testing is #838). None of the three CLIs offers a folder-trust
-  skip flag in its help output. The UI never receives an error field from the
-  assistant provider: a failed detection shows the three assistants as not
-  installed with the detail "Detection failed", and a failed settings load uses
-  the defaults. Settings is reachable only from an open product.
+  successful Test confirms it, and a `failed` Test result clears that
+  confirmation. A Test that ends normally without a reply is reported as
+  `failed` but leaves the confirmation unchanged. A Test returns
+  `{ outcome, reply, error }` with `outcome` one of `ok`, `usage`, `timeout`,
+  `cancelled`, or `failed`. The Claude Code Test arguments omit `--max-turns`,
+  which the installed `claude --help` does not list. The Test runs in a newly
+  created directory with mode 0700 that must not already exist. On Unix, each
+  assistant process runs in its own process group, and a timeout or cancel kills
+  the whole group with `/bin/kill -KILL --
+  -<pgid>`, because npm and Homebrew
+  launchers start the real binary as a grandchild process. On Windows only the
+  direct child is killed (Windows testing is #838). None of the three CLIs
+  offers a folder-trust skip flag in its help output. The UI never receives an
+  error field from the assistant provider: a failed detection shows the three
+  assistants as not installed with the detail "Detection failed", and a failed
+  settings load uses the defaults. Settings is reachable only from an open
+  product.
 - **Visual reference.** "Rendered like the published book" means the output of
   `markspec book build` with `theme/markspec.css`, not the mdBook site, which
   does not render entry blocks (ADR-033). IBM Plex fonts are bundled as WOFF2.

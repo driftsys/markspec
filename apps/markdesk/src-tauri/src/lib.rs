@@ -224,6 +224,17 @@ async fn detect_assistants(app: AppHandle) -> Result<Vec<AssistantStatus>, Strin
 #[tauri::command]
 async fn test_assistant(app: AppHandle, id: AssistantId) -> Result<TestResult, String> {
     let state = app.state::<AssistantTestState>();
+    with_test_guard(&state, |cancel| run_assistant_test(app.clone(), id, cancel)).await
+}
+
+/// Run `body` while holding the single-Test guard of `state`. When a Test
+/// already runs, `body` is not called and the result says so. The guard is
+/// released when `body` finishes.
+async fn with_test_guard<F, Fut>(state: &AssistantTestState, body: F) -> Result<TestResult, String>
+where
+    F: FnOnce(Arc<AtomicBool>) -> Fut,
+    Fut: std::future::Future<Output = Result<TestResult, String>>,
+{
     let cancel = Arc::clone(&state.cancel);
     let Some(_guard) = TestGuard::start(&state.running, &cancel) else {
         return Ok(TestResult {
@@ -232,6 +243,15 @@ async fn test_assistant(app: AppHandle, id: AssistantId) -> Result<TestResult, S
             error: Some(TEST_ALREADY_RUNNING.to_string()),
         });
     };
+    body(cancel).await
+}
+
+/// Find the assistant, run the Test, and store what the result changes.
+async fn run_assistant_test(
+    app: AppHandle,
+    id: AssistantId,
+    cancel: Arc<AtomicBool>,
+) -> Result<TestResult, String> {
     let settings = load_assistant_settings(&app)?;
     let home = app.path().home_dir().map_err(|err| err.to_string())?;
     let probe = probe_from_settings(&home, &settings);
@@ -257,15 +277,28 @@ async fn test_assistant(app: AppHandle, id: AssistantId) -> Result<TestResult, S
     .await
     .map_err(|err| err.to_string())?;
 
-    if id == AssistantId::Copilot {
-        // Read the settings again so a change made while the Test ran is
-        // not overwritten.
-        let latest = load_assistant_settings(&app)?;
-        if let Some(next) = assistant_settings::settings_after_test(&latest, id, &run) {
-            save_assistant_settings(&app, &next)?;
-        }
-    }
+    store_settings_after_test(
+        || load_assistant_settings(&app),
+        |next| save_assistant_settings(&app, next),
+        id,
+        &run,
+    )?;
     Ok(run.result)
+}
+
+/// Store what a finished Test of `id` changes. `load` reads the settings
+/// again, so a change made while the Test ran is not overwritten.
+fn store_settings_after_test(
+    load: impl FnOnce() -> Result<AssistantSettings, String>,
+    save: impl FnOnce(&AssistantSettings) -> Result<(), String>,
+    id: AssistantId,
+    run: &assistants::TestRun,
+) -> Result<(), String> {
+    let latest = load()?;
+    match assistant_settings::settings_after_test(&latest, id, run) {
+        Some(next) => save(&next),
+        None => Ok(()),
+    }
 }
 
 /// Stop the running Test, if any.
@@ -286,8 +319,22 @@ fn get_assistant_settings(app: AppHandle) -> Result<AssistantSettings, String> {
 /// only a Test changes.
 #[tauri::command]
 fn set_assistant_settings(app: AppHandle, settings: AssistantSettings) -> Result<(), String> {
-    let stored = load_assistant_settings(&app)?;
-    save_assistant_settings(&app, &assistant_settings::merge_from_ui(&stored, settings))
+    store_settings_from_ui(
+        || load_assistant_settings(&app),
+        |merged| save_assistant_settings(&app, merged),
+        settings,
+    )
+}
+
+/// Store the settings the web UI sent, keeping the stored
+/// `copilot_confirmed`.
+fn store_settings_from_ui(
+    load: impl FnOnce() -> Result<AssistantSettings, String>,
+    save: impl FnOnce(&AssistantSettings) -> Result<(), String>,
+    from_ui: AssistantSettings,
+) -> Result<(), String> {
+    let stored = load()?;
+    save(&assistant_settings::merge_from_ui(&stored, from_ui))
 }
 
 /// Start the MarkDesk application.
@@ -373,20 +420,16 @@ mod tests {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn probe_from_settings_detects_confirmed_copilot_as_ready() {
+    fn detect_copilot_with(confirmed: bool, label: &str) -> assistants::AssistantState {
         use std::os::unix::fs::PermissionsExt;
-        let dir = std::env::temp_dir().join(format!(
-            "markdesk-lib-probe-{}-{}",
-            std::process::id(),
-            line!()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("markdesk-lib-probe-{}-{label}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let bin = dir.join("copilot");
         std::fs::write(&bin, "#!/bin/sh\necho copilot 1.0\n").unwrap();
         std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
         let settings = AssistantSettings {
-            copilot_confirmed: true,
+            copilot_confirmed: confirmed,
             ..AssistantSettings::default()
         };
         let mut probe = probe_from_settings(Path::new("/nonexistent-home"), &settings);
@@ -394,7 +437,126 @@ mod tests {
         probe.path_env = None;
         probe.extra_dirs = vec![dir];
         probe.copilot_token = false;
-        let status = assistants::detect(AssistantId::Copilot, &probe);
-        assert_eq!(status.state, assistants::AssistantState::Ready);
+        assistants::detect(AssistantId::Copilot, &probe).state
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_from_settings_detects_confirmed_copilot_as_ready() {
+        assert_eq!(
+            detect_copilot_with(true, "confirmed"),
+            assistants::AssistantState::Ready
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_from_settings_detects_unconfirmed_copilot_as_needing_sign_in() {
+        assert_eq!(
+            detect_copilot_with(false, "unconfirmed"),
+            assistants::AssistantState::NeedsSignIn
+        );
+    }
+
+    fn other_settings(confirmed: bool) -> AssistantSettings {
+        AssistantSettings {
+            selected: Some(AssistantId::Codex),
+            card_dismissed: true,
+            copilot_confirmed: confirmed,
+        }
+    }
+
+    #[test]
+    fn store_settings_from_ui_keeps_stored_copilot_confirmation() {
+        let saved = std::cell::RefCell::new(None);
+        let from_ui = other_settings(false);
+        store_settings_from_ui(
+            || Ok(other_settings(true)),
+            |next| {
+                *saved.borrow_mut() = Some(next.clone());
+                Ok(())
+            },
+            from_ui,
+        )
+        .unwrap();
+        assert_eq!(saved.into_inner(), Some(other_settings(true)));
+    }
+
+    fn ok_run() -> assistants::TestRun {
+        assistants::TestRun {
+            result: TestResult {
+                outcome: TestOutcome::Ok,
+                reply: Some("ready".into()),
+                error: None,
+            },
+            no_reply: false,
+        }
+    }
+
+    #[test]
+    fn store_settings_after_test_builds_on_the_re_read_settings() {
+        // The settings changed while the Test ran: another card state.
+        let saved = std::cell::RefCell::new(None);
+        store_settings_after_test(
+            || {
+                Ok(AssistantSettings {
+                    selected: Some(AssistantId::ClaudeCode),
+                    card_dismissed: false,
+                    copilot_confirmed: false,
+                })
+            },
+            |next| {
+                *saved.borrow_mut() = Some(next.clone());
+                Ok(())
+            },
+            AssistantId::Copilot,
+            &ok_run(),
+        )
+        .unwrap();
+        assert_eq!(
+            saved.into_inner(),
+            Some(AssistantSettings {
+                selected: Some(AssistantId::ClaudeCode),
+                card_dismissed: false,
+                copilot_confirmed: true,
+            })
+        );
+    }
+
+    #[test]
+    fn store_settings_after_test_saves_nothing_when_nothing_changes() {
+        let result = store_settings_after_test(
+            || Ok(other_settings(true)),
+            |_| Err("must not save".into()),
+            AssistantId::Copilot,
+            &ok_run(),
+        );
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn with_test_guard_refuses_a_second_test_until_the_first_ends() {
+        let state = AssistantTestState::default();
+        let ran_second = std::cell::Cell::new(false);
+        let outer = tauri::async_runtime::block_on(with_test_guard(&state, |_| async {
+            let inner = with_test_guard(&state, |_| async {
+                ran_second.set(true);
+                Ok(ok_run().result)
+            })
+            .await
+            .unwrap();
+            assert_eq!(inner.outcome, TestOutcome::Failed);
+            assert_eq!(inner.error.as_deref(), Some(TEST_ALREADY_RUNNING));
+            Ok(ok_run().result)
+        }))
+        .unwrap();
+        assert_eq!(outer.outcome, TestOutcome::Ok);
+        assert!(!ran_second.get());
+        assert!(!state.running.load(Ordering::SeqCst));
+        let third = tauri::async_runtime::block_on(with_test_guard(&state, |_| async {
+            Ok(ok_run().result)
+        }))
+        .unwrap();
+        assert_eq!(third.outcome, TestOutcome::Ok);
     }
 }

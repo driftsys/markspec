@@ -1304,6 +1304,57 @@ mod tests {
     }
 
     #[test]
+    fn run_test_failure_with_stderr_is_not_a_no_reply_failure() {
+        let run = run_fake_test_run("stderr-flag", "echo 'Not logged in' >&2; exit 1");
+        assert_eq!(run.result.outcome, TestOutcome::Failed);
+        assert!(!run.no_reply);
+    }
+
+    #[test]
+    fn run_test_spawn_error_is_not_a_no_reply_failure() {
+        let dir = scratch_dir("spawn-error");
+        let cancel = AtomicBool::new(false);
+        let run = run_test(
+            AssistantId::ClaudeCode,
+            &dir.join("missing"),
+            None,
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(run.result.outcome, TestOutcome::Failed);
+        assert!(run
+            .result
+            .error
+            .unwrap()
+            .starts_with("could not run the test"));
+        assert!(!run.no_reply);
+    }
+
+    #[test]
+    fn run_test_gives_path_to_the_process() {
+        let dir = scratch_dir("path-forward");
+        // `fakenode` exists only in `dir`, so the script runs only when
+        // `run_test` hands `path` to the process.
+        let interpreter = dir.join("fakenode");
+        std::fs::write(&interpreter, "#!/bin/sh\necho ready\n").unwrap();
+        std::fs::set_permissions(&interpreter, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let cli = dir.join("cli");
+        std::fs::write(&cli, "#!/usr/bin/env fakenode\n").unwrap();
+        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let path = child_path(None, std::slice::from_ref(&dir)).unwrap();
+        let cancel = AtomicBool::new(false);
+        let run = run_test(
+            AssistantId::ClaudeCode,
+            &cli,
+            Some(path.as_os_str()),
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(run.result.outcome, TestOutcome::Ok);
+        assert_eq!(run.result.reply.as_deref(), Some("ready"));
+    }
+
+    #[test]
     fn run_test_returns_reply_and_kills_grandchild_holding_stdout() {
         let dir = scratch_dir("held-stdout");
         let pidfile = dir.join("grandchild.pid");

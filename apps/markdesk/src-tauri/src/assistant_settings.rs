@@ -86,8 +86,8 @@ pub fn merge_from_ui(stored: &AssistantSettings, from_ui: AssistantSettings) -> 
 
 /// The new `copilot_confirmed` value after a Test of Copilot ended as `run`
 /// says: `Ok` confirms, `Failed` clears, other outcomes change nothing. A
-/// `Failed` result that only means the assistant printed no reply changes
-/// nothing, because the process itself succeeded.
+/// `Failed` result that only means the assistant ended normally without a
+/// reply (`no_reply`) changes nothing, because the process itself succeeded.
 pub fn copilot_confirmed_after(current: bool, run: &TestRun) -> bool {
     if run.no_reply {
         return current;
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn only_ok_confirms_and_only_failed_clears_copilot() {
+    fn ok_confirms_and_failed_with_reply_clears_copilot() {
         assert!(copilot_confirmed_after(false, &run(TestOutcome::Ok, false)));
         assert!(!copilot_confirmed_after(
             true,
@@ -223,6 +223,31 @@ mod tests {
             card_dismissed: true,
             copilot_confirmed: confirmed,
         }
+    }
+
+    #[test]
+    fn copilot_test_keeps_another_selected_assistant() {
+        let other = |confirmed| AssistantSettings {
+            selected: Some(AssistantId::Codex),
+            card_dismissed: false,
+            copilot_confirmed: confirmed,
+        };
+        assert_eq!(
+            settings_after_test(
+                &other(false),
+                AssistantId::Copilot,
+                &run(TestOutcome::Ok, false)
+            ),
+            Some(other(true))
+        );
+        assert_eq!(
+            settings_after_test(
+                &other(true),
+                AssistantId::Copilot,
+                &run(TestOutcome::Failed, false)
+            ),
+            Some(other(false))
+        );
     }
 
     #[test]
