@@ -13,6 +13,7 @@ import {
   type DocumentView,
   type EntryView,
 } from "../api/client";
+import { fakeAssistantBridge } from "../assistant/testBridge";
 import { ProductContext } from "../app/useProduct";
 import { BridgeContext } from "../shell/BridgeContext";
 import type { ShellBridge } from "../shell/bridge";
@@ -121,6 +122,7 @@ function fakeBridge(): ShellBridge {
     removeRecent: vi.fn(),
     pickFolder: vi.fn(),
     openExternal: vi.fn(async () => {}),
+    ...fakeAssistantBridge(),
   };
 }
 

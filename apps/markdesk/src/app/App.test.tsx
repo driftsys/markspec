@@ -13,6 +13,7 @@ import type {
   RecentProduct,
   ShellBridge,
 } from "../shell/bridge";
+import { fakeAssistantBridge } from "../assistant/testBridge";
 import { App } from "./App";
 import { useSelection } from "./selection";
 import { useOpenProduct } from "./useProduct";
@@ -35,6 +36,7 @@ function fakeBridge(
     removeRecent: vi.fn(async () => {}),
     pickFolder: vi.fn(async () => null),
     openExternal: vi.fn(async () => {}),
+    ...fakeAssistantBridge(),
     ...overrides,
   };
 }
