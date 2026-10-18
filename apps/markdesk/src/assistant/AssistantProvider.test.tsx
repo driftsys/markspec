@@ -184,4 +184,61 @@ describe("AssistantProvider", () => {
     expect(bridge.detectAssistants).toHaveBeenCalledTimes(2);
     expect(seen.current?.detecting).toBe(false);
   });
+
+  it("falls back to default settings when loading them rejects", async () => {
+    const { seen } = mount({
+      getAssistantSettings: vi.fn(async () => {
+        throw new Error("store unreadable");
+      }),
+    });
+    await loaded(seen);
+    expect(seen.current?.settings).toEqual({
+      selected: null,
+      cardDismissed: false,
+      copilotConfirmed: false,
+    });
+  });
+
+  it("reports every assistant as not installed when detection rejects", async () => {
+    const { seen } = mount({
+      detectAssistants: vi.fn(async () => {
+        throw new Error("no shell");
+      }),
+    });
+    await loaded(seen);
+    expect(seen.current?.detecting).toBe(false);
+    expect(seen.current?.statuses).toEqual(
+      ["claude-code", "codex", "copilot"].map((id) => ({
+        id,
+        state: "not-installed",
+        version: null,
+        detail: "Detection failed: no shell",
+      })),
+    );
+  });
+
+  it("runTest turns a rejected testAssistant into a failed result", async () => {
+    const { seen } = mount({
+      testAssistant: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+    });
+    await loaded(seen);
+    await act(() => seen.current!.runTest());
+    expect(seen.current?.test).toEqual({
+      running: false,
+      result: { outcome: "failed", reply: null, error: "boom" },
+    });
+  });
+
+  it("select leaves the settings unchanged when storing rejects", async () => {
+    const { seen } = mount({
+      setAssistantSettings: vi.fn(async () => {
+        throw new Error("disk full");
+      }),
+    });
+    await loaded(seen);
+    await act(() => seen.current!.select("codex"));
+    expect(seen.current?.settings).toEqual(SETTINGS);
+  });
 });

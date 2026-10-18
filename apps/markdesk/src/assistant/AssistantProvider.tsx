@@ -16,7 +16,11 @@ import type {
 } from "../shell/bridge";
 import { useBridge } from "../shell/BridgeContext";
 
-/** Assistant detection, the stored choice, and the Test state. */
+/**
+ * Assistant detection, the stored choice, and the Test state. No method
+ * rejects: bridge failures become state (a failed Test result, not-installed
+ * statuses with a detail) or leave the state unchanged.
+ */
 export interface AssistantController {
   /** `undefined` until the first detection returns. */
   statuses: AssistantStatus[] | undefined;
@@ -30,6 +34,18 @@ export interface AssistantController {
   /** Tests the selected assistant. No-op when none is selected or a Test runs. */
   runTest(): Promise<void>;
   cancelTest(): Promise<void>;
+}
+
+const ASSISTANT_IDS: AssistantId[] = ["claude-code", "codex", "copilot"];
+
+const DEFAULT_SETTINGS: AssistantSettings = {
+  selected: null,
+  cardDismissed: false,
+  copilotConfirmed: false,
+};
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 const AssistantContext = createContext<AssistantController | undefined>(
@@ -54,6 +70,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setDetecting(true);
     try {
       setStatuses(await bridge.detectAssistants());
+    } catch (error) {
+      setStatuses(ASSISTANT_IDS.map((id) => ({
+        id,
+        state: "not-installed" as const,
+        version: null,
+        detail: `Detection failed: ${messageOf(error)}`,
+      })));
     } finally {
       setDetecting(false);
     }
@@ -62,17 +85,26 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     void recheck();
-    bridge.getAssistantSettings().then((stored) => {
-      if (active) setSettings(stored);
-    });
+    bridge.getAssistantSettings().then(
+      (stored) => {
+        if (active) setSettings(stored);
+      },
+      () => {
+        if (active) setSettings(DEFAULT_SETTINGS);
+      },
+    );
     return () => {
       active = false;
     };
   }, [bridge, recheck]);
 
   const store = useCallback(async (next: AssistantSettings) => {
-    await bridge.setAssistantSettings(next);
-    setSettings(next);
+    try {
+      await bridge.setAssistantSettings(next);
+      setSettings(next);
+    } catch {
+      // The stored choice did not change, so the local state stays as it is.
+    }
   }, [bridge]);
 
   const select = useCallback(async (id: AssistantId | null) => {
@@ -92,11 +124,20 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setRunning(true);
     setResult(undefined);
     try {
-      setResult(await bridge.testAssistant(id));
+      try {
+        setResult(await bridge.testAssistant(id));
+      } catch (error) {
+        setResult({ outcome: "failed", reply: null, error: messageOf(error) });
+      }
       if (id === "copilot") {
         // A Copilot Test can confirm Copilot on the Rust side, which changes
-        // both the stored settings and the detected state.
-        setSettings(await bridge.getAssistantSettings());
+        // both the stored settings and the detected state. A failed re-read
+        // keeps the Test result.
+        try {
+          setSettings(await bridge.getAssistantSettings());
+        } catch {
+          // Keep the settings read earlier.
+        }
         await recheck();
       }
     } finally {
@@ -105,7 +146,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
   }, [bridge, recheck]);
 
-  const cancelTest = useCallback(() => bridge.cancelAssistantTest(), [bridge]);
+  const cancelTest = useCallback(async () => {
+    try {
+      await bridge.cancelAssistantTest();
+    } catch {
+      // Nothing to cancel, or the shell is gone; the Test result reports it.
+    }
+  }, [bridge]);
 
   const value = useMemo<AssistantController>(() => ({
     statuses,
