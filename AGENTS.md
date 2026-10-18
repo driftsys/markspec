@@ -101,8 +101,16 @@ markspec/
 │       │   └── server.ts            ← MCP protocol adapter
 │       └── desk/                    ← MarkDesk backend (ADR-035): `markspec
 │           ├── server.ts              desk --serve` loopback listener + nonce
-│           └── api.ts               ← pure Request → Response handler
-│                                      (contract: schemas/desk-api.json)
+│           ├── api.ts               ← pure Request → Response handler
+│           │                          (contract: schemas/desk-api.json)
+│           └── render.ts            ← rendered document / entry / source text
+│                                      views served by the handler
+├── apps/
+│   └── markdesk/                    ← MarkDesk desktop app (ADR-035)
+│       ├── src/                     ← React + Vite UI (typed client generated
+│       │                              from schemas/desk-api.json)
+│       └── src-tauri/               ← Tauri v2 shell: window, folder picker,
+│                                      recents store, markspec sidecar
 ├── editors/
 │   └── vscode/                      ← markspec-ide VSCode extension
 │       ├── package.json
