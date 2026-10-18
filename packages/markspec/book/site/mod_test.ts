@@ -196,3 +196,85 @@ Deno.test("renderEntryHtml: renders one entry like the chapter renderer", () => 
   const [entry] = parse(md, { file: "a.md" });
   assertEquals(renderEntryHtml(entry, options), html);
 });
+
+Deno.test("renderChapterHtml: escapes markup in an attribute value with a known ID", () => {
+  const md = `- [SRS_BRK_0001] Sensor debouncing
+
+  Body.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Satisfies: SYS_BRK_0003 <b>x</b>
+      Rationale: SYS_BRK_0003 <b>x</b>
+`;
+  const { html } = renderChapterHtml(md, {
+    file: "a.md",
+    knownDisplayIds: KNOWN,
+  });
+  assertStringIncludes(html, "&lt;b&gt;");
+  assertEquals(html.includes("<b>"), false);
+  assertStringIncludes(html, 'data-display-id="SYS_BRK_0003"');
+});
+
+const RAW_HTML_PAYLOADS = [
+  "<script>alert(1)</script>",
+  "<img src=x onerror=alert(1)>",
+];
+
+Deno.test("renderChapterHtml: never passes raw HTML from prose or an entry body through", () => {
+  for (const payload of RAW_HTML_PAYLOADS) {
+    const md = `# Title
+
+Prose ${payload} here.
+
+${payload}
+
+- [SRS_BRK_0001] Sensor debouncing
+
+  Body ${payload} text.
+
+  ${payload}
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+    const { html } = renderChapterHtml(md, {
+      file: "a.md",
+      knownDisplayIds: KNOWN,
+    });
+    assertEquals(html.includes(payload), false, payload);
+    assertEquals(html.includes("<script"), false, payload);
+    assertEquals(html.includes("<img"), false, payload);
+  }
+});
+
+Deno.test("renderEntryHtml: never passes raw HTML from an entry body through", () => {
+  for (const payload of RAW_HTML_PAYLOADS) {
+    const md = `- [SRS_BRK_0001] Sensor debouncing
+
+  Body ${payload} text.
+
+  ${payload}
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+    const [entry] = parse(md, { file: "a.md" });
+    const html = renderEntryHtml(entry, { knownDisplayIds: KNOWN });
+    assertEquals(html.includes(payload), false, payload);
+    assertEquals(html.includes("<script"), false, payload);
+    assertEquals(html.includes("<img"), false, payload);
+  }
+});
+
+Deno.test("renderChapterHtml: a known ID in link text or a fenced block is not a cross-ref", () => {
+  const md = `See [SYS_BRK_0003](x.md).
+
+\`\`\`text
+SYS_BRK_0003
+\`\`\`
+`;
+  const { html } = renderChapterHtml(md, {
+    file: "a.md",
+    knownDisplayIds: KNOWN,
+  });
+  assertEquals(html.includes("cross-ref"), false);
+  assertStringIncludes(html, ">SYS_BRK_0003</a>");
+});
