@@ -244,7 +244,8 @@ go-to-definition surfaces the authoring-experience spec relies on._
 _First release._ Everything except the assistant's answers is available: the
 navigator, the Spec view of the whole document scrolled to the entry, clickable
 links between entries, Back and Forward, and the Source drawer. The assistant
-column is present and empty. Images in documents appear as placeholders.
+column is present and empty. Images embedded in a document as `data:` images are
+shown; every other image appears as a placeholder with its alt text.
 
 ### DESK-7 · Respond to review comments — 2.0
 

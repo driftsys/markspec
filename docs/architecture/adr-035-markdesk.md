@@ -235,21 +235,26 @@ navigator, and shows the whole document an entry lives in.
   (`--exit-on-stdin-eof`). Debug builds run `packages/markspec/main.ts` with
   Deno and pass `--allow-origin http://localhost:5173`; release builds run the
   bundled binary and pass no `--allow-origin`, because the server has the Tauri
-  origins built in. The UI stops when the handshake `apiVersion` differs from
-  the one its client was generated against.
+  origins built in. The shell checks the handshake `apiVersion` before the new
+  sidecar replaces the old one: on a mismatch it stops the new sidecar, keeps
+  the current product, and reports a version mismatch. The UI repeats the check
+  against the version its client was generated against. A sidecar that exits
+  before its handshake means "not a product" only when it exits with code 1 and
+  prints "No MarkSpec project found"; any other early exit is a start failure.
 - **Rendering.** The server renders documents with the book renderer
   (`renderChapterHtml`); the UI contains no Markdown renderer. The renderer
   gives each entry block a stable anchor and wraps display IDs in a
-  cross-reference element carrying `data-display-id`: every ID in a trace
-  attribute value (found with an ID-token pattern, not a whitespace split), and
-  IDs in body prose that resolve to a known entry. `knownDisplayIds` is passed
-  only by the desk endpoints; the `markspec book build` call sites are
-  unchanged. The UI turns cross-references into navigation and opens ordinary
-  web links in the system browser.
-- **Images.** Documents are served without their images: an `<img>` is replaced
-  by a placeholder box with its alt text, including `http(s)` sources, because
-  the content security policy blocks them and an `<img>` request cannot carry
-  the bearer token.
+  cross-reference element carrying `data-display-id`: in every attribute value
+  except `Labels`, each ID token (found with an ID-token pattern, not a
+  whitespace split) that is in `knownDisplayIds`, and IDs in body prose that
+  resolve to a known entry. `knownDisplayIds` is passed only by the desk
+  endpoints; the `markspec book build` call sites are unchanged. The UI turns
+  cross-references into navigation and opens ordinary web links in the system
+  browser.
+- **Images.** Images with a `data:` source are kept. Every other `<img>`,
+  including `http(s)` sources, is replaced by a placeholder box with its alt
+  text, because the content security policy blocks remote images and an `<img>`
+  request cannot carry the bearer token.
 - **Entries from outside the product.** Federated upstream entries and
   profile-delivered entries stay in the navigator, marked with their origin.
   Selecting one shows the single-entry rendering from
@@ -272,10 +277,18 @@ navigator, and shows the whole document an entry lives in.
   `schemas/desk-api.json` (committed, checked for staleness by
   `scripts/check_desk_client.sh`), and openapi-fetch. `apps/markdesk/` is not a
   Deno workspace member. A path-filtered workflow
-  (`.github/workflows/markdesk.yaml`) type-checks, tests, and builds the UI and
-  runs `cargo check` and `cargo test` for the shell on Linux. Tests drive the UI
-  against a mocked client; there is no end-to-end test of the real window, only
-  a manual smoke test in `apps/markdesk/README.md`.
+  (`.github/workflows/markdesk.yaml`) type-checks, tests, and builds the UI,
+  runs `scripts/check_desk_client.sh`, and on Linux runs `cargo fmt --check`,
+  `cargo clippy --all-targets -- -D warnings`, `cargo test`, and
+  `cargo test -- --ignored` for the shell; the ignored tests start the real
+  sidecar from `packages/markspec/main.ts` with Deno. The main CI workflow
+  checks that the compiled `markspec` binary serves the desk handshake and stops
+  when its stdin closes. Tests drive the UI against a mocked client; there is no
+  end-to-end test of the real window, only a manual smoke test in
+  `apps/markdesk/README.md`.
+- **Known limitation.** The UI caches each rendered document for the session of
+  an opened product. A document does not refresh after its file is edited
+  outside MarkDesk until the product is opened again.
 
 ## Alternatives rejected
 

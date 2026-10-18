@@ -36,9 +36,11 @@ npm run dev
 the one-line handshake from its stdout. Debug builds run the repository's
 `packages/markspec/main.ts` with Deno and pass
 `--allow-origin http://localhost:5173`; release builds run the bundled binary.
-One sidecar runs at a time. The shell kills it when another product opens and
-when the app exits; it also keeps the sidecar's stdin open, so the sidecar exits
-if the shell dies.
+One sidecar runs at a time. When another product opens, the shell starts the new
+sidecar first and stops the old one only after the new handshake succeeds and
+reports the expected API version; on a failure the old sidecar keeps running.
+The shell also stops the sidecar when the app exits, and keeps the sidecar's
+stdin open, so the sidecar exits if the shell dies.
 
 Recently opened products are stored in `recents.json` in the app-data directory.
 

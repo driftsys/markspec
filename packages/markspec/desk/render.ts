@@ -5,8 +5,9 @@
  * HTML views of a document and of one entry. Pure over a compiled graph and
  * a file reader, so `desk/api.ts` stays free of `Deno.*` calls.
  *
- * Imports the book renderer, which only `markspec desk` loads (this module is
- * reachable from `desk/api.ts`, which `desk/server.ts` imports lazily).
+ * Only `markspec desk` loads this module: it is reachable from `desk/api.ts`,
+ * which `desk/server.ts` imports lazily. The book renderer it imports is
+ * shared with `markspec book build`.
  */
 
 import type { CompileResult, EffectiveProfile, Entry } from "../core/mod.ts";
