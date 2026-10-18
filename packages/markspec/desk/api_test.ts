@@ -216,7 +216,7 @@ Deno.test("desk api: entry by display ID carries body, attributes, links", async
   assertEquals(entry.displayId, "SYS_BRK_0001");
   assertEquals(entry.id, "01JBRK00000000000000000003");
   assertEquals(entry.kind, "Requirement");
-  assertEquals(entry.location.file, join("docs", "system.md"));
+  assertEquals(entry.location.file, "docs/system.md");
   assertEquals(entry.links.outgoing, [
     {
       kind: "satisfies",
