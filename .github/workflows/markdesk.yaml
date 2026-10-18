@@ -1,0 +1,73 @@
+name: MarkDesk
+
+on:
+  pull_request:
+    paths:
+      - "apps/markdesk/**"
+      - "schemas/desk-api.json"
+      - "scripts/check_desk_client.sh"
+      - ".github/workflows/markdesk.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: MarkDesk web UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm --prefix apps/markdesk ci
+      - run: npm --prefix apps/markdesk run typecheck
+      - run: npm --prefix apps/markdesk test
+      - run: npm --prefix apps/markdesk run build
+      - run: bash scripts/check_desk_client.sh
+
+  shell:
+    name: MarkDesk Tauri shell
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/markdesk/src-tauri
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install Tauri system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev build-essential
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/markdesk/src-tauri
+      # tauri-build requires every externalBin to exist. The real sidecar is
+      # only built for release bundles (scripts/build-sidecar.sh).
+      - name: Create placeholder sidecar binary
+        run: |
+          mkdir -p binaries
+          touch binaries/markspec-x86_64-unknown-linux-gnu
+          chmod +x binaries/markspec-x86_64-unknown-linux-gnu
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+      # The ignored tests start the real `markspec desk --serve` sidecar
+      # from the repository's main.ts with Deno.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Download the CLI dependencies first, so the download does not count
+      # against the 30 s sidecar handshake timeout.
+      - name: Cache markspec dependencies
+        working-directory: .
+        run: deno cache packages/markspec/main.ts
+      - name: Real sidecar tests
+        run: cargo test --locked -- --ignored

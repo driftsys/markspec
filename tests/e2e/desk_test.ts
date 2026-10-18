@@ -58,7 +58,7 @@ Deno.test({
         apiVersion: number;
       };
       assertMatch(handshake.url, /^http:\/\/127\.0\.0\.1:\d+$/);
-      assertEquals(handshake.apiVersion, 2);
+      assertEquals(handshake.apiVersion, 3);
       const auth = { authorization: `Bearer ${handshake.token}` };
 
       const anonymous = await fetch(`${handshake.url}/api/v1/tree`);
@@ -89,6 +89,18 @@ Deno.test({
         ),
         true,
       );
+
+      const noToken = await fetch(
+        `${handshake.url}/api/v1/files?path=docs/system.md`,
+      );
+      assertEquals(noToken.status, 401);
+      await noToken.body?.cancel();
+      const file = await fetch(
+        `${handshake.url}/api/v1/files?path=docs/system.md`,
+        { headers: auth },
+      );
+      assertEquals(file.status, 200);
+      assertEquals((await file.json()).path, "docs/system.md");
 
       const entry = await fetch(
         `${handshake.url}/api/v1/entries/SRS_BRK_0001`,
@@ -194,4 +206,154 @@ Deno.test("desk --serve --allow-origin: a value with a path is rejected", async 
     new TextDecoder().decode(result.stderr),
     "--allow-origin must be an origin",
   );
+});
+
+const DESK_ARGS = [
+  "run",
+  "--allow-read",
+  "--allow-write",
+  "--allow-env",
+  "--allow-net=127.0.0.1",
+  CLI_ENTRY,
+  "desk",
+  "--serve",
+  "--port",
+  "0",
+];
+
+/** Read stdout until the first newline; return the first line. */
+async function readFirstLine(
+  reader: ReadableStreamDefaultReader<string>,
+): Promise<string> {
+  let buffered = "";
+  while (!buffered.includes("\n")) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffered += chunk.value;
+  }
+  return buffered.split("\n")[0];
+}
+
+Deno.test({
+  name:
+    "desk --serve --root: a folder outside any product exits 1 without a handshake",
+  ignore: !hasNet,
+  async fn() {
+    const outside = await Deno.makeTempDir();
+    try {
+      const result = await new Deno.Command("deno", {
+        args: [...DESK_ARGS, "--root", outside],
+        cwd: fromFileUrl(new URL("../..", import.meta.url)),
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      assertEquals(result.code, 1);
+      assertEquals(new TextDecoder().decode(result.stdout), "");
+      assertStringIncludes(
+        new TextDecoder().decode(result.stderr),
+        "No MarkSpec project",
+      );
+    } finally {
+      await Deno.remove(outside, { recursive: true });
+    }
+  },
+});
+
+Deno.test({
+  name: "desk --serve --root: a subfolder opens the enclosing product",
+  ignore: !hasNet,
+  async fn() {
+    const child = new Deno.Command("deno", {
+      args: [...DESK_ARGS, "--root", `${FIXTURE_ROOT}/docs`],
+      stdout: "piped",
+      stderr: "null",
+    }).spawn();
+    const reader = child.stdout.pipeThrough(new TextDecoderStream())
+      .getReader();
+    try {
+      const handshake = JSON.parse(await readFirstLine(reader)) as {
+        root: string;
+      };
+      assertEquals(handshake.root, await Deno.realPath(FIXTURE_ROOT));
+    } finally {
+      await reader.cancel();
+      child.kill("SIGTERM");
+      await child.status;
+    }
+  },
+});
+
+Deno.test({
+  name: "desk --serve --exit-on-stdin-eof: closing stdin stops the server",
+  ignore: !hasNet,
+  async fn() {
+    const child = new Deno.Command("deno", {
+      args: [
+        ...DESK_ARGS,
+        "--root",
+        FIXTURE_ROOT,
+        "--exit-on-stdin-eof",
+      ],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "null",
+    }).spawn();
+    const reader = child.stdout.pipeThrough(new TextDecoderStream())
+      .getReader();
+    try {
+      await readFirstLine(reader);
+      await child.stdin.close();
+      const timeout = new Promise<"timeout">((r) =>
+        setTimeout(() => r("timeout"), 5000)
+      );
+      const outcome = await Promise.race([child.status, timeout]);
+      if (outcome === "timeout") {
+        child.kill("SIGKILL");
+        throw new Error("server did not exit within 5000 ms of stdin EOF");
+      }
+      assertEquals(outcome.code, 0);
+    } finally {
+      await reader.cancel().catch(() => {});
+      try {
+        child.kill("SIGKILL");
+      } catch { /* already exited */ }
+      await child.status;
+    }
+  },
+});
+
+Deno.test({
+  name:
+    "desk --serve: without --exit-on-stdin-eof, closing stdin keeps serving",
+  ignore: !hasNet,
+  async fn() {
+    const child = new Deno.Command("deno", {
+      args: [...DESK_ARGS, "--root", FIXTURE_ROOT],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "null",
+    }).spawn();
+    const reader = child.stdout.pipeThrough(new TextDecoderStream())
+      .getReader();
+    try {
+      const handshake = JSON.parse(await readFirstLine(reader)) as {
+        url: string;
+        token: string;
+      };
+      await child.stdin.close();
+      // Give a server that wrongly stops on stdin EOF the time to stop.
+      await new Promise((r) => setTimeout(r, 500));
+      const res = await fetch(`${handshake.url}/api/v1/tree`, {
+        headers: { authorization: `Bearer ${handshake.token}` },
+      });
+      assertEquals(res.status, 200);
+      assertEquals((await res.json()).apiVersion, 3);
+    } finally {
+      await reader.cancel().catch(() => {});
+      try {
+        child.kill("SIGKILL");
+      } catch { /* already exited */ }
+      await child.status;
+    }
+  },
 });

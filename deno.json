@@ -46,10 +46,16 @@
       "**/*.cts",
       "**/*.mjs",
       "**/*.cjs"
+    ],
+    "exclude": [
+      "apps/markdesk/node_modules/",
+      "apps/markdesk/dist/",
+      "apps/markdesk/src-tauri/target/"
     ]
   },
   "test": {
     "exclude": [
+      "apps/markdesk/",
       "editors/",
       "eval/",
       ".worktrees/",
@@ -58,6 +64,7 @@
   },
   "lint": {
     "exclude": [
+      "apps/markdesk/",
       "editors/",
       "eval/",
       ".worktrees/",

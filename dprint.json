@@ -27,6 +27,7 @@
     "npm",
     "CHANGELOG.md",
     "docs/examples/",
+    "apps/markdesk/package-lock.json",
     "docs/product/ast-fidelity-matrix.md"
   ],
   "plugins": [

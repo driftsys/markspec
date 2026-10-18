@@ -7,10 +7,19 @@
  * portable; `desk/server.ts` owns the listener, the nonce token, and project
  * loading.
  *
- * Walking skeleton (ADR-035): two read endpoints, no WebSocket, no writes.
+ * Read-only (ADR-035), no WebSocket, no writes.
  *
  *   GET /api/v1/tree               → {@linkcode ProductTree}
  *   GET /api/v1/entries/{id}       → {@linkcode EntryView} (display ID or Id)
+ *   GET /api/v1/entries/{id}/html  → {@linkcode EntryHtmlView}
+ *   GET /api/v1/documents?path=P   → {@linkcode DocumentView}
+ *   GET /api/v1/files?path=P       → {@linkcode SourceText}
+ *
+ * A `path` is served only when it names a Markdown or source file that holds
+ * at least one project entry (an entry with no `origin`); `/documents`
+ * additionally requires a `.md` path. The path must also be project-relative,
+ * and its real path (symlinks resolved) must lie inside the real project
+ * root. Any other path is 404 `not-found`.
  *
  * Every request must carry a loopback `Host` header (DNS-rebinding guard),
  * and every request except an allowed-origin CORS preflight must carry
@@ -34,7 +43,7 @@
  * Never relax the token check because the `Origin` check passed.
  */
 
-import { isAbsolute, relative } from "@std/path";
+import { join } from "@std/path";
 import {
   type CompileResult,
   type EffectiveProfile,
@@ -42,9 +51,19 @@ import {
   formatEntryOrigin,
   makeDisplayId,
 } from "../core/mod.ts";
+import {
+  buildDocumentView,
+  buildEntryHtmlView,
+  projectEntriesOf,
+  type SourceText,
+  toApiPath,
+} from "./render.ts";
+
+export { toApiPath } from "./render.ts";
+export type { DocumentView, EntryHtmlView, SourceText } from "./render.ts";
 
 /** Version of the desk API contract. Bumped on a breaking change. */
-export const DESK_API_VERSION = 2;
+export const DESK_API_VERSION = 3;
 
 /**
  * Link kinds that become edges of the product graph: refinement (`Satisfies`,
@@ -69,7 +88,7 @@ export interface ProductNode {
   readonly type?: string;
   /** Core type the profile type ultimately extends (`Requirement`, `Risk`, `Test`, …). */
   readonly kind?: string;
-  /** `"<profile-id>@<version>"` for delivered-corpus entries (ADR-030). */
+  /** `"<id>@<version>"` for delivered-corpus (ADR-030) and upstream entries. */
   readonly origin?: string;
 }
 
@@ -140,6 +159,13 @@ export interface DeskSource {
   readonly profile?: EffectiveProfile;
   /** Current compiled graph. Called once per request. */
   getCompiled(): Promise<CompileResult>;
+  /** Read a file by absolute path; `undefined` when it cannot be read. */
+  readFile(absolutePath: string): Promise<string | undefined>;
+  /**
+   * Resolve an absolute path to its canonical, symlink-free form;
+   * `undefined` when the path does not exist or cannot be resolved.
+   */
+  realPath(absolutePath: string): Promise<string | undefined>;
 }
 
 /** Options for {@linkcode createDeskHandler}. */
@@ -304,7 +330,7 @@ export function buildEntryView(
       value: a.value,
     })),
     location: {
-      file: isAbsolute(file) ? relative(projectRoot, file) : file,
+      file: toApiPath(projectRoot, file),
       line: entry.location.line,
       column: entry.location.column,
     },
@@ -328,6 +354,7 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set([
 ]);
 
 const ENTRY_PATH_RE = /^\/api\/v1\/entries\/([^/]+)$/;
+const ENTRY_HTML_PATH_RE = /^\/api\/v1\/entries\/([^/]+)\/html$/;
 
 /**
  * Create the desk API request handler. The handler authenticates every
@@ -376,6 +403,52 @@ export function createDeskHandler(
     return response;
   };
 
+  /** `/documents` and `/files`: allowlisted project paths only. */
+  async function servePath(url: URL): Promise<Response> {
+    const path = url.searchParams.get("path");
+    if (!path) {
+      return errorResponse(400, "bad-request", "Missing 'path' parameter");
+    }
+    const asDocument = url.pathname === "/api/v1/documents";
+    const notFound = () =>
+      errorResponse(404, "not-found", `No project file '${path}'`);
+    if (asDocument && !path.endsWith(".md")) return notFound();
+    const compiled = await source.getCompiled();
+    const entries = projectEntriesOf(compiled, source.projectRoot, path);
+    if (entries.length === 0) return notFound();
+    if (!isProjectRelative(path)) return notFound();
+    const target = join(source.projectRoot, path);
+    const [realRoot, realTarget] = await Promise.all([
+      source.realPath(source.projectRoot),
+      source.realPath(target),
+    ]);
+    if (
+      realRoot === undefined || realTarget === undefined ||
+      !isInside(realRoot, realTarget)
+    ) {
+      return notFound();
+    }
+    // Read the checked real path, not `target`: a symlink swapped after the
+    // check must not lead the read outside the root.
+    const text = await source.readFile(realTarget);
+    if (text === undefined) return notFound();
+    if (!asDocument) {
+      const body: SourceText = { apiVersion: DESK_API_VERSION, path, text };
+      return jsonResponse(200, body);
+    }
+    return jsonResponse(
+      200,
+      buildDocumentView(
+        DESK_API_VERSION,
+        compiled,
+        source.profile,
+        path,
+        entries,
+        text,
+      ),
+    );
+  }
+
   /** Bearer check, method check, and routing — the policy after Origin. */
   async function route(request: Request, url: URL): Promise<Response> {
     if (!hasBearer(request, token)) {
@@ -412,6 +485,36 @@ export function createDeskHandler(
       );
     }
 
+    if (
+      url.pathname === "/api/v1/documents" || url.pathname === "/api/v1/files"
+    ) {
+      return await servePath(url);
+    }
+
+    const htmlMatch = ENTRY_HTML_PATH_RE.exec(url.pathname);
+    if (htmlMatch) {
+      let id: string;
+      try {
+        id = decodeURIComponent(htmlMatch[1]);
+      } catch {
+        return errorResponse(400, "bad-request", "Malformed entry id");
+      }
+      const compiled = await source.getCompiled();
+      const entry = findEntry(compiled, id);
+      if (!entry) {
+        return errorResponse(404, "entry-not-found", `No entry '${id}'`);
+      }
+      return jsonResponse(
+        200,
+        buildEntryHtmlView(
+          DESK_API_VERSION,
+          compiled,
+          source.profile,
+          entry,
+        ),
+      );
+    }
+
     return errorResponse(404, "not-found", `No route for ${url.pathname}`);
   }
 }
@@ -419,6 +522,22 @@ export function createDeskHandler(
 // ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------
+
+/**
+ * Whether an API path is relative to the project root: not absolute on any
+ * platform (`/x`, `\x`, `C:x`) and free of `..` segments.
+ */
+function isProjectRelative(path: string): boolean {
+  if (/^[\\/]/.test(path) || /^[A-Za-z]:/.test(path)) return false;
+  return !path.split(/[\\/]/).includes("..");
+}
+
+/** Whether `target` is `root` itself or lies below it. Both are real paths. */
+function isInside(root: string, target: string): boolean {
+  const base = root.replace(/[\\/]+$/, "");
+  if (target === base) return true;
+  return target.startsWith(`${base}/`) || target.startsWith(`${base}\\`);
+}
 
 /** Headers that let a browser on `origin` read the response. */
 function corsHeaders(origin: string): Record<string, string> {

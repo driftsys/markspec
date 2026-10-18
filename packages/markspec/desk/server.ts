@@ -6,11 +6,11 @@
  * loopback only, guarded by a per-launch nonce token.
  *
  * Dynamically imported by `cli/commands/desk_cmd.ts`, so no other
- * subcommand pays for it. Walking skeleton: two read endpoints, no
+ * subcommand pays for it. Read endpoints only, no
  * WebSocket, no forge, no agents yet.
  *
  * Handshake: once listening, the server prints exactly one JSON line to
- * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":2}`
+ * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":3,"root":"<absolute product root>"}`
  * — which the MarkDesk shell (or a test) reads to connect. Everything else
  * goes to stderr (clig.dev: stdout for data).
  */
@@ -28,6 +28,8 @@ export interface DeskServerOptions {
   readonly root?: string;
   /** Extra browser origins (`URL.origin` form) added to the Tauri allowlist. */
   readonly allowedOrigins?: readonly string[];
+  /** Stop the server when stdin reaches end of file (app-managed sidecars). */
+  readonly exitOnStdinEof?: boolean;
 }
 
 /** The line printed to stdout once the server is listening. */
@@ -35,6 +37,8 @@ export interface DeskHandshake {
   readonly url: string;
   readonly token: string;
   readonly apiVersion: number;
+  /** Absolute, symlink-resolved path of the discovered product root. */
+  readonly root: string;
 }
 
 /** Generate a 256-bit, URL-safe nonce for this launch. */
@@ -53,9 +57,16 @@ export async function startDeskServer(
   // Desk's root precedence is `--root` > cwd. It deliberately does not
   // inherit the MCP server's MARKSPEC_PROJECT_ROOT / CLAUDE_PROJECT_DIR
   // overrides (ADR-028): the shell always launches desk with `--root`.
+  //
+  // An explicit `--root` is strict: the process cwd is replaced as well, so a
+  // folder outside any product fails instead of falling back to the cwd's
+  // product. A subfolder of a product still opens the enclosing product,
+  // because discovery walks upward from the given folder.
+  const explicitRoot = options.root ? resolve(options.root) : undefined;
   const env = {
     ...defaultEnv(),
-    rootOverrides: () => options.root ? [resolve(options.root)] : [],
+    rootOverrides: () => explicitRoot ? [explicitRoot] : [],
+    ...(explicitRoot ? { cwd: () => explicitRoot } : {}),
   };
   const project = await createProject(env);
   if (!project.markspecDetected || project.projectRoot === undefined) {
@@ -73,6 +84,20 @@ export async function startDeskServer(
       projectName: project.config?.name,
       profile: project.profile,
       getCompiled: () => project.getCompiled(),
+      readFile: async (path) => {
+        try {
+          return await Deno.readTextFile(path);
+        } catch {
+          return undefined;
+        }
+      },
+      realPath: async (path) => {
+        try {
+          return await Deno.realPath(path);
+        } catch {
+          return undefined;
+        }
+      },
     },
   });
 
@@ -87,9 +112,22 @@ export async function startDeskServer(
     url: `http://127.0.0.1:${port}`,
     token,
     apiVersion: DESK_API_VERSION,
+    root: await Deno.realPath(projectRoot),
   };
   console.log(JSON.stringify(handshake));
   console.error(`markspec desk: serving ${projectRoot} at ${handshake.url}`);
+
+  if (options.exitOnStdinEof) {
+    // Read stdin to the end, then stop the server so the process exits 0.
+    (async () => {
+      try {
+        for await (const _chunk of Deno.stdin.readable) { /* discard */ }
+      } catch { /* a read error also means the parent is gone */ }
+      try {
+        await server.shutdown();
+      } catch { /* the server may already be stopped */ }
+    })();
+  }
 
   await server.finished;
 }

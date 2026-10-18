@@ -1,0 +1,15 @@
+export const snapshot = {};
+
+snapshot[`renderChapterHtml: without knownDisplayIds only anchors are added 1`] = `
+'<h1>Braking</h1>
+<p>Intro mentions SYS_BRK_0003 in prose.</p>
+<div class="req-block hue-blue" id="entry-SRS_BRK_0001" data-display-id="SRS_BRK_0001">
+  <div class="req-title">
+    <code class="req-id">SRS_BRK_0001</code>
+    <span class="req-name">Sensor debouncing</span>
+    <span class="pill-group"><span class="pill">ASIL-B</span></span>
+  </div>
+  <div class="req-body"><p>The driver shall debounce inputs, see SYS_BRK_0003.</p></div>
+  <div class="req-meta"><span>Id: <code>01HGW2Q8MNP3RSTVWXYZABCDEF</code></span> · <span>Satisfies: <code>SYS_BRK_0003</code></span></div>
+</div>'
+`;

@@ -3,6 +3,7 @@ import {
   assertEquals,
   assertExists,
   assertNotEquals,
+  assertStringIncludes,
 } from "@std/assert";
 import { fromFileUrl, join } from "@std/path";
 import { Ajv } from "ajv";
@@ -21,6 +22,7 @@ import {
   type EntryView,
   type ProductTree,
   TAURI_ORIGINS,
+  toApiPath,
 } from "./api.ts";
 
 const FIXTURE_ROOT = fromFileUrl(
@@ -33,6 +35,14 @@ const BASE = "http://127.0.0.1:4100";
 async function readFile(path: string): Promise<string | undefined> {
   try {
     return await Deno.readTextFile(path);
+  } catch {
+    return undefined;
+  }
+}
+
+async function realPath(path: string): Promise<string | undefined> {
+  try {
+    return await Deno.realPath(path);
   } catch {
     return undefined;
   }
@@ -60,6 +70,8 @@ async function handler(allowedOrigins?: readonly string[]) {
     projectName: "io.example.braking",
     profile,
     getCompiled: () => Promise.resolve(compiled),
+    readFile,
+    realPath,
   };
   return createDeskHandler({ source, token: TOKEN, allowedOrigins });
 }
@@ -151,7 +163,7 @@ Deno.test("desk api: tree reads the product as nodes and edges", async () => {
   const tree = await res.json() as ProductTree;
   await assertMatchesSchema("ProductTree", tree);
 
-  assertEquals(tree.apiVersion, 2);
+  assertEquals(tree.apiVersion, 3);
   assertEquals(tree.project.name, "io.example.braking");
   // Nodes are sorted by display ID even though the fixture compiles in file
   // order.
@@ -204,7 +216,7 @@ Deno.test("desk api: entry by display ID carries body, attributes, links", async
   assertEquals(entry.displayId, "SYS_BRK_0001");
   assertEquals(entry.id, "01JBRK00000000000000000003");
   assertEquals(entry.kind, "Requirement");
-  assertEquals(entry.location.file, join("docs", "system.md"));
+  assertEquals(entry.location.file, "docs/system.md");
   assertEquals(entry.links.outgoing, [
     {
       kind: "satisfies",
@@ -877,4 +889,338 @@ Deno.test("desk api: OPTIONS without Origin and with a valid token is 405", asyn
   );
   assertEquals(res.status, 405);
   await res.body?.cancel();
+});
+
+// ---------------------------------------------------------------------------
+// API v3: documents, rendered entry, source text
+// ---------------------------------------------------------------------------
+
+/** Handler over an arbitrary compiled graph, reading files from the fixture. */
+async function handlerFor(
+  compiled: CompileResult,
+  readFileFn: DeskSource["readFile"] = readFile,
+) {
+  const { profile } = await fixture;
+  return createDeskHandler({
+    token: TOKEN,
+    source: {
+      projectRoot: FIXTURE_ROOT,
+      profile,
+      getCompiled: () => Promise.resolve(compiled),
+      readFile: readFileFn,
+      realPath: (p) => Promise.resolve(p),
+    },
+  });
+}
+
+/** The fixture graph with every entry of `fileSuffix` marked as upstream. */
+async function withUpstreamFile(fileSuffix: string): Promise<CompileResult> {
+  const { compiled } = await fixture;
+  const entries = new Map(compiled.entries);
+  for (const [id, entry] of compiled.entries) {
+    if (entry.location.file.endsWith(fileSuffix)) {
+      entries.set(id, {
+        ...entry,
+        origin: { kind: "upstream", upstreamId: "up", version: "1.0.0" },
+      });
+    }
+  }
+  return { ...compiled, entries };
+}
+
+Deno.test("desk api: documents renders a project Markdown file", async () => {
+  const res = await (await handler())(
+    get("/api/v1/documents?path=docs/system.md"),
+  );
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  await assertMatchesSchema("DocumentView", body);
+  assertEquals(body.path, "docs/system.md");
+  assertStringIncludes(body.html, "data-display-id");
+  assertEquals(
+    body.entries.map((e: { displayId: string }) => e.displayId),
+    ["SYS_BRK_0001", "SYS_BRK_0002", "SIT_BRK_0001"],
+  );
+  assertEquals(body.entries[0].anchor, "entry-SYS_BRK_0001");
+});
+
+Deno.test("desk api: documents renders cross-references for known targets", async () => {
+  const res = await (await handler())(
+    get("/api/v1/documents?path=docs/system.md"),
+  );
+  const body = await res.json();
+  assertStringIncludes(
+    body.html,
+    '<span class="cross-ref" data-display-id="STK_BRK_0001">STK_BRK_0001</span>',
+  );
+});
+
+Deno.test("desk api: documents rejects missing path with 400", async () => {
+  const res = await (await handler())(get("/api/v1/documents"));
+  assertEquals(res.status, 400);
+  const body = await res.json();
+  assertEquals(body.error.code, "bad-request");
+  await assertMatchesSchema("Error", body);
+});
+
+Deno.test("desk api: entries html renders one entry", async () => {
+  const res = await (await handler())(get("/api/v1/entries/SYS_BRK_0001/html"));
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  await assertMatchesSchema("EntryHtmlView", body);
+  assertEquals(body.displayId, "SYS_BRK_0001");
+  assertStringIncludes(body.html, 'data-display-id="SYS_BRK_0001"');
+  assertEquals(body.origin, undefined);
+});
+
+Deno.test("desk api: entries html resolves a percent-encoded id with a slash", async () => {
+  const compiled = await compileDocs(`- [REQ/SUB_0001] Slashed
+
+  Body.
+`);
+  assert(compiled.entries.has(makeDisplayId("REQ/SUB_0001")));
+  const res = await (await handlerFor(compiled))(
+    get(`/api/v1/entries/${encodeURIComponent("REQ/SUB_0001")}/html`),
+  );
+  assertEquals(res.status, 200);
+  assertEquals((await res.json()).displayId, "REQ/SUB_0001");
+});
+
+Deno.test("desk api: entries html answers 404 for an unknown entry", async () => {
+  const res = await (await handler())(get("/api/v1/entries/NOPE_0001/html"));
+  assertEquals(res.status, 404);
+  assertEquals((await res.json()).error.code, "entry-not-found");
+});
+
+Deno.test("desk api: entries html carries origin for an upstream entry", async () => {
+  const compiled = await withUpstreamFile("hazards.md");
+  const res = await (await handlerFor(compiled))(
+    get("/api/v1/entries/HAZ_BRK_0001/html"),
+  );
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  await assertMatchesSchema("EntryHtmlView", body);
+  assertEquals(body.origin, "up@1.0.0");
+});
+
+Deno.test("desk api: files returns the exact bytes of a project file", async () => {
+  const res = await (await handler())(get("/api/v1/files?path=docs/system.md"));
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  await assertMatchesSchema("SourceText", body);
+  assertEquals(body.path, "docs/system.md");
+  assertEquals(
+    body.text,
+    await Deno.readTextFile(join(FIXTURE_ROOT, "docs", "system.md")),
+  );
+});
+
+Deno.test("desk api: documents and files answer 404 for paths outside the allowlist", async () => {
+  const noEntries = await compileDocs("# Just prose\n");
+  const upstream = await withUpstreamFile("hazards.md");
+  const cases: [string, CompileResult | undefined, string][] = [
+    ["/api/v1/files", undefined, "../project.yaml"],
+    ["/api/v1/files", undefined, join(FIXTURE_ROOT, "docs/system.md")],
+    ["/api/v1/files", undefined, "%2e%2e%2fproject.yaml"],
+    ["/api/v1/files", undefined, "project.yaml"],
+    ["/api/v1/documents", undefined, "../project.yaml"],
+    ["/api/v1/documents", undefined, "project.yaml"],
+    ["/api/v1/files", noEntries, "docs/system.md"],
+    ["/api/v1/files", upstream, "docs/hazards.md"],
+    ["/api/v1/documents", upstream, "docs/hazards.md"],
+  ];
+  for (const [route, graph, path] of cases) {
+    const h = graph ? await handlerFor(graph) : await handler();
+    const res = await h(get(`${route}?path=${encodeURIComponent(path)}`));
+    assertEquals(res.status, 404, `${route} ${path}`);
+    const body = await res.json();
+    assertEquals(body.error.code, "not-found", `${route} ${path}`);
+  }
+  // A double-encoded value decodes once by the URL parser: still not allowed.
+  const res = await (await handler())(
+    get("/api/v1/files?path=%2e%2e%2fproject.yaml"),
+  );
+  assertEquals(res.status, 404);
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: documents requires a Markdown path, files accepts source files", async () => {
+  const compiled = await fixture.then((f) => f.compiled);
+  const [first] = [...compiled.entries.values()];
+  const rust = {
+    ...first,
+    location: { ...first.location, file: join(FIXTURE_ROOT, "src/a.rs") },
+  };
+  const graph = {
+    ...compiled,
+    entries: new Map([...compiled.entries, [makeDisplayId("RS_0001"), {
+      ...rust,
+      displayId: makeDisplayId("RS_0001"),
+    }]]),
+  };
+  const h = await handlerFor(graph, () => Promise.resolve("fn main() {}\n"));
+  const files = await h(get("/api/v1/files?path=src/a.rs"));
+  assertEquals(files.status, 200);
+  assertEquals((await files.json()).text, "fn main() {}\n");
+  const docs = await h(get("/api/v1/documents?path=src/a.rs"));
+  assertEquals(docs.status, 404);
+  await docs.body?.cancel();
+});
+
+/** The fixture graph plus one entry located at the absolute path `file`. */
+async function withEntryAt(file: string): Promise<CompileResult> {
+  const { compiled } = await fixture;
+  const [first] = [...compiled.entries.values()];
+  const id = makeDisplayId("EXTRA_0001");
+  return {
+    ...compiled,
+    entries: new Map([...compiled.entries, [id, {
+      ...first,
+      displayId: id,
+      location: { ...first.location, file },
+    }]]),
+  };
+}
+
+Deno.test("desk api: an absolute path is never joined to the project root", async () => {
+  for (const file of ["/elsewhere/notes.md", "C:/elsewhere/notes.md"]) {
+    const graph = await withEntryAt(file);
+    const read: string[] = [];
+    const h = await handlerFor(graph, (p) => {
+      read.push(p);
+      return Promise.resolve("# Notes\n");
+    });
+    for (const route of ["/api/v1/files", "/api/v1/documents"]) {
+      const res = await h(get(`${route}?path=${encodeURIComponent(file)}`));
+      assertEquals(res.status, 404, `${route} ${file}`);
+      assertEquals((await res.json()).error.code, "not-found");
+    }
+    assertEquals(read, [], file);
+  }
+});
+
+Deno.test("desk api: files and documents read the resolved real path", async () => {
+  const { compiled, profile } = await fixture;
+  const resolved = join(FIXTURE_ROOT, "docs", "resolved.md");
+  const read: string[] = [];
+  const h = createDeskHandler({
+    token: TOKEN,
+    source: {
+      projectRoot: FIXTURE_ROOT,
+      profile,
+      getCompiled: () => Promise.resolve(compiled),
+      readFile: (p) => {
+        read.push(p);
+        return Promise.resolve("# Resolved\n");
+      },
+      realPath: (p) =>
+        Promise.resolve(
+          p === join(FIXTURE_ROOT, "docs", "system.md") ? resolved : p,
+        ),
+    },
+  });
+  for (const route of ["/api/v1/files", "/api/v1/documents"]) {
+    const res = await h(get(`${route}?path=docs/system.md`));
+    assertEquals(res.status, 200, route);
+    await res.body?.cancel();
+  }
+  assertEquals(read, [resolved, resolved]);
+});
+
+Deno.test("desk api: a symlink that leaves the project root is 404", async () => {
+  const temp = await Deno.makeTempDir();
+  try {
+    const root = join(temp, "product");
+    await Deno.mkdir(join(root, "docs"), { recursive: true });
+    await Deno.writeTextFile(join(root, "docs", "inside.md"), "# Inside\n");
+    await Deno.writeTextFile(join(temp, "outside.md"), "# Secret\n");
+    await Deno.symlink(join(temp, "outside.md"), join(root, "docs", "link.md"));
+    const { compiled, profile } = await fixture;
+    const [first] = [...compiled.entries.values()];
+    const entryAt = (name: string, file: string) =>
+      [
+        makeDisplayId(name),
+        {
+          ...first,
+          displayId: makeDisplayId(name),
+          location: { ...first.location, file },
+        },
+      ] as const;
+    const graph: CompileResult = {
+      ...compiled,
+      entries: new Map([
+        entryAt("IN_0001", join(root, "docs", "inside.md")),
+        entryAt("LINK_0001", join(root, "docs", "link.md")),
+      ]),
+    };
+    const h = createDeskHandler({
+      token: TOKEN,
+      source: {
+        projectRoot: root,
+        profile,
+        getCompiled: () => Promise.resolve(graph),
+        readFile,
+        realPath,
+      },
+    });
+    const inside = await h(get("/api/v1/files?path=docs/inside.md"));
+    assertEquals(inside.status, 200);
+    assertEquals((await inside.json()).text, "# Inside\n");
+    for (const route of ["/api/v1/files", "/api/v1/documents"]) {
+      const res = await h(get(`${route}?path=docs/link.md`));
+      assertEquals(res.status, 404, route);
+      assertEquals((await res.json()).error.code, "not-found");
+    }
+  } finally {
+    await Deno.remove(temp, { recursive: true });
+  }
+});
+
+Deno.test("toApiPath: converts Windows separators", () => {
+  assertEquals(toApiPath("C:\\p", "C:\\p\\docs\\a.md"), "docs/a.md");
+  assertEquals(toApiPath("/p", "/p/docs/a.md"), "docs/a.md");
+  assertEquals(toApiPath("/p/", "docs\\a.md"), "docs/a.md");
+});
+
+Deno.test("desk api: entry location uses forward slashes for Windows paths", async () => {
+  const { compiled, profile } = await fixture;
+  const entries = new Map(compiled.entries);
+  for (const [id, entry] of compiled.entries) {
+    entries.set(id, {
+      ...entry,
+      location: {
+        ...entry.location,
+        file: `C:\\proj\\${
+          entry.location.file.slice(FIXTURE_ROOT.length + 1)
+            .replace(/\//g, "\\")
+        }`,
+      },
+    });
+  }
+  const handle = createDeskHandler({
+    token: TOKEN,
+    source: {
+      projectRoot: "C:\\proj",
+      profile,
+      getCompiled: () => Promise.resolve({ ...compiled, entries }),
+      readFile,
+      realPath,
+    },
+  });
+  const res = await handle(get("/api/v1/entries/SYS_BRK_0001"));
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.location.file, "docs/system.md");
+});
+
+Deno.test("desk api: tree and entry carry origin for upstream entries", async () => {
+  const compiled = await withUpstreamFile("hazards.md");
+  const h = await handlerFor(compiled);
+  const tree = await (await h(get("/api/v1/tree"))).json();
+  const node = tree.nodes.find((n: { displayId: string }) =>
+    n.displayId === "HAZ_BRK_0001"
+  );
+  assertEquals(node.origin, "up@1.0.0");
+  const entry = await (await h(get("/api/v1/entries/HAZ_BRK_0001"))).json();
+  assertEquals(entry.origin, "up@1.0.0");
 });

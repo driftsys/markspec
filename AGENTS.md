@@ -101,8 +101,16 @@ markspec/
 │       │   └── server.ts            ← MCP protocol adapter
 │       └── desk/                    ← MarkDesk backend (ADR-035): `markspec
 │           ├── server.ts              desk --serve` loopback listener + nonce
-│           └── api.ts               ← pure Request → Response handler
-│                                      (contract: schemas/desk-api.json)
+│           ├── api.ts               ← pure Request → Response handler
+│           │                          (contract: schemas/desk-api.json)
+│           └── render.ts            ← rendered document / entry / source text
+│                                      views served by the handler
+├── apps/
+│   └── markdesk/                    ← MarkDesk desktop app (ADR-035)
+│       ├── src/                     ← React + Vite UI (typed client generated
+│       │                              from schemas/desk-api.json)
+│       └── src-tauri/               ← Tauri v2 shell: window, folder picker,
+│                                      recents store, markspec sidecar
 ├── editors/
 │   └── vscode/                      ← markspec-ide VSCode extension
 │       ├── package.json
@@ -250,7 +258,7 @@ pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
 | `markspec lsp install`                | `lsp/server`                      | Print LSP server configuration for an editor (vscode, neovim, zed).                                                                                                                                                          |
 | `markspec mcp`                        | `mcp/server`                      | MCP server for AI agent integration (stdio JSON-RPC).                                                                                                                                                                        |
 | `markspec mcp install`                | `mcp/server`                      | Print MCP server configuration for a client (claude-desktop, cursor, vscode).                                                                                                                                                |
-| `markspec desk --serve`               | `desk/server`                     | Hidden walking skeleton (ADR-035): loopback MarkDesk API — product tree + one entry, nonce token, Origin allowlist (`--allow-origin`), `--port 0`.                                                                           |
+| `markspec desk --serve`               | `desk/server`                     | Hidden walking skeleton (ADR-035): loopback MarkDesk API — product tree, entry, rendered document, rendered entry, source text; nonce token, Origin allowlist (`--allow-origin`), `--port 0`.                                |
 
 ### Not yet implemented
 

@@ -49,6 +49,15 @@ export interface RenderChapterOptions {
    * `"index.md"`) would never match.
    */
   readonly chapterSlugs?: ReadonlyMap<string, string>;
+  /**
+   * Display IDs that exist in the project. When supplied, every whole-token
+   * occurrence of one of these IDs in prose, entry bodies, and entry
+   * attribute values becomes
+   * `<span class="cross-ref" data-display-id="X">X</span>`. Text inside
+   * `code`, `pre`, and `a` elements in prose is left untouched. When
+   * omitted, no cross-reference markup is produced.
+   */
+  readonly knownDisplayIds?: ReadonlySet<string>;
 }
 
 /** Result of rendering a chapter to HTML. */
@@ -113,7 +122,7 @@ export function renderChapterHtml(
     ? (href: string) => _resolveChapterLink(file, href, chapterSlugs)
     : undefined;
   // Built once per chapter (not per prose fragment) — see _buildProseProcessor.
-  const processor = _buildProseProcessor(rewriteLink);
+  const processor = _buildProseProcessor(rewriteLink, options.knownDisplayIds);
 
   const parts: string[] = [];
   let cursor = 0; // current position (0-based line index)
@@ -128,7 +137,14 @@ export function renderChapterHtml(
     }
 
     if (region.kind === "entry") {
-      parts.push(_entryToHtml(region.entry!, options.profile, processor));
+      parts.push(
+        _entryToHtml(
+          region.entry!,
+          options.profile,
+          processor,
+          options.knownDisplayIds,
+        ),
+      );
     } else if (region.kind === "alert") {
       const raw = lines.slice(region.start, region.end);
       parts.push(_alertToHtml(region.alertType!, raw, processor));
@@ -148,6 +164,35 @@ export function renderChapterHtml(
   }
 
   return { html: parts.join("\n") };
+}
+
+/** Options for {@linkcode renderEntryHtml}. */
+export interface RenderEntryOptions {
+  /** Active profile, if any. Drives per-entry color resolution. */
+  readonly profile?: EffectiveProfile;
+  /** Display IDs to render as cross-references; see `RenderChapterOptions`. */
+  readonly knownDisplayIds?: ReadonlySet<string>;
+}
+
+/**
+ * Render one entry as the same `req-block` markup the chapter renderer
+ * produces for it. Links in the entry body are not rewritten.
+ *
+ * @param entry - Parsed entry to render
+ * @param options - Render options
+ * @returns HTML for the entry block
+ */
+export function renderEntryHtml(
+  entry: Entry,
+  options: RenderEntryOptions = {},
+): string {
+  const processor = _buildProseProcessor(undefined, options.knownDisplayIds);
+  return _entryToHtml(
+    entry,
+    options.profile,
+    processor,
+    options.knownDisplayIds,
+  );
 }
 
 /**
@@ -342,19 +387,109 @@ interface _ProseProcessor {
  */
 function _buildProseProcessor(
   rewriteLink: ((href: string) => string | undefined) | undefined,
+  knownDisplayIds?: ReadonlySet<string>,
 ): _ProseProcessor {
-  if (!rewriteLink) return _htmlPipeline;
+  if (!rewriteLink && !knownDisplayIds) return _htmlPipeline;
   return unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(() => (tree: Root) => {
+      if (!rewriteLink) return;
       _visitLinks(tree, (node) => {
         const rewritten = rewriteLink(node.url);
         if (rewritten !== undefined) node.url = rewritten;
       });
     })
     .use(remarkRehype)
+    .use(() => (tree: _HastNode) => {
+      if (knownDisplayIds) _linkDisplayIds(tree, knownDisplayIds);
+    })
     .use(rehypeStringify);
+}
+
+/** Minimal hast node shape used by the cross-reference transform. */
+interface _HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, string>;
+  children?: _HastNode[];
+}
+
+const _CROSS_REF_SKIP_TAGS = new Set(["code", "pre", "a"]);
+
+/** Matches a run of display-ID characters, as the LSP token grammar does. */
+const _ID_TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]|[A-Za-z0-9]/g;
+
+/**
+ * Replace whole-token occurrences of known display IDs in text nodes with
+ * cross-reference `span` elements. Skips `code`, `pre`, and `a` subtrees.
+ */
+function _linkDisplayIds(
+  node: _HastNode,
+  known: ReadonlySet<string>,
+): void {
+  if (!node.children) return;
+  if (node.type === "element" && _CROSS_REF_SKIP_TAGS.has(node.tagName!)) {
+    return;
+  }
+  const next: _HastNode[] = [];
+  for (const child of node.children) {
+    if (child.type === "text") {
+      next.push(..._splitTextNode(child.value ?? "", known));
+    } else {
+      _linkDisplayIds(child, known);
+      next.push(child);
+    }
+  }
+  node.children = next;
+}
+
+function _splitTextNode(
+  text: string,
+  known: ReadonlySet<string>,
+): _HastNode[] {
+  const out: _HastNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(_ID_TOKEN_RE)) {
+    if (!known.has(m[0])) continue;
+    if (m.index > last) {
+      out.push({ type: "text", value: text.slice(last, m.index) });
+    }
+    out.push({
+      type: "element",
+      tagName: "span",
+      properties: { className: "cross-ref", "data-display-id": m[0] },
+      children: [{ type: "text", value: m[0] }],
+    });
+    last = m.index + m[0].length;
+  }
+  if (last === 0) return [{ type: "text", value: text }];
+  if (last < text.length) {
+    out.push({ type: "text", value: text.slice(last) });
+  }
+  return out;
+}
+
+/**
+ * HTML-escape an attribute value, wrapping whole-token occurrences of
+ * known display IDs in cross-reference spans.
+ */
+function _valueToHtml(
+  value: string,
+  known: ReadonlySet<string> | undefined,
+): string {
+  if (!known) return _escapeHtml(value);
+  let out = "";
+  let last = 0;
+  for (const m of value.matchAll(_ID_TOKEN_RE)) {
+    if (!known.has(m[0])) continue;
+    out += _escapeHtml(value.slice(last, m.index));
+    const id = _escapeHtml(m[0]);
+    out += `<span class="cross-ref" data-display-id="${id}">${id}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + _escapeHtml(value.slice(last));
 }
 
 function _proseToHtml(markdown: string, processor: _ProseProcessor): string {
@@ -384,6 +519,7 @@ function _entryToHtml(
   entry: Entry,
   profile: EffectiveProfile | undefined,
   processor: _ProseProcessor,
+  knownDisplayIds?: ReadonlySet<string>,
 ): string {
   const blockClass = _entryClass(entry, profile);
 
@@ -412,14 +548,15 @@ function _entryToHtml(
         .map(
           (a) =>
             `<span>${_escapeHtml(a.key)}: <code>${
-              _escapeHtml(a.value)
+              _valueToHtml(a.value, knownDisplayIds)
             }</code></span>`,
         )
         .join(" · ")
     }</div>`
     : "";
 
-  return `<div class="${blockClass}">
+  const anchor = _escapeHtml(entry.displayId);
+  return `<div class="${blockClass}" id="entry-${anchor}" data-display-id="${anchor}">
   <div class="req-title">
     <code class="req-id">${_escapeHtml(entry.displayId)}</code>
     <span class="req-name">${_escapeHtml(entry.title)}</span>
