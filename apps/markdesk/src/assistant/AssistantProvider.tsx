@@ -27,7 +27,17 @@ export interface AssistantController {
   detecting: boolean;
   /** `undefined` until the stored settings are read. */
   settings: AssistantSettings | undefined;
-  test: { running: boolean; result: AssistantTestResult | undefined };
+  /**
+   * The running flag and the last Test result. `testedId` is the assistant
+   * that last Test ran on, which can differ from the current selection when
+   * the author selects another assistant after a Test. `result` and
+   * `testedId` are `undefined` until a Test ends.
+   */
+  test: {
+    running: boolean;
+    result: AssistantTestResult | undefined;
+    testedId: AssistantId | undefined;
+  };
   recheck(): Promise<void>;
   select(id: AssistantId | null): Promise<void>;
   dismissCard(): Promise<void>;
@@ -59,7 +69,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [detecting, setDetecting] = useState(true);
   const [settings, setSettings] = useState<AssistantSettings>();
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<AssistantTestResult>();
+  // The result is kept with the assistant it tested, so a result is never
+  // shown as if it belonged to an assistant selected later.
+  const [tested, setTested] = useState<
+    { id: AssistantId; result: AssistantTestResult }
+  >();
   // The Rust side shares one cancel flag across Tests, so a second Test must
   // never start while one runs. A ref is read synchronously, unlike state.
   const runningRef = useRef(false);
@@ -122,12 +136,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     if (!id || runningRef.current) return;
     runningRef.current = true;
     setRunning(true);
-    setResult(undefined);
+    setTested(undefined);
     try {
       try {
-        setResult(await bridge.testAssistant(id));
+        setTested({ id, result: await bridge.testAssistant(id) });
       } catch (error) {
-        setResult({ outcome: "failed", reply: null, error: messageOf(error) });
+        setTested({
+          id,
+          result: { outcome: "failed", reply: null, error: messageOf(error) },
+        });
       }
       if (id === "copilot") {
         // A Copilot Test can confirm Copilot on the Rust side, which changes
@@ -158,7 +175,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     statuses,
     detecting,
     settings,
-    test: { running, result },
+    test: { running, result: tested?.result, testedId: tested?.id },
     recheck,
     select,
     dismissCard,
@@ -169,7 +186,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     detecting,
     settings,
     running,
-    result,
+    tested,
     recheck,
     select,
     dismissCard,

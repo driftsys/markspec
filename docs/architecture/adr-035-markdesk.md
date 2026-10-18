@@ -164,8 +164,10 @@ nonce check therefore stays mandatory and must never be relaxed because the
   Agents shall only propose changes; MarkDesk shall apply a change only on the
   author's explicit accept. Every write — the author's or an agent's — shall
   pass `markspec fmt` before the view refreshes. With no agent CLI installed,
-  the assistant column shall show the setup card and every other feature shall
-  still work.
+  the assistant column shall show the setup card until the author dismisses the
+  card. After the author dismisses the card, the assistant column shall show a
+  pointer to Settings. Every other feature shall still work without an agent
+  CLI.
 
       Id: 01M4JXA5WP5KAYFWTZARAGH031
 
@@ -275,8 +277,9 @@ navigator, and shows the whole document an entry lives in.
   the setup card, the column shows the card: one row per assistant with its
   state, a "Use" button for a ready assistant (and for an installed Copilot,
   whose sign-in only a Test can confirm), the sign-in command with a Copy button
-  and a "Re-check" button for a signed-out Claude Code or Codex, and an
-  "Install…" control that opens the install guide in Settings. "Not now"
+  and a "Re-check" button for any assistant in the needs-sign-in state (a
+  signed-out Claude Code or Codex, or a Copilot whose sign-in is not confirmed),
+  and an "Install…" control that opens the install guide in Settings. "Not now"
   dismisses the card and the dismissal is stored. After dismissal, the column
   shows a pointer with a "Set up" button that opens Settings. When an assistant
   is selected, the column shows its name and state ("Ready", "needs sign-in", or

@@ -161,7 +161,14 @@ describe("SettingsView", () => {
   });
 
   async function runTest(result: AssistantTestResult) {
-    mount({ settings: { selected: "claude-code" }, testResult: result });
+    await runTestAndReturn(result);
+  }
+
+  async function runTestAndReturn(result: AssistantTestResult) {
+    const mounted = mount({
+      settings: { selected: "claude-code" },
+      testResult: result,
+    });
     await screen.findByText("Ready");
     await waitFor(() =>
       expect(
@@ -170,6 +177,7 @@ describe("SettingsView", () => {
       ).toBe(false)
     );
     fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    return mounted;
   }
 
   it("Test shows the usage message", async () => {
@@ -201,6 +209,26 @@ describe("SettingsView", () => {
   it("Test shows the cancelled message", async () => {
     await runTest({ outcome: "cancelled", reply: null, error: null });
     expect(await screen.findByText("Test cancelled.")).toBeTruthy();
+  });
+
+  it("hides the Test result of another assistant after the selection changes", async () => {
+    const { bridge } = await runTestAndReturn({
+      outcome: "ok",
+      reply: "ready",
+      error: null,
+    });
+    expect(await screen.findByText("Reply: ready")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Codex" }));
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("radio", { name: "Codex" }) as HTMLInputElement)
+          .checked,
+      ).toBe(true)
+    );
+    expect(bridge.setAssistantSettings).toHaveBeenCalled();
+    expect(screen.queryByText(/Reply:/)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Claude Code" }));
+    expect(await screen.findByText("Reply: ready")).toBeTruthy();
   });
 
   it("Back calls onBack", async () => {

@@ -134,8 +134,9 @@ export function SettingsView(props: { onBack(): void; focus?: "install" }) {
             </>
           )}
         </div>
-        {!test.running && test.result && selected && (
-          <p role="status">{testMessage(test.result, selected)}</p>
+        {!test.running && test.result && test.testedId &&
+          test.testedId === selected && (
+          <p role="status">{testMessage(test.result, test.testedId)}</p>
         )}
       </section>
       <section

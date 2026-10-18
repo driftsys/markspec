@@ -125,7 +125,11 @@ describe("AssistantProvider", () => {
     await loaded(seen);
     await act(() => seen.current!.runTest());
     expect(bridge.testAssistant).toHaveBeenCalledWith("claude-code");
-    expect(seen.current?.test).toEqual({ running: false, result });
+    expect(seen.current?.test).toEqual({
+      running: false,
+      result,
+      testedId: "claude-code",
+    });
   });
 
   it("runTest is a no-op while a test is running", async () => {
@@ -228,6 +232,7 @@ describe("AssistantProvider", () => {
     expect(seen.current?.test).toEqual({
       running: false,
       result: { outcome: "failed", reply: null, error: "boom" },
+      testedId: "claude-code",
     });
   });
 
