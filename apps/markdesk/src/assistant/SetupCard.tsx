@@ -1,5 +1,5 @@
 import { useAssistants } from "./AssistantProvider";
-import { assistantName, ASSISTANTS } from "./catalog";
+import { assistantName, ASSISTANTS, STATE_LABELS } from "./catalog";
 import { CopyableCommand } from "./CopyableCommand";
 
 const COPILOT_NOTE = "Sign-in not confirmed. Sign in, then press Test.";
@@ -33,7 +33,7 @@ export function SetupCard(props: { onOpenSettings(focus?: "install"): void }) {
             (isCopilot && status.state === "needs-sign-in");
           return (
             <li key={status.id} className="setup-row">
-              <strong>{name}</strong>
+              <strong>{name}</strong> <span>{STATE_LABELS[status.state]}</span>
               {canUse && (
                 <button
                   type="button"

@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AssistantStatus } from "../shell/bridge";
 import { SetupCard } from "./SetupCard";
@@ -96,4 +102,16 @@ it("Not now dismisses the card", async () => {
       expect.objectContaining({ cardDismissed: true }),
     )
   );
+});
+
+it("shows the state label on each row", async () => {
+  mount([
+    row("claude-code", "ready"),
+    row("codex", "needs-sign-in"),
+    row("copilot", "not-installed"),
+  ]);
+  const rows = await screen.findAllByRole("listitem");
+  expect(within(rows[0]).getByText("Ready")).toBeTruthy();
+  expect(within(rows[1]).getByText("Needs sign-in")).toBeTruthy();
+  expect(within(rows[2]).getByText("Not installed")).toBeTruthy();
 });

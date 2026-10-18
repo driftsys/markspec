@@ -5,19 +5,10 @@ import {
   type AssistantInfo,
   assistantName,
   ASSISTANTS,
+  STATE_LABELS,
 } from "../assistant/catalog";
 import { useBridge } from "../shell/BridgeContext";
-import type {
-  AssistantId,
-  AssistantState,
-  AssistantTestResult,
-} from "../shell/bridge";
-
-const STATE_LABELS: Record<AssistantState, string> = {
-  "ready": "Ready",
-  "needs-sign-in": "Needs sign-in",
-  "not-installed": "Not installed",
-};
+import type { AssistantId, AssistantTestResult } from "../shell/bridge";
 
 const COPILOT_NOTE = "Sign-in not confirmed. Sign in, then press Test.";
 

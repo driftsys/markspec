@@ -1,4 +1,4 @@
-import type { AssistantId } from "../shell/bridge";
+import type { AssistantId, AssistantState } from "../shell/bridge";
 
 /** Static facts about one supported assistant CLI, for the install guide. */
 export interface AssistantInfo {
@@ -71,3 +71,10 @@ export const ASSISTANTS: readonly AssistantInfo[] = [
 export function assistantName(id: AssistantId): string {
   return ASSISTANTS.find((info) => info.id === id)?.name ?? id;
 }
+
+/** Display label of each assistant state, shared by Settings and the setup card. */
+export const STATE_LABELS: Record<AssistantState, string> = {
+  "ready": "Ready",
+  "needs-sign-in": "Needs sign-in",
+  "not-installed": "Not installed",
+};
