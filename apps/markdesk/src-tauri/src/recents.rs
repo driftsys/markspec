@@ -12,7 +12,8 @@ pub const MAX_RECENTS: usize = 10;
 pub struct Recent {
     /// Absolute product root, as reported by the sidecar handshake.
     pub root: String,
-    /// Display name chosen by the author, if any.
+    /// Project name, or folder name when the project has none. The web UI
+    /// derives it and overwrites it on each open.
     #[serde(default)]
     pub name: Option<String>,
 }
@@ -69,7 +70,8 @@ pub fn remove(list: Vec<Recent>, root: &str) -> Vec<Recent> {
     list.into_iter().filter(|r| r.root != root).collect()
 }
 
-/// Set the display name of the entry for `root`. A name that is empty after
+/// Set the name of the entry for `root` (the project name, or the folder
+/// name when the project has none). A name that is empty after
 /// trimming clears the name. Does nothing when `root` is not in `list`.
 pub fn set_name(list: Vec<Recent>, root: &str, name: &str) -> Vec<Recent> {
     let name = name.trim();

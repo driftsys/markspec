@@ -32,7 +32,8 @@ pub type OpenedProduct = Handshake;
 pub struct RecentProduct {
     /// Absolute product root.
     pub root: String,
-    /// Display name chosen by the author, if any.
+    /// Project name, or folder name when the project has none; absent until
+    /// the product is opened once.
     pub name: Option<String>,
     /// Whether the root is still a directory on disk.
     pub exists: bool,
@@ -61,6 +62,13 @@ fn save_recents(app: &AppHandle, list: &[Recent]) -> Result<(), String> {
     store.save().map_err(|err| err.to_string())
 }
 
+/// The recents list after `opened` was opened: its root moves to the front.
+/// The root is the one the sidecar discovered, which can be an ancestor of
+/// the folder the author chose.
+pub fn recents_after_open(list: Vec<Recent>, opened: &Handshake) -> Vec<Recent> {
+    recents::touch(list, &opened.root)
+}
+
 /// Start a sidecar for the product containing `path`. On success the
 /// previous sidecar is stopped and the product root moves to the front of
 /// the recents list. On failure the previous sidecar keeps running.
@@ -80,7 +88,7 @@ async fn open_product(app: AppHandle, path: String) -> Result<OpenedProduct, Ope
     })??;
 
     let recorded = load_recents(&app)
-        .and_then(|list| save_recents(&app, &recents::touch(list, &handshake.root)));
+        .and_then(|list| save_recents(&app, &recents_after_open(list, &handshake)));
     if let Err(err) = recorded {
         eprintln!("MarkDesk: could not record recent product: {err}");
     }
@@ -100,7 +108,9 @@ fn list_recents(app: AppHandle) -> Result<Vec<RecentProduct>, String> {
         .collect())
 }
 
-/// Set the display name of a recent product; a blank name clears it.
+/// Store the name of a recent product: the project name, or the folder name
+/// when the project has none. The web UI calls it on each open. A blank
+/// name clears it.
 #[tauri::command]
 fn set_product_name(app: AppHandle, root: String, name: String) -> Result<(), String> {
     let list = load_recents(&app)?;
@@ -140,4 +150,29 @@ pub fn run() {
             } => app.state::<SidecarSlot>().stop(),
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recents_after_open_records_the_discovered_root_not_the_chosen_folder() {
+        // The author chose /p/brakes/docs; the sidecar discovered /p/brakes.
+        let opened = Handshake {
+            url: "http://127.0.0.1:1".into(),
+            token: "t".into(),
+            api_version: 3,
+            root: "/p/brakes".into(),
+        };
+        let list = recents_after_open(
+            vec![Recent {
+                root: "/p/other".into(),
+                name: None,
+            }],
+            &opened,
+        );
+        let roots: Vec<&str> = list.iter().map(|r| r.root.as_str()).collect();
+        assert_eq!(roots, ["/p/brakes", "/p/other"]);
+    }
 }

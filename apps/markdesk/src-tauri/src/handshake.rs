@@ -3,6 +3,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Desk API version this shell speaks. A sidecar that reports another
+/// version is stopped before it replaces the live sidecar.
+pub const EXPECTED_API_VERSION: u32 = 3;
+
 /// The sidecar handshake: where the desk API listens, the bearer token it
 /// expects, the API version it speaks, and the product root it serves.
 ///
