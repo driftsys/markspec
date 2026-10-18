@@ -1,0 +1,516 @@
+/*
+ * MarkDesk app styles. Colours, type and metrics come from the repository
+ * tokens in theme/markspec.css: --md-* for the app chrome, --ms-* for the
+ * rendered content. Dark mode is `data-theme="dark"` on <html>.
+ */
+
+/* ── Bundled fonts (IBM Plex, SIL Open Font License, see ../fonts/OFL.txt) ── */
+
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/IBMPlexSerif-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/IBMPlexSerif-Italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("../fonts/IBMPlexSerif-SemiBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/IBMPlexSans-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/IBMPlexSans-Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("../fonts/IBMPlexSans-SemiBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/IBMPlexMono-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("../fonts/IBMPlexMono-Medium.woff2") format("woff2");
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--md-bg);
+  color: var(--md-text);
+  font-family: var(--font-sans);
+  font-size: var(--md-type-ui-size);
+  line-height: var(--md-type-ui-leading);
+}
+
+button {
+  font: inherit;
+  color: var(--md-text);
+  background: var(--md-panel);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-sm);
+  min-height: var(--md-control-dense);
+  padding: 0 var(--md-space-3);
+  cursor: pointer;
+  transition: background var(--md-motion-state);
+}
+button:hover:not(:disabled) {
+  background: var(--md-hover);
+}
+button:disabled {
+  color: var(--md-text-muted);
+  cursor: default;
+}
+button[aria-pressed="true"] {
+  background: var(--md-selected);
+}
+:focus-visible {
+  outline: 2px solid var(--md-focus);
+  outline-offset: 1px;
+}
+
+/* ── Start and opening screens ───────────────────────────────────────── */
+
+.start-screen,
+.opening {
+  max-width: 32rem;
+  margin: 15vh auto 0;
+  padding: 0 var(--md-space-6);
+}
+.start-screen h1 {
+  font-size: var(--md-type-display-size);
+  line-height: var(--md-type-display-leading);
+  font-weight: var(--md-type-display-weight);
+}
+.start-screen h2 {
+  font-size: var(--md-type-label-size);
+  font-weight: var(--md-type-label-weight);
+  letter-spacing: var(--md-type-label-tracking);
+  text-transform: uppercase;
+  color: var(--md-text-secondary);
+  margin-top: var(--md-space-8);
+}
+.start-screen ul {
+  list-style: none;
+  padding: 0;
+}
+.start-screen li {
+  padding: var(--md-space-1) 0;
+}
+.opening small {
+  color: var(--md-text-secondary);
+}
+
+/* ── Workspace layout ────────────────────────────────────────────────── */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.workspace-header {
+  display: flex;
+  align-items: center;
+  min-height: var(--md-control-header);
+  padding: 0 var(--md-space-3);
+  background: var(--md-panel);
+  border-bottom: 1px solid var(--md-border);
+}
+.workspace-banner {
+  padding: var(--md-space-2) var(--md-space-4);
+  background: var(--md-status-warn-bg);
+  color: var(--md-text);
+  border-bottom: 1px solid var(--md-border);
+}
+.workspace-banner p {
+  margin: 0 0 var(--md-space-1);
+}
+.workspace-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pane-navigator {
+  width: clamp(12rem, 24vw, 20rem);
+  flex-shrink: 0;
+  overflow: auto;
+  background: var(--md-panel);
+  border-right: 1px solid var(--md-border);
+}
+.pane-document {
+  display: flex;
+  flex: 1;
+  min-width: 16rem;
+  overflow: hidden;
+}
+.pane-assistant {
+  width: clamp(10rem, 20vw, 18rem);
+  flex-shrink: 0;
+  overflow: auto;
+  background: var(--md-panel);
+  border-left: 1px solid var(--md-border);
+}
+
+/* ── Product menu ────────────────────────────────────────────────────── */
+
+.product-menu {
+  position: relative;
+}
+.product-menu > button {
+  font-weight: var(--md-type-ui-strong-weight);
+  border-color: transparent;
+}
+.product-menu ul {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--md-space-1));
+  left: 0;
+  min-width: 16rem;
+  margin: 0;
+  padding: var(--md-space-1);
+  list-style: none;
+  background: var(--md-elevated);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-md);
+  box-shadow: var(--md-shadow-md);
+}
+.product-menu ul button {
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+.product-menu ul button:hover:not(:disabled) {
+  background: var(--md-hover);
+}
+
+/* ── Navigator ───────────────────────────────────────────────────────── */
+
+.pane-navigator > p {
+  padding: var(--md-space-3);
+  color: var(--md-text-secondary);
+}
+.navigator,
+.navigator ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.navigator {
+  padding: var(--md-space-2) 0;
+}
+.navigator ul {
+  padding-left: var(--md-space-4);
+}
+.navigator-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--md-space-2);
+  padding: var(--md-space-1) var(--md-space-3);
+  cursor: pointer;
+  border-radius: var(--md-radius-sm);
+  margin: 0 var(--md-space-1);
+}
+.navigator-row:hover {
+  background: var(--md-hover);
+}
+[aria-selected="true"] > .navigator-row {
+  background: var(--md-selected);
+}
+.navigator-row .display-id {
+  font-family: var(--font-mono);
+  font-size: var(--md-type-code-size);
+  font-weight: var(--md-type-code-id-weight);
+  white-space: nowrap;
+}
+.navigator-row .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--md-text-secondary);
+}
+.navigator-row .origin-badge {
+  margin-left: auto;
+  font-size: var(--md-type-ui-sm-size);
+  color: var(--md-text-muted);
+  white-space: nowrap;
+}
+.navigator-separator {
+  height: 1px;
+  margin: var(--md-space-1) var(--md-space-3);
+  background: var(--md-border);
+}
+
+/* Type marks: Paul Tol hues from the entry tokens, grey when unknown. */
+.type-mark {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  align-self: center;
+  background: var(--ms-entry-grey);
+}
+.type-mark[data-kind="Requirement"],
+.type-mark[data-kind="Specification"] {
+  background: var(--ms-entry-blue);
+}
+.type-mark[data-kind="Test"] {
+  background: var(--ms-entry-orange);
+}
+.type-mark[data-kind="Risk"] {
+  background: var(--ms-entry-red);
+}
+.type-mark[data-kind="Contract"],
+.type-mark[data-kind="SoftwareInterface"],
+.type-mark[data-kind="HardwareInterface"] {
+  background: var(--ms-entry-cyan);
+}
+.type-mark[data-kind="Component"],
+.type-mark[data-kind="SoftwareComponent"],
+.type-mark[data-kind="HardwareComponent"],
+.type-mark[data-kind="Unit"],
+.type-mark[data-kind="SoftwareUnit"],
+.type-mark[data-kind="HardwareUnit"] {
+  background: var(--ms-entry-teal);
+}
+.type-mark[data-kind="Record"],
+.type-mark[data-kind="Definition"] {
+  background: var(--ms-entry-purple);
+}
+
+/* ── Document pane ───────────────────────────────────────────────────── */
+
+.document-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.document-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-1);
+  padding: var(--md-space-1) var(--md-space-3);
+  background: var(--md-panel);
+  border-bottom: 1px solid var(--md-border);
+}
+.document-toolbar-spacer {
+  flex: 1;
+}
+.document-empty,
+.document-error {
+  padding: var(--md-space-6);
+  color: var(--md-text-secondary);
+}
+.document-error {
+  margin: 0;
+  color: var(--md-status-error-fg);
+  background: var(--md-status-error-bg);
+}
+.document-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.document-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--md-space-6) var(--md-page-gutter);
+}
+.document-readonly {
+  width: var(--md-page-width);
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto var(--md-space-3);
+  padding: var(--md-space-2) var(--md-space-3);
+  color: var(--md-status-info-fg);
+  background: var(--md-status-info-bg);
+  border-radius: var(--md-radius-sm);
+}
+
+/* An A4 sheet: page width and margins from the --md-page-* tokens. */
+.document-sheet {
+  width: var(--md-page-width);
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--md-page-margin);
+  background: var(--ms-bg);
+  color: var(--ms-text);
+  border: 1px solid var(--md-document-edge);
+  box-shadow: var(--md-shadow-sm);
+  font-family: var(--md-document-family);
+  font-size: var(--md-type-doc-body-size);
+  line-height: var(--md-type-doc-body-leading);
+}
+.document-content > :first-child {
+  margin-top: 0;
+}
+.document-content h1 {
+  font-size: var(--md-type-doc-title-size);
+  line-height: var(--md-type-doc-title-leading);
+  font-weight: var(--md-type-doc-title-weight);
+}
+.document-content h2 {
+  font-size: var(--md-type-doc-h2-size);
+  line-height: var(--md-type-doc-h2-leading);
+  font-weight: var(--md-type-doc-h2-weight);
+}
+.document-content h3,
+.document-content h4 {
+  font-size: var(--md-type-doc-h3-size);
+  line-height: var(--md-type-doc-h3-leading);
+  font-weight: var(--md-type-doc-h3-weight);
+}
+.document-content p,
+.document-content li {
+  max-width: var(--md-page-measure);
+}
+.document-content code,
+.document-content pre {
+  font-family: var(--font-mono);
+  font-size: var(--md-type-code-size);
+}
+.document-content pre {
+  overflow-x: auto;
+  padding: var(--md-space-3);
+  background: var(--ms-bg-code);
+  border-radius: var(--md-radius-sm);
+  line-height: var(--md-type-code-leading);
+}
+.document-content a {
+  color: var(--ms-accent);
+}
+.document-content table {
+  border-collapse: collapse;
+}
+.document-content th,
+.document-content td {
+  border: 1px solid var(--ms-border);
+  padding: var(--md-space-1) var(--md-space-2);
+}
+.document-content .req-block {
+  margin: var(--md-space-4) 0;
+  border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+  scroll-margin-top: var(--md-space-6);
+  transition: background var(--md-motion-enter);
+}
+.document-content .req-block.is-selected {
+  background: var(--md-status-info-bg);
+  box-shadow: -2px 0 0 var(--md-focus);
+}
+.document-content .req-id {
+  font-family: var(--font-mono);
+}
+/* Cross-references: dashed underline, as in the published books. */
+.document-content .cross-ref {
+  text-decoration: underline dashed;
+  text-decoration-color: var(--ms-border);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.document-content .cross-ref:hover {
+  color: var(--ms-accent);
+  text-decoration-color: currentColor;
+}
+.image-placeholder {
+  display: inline-block;
+  padding: var(--md-space-2) var(--md-space-3);
+  border: 1px dashed var(--ms-border);
+  border-radius: var(--md-radius-sm);
+  color: var(--ms-muted);
+  font-family: var(--font-sans);
+  font-size: var(--md-type-ui-sm-size);
+  font-style: italic;
+}
+
+/* ── Source drawer: paper and Plex Mono 12/19, only the gutter recessed ── */
+
+.source-drawer {
+  width: 45%;
+  max-width: 48rem;
+  flex-shrink: 0;
+  overflow: auto;
+  background: var(--ms-bg);
+  color: var(--ms-text);
+  border-left: 1px solid var(--md-border);
+}
+.source-drawer > p {
+  padding: var(--md-space-3);
+}
+.source-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--md-type-code-size);
+  line-height: var(--md-type-code-leading);
+}
+.source-line {
+  display: flex;
+}
+.source-gutter {
+  flex-shrink: 0;
+  min-width: 3.5em;
+  padding: 0 var(--md-space-3) 0 var(--md-space-2);
+  text-align: right;
+  color: var(--md-text-muted);
+  background: var(--md-inset);
+  border-right: 1px solid var(--md-border);
+  user-select: none;
+}
+.source-code {
+  padding: 0 var(--md-space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.source-line.is-target .source-code {
+  background: var(--md-status-info-bg);
+}
+
+/* ── Assistant column ────────────────────────────────────────────────── */
+
+.assistant-column {
+  padding: var(--md-space-4);
+}
+.assistant-empty {
+  margin: 0;
+  color: var(--md-text-secondary);
+}

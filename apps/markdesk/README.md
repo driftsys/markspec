@@ -62,17 +62,36 @@ cargo test --manifest-path src-tauri/Cargo.toml -- --ignored
 
 ### Manual smoke test
 
+Run it against this repository's own product.
+
 1. `npm ci`
 2. Create the sidecar placeholder (see above).
 3. `npm run tauri dev` — a MarkDesk window opens on the Vite dev server.
-4. In the window's developer tools console, run the command below. It returns
-   `{ url, token, apiVersion: 3, root }`, and `pgrep -fl "desk --serve"` lists
-   one sidecar.
+4. Choose `Open a product folder…` and pick the repository root. The navigator
+   lists the STK and SAD entries; `pgrep -fl "desk --serve"` lists one sidecar.
+5. Click an STK entry. Its document renders on the A4 sheet, with the entry
+   highlighted and scrolled into view.
+6. Click a dashed cross-reference (for example `SAD_DESK_0011` inside
+   `SAD_DESK_0002`). The document pane and the navigator move to that entry.
+7. Press the Back button, `Alt+Left` or `Cmd+[`. The previous entry returns;
+   Forward, `Alt+Right` and `Cmd+]` go forward again.
+8. Click an external `https://` link. It opens in the system browser, and the
+   MarkDesk window does not navigate. A relative link does nothing.
+9. Press `Source`. The drawer shows the file with line numbers, scrolled to the
+   entry's line, in Plex Mono on paper.
+10. Switch the system appearance to dark. The app follows.
+11. Open the product menu and choose `Open folder…` with another product. The
+    navigator, document and history reset; `pgrep -fl "desk --serve"` still
+    lists one sidecar.
+12. Quit the app. `pgrep -fl "desk --serve"` prints nothing.
 
-   ```js
-   await window.__TAURI_INTERNALS__.invoke("open_product", {
-     path: "/path/to/markspec",
-   });
-   ```
-5. Close the window — the app exits and `pgrep -fl "desk --serve"` prints
-   nothing.
+## UI notes
+
+- `App` provides the shell bridge through `BridgeContext` (`useBridge()`), so
+  panes never import the Tauri-backed bridge. The selection history
+  (`useHistory()`, with `useSelection()` on top) is keyed by the product root.
+- `src/main.tsx` imports the repository tokens from `../../theme/markspec.css`
+  (`vite.config.ts` allows that folder and drops the remote font import from
+  it). The IBM Plex fonts are bundled from `src/fonts/` (SIL Open Font License,
+  `src/fonts/OFL.txt`), because the content security policy allows bundled fonts
+  only.

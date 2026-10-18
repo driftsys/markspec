@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
 import { createDeskClient, type DeskClient } from "../api/client";
+import { AssistantColumn } from "../assistant/AssistantColumn";
+import { DocumentPane } from "../document/DocumentPane";
+import { NavigatorPane } from "../navigator/Navigator";
+import { BridgeContext } from "../shell/BridgeContext";
 import type { ShellBridge } from "../shell/bridge";
 import { ProductMenu } from "./ProductMenu";
+import { SelectionProvider } from "./selection";
 import { ErrorDetails, StartScreen } from "./StartScreen";
 import { MESSAGES, ProductContext, useProduct } from "./useProduct";
 
-/** Three-pane layout. Later tasks fill the three slots. */
+/** Three-pane layout: navigator, document, assistant. */
 export function Workspace(props: {
   header: ReactNode;
   banner?: ReactNode;
@@ -14,28 +19,13 @@ export function Workspace(props: {
   assistant: ReactNode;
 }) {
   return (
-    <div
-      className="workspace"
-      style={{ display: "flex", flexDirection: "column", height: "100vh" }}
-    >
-      <header>{props.header}</header>
+    <div className="workspace">
+      <header className="workspace-header">{props.header}</header>
       {props.banner}
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <aside
-          className="pane-navigator"
-          style={{ width: "20rem", overflow: "auto" }}
-        >
-          {props.navigator}
-        </aside>
-        <main className="pane-document" style={{ flex: 1, overflow: "auto" }}>
-          {props.document}
-        </main>
-        <aside
-          className="pane-assistant"
-          style={{ width: "18rem", overflow: "auto" }}
-        >
-          {props.assistant}
-        </aside>
+      <div className="workspace-panes">
+        <aside className="pane-navigator">{props.navigator}</aside>
+        <main className="pane-document">{props.document}</main>
+        <aside className="pane-assistant">{props.assistant}</aside>
       </div>
     </div>
   );
@@ -56,7 +46,10 @@ function OpeningView({ path }: { path?: string }) {
 export function App(props: {
   bridge: ShellBridge;
   createClient?: (url: string, token: string) => DeskClient;
-  /** Replace the placeholder panes. Panes may call `useOpenProduct()`. */
+  /**
+   * Replace the default panes. Panes may call `useOpenProduct()`,
+   * `useSelection()`, `useHistory()` and `useBridge()`.
+   */
   slots?: {
     navigator?: ReactNode;
     document?: ReactNode;
@@ -89,7 +82,7 @@ export function App(props: {
   }
 
   const banner = (error || controller.lost) && (
-    <div role="alert">
+    <div role="alert" className="workspace-banner">
       {error && <p>{error.message}</p>}
       {error && <ErrorDetails details={error.details} />}
       {controller.lost && (
@@ -107,27 +100,30 @@ export function App(props: {
     </div>
   );
 
+  // The bridge context lets panes open external links. The selection
+  // history is keyed by the product root, so it starts empty when another
+  // product opens and survives a reopen of the same product.
   return (
-    <ProductContext.Provider value={product}>
-      <Workspace
-        header={
-          <ProductMenu
-            productName={product.name}
-            recents={controller.recents}
-            onPick={() => void controller.pickAndOpen()}
-            onOpenRecent={(root) => void controller.open(root)}
-            disabled={busy}
+    <BridgeContext.Provider value={props.bridge}>
+      <ProductContext.Provider value={product}>
+        <SelectionProvider key={product.root}>
+          <Workspace
+            header={
+              <ProductMenu
+                productName={product.name}
+                recents={controller.recents}
+                onPick={() => void controller.pickAndOpen()}
+                onOpenRecent={(root) => void controller.open(root)}
+                disabled={busy}
+              />
+            }
+            banner={banner}
+            navigator={props.slots?.navigator ?? <NavigatorPane />}
+            document={props.slots?.document ?? <DocumentPane />}
+            assistant={props.slots?.assistant ?? <AssistantColumn />}
           />
-        }
-        banner={banner}
-        navigator={props.slots?.navigator ?? <p>Navigator</p>}
-        document={props.slots?.document ?? (
-          <p>Select an item to start reading.</p>
-        )}
-        assistant={props.slots?.assistant ?? (
-          <p>Set up an assistant to ask questions about this product.</p>
-        )}
-      />
-    </ProductContext.Provider>
+        </SelectionProvider>
+      </ProductContext.Provider>
+    </BridgeContext.Provider>
   );
 }
