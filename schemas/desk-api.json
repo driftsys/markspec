@@ -3,7 +3,7 @@
   "info": {
     "title": "MarkDesk API",
     "version": "3",
-    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Read-only: product tree, entries, rendered documents, rendered entries, and project source text. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\"}; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
+    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Read-only: product tree, entries, rendered documents, rendered entries, and project source text. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\", \"root\"}, where root is the absolute, symlink-resolved product root; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
   },
   "servers": [
     {
