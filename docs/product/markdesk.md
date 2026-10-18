@@ -154,6 +154,12 @@ requirements set)._
   folder. Nothing in the working tree changes. The forge token goes to the OS
   keychain, never to disk.
 
+_First release._ The way in is a folder already on the computer: the author
+chooses it with a folder picker, and MarkDesk reopens the last product at launch
+and lists recent ones in a product menu. Sign-in, repository list, clone, and
+the assistant summary ship later, with DESK-5 and the assistant story. MarkDesk
+writes nothing into the product folder.
+
 ### DESK-2 · Write — add a requirement
 
 _Derived from CUJ-1 (Marie creates an entry by hand), CUJ-3 and CUJ-11 (Marie
@@ -234,6 +240,11 @@ go-to-definition surfaces the authoring-experience spec relies on._
   links between entries; opens the read-only Source drawer when she wants to see
   the exact text.
 - **MarkDesk writes.** Nothing.
+
+_First release._ Everything except the assistant's answers is available: the
+navigator, the Spec view of the whole document scrolled to the entry, clickable
+links between entries, Back and Forward, and the Source drawer. The assistant
+column is present and empty. Images in documents appear as placeholders.
 
 ### DESK-7 · Respond to review comments — 2.0
 
