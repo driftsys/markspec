@@ -10,8 +10,9 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +32,11 @@ const ERROR_STDERR_LINES: usize = 5;
 
 /// How often [`run`] checks whether the child exited or was cancelled.
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
+/// After the child exits, how long [`run`] waits for its output to finish.
+/// A background grandchild can keep the pipes open after the child exits.
+const OUTPUT_GRACE: Duration = Duration::from_secs(1);
+/// Number of names [`create_test_dir`] tries before it gives up.
+const TEST_DIR_ATTEMPTS: usize = 10;
 
 /// An assistant the app can drive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,19 +158,25 @@ pub fn run_test(
     cancel: &AtomicBool,
 ) -> TestResult {
     static NEXT_DIR: AtomicU32 = AtomicU32::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "markdesk-assistant-test-{}-{}",
-        std::process::id(),
-        NEXT_DIR.fetch_add(1, Ordering::SeqCst)
-    ));
+    let names = std::iter::repeat_with(|| {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.subsec_nanos());
+        format!(
+            "markdesk-assistant-test-{}-{}-{nanos}",
+            std::process::id(),
+            NEXT_DIR.fetch_add(1, Ordering::SeqCst)
+        )
+    });
     let failed = |error: String| TestResult {
         outcome: TestOutcome::Failed,
         reply: None,
         error: Some(error),
     };
-    if let Err(err) = std::fs::create_dir_all(&dir) {
-        return failed(format!("could not create a temporary directory: {err}"));
-    }
+    let dir = match create_test_dir(&std::env::temp_dir(), names) {
+        Ok(dir) => dir,
+        Err(err) => return failed(format!("could not create a temporary directory: {err}")),
+    };
     let result = run(program, &id.test_args(), Some(&dir), timeout, Some(cancel));
     let _ = std::fs::remove_dir_all(&dir);
     let output = match result {
@@ -192,6 +204,37 @@ pub fn run_test(
         reply,
         error,
     }
+}
+
+/// Create a new, empty directory under `base` for the Test, readable only by
+/// the current user on unix.
+///
+/// Each name from `names` is tried in turn, at most [`TEST_DIR_ATTEMPTS`]
+/// times. A name that already exists is skipped and never reused, because a
+/// directory left by another user or an earlier crash can hold files such as
+/// `AGENTS.md` that the assistant would read.
+fn create_test_dir(
+    base: &Path,
+    names: impl IntoIterator<Item = String>,
+) -> std::io::Result<PathBuf> {
+    let mut builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    for name in names.into_iter().take(TEST_DIR_ATTEMPTS) {
+        let dir = base.join(name);
+        match builder.create(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(err),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "every candidate directory name already exists",
+    ))
 }
 
 /// What detection found for one assistant.
@@ -227,18 +270,43 @@ pub struct RunOutput {
 }
 
 /// Read a pipe to the end on its own thread so the child never blocks on a
-/// full pipe.
-fn drain<R: Read + Send + 'static>(mut pipe: R) -> thread::JoinHandle<Vec<u8>> {
+/// full pipe. The bytes arrive on the returned channel when the pipe closes.
+fn drain<R: Read + Send + 'static>(mut pipe: R) -> mpsc::Receiver<Vec<u8>> {
+    let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let mut bytes = Vec::new();
         let _ = pipe.read_to_end(&mut bytes);
-        bytes
-    })
+        let _ = sender.send(bytes);
+    });
+    receiver
+}
+
+/// Kill every process in the process group `pgid` with SIGKILL.
+///
+/// [`run`] starts each child as the leader of its own process group. This
+/// matters because npm installs (for example Homebrew's `copilot`) start a
+/// Node loader that runs the real CLI as a grandchild: killing only the
+/// child would leave the grandchild running, still using the assistant.
+/// `kill` is run directly from a fixed absolute path, with no shell.
+#[cfg(unix)]
+fn kill_process_group(pgid: u32) {
+    let kill = if Path::new("/bin/kill").exists() {
+        "/bin/kill"
+    } else {
+        "/usr/bin/kill"
+    };
+    let _ = Command::new(kill)
+        .args(["-KILL", "--", &format!("-{pgid}")])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
 }
 
 /// Run `program` with `args`, capturing stdout and stderr as lossy UTF-8.
 ///
-/// The child is killed when `timeout` passes or when `cancel` becomes true.
+/// The child and every process it started are killed when `timeout` passes
+/// or when `cancel` becomes true; on Windows only the child is killed.
 pub fn run(
     program: &Path,
     args: &[String],
@@ -254,6 +322,13 @@ pub fn run(
         .stderr(Stdio::piped());
     if let Some(dir) = cwd {
         command.current_dir(dir);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // Its own process group, so that `kill_process_group` reaches the
+        // processes the child starts.
+        command.process_group(0);
     }
     #[cfg(windows)]
     {
@@ -282,6 +357,8 @@ pub fn run(
             thread::sleep(POLL_INTERVAL);
             continue;
         }
+        #[cfg(unix)]
+        kill_process_group(child.id());
         let _ = child.kill();
         break child.wait()?;
     };
@@ -297,11 +374,19 @@ pub fn run(
             cancelled,
         });
     }
-    let text = |bytes: Vec<u8>| String::from_utf8_lossy(&bytes).into_owned();
+    // A background grandchild can keep a pipe open after the child exits,
+    // so wait for each stream only until the grace period ends; a stream
+    // that is not finished by then is returned empty.
+    let output_deadline = Instant::now() + OUTPUT_GRACE;
+    let text = |receiver: mpsc::Receiver<Vec<u8>>| {
+        let remaining = output_deadline.saturating_duration_since(Instant::now());
+        let bytes = receiver.recv_timeout(remaining).unwrap_or_default();
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
     Ok(RunOutput {
         code: status.code(),
-        stdout: text(stdout.join().unwrap_or_default()),
-        stderr: text(stderr.join().unwrap_or_default()),
+        stdout: text(stdout),
+        stderr: text(stderr),
         timed_out,
         cancelled,
     })
@@ -326,14 +411,21 @@ fn is_runnable(path: &Path) -> bool {
     }
 }
 
-/// Find `binary`: first in each `path_env` entry, then in `extra_dirs`.
+/// Find `binary`: first in each absolute `path_env` entry, then in
+/// `extra_dirs`.
 pub fn locate(binary: &str, path_env: Option<&OsStr>, extra_dirs: &[PathBuf]) -> Option<PathBuf> {
     #[cfg(windows)]
     let names = [format!("{binary}.exe"), format!("{binary}.cmd")];
     #[cfg(not(windows))]
     let names = [binary.to_string()];
 
-    let from_path = path_env.map(std::env::split_paths).into_iter().flatten();
+    // An empty or relative `PATH` entry would resolve against the current
+    // directory, so only absolute entries are searched.
+    let from_path = path_env
+        .map(std::env::split_paths)
+        .into_iter()
+        .flatten()
+        .filter(|dir| dir.is_absolute());
     from_path.chain(extra_dirs.iter().cloned()).find_map(|dir| {
         names
             .iter()
@@ -598,6 +690,136 @@ mod tests {
         assert!(out.cancelled);
         assert!(!out.timed_out);
         assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    /// Script that starts a background grandchild, records its pid in
+    /// `pidfile`, then waits for it.
+    fn grandchild_script(pidfile: &Path) -> String {
+        format!("sleep 30 &\necho $! > '{}'\nwait", pidfile.display())
+    }
+
+    /// Whether process `pid` still exists, as reported by `kill -0`.
+    fn process_exists(pid: &str) -> bool {
+        Command::new("/bin/kill")
+            .args(["-0", pid])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+
+    /// Wait up to about 1 s for the grandchild to be killed and reaped.
+    fn assert_grandchild_gone(pidfile: &Path) {
+        let pid = std::fs::read_to_string(pidfile).unwrap();
+        let pid = pid.trim();
+        assert!(!pid.is_empty());
+        for _ in 0..50 {
+            if !process_exists(pid) {
+                return;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        panic!("grandchild {pid} is still running");
+    }
+
+    /// Wait up to 10 s for the script to record the grandchild pid. The
+    /// first run of a new script can be slow on macOS while the system
+    /// checks the file, so tests do not assume the script starts at once.
+    fn wait_for_pidfile(pidfile: &Path) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if std::fs::read_to_string(pidfile).is_ok_and(|pid| pid.ends_with('\n')) {
+                return true;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        false
+    }
+
+    #[test]
+    fn run_kills_grandchild_on_timeout() {
+        let dir = scratch_dir("group-timeout");
+        let pidfile = dir.join("grandchild.pid");
+        let bin = fake_bin(&dir, "tool", &grandchild_script(&pidfile));
+        let timeout = Duration::from_secs(3);
+        let started = Instant::now();
+        let out = run(&bin, &[], None, timeout, None).unwrap();
+        assert!(out.timed_out);
+        // `run` returns within 2 s of the timeout.
+        assert!(started.elapsed() < timeout + Duration::from_secs(2));
+        assert_grandchild_gone(&pidfile);
+    }
+
+    #[test]
+    fn run_kills_grandchild_on_cancel() {
+        let dir = scratch_dir("group-cancel");
+        let pidfile = dir.join("grandchild.pid");
+        let bin = fake_bin(&dir, "tool", &grandchild_script(&pidfile));
+        let cancel = AtomicBool::new(false);
+        let (out, cancelled_at) = thread::scope(|scope| {
+            let canceller = scope.spawn(|| {
+                assert!(wait_for_pidfile(&pidfile));
+                let cancelled_at = Instant::now();
+                cancel.store(true, Ordering::SeqCst);
+                cancelled_at
+            });
+            let out = run(&bin, &[], None, Duration::from_secs(20), Some(&cancel)).unwrap();
+            (out, canceller.join().unwrap())
+        });
+        assert!(out.cancelled);
+        // `run` returns within 2 s of the cancel.
+        assert!(cancelled_at.elapsed() < Duration::from_secs(2));
+        assert_grandchild_gone(&pidfile);
+    }
+
+    #[test]
+    fn run_returns_when_grandchild_holds_pipes_after_exit() {
+        let dir = scratch_dir("held-pipes");
+        let bin = fake_bin(&dir, "tool", "sleep 10 &\necho done >&2\nexit 0");
+        let started = Instant::now();
+        let out = run(&bin, &[], None, Duration::from_secs(20), None).unwrap();
+        assert_eq!(out.code, Some(0));
+        assert!(!out.timed_out);
+        // Well before the grandchild exits and closes the pipes.
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn create_test_dir_skips_existing_name() {
+        let base = scratch_dir("testdir");
+        let taken = base.join("taken");
+        std::fs::create_dir(&taken).unwrap();
+        std::fs::write(taken.join("AGENTS.md"), "planted").unwrap();
+        let names = ["taken".to_string(), "fresh".to_string()];
+        let dir = create_test_dir(&base, names).unwrap();
+        assert_eq!(dir, base.join("fresh"));
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        let mode = std::fs::metadata(&dir).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+        assert!(taken.join("AGENTS.md").exists());
+    }
+
+    #[test]
+    fn create_test_dir_fails_when_every_name_exists() {
+        let base = scratch_dir("testdir-full");
+        std::fs::create_dir(base.join("taken")).unwrap();
+        let names = std::iter::repeat("taken".to_string());
+        let err = create_test_dir(&base, names).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+    }
+
+    #[test]
+    fn locate_skips_empty_and_relative_path_entries() {
+        let dir = scratch_dir("relative");
+        fake_bin(&dir, "claude-relative-probe", "");
+        // Build a relative path from the current directory to `dir`.
+        let cwd = std::env::current_dir().unwrap();
+        let ups = cwd.components().count() - 1;
+        let relative = PathBuf::from("../".repeat(ups)).join(dir.strip_prefix("/").unwrap());
+        assert!(relative.is_relative());
+        assert!(is_runnable(&relative.join("claude-relative-probe")));
+        let path_env = std::env::join_paths([PathBuf::new(), relative]).unwrap();
+        assert_eq!(locate("claude-relative-probe", Some(&path_env), &[]), None);
     }
 
     #[test]

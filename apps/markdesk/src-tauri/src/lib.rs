@@ -36,6 +36,10 @@ const ASSISTANT_KEY: &str = "assistant";
 const ASSISTANT_CORRUPT_KEY: &str = "assistant.corrupt";
 
 /// Set by `cancel_assistant_test`; the running Test polls it.
+///
+/// One Test runs at a time: every Test shares this one flag, and
+/// `test_assistant` clears it when a Test starts. The UI does not start a
+/// Test while another one is running.
 #[derive(Default)]
 struct AssistantTestCancel(Arc<AtomicBool>);
 
