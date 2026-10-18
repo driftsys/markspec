@@ -73,7 +73,8 @@ Anti-goals (a failure even if everything else works):
 ### 4.1 First launch
 
 - The product opens as today (open folder or reopen last product).
-- Detection runs in the background on every app launch.
+- Detection runs in the background each time a product is opened (which includes
+  every app launch, since MarkDesk reopens the last product).
 - When no assistant is selected and the author has not dismissed the card, the
   assistant column shows the setup card:
   - One row per assistant: name, state, and the action for that state.
@@ -100,7 +101,8 @@ Anti-goals (a failure even if everything else works):
   prompt box. The prompt box has no prompt feature behind it yet (#837); it
   stays disabled with the text "Prompts arrive in a later release". This is the
   "enabled" state of the #831 criterion: the column shows the selected assistant
-  and links to Test and Settings instead of the setup pointer. See §9, call 1.
+  and links to Settings (where Test lives) instead of the setup pointer. See §9,
+  call 1.
 - Assistant selected but not `ready` (at launch, or selected in that state from
   Settings): the column shows the state ("Claude Code needs sign-in") and a link
   to Settings.
