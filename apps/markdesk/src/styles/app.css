@@ -197,6 +197,12 @@ button[aria-pressed="true"] {
   font-weight: var(--md-type-ui-strong-weight);
   border-color: transparent;
 }
+.product-menu .product-path {
+  margin-left: var(--md-space-2);
+  color: var(--md-text-secondary);
+  font-weight: normal;
+  font-size: 0.8em;
+}
 .product-menu ul {
   position: absolute;
   z-index: 10;

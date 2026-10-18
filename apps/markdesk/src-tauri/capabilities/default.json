@@ -7,6 +7,9 @@
     "core:default",
     "dialog:allow-open",
     "store:default",
-    "opener:allow-open-url"
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }]
+    }
   ]
 }

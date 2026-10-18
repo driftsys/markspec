@@ -44,7 +44,7 @@ const DOC_HTML = `<h1>Brakes</h1>
 <p>See <span class="cross-ref" data-display-id="${ID}">${ID}</span>.</p>
 <p><a href="https://example.com/spec">spec</a>
 <a href="other.md">other</a> <a href="#entry-B">down</a></p>
-<p><img src="figures/brake.svg" alt="Brake diagram"><img src="data:image/png;base64,AA==" alt="inline"></p>
+<p><img src="figures/brake.svg" alt="Brake diagram"><img src="data:image/png;base64,AA==" alt="inline"><img src="https://example.com/remote.png" alt="Remote figure"></p>
 <div class="req-block hue-blue" id="entry-${ID}" data-display-id="${ID}">
   <div class="req-title"><code class="req-id">${ID}</code></div>
   <p>Body with <span class="cross-ref" data-display-id="B">B</span>.</p>
@@ -237,6 +237,51 @@ describe("DocumentPane", () => {
       "image-placeholder",
     );
     expect(pane.querySelector('img[src^="data:"]')).not.toBeNull();
+  });
+
+  it("replaces an http(s) image with its alt text", async () => {
+    const { select } = mount();
+    select(ID);
+    await screen.findByText("Brakes");
+    const pane = document.querySelector(".document-content")!;
+    expect(pane.querySelector('img[src^="https:"]')).toBeNull();
+    expect(screen.getByText("Remote figure").className).toBe(
+      "image-placeholder",
+    );
+  });
+
+  it("makes cross-references keyboard focusable and follows them on Enter", async () => {
+    const { select, history } = mount();
+    select(ID);
+    await screen.findByText("Brakes");
+    const ref = screen.getByText("B", { selector: ".cross-ref" });
+    expect(ref.getAttribute("tabindex")).toBe("0");
+    expect(ref.getAttribute("role")).toBe("link");
+    fireEvent.keyDown(ref, { key: "Enter" });
+    expect(history().current).toBe("B");
+  });
+
+  it("handles a failed external link so no rejection is left unhandled", async () => {
+    const bridge = fakeBridge();
+    // A promise that records whether anything handles its rejection.
+    const handled = vi.fn();
+    const failure = {
+      then: (_ok: unknown, onRejected?: unknown) => {
+        if (typeof onRejected === "function") handled();
+        return failure;
+      },
+      catch: () => {
+        handled();
+        return failure;
+      },
+    } as unknown as Promise<void>;
+    bridge.openExternal = (() => failure) as ShellBridge["openExternal"];
+    const { select } = mount(fakeClient(), bridge);
+    select(ID);
+    await screen.findByText("Brakes");
+    fireEvent.click(screen.getByText("spec"));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(handled).toHaveBeenCalled();
   });
 
   it("opens the source drawer with line numbers at the entry line", async () => {

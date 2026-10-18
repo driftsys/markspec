@@ -125,4 +125,17 @@ describe("historyKeyAction", () => {
       ),
     ).toBeUndefined();
   });
+
+  it("ignores the history keys while typing in a text field", () => {
+    const history = harness();
+    act(() => history().select("A"));
+    act(() => history().select("B"));
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: "ArrowLeft", altKey: true });
+    expect(history().current).toBe("B");
+    fireEvent.keyDown(window, { key: "ArrowLeft", altKey: true });
+    expect(history().current).toBe("A");
+    input.remove();
+  });
 });

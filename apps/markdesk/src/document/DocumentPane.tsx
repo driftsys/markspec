@@ -1,4 +1,5 @@
 import {
+  type KeyboardEvent,
   type MouseEvent,
   useEffect,
   useLayoutEffect,
@@ -87,7 +88,7 @@ async function read(
 }
 
 /**
- * Replace each `<img>` whose source is a relative path with a neutral
+ * Replace each `<img>` whose source is not a `data:` URI with a neutral
  * placeholder that shows its alt text. The app cannot load files from the
  * product folder, and the content security policy blocks remote images.
  */
@@ -95,9 +96,14 @@ export function withImagePlaceholders(html: string): string {
   // A <template> parses the markup without loading any image.
   const template = document.createElement("template");
   template.innerHTML = html;
+  // Cross-references act as links, so give them keyboard access.
+  for (const ref of template.content.querySelectorAll(".cross-ref")) {
+    ref.setAttribute("tabindex", "0");
+    ref.setAttribute("role", "link");
+  }
   for (const image of template.content.querySelectorAll("img")) {
     const source = image.getAttribute("src") ?? "";
-    if (/^(data:|https?:)/i.test(source)) continue;
+    if (/^data:/i.test(source)) continue;
     const placeholder = document.createElement("span");
     placeholder.className = "image-placeholder";
     placeholder.setAttribute("role", "img");
@@ -209,7 +215,8 @@ export function DocumentPane() {
     event.preventDefault();
     const href = link.getAttribute("href") ?? "";
     if (/^https?:\/\//i.test(href)) {
-      void bridge.openExternal(href);
+      // A failure to open the link is ignored.
+      bridge.openExternal(href).catch(() => {});
     } else if (href.startsWith("#") && content.current) {
       let id = href.slice(1);
       try {
@@ -219,6 +226,16 @@ export function DocumentPane() {
       }
       findById(content.current, id)?.scrollIntoView?.({ block: "start" });
     }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter") return;
+    const crossRef = (event.target as Element).closest<HTMLElement>(
+      ".cross-ref",
+    );
+    if (!crossRef?.dataset.displayId) return;
+    event.preventDefault();
+    history.select(crossRef.dataset.displayId);
   };
 
   const toolbar = (
@@ -290,6 +307,7 @@ export function DocumentPane() {
                 ref={content}
                 className="document-content"
                 onClick={onClick}
+                onKeyDown={onKeyDown}
                 onAuxClick={(event) => {
                   if ((event.target as Element).closest("a[href]")) {
                     event.preventDefault();

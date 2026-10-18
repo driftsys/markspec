@@ -111,6 +111,7 @@ export function App(props: {
             header={
               <ProductMenu
                 productName={product.name}
+                productRoot={product.root}
                 recents={controller.recents}
                 onPick={() => void controller.pickAndOpen()}
                 onOpenRecent={(root) => void controller.open(root)}

@@ -17,6 +17,38 @@ pub struct Recent {
     pub name: Option<String>,
 }
 
+/// The result of reading the stored recents value.
+#[derive(Debug, PartialEq)]
+pub struct Parsed {
+    /// The recents list; empty when the value is missing or unreadable.
+    pub list: Vec<Recent>,
+    /// The stored value that could not be read, kept so the caller can
+    /// move it aside instead of overwriting it.
+    pub corrupt: Option<serde_json::Value>,
+}
+
+/// Read the stored recents value. A missing value gives an empty list. A
+/// value of the wrong shape gives an empty list and is returned in
+/// [`Parsed::corrupt`] so the author's history is not lost on the next save.
+pub fn parse_stored(value: Option<serde_json::Value>) -> Parsed {
+    match value {
+        None => Parsed {
+            list: Vec::new(),
+            corrupt: None,
+        },
+        Some(value) => match serde_json::from_value::<Vec<Recent>>(value.clone()) {
+            Ok(list) => Parsed {
+                list,
+                corrupt: None,
+            },
+            Err(_) => Parsed {
+                list: Vec::new(),
+                corrupt: Some(value),
+            },
+        },
+    }
+}
+
 /// Move `root` to the front of `list`, adding it when absent. An existing
 /// entry keeps its name. The result holds at most [`MAX_RECENTS`] entries;
 /// the oldest entries are dropped.
@@ -60,6 +92,30 @@ mod tests {
             root: root.into(),
             name: None,
         }
+    }
+
+    #[test]
+    fn parse_stored_reads_a_valid_list() {
+        let value = serde_json::json!([{ "root": "/a", "name": "A" }]);
+        let parsed = parse_stored(Some(value));
+        assert_eq!(parsed.list.len(), 1);
+        assert_eq!(parsed.list[0].root, "/a");
+        assert!(parsed.corrupt.is_none());
+    }
+
+    #[test]
+    fn parse_stored_treats_a_missing_value_as_empty() {
+        let parsed = parse_stored(None);
+        assert!(parsed.list.is_empty());
+        assert!(parsed.corrupt.is_none());
+    }
+
+    #[test]
+    fn parse_stored_keeps_an_unreadable_value_aside() {
+        let value = serde_json::json!({ "unexpected": true });
+        let parsed = parse_stored(Some(value.clone()));
+        assert!(parsed.list.is_empty());
+        assert_eq!(parsed.corrupt, Some(value));
     }
 
     fn roots(list: &[Recent]) -> Vec<&str> {

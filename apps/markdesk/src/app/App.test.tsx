@@ -346,7 +346,7 @@ describe("open flow", () => {
     fireEvent.click(await screen.findByText("load"));
     // Open the same product again; the first request is still pending.
     fireEvent.click(screen.getByText("Brakes"));
-    fireEvent.click(screen.getByText("/p/brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "/p/brakes" }));
     await waitFor(() => expect(bridge.openProduct).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(clients.length).toBe(2));
     rejectLate[0]();

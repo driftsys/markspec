@@ -19,6 +19,8 @@ use sidecar::{OpenError, SidecarSlot};
 const RECENTS_STORE: &str = "recents.json";
 /// Key of the recents list inside [`RECENTS_STORE`].
 const RECENTS_KEY: &str = "recents";
+/// Key that receives a recents value that could not be read.
+const RECENTS_CORRUPT_KEY: &str = "recents.corrupt";
 
 /// What `open_product` returns to the web UI: the sidecar handshake.
 pub type OpenedProduct = Handshake;
@@ -38,10 +40,18 @@ pub struct RecentProduct {
 
 fn load_recents(app: &AppHandle) -> Result<Vec<Recent>, String> {
     let store = app.store(RECENTS_STORE).map_err(|err| err.to_string())?;
-    Ok(store
-        .get(RECENTS_KEY)
-        .and_then(|value| serde_json::from_value(value).ok())
-        .unwrap_or_default())
+    let parsed = recents::parse_stored(store.get(RECENTS_KEY));
+    if let Some(value) = parsed.corrupt {
+        // Keep the unreadable value instead of overwriting it with a fresh
+        // list. Write errors are ignored: the list still loads as empty.
+        eprintln!("markdesk: recents could not be read; kept under {RECENTS_CORRUPT_KEY}");
+        if store.get(RECENTS_CORRUPT_KEY).is_none() {
+            store.set(RECENTS_CORRUPT_KEY, value);
+        }
+        store.delete(RECENTS_KEY);
+        let _ = store.save();
+    }
+    Ok(parsed.list)
 }
 
 fn save_recents(app: &AppHandle, list: &[Recent]) -> Result<(), String> {

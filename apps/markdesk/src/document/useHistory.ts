@@ -72,6 +72,13 @@ export function historyKeyAction(
   return undefined;
 }
 
+/** Whether the event target is a field where the keys edit text. */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+    target.isContentEditable;
+}
+
 function isMac(): boolean {
   return typeof navigator !== "undefined" &&
     /Mac|iPhone|iPad/.test(navigator.userAgent);
@@ -97,6 +104,7 @@ export function HistoryProvider(
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (isEditable(event.target)) return;
       const move = historyKeyAction(event, mac);
       if (move === undefined) return;
       event.preventDefault();
