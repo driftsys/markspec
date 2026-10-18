@@ -4,7 +4,7 @@ import { ProductMenu } from "./ProductMenu";
 
 afterEach(cleanup);
 
-function mount() {
+function mount(onSettings = vi.fn()) {
   return render(
     <div>
       <ProductMenu
@@ -13,6 +13,7 @@ function mount() {
         recents={[{ root: "/p/other", name: "Other", exists: true }]}
         onPick={vi.fn()}
         onOpenRecent={vi.fn()}
+        onSettings={onSettings}
       />
       <p>outside</p>
     </div>,
@@ -20,6 +21,15 @@ function mount() {
 }
 
 describe("ProductMenu", () => {
+  it("Settings calls onSettings and closes the menu", () => {
+    const onSettings = vi.fn();
+    mount(onSettings);
+    fireEvent.click(screen.getByText("Brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
+    expect(onSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Open folder…")).toBeNull();
+  });
+
   it("shows the name with a caret and the path in small text", () => {
     mount();
     const trigger = screen.getByRole("button", { expanded: false });

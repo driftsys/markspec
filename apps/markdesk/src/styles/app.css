@@ -520,3 +520,66 @@ button[aria-pressed="true"] {
   margin: 0;
   color: var(--md-text-secondary);
 }
+
+/* ── Settings ────────────────────────────────────────────────────────── */
+
+.settings {
+  flex: 1;
+  overflow: auto;
+  padding: var(--md-space-4);
+  color: var(--md-text-primary);
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-3);
+}
+.settings-header h2 {
+  margin: 0;
+}
+.settings-rows {
+  list-style: none;
+  margin: 0 0 var(--md-space-3);
+  padding: 0;
+}
+.settings-rows small {
+  margin-left: var(--md-space-2);
+  color: var(--md-text-muted);
+}
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-2);
+  margin-top: var(--md-space-3);
+}
+.settings-install {
+  margin-bottom: var(--md-space-4);
+  padding: var(--md-space-3);
+  border: 1px solid var(--md-border);
+  background: var(--md-inset);
+}
+.settings-install h4 {
+  margin: 0;
+}
+.settings-command {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-2);
+  margin: var(--md-space-1) 0;
+}
+.settings-command-label {
+  color: var(--md-text-secondary);
+}
+.settings-command code {
+  overflow-wrap: anywhere;
+}
+.settings-link {
+  display: block;
+  margin: var(--md-space-1) 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--md-text-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+}

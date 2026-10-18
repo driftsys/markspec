@@ -1,10 +1,12 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { createDeskClient, type DeskClient } from "../api/client";
+import { AssistantProvider } from "../assistant/AssistantProvider";
 import { AssistantColumn } from "../assistant/AssistantColumn";
 import { DocumentPane } from "../document/DocumentPane";
 import { NavigatorPane } from "../navigator/Navigator";
 import { BridgeContext } from "../shell/BridgeContext";
 import type { ShellBridge } from "../shell/bridge";
+import { SettingsView } from "../settings/SettingsView";
 import { ProductMenu } from "./ProductMenu";
 import { SelectionProvider } from "./selection";
 import { ErrorDetails, StartScreen } from "./StartScreen";
@@ -61,6 +63,12 @@ export function App(props: {
     props.createClient ?? createDeskClient,
   );
   const { product, error } = controller;
+  const [view, setView] = useState<"product" | "settings">("product");
+  const [settingsFocus, setSettingsFocus] = useState<"install" | undefined>();
+  const openSettings = (focus?: "install") => {
+    setSettingsFocus(focus);
+    setView("settings");
+  };
 
   const busy = controller.status === "launching" ||
     controller.status === "opening";
@@ -103,26 +111,44 @@ export function App(props: {
   // The bridge context lets panes open external links. The selection
   // history is keyed by the product root, so it starts empty when another
   // product opens and survives a reopen of the same product.
+  const header = (
+    <ProductMenu
+      productName={product.name}
+      productRoot={product.root}
+      recents={controller.recents}
+      onPick={() => void controller.pickAndOpen()}
+      onOpenRecent={(root) => void controller.open(root)}
+      onSettings={() => openSettings()}
+      disabled={busy}
+    />
+  );
+
   return (
     <BridgeContext.Provider value={props.bridge}>
       <ProductContext.Provider value={product}>
         <SelectionProvider key={product.root}>
-          <Workspace
-            header={
-              <ProductMenu
-                productName={product.name}
-                productRoot={product.root}
-                recents={controller.recents}
-                onPick={() => void controller.pickAndOpen()}
-                onOpenRecent={(root) => void controller.open(root)}
-                disabled={busy}
-              />
-            }
-            banner={banner}
-            navigator={props.slots?.navigator ?? <NavigatorPane />}
-            document={props.slots?.document ?? <DocumentPane />}
-            assistant={props.slots?.assistant ?? <AssistantColumn />}
-          />
+          <AssistantProvider key={product.root}>
+            {view === "settings"
+              ? (
+                <div className="workspace">
+                  <header className="workspace-header">{header}</header>
+                  {banner}
+                  <SettingsView
+                    onBack={() => setView("product")}
+                    focus={settingsFocus}
+                  />
+                </div>
+              )
+              : (
+                <Workspace
+                  header={header}
+                  banner={banner}
+                  navigator={props.slots?.navigator ?? <NavigatorPane />}
+                  document={props.slots?.document ?? <DocumentPane />}
+                  assistant={props.slots?.assistant ?? <AssistantColumn />}
+                />
+              )}
+          </AssistantProvider>
         </SelectionProvider>
       </ProductContext.Provider>
     </BridgeContext.Provider>

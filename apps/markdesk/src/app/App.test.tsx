@@ -603,3 +603,31 @@ describe("open flow", () => {
     expect(screen.getByText("Recent")).toBeTruthy();
   });
 });
+
+describe("settings view", () => {
+  it("opens Settings from the menu and returns with Back", async () => {
+    const bridge = fakeBridge([{
+      root: "/p/brakes",
+      name: null,
+      exists: true,
+    }]);
+    render(<App bridge={bridge} createClient={() => fakeClient()} />);
+    fireEvent.click(await screen.findByText("Brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "Set up an assistant to ask questions about this product.",
+      ),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(
+      await screen.findByText(
+        "Set up an assistant to ask questions about this product.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
+  });
+});
