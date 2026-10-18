@@ -9,7 +9,7 @@ use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -19,6 +19,15 @@ use serde::{Deserialize, Serialize};
 pub const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 /// Time allowed for a sign-in check.
 pub const STATUS_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Time allowed for the Test action.
+pub const TEST_TIMEOUT: Duration = Duration::from_secs(60);
+/// The fixed prompt the Test action sends.
+pub const TEST_PROMPT: &str = "Reply with the single word: ready";
+/// Longest reply, in characters, that the Test action returns.
+const REPLY_MAX_CHARS: usize = 500;
+/// Number of stderr lines kept in a Test error.
+const ERROR_STDERR_LINES: usize = 5;
 
 /// How often [`run`] checks whether the child exited or was cancelled.
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
@@ -47,6 +56,141 @@ impl AssistantId {
             AssistantId::Codex => "codex",
             AssistantId::Copilot => "copilot",
         }
+    }
+
+    /// Arguments of the Test action: one short prompt, with tools, file
+    /// writes and session storage turned off where the CLI allows it.
+    pub fn test_args(self) -> Vec<String> {
+        let args: &[&str] = match self {
+            // `--max-turns` is not listed by `claude --help`, so it is not used;
+            // with all tools disabled the reply takes one turn.
+            AssistantId::ClaudeCode => &[
+                "-p",
+                TEST_PROMPT,
+                "--output-format",
+                "text",
+                "--tools",
+                "",
+                "--no-session-persistence",
+            ],
+            AssistantId::Codex => &[
+                "exec",
+                "--sandbox",
+                "read-only",
+                "--skip-git-repo-check",
+                "--ephemeral",
+                TEST_PROMPT,
+            ],
+            AssistantId::Copilot => &[
+                "-p",
+                TEST_PROMPT,
+                "-s",
+                "--no-ask-user",
+                "--deny-tool",
+                "shell",
+                "--deny-tool",
+                "write",
+            ],
+        };
+        args.iter().map(|arg| arg.to_string()).collect()
+    }
+}
+
+/// How a Test ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TestOutcome {
+    Ok,
+    /// The CLI rejected the arguments, usually because it is an older version.
+    Usage,
+    Timeout,
+    Cancelled,
+    Failed,
+}
+
+/// Result of the Test action, as shown to the web UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestResult {
+    pub outcome: TestOutcome,
+    /// The first 500 characters of the reply, when the outcome is `Ok`.
+    pub reply: Option<String>,
+    /// Exit code and first stderr lines, when the outcome is `Failed` or `Usage`.
+    pub error: Option<String>,
+}
+
+/// Decide how a finished Test process ended.
+pub fn classify(output: &RunOutput) -> TestOutcome {
+    const USAGE_MARKERS: [&str; 5] = [
+        "unknown option",
+        "unexpected argument",
+        "unrecognized option",
+        "unrecognized argument",
+        "unknown argument",
+    ];
+    if output.cancelled {
+        TestOutcome::Cancelled
+    } else if output.timed_out {
+        TestOutcome::Timeout
+    } else if output.code == Some(0) {
+        TestOutcome::Ok
+    } else {
+        let stderr = output.stderr.to_lowercase();
+        if USAGE_MARKERS.iter().any(|marker| stderr.contains(marker)) {
+            TestOutcome::Usage
+        } else {
+            TestOutcome::Failed
+        }
+    }
+}
+
+/// Run the Test prompt on `program` in a new empty temporary directory.
+pub fn run_test(
+    id: AssistantId,
+    program: &Path,
+    timeout: Duration,
+    cancel: &AtomicBool,
+) -> TestResult {
+    static NEXT_DIR: AtomicU32 = AtomicU32::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "markdesk-assistant-test-{}-{}",
+        std::process::id(),
+        NEXT_DIR.fetch_add(1, Ordering::SeqCst)
+    ));
+    let failed = |error: String| TestResult {
+        outcome: TestOutcome::Failed,
+        reply: None,
+        error: Some(error),
+    };
+    if let Err(err) = std::fs::create_dir_all(&dir) {
+        return failed(format!("could not create a temporary directory: {err}"));
+    }
+    let result = run(program, &id.test_args(), Some(&dir), timeout, Some(cancel));
+    let _ = std::fs::remove_dir_all(&dir);
+    let output = match result {
+        Ok(output) => output,
+        Err(err) => return failed(format!("could not run the test: {err}")),
+    };
+    let outcome = classify(&output);
+    let mut reply = None;
+    let mut error = None;
+    match outcome {
+        TestOutcome::Ok => {
+            reply = Some(output.stdout.trim().chars().take(REPLY_MAX_CHARS).collect());
+        }
+        TestOutcome::Failed | TestOutcome::Usage => {
+            let code = output
+                .code
+                .map_or_else(|| "none".to_string(), |code| code.to_string());
+            let lines: Vec<&str> = output.stderr.lines().take(ERROR_STDERR_LINES).collect();
+            error = Some(format!("exit code {code}\n{}", lines.join("\n")));
+        }
+        TestOutcome::Timeout | TestOutcome::Cancelled => {}
+    }
+    TestResult {
+        outcome,
+        reply,
+        error,
     }
 }
 
@@ -353,7 +497,6 @@ pub fn detect_all(probe: &Probe) -> Vec<AssistantStatus> {
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Instant;
 
     static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -580,5 +723,150 @@ mod tests {
         let statuses = detect_all(&probe_for(&dir));
         let ids: Vec<AssistantId> = statuses.iter().map(|s| s.id).collect();
         assert_eq!(ids, ALL.to_vec());
+    }
+
+    #[test]
+    fn test_args_are_fixed() {
+        assert_eq!(
+            AssistantId::ClaudeCode.test_args(),
+            [
+                "-p",
+                TEST_PROMPT,
+                "--output-format",
+                "text",
+                "--tools",
+                "",
+                "--no-session-persistence"
+            ]
+        );
+        assert_eq!(
+            AssistantId::Codex.test_args(),
+            [
+                "exec",
+                "--sandbox",
+                "read-only",
+                "--skip-git-repo-check",
+                "--ephemeral",
+                TEST_PROMPT
+            ]
+        );
+        assert_eq!(
+            AssistantId::Copilot.test_args(),
+            [
+                "-p",
+                TEST_PROMPT,
+                "-s",
+                "--no-ask-user",
+                "--deny-tool",
+                "shell",
+                "--deny-tool",
+                "write"
+            ]
+        );
+    }
+
+    fn output(code: Option<i32>, stderr: &str, timed_out: bool, cancelled: bool) -> RunOutput {
+        RunOutput {
+            code,
+            stdout: String::new(),
+            stderr: stderr.to_string(),
+            timed_out,
+            cancelled,
+        }
+    }
+
+    #[test]
+    fn classify_ok_on_exit_zero() {
+        assert_eq!(
+            classify(&output(Some(0), "", false, false)),
+            TestOutcome::Ok
+        );
+    }
+
+    #[test]
+    fn classify_usage_on_unknown_option() {
+        let out = output(Some(1), "error: unknown option '--tools'", false, false);
+        assert_eq!(classify(&out), TestOutcome::Usage);
+    }
+
+    #[test]
+    fn classify_usage_on_unexpected_argument() {
+        let out = output(
+            Some(2),
+            "error: unexpected argument '--ephemeral' found",
+            false,
+            false,
+        );
+        assert_eq!(classify(&out), TestOutcome::Usage);
+    }
+
+    #[test]
+    fn classify_timeout_and_cancelled_win_over_exit_code() {
+        assert_eq!(
+            classify(&output(Some(0), "", true, false)),
+            TestOutcome::Timeout
+        );
+        assert_eq!(
+            classify(&output(Some(1), "unknown option", false, true)),
+            TestOutcome::Cancelled
+        );
+    }
+
+    #[test]
+    fn classify_failed_otherwise() {
+        let out = output(Some(1), "Not logged in", false, false);
+        assert_eq!(classify(&out), TestOutcome::Failed);
+    }
+
+    fn run_fake_test(label: &str, script: &str) -> TestResult {
+        let dir = scratch_dir(label);
+        let bin = fake_bin(&dir, "claude", script);
+        let cancel = AtomicBool::new(false);
+        run_test(
+            AssistantId::ClaudeCode,
+            &bin,
+            Duration::from_secs(10),
+            &cancel,
+        )
+    }
+
+    #[test]
+    fn run_test_returns_reply() {
+        let result = run_fake_test("reply", "echo ready");
+        assert_eq!(result.outcome, TestOutcome::Ok);
+        assert_eq!(result.reply.as_deref(), Some("ready"));
+        assert_eq!(result.error, None);
+    }
+
+    #[test]
+    fn run_test_truncates_large_reply() {
+        let result = run_fake_test("large", "yes x | head -c 2000000");
+        assert_eq!(result.outcome, TestOutcome::Ok);
+        assert_eq!(result.reply.unwrap().chars().count(), 500);
+    }
+
+    #[test]
+    fn run_test_reports_exit_code_and_first_stderr_lines() {
+        let result = run_fake_test(
+            "stderr",
+            "for i in 1 2 3 4 5 6 7 8; do echo \"line $i\" >&2; done; exit 3",
+        );
+        assert_eq!(result.outcome, TestOutcome::Failed);
+        let error = result.error.unwrap();
+        assert!(error.contains("exit code 3"));
+        assert!(error.contains("line 5"));
+        assert!(!error.contains("line 6"));
+    }
+
+    #[test]
+    fn run_test_runs_in_empty_temp_dir() {
+        let result = run_fake_test("cwd", "pwd; ls -A | wc -l");
+        assert_eq!(result.outcome, TestOutcome::Ok);
+        let reply = result.reply.unwrap();
+        let mut lines = reply.lines();
+        let cwd = PathBuf::from(lines.next().unwrap());
+        assert!(cwd.starts_with(std::fs::canonicalize(std::env::temp_dir()).unwrap()));
+        assert_eq!(lines.next().unwrap().trim(), "0");
+        assert!(!cwd.exists());
     }
 }
