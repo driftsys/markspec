@@ -1,6 +1,7 @@
 //! MarkDesk desktop shell: opens products by starting a `markspec desk
 //! --serve` sidecar, and keeps the list of recently opened products.
 
+pub mod assistants;
 pub mod handshake;
 pub mod recents;
 pub mod sidecar;
