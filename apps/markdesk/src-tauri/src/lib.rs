@@ -1,17 +1,22 @@
 //! MarkDesk desktop shell: opens products by starting a `markspec desk
 //! --serve` sidecar, and keeps the list of recently opened products.
 
+pub mod assistant_settings;
 pub mod assistants;
 pub mod handshake;
 pub mod recents;
 pub mod sidecar;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_store::StoreExt;
 
+use assistant_settings::AssistantSettings;
+use assistants::{AssistantId, AssistantStatus, TestOutcome, TestResult};
 use handshake::Handshake;
 use recents::Recent;
 use sidecar::{OpenError, SidecarSlot};
@@ -22,6 +27,17 @@ const RECENTS_STORE: &str = "recents.json";
 const RECENTS_KEY: &str = "recents";
 /// Key that receives a recents value that could not be read.
 const RECENTS_CORRUPT_KEY: &str = "recents.corrupt";
+
+/// Store file holding the assistant settings, in the app-data directory.
+const SETTINGS_STORE: &str = "settings.json";
+/// Key of the assistant settings inside [`SETTINGS_STORE`].
+const ASSISTANT_KEY: &str = "assistant";
+/// Key that receives assistant settings that could not be read.
+const ASSISTANT_CORRUPT_KEY: &str = "assistant.corrupt";
+
+/// Set by `cancel_assistant_test`; the running Test polls it.
+#[derive(Default)]
+struct AssistantTestCancel(Arc<AtomicBool>);
 
 /// What `open_product` returns to the web UI: the sidecar handshake.
 pub type OpenedProduct = Handshake;
@@ -60,6 +76,31 @@ fn save_recents(app: &AppHandle, list: &[Recent]) -> Result<(), String> {
     let store = app.store(RECENTS_STORE).map_err(|err| err.to_string())?;
     let value = serde_json::to_value(list).map_err(|err| err.to_string())?;
     store.set(RECENTS_KEY, value);
+    store.save().map_err(|err| err.to_string())
+}
+
+fn load_assistant_settings(app: &AppHandle) -> Result<AssistantSettings, String> {
+    let store = app.store(SETTINGS_STORE).map_err(|err| err.to_string())?;
+    let parsed = assistant_settings::parse_stored(store.get(ASSISTANT_KEY));
+    if let Some(value) = parsed.corrupt {
+        // Keep the unreadable value instead of overwriting it. Write errors
+        // are ignored: the settings still load as the defaults.
+        eprintln!(
+            "markdesk: assistant settings could not be read; kept under {ASSISTANT_CORRUPT_KEY}"
+        );
+        if store.get(ASSISTANT_CORRUPT_KEY).is_none() {
+            store.set(ASSISTANT_CORRUPT_KEY, value);
+        }
+        store.delete(ASSISTANT_KEY);
+        let _ = store.save();
+    }
+    Ok(parsed.settings)
+}
+
+fn save_assistant_settings(app: &AppHandle, settings: &AssistantSettings) -> Result<(), String> {
+    let store = app.store(SETTINGS_STORE).map_err(|err| err.to_string())?;
+    let value = serde_json::to_value(settings).map_err(|err| err.to_string())?;
+    store.set(ASSISTANT_KEY, value);
     store.save().map_err(|err| err.to_string())
 }
 
@@ -125,6 +166,75 @@ fn remove_recent(app: AppHandle, root: String) -> Result<(), String> {
     save_recents(&app, &recents::remove(list, &root))
 }
 
+/// Find each assistant and report its state. Never prompts and never signs in.
+#[tauri::command]
+async fn detect_assistants(app: AppHandle) -> Result<Vec<AssistantStatus>, String> {
+    let confirmed = load_assistant_settings(&app)?.copilot_confirmed;
+    let home = app.path().home_dir().map_err(|err| err.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        assistants::detect_all(&assistants::Probe::new(&home, confirmed))
+    })
+    .await
+    .map_err(|err| err.to_string())
+}
+
+/// Run the short Test prompt on one assistant. The web UI passes only the
+/// assistant id; the program and the prompt are fixed in the shell.
+#[tauri::command]
+async fn test_assistant(app: AppHandle, id: AssistantId) -> Result<TestResult, String> {
+    let settings = load_assistant_settings(&app)?;
+    let home = app.path().home_dir().map_err(|err| err.to_string())?;
+    let cancel = app.state::<AssistantTestCancel>().0.clone();
+    cancel.store(false, Ordering::SeqCst);
+    let probe = assistants::Probe::new(&home, settings.copilot_confirmed);
+    let Some(program) =
+        assistants::locate(id.binary(), probe.path_env.as_deref(), &probe.extra_dirs)
+    else {
+        return Ok(TestResult {
+            outcome: TestOutcome::Failed,
+            reply: None,
+            error: Some(format!("{} is not installed", id.binary())),
+        });
+    };
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        assistants::run_test(id, &program, assistants::TEST_TIMEOUT, &cancel)
+    })
+    .await
+    .map_err(|err| err.to_string())?;
+
+    if id == AssistantId::Copilot {
+        let confirmed =
+            assistant_settings::copilot_confirmed_after(settings.copilot_confirmed, result.outcome);
+        if confirmed != settings.copilot_confirmed {
+            // Reload so a change made while the Test ran is not overwritten.
+            let mut latest = load_assistant_settings(&app)?;
+            latest.copilot_confirmed = confirmed;
+            save_assistant_settings(&app, &latest)?;
+        }
+    }
+    Ok(result)
+}
+
+/// Stop the running Test, if any.
+#[tauri::command]
+fn cancel_assistant_test(app: AppHandle) {
+    app.state::<AssistantTestCancel>()
+        .0
+        .store(true, Ordering::SeqCst);
+}
+
+/// The stored assistant settings.
+#[tauri::command]
+fn get_assistant_settings(app: AppHandle) -> Result<AssistantSettings, String> {
+    load_assistant_settings(&app)
+}
+
+/// Replace the stored assistant settings.
+#[tauri::command]
+fn set_assistant_settings(app: AppHandle, settings: AssistantSettings) -> Result<(), String> {
+    save_assistant_settings(&app, &settings)
+}
+
 /// Start the MarkDesk application.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -133,11 +243,17 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(SidecarSlot::default())
+        .manage(AssistantTestCancel::default())
         .invoke_handler(tauri::generate_handler![
             open_product,
             list_recents,
             set_product_name,
-            remove_recent
+            remove_recent,
+            detect_assistants,
+            test_assistant,
+            cancel_assistant_test,
+            get_assistant_settings,
+            set_assistant_settings
         ])
         .build(tauri::generate_context!())
         .expect("error while building MarkDesk")
