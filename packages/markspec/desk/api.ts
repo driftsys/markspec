@@ -17,7 +17,9 @@
  *
  * A `path` is served only when it names a Markdown or source file that holds
  * at least one project entry (an entry with no `origin`); `/documents`
- * additionally requires a `.md` path. Any other path is 404 `not-found`.
+ * additionally requires a `.md` path. The path must also be project-relative,
+ * and its real path (symlinks resolved) must lie inside the real project
+ * root. Any other path is 404 `not-found`.
  *
  * Every request must carry a loopback `Host` header (DNS-rebinding guard),
  * and every request except an allowed-origin CORS preflight must carry
@@ -159,6 +161,11 @@ export interface DeskSource {
   getCompiled(): Promise<CompileResult>;
   /** Read a file by absolute path; `undefined` when it cannot be read. */
   readFile(absolutePath: string): Promise<string | undefined>;
+  /**
+   * Resolve an absolute path to its canonical, symlink-free form;
+   * `undefined` when the path does not exist or cannot be resolved.
+   */
+  realPath(absolutePath: string): Promise<string | undefined>;
 }
 
 /** Options for {@linkcode createDeskHandler}. */
@@ -409,7 +416,19 @@ export function createDeskHandler(
     const compiled = await source.getCompiled();
     const entries = projectEntriesOf(compiled, source.projectRoot, path);
     if (entries.length === 0) return notFound();
-    const text = await source.readFile(join(source.projectRoot, path));
+    if (!isProjectRelative(path)) return notFound();
+    const target = join(source.projectRoot, path);
+    const [realRoot, realTarget] = await Promise.all([
+      source.realPath(source.projectRoot),
+      source.realPath(target),
+    ]);
+    if (
+      realRoot === undefined || realTarget === undefined ||
+      !isInside(realRoot, realTarget)
+    ) {
+      return notFound();
+    }
+    const text = await source.readFile(target);
     if (text === undefined) return notFound();
     if (!asDocument) {
       const body: SourceText = { apiVersion: DESK_API_VERSION, path, text };
@@ -501,6 +520,22 @@ export function createDeskHandler(
 // ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------
+
+/**
+ * Whether an API path is relative to the project root: not absolute on any
+ * platform (`/x`, `\x`, `C:x`) and free of `..` segments.
+ */
+function isProjectRelative(path: string): boolean {
+  if (/^[\\/]/.test(path) || /^[A-Za-z]:/.test(path)) return false;
+  return !path.split(/[\\/]/).includes("..");
+}
+
+/** Whether `target` is `root` itself or lies below it. Both are real paths. */
+function isInside(root: string, target: string): boolean {
+  const base = root.replace(/[\\/]+$/, "");
+  if (target === base) return true;
+  return target.startsWith(`${base}/`) || target.startsWith(`${base}\\`);
+}
 
 /** Headers that let a browser on `origin` read the response. */
 function corsHeaders(origin: string): Record<string, string> {

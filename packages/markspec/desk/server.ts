@@ -91,6 +91,13 @@ export async function startDeskServer(
           return undefined;
         }
       },
+      realPath: async (path) => {
+        try {
+          return await Deno.realPath(path);
+        } catch {
+          return undefined;
+        }
+      },
     },
   });
 

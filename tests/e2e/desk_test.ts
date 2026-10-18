@@ -321,3 +321,39 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name:
+    "desk --serve: without --exit-on-stdin-eof, closing stdin keeps serving",
+  ignore: !hasNet,
+  async fn() {
+    const child = new Deno.Command("deno", {
+      args: [...DESK_ARGS, "--root", FIXTURE_ROOT],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "null",
+    }).spawn();
+    const reader = child.stdout.pipeThrough(new TextDecoderStream())
+      .getReader();
+    try {
+      const handshake = JSON.parse(await readFirstLine(reader)) as {
+        url: string;
+        token: string;
+      };
+      await child.stdin.close();
+      // Give a server that wrongly stops on stdin EOF the time to stop.
+      await new Promise((r) => setTimeout(r, 500));
+      const res = await fetch(`${handshake.url}/api/v1/tree`, {
+        headers: { authorization: `Bearer ${handshake.token}` },
+      });
+      assertEquals(res.status, 200);
+      assertEquals((await res.json()).apiVersion, 3);
+    } finally {
+      await reader.cancel().catch(() => {});
+      try {
+        child.kill("SIGKILL");
+      } catch { /* already exited */ }
+      await child.status;
+    }
+  },
+});

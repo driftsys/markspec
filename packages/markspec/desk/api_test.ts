@@ -40,6 +40,14 @@ async function readFile(path: string): Promise<string | undefined> {
   }
 }
 
+async function realPath(path: string): Promise<string | undefined> {
+  try {
+    return await Deno.realPath(path);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Compile the fixture project with its own profile, once per test file. */
 const fixture: Promise<{ compiled: CompileResult; profile: EffectiveProfile }> =
   (async () => {
@@ -63,6 +71,7 @@ async function handler(allowedOrigins?: readonly string[]) {
     profile,
     getCompiled: () => Promise.resolve(compiled),
     readFile,
+    realPath,
   };
   return createDeskHandler({ source, token: TOKEN, allowedOrigins });
 }
@@ -899,6 +908,7 @@ async function handlerFor(
       profile,
       getCompiled: () => Promise.resolve(compiled),
       readFile: readFileFn,
+      realPath: (p) => Promise.resolve(p),
     },
   });
 }
@@ -1057,6 +1067,87 @@ Deno.test("desk api: documents requires a Markdown path, files accepts source fi
   await docs.body?.cancel();
 });
 
+/** The fixture graph plus one entry located at the absolute path `file`. */
+async function withEntryAt(file: string): Promise<CompileResult> {
+  const { compiled } = await fixture;
+  const [first] = [...compiled.entries.values()];
+  const id = makeDisplayId("EXTRA_0001");
+  return {
+    ...compiled,
+    entries: new Map([...compiled.entries, [id, {
+      ...first,
+      displayId: id,
+      location: { ...first.location, file },
+    }]]),
+  };
+}
+
+Deno.test("desk api: an absolute path is never joined to the project root", async () => {
+  for (const file of ["/elsewhere/notes.md", "C:/elsewhere/notes.md"]) {
+    const graph = await withEntryAt(file);
+    const read: string[] = [];
+    const h = await handlerFor(graph, (p) => {
+      read.push(p);
+      return Promise.resolve("# Notes\n");
+    });
+    for (const route of ["/api/v1/files", "/api/v1/documents"]) {
+      const res = await h(get(`${route}?path=${encodeURIComponent(file)}`));
+      assertEquals(res.status, 404, `${route} ${file}`);
+      assertEquals((await res.json()).error.code, "not-found");
+    }
+    assertEquals(read, [], file);
+  }
+});
+
+Deno.test("desk api: a symlink that leaves the project root is 404", async () => {
+  const temp = await Deno.makeTempDir();
+  try {
+    const root = join(temp, "product");
+    await Deno.mkdir(join(root, "docs"), { recursive: true });
+    await Deno.writeTextFile(join(root, "docs", "inside.md"), "# Inside\n");
+    await Deno.writeTextFile(join(temp, "outside.md"), "# Secret\n");
+    await Deno.symlink(join(temp, "outside.md"), join(root, "docs", "link.md"));
+    const { compiled, profile } = await fixture;
+    const [first] = [...compiled.entries.values()];
+    const entryAt = (name: string, file: string) =>
+      [
+        makeDisplayId(name),
+        {
+          ...first,
+          displayId: makeDisplayId(name),
+          location: { ...first.location, file },
+        },
+      ] as const;
+    const graph: CompileResult = {
+      ...compiled,
+      entries: new Map([
+        entryAt("IN_0001", join(root, "docs", "inside.md")),
+        entryAt("LINK_0001", join(root, "docs", "link.md")),
+      ]),
+    };
+    const h = createDeskHandler({
+      token: TOKEN,
+      source: {
+        projectRoot: root,
+        profile,
+        getCompiled: () => Promise.resolve(graph),
+        readFile,
+        realPath,
+      },
+    });
+    const inside = await h(get("/api/v1/files?path=docs/inside.md"));
+    assertEquals(inside.status, 200);
+    assertEquals((await inside.json()).text, "# Inside\n");
+    for (const route of ["/api/v1/files", "/api/v1/documents"]) {
+      const res = await h(get(`${route}?path=docs/link.md`));
+      assertEquals(res.status, 404, route);
+      assertEquals((await res.json()).error.code, "not-found");
+    }
+  } finally {
+    await Deno.remove(temp, { recursive: true });
+  }
+});
+
 Deno.test("toApiPath: converts Windows separators", () => {
   assertEquals(toApiPath("C:\\p", "C:\\p\\docs\\a.md"), "docs/a.md");
   assertEquals(toApiPath("/p", "/p/docs/a.md"), "docs/a.md");
@@ -1085,6 +1176,7 @@ Deno.test("desk api: entry location uses forward slashes for Windows paths", asy
       profile,
       getCompiled: () => Promise.resolve({ ...compiled, entries }),
       readFile,
+      realPath,
     },
   });
   const res = await handle(get("/api/v1/entries/SYS_BRK_0001"));
