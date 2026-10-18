@@ -115,8 +115,9 @@ nonce check therefore stays mandatory and must never be relaxed because the
   The UI shall live in `apps/markdesk/` as a React and Vite application. A thin
   Rust shell in `apps/markdesk/src-tauri/` shall own only the window, the
   installer, the updater, OS keychain access, the OAuth deep link, the folder
-  picker, the recent-products store, and the sidecar lifecycle. The shell shall
-  bundle the `markspec` binary as a sidecar, launch it with
+  picker, the recent-products store, the sidecar lifecycle, the location and
+  execution of the assistant CLIs, and the assistant-settings store. The shell
+  shall bundle the `markspec` binary as a sidecar, launch it with
   `desk --serve --port 0 --exit-on-stdin-eof --root` and the workspace path, and
   read the one-line JSON handshake (`url`, `token`, `apiVersion`, `root`) from
   its stdout, where `root` is the absolute path of the discovered product root.

@@ -627,4 +627,38 @@ describe("settings view", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
   });
+
+  it("opens Settings from the setup card install guide", async () => {
+    const bridge = fakeBridge([{
+      root: "/p/brakes",
+      name: null,
+      exists: true,
+    }]);
+    render(<App bridge={bridge} createClient={() => fakeClient()} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open install guide" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeTruthy();
+  });
+
+  it("detects the assistants again when another product opens", async () => {
+    const bridge = fakeBridge([
+      { root: "/p/brakes", name: null, exists: true },
+      { root: "/p/other", name: "Other", exists: true },
+    ]);
+    render(<App bridge={bridge} createClient={() => fakeClient()} />);
+    fireEvent.click(await screen.findByText("Brakes"));
+    await waitFor(() =>
+      expect(bridge.detectAssistants).toHaveBeenCalledTimes(1)
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Other" }));
+    await waitFor(() =>
+      expect(bridge.openProduct).toHaveBeenLastCalledWith("/p/other")
+    );
+    await waitFor(() =>
+      expect(bridge.detectAssistants).toHaveBeenCalledTimes(2)
+    );
+  });
 });

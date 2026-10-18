@@ -112,23 +112,30 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     };
   }, [bridge, recheck]);
 
-  const store = useCallback(async (next: AssistantSettings) => {
-    try {
-      await bridge.setAssistantSettings(next);
-      setSettings(next);
-    } catch {
-      // The stored choice did not change, so the local state stays as it is.
-    }
-  }, [bridge]);
+  // `change` is applied to the latest settings both when storing and when
+  // updating the local state, so a value read while the store call runs is
+  // kept. The shell ignores `copilotConfirmed` here; it changes only when
+  // the settings are read again.
+  const store = useCallback(
+    async (change: (current: AssistantSettings) => AssistantSettings) => {
+      const current = settingsRef.current;
+      if (!current) return;
+      try {
+        await bridge.setAssistantSettings(change(current));
+        setSettings((latest) => latest && change(latest));
+      } catch {
+        // The stored choice did not change, so the local state stays as it is.
+      }
+    },
+    [bridge],
+  );
 
   const select = useCallback(async (id: AssistantId | null) => {
-    const current = settingsRef.current;
-    if (current) await store({ ...current, selected: id });
+    await store((current) => ({ ...current, selected: id }));
   }, [store]);
 
   const dismissCard = useCallback(async () => {
-    const current = settingsRef.current;
-    if (current) await store({ ...current, cardDismissed: true });
+    await store((current) => ({ ...current, cardDismissed: true }));
   }, [store]);
 
   const runTest = useCallback(async () => {

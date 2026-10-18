@@ -174,6 +174,87 @@ describe("AssistantProvider", () => {
     expect(bridge.detectAssistants).toHaveBeenCalledTimes(2);
   });
 
+  it("select keeps the other stored fields", async () => {
+    const stored: AssistantSettings = {
+      selected: "claude-code",
+      cardDismissed: true,
+      copilotConfirmed: true,
+    };
+    const { bridge, seen } = mount({
+      getAssistantSettings: vi.fn(async () => stored),
+    });
+    await loaded(seen);
+    await act(() => seen.current!.select("codex"));
+    expect(bridge.setAssistantSettings).toHaveBeenCalledWith({
+      ...stored,
+      selected: "codex",
+    });
+    expect(seen.current?.settings).toEqual({ ...stored, selected: "codex" });
+  });
+
+  it("select keeps a Copilot confirmation read while it was storing", async () => {
+    let finishStore: () => void = () => {};
+    const getAssistantSettings = vi.fn()
+      .mockResolvedValueOnce({ ...SETTINGS, selected: "copilot" as const })
+      .mockResolvedValueOnce({
+        ...SETTINGS,
+        selected: "copilot" as const,
+        copilotConfirmed: true,
+      });
+    const { seen } = mount({
+      getAssistantSettings,
+      setAssistantSettings: vi.fn(() =>
+        new Promise<void>((resolve) => {
+          finishStore = resolve;
+        })
+      ),
+    });
+    await loaded(seen);
+    let selecting: Promise<void> = Promise.resolve();
+    act(() => {
+      selecting = seen.current!.select("codex");
+    });
+    // The Copilot Test ends and the settings are read again while the
+    // select is still storing.
+    await act(() => seen.current!.runTest());
+    expect(seen.current?.settings?.copilotConfirmed).toBe(true);
+    await act(async () => {
+      finishStore();
+      await selecting;
+    });
+    expect(seen.current?.settings).toEqual({
+      ...SETTINGS,
+      selected: "codex",
+      copilotConfirmed: true,
+    });
+  });
+
+  it("runTest exposes the settings read again after a Copilot test", async () => {
+    const confirmed: AssistantSettings = {
+      ...SETTINGS,
+      selected: "copilot",
+      copilotConfirmed: true,
+    };
+    const { seen } = mount({
+      getAssistantSettings: vi.fn()
+        .mockResolvedValueOnce({ ...SETTINGS, selected: "copilot" as const })
+        .mockResolvedValueOnce(confirmed),
+    });
+    await loaded(seen);
+    expect(seen.current?.settings?.copilotConfirmed).toBe(false);
+    await act(() => seen.current!.runTest());
+    expect(seen.current?.settings).toEqual(confirmed);
+  });
+
+  it("runTest does not re-read settings or re-detect after a Claude Code test", async () => {
+    const { bridge, seen } = mount();
+    await loaded(seen);
+    await act(() => seen.current!.runTest());
+    expect(bridge.testAssistant).toHaveBeenCalledWith("claude-code");
+    expect(bridge.getAssistantSettings).toHaveBeenCalledTimes(1);
+    expect(bridge.detectAssistants).toHaveBeenCalledTimes(1);
+  });
+
   it("cancelTest calls cancelAssistantTest", async () => {
     const { bridge, seen } = mount();
     await loaded(seen);
