@@ -110,7 +110,8 @@ markspec/
 │       ├── src/                     ← React + Vite UI (typed client generated
 │       │                              from schemas/desk-api.json)
 │       └── src-tauri/               ← Tauri v2 shell: window, folder picker,
-│                                      recents store, markspec sidecar
+│                                      recents store, markspec sidecar,
+│                                      assistant CLI detection and settings
 ├── editors/
 │   └── vscode/                      ← markspec-ide VSCode extension
 │       ├── package.json
