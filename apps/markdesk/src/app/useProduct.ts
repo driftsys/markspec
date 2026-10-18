@@ -114,17 +114,21 @@ function describeFailure(failure: unknown): ProductError {
     known !== null && typeof known === "object" &&
     typeof known.details === "string"
   ) {
-    return known.kind === "not-a-product"
-      ? {
+    if (known.kind === "not-a-product") {
+      return {
         kind: "not-a-product",
         message: MESSAGES.notAProduct,
         details: known.details,
-      }
-      : {
-        kind: "failed",
-        message: MESSAGES.openFailed,
-        details: known.details,
       };
+    }
+    if (known.kind === "version-mismatch") {
+      return { kind: "version", message: MESSAGES.versionMismatch };
+    }
+    return {
+      kind: "failed",
+      message: MESSAGES.openFailed,
+      details: known.details,
+    };
   }
   const details = failure instanceof Error ? failure.message : String(failure);
   return { kind: "failed", message: MESSAGES.openFailed, details };
@@ -174,6 +178,7 @@ export function useProduct(
         }));
         return;
       }
+      // The shell already refuses another version; this is a second guard.
       if (opened.apiVersion !== EXPECTED_API_VERSION) {
         setState((current) => ({
           status: "error",
@@ -184,23 +189,23 @@ export function useProduct(
         return;
       }
       const raw = createClient(opened.url, opened.token);
-      let name: string;
+      // The new sidecar is live and has replaced the previous one, so the
+      // new product opens even when its tree cannot be read here. The
+      // navigator then shows its own load error.
+      let name = basename(opened.root);
+      let treeRead = false;
       try {
-        const tree = await raw.tree();
-        name = tree.project.name ?? basename(opened.root);
-      } catch (failure) {
-        setState((current) => ({
-          status: "error",
-          product: previous,
-          lost: current.lost,
-          error: describeFailure(failure),
-        }));
-        return;
-      }
-      try {
-        await bridge.setProductName(opened.root, name);
+        name = (await raw.tree()).project.name ?? name;
+        treeRead = true;
       } catch {
-        // The recent list is a convenience; opening still succeeds.
+        // Keep the folder name, and do not store it over a known name.
+      }
+      if (treeRead) {
+        try {
+          await bridge.setProductName(opened.root, name);
+        } catch {
+          // The recent list is a convenience; opening still succeeds.
+        }
       }
       const product: OpenProduct = {
         root: opened.root,

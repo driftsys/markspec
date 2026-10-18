@@ -13,13 +13,17 @@ export interface OpenedProduct {
 /** A product folder remembered from an earlier session. */
 export interface RecentProduct {
   root: string;
+  /**
+   * Project name, or folder name when the project has none. Derived on each
+   * open and overwritten; `null` until the product was opened once.
+   */
   name: string | null;
   exists: boolean;
 }
 
 /** Rejection value of `openProduct`. */
 export interface OpenProductFailure {
-  kind: "not-a-product" | "spawn-failed";
+  kind: "not-a-product" | "spawn-failed" | "version-mismatch";
   details: string;
 }
 
@@ -30,6 +34,7 @@ export interface OpenProductFailure {
 export interface ShellBridge {
   openProduct(path: string): Promise<OpenedProduct>;
   listRecents(): Promise<RecentProduct[]>;
+  /** Store the derived name (project name, or folder name) of a recent product. */
   setProductName(root: string, name: string): Promise<void>;
   removeRecent(root: string): Promise<void>;
   /** Show the folder picker. Resolves to `null` when the user cancels. */

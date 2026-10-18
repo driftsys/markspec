@@ -96,6 +96,17 @@ describe("useHistory", () => {
     fireEvent.mouseUp(window, { button: 4 });
     expect(history().current).toBe("B");
   });
+
+  it("primary and middle mouse buttons do not move the history", () => {
+    const history = harness();
+    act(() => history().select("A"));
+    act(() => history().select("B"));
+    act(() => history().back());
+    fireEvent.mouseUp(window, { button: 0 });
+    expect(history().current).toBe("A");
+    fireEvent.mouseUp(window, { button: 1 });
+    expect(history().current).toBe("A");
+  });
 });
 
 describe("historyKeyAction", () => {

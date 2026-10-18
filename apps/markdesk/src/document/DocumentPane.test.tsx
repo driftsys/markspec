@@ -6,7 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type DeskClient,
   DeskError,
@@ -20,6 +20,23 @@ import { DocumentPane } from "./DocumentPane";
 import { type History, HistoryProvider, useHistory } from "./useHistory";
 
 afterEach(cleanup);
+
+const scrollIntoView = vi.fn();
+beforeEach(() => {
+  scrollIntoView.mockClear();
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+});
+
+/** A promise with its resolve and reject functions. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((ok, fail) => {
+    resolve = ok;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
 
 const ID = "SRS/brk.0001";
 
@@ -307,6 +324,129 @@ describe("DocumentPane", () => {
     select(ID);
     await waitFor(() => expect(client.entry).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("scrolls the selected entry block into view", async () => {
+    const { select } = mount();
+    select(ID);
+    await screen.findByText("Brakes");
+    await waitFor(() =>
+      expect(
+        scrollIntoView.mock.contexts.some((el) =>
+          (el as HTMLElement).id === `entry-${ID}`
+        ),
+      ).toBe(true)
+    );
+  });
+
+  it("scrolls the target of a #fragment link into view", async () => {
+    const { select } = mount();
+    select(ID);
+    await screen.findByText("Brakes");
+    scrollIntoView.mockClear();
+    fireEvent.click(screen.getByText("down"));
+    expect(scrollIntoView.mock.contexts.map((el) => (el as HTMLElement).id))
+      .toEqual(["entry-B"]);
+  });
+
+  it("scrolls the source drawer to the entry line", async () => {
+    const { select } = mount();
+    select(ID);
+    await screen.findByText("Brakes");
+    scrollIntoView.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    await screen.findByText("line three");
+    await waitFor(() =>
+      expect(
+        scrollIntoView.mock.contexts.some((el) =>
+          (el as HTMLElement).classList.contains("is-target")
+        ),
+      ).toBe(true)
+    );
+    const target = scrollIntoView.mock.contexts.find((el) =>
+      (el as HTMLElement).classList.contains("is-target")
+    ) as HTMLElement;
+    expect(target.textContent).toContain("line three");
+  });
+
+  it("shows the latest selection when an earlier response arrives last", async () => {
+    const pending: Record<string, ReturnType<typeof deferred<EntryView>>> = {
+      [ID]: deferred<EntryView>(),
+      B: deferred<EntryView>(),
+    };
+    const client = fakeClient({
+      entry: vi.fn((id: string) => pending[id].promise),
+    });
+    const { select } = mount(client);
+    select(ID);
+    select("B");
+    await act(async () => {
+      pending.B.resolve(entryView("B", "docs/brakes.md"));
+    });
+    await waitFor(() =>
+      expect(document.querySelector(".is-selected")?.id).toBe("entry-B")
+    );
+    await act(async () => {
+      pending[ID].resolve(entryView(ID, "docs/brakes.md"));
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(document.querySelectorAll(".is-selected").length).toBe(1);
+    expect(document.querySelector(".is-selected")?.id).toBe("entry-B");
+  });
+
+  it("never shows the previous entry while a new selection loads or fails", async () => {
+    const loading = deferred<EntryView>();
+    const base = fakeClient();
+    const client = fakeClient({
+      entry: vi.fn((id: string) =>
+        id === "SLOW" ? loading.promise : base.entry(id)
+      ),
+    });
+    const { select } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    await screen.findByText("line three");
+    select("SLOW");
+    await waitFor(() => expect(screen.queryByText("Brakes")).toBeNull());
+    expect(screen.queryByText("line three")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
+    select("MISSING");
+    expect(
+      await screen.findByText("MarkDesk could not show this requirement."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Brakes")).toBeNull();
+    expect(document.querySelector(".document-content")).toBeNull();
+  });
+
+  it("retries a failed document load on a later selection", async () => {
+    let calls = 0;
+    const client = fakeClient({
+      document: vi.fn(async (path: string) => {
+        if (++calls === 1) throw new DeskError(500, "internal", "boom");
+        return documentView(path);
+      }),
+    });
+    const { select } = mount(client);
+    select(ID);
+    expect(await screen.findByText(`html of ${ID}`)).toBeTruthy();
+    select("B");
+    expect(await screen.findByText("Brakes")).toBeTruthy();
+    expect(client.document).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes a network failure of the document on without a fallback", async () => {
+    const client = fakeClient({
+      document: vi.fn(async () => {
+        throw new DeskError(0, "network", "down");
+      }),
+    });
+    const { select } = mount(client);
+    select(ID);
+    await waitFor(() => expect(client.document).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(client.entryHtml).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 

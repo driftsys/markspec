@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -13,6 +14,7 @@ import type {
   ShellBridge,
 } from "../shell/bridge";
 import { App } from "./App";
+import { useSelection } from "./selection";
 import { useOpenProduct } from "./useProduct";
 
 afterEach(cleanup);
@@ -428,6 +430,156 @@ describe("open flow", () => {
       await screen.findByText("MarkDesk could not open this product."),
     ).toBeTruthy();
     expect(screen.getByText("dialog failed")).toBeTruthy();
+  });
+
+  it("keeps the current product when the shell reports a version mismatch", async () => {
+    const clients: Record<string, DeskClient> = {};
+    const openProduct = vi.fn(async (path: string): Promise<OpenedProduct> => {
+      if (path === "/p/new") {
+        throw { kind: "version-mismatch", details: "2" };
+      }
+      return { url: path, token: "t", apiVersion: 3, root: path };
+    });
+    const bridge = fakeBridge(
+      [
+        { root: "/p/brakes", name: null, exists: true },
+        { root: "/p/new", name: "New", exists: true },
+      ],
+      { openProduct },
+    );
+    const createClient = (url: string) => {
+      clients[url] = fakeClient({
+        entry: vi.fn(async () => {
+          throw new DeskError(404, "entry-not-found", url);
+        }),
+      });
+      return clients[url];
+    };
+    function Pane() {
+      const product = useOpenProduct();
+      return (
+        <button
+          type="button"
+          onClick={() => product.client.entry("X").catch(() => {})}
+        >
+          {`load ${product.root}`}
+        </button>
+      );
+    }
+    render(
+      <App
+        bridge={bridge}
+        createClient={createClient}
+        slots={{ document: <Pane /> }}
+      />,
+    );
+    fireEvent.click(await screen.findByText("Brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New" }));
+    expect(
+      await screen.findByText(
+        "This version of MarkDesk does not match the installed markspec.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Brakes")).toBeTruthy();
+    fireEvent.click(screen.getByText("load /p/brakes"));
+    await waitFor(() => expect(clients["/p/brakes"].entry).toHaveBeenCalled());
+    expect(Object.keys(clients)).toEqual(["/p/brakes"]);
+  });
+
+  it("opens the new product even when its first tree load fails", async () => {
+    const openProduct = vi.fn(async (path: string): Promise<OpenedProduct> => ({
+      url: path,
+      token: "t",
+      apiVersion: 3,
+      root: path,
+    }));
+    const bridge = fakeBridge(
+      [
+        { root: "/p/brakes", name: null, exists: true },
+        { root: "/p/steering", name: "Steering", exists: true },
+      ],
+      { openProduct },
+    );
+    const createClient = (url: string) =>
+      url === "/p/steering"
+        ? fakeClient({
+          tree: vi.fn(async () => {
+            throw new DeskError(500, "internal", "compile failed");
+          }),
+        })
+        : fakeClient();
+    render(<App bridge={bridge} createClient={createClient} />);
+    fireEvent.click(await screen.findByText("Brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Steering" }));
+    expect(await screen.findByText("steering")).toBeTruthy();
+    expect(screen.getByText("/p/steering")).toBeTruthy();
+    expect(screen.queryByText("Brakes")).toBeNull();
+    expect(
+      await screen.findByText("MarkDesk could not load this product."),
+    ).toBeTruthy();
+  });
+
+  it("records the discovered product root, not the chosen folder", async () => {
+    const bridge = fakeBridge([], {
+      openProduct: vi.fn(async () => ({
+        url: "u",
+        token: "t",
+        apiVersion: 3,
+        root: "/p/brakes",
+      })),
+      pickFolder: vi.fn(async () => "/p/brakes/docs"),
+    });
+    const client = fakeClient({
+      tree: vi.fn(async () => ({
+        apiVersion: 3 as const,
+        project: {},
+        roots: [],
+        nodes: [],
+        edges: [],
+      })),
+    });
+    render(<App bridge={bridge} createClient={() => client} />);
+    fireEvent.click(await screen.findByText("Open a product folder…"));
+    await waitFor(() =>
+      expect(bridge.setProductName).toHaveBeenCalledWith("/p/brakes", "brakes")
+    );
+    expect(bridge.openProduct).toHaveBeenCalledWith("/p/brakes/docs");
+    expect(await screen.findByText("brakes")).toBeTruthy();
+    expect(screen.getByText("/p/brakes")).toBeTruthy();
+  });
+
+  it("resets the history on a product switch and keeps it on a reopen", async () => {
+    const bridge = fakeBridge([
+      { root: "/p/brakes", name: null, exists: true },
+      { root: "/p/other", name: "Other", exists: true },
+    ]);
+    const seen: { selected?: string; select?: (id: string) => void } = {};
+    function Pane() {
+      const selection = useSelection();
+      seen.selected = selection.selected;
+      seen.select = selection.select;
+      return null;
+    }
+    render(
+      <App
+        bridge={bridge}
+        createClient={() => fakeClient()}
+        slots={{ document: <Pane /> }}
+      />,
+    );
+    fireEvent.click(await screen.findByText("Brakes"));
+    act(() => seen.select!("SYS_1"));
+    expect(seen.selected).toBe("SYS_1");
+    fireEvent.click(screen.getByRole("menuitem", { name: "/p/brakes" }));
+    await waitFor(() => expect(bridge.openProduct).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridge.listRecents).toHaveBeenCalledTimes(3));
+    expect(seen.selected).toBe("SYS_1");
+    fireEvent.click(screen.getByText("Brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Other" }));
+    await waitFor(() =>
+      expect(bridge.openProduct).toHaveBeenLastCalledWith("/p/other")
+    );
+    await waitFor(() => expect(seen.selected).toBeUndefined());
   });
 
   it("falls back to the start screen with the error when the launch open fails", async () => {

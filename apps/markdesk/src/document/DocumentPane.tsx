@@ -151,8 +151,13 @@ export function DocumentPane() {
   const bridge = useBridge();
   const history = useHistory();
   const selected = history.current;
-  const [reading, setReading] = useState<Reading>();
-  const [failed, setFailed] = useState(false);
+  // What was loaded, tagged with the display ID it was loaded for, so a
+  // result never shows for another selection.
+  const [loaded, setLoaded] = useState<
+    { id: string; reading?: Reading; failed?: boolean }
+  >();
+  const reading = loaded?.id === selected ? loaded?.reading : undefined;
+  const failed = loaded?.id === selected && loaded?.failed === true;
   const [sourceOpen, setSourceOpen] = useState(false);
   const content = useRef<HTMLDivElement>(null);
   // Rendered documents of the current product, by path.
@@ -162,21 +167,18 @@ export function DocumentPane() {
   );
 
   useEffect(() => {
-    setReading(undefined);
-    setFailed(false);
+    setLoaded(undefined);
   }, [client]);
 
   useEffect(() => {
     if (selected === undefined) return;
     let current = true;
     read(client, documents, selected).then((next) => {
-      if (!current) return;
-      setReading(next);
-      setFailed(false);
+      if (current) setLoaded({ id: selected, reading: next });
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (isNetworkFailure(error)) return;
-      if (current) setFailed(true);
+      if (current) setLoaded({ id: selected, failed: true });
     });
     return () => {
       current = false;
