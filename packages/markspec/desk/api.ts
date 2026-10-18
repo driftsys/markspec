@@ -428,7 +428,9 @@ export function createDeskHandler(
     ) {
       return notFound();
     }
-    const text = await source.readFile(target);
+    // Read the checked real path, not `target`: a symlink swapped after the
+    // check must not lead the read outside the root.
+    const text = await source.readFile(realTarget);
     if (text === undefined) return notFound();
     if (!asDocument) {
       const body: SourceText = { apiVersion: DESK_API_VERSION, path, text };

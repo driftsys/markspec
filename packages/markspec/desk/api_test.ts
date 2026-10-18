@@ -1099,6 +1099,34 @@ Deno.test("desk api: an absolute path is never joined to the project root", asyn
   }
 });
 
+Deno.test("desk api: files and documents read the resolved real path", async () => {
+  const { compiled, profile } = await fixture;
+  const resolved = join(FIXTURE_ROOT, "docs", "resolved.md");
+  const read: string[] = [];
+  const h = createDeskHandler({
+    token: TOKEN,
+    source: {
+      projectRoot: FIXTURE_ROOT,
+      profile,
+      getCompiled: () => Promise.resolve(compiled),
+      readFile: (p) => {
+        read.push(p);
+        return Promise.resolve("# Resolved\n");
+      },
+      realPath: (p) =>
+        Promise.resolve(
+          p === join(FIXTURE_ROOT, "docs", "system.md") ? resolved : p,
+        ),
+    },
+  });
+  for (const route of ["/api/v1/files", "/api/v1/documents"]) {
+    const res = await h(get(`${route}?path=docs/system.md`));
+    assertEquals(res.status, 200, route);
+    await res.body?.cancel();
+  }
+  assertEquals(read, [resolved, resolved]);
+});
+
 Deno.test("desk api: a symlink that leaves the project root is 404", async () => {
   const temp = await Deno.makeTempDir();
   try {
