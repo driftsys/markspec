@@ -158,12 +158,14 @@ nonce check therefore stays mandatory and must never be relaxed because the
 
 - [SAD_DESK_0007] Agents propose, the author accepts, fmt gates every write
 
-  The assistant shall drive Claude Code and GitHub Copilot CLI, detected on
-  PATH, headless, with the MarkSpec MCP server (`markspec mcp`) attached. Agents
-  shall only propose changes; MarkDesk shall apply a change only on the author's
-  explicit accept. Every write — the author's or an agent's — shall pass
-  `markspec fmt` before the view refreshes. With no agent CLI installed, the
-  assistant column shall be empty and every other feature shall still work.
+  The assistant shall drive Claude Code, Codex, and GitHub Copilot (the
+  standalone `copilot` CLI), detected on PATH and in the standard install
+  directories, headless, with the MarkSpec MCP server (`markspec mcp`) attached.
+  Agents shall only propose changes; MarkDesk shall apply a change only on the
+  author's explicit accept. Every write — the author's or an agent's — shall
+  pass `markspec fmt` before the view refreshes. With no agent CLI installed,
+  the assistant column shall show the setup card and every other feature shall
+  still work.
 
       Id: 01M4JXA5WP5KAYFWTZARAGH031
 
@@ -268,8 +270,20 @@ navigator, and shows the whole document an entry lives in.
 - **Source drawer.** It shows the exact file text in Plex Mono with line
   numbers. In dark mode it follows the sheet paper colour, in line with
   SAD_DESK_0008.
-- **Assistant column.** It is present and empty. Assistant setup is a later
-  story.
+- **Assistant column.** MarkDesk detects the three assistants each time a
+  product opens. When no assistant is selected and the author has not dismissed
+  the setup card, the column shows the card: one row per assistant with its
+  state, a "Use" button for a ready assistant (and for an installed Copilot,
+  whose sign-in only a Test can confirm), the sign-in command with a Copy button
+  and a "Re-check" button for a signed-out Claude Code or Codex, and an
+  "Install…" control that opens the install guide in Settings. "Not now"
+  dismisses the card and the dismissal is stored. After dismissal, the column
+  shows a pointer with a "Set up" button that opens Settings. When an assistant
+  is selected, the column shows its name and state ("Ready", "needs sign-in", or
+  "is not installed"), a disabled prompt box, and a "Settings" button. Settings
+  holds the assistant choice, the Test, and the install guide. MarkDesk shows
+  install and sign-in commands but never runs them and never opens a terminal.
+  Prompt features and the propose and accept flow arrive with #837.
 - **Visual reference.** "Rendered like the published book" means the output of
   `markspec book build` with `theme/markspec.css`, not the mdBook site, which
   does not render entry blocks (ADR-033). IBM Plex fonts are bundled as WOFF2.

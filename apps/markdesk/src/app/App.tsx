@@ -145,7 +145,9 @@ export function App(props: {
                   banner={banner}
                   navigator={props.slots?.navigator ?? <NavigatorPane />}
                   document={props.slots?.document ?? <DocumentPane />}
-                  assistant={props.slots?.assistant ?? <AssistantColumn />}
+                  assistant={props.slots?.assistant ?? (
+                    <AssistantColumn onOpenSettings={openSettings} />
+                  )}
                 />
               )}
           </AssistantProvider>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useAssistants } from "../assistant/AssistantProvider";
+import { CopyableCommand } from "../assistant/CopyableCommand";
 import {
   type AssistantInfo,
   assistantName,
@@ -35,25 +36,6 @@ function testMessage(result: AssistantTestResult, id: AssistantId): string {
     case "failed":
       return `Test failed: ${result.error ?? "unknown error"}`;
   }
-}
-
-function CopyableCommand(props: { label?: string; command: string }) {
-  return (
-    <div className="settings-command">
-      {props.label && (
-        <span className="settings-command-label">{props.label}</span>
-      )}
-      <code>{props.command}</code>
-      <button
-        type="button"
-        onClick={() => {
-          void navigator.clipboard?.writeText(props.command)?.catch(() => {});
-        }}
-      >
-        Copy
-      </button>
-    </div>
-  );
 }
 
 function InstallBlock({ info }: { info: AssistantInfo }) {

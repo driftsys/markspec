@@ -583,3 +583,18 @@ button[aria-pressed="true"] {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ── Assistant setup card ────────────────────────────────────────────── */
+
+.assistant-column textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: var(--md-space-2) 0;
+}
+.setup-card p {
+  margin: 0 0 var(--md-space-2);
+}
+.setup-row {
+  margin-bottom: var(--md-space-3);
+}

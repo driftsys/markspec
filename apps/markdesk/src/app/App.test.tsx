@@ -82,11 +82,8 @@ describe("open flow", () => {
     expect(screen.queryByText("Open a product folder…")).toBeNull();
     expect(bridge.openProduct).toHaveBeenCalledWith("/p/brakes");
     expect(bridge.setProductName).toHaveBeenCalledWith("/p/brakes", "Brakes");
-    expect(
-      screen.getByText(
-        "Set up an assistant to ask questions about this product.",
-      ),
-    ).toBeTruthy();
+    expect(await screen.findByText("No assistant found. Set one up"))
+      .toBeTruthy();
   });
 
   it("falls back to the folder name when the project has no name", async () => {
@@ -619,13 +616,13 @@ describe("settings view", () => {
     ).toBeTruthy();
     expect(
       screen.queryByText(
-        "Set up an assistant to ask questions about this product.",
+        "No assistant found. Set one up",
       ),
     ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(
       await screen.findByText(
-        "Set up an assistant to ask questions about this product.",
+        "No assistant found. Set one up",
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
