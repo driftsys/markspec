@@ -10,7 +10,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -29,12 +29,17 @@ pub const TEST_PROMPT: &str = "Reply with the single word: ready";
 const REPLY_MAX_CHARS: usize = 500;
 /// Number of stderr lines kept in a Test error.
 const ERROR_STDERR_LINES: usize = 5;
+/// Test error when the assistant exits with code 0 but prints nothing.
+pub const NO_REPLY_ERROR: &str = "The assistant returned no reply.";
 
 /// How often [`run`] checks whether the child exited or was cancelled.
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
 /// After the child exits, how long [`run`] waits for its output to finish.
 /// A background grandchild can keep the pipes open after the child exits.
 const OUTPUT_GRACE: Duration = Duration::from_secs(1);
+/// After [`run`] kills the processes that still hold a pipe, how long it
+/// waits for the readers to collect the last bytes.
+const AFTER_KILL_GRACE: Duration = Duration::from_millis(200);
 /// Number of names [`create_test_dir`] tries before it gives up.
 const TEST_DIR_ATTEMPTS: usize = 10;
 
@@ -150,13 +155,25 @@ pub fn classify(output: &RunOutput) -> TestOutcome {
     }
 }
 
+/// A finished Test: the result shown to the web UI, and whether it failed
+/// only because the assistant exited with code 0 without a reply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestRun {
+    pub result: TestResult,
+    /// The process exited with code 0, but its trimmed stdout was empty. The
+    /// result is `Failed` with [`NO_REPLY_ERROR`].
+    pub no_reply: bool,
+}
+
 /// Run the Test prompt on `program` in a new empty temporary directory.
+/// `path` is the `PATH` given to the process (see [`child_path`]).
 pub fn run_test(
     id: AssistantId,
     program: &Path,
+    path: Option<&OsStr>,
     timeout: Duration,
     cancel: &AtomicBool,
-) -> TestResult {
+) -> TestRun {
     static NEXT_DIR: AtomicU32 = AtomicU32::new(0);
     let names = std::iter::repeat_with(|| {
         let nanos = SystemTime::now()
@@ -168,16 +185,26 @@ pub fn run_test(
             NEXT_DIR.fetch_add(1, Ordering::SeqCst)
         )
     });
-    let failed = |error: String| TestResult {
-        outcome: TestOutcome::Failed,
-        reply: None,
-        error: Some(error),
+    let failed = |error: String| TestRun {
+        result: TestResult {
+            outcome: TestOutcome::Failed,
+            reply: None,
+            error: Some(error),
+        },
+        no_reply: false,
     };
     let dir = match create_test_dir(&std::env::temp_dir(), names) {
         Ok(dir) => dir,
         Err(err) => return failed(format!("could not create a temporary directory: {err}")),
     };
-    let result = run(program, &id.test_args(), Some(&dir), timeout, Some(cancel));
+    let result = run(
+        program,
+        &id.test_args(),
+        Some(&dir),
+        path,
+        timeout,
+        Some(cancel),
+    );
     let _ = std::fs::remove_dir_all(&dir);
     let output = match result {
         Ok(output) => output,
@@ -188,7 +215,18 @@ pub fn run_test(
     let mut error = None;
     match outcome {
         TestOutcome::Ok => {
-            reply = Some(output.stdout.trim().chars().take(REPLY_MAX_CHARS).collect());
+            let text = output.stdout.trim();
+            if text.is_empty() {
+                return TestRun {
+                    result: TestResult {
+                        outcome: TestOutcome::Failed,
+                        reply: None,
+                        error: Some(NO_REPLY_ERROR.to_string()),
+                    },
+                    no_reply: true,
+                };
+            }
+            reply = Some(text.chars().take(REPLY_MAX_CHARS).collect());
         }
         TestOutcome::Failed | TestOutcome::Usage => {
             let code = output
@@ -199,10 +237,13 @@ pub fn run_test(
         }
         TestOutcome::Timeout | TestOutcome::Cancelled => {}
     }
-    TestResult {
-        outcome,
-        reply,
-        error,
+    TestRun {
+        result: TestResult {
+            outcome,
+            reply,
+            error,
+        },
+        no_reply: false,
     }
 }
 
@@ -269,16 +310,51 @@ pub struct RunOutput {
     pub cancelled: bool,
 }
 
+/// A pipe read on its own thread: the bytes read so far, and a channel
+/// that receives a message when the pipe closes.
+struct Drained {
+    bytes: Arc<Mutex<Vec<u8>>>,
+    closed: mpsc::Receiver<()>,
+}
+
+impl Drained {
+    /// Wait until the pipe closes or `deadline` passes. Returns whether the
+    /// pipe closed.
+    fn wait_closed(&self, deadline: Instant) -> bool {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        self.closed.recv_timeout(remaining).is_ok()
+    }
+
+    /// The bytes read so far, as lossy UTF-8.
+    fn text(&self) -> String {
+        let bytes = self.bytes.lock().unwrap_or_else(|err| err.into_inner());
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+}
+
 /// Read a pipe to the end on its own thread so the child never blocks on a
-/// full pipe. The bytes arrive on the returned channel when the pipe closes.
-fn drain<R: Read + Send + 'static>(mut pipe: R) -> mpsc::Receiver<Vec<u8>> {
-    let (sender, receiver) = mpsc::channel();
+/// full pipe. Each chunk is appended to a shared buffer as it arrives, so
+/// the bytes read so far are available while the pipe is still open.
+fn drain<R: Read + Send + 'static>(mut pipe: R) -> Drained {
+    let bytes = Arc::new(Mutex::new(Vec::new()));
+    let (sender, closed) = mpsc::channel();
+    let sink = Arc::clone(&bytes);
     thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = pipe.read_to_end(&mut bytes);
-        let _ = sender.send(bytes);
+        let mut chunk = [0u8; 8192];
+        loop {
+            match pipe.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => sink
+                    .lock()
+                    .unwrap_or_else(|err| err.into_inner())
+                    .extend_from_slice(&chunk[..n]),
+                Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(_) => break,
+            }
+        }
+        let _ = sender.send(());
     });
-    receiver
+    Drained { bytes, closed }
 }
 
 /// Kill every process in the process group `pgid` with SIGKILL.
@@ -304,6 +380,8 @@ fn kill_process_group(pgid: u32) {
 }
 
 /// Run `program` with `args`, capturing stdout and stderr as lossy UTF-8.
+/// When `path` is set, the process gets it as its `PATH`; otherwise it
+/// inherits the app's `PATH`.
 ///
 /// The child and every process it started are killed when `timeout` passes
 /// or when `cancel` becomes true; on Windows only the child is killed.
@@ -311,6 +389,7 @@ pub fn run(
     program: &Path,
     args: &[String],
     cwd: Option<&Path>,
+    path: Option<&OsStr>,
     timeout: Duration,
     cancel: Option<&AtomicBool>,
 ) -> std::io::Result<RunOutput> {
@@ -322,6 +401,9 @@ pub fn run(
         .stderr(Stdio::piped());
     if let Some(dir) = cwd {
         command.current_dir(dir);
+    }
+    if let Some(path) = path {
+        command.env("PATH", path);
     }
     #[cfg(unix)]
     {
@@ -375,18 +457,27 @@ pub fn run(
         });
     }
     // A background grandchild can keep a pipe open after the child exits,
-    // so wait for each stream only until the grace period ends; a stream
-    // that is not finished by then is returned empty.
+    // so wait for each stream only until the grace period ends. A stream
+    // that is still open then is held by a process the child started: that
+    // process group is killed, and the bytes read so far are returned.
     let output_deadline = Instant::now() + OUTPUT_GRACE;
-    let text = |receiver: mpsc::Receiver<Vec<u8>>| {
-        let remaining = output_deadline.saturating_duration_since(Instant::now());
-        let bytes = receiver.recv_timeout(remaining).unwrap_or_default();
-        String::from_utf8_lossy(&bytes).into_owned()
-    };
+    let stdout_closed = stdout.wait_closed(output_deadline);
+    let stderr_closed = stderr.wait_closed(output_deadline);
+    if !(stdout_closed && stderr_closed) {
+        #[cfg(unix)]
+        kill_process_group(child.id());
+        let kill_deadline = Instant::now() + AFTER_KILL_GRACE;
+        if !stdout_closed {
+            stdout.wait_closed(kill_deadline);
+        }
+        if !stderr_closed {
+            stderr.wait_closed(kill_deadline);
+        }
+    }
     Ok(RunOutput {
         code: status.code(),
-        stdout: text(stdout),
-        stderr: text(stderr),
+        stdout: stdout.text(),
+        stderr: stderr.text(),
         timed_out,
         cancelled,
     })
@@ -432,6 +523,25 @@ pub fn locate(binary: &str, path_env: Option<&OsStr>, extra_dirs: &[PathBuf]) ->
             .map(|name| dir.join(name))
             .find(|candidate| is_runnable(candidate))
     })
+}
+
+/// The `PATH` given to every assistant process: the absolute entries of
+/// `path_env`, then `extra_dirs`, each directory once.
+///
+/// An npm-installed CLI starts with `#!/usr/bin/env node`, so `env` must
+/// find `node` on the process `PATH`. An app opened from the Dock or Finder
+/// has a short `PATH` without the install directories, so they are added.
+/// Returns `None`, and the process inherits the app's `PATH`, when a
+/// directory name contains the `PATH` separator.
+pub fn child_path(path_env: Option<&OsStr>, extra_dirs: &[PathBuf]) -> Option<OsString> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let from_path = path_env.map(std::env::split_paths).into_iter().flatten();
+    for dir in from_path.chain(extra_dirs.iter().cloned()) {
+        if dir.is_absolute() && !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+    std::env::join_paths(dirs).ok()
 }
 
 /// Well-known install directories searched after `PATH`, with `~` = `home`.
@@ -495,6 +605,11 @@ impl Probe {
             status_timeout: STATUS_TIMEOUT,
         }
     }
+
+    /// The `PATH` given to the assistant processes; see [`child_path`].
+    pub fn child_path(&self) -> Option<OsString> {
+        child_path(self.path_env.as_deref(), &self.extra_dirs)
+    }
 }
 
 /// Build a status that has no version.
@@ -521,8 +636,17 @@ pub fn detect(id: AssistantId, probe: &Probe) -> AssistantStatus {
     let Some(program) = locate(id.binary(), probe.path_env.as_deref(), &probe.extra_dirs) else {
         return not_installed(id, None);
     };
+    let path = probe.child_path();
+    let path = path.as_deref();
     let version_args = ["--version".to_string()];
-    let version = match run(&program, &version_args, None, probe.version_timeout, None) {
+    let version = match run(
+        &program,
+        &version_args,
+        None,
+        path,
+        probe.version_timeout,
+        None,
+    ) {
         Ok(out) if out.timed_out => {
             return not_installed(id, Some("`--version` timed out".to_string()))
         }
@@ -552,7 +676,7 @@ pub fn detect(id: AssistantId, probe: &Probe) -> AssistantStatus {
         };
     };
     let args = args.map(String::from);
-    match run(&program, &args, None, probe.status_timeout, None) {
+    match run(&program, &args, None, path, probe.status_timeout, None) {
         Ok(out) if out.timed_out => status(
             AssistantState::NeedsSignIn,
             Some("the sign-in check timed out".to_string()),
@@ -610,10 +734,16 @@ mod tests {
         path
     }
 
+    /// A probe that finds the fakes in `dir`. The system directories follow
+    /// it so that the processes still find tools such as `sleep`.
     fn probe_for(dir: &Path) -> Probe {
         Probe {
             path_env: None,
-            extra_dirs: vec![dir.to_path_buf()],
+            extra_dirs: vec![
+                dir.to_path_buf(),
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/bin"),
+            ],
             copilot_token: false,
             copilot_confirmed: false,
             version_timeout: Duration::from_secs(5),
@@ -665,7 +795,7 @@ mod tests {
     fn run_output_is_lossy_utf8() {
         let dir = scratch_dir("lossy");
         let bin = fake_bin(&dir, "tool", r"printf '\377ok'");
-        let out = run(&bin, &[], None, Duration::from_secs(5), None).unwrap();
+        let out = run(&bin, &[], None, None, Duration::from_secs(5), None).unwrap();
         assert!(out.stdout.ends_with("ok"));
         assert_eq!(out.code, Some(0));
     }
@@ -675,7 +805,7 @@ mod tests {
         let dir = scratch_dir("timeout");
         let bin = fake_bin(&dir, "tool", "sleep 30");
         let started = Instant::now();
-        let out = run(&bin, &[], None, Duration::from_millis(200), None).unwrap();
+        let out = run(&bin, &[], None, None, Duration::from_millis(200), None).unwrap();
         assert!(out.timed_out);
         assert!(started.elapsed() < Duration::from_secs(2));
     }
@@ -686,7 +816,15 @@ mod tests {
         let bin = fake_bin(&dir, "tool", "sleep 30");
         let cancel = AtomicBool::new(true);
         let started = Instant::now();
-        let out = run(&bin, &[], None, Duration::from_secs(10), Some(&cancel)).unwrap();
+        let out = run(
+            &bin,
+            &[],
+            None,
+            None,
+            Duration::from_secs(10),
+            Some(&cancel),
+        )
+        .unwrap();
         assert!(out.cancelled);
         assert!(!out.timed_out);
         assert!(started.elapsed() < Duration::from_secs(2));
@@ -743,7 +881,7 @@ mod tests {
         let bin = fake_bin(&dir, "tool", &grandchild_script(&pidfile));
         let timeout = Duration::from_secs(3);
         let started = Instant::now();
-        let out = run(&bin, &[], None, timeout, None).unwrap();
+        let out = run(&bin, &[], None, None, timeout, None).unwrap();
         assert!(out.timed_out);
         // `run` returns within 2 s of the timeout.
         assert!(started.elapsed() < timeout + Duration::from_secs(2));
@@ -763,7 +901,15 @@ mod tests {
                 cancel.store(true, Ordering::SeqCst);
                 cancelled_at
             });
-            let out = run(&bin, &[], None, Duration::from_secs(20), Some(&cancel)).unwrap();
+            let out = run(
+                &bin,
+                &[],
+                None,
+                None,
+                Duration::from_secs(20),
+                Some(&cancel),
+            )
+            .unwrap();
             (out, canceller.join().unwrap())
         });
         assert!(out.cancelled);
@@ -777,7 +923,7 @@ mod tests {
         let dir = scratch_dir("held-pipes");
         let bin = fake_bin(&dir, "tool", "sleep 10 &\necho done >&2\nexit 0");
         let started = Instant::now();
-        let out = run(&bin, &[], None, Duration::from_secs(20), None).unwrap();
+        let out = run(&bin, &[], None, None, Duration::from_secs(20), None).unwrap();
         assert_eq!(out.code, Some(0));
         assert!(!out.timed_out);
         // Well before the grandchild exits and closes the pipes.
@@ -820,6 +966,92 @@ mod tests {
         assert!(is_runnable(&relative.join("claude-relative-probe")));
         let path_env = std::env::join_paths([PathBuf::new(), relative]).unwrap();
         assert_eq!(locate("claude-relative-probe", Some(&path_env), &[]), None);
+    }
+
+    #[test]
+    fn detect_reports_not_installed_when_version_exits_non_zero() {
+        let dir = scratch_dir("version-fails");
+        fake_bin(&dir, "claude", r#"case "$1" in --version) exit 1;; esac"#);
+        let status = detect(AssistantId::ClaudeCode, &probe_for(&dir));
+        assert_eq!(status.state, AssistantState::NotInstalled);
+        assert_eq!(status.version, None);
+        assert_eq!(
+            status.detail.as_deref(),
+            Some("`--version` exited with Some(1)")
+        );
+    }
+
+    #[test]
+    fn detect_finds_env_interpreter_in_extra_dirs_with_empty_path() {
+        // A CLI that starts with `#!/usr/bin/env fakenode`, like an npm
+        // install, where `fakenode` is only in an extra directory and the
+        // app's `PATH` is empty.
+        let dir = scratch_dir("env-shebang");
+        fake_bin(&dir, "fakenode", "exec /bin/sh \"$@\"");
+        let path = dir.join("claude");
+        std::fs::write(
+            &path,
+            format!(
+                "#!/usr/bin/env fakenode\n{}",
+                CLAUDE_SCRIPT.replace("__CODE__", "0")
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let probe = Probe {
+            path_env: Some(OsString::new()),
+            extra_dirs: vec![dir],
+            ..probe_for(Path::new("/"))
+        };
+        let status = detect(AssistantId::ClaudeCode, &probe);
+        assert_eq!(status.state, AssistantState::Ready);
+        assert_eq!(status.version.as_deref(), Some("2.1.292 (Claude Code)"));
+    }
+
+    #[test]
+    fn child_path_puts_path_env_first_then_extra_dirs_once() {
+        let path_env = std::env::join_paths(["/a", "relative", "", "/b", "/a"]).unwrap();
+        let extra = [PathBuf::from("/b"), PathBuf::from("/c")];
+        let joined = child_path(Some(&path_env), &extra).unwrap();
+        let dirs: Vec<PathBuf> = std::env::split_paths(&joined).collect();
+        assert_eq!(
+            dirs,
+            [
+                PathBuf::from("/a"),
+                PathBuf::from("/b"),
+                PathBuf::from("/c")
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn default_search_dirs_on_macos() {
+        let home = Path::new("/Users/me");
+        assert_eq!(
+            default_search_dirs(home),
+            [
+                PathBuf::from("/opt/homebrew/bin"),
+                PathBuf::from("/usr/local/bin"),
+                PathBuf::from("/Users/me/.local/bin"),
+                PathBuf::from("/Users/me/.npm-global/bin"),
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn default_search_dirs_on_linux() {
+        let home = Path::new("/home/me");
+        assert_eq!(
+            default_search_dirs(home),
+            [
+                PathBuf::from("/home/me/.local/bin"),
+                PathBuf::from("/usr/local/bin"),
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/home/me/.npm-global/bin"),
+            ]
+        );
     }
 
     #[test]
@@ -1041,15 +1273,61 @@ mod tests {
     }
 
     fn run_fake_test(label: &str, script: &str) -> TestResult {
+        run_fake_test_run(label, script).result
+    }
+
+    fn run_fake_test_run(label: &str, script: &str) -> TestRun {
         let dir = scratch_dir(label);
         let bin = fake_bin(&dir, "claude", script);
         let cancel = AtomicBool::new(false);
         run_test(
             AssistantId::ClaudeCode,
             &bin,
+            None,
             Duration::from_secs(10),
             &cancel,
         )
+    }
+
+    #[test]
+    fn run_test_fails_on_empty_reply_with_exit_zero() {
+        let run = run_fake_test_run("empty-reply", "echo '   '\nexit 0");
+        assert_eq!(
+            run.result,
+            TestResult {
+                outcome: TestOutcome::Failed,
+                reply: None,
+                error: Some(NO_REPLY_ERROR.to_string()),
+            }
+        );
+        assert!(run.no_reply);
+    }
+
+    #[test]
+    fn run_test_returns_reply_and_kills_grandchild_holding_stdout() {
+        let dir = scratch_dir("held-stdout");
+        let pidfile = dir.join("grandchild.pid");
+        // The grandchild inherits stdout and keeps it open after the child
+        // prints its reply and exits 0.
+        let script = format!(
+            "sleep 30 &\necho $! > '{}'\necho ready\nexit 0",
+            pidfile.display()
+        );
+        let bin = fake_bin(&dir, "claude", &script);
+        let cancel = AtomicBool::new(false);
+        let started = Instant::now();
+        let run = run_test(
+            AssistantId::ClaudeCode,
+            &bin,
+            None,
+            Duration::from_secs(20),
+            &cancel,
+        );
+        assert_eq!(run.result.outcome, TestOutcome::Ok);
+        assert_eq!(run.result.reply.as_deref(), Some("ready"));
+        assert!(!run.no_reply);
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_grandchild_gone(&pidfile);
     }
 
     #[test]
