@@ -13,6 +13,7 @@ import type {
   RecentProduct,
   ShellBridge,
 } from "../shell/bridge";
+import { fakeAssistantBridge } from "../assistant/testBridge";
 import { App } from "./App";
 import { useSelection } from "./selection";
 import { useOpenProduct } from "./useProduct";
@@ -35,6 +36,7 @@ function fakeBridge(
     removeRecent: vi.fn(async () => {}),
     pickFolder: vi.fn(async () => null),
     openExternal: vi.fn(async () => {}),
+    ...fakeAssistantBridge(),
     ...overrides,
   };
 }
@@ -80,11 +82,8 @@ describe("open flow", () => {
     expect(screen.queryByText("Open a product folder…")).toBeNull();
     expect(bridge.openProduct).toHaveBeenCalledWith("/p/brakes");
     expect(bridge.setProductName).toHaveBeenCalledWith("/p/brakes", "Brakes");
-    expect(
-      screen.getByText(
-        "Set up an assistant to ask questions about this product.",
-      ),
-    ).toBeTruthy();
+    expect(await screen.findByText("No assistant found. Set one up"))
+      .toBeTruthy();
   });
 
   it("falls back to the folder name when the project has no name", async () => {
@@ -599,5 +598,67 @@ describe("open flow", () => {
     ).toBeTruthy();
     expect(screen.getByText("Open a product folder…")).toBeTruthy();
     expect(screen.getByText("Recent")).toBeTruthy();
+  });
+});
+
+describe("settings view", () => {
+  it("opens Settings from the menu and returns with Back", async () => {
+    const bridge = fakeBridge([{
+      root: "/p/brakes",
+      name: null,
+      exists: true,
+    }]);
+    render(<App bridge={bridge} createClient={() => fakeClient()} />);
+    fireEvent.click(await screen.findByText("Brakes"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "No assistant found. Set one up",
+      ),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(
+      await screen.findByText(
+        "No assistant found. Set one up",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
+  });
+
+  it("opens Settings from the setup card install guide", async () => {
+    const bridge = fakeBridge([{
+      root: "/p/brakes",
+      name: null,
+      exists: true,
+    }]);
+    render(<App bridge={bridge} createClient={() => fakeClient()} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open install guide" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeTruthy();
+  });
+
+  it("detects the assistants again when another product opens", async () => {
+    const bridge = fakeBridge([
+      { root: "/p/brakes", name: null, exists: true },
+      { root: "/p/other", name: "Other", exists: true },
+    ]);
+    render(<App bridge={bridge} createClient={() => fakeClient()} />);
+    fireEvent.click(await screen.findByText("Brakes"));
+    await waitFor(() =>
+      expect(bridge.detectAssistants).toHaveBeenCalledTimes(1)
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Other" }));
+    await waitFor(() =>
+      expect(bridge.openProduct).toHaveBeenLastCalledWith("/p/other")
+    );
+    await waitFor(() =>
+      expect(bridge.detectAssistants).toHaveBeenCalledTimes(2)
+    );
   });
 });

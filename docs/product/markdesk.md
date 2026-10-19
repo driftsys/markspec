@@ -92,12 +92,22 @@ the repository.
 Wherever there is a blank to fill, an assistant can propose: a title from a
 sentence of intent, a _shall_ statement from a paragraph of notes, a link target
 from the requirement's meaning, a fix for a finding, a description for the
-proposal. MarkDesk runs the agent CLIs the author already has — Claude Code or
-GitHub Copilot CLI — with the MarkSpec MCP server attached. The agent proposes;
-MarkDesk shows the change; Marie accepts, edits, or discards it. Nothing an
-agent writes reaches disk without her explicit accept, and everything it writes
-passes the same `markspec fmt` gate as her own edits. With no agent installed,
-the assistant column is empty and everything else still works.
+proposal. MarkDesk runs the agent CLIs the author already has — Claude Code,
+Codex, or GitHub Copilot — with the MarkSpec MCP server attached. The agent
+proposes; MarkDesk shows the change; Marie accepts, edits, or discards it.
+Nothing an agent writes reaches disk without her explicit accept, and everything
+it writes passes the same `markspec fmt` gate as her own edits. With no agent
+installed, the assistant column shows a setup card and everything else still
+works.
+
+The setup card lists the three assistants with their state. Marie picks one with
+"Use", or copies the sign-in command for an assistant that needs it, runs it in
+her own terminal, and presses "Re-check". "Not now" dismisses the card. Settings
+holds her choice, a Test button that confirms the assistant answers, and an
+install guide with the official install page and example commands. MarkDesk
+never installs an assistant and never signs in for her; it shows the commands
+and she runs them. In this release the prompt box stays disabled; prompts arrive
+with #837.
 
 ### What this rules out
 
@@ -244,8 +254,9 @@ go-to-definition surfaces the authoring-experience spec relies on._
 _First release._ Everything except the assistant's answers is available: the
 navigator, the Spec view of the whole document scrolled to the entry, clickable
 links between entries, Back and Forward, and the Source drawer. The assistant
-column is present and empty. Images embedded in a document as `data:` images are
-shown; every other image appears as a placeholder with its alt text.
+column shows the setup card, then the selected assistant. Images embedded in a
+document as `data:` images are shown; every other image appears as a placeholder
+with its alt text.
 
 ### DESK-7 · Respond to review comments — 2.0
 

@@ -115,8 +115,9 @@ nonce check therefore stays mandatory and must never be relaxed because the
   The UI shall live in `apps/markdesk/` as a React and Vite application. A thin
   Rust shell in `apps/markdesk/src-tauri/` shall own only the window, the
   installer, the updater, OS keychain access, the OAuth deep link, the folder
-  picker, the recent-products store, and the sidecar lifecycle. The shell shall
-  bundle the `markspec` binary as a sidecar, launch it with
+  picker, the recent-products store, the sidecar lifecycle, the location and
+  execution of the assistant CLIs, and the assistant-settings store. The shell
+  shall bundle the `markspec` binary as a sidecar, launch it with
   `desk --serve --port 0 --exit-on-stdin-eof --root` and the workspace path, and
   read the one-line JSON handshake (`url`, `token`, `apiVersion`, `root`) from
   its stdout, where `root` is the absolute path of the discovered product root.
@@ -158,12 +159,16 @@ nonce check therefore stays mandatory and must never be relaxed because the
 
 - [SAD_DESK_0007] Agents propose, the author accepts, fmt gates every write
 
-  The assistant shall drive Claude Code and GitHub Copilot CLI, detected on
-  PATH, headless, with the MarkSpec MCP server (`markspec mcp`) attached. Agents
-  shall only propose changes; MarkDesk shall apply a change only on the author's
-  explicit accept. Every write — the author's or an agent's — shall pass
-  `markspec fmt` before the view refreshes. With no agent CLI installed, the
-  assistant column shall be empty and every other feature shall still work.
+  The assistant shall drive Claude Code, Codex, and GitHub Copilot (the
+  standalone `copilot` CLI), detected on PATH and in the standard install
+  directories, headless, with the MarkSpec MCP server (`markspec mcp`) attached.
+  Agents shall only propose changes; MarkDesk shall apply a change only on the
+  author's explicit accept. Every write — the author's or an agent's — shall
+  pass `markspec fmt` before the view refreshes. With no agent CLI installed,
+  the assistant column shall show the setup card until the author dismisses the
+  card. After the author dismisses the card, the assistant column shall show a
+  pointer to Settings. Every other feature shall still work without an agent
+  CLI.
 
       Id: 01M4JXA5WP5KAYFWTZARAGH031
 
@@ -268,8 +273,42 @@ navigator, and shows the whole document an entry lives in.
 - **Source drawer.** It shows the exact file text in Plex Mono with line
   numbers. In dark mode it follows the sheet paper colour, in line with
   SAD_DESK_0008.
-- **Assistant column.** It is present and empty. Assistant setup is a later
-  story.
+- **Assistant column.** MarkDesk detects the three assistants each time a
+  product opens. When no assistant is selected and the author has not dismissed
+  the setup card, the column shows the card: one row per assistant with its
+  state, a "Use" button for a ready assistant (and for an installed Copilot,
+  whose sign-in only a Test can confirm), the sign-in command with a Copy button
+  and a "Re-check" button for any assistant in the needs-sign-in state (a
+  signed-out Claude Code or Codex, or a Copilot whose sign-in is not confirmed),
+  and an "Install…" control that opens the install guide in Settings. "Not now"
+  dismisses the card and the dismissal is stored. After dismissal, the column
+  shows a pointer with a "Set up" button that opens Settings. When an assistant
+  is selected, the column shows its name and state ("Ready", "needs sign-in", or
+  "is not installed"), a disabled prompt box, and a "Settings" button. Settings
+  holds the assistant choice, the Test, and the install guide. MarkDesk shows
+  install and sign-in commands but never runs them and never opens a terminal.
+  Prompt features and the propose and accept flow arrive with #837.
+- **Assistant detection and Test.** The shell finds each assistant on PATH and
+  in the standard install directories. A signed-out check is available for
+  Claude Code and Codex (`codex login status` exits 1 when signed out and 0 when
+  signed in). Copilot sign-in cannot be checked without running it, so only a
+  successful Test confirms it, and a `failed` Test result clears that
+  confirmation. A Test that ends normally without a reply is reported as
+  `failed` but leaves the confirmation unchanged. A Test returns
+  `{ outcome, reply, error }` with `outcome` one of `ok`, `usage`, `timeout`,
+  `cancelled`, or `failed`. The Claude Code Test arguments omit `--max-turns`,
+  which the installed `claude --help` does not list. The Test runs in a newly
+  created directory with mode 0700 that must not already exist. On Unix, each
+  assistant process runs in its own process group, and a timeout or cancel kills
+  the whole group with `/bin/kill -KILL --
+  -<pgid>`, because npm and Homebrew
+  launchers start the real binary as a grandchild process. On Windows only the
+  direct child is killed (Windows testing is #838). None of the three CLIs
+  offers a folder-trust skip flag in its help output. The UI never receives an
+  error field from the assistant provider: a failed detection shows the three
+  assistants as not installed with the detail "Detection failed", and a failed
+  settings load uses the defaults. Settings is reachable only from an open
+  product.
 - **Visual reference.** "Rendered like the published book" means the output of
   `markspec book build` with `theme/markspec.css`, not the mdBook site, which
   does not render entry blocks (ADR-033). IBM Plex fonts are bundled as WOFF2.

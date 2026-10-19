@@ -1,0 +1,218 @@
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type {
+  AssistantId,
+  AssistantSettings,
+  AssistantStatus,
+  AssistantTestResult,
+} from "../shell/bridge";
+import { useBridge } from "../shell/BridgeContext";
+
+/**
+ * Assistant detection, the stored choice, and the Test state. No method
+ * rejects: bridge failures become state (a failed Test result, not-installed
+ * statuses with a detail) or leave the state unchanged.
+ */
+export interface AssistantController {
+  /** `undefined` until the first detection returns. */
+  statuses: AssistantStatus[] | undefined;
+  detecting: boolean;
+  /** `undefined` until the stored settings are read. */
+  settings: AssistantSettings | undefined;
+  /**
+   * The running flag and the last Test result. `testedId` is the assistant
+   * that last Test ran on, which can differ from the current selection when
+   * the author selects another assistant after a Test. `result` and
+   * `testedId` are `undefined` until a Test ends.
+   */
+  test: {
+    running: boolean;
+    result: AssistantTestResult | undefined;
+    testedId: AssistantId | undefined;
+  };
+  recheck(): Promise<void>;
+  select(id: AssistantId | null): Promise<void>;
+  dismissCard(): Promise<void>;
+  /** Tests the selected assistant. No-op when none is selected or a Test runs. */
+  runTest(): Promise<void>;
+  cancelTest(): Promise<void>;
+}
+
+const ASSISTANT_IDS: AssistantId[] = ["claude-code", "codex", "copilot"];
+
+const DEFAULT_SETTINGS: AssistantSettings = {
+  selected: null,
+  cardDismissed: false,
+  copilotConfirmed: false,
+};
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+const AssistantContext = createContext<AssistantController | undefined>(
+  undefined,
+);
+
+/** Provides the assistant state to the Settings view and the assistant column. */
+export function AssistantProvider({ children }: { children: ReactNode }) {
+  const bridge = useBridge();
+  const [statuses, setStatuses] = useState<AssistantStatus[]>();
+  const [detecting, setDetecting] = useState(true);
+  const [settings, setSettings] = useState<AssistantSettings>();
+  const [running, setRunning] = useState(false);
+  // The result is kept with the assistant it tested, so a result is never
+  // shown as if it belonged to an assistant selected later.
+  const [tested, setTested] = useState<
+    { id: AssistantId; result: AssistantTestResult }
+  >();
+  // The Rust side shares one cancel flag across Tests, so a second Test must
+  // never start while one runs. A ref is read synchronously, unlike state.
+  const runningRef = useRef(false);
+  const settingsRef = useRef<AssistantSettings | undefined>(undefined);
+  settingsRef.current = settings;
+
+  const recheck = useCallback(async () => {
+    setDetecting(true);
+    try {
+      setStatuses(await bridge.detectAssistants());
+    } catch (error) {
+      setStatuses(ASSISTANT_IDS.map((id) => ({
+        id,
+        state: "not-installed" as const,
+        version: null,
+        detail: `Detection failed: ${messageOf(error)}`,
+      })));
+    } finally {
+      setDetecting(false);
+    }
+  }, [bridge]);
+
+  useEffect(() => {
+    let active = true;
+    void recheck();
+    bridge.getAssistantSettings().then(
+      (stored) => {
+        if (active) setSettings(stored);
+      },
+      () => {
+        if (active) setSettings(DEFAULT_SETTINGS);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [bridge, recheck]);
+
+  // `change` is applied to the latest settings both when storing and when
+  // updating the local state, so a value read while the store call runs is
+  // kept. The shell ignores `copilotConfirmed` here; it changes only when
+  // the settings are read again.
+  const store = useCallback(
+    async (change: (current: AssistantSettings) => AssistantSettings) => {
+      const current = settingsRef.current;
+      if (!current) return;
+      try {
+        await bridge.setAssistantSettings(change(current));
+        setSettings((latest) => latest && change(latest));
+      } catch {
+        // The stored choice did not change, so the local state stays as it is.
+      }
+    },
+    [bridge],
+  );
+
+  const select = useCallback(async (id: AssistantId | null) => {
+    await store((current) => ({ ...current, selected: id }));
+  }, [store]);
+
+  const dismissCard = useCallback(async () => {
+    await store((current) => ({ ...current, cardDismissed: true }));
+  }, [store]);
+
+  const runTest = useCallback(async () => {
+    const id = settingsRef.current?.selected;
+    if (!id || runningRef.current) return;
+    runningRef.current = true;
+    setRunning(true);
+    setTested(undefined);
+    try {
+      try {
+        setTested({ id, result: await bridge.testAssistant(id) });
+      } catch (error) {
+        setTested({
+          id,
+          result: { outcome: "failed", reply: null, error: messageOf(error) },
+        });
+      }
+      if (id === "copilot") {
+        // A Copilot Test can confirm Copilot on the Rust side, which changes
+        // both the stored settings and the detected state. A failed re-read
+        // keeps the Test result.
+        try {
+          setSettings(await bridge.getAssistantSettings());
+        } catch {
+          // Keep the settings read earlier.
+        }
+        await recheck();
+      }
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+    }
+  }, [bridge, recheck]);
+
+  const cancelTest = useCallback(async () => {
+    try {
+      await bridge.cancelAssistantTest();
+    } catch {
+      // Nothing to cancel, or the shell is gone; the Test result reports it.
+    }
+  }, [bridge]);
+
+  const value = useMemo<AssistantController>(() => ({
+    statuses,
+    detecting,
+    settings,
+    test: { running, result: tested?.result, testedId: tested?.id },
+    recheck,
+    select,
+    dismissCard,
+    runTest,
+    cancelTest,
+  }), [
+    statuses,
+    detecting,
+    settings,
+    running,
+    tested,
+    recheck,
+    select,
+    dismissCard,
+    runTest,
+    cancelTest,
+  ]);
+
+  return (
+    <AssistantContext.Provider value={value}>
+      {children}
+    </AssistantContext.Provider>
+  );
+}
+
+/** The assistant controller. Throws when used outside `AssistantProvider`. */
+export function useAssistants(): AssistantController {
+  const controller = useContext(AssistantContext);
+  if (controller === undefined) {
+    throw new Error("No assistant provider is available.");
+  }
+  return controller;
+}

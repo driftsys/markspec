@@ -9,6 +9,7 @@ export function ProductMenu(props: {
   recents: RecentProduct[];
   onPick(): void;
   onOpenRecent(root: string): void;
+  onSettings(): void;
   /** Disables the open actions while an open is in progress. */
   disabled?: boolean;
 }) {
@@ -71,6 +72,18 @@ export function ProductMenu(props: {
               }}
             >
               Open folder…
+            </button>
+          </li>
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                close();
+                props.onSettings();
+              }}
+            >
+              Settings
             </button>
           </li>
         </ul>
