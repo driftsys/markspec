@@ -162,6 +162,37 @@ Stated once here; tasks use them without restating the reason.
 22. **Task order:** core helper → proposal logic → API → client → shell → UI
     helpers → UI flow → records.
 
+## Orchestrator decisions (2026-10-31, during Task 2 review)
+
+These amend the builder decisions above. Later tasks and fixers follow them.
+
+1. **New refusal `entry-trailer-invalid` (409).** When the target entry's
+   trailer did not parse (MSL-P020, P021 or P022 names the target), preview and
+   apply refuse with `entry-trailer-invalid`, not `proposal-changes-entries`.
+   Task 3 maps it to HTTP 409 and tests it. Task 7 shows: "This entry's trailer
+   has a problem. Run markspec check and fix it first." Builder decision 2 gains
+   this code.
+2. **The same guard in core.** `replaceEntryBody` in
+   `core/formatter/entry_body.ts` refuses an entry whose trailer did not parse
+   (refusal `entries-changed` or a new `trailer-invalid`; the desk maps it to
+   `entry-trailer-invalid`), so no caller of the exported helper can delete an
+   `Id:` line. Add a core test.
+3. **Apply does not format the current text.** Accepted as recorded: apply
+   formats the candidate and splices only the target body into the current raw
+   text, which is what the spec asks.
+4. **The length limit also applies after formatting.** `checkProposal` refuses
+   with `proposal-too-large` when the formatted body exceeds
+   `MAX_PROPOSAL_CHARS`, so every body a preview returns passes apply. Test with
+   a proposal at the limit that formatting lengthens.
+5. **The current-body fallback compares letters and digits only.** The preview
+   shows the formatted current body unless the letters-and-digits word sequence
+   of the formatted and raw bodies differ (lost or moved content). Markdown
+   punctuation rewrites (`*emph*` to `_emph_`, list markers, table rules,
+   escapes) keep the formatted body. Test both directions.
+6. **The core formatter bug is out of scope.** `format()` moving a lazy
+   continuation line out of its list item and duplicating the trailer is a
+   separate core issue. The desk stays safe through decision 5's fallback.
+
 ## Review Focus
 
 Inputs the spec implies but does not name; each has a test in its owning task.
