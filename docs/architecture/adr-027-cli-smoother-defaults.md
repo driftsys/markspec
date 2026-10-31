@@ -210,6 +210,9 @@ affecting every command (and `project.yaml`'s required
 `name`/`version`/`exclude` fields mean such commands would fail later anyway),
 not scoped to this work.
 
+> Changed by the [Amendment (2026-10-31, #845)](#amendment-2026-10-31-845) at
+> the end of this record.
+
 ## Consequences
 
 - `markspec check`, `markspec lint`, and `markspec fmt` invoked bare now operate
@@ -326,5 +329,18 @@ decision text above is kept as it was written.
 - Explicit file arguments resolve their project per file, from each file's own
   directory, with the same function. Files are grouped by project root, and each
   group is processed with its own profile and tool config.
+- A config file in a folder that an enclosing project hides (its
+  `.markspec.yaml` `exclude:`, a `.gitignore` entry, or a hidden folder) is not
+  a project root, as in the LSP; the enclosing project owns the files there
+  (core `createProjectRootResolver`).
+- A bare invocation processes each project nested below the root as its own
+  group, with its own profile, `exclude:` list, and project-wide gates. The
+  lockfile drift gate of a root still compares against every file the walk of
+  that root finds, including the files of nested projects, because that is the
+  set `markspec lock` pins.
+- A directory argument expands to the files the bare walk of its project finds
+  below that directory, so `exclude:` applies to it.
 - The CLI, the LSP server, and the MCP server now share this one root lookup.
-  The other commands (`compile`, `show`, `export`, and so on) are unchanged.
+  The other commands (`compile`, `lock`, `sync`, `show`, `export`, and so on)
+  are unchanged: they still walk up from the current directory to the nearest
+  `project.yaml`.

@@ -304,12 +304,14 @@ up to the nearest `project.yaml`, else the nearest `.markspec.yaml` — the same
 order as the LSP and MCP servers (core `resolveConfigRoot`, #845). With explicit
 file arguments, each file's project is resolved from the file's own directory,
 and files of different projects are processed separately with their own
-profiles; files with no config above them are processed without a profile.
-Invoked bare (no args), they resolve the root from the working directory and
-report "no project root found" when neither file exists. All other commands
-(`compile`, `show`, `context`, `dependents`, `report`, `next-id`, `doc build`,
-`book build`) require a `project.yaml` found by walking up from the working
-directory.
+profiles; files with no config above them are processed without a profile. A
+config in a folder that an enclosing project hides (`exclude:`, gitignored,
+hidden) is not a root, as in the LSP (core `createProjectRootResolver`). Invoked
+bare (no args), they resolve the root from the working directory, process each
+nested project as its own group, and report "no project root found" when neither
+file exists. All other commands (`compile`, `show`, `context`, `dependents`,
+`report`, `next-id`, `doc build`, `book build`) require a `project.yaml` found
+by walking up from the working directory.
 
 ## Entry block rendering pipeline
 

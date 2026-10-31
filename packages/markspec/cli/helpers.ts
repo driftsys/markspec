@@ -23,9 +23,10 @@ import type {
   Entry,
   ProfileChain,
   ProjectConfig,
+  ProjectRootResolver,
   ReadFile,
 } from "../core/mod.ts";
-import { dirname, join, resolve } from "@std/path";
+import { dirname, join, relative, resolve } from "@std/path";
 
 export { CORE_SCHEMA_VERSION, VERSION };
 
@@ -36,14 +37,18 @@ export { CORE_SCHEMA_VERSION, VERSION };
  * that resolves to a delivered document must not overwrite the package's file
  * (#700); machine formats intentionally surface a corpus entry's real absolute
  * path, so it is easy to name one by accident. Compares each target's resolved
- * absolute path to the active chain's delivered index; on a match prints an
- * error and exits 1. No-op when the chain has no delivered documents.
+ * absolute path to the delivered index of every given chain (a delivered file
+ * often lies outside the project whose profile delivers it, so the caller
+ * passes every profile relevant to the run); on a match prints an error and
+ * exits 1. No-op when no chain has delivered documents.
  */
 export function assertNotDeliveredTarget(
   files: readonly string[],
-  chain: ProfileChain | null | undefined,
+  chains: Iterable<ProfileChain | null | undefined>,
 ): void {
-  const delivers = chain?.effective.delivers ?? [];
+  const delivers = [...chains].flatMap((chain) =>
+    chain?.effective.delivers ?? []
+  );
   if (delivers.length === 0) return;
   for (const file of files) {
     const abs = resolve(file);
@@ -77,24 +82,13 @@ export const readFile: ReadFile = async (path: string) => {
 };
 
 /**
- * Load project config or exit with an error.
- * Used by commands that require project context.
+ * Run a `project.yaml` load; on a {@linkcode ConfigError} (malformed
+ * `project.yaml`), print the error and exit 1. Shared by
+ * {@linkcode requireProjectConfig} and {@linkcode loadProjectConfigAt}.
  */
-export async function requireProjectConfig() {
-  const { loadConfig } = await import("../core/mod.ts");
+async function loadConfigOrExit<T>(load: () => Promise<T>): Promise<T> {
   try {
-    const result = await loadConfig(Deno.cwd(), readFile);
-    if (result === undefined) {
-      console.error(
-        "error: no project.yaml found\n" +
-          `  searched from ${Deno.cwd()} to filesystem root\n\n` +
-          "  Create a project.yaml in your project root, or use\n" +
-          "  markspec fmt <file> / markspec check <file>\n" +
-          "  which work without project context.",
-      );
-      Deno.exit(1);
-    }
-    return result;
+    return await load();
   } catch (err) {
     if (err instanceof ConfigError) {
       console.error(`error: ${err.message}`);
@@ -105,8 +99,28 @@ export async function requireProjectConfig() {
 }
 
 /**
+ * Load project config or exit with an error.
+ * Used by commands that require project context.
+ */
+export async function requireProjectConfig() {
+  const { loadConfig } = await import("../core/mod.ts");
+  const result = await loadConfigOrExit(() => loadConfig(Deno.cwd(), readFile));
+  if (result === undefined) {
+    console.error(
+      "error: no project.yaml found\n" +
+        `  searched from ${Deno.cwd()} to filesystem root\n\n` +
+        "  Create a project.yaml in your project root, or use\n" +
+        "  markspec fmt <file> / markspec check <file>\n" +
+        "  which work without project context.",
+    );
+    Deno.exit(1);
+  }
+  return result;
+}
+
+/**
  * Load the `project.yaml` of a project root that was already resolved
- * (see {@linkcode resolveConfigRoot}). A root without a `project.yaml` (a
+ * (see {@linkcode resolveScope}). A root without a `project.yaml` (a
  * `.markspec.yaml`-only project) and a `null` root (no project) yield the
  * default config. A malformed `project.yaml` prints an error and exits 1,
  * as in {@linkcode requireProjectConfig}.
@@ -120,16 +134,10 @@ async function loadProjectConfigAt(
   if (projectRoot === null) {
     return { config: DEFAULT_PROJECT_CONFIG, projectRoot: undefined };
   }
-  try {
-    const result = await loadConfig(projectRoot, readFile);
-    return { config: result?.config ?? DEFAULT_PROJECT_CONFIG, projectRoot };
-  } catch (err) {
-    if (err instanceof ConfigError) {
-      console.error(`error: ${err.message}`);
-      Deno.exit(1);
-    }
-    throw err;
-  }
+  const result = await loadConfigOrExit(() =>
+    loadConfig(projectRoot, readFile)
+  );
+  return { config: result?.config ?? DEFAULT_PROJECT_CONFIG, projectRoot };
 }
 
 /**
@@ -320,9 +328,13 @@ export async function loadProjectCorpus(
  * abort `show`/`compile`/etc., so its diagnostics are surfaced but never
  * trigger `Deno.exit`.
  *
- * The returned `config` is the `project.yaml` this compile already resolved
- * via {@linkcode requireProjectConfig} — callers that need org-schema fields
- * (e.g. `report`'s `dependencies:`) use it instead of re-loading the file.
+ * The returned `config` is the `project.yaml` this compile already loaded —
+ * callers that need org-schema fields (e.g. `report`'s `dependencies:`) use
+ * it instead of re-loading the file. Without `opts.projectRoot` it is the
+ * `project.yaml` found from the current directory
+ * ({@linkcode requireProjectConfig}, which exits 1 when there is none). With
+ * `opts.projectRoot` it is the `project.yaml` of that root, or the default
+ * config when that root has none or `opts.projectRoot` is `null`.
  */
 export async function compileProject(
   paths: string[],
@@ -455,20 +467,30 @@ export function denoDiscoveryIO(): DiscoveryIO {
 
 /** Files of one invocation that belong to the same project. */
 export interface ScopeGroup {
-  /** The project root of these files (nearest `project.yaml`, else nearest
-   * `.markspec.yaml`), or `undefined` when no config file is above them. */
+  /** The project root of these files, as the LSP resolves it (see
+   * {@linkcode resolveScope}), or `undefined` when no config file is above
+   * them. */
   readonly projectRoot: string | undefined;
   /** Files to operate on (absolute for discovered, verbatim for explicit). */
   readonly files: string[];
+  /**
+   * Bare invocation only: every file the walk of this project root finds
+   * with its own `exclude:` list, including the files of projects nested
+   * below it. This is the file set `markspec lock` pins for this root, so
+   * the lockfile drift gate (MSL-L212) compares against it, not against
+   * `files`.
+   */
+  readonly treeFiles?: readonly string[];
 }
 
 /** Resolved invocation scope for a file-consuming verb. */
 export interface ResolvedScope {
   /**
-   * The files grouped by project root, in the order the first file of each
-   * group appeared. A bare invocation always yields exactly one group.
-   * Explicit arguments yield at least one group; each group is validated
-   * with its own profile and tool config (#845).
+   * The files grouped by project root. Explicit arguments: in the order the
+   * first file of each group appeared, at least one group. Bare invocation:
+   * the project root of the current directory first, then each project
+   * nested below it, sorted by path. Each group is validated with its own
+   * profile and tool config (#845).
    */
   readonly groups: readonly ScopeGroup[];
   /** True when no args were given — the whole-project case. Drives
@@ -476,22 +498,102 @@ export interface ResolvedScope {
   readonly projectWide: boolean;
 }
 
+/** Load the `.markspec.yaml` `exclude:` list of `root`; on a malformed
+ * `.markspec.yaml`, print its errors and exit 1. */
+async function loadExcludeOrExit(root: string): Promise<readonly string[]> {
+  const { loadToolConfig } = await import("../core/mod.ts");
+  // A malformed .markspec.yaml IS surfaced — silently falling back to "no
+  // excludes" would widen file discovery in a way the author never
+  // intended, matching the prior ConfigError-is-fatal posture.
+  const toolConfigResult = await loadToolConfig(root, readFile);
+  const toolConfigErrors = toolConfigResult.diagnostics.filter(
+    (d) => d.severity === "error",
+  );
+  if (toolConfigErrors.length > 0) {
+    for (const d of toolConfigErrors) {
+      console.error(`error: ${d.message}`);
+    }
+    Deno.exit(1);
+  }
+  return toolConfigResult.config.exclude;
+}
+
+/** The user's home folder, or `undefined` when it is unknown or the
+ * environment cannot be read (no `--allow-env`). */
+function homeDir(): string | undefined {
+  try {
+    return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+  } catch {
+    return undefined;
+  }
+}
+
+/** The {@linkcode ProjectRootResolver} the CLI uses: real file system, and
+ * the user's home folder as the upper limit of the walk up. */
+export async function cliProjectRootResolver(): Promise<ProjectRootResolver> {
+  const { createProjectRootResolver } = await import("../core/mod.ts");
+  return createProjectRootResolver(denoDiscoveryIO(), { homeDir: homeDir() });
+}
+
 /**
- * Shared scope resolution for `check` / `lint` / `fmt`:
+ * Walk `root` and every project nested below it the way the LSP indexes a
+ * workspace opened at `root`: each project root is walked with its own
+ * `.markspec.yaml` `exclude:` list, and a file belongs to the nearest
+ * project root above it. Returns one group per project root, `root` first,
+ * then the nested roots sorted by path; each group carries the unfiltered
+ * walk of its root as `treeFiles`.
+ */
+async function walkProjects(
+  root: string,
+  resolver: ProjectRootResolver,
+  extensions: ReadonlySet<string>,
+): Promise<Required<ScopeGroup>[]> {
+  const { discoverFiles, nearestRoot } = await import("../core/mod.ts");
+  const io = denoDiscoveryIO();
+  const roots = [root, ...await resolver.nestedRoots(root)];
+  const groups: Required<ScopeGroup>[] = [];
+  for (const projectRoot of roots) {
+    const exclude = await loadExcludeOrExit(projectRoot);
+    const treeFiles: string[] = [];
+    for await (
+      const f of discoverFiles(projectRoot, io, { extensions, exclude })
+    ) {
+      treeFiles.push(f);
+    }
+    const files = treeFiles.filter((f) =>
+      nearestRoot(dirname(f), roots) === projectRoot
+    );
+    groups.push({ projectRoot, files, treeFiles });
+  }
+  return groups;
+}
+
+/**
+ * Shared scope resolution for `check` / `lint` / `fmt`. Project roots are
+ * resolved the way the LSP and the MCP server resolve them (#845), so the
+ * same file is checked with the same project, profile and `markspec.lock`
+ * on every surface:
  *
  *   - no args  → whole project via gitignore-aware discovery, with a
  *     one-line scope header on stderr. The project root is the nearest
  *     `project.yaml`, else the nearest `.markspec.yaml`, above the current
- *     directory ({@linkcode resolveConfigRoot}); its `.markspec.yaml`
- *     `exclude:` list is honored;
- *   - explicit args → files verbatim; directories expand recursively
- *     through the discovery filter. Exact scope, no surprises. Each file's
- *     project root is resolved from the file's own directory, not from the
- *     current directory, and the files are grouped by that root (#845).
+ *     directory. Projects nested below it (found as the LSP finds them:
+ *     configs in hidden, gitignored or excluded folders do not count) form
+ *     their own groups; each project's `.markspec.yaml` `exclude:` list
+ *     applies to its own walk;
+ *   - explicit args → files verbatim; a directory expands to the files of
+ *     the bare walk of its project that lie below it (so `check .` at a
+ *     project root checks the bare file set), or to every relevant file
+ *     below it when no project is above it. Each file's project root is
+ *     resolved from the file's own directory, not from the current
+ *     directory: the nearest config root, unless an enclosing project
+ *     hides that config, in which case the enclosing project owns the file
+ *     ({@linkcode createProjectRootResolver}). Files are grouped by that
+ *     root.
  *
  * Exits 1 (with a hint) when no args are given and no project root is
- * found, when `.markspec.yaml` is malformed, or when an explicit path does
- * not exist.
+ * found, when a `.markspec.yaml` is malformed, or when an explicit path
+ * does not exist.
  */
 export async function resolveScope(
   args: string[],
@@ -506,12 +608,13 @@ export async function resolveScope(
 ): Promise<ResolvedScope> {
   const {
     discoverFiles,
-    loadToolConfig,
+    isWithin,
     RELEVANT_EXTENSIONS,
     resolveConfigRoot,
   } = await import("../core/mod.ts");
   const extensions = opts.extensions ?? RELEVANT_EXTENSIONS;
   const io = denoDiscoveryIO();
+  const resolver = await cliProjectRootResolver();
 
   if (args.length === 0) {
     const projectRoot = await resolveConfigRoot(Deno.cwd(), readFile);
@@ -526,36 +629,22 @@ export async function resolveScope(
       );
       Deno.exit(1);
     }
-    // exclude: (markspec tool config) lives in .markspec.yaml (Task 8).
-    // A malformed .markspec.yaml IS surfaced — silently falling back to
-    // "no excludes" would widen file discovery in a way the author never
-    // intended, matching the prior ConfigError-is-fatal posture.
-    const toolConfigResult = await loadToolConfig(projectRoot, readFile);
-    const toolConfigErrors = toolConfigResult.diagnostics.filter(
-      (d) => d.severity === "error",
-    );
-    if (toolConfigErrors.length > 0) {
-      for (const d of toolConfigErrors) {
-        console.error(`error: ${d.message}`);
-      }
-      Deno.exit(1);
-    }
-    const exclude = toolConfigResult.config.exclude;
-    const files: string[] = [];
-    for await (
-      const f of discoverFiles(projectRoot, io, { extensions, exclude })
-    ) {
-      files.push(f);
-    }
+    const groups = await walkProjects(projectRoot, resolver, extensions);
     if (!opts.quiet) {
+      const total = groups.reduce((n, g) => n + g.files.length, 0);
+      const projects = groups.length > 1 ? ` (${groups.length} projects)` : "";
       console.error(
-        `${opts.verb} ${files.length} file(s) under ${projectRoot}`,
+        `${opts.verb} ${total} file(s) under ${projectRoot}${projects}`,
       );
     }
-    return { groups: [{ projectRoot, files }], projectWide: true };
+    return { groups, projectWide: true };
   }
 
   const files: string[] = [];
+  // The bare walk of each project, reused by every directory argument of
+  // that project.
+  const walks = new Map<string, string[]>();
+  let firstArgDir: string | undefined;
   for (const arg of args) {
     let info: Deno.FileInfo;
     try {
@@ -564,32 +653,47 @@ export async function resolveScope(
       console.error(`error: ${arg}: no such file or directory`);
       Deno.exit(1);
     }
-    if (info.isDirectory) {
+    const argDir = info.isDirectory ? resolve(arg) : dirname(resolve(arg));
+    firstArgDir ??= argDir;
+    if (!info.isDirectory) {
+      files.push(arg);
+      continue;
+    }
+    const owner = await resolver.ownerOf(argDir);
+    if (owner === undefined) {
       for await (const f of discoverFiles(arg, io, { extensions })) {
         files.push(f);
       }
-    } else {
-      files.push(arg);
+      continue;
+    }
+    let walked = walks.get(owner);
+    if (walked === undefined) {
+      walked = (await walkProjects(owner, resolver, extensions))
+        .flatMap((g) => g.files);
+      walks.set(owner, walked);
+    }
+    // Keep the path form of the argument (relative stays relative), as the
+    // plain directory walk does.
+    for (const f of walked) {
+      if (isWithin(argDir, f)) files.push(join(arg, relative(argDir, f)));
     }
   }
 
-  // No file to operate on: keep one group rooted at the current directory's
-  // project, so the command still loads (and reports on) that profile.
+  // No file to operate on: keep one group rooted at the project of the
+  // first argument, so the command still loads (and reports on) the
+  // profile of the folder it was asked about.
   if (files.length === 0) {
-    const projectRoot = await resolveConfigRoot(Deno.cwd(), readFile);
+    const projectRoot = firstArgDir === undefined
+      ? undefined
+      : await resolver.ownerOf(firstArgDir);
     return { groups: [{ projectRoot, files }], projectWide: false };
   }
 
-  // Group the files by the project root above each file. The lookup is
-  // cached per directory: files of one folder share one walk.
-  const rootByDir = new Map<string, string | undefined>();
+  // Group the files by the project root that owns each file. The resolver
+  // caches its answer per directory: files of one folder share one lookup.
   const groups = new Map<string | undefined, string[]>();
   for (const file of files) {
-    const dir = dirname(resolve(file));
-    if (!rootByDir.has(dir)) {
-      rootByDir.set(dir, await resolveConfigRoot(dir, readFile));
-    }
-    const root = rootByDir.get(dir);
+    const root = await resolver.ownerOf(dirname(resolve(file)));
     const group = groups.get(root);
     if (group) group.push(file);
     else groups.set(root, [file]);

@@ -400,27 +400,48 @@ before commit/CI catches everything else.
 
 ##### Which project a file belongs to
 
-`check`, `fmt`, and `lint` use the same project-root order as the LSP server and
-the MCP server: walk up to the nearest `project.yaml`, else to the nearest
-`.markspec.yaml`.
+`check`, `fmt`, and `lint` resolve the project of a file the same way as the LSP
+server and the MCP server, so the same file is processed with the same project,
+profile, and `markspec.lock` on every surface.
 
+- **Project root order.** From a directory, walk up to the nearest
+  `project.yaml`, else to the nearest `.markspec.yaml`.
+- **Configs that an enclosing project hides.** When that config file lies in a
+  folder that an enclosing project hides — a folder listed in the enclosing
+  project's `.markspec.yaml` `exclude:`, a gitignored folder, or a hidden folder
+  (name starting with `.`) — it is not a project root, as in the LSP. The file
+  then belongs to the enclosing project.
 - **Explicit arguments.** The project of each file is resolved from the file's
   own directory, not from the current directory. Running
   `markspec check docs/req.md` from the project root, from `docs/`, or from
-  outside the project with an absolute path gives the same result.
+  outside the project with an absolute path gives the same result. A directory
+  argument expands to the files a bare invocation of its project would find
+  below that directory (so `.markspec.yaml` `exclude:` applies, and
+  `markspec check .` at a project root checks the same files as a bare
+  `markspec check`).
 - **Several projects in one invocation.** Files are grouped by project. Each
   group is processed with its own profile, its own `.markspec.yaml` tool config,
-  and (for `fmt`) its own `markspec.lock`. Validation of a group sees only that
-  group's files, so a display ID declared once in each of two projects is not a
-  duplicate. The output of all groups is printed together, as one stream (one
-  `--format json` document), and the exit code is the worst across the groups.
+  and its own `markspec.lock`: `fmt` reads it for reference healing, `lint`
+  reads it to load locked upstream entries, and a bare `check` reads it for the
+  project-wide gates. Validation of a group sees only that group's files, so a
+  display ID declared once in each of two projects is not a duplicate. The
+  output of all groups is printed together, as one stream (one `--format json`
+  document; `lint` reports one score over all groups), and the exit code is the
+  worst across the groups. Diagnostics are reported group by group, in the order
+  the first file of each project appeared in the arguments.
 - **Files with no project.** Files with neither config file above them form one
-  group that is processed without a profile.
+  group that is processed without a profile. For example, `lint <file>` on a
+  file outside any project lints it without a profile, instead of exiting with
+  `no project.yaml found`.
 - **Bare invocation.** The project root is resolved from the current directory.
   A project that has a `.markspec.yaml` and no `project.yaml` is a valid root.
   When neither file is found, the command exits 1 with
   `error: no project root found` and a hint that a `project.yaml` or
-  `.markspec.yaml` marks a project root.
+  `.markspec.yaml` marks a project root. Projects nested below the root (found
+  as the LSP finds them) are processed as their own groups, each with its own
+  profile, `exclude:` list, and project-wide gates. The scope header then names
+  the number of projects: `checking N file(s) under <root> (K projects)`. With
+  one project, the header is unchanged: `checking N file(s) under <root>`.
 
 **Exit codes:** `0` clean, `1` any error, `2` warnings only (no errors).
 `--strict` promotes every warning (including advisory prose findings) to an

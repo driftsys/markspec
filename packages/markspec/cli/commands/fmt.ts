@@ -9,6 +9,8 @@ import { extname } from "@std/path";
 import type { LockEdge, RefIndex } from "../../core/mod.ts";
 import {
   assertNotDeliveredTarget,
+  cliProjectRootResolver,
+  denoDiscoveryIO,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
   readFile,
@@ -36,19 +38,37 @@ export const fmtCmd = new Command()
       const { format } = await import("../../core/mod.ts");
 
       // Load the profile of every project group before any file is written,
-      // so a refused target in one group (below) stops the run before
-      // another group's files change. Each group uses the profile,
-      // `.markspec.yaml` and `markspec.lock` of its own project (#845).
+      // so a refused target (below) stops the run before any file changes.
+      // Each group uses the profile, `.markspec.yaml` and `markspec.lock` of
+      // its own project (#845).
+      const chains = [];
       for (const group of scope.groups) {
-        const chain = group.projectRoot !== undefined
-          ? await loadActiveProfile(group.projectRoot)
-          : null;
-        // Delivered corpus/docs files are read-only (ADR-030). Refuse an
-        // explicitly-named target that resolves to one rather than
-        // overwriting the profile package's file (#700). Project-wide scope
-        // never includes corpus files (they live outside the walk / under
-        // `exclude:`).
-        if (!scope.projectWide) assertNotDeliveredTarget(group.files, chain);
+        chains.push(
+          group.projectRoot !== undefined
+            ? await loadActiveProfile(group.projectRoot)
+            : null,
+        );
+      }
+      // Delivered corpus/docs files are read-only (ADR-030). Refuse an
+      // explicitly-named target that resolves to one rather than overwriting
+      // the profile package's file (#700). A delivered file often lies
+      // outside the project whose profile delivers it (a profile folder next
+      // to the project, a package cache), so its own group has no profile
+      // that knows it: compare every target against the profile of every
+      // group and of the current directory's project. Project-wide scope
+      // never includes corpus files (they live outside the walk / under
+      // `exclude:`).
+      if (!scope.projectWide) {
+        const cwdRoot = await (await cliProjectRootResolver()).ownerOf(
+          Deno.cwd(),
+        );
+        if (
+          cwdRoot !== undefined &&
+          !scope.groups.some((g) => g.projectRoot === cwdRoot)
+        ) {
+          chains.push(await loadActiveProfile(cwdRoot));
+        }
+        assertNotDeliveredTarget(scope.groups.flatMap((g) => g.files), chains);
       }
 
       const formatMarkdownProse = await loadMarkdownFormatterOrExit();
@@ -72,7 +92,6 @@ export const fmtCmd = new Command()
             loadToolConfig,
             parseLockfile,
           } = await import("../../core/mod.ts");
-          const { denoDiscoveryIO } = await import("../helpers.ts");
           const { join } = await import("@std/path");
           // Honor .markspec.yaml `exclude:` so the canonicalisation corpus
           // matches the one `check` (MSL-L006) and `lock` use — an entry in

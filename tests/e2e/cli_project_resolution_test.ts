@@ -52,6 +52,19 @@ function entryUsing(
 `;
 }
 
+/** Like {@linkcode entryUsing}, with a body that prose lint flags (vague
+ * wording, a placeholder, a pronoun). */
+function lintyEntry(
+  displayId: string,
+  attributeLine: string,
+  idSuffix = "F",
+): string {
+  return entryUsing(displayId, attributeLine, idSuffix).replace(
+    "The system shall respond within 200 ms.",
+    "The system shall respond as appropriate and/or etc. It may be done TBD.",
+  );
+}
+
 /** A `.markspec.yaml`-only project (no `project.yaml`) whose local profile
  * declares `Priority`. */
 const MARKSPEC_ONLY_PROJECT: Record<string, string> = {
@@ -159,7 +172,32 @@ Deno.test("lint <file>: .markspec.yaml-only project resolves the project from th
     cwd: "proj",
   });
   assertEquals(stderr.includes("no project.yaml found"), false, stderr);
+  // `Priority` is declared only by the project's profile: without the
+  // profile, compiling the file reports it as an unknown attribute.
+  assertEquals(stderr.includes("MSL-R010"), false, stderr);
   assertEquals(code, 0, stderr);
+});
+
+Deno.test("lint <file>: the project's profile brings a profile-typed entry into prose analysis (#845)", async () => {
+  const { stdout, stderr } = await markspec(
+    ["lint", "--format", "json", "docs/req.md"],
+    {
+      files: {
+        ...MARKSPEC_ONLY_PROJECT,
+        "proj/docs/req.md": lintyEntry("STK_0001", "Priority: high"),
+      },
+      cwd: "proj",
+    },
+  );
+  const report = JSON.parse(stdout) as {
+    diagnostics: Array<{ code: string }>;
+  };
+  // Without a profile, `STK_0001` has no type and is not prose-linted.
+  assertEquals(
+    report.diagnostics.some((d) => d.code.startsWith("MSL-Q")),
+    true,
+    `expected MSL-Q findings: ${stdout}\n${stderr}`,
+  );
 });
 
 Deno.test("fmt <file>: .markspec.yaml-only project loads its profile (#845)", async () => {
@@ -179,4 +217,273 @@ Deno.test("fmt <file>: .markspec.yaml-only project loads its profile (#845)", as
   );
   assertEquals(code, 1, stderr);
   assertStringIncludes(stderr, "read-only");
+});
+
+/** A delivered document whose trailer `fmt` would re-indent (4 spaces
+ * instead of 6), so a write would change the file. */
+const UNFORMATTED_DELIVERED = `# Platform
+
+- [STK_0009] A platform requirement
+
+  The platform shall respond within 200 ms.
+
+    Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+`;
+
+/** A profile that declares `Priority` and delivers `reference/platform.md`
+ * as a corpus document. */
+const DELIVERING_PROFILE = `${profileDeclaring("prof", "Priority")}` +
+  `  delivers:\n    - path: reference/platform.md\n      corpus: true\n`;
+
+Deno.test("fmt <file>: refuses a delivered document of the current project's profile stored outside the project (#700, #845)", async () => {
+  const run = await markspecPersist(["fmt", "../prof/reference/platform.md"], {
+    files: {
+      "a/.markspec.yaml": "profiles:\n  - ../prof\n",
+      "a/req.md": entryUsing("STK_0001", "Priority: high"),
+      "prof/markspec.yaml": DELIVERING_PROFILE,
+      "prof/reference/platform.md": UNFORMATTED_DELIVERED,
+    },
+    cwd: "a",
+  });
+  try {
+    assertEquals(run.code, 1, run.stderr);
+    assertStringIncludes(run.stderr, "read-only");
+    assertEquals(
+      await Deno.readTextFile(join(run.dir, "prof/reference/platform.md")),
+      UNFORMATTED_DELIVERED,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("fmt <file>: refuses a delivered document when run from outside its project (#700, #845)", async () => {
+  const run = await markspecPersist(["--version"], {
+    files: {
+      "proj/.markspec.yaml": "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+      "proj/prof/markspec.yaml": DELIVERING_PROFILE,
+      "proj/prof/reference/platform.md": UNFORMATTED_DELIVERED,
+      "outside/.keep": "",
+    },
+  });
+  try {
+    const target = join(run.dir, "proj", "prof", "reference", "platform.md");
+    const { code, stderr } = await markspecInDir(
+      join(run.dir, "outside"),
+      ["fmt", target],
+    );
+    assertEquals(code, 1, stderr);
+    assertStringIncludes(stderr, "read-only");
+    assertEquals(await Deno.readTextFile(target), UNFORMATTED_DELIVERED);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+/** A parent project (profile declares `Alpha`) with a nested folder
+ * `vendor/` that holds its own `.markspec.yaml` (profile declares `Beta`).
+ * `hide` lists the parent's way to hide `vendor/`: a `.markspec.yaml`
+ * `exclude:` entry or a `.gitignore` entry. */
+function parentWithHiddenNested(
+  hide: "exclude" | "gitignore",
+): Record<string, string> {
+  const files: Record<string, string> = {
+    "p/.markspec.yaml": hide === "exclude"
+      ? "profiles:\n  - ./prof\nexclude:\n  - prof/\n  - vendor/\n"
+      : "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+    "p/prof/markspec.yaml": profileDeclaring("pa", "Alpha"),
+    "p/vendor/.markspec.yaml": "profiles:\n  - ./prof\n",
+    "p/vendor/prof/markspec.yaml": profileDeclaring("pv", "Beta"),
+    // `Alpha` is declared only by the parent's profile.
+    "p/vendor/req.md": entryUsing("STK_0001", "Alpha: alpha value"),
+  };
+  if (hide === "gitignore") files["p/.gitignore"] = "vendor/\n";
+  return files;
+}
+
+for (const hide of ["exclude", "gitignore"] as const) {
+  Deno.test(`check <file>: a config in a folder the parent hides (${hide}) is not a project root, as in the LSP (#845)`, async () => {
+    const { code, stderr } = await markspec(["check", "p/vendor/req.md"], {
+      files: parentWithHiddenNested(hide),
+    });
+    assertEquals(stderr.includes("MSL-R010"), false, stderr);
+    assertEquals(code, 0, stderr);
+  });
+}
+
+/** A parent project (profile declares `Alpha`) and a nested project `sub/`
+ * (profile declares `Beta`). Each holds an entry `STK_0001` with the same
+ * Id. */
+const PARENT_AND_NESTED: Record<string, string> = {
+  "p/.markspec.yaml": "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+  "p/prof/markspec.yaml": profileDeclaring("pa", "Alpha"),
+  "p/req.md": entryUsing("STK_0001", "Alpha: alpha value"),
+  "p/sub/.markspec.yaml": "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+  "p/sub/prof/markspec.yaml": profileDeclaring("ps", "Beta"),
+  "p/sub/req.md": entryUsing("STK_0001", "Beta: beta value"),
+};
+
+Deno.test("check: bare invocation checks each nested project with its own profile (#845)", async () => {
+  const run = await markspecPersist(["check", "--strict"], {
+    files: PARENT_AND_NESTED,
+    cwd: "p",
+  });
+  try {
+    for (const code of ["MSL-R010", ...DUPLICATE_CODES]) {
+      assertEquals(run.stderr.includes(code), false, run.stderr);
+    }
+    assertStringIncludes(run.stderr, "checking 2 file(s) under");
+    assertStringIncludes(run.stderr, "(2 projects)");
+    assertEquals(run.code, 0, run.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("check <dir>: a directory argument honors the project's exclude: list, like a bare invocation (#845)", async () => {
+  const { code, stderr } = await markspec(["check", "."], {
+    files: {
+      ...MARKSPEC_ONLY_PROJECT,
+      "proj/.markspec.yaml":
+        "profiles:\n  - ./prof\nexclude:\n  - prof/\n  - /skip/\n",
+      // Excluded: would duplicate the display ID of docs/req.md.
+      "proj/skip/dup.md": entryUsing("STK_0001", "Priority: low", "G"),
+    },
+    cwd: "proj",
+  });
+  for (const dup of DUPLICATE_CODES) {
+    assertEquals(stderr.includes(dup), false, stderr);
+  }
+  assertEquals(code, 0, stderr);
+});
+
+Deno.test("check <files>: files of one project in two folders are checked together (#845)", async () => {
+  const { stderr } = await markspec(["check", "a/one.md", "b/two.md"], {
+    files: {
+      ".markspec.yaml": "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+      "prof/markspec.yaml": profileDeclaring("prof", "Priority"),
+      "a/one.md": entryUsing("STK_0001", "Priority: high"),
+      "b/two.md": entryUsing("STK_0001", "Priority: low", "G"),
+    },
+  });
+  assertEquals(
+    DUPLICATE_CODES.some((dup) => stderr.includes(dup)),
+    true,
+    `expected a duplicate display-ID diagnostic: ${stderr}`,
+  );
+});
+
+Deno.test("lint <files>: files from two projects give one report (#845)", async () => {
+  const { stdout, stderr } = await markspec(
+    ["lint", "--format", "json", "a/req.md", "b/req.md"],
+    {
+      files: {
+        "a/.markspec.yaml": "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+        "a/prof/markspec.yaml": profileDeclaring("pa", "Alpha"),
+        "a/req.md": lintyEntry("STK_0001", "Alpha: alpha value"),
+        "b/.markspec.yaml": "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
+        "b/prof/markspec.yaml": profileDeclaring("pb", "Beta"),
+        "b/req.md": lintyEntry("STK_0001", "Beta: beta value"),
+      },
+    },
+  );
+  const report = JSON.parse(stdout) as {
+    diagnostics: Array<{ location?: { file: string } }>;
+    score: { rollup: { bandCounts: Record<string, number> } };
+  };
+  const files = new Set(report.diagnostics.map((d) => d.location?.file));
+  assertEquals(files.has(join("a", "req.md")), true, stdout);
+  assertEquals(files.has(join("b", "req.md")), true, stdout);
+  const scored = Object.values(report.score.rollup.bandCounts)
+    .reduce((sum, n) => sum + n, 0);
+  assertEquals(scored, 2, stdout);
+  assertEquals(stderr.includes("MSL-R010"), false, stderr);
+});
+
+Deno.test("check <files>: groups are reported in the order their first file was named (#845)", async () => {
+  const { stdout } = await markspec(
+    ["check", "--format", "json", "b/req.md", "a/req.md"],
+    {
+      files: {
+        "a/.markspec.yaml": "profiles: []\n",
+        "a/req.md": entryUsing("STK_0001", "Alpha: alpha value"),
+        "b/.markspec.yaml": "profiles: []\n",
+        "b/req.md": entryUsing("STK_0001", "Beta: beta value"),
+      },
+    },
+  );
+  const files = (JSON.parse(stdout) as Array<{ location?: { file: string } }>)
+    .map((d) => d.location?.file)
+    .filter((f) => f !== undefined);
+  assertEquals(files[0], join("b", "req.md"), stdout);
+  assertEquals(files.includes(join("a", "req.md")), true, stdout);
+});
+
+/** A figure caption placed below its image. */
+const CAPTION_BELOW = `# Requirements
+
+- [REQ-001] System diagram requirement
+
+  See the brake diagram below.
+
+  ![Brake diagram](brake.svg)
+
+  Figure: Brake pressure schematic
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+
+Deno.test("check <files>: each project uses its own .markspec.yaml caption conventions (#845)", async () => {
+  const { stdout } = await markspec(
+    ["check", "--format", "json", "a/req.md", "b/req.md"],
+    {
+      files: {
+        "a/.markspec.yaml": "caption-conventions:\n  Figure: above\n",
+        "a/req.md": CAPTION_BELOW,
+        "b/.markspec.yaml": "caption-conventions:\n  Figure: below\n",
+        "b/req.md": CAPTION_BELOW,
+      },
+    },
+  );
+  const c072 = (JSON.parse(stdout) as Array<
+    { code: string; location?: { file: string } }
+  >).filter((d) => d.code === "MSL-C072");
+  assertEquals(c072.map((d) => d.location?.file), [join("a", "req.md")]);
+});
+
+for (const verb of ["check", "lint"]) {
+  Deno.test(`${verb} <empty dir>: uses the directory's project, not the current one (#845)`, async () => {
+    const { code, stderr } = await markspec([verb, "../b/empty"], {
+      files: {
+        // The current project's profile cannot be loaded.
+        "a/.markspec.yaml": "profiles:\n  - ./missing\n",
+        "b/.markspec.yaml": "profiles: []\n",
+        "b/empty/.keep": "",
+      },
+      cwd: "a",
+    });
+    assertEquals(code, 0, stderr);
+  });
+}
+
+Deno.test("check: bare invocation with a nested project matches the markspec.lock of the parent (#845)", async () => {
+  const files = {
+    ...PARENT_AND_NESTED,
+    // `lock` needs a project.yaml; the nested project needs one too, or
+    // the parent's project.yaml would win over its .markspec.yaml.
+    "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+    "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+    // Each entry links to the other, so `lock` pins one edge from each
+    // project's files.
+    "p/req.md": entryUsing("STK_0002", "Satisfies: STK_0001", "G"),
+    "p/sub/req.md": entryUsing("STK_0001", "Satisfies: STK_0002"),
+  };
+  const run = await markspecPersist(["lock"], { files, cwd: "p" });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const { stderr } = await markspecInDir(join(run.dir, "p"), ["check"]);
+    assertEquals(stderr.includes("MSL-L212"), false, stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
 });

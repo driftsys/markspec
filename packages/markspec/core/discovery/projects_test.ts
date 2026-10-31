@@ -1,7 +1,11 @@
 import { assertEquals } from "@std/assert";
 import { join, resolve, SEPARATOR } from "@std/path";
 import type { DiscoveryIO } from "./mod.ts";
-import { discoverProjectRoots, resolveConfigRoot } from "./projects.ts";
+import {
+  createProjectRootResolver,
+  discoverProjectRoots,
+  resolveConfigRoot,
+} from "./projects.ts";
 import { makeTree, realIO } from "./test_helpers.ts";
 
 const PROJECT = "name: test\n";
@@ -182,4 +186,79 @@ Deno.test("resolveConfigRoot: returns undefined when neither file exists", async
     await resolveConfigRoot(resolve("/a/b"), mapReader({})),
     undefined,
   );
+});
+
+Deno.test("createProjectRootResolver: a config in an excluded folder belongs to the enclosing project", async () => {
+  const dir = await real(
+    await makeTree({
+      ".markspec.yaml": "exclude:\n  - vendor/\n",
+      "vendor/.markspec.yaml": "exclude: []\n",
+      "vendor/docs/x.md": "",
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(await resolver.ownerOf(join(dir, "vendor", "docs")), dir);
+});
+
+Deno.test("createProjectRootResolver: a config in a gitignored or hidden folder belongs to the enclosing project", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      ".gitignore": "ignored/\n",
+      "ignored/project.yaml": PROJECT,
+      ".hidden/project.yaml": PROJECT,
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(await resolver.ownerOf(join(dir, "ignored")), dir);
+  assertEquals(await resolver.ownerOf(join(dir, ".hidden")), dir);
+});
+
+Deno.test("createProjectRootResolver: a visible nested project owns its files", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      "sub/project.yaml": PROJECT,
+      "sub/docs/x.md": "",
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(
+    await resolver.ownerOf(join(dir, "sub", "docs")),
+    join(dir, "sub"),
+  );
+  assertEquals(await resolver.ownerOf(dir), dir);
+});
+
+Deno.test("createProjectRootResolver: an intermediate project's exclude applies", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      "mid/.markspec.yaml": "exclude:\n  - deep/\n",
+      "mid/project.yaml": PROJECT,
+      "mid/deep/project.yaml": PROJECT,
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(
+    await resolver.ownerOf(join(dir, "mid", "deep")),
+    join(dir, "mid"),
+  );
+});
+
+Deno.test("createProjectRootResolver: no config above the folder", async () => {
+  const dir = await real(await makeTree({ "a/x.md": "" }));
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(await resolver.ownerOf(join(dir, "a")), undefined);
+});
+
+Deno.test("createProjectRootResolver: the walk up stops below homeDir", async () => {
+  const dir = await real(
+    await makeTree({
+      ".markspec.yaml": "exclude:\n  - a/\n",
+      "a/project.yaml": PROJECT,
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO(), { homeDir: dir });
+  assertEquals(await resolver.ownerOf(join(dir, "a")), join(dir, "a"));
 });
