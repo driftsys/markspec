@@ -383,7 +383,13 @@ module not found.
       inside `try` (a throw → `format-failed`); target `MSL-F900` per decision
       11 → `format-failed`; `readEntryBody` of each output gives `body` and
       `currentBody` (undefined → `format-failed`). `applyBody` calls
-      `previewBody`, then `replaceEntryBody(text, file, id, preview.body)`.
+      `previewBody`, then `replaceEntryBody(text, file, id, preview.body)`. As
+      built: both functions share one pipeline that ends with that final splice,
+      so a preview whose formatted body fails the identity check is refused too.
+      Before the splice, an `MSL-P020`/`P021`/`P022` naming the target in
+      `parseFile(text)` → `proposal-changes-entries` (a malformed trailer line
+      makes the parser read the `Id:` and trailer lines as body, so a splice
+      would delete them). Apply does not format the current text.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

@@ -18,6 +18,7 @@ import {
   type Diagnostic,
   type EntryBodyRefusal,
   format,
+  parseFile,
   type ProseFormatter,
   readEntryBody,
   replaceEntryBody,
@@ -83,6 +84,34 @@ export function isTargetF900(
   );
 }
 
+/** Parse codes that mean an entry's trailer block did not parse. */
+const TRAILER_PARSE_CODES: ReadonlySet<string> = new Set([
+  "MSL-P020",
+  "MSL-P021",
+  "MSL-P022",
+]);
+
+/**
+ * Whether the trailer block of the entry `displayId` in `text` failed to
+ * parse. When a trailer line is malformed (for example an empty
+ * `Satisfies:`, a key without a colon, or a lowercase key), the parser
+ * reads the whole trailer block, the `Id:` line included, as part of the
+ * body. A body splice would then delete the `Id:` and trailer lines, and
+ * the identity check cannot see it, because the entry has no `id` and no
+ * attributes before or after the edit. The parser names the entry at the
+ * start of each of these diagnostics (`<displayId>: ...`).
+ */
+async function hasUnparsedTrailer(
+  text: string,
+  file: string,
+  displayId: string,
+): Promise<boolean> {
+  const { diagnostics } = await parseFile(text, { file });
+  return diagnostics.some((d) =>
+    TRAILER_PARSE_CODES.has(d.code) && d.message.startsWith(`${displayId}:`)
+  );
+}
+
 /**
  * Format `text` with the `markspec fmt` code path. Returns `undefined`
  * when the formatter throws, and the diagnostics otherwise. `MSL-F012`
@@ -101,20 +130,32 @@ function formatText(
   }
 }
 
-/** A checked proposal: the preview plus the file text it produces. */
+/** A checked proposal: the formatted bodies plus the file text it produces. */
 interface CheckedProposal {
-  readonly preview: BodyPreview;
+  readonly body: string;
+  /** Set only when the caller asked for the current body. */
+  readonly currentBody: string | undefined;
   readonly text: string;
 }
 
 /**
- * The shared preview and apply pipeline. Refuses with `format-failed`
- * when the formatter throws on either text, or when it keeps the
- * candidate's target body unchanged (`MSL-F900`). An `MSL-F900` on the
- * current text is not a refusal: the formatter keeps the body as
- * written, and that is the `currentBody` the author sees. The formatted
- * body goes through the entry-identity check again, so a preview the
- * author sees always splices at Accept.
+ * The shared preview and apply pipeline. Refuses with
+ * `proposal-changes-entries` when the target entry's trailer block did
+ * not parse (see {@linkcode hasUnparsedTrailer}). Refuses with
+ * `format-failed` when the formatter throws on a text it formats, or when
+ * it keeps the candidate's target body unchanged (`MSL-F900`). An
+ * `MSL-F900` on the current text is not a refusal: the formatter keeps
+ * the body as written, and that is the `currentBody` the author sees.
+ * The formatted body goes through the entry-identity check again, so a
+ * preview the author sees always splices at Accept.
+ *
+ * The current text is formatted only when `withCurrent` is true (the
+ * preview shows `currentBody`; apply does not need it), so an apply runs
+ * the whole-document formatter once.
+ *
+ * The `format-failed` branches are defensive: `format` catches a prose
+ * formatter that throws (MSL-F012), and no known input makes it emit
+ * `MSL-F900`. Only {@linkcode isTargetF900} has a test of its own.
  */
 async function checkProposal(
   text: string,
@@ -122,6 +163,7 @@ async function checkProposal(
   displayId: string,
   proposed: string,
   formatProse: ProseFormatter,
+  withCurrent: boolean,
 ): Promise<ProposalOutcome<CheckedProposal>> {
   if (proposed.length > MAX_PROPOSAL_CHARS) {
     return refuse("proposal-too-large");
@@ -129,33 +171,34 @@ async function checkProposal(
   const current = await readEntryBody(text, file, displayId);
   if (current === undefined) return refuse("entry-not-found");
   if (current === "") return refuse("entry-body-empty");
+  if (await hasUnparsedTrailer(text, file, displayId)) {
+    return refuse("proposal-changes-entries");
+  }
 
   const edit = await replaceEntryBody(text, file, displayId, proposed);
   if (!edit.ok) return refuse(fromEditRefusal(edit.refusal));
 
   const formattedCandidate = formatText(edit.text, file, formatProse);
-  const formattedCurrent = formatText(text, file, formatProse);
   if (
-    formattedCandidate === undefined || formattedCurrent === undefined ||
+    formattedCandidate === undefined ||
     isTargetF900(formattedCandidate.diagnostics, displayId)
   ) {
     return refuse("format-failed");
   }
   const body = await readEntryBody(formattedCandidate.output, file, displayId);
-  const currentBody = await readEntryBody(
-    formattedCurrent.output,
-    file,
-    displayId,
-  );
-  if (body === undefined || currentBody === undefined) {
-    return refuse("format-failed");
+  if (body === undefined) return refuse("format-failed");
+
+  let currentBody: string | undefined;
+  if (withCurrent) {
+    const formattedCurrent = formatText(text, file, formatProse);
+    if (formattedCurrent === undefined) return refuse("format-failed");
+    currentBody = await readEntryBody(formattedCurrent.output, file, displayId);
+    if (currentBody === undefined) return refuse("format-failed");
   }
+
   const spliced = await replaceEntryBody(text, file, displayId, body);
   if (!spliced.ok) return refuse(fromEditRefusal(spliced.refusal));
-  return {
-    ok: true,
-    value: { preview: { body, currentBody }, text: spliced.text },
-  };
+  return { ok: true, value: { body, currentBody, text: spliced.text } };
 }
 
 /**
@@ -181,17 +224,21 @@ export async function previewBody(
     displayId,
     proposed,
     formatProse,
+    true,
   );
   if (!checked.ok) return checked;
-  return { ok: true, value: checked.value.preview };
+  const { body, currentBody } = checked.value;
+  if (currentBody === undefined) return refuse("format-failed");
+  return { ok: true, value: { body, currentBody } };
 }
 
 /**
  * Build the new file text for an accepted proposal: `text` with only the
- * target body replaced by the formatted proposed body. Runs the whole
- * {@linkcode previewBody} pipeline first, so a body from a preview
- * splices unchanged (formatting is idempotent). Writes nothing; the
- * caller writes the returned text.
+ * target body replaced by the formatted proposed body. Runs every check
+ * of {@linkcode previewBody} (it skips only formatting the current body,
+ * which the preview shows and a write does not need), so a body from a
+ * preview splices unchanged (formatting is idempotent). Writes nothing;
+ * the caller writes the returned text.
  */
 export async function applyBody(
   text: string,
@@ -206,6 +253,7 @@ export async function applyBody(
     displayId,
     proposed,
     formatProse,
+    false,
   );
   if (!checked.ok) return checked;
   return { ok: true, value: checked.value.text };

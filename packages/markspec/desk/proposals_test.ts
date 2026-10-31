@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { fromFileUrl, join } from "@std/path";
 import {
   type Diagnostic,
+  format,
   loadMarkdownFormatter,
   type ProseFormatter,
   readEntryBody,
@@ -247,4 +248,103 @@ Deno.test("isTargetF900: matches only MSL-F900 naming the target entry", () => {
     !isTargetF900([diag("MSL-F012", "SYS_BRK_0001: kept")], "SYS_BRK_0001"),
   );
   assert(!isTargetF900([], "SYS_BRK_0001"));
+});
+
+Deno.test("applyBody: keeps an unformatted neighbour entry byte for byte", async () => {
+  // SYS_BRK_0002 is deliberately unformatted: trailing spaces, trailers
+  // out of the formatter's order, a short odd wrap, and an Id indented
+  // by 4 spaces instead of 6. Writing the formatter's whole output would
+  // change these lines; the splice must not.
+  const unformatted = SYSTEM.replace(
+    /- \[SYS_BRK_0002\][^]*?Satisfies: STK_BRK_0001\n/,
+    "- [SYS_BRK_0002] Redundant brake actuation   \n\n" +
+      "  The braking system shall apply\n" +
+      "  braking torque through a second,   \n" +
+      "  independent actuation path when the primary path fails.\n\n" +
+      "      Satisfies: STK_BRK_0001  \n" +
+      "    Id: 01JBRK00000000000000000004\n" +
+      "      Derived-from: HAZ_BRK_0001\n",
+  );
+  assert(unformatted !== SYSTEM);
+  const formatted = format(unformatted, {
+    file: FILE,
+    formatMarkdownProse: prose,
+  });
+  assert(formatted.output !== unformatted, "fixture must be unformatted");
+
+  const preview = await previewBody(
+    unformatted,
+    FILE,
+    "SYS_BRK_0001",
+    "New body.",
+    prose,
+  );
+  assert(preview.ok);
+  const r = await applyBody(
+    unformatted,
+    FILE,
+    "SYS_BRK_0001",
+    "New body.",
+    prose,
+  );
+  assert(r.ok);
+  const expected = await replaceEntryBody(
+    unformatted,
+    FILE,
+    "SYS_BRK_0001",
+    preview.value.body,
+  );
+  assert(expected.ok);
+  assertEquals(r.value, expected.text);
+
+  // Every line outside the SYS_BRK_0001 body (input lines 5 and 6) is
+  // unchanged; the new body is one line, so later lines shift by one.
+  const inLines = unformatted.split("\n");
+  const outLines = r.value.split("\n");
+  assertEquals(outLines.slice(0, 4), inLines.slice(0, 4));
+  assertEquals(outLines[4], "  New body.");
+  assertEquals(outLines.slice(5), inLines.slice(6));
+});
+
+/** A copy of SYSTEM whose SYS_BRK_0001 trailer has `badLine` added. */
+function withBadTrailer(badLine: string): string {
+  const out = SYSTEM.replace(
+    "      Satisfies: STK_BRK_0001\n\n- [SYS_BRK_0002]",
+    `      Satisfies: STK_BRK_0001\n${badLine}\n\n- [SYS_BRK_0002]`,
+  );
+  assert(out !== SYSTEM);
+  return out;
+}
+
+for (
+  const [name, badLine] of [
+    ["an empty-valued trailer line", "      Labels:"],
+    ["a trailer line without a colon", "      Labels ASIL-B"],
+    ["a lowercase trailer key", "      labels: ASIL-B"],
+    ["an empty Id line", "      Id:"],
+  ]
+) {
+  Deno.test(`previewBody and applyBody: refuse an entry with ${name}`, async () => {
+    const text = withBadTrailer(badLine);
+    const refused = { ok: false, refusal: "proposal-changes-entries" } as const;
+    assertEquals(
+      await previewBody(text, FILE, "SYS_BRK_0001", "New body.", prose),
+      refused,
+    );
+    assertEquals(
+      await applyBody(text, FILE, "SYS_BRK_0001", "New body.", prose),
+      refused,
+    );
+  });
+}
+
+Deno.test("previewBody: a bad trailer on another entry does not refuse", async () => {
+  const text = SYSTEM.replace(
+    "      Verifies: SYS_BRK_0001",
+    "      Verifies: SYS_BRK_0001\n      Labels:",
+  );
+  assert(text !== SYSTEM);
+  const r = await applyBody(text, FILE, "SYS_BRK_0001", "New body.", prose);
+  assert(r.ok);
+  assert(r.value.includes("      Verifies: SYS_BRK_0001\n      Labels:"));
 });
