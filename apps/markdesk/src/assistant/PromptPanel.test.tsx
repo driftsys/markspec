@@ -1,0 +1,430 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { DeskError, type EntryView } from "../api/client";
+import { MESSAGES } from "../app/useProduct";
+import type { AssistantPromptResult, AssistantStatus } from "../shell/bridge";
+import { PROMPT_MESSAGES } from "./usePrompt";
+import {
+  entryFixture,
+  fakePromptClient,
+  mountApp,
+  READY_STATUSES,
+} from "./testMount";
+
+afterEach(cleanup);
+
+const BODY = "The system shall brake within 200 ms.";
+
+/** Waits for the prompt box and returns it. */
+async function promptBox(): Promise<HTMLTextAreaElement> {
+  return await screen.findByRole("textbox", { name: "Prompt" });
+}
+
+/** Selects the first entry and waits until the prompt box is enabled. */
+async function pickReady(): Promise<HTMLTextAreaElement> {
+  fireEvent.click(await screen.findByRole("button", { name: "Pick first" }));
+  const box = await promptBox();
+  await waitFor(() => expect(box.disabled).toBe(false));
+  return box;
+}
+
+/** Types `text` in the box and presses Enter. */
+async function send(box: HTMLTextAreaElement, text: string) {
+  fireEvent.change(box, { target: { value: text } });
+  fireEvent.keyDown(box, { key: "Enter" });
+}
+
+/** A promise with its resolver, for holding a call open. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function statusesWith(change: Partial<AssistantStatus>): AssistantStatus[] {
+  return READY_STATUSES.map((status) =>
+    status.id === "claude-code" ? { ...status, ...change } : status
+  );
+}
+
+it.each<
+  [
+    string,
+    {
+      state?: AssistantStatus["state"];
+      selectedAssistant?: "codex";
+      entry?: Partial<EntryView>;
+      noPick?: boolean;
+    },
+    string,
+  ]
+>([
+  ["no selection", { noPick: true }, "Select an entry to send a prompt."],
+  ["needs sign-in", { state: "needs-sign-in" }, "Claude Code needs sign-in."],
+  [
+    "not prompt-capable",
+    { selectedAssistant: "codex" },
+    "Prompts are not yet available for Codex.",
+  ],
+  [
+    "read-only entry",
+    { entry: { origin: "up@1.0.0" } },
+    "This entry is read-only. It comes from up@1.0.0.",
+  ],
+  [
+    "source-file entry",
+    { entry: { location: { file: "src/a.rs", line: 1, column: 1 } } },
+    "Entries in source files cannot be edited here yet.",
+  ],
+  ["empty body", { entry: { body: "" } }, "This entry has no body yet."],
+])("disables the prompt box: %s", async (_, context, reason) => {
+  mountApp({
+    client: fakePromptClient({
+      entry: vi.fn(async (id: string) => entryFixture(id, context.entry)),
+    }),
+    statuses: context.state
+      ? statusesWith({ state: context.state })
+      : undefined,
+    settings: context.selectedAssistant
+      ? { selected: context.selectedAssistant }
+      : undefined,
+  });
+  if (!context.noPick) {
+    fireEvent.click(await screen.findByRole("button", { name: "Pick first" }));
+  }
+  expect(await screen.findByText(reason)).toBeTruthy();
+  const box = await promptBox();
+  expect(box.disabled).toBe(true);
+  expect(box.getAttribute("placeholder")).toBe(reason);
+});
+
+it("submits with Enter and shows the proposal with a word diff", async () => {
+  const { client, bridge } = mountApp();
+  const box = await pickReady();
+  await send(box, "make it 150 ms");
+  await screen.findByRole("heading", { name: "Proposed" });
+  expect(bridge.runAssistantPrompt).toHaveBeenCalledWith("claude-code", {
+    title: "Brake latency",
+    body: BODY,
+    instruction: "make it 150 ms",
+    attributes: [{ key: "Satisfies", value: "STK_BRK_0001" }],
+  });
+  expect(vi.mocked(client.document).mock.calls[0][0]).toBe("docs/system.md");
+  expect(client.previewProposal).toHaveBeenCalledWith('"e1"', [
+    { displayId: "SYS_BRK_0001", kind: "body", body: "Proposed body." },
+  ]);
+  expect(screen.getByRole("heading", { name: "Current" })).toBeTruthy();
+  expect(document.querySelector("del")).not.toBeNull();
+  expect(document.querySelector("ins")).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+});
+
+it("submits with the Send button", async () => {
+  const { bridge } = mountApp();
+  const box = await pickReady();
+  fireEvent.change(box, { target: { value: "shorter" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByRole("heading", { name: "Proposed" });
+  expect(bridge.runAssistantPrompt).toHaveBeenCalledTimes(1);
+});
+
+it("inserts a line break with Shift+Enter instead of submitting", async () => {
+  const { bridge } = mountApp();
+  const box = await pickReady();
+  fireEvent.change(box, { target: { value: "first line" } });
+  const notPrevented = fireEvent.keyDown(box, { key: "Enter", shiftKey: true });
+  expect(notPrevented).toBe(true);
+  expect(bridge.runAssistantPrompt).not.toHaveBeenCalled();
+});
+
+it("strips a fence around the reply before the preview", async () => {
+  const { client } = mountApp({
+    assistant: {
+      runAssistantPrompt: vi.fn(async () => ({
+        outcome: "ok" as const,
+        reply: "```\nX\n```",
+        error: null,
+      })),
+    },
+  });
+  await send(await pickReady(), "rewrite");
+  await screen.findByRole("heading", { name: "Proposed" });
+  expect(client.previewProposal).toHaveBeenCalledWith('"e1"', [
+    { displayId: "SYS_BRK_0001", kind: "body", body: "X" },
+  ]);
+});
+
+it("shows the no-proposal error for an empty reply", async () => {
+  const { client } = mountApp({
+    assistant: {
+      runAssistantPrompt: vi.fn(async () => ({
+        outcome: "ok" as const,
+        reply: "  ",
+        error: null,
+      })),
+    },
+  });
+  await send(await pickReady(), "rewrite");
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    PROMPT_MESSAGES.noProposal,
+  );
+  expect(client.previewProposal).not.toHaveBeenCalled();
+});
+
+it("shows the running state and cancels the assistant", async () => {
+  const run = deferred<AssistantPromptResult>();
+  const cancelAssistantPrompt = vi.fn(async () => {
+    run.resolve({ outcome: "cancelled", reply: null, error: null });
+  });
+  const { client } = mountApp({
+    assistant: {
+      runAssistantPrompt: vi.fn(() => run.promise),
+      cancelAssistantPrompt,
+    },
+  });
+  const box = await pickReady();
+  await send(box, "keep me");
+  expect(await screen.findByText("Waiting for Claude Code…")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(cancelAssistantPrompt).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(screen.queryByText("Waiting for Claude Code…")).toBeNull()
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect((await promptBox()).value).toBe("keep me");
+  expect(client.previewProposal).not.toHaveBeenCalled();
+});
+
+it.each<[string, AssistantPromptResult, string]>([
+  [
+    "timeout",
+    { outcome: "timeout", reply: null, error: null },
+    PROMPT_MESSAGES.timeout,
+  ],
+  [
+    "assistant failed",
+    { outcome: "failed", reply: null, error: "auth expired" },
+    "The assistant failed: auth expired",
+  ],
+  [
+    "prompt too long",
+    { outcome: "prompt-too-long", reply: null, error: null },
+    PROMPT_MESSAGES.promptTooLong,
+  ],
+  [
+    "reply too long",
+    { outcome: "reply-too-long", reply: null, error: null },
+    PROMPT_MESSAGES.replyTooLong,
+  ],
+])("shows the %s error", async (_, result, message) => {
+  mountApp({
+    assistant: { runAssistantPrompt: vi.fn(async () => result) },
+  });
+  const box = await pickReady();
+  await send(box, "keep me");
+  expect((await screen.findByRole("alert")).textContent).toBe(message);
+  expect(box.value).toBe("keep me");
+});
+
+it("rejects with the button and with Escape, and writes nothing", async () => {
+  const { client } = mountApp();
+  const box = await pickReady();
+  await send(box, "rewrite");
+  fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+  expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+  await send(box, "rewrite");
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  fireEvent.keyDown(accept, { key: "Escape" });
+  expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+  expect(client.applyProposal).not.toHaveBeenCalled();
+  expect(box.value).toBe("rewrite");
+});
+
+it("accepts: applies with the submit ETag, then refreshes", async () => {
+  const { client } = mountApp({
+    client: fakePromptClient({
+      previewProposal: vi.fn(async () => ({
+        apiVersion: 3 as const,
+        changes: [{
+          displayId: "SYS_BRK_0001",
+          kind: "body" as const,
+          body: "Formatted body.",
+          currentBody: BODY,
+        }],
+      })),
+    }),
+  });
+  const box = await pickReady();
+  await send(box, "rewrite");
+  const entryCalls = vi.mocked(client.entry).mock.calls.length;
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  await waitFor(() =>
+    expect(client.applyProposal).toHaveBeenCalledWith('"e1"', [
+      { displayId: "SYS_BRK_0001", kind: "body", body: "Formatted body." },
+    ])
+  );
+  await waitFor(() =>
+    expect(vi.mocked(client.entry).mock.calls.length).toBeGreaterThan(
+      entryCalls,
+    )
+  );
+  await waitFor(() => expect(box.value).toBe(""));
+  expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+});
+
+it("disables Accept while applying", async () => {
+  const apply = deferred<
+    { apiVersion: 3; path: string; etag: string }
+  >();
+  const { client } = mountApp({
+    client: fakePromptClient({ applyProposal: vi.fn(() => apply.promise) }),
+  });
+  await send(await pickReady(), "rewrite");
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  fireEvent.click(accept);
+  await waitFor(() =>
+    expect((accept as HTMLButtonElement).disabled).toBe(true)
+  );
+  const reject = screen.getByRole("button", { name: "Reject" });
+  expect((reject as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(accept);
+  expect(client.applyProposal).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    apply.resolve({ apiVersion: 3, path: "docs/system.md", etag: '"e2"' });
+  });
+  expect(client.applyProposal).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the instruction and says the file changed on 412", async () => {
+  mountApp({
+    client: fakePromptClient({
+      applyProposal: vi.fn(async () => {
+        throw new DeskError(412, "precondition-failed", "m");
+      }),
+    }),
+  });
+  const box = await pickReady();
+  await send(box, "make it 150 ms");
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    PROMPT_MESSAGES.fileChanged,
+  );
+  expect(box.value).toBe("make it 150 ms");
+});
+
+it("says the file changed on a 412 preview", async () => {
+  mountApp({
+    client: fakePromptClient({
+      previewProposal: vi.fn(async () => {
+        throw new DeskError(412, "precondition-failed", "m");
+      }),
+    }),
+  });
+  await send(await pickReady(), "rewrite");
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    PROMPT_MESSAGES.fileChanged,
+  );
+});
+
+it.each<[string, DeskError, string]>([
+  [
+    "format-failed",
+    new DeskError(422, "format-failed", "m"),
+    PROMPT_MESSAGES.couldNotFormat,
+  ],
+  [
+    "proposal-changes-entries",
+    new DeskError(422, "proposal-changes-entries", "m"),
+    PROMPT_MESSAGES.changesEntries,
+  ],
+  [
+    "entry-trailer-invalid",
+    new DeskError(409, "entry-trailer-invalid", "m"),
+    PROMPT_MESSAGES.trailerInvalid,
+  ],
+  [
+    "another preview error",
+    new DeskError(422, "proposal-too-large", "m"),
+    PROMPT_MESSAGES.couldNotFormat,
+  ],
+])("maps a %s preview to its message", async (_, error, message) => {
+  mountApp({
+    client: fakePromptClient({
+      previewProposal: vi.fn(async () => {
+        throw error;
+      }),
+    }),
+  });
+  await send(await pickReady(), "rewrite");
+  expect((await screen.findByRole("alert")).textContent).toBe(message);
+});
+
+it("shows write-failed for another apply error", async () => {
+  mountApp({
+    client: fakePromptClient({
+      applyProposal: vi.fn(async () => {
+        throw new DeskError(500, "write-failed", "m");
+      }),
+    }),
+  });
+  await send(await pickReady(), "rewrite");
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    PROMPT_MESSAGES.writeFailed,
+  );
+});
+
+it("discards the proposal when the selection changes", async () => {
+  const { client } = mountApp();
+  await send(await pickReady(), "rewrite");
+  await screen.findByRole("heading", { name: "Proposed" });
+  fireEvent.click(screen.getByRole("button", { name: "Pick second" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull()
+  );
+  expect(client.applyProposal).not.toHaveBeenCalled();
+});
+
+it("cancels a running prompt when the selection changes", async () => {
+  const run = deferred<AssistantPromptResult>();
+  const cancelAssistantPrompt = vi.fn(async () => {});
+  const { client } = mountApp({
+    assistant: {
+      runAssistantPrompt: vi.fn(() => run.promise),
+      cancelAssistantPrompt,
+    },
+  });
+  await send(await pickReady(), "rewrite");
+  await screen.findByText("Waiting for Claude Code…");
+  fireEvent.click(screen.getByRole("button", { name: "Pick second" }));
+  await waitFor(() => expect(cancelAssistantPrompt).toHaveBeenCalled());
+  await act(async () => {
+    run.resolve({ outcome: "ok", reply: "Late body.", error: null });
+  });
+  expect(screen.queryByText("Waiting for Claude Code…")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+  expect(client.previewProposal).not.toHaveBeenCalled();
+});
+
+it("reports a lost connection from a proposal call", async () => {
+  mountApp({
+    client: fakePromptClient({
+      previewProposal: vi.fn(async () => {
+        throw new DeskError(0, "network", "down");
+      }),
+    }),
+  });
+  await send(await pickReady(), "rewrite");
+  expect(await screen.findByText(MESSAGES.lostConnection)).toBeTruthy();
+});

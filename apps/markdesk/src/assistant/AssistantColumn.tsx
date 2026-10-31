@@ -1,5 +1,6 @@
 import { useAssistants } from "./AssistantProvider";
 import { assistantName } from "./catalog";
+import { PromptPanel } from "./PromptPanel";
 import { SetupCard } from "./SetupCard";
 
 const STATE_PHRASES = {
@@ -53,11 +54,7 @@ export function AssistantColumn(props: {
   return (
     <div className="assistant-column">
       <p className="assistant-empty">{heading}</p>
-      <textarea
-        disabled
-        aria-label="Prompt"
-        placeholder="Prompts arrive in a later release"
-      />
+      <PromptPanel />
       <button type="button" onClick={() => props.onOpenSettings()}>
         Settings
       </button>

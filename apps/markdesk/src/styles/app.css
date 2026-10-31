@@ -521,6 +521,43 @@ button[aria-pressed="true"] {
   color: var(--md-text-secondary);
 }
 
+/* Prompt panel: the reason line, the running state, the proposal, errors. */
+.prompt-reason {
+  margin: 0 0 var(--md-space-2);
+  color: var(--md-text-muted);
+}
+.prompt-running p,
+.prompt-error {
+  margin: var(--md-space-2) 0;
+}
+.prompt-error {
+  color: var(--md-status-error-fg);
+}
+.proposal h4 {
+  margin: var(--md-space-3) 0 var(--md-space-1);
+}
+.proposal-body {
+  margin: 0;
+  padding: var(--md-space-2);
+  border: 1px solid var(--md-border);
+  background: var(--md-inset);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.proposal-body del {
+  color: var(--md-status-error-fg);
+  background: var(--md-status-error-bg);
+}
+.proposal-body ins {
+  color: var(--md-status-ok-fg);
+  background: var(--md-status-ok-bg);
+}
+.prompt-actions {
+  display: flex;
+  gap: var(--md-space-2);
+  margin: var(--md-space-2) 0;
+}
+
 /* ── Settings ────────────────────────────────────────────────────────── */
 
 .settings {
