@@ -514,13 +514,11 @@ mod tests {
 
     #[cfg(unix)]
     fn detect_copilot_with(confirmed: bool, label: &str) -> assistants::AssistantState {
-        use std::os::unix::fs::PermissionsExt;
         let dir =
             std::env::temp_dir().join(format!("markdesk-lib-probe-{}-{label}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let bin = dir.join("copilot");
-        std::fs::write(&bin, "#!/bin/sh\necho copilot 1.0\n").unwrap();
-        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assistants::write_executable(&bin, "#!/bin/sh\necho copilot 1.0\n");
         let settings = AssistantSettings {
             copilot_confirmed: confirmed,
             ..AssistantSettings::default()

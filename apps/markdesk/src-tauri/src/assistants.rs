@@ -986,6 +986,37 @@ pub fn detect_all(probe: &Probe) -> Vec<AssistantStatus> {
     })
 }
 
+/// Write `content` to `path` as an executable file (mode 0755), for tests.
+///
+/// The file is written by a separate short-lived `/bin/sh` process, so no
+/// write file descriptor for it ever exists in the test process. If the
+/// test process wrote the file itself, a child that another test thread
+/// forks at that moment would inherit a copy of the descriptor until its
+/// own exec. Linux then refuses to exec the script with `ETXTBSY` (text
+/// file busy).
+#[cfg(all(test, unix))]
+pub(crate) fn write_executable(path: &Path, content: &str) {
+    use std::io::Write;
+    let mut child = Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(path)
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("start /bin/sh to write the executable");
+    child
+        .stdin
+        .take()
+        .expect("stdin of /bin/sh")
+        .write_all(content.as_bytes())
+        .expect("write the executable content");
+    let status = child.wait().expect("wait for /bin/sh");
+    assert!(
+        status.success(),
+        "writing {} failed: {status}",
+        path.display()
+    );
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -1006,8 +1037,7 @@ mod tests {
 
     fn fake_bin(dir: &Path, name: &str, script: &str) -> PathBuf {
         let path = dir.join(name);
-        std::fs::write(&path, format!("#!/bin/sh\n{script}")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_executable(&path, &format!("#!/bin/sh\n{script}"));
         path
     }
 
@@ -1141,8 +1171,17 @@ mod tests {
     /// first run of a new script can be slow on macOS while the system
     /// checks the file, so tests do not assume the script starts at once.
     fn wait_for_pidfile(pidfile: &Path) -> bool {
+        wait_for_pidfile_until(pidfile, &AtomicBool::new(false))
+    }
+
+    /// Like [`wait_for_pidfile`], but also stops, returning `false`, once
+    /// `finished` is set and the pidfile is still not complete.
+    fn wait_for_pidfile_until(pidfile: &Path, finished: &AtomicBool) -> bool {
         let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline {
+            if finished.load(Ordering::SeqCst) {
+                return std::fs::read_to_string(pidfile).is_ok_and(|pid| pid.ends_with('\n'));
+            }
             if std::fs::read_to_string(pidfile).is_ok_and(|pid| pid.ends_with('\n')) {
                 return true;
             }
@@ -1266,15 +1305,13 @@ mod tests {
         let dir = scratch_dir("env-shebang");
         fake_bin(&dir, "fakenode", "exec /bin/sh \"$@\"");
         let path = dir.join("claude");
-        std::fs::write(
+        write_executable(
             &path,
-            format!(
+            &format!(
                 "#!/usr/bin/env fakenode\n{}",
                 CLAUDE_SCRIPT.replace("__CODE__", "0")
             ),
-        )
-        .unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        );
         let probe = Probe {
             path_env: Some(OsString::new()),
             extra_dirs: vec![dir],
@@ -1613,11 +1650,9 @@ mod tests {
         // `fakenode` exists only in `dir`, so the script runs only when
         // `run_test` hands `path` to the process.
         let interpreter = dir.join("fakenode");
-        std::fs::write(&interpreter, "#!/bin/sh\necho ready\n").unwrap();
-        std::fs::set_permissions(&interpreter, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_executable(&interpreter, "#!/bin/sh\necho ready\n");
         let cli = dir.join("cli");
-        std::fs::write(&cli, "#!/usr/bin/env fakenode\n").unwrap();
-        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_executable(&cli, "#!/usr/bin/env fakenode\n");
         let path = child_path(None, std::slice::from_ref(&dir)).unwrap();
         let cancel = AtomicBool::new(false);
         let run = run_test(
@@ -2049,20 +2084,34 @@ mod tests {
         let bin = fake_bin(&dir, "claude", &grandchild_script(&pidfile));
         let cancel = AtomicBool::new(false);
         let request = prompt_request(&[]);
-        let result = thread::scope(|scope| {
-            scope.spawn(|| {
-                assert!(wait_for_pidfile(&pidfile));
-                cancel.store(true, Ordering::SeqCst);
+        // The watcher stops waiting once the run has ended, so a run that
+        // returns before the script records its pid fails at once, with
+        // the run's outcome and error, instead of after the 10 s wait.
+        let finished = AtomicBool::new(false);
+        let (result, pid_seen) = thread::scope(|scope| {
+            let watcher = scope.spawn(|| {
+                let seen = wait_for_pidfile_until(&pidfile, &finished);
+                if seen {
+                    cancel.store(true, Ordering::SeqCst);
+                }
+                seen
             });
-            run_prompt(
+            let result = run_prompt(
                 AssistantId::ClaudeCode,
                 &bin,
                 None,
                 &request,
                 Duration::from_secs(20),
                 &cancel,
-            )
+            );
+            finished.store(true, Ordering::SeqCst);
+            (result, watcher.join().unwrap())
         });
+        assert!(
+            pid_seen,
+            "the run ended before the script recorded its pid: outcome {:?}, error {:?}",
+            result.outcome, result.error
+        );
         assert_eq!(result.outcome, PromptOutcome::Cancelled);
         assert_eq!(result.reply, None);
         assert_grandchild_gone(&pidfile);
