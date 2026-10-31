@@ -258,7 +258,8 @@ Inputs the spec implies but does not name; each has a test in its owning task.
 - Produces (exported from `core/mod.ts`):
   ```ts
   export type EntryBodyRefusal =
-    | "entry-not-found" | "body-empty" | "proposal-empty" | "entries-changed";
+    | "entry-not-found" | "body-empty" | "proposal-empty"
+    | "trailer-invalid" | "entries-changed";
   export type EntryBodyEdit =
     | { readonly ok: true; readonly text: string }
     | { readonly ok: false; readonly refusal: EntryBodyRefusal };
@@ -361,7 +362,8 @@ git commit -m "feat(core): read and replace one entry body in a Markdown file" -
   export const MAX_PROPOSAL_CHARS = 20_000;
   export type ProposalRefusal =
     | "entry-not-found" | "entry-body-empty" | "proposal-empty"
-    | "proposal-too-large" | "proposal-changes-entries" | "format-failed";
+    | "proposal-too-large" | "proposal-changes-entries"
+    | "entry-trailer-invalid" | "format-failed";
   export type ProposalOutcome<T> =
     | { readonly ok: true; readonly value: T }
     | { readonly ok: false; readonly refusal: ProposalRefusal };
@@ -424,12 +426,14 @@ module not found.
       `previewBody`, then `replaceEntryBody(text, file, id, preview.body)`. As
       built: both functions share one pipeline that ends with that final splice,
       so a preview whose formatted body fails the identity check is refused too.
-      Before the splice, an `MSL-P020`/`P021`/`P022` naming the target in
-      `parseFile(text)` → `proposal-changes-entries` (a malformed trailer line
-      makes the parser read the `Id:` and trailer lines as body, so a splice
-      would delete them). Apply does not format the current text. The preview
-      uses the formatted current body only when it holds the same words as the
-      raw body; otherwise it shows the raw body, which is what apply replaces.
+      An `MSL-P020`/`P021`/`P022` naming the target in the original text → core
+      `replaceEntryBody` refuses with `trailer-invalid`, which the desk maps to
+      `entry-trailer-invalid` (orchestrator decisions 1 and 2; a malformed
+      trailer line makes the parser read the `Id:` and trailer lines as body, so
+      a splice would delete them). Apply does not format the current text. The
+      preview uses the formatted current body only when it holds the same words
+      as the raw body; otherwise it shows the raw body, which is what apply
+      replaces.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

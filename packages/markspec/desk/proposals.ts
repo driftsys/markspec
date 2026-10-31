@@ -12,6 +12,11 @@
  * new file text: the original text with only the target body replaced by
  * the formatted proposal. Every other byte of the file stays unchanged.
  *
+ * Known limit: a proposal whose first line is an indented code block
+ * becomes a plain paragraph. The formatter and the parser's whole-body
+ * trim remove the first line's indentation. Preview and apply agree, so
+ * nothing unpreviewed is written; `markspec fmt` does the same.
+ *
  * Known limit: a proposal that holds a link reference definition
  * (`[s]: https://...`) or a footnote definition (`[^1]: ...`) is refused
  * with `proposal-changes-entries`. The body-equality check in
@@ -25,7 +30,6 @@ import {
   type Diagnostic,
   type EntryBodyRefusal,
   format,
-  parseFile,
   type ProseFormatter,
   readEntryBody,
   replaceEntryBody,
@@ -46,6 +50,7 @@ export type ProposalRefusal =
   | "proposal-empty"
   | "proposal-too-large"
   | "proposal-changes-entries"
+  | "entry-trailer-invalid"
   | "format-failed";
 
 /** Result of {@linkcode previewBody} and {@linkcode applyBody}. */
@@ -77,6 +82,8 @@ function fromEditRefusal(refusal: EntryBodyRefusal): ProposalRefusal {
       return "proposal-changes-entries";
     case "body-empty":
       return "entry-body-empty";
+    case "trailer-invalid":
+      return "entry-trailer-invalid";
     default:
       return refusal;
   }
@@ -97,47 +104,6 @@ export function isTargetF900(
 ): boolean {
   return diagnostics.some((d) =>
     d.code === "MSL-F900" && d.message.startsWith(`${displayId}:`)
-  );
-}
-
-/** Parse codes that mean an entry's trailer block did not parse. */
-const TRAILER_PARSE_CODES: ReadonlySet<string> = new Set([
-  "MSL-P020",
-  "MSL-P021",
-  "MSL-P022",
-]);
-
-/**
- * Whether the trailer block of the entry `displayId` in `text` failed to
- * parse. When a trailer line is malformed (for example an empty
- * `Satisfies:`, a key without a colon, or a lowercase key), the parser
- * reads the whole trailer block, the `Id:` line included, as part of the
- * body. A body splice would then delete the `Id:` and trailer lines, and
- * the identity check cannot see it, because the entry has no `id` and no
- * attributes before or after the edit. The parser names the entry at the
- * start of each of these diagnostics (`<displayId>: ...`).
- *
- * The check is broader than that case. `MSL-P020` also fires when the
- * trailer parsed but a body paragraph starts with a recognized trailer
- * key (for example `References: ISO 26262 part 6.` followed by more
- * prose), so such an entry is refused too, although a splice would be
- * safe. The file already fails `markspec check` there (P020 is an
- * error), so the author must fix it first.
- *
- * The check relies on parser diagnostics. An entry with no `Id:` whose
- * trailer-looking lines use only unrecognized keys, and that the parser
- * reads as body without a diagnostic, is edited as the parser sees it:
- * those lines are part of the current body, appear in `currentBody`, and
- * a proposal that omits them removes them.
- */
-async function hasUnparsedTrailer(
-  text: string,
-  file: string,
-  displayId: string,
-): Promise<boolean> {
-  const { diagnostics } = await parseFile(text, { file });
-  return diagnostics.some((d) =>
-    TRAILER_PARSE_CODES.has(d.code) && d.message.startsWith(`${displayId}:`)
   );
 }
 
@@ -199,8 +165,9 @@ interface CheckedProposal {
 
 /**
  * The shared preview and apply pipeline. Refuses with
- * `proposal-changes-entries` when the target entry's trailer block did
- * not parse (see {@linkcode hasUnparsedTrailer}). Refuses with
+ * `entry-trailer-invalid` when the target entry's trailer block did not
+ * parse (core `replaceEntryBody` refuses with `trailer-invalid`, so the
+ * splice cannot delete the `Id:` and trailer lines). Refuses with
  * `format-failed` when the formatter throws on a text it formats, or when
  * it keeps the candidate's target body unchanged (`MSL-F900`). An
  * `MSL-F900` on the current text is not a refusal: the formatter keeps
@@ -241,9 +208,6 @@ async function checkProposal(
   const current = await readEntryBody(text, file, displayId);
   if (current === undefined) return refuse("entry-not-found");
   if (current === "") return refuse("entry-body-empty");
-  if (await hasUnparsedTrailer(text, file, displayId)) {
-    return refuse("proposal-changes-entries");
-  }
 
   const edit = await replaceEntryBody(text, file, displayId, proposed);
   if (!edit.ok) return refuse(fromEditRefusal(edit.refusal));

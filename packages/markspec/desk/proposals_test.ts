@@ -201,6 +201,15 @@ Deno.test("applyBody: refuses what previewBody refuses", async () => {
       "Text.\n\n- [SYS_BRK_0099] Sneaky\n\n      Id: 01JBRK00000000000000000099",
       "proposal-changes-entries",
     ],
+    [
+      SYSTEM.replace(
+        "      Satisfies: STK_BRK_0001\n\n- [SYS_BRK_0002]",
+        "      Satisfies: STK_BRK_0001\n      Labels:\n\n- [SYS_BRK_0002]",
+      ),
+      "SYS_BRK_0001",
+      "New body.",
+      "entry-trailer-invalid",
+    ],
   ];
   for (const [text, id, proposed, refusal] of cases) {
     const expected = { ok: false, refusal } as const;
@@ -339,11 +348,12 @@ for (
     ["a trailer line without a colon", "      Labels ASIL-B"],
     ["a lowercase trailer key", "      labels: ASIL-B"],
     ["an empty Id line", "      Id:"],
+    ["a trailer key with an underscore", "      Verified_by: TST_X"],
   ]
 ) {
   Deno.test(`previewBody and applyBody: refuse an entry with ${name}`, async () => {
     const text = withBadTrailer(badLine);
-    const refused = { ok: false, refusal: "proposal-changes-entries" } as const;
+    const refused = { ok: false, refusal: "entry-trailer-invalid" } as const;
     assertEquals(
       await previewBody(text, FILE, "SYS_BRK_0001", "New body.", prose),
       refused,
@@ -494,29 +504,32 @@ Deno.test("previewBody: a current body the formatter rewrites is shown formatted
   );
 });
 
-Deno.test("previewBody: a preview body longer than its input still applies", async () => {
+Deno.test("previewBody: refuses a proposal at the limit that formatting lengthens", async () => {
   // Formatting turns the indented code block into a fenced one, which adds
-  // characters. A preview body over the limit is refused at preview time,
-  // so a preview the author sees always applies.
+  // characters. The raw proposal is exactly at the limit, so only the
+  // check on the formatted body refuses it. A preview body over the limit
+  // is refused at preview time, so a preview the author sees always applies.
   const head = "Intro.\n\n    code line\n\n";
+  const short = await previewBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    head + "Tail.",
+    prose,
+  );
+  assert(short.ok);
+  assert(short.value.body.length > (head + "Tail.").length);
   const filler = "word ".repeat(
     Math.floor((MAX_PROPOSAL_CHARS - head.length) / 5),
   );
   const proposed = (head + filler).padEnd(MAX_PROPOSAL_CHARS, "x");
   assertEquals(proposed.length, MAX_PROPOSAL_CHARS);
-  const preview = await previewBody(
-    SYSTEM,
-    FILE,
-    "SYS_BRK_0001",
-    proposed,
-    prose,
+  // The same length without the code block is accepted.
+  const plain = ("Intro.\n\n" + filler).padEnd(MAX_PROPOSAL_CHARS, "x");
+  assertEquals(plain.length, MAX_PROPOSAL_CHARS);
+  assert((await previewBody(SYSTEM, FILE, "SYS_BRK_0001", plain, prose)).ok);
+  assertEquals(
+    await previewBody(SYSTEM, FILE, "SYS_BRK_0001", proposed, prose),
+    { ok: false, refusal: "proposal-too-large" },
   );
-  if (preview.ok) {
-    assert(
-      (await applyBody(SYSTEM, FILE, "SYS_BRK_0001", preview.value.body, prose))
-        .ok,
-    );
-  } else {
-    assertEquals(preview.refusal, "proposal-too-large");
-  }
 });

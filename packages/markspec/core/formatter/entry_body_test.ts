@@ -208,6 +208,38 @@ Deno.test("replaceEntryBody: refuses a body ending in a trailer-like line", asyn
   assertEquals(r, { ok: false, refusal: "entries-changed" });
 });
 
+for (
+  const [name, badLine] of [
+    ["an empty-valued trailer line", "      Labels:"],
+    ["a trailer line without a colon", "      Labels ASIL-B"],
+    ["a lowercase trailer key", "      labels: ASIL-B"],
+    ["a trailer key with an underscore", "      Verified_by: TST_X"],
+  ]
+) {
+  Deno.test(`replaceEntryBody: refuses an entry with ${name}`, async () => {
+    // The malformed line makes the parser read the Id: line as body, so a
+    // splice would delete it. The edit must be refused instead.
+    const text = DOC.replace(
+      "      Id: 01JBRK00000000000000000001\n",
+      `      Id: 01JBRK00000000000000000001\n${badLine}\n`,
+    );
+    assert(text !== DOC);
+    const r = await replaceEntryBody(text, FILE, "REQ_0001", "New.");
+    assertEquals(r, { ok: false, refusal: "trailer-invalid" });
+  });
+}
+
+Deno.test("replaceEntryBody: a bad trailer on another entry does not refuse", async () => {
+  const text = DOC.replace(
+    "      Id: 01JBRK00000000000000000002\n",
+    "      Id: 01JBRK00000000000000000002\n      Labels:\n",
+  );
+  assert(text !== DOC);
+  const r = await replaceEntryBody(text, FILE, "REQ_0001", "New.");
+  assert(r.ok);
+  assert(r.text.includes("      Id: 01JBRK00000000000000000001"));
+});
+
 const LAZY = `# Doc
 
 - [REQ_0001] First

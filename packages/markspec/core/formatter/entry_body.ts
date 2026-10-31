@@ -30,6 +30,7 @@ export type EntryBodyRefusal =
   | "entry-not-found"
   | "body-empty"
   | "proposal-empty"
+  | "trailer-invalid"
   | "entries-changed";
 
 /** Result of {@linkcode replaceEntryBody}. */
@@ -126,12 +127,28 @@ async function locate(
     entries: readonly Entry[];
     entry: Entry | undefined;
     diagnosticCodes: readonly string[];
+    trailerInvalid: boolean;
   }
 > {
   const { entries, diagnostics } = await parseFile(text, { file });
   const entry = entries.find((e) => e.displayId === displayId);
-  return { entries, entry, diagnosticCodes: diagnostics.map((d) => d.code) };
+  const trailerInvalid = diagnostics.some((d) =>
+    TRAILER_PARSE_CODES.has(d.code) && d.message.startsWith(`${displayId}:`)
+  );
+  return {
+    entries,
+    entry,
+    diagnosticCodes: diagnostics.map((d) => d.code),
+    trailerInvalid,
+  };
 }
+
+/** Parse codes that mean an entry's trailer block did not parse. */
+const TRAILER_PARSE_CODES: ReadonlySet<string> = new Set([
+  "MSL-P020",
+  "MSL-P021",
+  "MSL-P022",
+]);
 
 /**
  * Body of the entry `displayId` as written in `text`: dedented, LF line
@@ -169,13 +186,28 @@ function dedent(line: string, indent: number): string {
  * unchanged. Inserted lines take the line ending of the title line. In
  * `body`, `\r\n` and a lone `\r` count as line breaks.
  *
- * Refusals: `entry-not-found` (no such entry), `body-empty` (the entry
+ * Refusals: `entry-not-found` (no such entry), `trailer-invalid` (the
+ * entry's trailer block did not parse, see below), `body-empty` (the entry
  * has no body), `proposal-empty` (`body` is blank), `entries-changed`
  * (the body lines cannot be located exactly in `text`; or the edited
  * text no longer parses to the same entries, with the same title and
  * trailer for the target, and with the proposal as the target's body;
  * or the parse raises more structural diagnostics of some code, such as
  * MSL-P020, than the original text).
+ *
+ * `trailer-invalid`: when a trailer line is malformed (for example an
+ * empty `Labels:`, a key without a colon, or a lowercase key), the parser
+ * reads the whole trailer block, the `Id:` line included, as body. A
+ * splice would then delete the `Id:` and trailer lines, and the identity
+ * check cannot see it, because the entry has no `id` and no attributes
+ * before or after the edit. So the edit is refused when an `MSL-P020`,
+ * `MSL-P021` or `MSL-P022` names the entry (the message starts with
+ * `<displayId>:`). This is broader than that case: `MSL-P020` also fires
+ * when a body paragraph starts with a recognized trailer key, so such an
+ * entry is refused too. The file already fails `markspec check` there.
+ * An entry whose trailer-looking lines use only unrecognized keys, and
+ * that the parser reads as body without a diagnostic, is edited as the
+ * parser sees it: those lines are body.
  */
 export async function replaceEntryBody(
   text: string,
@@ -186,6 +218,7 @@ export async function replaceEntryBody(
   const before = await locate(text, file, displayId);
   const entry = before.entry;
   if (!entry) return { ok: false, refusal: "entry-not-found" };
+  if (before.trailerInvalid) return { ok: false, refusal: "trailer-invalid" };
   const { lines, endings } = splitText(text);
   const span = bodySpan(lines, entry);
   if (span.start === span.end) return { ok: false, refusal: "body-empty" };
