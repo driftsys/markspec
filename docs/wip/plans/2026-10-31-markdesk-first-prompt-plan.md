@@ -133,7 +133,8 @@ Stated once here; tasks use them without restating the reason.
     `-p <prompt> --output-format text --tools "" --strict-mcp-config
     --disable-slash-commands --no-session-persistence`.
     `--strict-mcp-config` with no `--mcp-config` drops user-level MCP servers,
-    whose tools `--tools ""` does not cover.
+    whose tools `--tools ""` does not cover. Amended during the Task 5 review:
+    see "Task 5 review amendments" below.
 15. **Codex and Copilot:** `prompt_args` returns `None` in this story. Task 5
     has one bounded step to look for read-blocking flags; enabling either needs
     its own passing manual test.
@@ -192,6 +193,31 @@ These amend the builder decisions above. Later tasks and fixers follow them.
 6. **The core formatter bug is out of scope.** `format()` moving a lazy
    continuation line out of its list item and duplicating the trailer is a
    separate core issue. The desk stays safe through decision 5's fallback.
+
+## Task 5 review amendments (2026-10-31)
+
+Recorded by the Task 5 review fixer. They describe the as-built shell; the
+orchestrator confirms or reverts them before Task 7.
+
+1. **Prompt flags gain two options.** The flags are
+   `-p <prompt> --output-format text --tools "" --strict-mcp-config
+   --setting-sources "" --disable-slash-commands --no-session-persistence
+   --append-system-prompt <PROMPT_SYSTEM_TEXT>`.
+   `--setting-sources ""` stops the user, project and local settings files from
+   loading, so user hooks and user plugins do not run (sign-in still works). The
+   appended system text tells the model it has no tools. Without it, an
+   instruction that asks for a tool action made the model write tool calls as
+   plain text in a loop until the 120 s timeout (seen in about 1 run of 3 with
+   `stream-json`); with it, 10 of 10 shell probes and 4 of 4 full manual-test
+   runs ended with a reply in under 15 s.
+2. **Structural proof.** A third manual test runs the real `claude` with the
+   prompt flags and `--output-format stream-json --verbose`, and asserts that
+   the init event reports `tools == []` and `mcp_servers == []`, and that no
+   `hook_started` event occurs. It does not depend on the model's reply.
+3. **Failed error order (Task 5 Step 3).** The error of a failed run is the
+   first non-empty stdout line, then the first non-empty stderr line, then
+   `exit code <n>`. Claude Code prints its real error on stdout. Task 7's error
+   copy and the Task 8 records describe this order.
 
 ## Review Focus
 

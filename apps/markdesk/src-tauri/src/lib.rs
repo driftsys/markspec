@@ -326,6 +326,10 @@ async fn run_prompt_on_assistant(
 /// Stop the running prompt run, if any. It sets the same flag as
 /// `cancel_assistant_test`, because only one assistant run is in progress
 /// at a time.
+///
+/// Known gap: a run clears the flag when it takes the guard, so a cancel
+/// that arrives before the run has taken the guard is lost, and that run
+/// continues until it ends or times out.
 #[tauri::command]
 fn cancel_assistant_prompt(app: AppHandle) {
     app.state::<AssistantTestState>()

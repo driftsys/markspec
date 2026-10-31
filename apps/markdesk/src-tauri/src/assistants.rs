@@ -58,6 +58,12 @@ pub const PROMPT_REPLY_MAX_CHARS: usize = 20_000;
 /// the assistant", not with `PromptTooLong`. A `.cmd` shim run through
 /// `cmd.exe` can also cut an argument at its first new line.
 pub const PROMPT_MAX_BYTES: usize = 100_000;
+/// Text added to the system prompt of a prompt run. It tells the model that
+/// it has no tools, which stops it from writing tool calls as plain text in
+/// a loop until the timeout when an instruction asks for a tool action.
+pub const PROMPT_SYSTEM_TEXT: &str = "You have no tools in this session. You cannot read files, \
+     run commands, or write files. Never write a tool call, an invoke block, or a function \
+     call as text. Reply with the new body text only.";
 
 /// An assistant the app can drive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,6 +134,14 @@ impl AssistantId {
     /// Claude Code qualifies: `--tools ""` turns off every built-in tool, and
     /// `--strict-mcp-config` without `--mcp-config` drops the MCP servers of
     /// the user configuration, whose tools `--tools ""` does not cover.
+    ///
+    /// `--setting-sources ""` stops Claude Code from loading the user,
+    /// project, and local settings files, so the hooks and plugins they
+    /// enable do not run; sign-in still works. Managed (policy) settings, the
+    /// plugins built into Claude Code, and user `CLAUDE.md` files still
+    /// load. `--append-system-prompt` adds [`PROMPT_SYSTEM_TEXT`]: without
+    /// it, an instruction that asks for a tool action can make the model
+    /// write tool calls as text in a loop until the timeout.
     pub fn prompt_args(self, prompt: &str) -> Option<Vec<String>> {
         match self {
             AssistantId::ClaudeCode => Some(
@@ -139,8 +153,12 @@ impl AssistantId {
                     "--tools",
                     "",
                     "--strict-mcp-config",
+                    "--setting-sources",
+                    "",
                     "--disable-slash-commands",
                     "--no-session-persistence",
+                    "--append-system-prompt",
+                    PROMPT_SYSTEM_TEXT,
                 ]
                 .iter()
                 .map(|arg| arg.to_string())
@@ -1692,8 +1710,12 @@ mod tests {
                 "--tools",
                 "",
                 "--strict-mcp-config",
+                "--setting-sources",
+                "",
                 "--disable-slash-commands",
-                "--no-session-persistence"
+                "--no-session-persistence",
+                "--append-system-prompt",
+                PROMPT_SYSTEM_TEXT
             ]
         );
     }
@@ -1862,6 +1884,24 @@ mod tests {
     }
 
     #[test]
+    fn run_prompt_runs_a_prompt_of_exactly_the_byte_limit() {
+        let mut request = prompt_request(&[]);
+        request.body = String::new();
+        let overhead = build_prompt(&request).len();
+        request.body = "a".repeat(PROMPT_MAX_BYTES - overhead);
+        assert_eq!(build_prompt(&request).len(), PROMPT_MAX_BYTES);
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-at-limit",
+            "echo started",
+            &request,
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        assert_eq!(result.reply.as_deref(), Some("started"));
+    }
+
+    #[test]
     fn run_prompt_runs_in_empty_temp_dir() {
         let result = run_fake_prompt(
             AssistantId::ClaudeCode,
@@ -1983,8 +2023,10 @@ mod tests {
         let cancel = AtomicBool::new(false);
         let request = prompt_request(&[]);
         let result = thread::scope(|scope| {
-            // Start the timeout only after the grandchild exists, so a slow
-            // first start of the script on macOS does not hide the check.
+            // The timeout starts at once, while this thread waits for the
+            // pidfile. 3 s leaves time for a slow first start of the script
+            // on macOS; under heavy load the shell can still be killed
+            // before it writes the pidfile, and the check below fails.
             let started = scope.spawn(|| wait_for_pidfile(&pidfile));
             let result = run_prompt(
                 AssistantId::ClaudeCode,
@@ -2003,7 +2045,7 @@ mod tests {
     }
 
     #[test]
-    fn run_prompt_failure_reports_the_first_stderr_line() {
+    fn run_prompt_failure_reports_the_first_stderr_line_when_stdout_is_empty() {
         let result = run_fake_prompt(
             AssistantId::ClaudeCode,
             "prompt-stderr",
@@ -2147,6 +2189,68 @@ mod tests {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.as_nanos())
+    }
+
+    /// The structural proof: run the installed `claude` with the prompt
+    /// flags, with the output format changed to `stream-json --verbose`, and
+    /// check the session that Claude Code reports. Unlike the two tests
+    /// below, the result does not depend on what the model replies.
+    #[test]
+    #[ignore = "needs a signed-in assistant; run with cargo test -- --ignored manual_assistant_"]
+    fn manual_assistant_claude_code_starts_with_no_tools_no_mcp_servers_and_no_hooks() {
+        let (program, path) = real_claude();
+        let mut request = prompt_request(&[]);
+        request.instruction = "Make it shorter.".to_string();
+        let mut args = AssistantId::ClaudeCode
+            .prompt_args(&build_prompt(&request))
+            .unwrap();
+        let format = args
+            .iter()
+            .position(|arg| arg == "--output-format")
+            .unwrap();
+        args[format + 1] = "stream-json".to_string();
+        args.push("--verbose".to_string());
+        let dir = create_test_dir(
+            &std::env::temp_dir(),
+            temp_dir_names("markdesk-assistant-prompt-"),
+        )
+        .unwrap();
+        let cancel = AtomicBool::new(false);
+        let output = run(
+            &program,
+            &args,
+            Some(&dir),
+            path.as_deref(),
+            PROMPT_TIMEOUT,
+            Some(&cancel),
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+        let output = output.unwrap();
+        let events: Vec<serde_json::Value> = output
+            .stdout
+            .lines()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect();
+        let init = events
+            .iter()
+            .find(|event| event["type"] == "system" && event["subtype"] == "init")
+            .unwrap_or_else(|| panic!("no init event; stderr: {}", output.stderr));
+        eprintln!(
+            "tools: {}, mcp_servers: {}",
+            init["tools"], init["mcp_servers"]
+        );
+        assert_eq!(init["tools"], serde_json::json!([]), "tools are on");
+        assert_eq!(
+            init["mcp_servers"],
+            serde_json::json!([]),
+            "MCP servers are on"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| event["subtype"] == "hook_started"),
+            "a hook ran"
+        );
     }
 
     #[test]

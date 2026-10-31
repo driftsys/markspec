@@ -69,7 +69,7 @@ jobs:
       - name: Cache markspec dependencies
         working-directory: .
         run: deno cache packages/markspec/main.ts
-      # The manual assistant tests need a signed-in assistant, which CI has
-      # not.
+      # The manual assistant tests need a signed-in assistant, which CI does
+      # not have.
       - name: Real sidecar tests
         run: cargo test --locked -- --ignored --skip manual_assistant_
