@@ -207,3 +207,61 @@ Deno.test("replaceEntryBody: refuses a body ending in a trailer-like line", asyn
   );
   assertEquals(r, { ok: false, refusal: "entries-changed" });
 });
+
+const LAZY = `# Doc
+
+- [REQ_0001] First
+
+  Body line one
+lazy continuation line.
+  Still body.
+
+      Id: 01JBRK00000000000000000001
+
+- [REQ_0002] Second
+
+  Body two.
+
+      Id: 01JBRK00000000000000000002
+`;
+
+Deno.test("readEntryBody: includes a lazy continuation line", async () => {
+  assertEquals(
+    await readEntryBody(LAZY, FILE, "REQ_0001"),
+    "Body line one\nlazy continuation line.\nStill body.",
+  );
+});
+
+Deno.test("replaceEntryBody: replaces a body with a lazy continuation line", async () => {
+  const r = await replaceEntryBody(LAZY, FILE, "REQ_0001", "NEW.");
+  assert(r.ok);
+  assertEquals(
+    r.text,
+    LAZY.replace(
+      "  Body line one\nlazy continuation line.\n  Still body.",
+      "  NEW.",
+    ),
+  );
+});
+
+Deno.test("replaceEntryBody: a lone CR in the proposal becomes a line break", async () => {
+  const r = await replaceEntryBody(DOC, FILE, "REQ_0001", "A.\rB.");
+  assert(r.ok);
+  assertEquals(
+    r.text,
+    DOC.replace("  Body one line A.\n  line B.", "  A.\n  B."),
+  );
+  assertEquals(await readEntryBody(r.text, FILE, "REQ_0002"), "Body two.");
+});
+
+Deno.test("replaceEntryBody: a file with lone CR line endings keeps them", async () => {
+  const cr = DOC.replaceAll("\n", "\r");
+  assertEquals(
+    await readEntryBody(cr, FILE, "REQ_0001"),
+    "Body one line A.\nline B.",
+  );
+  assertEquals(await readEntryBody(cr, FILE, "REQ_0002"), "Body two.");
+  const r = await replaceEntryBody(cr, FILE, "REQ_0002", "Z.\nY.");
+  assert(r.ok);
+  assertEquals(r.text, cr.replace("  Body two.", "  Z.\r  Y."));
+});

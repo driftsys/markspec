@@ -101,15 +101,22 @@ Stated once here; tasks use them without restating the reason.
 7. **Writes are serialized** inside one handler (a promise chain), so the
    check-then-write of two applies never interleaves.
 8. **Body range:** the lines after the title paragraph (the first blank line
-   after the title line, so a soft-wrapped title is skipped) up to the attribute
-   block start (`findAttributeBlockRange`) or the item end (`findItemEnd`),
-   trimmed of blank lines. Indent is `(location.column - 1) + 2`, as in the
-   formatter.
-9. **Line endings:** lines are split on `\n` and keep their own `\r`; inserted
+   after the title line, so a soft-wrapped title is skipped) and the blank lines
+   after it. The range has as many lines as the parser's `entry.body`, so a lazy
+   continuation line (less indented than the body) is included. The dedented
+   range must equal `entry.body` line for line (trailing whitespace ignored);
+   otherwise `replaceEntryBody` refuses with `entries-changed` and
+   `readEntryBody` returns `entry.body`. Indent is `(location.column - 1) + 2`,
+   as in the formatter.
+9. **Line endings:** lines are split on `\r\n`, a lone `\r`, or `\n` (the
+   parser's rule, so line numbers agree) and keep their own ending; inserted
    body lines take the ending of the title line. Mixed files keep every other
-   line's ending.
+   line's ending. In the proposal, `\r\n` and a lone `\r` become `\n`.
 10. **Identity check:** same entry count; per index, same `displayId` and `id`;
-    for the target, also same `title` and same `rawAttributes` (key and value).
+    for the target, also same `title` and same `rawAttributes` (key and value),
+    and the target's body equals the proposal. The edit is also refused when the
+    reparse raises more structural parse diagnostics of some code (for example
+    MSL-P020) than the original text.
 11. **`MSL-F900` on the target:** detected as a diagnostic with code `MSL-F900`
     whose message starts with `` `${displayId}:` `` (the formatter's message
     format). `MSL-F012` is ignored. A prose formatter that fails to load →
@@ -159,8 +166,10 @@ Inputs the spec implies but does not name; each has a test in its owning task.
 1. A Markdown file with YAML front matter: the body range must use file-relative
    lines (the helper parses with `parseFile`, which pads front matter with blank
    lines). Test in Task 1.
-2. An entry nested in a list (marker at column 3): body indent is 4, and the
-   re-indented proposal must stay inside the item. Test in Task 1.
+2. An indented top-level list item (marker at column 3): body indent is 4, and
+   the re-indented proposal must stay inside the item. Nested list items are not
+   entries (the parser gives none), so this is the reachable case. Test in
+   Task 1.
 3. A title that soft-wraps onto a second line (#686): the second title line is
    not part of the body. Test in Task 1.
 4. A proposal whose last line looks like a trailer (`Satisfies: STK_BRK_0002`):
@@ -211,8 +220,7 @@ Inputs the spec implies but does not name; each has a test in its owning task.
 
 **Interfaces:**
 
-- Consumes: `parseFile` (`core/parser/mod.ts`), `findAttributeBlockRange`,
-  `findItemEnd` (`core/formatter/mod.ts`).
+- Consumes: `parseFile` (`core/parser/mod.ts`).
 - Produces (exported from `core/mod.ts`):
   ```ts
   export type EntryBodyRefusal =
@@ -258,12 +266,17 @@ Deno.test("replaceEntryBody: refuses an entry with no body", ...);              
 Deno.test("replaceEntryBody: refuses an unknown display ID", ...);              // entry-not-found
 // Review Focus 1-4:
 Deno.test("replaceEntryBody: front matter keeps file-relative lines", ...);     // DOC prefixed with "---\ntitle: X\n---\n"; front matter unchanged; target body replaced
-Deno.test("replaceEntryBody: nested entry uses its own body indent", ...);      // "- Group\n\n  - [REQ_0003] Nested\n\n    Body.\n\n        Id: …" → new body at 4 spaces
+Deno.test("replaceEntryBody: indented entry uses its own body indent", ...);    // "  - [REQ_0003] Indented\n\n    Body.\n\n        Id: …" → new body at 4 spaces
 Deno.test("replaceEntryBody: a soft-wrapped title is not part of the body", ...); // title on two lines; readEntryBody excludes the second title line; replace keeps it
 Deno.test("replaceEntryBody: refuses a body ending in a trailer-like line", async () => {
   const r = await replaceEntryBody(DOC, FILE, "REQ_0001", "New.\n\n    Satisfies: REQ_0002");
   assertEquals(r, { ok: false, refusal: "entries-changed" });
 });
+// Review fixes:
+Deno.test("readEntryBody: includes a lazy continuation line", ...);            // "  Body line one\nlazy continuation line.\n  Still body." → all three lines
+Deno.test("replaceEntryBody: replaces a body with a lazy continuation line", ...); // the lazy line is replaced too
+Deno.test("replaceEntryBody: a lone CR in the proposal becomes a line break", ...);
+Deno.test("replaceEntryBody: a file with lone CR line endings keeps them", ...);
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
