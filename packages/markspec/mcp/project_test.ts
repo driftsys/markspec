@@ -13,7 +13,7 @@ import {
   assertStrictEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { join, resolve } from "@std/path";
+import { join, resolve, SEPARATOR } from "@std/path";
 import { makeDisplayId } from "../core/mod.ts";
 import {
   buildRootOverrides,
@@ -21,6 +21,7 @@ import {
   createProject,
   defaultEnv,
   detectMarkspecProject,
+  openProject,
   type ProjectEnv,
   SOFT_GATE_MESSAGE,
 } from "./project.ts";
@@ -30,6 +31,26 @@ const PROJ = resolve("/proj");
 const PROJECT_YAML_PATH = join(PROJ, "project.yaml");
 const REQ_MD_PATH = join(PROJ, "req.md");
 const EXTRA_MD_PATH = join(PROJ, "extra.md");
+
+/**
+ * List the direct children of `dir` implied by a set of stored file paths
+ * (an in-memory `ProjectEnv.readDir`).
+ */
+async function* readDirOf(
+  paths: Iterable<string>,
+  dir: string,
+): AsyncGenerator<{ name: string; isFile: boolean; isDirectory: boolean }> {
+  const prefix = dir.endsWith(SEPARATOR) ? dir : dir + SEPARATOR;
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (!path.startsWith(prefix)) continue;
+    const rest = path.slice(prefix.length);
+    const name = rest.split(SEPARATOR)[0];
+    if (seen.has(name)) continue;
+    seen.add(name);
+    yield { name, isFile: rest === name, isDirectory: rest !== name };
+  }
+}
 
 /** Build a ProjectEnv that serves a fixed file map. */
 function makeEnv(
@@ -49,6 +70,8 @@ function makeEnv(
         const f = store.get(path);
         return Promise.resolve(f?.content);
       },
+      readDir: (dir) => readDirOf(store.keys(), dir),
+      homeDir: () => undefined,
       realPath: (path) => Promise.resolve(path),
       stat: (path) => {
         const f = store.get(path);
@@ -491,6 +514,9 @@ Deno.test("createProject: no candidate resolves → gated + message names dirs",
   assertStringIncludes(proj.softGateMessage, OTHER);
   assertStringIncludes(proj.softGateMessage, PROJ); // cwd is always a candidate
   assertStringIncludes(proj.softGateMessage, "--root");
+  // createProject searches upward only, so the message does not claim a
+  // downward search.
+  assertEquals(proj.softGateMessage.includes("Also searched below"), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -553,6 +579,8 @@ function makeCorpusEnv(corpusMissing = false): ProjectEnv {
     cwd: () => PROJ,
     rootOverrides: () => [],
     readFile: (path) => Promise.resolve(files.get(path)),
+    readDir: (dir) => readDirOf(files.keys(), dir),
+    homeDir: () => undefined,
     realPath: (path) => Promise.resolve(path),
     stat: (path) => {
       if (!files.has(path)) return Promise.reject(new Error(`ENOENT: ${path}`));
@@ -654,6 +682,21 @@ Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => 
   }
 });
 
+Deno.test("defaultEnv: homeDir falls back to USERPROFILE when HOME is unset", () => {
+  const prevHome = Deno.env.get("HOME");
+  const prevProfile = Deno.env.get("USERPROFILE");
+  try {
+    Deno.env.delete("HOME");
+    Deno.env.set("USERPROFILE", "/profile/user");
+    assertEquals(defaultEnv().homeDir(), "/profile/user");
+  } finally {
+    if (prevHome === undefined) Deno.env.delete("HOME");
+    else Deno.env.set("HOME", prevHome);
+    if (prevProfile === undefined) Deno.env.delete("USERPROFILE");
+    else Deno.env.set("USERPROFILE", prevProfile);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Locked upstream corpus injection (federated upstream, slice 4, Task 9)
 // ---------------------------------------------------------------------------
@@ -752,6 +795,8 @@ function makeUpstreamEnv(withLockfile = true): {
       cwd: () => PROJ,
       rootOverrides: () => [],
       readFile: (path) => Promise.resolve(files.get(path)?.content),
+      readDir: (dir) => readDirOf(files.keys(), dir),
+      homeDir: () => undefined,
       realPath: (path) => Promise.resolve(path),
       stat: (path) => {
         const f = files.get(path);
@@ -852,3 +897,37 @@ Deno.test("getCompiled: malformed markspec.lock never throws — degrades to no 
 // now sits directly beside `tracked = snapshot; cached = merged;`, so any
 // future throw between `loadLockedUpstreams()` and that block leaves all
 // three fields at their pre-attempt values together.
+
+Deno.test("openProject: compiles entries under the given root", async () => {
+  const root = resolve("/proj/a");
+  const { env } = makeEnv({
+    [join(root, "req.md")]: { content: REQ_DOC, mtime: 1 },
+  });
+  const proj = await openProject(root, env);
+  assertEquals(proj.projectRoot, root);
+  assertEquals(proj.markspecDetected, true);
+  assertEquals(proj.softGateMessage, "");
+  const result = await proj.getCompiled();
+  assertExists(result.entries.get(makeDisplayId("STK_TEST_0001")));
+});
+
+Deno.test("openProject: ownsFile skips nested subtree", async () => {
+  const subDir = join(PROJ, "sub");
+  const subDoc = REQ_DOC.replace("STK_TEST_0001", "STK_TEST_0002").replace(
+    "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "01HGW2Q8MNP3RSTVWXYZABCDEG",
+  );
+  const { env, bumpMtime } = makeEnv({
+    [REQ_MD_PATH]: { content: REQ_DOC, mtime: 1 },
+    [join(subDir, "req.md")]: { content: subDoc, mtime: 1 },
+  });
+  const proj = await openProject(PROJ, env, {
+    ownsFile: (path) => !path.startsWith(subDir),
+  });
+  const result = await proj.getCompiled();
+  assertExists(result.entries.get(makeDisplayId("STK_TEST_0001")));
+  assertEquals(result.entries.get(makeDisplayId("STK_TEST_0002")), undefined);
+  // A new file in the nested project must not make this project stale.
+  bumpMtime(join(subDir, "new.md"), subDoc, 5);
+  assertStrictEquals(await proj.getCompiled(), result);
+});

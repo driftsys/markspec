@@ -5,6 +5,7 @@
  * entry and renders the chain as a nested Markdown list.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { CompileResult } from "../../core/mod.ts";
 import { entryUri } from "../uri.ts";
 import { walkLinks, type WalkNode } from "./walk.ts";
@@ -62,6 +63,7 @@ export const ENTRY_CONTEXT_INPUT_SCHEMA = {
   properties: {
     id: { type: "string", minLength: 1 },
     depth: { type: "integer", minimum: 0, maximum: 50 },
+    project: PROJECT_ARG_SCHEMA,
   },
   required: ["id"],
   additionalProperties: false,
@@ -71,7 +73,7 @@ export const ENTRY_CONTEXT_INPUT_SCHEMA = {
 export const ENTRY_CONTEXT_DESCRIPTOR = {
   name: "entry_context",
   description:
-    `TRIGGER when: user asks "what does this requirement satisfy", "why does this spec exist", "what does this trace up to", "what does X implement", "what higher-level requirement covers Y", or wants the upward chain from any display ID to its parents. PREFER over: grep'ing Satisfies: lines across files — this walks the compiled graph deterministically.\n\nThis is the UPWARD satisfies chain only. For both directions (parents and children) use entry_neighborhood; for what depends on this entry use entry_neighborhood or entry_show's "Incoming links".\n\nReturns a nested Markdown list with markspec://entry/{id} links. Depth defaults to 10; lower to 2–3 for quick orientation, raise only for full transitive context.`,
+    `TRIGGER when: user asks "what does this requirement satisfy", "why does this spec exist", "what does this trace up to", "what does X implement", "what higher-level requirement covers Y", or wants the upward chain from any display ID to its parents. PREFER over: grep'ing Satisfies: lines across files — this walks the compiled graph deterministically.\n\nThis is the UPWARD satisfies chain only. For both directions (parents and children) use entry_neighborhood; for what depends on this entry use entry_neighborhood or entry_show's "Incoming links".\n\nReturns a nested Markdown list with markspec://entry/{id} links. Depth defaults to 10; lower to 2–3 for quick orientation, raise only for full transitive context.\n\nOptional 'project' limits the answer to one project label from project_list.`,
   inputSchema: ENTRY_CONTEXT_INPUT_SCHEMA,
   annotations: {
     title: "Trace satisfies chain",

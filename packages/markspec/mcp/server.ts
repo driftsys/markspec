@@ -1,9 +1,9 @@
 /**
  * @module mcp/server
  *
- * MCP server entry point. Constructs a `Server` over stdio, initializes the
- * project context, registers resources + tools, and wires resource-change
- * notifications to the cache invalidation hook.
+ * MCP server entry point. Constructs a `Server` over stdio, registers
+ * resources + tools, connects, then discovers the projects and wires
+ * resource-change notifications to the cache invalidation hook.
  *
  * This module is dynamically imported by `main.ts` when the user runs
  * `markspec mcp` — never loaded by other subcommands.
@@ -13,7 +13,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import process from "node:process";
 import { CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
-import { createProject, defaultEnv } from "./project.ts";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { defaultEnv, type ProjectEnv } from "./project.ts";
+import { createWorkspace, type McpWorkspace } from "./workspace.ts";
 import { registerResources } from "./resources/mod.ts";
 import { registerTools } from "./tools/mod.ts";
 import { ENTRIES_URI, entryUri, PROFILE_URI } from "./uri.ts";
@@ -82,15 +84,52 @@ All resource bodies are Markdown with markspec:// URIs you can follow with
 resources/read.`;
 
 /**
+ * The display IDs of every project that has already compiled, for the
+ * per-entry `resources/updated` notifications. A project that has not
+ * compiled yet is skipped, so a notification never starts the first
+ * compile of a project nobody has used. A project whose recompile fails
+ * contributes no IDs.
+ */
+export async function compiledEntryIds(
+  workspace: McpWorkspace,
+): Promise<Set<string>> {
+  const compiled = workspace.projects().filter(({ project }) =>
+    project.compiledEntryCount?.() !== undefined
+  );
+  const results = await Promise.allSettled(
+    compiled.map(({ project }) => project.getCompiled()),
+  );
+  const ids = new Set<string>();
+  for (const settled of results) {
+    if (settled.status === "rejected") continue;
+    for (const id of settled.value.entries.keys()) ids.add(id);
+  }
+  return ids;
+}
+
+/** Options for {@linkcode startServer}. */
+export interface StartServerOptions {
+  /** `--root` flag values, forwarded to {@linkcode defaultEnv}. */
+  readonly rootFlags?: string[];
+  /** The I/O environment. Defaults to `defaultEnv(rootFlags)`. */
+  readonly env?: ProjectEnv;
+  /** The transport. Defaults to stdio; when stdio is used, the process
+   * exits when stdin closes. */
+  readonly transport?: Transport;
+}
+
+/**
  * Start the MarkSpec MCP server.
  *
- * Builds the project context, registers resources + tools, hooks the
- * cache-invalidation signal to MCP `resources/updated` and
- * `resources/list_changed` notifications, then opens a stdio transport
- * and blocks until stdin closes.
+ * Registers resources + tools, connects the transport, and only then starts
+ * project discovery, so the `initialize` handshake never waits for it. Every
+ * tool and resource handler waits for discovery to finish before it answers.
+ * When discovery ends, the cache-invalidation signal is hooked to MCP
+ * `resources/updated` and `resources/list_changed` notifications. Resolves
+ * once the transport is connected.
  */
 export async function startServer(
-  options: { rootFlags?: string[] } = {},
+  options: StartServerOptions = {},
 ): Promise<void> {
   const server = new Server(
     {
@@ -111,15 +150,50 @@ export async function startServer(
     },
   );
 
-  const project = await createProject(defaultEnv(options.rootFlags ?? []));
+  const env = options.env ?? defaultEnv(options.rootFlags ?? []);
+  let resolveWorkspace: (workspace: McpWorkspace) => void = () => {};
+  let rejectWorkspace: (err: unknown) => void = () => {};
+  const workspaceReady = new Promise<McpWorkspace>((resolve, reject) => {
+    resolveWorkspace = resolve;
+    rejectWorkspace = reject;
+  });
+  // A failed discovery is reported by each handler that waits for it; this
+  // keeps it from also being an unhandled rejection.
+  workspaceReady.catch(() => {});
 
-  registerResources(server, project);
-  registerTools(server, project);
+  registerResources(server, workspaceReady);
+  registerTools(server, workspaceReady);
 
-  // Fire resource list / profile / entries-index change notifications on
-  // every cache invalidation. The SDK's typed helpers wrap the protocol
+  const transport = options.transport ?? new StdioServerTransport();
+  await server.connect(transport);
+
+  // Discovery runs after the connection is up: it can scan a large folder
+  // tree, and the client must not wait for it to finish the handshake.
+  createWorkspace(env).then((workspace) => {
+    subscribeNotifications(server, workspace);
+    resolveWorkspace(workspace);
+  }, (err) => {
+    console.error(`MarkSpec project discovery failed: ${err}`);
+    rejectWorkspace(err);
+  });
+
+  if (options.transport === undefined) {
+    // Keep the process alive until stdin closes.
+    process.stdin.on("end", () => {
+      server.close().finally(() => process.exit(0));
+    });
+  }
+}
+
+/**
+ * Fire resource list / profile / entries-index change notifications on
+ * every cache invalidation of any project, and when rediscovery changes the
+ * set of projects, plus per-entry updates for the compiled projects.
+ */
+function subscribeNotifications(server: Server, workspace: McpWorkspace): void {
+  // The SDK's typed helpers wrap the protocol
   // `notifications/resources/list_changed` and `.../updated` messages.
-  project.subscribeInvalidation(() => {
+  workspace.subscribeInvalidation(() => {
     void server.sendResourceListChanged();
     void server.sendResourceUpdated({ uri: PROFILE_URI });
     void server.sendResourceUpdated({ uri: ENTRIES_URI });
@@ -128,23 +202,10 @@ export async function startServer(
   // Per-entry resource updates on every recompile — best effort. Failures
   // are swallowed because resource notifications are advisory; the client
   // will re-fetch on its own.
-  project.subscribeInvalidation(async () => {
-    try {
-      const result = await project.getCompiled();
-      for (const id of result.entries.keys()) {
-        void server.sendResourceUpdated({ uri: entryUri(id) });
-      }
-    } catch {
-      // Recompile failed — skip notifications.
+  workspace.subscribeInvalidation(async () => {
+    for (const id of await compiledEntryIds(workspace)) {
+      void server.sendResourceUpdated({ uri: entryUri(id) });
     }
-  });
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-
-  // Keep the process alive until stdin closes.
-  process.stdin.on("end", () => {
-    server.close().finally(() => process.exit(0));
   });
 }
 

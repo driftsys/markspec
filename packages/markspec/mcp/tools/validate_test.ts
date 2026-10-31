@@ -18,6 +18,7 @@ import type { LoadedProfile } from "../../core/model/mod.ts";
 import type { Project } from "../project.ts";
 import { filterDiagnostics, renderDiagnosticsReport } from "./validate.ts";
 import { registerTools } from "./mod.ts";
+import { workspaceOf } from "./testing.ts";
 
 const ERR: Diagnostic = {
   code: "MSL-R004",
@@ -209,7 +210,7 @@ async function invokeValidate(project: Project): Promise<string> {
       if (schema === CallToolRequestSchema) callHandler = handler;
     },
   } as unknown as Server;
-  registerTools(serverStub, project);
+  registerTools(serverStub, workspaceOf(project));
   if (!callHandler) throw new Error("tools/call handler not registered");
   const res = await callHandler({
     params: { name: "validate", arguments: {} },
@@ -289,4 +290,75 @@ Deno.test("VALIDATE_DESCRIPTOR.description: keys on canonical soft-gate phrase",
     VALIDATE_DESCRIPTOR.description,
     "No MarkSpec project found",
   );
+});
+
+// --- Multi-project routing of the files argument ---
+
+import { createWorkspace } from "../workspace.ts";
+import { dispatchTool } from "./mod.ts";
+import {
+  entryDoc,
+  MEMORY_PARENT,
+  memoryEnv,
+  PROJECT_YAML,
+  twoProjectFiles,
+} from "./testing.ts";
+
+Deno.test("validate files arg routes to the owning project", async () => {
+  // Project b declares STK_0002 twice, so only b has diagnostics.
+  const ws = await createWorkspace(memoryEnv(twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG") + "\n" +
+      entryDoc("STK_0002", "Gamma", "01HGW2Q8MNP3RSTVWXYZABCDEH"),
+  )));
+  const text = await dispatchTool("validate", { files: ["b/req.md"] }, ws);
+  assertStringIncludes(text, "## Project: b");
+  assertStringIncludes(text, "MSL-R006");
+  assertEquals(text.includes("## Project: a"), false);
+  const forA = await dispatchTool("validate", { files: ["a/req.md"] }, ws);
+  assertStringIncludes(forA, "## Project: a");
+  assertStringIncludes(forA, "✓ All 1 entries pass validation");
+  assertEquals(forA.includes("## Project: b"), false);
+  assertEquals(forA.includes("MSL-R006"), false);
+});
+
+Deno.test("validate files arg outside a single project keeps the pre-workspace output", async () => {
+  // One project at the start folder; the file is outside it, so no project
+  // owns it. As before the workspace, the file is passed to the project,
+  // matches no diagnostic, and the report is the clean one.
+  const ws = await createWorkspace(memoryEnv({
+    [join(MEMORY_PARENT, "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "req.md")]: entryDoc(
+      "STK_0001",
+      "Alpha",
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    ),
+  }));
+  for (const file of ["../elsewhere.md", resolve("/other/req.md")]) {
+    const text = await dispatchTool("validate", { files: [file] }, ws);
+    assertEquals(
+      text,
+      "✓ All 1 entries pass validation under @markspec/profile-default@1.0.0.\n",
+    );
+  }
+});
+
+Deno.test("validate files arg checks only the named file of the routed project", async () => {
+  // Project b has two files, each with its own duplicate display ID.
+  const files = twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG") + "\n" +
+      entryDoc("STK_0002", "Gamma", "01HGW2Q8MNP3RSTVWXYZABCDEH"),
+  );
+  files[join(MEMORY_PARENT, "b", "other.md")] =
+    entryDoc("STK_0003", "Delta", "01HGW2Q8MNP3RSTVWXYZABCDEJ") + "\n" +
+    entryDoc("STK_0003", "Epsilon", "01HGW2Q8MNP3RSTVWXYZABCDEK");
+  const ws = await createWorkspace(memoryEnv(files));
+  const all = await dispatchTool("validate", { project: "b" }, ws);
+  assertStringIncludes(all, "STK_0002");
+  assertStringIncludes(all, "STK_0003");
+  const text = await dispatchTool("validate", { files: ["b/req.md"] }, ws);
+  assertStringIncludes(text, "## Project: b");
+  assertStringIncludes(text, "STK_0002");
+  assertEquals(text.includes("STK_0003"), false, text);
 });

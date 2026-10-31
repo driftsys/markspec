@@ -19,6 +19,7 @@ import {
   type Diagnostic,
   discoverMarkspecRoot,
   discoverProjectRoot,
+  type DiscoveryDirEntry,
   type EffectiveProfile,
   type Entry,
   loadConfig,
@@ -45,14 +46,23 @@ export const SOFT_GATE_MESSAGE =
  * Compose the soft-gate message that names every directory searched. Starts
  * with the same load-bearing phrase as {@linkcode SOFT_GATE_MESSAGE} (ADR-023)
  * and points the operator at the `--root` / `MARKSPEC_PROJECT_ROOT` remedies.
+ * Set `options.searchedBelow` only when the caller also searched below each
+ * directory for nested projects (the MCP workspace does; `createProject`
+ * does not); it adds a line that says so.
  */
-export function buildSoftGateMessage(searchedDirs: readonly string[]): string {
+export function buildSoftGateMessage(
+  searchedDirs: readonly string[],
+  options: { readonly searchedBelow?: boolean } = {},
+): string {
   const dirs = searchedDirs.join(", ");
-  return "No MarkSpec project found in this workspace.\n" +
+  const message = "No MarkSpec project found in this workspace.\n" +
     `Searched from: ${dirs} (walked upward for .markspec.yaml / project.yaml).\n` +
     "Point the server at your project with `markspec mcp --root <path>` or the " +
     "MARKSPEC_PROJECT_ROOT environment variable. This server has no work to do " +
     "here — stop calling MarkSpec tools.";
+  return options.searchedBelow
+    ? `${message}\nAlso searched below each directory for nested MarkSpec projects.`
+    : message;
 }
 
 /**
@@ -162,6 +172,12 @@ export interface ProjectEnv {
   rootOverrides(): string[];
   /** Read a file's text content, or undefined if missing. */
   readFile: ReadFile;
+  /** List a directory's direct children (e.g. `Deno.readDir`). Used by
+   * project-root discovery below the start folder. */
+  readDir(path: string): AsyncIterable<DiscoveryDirEntry>;
+  /** Return the user's home folder, or undefined when unknown. No
+   * downward project scan runs from it. */
+  homeDir(): string | undefined;
   /** Canonicalise a path, resolving symlinks (e.g. `Deno.realPath`). Used by
    * the delivered-path containment guard (#699) when serving delivered
    * documents. */
@@ -253,6 +269,12 @@ export interface Project {
   getCompiled(): Promise<CompileResult>;
   /** Force a recompile and return the fresh result. */
   forceRefresh(): Promise<CompileResult>;
+  /**
+   * The entry count of the last successful compile, or `undefined` when the
+   * project has not compiled yet. Never starts a compile. Optional so test
+   * stubs may omit it; an absent method reads as "not compiled yet".
+   */
+  compiledEntryCount?(): number | undefined;
   /** Subscribe to recompile events. Returns an unsubscribe function. */
   subscribeInvalidation(handler: InvalidationHandler): () => void;
   /** Read a delivered document's raw text from the profile cache. */
@@ -292,6 +314,8 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
         return undefined;
       }
     },
+    readDir: (path: string) => Deno.readDir(path),
+    homeDir: () => envGet("HOME") ?? envGet("USERPROFILE"),
     realPath: (path: string) => Deno.realPath(path),
     stat: async (path: string) => {
       const stat = await Deno.stat(path);
@@ -345,8 +369,68 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       break;
     }
   }
-  const softGateMessage = buildSoftGateMessage(candidates);
+  const setup = await loadProjectSetup(env, projectRoot);
+  return buildProject(
+    env,
+    projectRoot,
+    markspecDetected,
+    buildSoftGateMessage(candidates),
+    undefined,
+    setup,
+  );
+}
 
+/** Options for {@linkcode openProject}. */
+export interface OpenProjectOptions {
+  /**
+   * Return `false` for a file that belongs to another project (for example
+   * a nested project below `root`). Such files are skipped when the project
+   * discovers and tracks its files. When omitted, every file under `root`
+   * is owned.
+   */
+  readonly ownsFile?: (path: string) => boolean;
+  /**
+   * Start compiling in the background as soon as the project opens.
+   * Defaults to `true`. With `false`, the first {@linkcode Project.getCompiled}
+   * or {@linkcode Project.forceRefresh} call compiles.
+   */
+  readonly eager?: boolean;
+}
+
+/**
+ * Open a project at a known root. Performs everything {@linkcode createProject}
+ * does after root resolution: loads config and profile, starts the background
+ * compile, and tracks staleness. `markspecDetected` is `true` and
+ * `softGateMessage` is the empty string (the soft gate never applies).
+ */
+export async function openProject(
+  root: string,
+  env: ProjectEnv,
+  options: OpenProjectOptions = {},
+): Promise<Project> {
+  const setup = await loadProjectSetup(env, root);
+  return buildProject(
+    env,
+    root,
+    true,
+    "",
+    options.ownsFile,
+    setup,
+    options.eager ?? true,
+  );
+}
+
+/** Config and profile chain loaded for a project root. */
+interface ProjectSetup {
+  readonly config: ProjectConfig | undefined;
+  readonly profileChain: ProfileChain | null;
+}
+
+/** Load config and profile for `projectRoot`; errors surface on first compile. */
+async function loadProjectSetup(
+  env: ProjectEnv,
+  projectRoot: string | undefined,
+): Promise<ProjectSetup> {
   let config: ProjectConfig | undefined;
   let profileChain: ProfileChain | null = null;
 
@@ -361,7 +445,23 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       profileChain = result.chain;
     } catch { /* profile errors surface on first compile */ }
   }
+  return { config, profileChain };
+}
 
+/**
+ * Shared implementation of {@linkcode createProject} and
+ * {@linkcode openProject}. Synchronous on purpose: the background compile
+ * starts in the same tick that the returned project resolves.
+ */
+function buildProject(
+  env: ProjectEnv,
+  projectRoot: string | undefined,
+  markspecDetected: boolean,
+  softGateMessage: string,
+  ownsFile: ((path: string) => boolean) | undefined,
+  { config, profileChain }: ProjectSetup,
+  eager = true,
+): Project {
   // Cache state.
   let inFlight: Promise<CompileResult> | null = null;
   let cached: CompileResult | null = null;
@@ -379,6 +479,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     if (!projectRoot) return [];
     const out: string[] = [];
     for await (const path of env.walk(projectRoot)) {
+      if (ownsFile && !ownsFile(path)) continue;
       const dot = path.lastIndexOf(".");
       if (dot < 0) continue;
       const ext = path.slice(dot).toLowerCase();
@@ -546,6 +647,9 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     if (currentLockMtime !== lockfileMtime) return true;
     // 1) Any tracked file that is stale (mtime fast path → SHA256 truth gate)?
     for (const t of tracked) {
+      // A tracked file now owned by another project (one found below this
+      // root after the last compile) must leave this project's graph.
+      if (ownsFile && !ownsFile(t.path)) return true;
       try {
         const { mtime } = await env.stat(t.path);
         const stale = await checkFileStaleness(
@@ -562,6 +666,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     // 2) Any new tracked file?
     const known = new Set(tracked.map((t) => t.path));
     for await (const path of env.walk(projectRoot)) {
+      if (ownsFile && !ownsFile(path)) continue;
       const dot = path.lastIndexOf(".");
       if (dot < 0) continue;
       const ext = path.slice(dot).toLowerCase();
@@ -572,7 +677,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
   }
 
   // Kick off background compile so first tool call doesn't pay the cost.
-  if (projectRoot) {
+  if (projectRoot && eager) {
     const promise = ensureCompile();
     // Prevent unhandled-rejection warnings if no caller awaits this promise
     // immediately. The error still surfaces naturally on the first
@@ -640,6 +745,9 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       }
       cached = null;
       return await ensureCompile();
+    },
+    compiledEntryCount(): number | undefined {
+      return cached?.entries.size;
     },
     subscribeInvalidation(handler: InvalidationHandler): () => void {
       handlers.add(handler);
