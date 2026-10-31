@@ -26,6 +26,7 @@ import {
   TAURI_ORIGINS,
   toApiPath,
 } from "./api.ts";
+import { MAX_PROPOSAL_CHARS } from "./proposals.ts";
 import { documentEtag } from "./render.ts";
 
 const FIXTURE_ROOT = fromFileUrl(
@@ -1622,6 +1623,12 @@ interface WritableOptions {
    * link to it would.
    */
   readonly realSystemPath?: string;
+  /**
+   * With `realSystemPath`: the text served under the link path
+   * `docs/system.md` itself, so a read through the link instead of the real
+   * path is visible. The real path serves the file text.
+   */
+  readonly linkText?: string;
   /** When set, each write waits this many milliseconds before it lands. */
   readonly writeDelayMs?: number;
 }
@@ -1649,6 +1656,9 @@ async function writableHandler(options: WritableOptions = {}) {
       profile: fixed.profile,
       getCompiled: () => Promise.resolve(state.compiled),
       readFile: (p) => {
+        if (p === SYSTEM_PATH && options.linkText !== undefined) {
+          return Promise.resolve(options.linkText);
+        }
         if (p !== SYSTEM_PATH && p !== options.realSystemPath) {
           return readFile(p);
         }
@@ -1661,6 +1671,9 @@ async function writableHandler(options: WritableOptions = {}) {
         );
       },
       readFileBytes: (p) => {
+        if (p === SYSTEM_PATH && options.linkText !== undefined) {
+          return Promise.resolve(new TextEncoder().encode(options.linkText));
+        }
         if (p !== SYSTEM_PATH && p !== options.realSystemPath) {
           return bytesOf(readFile)(p);
         }
@@ -2186,4 +2199,81 @@ Deno.test("desk api: a proposal request body over the byte cap is 422 before it 
     await assertError(res, 422, "proposal-too-large");
   }
   assertEquals(state.writes, []);
+});
+
+Deno.test("desk api: preview reads the current body through the real path", async () => {
+  // The link path serves other text, so a read through `docs/system.md`
+  // instead of its real path would show another current body.
+  const inside = join(FIXTURE_ROOT, "docs", "real", "system.md");
+  const linkText = (await Deno.readTextFile(SYSTEM_PATH)).replace(
+    "within 200 ms",
+    "within 999 ms",
+  );
+  const { h } = await writableHandler({ realSystemPath: inside, linkText });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(res.status, 200);
+  const view = await res.json();
+  assertStringIncludes(view.changes[0].currentBody, "within 200 ms");
+});
+
+/**
+ * A proposal request for `body` padded with trailing spaces (valid JSON
+ * whitespace) to exactly `bytes` UTF-8 bytes.
+ */
+function paddedRequest(body: string, bytes: number): string {
+  const json = JSON.stringify(bodyChange("SYS_BRK_0001", body));
+  const size = new TextEncoder().encode(json).length;
+  assert(size <= bytes, `${size} > ${bytes}`);
+  return json + " ".repeat(bytes - size);
+}
+
+Deno.test("desk api: a request of exactly 124 096 bytes is read; one byte more is 422", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const atCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_096), { "if-match": etag }),
+  );
+  assertEquals(atCap.status, 200);
+  await atCap.body?.cancel();
+  const overCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_097), { "if-match": etag }),
+  );
+  await assertError(overCap, 422, "proposal-too-large");
+});
+
+Deno.test("desk api: a body at the limit written as JSON escapes is not refused by the byte cap", async () => {
+  // 20 000 characters, each as a six-byte `\uXXXX` escape: 120 000 bytes
+  // of body, which the cap must allow.
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const escaped = "\\u0061".repeat(MAX_PROPOSAL_CHARS);
+  const json =
+    `{"changes":[{"displayId":"SYS_BRK_0001","kind":"body","body":"${escaped}"}]}`;
+  assert(json.length > 120_000 && json.length < 124_096, `${json.length}`);
+  const res = await h(post(PREVIEW, json, { "if-match": etag }));
+  assertEquals(res.status, 200);
+  const view = await res.json();
+  assertEquals(view.changes[0].body, "a".repeat(MAX_PROPOSAL_CHARS));
+});
+
+Deno.test("desk api: a declared Content-Length over the cap is 422 for a small body", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const request = post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+    "if-match": etag,
+    "content-length": "999999",
+  });
+  assertEquals(request.headers.get("content-length"), "999999");
+  await assertError(await h(request), 422, "proposal-too-large");
+});
+
+Deno.test("desk api: an oversized request without If-Match is 428", async () => {
+  const { h } = await writableHandler();
+  const res = await h(post(PREVIEW, paddedRequest("New body.", 200_000)));
+  await assertError(res, 428, "precondition-required");
 });

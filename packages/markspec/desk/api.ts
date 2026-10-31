@@ -451,6 +451,14 @@ const ENTRY_HTML_PATH_RE = /^\/api\/v1\/entries\/([^/]+)\/html$/;
 const PROPOSAL_PREVIEW_PATH = "/api/v1/proposals/preview";
 const PROPOSAL_APPLY_PATH = "/api/v1/proposals/apply";
 
+/**
+ * Largest proposal request body the handler reads, in bytes. A body at
+ * {@linkcode MAX_PROPOSAL_CHARS} with every UTF-16 code unit written as a
+ * six-byte JSON escape (`\uXXXX`) fits, with 4 KiB for the rest of the
+ * request.
+ */
+const MAX_PROPOSAL_REQUEST_BYTES = MAX_PROPOSAL_CHARS * 6 + 4096;
+
 /** HTTP status and message of each proposal refusal. */
 const REFUSALS: Readonly<
   Record<ProposalRefusal, { status: number; message: string }>
@@ -464,7 +472,8 @@ const REFUSALS: Readonly<
   "proposal-empty": { status: 422, message: "The proposed body is empty" },
   "proposal-too-large": {
     status: 422,
-    message: `The proposed body is over ${MAX_PROPOSAL_CHARS} characters`,
+    message:
+      `The proposed body is over ${MAX_PROPOSAL_CHARS} characters, or the request is over ${MAX_PROPOSAL_REQUEST_BYTES} bytes`,
   },
   "proposal-changes-entries": {
     status: 422,
@@ -938,14 +947,6 @@ function decodeUtf8Strict(bytes: Uint8Array): string | undefined {
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((byte, i) => byte === b[i]);
 }
-
-/**
- * Largest proposal request body the handler reads, in bytes. A body at
- * {@linkcode MAX_PROPOSAL_CHARS} with every UTF-16 code unit written as a
- * six-byte JSON escape (`\uXXXX`) fits, with 4 KiB for the rest of the
- * request.
- */
-const MAX_PROPOSAL_REQUEST_BYTES = MAX_PROPOSAL_CHARS * 6 + 4096;
 
 /**
  * The request body as text (UTF-8, invalid bytes replaced, as
