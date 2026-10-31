@@ -25,8 +25,8 @@ edit outside MarkDesk the two panes disagree until the product is opened again.
    tree while it revalidates, so the `Navigator` component is not remounted and
    expanded nodes survive. A 304 returns the same cached object, so state is not
    replaced and nothing re-renders. The selection lives in the history provider
-   and is untouched. A removed entry simply has no row; the document pane
-   already reports "could not show" for a 404 on the next read. A failed
+   and is untouched. A removed entry simply has no row; the document pane shows a status line,
+   "<ID> is not in this product.", on its next read, not an error alert. A failed
    revalidation after a successful load keeps the shown tree.
 
 ## Alternatives considered

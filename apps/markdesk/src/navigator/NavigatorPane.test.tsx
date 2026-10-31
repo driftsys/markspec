@@ -232,6 +232,51 @@ describe("NavigatorPane refresh", () => {
     expect(screen.getByText("R1")).toBeTruthy();
   });
 
+  it("ignores an older check that resolves after a newer one", async () => {
+    const one = (id: string, etag: string) =>
+      cachedTree(
+        tree([{ displayId: id, title: `title of ${id}` }], [], [id]),
+        etag,
+      );
+    const slow = deferredTree();
+    const answers = [
+      Promise.resolve(one("FIRST", '"1"')),
+      slow.promise,
+      Promise.resolve(one("NEWEST", '"3"')),
+    ];
+    const client = vi.fn((_cached?: CachedTree) => answers.shift()!);
+    mount(client);
+    await screen.findByText("FIRST");
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(3));
+    await screen.findByText("NEWEST");
+    await act(async () => slow.resolve(one("STALE", '"2"')));
+    expect(screen.queryByText("STALE")).toBeNull();
+    expect(screen.getByText("NEWEST")).toBeTruthy();
+  });
+
+  it("ignores a late failure from the previous client", async () => {
+    let fail!: (error: unknown) => void;
+    const { rerender } = render(
+      view(() =>
+        new Promise<CachedTree>((_, reject) => {
+          fail = reject;
+        })
+      ),
+    );
+    const pending = deferredTree();
+    rerender(view(() => pending.promise));
+    // The new product is still loading when the old load fails.
+    await act(async () => fail(new DeskError(500, "internal", "boom")));
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => {
+      pending.resolve(cachedTree(tree([child], [], ["R1"])));
+    });
+    expect(screen.getByText("R1")).toBeTruthy();
+  });
+
   it("keeps rows expanded when the tree changes around them", async () => {
     const other = { displayId: "R2", title: "r2" };
     const trees = [

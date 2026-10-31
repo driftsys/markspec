@@ -590,6 +590,19 @@ describe("DocumentPane", () => {
     ).toBeTruthy();
   });
 
+  it("keeps the error alert for a 404 that is not entry-not-found", async () => {
+    const { select } = mount(fakeClient({
+      entry: vi.fn(async () => {
+        throw new DeskError(404, "not-found", "no route");
+      }),
+    }));
+    select(ID);
+    expect(
+      await screen.findByText("MarkDesk could not show this requirement."),
+    ).toBeTruthy();
+    expect(screen.queryByText(`${ID} is not in this product.`)).toBeNull();
+  });
+
   it("shows no error when the selected entry is removed on disk", async () => {
     let removed = false;
     const base = fakeClient();
