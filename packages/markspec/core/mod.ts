@@ -473,6 +473,14 @@ export type {
   DiscoveryIO,
   GitignoreRule,
 } from "./discovery/mod.ts";
+export {
+  discoverProjectRoots,
+  findNestedProjectRoots,
+  isWithin,
+  nearestRoot,
+  resolveConfigRoot,
+} from "./discovery/projects.ts";
+export type { ProjectDiscoveryOptions } from "./discovery/projects.ts";
 
 // ── Project-entry collection (discover + parse → Entry[]) ────────────────
 export { collectProjectEntries } from "./collect/mod.ts";

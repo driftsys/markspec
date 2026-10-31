@@ -1,31 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
-import { discoverFiles, type DiscoveryIO, MARKDOWN_EXTENSIONS } from "./mod.ts";
-
-function realIO(): DiscoveryIO {
-  return {
-    readDir: (path) => Deno.readDir(path),
-    readFile: async (path) => {
-      try {
-        return await Deno.readTextFile(path);
-      } catch {
-        return undefined;
-      }
-    },
-  };
-}
-
-async function makeTree(files: Record<string, string>): Promise<string> {
-  const dir = await Deno.makeTempDir();
-  for (const [name, content] of Object.entries(files)) {
-    const parts = name.split("/");
-    if (parts.length > 1) {
-      await Deno.mkdir(join(dir, ...parts.slice(0, -1)), { recursive: true });
-    }
-    await Deno.writeTextFile(join(dir, ...parts), content);
-  }
-  return dir;
-}
+import { discoverFiles, MARKDOWN_EXTENSIONS } from "./mod.ts";
+import { makeTree, realIO } from "./test_helpers.ts";
 
 async function collect(
   root: string,

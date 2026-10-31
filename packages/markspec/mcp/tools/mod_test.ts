@@ -6,7 +6,17 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { dispatchTool } from "./mod.ts";
-import type { Project } from "../project.ts";
+import { join } from "@std/path";
+import type { Project, ProjectEnv } from "../project.ts";
+import { createWorkspace } from "../workspace.ts";
+import {
+  entryDoc,
+  MEMORY_PARENT,
+  memoryEnv,
+  PROJECT_YAML,
+  twoProjectFiles,
+  workspaceOf,
+} from "./testing.ts";
 
 function mockProject(detected: boolean): Project {
   return {
@@ -57,7 +67,11 @@ function emptyDetectedProject(): Project {
 
 Deno.test("dispatchTool: returns soft-gate message when markspecDetected=false", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_search", { query: "x" }, project);
+  const result = await dispatchTool(
+    "entry_search",
+    { query: "x" },
+    workspaceOf(project),
+  );
   assertEquals(result, "No MarkSpec project found (mock)");
 });
 
@@ -66,20 +80,24 @@ Deno.test("dispatchTool: gates every tool name (entry_context)", async () => {
   const result = await dispatchTool(
     "entry_context",
     { id: "STK_0001" },
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates validate", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("validate", {}, project);
+  const result = await dispatchTool("validate", {}, workspaceOf(project));
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates markspec_refresh", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("markspec_refresh", {}, project);
+  const result = await dispatchTool(
+    "markspec_refresh",
+    {},
+    workspaceOf(project),
+  );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
@@ -88,20 +106,24 @@ Deno.test("dispatchTool: gates profile_describe", async () => {
   const result = await dispatchTool(
     "profile_describe",
     { name: "Stk" },
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates entry_show", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_show", { id: "X_0001" }, project);
+  const result = await dispatchTool(
+    "entry_show",
+    { id: "X_0001" },
+    workspaceOf(project),
+  );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates entry_list", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_list", {}, project);
+  const result = await dispatchTool("entry_list", {}, workspaceOf(project));
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
@@ -110,7 +132,7 @@ Deno.test("dispatchTool: gates entry_neighborhood", async () => {
   const result = await dispatchTool(
     "entry_neighborhood",
     { id: "X_0001" },
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(result, "No MarkSpec project found");
 });
@@ -119,7 +141,7 @@ Deno.test("dispatchTool: unknown tool returns error message regardless of gate",
   const project = mockProject(false);
   let caught: Error | null = null;
   try {
-    await dispatchTool("nonexistent", {}, project);
+    await dispatchTool("nonexistent", {}, workspaceOf(project));
   } catch (err) {
     caught = err as Error;
   }
@@ -128,12 +150,20 @@ Deno.test("dispatchTool: unknown tool returns error message regardless of gate",
 
 Deno.test("dispatchTool: entry_show routes", async () => {
   const project = emptyDetectedProject();
-  const result = await dispatchTool("entry_show", { id: "X_0001" }, project);
+  const result = await dispatchTool(
+    "entry_show",
+    { id: "X_0001" },
+    workspaceOf(project),
+  );
   assertStringIncludes(result, "No entry with display ID X_0001");
 });
 
 Deno.test("dispatchTool: entry_list routes (summary default)", async () => {
-  const result = await dispatchTool("entry_list", {}, emptyDetectedProject());
+  const result = await dispatchTool(
+    "entry_list",
+    {},
+    workspaceOf(emptyDetectedProject()),
+  );
   assertStringIncludes(result, "Specification overview");
 });
 
@@ -141,7 +171,111 @@ Deno.test("dispatchTool: entry_neighborhood routes", async () => {
   const result = await dispatchTool(
     "entry_neighborhood",
     { id: "X_0001" },
-    emptyDetectedProject(),
+    workspaceOf(emptyDetectedProject()),
   );
   assertStringIncludes(result, "No entry with display ID X_0001");
+});
+
+Deno.test("dispatchTool: markspec_refresh finds a project added after an empty start", async () => {
+  const files: Record<string, string> = {
+    [join(MEMORY_PARENT, "notes.md")]: "# Notes\n",
+  };
+  // Each call reads the current `files`, so files added later are seen.
+  const env: ProjectEnv = {
+    cwd: () => MEMORY_PARENT,
+    rootOverrides: () => [],
+    readFile: (path) => memoryEnv(files).readFile(path),
+    readDir: (path) => memoryEnv(files).readDir(path),
+    homeDir: () => undefined,
+    realPath: (path) => Promise.resolve(path),
+    stat: (path) => memoryEnv(files).stat(path),
+    walk: (root) => memoryEnv(files).walk(root),
+  };
+  const ws = await createWorkspace(env);
+  assertEquals(ws.projects().length, 0);
+  files[join(MEMORY_PARENT, "a", "project.yaml")] = PROJECT_YAML;
+  files[join(MEMORY_PARENT, "a", "req.md")] = entryDoc(
+    "STK_0001",
+    "Alpha",
+    "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
+  const refreshed = await dispatchTool("markspec_refresh", {}, ws);
+  assertEquals(refreshed.includes("No MarkSpec project found"), false);
+  const list = await dispatchTool("project_list", {}, ws);
+  assertStringIncludes(list, join(MEMORY_PARENT, "a"));
+});
+
+// ---------------------------------------------------------------------------
+// Several projects: a project whose answer is empty gets no section
+// ---------------------------------------------------------------------------
+
+/** Two projects: `a` holds STK_0001 "Alpha" and a local profile that
+ * declares the `widget-spec` type; `b` holds STK_0002 "Beta" and uses the
+ * default profile. */
+function twoProjectWorkspace() {
+  const files = twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG"),
+  );
+  files[join(MEMORY_PARENT, "a", ".markspec.yaml")] =
+    "profiles:\n  - ./profile\n";
+  files[join(MEMORY_PARENT, "a", "profile", "markspec.yaml")] =
+    `id: widget-profile
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    widget-spec:
+      extends: Requirement
+      description: A widget specification
+`;
+  return createWorkspace(memoryEnv(files));
+}
+
+/** Assert `text` has a section for project a and none for project b. */
+function onlyProjectA(text: string): void {
+  assertStringIncludes(text, "## Project: a");
+  assertEquals(text.includes("## Project: b"), false, text);
+}
+
+Deno.test("dispatchTool: entry_search drops a project with no hits", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(await dispatchTool("entry_search", { query: "Alpha" }, ws));
+});
+
+Deno.test("dispatchTool: entry_show drops a project without the entry", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(await dispatchTool("entry_show", { id: "STK_0001" }, ws));
+});
+
+Deno.test("dispatchTool: entry_context drops a project without the entry", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(await dispatchTool("entry_context", { id: "STK_0001" }, ws));
+});
+
+Deno.test("dispatchTool: entry_neighborhood drops a project without the entry", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(
+    await dispatchTool("entry_neighborhood", { id: "STK_0001" }, ws),
+  );
+});
+
+Deno.test("dispatchTool: profile_describe drops a project whose profile has no match", async () => {
+  const ws = await twoProjectWorkspace();
+  const text = await dispatchTool(
+    "profile_describe",
+    { kind: "type", name: "widget-spec" },
+    ws,
+  );
+  onlyProjectA(text);
+  assertStringIncludes(text, "A widget specification");
+});
+
+Deno.test("dispatchTool: markspec_refresh with a project argument and no project returns the soft gate", async () => {
+  const ws = await createWorkspace(memoryEnv({
+    [join(MEMORY_PARENT, "notes.md")]: "# Notes\n",
+  }));
+  const text = await dispatchTool("markspec_refresh", { project: "x" }, ws);
+  assertStringIncludes(text, "No MarkSpec project found");
+  assertEquals(text.includes("Unknown project"), false);
 });

@@ -214,7 +214,7 @@ Deno.test("mcp: every tool advertises read-only annotations", async () => {
   }
 });
 
-Deno.test("mcp: tools/list returns all eight tools", async () => {
+Deno.test("mcp: tools/list returns all nine tools", async () => {
   const { proc, cwd } = await setup();
   try {
     const resp = await proc.request("tools/list", {});
@@ -229,6 +229,7 @@ Deno.test("mcp: tools/list returns all eight tools", async () => {
       "entry_show",
       "markspec_refresh",
       "profile_describe",
+      "project_list",
       "validate",
     ]);
   } finally {
@@ -465,6 +466,178 @@ Deno.test("mcp soft-gate: initialize still succeeds in non-MarkSpec workspace (D
     // deno-lint-ignore no-explicit-any
     const instructions = (initResponse.result as any).instructions as string;
     assertStringIncludes(instructions, "TRIGGER when");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Several projects below the start folder
+// ---------------------------------------------------------------------------
+
+const MARKSPEC_YAML = `profiles: []\n`;
+
+/** Write one project folder `name` holding `STK_0001` titled `title`. */
+async function writeProject(
+  parent: string,
+  name: string,
+  title: string,
+  ulid: string,
+): Promise<void> {
+  await Deno.mkdir(`${parent}/${name}`, { recursive: true });
+  await Deno.writeTextFile(`${parent}/${name}/project.yaml`, PROJECT_YAML);
+  await Deno.writeTextFile(`${parent}/${name}/.markspec.yaml`, MARKSPEC_YAML);
+  await Deno.writeTextFile(
+    `${parent}/${name}/req.md`,
+    `# Requirements\n\n- [STK_0001] ${title}\n\n  Body.\n\n      Id: ${ulid}\n`,
+  );
+}
+
+/** Start the server with `cwd` as its working folder. */
+async function startIn(cwd: string): Promise<McpProcess> {
+  const proc = new McpProcess(cwd);
+  await proc.request("initialize", {
+    protocolVersion: "2024-11-05",
+    capabilities: {},
+    clientInfo: { name: "test", version: "0.0.1" },
+  });
+  await proc.notify("notifications/initialized", {});
+  return proc;
+}
+
+/** Create projects `a` ("Alpha") and `b` ("Beta") below a temp folder and
+ * start the server in that parent folder. */
+async function setupMulti(): Promise<{ proc: McpProcess; cwd: string }> {
+  const dir = await Deno.makeTempDir();
+  await writeProject(dir, "a", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  await writeProject(dir, "b", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG");
+  return { proc: await startIn(dir), cwd: dir };
+}
+
+/** Call a tool and return the text of its first content item. */
+async function callTool(
+  proc: McpProcess,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const resp = await proc.request("tools/call", { name, arguments: args });
+  // deno-lint-ignore no-explicit-any
+  return ((resp.result as any).content as Array<{ text: string }>)[0].text;
+}
+
+Deno.test("mcp multi: project_list shows a and b", async () => {
+  const { proc, cwd } = await setupMulti();
+  try {
+    const text = await callTool(proc, "project_list", {});
+    const labels = text.trim().split("\n").map((line) => line.split(" — ")[0]);
+    assertEquals(labels, ["- a", "- b"]);
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp multi: entry_show STK_0001 returns both projects", async () => {
+  const { proc, cwd } = await setupMulti();
+  try {
+    const text = await callTool(proc, "entry_show", { id: "STK_0001" });
+    assertStringIncludes(text, "## Project: a");
+    assertStringIncludes(text, "## Project: b");
+    assertStringIncludes(text, "Alpha");
+    assertStringIncludes(text, "Beta");
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test('mcp multi: project "a" narrows to Alpha', async () => {
+  const { proc, cwd } = await setupMulti();
+  try {
+    const text = await callTool(proc, "entry_show", {
+      id: "STK_0001",
+      project: "a",
+    });
+    assertStringIncludes(text, "Alpha");
+    assertEquals(text.includes("Beta"), false);
+    assertEquals(text.includes("## Project:"), false);
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp multi: validate reports per project with no MSL-R014", async () => {
+  const { proc, cwd } = await setupMulti();
+  try {
+    const text = await callTool(proc, "validate", {});
+    assertStringIncludes(text, "## Project: a");
+    assertStringIncludes(text, "## Project: b");
+    assertEquals(text.includes("MSL-R014"), false);
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp multi: starting inside a/ gives single-project output", async () => {
+  const dir = await Deno.makeTempDir();
+  await writeProject(dir, "a", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  await writeProject(dir, "b", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG");
+  const proc = await startIn(`${dir}/a`);
+  try {
+    const text = await callTool(proc, "entry_show", { id: "STK_0001" });
+    assertStringIncludes(text, "Alpha");
+    assertEquals(text.includes("## Project:"), false);
+    assertEquals(text.includes("Beta"), false);
+  } finally {
+    await proc.close();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("markspec_refresh: rediscovers projects", async () => {
+  const { proc, cwd } = await setupMulti();
+  try {
+    const labelsOf = (text: string) =>
+      text.trim().split("\n").map((line) => line.split(" — ")[0]);
+    assertEquals(labelsOf(await callTool(proc, "project_list", {})), [
+      "- a",
+      "- b",
+    ]);
+    await writeProject(cwd, "c", "Gamma", "01HGW2Q8MNP3RSTVWXYZABCDEH");
+    await callTool(proc, "markspec_refresh", {});
+    assertEquals(labelsOf(await callTool(proc, "project_list", {})), [
+      "- a",
+      "- b",
+      "- c",
+    ]);
+  } finally {
+    await proc.close();
+    await Deno.remove(cwd, { recursive: true });
+  }
+});
+
+Deno.test("mcp multi: resources list STK_0001 once and read it from both projects", async () => {
+  const { proc, cwd } = await setupMulti();
+  try {
+    const list = await proc.request("resources/list", {});
+    // deno-lint-ignore no-explicit-any
+    const uris = ((list.result as any).resources as Array<{ uri: string }>)
+      .map((r) => r.uri);
+    assertEquals(
+      uris.filter((uri) => uri === "markspec://entry/STK_0001").length,
+      1,
+    );
+    const read = await proc.request("resources/read", {
+      uri: "markspec://entry/STK_0001",
+    });
+    // deno-lint-ignore no-explicit-any
+    const text = ((read.result as any).contents as Array<{ text: string }>)[0]
+      .text;
+    assertStringIncludes(text, "## Project: a");
+    assertStringIncludes(text, "## Project: b");
   } finally {
     await proc.close();
     await Deno.remove(cwd, { recursive: true });
