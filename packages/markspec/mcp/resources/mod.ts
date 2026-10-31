@@ -18,6 +18,8 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Project } from "../project.ts";
+import type { McpWorkspace } from "../workspace.ts";
+import { perProject } from "../tools/fan_out.ts";
 import {
   deliveredUri,
   ENTRIES_URI,
@@ -76,60 +78,78 @@ export interface ResourceDescriptor {
   readonly mimeType: string;
 }
 
-/** Build the resources/list payload from a compiled project. */
+/**
+ * Build the resources/list payload across every project of the workspace.
+ * Each URI appears once; when several projects provide the same URI, the
+ * descriptor comes from the first one in label order. With one project the
+ * list is that project's list.
+ */
 export async function listResourceDescriptors(
-  project: Project,
+  workspace: McpWorkspace,
 ): Promise<ResourceDescriptor[]> {
-  if (!project.markspecDetected) return [];
-  const result = await project.getCompiled();
-  const out: ResourceDescriptor[] = [
-    {
-      uri: PROFILE_URI,
-      name: "Active profile",
-      description:
-        "Distilled profile manifest: declared entry types, attribute definitions, link relations, validation rules. Read once to understand the project's domain vocabulary.",
-      mimeType: "text/markdown",
-    },
-  ];
-  // Profile detail URIs — one per element in the active profile.
-  const intro = buildProfileView(project.profileChain);
-  const overview = intro.overview();
-  for (const ref of overview.elements) {
-    const uri = profileDetailUri(ref.kind, ref.name);
-    out.push({
-      uri,
-      name: `${ref.kind}: ${ref.name}`,
-      description: ref.summary,
-      mimeType: "text/markdown",
-    });
+  const projects = workspace.projects();
+  if (projects.length === 0) return [];
+  const seen = new Set<string>();
+  const add = (list: ResourceDescriptor[], d: ResourceDescriptor) => {
+    if (seen.has(d.uri)) return;
+    seen.add(d.uri);
+    list.push(d);
+  };
+  const out: ResourceDescriptor[] = [];
+  add(out, {
+    uri: PROFILE_URI,
+    name: "Active profile",
+    description:
+      "Distilled profile manifest: declared entry types, attribute definitions, link relations, validation rules. Read once to understand the project's domain vocabulary.",
+    mimeType: "text/markdown",
+  });
+  // Profile detail URIs — one per element in each project's profile.
+  for (const { project } of projects) {
+    const overview = buildProfileView(project.profileChain).overview();
+    for (const ref of overview.elements) {
+      add(out, {
+        uri: profileDetailUri(ref.kind, ref.name),
+        name: `${ref.kind}: ${ref.name}`,
+        description: ref.summary,
+        mimeType: "text/markdown",
+      });
+    }
   }
   // Delivered documents (ADR-030) — one descriptor per profile-delivered
   // file, whether or not its entries join the graph.
-  for (const doc of project.delivers) {
-    out.push({
-      uri: deliveredUri(doc.profileId, doc.path),
-      name: `delivered: ${doc.path}`,
-      description: doc.description ??
-        (doc.corpus
-          ? `Corpus document delivered by ${doc.profileId} — its entries are in the graph`
-          : `Reference document delivered by ${doc.profileId}`),
-      mimeType: "text/markdown",
-    });
+  for (const { project } of projects) {
+    for (const doc of project.delivers) {
+      add(out, {
+        uri: deliveredUri(doc.profileId, doc.path),
+        name: `delivered: ${doc.path}`,
+        description: doc.description ??
+          (doc.corpus
+            ? `Corpus document delivered by ${doc.profileId} — its entries are in the graph`
+            : `Reference document delivered by ${doc.profileId}`),
+        mimeType: "text/markdown",
+      });
+    }
   }
-  out.push({
+  add(out, {
     uri: ENTRIES_URI,
     name: "Entry index",
     description:
       "All entries grouped by type. Read for an overview of a small project (<50 entries); for larger projects use the entry_search tool instead.",
     mimeType: "text/markdown",
   });
-  const ids = [...result.entries.keys()].sort();
-  for (const id of ids) {
-    const entry = result.entries.get(id)!;
-    out.push({
+  // Entry URIs — each distinct display ID once, sorted.
+  const titles = new Map<string, string>();
+  for (const { project } of projects) {
+    const result = await project.getCompiled();
+    for (const [id, entry] of result.entries) {
+      if (!titles.has(id)) titles.set(id, entry.title);
+    }
+  }
+  for (const id of [...titles.keys()].sort()) {
+    add(out, {
       uri: entryUri(id),
       name: id,
-      description: entry.title,
+      description: titles.get(id)!,
       mimeType: "text/markdown",
     });
   }
@@ -143,78 +163,126 @@ export interface ReadResourceResult {
   readonly text: string;
 }
 
-/** Read a single resource by URI. Throws on unrecognized URIs. */
+/** `true` when `project`'s active profile chain includes `profileId`. */
+function chainIncludes(project: Project, profileId: string): boolean {
+  return (project.profileChain?.tiers ?? []).some((t) => t.id === profileId) ||
+    project.delivers.some((d) => d.profileId === profileId);
+}
+
+/**
+ * Read a single resource by URI across the workspace. Throws on
+ * unrecognized URIs.
+ *
+ * Profile, profile-element, entries-index and entry URIs read every project
+ * that provides them: one project gives its text unchanged, several give
+ * one `## Project: <label>` section each. A delivered document is read from
+ * the first project, in label order, whose profile chain includes the
+ * delivering profile.
+ */
 export async function readResource(
   uri: string,
-  project: Project,
+  workspace: McpWorkspace,
 ): Promise<ReadResourceResult> {
-  if (!project.markspecDetected) {
+  if (workspace.softGateMessage !== undefined) {
     return {
       uri,
       mimeType: "text/plain",
-      text: project.softGateMessage,
+      text: workspace.softGateMessage,
     };
   }
+  const markdown = (text: string): ReadResourceResult => ({
+    uri,
+    mimeType: "text/markdown",
+    text,
+  });
+
   if (uri === PROFILE_URI) {
-    const intro = buildProfileView(project.profileChain);
-    return {
-      uri,
-      mimeType: "text/markdown",
-      text: renderProfile(intro, project.delivers),
-    };
+    return markdown(
+      await perProject(
+        workspace,
+        undefined,
+        ({ project }) =>
+          Promise.resolve(
+            renderProfile(
+              buildProfileView(project.profileChain),
+              project.delivers,
+            ),
+          ),
+        "",
+      ),
+    );
   }
 
   if (isProfileDetailUri(uri)) {
     const parsed = parseProfileDetailUri(uri)!;
-    const intro = buildProfileView(project.profileChain);
-    const detail = intro.describe(parsed.kind, parsed.name);
-    if (!detail) {
+    const text = await perProject(
+      workspace,
+      undefined,
+      ({ project }) => {
+        const detail = buildProfileView(project.profileChain).describe(
+          parsed.kind,
+          parsed.name,
+        );
+        return Promise.resolve(detail && renderProfileDetail(detail));
+      },
+      "",
+    );
+    if (text === "") {
       throw new Error(
         `profile element not found: ${parsed.kind}/${parsed.name}`,
       );
     }
-    return {
-      uri,
-      mimeType: "text/markdown",
-      text: renderProfileDetail(detail),
-    };
+    return markdown(text);
   }
 
   if (uri === ENTRIES_URI) {
-    const result = await project.getCompiled();
-    return {
-      uri,
-      mimeType: "text/markdown",
-      text: renderEntriesIndex([...result.entries.values()]),
-    };
+    return markdown(
+      await perProject(
+        workspace,
+        undefined,
+        async ({ project }) => {
+          const result = await project.getCompiled();
+          return renderEntriesIndex([...result.entries.values()]);
+        },
+        "",
+      ),
+    );
   }
 
   if (isEntryUri(uri)) {
     const rawDisplayId = parseEntryUri(uri)!;
     const displayId = makeDisplayId(rawDisplayId);
-    const result = await project.getCompiled();
-    const entry = result.entries.get(displayId);
-    if (!entry) {
+    const text = await perProject(
+      workspace,
+      undefined,
+      async ({ project }) => {
+        const result = await project.getCompiled();
+        const entry = result.entries.get(displayId);
+        if (!entry) return undefined;
+        const titles = new Map<string, string>();
+        for (const [id, e] of result.entries) titles.set(id, e.title);
+        return renderEntry(
+          entry,
+          result.forward.get(displayId) ?? [],
+          result.reverse.get(displayId) ?? [],
+          titles,
+          project.projectRoot,
+        );
+      },
+      "",
+    );
+    if (text === "") {
       throw new Error(`entry not found: ${rawDisplayId}`);
     }
-    const titles = new Map<string, string>();
-    for (const [id, e] of result.entries) titles.set(id, e.title);
-    return {
-      uri,
-      mimeType: "text/markdown",
-      text: renderEntry(
-        entry,
-        result.forward.get(displayId) ?? [],
-        result.reverse.get(displayId) ?? [],
-        titles,
-        project.projectRoot,
-      ),
-    };
+    return markdown(text);
   }
 
   if (isDeliveredUri(uri)) {
     const parsed = parseDeliveredUri(uri)!;
-    const text = await project.readDeliveredDocument(
+    const holder = workspace.projects().find(({ project }) =>
+      chainIncludes(project, parsed.profileId)
+    );
+    const text = await holder?.project.readDeliveredDocument(
       parsed.profileId,
       parsed.path,
     );
@@ -230,16 +298,19 @@ export async function readResource(
 }
 
 /** Attach resources/list and resources/read handlers to a Server. */
-export function registerResources(server: Server, project: Project): void {
+export function registerResources(
+  server: Server,
+  workspace: McpWorkspace,
+): void {
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: await listResourceDescriptors(project),
+    resources: await listResourceDescriptors(workspace),
   }));
 
   server.setRequestHandler(
     ReadResourceRequestSchema,
     async (req: ReadResourceRequest) => {
       const uri = req.params.uri;
-      const result = await readResource(uri, project);
+      const result = await readResource(uri, workspace);
       return {
         contents: [
           {

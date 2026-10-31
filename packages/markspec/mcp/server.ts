@@ -13,7 +13,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import process from "node:process";
 import { CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
-import { createProject, defaultEnv } from "./project.ts";
+import { defaultEnv } from "./project.ts";
 import { createWorkspace } from "./workspace.ts";
 import { registerResources } from "./resources/mod.ts";
 import { registerTools } from "./tools/mod.ts";
@@ -114,37 +114,38 @@ export async function startServer(
 
   const env = defaultEnv(options.rootFlags ?? []);
   const workspace = await createWorkspace(env);
-  // Resources still serve one project until they move to the workspace: the
-  // primary project (label "."), else the first one, else the soft-gated
-  // project that reports "no project found".
-  const projects = workspace.projects();
-  const project =
-    (projects.find((p) => p.label === ".") ?? projects[0])?.project ??
-      await createProject(env);
 
-  registerResources(server, project);
+  registerResources(server, workspace);
   registerTools(server, workspace);
 
   // Fire resource list / profile / entries-index change notifications on
-  // every cache invalidation. The SDK's typed helpers wrap the protocol
+  // every cache invalidation of any project, and when rediscovery changes
+  // the set of projects. The SDK's typed helpers wrap the protocol
   // `notifications/resources/list_changed` and `.../updated` messages.
-  project.subscribeInvalidation(() => {
+  workspace.subscribeInvalidation(() => {
     void server.sendResourceListChanged();
     void server.sendResourceUpdated({ uri: PROFILE_URI });
     void server.sendResourceUpdated({ uri: ENTRIES_URI });
   });
 
-  // Per-entry resource updates on every recompile — best effort. Failures
+  // Per-entry resource updates on every recompile — best effort. Only
+  // projects that have already compiled are read, so a notification never
+  // starts the first compile of a project nobody has used yet. Failures
   // are swallowed because resource notifications are advisory; the client
   // will re-fetch on its own.
-  project.subscribeInvalidation(async () => {
-    try {
-      const result = await project.getCompiled();
-      for (const id of result.entries.keys()) {
-        void server.sendResourceUpdated({ uri: entryUri(id) });
+  workspace.subscribeInvalidation(async () => {
+    const ids = new Set<string>();
+    for (const { project } of workspace.projects()) {
+      if (project.compiledEntryCount?.() === undefined) continue;
+      try {
+        const result = await project.getCompiled();
+        for (const id of result.entries.keys()) ids.add(id);
+      } catch {
+        // Recompile failed — skip this project's notifications.
       }
-    } catch {
-      // Recompile failed — skip notifications.
+    }
+    for (const id of ids) {
+      void server.sendResourceUpdated({ uri: entryUri(id) });
     }
   });
 

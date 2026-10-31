@@ -19,6 +19,7 @@ import { makeDisplayId } from "../../core/mod.ts";
 import type { Project } from "../project.ts";
 import { deliveredUri } from "../uri.ts";
 import { listResourceDescriptors, readResource } from "./mod.ts";
+import { workspaceOf } from "../tools/testing.ts";
 
 function mkProject(
   entries: Entry[],
@@ -72,7 +73,7 @@ const E1: Entry = {
 
 Deno.test("listResourceDescriptors: includes profile + entries + per-entry", async () => {
   const project = mkProject([E1]);
-  const list = await listResourceDescriptors(project);
+  const list = await listResourceDescriptors(workspaceOf(project));
   assertEquals(list.length, 3);
   assertEquals(list[0].uri, "markspec://profile");
   assertEquals(list[1].uri, "markspec://entries");
@@ -81,13 +82,13 @@ Deno.test("listResourceDescriptors: includes profile + entries + per-entry", asy
 
 Deno.test("readResource: routes profile URI", async () => {
   const project = mkProject([E1]);
-  const r = await readResource("markspec://profile", project);
+  const r = await readResource("markspec://profile", workspaceOf(project));
   assertStringIncludes(r.text, "# MarkSpec Profile");
 });
 
 Deno.test("readResource: routes entries URI", async () => {
   const project = mkProject([E1]);
-  const r = await readResource("markspec://entries", project);
+  const r = await readResource("markspec://entries", workspaceOf(project));
   assertStringIncludes(r.text, "# Entries (1)");
 });
 
@@ -95,7 +96,7 @@ Deno.test("readResource: routes entry URI", async () => {
   const project = mkProject([E1]);
   const r = await readResource(
     "markspec://entry/STK_TEST_0001",
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(r.text, "# STK_TEST_0001 — First entry");
 });
@@ -103,7 +104,7 @@ Deno.test("readResource: routes entry URI", async () => {
 Deno.test("readResource: rejects unknown URI", async () => {
   const project = mkProject([E1]);
   await assertRejects(
-    () => readResource("markspec://unknown", project),
+    () => readResource("markspec://unknown", workspaceOf(project)),
     Error,
     "unknown resource URI",
   );
@@ -112,7 +113,7 @@ Deno.test("readResource: rejects unknown URI", async () => {
 Deno.test("readResource: rejects missing entry", async () => {
   const project = mkProject([E1]);
   await assertRejects(
-    () => readResource("markspec://entry/NOPE_0001", project),
+    () => readResource("markspec://entry/NOPE_0001", workspaceOf(project)),
     Error,
     "entry not found",
   );
@@ -141,7 +142,7 @@ const DOC2: DeliveredDocument = {
 
 Deno.test("listResourceDescriptors: includes delivered docs with manifest description", async () => {
   const project = mkProject([E1], [DOC1, DOC2]);
-  const list = await listResourceDescriptors(project);
+  const list = await listResourceDescriptors(workspaceOf(project));
   const delivered = list.filter((d) =>
     d.uri.startsWith("markspec://delivered/")
   );
@@ -164,7 +165,7 @@ Deno.test("listResourceDescriptors: includes delivered docs with manifest descri
 Deno.test("readResource: routes a delivered URI to the raw file text", async () => {
   const project = mkProject([E1], [DOC1]);
   const uri = deliveredUri("platform-arch", "reference/platform.md");
-  const r = await readResource(uri, project);
+  const r = await readResource(uri, workspaceOf(project));
   assertEquals(r.mimeType, "text/markdown");
   assertStringIncludes(r.text, "# reference/platform.md");
 });
@@ -181,7 +182,7 @@ Deno.test("readResource: a non-Markdown delivered doc reports its own MIME type"
   };
   const project = mkProject([E1], [jsonDoc]);
   const uri = deliveredUri("platform-arch", "reference/schema.json");
-  const r = await readResource(uri, project);
+  const r = await readResource(uri, workspaceOf(project));
   assertEquals(r.mimeType, "application/json");
 });
 
@@ -189,7 +190,7 @@ Deno.test("readResource: rejects an unknown delivered path", async () => {
   const project = mkProject([E1], [DOC1]);
   const uri = deliveredUri("platform-arch", "reference/missing.md");
   await assertRejects(
-    () => readResource(uri, project),
+    () => readResource(uri, workspaceOf(project)),
     Error,
     "delivered document not found",
   );
@@ -218,26 +219,29 @@ function gatedProject(): Project {
 
 Deno.test("readResource: returns soft-gate text when markspecDetected=false", async () => {
   const project = gatedProject();
-  const result = await readResource("markspec://entries", project);
+  const result = await readResource("markspec://entries", workspaceOf(project));
   assertEquals(result.mimeType, "text/plain");
   assertEquals(result.text, "No MarkSpec project found (mock)");
 });
 
 Deno.test("readResource: soft-gate fires for any URI when gated", async () => {
   const project = gatedProject();
-  const result = await readResource("markspec://entry/STK_0001", project);
+  const result = await readResource(
+    "markspec://entry/STK_0001",
+    workspaceOf(project),
+  );
   assertEquals(result.text, "No MarkSpec project found (mock)");
 });
 
 Deno.test("readResource: soft-gate fires for a delivered URI when gated", async () => {
   const project = gatedProject();
   const uri = deliveredUri("platform-arch", "reference/platform.md");
-  const result = await readResource(uri, project);
+  const result = await readResource(uri, workspaceOf(project));
   assertEquals(result.text, "No MarkSpec project found (mock)");
 });
 
 Deno.test("listResourceDescriptors: returns empty list when gated", async () => {
   const project = gatedProject();
-  const list = await listResourceDescriptors(project);
+  const list = await listResourceDescriptors(workspaceOf(project));
   assertEquals(list, []);
 });
