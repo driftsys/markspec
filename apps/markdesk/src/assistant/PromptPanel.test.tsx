@@ -412,6 +412,28 @@ it("reports a failed apply that ends after the selection changed", async () => {
   );
 });
 
+it("does not claim the write failed when the connection is lost during apply", async () => {
+  const { client } = mountApp({
+    client: fakePromptClient({
+      applyProposal: vi.fn(async () => {
+        throw new DeskError(0, "network", "down");
+      }),
+    }),
+  });
+  await send(await pickReady(), "rewrite");
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  const entryCalls = vi.mocked(client.entry).mock.calls.length;
+  fireEvent.click(accept);
+  expect(await screen.findByText(PROMPT_MESSAGES.writeUnknown)).toBeTruthy();
+  expect(screen.queryByText(PROMPT_MESSAGES.writeFailed)).toBeNull();
+  // The server may have written the file: every pane reads it again.
+  await waitFor(() =>
+    expect(vi.mocked(client.entry).mock.calls.length).toBeGreaterThan(
+      entryCalls,
+    )
+  );
+});
+
 it("disables Accept while applying", async () => {
   const apply = deferred<
     { apiVersion: 3; path: string; etag: string }

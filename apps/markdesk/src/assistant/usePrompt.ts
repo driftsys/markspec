@@ -42,6 +42,8 @@ export const PROMPT_MESSAGES = {
   readFailed: "MarkDesk could not read this entry.",
   fileChanged: "This file changed since the proposal. Ask again.",
   writeFailed: "MarkDesk could not write this file.",
+  writeUnknown:
+    "MarkDesk lost the connection during the write. The file may have changed.",
   proposalTooLong: "The proposal is longer than 20 000 characters.",
   readOnly: "This entry is read-only.",
   notUtf8: "This file is not valid UTF-8. MarkDesk cannot write it.",
@@ -207,8 +209,9 @@ export function usePrompt(): PromptController {
   // column, cancels a running prompt and discards a shown proposal. On a
   // selection change, a write in progress is kept: the box stays busy until
   // it ends, and a failed write is still reported. An unmount during the
-  // write drops that report; the column disables its Settings button while
-  // a write is applying to avoid it.
+  // write drops that report. The column disables its own Settings button
+  // while a write is applying; the product menu's Settings item and opening
+  // another product can still unmount the panel (a known gap, ADR-035).
   useEffect(() => {
     return () => {
       if (phaseRef.current.kind === "applying") return;
@@ -378,14 +381,20 @@ export function usePrompt(): PromptController {
         { displayId: shown.displayId, kind: "body", body: shown.proposedBody },
       ]);
     } catch (error) {
+      // A lost connection does not tell whether the server wrote the file,
+      // so say that, and let every pane read the file again.
+      const lost = error instanceof DeskError && error.status === 0;
       // Reported even after a selection change: a failed write must not
       // pass without a message.
       if (run.current === mine) {
         setPhase({
           kind: "error",
-          message: proposalMessage(error, PROMPT_MESSAGES.writeFailed),
+          message: lost
+            ? PROMPT_MESSAGES.writeUnknown
+            : proposalMessage(error, PROMPT_MESSAGES.writeFailed),
         });
       }
+      if (lost) refresh();
       return;
     }
     if (run.current === mine) {

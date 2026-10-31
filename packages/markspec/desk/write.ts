@@ -23,6 +23,11 @@ const UTF8_BOM = [0xef, 0xbb, 0xbf] as const;
  * BOM is written first. The server's text read keeps a BOM as U+FEFF, so
  * the BOM is added only when `text` does not already start with one.
  *
+ * A file without the owner write bit (POSIX mode `0o200`) is refused with
+ * `Deno.errors.PermissionDenied`, and nothing is written. The rename would
+ * otherwise replace a write-protected file, because only the folder needs
+ * to be writable.
+ *
  * On failure the temporary file is removed and the error is rethrown. A
  * process that is killed between the create and the rename leaves the
  * temporary file behind.
@@ -33,9 +38,15 @@ export async function writeTextFileAtomic(
 ): Promise<void> {
   const [mode, hasBom] = await Promise.all([modeOf(path), startsWithBom(path)]);
   const encoded = new TextEncoder().encode(text);
-  const bytes = hasBom && !text.startsWith("﻿")
+  const bytes = hasBom && !text.startsWith("\uFEFF")
     ? new Uint8Array([...UTF8_BOM, ...encoded])
     : encoded;
+
+  if (
+    mode !== undefined && Deno.build.os !== "windows" && (mode & 0o200) === 0
+  ) {
+    throw new Deno.errors.PermissionDenied(`'${path}' is read-only`);
+  }
 
   const temp = temporaryPathFor(path);
 

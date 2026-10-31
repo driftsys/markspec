@@ -70,6 +70,27 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "writeTextFileAtomic: refuses a file without the owner write bit",
+  ignore: Deno.build.os === "windows",
+  fn: async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const path = join(dir, "doc.md");
+      await Deno.writeTextFile(path, "old\n");
+      await Deno.chmod(path, 0o444);
+      await assertRejects(
+        () => writeTextFileAtomic(path, "new\n"),
+        Deno.errors.PermissionDenied,
+      );
+      assertEquals(await Deno.readTextFile(path), "old\n");
+      assertEquals(await namesIn(dir), ["doc.md"]);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+});
+
 Deno.test("temporaryPathFor: names a hidden file in the same folder", () => {
   const path = join("/p", "docs", "doc.md");
   const temp = temporaryPathFor(path);

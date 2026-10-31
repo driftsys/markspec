@@ -566,6 +566,32 @@ Deno.test("previewBody and applyBody: accept a last paragraph with Markdown befo
   }
 });
 
+Deno.test("previewBody and applyBody: accept a wrapped last line that starts with a time", async () => {
+  // The formatter wraps at 80 columns. For some padding lengths, the last
+  // wrapped line starts with `10:30`, which once raised a false MSL-P022.
+  for (let pad = 0; pad < 12; pad++) {
+    const proposed =
+      "The braking system shall run the daily self test of the actuator at" +
+      " x".repeat(pad) + " 10:30 UTC.";
+    const preview = await previewBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(preview.ok, `pad ${pad}`);
+    const applied = await applyBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(applied.ok, `pad ${pad}`);
+  }
+});
+
 Deno.test("previewBody: a loose list with a continuation paragraph is refused as format-failed", async () => {
   // A real input for which the formatter emits MSL-F900 for the target
   // (an SP3 residual): the body is not AST-equivalent after formatting.
@@ -580,6 +606,54 @@ Deno.test("previewBody: a loose list with a continuation paragraph is refused as
   assert(isTargetF900(formatted.diagnostics, "SYS_BRK_0001"));
   assertEquals(
     await previewBody(SYSTEM, FILE, "SYS_BRK_0001", proposed, prose),
+    { ok: false, refusal: "format-failed" },
+  );
+});
+
+Deno.test("previewBody and applyBody: accept link reference and footnote definitions", async () => {
+  // The trailer scan stops at `[`, so a definition on the last body line
+  // is body content. A body made only of a definition is accepted too,
+  // although it renders as an empty paragraph.
+  for (
+    const proposed of [
+      "The lamp shall follow [the spec][s].\n\n[s]: https://example.com",
+      "The lamp shall light within 100 ms[^1].\n\n[^1]: Measured at 20 °C.",
+      "[x]: http://e.com",
+    ]
+  ) {
+    const preview = await previewBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(preview.ok, proposed);
+    assertEquals(preview.value.body, proposed);
+    const applied = await applyBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(applied.ok, proposed);
+    assertEquals(
+      await readEntryBody(applied.value, FILE, "SYS_BRK_0001"),
+      proposed,
+    );
+  }
+});
+
+Deno.test("previewBody: a tight ordered list with a nested list is refused as format-failed", async () => {
+  assertEquals(
+    await previewBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      "1. one\n2. two\n   - nested\n3. three",
+      prose,
+    ),
     { ok: false, refusal: "format-failed" },
   );
 });

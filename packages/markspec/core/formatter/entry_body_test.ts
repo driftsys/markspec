@@ -388,3 +388,22 @@ Deno.test("readEntryBody: keeps the indent of a body that starts with a code blo
   assert(r.ok);
   assertEquals(r.text, DOC.replace("  Body one line A.\n  line B.", "  New."));
 });
+
+Deno.test("replaceEntryBody: refuses a display ID that two entries in the file share", async () => {
+  const doc = `# Doc
+
+- [REQ_0001] First
+
+  First body.
+
+      Id: 01JBRK00000000000000000001
+
+- [REQ_0001] Second
+
+  Second body.
+
+      Id: 01JBRK00000000000000000002
+`;
+  const r = await replaceEntryBody(doc, FILE, "REQ_0001", "New body.");
+  assertEquals(r, { ok: false, refusal: "entries-changed" });
+});

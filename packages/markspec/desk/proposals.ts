@@ -17,11 +17,10 @@
  * trim remove the first line's indentation. Preview and apply agree, so
  * nothing unpreviewed is written; `markspec fmt` does the same.
  *
- * Known limit: a proposal that holds a link reference definition
- * (`[s]: https://...`) or a footnote definition (`[^1]: ...`) is refused
- * with `proposal-changes-entries`. The body-equality check in
- * `replaceEntryBody` compares text, and the parser does not keep those
- * definitions in the entry body, so the bodies differ.
+ * A proposal that holds a link reference definition (`[s]: https://...`)
+ * or a footnote definition (`[^1]: ...`) is accepted: the parser's trailer
+ * scan stops at `[`, so the definition stays body content. A body made
+ * only of a definition is accepted too, and renders as an empty body.
  *
  * Web APIs only: no `Deno.*`, Node-compatible.
  */
@@ -95,9 +94,9 @@ function fromEditRefusal(refusal: EntryBodyRefusal): ProposalRefusal {
  * canonicalization. The message starts with `<displayId>:`, so an ID
  * that only shares a prefix (`SYS_BRK_00011`) does not match.
  *
- * @internal Exported for tests. A loose ordered list with a continuation
- *   paragraph (an SP3 residual) is one real input that makes the formatter
- *   emit `MSL-F900` for a body.
+ * @internal Exported for tests. An ordered list that holds a nested
+ *   block (a nested list or a continuation paragraph, an SP3 residual) is
+ *   one real input that makes the formatter emit `MSL-F900` for a body.
  */
 export function isTargetF900(
   diagnostics: readonly Diagnostic[],
@@ -190,9 +189,9 @@ interface CheckedProposal {
  * The length limit applies to the raw proposal and to the formatted body.
  *
  * `format` catches a prose formatter that throws (MSL-F012), so that
- * `format-failed` branch is defensive. A target `MSL-F900` is real: a
- * loose ordered list with a continuation paragraph (an SP3 residual)
- * causes it. The final identity check is defensive: no known formatter
+ * `format-failed` branch is defensive. A target `MSL-F900` is real: an
+ * ordered list that holds a nested block (a nested list or a continuation
+ * paragraph, an SP3 residual) causes it. The final identity check is defensive: no known formatter
  * output fails the second splice. Tests reach the defensive branches
  * through `formatDocument`.
  */

@@ -393,7 +393,7 @@ pub fn build_prompt(request: &PromptRequest) -> String {
          Apply the instruction to the current body. Return only the new body text, in\n\
          Markdown. Do not return a preamble, an explanation, the title, the display ID,\n\
          or trailer lines such as \"Id:\" or \"Satisfies:\". Do not start any line with\n\
-         \"- [\".\n\n",
+         \"- [\", or with a word and a colon such as \"Rationale:\" or \"Source:\".\n\n",
     );
     prompt.push_str(&format!("Title: {}\n\n", request.title));
     if !request.attributes.is_empty() {
@@ -1789,7 +1789,7 @@ mod tests {
              Apply the instruction to the current body. Return only the new body text, in\n\
              Markdown. Do not return a preamble, an explanation, the title, the display ID,\n\
              or trailer lines such as \"Id:\" or \"Satisfies:\". Do not start any line with\n\
-             \"- [\".\n\
+             \"- [\", or with a word and a colon such as \"Rationale:\" or \"Source:\".\n\
              \n\
              Title: Brake light\n\
              \n\

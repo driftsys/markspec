@@ -555,11 +555,12 @@ built: the first prompt" below).
   entry's trailer has a problem. Run markspec check and fix it first." A lost
   connection (a `DeskError` with status 0) during the submit-time reads or the
   preview returns the column to idle without a sentence, and the app's
-  lost-connection banner reports it. An apply that fails with status 0 still
-  shows the write-failed sentence, because the write may or may not have
-  happened. A known gap: the product menu's Settings item and opening another
-  product still unmount the panel during a write; the write completes, but a
-  failure is then not reported.
+  lost-connection banner reports it. An apply that fails with status 0 says
+  "MarkDesk lost the connection during the write. The file may have changed."
+  and calls `refresh()`, because the write may or may not have happened. A known
+  gap: the product menu's Settings item and opening another product still
+  unmount the panel during a write; the write completes, but a failure is then
+  not reported.
 - **Write path.** Preview and apply run the same pipeline
   (`packages/markspec/desk/proposals.ts`), with the checks in this order: 428
   `precondition-required` when `If-Match` is missing; 400 for a request body of
@@ -578,24 +579,26 @@ built: the first prompt" below).
   The splice keeps every other byte: other entries, prose, front matter, line
   endings, and a UTF-8 BOM (SAD_DESK_0026). A reparse must give the same entries
   with the same IDs, and the same title and trailer for the target, or the
-  change is refused. An `MSL-F900` on the target refuses with `format-failed`;
-  `MSL-F012` is not shown. A known limit: a loose ordered list with a
-  continuation paragraph is an SP3 residual of the formatter, so a proposal of
-  that shape gets `MSL-F900` and is refused with `format-failed`. The preview
-  shows the formatted current body, or the current body as written when
-  formatting would lose or move its words. Apply writes through
-  `DeskSource.writeFile`, which the server backs with `writeTextFileAtomic`
-  (`desk/write.ts`): a new temporary file in the same folder, given the original
-  file's mode, then renamed over the original (SAD_DESK_0027). Applies are
-  serialized in the handler, so a second Accept on the same tag answers 412 and
-  writes nothing. Just before the write, apply reads the file again and answers
-  412 when its bytes changed, so a save from another application during the
-  pipeline (about one second on a 400-entry file) is not overwritten; a save in
-  the short time between that read and the rename is still possible. A process
-  killed between the create of the temporary file and the rename leaves a hidden
-  `.<name>.markdesk-<hex>.tmp` file in the product folder; nothing removes it.
-  The response carries the new document `ETag`. A write failure answers 500
-  `write-failed`.
+  change is refused. A target whose display ID two entries of the file share is
+  refused with `proposal-changes-entries`. An `MSL-F900` on the target refuses
+  with `format-failed`; `MSL-F012` is not shown. A known limit: an ordered list
+  that holds a nested block (a nested list or a continuation paragraph) is an
+  SP3 residual of the formatter, so a proposal of that shape gets `MSL-F900` and
+  is refused with `format-failed`. The preview shows the formatted current body,
+  or the current body as written when formatting would lose or move its words.
+  Apply writes through `DeskSource.writeFile`, which the server backs with
+  `writeTextFileAtomic` (`desk/write.ts`): a new temporary file in the same
+  folder, given the original file's mode, then renamed over the original
+  (SAD_DESK_0027). A file without the owner write bit is not replaced, and apply
+  answers 500 `write-failed`. Applies are serialized in the handler, so a second
+  Accept on the same tag answers 412 and writes nothing. Just before the write,
+  apply reads the file again and answers 412 when its bytes changed, so a save
+  from another application during the pipeline (about one second on a 400-entry
+  file) is not overwritten; a save in the short time between that read and the
+  rename is still possible. A process killed between the create of the temporary
+  file and the rename leaves a hidden `.<name>.markdesk-<hex>.tmp` file in the
+  product folder; nothing removes it. The response carries the new document
+  `ETag`. A write failure answers 500 `write-failed`.
 - **Prompt run.** The shell builds the prompt from a fixed template with the
   entry's title, current body, trailer attributes (read-only context), and the
   instruction, and passes it as an argument; a prompt over 100 000 bytes is

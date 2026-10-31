@@ -189,7 +189,8 @@ function dedent(line: string, indent: number): string {
  * Refusals: `entry-not-found` (no such entry), `trailer-invalid` (the
  * entry's trailer block did not parse, see below), `body-empty` (the entry
  * has no body), `proposal-empty` (`body` is blank), `entries-changed`
- * (the body lines cannot be located exactly in `text`; or the edited
+ * (two entries in `text` have `displayId`; or the body lines cannot be
+ * located exactly in `text`; or the edited
  * text no longer parses to the same entries, with the same title and
  * trailer for the target, and with the proposal as the target's body;
  * or the parse raises more structural diagnostics of some code, such as
@@ -219,6 +220,11 @@ export async function replaceEntryBody(
   const entry = before.entry;
   if (!entry) return { ok: false, refusal: "entry-not-found" };
   if (before.trailerInvalid) return { ok: false, refusal: "trailer-invalid" };
+  // Two entries with the same display ID make the target ambiguous (and
+  // `markspec check` already rejects the file), so do not edit either.
+  if (before.entries.filter((e) => e.displayId === displayId).length > 1) {
+    return { ok: false, refusal: "entries-changed" };
+  }
   const { lines, endings } = splitText(text);
   const span = bodySpan(lines, entry);
   if (span.start === span.end) return { ok: false, refusal: "body-empty" };
