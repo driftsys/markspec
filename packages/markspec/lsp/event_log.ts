@@ -222,10 +222,14 @@ function openHandleIfNeeded(): void {
 }
 
 /**
- * Inform the event log of the project root. Called by the LSP server
- * once `onInitialize` has resolved the workspace path. Triggers a
- * one-time open of the default log file (when no explicit env var
- * overrides the path), and flushes any events queued before this
+ * Inform the event log of the project root: the directory of the first
+ * `.markspec.yaml` the server knows about, which may be a project nested
+ * below the workspace root. The LSP server calls this from
+ * `onInitialize`, again from `onInitialized` (when only a nested project
+ * carries a `.markspec.yaml`), and after a registry rebuild; the first
+ * call that names a root wins, later calls with the same root are no-ops.
+ * Triggers a one-time open of the default log file (when no explicit env
+ * var overrides the path), and flushes any events queued before this
  * point.
  */
 export function setProjectRoot(root: string): void {

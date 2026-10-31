@@ -87,8 +87,9 @@ markspec/
 │       │   ├── definition.ts        ← Entry → LSP Location for go-to-definition
 │       │   ├── references.ts        ← find-all-references: walks entry
 │       │   │                          attributes for whole-token matches
-│       │   ├── rename.ts            ← workspace rename + prepareRename:
-│       │   │                          whole-token text edits across every file
+│       │   ├── rename.ts            ← project-scoped rename + prepareRename:
+│       │   │                          whole-token text edits across the files
+│       │   │                          of the owning project
 │       │   ├── symbols.ts           ← document-symbol (outline) + workspace-
 │       │   │                          symbol (fuzzy entry search) builders
 │       │   ├── folding.ts           ← one foldable region per entry block

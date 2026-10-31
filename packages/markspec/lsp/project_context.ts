@@ -373,11 +373,17 @@ export class ProjectContext {
    * Seed the corpora, then discover and parse every project file this
    * context owns. `owns` decides ownership: a file under a nested
    * project's root belongs to that nested project, so this walk skips it
-   * and no file is indexed by two contexts.
+   * and no file is indexed by two contexts. `openText` returns the editor
+   * buffer for a file that is open; that text is parsed instead of the
+   * file on disk, so an unsaved edit is never replaced by stale disk
+   * content.
    *
    * @returns The number of project files parsed.
    */
-  async indexProject(owns: (path: string) => boolean): Promise<number> {
+  async indexProject(
+    owns: (path: string) => boolean,
+    openText: (path: string) => string | undefined = () => undefined,
+  ): Promise<number> {
     // Seed the delivered corpus (ADR-030), then the locked upstream
     // corpus (federated-upstream slice 4), before the project walk so
     // corpus/upstream display IDs win "first entry wins" collisions
@@ -415,7 +421,8 @@ export class ProjectContext {
         Array.from({ length: INDEX_CONCURRENCY }, async () => {
           while (cursor < files.length) {
             const filePath = files[cursor++];
-            const content = await this.host.readFile(filePath);
+            const content = openText(filePath) ??
+              await this.host.readFile(filePath);
             if (content === undefined) {
               this.host.warn(`Failed to parse: ${filePath}`);
               continue;
@@ -501,6 +508,24 @@ export class ProjectContext {
     this.publishAllDiagnostics();
   }
 
+  /**
+   * Remove every non-corpus file that `owns` rejects from the index and
+   * clear its published diagnostics. Used when a nested root is discovered
+   * after a file under it was already indexed here.
+   *
+   * @returns The evicted file paths.
+   */
+  evictForeignFiles(owns: (path: string) => boolean): string[] {
+    const evicted: string[] = [];
+    for (const file of this.index.getFilePaths()) {
+      if (this.corpusFilePaths.has(file) || owns(file)) continue;
+      this.index.removeFile(file);
+      if (!this.disposed) this.host.sendDiagnostics(pathToUri(file), []);
+      evicted.push(file);
+    }
+    return evicted;
+  }
+
   /** Publish empty diagnostics for every non-corpus file this context
    * tracks. Used when the context is discarded, so a file that moves to
    * another context does not keep stale diagnostics. This is the one send
@@ -560,38 +585,76 @@ export class ProjectContext {
    * delivered-corpus re-seed, and the `markspec/profileChanged` push — it
    * refreshes the lockfile, re-seeds the upstream corpus, and republishes
    * diagnostics.
+   *
+   * @returns `true` when the project's `exclude:` list changed, so the
+   *   caller must re-discover and re-index (files and nested roots may
+   *   have left or joined this project).
    */
-  async reloadWatchedFiles(): Promise<void> {
-    if (this.disposed || !this.pendingWatchedChange) return;
+  async reloadWatchedFiles(): Promise<boolean> {
+    if (this.disposed || !this.pendingWatchedChange) return false;
     this.pendingWatchedChange = false;
     const profileChanged = this.pendingProfileFileChange;
     this.pendingProfileFileChange = false;
     if (profileChanged) {
-      if (!(await this.reloadProfile())) {
-        // Keep the escalation pending: the next watched event of ANY kind
-        // (including a lock-only one) retries the full reload, restoring
-        // the pre-#797 self-healing property.
+      const result = await this.reloadProfile();
+      if (!result.ok) {
+        // Keep the escalation pending: the next watched event for THIS
+        // project, of any kind (including a lock-only one), retries the
+        // full reload, restoring the pre-#797 self-healing property.
         this.pendingProfileFileChange = true;
       }
-      return;
+      return result.excludeChanged;
     }
     await this.reloadLockfile();
     await this.seedUpstreamCorpus();
     this.publishAllDiagnostics();
+    return false;
   }
 
   /**
-   * Re-resolve the profile, push `markspec/profileChanged`, reload the
+   * Re-load `project.yaml` and the `.markspec.yaml` tool config,
+   * re-resolve the profile, push `markspec/profileChanged`, reload the
    * lockfile, re-seed the delivered and upstream corpora, and republish
    * diagnostics.
    *
-   * @returns `true` on success; `false` when the reload failed and the
-   *   caller should keep the profile-change flag pending so the next
-   *   watched event (of any kind) retries the full reload (#797 review:
-   *   consuming the flag before a failed reload used to strand the
-   *   editor on stale profile state until the next profile-file save).
+   * @returns `ok: true` on success; `ok: false` when the reload failed
+   *   and the caller should keep the profile-change flag pending so the
+   *   next watched event for this project (of any kind) retries the full
+   *   reload (#797 review: consuming the flag before a failed reload used
+   *   to strand the editor on stale profile state until the next
+   *   profile-file save). `excludeChanged` is `true` when the
+   *   `.markspec.yaml` `exclude:` list differs from the loaded one.
    */
-  async reloadProfile(): Promise<boolean> {
+  async reloadProfile(): Promise<{ ok: boolean; excludeChanged: boolean }> {
+    let excludeChanged = false;
+    // project.yaml and the tool config live in the same watched files as
+    // the profile, so a change to either arrives through the same event;
+    // reload them together. Each soft-fails on its own, as in load(): a
+    // malformed project.yaml must not block the profile reload.
+    try {
+      const configResult = await loadConfig(this.root, this.host.readFile);
+      this.config = configResult?.config ?? DEFAULT_PROJECT_CONFIG;
+    } catch {
+      this.host.warn("Failed to reload project.yaml");
+    }
+    try {
+      const toolConfigResult = await loadToolConfig(
+        this.root,
+        this.host.readFile,
+      );
+      excludeChanged = !sameStrings(
+        this.toolConfig.exclude,
+        toolConfigResult.config.exclude,
+      );
+      this.toolConfig = toolConfigResult.config;
+      for (const diag of toolConfigResult.diagnostics) {
+        if (diag.severity === "error") {
+          this.host.warn(`${diag.code}: ${diag.message}`);
+        }
+      }
+    } catch {
+      this.host.warn("Failed to reload .markspec.yaml tool config");
+    }
     try {
       const profileResult = await loadProfileForCommand(
         this.root,
@@ -602,7 +665,7 @@ export class ProjectContext {
         profileResult.chain,
         this.profile,
       );
-      if (this.disposed) return true;
+      if (this.disposed) return { ok: true, excludeChanged };
       this.host.sendNotification(
         "markspec/profileChanged",
         this.profileChangedParams(),
@@ -621,10 +684,10 @@ export class ProjectContext {
       // Profile changes can flip MSL-R010 suppression and other
       // attribute-validity decisions — republish cross-file diagnostics.
       this.publishAllDiagnostics();
-      return true;
+      return { ok: true, excludeChanged };
     } catch (err) {
       this.host.warn(`Failed to reload profile: ${err}`);
-      return false;
+      return { ok: false, excludeChanged };
     }
   }
 
@@ -745,6 +808,11 @@ export class ProjectContext {
       }
     }
   }
+}
+
+/** `true` when both lists hold the same strings in the same order. */
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 /** Group entries by `location.file`, preserving order. */

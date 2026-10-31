@@ -237,6 +237,9 @@ const contextHost: ProjectContextHost = {
 const projects = new ProjectRegistry({
   readFile,
   readDir: (p) => Deno.readDir(p),
+  // Indexing parses the live editor buffer, when one is open, instead of
+  // the file on disk.
+  openText: (path) => documents.get(pathToUri(path))?.getText(),
   createContext: (root) => new ProjectContext(root, contextHost),
   afterRebuild: async () => {
     await pointEventLogAtMarkspecRoot();
@@ -344,13 +347,16 @@ async function reindexOpenDocuments(): Promise<void> {
   for (const document of documents.all()) {
     const filePath = uriToPath(document.uri);
     if (!isMarkspecFile(filePath)) continue;
+    const epoch = bufferEpoch(filePath);
     const ctx = await projects.ensureContextFor(filePath);
     if (!ctx || ctx.isCorpusFile(filePath)) continue;
     const parseDiags = await ctx.index.parseAndUpdateFile(
       filePath,
       document.getText(),
     );
-    if (ctx.isDisposed) continue;
+    // The buffer was closed, or the context replaced, during the awaits.
+    if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) continue;
+    if (!stillOwnedBy(ctx, filePath)) continue;
     publishFileDiagnostics(filePath, parseDiags);
     ctx.scheduleValidateAll();
   }
@@ -389,6 +395,73 @@ function publishFileDiagnostics(
 const pendingContent = new Map<string, string>();
 // deno-lint-ignore no-explicit-any
 const debouncedFileParses = new Map<string, DebouncedFunction<any>>();
+
+/**
+ * Per-path buffer epoch: incremented on every open and close of the
+ * document at that path. A parse captures the epoch before it awaits
+ * (the registry gate, the parse itself) and discards its result when the
+ * epoch moved — the buffer was closed, or closed and reopened, meanwhile.
+ * Without it a parse that started before a close lands in the index
+ * after the close removed the file, and a closed buffer comes back.
+ */
+const bufferEpochs = new Map<string, number>();
+
+/**
+ * `true` when `ctx` still owns `filePath` after a parse that awaited. A
+ * parse can span an on-demand root discovery (the first parse of a source
+ * file waits for its grammar to load); if another project took the file
+ * over meanwhile, the stale result is removed from `ctx` instead of being
+ * published from the wrong project, and the open buffer is parsed again
+ * into its new owner, which may not have seen it on disk.
+ */
+function stillOwnedBy(ctx: ProjectContext, filePath: string): boolean {
+  if (projects.contextFor(filePath) === ctx) return true;
+  ctx.index.removeFile(filePath);
+  const document = documents.get(pathToUri(filePath));
+  if (document) scheduleParse(filePath, document.getText());
+  return false;
+}
+
+/**
+ * Parse `text` for `filePath` after 50 ms of quiet, into the project that
+ * owns the file at that time. Shared by the document-change event and the
+ * owner-change path above. The latest text wins when several edits arrive
+ * before the timer fires.
+ */
+function scheduleParse(filePath: string, text: string): void {
+  pendingContent.set(filePath, text);
+  let debouncedParse = debouncedFileParses.get(filePath);
+  if (!debouncedParse) {
+    debouncedParse = debounce(async () => {
+      const content = pendingContent.get(filePath);
+      if (content === undefined) return;
+      const epoch = bufferEpoch(filePath);
+      const ctx = await projects.ensureContextFor(filePath);
+      if (!ctx || ctx.isCorpusFile(filePath)) return;
+      if (bufferEpoch(filePath) !== epoch) return; // closed meanwhile
+      const parseDiags = await ctx.index.parseAndUpdateFile(filePath, content);
+      // A rebuild may have replaced this context, or the buffer may have
+      // been closed, during the awaits.
+      if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) return;
+      if (!stillOwnedBy(ctx, filePath)) return;
+      // The just-parsed entries now carry any display ID a scaffold accept
+      // reserved — drop those reservations so the numbers aren't blocked.
+      ctx.releaseObservedReservations(filePath);
+      publishFileDiagnostics(filePath, parseDiags);
+      ctx.scheduleValidateAll();
+    }, 50);
+    debouncedFileParses.set(filePath, debouncedParse);
+  }
+  debouncedParse();
+}
+
+function bufferEpoch(filePath: string): number {
+  return bufferEpochs.get(filePath) ?? 0;
+}
+
+function bumpBufferEpoch(filePath: string): void {
+  bufferEpochs.set(filePath, bufferEpoch(filePath) + 1);
+}
 
 /**
  * Encode the intermediate semantic-token shape to the LSP wire
@@ -630,27 +703,7 @@ documents.onDidChangeContent((change) => {
 
   // Stash latest content so the debounced parse always uses the most
   // recent snapshot, even if multiple edits arrive before the timer fires.
-  pendingContent.set(filePath, change.document.getText());
-
-  let debouncedParse = debouncedFileParses.get(filePath);
-  if (!debouncedParse) {
-    debouncedParse = debounce(async () => {
-      const content = pendingContent.get(filePath);
-      if (content === undefined) return;
-      const ctx = await projects.ensureContextFor(filePath);
-      if (!ctx || ctx.isCorpusFile(filePath)) return;
-      const parseDiags = await ctx.index.parseAndUpdateFile(filePath, content);
-      // A rebuild may have replaced this context during the await.
-      if (ctx.isDisposed) return;
-      // The just-parsed entries now carry any display ID a scaffold accept
-      // reserved — drop those reservations so the numbers aren't blocked.
-      ctx.releaseObservedReservations(filePath);
-      publishFileDiagnostics(filePath, parseDiags);
-      ctx.scheduleValidateAll();
-    }, 50);
-    debouncedFileParses.set(filePath, debouncedParse);
-  }
-  debouncedParse();
+  scheduleParse(filePath, change.document.getText());
 });
 
 documents.onDidSave((event) => {
@@ -662,40 +715,50 @@ documents.onDidClose((event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
   const ctx = projects.contextFor(filePath);
-  if (!ctx) return;
   // Corpus files are read-only; their index slot is owned by the
   // project's corpus seeders (ADR-030) — closing the buffer must neither
   // remove the entries nor touch diagnostics (none were published).
-  if (ctx.isCorpusFile(filePath)) return;
+  if (ctx?.isCorpusFile(filePath)) return;
+  // Record the close first, whether or not a context is known right now
+  // (none is while a rebuild runs): any parse of this buffer still in
+  // flight discards its result, so the closed buffer never comes back.
+  bumpBufferEpoch(filePath);
+  pendingContent.delete(filePath);
+  debouncedFileParses.get(filePath)?.cancel();
+  debouncedFileParses.delete(filePath);
+  connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+  if (!ctx) return;
   // Remove the file from the index and clear its diagnostics so stale
   // entries don't affect cross-file validation after the buffer closes.
   ctx.index.removeFile(filePath);
-  pendingContent.delete(filePath);
-  debouncedFileParses.delete(filePath);
-  connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
   ctx.scheduleValidateAll();
 });
 
 documents.onDidOpen(async (event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
-  // A document outside every known project walks up to its own
-  // `.markspec.yaml` here; the project is created and indexed first.
+  bumpBufferEpoch(filePath);
+  const epoch = bufferEpoch(filePath);
+  // A document outside every known project walks up to its own config
+  // here; the project is created and indexed first.
   const ctx = await projects.ensureContextFor(filePath);
   if (!ctx) return;
   // Corpus files are read-only; their index slot is owned by the
   // project's corpus seeders (ADR-030) — never reparse from an opened
   // buffer.
   if (ctx.isCorpusFile(filePath)) return;
-  // Index newly opened files immediately so rename and other workspace
-  // operations cover them even before the first edit event fires.
-  if (ctx.index.getFilePaths().includes(filePath)) return; // already indexed
+  if (bufferEpoch(filePath) !== epoch) return; // closed meanwhile
+  // Parse the opened buffer even when the file is already indexed from
+  // disk: the buffer is the source of truth while it is open, and the
+  // index must cover it before the first edit event fires.
   const parseDiags = await ctx.index.parseAndUpdateFile(
     filePath,
     event.document.getText(),
   );
-  // A rebuild may have replaced this context during the await.
-  if (ctx.isDisposed) return;
+  // A rebuild may have replaced this context, or the buffer may have
+  // been closed, during the awaits.
+  if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) return;
+  if (!stillOwnedBy(ctx, filePath)) return;
   ctx.releaseObservedReservations(filePath);
   publishFileDiagnostics(filePath, parseDiags);
   ctx.scheduleValidateAll();
@@ -1251,7 +1314,7 @@ connection.onWorkspaceSymbol((params) => {
 });
 
 // ---------------------------------------------------------------------------
-// Rename (workspace-wide rename of a display ID)
+// Rename (rename of a display ID across the project that owns the document)
 // ---------------------------------------------------------------------------
 
 connection.onPrepareRename((params) => {
@@ -1318,9 +1381,9 @@ connection.onRenameRequest(async (params) => {
 
   // Build per-file TextEdits across the project that owns the document.
   // Display IDs are scoped to one project, so other projects in the same
-  // workspace are left untouched (#840). For each
-  // tracked file, prefer the open-document text (live editor state)
-  // and fall back to reading from disk.
+  // workspace are left untouched (#840). For each tracked file, prefer
+  // the open-document text (live editor state) and fall back to reading
+  // from disk.
   const changes: Record<string, LspTextEdit[]> = {};
   for (const path of ctx.index.getFilePaths()) {
     // Delivered corpus files are read-only (ADR-030) — a project-ID rename

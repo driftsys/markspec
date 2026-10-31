@@ -11,11 +11,18 @@
  *   up from the workspace root to find the profile.
  */
 
-import { assert, assertEquals, assertExists } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
 import { join, toFileUrl } from "@std/path";
 import { LspTestClient } from "./lsp_helpers.ts";
 
-/** A local profile that declares one profile-level text attribute. */
+/** A local profile that declares one profile-level text attribute and a
+ * `requirement` type with the `REQ_{n:04d}` display-ID pattern (so the
+ * block-scaffold completion can mint the next number per project). */
 function profileDeclaring(id: string, attribute: string): string {
   return `id: "@acme/${id}"
 version: 0.1.0
@@ -24,6 +31,10 @@ profile:
   attributes:
     - name: ${attribute}
       type: text
+  types:
+    requirement:
+      extends: Requirement
+      display-id-pattern: "REQ_{n:04d}"
 `;
 }
 
@@ -34,10 +45,11 @@ function entryUsing(
   displayId: string,
   attributeLine: string,
   idSuffix = "F",
+  title = "A requirement",
 ): string {
   return `# Requirements
 
-- [${displayId}] A requirement
+- [${displayId}] ${title}
 
   The system shall work.
 
@@ -72,15 +84,25 @@ function uriOf(client: LspTestClient, relPath: string): string {
  */
 const SIBLING_FILES: Record<string, string> = {
   ".markspec.yaml": "profiles: []\n",
-  "root.md": entryUsing("REQ_0001", "Labels: root"),
+  "root.md": entryUsing("REQ_0001", "Labels: root", "F", "Root requirement"),
   "a/.markspec.yaml": "profiles:\n  - ./profiles/pa\n",
   "a/profiles/pa/markspec.yaml": profileDeclaring("pa", "Alpha"),
   "a/profiles/pg/markspec.yaml": profileDeclaring("pg", "Gamma"),
-  "a/req.md": entryUsing("REQ_0001", "Alpha: alpha value"),
+  "a/req.md": entryUsing(
+    "REQ_0001",
+    "Alpha: alpha value",
+    "F",
+    "Alpha requirement",
+  ),
   "a/cross.md": entryUsing("REQ_0002", "Beta: beta value", "G"),
   "b/.markspec.yaml": "profiles:\n  - ./profiles/pb\n",
   "b/profiles/pb/markspec.yaml": profileDeclaring("pb", "Beta"),
-  "b/req.md": entryUsing("REQ_0001", "Beta: beta value"),
+  "b/req.md": entryUsing(
+    "REQ_0001",
+    "Beta: beta value",
+    "F",
+    "Beta requirement",
+  ),
 };
 
 Deno.test("lsp project resolution: sibling projects each use their own profile (#840)", async () => {
@@ -441,6 +463,267 @@ Deno.test("lsp project resolution: no RelativePattern watcher without client sup
       "the relative-pattern warning",
     );
     assertEquals(relativeWatchers(client), []);
+  } finally {
+    await client.shutdown();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Per-project scoping of the navigation and completion handlers
+// ---------------------------------------------------------------------------
+
+async function openDocument(
+  client: LspTestClient,
+  uri: string,
+  text: string,
+): Promise<void> {
+  await client.notify("textDocument/didOpen", {
+    textDocument: { uri, languageId: "markdown", version: 1, text },
+  });
+}
+
+Deno.test("lsp project resolution: hover, definition, references, rename and completion resolve stay inside the owning project", async () => {
+  // `REQ_0001` exists in the root project, in `a` and in `b`, each with its
+  // own title. `a/sat.md` references it; `b/more.md` pushes b's next free
+  // number to REQ_0006 while the root project's next is REQ_0002.
+  const satText = `# Requirements
+
+- [REQ_0003] Satisfying requirement
+
+  The system shall work.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEK
+      Satisfies: REQ_0001
+`;
+  const client = await LspTestClient.create({
+    ...SIBLING_FILES,
+    "a/sat.md": satText,
+    "b/more.md": entryUsing("REQ_0005", "Beta: more", "J"),
+  });
+  try {
+    await client.initialize();
+    await client.waitForNotification("markspec/indexed", 15000);
+    const satUri = uriOf(client, "a/sat.md");
+    await openDocument(client, satUri, satText);
+    // The `REQ_0001` token on the `Satisfies:` line.
+    const position = { line: 7, character: 18 };
+
+    const hover = await client.request("textDocument/hover", {
+      textDocument: { uri: satUri },
+      position,
+    }) as { contents: { value: string } };
+    assertStringIncludes(hover.contents.value, "Alpha requirement");
+
+    const definition = await client.request("textDocument/definition", {
+      textDocument: { uri: satUri },
+      position,
+    }) as { uri: string };
+    assertEquals(definition.uri, uriOf(client, "a/req.md"));
+
+    const references = await client.request("textDocument/references", {
+      textDocument: { uri: satUri },
+      position,
+      context: { includeDeclaration: true },
+    }) as Array<{ uri: string }>;
+    assertEquals(
+      references.map((r) => r.uri).sort(),
+      [uriOf(client, "a/req.md"), satUri].sort(),
+    );
+
+    const rename = await client.request("textDocument/rename", {
+      textDocument: { uri: satUri },
+      position,
+      newName: "REQ_0101",
+    }) as { changes: Record<string, unknown[]> };
+    assertEquals(
+      Object.keys(rename.changes).sort(),
+      [uriOf(client, "a/req.md"), satUri].sort(),
+    );
+
+    // Block scaffold in project b: the minted number comes from b's index.
+    const newUri = uriOf(client, "b/new.md");
+    await openDocument(client, newUri, "- [");
+    const completion = await client.request("textDocument/completion", {
+      textDocument: { uri: newUri },
+      position: { line: 0, character: 3 },
+    }) as Array<{ label: string; data?: unknown }>;
+    const scaffold = completion.find((item) => item.data !== undefined);
+    assertExists(scaffold, `no scaffold item: ${JSON.stringify(completion)}`);
+    const resolved = await client.request(
+      "completionItem/resolve",
+      scaffold,
+    ) as { label: string };
+    assertStringIncludes(resolved.label, "REQ_0006");
+  } finally {
+    await client.shutdown();
+  }
+});
+
+/** A valid `markspec.lock` with one snapshot-carrying registry upstream
+ * named `up`, whose cache lives at `.markspec/cache/upstreams/up/`. */
+const LOCK_WITH_UPSTREAM = `schema = 1
+
+[meta]
+markspec-schema = 1
+locked-at = "2026-05-25T12:00:00Z"
+
+[[upstream.registry]]
+id = "up"
+api = "https://registry.example"
+resolved-manifest-hash = "sha256:a"
+markspec-schema = 1
+version = "1.0.0"
+snapshot = "sha256:b"
+
+[generated-cache]
+edges-hash = "sha256:0"
+edges-count = 0
+`;
+
+/** Snapshot cache of the `up` upstream: one entry, `SYS_0001`. The JSON
+ * is the compiled-snapshot format (`manifest.json` + inline
+ * `compiled.json`) as `markspec lock` writes it. */
+const UPSTREAM_MANIFEST =
+  `{"markspecSchemaVersion":1,"generator":{"release":"0.0.0-test","coreSchema":1},"project":{"name":"up","root":"/up"},"counts":{"entries":1,"edges":0,"byType":{}},"entries":{"format":"inline","file":"compiled.json"},"edges":{"format":"inline","file":"compiled.json"},"sqliteMirror":null,"federation":[],"reserved":{}}`;
+const UPSTREAM_COMPILED =
+  `{"entries":{"SYS_0001":{"displayId":"SYS_0001","title":"Upstream requirement","body":"Body.","bodyAst":[{"kind":"paragraph","content":{"text":"Body."},"range":{"start":{"line":1,"column":1},"end":{"line":1,"column":6}}}],"rawAttributes":[{"key":"Id","value":"01HGW2Q8MNP3RSTVWXYZABCDEG"}],"typedAttributes":{"Id":["01HGW2Q8MNP3RSTVWXYZABCDEG"]},"id":"01HGW2Q8MNP3RSTVWXYZABCDEG","shape":"Authored","location":{"file":"/up/a.md","line":1,"column":1},"bodyStartLine":3,"source":{"kind":"markdown"},"properties":{"file":{"path":"/up/a.md","line":1,"column":1}},"bodyTokens":[]}}}`;
+
+Deno.test("lsp project resolution: a markspec.lock change loads the upstream corpus of its own project only", async () => {
+  // `a/sat.md` cites the upstream entry. Before the lockfile exists the
+  // citation resolves to nothing; after a lock-only change it resolves to
+  // the snapshot entry — in project a, not in project b.
+  const satText = `# Requirements
+
+- [REQ_0003] Satisfying requirement
+
+  The system shall work.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEK
+      Satisfies: SYS_0001
+`;
+  const client = await LspTestClient.create({
+    ...SIBLING_FILES,
+    "a/sat.md": satText,
+    "b/sat.md": satText,
+    "a/.markspec/cache/upstreams/up/manifest.json": UPSTREAM_MANIFEST,
+    "a/.markspec/cache/upstreams/up/compiled.json": UPSTREAM_COMPILED,
+  });
+  try {
+    await client.initialize();
+    await client.waitForNotification("markspec/indexed", 15000);
+    const aSatUri = uriOf(client, "a/sat.md");
+    const bSatUri = uriOf(client, "b/sat.md");
+    await openDocument(client, aSatUri, satText);
+    await openDocument(client, bSatUri, satText);
+    const position = { line: 7, character: 18 };
+    const hoverIn = (uri: string) =>
+      client.request("textDocument/hover", {
+        textDocument: { uri },
+        position,
+      }) as Promise<{ contents: { value: string } } | null>;
+    assertEquals(await hoverIn(aSatUri), null);
+    const bBefore = client.publishCountFor(uriOf(client, "b/req.md"));
+
+    const lockPath = join(client.workDir, "a", "markspec.lock");
+    await Deno.writeTextFile(lockPath, LOCK_WITH_UPSTREAM);
+    await client.notify("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: toFileUrl(lockPath).href, type: 1 }],
+    });
+
+    let hover: { contents: { value: string } } | null = null;
+    await client.waitUntil(() => {
+      hoverIn(aSatUri).then((h) => hover = h);
+      return hover !== null;
+    }, "the upstream entry to resolve in project a after the lock change");
+    assertStringIncludes(
+      (hover as unknown as { contents: { value: string } }).contents.value,
+      "Upstream requirement",
+    );
+    // Project b has no lockfile: the same citation stays unresolved, no
+    // diagnostics were republished for it, and no profile was re-resolved.
+    assertEquals(await hoverIn(bSatUri), null);
+    assertEquals(client.publishCountFor(uriOf(client, "b/req.md")), bBefore);
+    assertEquals(client.receivedParams("markspec/profileChanged"), []);
+  } finally {
+    await client.shutdown();
+  }
+});
+
+/** `count` Markdown files with one entry each, all with distinct display
+ * IDs and ULIDs, plus two source files whose doc-comment entries make the
+ * startup index load tree-sitter grammars — enough work that the index
+ * is still running when the test's document events arrive. */
+function bulkFiles(count: number): Record<string, string> {
+  const files: Record<string, string> = {
+    "src/lib.rs": `/// [BLK_RS0001] Rust requirement
+///
+/// The system shall work.
+///
+///     Id: 01HGW2Q8MNP3RSTVWXYZRS0001
+pub fn f() {}
+`,
+    "src/lib.ts": `/** [BLK_TS0001] TypeScript requirement
+ *
+ * The system shall work.
+ *
+ *     Id: 01HGW2Q8MNP3RSTVWXYZTS0001
+ */
+export function f(): void {}
+`,
+  };
+  for (let i = 0; i < count; i++) {
+    const n = String(i).padStart(6, "0");
+    files[`bulk/f${n}.md`] = `# Bulk
+
+- [BLK_${n}] Bulk requirement ${n}
+
+  The system shall work.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZ${n}
+`;
+  }
+  return files;
+}
+
+Deno.test("lsp project resolution: a buffer closed during the startup index does not come back", async () => {
+  const client = await LspTestClient.create({
+    ".markspec.yaml": "profiles: []\n",
+    "req.md": entryUsing("REQ_0001", "Labels: root"),
+    ...bulkFiles(400),
+  });
+  try {
+    await client.initialize({ sendInitialized: false });
+    // Open a buffer that exists only in the editor while the startup
+    // index is still running, let its 50 ms debounced parse reach the
+    // startup gate, then close it before the index finishes.
+    const ghostUri = uriOf(client, "ghost.md");
+    await client.initialized();
+    await openDocument(
+      client,
+      ghostUri,
+      entryUsing("REQ_0007", "Zeta: zeta value", "H"),
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    // The test is meaningful only while the startup index is still
+    // running: a pass after `markspec/indexed` would not exercise the
+    // in-flight parse at all.
+    assertEquals(
+      client.receivedParams("markspec/indexed"),
+      [],
+      "startup index finished before didClose; the test proves nothing",
+    );
+    await client.notify("textDocument/didClose", {
+      textDocument: { uri: ghostUri },
+    });
+    await client.waitForNotification("markspec/indexed", 60000);
+    // Let the deferred parse and the 1000ms cross-file validation run.
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const symbols = await client.request("workspace/symbol", {
+      query: "REQ_0007",
+    }) as unknown[];
+    assertEquals(symbols, []);
+    assertEquals(client.latestDiagnosticsFor(ghostUri) ?? [], []);
   } finally {
     await client.shutdown();
   }

@@ -144,9 +144,11 @@ Three callers wire this into their own graph:
   before compilation proceeds — silently compiling with a partial corpus would
   hide a broken profile package. File-local `check <file>` without a project
   root is unchanged (no profile, no corpus).
-- **LSP server** (`lsp/server.ts::seedDeliveredCorpus`) — corpus entries are
-  seeded into the `WorkspaceIndex` in `onInitialized`, **before** the concurrent
-  project-file walk starts, and re-seeded on every profile reload (the existing
+- **LSP server** (`lsp/project_context.ts`,
+  `ProjectContext.seedDeliveredCorpus`) — corpus entries are seeded into the
+  project's `WorkspaceIndex` during project indexing (one `ProjectContext` per
+  project root), **before** the concurrent project-file walk starts, and
+  re-seeded on every profile reload (the existing
   `.markspec.yaml`/`project.yaml` watcher). Corpus-first seeding makes
   duplicate-ID ownership deterministic: a project entry reusing a corpus ID
   always loses first-entry-wins and is always flagged, on every startup,
@@ -200,11 +202,11 @@ that can write into a profile's cache or local directory. This extends into the
 LSP: document-sync events (`onDidOpen` / `onDidChangeContent` / `onDidClose`)
 for a path the server has seeded as corpus are ignored outright — the buffer is
 never reparsed from an edit, because the index slot for that path is owned by
-`seedDeliveredCorpus`, not by the ordinary per-file debounced-parse path.
-`onPrepareRename` and `onRenameRequest` both check `entry.origin` and refuse
-(return `null`) when the target is corpus-origin. There is deliberately no
-separate "read-only" flag or permission check to maintain — the file simply
-never enters a writable code path.
+`ProjectContext.seedDeliveredCorpus`, not by the ordinary per-file
+debounced-parse path. `onPrepareRename` and `onRenameRequest` both check
+`entry.origin` and refuse (return `null`) when the target is corpus-origin.
+There is deliberately no separate "read-only" flag or permission check to
+maintain — the file simply never enters a writable code path.
 
 Corpus **seed failures soft-fail** rather than blocking the editor: if
 `loadDeliveredCorpus` throws (e.g. a git/npm profile cache that hasn't been
@@ -396,7 +398,8 @@ deterministic ordering) into the cached `CompileResult`, so `validate` and
   `attributeCorpusDiagnostics`), `core/model/mod.ts` (`EntryOrigin`,
   `DeliveredDocument`), `core/reporter/mod.ts` (`originCell`), `cli/helpers.ts`
   (`compileProject`, `renderDiagnosticLocation`),
-  `cli/commands/{show,profile,doctor,check}.ts`, `lsp/server.ts`
-  (`seedDeliveredCorpus`, corpus-aware document-sync guards), `mcp/project.ts`
-  (`runCompile` diagnostic merge), `mcp/uri.ts` (`DELIVERED_URI_PREFIX`,
-  `deliveredUri`), `schemas/profile/v1.json` (`$defs.deliversItem`).
+  `cli/commands/{show,profile,doctor,check}.ts`, `lsp/server.ts`,
+  `lsp/project_context.ts` (`seedDeliveredCorpus`, corpus-aware document-sync
+  guards), `mcp/project.ts` (`runCompile` diagnostic merge), `mcp/uri.ts`
+  (`DELIVERED_URI_PREFIX`, `deliveredUri`), `schemas/profile/v1.json`
+  (`$defs.deliversItem`).

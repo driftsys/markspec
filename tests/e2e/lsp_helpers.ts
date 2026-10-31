@@ -217,6 +217,11 @@ export class LspTestClient {
        * `client/registerCapability`) with a `null` result. Off by default:
        * existing tests rely on such requests staying unanswered. */
       answerServerRequests?: boolean;
+      /** Send the `initialized` notification right after the `initialize`
+       * response (default). Pass `false` to send it later with
+       * {@linkcode initialized}, e.g. to interleave document events with
+       * the startup indexing. */
+      sendInitialized?: boolean;
     } = {},
   ): Promise<unknown> {
     this.answerServerRequests = options.answerServerRequests === true;
@@ -229,10 +234,17 @@ export class LspTestClient {
       rootUri,
       capabilities: options.capabilities ?? {},
     });
-    await this.notify("initialized", {});
+    if (options.sendInitialized === false) return result;
+    await this.initialized();
     // Give the server a moment to start indexing
     await new Promise((r) => setTimeout(r, 200));
     return result;
+  }
+
+  /** Send the `initialized` notification, which starts the server's
+   * indexing. Called by {@linkcode initialize} unless told otherwise. */
+  initialized(): Promise<void> {
+    return this.notify("initialized", {});
   }
 
   /**

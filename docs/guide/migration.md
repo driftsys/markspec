@@ -15,5 +15,5 @@ Stage 2 will cover:
 
 - **DOORS XML → MarkSpec** — automated export and ULID assignment.
 - **ReqIF → MarkSpec** — type mapping and attribute preservation.
-- **Display-ID renaming** — workspace-wide rename via the LSP or CLI.
+- **Display-ID renaming** — project-scoped rename via the LSP or CLI.
 - **Version upgrade notes** — breaking changes between MarkSpec releases.
