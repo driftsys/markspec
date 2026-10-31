@@ -966,13 +966,18 @@ async function editableHandler() {
   const state = {
     text: await Deno.readTextFile(systemPath),
     compiled,
+    // Reads of `source.profile`: only rendering a document reads it.
+    profileReads: 0,
   };
   const h = createDeskHandler({
     token: TOKEN,
     allowedOrigins: ["http://localhost:5173"],
     source: {
       projectRoot: FIXTURE_ROOT,
-      profile,
+      get profile() {
+        state.profileReads++;
+        return profile;
+      },
       getCompiled: () => Promise.resolve(state.compiled),
       readFile: (p) =>
         p === systemPath ? Promise.resolve(state.text) : readFile(p),
@@ -980,6 +985,18 @@ async function editableHandler() {
     },
   });
   return { h, state };
+}
+
+/** The graph with the title of `displayId` replaced by `title`. */
+function withTitle(
+  compiled: CompileResult,
+  displayId: string,
+  title: string,
+): CompileResult {
+  const entries = new Map(compiled.entries);
+  const id = makeDisplayId(displayId);
+  entries.set(id, { ...entries.get(id)!, title });
+  return { ...compiled, entries };
 }
 
 /** The graph without the entry `displayId`. */
@@ -1005,15 +1022,18 @@ Deno.test("desk api: documents carries a strong ETag", async () => {
 });
 
 Deno.test("desk api: documents answers a matching If-None-Match with 304", async () => {
-  const { h } = await editableHandler();
+  const { h, state } = await editableHandler();
   const first = await h(get(SYSTEM_DOC));
   await first.body?.cancel();
   const etag = first.headers.get("etag")!;
+  const rendered = state.profileReads;
+  assert(rendered > 0, "the 200 response renders the document");
   const second = await h(
     get(SYSTEM_DOC, { headers: { "if-none-match": etag } }),
   );
   assertEquals(second.status, 304);
   assertEquals(await second.text(), "");
+  assertEquals(state.profileReads, rendered, "a 304 must not render");
   assertEquals(second.headers.get("etag"), etag);
   assertEquals(second.headers.get("cache-control"), "no-store");
 });
@@ -1047,7 +1067,7 @@ Deno.test("desk api: documents returns the new render after the file is edited",
   assertStringIncludes((await second.json()).html, "Edited on disk");
 });
 
-Deno.test("desk api: the ETag follows the known display IDs the document mentions", async () => {
+Deno.test("desk api: the ETag follows the graph's display IDs, not other files' titles", async () => {
   const { h, state } = await editableHandler();
   const etagOf = async () => {
     const res = await h(get(SYSTEM_DOC));
@@ -1056,12 +1076,34 @@ Deno.test("desk api: the ETag follows the known display IDs the document mention
   };
   const original = await etagOf();
   const full = state.compiled;
-  // SRS_BRK_0001 is not mentioned in system.md: its render cannot change.
-  state.compiled = withoutEntry(full, "SRS_BRK_0001");
+  // The renderer never reads titles of entries in other files.
+  state.compiled = withTitle(full, "SRS_BRK_0001", "Renamed elsewhere");
   assertEquals(await etagOf(), original);
-  // STK_BRK_0001 is a cross-reference in system.md: it stops being a link.
+  // A known display ID can become a link anywhere in the text, escaped or
+  // not, so adding or removing any entry changes the tag.
+  state.compiled = withoutEntry(full, "SRS_BRK_0001");
+  assertNotEquals(await etagOf(), original);
   state.compiled = withoutEntry(full, "STK_BRK_0001");
   assertNotEquals(await etagOf(), original);
+});
+
+Deno.test("desk api: an escaped display ID in the text is covered by the ETag", async () => {
+  const { h, state } = await editableHandler();
+  // A Markdown escape renders as the bare character, so the renderer links
+  // STK_BRK_0001 here although the raw text never contains that string.
+  state.text = "# Escaped\n\nSee STK\\_BRK\\_0001.\n";
+  const res = await h(get(SYSTEM_DOC));
+  const etag = res.headers.get("etag")!;
+  assertStringIncludes(
+    (await res.json()).html,
+    'data-display-id="STK_BRK_0001"',
+  );
+  state.compiled = withoutEntry(state.compiled, "STK_BRK_0001");
+  const after = await h(
+    get(SYSTEM_DOC, { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(after.status, 200);
+  await after.body?.cancel();
 });
 
 Deno.test("desk api: preflight allows If-None-Match and responses expose ETag", async () => {

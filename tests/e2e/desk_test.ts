@@ -363,52 +363,65 @@ Deno.test({
   name: "desk --serve: a document edited on disk is rendered again",
   ignore: !hasNet,
   async fn() {
-    const temp = await Deno.makeTempDir();
-    const root = join(temp, "product");
-    await copy(FIXTURE_ROOT, root);
-    const child = new Deno.Command("deno", {
-      args: [...DESK_ARGS, "--root", root],
-      stdout: "piped",
-      stderr: "null",
-    }).spawn();
-    const reader = child.stdout.pipeThrough(new TextDecoderStream())
-      .getReader();
+    const workDir = await Deno.makeTempDir();
     try {
-      const handshake = JSON.parse(await readFirstLine(reader)) as {
-        url: string;
-        token: string;
-      };
-      const url = `${handshake.url}/api/v1/documents?path=docs/system.md`;
-      const auth = { authorization: `Bearer ${handshake.token}` };
-
-      const first = await fetch(url, { headers: auth });
-      assertEquals(first.status, 200);
-      const etag = first.headers.get("etag") ?? "";
-      assertMatch(etag, /^"[0-9a-f]{64}"$/);
-      const before = (await first.json()).html as string;
-      assertEquals(before.includes("Edited on disk"), false);
-
-      const unchanged = await fetch(url, {
-        headers: { ...auth, "if-none-match": etag },
-      });
-      assertEquals(unchanged.status, 304);
-      await unchanged.body?.cancel();
-
-      const file = join(root, "docs", "system.md");
-      await Deno.writeTextFile(
-        file,
-        `${await Deno.readTextFile(file)}\nEdited on disk.\n`,
-      );
-      const edited = await fetch(url, {
-        headers: { ...auth, "if-none-match": etag },
-      });
-      assertEquals(edited.status, 200);
-      assertStringIncludes((await edited.json()).html, "Edited on disk");
+      const root = join(workDir, "product");
+      await copy(FIXTURE_ROOT, root);
+      await editedDocumentScenario(root);
     } finally {
-      await reader.cancel();
-      child.kill("SIGTERM");
-      await child.status;
-      await Deno.remove(temp, { recursive: true });
+      await Deno.remove(workDir, { recursive: true });
     }
   },
 });
+
+/**
+ * Serve `root`, request `docs/system.md`, edit it on disk, and check that the
+ * next conditional request returns the new render.
+ */
+async function editedDocumentScenario(root: string): Promise<void> {
+  const child = new Deno.Command("deno", {
+    args: [...DESK_ARGS, "--root", root],
+    stdout: "piped",
+    stderr: "null",
+  }).spawn();
+  const reader = child.stdout.pipeThrough(new TextDecoderStream())
+    .getReader();
+  try {
+    const handshake = JSON.parse(await readFirstLine(reader)) as {
+      url: string;
+      token: string;
+    };
+    const url = `${handshake.url}/api/v1/documents?path=docs/system.md`;
+    const auth = { authorization: `Bearer ${handshake.token}` };
+
+    const first = await fetch(url, { headers: auth });
+    assertEquals(first.status, 200);
+    const etag = first.headers.get("etag") ?? "";
+    assertMatch(etag, /^"[0-9a-f]{64}"$/);
+    const before = (await first.json()).html as string;
+    assertEquals(before.includes("Edited on disk"), false);
+
+    const unchanged = await fetch(url, {
+      headers: { ...auth, "if-none-match": etag },
+    });
+    assertEquals(unchanged.status, 304);
+    await unchanged.body?.cancel();
+
+    const file = join(root, "docs", "system.md");
+    await Deno.writeTextFile(
+      file,
+      `${await Deno.readTextFile(file)}\nEdited on disk.\n`,
+    );
+    const edited = await fetch(url, {
+      headers: { ...auth, "if-none-match": etag },
+    });
+    assertEquals(edited.status, 200);
+    assertStringIncludes((await edited.json()).html, "Edited on disk");
+  } finally {
+    await reader.cancel();
+    try {
+      child.kill("SIGTERM");
+    } catch { /* already exited */ }
+    await child.status;
+  }
+}

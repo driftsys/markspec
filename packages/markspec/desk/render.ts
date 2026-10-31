@@ -11,7 +11,7 @@
  */
 
 import type { CompileResult, EffectiveProfile, Entry } from "../core/mod.ts";
-import { formatEntryOrigin } from "../core/mod.ts";
+import { formatEntryOrigin, sha256String } from "../core/mod.ts";
 import { renderChapterHtml, renderEntryHtml } from "../book/mod.ts";
 
 /** `GET /api/v1/documents` response. */
@@ -104,15 +104,17 @@ export function buildDocumentView(
 
 /**
  * The strong entity tag of the `DocumentView` that {@linkcode buildDocumentView}
- * builds from the same arguments: a quoted SHA-256 hex digest of every input
+ * builds from the same arguments: a quoted SHA-256 hex digest of the inputs
  * that can change the view.
  *
- * The render reads only the document text, the profile, and the set of known
- * display IDs. The profile is fixed for a server session. Of the known IDs,
- * only those whose text occurs in the document can become links, so an edit
- * elsewhere in the product changes the tag only when it adds or removes an
- * entry that the document mentions. The `entries` list also comes from the
- * graph, so its display IDs are part of the hash.
+ * The render reads the document text, the profile, and the set of known
+ * display IDs. Titles of entries in other files are not inputs, so editing
+ * them keeps the tag. The profile is loaded once per server session, so a
+ * profile edit does not change the tag until the product is opened again.
+ * The whole known-ID set is hashed, not only the IDs found in the raw text:
+ * the renderer links an ID after Markdown unescaping (`STK\_0001` renders as
+ * `STK_0001`), so a text search would miss some links. Adding or removing any
+ * entry therefore changes the tag of every document.
  */
 export async function documentEtag(
   apiVersion: number,
@@ -121,26 +123,30 @@ export async function documentEtag(
   entries: readonly Entry[],
   text: string,
 ): Promise<string> {
-  const mentioned = [...knownDisplayIds(compiled)]
-    .filter((id) => text.includes(id))
-    .sort();
-  // NUL never occurs in a path, a display ID, or Markdown text that the
-  // renderer accepts, so the joined fields cannot run into each other.
+  // Each field is length-prefixed, so two fields can never run into each
+  // other whatever characters they contain.
   const input = [
     String(apiVersion),
     path,
     entries.map((e) => e.displayId).join("\n"),
-    mentioned.join("\n"),
+    await knownIdsDigest(compiled),
     text,
-  ].join("\0");
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(input),
-  );
-  const hex = [...new Uint8Array(digest)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `"${hex}"`;
+  ].map((field) => `${field.length}:${field}`).join("");
+  // `sha256String` returns `sha256:<hex>`; the tag is the quoted hex alone.
+  const digest = await sha256String(input);
+  return `"${digest.slice(digest.indexOf(":") + 1)}"`;
+}
+
+/** Digest of the sorted known display IDs, computed once per graph. */
+const knownIdsDigests = new WeakMap<CompileResult, Promise<string>>();
+
+function knownIdsDigest(compiled: CompileResult): Promise<string> {
+  let digest = knownIdsDigests.get(compiled);
+  if (digest === undefined) {
+    digest = sha256String([...knownDisplayIds(compiled)].sort().join("\n"));
+    knownIdsDigests.set(compiled, digest);
+  }
+  return digest;
 }
 
 /** Build the `EntryHtmlView` of one entry. */

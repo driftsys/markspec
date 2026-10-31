@@ -83,6 +83,13 @@ describe("createDeskClient", () => {
     expect(result).toBe(cached);
   });
 
+  it("rejects a 304 when it holds no cached render", async () => {
+    const f = stub(new Response(null, { status: 304 }));
+    await expect(
+      createDeskClient("http://127.0.0.1:1", "t", f).document("d.md"),
+    ).rejects.toBeInstanceOf(DeskError);
+  });
+
   it("replaces a cached render when the server sends a new one", async () => {
     const f = stub(
       new Response(JSON.stringify({ path: "d.md", html: "<p>new</p>" }), {

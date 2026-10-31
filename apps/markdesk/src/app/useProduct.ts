@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import {
+  type CachedDocument,
   createDeskClient,
   type DeskClient,
   DeskError,
@@ -103,7 +104,9 @@ export function watchConnection(
     tree: watch(() => client.tree()),
     entry: watch((id: string) => client.entry(id)),
     entryHtml: watch((id: string) => client.entryHtml(id)),
-    document: watch((path: string) => client.document(path)),
+    document: watch((path: string, cached?: CachedDocument) =>
+      client.document(path, cached)
+    ),
     file: watch((path: string) => client.file(path)),
   };
 }

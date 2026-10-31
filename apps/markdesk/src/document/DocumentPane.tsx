@@ -40,7 +40,7 @@ function isNetworkFailure(error: unknown): boolean {
  * lives in a Markdown file, or the entry rendered alone otherwise.
  *
  * A cached document is never reused unchecked: the request carries its ETag,
- * and the server answers 304 while the file and the IDs it mentions are
+ * and the server answers 304 while the file and the graph's display IDs are
  * unchanged, so an edit on disk shows on the next read.
  */
 async function read(
@@ -341,6 +341,7 @@ export function DocumentPane() {
           <SourceDrawer
             path={reading.sourcePath}
             line={reading.entry.location.line}
+            revision={reading.html}
           />
         )}
       </div>

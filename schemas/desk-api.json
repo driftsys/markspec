@@ -226,7 +226,7 @@
       "get": {
         "operationId": "getDocument",
         "summary": "One rendered document",
-        "description": "Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans. The 200 response carries a strong ETag computed from every input of the render: the document text, the path, the entries of the file, and the display IDs in the graph that occur in the text. A request whose If-None-Match names the current tag gets 304 with no body, and the server does not render the document. Browser clients can read the ETag header: every response to an allowed Origin carries `Access-Control-Expose-Headers: ETag`.",
+        "description": "Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans. The 200 response carries a strong ETag computed from the document text, the path, the entries of the file, and all display IDs in the graph. A title edit in another file keeps the tag; adding or removing any entry changes it. A request whose If-None-Match names the current tag gets 304 with no body, and the server does not render the document. Browser clients can read the ETag header: every response to an allowed Origin carries `Access-Control-Expose-Headers: ETag`.",
         "parameters": [
           {
             "name": "path",

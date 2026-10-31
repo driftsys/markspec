@@ -129,6 +129,9 @@ export function createDeskClient(
       if (cached !== undefined && outcome.response.status === 304) {
         return cached;
       }
+      // A 304 without a cached render has no view to return: the server
+      // sends one only to a request that carried If-None-Match, so it is
+      // reported as an error below.
       if (!outcome.response.ok || outcome.data === undefined) {
         throw errorFrom(outcome);
       }

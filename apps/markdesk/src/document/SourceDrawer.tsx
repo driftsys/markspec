@@ -5,8 +5,12 @@ import { useOpenProduct } from "../app/useProduct";
 /**
  * Read-only source text of a project file, with line numbers, scrolled to
  * `line` (1-based). Light paper with Plex Mono, never a dark editor theme.
+ * The text is fetched again when `revision` changes: the caller passes the
+ * rendered HTML, which changes when the file is edited on disk.
  */
-export function SourceDrawer({ path, line }: { path: string; line: number }) {
+export function SourceDrawer(
+  { path, line, revision }: { path: string; line: number; revision: string },
+) {
   const { client } = useOpenProduct();
   const [text, setText] = useState<string>();
   const [failed, setFailed] = useState(false);
@@ -26,7 +30,7 @@ export function SourceDrawer({ path, line }: { path: string; line: number }) {
     return () => {
       current = false;
     };
-  }, [client, path]);
+  }, [client, path, revision]);
 
   useLayoutEffect(() => {
     target.current?.scrollIntoView?.({ block: "center" });

@@ -391,6 +391,32 @@ describe("DocumentPane", () => {
     expect(rows[2].classList.contains("is-target")).toBe(true);
   });
 
+  it("reloads the open source drawer when focus finds an edited document", async () => {
+    const server = documentServer();
+    let source = "old text";
+    const client = fakeClient({
+      document: server.document,
+      file: vi.fn(async (path: string) => ({
+        apiVersion: 3 as const,
+        path,
+        text: source,
+      })),
+    });
+    const { select } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(await screen.findByText("old text")).toBeTruthy();
+    source = "new text";
+    server.edit(
+      `<h1>Brakes edited</h1><div class="req-block" id="entry-${ID}" data-display-id="${ID}">x</div>`,
+    );
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText("new text")).toBeTruthy();
+  });
+
   it("shows no pane error for a network failure", async () => {
     const client = fakeClient({
       entry: vi.fn(async () => {
