@@ -177,7 +177,8 @@ effects.
 
 ```typescript
 interface MarkspecProfileParams {
-  /** Workspace URI to query. When omitted, server uses its rootUri. */
+  /** Document URI whose owning project to query. The server routes it to
+   * the nearest project. When omitted, the server uses the primary project. */
   uri?: string;
 }
 ```
@@ -246,11 +247,14 @@ invalidate the cache when:
 - The profile chain changes (`.markspec.yaml` or `project.yaml` modified —
   detected via the server's dynamic `workspace/didChangeWatchedFiles`
   registration, debounced 500ms server-side).
+- The project registry rebuilds, which happens when a `.markspec.yaml` or
+  `project.yaml` is created or deleted, or when an `exclude:` entry changes.
 - The workspace root changes (typically only on editor restart).
 
 On cache invalidation, the server fires a `markspec/profileChanged` notification
 so clients can refresh derived state (e.g., the VS Code preview's color
-stylesheet).
+stylesheet). The notification carries the same payload as the response plus a
+`root` field: the file URI of the project whose profile changed.
 
 ### 4.5 Empty / no-profile case
 

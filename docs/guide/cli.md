@@ -1308,6 +1308,55 @@ TypeScript, TSX, JavaScript, C#), completions only activate near entry markers
 or trace keywords. The server won't interfere with your language's native LSP
 (rust-analyzer, kotlin-lsp, etc.).
 
+### Project resolution
+
+The server validates each document against the project that owns it, the same
+way `markspec check` walks up from a file:
+
+- **Primary project.** From the editor's workspace root, the server walks up to
+  the nearest `project.yaml`. If there is none, it walks up to the nearest
+  `.markspec.yaml`. If there is neither, the workspace root itself is the
+  primary project and the bundled default profile applies. This is the order the
+  CLI and the MCP server use, so `project.yaml`, `markspec.lock`, and the
+  upstream cache are read from the same folder in every surface. A workspace
+  opened on a subfolder such as `docs/` therefore still loads the profile
+  declared above it.
+- **Nested projects.** Every directory below the primary project that a document
+  walk-up would resolve to — a directory with a `project.yaml`, or a directory
+  with a `.markspec.yaml` and no `project.yaml` between it and the primary
+  project — is a separate project with its own profile, index, and
+  `markspec.lock`. The search honors `.gitignore` and the primary project's
+  `exclude:` list. A workspace opened on a parent folder of several projects
+  validates each project against its own profile.
+- **Ownership.** A file belongs to its nearest project. A parent project does
+  not index the files of a nested project, so a display ID that is declared once
+  in each of two projects is not reported as a duplicate. Completion, hover,
+  go-to-definition, references, and rename stay inside the project that owns the
+  document. Workspace symbol search covers every project.
+- **Open buffers.** While a file is open in the editor, the server indexes the
+  editor buffer, not the file on disk, including during the startup index.
+- **Startup.** A document opened before the startup index has finished is routed
+  only once every nested project is known. Its first diagnostics therefore wait
+  for the whole startup index; the trade-off avoids validating the document
+  against the wrong project.
+- **Files outside the workspace.** A document that lies outside every known
+  project walks up to its own `project.yaml` (else `.markspec.yaml`); that
+  project is loaded and indexed when the document opens. With no config above
+  it, the document joins the primary project. Config files of such a project are
+  not watched: edit them, then restart the language server.
+- **Changes.** Editing a `.markspec.yaml`, `project.yaml`, or `markspec.lock`
+  reloads only the project that owns that file: the profile, the tool config,
+  the lockfile, and the delivered and upstream corpora. Creating or deleting a
+  `project.yaml` or `.markspec.yaml`, or changing an `exclude:` list,
+  re-discovers all projects and indexes them again.
+- **Primary root above the workspace folder.** Editors watch files only inside
+  the workspace folder by default. When the primary project root lies above it,
+  the server asks the editor to also watch that root's `.markspec.yaml`,
+  `project.yaml`, and `markspec.lock` with an LSP 3.17 relative watch pattern.
+  An editor that does not support relative watch patterns does not report
+  changes to those three files; restart the language server after you edit them.
+  The server logs a warning once in that case.
+
 ### VS Code
 
 Install the **MarkSpec** extension from the `editors/vscode/` directory in this

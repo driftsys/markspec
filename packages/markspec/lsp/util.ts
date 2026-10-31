@@ -84,3 +84,22 @@ export function debounce<T extends (...args: never[]) => void>(
   };
   return debounced;
 }
+
+/** A function that runs async tasks one at a time; see
+ * {@linkcode createSerialRunner}. */
+export type SerialRunner = <T>(task: () => Promise<T>) => Promise<T>;
+
+/**
+ * Create a runner that executes async tasks one at a time, in call order.
+ * Each task starts only after the previous one has settled, whether it
+ * resolved or rejected. The returned promise settles with the task's own
+ * outcome; a rejection does not stop later tasks.
+ */
+export function createSerialRunner(): SerialRunner {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const link = tail.then(task);
+    tail = link.catch(() => {});
+    return link;
+  };
+}

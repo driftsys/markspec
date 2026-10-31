@@ -10,6 +10,7 @@ import {
   _pathToUriWindows,
   _uriToPathPosix,
   _uriToPathWindows,
+  createSerialRunner,
   debounce,
   pathToUri,
   uriToPath,
@@ -133,4 +134,40 @@ Deno.test("debounce: cancel prevents execution", async () => {
   fn.cancel();
   await new Promise((r) => setTimeout(r, 100));
   assertEquals(callCount, 0);
+});
+
+Deno.test("createSerialRunner: a task starts only after the previous one finished", async () => {
+  const run = createSerialRunner();
+  const events: string[] = [];
+  let releaseFirst: () => void = () => {};
+  const firstGate = new Promise<void>((r) => releaseFirst = r);
+  const first = run(async () => {
+    events.push("first start");
+    await firstGate;
+    events.push("first end");
+  });
+  const second = run(() => {
+    events.push("second start");
+    return Promise.resolve();
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  assertEquals(events, ["first start"]);
+  releaseFirst();
+  await Promise.all([first, second]);
+  assertEquals(events, ["first start", "first end", "second start"]);
+});
+
+Deno.test("createSerialRunner: a rejected task does not block the next one", async () => {
+  const run = createSerialRunner();
+  const failed = run(() => Promise.reject(new Error("boom")));
+  let ran = false;
+  const next = run(() => {
+    ran = true;
+    return Promise.resolve();
+  });
+  let rejected = false;
+  await failed.catch(() => rejected = true);
+  await next;
+  assertEquals(rejected, true);
+  assertEquals(ran, true);
 });

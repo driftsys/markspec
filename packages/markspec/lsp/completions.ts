@@ -341,6 +341,13 @@ export interface ScaffoldCompletionData {
    * block-scaffold items, which keep the plain-insertText resolve path.
    */
   readonly replacementRange?: ReplacementRange;
+  /**
+   * URI of the document the completion was requested in. The resolve
+   * handler uses it to mint the display ID from the index of the project
+   * that owns the document (#840). When absent, the primary project is
+   * used.
+   */
+  readonly uri?: string;
 }
 
 /**

@@ -227,10 +227,12 @@ not scoped to this work.
 - `ProjectConfig` gained a required `exclude: readonly string[]` field (default
   `[]`); loading code and every literal `ProjectConfig` in test fixtures needed
   updating for the new required field.
-- The LSP's file-indexing walker (`lsp/server.ts` `onInitialized`) and the
-  lockfile's entry collector (`cli/commands/lock.ts`) both moved onto
-  `core/discovery`, retiring their own skip lists and honoring the project's
-  `exclude:` (and `.gitignore`) for the first time.
+- The LSP's file-indexing walker (`lsp/project_context.ts`
+  `ProjectContext.indexProject`, one walk per project root from
+  `lsp/project_registry.ts`) and the lockfile's entry collector
+  (`cli/commands/lock.ts`) both moved onto `core/discovery`, retiring their own
+  skip lists and honoring the project's `exclude:` (and `.gitignore`) for the
+  first time.
 - `markspec.lock` byte output can change for projects with source-file entries
   after the first `markspec lock` run post-upgrade (widened collection scope,
   described above). **Upgrade note (#663):** a project with trace attributes in
@@ -307,5 +309,5 @@ not scoped to this work.
   `packages/markspec/core/config/mod.ts` (`exclude:` parsing), `cli/helpers.ts`
   (`resolveScope`, `denoDiscoveryIO`), `cli/commands/check.ts` (composite
   gates), `cli/commands/fmt.ts`, `cli/commands/lint.ts`, `cli/commands/lock.ts`
-  (`collectEntries`), `lsp/server.ts` (`onInitialized` discovery),
-  `lsp/context.ts` (`SOURCE_EXTENSIONS` import).
+  (`collectEntries`), `lsp/project_context.ts` and `lsp/project_registry.ts`
+  (per-project discovery), `lsp/context.ts` (`SOURCE_EXTENSIONS` import).

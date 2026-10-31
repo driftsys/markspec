@@ -116,11 +116,11 @@ snapshot into `Entry[]` and stamps the origin. `loadProjectUpstreams`
 the no-lockfile and empty-refs short-circuits — behind one call, so every feed
 surface shares the same soft-fail and diagnostic semantics (#771). Upstream
 entries seed at the same three sites as the ADR-030 corpus, after it, before
-project files: the CLI compiler, the LSP `seedUpstreamCorpus()`, and the MCP
-server via the shared compile cache. Read-only is structural, not a runtime flag
-— upstream entries have no local `.md` file, so `fmt`/`insert` cannot touch them
-and rename is refused by the existing `origin` guard. The one new rule:
-**go-to-definition is a no-op** for an upstream entry
+project files: the CLI compiler, the LSP `ProjectContext.seedUpstreamCorpus()`,
+and the MCP server via the shared compile cache. Read-only is structural, not a
+runtime flag — upstream entries have no local `.md` file, so `fmt`/`insert`
+cannot touch them and rename is refused by the existing `origin` guard. The one
+new rule: **go-to-definition is a no-op** for an upstream entry
 (`resolveNavigableLocation` returns `null`) — its `location.file` is an
 upstream-repo path that does not exist locally. Hover, `show`, `context`, and
 completion work from the hydrated entry.
@@ -397,5 +397,5 @@ are byte-reproducible across machines from `(tree, markspec version)`.
   `core/validator/traceability.ts` (`MSL-T014`), `core/compiler/manifest.ts`
   (`ManifestJson.project.version`, `federation`), `core/compiler/deserialize.ts`
   (`checkSnapshotSchema`, `deserializeEntry`), `cli/commands/lock.ts`
-  (`denoGitIO` shallow fetch-by-sha), `lsp/server.ts` (`seedUpstreamCorpus`),
-  `lsp/definition.ts` (`resolveNavigableLocation`).
+  (`denoGitIO` shallow fetch-by-sha), `lsp/project_context.ts`
+  (`seedUpstreamCorpus`), `lsp/definition.ts` (`resolveNavigableLocation`).

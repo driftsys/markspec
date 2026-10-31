@@ -19,6 +19,7 @@ import {
   createConnection,
   type Diagnostic as LspDiagnosticType,
   DidChangeWatchedFilesNotification,
+  type Disposable,
   type FileEvent,
   type InitializeParams,
   type InitializeResult,
@@ -38,45 +39,26 @@ import { isAbsolute, join } from "@std/path";
 import { ulid } from "@std/ulid";
 import {
   CORE_SCHEMA_VERSION,
-  DEFAULT_PROJECT_CONFIG,
-  DEFAULT_TOOL_CONFIG,
   type Diagnostic as CoreDiagnostic,
-  discoverFiles,
-  discoverMarkspecRoot,
-  discoverProjectRoot,
-  type EffectiveProfile,
-  type Entry,
   filterEntriesByTraceTargets,
   format,
   formatEntryOrigin,
   isLineFenced,
-  loadConfig,
-  loadDeliveredCorpus,
   loadMarkdownFormatter,
-  loadProfileForCommand,
-  loadProjectUpstreams,
-  loadToolConfig,
-  type Lockfile,
   makeDisplayId,
-  parseDisplayIdPattern,
-  parseLockfile,
-  type ProjectConfig,
   targetsForRelation,
-  type ToolConfig,
-  validateDisplayIdPattern,
   VERSION,
 } from "../core/mod.ts";
-import { extendsTransitively } from "../core/profile/discipline_mode.ts";
 import { parseUxRef } from "../core/uxil/mod.ts";
-import { WorkspaceIndex } from "./workspace.ts";
+import { ProjectContext, type ProjectContextHost } from "./project_context.ts";
+import { isWithin, ProjectRegistry } from "./project_registry.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
 import {
   buildF012FallbackMessage,
   buildFormattingEdits,
 } from "./formatting.ts";
-import { groupDiagnosticsByFile, toLspDiagnostic } from "./diagnostics.ts";
-import { buildDiagnosticsHistogram } from "./diagnostics_histogram.ts";
+import { toLspDiagnostic } from "./diagnostics.ts";
 import { buildCodeActions } from "./code_actions.ts";
 import {
   resolveNavigableLocation,
@@ -87,7 +69,6 @@ import { entriesToFoldingRanges } from "./folding.ts";
 import { findOccurrencesInFile } from "./highlights.ts";
 import { buildInlayHints } from "./inlay_hint.ts";
 import {
-  buildProfileResponse,
   EMPTY_PROFILE_RESPONSE,
   type MarkspecProfileResponse,
 } from "./profile_request.ts";
@@ -108,7 +89,6 @@ import {
   buildMidTypedScaffoldItems,
   buildTrailerKeyItems,
   buildTypeAttributeItems,
-  type EntryTypeInfo,
   extractMidTypedPartial,
   extractRelationName,
   extractTracePartial,
@@ -123,14 +103,15 @@ import {
   type ScaffoldCompletionData,
 } from "./completions.ts";
 import { findEnclosingEntry } from "./find_entry.ts";
-import { mintReservedNumber, release } from "./id_reservations.ts";
+import { mintReservedNumber } from "./id_reservations.ts";
 import {
   isDocCommentContext,
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
-import { isLockfileOnlyChange, relevantWatchedUris } from "./watched_files.ts";
+import { relevantWatchedUris } from "./watched_files.ts";
 import {
+  createSerialRunner,
   debounce,
   type DebouncedFunction,
   pathToUri,
@@ -142,7 +123,7 @@ import {
   setProjectRoot as setEventLogProjectRoot,
 } from "./event_log.ts";
 import { snapshot as methodCountsSnapshot, tally } from "./method_counts.ts";
-import { time, timeAsync } from "./timing.ts";
+import { time } from "./timing.ts";
 import {
   buildDollarNameCompletions,
   dollarNameAtPosition,
@@ -204,192 +185,180 @@ globalThis.addEventListener("error", (e) => {
  * clock is unsuitable here because it can jump backwards. */
 const sessionStartedAt = performance.now();
 
-let projectRoot: string | undefined;
-let _config: ProjectConfig = DEFAULT_PROJECT_CONFIG;
-/** Markspec tool config (`exclude`, `caption-conventions`) from
- * `.markspec.yaml` — distinct from `_config`, which holds `project.yaml`'s
- * org-schema fields (Task 8). */
-let _toolConfig: ToolConfig = DEFAULT_TOOL_CONFIG;
-let profile: EffectiveProfile | undefined;
-let cachedProfileResponse: MarkspecProfileResponse = EMPTY_PROFILE_RESPONSE;
-let lockfile: Lockfile | undefined;
-const index = new WorkspaceIndex();
-// Cached cross-file validation result. Updated by publishAllDiagnostics
-// and read by request handlers (e.g. markspec/entryRanges) so they
-// don't re-run validateAll() on every keystroke.
-let lastDiagnostics: readonly CoreDiagnostic[] = [];
+/** `true` once the event log was pointed at a MarkSpec root. The event
+ * log stays single for the whole session, even when several projects are
+ * open. */
+let eventLogRootSet = false;
+
+/** `true` when the client declared LSP 3.17 `RelativePattern` support
+ * for `workspace/didChangeWatchedFiles` registrations. */
+let clientSupportsRelativePattern = false;
+/** The extra watcher for a primary root that lies above the workspace
+ * folder, or `undefined` when none is registered. */
+let primaryRootWatcher: Disposable | undefined;
+/** Set once the "cannot watch the primary root" warning was logged. */
+let primaryRootWatchWarningLogged = false;
+/** Runs primary-root watcher (re-)registrations one at a time. A rebuild
+ * can request one while the startup registration still waits for the
+ * client; without this, both would register and one handle would leak. */
+const runWatcherRegistration = createSerialRunner();
+/** Set by `onShutdown`, so no watcher registration starts afterwards. */
+let serverShuttingDown = false;
+
+/** Connection-facing I/O shared by every {@linkcode ProjectContext}. */
+const contextHost: ProjectContextHost = {
+  readFile,
+  realPath: (p) => Deno.realPath(p),
+  readDir: (p) => Deno.readDir(p),
+  sendDiagnostics: (uri, diagnostics) =>
+    connection.sendDiagnostics({
+      uri,
+      diagnostics: diagnostics as unknown as LspDiagnosticType[],
+    }),
+  sendNotification: (method, params) =>
+    connection.sendNotification(method, params),
+  refreshLenses: () => {
+    // Fire-and-forget: an older client that never declared refresh
+    // support may reject the request, which must not block diagnostics.
+    connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+    connection.sendRequest(InlayHintRefreshRequest.type).catch(() => {});
+  },
+  log: (message) => connection.console.log(message),
+  warn: (message) => connection.console.warn(message),
+  logEvent,
+};
 
 /**
- * Module-scoped reader for the loaded lockfile. The send-site for
- * `markspec/version` reads the module-scoped `lockfile` directly via
- * `buildVersionNotification`; this accessor is kept as a stable entry
- * point for future LSP handlers (federated-registry pinning, stale-pin
- * hover hint) so they don't need a second init pass.
+ * One {@linkcode ProjectContext} per MarkSpec project in the workspace
+ * (#840, #694). Every per-document handler resolves its context with
+ * `projects.contextFor(path)`; see `project_registry.ts` for the
+ * ownership rules.
  */
-function _getLockfile(): Lockfile | undefined {
-  return lockfile;
-}
-
-/** Absolute paths of delivered-corpus (ADR-030) and locked-upstream
- * (federated-upstream slice 4) files currently seeded into the index.
- * Diagnostics for these files are never published and the files are
- * re-seeded, not watched. Shared by {@linkcode seedDeliveredCorpus} and
- * {@linkcode seedUpstreamCorpus} so every existing read-only guard
- * (diagnostics publish, buffer edit/open/close, rename, format) covers
- * both origins without change; each seeder also tracks its own files in
- * a private set (`upstreamFilePaths` for the latter) so one seeder's
- * clear pass never drops the other's entries — see
- * {@linkcode seedUpstreamCorpus}'s doc comment for why that matters. */
-const corpusFilePaths = new Set<string>();
-
-/**
- * (Re-)seed the workspace index with the active profile's delivered
- * corpus (ADR-030). Removes any previously-seeded corpus files first so
- * a profile reload that drops or changes `delivers:` doesn't leave stale
- * corpus entries behind, then loads the current `profile.delivers` list
- * and indexes each corpus file under its own file path — entries carry
- * `Entry.origin` from {@linkcode loadDeliveredCorpus}, which
- * `publishAllDiagnostics` and the rename handlers use to treat corpus
- * files/entries as read-only. Called before the project file walk in
- * `onInitialized` (so corpus display IDs win "first entry wins"
- * collisions deterministically) and again in `reloadProfile` after
- * `profile` is reassigned.
- */
-async function seedDeliveredCorpus(): Promise<void> {
-  // Always drop the old corpus first — even if the reload below fails,
-  // stale entries from a previous profile must not linger in the index.
-  for (const path of corpusFilePaths) index.removeFile(path);
-  corpusFilePaths.clear();
-  const delivers = profile?.delivers ?? [];
-  if (delivers.length === 0) return;
-  try {
-    const corpus = await loadDeliveredCorpus(
-      delivers,
-      readFile,
-      (p) => Deno.realPath(p),
-    );
-    for (const d of corpus.diagnostics) {
-      connection.console.warn(`${d.code}: ${d.message}`);
-    }
-    const byFile = new Map<string, Entry[]>();
-    for (const e of corpus.entries) {
-      const list = byFile.get(e.location.file) ?? [];
-      list.push(e);
-      byFile.set(e.location.file, list);
-    }
-    for (const [file, entries] of byFile) {
-      index.updateFile(file, entries);
-      corpusFilePaths.add(file);
-    }
-  } catch (err) {
-    // Cold-cache soft-fail (design spec §4): the index proceeds without
-    // corpus rather than aborting initialization or profile reload.
-    connection.console.warn(`Failed to load delivered corpus: ${err}`);
-  }
-}
-
-/** Absolute paths of locked-upstream corpus files currently seeded into
- * the index (federated-upstream slice 4). Tracked separately from the
- * shared `corpusFilePaths` guard set so `seedUpstreamCorpus`'s own clear
- * pass never removes delivered-corpus (ADR-030) files that happen to
- * share the set — each file is still added to `corpusFilePaths` too, so
- * the existing read-only guards cover upstream files for free. */
-const upstreamFilePaths = new Set<string>();
-
-/**
- * (Re-)seed the workspace index with the locked upstream corpus
- * (federated-upstream slice 4; see ADR-031,
- * docs/architecture/adr-031-federated-upstream-resolution.md).
- * Mirrors {@linkcode seedDeliveredCorpus}: always drops the previously
- * seeded upstream files first (so a re-lock that drops or replaces an
- * upstream doesn't leave stale entries behind), then hydrates the loaded
- * `markspec.lock`'s snapshot-carrying upstream rows via the shared core
- * {@linkcode loadProjectUpstreams} (#771) — the same loader the CLI
- * compiler, `check`, and the MCP server use. Entries carry `Entry.origin = { kind:
- * "upstream", ... }`; adding their file to the shared `corpusFilePaths`
- * set makes every existing read-only guard (diagnostics publish, buffer
- * edit/open/close, rename, format) treat them as read-only, same as
- * delivered corpus.
- *
- * Called after `seedDeliveredCorpus()` at both call sites
- * (`onInitialized`, `reloadProfile`) so upstream entries lose
- * "first entry wins" ties to delivered corpus but still win over the
- * project walk that follows.
- *
- * Clear/re-seed interaction with `seedDeliveredCorpus` (the subtle
- * part): `seedDeliveredCorpus` clears by iterating the *shared*
- * `corpusFilePaths` set, so its clear pass also calls
- * `index.removeFile` on any upstream file already tracked there —
- * transiently dropping upstream entries from the index. That is safe
- * only because `seedUpstreamCorpus` always runs immediately afterward
- * at both call sites and re-adds them. `seedUpstreamCorpus` itself
- * clears via its *own* `upstreamFilePaths` set, never the shared one,
- * so the reverse never happens: re-seeding upstream (e.g. on a
- * `markspec.lock`-only change) cannot remove delivered-corpus entries.
- */
-async function seedUpstreamCorpus(): Promise<void> {
-  // Always drop the previously-seeded upstream files first — even if
-  // the reload below fails or the lockfile now declares no upstreams,
-  // stale entries from a previous lockfile must not linger in the index.
-  for (const path of upstreamFilePaths) {
-    index.removeFile(path);
-    corpusFilePaths.delete(path);
-  }
-  upstreamFilePaths.clear();
-  if (!projectRoot) return;
-  try {
-    const corpus = await loadProjectUpstreams(projectRoot, lockfile, readFile);
-    for (const d of corpus.diagnostics) {
-      connection.console.warn(`${d.code}: ${d.message}`);
-    }
-    const byFile = new Map<string, Entry[]>();
-    for (const e of corpus.entries) {
-      const list = byFile.get(e.location.file) ?? [];
-      list.push(e);
-      byFile.set(e.location.file, list);
-    }
-    for (const [file, entries] of byFile) {
-      index.updateFile(file, entries);
-      upstreamFilePaths.add(file);
-      corpusFilePaths.add(file);
-    }
-  } catch (err) {
-    // Cold-cache soft-fail, mirroring seedDeliveredCorpus: the index
-    // proceeds without the upstream corpus rather than aborting
-    // initialization or a profile/lockfile reload.
-    connection.console.warn(`Failed to load upstream corpus: ${err}`);
-  }
-}
-
-/**
- * (Re-)load `markspec.lock` from disk into the module-scoped `lockfile`.
- * A missing file sets `lockfile` to `undefined` — including on reload,
- * so a deleted lockfile drops the upstream corpus on the next
- * `seedUpstreamCorpus()` call. A malformed lockfile logs its parse
- * diagnostics and leaves `lockfile` at its previous value. The LSP never
- * writes the lockfile; drift detection stays in the CLI.
- */
-async function reloadLockfile(): Promise<void> {
-  if (!projectRoot) return;
-  try {
-    const lockRaw = await readFile(`${projectRoot}/markspec.lock`);
-    if (lockRaw === undefined) {
-      lockfile = undefined;
-      return;
-    }
-    const parsed = parseLockfile(lockRaw);
-    if (parsed.lockfile) {
-      lockfile = parsed.lockfile;
-      connection.console.log(
-        `Loaded markspec.lock: ${lockfile.upstreams.length} upstreams, locked at ${lockfile.meta.lockedAt}`,
+const projects = new ProjectRegistry({
+  readFile,
+  readDir: (p) => Deno.readDir(p),
+  // Indexing parses the live editor buffer, when one is open, instead of
+  // the file on disk.
+  openText: (path) => documents.get(pathToUri(path))?.getText(),
+  createContext: (root) => new ProjectContext(root, contextHost),
+  afterRebuild: async () => {
+    await pointEventLogAtMarkspecRoot();
+    await registerPrimaryRootWatcher();
+    await reindexOpenDocuments();
+    const primary = projects.primary;
+    if (primary) {
+      connection.sendNotification(
+        "markspec/profileChanged",
+        primary.profileChangedParams(),
       );
-    } else {
-      for (const d of parsed.diagnostics) {
-        connection.console.warn(`Lockfile parse: ${d.code}: ${d.message}`);
-      }
     }
-  } catch {
-    /* no lockfile is fine */
+    connection.sendNotification("markspec/indexed", projects.totals());
+  },
+  onReloadError: (err) => {
+    // Keep the event-log write so reload failures stay visible in
+    // .markspec/lsp.log (#799 review).
+    logEvent("error", "reload", { err: String(err) });
+    connection.console.warn(`Watched-file reload failed: ${err}`);
+  },
+});
+
+/**
+ * Point the event log at the first MarkSpec root (the primary root when
+ * it holds a `.markspec.yaml`, else the first nested one). Gates the
+ * event log on MarkSpec-project membership (#609): a project is
+ * MarkSpec-activated only when a `.markspec.yaml` is discoverable
+ * (ADR-008). In a plain Markdown or source repo with no activator the
+ * server stays inert on disk — it never creates the `.markspec/` runtime
+ * directory or its `lsp.log`, so a non-MarkSpec working tree is never
+ * dirtied. A no-op once the log root is set.
+ */
+async function pointEventLogAtMarkspecRoot(): Promise<void> {
+  if (eventLogRootSet) return;
+  const [first] = await projects.markspecRoots();
+  if (first === undefined) return;
+  setEventLogProjectRoot(first);
+  eventLogRootSet = true;
+}
+
+/**
+ * Watch the config files of a primary root that lies ABOVE the workspace
+ * folder (#694 layout: workspace `proj/docs`, primary root `proj/`). The
+ * plain `**`-prefixed glob watchers only cover files inside the workspace
+ * folders, so without this an edit of `proj/.markspec.yaml` or a re-lock
+ * of `proj/markspec.lock` would never reach the server. Registers an LSP
+ * 3.17 `RelativePattern` watcher based at the primary root; events from it
+ * resolve to the primary context through the registry like any other.
+ * When the client lacks `RelativePattern` support, logs one warning and
+ * does nothing. Replaces any earlier registration, so it is safe to call
+ * again after a rebuild; calls are serialized, so each one disposes the
+ * handle the previous one stored.
+ */
+function registerPrimaryRootWatcher(): Promise<void> {
+  return runWatcherRegistration(replacePrimaryRootWatcher);
+}
+
+/** The body of {@linkcode registerPrimaryRootWatcher}; only ever runs
+ * through its serial runner. */
+async function replacePrimaryRootWatcher(): Promise<void> {
+  if (serverShuttingDown) return;
+  primaryRootWatcher?.dispose();
+  primaryRootWatcher = undefined;
+  const workspaceRoot = projects.workspace;
+  const primary = projects.primary;
+  if (!workspaceRoot || !primary || isWithin(workspaceRoot, primary.root)) {
+    return;
+  }
+  if (!clientSupportsRelativePattern) {
+    if (!primaryRootWatchWarningLogged) {
+      primaryRootWatchWarningLogged = true;
+      connection.console.warn(
+        `Project root ${primary.root} is outside the workspace folder and ` +
+          "the client does not support relative watch patterns: changes to " +
+          "its .markspec.yaml, project.yaml and markspec.lock are not " +
+          "picked up until the server restarts.",
+      );
+    }
+    return;
+  }
+  try {
+    primaryRootWatcher = await connection.client.register(
+      DidChangeWatchedFilesNotification.type,
+      {
+        watchers: [{
+          globPattern: {
+            baseUri: pathToUri(primary.root),
+            pattern: "{.markspec.yaml,project.yaml,markspec.lock}",
+          },
+          kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+        }],
+      },
+    );
+  } catch (err) {
+    connection.console.warn(`Failed to register project-root watcher: ${err}`);
+  }
+}
+
+/**
+ * Parse every open document into the context that owns it now. Called
+ * after a registry rebuild, which discards the indexes that held the
+ * open documents' buffer content.
+ */
+async function reindexOpenDocuments(): Promise<void> {
+  for (const document of documents.all()) {
+    const filePath = uriToPath(document.uri);
+    if (!isMarkspecFile(filePath)) continue;
+    const epoch = bufferEpoch(filePath);
+    const ctx = await projects.ensureContextFor(filePath);
+    if (!ctx || ctx.isCorpusFile(filePath)) continue;
+    const parseDiags = await ctx.index.parseAndUpdateFile(
+      filePath,
+      document.getText(),
+    );
+    // The buffer was closed, or the context replaced, during the awaits.
+    if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) continue;
+    if (!stillOwnedBy(ctx, filePath)) continue;
+    publishFileDiagnostics(filePath, parseDiags);
+    ctx.scheduleValidateAll();
   }
 }
 
@@ -403,10 +372,6 @@ async function readFile(path: string): Promise<string | undefined> {
   } catch {
     return undefined;
   }
-}
-
-async function readFileRequired(path: string): Promise<string> {
-  return await Deno.readTextFile(path);
 }
 
 // ---------------------------------------------------------------------------
@@ -425,178 +390,77 @@ function publishFileDiagnostics(
   connection.sendDiagnostics({ uri, diagnostics: lspDiags });
 }
 
-/**
- * Cap on the number of distinct MSL codes the `kind=diagnostics`
- * histogram surfaces by name. Anything past the cap is summed into a
- * synthetic `other` field — see {@linkcode buildDiagnosticsHistogram}.
- * 20 keeps the event-log line under a couple hundred bytes even when
- * the project fires every catalogue rule.
- */
-const DIAGNOSTICS_HISTOGRAM_TOP_N = 20;
-
-/** Run cross-file validation and publish diagnostics for all files. */
-function publishAllDiagnostics(): void {
-  const entryCount = index.getAllEntries().length;
-  const allDiags = time(
-    `validateAll/${entryCount}`,
-    () => index.validateAll(profile ?? null),
-  );
-  lastDiagnostics = allDiags;
-
-  // Emit a per-validateAll histogram of MSL codes that fired. Always
-  // emitted (zero diagnostics is a valid analytics signal — "the
-  // project validated cleanly"); the zero case carries just the
-  // entry count.
-  const histogram = buildDiagnosticsHistogram(
-    allDiags,
-    DIAGNOSTICS_HISTOGRAM_TOP_N,
-  );
-  logEvent("info", "diagnostics", { entries: entryCount, ...histogram });
-
-  const grouped = groupDiagnosticsByFile(allDiags);
-
-  // Send diagnostics for files that have issues. Delivered corpus files
-  // (ADR-030) are never published — they are read-only, sourced from a
-  // profile, not the author's own work.
-  for (const [file, diags] of grouped) {
-    if (corpusFilePaths.has(file)) continue;
-    const uri = pathToUri(file);
-    connection.sendDiagnostics({
-      uri,
-      diagnostics: diags.map(toLspDiagnostic) as unknown as LspDiagnosticType[],
-    });
-  }
-
-  // Clear diagnostics for tracked files with no issues
-  for (const file of index.getFilePaths()) {
-    if (corpusFilePaths.has(file)) continue;
-    if (!grouped.has(file)) {
-      connection.sendDiagnostics({
-        uri: pathToUri(file),
-        diagnostics: [],
-      });
-    }
-  }
-
-  // Cross-file validation just re-ran, so any already-open document's
-  // "↑ N dependents" codeLens / "(N dependents)" inlay hint may now be
-  // stale — the client only re-requests textDocument/codeLens|inlayHint
-  // on its own document changing, never on a change to a *different*
-  // file. Fire-and-forget: an older client that never declared refresh
-  // support may reject the request, which must not block diagnostics.
-  connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
-  connection.sendRequest(InlayHintRefreshRequest.type).catch(() => {});
-}
-
-// Debounced cross-file validation (1000ms)
-const debouncedValidateAll = debounce(publishAllDiagnostics, 1000);
-
 // Per-file debounced parse — serializes rapid edits and prevents stale
 // index writes from concurrent async parse calls (B2).
 const pendingContent = new Map<string, string>();
 // deno-lint-ignore no-explicit-any
 const debouncedFileParses = new Map<string, DebouncedFunction<any>>();
 
-// ---------------------------------------------------------------------------
-// Completions
-// ---------------------------------------------------------------------------
+/**
+ * Per-path buffer epoch: incremented on every open and close of the
+ * document at that path. A parse captures the epoch before it awaits
+ * (the registry gate, the parse itself) and discards its result when the
+ * epoch moved — the buffer was closed, or closed and reopened, meanwhile.
+ * Without it a parse that started before a close lands in the index
+ * after the close removed the file, and a closed buffer comes back.
+ */
+const bufferEpochs = new Map<string, number>();
 
-/** Build EntryTypeInfo array from the active profile. */
-function getEntryTypes(): EntryTypeInfo[] {
-  if (!profile) return [];
-  const mode = profile.disciplineMode.value;
-  const types: EntryTypeInfo[] = [];
-  for (const [name, typeDef] of profile.types) {
-    const pattern = typeDef.value.displayIdPattern.value;
-    if (!pattern) continue;
-
-    // ADR-017 Slice 5: mark mode-relevant types as recommended. Shared by
-    // both the numbered and named branches below.
-    const isRequirementShaped = extendsTransitively(
-      name,
-      "Requirement",
-      profile,
-    );
-    const hasDiscipline = typeDef.value.discipline.value !== undefined;
-    const modeRecommended = (mode === "tiered" && hasDiscipline) ||
-      (mode === "flat" && isRequirementShaped && !hasDiscipline) ||
-      (mode === "none" && isRequirementShaped);
-
-    // Numbered pattern: parse the `{n:Nd}` placeholder. Width and suffix flow
-    // through the snippet so profiles using non-4-digit IDs (`{n:6d}`) or a
-    // trailing literal don't produce mis-formatted scaffolds.
-    const shape = parseDisplayIdPattern(pattern);
-    if (shape) {
-      const { prefix, width, suffix } = shape;
-      const nextNumber = index.getNextDisplayIdNumber(prefix, suffix);
-      types.push({ name, prefix, width, suffix, nextNumber, modeRecommended });
-      continue;
-    }
-
-    // Named (counter-less) type (ADR-025, #598): not mintable, but still
-    // offer a `${1:NAME}` scaffold. The literal anchor is everything before
-    // the first placeholder. A malformed pattern is skipped — profile-load
-    // (#597) already rejects those via PROFILE-TYPE-008.
-    if (!validateDisplayIdPattern(pattern).ok) continue;
-    const firstBrace = pattern.indexOf("{");
-    const prefix = firstBrace >= 0 ? pattern.slice(0, firstBrace) : pattern;
-    types.push({
-      name,
-      prefix,
-      width: 0,
-      suffix: "",
-      nextNumber: 0,
-      named: true,
-      modeRecommended,
-    });
-  }
-  return types;
+/**
+ * `true` when `ctx` still owns `filePath` after a parse that awaited. A
+ * parse can span an on-demand root discovery (the first parse of a source
+ * file waits for its grammar to load); if another project took the file
+ * over meanwhile, the stale result is removed from `ctx` instead of being
+ * published from the wrong project, and the open buffer is parsed again
+ * into its new owner, which may not have seen it on disk.
+ */
+function stillOwnedBy(ctx: ProjectContext, filePath: string): boolean {
+  if (projects.contextFor(filePath) === ctx) return true;
+  ctx.index.removeFile(filePath);
+  const document = documents.get(pathToUri(filePath));
+  if (document) scheduleParse(filePath, document.getText());
+  return false;
 }
 
 /**
- * Lean `(prefix, suffix)` pairs for every profile type with a parseable
- * `display-id-pattern`. Unlike {@linkcode getEntryTypes} this skips the
- * per-type `getNextDisplayIdNumber` scan — {@linkcode releaseObservedReservations}
- * only needs the literal affixes to decompose a display ID, and it runs on
- * every debounced parse.
+ * Parse `text` for `filePath` after 50 ms of quiet, into the project that
+ * owns the file at that time. Shared by the document-change event and the
+ * owner-change path above. The latest text wins when several edits arrive
+ * before the timer fires.
  */
-function getScaffoldPatterns(): Array<{ prefix: string; suffix: string }> {
-  if (!profile) return [];
-  const out: Array<{ prefix: string; suffix: string }> = [];
-  for (const [, typeDef] of profile.types) {
-    const pattern = typeDef.value.displayIdPattern.value;
-    if (!pattern) continue;
-    const shape = parseDisplayIdPattern(pattern);
-    if (!shape) continue;
-    out.push({ prefix: shape.prefix, suffix: shape.suffix });
+function scheduleParse(filePath: string, text: string): void {
+  pendingContent.set(filePath, text);
+  let debouncedParse = debouncedFileParses.get(filePath);
+  if (!debouncedParse) {
+    debouncedParse = debounce(async () => {
+      const content = pendingContent.get(filePath);
+      if (content === undefined) return;
+      const epoch = bufferEpoch(filePath);
+      const ctx = await projects.ensureContextFor(filePath);
+      if (!ctx || ctx.isCorpusFile(filePath)) return;
+      if (bufferEpoch(filePath) !== epoch) return; // closed meanwhile
+      const parseDiags = await ctx.index.parseAndUpdateFile(filePath, content);
+      // A rebuild may have replaced this context, or the buffer may have
+      // been closed, during the awaits.
+      if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) return;
+      if (!stillOwnedBy(ctx, filePath)) return;
+      // The just-parsed entries now carry any display ID a scaffold accept
+      // reserved — drop those reservations so the numbers aren't blocked.
+      ctx.releaseObservedReservations(filePath);
+      publishFileDiagnostics(filePath, parseDiags);
+      ctx.scheduleValidateAll();
+    }, 50);
+    debouncedFileParses.set(filePath, debouncedParse);
   }
-  return out;
+  debouncedParse();
 }
 
-/**
- * Release any display-ID reservation now satisfied by a freshly-parsed
- * file. The resolve handler reserves a number the instant it hands one
- * out; once the inserted entry reaches the index (after the debounced
- * parse) the reservation is redundant and must be dropped so the number
- * is not blocked. Each entry's display ID is decomposed against the
- * active profile's type affixes to recover the `(prefix, suffix, number)`
- * triple. A no-op when no profile is loaded or nothing matches — cheap
- * because reservation buckets are typically empty.
- */
-function releaseObservedReservations(filePath: string): void {
-  const patterns = getScaffoldPatterns();
-  if (patterns.length === 0) return;
-  for (const entry of index.getEntriesForFile(filePath)) {
-    const id = entry.displayId as string;
-    for (const { prefix, suffix } of patterns) {
-      if (!id.startsWith(prefix)) continue;
-      if (suffix && !id.endsWith(suffix)) continue;
-      const numberPart = id.slice(prefix.length, id.length - suffix.length);
-      if (!/^\d+$/.test(numberPart)) continue;
-      release(prefix, suffix, parseInt(numberPart, 10));
-      break; // one pattern matched this entry; move on
-    }
-  }
+function bufferEpoch(filePath: string): number {
+  return bufferEpochs.get(filePath) ?? 0;
+}
+
+function bumpBufferEpoch(filePath: string): void {
+  bufferEpochs.set(filePath, bufferEpoch(filePath) + 1);
 }
 
 /**
@@ -636,72 +500,23 @@ function encodeSemanticTokens(
 connection.onInitialize(
   async (params: InitializeParams): Promise<InitializeResult> => {
     logEvent("info", "lifecycle", { event: "onInitialize.start" });
+    clientSupportsRelativePattern = params.capabilities.workspace
+      ?.didChangeWatchedFiles?.relativePatternSupport === true;
     const rootUri = params.rootUri ?? params.rootPath;
     if (rootUri) {
       const rootPath = rootUri.startsWith("file://")
         ? uriToPath(rootUri)
         : rootUri;
-      projectRoot = await discoverProjectRoot(rootPath, readFile) ?? rootPath;
-
-      // Gate the event log on MarkSpec-project membership (#609). A project
-      // is MarkSpec-activated only when a `.markspec.yaml` is discoverable
-      // (ADR-008). In a plain Markdown or source repo with no activator the
-      // server stays inert on disk — it never creates the `.markspec/`
-      // runtime directory or its `lsp.log`, so a non-MarkSpec working tree is
-      // never dirtied. In-memory indexing still runs (it writes nothing to
-      // disk), and the broad `projectRoot` fallback above keeps config and
-      // profile loading working for projects that carry only `project.yaml`.
-      const markspecRoot = await discoverMarkspecRoot(rootPath, readFile);
-      if (markspecRoot !== undefined) {
-        setEventLogProjectRoot(markspecRoot);
-      }
-
-      // Load config
-      try {
-        const configResult = await loadConfig(projectRoot, readFile);
-        if (configResult) {
-          _config = configResult.config;
-        }
-      } catch {
-        connection.console.warn("Failed to load project.yaml");
-      }
-
-      // Load the markspec tool config (exclude, caption-conventions) from
-      // .markspec.yaml. loadToolConfig never throws — a malformed file just
-      // yields DEFAULT_TOOL_CONFIG plus diagnostics, which are logged here.
-      try {
-        const toolConfigResult = await loadToolConfig(projectRoot, readFile);
-        _toolConfig = toolConfigResult.config;
-        for (const diag of toolConfigResult.diagnostics) {
-          if (diag.severity === "error") {
-            connection.console.warn(`${diag.code}: ${diag.message}`);
-          }
-        }
-      } catch {
-        connection.console.warn("Failed to load .markspec.yaml tool config");
-      }
-
-      // Load profile
-      try {
-        const profileResult = await loadProfileForCommand(
-          projectRoot,
-          readFile,
-        );
-        if (profileResult.chain) {
-          profile = profileResult.chain.effective;
-        }
-        cachedProfileResponse = buildProfileResponse(
-          profileResult.chain,
-          profile,
-        );
-      } catch {
-        connection.console.warn("Failed to load profile");
-      }
-
-      // Load markspec.lock if present — feeds the locked upstream corpus
-      // (federated-upstream slice 4) via seedUpstreamCorpus() below, plus
-      // the `markspec/version` notification's stale-pin hints.
-      await reloadLockfile();
+      // Create and load the primary project: the nearest `.markspec.yaml`
+      // at or above the workspace root, else the nearest `project.yaml`,
+      // else the workspace root itself (#694). Loading reads project.yaml,
+      // the .markspec.yaml tool config, the profile, and markspec.lock.
+      // Projects nested below the workspace root are discovered in
+      // onInitialized (#840).
+      await projects.init(rootPath);
+      // In-memory indexing runs even without a `.markspec.yaml` (it
+      // writes nothing to disk); only the event log is gated.
+      await pointEventLogAtMarkspecRoot();
     }
 
     logEvent("info", "lifecycle", { event: "onInitialize.end" });
@@ -743,125 +558,27 @@ connection.onInitialize(
 );
 
 // ---------------------------------------------------------------------------
-// Profile reload — fires `markspec/profileChanged` after a watched
-// profile file changes; also reloads markspec.lock and re-seeds the
-// delivered + upstream corpora. Routing lives in `reloadWatchedFiles`
-// below: `reloadProfile` handles the profile-affecting branch, while a
-// `markspec.lock`-only change takes the cheap upstream-re-seed branch
-// (#771). Debounced 500ms so rapid-fire saves coalesce into one reload.
+// Watched files — `.markspec.yaml`, `project.yaml`, `markspec.lock`.
+// A change reloads only the project that owns the changed file (see
+// ProjectContext.reloadWatchedFiles: a `markspec.lock`-only change takes
+// the cheap upstream-re-seed branch, #771). Creating or deleting a
+// `.markspec.yaml` changes file ownership and rebuilds the registry.
+// Debounced 500ms so rapid-fire saves coalesce into one reload; the
+// registry serializes the reloads.
 // ---------------------------------------------------------------------------
 
-/**
- * @returns `true` on success; `false` when the reload failed and the
- *   caller should keep the profile-change flag pending so the next
- *   watched event (of any kind) retries the full reload (#797 review:
- *   consuming the flag before a failed reload used to strand the
- *   editor on stale profile state until the next profile-file save).
- */
-async function reloadProfile(): Promise<boolean> {
-  if (!projectRoot) return true;
-  try {
-    const profileResult = await loadProfileForCommand(projectRoot, readFile);
-    profile = profileResult.chain?.effective;
-    cachedProfileResponse = buildProfileResponse(
-      profileResult.chain,
-      profile,
-    );
-    connection.sendNotification(
-      "markspec/profileChanged",
-      cachedProfileResponse,
-    );
-    // The watched-file change that triggered this reload may be to
-    // markspec.lock itself (a re-lock) rather than the profile — refresh
-    // the module-scoped lockfile before re-seeding the upstream corpus.
-    await reloadLockfile();
-    // Re-seed the delivered corpus (ADR-030) before republishing — the
-    // new profile may change, add, or drop `delivers:` entirely.
-    await seedDeliveredCorpus();
-    // Re-seed the locked upstream corpus (federated-upstream slice 4)
-    // after the delivered corpus — see seedUpstreamCorpus()'s doc comment
-    // for why the ordering is load-bearing.
-    await seedUpstreamCorpus();
-    // Profile changes can flip MSL-R010 suppression and other
-    // attribute-validity decisions — republish cross-file diagnostics.
-    publishAllDiagnostics();
-    return true;
-  } catch (err) {
-    connection.console.warn(`Failed to reload profile: ${err}`);
-    return false;
-  }
-}
-
-/** `true` when a profile-affecting file (`.markspec.yaml`,
- * `project.yaml`) changed since the last watched-files reload fired.
- * Accumulates across the debounce window so a lock-only change
- * followed by a profile change escalates to the full reload. */
-let pendingProfileFileChange = false;
-
-/**
- * Debounced dispatcher for watched-file changes. A window that saw any
- * profile-file change runs the full {@linkcode reloadProfile} (which
- * also reloads the lockfile and re-seeds both corpora). A
- * `markspec.lock`-only window (#771: a bare `markspec lock` re-run)
- * skips the profile re-resolve, the delivered-corpus re-seed, and the
- * `markspec/profileChanged` push — it refreshes the lockfile, re-seeds
- * the upstream corpus, and republishes diagnostics.
- */
-async function reloadWatchedFiles(): Promise<void> {
-  // A queued chain link can start after onShutdown ran (cancel() only
-  // clears the un-fired debounce timer, not an already-appended link) —
-  // bail instead of writing to the log or a dead connection (#799
-  // review).
-  if (shuttingDown) return;
-  const profileChanged = pendingProfileFileChange;
-  pendingProfileFileChange = false;
-  if (profileChanged) {
-    if (!(await reloadProfile())) {
-      // Keep the escalation pending: the next watched event of ANY kind
-      // (including a lock-only one) retries the full reload, restoring
-      // the pre-#797 self-healing property.
-      pendingProfileFileChange = true;
-    }
-    return;
-  }
-  await reloadLockfile();
-  await seedUpstreamCorpus();
-  publishAllDiagnostics();
-}
-
-/** Serializes {@linkcode reloadWatchedFiles} runs (#797 review): the
- * debounce fires-and-forgets, so a second window expiring while a reload
- * is still in flight would otherwise interleave the seeders' shared-set
- * mutations (`seedDeliveredCorpus`'s clear pass is safe only because
- * `seedUpstreamCorpus` runs immediately after it — an invariant a
- * concurrent run breaks). Run-next-after-current closes the class,
- * including the pre-existing full∥full pairing. */
-let watchedReloadChain: Promise<void> = Promise.resolve();
-
-/** Set by `onShutdown` so a chain link queued behind an in-flight
- * reload never starts after the final event-log flush. */
-let shuttingDown = false;
-
 const debouncedReloadWatchedFiles = debounce(() => {
-  watchedReloadChain = watchedReloadChain
-    .then(() => reloadWatchedFiles())
-    .catch((err) => {
-      // Scoped handling replaced the old fire-and-forget path, whose
-      // rejections reached the global unhandledrejection handler — keep
-      // that handler's event-log write so reload failures stay visible
-      // in .markspec/lsp.log (#799 review).
-      logEvent("error", "reload", { err: String(err) });
-      connection.console.warn(`Watched-file reload failed: ${err}`);
-    });
+  void projects.enqueueWatchedReload();
 }, 500);
 
 // ---------------------------------------------------------------------------
-// Initialized — build the workspace index
+// Initialized — build the workspace indexes
 // ---------------------------------------------------------------------------
 
 connection.onInitialized(async () => {
   logEvent("info", "lifecycle", { event: "onInitialized.start" });
-  if (!projectRoot) {
+  const primary = projects.primary;
+  if (!primary) {
     connection.console.log("No project root found — running without index");
     logEvent("info", "lifecycle", {
       event: "onInitialized.end",
@@ -870,85 +587,44 @@ connection.onInitialized(async () => {
     return;
   }
 
-  connection.console.log(`Indexing project at ${projectRoot}...`);
+  connection.console.log(`Indexing project at ${primary.root}...`);
 
   try {
-    // Seed the delivered corpus (ADR-030), then the locked upstream
-    // corpus (federated-upstream slice 4), before the project walk so
-    // corpus/upstream display IDs win "first entry wins" collisions
-    // deterministically, regardless of project-file parse order.
-    await seedDeliveredCorpus();
-    await seedUpstreamCorpus();
-
-    // Discover all relevant files (core/discovery: gitignore-aware,
-    // honors .markspec.yaml `exclude:`).
-    const files: string[] = [];
-    const io = { readDir: (p: string) => Deno.readDir(p), readFile };
-    for await (
-      const entry of discoverFiles(projectRoot, io, {
-        exclude: _toolConfig.exclude,
-      })
-    ) {
-      files.push(entry);
-    }
-
-    // Parse all files with bounded concurrency. The serial loop spent
-    // most of its wall time waiting on file I/O while CPU was idle —
-    // overlapping reads + parses cuts cold-start dramatically. Side
-    // effect: when duplicate display IDs exist across files, the
-    // "first entry wins" tiebreak now resolves to whichever parse
-    // finishes first (previously: alphabetical file order). The
-    // validator still flags the duplicate in either case; the
-    // diagnostic location is the only thing that becomes
-    // nondeterministic.
+    // Discover the projects nested below the primary root, then seed each
+    // project's corpora and parse its files. Each project publishes its
+    // own cross-file diagnostics.
     const parseAllStart = performance.now();
-    await timeAsync("onInitialized/parseAll", async () => {
-      const CONCURRENCY = 8;
-      let cursor = 0;
-      await Promise.all(
-        Array.from({ length: CONCURRENCY }, async () => {
-          while (cursor < files.length) {
-            const filePath = files[cursor++];
-            try {
-              const content = await readFileRequired(filePath);
-              await timeAsync(
-                "onInitialized/parseFile",
-                () => index.parseAndUpdateFile(filePath, content),
-              );
-            } catch {
-              connection.console.warn(`Failed to parse: ${filePath}`);
-            }
-          }
-        }),
-      );
-    });
+    await projects.indexAll();
     const parseAllMs = Math.round(performance.now() - parseAllStart);
 
+    // When the primary root has no `.markspec.yaml`, the event log can
+    // only be placed once a nested project is known.
+    await pointEventLogAtMarkspecRoot();
+
+    const totals = projects.totals();
     connection.console.log(
-      `Indexed ${files.length} files, ${index.getAllEntries().length} entries`,
+      `Indexed ${totals.files} files, ${totals.entries} entries in ${projects.all().length} project(s)`,
     );
     logEvent("info", "lifecycle", {
       event: "onInitialized.indexed",
-      files: files.length,
+      files: totals.files,
     });
 
-    // Initial cross-file validation
-    publishAllDiagnostics();
-
-    connection.sendNotification("markspec/indexed", {
-      files: files.length,
-      entries: index.getAllEntries().length,
-    });
+    connection.sendNotification("markspec/indexed", totals);
 
     logEvent("info", "startup", {
-      files: files.length,
-      entries: index.getAllEntries().length,
+      files: totals.files,
+      entries: totals.entries,
       parseAllMs,
     });
 
     connection.sendNotification(
       "markspec/version",
-      buildVersionNotification(VERSION, CORE_SCHEMA_VERSION, lockfile),
+      buildVersionNotification(
+        VERSION,
+        CORE_SCHEMA_VERSION,
+        projects.primary?.lockfile,
+      ),
     );
 
     // Register the profile-file + lockfile watcher. We do this even when
@@ -957,33 +633,32 @@ connection.onInitialized(async () => {
     // design doc §4 step 2. `markspec.lock` is watched so a re-lock (new
     // or dropped upstreams) re-seeds the upstream corpus
     // (federated-upstream slice 4).
-    if (projectRoot) {
-      try {
-        await connection.client.register(
-          DidChangeWatchedFilesNotification.type,
-          {
-            watchers: [
-              {
-                globPattern: "**/.markspec.yaml",
-                kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
-              },
-              {
-                globPattern: "**/project.yaml",
-                kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
-              },
-              {
-                globPattern: "**/markspec.lock",
-                kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
-              },
-            ],
-          },
-        );
-      } catch (err) {
-        connection.console.warn(
-          `Failed to register profile-file watcher: ${err}`,
-        );
-      }
+    try {
+      await connection.client.register(
+        DidChangeWatchedFilesNotification.type,
+        {
+          watchers: [
+            {
+              globPattern: "**/.markspec.yaml",
+              kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+            },
+            {
+              globPattern: "**/project.yaml",
+              kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+            },
+            {
+              globPattern: "**/markspec.lock",
+              kind: WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+            },
+          ],
+        },
+      );
+    } catch (err) {
+      connection.console.warn(
+        `Failed to register profile-file watcher: ${err}`,
+      );
     }
+    await registerPrimaryRootWatcher();
   } catch (err) {
     connection.console.error(`Indexing failed: ${err}`);
     logEvent("error", "lifecycle", {
@@ -1004,14 +679,14 @@ connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
   // than our dynamic registration (the VS Code extension synchronizes
   // every Markdown file), so filter first: without it every .md save
   // escalated to a full profile reload (#799 review). Debounce 500ms
-  // (design doc §4.1); the dispatcher routes a markspec.lock-only
-  // window to the cheap upstream re-seed and anything else to the full
-  // profile reload (#771).
-  const relevant = relevantWatchedUris(params.changes.map((c) => c.uri));
-  if (relevant.length === 0) return;
-  if (!isLockfileOnlyChange(relevant)) {
-    pendingProfileFileChange = true;
-  }
+  // (design doc §4.1).
+  const relevant = new Set(
+    relevantWatchedUris(params.changes.map((c) => c.uri)),
+  );
+  const changes = params.changes
+    .filter((c) => relevant.has(c.uri))
+    .map((c) => ({ uri: c.uri, path: uriToPath(c.uri), type: c.type }));
+  if (!projects.noteWatchedChanges(changes)) return;
   debouncedReloadWatchedFiles();
 });
 
@@ -1022,71 +697,72 @@ connection.onDidChangeWatchedFiles((params: { changes: FileEvent[] }) => {
 documents.onDidChangeContent((change) => {
   const filePath = uriToPath(change.document.uri);
   if (!isMarkspecFile(filePath)) return;
-  // Corpus files are read-only; their index slot is owned by
-  // seedDeliveredCorpus (ADR-030) — never reparse from a buffer edit.
-  if (corpusFilePaths.has(filePath)) return;
+  // Corpus files are read-only; their index slot is owned by the
+  // project's corpus seeders (ADR-030) — never reparse from a buffer edit.
+  if (projects.contextFor(filePath)?.isCorpusFile(filePath)) return;
 
   // Stash latest content so the debounced parse always uses the most
   // recent snapshot, even if multiple edits arrive before the timer fires.
-  pendingContent.set(filePath, change.document.getText());
-
-  let debouncedParse = debouncedFileParses.get(filePath);
-  if (!debouncedParse) {
-    debouncedParse = debounce(async () => {
-      const content = pendingContent.get(filePath);
-      if (content === undefined) return;
-      const parseDiags = await index.parseAndUpdateFile(filePath, content);
-      // The just-parsed entries now carry any display ID a scaffold accept
-      // reserved — drop those reservations so the numbers aren't blocked.
-      releaseObservedReservations(filePath);
-      publishFileDiagnostics(filePath, parseDiags);
-      debouncedValidateAll();
-    }, 50);
-    debouncedFileParses.set(filePath, debouncedParse);
-  }
-  debouncedParse();
+  scheduleParse(filePath, change.document.getText());
 });
 
-documents.onDidSave(() => {
+documents.onDidSave((event) => {
   // Force cross-file validation on save
-  debouncedValidateAll.cancel();
-  publishAllDiagnostics();
+  projects.contextFor(uriToPath(event.document.uri))?.validateAllNow();
 });
 
 documents.onDidClose((event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
-  // Corpus files are read-only; their index slot is owned by
-  // seedDeliveredCorpus (ADR-030) — closing the buffer must neither
+  const ctx = projects.contextFor(filePath);
+  // Corpus files are read-only; their index slot is owned by the
+  // project's corpus seeders (ADR-030) — closing the buffer must neither
   // remove the entries nor touch diagnostics (none were published).
-  if (corpusFilePaths.has(filePath)) return;
-  // Remove the file from the index and clear its diagnostics so stale
-  // entries don't affect cross-file validation after the buffer closes.
-  index.removeFile(filePath);
+  if (ctx?.isCorpusFile(filePath)) return;
+  // Record the close first, whether or not a context is known right now
+  // (none is while a rebuild runs): any parse of this buffer still in
+  // flight discards its result, so the closed buffer never comes back.
+  bumpBufferEpoch(filePath);
   pendingContent.delete(filePath);
+  debouncedFileParses.get(filePath)?.cancel();
   debouncedFileParses.delete(filePath);
   connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-  debouncedValidateAll();
+  if (!ctx) return;
+  // Remove the file from the index and clear its diagnostics so stale
+  // entries don't affect cross-file validation after the buffer closes.
+  ctx.index.removeFile(filePath);
+  ctx.scheduleValidateAll();
 });
 
 documents.onDidOpen(async (event) => {
   const filePath = uriToPath(event.document.uri);
   if (!isMarkspecFile(filePath)) return;
-  // Corpus files are read-only; their index slot is owned by
-  // seedDeliveredCorpus (ADR-030) — never reparse from an opened buffer.
-  if (corpusFilePaths.has(filePath)) return;
-  // Index newly opened files immediately so rename and other workspace
-  // operations cover them even before the first edit event fires.
-  if (index.getFilePaths().includes(filePath)) return; // already indexed
-  const parseDiags = await index.parseAndUpdateFile(
+  bumpBufferEpoch(filePath);
+  const epoch = bufferEpoch(filePath);
+  // A document outside every known project walks up to its own config
+  // here; the project is created and indexed first.
+  const ctx = await projects.ensureContextFor(filePath);
+  if (!ctx) return;
+  // Corpus files are read-only; their index slot is owned by the
+  // project's corpus seeders (ADR-030) — never reparse from an opened
+  // buffer.
+  if (ctx.isCorpusFile(filePath)) return;
+  if (bufferEpoch(filePath) !== epoch) return; // closed meanwhile
+  // Parse the opened buffer even when the file is already indexed from
+  // disk: the buffer is the source of truth while it is open, and the
+  // index must cover it before the first edit event fires.
+  const parseDiags = await ctx.index.parseAndUpdateFile(
     filePath,
     event.document.getText(),
   );
-  releaseObservedReservations(filePath);
+  // A rebuild may have replaced this context, or the buffer may have
+  // been closed, during the awaits.
+  if (ctx.isDisposed || bufferEpoch(filePath) !== epoch) return;
+  if (!stillOwnedBy(ctx, filePath)) return;
+  ctx.releaseObservedReservations(filePath);
   publishFileDiagnostics(filePath, parseDiags);
-  debouncedValidateAll();
+  ctx.scheduleValidateAll();
 });
-
 // ---------------------------------------------------------------------------
 // Completions
 // ---------------------------------------------------------------------------
@@ -1097,6 +773,8 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   if (!document) return [];
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return [];
 
   // Source file position guard
   if (isSourceFile(filePath)) {
@@ -1128,7 +806,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
         },
       };
       const items = buildMidTypedScaffoldItems(
-        getEntryTypes(),
+        ctx.getEntryTypes(),
         partial,
         ulid,
         replacementRange,
@@ -1151,6 +829,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
           suffix: item.suffix,
           named: item.named,
           replacementRange: item.textEdit.range,
+          uri: params.textDocument.uri,
         } satisfies ScaffoldCompletionData,
       }));
     });
@@ -1159,7 +838,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   // Trigger 1: Block scaffold
   if (isBlockScaffoldTrigger(line)) {
     return time("onCompletion/scaffold", () => {
-      const types = getEntryTypes();
+      const types = ctx.getEntryTypes();
       const items = buildBlockScaffoldItems(types, ulid);
       return items.map((item, i) => {
         const type = types[i];
@@ -1181,6 +860,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
               width: type.width,
               suffix: type.suffix,
               named: type.named,
+              uri: params.textDocument.uri,
             } satisfies ScaffoldCompletionData
             : undefined,
         };
@@ -1211,27 +891,27 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
       // enclosing entry's type, the relation name, and a TraceRule
       // for that pair. Any missing piece falls back to the full
       // workspace listing — better to over-suggest than to hide.
-      const enclosing = profile
+      const enclosing = ctx.profile
         ? findEnclosingEntry(
-          index.getEntriesForFile(filePath),
+          ctx.index.getEntriesForFile(filePath),
           params.position.line + 1, // LSP is 0-based; Entry is 1-based.
         )
         : undefined;
-      const relationName = profile ? extractRelationName(line) : undefined;
-      const targets = profile && relationName
-        ? targetsForRelation(profile, enclosing?.type, relationName)
+      const relationName = ctx.profile ? extractRelationName(line) : undefined;
+      const targets = ctx.profile && relationName
+        ? targetsForRelation(ctx.profile, enclosing?.type, relationName)
         : undefined;
-      let displayIds = profile && targets
+      let displayIds = ctx.profile && targets
         ? filterEntriesByTraceTargets(
-          index.getAllEntries(),
+          ctx.index.getAllEntries(),
           targets,
-          profile,
+          ctx.profile,
         ).map((e) => ({
           displayId: e.displayId,
           title: e.title,
           origin: e.origin ? formatEntryOrigin(e.origin) : undefined,
         }))
-        : index.getAllDisplayIds();
+        : ctx.index.getAllDisplayIds();
       // Server-side prefix filter on the partial the user has typed
       // after the colon. Case-insensitive to match VS Code's
       // client-side filter UX. The CompletionList is marked
@@ -1258,7 +938,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   // Trigger 4: Type: attribute value — core types + profile types.
   if (isTypeAttributeTrigger(line)) {
     return time("onCompletion/typeAttr", () => {
-      const profileTypeNames = profile ? [...profile.types.keys()] : [];
+      const profileTypeNames = ctx.profile ? [...ctx.profile.types.keys()] : [];
       const items = buildTypeAttributeItems(profileTypeNames);
       return items.map((item) => ({
         label: item.label,
@@ -1271,12 +951,12 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   // Trigger 5: $Name identifier — typl binding names from the corpus registry.
   if (isDollarNameTrigger(line)) {
     return time("onCompletion/dollarName", () => {
-      const registry = index.getTypeRegistry();
+      const registry = ctx.index.getTypeRegistry();
       // Published tier (#750): scope relative `$.x` shorthands to the
       // enclosing entry's root namespace, and switch to relative-only
       // suggestions when the partial is `$.`-led.
       const enclosing = findEnclosingEntry(
-        index.getEntriesForFile(filePath),
+        ctx.index.getEntriesForFile(filePath),
         params.position.line + 1, // LSP is 0-based; Entry is 1-based.
       );
       const items = buildDollarNameCompletions(registry, {
@@ -1296,7 +976,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
   // (S10 #728). Empty when no profile type designates ux-surface.
   if (isUxRefTrigger(line)) {
     return time("onCompletion/uxRef", () => {
-      const uxRegistry = index.getUxRegistry(profile ?? null);
+      const uxRegistry = ctx.index.getUxRegistry(ctx.profile ?? null);
       if (!uxRegistry) return [];
       const partial = extractUxRefPartial(line);
       const items = buildUxCompletionItems(uxRegistry, partial);
@@ -1363,6 +1043,9 @@ connection.onCompletionResolve((item): CompletionItem => {
     ) {
       return item;
     }
+    // Mint from the index of the project that owns the document (#840).
+    const ctx = resolveContextForUri(data.uri);
+    if (!ctx) return item;
     // Mint and reserve the number atomically. Reserving before the snippet
     // is built means a second resolve firing inside the parse-debounce
     // window — before this entry reaches the index — sees the number as
@@ -1371,7 +1054,7 @@ connection.onCompletionResolve((item): CompletionItem => {
     const nextNumber = mintReservedNumber(
       prefix,
       suffix,
-      (reserved) => index.getNextDisplayIdNumber(prefix, suffix, reserved),
+      (reserved) => ctx.index.getNextDisplayIdNumber(prefix, suffix, reserved),
     );
     rendered = renderScaffoldSnippet({
       typeName: data.typeName,
@@ -1406,6 +1089,20 @@ connection.onCompletionResolve((item): CompletionItem => {
   };
 });
 
+/**
+ * The project that owns the document at `uri`, or the primary project
+ * when `uri` is absent or not a valid `file://` URI. The value comes from
+ * a client-echoed resolve payload, so it is not trusted to be well formed.
+ */
+function resolveContextForUri(uri: unknown): ProjectContext | undefined {
+  if (typeof uri !== "string") return projects.primary;
+  try {
+    return projects.contextFor(uriToPath(uri));
+  } catch {
+    return projects.primary;
+  }
+}
+
 /** Narrow + validate a resolve-payload replacement range. Defends against
  * tampered or malformed `data` from a hostile or buggy LSP client — the
  * typed cast at the resolve handler's top does not validate at runtime. */
@@ -1430,6 +1127,8 @@ connection.onHover((params) => {
   if (!document) return null;
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
 
   // Source-file position guard — only consider doc-comment context.
   if (isSourceFile(filePath)) {
@@ -1447,12 +1146,12 @@ connection.onHover((params) => {
   // Try typl $Name token first — it takes priority over display-ID lookup.
   const dollarName = dollarNameAtPosition(line, params.position.character);
   if (dollarName) {
-    const registry = index.getTypeRegistry();
+    const registry = ctx.index.getTypeRegistry();
     // Published tier (#750): give hover the enclosing entry so it can
     // resolve a relative `$.x` against the entry root namespace and mark a
     // published symbol as declared "in this entry" vs. cited from another.
     const enclosing = findEnclosingEntry(
-      index.getEntriesForFile(filePath),
+      ctx.index.getEntriesForFile(filePath),
       params.position.line + 1, // LSP is 0-based; Entry is 1-based.
     );
     const hoverContent = formatTyplHoverContent(dollarName, registry, {
@@ -1468,7 +1167,7 @@ connection.onHover((params) => {
   // profile designates a declaring type (uxilDeclaringTypes).
   const uxToken = uxRefTokenAtPosition(line, params.position.character);
   if (uxToken) {
-    const uxRegistry = index.getUxRegistry(profile ?? null);
+    const uxRegistry = ctx.index.getUxRegistry(ctx.profile ?? null);
     if (uxRegistry) {
       const { ref } = parseUxRef(uxToken);
       if (ref) {
@@ -1482,7 +1181,7 @@ connection.onHover((params) => {
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
-  const entry = index.getEntryByDisplayId(makeDisplayId(id));
+  const entry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
 
   return {
@@ -1500,6 +1199,8 @@ connection.onDefinition((params) => {
   if (!document) return null;
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
 
   // Source-file position guard.
   if (isSourceFile(filePath)) {
@@ -1518,7 +1219,7 @@ connection.onDefinition((params) => {
   // never overlaps a display-ID token's.
   const uxToken = uxRefTokenAtPosition(line, params.position.character);
   if (uxToken) {
-    const uxRegistry = index.getUxRegistry(profile ?? null);
+    const uxRegistry = ctx.index.getUxRegistry(ctx.profile ?? null);
     if (uxRegistry) {
       const { ref } = parseUxRef(uxToken);
       const surface = ref ? resolveUxRef(ref, uxRegistry) : undefined;
@@ -1530,7 +1231,7 @@ connection.onDefinition((params) => {
 
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
-  const entry = index.getEntryByDisplayId(makeDisplayId(id));
+  const entry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
   if (!entry) return null;
 
   return resolveNavigableLocation(entry);
@@ -1546,6 +1247,8 @@ connection.onReferences((params) => {
   if (!document) return null;
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
   if (isSourceFile(filePath)) {
     const lines = document.getText().split("\n");
     if (!isDocCommentContext(lines, params.position.line)) {
@@ -1561,14 +1264,14 @@ connection.onReferences((params) => {
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
 
-  const referencing = findReferencingEntries(index.getAllEntries(), id);
+  const referencing = findReferencingEntries(ctx.index.getAllEntries(), id);
   const locations = referencing
     .map(resolveNavigableLocation)
     .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
 
   // includeDeclaration: prepend the declaration's location when asked.
   if (params.context?.includeDeclaration) {
-    const decl = index.getEntryByDisplayId(makeDisplayId(id));
+    const decl = ctx.index.getEntryByDisplayId(makeDisplayId(id));
     if (decl) {
       const declLoc = resolveNavigableLocation(decl);
       if (declLoc) locations.unshift(declLoc);
@@ -1585,8 +1288,10 @@ connection.onReferences((params) => {
 connection.onDocumentSymbol((params) => {
   tally("documentSymbol");
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
   if (!isMarkspecFile(filePath)) return null;
-  const entries = index.getEntriesForFile(filePath);
+  const entries = ctx.index.getEntriesForFile(filePath);
   // The result conforms to LSP `DocumentSymbol[]`; cast to satisfy the
   // node-server.d.ts overload that returns `SymbolInformation[]` by
   // default when the parameter is unannotated.
@@ -1602,12 +1307,14 @@ connection.onWorkspaceSymbol((params) => {
   tally("workspaceSymbol");
   // The result conforms to LSP `SymbolInformation[]`; cast to satisfy
   // the typed `SymbolKind` enum the d.ts expects.
+  // Union every project's entries: the search spans the whole workspace.
+  const allEntries = projects.all().flatMap((ctx) => ctx.index.getAllEntries());
   // deno-lint-ignore no-explicit-any
-  return entriesToWorkspaceSymbols(index.getAllEntries(), params.query) as any;
+  return entriesToWorkspaceSymbols(allEntries, params.query) as any;
 });
 
 // ---------------------------------------------------------------------------
-// Rename (workspace-wide rename of a display ID)
+// Rename (rename of a display ID across the project that owns the document)
 // ---------------------------------------------------------------------------
 
 connection.onPrepareRename((params) => {
@@ -1616,6 +1323,8 @@ connection.onPrepareRename((params) => {
   if (!document) return null;
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
   if (isSourceFile(filePath)) {
     const lines = document.getText().split("\n");
     if (!isDocCommentContext(lines, params.position.line)) {
@@ -1634,7 +1343,7 @@ connection.onPrepareRename((params) => {
   });
   const id = displayIdAtPosition(line, params.position.character);
   if (id) {
-    const targetEntry = index.getEntryByDisplayId(makeDisplayId(id));
+    const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
     if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
   }
   return prepareRenameRange(
@@ -1650,6 +1359,8 @@ connection.onRenameRequest(async (params) => {
   if (!document) return null;
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
   if (isSourceFile(filePath)) {
     const lines = document.getText().split("\n");
     if (!isDocCommentContext(lines, params.position.line)) {
@@ -1663,19 +1374,21 @@ connection.onRenameRequest(async (params) => {
   });
   const oldId = displayIdAtPosition(line, params.position.character);
   if (!oldId) return null;
-  const targetEntry = index.getEntryByDisplayId(makeDisplayId(oldId));
+  const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(oldId));
   if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
   const newId = params.newName;
   if (!newId || newId === oldId) return null;
 
-  // Build per-file TextEdits across the entire workspace. For each
-  // tracked file, prefer the open-document text (live editor state)
-  // and fall back to reading from disk.
+  // Build per-file TextEdits across the project that owns the document.
+  // Display IDs are scoped to one project, so other projects in the same
+  // workspace are left untouched (#840). For each tracked file, prefer
+  // the open-document text (live editor state) and fall back to reading
+  // from disk.
   const changes: Record<string, LspTextEdit[]> = {};
-  for (const path of index.getFilePaths()) {
+  for (const path of ctx.index.getFilePaths()) {
     // Delivered corpus files are read-only (ADR-030) — a project-ID rename
     // must never emit WorkspaceEdits against the profile cache.
-    if (corpusFilePaths.has(path)) continue;
+    if (ctx.isCorpusFile(path)) continue;
     const uri = pathToUri(path);
     let text: string | undefined;
     const openDoc = documents.get(uri);
@@ -1723,11 +1436,12 @@ connection.onDocumentLinks((params) => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return [];
   if (!isMarkspecFile(filePath)) return [];
-  if (!projectRoot) return [];
 
-  const entries = index.getEntriesForFile(filePath);
-  const root = projectRoot;
+  const entries = ctx.index.getEntriesForFile(filePath);
+  const root = ctx.root;
   const resolveTarget = (
     relPath: string,
     lineSuffix: number | undefined,
@@ -1751,13 +1465,15 @@ connection.onDocumentFormatting(async (params) => {
   if (!document) return null;
 
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return [];
   // Spec §3.4: non-MarkSpec files MUST return an empty TextEdit[], not null
   // (null would be interpreted as "no opinion" / fall through to other formatters).
   // Checked before loadMarkdownFormatter() so the WASM prose formatter is
   // never loaded for files the server won't format.
   if (!isMarkspecFile(filePath)) return [];
   // Delivered corpus files are read-only (ADR-030) — never format them.
-  if (corpusFilePaths.has(filePath)) return [];
+  if (ctx.isCorpusFile(filePath)) return [];
 
   // Source files are read-only for formatting (ADR-029: Markdown files
   // only) — doc-comment layout belongs to the host language's formatter.
@@ -1808,9 +1524,11 @@ connection.onDocumentFormatting(async (params) => {
 connection.onCodeLens((params) => {
   tally("codeLens");
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return [];
   if (!isMarkspecFile(filePath)) return [];
-  const entries = index.getEntriesForFile(filePath);
-  const allEntries = index.getAllEntries();
+  const entries = ctx.index.getEntriesForFile(filePath);
+  const allEntries = ctx.index.getAllEntries();
   // deno-lint-ignore no-explicit-any
   return buildCodeLenses(entries, allEntries, pathToUri) as any;
 });
@@ -1822,11 +1540,13 @@ connection.onCodeLens((params) => {
 connection.languages.inlayHint.on((params) => {
   tally("inlayHint");
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return [];
   if (!isMarkspecFile(filePath)) return [];
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
-  const entries = index.getEntriesForFile(filePath);
-  const allEntries = index.getAllEntries();
+  const entries = ctx.index.getEntriesForFile(filePath);
+  const allEntries = ctx.index.getAllEntries();
   const lines = document.getText().split("\n");
   const lineLength = (line: number): number => lines[line - 1]?.length ?? 0;
   // deno-lint-ignore no-explicit-any
@@ -1874,8 +1594,10 @@ connection.onFoldingRanges((params) => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return null;
   if (!isMarkspecFile(filePath)) return null;
-  const entries = index.getEntriesForFile(filePath);
+  const entries = ctx.index.getEntriesForFile(filePath);
   const totalLines = document.getText().split("\n").length;
   // deno-lint-ignore no-explicit-any
   return entriesToFoldingRanges(entries, totalLines) as any;
@@ -1890,10 +1612,12 @@ connection.languages.semanticTokens.on((params) => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return { data: [] };
   const filePath = uriToPath(params.textDocument.uri);
+  const ctx = projects.contextFor(filePath);
+  if (!ctx) return { data: [] };
   if (!isMarkspecFile(filePath)) return { data: [] };
-  const entries = index.getEntriesForFile(filePath);
+  const entries = ctx.index.getEntriesForFile(filePath);
   const lines = document.getText().split("\n");
-  const tokens = buildSemanticTokens(entries, profile, lines);
+  const tokens = buildSemanticTokens(entries, ctx.profile, lines);
   return { data: encodeSemanticTokens(tokens) };
 });
 
@@ -1903,11 +1627,12 @@ connection.languages.semanticTokens.on((params) => {
 
 connection.onRequest(
   "markspec/profile",
-  (_params: { uri?: string }): MarkspecProfileResponse => {
+  (params: { uri?: string } | null): MarkspecProfileResponse => {
     tally("markspecProfile");
-    // `_params.uri` is accepted for forward compatibility but ignored in v1;
-    // the server uses its rootUri. See design doc §3.1.
-    return cachedProfileResponse;
+    // Answer for the project that owns `params.uri`; without a URI, answer
+    // for the primary project (#840). See design doc §3.1.
+    const ctx = resolveContextForUri(params?.uri);
+    return ctx?.profileResponse ?? EMPTY_PROFILE_RESPONSE;
   },
 );
 
@@ -1922,15 +1647,17 @@ connection.onRequest(
     const document = documents.get(params.uri);
     if (!document) return { entries: [] };
     const filePath = uriToPath(params.uri);
+    const ctx = projects.contextFor(filePath);
+    if (!ctx) return { entries: [] };
     if (!isMarkspecFile(filePath)) return { entries: [] };
-    const entries = index.getEntriesForFile(filePath);
+    const entries = ctx.index.getEntriesForFile(filePath);
     // Reuse the cached cross-file validation result that
-    // publishAllDiagnostics maintains, so we don't re-run validateAll()
+    // ProjectContext.publishAllDiagnostics maintains, so we don't re-run validateAll()
     // on every keystroke (the handler is invoked per-edit by the
     // VS Code DecorationManager).
-    const diagnostics = lastDiagnostics;
+    const diagnostics = ctx.lastDiagnostics;
     const lines = document.getText().split("\n");
-    return buildEntryRanges(entries, profile, diagnostics, lines);
+    return buildEntryRanges(entries, ctx.profile, diagnostics, lines);
   },
 );
 
@@ -1940,8 +1667,8 @@ connection.onRequest(
 
 connection.onShutdown(() => {
   logEvent("info", "lifecycle", { event: "onShutdown" });
-  shuttingDown = true;
-  debouncedValidateAll.cancel();
+  serverShuttingDown = true;
+  projects.shutdown();
   debouncedReloadWatchedFiles.cancel();
   // Roll up per-method counters + session duration into one final
   // `kind=shutdown` event. Emitted from `onShutdown` (orderly exit)
