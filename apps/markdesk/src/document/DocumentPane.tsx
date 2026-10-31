@@ -14,6 +14,7 @@ import {
   type EntryView,
 } from "../api/client";
 import { useOpenProduct } from "../app/useProduct";
+import { useWindowFocusCount } from "../app/useWindowFocusCount";
 import { useBridge } from "../shell/BridgeContext";
 import { SourceDrawer } from "./SourceDrawer";
 import { useHistory } from "./useHistory";
@@ -159,14 +160,16 @@ export function DocumentPane() {
   // What was loaded, tagged with the display ID it was loaded for, so a
   // result never shows for another selection.
   const [loaded, setLoaded] = useState<
-    { id: string; reading?: Reading; failed?: boolean }
+    { id: string; reading?: Reading; failed?: boolean; missing?: boolean }
   >();
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
+  // The server has no entry with the selected ID, for example one removed on
+  // disk that the history or an older render still names.
+  const missing = loaded?.id === selected && loaded?.missing === true;
   const [sourceOpen, setSourceOpen] = useState(false);
-  // Bumped when the window gets focus, so the selection is read again: the
-  // author may have edited the product's files in another application.
-  const [focusCount, setFocusCount] = useState(0);
+  // Bumped when the window gets focus, so the selection is read again.
+  const focusCount = useWindowFocusCount();
   const content = useRef<HTMLDivElement>(null);
   // Rendered documents of the current product with their ETags, by path.
   const documents = useMemo(
@@ -179,12 +182,6 @@ export function DocumentPane() {
   }, [client]);
 
   useEffect(() => {
-    const onFocus = () => setFocusCount((count) => count + 1);
-    globalThis.addEventListener("focus", onFocus);
-    return () => globalThis.removeEventListener("focus", onFocus);
-  }, []);
-
-  useEffect(() => {
     if (selected === undefined) return;
     let current = true;
     read(client, documents, selected).then((next) => {
@@ -192,7 +189,12 @@ export function DocumentPane() {
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (isNetworkFailure(error)) return;
-      if (current) setLoaded({ id: selected, failed: true });
+      if (!current) return;
+      if (error instanceof DeskError && error.code === "entry-not-found") {
+        setLoaded({ id: selected, missing: true });
+      } else {
+        setLoaded({ id: selected, failed: true });
+      }
     });
     return () => {
       current = false;
@@ -307,6 +309,11 @@ export function DocumentPane() {
       {failed && (
         <p role="alert" className="document-error">
           MarkDesk could not show this requirement.
+        </p>
+      )}
+      {missing && (
+        <p role="status" className="document-empty">
+          {`${selected} is not in this product.`}
         </p>
       )}
       <div className="document-body">

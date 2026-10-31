@@ -252,6 +252,52 @@ describe("DocumentPane", () => {
     expect(document.querySelector(".document-content")).toBe(content);
   });
 
+  it("says an unknown entry is not in the product, without an error", async () => {
+    const { select } = mount();
+    select("MISSING");
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "MISSING is not in this product.",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says a removed entry is gone, without an error, after focus", async () => {
+    let removed = false;
+    const base = fakeClient();
+    const client = fakeClient({
+      entry: vi.fn(async (id: string) => {
+        if (removed) throw new DeskError(404, "entry-not-found", "missing");
+        return base.entry(id);
+      }),
+    });
+    const { select } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    removed = true;
+    await act(async () => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(
+      await screen.findByText(`${ID} is not in this product.`),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Brakes")).toBeNull();
+    expect(document.querySelector(".document-sheet")).toBeNull();
+  });
+
+  it("keeps the error alert for a 404 that is not entry-not-found", async () => {
+    const { select } = mount(fakeClient({
+      entry: vi.fn(async () => {
+        throw new DeskError(404, "not-found", "no route");
+      }),
+    }));
+    select(ID);
+    expect(
+      await screen.findByText("MarkDesk could not show this requirement."),
+    ).toBeTruthy();
+    expect(screen.queryByText(`${ID} is not in this product.`)).toBeNull();
+  });
+
   it("uses the rendered entry for a source-file entry", async () => {
     const { client, select } = mount();
     select("SRC");
@@ -526,7 +572,11 @@ describe("DocumentPane", () => {
     const base = fakeClient();
     const client = fakeClient({
       entry: vi.fn((id: string) =>
-        id === "SLOW" ? loading.promise : base.entry(id)
+        id === "SLOW"
+          ? loading.promise
+          : id === "BROKEN"
+          ? Promise.reject(new DeskError(500, "internal", "boom"))
+          : base.entry(id)
       ),
     });
     const { select } = mount(client);
@@ -538,7 +588,7 @@ describe("DocumentPane", () => {
     await waitFor(() => expect(screen.queryByText("Brakes")).toBeNull());
     expect(screen.queryByText("line three")).toBeNull();
     expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
-    select("MISSING");
+    select("BROKEN");
     expect(
       await screen.findByText("MarkDesk could not show this requirement."),
     ).toBeTruthy();
@@ -577,8 +627,12 @@ describe("DocumentPane", () => {
   });
 
   it("shows a message for a server error", async () => {
-    const { select } = mount();
-    select("MISSING");
+    const { select } = mount(fakeClient({
+      entry: vi.fn(async () => {
+        throw new DeskError(500, "internal", "boom");
+      }),
+    }));
+    select(ID);
     expect(
       await screen.findByText("MarkDesk could not show this requirement."),
     ).toBeTruthy();
