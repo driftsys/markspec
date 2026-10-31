@@ -345,8 +345,54 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       break;
     }
   }
-  const softGateMessage = buildSoftGateMessage(candidates);
+  const setup = await loadProjectSetup(env, projectRoot);
+  return buildProject(
+    env,
+    projectRoot,
+    markspecDetected,
+    buildSoftGateMessage(candidates),
+    undefined,
+    setup,
+  );
+}
 
+/** Options for {@linkcode openProject}. */
+export interface OpenProjectOptions {
+  /**
+   * Return `false` for a file that belongs to another project (for example
+   * a nested project below `root`). Such files are skipped when the project
+   * discovers and tracks its files. When omitted, every file under `root`
+   * is owned.
+   */
+  readonly ownsFile?: (path: string) => boolean;
+}
+
+/**
+ * Open a project at a known root. Performs everything {@linkcode createProject}
+ * does after root resolution: loads config and profile, starts the background
+ * compile, and tracks staleness. `markspecDetected` is `true` and
+ * `softGateMessage` is the empty string (the soft gate never applies).
+ */
+export async function openProject(
+  root: string,
+  env: ProjectEnv,
+  options: OpenProjectOptions = {},
+): Promise<Project> {
+  const setup = await loadProjectSetup(env, root);
+  return buildProject(env, root, true, "", options.ownsFile, setup);
+}
+
+/** Config and profile chain loaded for a project root. */
+interface ProjectSetup {
+  readonly config: ProjectConfig | undefined;
+  readonly profileChain: ProfileChain | null;
+}
+
+/** Load config and profile for `projectRoot`; errors surface on first compile. */
+async function loadProjectSetup(
+  env: ProjectEnv,
+  projectRoot: string | undefined,
+): Promise<ProjectSetup> {
   let config: ProjectConfig | undefined;
   let profileChain: ProfileChain | null = null;
 
@@ -361,7 +407,22 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       profileChain = result.chain;
     } catch { /* profile errors surface on first compile */ }
   }
+  return { config, profileChain };
+}
 
+/**
+ * Shared implementation of {@linkcode createProject} and
+ * {@linkcode openProject}. Synchronous on purpose: the background compile
+ * starts in the same tick that the returned project resolves.
+ */
+function buildProject(
+  env: ProjectEnv,
+  projectRoot: string | undefined,
+  markspecDetected: boolean,
+  softGateMessage: string,
+  ownsFile: ((path: string) => boolean) | undefined,
+  { config, profileChain }: ProjectSetup,
+): Project {
   // Cache state.
   let inFlight: Promise<CompileResult> | null = null;
   let cached: CompileResult | null = null;
@@ -379,6 +440,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     if (!projectRoot) return [];
     const out: string[] = [];
     for await (const path of env.walk(projectRoot)) {
+      if (ownsFile && !ownsFile(path)) continue;
       const dot = path.lastIndexOf(".");
       if (dot < 0) continue;
       const ext = path.slice(dot).toLowerCase();
@@ -562,6 +624,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
     // 2) Any new tracked file?
     const known = new Set(tracked.map((t) => t.path));
     for await (const path of env.walk(projectRoot)) {
+      if (ownsFile && !ownsFile(path)) continue;
       const dot = path.lastIndexOf(".");
       if (dot < 0) continue;
       const ext = path.slice(dot).toLowerCase();

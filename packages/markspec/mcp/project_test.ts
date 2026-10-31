@@ -21,6 +21,7 @@ import {
   createProject,
   defaultEnv,
   detectMarkspecProject,
+  openProject,
   type ProjectEnv,
   SOFT_GATE_MESSAGE,
 } from "./project.ts";
@@ -852,3 +853,37 @@ Deno.test("getCompiled: malformed markspec.lock never throws — degrades to no 
 // now sits directly beside `tracked = snapshot; cached = merged;`, so any
 // future throw between `loadLockedUpstreams()` and that block leaves all
 // three fields at their pre-attempt values together.
+
+Deno.test("openProject: compiles entries under the given root", async () => {
+  const root = resolve("/proj/a");
+  const { env } = makeEnv({
+    [join(root, "req.md")]: { content: REQ_DOC, mtime: 1 },
+  });
+  const proj = await openProject(root, env);
+  assertEquals(proj.projectRoot, root);
+  assertEquals(proj.markspecDetected, true);
+  assertEquals(proj.softGateMessage, "");
+  const result = await proj.getCompiled();
+  assertExists(result.entries.get(makeDisplayId("STK_TEST_0001")));
+});
+
+Deno.test("openProject: ownsFile skips nested subtree", async () => {
+  const subDir = join(PROJ, "sub");
+  const subDoc = REQ_DOC.replace("STK_TEST_0001", "STK_TEST_0002").replace(
+    "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "01HGW2Q8MNP3RSTVWXYZABCDEG",
+  );
+  const { env, bumpMtime } = makeEnv({
+    [REQ_MD_PATH]: { content: REQ_DOC, mtime: 1 },
+    [join(subDir, "req.md")]: { content: subDoc, mtime: 1 },
+  });
+  const proj = await openProject(PROJ, env, {
+    ownsFile: (path) => !path.startsWith(subDir),
+  });
+  const result = await proj.getCompiled();
+  assertExists(result.entries.get(makeDisplayId("STK_TEST_0001")));
+  assertEquals(result.entries.get(makeDisplayId("STK_TEST_0002")), undefined);
+  // A new file in the nested project must not make this project stale.
+  bumpMtime(join(subDir, "new.md"), subDoc, 5);
+  assertStrictEquals(await proj.getCompiled(), result);
+});
