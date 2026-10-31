@@ -65,13 +65,32 @@ Every signal above is known synchronously when the process starts. The MCP
 server connects its transport first and only then runs discovery
 (`createWorkspace` in `mcp/workspace.ts`), so the `initialize` handshake never
 waits for the downward scan of section 7. Every tool and resource handler waits
-for discovery to finish before it answers; `tools/list` does not. Each `Project`
-stays **set-once**: no getters, no mutation, no async re-resolution after it is
-opened. This avoids restructuring `Project`'s five tool/resource-facing fields
-(`projectRoot`, `markspecDetected`, `config`, `profileChain`, `profile`) around
-a mutable or lazily-resolved root. The set of projects is the only mutable part:
-section 7 introduces an `McpWorkspace` that holds one `Project` per discovered
-root and swaps the set on `markspec_refresh`.
+for discovery to finish before it answers; `tools/list` does not.
+
+When discovery fails, the requests that waited for it get the error: a tool call
+returns an `isError` result and a resource request is rejected. The server then
+forgets the failed attempt, and the next tool call or resource request,
+including `markspec_refresh`, starts a new attempt. When `markspec_refresh` is
+the request that starts the new attempt, discovery runs twice: first the new
+attempt, then the rediscovery that `markspec_refresh` always runs. Requests that
+arrive while an attempt runs wait for that attempt, so only one attempt runs at
+a time. There is no background retry and no timer: a new attempt starts only
+when a request arrives. The notifications of section 7 are connected once, to
+the workspace of the attempt that succeeds.
+
+The server sets no timeout on discovery. A discovery that never finishes blocks
+every request that waits for it: tool calls, `resources/list`, and
+`resources/read`. A client that sets its own request time limit ends such a
+request when that limit expires; a client without one keeps waiting. Such a
+discovery stays stuck until the server restarts, as before this retry was added;
+a server-side timeout would add code for a case that has not occurred.
+
+Each `Project` stays **set-once**: no getters, no mutation, no async
+re-resolution after it is opened. This avoids restructuring `Project`'s five
+tool/resource-facing fields (`projectRoot`, `markspecDetected`, `config`,
+`profileChain`, `profile`) around a mutable or lazily-resolved root. The set of
+projects is the only mutable part: section 7 introduces an `McpWorkspace` that
+holds one `Project` per discovered root and swaps the set on `markspec_refresh`.
 
 ### 3. MCP `roots` is not used
 

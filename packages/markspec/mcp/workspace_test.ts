@@ -8,13 +8,18 @@
 import {
   assertEquals,
   assertExists,
+  assertRejects,
   assertStrictEquals,
   assertStringIncludes,
 } from "@std/assert";
 import { join, resolve, SEPARATOR } from "@std/path";
 import { makeDisplayId } from "../core/mod.ts";
 import type { ProjectEnv } from "./project.ts";
-import { createWorkspace } from "./workspace.ts";
+import {
+  createWorkspace,
+  createWorkspaceLoader,
+  type McpWorkspace,
+} from "./workspace.ts";
 
 const PARENT = resolve("/work");
 const A = join(PARENT, "a");
@@ -352,4 +357,142 @@ Deno.test("createWorkspace: a candidate folder listed twice is scanned once", as
   assertExists(ws.softGateMessage);
   // The searched folder is named once in the soft-gate text.
   assertEquals(ws.softGateMessage.split(PARENT).length - 1, 1);
+});
+
+// ---------------------------------------------------------------------------
+// createWorkspaceLoader: retry after a failed discovery (#855)
+// ---------------------------------------------------------------------------
+
+/** A stand-in workspace; the loader tests compare identities only. */
+function stubWorkspace(startRoot: string): McpWorkspace {
+  return { startRoot } as unknown as McpWorkspace;
+}
+
+/** A discover function whose attempts the test settles by hand. */
+function manualDiscover(): {
+  attempts: PromiseWithResolvers<McpWorkspace>[];
+  discover: () => Promise<McpWorkspace>;
+} {
+  const attempts: PromiseWithResolvers<McpWorkspace>[] = [];
+  return {
+    attempts,
+    discover: () => {
+      const attempt = Promise.withResolvers<McpWorkspace>();
+      attempts.push(attempt);
+      return attempt.promise;
+    },
+  };
+}
+
+Deno.test("createWorkspaceLoader: the call after a failed attempt starts a new one and keeps its workspace", async () => {
+  const { attempts, discover } = manualDiscover();
+  const load = createWorkspaceLoader(discover, () => {});
+  const first = load();
+  attempts[0].reject(new Error("startup failed"));
+  await assertRejects(() => first, Error, "startup failed");
+  assertEquals(attempts.length, 1);
+
+  const retry = load();
+  assertEquals(attempts.length, 2);
+  const workspace = stubWorkspace("/work");
+  attempts[1].resolve(workspace);
+  assertStrictEquals(await retry, workspace);
+
+  // Later calls use that workspace; no further attempt starts.
+  assertStrictEquals(await load(), workspace);
+  assertStrictEquals(await load(), workspace);
+  assertEquals(attempts.length, 2);
+});
+
+Deno.test("createWorkspaceLoader: calls made during one attempt share it", async () => {
+  const { attempts, discover } = manualDiscover();
+  const load = createWorkspaceLoader(discover, () => {});
+  // Two calls during the startup attempt.
+  const startupA = load();
+  const startupB = load();
+  assertEquals(attempts.length, 1);
+  attempts[0].reject(new Error("startup failed"));
+  await assertRejects(() => startupA, Error, "startup failed");
+  await assertRejects(() => startupB, Error, "startup failed");
+
+  // Two calls during the retry.
+  const retryA = load();
+  const retryB = load();
+  assertEquals(attempts.length, 2);
+  const workspace = stubWorkspace("/work");
+  attempts[1].resolve(workspace);
+  assertStrictEquals(await retryA, workspace);
+  assertStrictEquals(await retryB, workspace);
+  assertEquals(attempts.length, 2);
+});
+
+Deno.test("createWorkspaceLoader: a failed retry rejects its callers and the next call retries again", async () => {
+  const { attempts, discover } = manualDiscover();
+  const load = createWorkspaceLoader(discover, () => {});
+  const startup = load();
+  attempts[0].reject(new Error("startup failed"));
+  await assertRejects(() => startup, Error, "startup failed");
+
+  const waitA = load();
+  const waitB = load();
+  attempts[1].reject(new Error("retry failed"));
+  await assertRejects(() => waitA, Error, "retry failed");
+  await assertRejects(() => waitB, Error, "retry failed");
+  assertEquals(attempts.length, 2);
+
+  const next = load();
+  assertEquals(attempts.length, 3);
+  const workspace = stubWorkspace("/work");
+  attempts[2].resolve(workspace);
+  assertStrictEquals(await next, workspace);
+});
+
+Deno.test("createWorkspaceLoader: onReady runs once, for the attempt that succeeds", async () => {
+  const { attempts, discover } = manualDiscover();
+  const ready: McpWorkspace[] = [];
+  const load = createWorkspaceLoader(discover, (w) => ready.push(w));
+  const startup = load();
+  attempts[0].reject(new Error("startup failed"));
+  await assertRejects(() => startup, Error, "startup failed");
+  const retry = load();
+  attempts[1].reject(new Error("retry failed"));
+  await assertRejects(() => retry, Error, "retry failed");
+  assertEquals(ready, []);
+
+  const workspace = stubWorkspace("/work");
+  const success = load();
+  attempts[2].resolve(workspace);
+  await success;
+  await load();
+  await load();
+  assertEquals(ready.length, 1);
+  assertStrictEquals(ready[0], workspace);
+});
+
+Deno.test("createWorkspaceLoader: the call after onReady throws starts a new attempt", async () => {
+  const { attempts, discover } = manualDiscover();
+  let readyCalls = 0;
+  const load = createWorkspaceLoader(discover, () => {
+    readyCalls++;
+    if (readyCalls === 1) throw new Error("wiring failed");
+  });
+  const first = load();
+  attempts[0].resolve(stubWorkspace("/work"));
+  await assertRejects(() => first, Error, "wiring failed");
+
+  const workspace = stubWorkspace("/work");
+  const second = load();
+  assertEquals(attempts.length, 2);
+  attempts[1].resolve(workspace);
+  assertStrictEquals(await second, workspace);
+});
+
+Deno.test("createWorkspaceLoader: a failed attempt that nobody waits for is not an unhandled rejection", async () => {
+  const { attempts, discover } = manualDiscover();
+  const load = createWorkspaceLoader(discover, () => {});
+  load();
+  attempts[0].reject(new Error("startup failed"));
+  // Deno fails the test on an unhandled rejection once the event loop runs.
+  await new Promise((r) => setTimeout(r, 0));
+  assertEquals(attempts.length, 1);
 });

@@ -231,3 +231,60 @@ export async function createWorkspace(env: ProjectEnv): Promise<McpWorkspace> {
     },
   };
 }
+
+/**
+ * Returns the current discovery attempt, and starts a new one when there is
+ * none. See {@linkcode createWorkspaceLoader}.
+ */
+export type WorkspaceLoader = () => Promise<McpWorkspace>;
+
+/**
+ * What the tool and resource handlers answer from: a workspace that is
+ * ready, or a {@linkcode WorkspaceLoader} while discovery may still run or
+ * may have failed.
+ */
+export type WorkspaceSource = McpWorkspace | WorkspaceLoader;
+
+/** The workspace of `source`, waiting for discovery when `source` is a
+ * {@linkcode WorkspaceLoader}. */
+export function resolveWorkspace(
+  source: WorkspaceSource,
+): Promise<McpWorkspace> {
+  return typeof source === "function" ? source() : Promise.resolve(source);
+}
+
+/**
+ * Create a {@linkcode WorkspaceLoader} over `discover`. The first call
+ * starts a discovery attempt. Calls made while an attempt runs wait for that
+ * attempt, so only one attempt runs at a time. When an attempt fails, its
+ * callers get the error and the loader forgets the attempt: the next call
+ * starts a new one. When an attempt succeeds, `onReady` runs once with its
+ * workspace, and every later call returns that workspace; if `onReady`
+ * throws, the attempt counts as failed. There is no
+ * timer: a new attempt starts only when a call arrives.
+ */
+export function createWorkspaceLoader(
+  discover: () => Promise<McpWorkspace>,
+  onReady: (workspace: McpWorkspace) => void,
+): WorkspaceLoader {
+  let attempt: Promise<McpWorkspace> | undefined;
+  return () => {
+    if (attempt === undefined) {
+      const current = discover().then((workspace) => {
+        onReady(workspace);
+        return workspace;
+      }).catch((err) => {
+        // A failed discovery or a failed `onReady`. Only one attempt runs
+        // at a time, so this is the current one.
+        attempt = undefined;
+        throw err;
+      });
+      // A failed attempt that nobody waits for (the one started at startup)
+      // must not become an unhandled rejection; callers that wait still get
+      // the error.
+      current.catch(() => {});
+      attempt = current;
+    }
+    return attempt;
+  };
+}

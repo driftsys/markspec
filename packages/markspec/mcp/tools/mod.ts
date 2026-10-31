@@ -15,7 +15,11 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isAbsolute, join } from "@std/path";
-import type { McpWorkspace } from "../workspace.ts";
+import {
+  type McpWorkspace,
+  resolveWorkspace,
+  type WorkspaceSource,
+} from "../workspace.ts";
 import { perProject, projectArgOf } from "./fan_out.ts";
 import { PROJECT_LIST_DESCRIPTOR, renderProjectList } from "./project_list.ts";
 import {
@@ -295,12 +299,12 @@ export async function dispatchTool(
 
 /**
  * Attach `tools/list` and `tools/call` handlers to a Server instance. When
- * `workspace` is a promise (discovery still running), each tool call waits
- * for it; `tools/list` does not.
+ * `workspace` is a loader, each tool call waits for its current discovery
+ * attempt, or starts a new one after a failure; `tools/list` does not.
  */
 export function registerTools(
   server: Server,
-  workspace: McpWorkspace | Promise<McpWorkspace>,
+  workspace: WorkspaceSource,
 ): void {
   server.setRequestHandler(ListToolsRequestSchema, () =>
     Promise.resolve({
@@ -314,7 +318,7 @@ export function registerTools(
         const text = await dispatchTool(
           req.params.name,
           req.params.arguments,
-          await workspace,
+          await resolveWorkspace(workspace),
         );
         return { content: [{ type: "text", text }] };
       } catch (err) {
