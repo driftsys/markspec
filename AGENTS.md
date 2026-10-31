@@ -222,7 +222,8 @@ just clean                      # remove build artifacts
 **`just verify` does not exist.** Use `just build` before opening a PR.
 
 **MarkDesk is outside `just`.** `apps/markdesk/` is not a Deno workspace member,
-so `just check` and `just build` do not cover it. When a change touches
+so `just check` and `just build` do not build or test it (`just lint` still runs
+`dprint check` on its Markdown, JSON, and TOML files). When a change touches
 `apps/markdesk/` or `schemas/desk-api.json`, also run:
 
 ```bash
