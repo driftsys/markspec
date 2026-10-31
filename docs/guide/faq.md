@@ -38,9 +38,11 @@ root. If no `project.yaml` is found, these commands exit with an error.
 
 `check`, `fmt`, and `lint` find the project of each file argument by walking up
 from the directory of that file to the nearest `project.yaml`, else to the
-nearest `.markspec.yaml`. Invoked bare, they walk up from the current working
-directory instead. A file with neither config file above it is processed
-file-local, without a profile. See
+nearest `.markspec.yaml`. Invoked bare, they start from the current working
+directory instead. A config file in a folder that an enclosing project excludes,
+gitignores, or hides is not a project root; the enclosing project is used. A
+file with neither config file above it is processed file-local, without a
+profile. See
 [Which project a file belongs to](cli.md#which-project-a-file-belongs-to).
 
 ---

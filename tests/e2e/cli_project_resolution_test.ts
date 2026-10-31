@@ -284,26 +284,37 @@ Deno.test("fmt <file>: refuses a delivered document when run from outside its pr
  * `vendor/` that holds its own `.markspec.yaml` (profile declares `Beta`).
  * `hide` lists the parent's way to hide `vendor/`: a `.markspec.yaml`
  * `exclude:` entry or a `.gitignore` entry. */
-function parentWithHiddenNested(
-  hide: "exclude" | "gitignore",
-): Record<string, string> {
+type HideMode = "exclude" | "gitignore" | "hidden";
+
+/** The nested folder for each way the parent can hide it. */
+function hiddenDir(hide: HideMode): string {
+  return hide === "hidden" ? ".vendor" : "vendor";
+}
+
+function parentWithHiddenNested(hide: HideMode): Record<string, string> {
+  const dir = hiddenDir(hide);
   const files: Record<string, string> = {
     "p/.markspec.yaml": hide === "exclude"
       ? "profiles:\n  - ./prof\nexclude:\n  - prof/\n  - vendor/\n"
       : "profiles:\n  - ./prof\nexclude:\n  - prof/\n",
     "p/prof/markspec.yaml": profileDeclaring("pa", "Alpha"),
-    "p/vendor/.markspec.yaml": "profiles:\n  - ./prof\n",
-    "p/vendor/prof/markspec.yaml": profileDeclaring("pv", "Beta"),
+    [`p/${dir}/.markspec.yaml`]: "profiles:\n  - ./prof\n",
+    [`p/${dir}/prof/markspec.yaml`]: profileDeclaring("pv", "Beta"),
     // `Alpha` is declared only by the parent's profile.
-    "p/vendor/req.md": entryUsing("STK_0001", "Alpha: alpha value"),
+    [`p/${dir}/req.md`]: entryUsing("STK_0001", "Alpha: alpha value"),
   };
   if (hide === "gitignore") files["p/.gitignore"] = "vendor/\n";
   return files;
 }
 
-for (const hide of ["exclude", "gitignore"] as const) {
+const HIDE_MODES = ["exclude", "gitignore", "hidden"] as const;
+
+for (const hide of HIDE_MODES) {
   Deno.test(`check <file>: a config in a folder the parent hides (${hide}) is not a project root, as in the LSP (#845)`, async () => {
-    const { code, stderr } = await markspec(["check", "p/vendor/req.md"], {
+    const { code, stderr } = await markspec([
+      "check",
+      `p/${hiddenDir(hide)}/req.md`,
+    ], {
       files: parentWithHiddenNested(hide),
     });
     assertEquals(stderr.includes("MSL-R010"), false, stderr);
@@ -372,19 +383,26 @@ Deno.test("check <dir>: a directory argument at a parent root includes nested pr
   assertEquals(dirArg.code, bare.code, dirArg.stderr);
 });
 
-for (const hide of ["exclude", "gitignore"] as const) {
+for (const hide of HIDE_MODES) {
   Deno.test(`check: bare invocation inside a folder the parent hides (${hide}) uses the parent project, as in the LSP (#845)`, async () => {
+    const dir = hiddenDir(hide);
     const run = await markspecPersist(["check"], {
       files: {
         ...parentWithHiddenNested(hide),
-        "p/vendor/docs/.keep": "",
+        [`p/${dir}/docs/.keep`]: "",
+        // `Beta` is declared only by the hidden folder's profile, so the
+        // parent's profile reports it: this proves the parent's files were
+        // checked with the parent's profile.
+        "p/req.md": entryUsing("STK_0002", "Beta: beta value"),
       },
-      cwd: "p/vendor/docs",
+      cwd: `p/${dir}/docs`,
     });
     try {
       const header = /under (\S+)/.exec(run.stderr);
       assertEquals(header !== null, true, run.stderr);
       assertEquals(basename(header![1]), "p", run.stderr);
+      assertStringIncludes(run.stderr, "unknown attribute 'Beta'");
+      assertEquals(run.stderr.includes("'Alpha'"), false, run.stderr);
     } finally {
       await Deno.remove(run.dir, { recursive: true });
     }
