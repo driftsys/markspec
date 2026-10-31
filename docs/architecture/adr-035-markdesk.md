@@ -468,12 +468,13 @@ built: the first prompt" below).
   (`.github/workflows/markdesk.yaml`) type-checks, tests, and builds the UI,
   runs `scripts/check_desk_client.sh`, and on Linux runs `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo test`, and
-  `cargo test -- --ignored` for the shell; the ignored tests start the real
-  sidecar from `packages/markspec/main.ts` with Deno. The main CI workflow
-  checks that the compiled `markspec` binary serves the desk handshake and stops
-  when its stdin closes. Tests drive the UI against a mocked client; there is no
-  end-to-end test of the real window, only a manual smoke test in
-  `apps/markdesk/README.md`.
+  `cargo test -- --ignored --skip manual_assistant_` for the shell. The ignored
+  tests that CI runs start the real sidecar from `packages/markspec/main.ts`
+  with Deno; the skipped `manual_assistant_*` tests need a signed-in Claude Code
+  and run only by hand. The main CI workflow checks that the compiled `markspec`
+  binary serves the desk handshake and stops when its stdin closes. Tests drive
+  the UI against a mocked client; there is no end-to-end test of the real
+  window, only a manual smoke test in `apps/markdesk/README.md`.
 - **Document revalidation.** The UI keeps each rendered document with its `ETag`
   for the session of an opened product, and never reuses one without asking the
   server (SAD_DESK_0013 to SAD_DESK_0015). The tag is a quoted SHA-256 digest of
@@ -563,20 +564,28 @@ built: the first prompt" below).
   not reported.
 - **Write path.** Preview and apply run the same pipeline
   (`packages/markspec/desk/proposals.ts`), with the checks in this order: 428
-  `precondition-required` when `If-Match` is missing; 400 for a request body of
-  the wrong shape; 404 `entry-not-found` and 409 `entry-read-only` or
-  `entry-not-markdown` for the target entry; 404 `not-found` when the file is
-  not a readable project file inside the root; 409 `entry-file-not-utf8` when
-  the file's bytes are not valid UTF-8 (a lossy read would change those bytes on
-  write); 412 `precondition-failed` when `If-Match` does not name the current
-  tag with the strong comparison; 422 `format-failed` when the prose formatter
-  cannot load; then the pipeline refusals (409 `entry-body-empty`,
-  `entry-trailer-invalid`; 422 `proposal-empty`, `proposal-too-large` above 20
-  000 characters before or after formatting, `proposal-changes-entries`,
-  `format-failed`). After the checks come the `markspec fmt` formatter on a
-  candidate text, then a splice of only the formatted target body into the
-  current file text with `replaceEntryBody` (`core/formatter/entry_body.ts`).
-  The splice keeps every other byte: other entries, prose, front matter, line
+  `precondition-required` when `If-Match` is missing; 422 `proposal-too-large`
+  for a request body over 124 096 bytes (the handler stops reading there); 400
+  for a request body of the wrong shape; 404 `entry-not-found` and 409
+  `entry-read-only` or `entry-not-markdown` for the target entry; 404
+  `not-found` when the file is not a readable project file inside the root; 409
+  `entry-file-not-utf8` when the file's bytes are not valid UTF-8 (a lossy read
+  would change those bytes on write); 412 `precondition-failed` when `If-Match`
+  does not name the current tag with the strong comparison; 422 `format-failed`
+  when the prose formatter cannot load; then the pipeline refusals (409
+  `entry-body-empty`, `entry-trailer-invalid`; 422 `proposal-empty`,
+  `proposal-too-large` above 20 000 characters before or after formatting,
+  `proposal-changes-entries`, `format-failed`). After the checks come the
+  `markspec fmt` formatter on a candidate text, then a splice of only the
+  formatted target body into the current file text with `replaceEntryBody`
+  (`core/formatter/entry_body.ts`). Apply writes exactly the body it receives,
+  which the UI takes from the preview: the formatter is not idempotent on its
+  own output (a second format can drop a tab at a wrap point, or raise
+  `MSL-F900` on a wrapped ordered list item), so when formatting the received
+  body changes it or fails, apply splices the received body unchanged and
+  accepts it when it passes the length limit and the same identity checks. A
+  client that skips the preview can therefore write an unformatted body. The
+  splice keeps every other byte: other entries, prose, front matter, line
   endings, and a UTF-8 BOM (SAD_DESK_0026). A reparse must give the same entries
   with the same IDs, and the same title and trailer for the target, or the
   change is refused. A target whose display ID two entries of the file share is
@@ -593,12 +602,15 @@ built: the first prompt" below).
   answers 500 `write-failed`. Applies are serialized in the handler, so a second
   Accept on the same tag answers 412 and writes nothing. Just before the write,
   apply reads the file again and answers 412 when its bytes changed, so a save
-  from another application during the pipeline (about one second on a 400-entry
-  file) is not overwritten; a save in the short time between that read and the
-  rename is still possible. A process killed between the create of the temporary
-  file and the rename leaves a hidden `.<name>.markdesk-<hex>.tmp` file in the
-  product folder; nothing removes it. The response carries the new document
-  `ETag`. A write failure answers 500 `write-failed`.
+  from another application during the pipeline is not overwritten; the time the
+  pipeline takes on a large file is not measured. A save in the short time
+  between that read and the rename is still lost. The rename gives the file a
+  new inode: only the mode of the original is copied, so its owner, group, ACLs,
+  and extended attributes are not kept, and a hard link to the original keeps
+  the old content. A process killed between the create of the temporary file and
+  the rename leaves a hidden `.<name>.markdesk-<hex>.tmp` file in the product
+  folder; nothing removes it. The response carries the new document `ETag`. A
+  write failure answers 500 `write-failed`.
 - **Prompt run.** The shell builds the prompt from a fixed template with the
   entry's title, current body, trailer attributes (read-only context), and the
   instruction, and passes it as an argument; a prompt over 100 000 bytes is
@@ -613,12 +625,18 @@ built: the first prompt" below).
   --append-system-prompt <text>`.
   `--tools ""` removes the built-in tools, `--strict-mcp-config` without
   `--mcp-config` drops user MCP servers, `--setting-sources ""` stops user,
-  project, and local settings, so user hooks and plugins do not run, and the
-  appended system text tells the model it has no tools, which stops it from
-  writing tool calls as text until the timeout. Ignored manual tests
-  (`manual_assistant_*`) prove this on a signed-in Claude Code: the init event
-  reports no tools, no MCP servers, and no hook, and a prompt cannot read a file
-  outside its folder, run a command, or write a file. CI skips them. Codex and
+  project, and local settings, so the hooks and plugins those settings files
+  enable do not run (managed policy settings, the plugins built into Claude
+  Code, and user `CLAUDE.md` files still load), and the appended system text
+  tells the model it has no tools, which stops it from writing tool calls as
+  text until the timeout. Ignored manual tests (`manual_assistant_*`) check this
+  on a signed-in Claude Code: the init event reports no tools, no MCP servers,
+  and no hook; a prompt that asks to read a file outside its folder does not get
+  the file content into the reply; and a prompt that asks to run a command or
+  write a file leaves no file behind. The read, command, and write checks also
+  pass when the model declines without trying, so they show that the action did
+  not happen, not that it was blocked. CI skips them, so a Claude Code release
+  that changes what `--tools ""` does is not caught automatically. Codex and
   Copilot stay disabled with "Prompts are not yet available for <assistant>.":
   `codex exec --help` lists no option that blocks file reads
   (`--sandbox read-only` still allows reads), and the Copilot
