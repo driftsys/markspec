@@ -6,7 +6,8 @@
  *
  * {@linkcode previewBody} checks the proposal, splices it into the file
  * text, runs the `markspec fmt` formatter on the result, and returns the
- * formatted body next to the current (formatted) body. It writes
+ * formatted body next to the current body (formatted when the formatted
+ * form holds the same words as the body on disk). It writes
  * nothing. {@linkcode applyBody} runs the same pipeline and returns the
  * new file text: the original text with only the target body replaced by
  * the formatted proposal. Every other byte of the file stays unchanged.
@@ -56,7 +57,11 @@ export type ProposalOutcome<T> =
 export interface BodyPreview {
   /** The proposed body as `markspec fmt` writes it (dedented, LF). */
   readonly body: string;
-  /** The current body as `markspec fmt` writes it (dedented, LF). */
+  /**
+   * The formatted current body (dedented, LF) when it holds the same words
+   * as the body on disk; otherwise the body as written on disk, which is
+   * the text apply replaces.
+   */
   readonly currentBody: string;
 }
 
@@ -172,9 +177,16 @@ function formatText(
   }
 }
 
-/** The words of `body`, split on whitespace, joined by one space. */
+/**
+ * The letters and digits of `body`, as words joined by one space. Markdown
+ * punctuation is dropped, so a formatter rewrite such as `*a*` to `_a_`, a
+ * list marker change, or a table rule change compares equal. Only lost or
+ * moved text compares different.
+ */
 function words(body: string): string {
-  return body.split(/\s+/).filter((w) => w !== "").join(" ");
+  return body.replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) =>
+    w !== ""
+  ).join(" ");
 }
 
 /** A checked proposal: the formatted bodies plus the file text it produces. */
@@ -201,10 +213,13 @@ interface CheckedProposal {
  * the whole-document formatter once.
  *
  * `currentBody` is the target body read from the formatted current text
- * only when it holds the same words as the raw body, which is the body
- * apply replaces. Otherwise (the formatter moved lines out of the body,
- * as it can do with a lazy continuation line) `currentBody` is the raw
- * body, so the author sees every line that Accept removes.
+ * only when it holds the same letters and digits as the raw body, which is
+ * the body apply replaces (see {@linkcode words}). Otherwise (the formatter
+ * moved lines out of the body, as it can do with a lazy continuation line)
+ * `currentBody` is the raw body, so the author sees every line that Accept
+ * removes.
+ *
+ * The length limit applies to the raw proposal and to the formatted body.
  *
  * The `format-failed` branches and the final identity check are
  * defensive: `format` catches a prose formatter that throws (MSL-F012),
@@ -247,6 +262,10 @@ async function checkProposal(
   }
   const body = await readEntryBody(formattedCandidate.output, file, displayId);
   if (body === undefined) return refuse("format-failed");
+  // Formatting can make a body longer (an indented code block becomes a
+  // fenced one). Refuse here, so a body from a preview passes the length
+  // check when it is applied.
+  if (body.length > MAX_PROPOSAL_CHARS) return refuse("proposal-too-large");
 
   let currentBody: string | undefined;
   if (withCurrent) {

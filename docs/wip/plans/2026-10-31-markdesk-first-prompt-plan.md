@@ -372,6 +372,12 @@ git commit -m "feat(core): read and replace one entry body in a Markdown file" -
   export function applyBody(text: string, file: string, displayId: string, proposed: string, formatProse: ProseFormatter): Promise<ProposalOutcome<string>>;
   ```
 
+  As built, both functions take an optional last `formatDocument` parameter
+  (default `format`), and the module exports `isTargetF900` and the
+  `DocumentFormatter` type. These are test seams marked `@internal`; Task 3 does
+  not use them. The length limit also applies to the formatted body, so a
+  preview body always passes the limit at apply.
+
 - [ ] **Step 1: Write the failing tests** (real formatter:
       `const prose = await loadMarkdownFormatter();`), on a copy of
       `tests/fixtures/desk-project/docs/system.md` read into `SYSTEM` with

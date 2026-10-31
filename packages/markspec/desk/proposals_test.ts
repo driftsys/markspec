@@ -477,3 +477,46 @@ Deno.test("previewBody and applyBody: refuse a formatted body that fails the sec
     "proposal-changes-entries",
   );
 });
+
+Deno.test("previewBody: a current body the formatter rewrites is shown formatted", async () => {
+  // The formatter changes `*shall*` to `_shall_` and wraps the long line.
+  // Those are not lost words, so currentBody is the formatted body.
+  const text = SYSTEM.replace(
+    "The braking system shall apply full braking torque within 200 ms of a\n  confirmed obstacle.",
+    "The braking system *shall* apply full braking torque within 200 ms of a confirmed obstacle.",
+  );
+  assert(text !== SYSTEM);
+  const r = await previewBody(text, FILE, "SYS_BRK_0001", "New body.", prose);
+  assert(r.ok);
+  assertEquals(
+    r.value.currentBody,
+    "The braking system _shall_ apply full braking torque within 200 ms of a\nconfirmed obstacle.",
+  );
+});
+
+Deno.test("previewBody: a preview body longer than its input still applies", async () => {
+  // Formatting turns the indented code block into a fenced one, which adds
+  // characters. A preview body over the limit is refused at preview time,
+  // so a preview the author sees always applies.
+  const head = "Intro.\n\n    code line\n\n";
+  const filler = "word ".repeat(
+    Math.floor((MAX_PROPOSAL_CHARS - head.length) / 5),
+  );
+  const proposed = (head + filler).padEnd(MAX_PROPOSAL_CHARS, "x");
+  assertEquals(proposed.length, MAX_PROPOSAL_CHARS);
+  const preview = await previewBody(
+    SYSTEM,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+  );
+  if (preview.ok) {
+    assert(
+      (await applyBody(SYSTEM, FILE, "SYS_BRK_0001", preview.value.body, prose))
+        .ok,
+    );
+  } else {
+    assertEquals(preview.refusal, "proposal-too-large");
+  }
+});
