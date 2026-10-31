@@ -13,7 +13,11 @@ import {
   MARKDOWN_EXTENSIONS,
   upstreamCacheRoot,
 } from "../../core/mod.ts";
-import type { CaptionConventions, Diagnostic } from "../../core/mod.ts";
+import type {
+  CaptionConventions,
+  DeliveredDocument,
+  Diagnostic,
+} from "../../core/mod.ts";
 import {
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
@@ -21,6 +25,7 @@ import {
   readFile,
   renderDiagnosticLocation,
   resolveScope,
+  type ScopeGroup,
 } from "../helpers.ts";
 import { defaultReadFile } from "./lock.ts";
 
@@ -42,266 +47,13 @@ export const checkCmd = new Command()
         verb: "checking",
         quiet: options.quiet === true || options.format === "json",
       });
-      const files = scope.files;
-      const projectRoot = scope.projectRoot;
-
-      const chain = projectRoot !== undefined
-        ? await loadActiveProfile(projectRoot)
-        : null;
-
-      // Load the markspec tool config (.markspec.yaml) for config-driven
-      // rules (e.g. MSL-C072 caption-position convention). Absent config →
-      // defaults (rules inactive). A malformed .markspec.yaml IS surfaced —
-      // a bad caption-conventions block silently disabling MSL-C072 would be
-      // invisible debt (M-1 fix).
-      let captionConventions: CaptionConventions = {};
-      if (projectRoot !== undefined) {
-        const toolConfigResult = await loadToolConfig(projectRoot, readFile);
-        const toolConfigErrors = toolConfigResult.diagnostics.filter(
-          (d) => d.severity === "error",
+      const results: GroupCheckResult[] = [];
+      for (const group of scope.groups) {
+        results.push(
+          await checkGroup(group, scope.projectWide, options.strict === true),
         );
-        if (toolConfigErrors.length > 0) {
-          for (const d of toolConfigErrors) {
-            console.error(`error: ${d.message}`);
-          }
-          Deno.exit(1);
-        }
-        captionConventions = toolConfigResult.config.captionConventions;
       }
-
-      // Read + parse markspec.lock once, project-wide only, BEFORE
-      // `allEntries` is finalized — its snapshot-carrying upstream rows
-      // (federated upstream, slice 4) must join the graph ahead of
-      // `runPipeline` so a cross-repo `Satisfies:` resolves. Reused
-      // below by the fmt/lockfile drift gates so the file is read and
-      // parsed exactly once. A file-local `check <file>` skips this the
-      // same way it skips the corpus load below — it cannot distinguish
-      // a valid cross-repo target from a typo any more than MSL-L006 could.
-      const { loadProjectUpstreams, parseLockfile } = await import(
-        "../../core/mod.ts"
-      );
-      let lockParse: ReturnType<typeof parseLockfile> | undefined;
-      let lockPath: string | undefined;
-      let cacheRoot: string | undefined;
-      if (scope.projectWide && projectRoot !== undefined) {
-        lockPath = join(projectRoot, "markspec.lock");
-        cacheRoot = upstreamCacheRoot(projectRoot);
-        const lockRaw = await readFile(lockPath);
-        if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
-      }
-
-      // Load the delivered corpus (ADR-030) — project-wide only, matching
-      // the other composite gates: a file-local `check <file>` cannot
-      // distinguish a corpus target from a typo any more than MSL-L006
-      // could, so the corpus stays out of scope there. `loadProjectCorpus`
-      // is the same load + index `compileProject` uses (a `null` chain yields
-      // an empty corpus + index), so the two surfaces stay in lockstep.
-      const corpus = await loadProjectCorpus(
-        scope.projectWide ? chain : null,
-      );
-      const corpusIndex = corpus.corpusIndex;
-
-      // Load locked upstream snapshots (federated upstream, slice 4) —
-      // project-wide only, same rationale as the corpus load above.
-      // Soft-fail (mirrors `compileProject`): a stale or missing upstream
-      // cache surfaces diagnostics but never aborts `check`.
-      const upstreams = scope.projectWide && projectRoot !== undefined
-        ? await loadProjectUpstreams(projectRoot, lockParse?.lockfile, readFile)
-        : { entries: [], diagnostics: [] };
-
-      // Declared upstream ids (federated upstream, slice 4) — derived from
-      // project.yaml's `dependencies:`/`references:` via `deriveUpstreamId`.
-      // Stage 4 uses this to fire MSL-T014 (naming the searched upstream
-      // set) instead of the generic MSL-L006 for a trace target unresolved
-      // after federation. Project-wide only — file-local `check <file>`
-      // already suppresses both codes regardless (Stage 4's projectWide
-      // filter), so there is nothing to gain from computing this otherwise.
-      let declaredUpstreamIds: string[] = [];
-      if (scope.projectWide && projectRoot !== undefined) {
-        const projectConfig = await loadConfig(projectRoot, readFile);
-        if (projectConfig) {
-          declaredUpstreamIds = [
-            ...projectConfig.config.dependencies,
-            ...projectConfig.config.references,
-          ]
-            .map((ref) => deriveUpstreamId(ref))
-            .filter((id): id is string => id !== undefined);
-        }
-      }
-
-      const {
-        detectDirectives,
-        parseFile,
-        runPipeline,
-        validateListingDocuments,
-      } = await import("../../core/mod.ts");
-
-      const allEntries = [];
-      allEntries.push(...corpus.entries);
-      allEntries.push(...upstreams.entries);
-      const parseDiagnostics: Diagnostic[] = [];
-      // deno-lint-ignore no-explicit-any
-      const listingContexts: any[] = [];
-      const mdContents = new Map<string, string>();
-      // `check` deliberately does not use the shared `collectProjectEntries`
-      // collector (`lock`/`compile`/`fmt`/`doctor` do): it needs each file's
-      // raw content and per-file directives here (for the fmt-drift `mdContents`
-      // and the listing contexts), not just the flattened entries. Its bare-mode
-      // file set is equivalent by construction — `resolveScope` walks
-      // `core/discovery` with the same `exclude:` and default
-      // `RELEVANT_EXTENSIONS` the collector relies on — so the MSL-L212 gate
-      // still compares against exactly the set `markspec lock` pinned.
-      for (const filePath of files) {
-        let content: string;
-        try {
-          content = await Deno.readTextFile(filePath);
-        } catch {
-          console.error(`error: ${filePath}: file not found`);
-          Deno.exit(1);
-        }
-        if (MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase())) {
-          mdContents.set(filePath, content);
-        }
-        const result = await parseFile(content, { file: filePath });
-        allEntries.push(...result.entries);
-        parseDiagnostics.push(...result.diagnostics);
-        listingContexts.push({
-          file: filePath,
-          content,
-          entries: result.entries,
-          directives: detectDirectives(content, { file: filePath }),
-        });
-      }
-
-      // projectWide reflects the resolved scope: a bare invocation walks the
-      // whole project, so MSL-L006 ("link target does not resolve") is
-      // meaningful and fires. Explicit file args stay file-local — that
-      // subset cannot distinguish a typo from a valid cross-file target, so
-      // MSL-L006 is suppressed. Full existence checks are always available
-      // via `markspec compile` or the LSP (which index all files).
-      const result = runPipeline(
-        allEntries,
-        chain?.effective ?? null,
-        captionConventions,
-        { projectWide: scope.projectWide, declaredUpstreamIds },
-      );
-
-      // Corpus-aware post-pass (ADR-030): a project entry re-declaring a
-      // display ID already delivered by the corpus becomes MSL-R014 (not
-      // the generic duplicate codes), and pipeline findings located inside
-      // a corpus file are downgraded to attributed warnings — a consumer
-      // build must not go red over an upstream bug it cannot fix. No-op
-      // when no corpus was injected.
-      const { attributeCorpusDiagnostics, detectCorpusCollisions } =
-        await import("../../core/mod.ts");
-      const collisions = detectCorpusCollisions(allEntries);
-      const pipelineDiagnostics = [
-        ...attributeCorpusDiagnostics(
-          result.diagnostics,
-          allEntries,
-          collisions.collidedTokens,
-        ),
-        ...collisions.diagnostics,
-      ];
-
-      const listingDiagnostics = validateListingDocuments(listingContexts);
-
-      // Project-wide-only gates (the composite `check` gate). A file-local
-      // `check <file>` stays a fast structural check, and the canonical agent
-      // path runs `fmt` before `check`. The diagnostic-producing computation
-      // lives in `core/gates`; the command only gathers inputs (the loaded
-      // Markdown formatter, the parsed lockfile) and calls the stages.
-      let fmtDiagnostics: Diagnostic[] = [];
-      let lockDiagnostics: Diagnostic[] = [];
-      // MSL-L215 (design §4.4): unreleased-dependency-pin advisory, one
-      // warning per `[[upstream.dependency]]` row not pinned to a tag.
-      // Project-wide only, reusing the `lockParse` already read above — a
-      // file-local `check <file>` cannot distinguish "no lockfile" from
-      // "irrelevant to this file" any more than the other lockfile-backed
-      // gates can, so it stays out of scope there. Below `--strict` this is
-      // the gentle project-level advisory; `--strict` promotes it to an
-      // error via the existing warning→error map below (it is deliberately
-      // NOT added to `strictExempt` — an unreleased pin is the consumer's
-      // own, fixable choice, unlike corpus-attributed findings).
-      let pinDiagnostics: Diagnostic[] = [];
-      if (scope.projectWide) {
-        const { dependencyPinAssurance, fmtDriftGate, lockfileDriftGate } =
-          await import("../../core/mod.ts");
-        pinDiagnostics = dependencyPinAssurance(lockParse?.lockfile);
-
-        const formatMarkdownProse = await loadMarkdownFormatterOrExit();
-
-        // markspec.lock was already read + parsed above (before allEntries
-        // was finalized, so upstream entries could join the graph); reuse
-        // `lockParse`/`lockPath`/`cacheRoot` here rather than re-reading it.
-        // Its edge ledger feeds reference healing (MSL-F011) and its cached
-        // edge hash feeds the lockfile gate (MSL-L212).
-        const ledger = lockParse?.lockfile?.edges ?? [];
-
-        fmtDiagnostics = await fmtDriftGate(
-          mdContents,
-          allEntries,
-          ledger,
-          formatMarkdownProse,
-        );
-
-        if (
-          lockParse !== undefined && lockPath !== undefined &&
-          cacheRoot !== undefined
-        ) {
-          lockDiagnostics = await lockfileDriftGate(
-            lockParse,
-            lockPath,
-            allEntries,
-            { cacheRoot, readFile: defaultReadFile },
-          );
-        }
-      }
-
-      // Gate: prose lint (project-wide only, advisory — warnings/info
-      // unless --strict).
-      let proseDiagnostics: Diagnostic[] = [];
-      if (scope.projectWide) {
-        const { proseLintGate } = await import("../../core/mod.ts");
-        proseDiagnostics = await proseLintGate(allEntries, chain?.effective);
-      }
-
-      // Merge upstream-load, parse-level (MSL-P0xx), corpus-load, pipeline,
-      // listing, fmt-drift, lockfile-drift, pin-assurance, and prose-lint
-      // diagnostics.
-      const allDiagnostics = [
-        ...upstreams.diagnostics,
-        ...parseDiagnostics,
-        ...corpus.diagnostics,
-        ...pipelineDiagnostics,
-        ...listingDiagnostics,
-        ...fmtDiagnostics,
-        ...lockDiagnostics,
-        ...pinDiagnostics,
-        ...proseDiagnostics,
-      ];
-
-      // Apply --strict: promote warnings to errors. Corpus-attributed
-      // findings are exempt (ADR-030) — a consumer cannot fix upstream
-      // content, so promoting them would create unfixable red builds.
-      // Tracked by identity, not by message matching: everything the
-      // corpus loader emitted (attributed parse findings + the docs-only
-      // missing-file warning PROFILE-DELIVERS-002), plus every pipeline
-      // finding located inside a delivered corpus file (the downgraded
-      // attributed warnings from attributeCorpusDiagnostics).
-      const strictExempt = new Set<Diagnostic>(corpus.diagnostics);
-      for (const d of pipelineDiagnostics) {
-        if (d.location && corpusIndex.has(d.location.file)) {
-          strictExempt.add(d);
-        }
-      }
-      const diagnostics = options.strict
-        ? allDiagnostics.map((d) =>
-          d.severity === "warning" && !strictExempt.has(d)
-            ? { ...d, severity: "error" as const }
-            : d
-        )
-        : allDiagnostics;
+      const diagnostics = results.flatMap((r) => r.diagnostics);
 
       const hasErrors = diagnostics.some((d) => d.severity === "error");
       const hasWarnings = diagnostics.some((d) => d.severity === "warning");
@@ -309,9 +61,11 @@ export const checkCmd = new Command()
       if (options.format === "json") {
         console.log(JSON.stringify(diagnostics, null, 2));
       } else {
-        for (const d of diagnostics) {
-          const loc = renderDiagnosticLocation(d, corpusIndex);
-          console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
+        for (const { diagnostics: groupDiagnostics, corpusIndex } of results) {
+          for (const d of groupDiagnostics) {
+            const loc = renderDiagnosticLocation(d, corpusIndex);
+            console.error(`${d.severity}[${d.code}]: ${loc} ${d.message}`);
+          }
         }
       }
 
@@ -322,3 +76,285 @@ export const checkCmd = new Command()
       }
     },
   );
+
+/** The diagnostics of one project group, with the delivered-corpus index
+ * used to render their locations. */
+interface GroupCheckResult {
+  readonly diagnostics: readonly Diagnostic[];
+  readonly corpusIndex: ReadonlyMap<string, DeliveredDocument>;
+}
+
+/**
+ * Check the files of one project group against that project's profile and
+ * `.markspec.yaml` tool config (#845). `projectWide` enables the
+ * project-wide-only gates (bare invocation). `--strict` promotion is
+ * applied here, because its exemptions depend on the group's corpus.
+ */
+async function checkGroup(
+  group: ScopeGroup,
+  projectWide: boolean,
+  strict: boolean,
+): Promise<GroupCheckResult> {
+  const { files, projectRoot } = group;
+
+  const chain = projectRoot !== undefined
+    ? await loadActiveProfile(projectRoot)
+    : null;
+
+  // Load the markspec tool config (.markspec.yaml) for config-driven
+  // rules (e.g. MSL-C072 caption-position convention). Absent config →
+  // defaults (rules inactive). A malformed .markspec.yaml IS surfaced —
+  // a bad caption-conventions block silently disabling MSL-C072 would be
+  // invisible debt (M-1 fix).
+  let captionConventions: CaptionConventions = {};
+  if (projectRoot !== undefined) {
+    const toolConfigResult = await loadToolConfig(projectRoot, readFile);
+    const toolConfigErrors = toolConfigResult.diagnostics.filter(
+      (d) => d.severity === "error",
+    );
+    if (toolConfigErrors.length > 0) {
+      for (const d of toolConfigErrors) {
+        console.error(`error: ${d.message}`);
+      }
+      Deno.exit(1);
+    }
+    captionConventions = toolConfigResult.config.captionConventions;
+  }
+
+  // Read + parse markspec.lock once, project-wide only, BEFORE
+  // `allEntries` is finalized — its snapshot-carrying upstream rows
+  // (federated upstream, slice 4) must join the graph ahead of
+  // `runPipeline` so a cross-repo `Satisfies:` resolves. Reused
+  // below by the fmt/lockfile drift gates so the file is read and
+  // parsed exactly once. A file-local `check <file>` skips this the
+  // same way it skips the corpus load below — it cannot distinguish
+  // a valid cross-repo target from a typo any more than MSL-L006 could.
+  const { loadProjectUpstreams, parseLockfile } = await import(
+    "../../core/mod.ts"
+  );
+  let lockParse: ReturnType<typeof parseLockfile> | undefined;
+  let lockPath: string | undefined;
+  let cacheRoot: string | undefined;
+  if (projectWide && projectRoot !== undefined) {
+    lockPath = join(projectRoot, "markspec.lock");
+    cacheRoot = upstreamCacheRoot(projectRoot);
+    const lockRaw = await readFile(lockPath);
+    if (lockRaw !== undefined) lockParse = parseLockfile(lockRaw);
+  }
+
+  // Load the delivered corpus (ADR-030) — project-wide only, matching
+  // the other composite gates: a file-local `check <file>` cannot
+  // distinguish a corpus target from a typo any more than MSL-L006
+  // could, so the corpus stays out of scope there. `loadProjectCorpus`
+  // is the same load + index `compileProject` uses (a `null` chain yields
+  // an empty corpus + index), so the two surfaces stay in lockstep.
+  const corpus = await loadProjectCorpus(
+    projectWide ? chain : null,
+  );
+  const corpusIndex = corpus.corpusIndex;
+
+  // Load locked upstream snapshots (federated upstream, slice 4) —
+  // project-wide only, same rationale as the corpus load above.
+  // Soft-fail (mirrors `compileProject`): a stale or missing upstream
+  // cache surfaces diagnostics but never aborts `check`.
+  const upstreams = projectWide && projectRoot !== undefined
+    ? await loadProjectUpstreams(projectRoot, lockParse?.lockfile, readFile)
+    : { entries: [], diagnostics: [] };
+
+  // Declared upstream ids (federated upstream, slice 4) — derived from
+  // project.yaml's `dependencies:`/`references:` via `deriveUpstreamId`.
+  // Stage 4 uses this to fire MSL-T014 (naming the searched upstream
+  // set) instead of the generic MSL-L006 for a trace target unresolved
+  // after federation. Project-wide only — file-local `check <file>`
+  // already suppresses both codes regardless (Stage 4's projectWide
+  // filter), so there is nothing to gain from computing this otherwise.
+  let declaredUpstreamIds: string[] = [];
+  if (projectWide && projectRoot !== undefined) {
+    const projectConfig = await loadConfig(projectRoot, readFile);
+    if (projectConfig) {
+      declaredUpstreamIds = [
+        ...projectConfig.config.dependencies,
+        ...projectConfig.config.references,
+      ]
+        .map((ref) => deriveUpstreamId(ref))
+        .filter((id): id is string => id !== undefined);
+    }
+  }
+
+  const {
+    detectDirectives,
+    parseFile,
+    runPipeline,
+    validateListingDocuments,
+  } = await import("../../core/mod.ts");
+
+  const allEntries = [];
+  allEntries.push(...corpus.entries);
+  allEntries.push(...upstreams.entries);
+  const parseDiagnostics: Diagnostic[] = [];
+  // deno-lint-ignore no-explicit-any
+  const listingContexts: any[] = [];
+  const mdContents = new Map<string, string>();
+  // `check` deliberately does not use the shared `collectProjectEntries`
+  // collector (`lock`/`compile`/`fmt`/`doctor` do): it needs each file's
+  // raw content and per-file directives here (for the fmt-drift `mdContents`
+  // and the listing contexts), not just the flattened entries. Its bare-mode
+  // file set is equivalent by construction — `resolveScope` walks
+  // `core/discovery` with the same `exclude:` and default
+  // `RELEVANT_EXTENSIONS` the collector relies on — so the MSL-L212 gate
+  // still compares against exactly the set `markspec lock` pinned.
+  for (const filePath of files) {
+    let content: string;
+    try {
+      content = await Deno.readTextFile(filePath);
+    } catch {
+      console.error(`error: ${filePath}: file not found`);
+      Deno.exit(1);
+    }
+    if (MARKDOWN_EXTENSIONS.has(extname(filePath).toLowerCase())) {
+      mdContents.set(filePath, content);
+    }
+    const result = await parseFile(content, { file: filePath });
+    allEntries.push(...result.entries);
+    parseDiagnostics.push(...result.diagnostics);
+    listingContexts.push({
+      file: filePath,
+      content,
+      entries: result.entries,
+      directives: detectDirectives(content, { file: filePath }),
+    });
+  }
+
+  // projectWide reflects the resolved scope: a bare invocation walks the
+  // whole project, so MSL-L006 ("link target does not resolve") is
+  // meaningful and fires. Explicit file args stay file-local — that
+  // subset cannot distinguish a typo from a valid cross-file target, so
+  // MSL-L006 is suppressed. Full existence checks are always available
+  // via `markspec compile` or the LSP (which index all files).
+  const result = runPipeline(
+    allEntries,
+    chain?.effective ?? null,
+    captionConventions,
+    { projectWide: projectWide, declaredUpstreamIds },
+  );
+
+  // Corpus-aware post-pass (ADR-030): a project entry re-declaring a
+  // display ID already delivered by the corpus becomes MSL-R014 (not
+  // the generic duplicate codes), and pipeline findings located inside
+  // a corpus file are downgraded to attributed warnings — a consumer
+  // build must not go red over an upstream bug it cannot fix. No-op
+  // when no corpus was injected.
+  const { attributeCorpusDiagnostics, detectCorpusCollisions } = await import(
+    "../../core/mod.ts"
+  );
+  const collisions = detectCorpusCollisions(allEntries);
+  const pipelineDiagnostics = [
+    ...attributeCorpusDiagnostics(
+      result.diagnostics,
+      allEntries,
+      collisions.collidedTokens,
+    ),
+    ...collisions.diagnostics,
+  ];
+
+  const listingDiagnostics = validateListingDocuments(listingContexts);
+
+  // Project-wide-only gates (the composite `check` gate). A file-local
+  // `check <file>` stays a fast structural check, and the canonical agent
+  // path runs `fmt` before `check`. The diagnostic-producing computation
+  // lives in `core/gates`; the command only gathers inputs (the loaded
+  // Markdown formatter, the parsed lockfile) and calls the stages.
+  let fmtDiagnostics: Diagnostic[] = [];
+  let lockDiagnostics: Diagnostic[] = [];
+  // MSL-L215 (design §4.4): unreleased-dependency-pin advisory, one
+  // warning per `[[upstream.dependency]]` row not pinned to a tag.
+  // Project-wide only, reusing the `lockParse` already read above — a
+  // file-local `check <file>` cannot distinguish "no lockfile" from
+  // "irrelevant to this file" any more than the other lockfile-backed
+  // gates can, so it stays out of scope there. Below `--strict` this is
+  // the gentle project-level advisory; `--strict` promotes it to an
+  // error via the existing warning→error map below (it is deliberately
+  // NOT added to `strictExempt` — an unreleased pin is the consumer's
+  // own, fixable choice, unlike corpus-attributed findings).
+  let pinDiagnostics: Diagnostic[] = [];
+  if (projectWide) {
+    const { dependencyPinAssurance, fmtDriftGate, lockfileDriftGate } =
+      await import("../../core/mod.ts");
+    pinDiagnostics = dependencyPinAssurance(lockParse?.lockfile);
+
+    const formatMarkdownProse = await loadMarkdownFormatterOrExit();
+
+    // markspec.lock was already read + parsed above (before allEntries
+    // was finalized, so upstream entries could join the graph); reuse
+    // `lockParse`/`lockPath`/`cacheRoot` here rather than re-reading it.
+    // Its edge ledger feeds reference healing (MSL-F011) and its cached
+    // edge hash feeds the lockfile gate (MSL-L212).
+    const ledger = lockParse?.lockfile?.edges ?? [];
+
+    fmtDiagnostics = await fmtDriftGate(
+      mdContents,
+      allEntries,
+      ledger,
+      formatMarkdownProse,
+    );
+
+    if (
+      lockParse !== undefined && lockPath !== undefined &&
+      cacheRoot !== undefined
+    ) {
+      lockDiagnostics = await lockfileDriftGate(
+        lockParse,
+        lockPath,
+        allEntries,
+        { cacheRoot, readFile: defaultReadFile },
+      );
+    }
+  }
+
+  // Gate: prose lint (project-wide only, advisory — warnings/info
+  // unless --strict).
+  let proseDiagnostics: Diagnostic[] = [];
+  if (projectWide) {
+    const { proseLintGate } = await import("../../core/mod.ts");
+    proseDiagnostics = await proseLintGate(allEntries, chain?.effective);
+  }
+
+  // Merge upstream-load, parse-level (MSL-P0xx), corpus-load, pipeline,
+  // listing, fmt-drift, lockfile-drift, pin-assurance, and prose-lint
+  // diagnostics.
+  const allDiagnostics = [
+    ...upstreams.diagnostics,
+    ...parseDiagnostics,
+    ...corpus.diagnostics,
+    ...pipelineDiagnostics,
+    ...listingDiagnostics,
+    ...fmtDiagnostics,
+    ...lockDiagnostics,
+    ...pinDiagnostics,
+    ...proseDiagnostics,
+  ];
+
+  // Apply --strict: promote warnings to errors. Corpus-attributed
+  // findings are exempt (ADR-030) — a consumer cannot fix upstream
+  // content, so promoting them would create unfixable red builds.
+  // Tracked by identity, not by message matching: everything the
+  // corpus loader emitted (attributed parse findings + the docs-only
+  // missing-file warning PROFILE-DELIVERS-002), plus every pipeline
+  // finding located inside a delivered corpus file (the downgraded
+  // attributed warnings from attributeCorpusDiagnostics).
+  const strictExempt = new Set<Diagnostic>(corpus.diagnostics);
+  for (const d of pipelineDiagnostics) {
+    if (d.location && corpusIndex.has(d.location.file)) {
+      strictExempt.add(d);
+    }
+  }
+  const diagnostics = strict
+    ? allDiagnostics.map((d) =>
+      d.severity === "warning" && !strictExempt.has(d)
+        ? { ...d, severity: "error" as const }
+        : d
+    )
+    : allDiagnostics;
+
+  return { diagnostics, corpusIndex };
+}

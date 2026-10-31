@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { join, resolve, SEPARATOR } from "@std/path";
 import type { DiscoveryIO } from "./mod.ts";
-import { discoverProjectRoots } from "./projects.ts";
+import { discoverProjectRoots, resolveConfigRoot } from "./projects.ts";
 import { makeTree, realIO } from "./test_helpers.ts";
 
 const PROJECT = "name: test\n";
@@ -148,4 +148,38 @@ Deno.test("discoverProjectRoots: a start folder below homeDir walks up to it and
   });
   assertEquals(result.primaryRoot, dir);
   assertEquals(result.roots, [dir]);
+});
+
+// ---------------------------------------------------------------------------
+// resolveConfigRoot — project.yaml first, else .markspec.yaml (#845)
+// ---------------------------------------------------------------------------
+
+/** A reader over an in-memory map of absolute path to content. */
+function mapReader(
+  files: Record<string, string>,
+): (path: string) => Promise<string | undefined> {
+  return (path) => Promise.resolve(files[path]);
+}
+
+Deno.test("resolveConfigRoot: a project.yaml above wins over a nearer .markspec.yaml", async () => {
+  const a = resolve("/a");
+  const b = join(a, "b");
+  const readFile = mapReader({
+    [join(a, "project.yaml")]: PROJECT,
+    [join(b, ".markspec.yaml")]: "exclude: []\n",
+  });
+  assertEquals(await resolveConfigRoot(join(b, "c"), readFile), a);
+});
+
+Deno.test("resolveConfigRoot: falls back to the nearest .markspec.yaml", async () => {
+  const a = resolve("/a");
+  const readFile = mapReader({ [join(a, ".markspec.yaml")]: "exclude: []\n" });
+  assertEquals(await resolveConfigRoot(join(a, "b", "c"), readFile), a);
+});
+
+Deno.test("resolveConfigRoot: returns undefined when neither file exists", async () => {
+  assertEquals(
+    await resolveConfigRoot(resolve("/a/b"), mapReader({})),
+    undefined,
+  );
 });

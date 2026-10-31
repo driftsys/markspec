@@ -299,13 +299,17 @@ invoke them.
 | `markspec deck build`   | Slides → PDF via Touying/Typst. |
 | `markspec deck dev`     | Live slide preview.             |
 
-**Project context:** `fmt` and `check` work file-locally without a
-`project.yaml` when given explicit file arguments. Invoked bare (no args),
-`fmt`/`check`/`lint` require a discoverable `project.yaml` — bare invocation in
-a project activated only by `.markspec.yaml` (no `project.yaml`) reports "no
-project root found" (known limitation). All other commands (`compile`, `show`,
-`context`, `dependents`, `report`, `next-id`, `doc build`, `book build`) require
-a `project.yaml` found by walking up from the working directory.
+**Project context:** `fmt`, `check`, and `lint` find the project root by walking
+up to the nearest `project.yaml`, else the nearest `.markspec.yaml` — the same
+order as the LSP and MCP servers (core `resolveConfigRoot`, #845). With explicit
+file arguments, each file's project is resolved from the file's own directory,
+and files of different projects are processed separately with their own
+profiles; files with no config above them are processed without a profile.
+Invoked bare (no args), they resolve the root from the working directory and
+report "no project root found" when neither file exists. All other commands
+(`compile`, `show`, `context`, `dependents`, `report`, `next-id`, `doc build`,
+`book build`) require a `project.yaml` found by walking up from the working
+directory.
 
 ## Entry block rendering pipeline
 
@@ -484,8 +488,9 @@ docs/
   `exclude:`; `check` becomes the composite gate (structure + traceability + fmt
   drift `MSL-F010` + lockfile drift `MSL-L212` + advisory prose lint); extra
   gates are project-wide only, file-local `check <file>` stays fast structural;
-  lock↔check discovery parity; known limitation: `.markspec.yaml`-only projects
-  don't satisfy bare-invocation root discovery
+  lock↔check discovery parity; amended by #845: a `.markspec.yaml`-only project
+  is a valid bare-invocation root, and explicit files resolve their project per
+  file
 - `adr-028-mcp-project-discovery.md` — `markspec mcp` resolves its project root
   from an ordered candidate list (`--root` > `MARKSPEC_PROJECT_ROOT` >
   `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots

@@ -1,9 +1,7 @@
 /**
  * @module core/discovery/projects
  *
- * Project-root discovery shared by the LSP and the MCP server. The CLI
- * does not use it yet: it finds only `project.yaml`, walking up from the
- * current directory (#845).
+ * Project-root discovery shared by the CLI, the LSP and the MCP server.
  *
  * A "project root" is a directory that holds a `project.yaml` or a
  * `.markspec.yaml`. {@linkcode discoverProjectRoots} finds the primary
@@ -50,9 +48,13 @@ export function nearestRoot(
 
 /**
  * Walk up from `startDir` to the nearest `project.yaml`, else the nearest
- * `.markspec.yaml`. Returns `undefined` when neither exists. The LSP and
- * the MCP server use this order. The CLI does not yet: it finds only
- * `project.yaml`, walking up from the current directory (#845).
+ * `.markspec.yaml`. Returns `undefined` when neither exists.
+ *
+ * This is the one project-root lookup shared by the CLI (`check`, `fmt`,
+ * `lint`: per file for explicit arguments, from the current directory for
+ * a bare invocation), the LSP server and the MCP server (#845), so all
+ * three read `project.yaml`, `.markspec.yaml` and `markspec.lock` from the
+ * same folder for the same file.
  */
 export async function resolveConfigRoot(
   startDir: string,

@@ -17,8 +17,6 @@ import {
   type DeliveredDocument,
   deliveredPathIsContained,
   type Diagnostic,
-  discoverMarkspecRoot,
-  discoverProjectRoot,
   type DiscoveryDirEntry,
   type EffectiveProfile,
   type Entry,
@@ -31,6 +29,7 @@ import {
   type ProfileChain,
   type ProjectConfig,
   type ReadFile,
+  resolveConfigRoot,
 } from "../core/mod.ts";
 
 /**
@@ -364,8 +363,7 @@ export async function createProject(env: ProjectEnv): Promise<Project> {
       // upward) is valid per ADR-008; fall back to its directory so
       // compile-backed tools still get a projectRoot instead of throwing
       // "no project.yaml found" (#647).
-      projectRoot = await discoverProjectRoot(candidate, env.readFile) ??
-        await discoverMarkspecRoot(candidate, env.readFile);
+      projectRoot = await resolveConfigRoot(candidate, env.readFile);
       break;
     }
   }

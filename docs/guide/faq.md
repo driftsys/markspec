@@ -30,12 +30,18 @@ breaks cross-tool links.
 
 ## How does MarkSpec discover `project.yaml`?
 
-`markspec` walks up the directory tree from the current working directory until
-it finds a `project.yaml` file. The directory containing that file becomes the
-project root. If no `project.yaml` is found, commands that require project
-context (`compile`, `show`, `context`, `dependents`, `report`, `next-id`,
-`doc build`, `book build`) exit with an error. `fmt` and `check` work without a
-`project.yaml`.
+Commands that require project context (`compile`, `show`, `context`,
+`dependents`, `report`, `next-id`, `doc build`, `book build`) walk up the
+directory tree from the current working directory until they find a
+`project.yaml` file. The directory containing that file becomes the project
+root. If no `project.yaml` is found, these commands exit with an error.
+
+`check`, `fmt`, and `lint` find the project of each file argument by walking up
+from the directory of that file to the nearest `project.yaml`, else to the
+nearest `.markspec.yaml`. Invoked bare, they walk up from the current working
+directory instead. A file with neither config file above it is processed
+file-local, without a profile. See
+[Which project a file belongs to](cli.md#which-project-a-file-belongs-to).
 
 ---
 

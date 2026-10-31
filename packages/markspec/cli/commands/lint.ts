@@ -28,16 +28,39 @@ export const lintCmd = new Command()
         verb: "linting",
         quiet: options.quiet === true || options.format === "json",
       });
-      const { result, chain } = await compileProject(scope.files);
-      const { runLint } = await import("../../core/mod.ts");
-      // `result.entries` is the merged project + delivered-corpus set. Pass it
-      // whole with the active profile: `runLint` keeps corpus entries in its
-      // resolver indexes but never emits diagnostics for them (ADR-030 §D4),
-      // and the profile scopes profile-typed entries into prose analysis (#675).
-      const lintResult = await runLint({
-        entries: [...result.entries.values()],
-        profile: chain?.effective,
-      });
+      const { computeScoreRollup, runLint } = await import(
+        "../../core/mod.ts"
+      );
+      // Each project group is compiled and linted with its own profile
+      // (#845). A group without a project root is linted without a profile.
+      const groupResults = [];
+      for (const group of scope.groups) {
+        const { result, chain } = await compileProject(group.files, {
+          projectRoot: group.projectRoot ?? null,
+        });
+        // `result.entries` is the merged project + delivered-corpus set. Pass
+        // it whole with the active profile: `runLint` keeps corpus entries in
+        // its resolver indexes but never emits diagnostics for them (ADR-030
+        // §D4), and the profile scopes profile-typed entries into prose
+        // analysis (#675).
+        const entries = [...result.entries.values()];
+        const groupLint = await runLint({ entries, profile: chain?.effective });
+        groupResults.push({ entries, lint: groupLint });
+      }
+      // One group: its result as is. Several groups: concatenate the
+      // diagnostics and compute one score over the project entries of all
+      // groups, the same population `runLint` scores for one group.
+      let lintResult = groupResults[0].lint;
+      if (groupResults.length > 1) {
+        const all = groupResults.flatMap((g) => g.lint.diagnostics);
+        const projectEntries = groupResults.flatMap((g) =>
+          g.entries.filter((e) => !e.origin)
+        );
+        lintResult = {
+          diagnostics: all,
+          score: computeScoreRollup(all, projectEntries),
+        };
+      }
 
       let diagnostics = [...lintResult.diagnostics];
       if (options.strict) {

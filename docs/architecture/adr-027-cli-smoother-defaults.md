@@ -311,3 +311,20 @@ not scoped to this work.
   gates), `cli/commands/fmt.ts`, `cli/commands/lint.ts`, `cli/commands/lock.ts`
   (`collectEntries`), `lsp/project_context.ts` and `lsp/project_registry.ts`
   (per-project discovery), `lsp/context.ts` (`SOURCE_EXTENSIONS` import).
+
+## Amendment (2026-10-31, #845)
+
+This amendment changes the known limitation and its #666 resolution above. The
+decision text above is kept as it was written.
+
+- Bare invocation of `check`, `lint`, and `fmt` resolves the project root from
+  the current directory with core `resolveConfigRoot`: the nearest
+  `project.yaml`, else the nearest `.markspec.yaml`. A `.markspec.yaml`-only
+  project is therefore a valid root for the whole-project run. When neither file
+  is found, the error says that a `project.yaml` or `.markspec.yaml` marks a
+  project root.
+- Explicit file arguments resolve their project per file, from each file's own
+  directory, with the same function. Files are grouped by project root, and each
+  group is processed with its own profile and tool config.
+- The CLI, the LSP server, and the MCP server now share this one root lookup.
+  The other commands (`compile`, `show`, `export`, and so on) are unchanged.

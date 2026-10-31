@@ -122,15 +122,10 @@ Deno.test("check: bare invocation without project root errors with hint", async 
   assertEquals(code, 1);
   assertStringIncludes(stderr, "no project root found");
   assertStringIncludes(stderr, "markspec init");
-  // The message names project.yaml as the required root marker and must NOT
-  // present `.markspec.yaml` as a sufficient alternative — a `.markspec.yaml`
-  // alone does not satisfy bare-invocation root discovery (#666).
-  assertStringIncludes(stderr, "project.yaml");
-  assertEquals(
-    stderr.includes("project.yaml or .markspec.yaml"),
-    false,
-    `message must not imply .markspec.yaml alone works; got: ${stderr}`,
-  );
+  // Either file marks a project root for bare invocation (#845, which
+  // reverses #666), so the message names both.
+  assertStringIncludes(stderr, "a project.yaml or .markspec.yaml");
+  assertEquals(stderr.includes("project.yaml required"), false, stderr);
 });
 
 Deno.test("check: clean project exits 0", async () => {
