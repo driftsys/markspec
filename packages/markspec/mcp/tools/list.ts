@@ -122,7 +122,7 @@ export const ENTRY_LIST_INPUT_SCHEMA = {
 export const ENTRY_LIST_DESCRIPTOR = {
   name: "entry_list",
   description:
-    `TRIGGER when: user asks "what's in this spec", "list all requirements", "give me an overview", "how many X are there", or wants to browse entries. Defaults to a summary (per-type counts); pass mode=full for the listing (paginated, 50/page), optionally filtered by type or label. PREFER over: grep across Markdown files or 'markspec compile' — this lists the compiled graph.\n\nFor one entry's detail use entry_show; for the graph around an entry use entry_neighborhood.`,
+    `TRIGGER when: user asks "what's in this spec", "list all requirements", "give me an overview", "how many X are there", or wants to browse entries. Defaults to a summary (per-type counts); pass mode=full for the listing (paginated, 50/page), optionally filtered by type or label. PREFER over: grep across Markdown files or 'markspec compile' — this lists the compiled graph.\n\nFor one entry's detail use entry_show; for the graph around an entry use entry_neighborhood.\n\nOptional 'project' limits the answer to one project label from project_list.`,
   inputSchema: ENTRY_LIST_INPUT_SCHEMA,
   annotations: {
     title: "List / overview of entries",

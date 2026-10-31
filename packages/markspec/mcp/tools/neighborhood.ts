@@ -97,7 +97,7 @@ export const ENTRY_NEIGHBORHOOD_INPUT_SCHEMA = {
 export const ENTRY_NEIGHBORHOOD_DESCRIPTOR = {
   name: "entry_neighborhood",
   description:
-    `TRIGGER when: user asks "what depends on X", "what's around X", "show the parents and children of X", "the trace neighbourhood of X", or wants both directions of the satisfies hierarchy at once. PREFER over: 'markspec dependents' / 'markspec compile' — this walks the compiled graph deterministically.\n\nReturns two nested Markdown trees (Parents up / Children down) with markspec://entry/{id} links. Depth defaults to 3; raise for deeper transitive context. For the UPWARD chain only use entry_context; for one entry's detail use entry_show.`,
+    `TRIGGER when: user asks "what depends on X", "what's around X", "show the parents and children of X", "the trace neighbourhood of X", or wants both directions of the satisfies hierarchy at once. PREFER over: 'markspec dependents' / 'markspec compile' — this walks the compiled graph deterministically.\n\nReturns two nested Markdown trees (Parents up / Children down) with markspec://entry/{id} links. Depth defaults to 3; raise for deeper transitive context. For the UPWARD chain only use entry_context; for one entry's detail use entry_show.\n\nOptional 'project' limits the answer to one project label from project_list.`,
   inputSchema: ENTRY_NEIGHBORHOOD_INPUT_SCHEMA,
   annotations: {
     title: "Entry trace neighbourhood",

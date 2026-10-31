@@ -73,7 +73,7 @@ export const ENTRY_CONTEXT_INPUT_SCHEMA = {
 export const ENTRY_CONTEXT_DESCRIPTOR = {
   name: "entry_context",
   description:
-    `TRIGGER when: user asks "what does this requirement satisfy", "why does this spec exist", "what does this trace up to", "what does X implement", "what higher-level requirement covers Y", or wants the upward chain from any display ID to its parents. PREFER over: grep'ing Satisfies: lines across files — this walks the compiled graph deterministically.\n\nThis is the UPWARD satisfies chain only. For both directions (parents and children) use entry_neighborhood; for what depends on this entry use entry_neighborhood or entry_show's "Incoming links".\n\nReturns a nested Markdown list with markspec://entry/{id} links. Depth defaults to 10; lower to 2–3 for quick orientation, raise only for full transitive context.`,
+    `TRIGGER when: user asks "what does this requirement satisfy", "why does this spec exist", "what does this trace up to", "what does X implement", "what higher-level requirement covers Y", or wants the upward chain from any display ID to its parents. PREFER over: grep'ing Satisfies: lines across files — this walks the compiled graph deterministically.\n\nThis is the UPWARD satisfies chain only. For both directions (parents and children) use entry_neighborhood; for what depends on this entry use entry_neighborhood or entry_show's "Incoming links".\n\nReturns a nested Markdown list with markspec://entry/{id} links. Depth defaults to 10; lower to 2–3 for quick orientation, raise only for full transitive context.\n\nOptional 'project' limits the answer to one project label from project_list.`,
   inputSchema: ENTRY_CONTEXT_INPUT_SCHEMA,
   annotations: {
     title: "Trace satisfies chain",

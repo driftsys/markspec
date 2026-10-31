@@ -296,7 +296,13 @@ Deno.test("VALIDATE_DESCRIPTOR.description: keys on canonical soft-gate phrase",
 
 import { createWorkspace } from "../workspace.ts";
 import { dispatchTool } from "./mod.ts";
-import { entryDoc, memoryEnv, twoProjectFiles } from "./testing.ts";
+import {
+  entryDoc,
+  MEMORY_PARENT,
+  memoryEnv,
+  PROJECT_YAML,
+  twoProjectFiles,
+} from "./testing.ts";
 
 Deno.test("validate files arg routes to the owning project", async () => {
   // Project b declares STK_0002 twice, so only b has diagnostics.
@@ -314,4 +320,25 @@ Deno.test("validate files arg routes to the owning project", async () => {
   assertStringIncludes(forA, "✓ All 1 entries pass validation");
   assertEquals(forA.includes("## Project: b"), false);
   assertEquals(forA.includes("MSL-R006"), false);
+});
+
+Deno.test("validate files arg outside a single project keeps the pre-workspace output", async () => {
+  // One project at the start folder; the file is outside it, so no project
+  // owns it. As before the workspace, the file is passed to the project,
+  // matches no diagnostic, and the report is the clean one.
+  const ws = await createWorkspace(memoryEnv({
+    [join(MEMORY_PARENT, "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "req.md")]: entryDoc(
+      "STK_0001",
+      "Alpha",
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    ),
+  }));
+  for (const file of ["../elsewhere.md", resolve("/other/req.md")]) {
+    const text = await dispatchTool("validate", { files: [file] }, ws);
+    assertEquals(
+      text,
+      "✓ All 1 entries pass validation under @markspec/profile-default@1.0.0.\n",
+    );
+  }
 });

@@ -24,7 +24,7 @@ const URI_KIND_TO_ELEMENT_KIND: Record<string, ProfileElementKind> = {
 export const PROFILE_DESCRIBE_DESCRIPTOR = {
   name: "profile_describe",
   description:
-    `TRIGGER when: user asks "what does <Type> mean in this project", "what attribute is X", "is Y a valid label", "what relations does this profile define", "what's the EARS convention here", or any question about the project's profile-declared vocabulary. PREFER over: reading profile YAML files directly — this returns resolved element details from the compiled profile chain.\n\nSupply 'name' (required) and optionally 'kind' (type/attribute/relation/label/convention) to narrow the search. Fuzzy matching when no exact match; response lists candidates if multiple match.`,
+    `TRIGGER when: user asks "what does <Type> mean in this project", "what attribute is X", "is Y a valid label", "what relations does this profile define", "what's the EARS convention here", or any question about the project's profile-declared vocabulary. PREFER over: reading profile YAML files directly — this returns resolved element details from the compiled profile chain.\n\nSupply 'name' (required) and optionally 'kind' (type/attribute/relation/label/convention) to narrow the search. Fuzzy matching when no exact match; response lists candidates if multiple match.\n\nOptional 'project' limits the answer to one project label from project_list.`,
   inputSchema: {
     type: "object",
     properties: {

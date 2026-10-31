@@ -167,12 +167,20 @@ const HANDLERS: Record<string, ToolHandler> = {
     const routed = files && files.length > 0
       ? await routeFiles(workspace, files)
       : undefined;
+    const projectArg = projectArgOf(args);
+    const selected = workspace.select(projectArg);
+    // With one selected project, files it does not own still go to it as
+    // given, so a single-project server answers exactly as before.
+    const single = typeof selected !== "string" && selected.length === 1;
     return perProject(
       workspace,
-      projectArgOf(args),
+      projectArg,
       async ({ label, project }) => {
-        const owned = routed?.get(label);
-        if (routed && owned === undefined) return undefined;
+        let owned: readonly string[] | undefined = routed?.get(label);
+        if (routed && owned === undefined) {
+          if (!single) return undefined;
+          owned = files;
+        }
         const result = await project.getCompiled();
         const filtered = filterDiagnostics(
           result.diagnostics,
@@ -193,6 +201,7 @@ const HANDLERS: Record<string, ToolHandler> = {
           project.projectRoot,
         );
       },
+      // Reached only when several projects are selected.
       "None of the given files belongs to a selected MarkSpec project.\n",
     );
   },

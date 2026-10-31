@@ -214,7 +214,7 @@ Deno.test("mcp: every tool advertises read-only annotations", async () => {
   }
 });
 
-Deno.test("mcp: tools/list returns all eight tools", async () => {
+Deno.test("mcp: tools/list returns all nine tools", async () => {
   const { proc, cwd } = await setup();
   try {
     const resp = await proc.request("tools/list", {});
