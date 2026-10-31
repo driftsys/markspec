@@ -14,6 +14,7 @@ import {
   type EffectiveProfile,
   loadProfileForCommand,
   makeDisplayId,
+  type ProseFormatter,
 } from "../core/mod.ts";
 import {
   buildProductTree,
@@ -50,6 +51,11 @@ async function realPath(path: string): Promise<string | undefined> {
   }
 }
 
+/** `writeFile` for handlers whose tests never write: fails the write. */
+function refuseWrite(path: string): Promise<void> {
+  return Promise.reject(new Error(`unexpected write to ${path}`));
+}
+
 /** Compile the fixture project with its own profile, once per test file. */
 const fixture: Promise<{ compiled: CompileResult; profile: EffectiveProfile }> =
   (async () => {
@@ -74,6 +80,7 @@ async function handler(allowedOrigins?: readonly string[]) {
     getCompiled: () => Promise.resolve(compiled),
     readFile,
     realPath,
+    writeFile: refuseWrite,
   };
   return createDeskHandler({ source, token: TOKEN, allowedOrigins });
 }
@@ -691,10 +698,13 @@ Deno.test("desk api: preflight from a Tauri origin is 204 with CORS headers", as
     res.headers.get("access-control-allow-origin"),
     "tauri://localhost",
   );
-  assertEquals(res.headers.get("access-control-allow-methods"), "GET, OPTIONS");
+  assertEquals(
+    res.headers.get("access-control-allow-methods"),
+    "GET, POST, OPTIONS",
+  );
   assertEquals(
     res.headers.get("access-control-allow-headers"),
-    "Authorization, If-None-Match",
+    "Authorization, Content-Type, If-Match, If-None-Match",
   );
   assertEquals(res.headers.get("access-control-max-age"), "600");
   assertEquals(res.headers.get("vary"), "Origin");
@@ -911,6 +921,7 @@ async function handlerFor(
       getCompiled: () => Promise.resolve(compiled),
       readFile: readFileFn,
       realPath: (p) => Promise.resolve(p),
+      writeFile: refuseWrite,
     },
   });
 }
@@ -983,6 +994,7 @@ async function editableHandler() {
       readFile: (p) =>
         p === systemPath ? Promise.resolve(state.text) : readFile(p),
       realPath,
+      writeFile: refuseWrite,
     },
   });
   return { h, state };
@@ -1119,7 +1131,7 @@ Deno.test("desk api: preflight allows If-None-Match and responses expose ETag", 
   assertEquals(preflight.status, 204);
   assertEquals(
     preflight.headers.get("access-control-allow-headers"),
-    "Authorization, If-None-Match",
+    "Authorization, Content-Type, If-Match, If-None-Match",
   );
   const first = await h(get(SYSTEM_DOC, { headers: { origin } }));
   await first.body?.cancel();
@@ -1295,6 +1307,7 @@ Deno.test("desk api: files and documents read the resolved real path", async () 
         Promise.resolve(
           p === join(FIXTURE_ROOT, "docs", "system.md") ? resolved : p,
         ),
+      writeFile: refuseWrite,
     },
   });
   for (const route of ["/api/v1/files", "/api/v1/documents"]) {
@@ -1339,6 +1352,7 @@ Deno.test("desk api: a symlink that leaves the project root is 404", async () =>
         getCompiled: () => Promise.resolve(graph),
         readFile,
         realPath,
+        writeFile: refuseWrite,
       },
     });
     const inside = await h(get("/api/v1/files?path=docs/inside.md"));
@@ -1383,6 +1397,7 @@ Deno.test("desk api: entry location uses forward slashes for Windows paths", asy
       getCompiled: () => Promise.resolve({ ...compiled, entries }),
       readFile,
       realPath,
+      writeFile: refuseWrite,
     },
   });
   const res = await handle(get("/api/v1/entries/SYS_BRK_0001"));
@@ -1548,4 +1563,432 @@ Deno.test("desk api: tree ETag keeps the tag for an unchanged graph", async () =
   );
   assertEquals(second.status, 304);
   await second.body?.cancel();
+});
+
+// ---------------------------------------------------------------------------
+// Proposals: preview and apply one entry body (#837)
+// ---------------------------------------------------------------------------
+
+const PREVIEW = "/api/v1/proposals/preview";
+const APPLY = "/api/v1/proposals/apply";
+const SYSTEM_PATH = join(FIXTURE_ROOT, "docs", "system.md");
+const SYS_0001_BODY =
+  "  The braking system shall apply full braking torque within 200 ms of a\n  confirmed obstacle.";
+const SYS_0002_BODY =
+  "  The braking system shall apply braking torque through a second, independent\n  actuation path when the primary path fails.\n\n";
+
+/** Options for {@linkcode writableHandler}. */
+interface WritableOptions {
+  readonly compiled?: CompileResult;
+  readonly loadProseFormatter?: () => Promise<ProseFormatter>;
+  readonly failWrite?: boolean;
+}
+
+/**
+ * A handler over the fixture whose `docs/system.md` text lives in `state`:
+ * reads return `state.text`, and each write sets `state.text` and is
+ * recorded in `state.writes`.
+ */
+async function writableHandler(options: WritableOptions = {}) {
+  const fixed = await fixture;
+  const state = {
+    text: await Deno.readTextFile(SYSTEM_PATH),
+    compiled: options.compiled ?? fixed.compiled,
+    writes: [] as { path: string; text: string }[],
+  };
+  const h = createDeskHandler({
+    token: TOKEN,
+    allowedOrigins: ["http://localhost:5173"],
+    loadProseFormatter: options.loadProseFormatter,
+    source: {
+      projectRoot: FIXTURE_ROOT,
+      profile: fixed.profile,
+      getCompiled: () => Promise.resolve(state.compiled),
+      readFile: (p) =>
+        p === SYSTEM_PATH ? Promise.resolve(state.text) : readFile(p),
+      realPath,
+      writeFile: (path, text) => {
+        if (options.failWrite) return Promise.reject(new Error("disk full"));
+        state.text = text;
+        state.writes.push({ path, text });
+        return Promise.resolve();
+      },
+    },
+  });
+  return { h, state };
+}
+
+/** An authenticated POST with a JSON body (a string is sent as is). */
+function post(
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Request {
+  return new Request(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      "content-type": "application/json",
+      ...headers,
+    },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+}
+
+/** A proposal request with one body change. */
+function bodyChange(displayId: string, body: string) {
+  return { changes: [{ displayId, kind: "body", body }] };
+}
+
+/** The current document ETag of `docs/system.md`. */
+async function systemEtag(h: (r: Request) => Promise<Response>) {
+  const res = await h(get(SYSTEM_DOC));
+  await res.body?.cancel();
+  return res.headers.get("etag")!;
+}
+
+/** Assert the error status and code of a response. */
+async function assertError(res: Response, status: number, code: string) {
+  assertEquals(res.status, status, code);
+  const body = await res.json();
+  await assertMatchesSchema("Error", body);
+  assertEquals(body.error.code, code);
+}
+
+Deno.test("desk api: preview returns the formatted proposal and writes nothing", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(res.status, 200);
+  const view = await res.json();
+  await assertMatchesSchema("ProposalPreview", view);
+  assertEquals(view.changes[0].displayId, "SYS_BRK_0001");
+  assertEquals(view.changes[0].kind, "body");
+  assertEquals(view.changes[0].body, "New body.");
+  assertStringIncludes(view.changes[0].currentBody, "within 200 ms");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: apply writes only the target body and returns the new ETag", async () => {
+  const { h, state } = await writableHandler();
+  const original = state.text;
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  const applied = await res.json();
+  await assertMatchesSchema("ProposalApplied", applied);
+  assertEquals(applied.path, "docs/system.md");
+  assertEquals(state.writes.length, 1);
+  assertEquals(state.writes[0].path, await Deno.realPath(SYSTEM_PATH));
+  assertEquals(state.text, original.replace(SYS_0001_BODY, "  New body."));
+  assertEquals(applied.etag, res.headers.get("etag"));
+  assertNotEquals(applied.etag, etag);
+  assertEquals(await systemEtag(h), applied.etag);
+});
+
+Deno.test("desk api: apply keeps unformatted neighbours byte for byte", async () => {
+  const { h, state } = await writableHandler();
+  state.text = state.text.replace(
+    "      Derived-from: HAZ_BRK_0001\n      Satisfies: STK_BRK_0001",
+    "      Satisfies: STK_BRK_0001\n      Derived-from:   HAZ_BRK_0001",
+  ).replace("independent\n", "independent   \n");
+  const before = state.text;
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.text, before.replace(SYS_0001_BODY, "  New body."));
+});
+
+Deno.test("desk api: apply keeps CRLF line endings", async () => {
+  const { h, state } = await writableHandler();
+  state.text = state.text.replaceAll("\n", "\r\n");
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body.\n\nSecond paragraph."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assert(!/(?<!\r)\n/.test(state.text), "no bare LF in the written text");
+  assertStringIncludes(
+    state.text,
+    "  New body.\r\n\r\n  Second paragraph.\r\n",
+  );
+});
+
+Deno.test("desk api: preview and apply answer 428 without If-Match", async () => {
+  const { h, state } = await writableHandler();
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(post(route, bodyChange("SYS_BRK_0001", "New body.")));
+    await assertError(res, 428, "precondition-required");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: preview answers 412 after the file text changes", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  state.text = `${state.text}\nEdited on disk.\n`;
+  const res = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  await assertError(res, 412, "precondition-failed");
+});
+
+Deno.test("desk api: apply answers 412 after the file text changes", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  state.text = `${state.text}\nEdited on disk.\n`;
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  await assertError(res, 412, "precondition-failed");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: a weak or wildcard If-Match is 412", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  for (const header of [`W/${etag}`, "*", `"other"`]) {
+    for (const route of [PREVIEW, APPLY]) {
+      const res = await h(
+        post(route, bodyChange("SYS_BRK_0001", "New body."), {
+          "if-match": header,
+        }),
+      );
+      await assertError(res, 412, "precondition-failed");
+    }
+  }
+  // A list that names the current tag matches.
+  const listed = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": `"other", ${etag}`,
+    }),
+  );
+  assertEquals(listed.status, 200);
+  await listed.body?.cancel();
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an upstream entry", async () => {
+  const { h, state } = await writableHandler({
+    compiled: await withUpstreamFile("system.md"),
+  });
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": `"any"`,
+      }),
+    );
+    await assertError(res, 409, "entry-read-only");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an entry in a source file", async () => {
+  const { h } = await writableHandler({
+    compiled: await withEntryAt(join(FIXTURE_ROOT, "src", "a.rs")),
+  });
+  const res = await h(
+    post(PREVIEW, bodyChange("EXTRA_0001", "New body."), {
+      "if-match": `"any"`,
+    }),
+  );
+  await assertError(res, 409, "entry-not-markdown");
+});
+
+Deno.test("desk api: refuses an unknown entry", async () => {
+  const { h } = await writableHandler();
+  const res = await h(
+    post(PREVIEW, bodyChange("NOPE_0001", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 404, "entry-not-found");
+});
+
+Deno.test("desk api: refuses a body that adds an entry line", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const sneaky =
+    "Text.\n\n- [X_0001] Sneaky\n\n      Id: 01JBRK00000000000000000099";
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", sneaky), { "if-match": etag }),
+    );
+    await assertError(res, 422, "proposal-changes-entries");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an empty body and a body over 20 000 characters", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const empty = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "  \n\n"), { "if-match": etag }),
+  );
+  await assertError(empty, 422, "proposal-empty");
+  const large = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "a ".repeat(10_001)), {
+      "if-match": etag,
+    }),
+  );
+  await assertError(large, 422, "proposal-too-large");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an entry with an empty body", async () => {
+  const { h, state } = await writableHandler();
+  assertStringIncludes(state.text, SYS_0002_BODY);
+  state.text = state.text.replace(SYS_0002_BODY, "");
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0002", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 409, "entry-body-empty");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an entry whose trailer did not parse", async () => {
+  const { h, state } = await writableHandler();
+  state.text = state.text.replace(
+    "      Satisfies: STK_BRK_0001\n\n- [SYS_BRK_0002]",
+    "      Satisfies: STK_BRK_0001\n      not a trailer line\n\n- [SYS_BRK_0002]",
+  );
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 409, "entry-trailer-invalid");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses a malformed proposal request", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const one = { displayId: "SYS_BRK_0001", kind: "body", body: "New." };
+  const malformed: unknown[] = [
+    "{not json",
+    "null",
+    {},
+    { changes: [] },
+    { changes: [one, one] },
+    { changes: [{ ...one, kind: "title" }] },
+    { changes: [{ ...one, body: 3 }] },
+    { changes: [{ kind: "body", body: "New." }] },
+    { changes: [{ ...one, displayId: "" }] },
+  ];
+  for (const body of malformed) {
+    const res = await h(post(PREVIEW, body, { "if-match": etag }));
+    await assertError(res, 400, "bad-request");
+  }
+});
+
+Deno.test("desk api: a formatter that cannot load is 422 format-failed", async () => {
+  const { h, state } = await writableHandler({
+    loadProseFormatter: () => Promise.reject(new Error("x")),
+  });
+  const etag = await systemEtag(h);
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+      }),
+    );
+    await assertError(res, 422, "format-failed");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: a failed write is 500 write-failed", async () => {
+  const { h, state } = await writableHandler({ failWrite: true });
+  const original = state.text;
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 500, "write-failed");
+  assertEquals(state.text, original);
+});
+
+Deno.test("desk api: a second apply with the same ETag is 412", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const responses = await Promise.all([
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "First."), { "if-match": etag })),
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "Second."), { "if-match": etag })),
+  ]);
+  assertEquals(responses.map((r) => r.status), [200, 412]);
+  for (const r of responses) await r.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assertStringIncludes(state.text, "  First.\n");
+});
+
+Deno.test("desk api: proposal routes accept only POST", async () => {
+  const { h } = await writableHandler();
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(get(route));
+    await assertError(res, 405, "method-not-allowed");
+  }
+  // The read routes still refuse POST.
+  const tree = await h(post("/api/v1/tree", {}));
+  await assertError(tree, 405, "method-not-allowed");
+});
+
+Deno.test("desk api: preflight allows POST, Content-Type, and If-Match", async () => {
+  const res = await (await handler())(
+    new Request(`${BASE}${APPLY}`, {
+      method: "OPTIONS",
+      headers: { origin: "tauri://localhost" },
+    }),
+  );
+  assertEquals(res.status, 204);
+  assertEquals(
+    res.headers.get("access-control-allow-methods"),
+    "GET, POST, OPTIONS",
+  );
+  assertEquals(
+    res.headers.get("access-control-allow-headers"),
+    "Authorization, Content-Type, If-Match, If-None-Match",
+  );
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: proposal routes require the token and a loopback Host", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  for (const route of [PREVIEW, APPLY]) {
+    const noToken = await h(
+      new Request(`${BASE}${route}`, {
+        method: "POST",
+        headers: { "if-match": etag },
+        body: JSON.stringify(bodyChange("SYS_BRK_0001", "New body.")),
+      }),
+    );
+    await assertError(noToken, 401, "unauthorized");
+    const evilHost = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+        host: "evil.example:4100",
+      }),
+    );
+    await assertError(evilHost, 403, "forbidden-host");
+  }
+  assertEquals(state.writes.length, 0);
 });

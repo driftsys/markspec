@@ -6,8 +6,9 @@
  * loopback only, guarded by a per-launch nonce token.
  *
  * Dynamically imported by `cli/commands/desk_cmd.ts`, so no other
- * subcommand pays for it. Read endpoints only, no
- * WebSocket, no forge, no agents yet.
+ * subcommand pays for it. Read endpoints plus proposal preview and apply
+ * for one entry body; apply writes through {@linkcode writeTextFileAtomic}.
+ * No WebSocket, no forge, no agents in the server.
  *
  * Handshake: once listening, the server prints exactly one JSON line to
  * stdout — `{"url":"http://127.0.0.1:<port>","token":"<nonce>","apiVersion":3,"root":"<absolute product root>"}`
@@ -19,6 +20,7 @@ import { resolve } from "@std/path";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { createProject, defaultEnv } from "../mcp/project.ts";
 import { createDeskHandler, DESK_API_VERSION } from "./api.ts";
+import { writeTextFileAtomic } from "./write.ts";
 
 /** Options for {@linkcode startDeskServer}. */
 export interface DeskServerOptions {
@@ -98,6 +100,7 @@ export async function startDeskServer(
           return undefined;
         }
       },
+      writeFile: writeTextFileAtomic,
     },
   });
 

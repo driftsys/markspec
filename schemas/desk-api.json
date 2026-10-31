@@ -3,7 +3,7 @@
   "info": {
     "title": "MarkDesk API",
     "version": "3",
-    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Read-only: product tree, entries, rendered documents, rendered entries, and project source text. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\", \"root\"}, where root is the absolute, symlink-resolved product root; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
+    "description": "Loopback API served by `markspec desk --serve` for the MarkDesk app (ADR-035). The UI's typed client is generated from this document. Reads: product tree, entries, rendered documents, rendered entries, and project source text. Proposals: an assistant proposal for the body of one entry is previewed (no write) and applied; only an apply writes, and it changes only that entry's body. On start the server prints one JSON line to stdout, {\"url\", \"token\", \"apiVersion\", \"root\"}, where root is the absolute, symlink-resolved product root; every request except an allowed-origin CORS preflight carries that token as a bearer credential, and every request carries a loopback Host header. Browser clients must also send an allowed Origin: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`, plus any `--allow-origin` values."
   },
   "servers": [
     {
@@ -38,13 +38,13 @@
                 }
               },
               "Access-Control-Allow-Methods": {
-                "description": "`GET, OPTIONS`.",
+                "description": "`GET, POST, OPTIONS`.",
                 "schema": {
                   "type": "string"
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization, If-None-Match`.",
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -135,13 +135,13 @@
                 }
               },
               "Access-Control-Allow-Methods": {
-                "description": "`GET, OPTIONS`.",
+                "description": "`GET, POST, OPTIONS`.",
                 "schema": {
                   "type": "string"
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization, If-None-Match`.",
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -231,13 +231,13 @@
                 }
               },
               "Access-Control-Allow-Methods": {
-                "description": "`GET, OPTIONS`.",
+                "description": "`GET, POST, OPTIONS`.",
                 "schema": {
                   "type": "string"
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization, If-None-Match`.",
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -358,13 +358,13 @@
                 }
               },
               "Access-Control-Allow-Methods": {
-                "description": "`GET, OPTIONS`.",
+                "description": "`GET, POST, OPTIONS`.",
                 "schema": {
                   "type": "string"
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization, If-None-Match`.",
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -455,13 +455,13 @@
                 }
               },
               "Access-Control-Allow-Methods": {
-                "description": "`GET, OPTIONS`.",
+                "description": "`GET, POST, OPTIONS`.",
                 "schema": {
                   "type": "string"
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization, If-None-Match`.",
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -524,6 +524,337 @@
           },
           "404": {
             "description": "The path is not a file holding project entries (including any path outside the project)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposals/preview": {
+      "options": {
+        "operationId": "preflightProposalPreview",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, POST, OPTIONS`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "operationId": "previewProposal",
+        "summary": "Preview a proposal",
+        "description": "The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes nothing.",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "The document ETag the client read before asking the assistant. Compared strongly; a comma-separated list is accepted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The formatted proposed body and the current body. Nothing is written.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not JSON of the ProposalRequest shape (`bad-request`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "No entry with that display ID or Id (`entry-not-found`), or its file is not an allowed project path (`not-found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "The method is not POST (`method-not-allowed`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-body-empty`, or `entry-trailer-invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "If-Match does not name the current document ETag (`precondition-failed`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The proposal is refused: `proposal-empty`, `proposal-too-large`, `proposal-changes-entries`, or `format-failed`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match is missing (`precondition-required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposals/apply": {
+      "options": {
+        "operationId": "preflightProposalApply",
+        "summary": "CORS preflight",
+        "description": "Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Preflight accepted for an allowed Origin",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "description": "The request Origin, echoed.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "description": "`GET, POST, OPTIONS`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Headers": {
+                "description": "`Authorization, Content-Type, If-Match, If-None-Match`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Max-Age": {
+                "description": "`600` seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "operationId": "applyProposal",
+        "summary": "Apply a proposal",
+        "description": "The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes the file atomically with only the target entry's body replaced by the formatted proposed body; every other byte stays unchanged. Applies run one at a time, so a second apply with the same tag answers 412 and writes nothing. The response carries the new document ETag in the body and in the ETag header.",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "The document ETag the client read before asking the assistant. Compared strongly; a comma-separated list is accepted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file was written with only the target body replaced.",
+            "headers": {
+              "ETag": {
+                "description": "The new strong entity tag of the written document: a quoted SHA-256 hex digest, equal to `etag` in the body.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9a-f]{64}\"$"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalApplied"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not JSON of the ProposalRequest shape (`bad-request`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "No entry with that display ID or Id (`entry-not-found`), or its file is not an allowed project path (`not-found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "The method is not POST (`method-not-allowed`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-body-empty`, or `entry-trailer-invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "If-Match does not name the current document ETag (`precondition-failed`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The proposal is refused: `proposal-empty`, `proposal-too-large`, `proposal-changes-entries`, or `format-failed`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match is missing (`precondition-required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written (`write-failed`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -902,6 +1233,117 @@
           },
           "text": {
             "type": "string"
+          }
+        }
+      },
+      "ProposalChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "displayId",
+          "kind",
+          "body"
+        ],
+        "properties": {
+          "displayId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display ID or `Id:` value of the target entry."
+          },
+          "kind": {
+            "const": "body",
+            "description": "What the change replaces. Only `body` exists."
+          },
+          "body": {
+            "type": "string",
+            "description": "The proposed body, without indentation."
+          }
+        }
+      },
+      "ProposalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changes"
+        ],
+        "properties": {
+          "changes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "description": "Exactly one change.",
+            "items": {
+              "$ref": "#/components/schemas/ProposalChange"
+            }
+          }
+        }
+      },
+      "PreviewedChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "displayId",
+          "kind",
+          "body",
+          "currentBody"
+        ],
+        "properties": {
+          "displayId": {
+            "type": "string",
+            "description": "Display ID of the target entry."
+          },
+          "kind": {
+            "const": "body"
+          },
+          "body": {
+            "type": "string",
+            "description": "The proposed body as `markspec fmt` writes it (dedented, LF line endings)."
+          },
+          "currentBody": {
+            "type": "string",
+            "description": "The current body, formatted when the formatted form holds the same words as the body on disk, otherwise as written on disk (dedented, LF line endings)."
+          }
+        }
+      },
+      "ProposalPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiVersion",
+          "changes"
+        ],
+        "properties": {
+          "apiVersion": {
+            "const": 3
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewedChange"
+            }
+          }
+        }
+      },
+      "ProposalApplied": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "apiVersion",
+          "path",
+          "etag"
+        ],
+        "properties": {
+          "apiVersion": {
+            "const": 3
+          },
+          "path": {
+            "type": "string",
+            "description": "Project-relative path of the written file, with `/` separators."
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9a-f]{64}\"$",
+            "description": "The new document ETag of the written file."
           }
         }
       }

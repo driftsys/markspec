@@ -7,13 +7,28 @@
  * portable; `desk/server.ts` owns the listener, the nonce token, and project
  * loading.
  *
- * Read-only (ADR-035), no WebSocket, no writes.
+ * No WebSocket. The only write is an accepted proposal (ADR-035: agents
+ * propose, the author accepts), and it changes one entry body.
  *
- *   GET /api/v1/tree               → {@linkcode ProductTree}
- *   GET /api/v1/entries/{id}       → {@linkcode EntryView} (display ID or Id)
- *   GET /api/v1/entries/{id}/html  → {@linkcode EntryHtmlView}
- *   GET /api/v1/documents?path=P   → {@linkcode DocumentView}
- *   GET /api/v1/files?path=P       → {@linkcode SourceText}
+ *   GET  /api/v1/tree               → {@linkcode ProductTree}
+ *   GET  /api/v1/entries/{id}       → {@linkcode EntryView} (display ID or Id)
+ *   GET  /api/v1/entries/{id}/html  → {@linkcode EntryHtmlView}
+ *   GET  /api/v1/documents?path=P   → {@linkcode DocumentView}
+ *   GET  /api/v1/files?path=P       → {@linkcode SourceText}
+ *   POST /api/v1/proposals/preview  → {@linkcode ProposalPreview} (no write)
+ *   POST /api/v1/proposals/apply    → {@linkcode ProposalApplied} (writes)
+ *
+ * Proposals: the request body is {@linkcode ProposalRequest}, exactly one
+ * change of kind `body` for a project entry (no `origin`) in a `.md` file.
+ * Both routes require an `If-Match` header that names the current
+ * `/documents` ETag of the entry's file with the strong comparison
+ * (RFC 9110 §13.1.1): missing is 428 `precondition-required`; a tag that
+ * does not name the current one, a `W/` tag, and `*` are 412
+ * `precondition-failed`. The proposal passes the `markspec fmt` formatter
+ * (`desk/proposals.ts`); apply writes the file text with only the target
+ * body replaced, through {@linkcode DeskSource.writeFile}, and answers the
+ * new document ETag. Applies run one at a time, so a second apply with the
+ * same tag answers 412 and writes nothing.
  *
  * A `path` is served only when it names a Markdown or source file that holds
  * at least one project entry (an entry with no `origin`); `/documents`
@@ -42,9 +57,10 @@
  * origin — {@linkcode TAURI_ORIGINS} plus `allowedOrigins` — or it gets 403
  * `forbidden-origin`. An `OPTIONS` preflight from an allowed origin gets 204
  * before the bearer check, because browsers send no `Authorization` header on
- * a preflight; it allows the `Authorization` and `If-None-Match` request
+ * a preflight; it allows the `GET` and `POST` methods and the
+ * `Authorization`, `Content-Type`, `If-Match`, and `If-None-Match` request
  * headers. Each response produced after the Origin check for an allowed origin
- * (200, 304, 400, 401, 404, 405) carries `Access-Control-Allow-Origin`,
+ * (200, 304, 400, 401, 404, 405, 409, 412, 422, 428, 500) carries `Access-Control-Allow-Origin`,
  * `Access-Control-Expose-Headers: ETag`, and `Vary: Origin`, so the UI can
  * read error bodies and the entity tag too. The 403 responses
  * (`forbidden-host`, `forbidden-origin`) carry no CORS headers.
@@ -63,8 +79,16 @@ import {
   type EffectiveProfile,
   type Entry,
   formatEntryOrigin,
+  loadMarkdownFormatter,
   makeDisplayId,
+  type ProseFormatter,
 } from "../core/mod.ts";
+import {
+  applyBody,
+  MAX_PROPOSAL_CHARS,
+  previewBody,
+  type ProposalRefusal,
+} from "./proposals.ts";
 import {
   buildDocumentView,
   buildEntryHtmlView,
@@ -182,6 +206,45 @@ export interface DeskSource {
    * `undefined` when the path does not exist or cannot be resolved.
    */
   realPath(absolutePath: string): Promise<string | undefined>;
+  /**
+   * Replace the file at an absolute path with `text`, atomically. Called
+   * only for an accepted proposal; a rejection is reported as 500
+   * `write-failed`.
+   */
+  writeFile(absolutePath: string, text: string): Promise<void>;
+}
+
+/** One change of a proposal: a new body for one entry. */
+export interface ProposalChange {
+  readonly displayId: string;
+  readonly kind: "body";
+  readonly body: string;
+}
+
+/** `POST /api/v1/proposals/{preview,apply}` request body. */
+export interface ProposalRequest {
+  /** Exactly one change. */
+  readonly changes: readonly ProposalChange[];
+}
+
+/** One previewed change: the formatted proposed body and the current body. */
+export interface PreviewedChange extends ProposalChange {
+  readonly currentBody: string;
+}
+
+/** `POST /api/v1/proposals/preview` response. */
+export interface ProposalPreview {
+  readonly apiVersion: number;
+  readonly changes: readonly PreviewedChange[];
+}
+
+/** `POST /api/v1/proposals/apply` response. */
+export interface ProposalApplied {
+  readonly apiVersion: number;
+  /** Project-relative path of the written file. */
+  readonly path: string;
+  /** The new document ETag of the written file. */
+  readonly etag: string;
 }
 
 /** Options for {@linkcode createDeskHandler}. */
@@ -194,6 +257,12 @@ export interface DeskHandlerOptions {
    * Vite dev server. Values are in `URL.origin` form.
    */
   readonly allowedOrigins?: readonly string[];
+  /**
+   * Load the Markdown prose formatter used on proposals. Defaults to
+   * `loadMarkdownFormatter`. A rejection is reported as 422
+   * `format-failed`.
+   */
+  readonly loadProseFormatter?: () => Promise<ProseFormatter>;
 }
 
 /**
@@ -371,6 +440,33 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set([
 
 const ENTRY_PATH_RE = /^\/api\/v1\/entries\/([^/]+)$/;
 const ENTRY_HTML_PATH_RE = /^\/api\/v1\/entries\/([^/]+)\/html$/;
+const PROPOSAL_PREVIEW_PATH = "/api/v1/proposals/preview";
+const PROPOSAL_APPLY_PATH = "/api/v1/proposals/apply";
+
+/** HTTP status and message of each proposal refusal. */
+const REFUSALS: Readonly<
+  Record<ProposalRefusal, { status: number; message: string }>
+> = {
+  "entry-not-found": { status: 404, message: "The entry is not in the file" },
+  "entry-body-empty": { status: 409, message: "The entry has no body" },
+  "entry-trailer-invalid": {
+    status: 409,
+    message: "The entry's trailer did not parse",
+  },
+  "proposal-empty": { status: 422, message: "The proposed body is empty" },
+  "proposal-too-large": {
+    status: 422,
+    message: `The proposed body is over ${MAX_PROPOSAL_CHARS} characters`,
+  },
+  "proposal-changes-entries": {
+    status: 422,
+    message: "The proposed body changes the entries of the file",
+  },
+  "format-failed": {
+    status: 422,
+    message: "The proposed body could not be formatted",
+  },
+};
 
 /**
  * Create the desk API request handler. The handler authenticates every
@@ -381,6 +477,17 @@ export function createDeskHandler(
   options: DeskHandlerOptions,
 ): (request: Request) => Promise<Response> {
   const { source, token } = options;
+  const loadProseFormatter = options.loadProseFormatter ??
+    loadMarkdownFormatter;
+
+  // Applies run one after another, so the check-then-write of one apply
+  // never interleaves with another (a second apply sees the new text).
+  let applyQueue: Promise<unknown> = Promise.resolve();
+  function serialized(run: () => Promise<Response>): Promise<Response> {
+    const next = applyQueue.then(run);
+    applyQueue = next.catch(() => {});
+    return next;
+  }
   const allowedOrigins: ReadonlySet<string> = new Set([
     ...TAURI_ORIGINS,
     ...(options.allowedOrigins ?? []),
@@ -428,8 +535,9 @@ export function createDeskHandler(
         status: 204,
         headers: {
           ...corsHeaders(origin),
-          "access-control-allow-methods": "GET, OPTIONS",
-          "access-control-allow-headers": "Authorization, If-None-Match",
+          "access-control-allow-methods": "GET, POST, OPTIONS",
+          "access-control-allow-headers":
+            "Authorization, Content-Type, If-Match, If-None-Match",
           "access-control-max-age": "600",
           "cache-control": "no-store",
         },
@@ -501,13 +609,171 @@ export function createDeskHandler(
     return response;
   }
 
+  /**
+   * `/proposals/preview` and `/proposals/apply`. Checks, in order: the
+   * `If-Match` header is present (428), the request shape (400), the entry
+   * exists (404), it has no `origin` (409), it is in a `.md` file (409), the
+   * file is an allowed project path (404), `If-Match` names the current
+   * document ETag (412), then the proposal pipeline. Apply writes the new
+   * text to the checked real path and answers the new ETag.
+   */
+  async function serveProposal(
+    request: Request,
+    apply: boolean,
+  ): Promise<Response> {
+    const ifMatch = request.headers.get("if-match");
+    if (ifMatch === null) {
+      return errorResponse(
+        428,
+        "precondition-required",
+        "If-Match with the document ETag is required",
+      );
+    }
+    const change = parseProposalRequest(await readBody(request));
+    if (change === undefined) {
+      return errorResponse(
+        400,
+        "bad-request",
+        "Expected { changes: [{ displayId, kind: 'body', body }] }",
+      );
+    }
+    const compiled = await source.getCompiled();
+    const entry = findEntry(compiled, change.displayId);
+    if (!entry) {
+      return errorResponse(
+        404,
+        "entry-not-found",
+        `No entry '${change.displayId}'`,
+      );
+    }
+    if (entry.origin) {
+      return errorResponse(
+        409,
+        "entry-read-only",
+        `Entry '${entry.displayId}' comes from ${
+          formatEntryOrigin(entry.origin)
+        } and is read-only`,
+      );
+    }
+    const path = toApiPath(source.projectRoot, entry.location.file);
+    if (!path.endsWith(".md")) {
+      return errorResponse(
+        409,
+        "entry-not-markdown",
+        `Entry '${entry.displayId}' is not in a Markdown file`,
+      );
+    }
+    const notFound = () =>
+      errorResponse(404, "not-found", `No project file '${path}'`);
+    const entries = projectEntriesOf(compiled, source.projectRoot, path);
+    if (entries.length === 0 || !isProjectRelative(path)) return notFound();
+    const target = join(source.projectRoot, path);
+    const [realRoot, realTarget] = await Promise.all([
+      source.realPath(source.projectRoot),
+      source.realPath(target),
+    ]);
+    if (
+      realRoot === undefined || realTarget === undefined ||
+      !isInside(realRoot, realTarget)
+    ) {
+      return notFound();
+    }
+    // Read and write the checked real path, as `servePath` reads it.
+    const text = await source.readFile(realTarget);
+    if (text === undefined) return notFound();
+    const etag = await documentEtag(
+      DESK_API_VERSION,
+      compiled,
+      path,
+      entries,
+      text,
+    );
+    if (!namesEtagStrongly(ifMatch, etag)) {
+      return errorResponse(
+        412,
+        "precondition-failed",
+        "The file changed since the given ETag",
+      );
+    }
+    let formatProse: ProseFormatter;
+    try {
+      formatProse = await loadProseFormatter();
+    } catch {
+      return refusalResponse("format-failed");
+    }
+
+    if (!apply) {
+      const outcome = await previewBody(
+        text,
+        target,
+        entry.displayId,
+        change.body,
+        formatProse,
+      );
+      if (!outcome.ok) return refusalResponse(outcome.refusal);
+      const body: ProposalPreview = {
+        apiVersion: DESK_API_VERSION,
+        changes: [{
+          displayId: entry.displayId,
+          kind: "body",
+          body: outcome.value.body,
+          currentBody: outcome.value.currentBody,
+        }],
+      };
+      return jsonResponse(200, body);
+    }
+
+    const outcome = await applyBody(
+      text,
+      target,
+      entry.displayId,
+      change.body,
+      formatProse,
+    );
+    if (!outcome.ok) return refusalResponse(outcome.refusal);
+    try {
+      await source.writeFile(realTarget, outcome.value);
+    } catch {
+      return errorResponse(500, "write-failed", `Could not write '${path}'`);
+    }
+    // The pipeline guarantees the same entries, so the pre-write graph and
+    // the new text give the tag a fresh compile gives.
+    const newEtag = await documentEtag(
+      DESK_API_VERSION,
+      compiled,
+      path,
+      entries,
+      outcome.value,
+    );
+    const body: ProposalApplied = {
+      apiVersion: DESK_API_VERSION,
+      path,
+      etag: newEtag,
+    };
+    const response = jsonResponse(200, body);
+    response.headers.set("etag", newEtag);
+    return response;
+  }
+
   /** Bearer check, method check, and routing — the policy after Origin. */
   async function route(request: Request, url: URL): Promise<Response> {
     if (!hasBearer(request, token)) {
       return errorResponse(401, "unauthorized", "Missing or invalid token");
     }
-    if (request.method !== "GET") {
-      return errorResponse(405, "method-not-allowed", "Only GET is supported");
+    const isProposal = url.pathname === PROPOSAL_PREVIEW_PATH ||
+      url.pathname === PROPOSAL_APPLY_PATH;
+    const method = isProposal ? "POST" : "GET";
+    if (request.method !== method) {
+      return errorResponse(
+        405,
+        "method-not-allowed",
+        `Only ${method} is supported`,
+      );
+    }
+    if (isProposal) {
+      return url.pathname === PROPOSAL_APPLY_PATH
+        ? await serialized(() => serveProposal(request, true))
+        : await serveProposal(request, false);
     }
 
     if (url.pathname === "/api/v1/tree") {
@@ -615,6 +881,75 @@ function matchesEtag(header: string | null, etag: string): boolean {
   return header.split(",").some((tag) =>
     tag.trim().replace(/^W\//, "") === etag
   );
+}
+
+/**
+ * Whether an `If-Match` header value names `etag` with the strong
+ * comparison (RFC 9110 §13.1.1): one of its comma-separated tags is exactly
+ * `etag`. A `W/` tag and `*` never match, because neither names the
+ * current tag.
+ */
+function namesEtagStrongly(header: string, etag: string): boolean {
+  return header.split(",").some((tag) => tag.trim() === etag);
+}
+
+/** The request body as text; `undefined` when it cannot be read. */
+async function readBody(request: Request): Promise<string | undefined> {
+  try {
+    return await request.text();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The single change of a {@linkcode ProposalRequest}, or `undefined` when
+ * the text is not JSON of that shape: an object with only `changes`,
+ * holding exactly one object with only a non-empty string `displayId`,
+ * `kind: "body"`, and a string `body`.
+ */
+function parseProposalRequest(
+  text: string | undefined,
+): ProposalChange | undefined {
+  if (text === undefined) return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (!isPlainObject(value) || !hasOnlyKeys(value, ["changes"])) {
+    return undefined;
+  }
+  const changes = value.changes;
+  if (!Array.isArray(changes) || changes.length !== 1) return undefined;
+  const [change] = changes;
+  if (
+    !isPlainObject(change) ||
+    !hasOnlyKeys(change, ["displayId", "kind", "body"]) ||
+    typeof change.displayId !== "string" || change.displayId.length === 0 ||
+    change.kind !== "body" || typeof change.body !== "string"
+  ) {
+    return undefined;
+  }
+  return { displayId: change.displayId, kind: "body", body: change.body };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  return Object.keys(value).every((k) => keys.includes(k));
+}
+
+/** The error response of a proposal refusal. */
+function refusalResponse(refusal: ProposalRefusal): Response {
+  const { status, message } = REFUSALS[refusal];
+  return errorResponse(status, refusal, message);
 }
 
 /** Constant-time bearer-token comparison. */
