@@ -19,6 +19,7 @@ import {
   type Diagnostic,
   discoverMarkspecRoot,
   discoverProjectRoot,
+  type DiscoveryDirEntry,
   type EffectiveProfile,
   type Entry,
   loadConfig,
@@ -52,7 +53,8 @@ export function buildSoftGateMessage(searchedDirs: readonly string[]): string {
     `Searched from: ${dirs} (walked upward for .markspec.yaml / project.yaml).\n` +
     "Point the server at your project with `markspec mcp --root <path>` or the " +
     "MARKSPEC_PROJECT_ROOT environment variable. This server has no work to do " +
-    "here — stop calling MarkSpec tools.";
+    "here — stop calling MarkSpec tools.\n" +
+    "Also searched below each directory for nested MarkSpec projects.";
 }
 
 /**
@@ -162,6 +164,12 @@ export interface ProjectEnv {
   rootOverrides(): string[];
   /** Read a file's text content, or undefined if missing. */
   readFile: ReadFile;
+  /** List a directory's direct children (e.g. `Deno.readDir`). Used by
+   * project-root discovery below the start folder. */
+  readDir(path: string): AsyncIterable<DiscoveryDirEntry>;
+  /** Return the user's home folder, or undefined when unknown. No
+   * downward project scan runs from it. */
+  homeDir(): string | undefined;
   /** Canonicalise a path, resolving symlinks (e.g. `Deno.realPath`). Used by
    * the delivered-path containment guard (#699) when serving delivered
    * documents. */
@@ -292,6 +300,8 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
         return undefined;
       }
     },
+    readDir: (path: string) => Deno.readDir(path),
+    homeDir: () => envGet("HOME"),
     realPath: (path: string) => Deno.realPath(path),
     stat: async (path: string) => {
       const stat = await Deno.stat(path);
