@@ -293,7 +293,16 @@ navigator, and shows the whole document an entry lives in.
 - **Navigator.** A node's children are the nodes whose edge points to it.
   Refining children (`satisfies`, `derived-from`) come first, then verifying
   children (`verifies`) after a separator, each group in natural display-ID
-  order. Every selection is a history step with Back and Forward.
+  order. Every selection is a history step with Back and Forward. The navigator
+  reads `GET /api/v1/tree` again when the window receives focus, the same
+  trigger the document pane uses, so an entry added, removed, or renamed in
+  another application shows when the author returns to MarkDesk. The shown tree
+  stays on screen while it loads; when the new tree is equal to the shown one
+  the navigator keeps it, and expanded nodes and the selection never change. A
+  failed refresh keeps the shown tree. A selected entry that is no longer in the
+  product shows "`<ID>` is not in this product." in the document pane instead of
+  an error. The tree has no `ETag`: the server builds the whole tree to answer
+  it, so a 304 would save only the transfer over loopback.
 - **Source drawer.** It shows the exact file text in Plex Mono with line
   numbers. In dark mode it follows the sheet paper colour, in line with
   SAD_DESK_0008.

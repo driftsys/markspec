@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DeskError, type ProductTree } from "../api/client";
 import { useOpenProduct } from "../app/useProduct";
 import { useSelection } from "../app/selection";
+import { useWindowFocusCount } from "../app/useWindowFocusCount";
 import { buildNavigatorModel, type NavigatorModel } from "./model";
 
 /** Props of the presentational navigator tree. */
@@ -98,18 +99,34 @@ function Row(
   );
 }
 
-/** Loads the open product's tree and shows it in the navigator. */
+/**
+ * Loads the open product's tree and shows it in the navigator. The tree is
+ * read again when the window gets focus; the shown tree stays mounted while
+ * it loads, so expanded nodes and the selection are kept.
+ */
 export function NavigatorPane() {
   const { client } = useOpenProduct();
   const { selected, select } = useSelection();
+  const focusCount = useWindowFocusCount();
   const [tree, setTree] = useState<ProductTree>();
   const [failed, setFailed] = useState(false);
+
   useEffect(() => {
-    let current = true;
     setTree(undefined);
     setFailed(false);
+  }, [client]);
+
+  useEffect(() => {
+    let current = true;
     client.tree().then((loaded) => {
-      if (current) setTree(loaded);
+      if (!current) return;
+      setFailed(false);
+      // Keep the current object when nothing changed, so no row re-renders.
+      setTree((shown) =>
+        shown && JSON.stringify(shown) === JSON.stringify(loaded)
+          ? shown
+          : loaded
+      );
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (error instanceof DeskError && error.code === "network") return;
@@ -118,9 +135,12 @@ export function NavigatorPane() {
     return () => {
       current = false;
     };
-  }, [client]);
+  }, [client, focusCount]);
   const model = useMemo(() => tree && buildNavigatorModel(tree), [tree]);
-  if (failed) return <p role="alert">MarkDesk could not load this product.</p>;
+  // A failed refresh keeps the tree that is already shown.
+  if (failed && !model) {
+    return <p role="alert">MarkDesk could not load this product.</p>;
+  }
   if (!model) return <p>…</p>;
   return <Navigator model={model} selected={selected} onSelect={select} />;
 }

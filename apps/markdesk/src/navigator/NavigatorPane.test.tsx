@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type DeskClient, DeskError, type ProductTree } from "../api/client";
@@ -46,6 +52,75 @@ describe("NavigatorPane", () => {
     });
     expect(await screen.findByText("MarkDesk could not load this product."))
       .toBeTruthy();
+  });
+});
+
+describe("NavigatorPane refresh on window focus", () => {
+  const focus = () =>
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+
+  it("shows an entry added on disk after the window gets focus", async () => {
+    const trees = [
+      tree([{ displayId: "A", title: "a" }], [], ["A"]),
+      tree(
+        [{ displayId: "A", title: "a" }, { displayId: "B", title: "b" }],
+        [],
+        ["A", "B"],
+      ),
+    ];
+    const load = vi.fn(async () => trees.shift() ?? trees[0]);
+    pane(load);
+    await screen.findByText("A");
+    expect(screen.queryByText("B")).toBeNull();
+    await focus();
+    expect(await screen.findByText("B")).toBeTruthy();
+  });
+
+  it("drops an entry removed on disk after the window gets focus", async () => {
+    let shown = [{ displayId: "A", title: "a" }, {
+      displayId: "B",
+      title: "b",
+    }];
+    pane(async () => tree(shown, [], shown.map((n) => n.displayId)));
+    await screen.findByText("B");
+    shown = [{ displayId: "A", title: "a" }];
+    await focus();
+    await waitFor(() => expect(screen.queryByText("B")).toBeNull());
+    expect(screen.getByText("A")).toBeTruthy();
+  });
+
+  it("keeps expanded nodes when focus finds the same tree", async () => {
+    const load = vi.fn(async () =>
+      tree(
+        [{ displayId: "P", title: "p" }, { displayId: "R1", title: "r" }],
+        [{ from: "R1", to: "P", relation: "satisfies" }],
+        ["P"],
+      )
+    );
+    pane(load);
+    fireEvent.click(await screen.findByText("P"));
+    expect(screen.getByText("R1")).toBeTruthy();
+    await focus();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("R1")).toBeTruthy();
+    const item = screen.getByText("P").closest("[role=treeitem]")!;
+    expect(item.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps the shown tree when a refresh fails", async () => {
+    let fail = false;
+    pane(async () => {
+      if (fail) throw new DeskError(500, "internal", "boom");
+      return tree([{ displayId: "A", title: "a" }], [], ["A"]);
+    });
+    await screen.findByText("A");
+    fail = true;
+    await focus();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.getByText("A")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 
