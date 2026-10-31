@@ -50,11 +50,10 @@ export function nearestRoot(
  * Walk up from `startDir` to the nearest `project.yaml`, else the nearest
  * `.markspec.yaml`. Returns `undefined` when neither exists.
  *
- * This is the one project-root lookup shared by the CLI (`check`, `fmt`,
- * `lint`: per file for explicit arguments, from the current directory for
- * a bare invocation), the LSP server and the MCP server (#845), so all
- * three read `project.yaml`, `.markspec.yaml` and `markspec.lock` from the
- * same folder for the same file.
+ * The LSP server and the MCP server use this order to find the root
+ * above their workspace. The CLI (`check`, `fmt`, `lint`) uses
+ * {@linkcode createProjectRootResolver}, which starts from this nearest
+ * config root but skips a config that an enclosing project hides (#845).
  */
 export async function resolveConfigRoot(
   startDir: string,

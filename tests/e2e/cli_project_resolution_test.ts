@@ -340,6 +340,57 @@ Deno.test("check: bare invocation checks each nested project with its own profil
   }
 });
 
+/** {@linkcode PARENT_AND_NESTED} plus a nested-project file that uses the
+ * parent-only attribute `Alpha`, so the nested profile reports MSL-R010
+ * for it. */
+const PARENT_AND_NESTED_WITH_WARNING: Record<string, string> = {
+  ...PARENT_AND_NESTED,
+  "p/sub/extra.md": entryUsing("STK_0002", "Alpha: alpha value", "G"),
+};
+
+Deno.test("check <dir>: a directory argument at a parent root includes nested projects, like a bare invocation (#845)", async () => {
+  const bare = await markspec(["check"], {
+    files: PARENT_AND_NESTED_WITH_WARNING,
+    cwd: "p",
+  });
+  const dirArg = await markspec(["check", "."], {
+    files: PARENT_AND_NESTED_WITH_WARNING,
+    cwd: "p",
+  });
+  for (const run of [bare, dirArg]) {
+    assertStringIncludes(run.stderr, "MSL-R010", run.stderr);
+    assertStringIncludes(run.stderr, "extra.md", run.stderr);
+    for (const dup of DUPLICATE_CODES) {
+      assertEquals(run.stderr.includes(dup), false, run.stderr);
+    }
+  }
+  assertEquals(
+    (dirArg.stderr.match(/MSL-R010/g) ?? []).length,
+    (bare.stderr.match(/MSL-R010/g) ?? []).length,
+    dirArg.stderr,
+  );
+  assertEquals(dirArg.code, bare.code, dirArg.stderr);
+});
+
+for (const hide of ["exclude", "gitignore"] as const) {
+  Deno.test(`check: bare invocation inside a folder the parent hides (${hide}) uses the parent project, as in the LSP (#845)`, async () => {
+    const run = await markspecPersist(["check"], {
+      files: {
+        ...parentWithHiddenNested(hide),
+        "p/vendor/docs/.keep": "",
+      },
+      cwd: "p/vendor/docs",
+    });
+    try {
+      const header = /under (\S+)/.exec(run.stderr);
+      assertEquals(header !== null, true, run.stderr);
+      assertEquals(basename(header![1]), "p", run.stderr);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  });
+}
+
 Deno.test("check <dir>: a directory argument honors the project's exclude: list, like a bare invocation (#845)", async () => {
   const { code, stderr } = await markspec(["check", "."], {
     files: {

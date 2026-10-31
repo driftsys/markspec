@@ -307,11 +307,11 @@ and files of different projects are processed separately with their own
 profiles; files with no config above them are processed without a profile. A
 config in a folder that an enclosing project hides (`exclude:`, gitignored,
 hidden) is not a root, as in the LSP (core `createProjectRootResolver`). Invoked
-bare (no args), they resolve the root from the working directory, process each
-nested project as its own group, and report "no project root found" when neither
-file exists. All other commands (`compile`, `show`, `context`, `dependents`,
-`report`, `next-id`, `doc build`, `book build`) require a `project.yaml` found
-by walking up from the working directory.
+bare (no args), they resolve the root from the working directory with the same
+resolver, process each nested project as its own group, and report "no project
+root found" when neither file exists. All other commands (`compile`, `show`,
+`context`, `dependents`, `report`, `next-id`, `doc build`, `book build`) require
+a `project.yaml` found by walking up from the working directory.
 
 ## Entry block rendering pipeline
 
@@ -621,10 +621,11 @@ error[E001]: broken reference
   machine-readable output. JSON to stdout, diagnostics to stderr.
 - **Explicit args = exact scope; bare invocation = announced project scope.**
   `check`, `lint`, and `fmt` with explicit file/directory arguments operate on
-  exactly those paths (directories expand through gitignore-aware discovery).
-  Invoked bare, they operate on every relevant file under the project root
-  (gitignore + project.yaml `exclude:` honored) and announce the scope on
-  stderr. Bare invocation outside a project is an error, never a silent cwd
+  exactly those paths (a directory expands to the files a bare invocation of its
+  project finds below it, so gitignore and `.markspec.yaml` `exclude:` are
+  honored). Invoked bare, they operate on every relevant file under the project
+  root (gitignore + `.markspec.yaml` `exclude:` honored) and announce the scope
+  on stderr. Bare invocation outside a project is an error, never a silent cwd
   scan. Artifact-producing commands (`compile`, `export`) still require explicit
   paths/globs.
 - **Write-back safety.** Any command that modifies a file (`fmt`, `insert`) is

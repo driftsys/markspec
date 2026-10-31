@@ -575,9 +575,9 @@ async function walkProjects(
  * on every surface:
  *
  *   - no args  → whole project via gitignore-aware discovery, with a
- *     one-line scope header on stderr. The project root is the nearest
- *     `project.yaml`, else the nearest `.markspec.yaml`, above the current
- *     directory. Projects nested below it (found as the LSP finds them:
+ *     one-line scope header on stderr. The project root is the owner of the
+ *     current directory, found the same way as for explicit arguments
+ *     ({@linkcode createProjectRootResolver}). Projects nested below it (found as the LSP finds them:
  *     configs in hidden, gitignored or excluded folders do not count) form
  *     their own groups; each project's `.markspec.yaml` `exclude:` list
  *     applies to its own walk;
@@ -610,14 +610,13 @@ export async function resolveScope(
     discoverFiles,
     isWithin,
     RELEVANT_EXTENSIONS,
-    resolveConfigRoot,
   } = await import("../core/mod.ts");
   const extensions = opts.extensions ?? RELEVANT_EXTENSIONS;
   const io = denoDiscoveryIO();
   const resolver = await cliProjectRootResolver();
 
   if (args.length === 0) {
-    const projectRoot = await resolveConfigRoot(Deno.cwd(), readFile);
+    const projectRoot = await resolver.ownerOf(Deno.cwd());
     if (projectRoot === undefined) {
       console.error("error: no project root found");
       console.error(`  searched from ${Deno.cwd()} to filesystem root`);

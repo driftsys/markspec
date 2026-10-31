@@ -262,3 +262,15 @@ Deno.test("createProjectRootResolver: the walk up stops below homeDir", async ()
   const resolver = createProjectRootResolver(realIO(), { homeDir: dir });
   assertEquals(await resolver.ownerOf(join(dir, "a")), join(dir, "a"));
 });
+
+Deno.test("createProjectRootResolver: a config two levels below a hidden folder belongs to the outermost project", async () => {
+  const dir = await real(
+    await makeTree({
+      ".markspec.yaml": "exclude:\n  - a/\n",
+      "a/project.yaml": PROJECT,
+      "a/b/project.yaml": PROJECT,
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(await resolver.ownerOf(join(dir, "a", "b")), dir);
+});

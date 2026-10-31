@@ -309,9 +309,10 @@ dash bullet lists, and the file's own line-ending convention preserved.
 stamps `Id:` as usual. To get an `Id:`, omit the line; don't leave it blank.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
-recursively with `.gitignore` (and the built-in hidden-directory skip) applied —
-`.markspec.yaml` `exclude:` patterns are honored only for bare whole-project
-invocation, not for explicitly-named directories:
+to the files a bare invocation of its project finds below that directory, so
+`.gitignore`, the built-in hidden-directory skip, and the `.markspec.yaml`
+`exclude:` patterns all apply (see
+[Which project a file belongs to](#which-project-a-file-belongs-to)):
 
 ```sh
 # a subtree
