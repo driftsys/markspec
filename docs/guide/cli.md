@@ -1320,17 +1320,19 @@ or trace keywords. The server won't interfere with your language's native LSP
 
 ### Project resolution
 
-The server validates each document against the project that owns it, the same
-way `markspec check` walks up from a file:
+The server validates each document against the project that owns it:
 
 - **Primary project.** From the editor's workspace root, the server walks up to
   the nearest `project.yaml`. If there is none, it walks up to the nearest
   `.markspec.yaml`. If there is neither, the workspace root itself is the
   primary project and the bundled default profile applies. This is the order the
-  CLI and the MCP server use, so `project.yaml`, `markspec.lock`, and the
-  upstream cache are read from the same folder in every surface. A workspace
-  opened on a subfolder such as `docs/` therefore still loads the profile
-  declared above it.
+  MCP server uses, so `project.yaml`, `markspec.lock`, and the upstream cache
+  are read from the same folder in both surfaces. A workspace opened on a
+  subfolder such as `docs/` therefore still loads the profile declared above it.
+  The CLI does not use this order yet: it walks up from the current directory,
+  not from the file, and finds only `project.yaml`. In a project that has a
+  `.markspec.yaml` and no `project.yaml`, the CLI loads no profile and can
+  report diagnostics, such as MSL-R010, that the editor does not.
 - **Nested projects.** Every directory below the primary project that a document
   walk-up would resolve to — a directory with a `project.yaml`, or a directory
   with a `.markspec.yaml` and no `project.yaml` between it and the primary

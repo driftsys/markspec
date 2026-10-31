@@ -10,9 +10,9 @@
  * - the primary root, found by walking UP from the editor's workspace
  *   root to the nearest `project.yaml`, else the nearest
  *   `.markspec.yaml`, else the workspace root itself (#694). This is the
- *   order the CLI and the MCP server use, so `markspec.lock`, the
- *   upstream cache and `project.yaml` are read from the same folder in
- *   every surface;
+ *   order the MCP server uses, so `markspec.lock`, the upstream cache and
+ *   `project.yaml` are read from the same folder in both. The CLI finds
+ *   only `project.yaml`, from the current directory (#845);
  * - every directory BELOW the primary root that a document walk-up would
  *   resolve to (gitignore-aware discovery of `project.yaml` and
  *   `.markspec.yaml`), so a workspace that is a parent folder of several
