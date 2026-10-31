@@ -492,6 +492,10 @@ function extractEntry(
       // it by normalising spaces to hyphens and checking the recognised
       // trailer-key vocabulary.
       if (key.includes("|")) break;
+      // Markdown punctuation before the colon (`**Rationale:**`,
+      // `[link](http://…)`, `` `mode:fast` ``, `<mailto:…>`) means inline
+      // Markdown in prose. A trailer key never holds it, so stop here too.
+      if (/[*[\]()<>`]/.test(key)) break;
       if (
         /\s/.test(key) &&
         !RECOGNIZED_TRAILER_KEYS.has(key.replace(/\s+/g, "-"))

@@ -843,6 +843,35 @@ Deno.test("parseMarkdown: real spaced-key trailer typo still MSL-P022 (#697 regr
   assertEquals(p022.length, 1);
 });
 
+Deno.test("parseMarkdown: Markdown punctuation before a colon on the last body line is prose, not a trailer", () => {
+  // Emphasis (`**Rationale:**`, `**Rationale**:`), a link (`[x](http://…)`),
+  // inline code, and an autolink put Markdown punctuation in the text
+  // before the colon. That text is never a trailer key, so no MSL-P022.
+  const lastLines = [
+    "**Rationale:** drivers behind need early warning.",
+    "**Rationale**: drivers behind need early warning.",
+    "See [the guide](http://example.com/guide) for details.",
+    "Set `mode:fast` in the config.",
+    "Contact <mailto:team@example.com> for help.",
+  ];
+  for (const last of lastLines) {
+    const md = `- [STK_0010] Title
+
+  The lamp shall light within 100 ms.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // P021 / P022 locate the offending trailer line, not the title line
 // ---------------------------------------------------------------------------
