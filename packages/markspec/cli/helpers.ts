@@ -80,14 +80,14 @@ export const readFile: ReadFile = async (path: string) => {
  * Load project config or exit with an error.
  * Used by commands that require project context.
  */
-export async function requireProjectConfig() {
+export async function requireProjectConfig(startDir: string = Deno.cwd()) {
   const { loadConfig } = await import("../core/mod.ts");
   try {
-    const result = await loadConfig(Deno.cwd(), readFile);
+    const result = await loadConfig(startDir, readFile);
     if (result === undefined) {
       console.error(
         "error: no project.yaml found\n" +
-          `  searched from ${Deno.cwd()} to filesystem root\n\n` +
+          `  searched from ${startDir} to filesystem root\n\n` +
           "  Create a project.yaml in your project root, or use\n" +
           "  markspec fmt <file> / markspec check <file>\n" +
           "  which work without project context.",
@@ -292,20 +292,24 @@ export async function loadProjectCorpus(
  * abort `show`/`compile`/etc., so its diagnostics are surfaced but never
  * trigger `Deno.exit`.
  *
+ * `opts.projectRoot` names the project explicitly (bare `lint` compiles each
+ * nested project against its own root); when absent, the project is found by
+ * walking up from the working directory.
+ *
  * The returned `config` is the `project.yaml` this compile already resolved
  * via {@linkcode requireProjectConfig} — callers that need org-schema fields
  * (e.g. `report`'s `dependencies:`) use it instead of re-loading the file.
  */
 export async function compileProject(
   paths: string[],
-  opts: { withContributors?: boolean } = {},
+  opts: { withContributors?: boolean; projectRoot?: string } = {},
 ): Promise<{
   result: CompileResult;
   chain: ProfileChain | null;
   corpusIndex: ReadonlyMap<string, DeliveredDocument>;
   config: ProjectConfig;
 }> {
-  const configResult = await requireProjectConfig();
+  const configResult = await requireProjectConfig(opts.projectRoot);
   const chain = await loadActiveProfile(configResult.projectRoot);
   const { compile, loadProjectUpstreams, parseLockfile } = await import(
     "../core/mod.ts"
