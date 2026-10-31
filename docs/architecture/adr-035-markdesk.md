@@ -130,8 +130,8 @@ stays TypeScript. Everything lives in this repository.
 
   The desk backend shall send an `ETag` header with every HTTP status 200
   response to `GET /api/v1/tree`, with a value that changes when an entry is
-  added to the graph, removed from the graph, given a new title, or given a new
-  Satisfies, Derived-from, or Verifies link.
+  added to the graph, removed from the graph, given a new title, type, or
+  origin, or given a new Satisfies, Derived-from, or Verifies link.
 
       Id: 01M68C4ZFKF59N2GB7N8DVPZ2Y
 
@@ -408,9 +408,10 @@ navigator, and shows the whole document an entry lives in.
   `apiVersion` stays 3.
 - **Navigator refresh (#842).** `GET /api/v1/tree` carries a strong `ETag` too:
   the quoted SHA-256 digest of the serialized tree, which embeds `apiVersion`
-  (SAD_DESK_0016). The tree covers titles and the Satisfies, Derived-from, and
-  Verifies links only, so a change to another attribute keeps the tag. The tree
-  is built from the compiled graph in a fixed order, so an unchanged graph
+  (SAD_DESK_0016). Each tree node holds the display ID, title, type, core kind,
+  and origin of an entry, and the edges hold the Satisfies, Derived-from, and
+  Verifies links only, so a change to any other attribute keeps the tag. The
+  tree is built from the compiled graph in a fixed order, so an unchanged graph
   yields the same tag across mtime-refreshed compiles. The server builds the
   tree and its tag once per compiled graph, and a matching `If-None-Match` gets
   304 with no body (SAD_DESK_0018). In the UI, one `RefreshProvider`

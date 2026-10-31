@@ -5,7 +5,7 @@ Executed inline, test first per step.
 
 1. **Server** (`packages/markspec/desk/api.ts`, `api_test.ts`): tests for an
    ETag on `/tree`, 304 on a matching `If-None-Match`, a new tag after an entry
-   is added; then `treeEtag` + the 304 branch. Verify: `deno test` on desk.
+   is added; then the tree ETag and the 304 branch. Verify: `deno test` on desk.
 2. **Schema + client** (`schemas/desk-api.json`, `npm run gen:client`,
    `client.ts`, `client.test.ts`): `tree(cached?)` returns `CachedTree`, 304
    returns the cached object. Verify: vitest client tests,

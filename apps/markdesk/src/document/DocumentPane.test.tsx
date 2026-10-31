@@ -612,6 +612,7 @@ describe("DocumentPane", () => {
       .toBeTruthy();
     expect(screen.getByRole("status")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Brakes")).toBeNull();
     expect(history().current).toBe(ID);
   });
 });

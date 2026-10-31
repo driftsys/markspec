@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -156,26 +162,34 @@ describe("NavigatorPane refresh", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  type TreeCall = (cached?: CachedTree) => Promise<CachedTree>;
+  const view = (tree: TreeCall) => (
+    <ProductContext.Provider
+      value={{
+        root: "/p",
+        name: "p",
+        client: { tree } as unknown as DeskClient,
+      }}
+    >
+      <HistoryProvider mac={false}>
+        <RefreshProvider>
+          <NavigatorPane />
+        </RefreshProvider>
+      </HistoryProvider>
+    </ProductContext.Provider>
+  );
+  const deferredTree = () => {
+    let resolve!: (t: CachedTree) => void;
+    const promise = new Promise<CachedTree>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+
   it("never sends the tree of another product's client", async () => {
-    const first = cachedTree(tree([parent], [], ["P"]), '"1"');
-    const one = vi.fn(async (_cached?: CachedTree) => first);
+    const one = vi.fn(async (_cached?: CachedTree) =>
+      cachedTree(tree([parent], [], ["P"]), '"1"')
+    );
     const two = vi.fn(async (_cached?: CachedTree) =>
       cachedTree(tree([child], [], ["R1"]), '"2"')
-    );
-    const view = (tree: typeof one) => (
-      <ProductContext.Provider
-        value={{
-          root: "/p",
-          name: "p",
-          client: { tree } as unknown as DeskClient,
-        }}
-      >
-        <HistoryProvider mac={false}>
-          <RefreshProvider>
-            <NavigatorPane />
-          </RefreshProvider>
-        </HistoryProvider>
-      </ProductContext.Provider>
     );
     const { rerender } = render(view(one));
     expect(await screen.findByText("P")).toBeTruthy();
@@ -183,6 +197,61 @@ describe("NavigatorPane refresh", () => {
     expect(await screen.findByText("R1")).toBeTruthy();
     expect(two).toHaveBeenCalledTimes(1);
     expect(two.mock.calls[0][0]).toBeUndefined();
+  });
+
+  it("clears the old tree and its failure when the client changes", async () => {
+    const pending = deferredTree();
+    const failing = vi.fn(async (_cached?: CachedTree): Promise<CachedTree> => {
+      throw new DeskError(500, "internal", "boom");
+    });
+    const { rerender } = render(view(failing));
+    expect(await screen.findByText("MarkDesk could not load this product."))
+      .toBeTruthy();
+    rerender(view(() => pending.promise));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByText("…")).toBeTruthy();
+    await act(async () => {
+      pending.resolve(cachedTree(tree([parent], [], ["P"])));
+    });
+    expect(await screen.findByText("P")).toBeTruthy();
+    const later = deferredTree();
+    rerender(view(() => later.promise));
+    await waitFor(() => expect(screen.queryByText("P")).toBeNull());
+    expect(screen.getByText("…")).toBeTruthy();
+  });
+
+  it("ignores a late tree from the previous client", async () => {
+    const late = deferredTree();
+    const { rerender } = render(view(() => late.promise));
+    rerender(view(async () => cachedTree(tree([child], [], ["R1"]))));
+    expect(await screen.findByText("R1")).toBeTruthy();
+    await act(async () => {
+      late.resolve(cachedTree(tree([parent], [], ["P"])));
+    });
+    expect(screen.queryByText("P")).toBeNull();
+    expect(screen.getByText("R1")).toBeTruthy();
+  });
+
+  it("keeps rows expanded when the tree changes around them", async () => {
+    const other = { displayId: "R2", title: "r2" };
+    const trees = [
+      cachedTree(tree([parent, child], [edge], ["P"]), '"1"'),
+      cachedTree(
+        tree([parent, child, other], [edge, {
+          from: "R2",
+          to: "P",
+          relation: "satisfies",
+        }], ["P"]),
+        '"2"',
+      ),
+    ];
+    const client = vi.fn(async (_cached?: CachedTree) => trees.shift()!);
+    mount(client);
+    fireEvent.click(await screen.findByText("P"));
+    expect(screen.getByText("R1")).toBeTruthy();
+    focusWindow();
+    expect(await screen.findByText("R2")).toBeTruthy();
+    expect(screen.getByText("R1")).toBeTruthy();
   });
 });
 

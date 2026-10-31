@@ -1500,6 +1500,41 @@ Deno.test("desk api: tree ETag changes when a tree link is removed", async () =>
   );
 });
 
+Deno.test("desk api: tree ETag keeps the tag when an attribute outside the tree changes", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  const entries = new Map(state.compiled.entries);
+  const id = makeDisplayId("SYS_BRK_0001");
+  const entry = entries.get(id)!;
+  entries.set(
+    id,
+    {
+      ...entry,
+      rawAttributes: [...entry.rawAttributes, { key: "Labels", value: "new" }],
+    } as typeof entry,
+  );
+  state.compiled = { ...state.compiled, entries };
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 304);
+  await second.body?.cancel();
+});
+
+Deno.test("desk api: tree is built once per compiled graph", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const reads = state.profileReads;
+  assert(reads > 0, "the first request builds the tree");
+  const second = await h(get("/api/v1/tree"));
+  assertEquals(second.status, 200);
+  await second.body?.cancel();
+  assertEquals(state.profileReads, reads, "the tree is not built again");
+});
+
 Deno.test("desk api: tree ETag keeps the tag for an unchanged graph", async () => {
   const { h, state } = await editableHandler();
   const first = await h(get("/api/v1/tree"));
