@@ -872,6 +872,52 @@ Deno.test("parseMarkdown: Markdown punctuation before a colon on the last body l
   }
 });
 
+Deno.test("parseMarkdown: a time, abbreviation or version before a colon on the last body line is prose, not a trailer", () => {
+  // The formatter's 80-column wrap can put such a token at the start of
+  // the last body line. A trailer key starts with a letter and never holds
+  // `.`, `/`, `,`, `'` or `"`, so these lines raise no MSL-P022.
+  const lastLines = [
+    "10:30 UTC every day.",
+    "e.g.: the rear lamp.",
+    "v2.0: the second release.",
+    "and/or: either case.",
+    "Drivers' view: the lamp.",
+  ];
+  for (const last of lastLines) {
+    const md = `- [STK_0011] Title
+
+  The lamp shall light within 100 ms at
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a lowercase or underscored key on the last body line still raises MSL-P022", () => {
+  for (const last of ["verified_by: tests/foo.rs", "Bad_Key: value"]) {
+    const md = `- [STK_0012] Title
+
+  Body prose within 200 ms.
+
+      ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P022").length,
+      1,
+      last,
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // P021 / P022 locate the offending trailer line, not the title line
 // ---------------------------------------------------------------------------

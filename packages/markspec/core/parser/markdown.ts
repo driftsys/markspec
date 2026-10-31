@@ -496,6 +496,13 @@ function extractEntry(
       // `[link](http://…)`, `` `mode:fast` ``, `<mailto:…>`) means inline
       // Markdown in prose. A trailer key never holds it, so stop here too.
       if (/[*[\]()<>`]/.test(key)) break;
+      // A time (`10:30`), an abbreviation (`e.g.:`), a version (`v2.0:`)
+      // or a word pair (`and/or:`) is prose too. The 80-column wrap of the
+      // formatter can put one at the start of the last body line. A
+      // trailer key starts with a letter and never holds `.`, `/`, `,`,
+      // `'` or `"`, so stop here. Lowercase and underscored keys still
+      // reach the checks below (#697).
+      if (!/^[A-Za-z]/.test(key) || /[./,'"]/.test(key)) break;
       if (
         /\s/.test(key) &&
         !RECOGNIZED_TRAILER_KEYS.has(key.replace(/\s+/g, "-"))
