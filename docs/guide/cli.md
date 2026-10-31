@@ -1099,9 +1099,9 @@ markspec self-upgrade --version 0.10.2
 
 #### mcp
 
-Start the MarkSpec MCP server. Communicates over stdio JSON-RPC. Exposes the
-active project as MCP resources and tools to any MCP-capable AI client (Claude
-Code, Claude Desktop, GitHub Copilot in VS Code, OpenCode).
+Start the MarkSpec MCP server. Communicates over stdio JSON-RPC. Exposes every
+MarkSpec project it finds as MCP resources and tools to any MCP-capable AI
+client (Claude Code, Claude Desktop, GitHub Copilot in VS Code, OpenCode).
 
 ```sh
 markspec mcp
@@ -1109,7 +1109,7 @@ markspec mcp
 
 ##### Project discovery
 
-`markspec mcp` resolves the project root from the first of these that contains a
+`markspec mcp` resolves its start folder from the first of these that contains a
 `project.yaml` or `.markspec.yaml` (walking upward from each):
 
 1. `--root <path>` — pass the flag once per candidate root.
@@ -1118,12 +1118,16 @@ markspec mcp
    configuration needed.
 4. The server's launch working directory.
 
+From that folder the server also searches downward and serves every project it
+finds below it, each as a separate project. A monorepo opened at a parent
+directory therefore needs no extra configuration. See
+[Several projects in one folder](ai-agents.md#several-projects-in-one-folder).
+
 If none resolves, every MarkSpec tool replies with a message that begins "No
 MarkSpec project found …" and names the directories it searched. Set `--root` or
 `MARKSPEC_PROJECT_ROOT` to point the server at your project — this is the
 reliable fix when it is launched from outside the project tree (for example a
-user-scoped MCP install, whose working directory is the plugin cache, or a
-monorepo opened at a parent directory).
+user-scoped MCP install, whose working directory is the plugin cache).
 
 ```sh
 markspec mcp --root /path/to/your/markspec-project
@@ -1144,8 +1148,13 @@ markspec mcp --root /path/to/your/markspec-project
 - `entry_context { id, depth? }` — walk the `satisfies` chain upward.
 - `validate { files? }` — run the validator, return a Markdown diagnostics
   report.
-- `markspec_refresh` — force-invalidate the compile cache (call after agent
-  edits to guarantee freshness).
+- `markspec_refresh` — force-invalidate the compile cache and search for
+  projects again (call after agent edits to guarantee freshness).
+- `project_list` — list each discovered project with its label, root, profile,
+  and entry count.
+
+With several projects, every tool accepts an optional `project` argument (a
+label from `project_list`) that limits the answer to that project.
 
 ##### Claude Desktop config
 

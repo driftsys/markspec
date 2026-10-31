@@ -105,7 +105,11 @@ markspec/
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       ├── mcp/
-│       │   └── server.ts            ← MCP protocol adapter
+│       │   ├── server.ts            ← MCP protocol adapter
+│       │   ├── workspace.ts         ← McpWorkspace: every discovered project,
+│       │   │                          labels, file ownership, rediscovery
+│       │   ├── project.ts           ← one project: config, profile, compile cache
+│       │   └── tools/fan_out.ts     ← per-project fan-out + `project` argument
 │       └── desk/                    ← MarkDesk backend (ADR-035): `markspec
 │           ├── server.ts              desk --serve` loopback listener + nonce
 │           ├── api.ts               ← pure Request → Response handler
