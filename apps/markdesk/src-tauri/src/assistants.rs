@@ -1949,6 +1949,59 @@ mod tests {
     }
 
     #[test]
+    fn run_prompt_spawns_claude_with_every_tools_off_flag() {
+        // Pins the whole argument vector the process receives, not only the
+        // value of `prompt_args()`, so a spawn that drops or reorders an
+        // argument fails here. Arguments are logged NUL-separated, because
+        // two of them are empty and the prompt holds new lines.
+        let dir = scratch_dir("prompt-argv");
+        let log = dir.join("argv.log");
+        let bin = fake_bin(
+            &dir,
+            "claude",
+            &format!(
+                "for a in \"$@\"; do printf '%s\\0' \"$a\"; done > '{}'; echo ok",
+                log.display()
+            ),
+        );
+        let request = prompt_request(&[("Satisfies", "STK_1")]);
+        let cancel = AtomicBool::new(false);
+        let result = run_prompt(
+            AssistantId::ClaudeCode,
+            &bin,
+            None,
+            &request,
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        let logged = std::fs::read(log).unwrap();
+        let argv: Vec<String> = logged
+            .split(|byte| *byte == 0)
+            .map(|arg| String::from_utf8(arg.to_vec()).unwrap())
+            .collect();
+        let prompt = build_prompt(&request);
+        let expected: Vec<&str> = vec![
+            "-p",
+            &prompt,
+            "--output-format",
+            "text",
+            "--tools",
+            "",
+            "--strict-mcp-config",
+            "--setting-sources",
+            "",
+            "--disable-slash-commands",
+            "--no-session-persistence",
+            "--append-system-prompt",
+            PROMPT_SYSTEM_TEXT,
+            // The text after the last NUL: nothing.
+            "",
+        ];
+        assert_eq!(argv, expected);
+    }
+
+    #[test]
     fn run_prompt_returns_the_trimmed_reply() {
         let result = run_fake_prompt(
             AssistantId::ClaudeCode,

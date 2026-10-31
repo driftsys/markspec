@@ -8,9 +8,10 @@
  * text, runs the `markspec fmt` formatter on the result, and returns the
  * formatted body next to the current body (formatted when the formatted
  * form holds the same words as the body on disk). It writes
- * nothing. {@linkcode applyBody} runs the same pipeline and returns the
- * new file text: the original text with only the target body replaced by
- * the formatted proposal. Every other byte of the file stays unchanged.
+ * nothing. {@linkcode applyBody} returns the new file text: the original
+ * text with only the target body replaced by the body it is given (the
+ * preview body), see its doc comment. Every other byte of the file stays
+ * unchanged.
  *
  * Known limit: a proposal whose first line is an indented code block
  * becomes a plain paragraph. The formatter and the parser's whole-body
@@ -191,9 +192,9 @@ interface CheckedProposal {
  * `format` catches a prose formatter that throws (MSL-F012), so that
  * `format-failed` branch is defensive. A target `MSL-F900` is real: an
  * ordered list that holds a nested block (a nested list or a continuation
- * paragraph, an SP3 residual) causes it. The final identity check is defensive: no known formatter
- * output fails the second splice. Tests reach the defensive branches
- * through `formatDocument`.
+ * paragraph, an SP3 residual) causes it. The final identity check is
+ * defensive: no known formatter output fails the second splice. Tests
+ * reach the defensive branches through `formatDocument`.
  */
 async function checkProposal(
   text: string,
@@ -203,7 +204,7 @@ async function checkProposal(
   formatProse: ProseFormatter,
   withCurrent: boolean,
   formatDocument: DocumentFormatter,
-): Promise<ProposalOutcome<CheckedProposal>> {
+): Promise<ProposalOutcome<CheckedProposal> & { readonly threw?: true }> {
   if (proposed.length > MAX_PROPOSAL_CHARS) {
     return refuse("proposal-too-large");
   }
@@ -220,10 +221,10 @@ async function checkProposal(
     formatProse,
     formatDocument,
   );
-  if (
-    formattedCandidate === undefined ||
-    isTargetF900(formattedCandidate.diagnostics, displayId)
-  ) {
+  if (formattedCandidate === undefined) {
+    return { ok: false, refusal: "format-failed", threw: true };
+  }
+  if (isTargetF900(formattedCandidate.diagnostics, displayId)) {
     return refuse("format-failed");
   }
   const body = await readEntryBody(formattedCandidate.output, file, displayId);
@@ -241,7 +242,9 @@ async function checkProposal(
       formatProse,
       formatDocument,
     );
-    if (formattedCurrent === undefined) return refuse("format-failed");
+    if (formattedCurrent === undefined) {
+      return { ok: false, refusal: "format-failed", threw: true };
+    }
     const formattedBody = await readEntryBody(
       formattedCurrent.output,
       file,
@@ -286,7 +289,7 @@ export async function previewBody(
     true,
     formatDocument,
   );
-  if (!checked.ok) return checked;
+  if (!checked.ok) return refuse(checked.refusal);
   const { body, currentBody } = checked.value;
   if (currentBody === undefined) return refuse("format-failed");
   return { ok: true, value: { body, currentBody } };
@@ -294,12 +297,26 @@ export async function previewBody(
 
 /**
  * Build the new file text for an accepted proposal: `text` with only the
- * target body replaced by the formatted proposed body. Runs every check
- * of {@linkcode previewBody} (it skips only formatting the current body,
- * which the preview shows and a write does not need), so a body from a
- * preview splices unchanged (formatting is idempotent). Writes nothing;
- * the caller writes the returned text. `formatDocument` is the same test
- * seam as in {@linkcode previewBody}.
+ * target body replaced by `proposed`. Apply writes exactly the body it is
+ * given, which is the preview body the author saw.
+ *
+ * Apply first runs every check of {@linkcode previewBody} on `proposed`
+ * (it skips only formatting the current body, which the preview shows and
+ * a write does not need). When the formatted body equals `proposed`, that
+ * splice is the result. The formatter is not idempotent on its own output:
+ * formatting a preview body again can give a different body (a tab at a
+ * wrap point is removed) or an `MSL-F900` (a wrapped ordered list item).
+ * In that case apply splices `proposed` unchanged, and accepts it when it
+ * passes the length limit and every identity check of `replaceEntryBody`.
+ * When that splice is refused too, apply returns the refusal of the first
+ * pipeline run, or, when that run passed, the refusal of the splice.
+ * When the formatter throws, apply refuses with `format-failed`.
+ *
+ * So a client that sends a body it did not preview gets that body written
+ * unformatted whenever it splices, also when the preview would have
+ * refused it with `format-failed`. The MarkDesk UI always sends the
+ * preview body. Writes nothing; the caller writes the returned text.
+ * `formatDocument` is the same test seam as in {@linkcode previewBody}.
  */
 export async function applyBody(
   text: string,
@@ -318,6 +335,15 @@ export async function applyBody(
     false,
     formatDocument,
   );
-  if (!checked.ok) return checked;
-  return { ok: true, value: checked.value.text };
+  if (checked.ok && checked.value.body === proposed) {
+    return { ok: true, value: checked.value.text };
+  }
+  if (!checked.ok && checked.threw) return refuse(checked.refusal);
+  if (proposed.length > MAX_PROPOSAL_CHARS) {
+    return refuse("proposal-too-large");
+  }
+  const asIs = await replaceEntryBody(text, file, displayId, proposed);
+  if (asIs.ok) return { ok: true, value: asIs.text };
+  if (!checked.ok) return refuse(checked.refusal);
+  return refuse(fromEditRefusal(asIs.refusal));
 }

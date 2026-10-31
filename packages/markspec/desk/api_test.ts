@@ -6,7 +6,7 @@ import {
   assertNotEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { fromFileUrl, join } from "@std/path";
+import { dirname, fromFileUrl, join } from "@std/path";
 import { Ajv } from "ajv";
 import {
   compile,
@@ -1616,6 +1616,14 @@ interface WritableOptions {
    * check and the write would.
    */
   readonly textOnSecondByteRead?: string;
+  /**
+   * When set, `realPath` resolves `docs/system.md` to this path, and the
+   * byte reader serves the file text under that path too, as a symbolic
+   * link to it would.
+   */
+  readonly realSystemPath?: string;
+  /** When set, each write waits this many milliseconds before it lands. */
+  readonly writeDelayMs?: number;
 }
 
 /**
@@ -1641,7 +1649,9 @@ async function writableHandler(options: WritableOptions = {}) {
       profile: fixed.profile,
       getCompiled: () => Promise.resolve(state.compiled),
       readFile: (p) => {
-        if (p !== SYSTEM_PATH) return readFile(p);
+        if (p !== SYSTEM_PATH && p !== options.realSystemPath) {
+          return readFile(p);
+        }
         return Promise.resolve(
           state.bytes === undefined
             ? state.text
@@ -1651,7 +1661,9 @@ async function writableHandler(options: WritableOptions = {}) {
         );
       },
       readFileBytes: (p) => {
-        if (p !== SYSTEM_PATH) return bytesOf(readFile)(p);
+        if (p !== SYSTEM_PATH && p !== options.realSystemPath) {
+          return bytesOf(readFile)(p);
+        }
         state.byteReads++;
         if (
           state.byteReads === 2 && options.textOnSecondByteRead !== undefined
@@ -1662,12 +1674,17 @@ async function writableHandler(options: WritableOptions = {}) {
           state.bytes ?? new TextEncoder().encode(state.text),
         );
       },
-      realPath,
-      writeFile: (path, text) => {
-        if (options.failWrite) return Promise.reject(new Error("disk full"));
+      realPath: (p) =>
+        p === SYSTEM_PATH && options.realSystemPath !== undefined
+          ? Promise.resolve(options.realSystemPath)
+          : realPath(p),
+      writeFile: async (path, text) => {
+        if (options.failWrite) throw new Error("disk full");
+        if (options.writeDelayMs !== undefined) {
+          await new Promise((done) => setTimeout(done, options.writeDelayMs));
+        }
         state.text = text;
         state.writes.push({ path, text });
-        return Promise.resolve();
       },
     },
   });
@@ -2085,4 +2102,88 @@ Deno.test("desk api: apply refuses when the file changes between the check and t
   await assertError(res, 412, "precondition-failed");
   assertEquals(state.writes.length, 0);
   assertEquals(state.text, edited);
+});
+
+Deno.test("desk api: preview and apply answer 404 for a file whose real path leaves the root", async () => {
+  // `docs/system.md` is a symbolic link to a file outside the project root.
+  // The byte reader would serve it, so only the real-path check refuses.
+  const outside = join(dirname(FIXTURE_ROOT), "outside", "system.md");
+  const { h, state } = await writableHandler({ realSystemPath: outside });
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": '"any"',
+      }),
+    );
+    await assertError(res, 404, "not-found");
+  }
+  assertEquals(state.byteReads, 0);
+  assertEquals(state.writes, []);
+});
+
+Deno.test("desk api: apply writes the real path of a symbolic link inside the root", async () => {
+  const inside = join(FIXTURE_ROOT, "docs", "real", "system.md");
+  const { h, state } = await writableHandler({ realSystemPath: inside });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.map((w) => w.path), [inside]);
+});
+
+Deno.test("desk api: concurrent applies with a slow write run one after another", async () => {
+  // The write lands 100 ms after it starts. Run at the same time, both
+  // applies would pass every check before either write lands, and both
+  // would write. Run one after another, the second sees the new text.
+  const { h, state } = await writableHandler({ writeDelayMs: 100 });
+  const etag = await systemEtag(h);
+  const responses = await Promise.all([
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "First."), { "if-match": etag })),
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "Second."), { "if-match": etag })),
+  ]);
+  assertEquals(responses.map((r) => r.status), [200, 412]);
+  for (const r of responses) await r.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assertStringIncludes(state.text, "  First.\n");
+});
+
+Deno.test("desk api: preview and apply keep a UTF-8 BOM", async () => {
+  const text = await Deno.readTextFile(SYSTEM_PATH);
+  const encoded = new TextEncoder().encode(text);
+  const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...encoded]);
+  const { h, state } = await writableHandler({ bytes });
+  const etag = await systemEtag(h);
+  const preview = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(preview.status, 200);
+  await preview.body?.cancel();
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assertEquals(
+    state.writes[0].text,
+    `\uFEFF${text.replace(SYS_0001_BODY, "  New body.")}`,
+  );
+});
+
+Deno.test("desk api: a proposal request body over the byte cap is 422 before it is parsed", async () => {
+  // The JSON is valid and its body is short, but trailing whitespace makes
+  // the request larger than any request with a body at the limit.
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const json = JSON.stringify(bodyChange("SYS_BRK_0001", "New body.")) +
+    " ".repeat(200_000);
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(post(route, json, { "if-match": etag }));
+    await assertError(res, 422, "proposal-too-large");
+  }
+  assertEquals(state.writes, []);
 });

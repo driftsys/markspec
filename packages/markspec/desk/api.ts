@@ -60,10 +60,11 @@
  * a preflight; it allows the `GET` and `POST` methods and the
  * `Authorization`, `Content-Type`, `If-Match`, and `If-None-Match` request
  * headers. Each response produced after the Origin check for an allowed origin
- * (200, 304, 400, 401, 404, 405, 409, 412, 422, 428, 500) carries `Access-Control-Allow-Origin`,
- * `Access-Control-Expose-Headers: ETag`, and `Vary: Origin`, so the UI can
- * read error bodies and the entity tag too. The 403 responses
- * (`forbidden-host`, `forbidden-origin`) carry no CORS headers.
+ * (200, 304, 400, 401, 404, 405, 409, 412, 422, 428, 500) carries
+ * `Access-Control-Allow-Origin`, `Access-Control-Expose-Headers: ETag`, and
+ * `Vary: Origin`, so the UI can read error bodies and the entity tag too.
+ * The 403 responses (`forbidden-host`, `forbidden-origin`) carry no CORS
+ * headers.
  *
  * The `Origin` check is not an authentication boundary. The per-launch nonce
  * token is the only credential. The check only limits which browser pages can
@@ -83,6 +84,7 @@ import {
   makeDisplayId,
   type ProseFormatter,
 } from "../core/mod.ts";
+import { createSerialRunner } from "../lsp/util.ts";
 import {
   applyBody,
   MAX_PROPOSAL_CHARS,
@@ -488,12 +490,7 @@ export function createDeskHandler(
 
   // Applies run one after another, so the check-then-write of one apply
   // never interleaves with another (a second apply sees the new text).
-  let applyQueue: Promise<unknown> = Promise.resolve();
-  function serialized(run: () => Promise<Response>): Promise<Response> {
-    const next = applyQueue.then(run);
-    applyQueue = next.catch(() => {});
-    return next;
-  }
+  const serialized = createSerialRunner();
   const allowedOrigins: ReadonlySet<string> = new Set([
     ...TAURI_ORIGINS,
     ...(options.allowedOrigins ?? []),
@@ -617,7 +614,8 @@ export function createDeskHandler(
 
   /**
    * `/proposals/preview` and `/proposals/apply`. Checks, in order: the
-   * `If-Match` header is present (428), the request shape (400), the entry
+   * `If-Match` header is present (428), the request size (422
+   * `proposal-too-large`), the request shape (400), the entry
    * exists (404), it has no `origin` (409), it is in a `.md` file (409), the
    * file is an allowed project path (404), the file is valid UTF-8 (409),
    * `If-Match` names the current document ETag (412), then the proposal
@@ -637,7 +635,9 @@ export function createDeskHandler(
         "If-Match with the document ETag is required",
       );
     }
-    const change = parseProposalRequest(await readBody(request));
+    const requestBody = await readBody(request);
+    if (requestBody.tooLarge) return refusalResponse("proposal-too-large");
+    const change = parseProposalRequest(requestBody.text);
     if (change === undefined) {
       return errorResponse(
         400,
@@ -747,9 +747,9 @@ export function createDeskHandler(
       formatProse,
     );
     if (!outcome.ok) return refusalResponse(outcome.refusal);
-    // The pipeline takes about a second on a large file. Read the file
-    // again just before the write, so an edit saved by another application
-    // in that time is not overwritten.
+    // The pipeline formats the whole file, which takes time on a large
+    // file. Read the file again just before the write, so an edit saved by
+    // another application in that time is not overwritten.
     const onDisk = await source.readFileBytes(realTarget);
     if (onDisk === undefined || !sameBytes(onDisk, bytes)) {
       return errorResponse(
@@ -939,13 +939,54 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((byte, i) => byte === b[i]);
 }
 
-/** The request body as text; `undefined` when it cannot be read. */
-async function readBody(request: Request): Promise<string | undefined> {
-  try {
-    return await request.text();
-  } catch {
-    return undefined;
+/**
+ * Largest proposal request body the handler reads, in bytes. A body at
+ * {@linkcode MAX_PROPOSAL_CHARS} with every UTF-16 code unit written as a
+ * six-byte JSON escape (`\uXXXX`) fits, with 4 KiB for the rest of the
+ * request.
+ */
+const MAX_PROPOSAL_REQUEST_BYTES = MAX_PROPOSAL_CHARS * 6 + 4096;
+
+/**
+ * The request body as text (UTF-8, invalid bytes replaced, as
+ * `Request.text()` decodes it). `text` is `undefined` when the body cannot
+ * be read or is larger than {@linkcode MAX_PROPOSAL_REQUEST_BYTES}; then
+ * `tooLarge` says which. Reading stops at the cap, so an oversized body is
+ * never held in memory as a whole.
+ */
+async function readBody(
+  request: Request,
+): Promise<{ readonly text: string | undefined; readonly tooLarge: boolean }> {
+  const declared = Number(request.headers.get("content-length"));
+  if (declared > MAX_PROPOSAL_REQUEST_BYTES) {
+    await request.body?.cancel().catch(() => {});
+    return { text: undefined, tooLarge: true };
   }
+  if (request.body === null) return { text: "", tooLarge: false };
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_PROPOSAL_REQUEST_BYTES) {
+        await reader.cancel().catch(() => {});
+        return { text: undefined, tooLarge: true };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { text: undefined, tooLarge: false };
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { text: new TextDecoder().decode(bytes), tooLarge: false };
 }
 
 /**
