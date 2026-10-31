@@ -125,9 +125,9 @@ With several projects:
 
 The CLI (`markspec check`, `lint`, and `fmt`), the MCP server, and the LSP all
 treat a nested project that has its own `project.yaml` as a separate project
-with its own profile and graph. MCP `validate` and bare `markspec check` report
-the same result for the same tree. The only remaining difference is that
-explicit file arguments to the CLI use a single graph.
+with its own profile and graph. Two differences remain. The MCP compile does not
+apply `exclude:`, but the bare CLI commands do (see below). Explicit file
+arguments to the CLI use a single graph.
 
 To stop the MCP server from treating a nested folder that has its own config
 (for example a test fixture) as a separate project, list it under `exclude:` in
