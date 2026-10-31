@@ -485,19 +485,34 @@ function extractEntry(
       // A colon inside prose ("modes are: fast") or a Markdown table row
       // ("| Fast | latency: 200ms |") is body content, not a malformed
       // trailer — stop scanning at it (#648). A pipe always means a table
-      // cell. Internal whitespace usually means prose, EXCEPT a space-for-
-      // hyphen typo of a real trailer key (`Verified by` for `Verified-by`):
-      // that is a malformed trailer the author intended and must still fire
-      // MSL-P022 rather than silently dropping the trace link (#697). Detect
-      // it by normalising spaces to hyphens and checking the recognised
-      // trailer-key vocabulary.
+      // cell; the checks below handle Markdown punctuation, internal
+      // whitespace, and the other punctuation.
       if (key.includes("|")) break;
+      // Markdown punctuation before the colon (`**Rationale:**`,
+      // `[link](http://…)`, `` `mode:fast` ``, `<mailto:…>`) means inline
+      // Markdown in prose. A trailer key never holds it, so stop here too.
+      if (/[*[\]()<>`]/.test(key)) break;
+      // A typo of a recognized trailer key (`Verified by`, `Verified.by`,
+      // `Verified,by`, `Satisfies"`) must still fire MSL-P022 below, so the
+      // trace link is not silently dropped (#697). Detect it by turning
+      // whitespace and the punctuation `.`, `/`, `,`, `'`, `"` into
+      // hyphens, trimming hyphens at both ends, and checking the recognized
+      // key vocabulary.
+      const typoOfKnownKey = RECOGNIZED_TRAILER_KEYS.has(
+        key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, ""),
+      );
+      // A time (`10:30`), an abbreviation (`e.g.:`), a version (`v2.0:`)
+      // or a word pair (`and/or:`) is prose. The 80-column wrap of the
+      // formatter can put one at the start of the last body line. A
+      // trailer key starts with a letter and never holds `.`, `/`, `,`,
+      // `'` or `"`, so stop here unless the key is a typo of a known key.
+      // Lowercase and underscored keys still reach the checks below.
       if (
-        /\s/.test(key) &&
-        !RECOGNIZED_TRAILER_KEYS.has(key.replace(/\s+/g, "-"))
+        (!/^[A-Za-z]/.test(key) || /[./,'"]/.test(key)) && !typoOfKnownKey
       ) {
         break;
       }
+      if (/\s/.test(key) && !typoOfKnownKey) break;
       if (ATTR_LINE_RE.test(trimmed)) {
         // Valid attr line in body → already caught by P020
         continue;
@@ -604,11 +619,12 @@ function extractEntry(
   // loose lists have a blank line between title and body, so the body is at
   // (entry_line + 2), not (entry_line + 1).
   //
-  // columnOffset: body text has been stripped of the list-item indent (e.g.,
-  // "  " for column-1 items), so each token column must be bumped by that
-  // indent width. The + 2 accounts for the "  " continuation indent
-  // prepended by wrapAsListItem to every non-title line.
-  const bodyIndent = (item.position?.start.column ?? 1) - 1 + 2;
+  // columnOffset: body text has been stripped of the list-item content
+  // indent (itemContentIndent: 2 for `- [ID]`, 4 for `-   [ID]`), so each
+  // token column is bumped by that width. For a source
+  // doc comment, wrapAsListItem writes `- ` and a 2-space indent on every
+  // non-title line, so the width is 2 there.
+  const bodyIndent = itemContentIndent(item);
   const bodyStartLine = item.children[1]?.position?.start.line ?? (line + 1);
   const bodyTokens = extractBodyTokens(
     body,
@@ -649,6 +665,20 @@ function extractEntry(
 }
 
 /**
+ * Width of the continuation indent of a list item: the 0-based column where
+ * its title paragraph starts. That is the marker column plus the marker
+ * width plus the spaces after the marker, so `- [ID]` gives 2 and
+ * `-   [ID]` gives 4 (ordered lists never hold entries; see
+ * `parseMarkdown`). Falls back to the marker column plus 2 when the title
+ * has no position.
+ */
+function itemContentIndent(item: ListItem): number {
+  const title = item.children[0]?.position?.start.column;
+  if (title !== undefined) return title - 1;
+  return (item.position?.start.column ?? 1) - 1 + 2;
+}
+
+/**
  * Extract body content from a list item's children (excluding the first paragraph
  * which contains the display ID and title).
  *
@@ -665,9 +695,7 @@ function extractBodyContent(item: ListItem, lines: string[]): string {
 
   if (!startLine || !endLine) return "";
 
-  // Compute indent width from the list item's column position.
-  // column is 1-based, plus 2 for the `- ` marker.
-  const indent = (item.position?.start.column ?? 1) - 1 + 2;
+  const indent = itemContentIndent(item);
   const indentStr = " ".repeat(indent);
 
   // Extract the raw lines and strip the list item continuation indent

@@ -39,6 +39,11 @@ export interface AssistantStatus {
   state: AssistantState;
   version: string | null;
   detail: string | null;
+  /**
+   * Whether the shell can run a prompt on this assistant with every tool
+   * switched off. Only Claude Code qualifies in this version.
+   */
+  promptsAvailable: boolean;
 }
 
 /** How a Test of an assistant ended. */
@@ -47,6 +52,32 @@ export type TestOutcome = "ok" | "usage" | "timeout" | "cancelled" | "failed";
 /** Result of running a short test prompt on an assistant. */
 export interface AssistantTestResult {
   outcome: TestOutcome;
+  reply: string | null;
+  error: string | null;
+}
+
+/** One entry, and the author's instruction, sent to an assistant. */
+export interface AssistantPromptRequest {
+  title: string;
+  body: string;
+  instruction: string;
+  /** Trailer attributes, sent as read-only context. */
+  attributes: { key: string; value: string }[];
+}
+
+/** How a prompt run ended. */
+export type PromptOutcome =
+  | "ok"
+  | "timeout"
+  | "cancelled"
+  | "failed"
+  | "unavailable"
+  | "prompt-too-long"
+  | "reply-too-long";
+
+/** Result of a prompt run: the trimmed reply, or why there is none. */
+export interface AssistantPromptResult {
+  outcome: PromptOutcome;
   reply: string | null;
   error: string | null;
 }
@@ -77,6 +108,13 @@ export interface ShellBridge {
   testAssistant(id: AssistantId): Promise<AssistantTestResult>;
   /** Stop the running Test, if any. */
   cancelAssistantTest(): Promise<void>;
+  /** Run one prompt on the given assistant, with every tool switched off. */
+  runAssistantPrompt(
+    id: AssistantId,
+    request: AssistantPromptRequest,
+  ): Promise<AssistantPromptResult>;
+  /** Stop the running prompt run, if any. */
+  cancelAssistantPrompt(): Promise<void>;
   getAssistantSettings(): Promise<AssistantSettings>;
   setAssistantSettings(settings: AssistantSettings): Promise<void>;
 }
@@ -96,6 +134,9 @@ export const tauriBridge: ShellBridge = {
   detectAssistants: () => invoke<AssistantStatus[]>("detect_assistants"),
   testAssistant: (id) => invoke<AssistantTestResult>("test_assistant", { id }),
   cancelAssistantTest: () => invoke<void>("cancel_assistant_test"),
+  runAssistantPrompt: (id, request) =>
+    invoke<AssistantPromptResult>("run_assistant_prompt", { id, request }),
+  cancelAssistantPrompt: () => invoke<void>("cancel_assistant_prompt"),
   getAssistantSettings: () =>
     invoke<AssistantSettings>("get_assistant_settings"),
   setAssistantSettings: (settings) =>

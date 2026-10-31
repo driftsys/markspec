@@ -1,0 +1,353 @@
+/**
+ * @module formatter/entry_body
+ *
+ * Read and replace the body of one entry in a Markdown file text.
+ *
+ * Splice-only contract: {@linkcode replaceEntryBody} changes only the
+ * lines of the target entry's body. Every other line of the file (other
+ * entries, prose, front matter, the title, the trailer block, and each
+ * line's own line ending) stays byte-for-byte unchanged. After the splice
+ * the text is parsed again; when the set of entries differs (a new entry,
+ * a lost entry, a changed title or trailer) or the target's body is not
+ * the proposal, the edit is refused.
+ *
+ * The body range starts after the title paragraph (up to the first blank
+ * line after the title line, so a soft-wrapped title is skipped) and the
+ * blank lines after it. It has as many lines as the parser's
+ * `entry.body`, so lazy continuation lines are included, and it must
+ * match that body line for line. The body indent is the content column of
+ * the list item: the marker column, plus the marker width, plus the spaces
+ * after the marker. Lines are split on `\r\n`, a
+ * lone `\r`, or `\n`, as in the parser.
+ *
+ * Pure: no I/O, Node-compatible.
+ */
+
+import type { Entry } from "../model/mod.ts";
+import { parseFile } from "../parser/mod.ts";
+
+/** Why {@linkcode replaceEntryBody} refused an edit. */
+export type EntryBodyRefusal =
+  | "entry-not-found"
+  | "body-empty"
+  | "proposal-empty"
+  | "trailer-invalid"
+  | "entries-changed";
+
+/** Result of {@linkcode replaceEntryBody}. */
+export type EntryBodyEdit =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly refusal: EntryBodyRefusal };
+
+/** 0-based line range `[start, end)` of a body, with its indent. */
+interface BodySpan {
+  readonly start: number;
+  readonly end: number;
+  readonly indent: number;
+  /** False when the span does not match the parser's body exactly. */
+  readonly exact: boolean;
+}
+
+/** Lines of a text with the line ending that follows each line. */
+interface SplitText {
+  /** Line contents, without line endings. */
+  readonly lines: readonly string[];
+  /** Ending after each line: `"\r\n"`, `"\r"`, `"\n"`, or `""` (last line). */
+  readonly endings: readonly string[];
+}
+
+/**
+ * Split `text` into lines on `\r\n`, a lone `\r`, or `\n`, the same rule
+ * the parser uses to normalize line endings, so line indexes agree with
+ * parser line numbers. Each line keeps its own ending.
+ */
+function splitText(text: string): SplitText {
+  const lines: string[] = [];
+  const endings: string[] = [];
+  const re = /\r\n|\r|\n/g;
+  let from = 0;
+  for (let m = re.exec(text); m !== null; m = re.exec(text)) {
+    lines.push(text.slice(from, m.index));
+    endings.push(m[0]);
+    from = m.index + m[0].length;
+  }
+  lines.push(text.slice(from));
+  endings.push("");
+  return { lines, endings };
+}
+
+/** Lines of `text` with trailing whitespace removed, for comparisons. */
+function trimmedLines(text: string): string[] {
+  return text.split("\n").map((l) => l.trimEnd());
+}
+
+/**
+ * Locate the body of `entry` in `lines`. `start === end` when the entry
+ * has no body.
+ *
+ * The body starts after the title paragraph and the blank lines that
+ * follow it. Its length is the line count of the parser's `entry.body`,
+ * so a lazy continuation line (a body line indented less than the body
+ * indent) is part of the span. `exact` is false when the dedented span,
+ * trimmed as a whole like the parser's body, does not match `entry.body`
+ * line for line (trailing whitespace ignored); the span is then not
+ * reliable and must not be edited.
+ */
+function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
+  const titleIdx = entry.location.line - 1;
+  const indent = contentColumn(
+    lines[titleIdx] ?? "",
+    entry.location.column - 1,
+  );
+  const isBlank = (i: number) => lines[i].trim() === "";
+  let start = titleIdx + 1;
+  // Skip the rest of the title paragraph (a soft-wrapped title).
+  while (start < lines.length && !isBlank(start)) start++;
+  while (start < lines.length && isBlank(start)) start++;
+  if (entry.body === "") return { start, end: start, indent, exact: true };
+  const expected = trimmedLines(entry.body);
+  const end = Math.min(start + expected.length, lines.length);
+  const actual = spanText(lines, { start, end, indent, exact: true });
+  // The parser trims its body as a whole, which drops the leading
+  // whitespace of the first line (an indented code block); trim the span
+  // the same way before comparing.
+  const exact = actual.join("\n").trim() === expected.join("\n");
+  return { start, end, indent, exact };
+}
+
+/**
+ * 0-based content column of the list item whose marker starts at `marker`
+ * on `line`: the marker column, plus 1 for the bullet, plus the spaces
+ * after it. So `- [ID]` gives the marker column plus 2 and `-   [ID]` gives
+ * the marker column plus 4. Only a bullet followed by one to four spaces
+ * can start an entry: ordered lists never hold entries, and five or more
+ * spaces make the title an indented code block. When the line does not
+ * start with a bullet and a space at `marker`, the marker column plus 2 is
+ * used, as in the formatter.
+ */
+function contentColumn(line: string, marker: number): number {
+  const m = /^[-*+]( +)/.exec(line.slice(marker));
+  return m ? marker + 1 + m[1].length : marker + 2;
+}
+
+/** Dedented span lines, trailing whitespace removed. */
+function spanText(lines: readonly string[], span: BodySpan): string[] {
+  return lines.slice(span.start, span.end)
+    .map((l) => l.trim() === "" ? "" : dedent(l, span.indent).trimEnd());
+}
+
+/** Parse `text` and find the entry named `displayId`. */
+async function locate(
+  text: string,
+  file: string,
+  displayId: string,
+): Promise<
+  {
+    entries: readonly Entry[];
+    entry: Entry | undefined;
+    diagnosticCodes: readonly string[];
+    trailerInvalid: boolean;
+  }
+> {
+  const { entries, diagnostics } = await parseFile(text, { file });
+  const entry = entries.find((e) => e.displayId === displayId);
+  const trailerInvalid = diagnostics.some((d) =>
+    TRAILER_PARSE_CODES.has(d.code) && d.message.startsWith(`${displayId}:`)
+  );
+  return {
+    entries,
+    entry,
+    diagnosticCodes: diagnostics.map((d) => d.code),
+    trailerInvalid,
+  };
+}
+
+/** Parse codes that mean an entry's trailer block did not parse. */
+const TRAILER_PARSE_CODES: ReadonlySet<string> = new Set([
+  "MSL-P020",
+  "MSL-P021",
+  "MSL-P022",
+]);
+
+/**
+ * Body of the entry `displayId` as written in `text`: dedented, LF line
+ * endings, no surrounding blank lines. Returns `""` when the entry has no
+ * body and `undefined` when no entry has `displayId`. `file` names a
+ * `.md` file. When the body lines cannot be located exactly in `text`,
+ * the parser's body is returned (and {@linkcode replaceEntryBody}
+ * refuses to edit that entry).
+ */
+export async function readEntryBody(
+  text: string,
+  file: string,
+  displayId: string,
+): Promise<string | undefined> {
+  const { entry } = await locate(text, file, displayId);
+  if (!entry) return undefined;
+  const { lines } = splitText(text);
+  const span = bodySpan(lines, entry);
+  if (!span.exact) return entry.body;
+  return lines.slice(span.start, span.end)
+    .map((l) => l.trim() === "" ? "" : dedent(l, span.indent))
+    .join("\n");
+}
+
+/** Remove up to `indent` leading spaces. */
+function dedent(line: string, indent: number): string {
+  let i = 0;
+  while (i < indent && line[i] === " ") i++;
+  return line.slice(i);
+}
+
+/**
+ * Return `text` with the body of entry `displayId` replaced by `body`,
+ * re-indented to the body indent. Every other line stays byte-for-byte
+ * unchanged. Inserted lines take the line ending of the title line. In
+ * `body`, `\r\n` and a lone `\r` count as line breaks.
+ *
+ * Refusals: `entry-not-found` (no such entry), `trailer-invalid` (the
+ * entry's trailer block did not parse, see below), `body-empty` (the entry
+ * has no body), `proposal-empty` (`body` is blank), `entries-changed`
+ * (two entries in `text` have `displayId`; or the body lines cannot be
+ * located exactly in `text`; or the edited
+ * text no longer parses to the same entries, with the same title and
+ * trailer for the target, and with the proposal as the target's body;
+ * or the parse raises more structural diagnostics of some code, such as
+ * MSL-P020, than the original text).
+ *
+ * `trailer-invalid`: when a trailer line is malformed (for example an
+ * empty `Labels:`, a key without a colon, or a lowercase key), the parser
+ * reads the whole trailer block, the `Id:` line included, as body. A
+ * splice would then delete the `Id:` and trailer lines, and the identity
+ * check cannot see it, because the entry has no `id` and no attributes
+ * before or after the edit. So the edit is refused when an `MSL-P020`,
+ * `MSL-P021` or `MSL-P022` names the entry (the message starts with
+ * `<displayId>:`). This is broader than that case: `MSL-P020` also fires
+ * when a body paragraph starts with a recognized trailer key, so such an
+ * entry is refused too. The file already fails `markspec check` there.
+ * An entry whose trailer-looking lines use only unrecognized keys, and
+ * that the parser reads as body without a diagnostic, is edited as the
+ * parser sees it: those lines are body.
+ */
+export async function replaceEntryBody(
+  text: string,
+  file: string,
+  displayId: string,
+  body: string,
+): Promise<EntryBodyEdit> {
+  const before = await locate(text, file, displayId);
+  const entry = before.entry;
+  if (!entry) return { ok: false, refusal: "entry-not-found" };
+  if (before.trailerInvalid) return { ok: false, refusal: "trailer-invalid" };
+  // Two entries with the same display ID make the target ambiguous (and
+  // `markspec check` already rejects the file), so do not edit either.
+  if (before.entries.filter((e) => e.displayId === displayId).length > 1) {
+    return { ok: false, refusal: "entries-changed" };
+  }
+  const { lines, endings } = splitText(text);
+  const span = bodySpan(lines, entry);
+  if (span.start === span.end) return { ok: false, refusal: "body-empty" };
+  if (!span.exact) return { ok: false, refusal: "entries-changed" };
+
+  const proposal = body.replace(/\r\n?/g, "\n").split("\n");
+  while (proposal.length > 0 && proposal[0].trim() === "") proposal.shift();
+  while (proposal.length > 0 && proposal[proposal.length - 1].trim() === "") {
+    proposal.pop();
+  }
+  if (proposal.length === 0) return { ok: false, refusal: "proposal-empty" };
+
+  const titleIdx = entry.location.line - 1;
+  const eol = endings[titleIdx];
+  const indentStr = " ".repeat(span.indent);
+  const inserted = proposal.map((l) =>
+    (l.trim() === "" ? "" : indentStr + l) + eol
+  );
+  // The final line of the file has no ending after it; keep the old
+  // ending of the last body line when the body reaches the file end.
+  if (span.end === lines.length) {
+    const last = inserted.length - 1;
+    inserted[last] = indentStr + proposal[last] + endings[span.end - 1];
+  }
+  const keep = (from: number, to: number) => {
+    let out = "";
+    for (let i = from; i < to; i++) out += lines[i] + endings[i];
+    return out;
+  };
+  const edited = keep(0, span.start) + inserted.join("") +
+    keep(span.end, lines.length);
+
+  const after = await locate(edited, file, displayId);
+  if (
+    !sameEntries(before.entries, after.entries, entry, after.entry) ||
+    addsParseDiagnostic(before.diagnosticCodes, after.diagnosticCodes) ||
+    trimmedLines(after.entry?.body ?? "").join("\n") !==
+      proposal.map((l) => l.trimEnd()).join("\n").trim()
+  ) {
+    return { ok: false, refusal: "entries-changed" };
+  }
+  return { ok: true, text: edited };
+}
+
+/**
+ * Identity check: same entry count; per index, same display ID and Id;
+ * for the target, also the same title and the same trailer attributes.
+ * An unclosed fence or HTML block in the proposal (for example a final
+ * line of three backticks) can swallow the target's trailer without any
+ * parse diagnostic; this comparison and the body-equality check in
+ * {@linkcode replaceEntryBody} are what refuse such an edit. No input is
+ * known that only one of the two refuses: the splice changes only body
+ * lines, so another entry, or the target's title or trailer, can change
+ * only through a block in the proposal that also changes the target body.
+ * (A link reference definition named like a later display ID does not
+ * remove that entry: the parser reads definitions only at the top level.)
+ * So the tests pin the pair, not either check by itself, and each check is
+ * a backstop for the other.
+ */
+function sameEntries(
+  before: readonly Entry[],
+  after: readonly Entry[],
+  target: Entry,
+  targetAfter: Entry | undefined,
+): boolean {
+  if (before.length !== after.length || !targetAfter) return false;
+  for (let i = 0; i < before.length; i++) {
+    if (before[i].displayId !== after[i].displayId) return false;
+    if (before[i].id !== after[i].id) return false;
+  }
+  if (target.title !== targetAfter.title) return false;
+  const a = target.rawAttributes;
+  const b = targetAfter.rawAttributes;
+  if (a.length !== b.length) return false;
+  return a.every((attr, i) =>
+    attr.key === b[i].key && attr.value === b[i].value
+  );
+}
+
+/**
+ * True when `after` holds more diagnostics of some code than `before`.
+ * Counts per code, not messages, so diagnostics whose location moved with
+ * the splice do not count as new. This catches a body with a trailer-like
+ * line or an entry-shaped list item after a blank line (MSL-P020), which
+ * the parser keeps as body text and the entry comparison alone cannot
+ * see. An entry-shaped item directly after a paragraph line, with no
+ * blank line between them, raises no diagnostic; the parser keeps it as
+ * body text and adds no entry, so the edit is accepted.
+ *
+ * Known limit: the parser raises at most one MSL-P020 per entry, so when
+ * the target body already has a trailer-like line, a proposal that adds
+ * more such lines raises no new MSL-P020 and is accepted. The lines stay
+ * body text; no trailer or entry changes.
+ */
+function addsParseDiagnostic(
+  before: readonly string[],
+  after: readonly string[],
+): boolean {
+  const counts = new Map<string, number>();
+  for (const code of before) counts.set(code, (counts.get(code) ?? 0) + 1);
+  for (const code of after) {
+    const left = (counts.get(code) ?? 0) - 1;
+    if (left < 0) return true;
+    counts.set(code, left);
+  }
+  return false;
+}

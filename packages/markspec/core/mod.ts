@@ -231,6 +231,11 @@ export type {
 // Formatter
 export { format } from "./formatter/mod.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
+export { readEntryBody, replaceEntryBody } from "./formatter/entry_body.ts";
+export type {
+  EntryBodyEdit,
+  EntryBodyRefusal,
+} from "./formatter/entry_body.ts";
 export {
   loadMarkdownFormatter,
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,

@@ -6,7 +6,7 @@ import {
   assertNotEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { fromFileUrl, join } from "@std/path";
+import { dirname, fromFileUrl, join } from "@std/path";
 import { Ajv } from "ajv";
 import {
   compile,
@@ -14,6 +14,7 @@ import {
   type EffectiveProfile,
   loadProfileForCommand,
   makeDisplayId,
+  type ProseFormatter,
 } from "../core/mod.ts";
 import {
   buildProductTree,
@@ -25,6 +26,7 @@ import {
   TAURI_ORIGINS,
   toApiPath,
 } from "./api.ts";
+import { MAX_PROPOSAL_CHARS } from "./proposals.ts";
 import { documentEtag } from "./render.ts";
 
 const FIXTURE_ROOT = fromFileUrl(
@@ -50,6 +52,26 @@ async function realPath(path: string): Promise<string | undefined> {
   }
 }
 
+/** A `readFileBytes` that encodes what the text reader `read` returns. */
+function bytesOf(
+  read: DeskSource["readFile"],
+): DeskSource["readFileBytes"] {
+  return async (path) => {
+    const text = await read(path);
+    return text === undefined ? undefined : new TextEncoder().encode(text);
+  };
+}
+
+/** `readFileBytes` for handlers whose tests never send a proposal. */
+function refuseRead(path: string): Promise<Uint8Array | undefined> {
+  return Promise.reject(new Error(`unexpected byte read of ${path}`));
+}
+
+/** `writeFile` for handlers whose tests never write: fails the write. */
+function refuseWrite(path: string): Promise<void> {
+  return Promise.reject(new Error(`unexpected write to ${path}`));
+}
+
 /** Compile the fixture project with its own profile, once per test file. */
 const fixture: Promise<{ compiled: CompileResult; profile: EffectiveProfile }> =
   (async () => {
@@ -73,7 +95,9 @@ async function handler(allowedOrigins?: readonly string[]) {
     profile,
     getCompiled: () => Promise.resolve(compiled),
     readFile,
+    readFileBytes: bytesOf(readFile),
     realPath,
+    writeFile: refuseWrite,
   };
   return createDeskHandler({ source, token: TOKEN, allowedOrigins });
 }
@@ -691,10 +715,13 @@ Deno.test("desk api: preflight from a Tauri origin is 204 with CORS headers", as
     res.headers.get("access-control-allow-origin"),
     "tauri://localhost",
   );
-  assertEquals(res.headers.get("access-control-allow-methods"), "GET, OPTIONS");
+  assertEquals(
+    res.headers.get("access-control-allow-methods"),
+    "GET, POST, OPTIONS",
+  );
   assertEquals(
     res.headers.get("access-control-allow-headers"),
-    "Authorization, If-None-Match",
+    "Authorization, Content-Type, If-Match, If-None-Match",
   );
   assertEquals(res.headers.get("access-control-max-age"), "600");
   assertEquals(res.headers.get("vary"), "Origin");
@@ -910,7 +937,9 @@ async function handlerFor(
       profile,
       getCompiled: () => Promise.resolve(compiled),
       readFile: readFileFn,
+      readFileBytes: bytesOf(readFileFn),
       realPath: (p) => Promise.resolve(p),
+      writeFile: refuseWrite,
     },
   });
 }
@@ -970,6 +999,8 @@ async function editableHandler() {
     // Reads of `source.profile`. On `/documents`, only the render reads it.
     profileReads: 0,
   };
+  const readState: DeskSource["readFile"] = (p) =>
+    p === systemPath ? Promise.resolve(state.text) : readFile(p);
   const h = createDeskHandler({
     token: TOKEN,
     allowedOrigins: ["http://localhost:5173"],
@@ -980,9 +1011,10 @@ async function editableHandler() {
         return profile;
       },
       getCompiled: () => Promise.resolve(state.compiled),
-      readFile: (p) =>
-        p === systemPath ? Promise.resolve(state.text) : readFile(p),
+      readFile: readState,
+      readFileBytes: bytesOf(readState),
       realPath,
+      writeFile: refuseWrite,
     },
   });
   return { h, state };
@@ -1119,7 +1151,7 @@ Deno.test("desk api: preflight allows If-None-Match and responses expose ETag", 
   assertEquals(preflight.status, 204);
   assertEquals(
     preflight.headers.get("access-control-allow-headers"),
-    "Authorization, If-None-Match",
+    "Authorization, Content-Type, If-Match, If-None-Match",
   );
   const first = await h(get(SYSTEM_DOC, { headers: { origin } }));
   await first.body?.cancel();
@@ -1291,10 +1323,12 @@ Deno.test("desk api: files and documents read the resolved real path", async () 
         read.push(p);
         return Promise.resolve("# Resolved\n");
       },
+      readFileBytes: refuseRead,
       realPath: (p) =>
         Promise.resolve(
           p === join(FIXTURE_ROOT, "docs", "system.md") ? resolved : p,
         ),
+      writeFile: refuseWrite,
     },
   });
   for (const route of ["/api/v1/files", "/api/v1/documents"]) {
@@ -1338,7 +1372,9 @@ Deno.test("desk api: a symlink that leaves the project root is 404", async () =>
         profile,
         getCompiled: () => Promise.resolve(graph),
         readFile,
+        readFileBytes: bytesOf(readFile),
         realPath,
+        writeFile: refuseWrite,
       },
     });
     const inside = await h(get("/api/v1/files?path=docs/inside.md"));
@@ -1382,7 +1418,9 @@ Deno.test("desk api: entry location uses forward slashes for Windows paths", asy
       profile,
       getCompiled: () => Promise.resolve({ ...compiled, entries }),
       readFile,
+      readFileBytes: bytesOf(readFile),
       realPath,
+      writeFile: refuseWrite,
     },
   });
   const res = await handle(get("/api/v1/entries/SYS_BRK_0001"));
@@ -1548,4 +1586,802 @@ Deno.test("desk api: tree ETag keeps the tag for an unchanged graph", async () =
   );
   assertEquals(second.status, 304);
   await second.body?.cancel();
+});
+
+// ---------------------------------------------------------------------------
+// Proposals: preview and apply one entry body (#837)
+// ---------------------------------------------------------------------------
+
+const PREVIEW = "/api/v1/proposals/preview";
+const APPLY = "/api/v1/proposals/apply";
+const SYSTEM_PATH = join(FIXTURE_ROOT, "docs", "system.md");
+const SYS_0001_BODY =
+  "  The braking system shall apply full braking torque within 200 ms of a\n  confirmed obstacle.";
+const SYS_0002_BODY =
+  "  The braking system shall apply braking torque through a second, independent\n  actuation path when the primary path fails.\n\n";
+
+/** Options for {@linkcode writableHandler}. */
+interface WritableOptions {
+  readonly compiled?: CompileResult;
+  readonly loadProseFormatter?: () => Promise<ProseFormatter>;
+  readonly failWrite?: boolean;
+  /**
+   * When set, `docs/system.md` holds these bytes: the byte reader returns
+   * them, and the text reader returns their lossy UTF-8 decoding, as
+   * `Deno.readTextFile` does.
+   */
+  readonly bytes?: Uint8Array;
+  /**
+   * When set, the second byte read of `docs/system.md` first sets the file
+   * text to this value, as a save from another application between the
+   * check and the write would.
+   */
+  readonly textOnSecondByteRead?: string;
+  /**
+   * When set, `realPath` resolves `docs/system.md` to this path, and the
+   * byte reader serves the file text under that path too, as a symbolic
+   * link to it would.
+   */
+  readonly realSystemPath?: string;
+  /**
+   * With `realSystemPath`: the text served under the link path
+   * `docs/system.md` itself, so a read through the link instead of the real
+   * path is visible. The real path serves the file text.
+   */
+  readonly linkText?: string;
+  /** When set, each write waits this many milliseconds before it lands. */
+  readonly writeDelayMs?: number;
+}
+
+/**
+ * A handler over the fixture whose `docs/system.md` text lives in `state`:
+ * reads return `state.text`, and each write sets `state.text` and is
+ * recorded in `state.writes`.
+ */
+async function writableHandler(options: WritableOptions = {}) {
+  const fixed = await fixture;
+  const state = {
+    text: await Deno.readTextFile(SYSTEM_PATH),
+    compiled: options.compiled ?? fixed.compiled,
+    writes: [] as { path: string; text: string }[],
+    bytes: options.bytes,
+    byteReads: 0,
+  };
+  const h = createDeskHandler({
+    token: TOKEN,
+    allowedOrigins: ["http://localhost:5173"],
+    loadProseFormatter: options.loadProseFormatter,
+    source: {
+      projectRoot: FIXTURE_ROOT,
+      profile: fixed.profile,
+      getCompiled: () => Promise.resolve(state.compiled),
+      readFile: (p) => {
+        if (p === SYSTEM_PATH && options.linkText !== undefined) {
+          return Promise.resolve(options.linkText);
+        }
+        if (p !== SYSTEM_PATH && p !== options.realSystemPath) {
+          return readFile(p);
+        }
+        return Promise.resolve(
+          state.bytes === undefined
+            ? state.text
+            : new TextDecoder("utf-8", { ignoreBOM: true }).decode(
+              state.bytes,
+            ),
+        );
+      },
+      readFileBytes: (p) => {
+        if (p === SYSTEM_PATH && options.linkText !== undefined) {
+          return Promise.resolve(new TextEncoder().encode(options.linkText));
+        }
+        if (p !== SYSTEM_PATH && p !== options.realSystemPath) {
+          return bytesOf(readFile)(p);
+        }
+        state.byteReads++;
+        if (
+          state.byteReads === 2 && options.textOnSecondByteRead !== undefined
+        ) {
+          state.text = options.textOnSecondByteRead;
+        }
+        return Promise.resolve(
+          state.bytes ?? new TextEncoder().encode(state.text),
+        );
+      },
+      realPath: (p) =>
+        p === SYSTEM_PATH && options.realSystemPath !== undefined
+          ? Promise.resolve(options.realSystemPath)
+          : realPath(p),
+      writeFile: async (path, text) => {
+        if (options.failWrite) throw new Error("disk full");
+        if (options.writeDelayMs !== undefined) {
+          await new Promise((done) => setTimeout(done, options.writeDelayMs));
+        }
+        state.text = text;
+        state.writes.push({ path, text });
+      },
+    },
+  });
+  return { h, state };
+}
+
+/** An authenticated POST with a JSON body (a string is sent as is). */
+function post(
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Request {
+  return new Request(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      "content-type": "application/json",
+      ...headers,
+    },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+}
+
+/** A proposal request with one body change. */
+function bodyChange(displayId: string, body: string) {
+  return { changes: [{ displayId, kind: "body", body }] };
+}
+
+/** The current document ETag of `docs/system.md`. */
+async function systemEtag(h: (r: Request) => Promise<Response>) {
+  const res = await h(get(SYSTEM_DOC));
+  await res.body?.cancel();
+  return res.headers.get("etag")!;
+}
+
+/** Assert the error status and code of a response. */
+async function assertError(res: Response, status: number, code: string) {
+  assertEquals(res.status, status, code);
+  const body = await res.json();
+  await assertMatchesSchema("Error", body);
+  assertEquals(body.error.code, code);
+}
+
+Deno.test("desk api: preview returns the formatted proposal and writes nothing", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(res.status, 200);
+  const view = await res.json();
+  await assertMatchesSchema("ProposalPreview", view);
+  assertEquals(view.changes[0].displayId, "SYS_BRK_0001");
+  assertEquals(view.changes[0].kind, "body");
+  assertEquals(view.changes[0].body, "New body.");
+  assertStringIncludes(view.changes[0].currentBody, "within 200 ms");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: apply writes only the target body and returns the new ETag", async () => {
+  const { h, state } = await writableHandler();
+  const original = state.text;
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  const applied = await res.json();
+  await assertMatchesSchema("ProposalApplied", applied);
+  assertEquals(applied.path, "docs/system.md");
+  assertEquals(state.writes.length, 1);
+  assertEquals(state.writes[0].path, await Deno.realPath(SYSTEM_PATH));
+  assertEquals(state.text, original.replace(SYS_0001_BODY, "  New body."));
+  assertEquals(applied.etag, res.headers.get("etag"));
+  assertNotEquals(applied.etag, etag);
+  assertEquals(await systemEtag(h), applied.etag);
+});
+
+Deno.test("desk api: apply keeps unformatted neighbours byte for byte", async () => {
+  const { h, state } = await writableHandler();
+  state.text = state.text.replace(
+    "      Derived-from: HAZ_BRK_0001\n      Satisfies: STK_BRK_0001",
+    "      Satisfies: STK_BRK_0001\n      Derived-from:   HAZ_BRK_0001",
+  ).replace("independent\n", "independent   \n");
+  const before = state.text;
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.text, before.replace(SYS_0001_BODY, "  New body."));
+});
+
+Deno.test("desk api: apply keeps CRLF line endings", async () => {
+  const { h, state } = await writableHandler();
+  // Normalize first, so the test does not depend on how Git checked the
+  // fixture out.
+  state.text = state.text.replace(/\r\n/g, "\n").replaceAll("\n", "\r\n");
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body.\n\nSecond paragraph."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assert(!/(?<!\r)\n/.test(state.text), "no bare LF in the written text");
+  assertStringIncludes(
+    state.text,
+    "  New body.\r\n\r\n  Second paragraph.\r\n",
+  );
+});
+
+Deno.test("desk api: preview and apply answer 428 without If-Match", async () => {
+  const { h, state } = await writableHandler();
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(post(route, bodyChange("SYS_BRK_0001", "New body.")));
+    await assertError(res, 428, "precondition-required");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: preview answers 412 after the file text changes", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  state.text = `${state.text}\nEdited on disk.\n`;
+  const res = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  await assertError(res, 412, "precondition-failed");
+});
+
+Deno.test("desk api: apply answers 412 after the file text changes", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  state.text = `${state.text}\nEdited on disk.\n`;
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  await assertError(res, 412, "precondition-failed");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: a weak or wildcard If-Match is 412", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  for (const header of [`W/${etag}`, "*", `"other"`]) {
+    for (const route of [PREVIEW, APPLY]) {
+      const res = await h(
+        post(route, bodyChange("SYS_BRK_0001", "New body."), {
+          "if-match": header,
+        }),
+      );
+      await assertError(res, 412, "precondition-failed");
+    }
+  }
+  // A list that names the current tag matches.
+  const listed = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": `"other", ${etag}`,
+    }),
+  );
+  assertEquals(listed.status, 200);
+  await listed.body?.cancel();
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an upstream entry", async () => {
+  const { h, state } = await writableHandler({
+    compiled: await withUpstreamFile("system.md"),
+  });
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": `"any"`,
+      }),
+    );
+    await assertError(res, 409, "entry-read-only");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an entry in a source file", async () => {
+  const { h } = await writableHandler({
+    compiled: await withEntryAt(join(FIXTURE_ROOT, "src", "a.rs")),
+  });
+  const res = await h(
+    post(PREVIEW, bodyChange("EXTRA_0001", "New body."), {
+      "if-match": `"any"`,
+    }),
+  );
+  await assertError(res, 409, "entry-not-markdown");
+});
+
+Deno.test("desk api: refuses an unknown entry", async () => {
+  const { h } = await writableHandler();
+  const res = await h(
+    post(PREVIEW, bodyChange("NOPE_0001", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 404, "entry-not-found");
+});
+
+Deno.test("desk api: refuses a body that adds an entry line", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const sneaky =
+    "Text.\n\n- [X_0001] Sneaky\n\n      Id: 01JBRK00000000000000000099";
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", sneaky), { "if-match": etag }),
+    );
+    await assertError(res, 422, "proposal-changes-entries");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an empty body and a body over 20 000 characters", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const empty = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "  \n\n"), { "if-match": etag }),
+  );
+  await assertError(empty, 422, "proposal-empty");
+  const large = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "a ".repeat(10_001)), {
+      "if-match": etag,
+    }),
+  );
+  await assertError(large, 422, "proposal-too-large");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an entry with an empty body", async () => {
+  const { h, state } = await writableHandler();
+  assertStringIncludes(state.text, SYS_0002_BODY);
+  state.text = state.text.replace(SYS_0002_BODY, "");
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0002", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 409, "entry-body-empty");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses an entry whose trailer did not parse", async () => {
+  const { h, state } = await writableHandler();
+  state.text = state.text.replace(
+    "      Satisfies: STK_BRK_0001\n\n- [SYS_BRK_0002]",
+    "      Satisfies: STK_BRK_0001\n      not a trailer line\n\n- [SYS_BRK_0002]",
+  );
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 409, "entry-trailer-invalid");
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: refuses a malformed proposal request", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const one = { displayId: "SYS_BRK_0001", kind: "body", body: "New." };
+  const malformed: unknown[] = [
+    "{not json",
+    "null",
+    {},
+    { changes: [] },
+    { changes: [one, one] },
+    { changes: [{ ...one, kind: "title" }] },
+    { changes: [{ ...one, body: 3 }] },
+    { changes: [{ kind: "body", body: "New." }] },
+    { changes: [{ ...one, displayId: "" }] },
+  ];
+  for (const body of malformed) {
+    const res = await h(post(PREVIEW, body, { "if-match": etag }));
+    await assertError(res, 400, "bad-request");
+  }
+});
+
+Deno.test("desk api: a formatter that cannot load is 422 format-failed", async () => {
+  const { h, state } = await writableHandler({
+    loadProseFormatter: () => Promise.reject(new Error("x")),
+  });
+  const etag = await systemEtag(h);
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+      }),
+    );
+    await assertError(res, 422, "format-failed");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: a failed write is 500 write-failed", async () => {
+  const { h, state } = await writableHandler({ failWrite: true });
+  const original = state.text;
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": await systemEtag(h),
+    }),
+  );
+  await assertError(res, 500, "write-failed");
+  assertEquals(state.text, original);
+});
+
+Deno.test("desk api: a second apply with the same ETag is 412", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const responses = await Promise.all([
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "First."), { "if-match": etag })),
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "Second."), { "if-match": etag })),
+  ]);
+  assertEquals(responses.map((r) => r.status), [200, 412]);
+  for (const r of responses) await r.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assertStringIncludes(state.text, "  First.\n");
+});
+
+Deno.test("desk api: proposal routes accept only POST", async () => {
+  const { h } = await writableHandler();
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(get(route));
+    await assertError(res, 405, "method-not-allowed");
+  }
+  // The read routes still refuse POST.
+  const tree = await h(post("/api/v1/tree", {}));
+  await assertError(tree, 405, "method-not-allowed");
+});
+
+Deno.test("desk api: preflight allows POST, Content-Type, and If-Match", async () => {
+  const res = await (await handler())(
+    new Request(`${BASE}${APPLY}`, {
+      method: "OPTIONS",
+      headers: { origin: "tauri://localhost" },
+    }),
+  );
+  assertEquals(res.status, 204);
+  assertEquals(
+    res.headers.get("access-control-allow-methods"),
+    "GET, POST, OPTIONS",
+  );
+  assertEquals(
+    res.headers.get("access-control-allow-headers"),
+    "Authorization, Content-Type, If-Match, If-None-Match",
+  );
+  await res.body?.cancel();
+});
+
+Deno.test("desk api: proposal routes require the token and a loopback Host", async () => {
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  for (const route of [PREVIEW, APPLY]) {
+    const noToken = await h(
+      new Request(`${BASE}${route}`, {
+        method: "POST",
+        headers: { "if-match": etag },
+        body: JSON.stringify(bodyChange("SYS_BRK_0001", "New body.")),
+      }),
+    );
+    await assertError(noToken, 401, "unauthorized");
+    const evilHost = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+        host: "evil.example:4100",
+      }),
+    );
+    await assertError(evilHost, 403, "forbidden-host");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: preview and apply refuse a file that is not valid UTF-8", async () => {
+  // A Latin-1 byte in prose far from the target entry. A lossy read would
+  // turn it into U+FFFD, and the write would change that byte.
+  const text = await Deno.readTextFile(SYSTEM_PATH);
+  const encoded = new TextEncoder().encode(text);
+  const bytes = new Uint8Array([
+    ...encoded,
+    ...new TextEncoder().encode("Caf"),
+    0xe9,
+    0x0a,
+  ]);
+  const { h, state } = await writableHandler({ bytes });
+  const etag = await systemEtag(h);
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+      }),
+    );
+    await assertError(res, 409, "entry-file-not-utf8");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: apply refuses when the file changes between the check and the write", async () => {
+  const original = await Deno.readTextFile(SYSTEM_PATH);
+  const edited = original.replace("confirmed obstacle.", "confirmed object.");
+  assertNotEquals(edited, original);
+  const { h, state } = await writableHandler({ textOnSecondByteRead: edited });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  await assertError(res, 412, "precondition-failed");
+  assertEquals(state.writes.length, 0);
+  assertEquals(state.text, edited);
+});
+
+Deno.test("desk api: preview and apply answer 404 for a file whose real path leaves the root", async () => {
+  // `docs/system.md` is a symbolic link to a file outside the project root.
+  // The byte reader would serve it, so only the real-path check refuses.
+  const outside = join(dirname(FIXTURE_ROOT), "outside", "system.md");
+  const { h, state } = await writableHandler({ realSystemPath: outside });
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": '"any"',
+      }),
+    );
+    await assertError(res, 404, "not-found");
+  }
+  assertEquals(state.byteReads, 0);
+  assertEquals(state.writes, []);
+});
+
+Deno.test("desk api: apply writes the real path of a symbolic link inside the root", async () => {
+  const inside = join(FIXTURE_ROOT, "docs", "real", "system.md");
+  const { h, state } = await writableHandler({ realSystemPath: inside });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.map((w) => w.path), [inside]);
+});
+
+Deno.test("desk api: concurrent applies with a slow write run one after another", async () => {
+  // The write lands 100 ms after it starts. Run at the same time, both
+  // applies would pass every check before either write lands, and both
+  // would write. Run one after another, the second sees the new text.
+  const { h, state } = await writableHandler({ writeDelayMs: 100 });
+  const etag = await systemEtag(h);
+  const responses = await Promise.all([
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "First."), { "if-match": etag })),
+    h(post(APPLY, bodyChange("SYS_BRK_0001", "Second."), { "if-match": etag })),
+  ]);
+  assertEquals(responses.map((r) => r.status), [200, 412]);
+  for (const r of responses) await r.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assertStringIncludes(state.text, "  First.\n");
+});
+
+Deno.test("desk api: preview and apply keep a UTF-8 BOM", async () => {
+  const text = await Deno.readTextFile(SYSTEM_PATH);
+  const encoded = new TextEncoder().encode(text);
+  const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...encoded]);
+  const { h, state } = await writableHandler({ bytes });
+  const etag = await systemEtag(h);
+  const preview = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(preview.status, 200);
+  await preview.body?.cancel();
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.length, 1);
+  assertEquals(
+    state.writes[0].text,
+    `\uFEFF${text.replace(SYS_0001_BODY, "  New body.")}`,
+  );
+});
+
+Deno.test("desk api: a proposal request body over the byte cap is 422 before it is parsed", async () => {
+  // The JSON is valid and its body is short, but trailing whitespace makes
+  // the request larger than any request with a body at the limit.
+  const { h, state } = await writableHandler();
+  const etag = await systemEtag(h);
+  const json = JSON.stringify(bodyChange("SYS_BRK_0001", "New body.")) +
+    " ".repeat(200_000);
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(post(route, json, { "if-match": etag }));
+    await assertError(res, 422, "proposal-too-large");
+  }
+  assertEquals(state.writes, []);
+});
+
+Deno.test("desk api: preview reads the current body through the real path", async () => {
+  // The link path serves other text, so a read through `docs/system.md`
+  // instead of its real path would show another current body.
+  const inside = join(FIXTURE_ROOT, "docs", "real", "system.md");
+  const linkText = (await Deno.readTextFile(SYSTEM_PATH)).replace(
+    "within 200 ms",
+    "within 999 ms",
+  );
+  const { h } = await writableHandler({ realSystemPath: inside, linkText });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+      "if-match": etag,
+    }),
+  );
+  assertEquals(res.status, 200);
+  const view = await res.json();
+  assertStringIncludes(view.changes[0].currentBody, "within 200 ms");
+});
+
+/**
+ * A proposal request for `body` padded with trailing spaces (valid JSON
+ * whitespace) to exactly `bytes` UTF-8 bytes.
+ */
+function paddedRequest(body: string, bytes: number): string {
+  const json = JSON.stringify(bodyChange("SYS_BRK_0001", body));
+  const size = new TextEncoder().encode(json).length;
+  assert(size <= bytes, `${size} > ${bytes}`);
+  return json + " ".repeat(bytes - size);
+}
+
+Deno.test("desk api: a request of exactly 124 096 bytes is read; one byte more is 422", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const atCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_096), { "if-match": etag }),
+  );
+  assertEquals(atCap.status, 200);
+  await atCap.body?.cancel();
+  const overCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_097), { "if-match": etag }),
+  );
+  await assertError(overCap, 422, "proposal-too-large");
+});
+
+Deno.test("desk api: a body at the limit written as JSON escapes is not refused by the byte cap", async () => {
+  // 20 000 characters, each as a six-byte `\uXXXX` escape: 120 000 bytes
+  // of body, which the cap must allow.
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const escaped = "\\u0061".repeat(MAX_PROPOSAL_CHARS);
+  const json =
+    `{"changes":[{"displayId":"SYS_BRK_0001","kind":"body","body":"${escaped}"}]}`;
+  assert(json.length > 120_000 && json.length < 124_096, `${json.length}`);
+  const res = await h(post(PREVIEW, json, { "if-match": etag }));
+  assertEquals(res.status, 200);
+  const view = await res.json();
+  assertEquals(view.changes[0].body, "a".repeat(MAX_PROPOSAL_CHARS));
+});
+
+Deno.test("desk api: a declared Content-Length over the cap is 422 for a small body", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const request = post(PREVIEW, bodyChange("SYS_BRK_0001", "New body."), {
+    "if-match": etag,
+    "content-length": "999999",
+  });
+  assertEquals(request.headers.get("content-length"), "999999");
+  await assertError(await h(request), 422, "proposal-too-large");
+});
+
+Deno.test("desk api: an oversized request without If-Match is 428", async () => {
+  const { h } = await writableHandler();
+  const res = await h(post(PREVIEW, paddedRequest("New body.", 200_000)));
+  await assertError(res, 428, "precondition-required");
+});
+
+Deno.test("desk api: a declared Content-Length of exactly the cap is read; one more is 422", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const atCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_096), {
+      "if-match": etag,
+      "content-length": "124096",
+    }),
+  );
+  assertEquals(atCap.status, 200);
+  await atCap.body?.cancel();
+  const overCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_097), {
+      "if-match": etag,
+      "content-length": "124097",
+    }),
+  );
+  await assertError(overCap, 422, "proposal-too-large");
+});
+
+Deno.test("desk api: apply through a symbolic link reads and writes the real path", async () => {
+  // The link path serves other text. Apply must check the bytes of the
+  // real path again before the write, and write the real path.
+  const inside = join(FIXTURE_ROOT, "docs", "real", "system.md");
+  const linkText = (await Deno.readTextFile(SYSTEM_PATH)).replace(
+    "within 200 ms",
+    "within 999 ms",
+  );
+  const { h, state } = await writableHandler({
+    realSystemPath: inside,
+    linkText,
+  });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.map((w) => w.path), [inside]);
+});
+
+/**
+ * A request body stream of `chunks` chunks of `chunkBytes` spaces that
+ * records each pull and whether it was cancelled. With a high-water mark
+ * of 0 it is pulled only when the reader asks for a chunk.
+ */
+function recordingStream(chunks: number, chunkBytes: number) {
+  const record = { pulls: 0, cancelled: false };
+  let sent = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      record.pulls++;
+      if (sent === chunks) {
+        controller.close();
+        return;
+      }
+      sent++;
+      controller.enqueue(new TextEncoder().encode(" ".repeat(chunkBytes)));
+    },
+    cancel() {
+      record.cancelled = true;
+    },
+  }, { highWaterMark: 0 });
+  return { stream, record };
+}
+
+/** A proposal POST whose body is `body`, with extra headers. */
+function streamPost(
+  body: ReadableStream<Uint8Array>,
+  headers: Record<string, string>,
+): Request {
+  return new Request(`${BASE}${PREVIEW}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      "content-type": "application/json",
+      ...headers,
+    },
+    body,
+  });
+}
+
+Deno.test("desk api: reading a request body stops at the chunk that crosses the cap", async () => {
+  // Three chunks of 50 000 bytes: the third crosses 124 096 bytes. The
+  // handler must cancel the stream then, and never pull a fourth chunk.
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const { stream, record } = recordingStream(10, 50_000);
+  const res = await h(streamPost(stream, { "if-match": etag }));
+  await assertError(res, 422, "proposal-too-large");
+  assertEquals(record.pulls, 3);
+  assert(record.cancelled);
+});
+
+Deno.test("desk api: a declared Content-Length over the cap cancels the body unread", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const { stream, record } = recordingStream(10, 50_000);
+  const res = await h(
+    streamPost(stream, { "if-match": etag, "content-length": "999999" }),
+  );
+  await assertError(res, 422, "proposal-too-large");
+  assertEquals(record.pulls, 0);
+  assert(record.cancelled);
 });

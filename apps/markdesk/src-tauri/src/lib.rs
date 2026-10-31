@@ -16,7 +16,10 @@ use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_store::StoreExt;
 
 use assistant_settings::AssistantSettings;
-use assistants::{AssistantId, AssistantStatus, Probe, TestOutcome, TestResult};
+use assistants::{
+    AssistantId, AssistantStatus, Probe, PromptOutcome, PromptRequest, PromptResult, TestOutcome,
+    TestResult,
+};
 use handshake::Handshake;
 use recents::Recent;
 use sidecar::{OpenError, SidecarSlot};
@@ -35,28 +38,32 @@ const ASSISTANT_KEY: &str = "assistant";
 /// Key that receives assistant settings that could not be read.
 const ASSISTANT_CORRUPT_KEY: &str = "assistant.corrupt";
 
-/// Test error when `test_assistant` is called while a Test runs.
-const TEST_ALREADY_RUNNING: &str = "A Test is already running.";
+/// Error of a Test or a prompt run started while another assistant run is
+/// in progress.
+const ASSISTANT_BUSY: &str = "An assistant run is already in progress.";
 
-/// The state shared by the Test commands.
+/// The state shared by the Test and prompt commands.
 ///
-/// One Test runs at a time: `running` is set while a Test runs, and every
-/// Test shares the one `cancel` flag, which `test_assistant` clears when a
-/// Test starts.
+/// One assistant run (a Test or a prompt run) happens at a time: `running`
+/// is set while one runs, and every run shares the one `cancel` flag, which
+/// is cleared when a run starts.
 #[derive(Default)]
 struct AssistantTestState {
-    /// Set by `cancel_assistant_test`; the running Test polls it.
+    /// Set by `cancel_assistant_test` or `cancel_assistant_prompt`; the
+    /// running Test or prompt run polls it.
     cancel: Arc<AtomicBool>,
-    /// Set while a Test runs.
+    /// Set while a Test or a prompt run is in progress.
     running: Arc<AtomicBool>,
 }
 
-/// Marks a Test as running until it is dropped.
+/// Marks an assistant run (a Test or a prompt run) as in progress until it
+/// is dropped.
 struct TestGuard(Arc<AtomicBool>);
 
 impl TestGuard {
-    /// Start a Test: set `running` and clear `cancel`. Returns `None`, and
-    /// changes neither flag, when a Test is already running.
+    /// Start an assistant run (a Test or a prompt run): set `running` and
+    /// clear `cancel`. Returns `None`, and changes neither flag, when a run
+    /// is already in progress.
     fn start(running: &Arc<AtomicBool>, cancel: &AtomicBool) -> Option<TestGuard> {
         running
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -220,30 +227,114 @@ async fn detect_assistants(app: AppHandle) -> Result<Vec<AssistantStatus>, Strin
 
 /// Run the short Test prompt on one assistant. The web UI passes only the
 /// assistant id; the program and the prompt are fixed in the shell. A call
-/// made while a Test runs fails at once and changes nothing.
+/// made while a Test or a prompt run is in progress fails at once and
+/// changes nothing.
 #[tauri::command]
 async fn test_assistant(app: AppHandle, id: AssistantId) -> Result<TestResult, String> {
     let state = app.state::<AssistantTestState>();
-    with_test_guard(&state, |cancel| run_assistant_test(app.clone(), id, cancel)).await
+    let busy = || TestResult {
+        outcome: TestOutcome::Failed,
+        reply: None,
+        error: Some(ASSISTANT_BUSY.to_string()),
+    };
+    with_assistant_guard(&state, busy, |cancel| {
+        run_assistant_test(app.clone(), id, cancel)
+    })
+    .await
 }
 
-/// Run `body` while holding the single-Test guard of `state`. When a Test
-/// already runs, `body` is not called and the result says so. The guard is
-/// released when `body` finishes.
-async fn with_test_guard<F, Fut>(state: &AssistantTestState, body: F) -> Result<TestResult, String>
+/// Run `body` while holding the single-run guard of `state`. When a Test or
+/// a prompt run is already in progress, `body` is not called and the result
+/// is `busy()`. The guard is released when `body` finishes.
+async fn with_assistant_guard<T, F, Fut>(
+    state: &AssistantTestState,
+    busy: impl FnOnce() -> T,
+    body: F,
+) -> Result<T, String>
 where
     F: FnOnce(Arc<AtomicBool>) -> Fut,
-    Fut: std::future::Future<Output = Result<TestResult, String>>,
+    Fut: std::future::Future<Output = Result<T, String>>,
 {
     let cancel = Arc::clone(&state.cancel);
     let Some(_guard) = TestGuard::start(&state.running, &cancel) else {
-        return Ok(TestResult {
-            outcome: TestOutcome::Failed,
-            reply: None,
-            error: Some(TEST_ALREADY_RUNNING.to_string()),
-        });
+        return Ok(busy());
     };
     body(cancel).await
+}
+
+/// Run one prompt on one assistant with every tool switched off, in an
+/// empty temporary folder. The reply is returned to the web UI and nothing
+/// is stored. A call made while a Test or a prompt run is in progress fails
+/// at once and changes nothing.
+#[tauri::command]
+async fn run_assistant_prompt(
+    app: AppHandle,
+    id: AssistantId,
+    request: PromptRequest,
+) -> Result<PromptResult, String> {
+    let state = app.state::<AssistantTestState>();
+    let busy = || PromptResult {
+        outcome: PromptOutcome::Failed,
+        reply: None,
+        error: Some(ASSISTANT_BUSY.to_string()),
+    };
+    with_assistant_guard(&state, busy, |cancel| {
+        run_prompt_on_assistant(app.clone(), id, request, cancel)
+    })
+    .await
+}
+
+/// Find the assistant and run the prompt on it.
+async fn run_prompt_on_assistant(
+    app: AppHandle,
+    id: AssistantId,
+    request: PromptRequest,
+    cancel: Arc<AtomicBool>,
+) -> Result<PromptResult, String> {
+    // Refuse before looking for the program, so an assistant that is not
+    // available for prompts gets the same answer whether it is installed.
+    if let Some(refused) = assistants::prompt_unavailable(id) {
+        return Ok(refused);
+    }
+    let settings = load_assistant_settings(&app)?;
+    let home = app.path().home_dir().map_err(|err| err.to_string())?;
+    let probe = probe_from_settings(&home, &settings);
+    let Some(program) =
+        assistants::locate(id.binary(), probe.path_env.as_deref(), &probe.extra_dirs)
+    else {
+        return Ok(PromptResult {
+            outcome: PromptOutcome::Failed,
+            reply: None,
+            error: Some(format!("{} is not installed", id.binary())),
+        });
+    };
+    let path = probe.child_path();
+    tauri::async_runtime::spawn_blocking(move || {
+        assistants::run_prompt(
+            id,
+            &program,
+            path.as_deref(),
+            &request,
+            assistants::PROMPT_TIMEOUT,
+            &cancel,
+        )
+    })
+    .await
+    .map_err(|err| err.to_string())
+}
+
+/// Stop the running prompt run, if any. It sets the same flag as
+/// `cancel_assistant_test`, because only one assistant run is in progress
+/// at a time.
+///
+/// Known gap: a run clears the flag when it takes the guard, so a cancel
+/// that arrives before the run has taken the guard is lost, and that run
+/// continues until it ends or times out.
+#[tauri::command]
+fn cancel_assistant_prompt(app: AppHandle) {
+    app.state::<AssistantTestState>()
+        .cancel
+        .store(true, Ordering::SeqCst);
 }
 
 /// Find the assistant, run the Test, and store what the result changes.
@@ -354,6 +445,8 @@ pub fn run() {
             detect_assistants,
             test_assistant,
             cancel_assistant_test,
+            run_assistant_prompt,
+            cancel_assistant_prompt,
             get_assistant_settings,
             set_assistant_settings
         ])
@@ -421,13 +514,11 @@ mod tests {
 
     #[cfg(unix)]
     fn detect_copilot_with(confirmed: bool, label: &str) -> assistants::AssistantState {
-        use std::os::unix::fs::PermissionsExt;
         let dir =
             std::env::temp_dir().join(format!("markdesk-lib-probe-{}-{label}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let bin = dir.join("copilot");
-        std::fs::write(&bin, "#!/bin/sh\necho copilot 1.0\n").unwrap();
-        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assistants::write_executable(&bin, "#!/bin/sh\necho copilot 1.0\n");
         let settings = AssistantSettings {
             copilot_confirmed: confirmed,
             ..AssistantSettings::default()
@@ -534,29 +625,113 @@ mod tests {
         assert_eq!(result, Ok(()));
     }
 
+    fn busy_test() -> TestResult {
+        TestResult {
+            outcome: TestOutcome::Failed,
+            reply: None,
+            error: Some(ASSISTANT_BUSY.to_string()),
+        }
+    }
+
+    fn busy_prompt() -> PromptResult {
+        PromptResult {
+            outcome: PromptOutcome::Failed,
+            reply: None,
+            error: Some(ASSISTANT_BUSY.to_string()),
+        }
+    }
+
+    fn ok_prompt() -> PromptResult {
+        PromptResult {
+            outcome: PromptOutcome::Ok,
+            reply: Some("Proposed body.".into()),
+            error: None,
+        }
+    }
+
     #[test]
-    fn with_test_guard_refuses_a_second_test_until_the_first_ends() {
+    fn with_assistant_guard_refuses_a_second_test_until_the_first_ends() {
         let state = AssistantTestState::default();
         let ran_second = std::cell::Cell::new(false);
-        let outer = tauri::async_runtime::block_on(with_test_guard(&state, |_| async {
-            let inner = with_test_guard(&state, |_| async {
-                ran_second.set(true);
+        let outer =
+            tauri::async_runtime::block_on(with_assistant_guard(&state, busy_test, |_| async {
+                let inner = with_assistant_guard(&state, busy_test, |_| async {
+                    ran_second.set(true);
+                    Ok(ok_run().result)
+                })
+                .await
+                .unwrap();
+                assert_eq!(inner.outcome, TestOutcome::Failed);
+                assert_eq!(inner.error.as_deref(), Some(ASSISTANT_BUSY));
                 Ok(ok_run().result)
-            })
-            .await
+            }))
             .unwrap();
-            assert_eq!(inner.outcome, TestOutcome::Failed);
-            assert_eq!(inner.error.as_deref(), Some(TEST_ALREADY_RUNNING));
-            Ok(ok_run().result)
-        }))
-        .unwrap();
         assert_eq!(outer.outcome, TestOutcome::Ok);
         assert!(!ran_second.get());
         assert!(!state.running.load(Ordering::SeqCst));
-        let third = tauri::async_runtime::block_on(with_test_guard(&state, |_| async {
-            Ok(ok_run().result)
-        }))
-        .unwrap();
+        let third =
+            tauri::async_runtime::block_on(with_assistant_guard(&state, busy_test, |_| async {
+                Ok(ok_run().result)
+            }))
+            .unwrap();
         assert_eq!(third.outcome, TestOutcome::Ok);
+    }
+
+    #[test]
+    fn a_prompt_run_is_refused_while_a_test_runs() {
+        let state = AssistantTestState::default();
+        let ran_prompt = std::cell::Cell::new(false);
+        let outer =
+            tauri::async_runtime::block_on(with_assistant_guard(&state, busy_test, |_| async {
+                let inner = with_assistant_guard(&state, busy_prompt, |_| async {
+                    ran_prompt.set(true);
+                    Ok(ok_prompt())
+                })
+                .await
+                .unwrap();
+                assert_eq!(inner, busy_prompt());
+                Ok(ok_run().result)
+            }))
+            .unwrap();
+        assert_eq!(outer.outcome, TestOutcome::Ok);
+        assert!(!ran_prompt.get());
+        assert!(!state.running.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn a_test_is_refused_while_a_prompt_runs() {
+        let state = AssistantTestState::default();
+        let ran_test = std::cell::Cell::new(false);
+        let outer =
+            tauri::async_runtime::block_on(with_assistant_guard(&state, busy_prompt, |_| async {
+                let inner = with_assistant_guard(&state, busy_test, |_| async {
+                    ran_test.set(true);
+                    Ok(ok_run().result)
+                })
+                .await
+                .unwrap();
+                assert_eq!(inner, busy_test());
+                Ok(ok_prompt())
+            }))
+            .unwrap();
+        assert_eq!(outer, ok_prompt());
+        assert!(!ran_test.get());
+        assert!(!state.running.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn cancel_flag_is_shared_by_prompt_and_test() {
+        let state = AssistantTestState::default();
+        let shared = Arc::clone(&state.cancel);
+        let result = tauri::async_runtime::block_on(with_assistant_guard(
+            &state,
+            busy_prompt,
+            |cancel| async move {
+                assert!(Arc::ptr_eq(&cancel, &shared));
+                Ok(ok_prompt())
+            },
+        ))
+        .unwrap();
+        assert_eq!(result, ok_prompt());
     }
 }

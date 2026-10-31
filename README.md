@@ -170,7 +170,8 @@ resolved at build time.
 MarkDesk is a desktop authoring app for MarkSpec products. It lives in
 [`apps/markdesk`](apps/markdesk/README.md): a React and Vite UI in a Tauri v2
 shell. The app starts `markspec desk --serve` as a sidecar and reads the product
-through that local API. MarkDesk is in development and is not yet released. The
+through that local API. It writes an entry body only after the author accepts an
+assistant's proposal. MarkDesk is in development and is not yet released. The
 design is recorded in [ADR-035](docs/architecture/adr-035-markdesk.md).
 
 ## Install

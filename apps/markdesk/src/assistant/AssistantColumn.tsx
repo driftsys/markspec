@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useAssistants } from "./AssistantProvider";
 import { assistantName } from "./catalog";
+import { PromptPanel } from "./PromptPanel";
 import { SetupCard } from "./SetupCard";
 
 const STATE_PHRASES = {
@@ -12,6 +14,9 @@ export function AssistantColumn(props: {
   onOpenSettings(focus?: "install"): void;
 }) {
   const { settings, statuses } = useAssistants();
+  // Leaving the column during a write would unmount the prompt panel and
+  // drop the write's result, so Settings waits for the write to end.
+  const [applying, setApplying] = useState(false);
 
   // Neutral empty column until the stored settings are read.
   if (settings === undefined) return <div className="assistant-column" />;
@@ -53,12 +58,12 @@ export function AssistantColumn(props: {
   return (
     <div className="assistant-column">
       <p className="assistant-empty">{heading}</p>
-      <textarea
-        disabled
-        aria-label="Prompt"
-        placeholder="Prompts arrive in a later release"
-      />
-      <button type="button" onClick={() => props.onOpenSettings()}>
+      <PromptPanel onApplyingChange={setApplying} />
+      <button
+        type="button"
+        disabled={applying}
+        onClick={() => props.onOpenSettings()}
+      >
         Settings
       </button>
     </div>

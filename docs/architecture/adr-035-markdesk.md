@@ -83,8 +83,9 @@ stays TypeScript. Everything lives in this repository.
   The desk backend shall answer an `OPTIONS` request from an allowed origin with
   HTTP status 204 before the backend checks the bearer token. The response shall
   carry these headers with these values: `Access-Control-Allow-Origin` with the
-  request `Origin`, `Access-Control-Allow-Methods` with `GET, OPTIONS`,
-  `Access-Control-Allow-Headers` with `Authorization, If-None-Match`,
+  request `Origin`, `Access-Control-Allow-Methods` with `GET, POST, OPTIONS`,
+  `Access-Control-Allow-Headers` with
+  `Authorization, Content-Type, If-Match, If-None-Match`,
   `Access-Control-Max-Age` with `600`, and `Vary` with `Origin`.
 
       Id: 01M55JNXSH4RRPH8Z1SQ6M1V54
@@ -98,7 +99,9 @@ stays TypeScript. Everything lives in this repository.
   the project-relative path of a Markdown or source file holding at least one
   entry without an `origin`, and shall require a `.md` extension for
   `/documents`. The backend shall answer HTTP status 400 with code `bad-request`
-  for a request without `path`.
+  for a request without `path`. The backend shall answer HTTP status 405 with
+  code `method-not-allowed` for a request to these endpoints with a method other
+  than `GET`, except an `OPTIONS` preflight from an allowed origin.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
 
@@ -163,6 +166,65 @@ stays TypeScript. Everything lives in this repository.
   when the selected entry is not in the product.
 
       Id: 01M68DXSB7RH4QVE2KSA33NTAE
+
+- [SAD_DESK_0021] Proposal preview response
+
+  The desk backend shall answer a valid `POST /api/v1/proposals/preview` with
+  HTTP status 200 whose body carries the target entry's formatted proposed body
+  next to its current body.
+
+      Id: 01M69JMGZB8KSG1ESRH67CCFN1
+
+- [SAD_DESK_0022] Preview without write
+
+  The desk backend shall leave every product file unmodified while it answers
+  `POST /api/v1/proposals/preview`.
+
+      Id: 01M69JMGZBBFGQE706GG84J5W5
+
+- [SAD_DESK_0023] Proposal apply
+
+  The desk backend shall answer a valid `POST /api/v1/proposals/apply` with HTTP
+  status 200 carrying the document `ETag` of the written file.
+
+      Id: 01M69JMGZBHC4G74QHNRVGG64H
+
+- [SAD_DESK_0024] Missing precondition
+
+  The desk backend shall answer HTTP status 428 with code
+  `precondition-required` for a proposal request without `If-Match`.
+
+      Id: 01M69JMGZBTZS4ZSMSXHVGFN99
+
+- [SAD_DESK_0025] Stale precondition
+
+  The desk backend shall answer HTTP status 412 with code `precondition-failed`
+  for a proposal request whose `If-Match` does not name the current document
+  `ETag`.
+
+      Id: 01M69JMGZB7XP24KGG448W1H7B
+
+- [SAD_DESK_0026] Splice-only write
+
+  The desk backend shall make an applied file equal to the original file with
+  only the target entry's body lines replaced.
+
+      Id: 01M69JMGZB7ZT2XM3P1JEBV6F6
+
+- [SAD_DESK_0027] Atomic write
+
+  The desk backend shall write an applied file through a temporary file in the
+  same folder that the backend renames over the original file.
+
+      Id: 01M69JMGZBHXXKFDN7QKHD2KKN
+
+- [SAD_DESK_0031] Applied body equals preview body
+
+  The desk backend shall write, for an apply request that carries the same
+  proposal text and the same `If-Match` tag as a successful preview request, the
+  target body that the preview response returned.
+
+      Id: 01M69Y6AAS5FHG7G8A2VQ0H2RM
 
 The per-launch nonce token is the only credential of the desk API. The `Origin`
 check limits which browser pages can call the API; it does not authenticate the
@@ -234,6 +296,35 @@ nonce check therefore stays mandatory and must never be relaxed because the
 
       Id: 01M4JXA5WP5KAYFWTZARAGH031
 
+- [SAD_DESK_0028] Prompt run without tools
+
+  The MarkDesk shell shall start a prompt run only for an assistant whose
+  arguments switch off every tool that reads a file, runs a command, or writes a
+  file.
+
+      Id: 01M69JMGZBAD95VDHYJTN321CT
+
+- [SAD_DESK_0029] Prompt run timeout
+
+  The MarkDesk shell shall kill the process group of a prompt run that runs
+  longer than 120 s.
+
+      Id: 01M69JMGZB4V44SJT9VXQ2Q7D8
+
+- [SAD_DESK_0030] Accept before apply
+
+  The MarkDesk UI shall call the apply endpoint only after the author activates
+  Accept on the shown proposal.
+
+      Id: 01M69JMGZB558VX8AKS3TH4S12
+
+- [SAD_DESK_0032] Raw proposal on Accept
+
+  The MarkDesk UI shall send to the apply endpoint the proposal text that it
+  sent to the preview endpoint, not the body that the preview returned.
+
+      Id: 01M69Y6AARB9TFM5WA2B0XC57W
+
 - [SAD_DESK_0008] Two token layers and three typographic registers
 
   Styling shall use two token layers generated from `theme/tokens.yaml`:
@@ -283,14 +374,16 @@ is `schemas/desk-api.json`.
 
 ### As built: the shell and the read path
 
-The first MarkDesk app (DESK-1 local variant and DESK-6) is read-only. It opens
-a product from a folder on the computer, shows the traceability graph in the
-navigator, and shows the whole document an entry lives in.
+The first MarkDesk app (DESK-1 local variant and DESK-6) opens a product from a
+folder on the computer, shows the traceability graph in the navigator, and shows
+the whole document an entry lives in. MarkDesk writes a product file only
+through the desk apply endpoint, after the author accepts a proposal (see "As
+built: the first prompt" below).
 
 - **Opening.** The shell shows a native folder picker and keeps up to 10 recent
   products (folder path and name) in `recents.json` in the OS app-data
-  directory. MarkDesk writes nothing into the product folder. At launch it
-  reopens the most recent product; a start screen appears only when there is
+  directory. Opening a product writes nothing into the product folder. At launch
+  it reopens the most recent product; a start screen appears only when there is
   none. A product menu lists recent products and "Open folder…". Choosing a
   subfolder opens the enclosing product, and the recent list stores the `root`
   from the handshake. A folder that is not a product is reported in one plain
@@ -357,7 +450,8 @@ navigator, and shows the whole document an entry lives in.
   "is not installed"), a disabled prompt box, and a "Settings" button. Settings
   holds the assistant choice, the Test, and the install guide. MarkDesk shows
   install and sign-in commands but never runs them and never opens a terminal.
-  Prompt features and the propose and accept flow arrive with #837.
+  The prompt box and the propose and accept flow are described in "As built: the
+  first prompt" below.
 - **Assistant detection and Test.** The shell finds each assistant on PATH and
   in the standard install directories. A signed-out check is available for
   Claude Code and Codex (`codex login status` exits 1 when signed out and 0 when
@@ -389,12 +483,13 @@ navigator, and shows the whole document an entry lives in.
   (`.github/workflows/markdesk.yaml`) type-checks, tests, and builds the UI,
   runs `scripts/check_desk_client.sh`, and on Linux runs `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo test`, and
-  `cargo test -- --ignored` for the shell; the ignored tests start the real
-  sidecar from `packages/markspec/main.ts` with Deno. The main CI workflow
-  checks that the compiled `markspec` binary serves the desk handshake and stops
-  when its stdin closes. Tests drive the UI against a mocked client; there is no
-  end-to-end test of the real window, only a manual smoke test in
-  `apps/markdesk/README.md`.
+  `cargo test -- --ignored --skip manual_assistant_` for the shell. The ignored
+  tests that CI runs start the real sidecar from `packages/markspec/main.ts`
+  with Deno; the skipped `manual_assistant_*` tests need a signed-in Claude Code
+  and run only by hand. The main CI workflow checks that the compiled `markspec`
+  binary serves the desk handshake and stops when its stdin closes. Tests drive
+  the UI against a mocked client; there is no end-to-end test of the real
+  window, only a manual smoke test in `apps/markdesk/README.md`.
 - **Document revalidation.** The UI keeps each rendered document with its `ETag`
   for the session of an opened product, and never reuses one without asking the
   server (SAD_DESK_0013 to SAD_DESK_0015). The tag is a quoted SHA-256 digest of
@@ -411,9 +506,10 @@ navigator, and shows the whole document an entry lives in.
   focus; an edit made in another application shows when the author returns to
   MarkDesk. The scroll position moves only when the rendered HTML or the
   selection changes, so a 304 leaves the view as it is. Preflight responses
-  allow the `If-None-Match` request header, and responses to an allowed origin
-  carry `Access-Control-Expose-Headers: ETag`. The change is additive, so
-  `apiVersion` stays 3.
+  allow the `If-None-Match` request header (and, since #837, `Content-Type` and
+  `If-Match`; see SAD_DESK_0011), and responses to an allowed origin carry
+  `Access-Control-Expose-Headers: ETag`. The change is additive, so `apiVersion`
+  stays 3.
 - **Navigator refresh (#842).** `GET /api/v1/tree` carries a strong `ETag` too:
   the quoted SHA-256 digest of the serialized tree, which embeds `apiVersion`
   (SAD_DESK_0016). Each tree node holds the display ID, title, type, core kind,
@@ -426,17 +522,150 @@ navigator, and shows the whole document an entry lives in.
   (`apps/markdesk/src/app/refresh.tsx`) under the product holds a revision
   counter, bumped on window focus (SAD_DESK_0017). The navigator and the
   document pane both revalidate on the revision. The provider also exposes
-  `refresh()`; nothing calls it yet, and the write path of #837 is meant to call
-  it after a write. The navigator keeps the tree it holds while it checks, so
-  the `Navigator` component is not remounted and expanded rows survive. A 304
-  returns the same cached object and replaces nothing (SAD_DESK_0019). A changed
-  tree replaces the model in place, and a removed entry has no row. When the
-  selected entry is gone, the document pane shows a status line that names it,
-  and the selection stays in the history (SAD_DESK_0020). A failed check after a
-  successful load keeps the tree shown and logs a warning; a successful check
-  clears an earlier load failure. The held tree is tied to the client of the
-  open product, so a tree from another product is never sent. `apiVersion`
-  stays 3.
+  `refresh()`, which the prompt flow calls after an accepted write (#837). The
+  navigator keeps the tree it holds while it checks, so the `Navigator`
+  component is not remounted and expanded rows survive. A 304 returns the same
+  cached object and replaces nothing (SAD_DESK_0019). A changed tree replaces
+  the model in place, and a removed entry has no row. When the selected entry is
+  gone, the document pane shows a status line that names it, and the selection
+  stays in the history (SAD_DESK_0020). A failed check after a successful load
+  keeps the tree shown and logs a warning; a successful check clears an earlier
+  load failure. The held tree is tied to the client of the open product, so a
+  tree from another product is never sent. `apiVersion` stays 3.
+
+### As built: the first prompt
+
+- **Flow (#837).** The author selects one entry and types an instruction in the
+  prompt box of the assistant column; Enter or Send submits, Shift+Enter inserts
+  a new line. At submit the UI reads the document `ETag` first, then the entry.
+  The shell runs the prompt, and the column shows "Waiting for <assistant>…"
+  with a Cancel button. The UI removes one surrounding code fence from the reply
+  and sends the body to `POST /api/v1/proposals/preview` with the submit-time
+  tag in `If-Match`. The column then shows a word-level diff: a "Current" block
+  with removed words struck through and a "Proposed" block with added words
+  marked. Accept sends the same change to `POST /api/v1/proposals/apply` with
+  the same tag and then calls `refresh()`; Reject or Escape discards the
+  proposal and writes nothing (SAD_DESK_0030). Each failure is one sentence in
+  the column, for example "This file changed since the proposal. Ask again."
+  (instruction kept) for a 412. A failed assistant run reports the first
+  non-empty line of its stdout, else of its stderr, else `exit code <n>`. The
+  prompt box is disabled, with a one-line reason, in several cases, among them
+  an entry with an origin, an entry in a source file, an entry with an empty
+  body, an assistant that is not installed, needs sign-in or has no prompts, and
+  while a Test runs. The proposal wire format is a list of changes
+  `{ displayId, kind: "body", body }`; this story accepts exactly one change of
+  kind `body`. The change is additive, so `apiVersion` stays 3.
+- **UI details.** A proposal belongs to one entry: selecting another entry
+  cancels the run or discards the proposal, and nothing is written. A write in
+  progress is the exception: it survives a selection change, the box stays busy
+  until the apply ends, and a failed apply is still reported. The column's
+  Settings button is disabled while a write is applying, because leaving the
+  column unmounts the panel. Focus moves to Cancel while the assistant runs and
+  to the proposal container when the proposal appears, so Tab reaches Accept
+  next. Focus never moves to Accept by itself, so a Space or Enter pressed on
+  the page body cannot write the file (the UI side of SAD_DESK_0030). When the
+  flow ends, focus returns to the box, unless the author moved focus outside the
+  panel. The Enter that ends an IME composition does not submit. When the
+  submit-time read of the document or the entry fails, the column says "MarkDesk
+  could not read this entry."; a refusal with `entry-trailer-invalid` says "This
+  entry's trailer has a problem. Run markspec check and fix it first." A lost
+  connection (a `DeskError` with status 0) during the submit-time reads or the
+  preview returns the column to idle without a sentence, and the app's
+  lost-connection banner reports it. An apply that fails with status 0 says
+  "MarkDesk lost the connection during the write. The file may have changed."
+  and calls `refresh()`, because the write may or may not have happened. A known
+  gap: the product menu's Settings item and opening another product still
+  unmount the panel during a write; the write completes, but a failure is then
+  not reported.
+- **Write path.** Preview and apply run the same pipeline
+  (`packages/markspec/desk/proposals.ts`), with the checks in this order: 428
+  `precondition-required` when `If-Match` is missing; 422 `proposal-too-large`
+  for a request body over 124 096 bytes (the handler stops reading there); 400
+  for a request body of the wrong shape; 404 `entry-not-found` and 409
+  `entry-read-only` or `entry-not-markdown` for the target entry; 404
+  `not-found` when the file is not a readable project file inside the root; 409
+  `entry-file-not-utf8` when the file's bytes are not valid UTF-8 (a lossy read
+  would change those bytes on write); 412 `precondition-failed` when `If-Match`
+  does not name the current tag with the strong comparison; 422 `format-failed`
+  when the prose formatter cannot load; then the pipeline refusals (409
+  `entry-body-empty`, `entry-trailer-invalid`; 422 `proposal-empty`,
+  `proposal-too-large` above 20 000 characters before or after formatting,
+  `proposal-changes-entries`, `format-failed`). After the checks come the
+  `markspec fmt` formatter on a candidate text, then a splice of only the
+  formatted target body into the current file text with `replaceEntryBody`
+  (`core/formatter/entry_body.ts`). Accept sends the raw proposal (the reply
+  after one surrounding fence is removed), the same text the preview received,
+  not the preview body (SAD_DESK_0032). Apply runs the preview pipeline exactly
+  once on it. The formatter is deterministic and `If-Match` makes the file the
+  one the preview saw, so the body written is the preview body (SAD_DESK_0031),
+  and apply refuses everything the preview refuses. Sending the preview body
+  back would format it a second time, and the formatter is not idempotent on its
+  own output: a second format can drop a tab at a wrap point, or raise
+  `MSL-F900` on a wrapped ordered list item. Every written body is the output of
+  the `markspec fmt` formatter. The splice keeps every other byte: other
+  entries, prose, front matter, line endings, and a UTF-8 BOM (SAD_DESK_0026). A
+  reparse must give the same entries with the same IDs, and the same title and
+  trailer for the target, or the change is refused. A target whose display ID
+  two entries of the file share is refused with `proposal-changes-entries`. An
+  `MSL-F900` on the target refuses with `format-failed`; `MSL-F012` is not
+  shown. A known limit: an ordered list that holds a nested block (a nested list
+  or a continuation paragraph) is an SP3 residual of the formatter, so a
+  proposal of that shape gets `MSL-F900` and is refused with `format-failed`.
+  The preview shows the formatted current body, or the current body as written
+  when formatting would lose or move its words. Apply writes through
+  `DeskSource.writeFile`, which the server backs with `writeTextFileAtomic`
+  (`desk/write.ts`): a new temporary file in the same folder, given the original
+  file's mode, then renamed over the original (SAD_DESK_0027). A file without
+  the owner write bit is not replaced, and apply answers 500 `write-failed`.
+  Applies are serialized in the handler, so a second Accept on the same tag
+  answers 412 and writes nothing. Just before the write, apply reads the file
+  again and answers 412 when its bytes changed, so a save from another
+  application during the pipeline is not overwritten; the time the pipeline
+  takes on a large file is not measured. A save in the short time between that
+  read and the rename is still lost. The rename gives the file a new inode: only
+  the mode of the original is copied, so its owner, group, ACLs, and extended
+  attributes are not kept, and a hard link to the original keeps the old
+  content. A process killed between the create of the temporary file and the
+  rename leaves a hidden `.<name>.markdesk-<hex>.tmp` file in the product
+  folder; nothing removes it. The response carries the new document `ETag`. A
+  write failure answers 500 `write-failed`.
+- **Prompt run.** The shell builds the prompt from a fixed template with the
+  entry's title, current body, trailer attributes (read-only context), and the
+  instruction, and passes it as an argument; a prompt over 100 000 bytes is
+  refused before any process starts. The run reuses the Test machinery: a fresh
+  empty temporary folder with mode 0700, never the product folder; its own
+  process group; a 120 s timeout and a cancel that kill the whole group
+  (SAD_DESK_0029). A reply over 20 000 characters is refused. A prompt run and a
+  Test share one guard and never overlap; the second one gets "An assistant run
+  is already in progress." Only Claude Code runs prompts (SAD_DESK_0028), with
+  `-p <prompt> --output-format text --tools "" --strict-mcp-config
+  --setting-sources "" --disable-slash-commands --no-session-persistence
+  --append-system-prompt <text>`.
+  `--tools ""` removes the built-in tools, `--strict-mcp-config` without
+  `--mcp-config` drops user MCP servers, `--setting-sources ""` stops user,
+  project, and local settings, so the hooks and plugins those settings files
+  enable do not run (managed policy settings, the plugins built into Claude
+  Code, and user `CLAUDE.md` files still load), and the appended system text
+  tells the model it has no tools, which stops it from writing tool calls as
+  text until the timeout. Ignored manual tests (`manual_assistant_*`) check this
+  on a signed-in Claude Code: the init event reports no tools, no MCP servers,
+  and no hook; a prompt that asks to read a file outside its folder does not get
+  the file content into the reply; and a prompt that asks to run a command or
+  write a file leaves no file behind. The read, command, and write checks also
+  pass when the model declines without trying, so they show that the action did
+  not happen, not that it was blocked. CI skips them, so a Claude Code release
+  that changes what `--tools ""` does is not caught automatically. Codex and
+  Copilot stay disabled with "Prompts are not yet available for <assistant>.":
+  `codex exec --help` lists no option that blocks file reads
+  (`--sandbox read-only` still allows reads), and the Copilot
+  `--available-tools` option could not be proven by the manual test. A known
+  gap: a cancel that arrives before the shell run takes its guard is lost, so
+  that process can run for up to 120 s; the UI ignores its late result.
+- **Deviation from SAD_DESK_0007.** No `markspec mcp` server is attached to the
+  assistant in this story. The entry text is in the prompt, and an assistant
+  with no tools can neither read nor write, so an MCP server would add nothing.
+  Attaching it belongs to the first feature that needs more context than the
+  prompt carries.
 
 ## Alternatives rejected
 
@@ -519,12 +748,12 @@ protection, because the browser enforces the response headers itself.
 
 Watching the product folder in the server (`Deno.watchFs`) and pushing a change
 event to the UI over server-sent events would refresh a document while the
-window stays in the background. It needs a push channel that the read-only API
-does not have, and file watchers behave differently on macOS, Linux, and
-Windows. The server already finds changed files on each request (the
-mtime-refreshed compiled cache, and a fresh read of the document file), so a
-conditional request when the selection changes or the window receives focus
-gives the same result for a single author at the cost of one request.
+window stays in the background. It needs a push channel that the desk API does
+not have, and file watchers behave differently on macOS, Linux, and Windows. The
+server already finds changed files on each request (the mtime-refreshed compiled
+cache, and a fresh read of the document file), so a conditional request when the
+selection changes or the window receives focus gives the same result for a
+single author at the cost of one request.
 
 ### Comparing the tree in the UI instead of tagging it
 
@@ -572,6 +801,38 @@ offers a guided installation, and never installs silently.
 The published site is built by mdBook (ADR-033), which does not render entry
 blocks, so it cannot be the parity target for the Spec view.
 
+### Whole-document proposals
+
+A proposal that rewrites the whole document is more flexible, but a long diff
+turns Accept into a review task, and authors start to accept without reading.
+
+### A new entry under the selected one as the first prompt feature
+
+Adding a new entry is common, but it needs ID minting and placement rules. It
+comes as a later prompt feature on the same flow.
+
+### The Tauri shell writes the file
+
+A second writer would need its own path checks in Rust, and a write followed by
+a separate `markspec fmt` run would leave an unformatted file on disk when
+formatting fails.
+
+### The assistant CLI writes the file
+
+This breaks the rule that agents only propose, and text inside product files
+could steer the agent into other writes.
+
+### Writing the formatter's whole output
+
+Writing the whole formatted document would reformat text outside the proposal in
+files that were not already formatted.
+
+### A content hash of the file as the precondition
+
+A content hash instead of the document `ETag` would give fewer refusals after
+unrelated changes, but it adds a second tag format. The existing tag is good
+enough for one author.
+
 ## Consequences
 
 - Authors get a door into MarkSpec repositories that needs no knowledge of
@@ -584,9 +845,11 @@ blocks, so it cannot be the parity target for the Spec view.
   each new endpoint must keep that posture.
 - The repository gains a Node/npm toolchain (Vite, React) and a Rust toolchain
   (Tauri) alongside Deno, each confined to `apps/markdesk/`.
-- The MCP project service becomes shared infrastructure for two servers. Before
-  the desk grows writes or a WebSocket, it should move out of `mcp/` into a
-  module both import.
+- The MCP project service becomes shared infrastructure for two servers. It
+  should move out of `mcp/` into a module both import. The first prompt (#837)
+  added desk writes through `desk/write.ts` while the desk server still imports
+  `mcp/project.ts`; the move is deferred to a follow-up and is due before the
+  desk grows a WebSocket.
 - The bundled binary is the full `markspec` CLI, so the desktop install is
   larger than a purpose-built backend would be.
 

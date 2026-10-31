@@ -90,6 +90,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         state: "not-installed" as const,
         version: null,
         detail: `Detection failed: ${messageOf(error)}`,
+        promptsAvailable: false,
       })));
     } finally {
       setDetecting(false);

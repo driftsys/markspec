@@ -13,6 +13,7 @@ import {
   type DeskClient,
   DeskError,
   EXPECTED_API_VERSION,
+  type ProposalChange,
 } from "../api/client";
 import type {
   OpenedProduct,
@@ -109,6 +110,12 @@ export function watchConnection(
       client.document(path, cached)
     ),
     file: watch((path: string) => client.file(path)),
+    previewProposal: watch((etag: string, changes: ProposalChange[]) =>
+      client.previewProposal(etag, changes)
+    ),
+    applyProposal: watch((etag: string, changes: ProposalChange[]) =>
+      client.applyProposal(etag, changes)
+    ),
   };
 }
 

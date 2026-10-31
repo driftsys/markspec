@@ -13,8 +13,8 @@ export interface Refresh {
   /** Bumped on each refresh. Panes read their data again when it changes. */
   revision: number;
   /**
-   * Ask every pane to check its data with the server. Window focus calls it
-   * today; a future write path (#837) is meant to call it after a write.
+   * Ask every pane to check its data with the server. Window focus calls it,
+   * and the prompt flow calls it after an accepted proposal is written.
    */
   refresh(): void;
 }

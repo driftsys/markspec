@@ -56,6 +56,8 @@ function fakeClient(overrides: Partial<DeskClient> = {}): DeskClient {
     entryHtml: vi.fn(),
     document: vi.fn(),
     file: vi.fn(),
+    previewProposal: vi.fn(),
+    applyProposal: vi.fn(),
     ...overrides,
   } as DeskClient;
 }

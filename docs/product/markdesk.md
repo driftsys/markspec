@@ -106,8 +106,10 @@ her own terminal, and presses "Re-check". "Not now" dismisses the card. Settings
 holds her choice, a Test button that confirms the assistant answers, and an
 install guide with the official install page and example commands. MarkDesk
 never installs an assistant and never signs in for her; it shows the commands
-and she runs them. In this release the prompt box stays disabled; prompts arrive
-with #837.
+and she runs them. With Claude Code, Marie selects an entry, types an
+instruction in the prompt box, reviews the proposed body as a word-level diff,
+and accepts or rejects it; MarkDesk writes the file only when she accepts. Codex
+and Copilot cannot run prompts yet.
 
 ### What this rules out
 

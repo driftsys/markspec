@@ -157,6 +157,44 @@ describe("createDeskClient", () => {
     });
   });
 
+  it("posts a preview with If-Match and a JSON body", async () => {
+    const f = stub(json({ apiVersion: 3, changes: [] }));
+    await createDeskClient("http://127.0.0.1:1", "t", f).previewProposal(
+      '"e1"',
+      [{ displayId: "A_1", kind: "body", body: "x" }],
+    );
+    const req = f.mock.calls[0][0];
+    expect(req.method).toBe("POST");
+    expect(new URL(req.url).pathname).toBe("/api/v1/proposals/preview");
+    expect(req.headers.get("If-Match")).toBe('"e1"');
+    expect(await req.json()).toEqual({
+      changes: [{ displayId: "A_1", kind: "body", body: "x" }],
+    });
+  });
+
+  it("posts an apply to the apply route", async () => {
+    const f = stub(json({ apiVersion: 3, path: "d.md", etag: '"e2"' }));
+    const applied = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .applyProposal('"e1"', [{ displayId: "A_1", kind: "body", body: "x" }]);
+    const req = f.mock.calls[0][0];
+    expect(req.method).toBe("POST");
+    expect(new URL(req.url).pathname).toBe("/api/v1/proposals/apply");
+    expect(req.headers.get("If-Match")).toBe('"e1"');
+    expect(await req.json()).toEqual({
+      changes: [{ displayId: "A_1", kind: "body", body: "x" }],
+    });
+    expect(applied.etag).toBe('"e2"');
+  });
+
+  it("maps a 412 to a DeskError with its code", async () => {
+    const f = stub(
+      json({ error: { code: "precondition-failed", message: "m" } }, 412),
+    );
+    await expect(
+      createDeskClient("http://x", "t", f).applyProposal('"e"', []),
+    ).rejects.toMatchObject({ status: 412, code: "precondition-failed" });
+  });
+
   it("maps a fetch failure to a network DeskError", async () => {
     const f = stub(new TypeError("boom"));
     const err = await createDeskClient("http://127.0.0.1:1", "t", f)

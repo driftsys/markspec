@@ -9,6 +9,9 @@ export type LinkView = components["schemas"]["LinkView"];
 export type EntryHtmlView = components["schemas"]["EntryHtmlView"];
 export type DocumentView = components["schemas"]["DocumentView"];
 export type SourceText = components["schemas"]["SourceText"];
+export type ProposalChange = components["schemas"]["ProposalChange"];
+export type ProposalPreview = components["schemas"]["ProposalPreview"];
+export type ProposalApplied = components["schemas"]["ProposalApplied"];
 
 /**
  * A rendered document with the entity tag the server sent for it. The client
@@ -61,6 +64,22 @@ export interface DeskClient {
    */
   document(path: string, cached?: CachedDocument): Promise<CachedDocument>;
   file(path: string): Promise<SourceText>;
+  /**
+   * POST /proposals/preview with `If-Match: etag`. The server formats the
+   * proposed body and returns it with the current body; it writes nothing.
+   */
+  previewProposal(
+    etag: string,
+    changes: ProposalChange[],
+  ): Promise<ProposalPreview>;
+  /**
+   * POST /proposals/apply with `If-Match: etag`. The server writes the
+   * formatted body into the entry's file and returns the new document ETag.
+   */
+  applyProposal(
+    etag: string,
+    changes: ProposalChange[],
+  ): Promise<ProposalApplied>;
 }
 
 interface Outcome<T> {
@@ -175,5 +194,19 @@ export function createDeskClient(
       ),
     file: (path) =>
       run(() => client.GET("/api/v1/files", { params: { query: { path } } })),
+    previewProposal: (etag, changes) =>
+      run(() =>
+        client.POST("/api/v1/proposals/preview", {
+          params: { header: { "If-Match": etag } },
+          body: { changes },
+        })
+      ),
+    applyProposal: (etag, changes) =>
+      run(() =>
+        client.POST("/api/v1/proposals/apply", {
+          params: { header: { "If-Match": etag } },
+          body: { changes },
+        })
+      ),
   };
 }

@@ -15,7 +15,13 @@ afterEach(cleanup);
 const row = (
   id: AssistantStatus["id"],
   state: AssistantStatus["state"],
-): AssistantStatus => ({ id, state, version: null, detail: null });
+): AssistantStatus => ({
+  id,
+  state,
+  version: null,
+  detail: null,
+  promptsAvailable: id === "claude-code",
+});
 
 function mount(statuses: AssistantStatus[]) {
   const onOpenSettings = vi.fn();

@@ -26,9 +26,22 @@ const STATUSES: AssistantStatus[] = [
     state: "ready",
     version: "2.1.292 (Claude Code)",
     detail: null,
+    promptsAvailable: true,
   },
-  { id: "codex", state: "needs-sign-in", version: "0.5.0", detail: null },
-  { id: "copilot", state: "not-installed", version: null, detail: null },
+  {
+    id: "codex",
+    state: "needs-sign-in",
+    version: "0.5.0",
+    detail: null,
+    promptsAvailable: false,
+  },
+  {
+    id: "copilot",
+    state: "not-installed",
+    version: null,
+    detail: null,
+    promptsAvailable: false,
+  },
 ];
 
 function mount(
@@ -83,7 +96,13 @@ describe("SettingsView", () => {
   it("shows the Copilot sign-in note when Copilot needs sign-in", async () => {
     mount({
       statuses: [
-        { id: "copilot", state: "needs-sign-in", version: "1.0", detail: null },
+        {
+          id: "copilot",
+          state: "needs-sign-in",
+          version: "1.0",
+          detail: null,
+          promptsAvailable: false,
+        },
       ],
     });
     expect(

@@ -59,7 +59,7 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 # Also start the real sidecar with Deno:
-cargo test --manifest-path src-tauri/Cargo.toml -- --ignored
+cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --skip manual_assistant_
 ```
 
 ### Manual smoke test
@@ -82,10 +82,21 @@ Run it against this repository's own product.
 9. Press `Source`. The drawer shows the file with line numbers, scrolled to the
    entry's line, in Plex Mono on paper.
 10. Switch the system appearance to dark. The app follows.
-11. Open the product menu and choose `Open folder…` with another product. The
+11. With Claude Code ready, select an SAD entry. Type "Shorten this body to one
+    sentence." in the prompt box and press Enter. The column shows "Waiting for
+    Claude Code…", then the Current and Proposed diff.
+12. Press Reject. `git status` shows no change.
+13. Ask again and press Accept. The document pane shows the new body, and
+    `git diff` changes only that entry's body lines. Run `git checkout` on the
+    file to undo the change.
+14. Open the product menu and choose `Open folder…` with another product. The
     navigator, document and history reset; `pgrep -fl "desk --serve"` still
     lists one sidecar.
-12. Quit the app. `pgrep -fl "desk --serve"` prints nothing.
+15. Quit the app. `pgrep -fl "desk --serve"` prints nothing.
+
+The manual assistant tests need a signed-in Claude Code and are skipped in CI.
+Run them with
+`cargo test --manifest-path src-tauri/Cargo.toml -- --ignored manual_assistant_`.
 
 ## UI notes
 

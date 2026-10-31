@@ -17,8 +17,20 @@ import { type AssistantBridge, fakeAssistantBridge } from "./testBridge";
 afterEach(cleanup);
 
 const STATUSES: AssistantStatus[] = [
-  { id: "claude-code", state: "ready", version: "2.1.0", detail: null },
-  { id: "codex", state: "not-installed", version: null, detail: null },
+  {
+    id: "claude-code",
+    state: "ready",
+    version: "2.1.0",
+    detail: null,
+    promptsAvailable: true,
+  },
+  {
+    id: "codex",
+    state: "not-installed",
+    version: null,
+    detail: null,
+    promptsAvailable: false,
+  },
 ];
 
 const SETTINGS: AssistantSettings = {
@@ -298,6 +310,7 @@ describe("AssistantProvider", () => {
         state: "not-installed",
         version: null,
         detail: "Detection failed: no shell",
+        promptsAvailable: false,
       })),
     );
   });

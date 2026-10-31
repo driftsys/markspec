@@ -843,6 +843,81 @@ Deno.test("parseMarkdown: real spaced-key trailer typo still MSL-P022 (#697 regr
   assertEquals(p022.length, 1);
 });
 
+Deno.test("parseMarkdown: Markdown punctuation before a colon on the last body line is prose, not a trailer", () => {
+  // Emphasis (`**Rationale:**`, `**Rationale**:`), a link (`[x](http://…)`),
+  // inline code, and an autolink put Markdown punctuation in the text
+  // before the colon. That text is never a trailer key, so no MSL-P022.
+  const lastLines = [
+    "**Rationale:** drivers behind need early warning.",
+    "**Rationale**: drivers behind need early warning.",
+    "See [the guide](http://example.com/guide) for details.",
+    "Set `mode:fast` in the config.",
+    "Contact <mailto:team@example.com> for help.",
+  ];
+  for (const last of lastLines) {
+    const md = `- [STK_0010] Title
+
+  The lamp shall light within 100 ms.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a time, abbreviation or version before a colon on the last body line is prose, not a trailer", () => {
+  // The formatter's 80-column wrap can put such a token at the start of
+  // the last body line. A trailer key starts with a letter and never holds
+  // `.`, `/`, `,`, `'` or `"`, so these lines raise no MSL-P022.
+  const lastLines = [
+    "10:30 UTC every day.",
+    "e.g.: the rear lamp.",
+    "v2.0: the second release.",
+    "and/or: either case.",
+    "Drivers' view: the lamp.",
+  ];
+  for (const last of lastLines) {
+    const md = `- [STK_0011] Title
+
+  The lamp shall light within 100 ms at
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a lowercase or underscored key on the last body line still raises MSL-P022", () => {
+  for (const last of ["verified_by: tests/foo.rs", "Bad_Key: value"]) {
+    const md = `- [STK_0012] Title
+
+  Body prose within 200 ms.
+
+      ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P022").length,
+      1,
+      last,
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // P021 / P022 locate the offending trailer line, not the title line
 // ---------------------------------------------------------------------------
@@ -914,4 +989,131 @@ Deno.test("parseMarkdown: MSL-P021 location translates through a doc-comment Lin
   assertEquals(p021.length, 1);
   // `///     Satisfies:` — the key starts at file column 9 on line 14.
   assertEquals(p021[0].location, { file: "lib.rs", line: 14, column: 9 });
+});
+
+Deno.test("parseMarkdown: a trailer key typo with punctuation still raises MSL-P022", () => {
+  // `.`, `/`, `,`, `'` or `"` in a key usually mean prose (`e.g.:`), but a
+  // known trailer key with such a typo is a malformed trailer the author
+  // meant to write. It must fail, as at #697, so the trace link is not
+  // silently lost.
+  for (
+    const last of [
+      "Satisfies.: STK_0002",
+      "Verified.by: TST_1",
+      "Verified/by: TST_1",
+      ".Satisfies: STK_0002",
+    ]
+  ) {
+    const md = `- [STK_0013] Title
+
+  Body prose within 200 ms.
+
+      ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P022").length,
+      1,
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: Markdown punctuation inside a key-like word on the last body line is prose", () => {
+  // No whitespace and a leading letter, so only the Markdown punctuation
+  // check stops the scan at these lines.
+  for (const last of ["f(x): y", "Note*: x", "Note`: y", "a<b>: c"]) {
+    const md = `- [STK_0014] Title
+
+  The lamp shall light within 100 ms.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: a comma or quote inside a key-like word on the last body line is prose", () => {
+  for (const last of ["rate,max: 5", '"mode": fast', "driver's: view"]) {
+    const md = `- [STK_0015] Title
+
+  The lamp shall light within 100 ms.
+
+  ${last}
+
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code.startsWith("MSL-P02")),
+      [],
+      last,
+    );
+  }
+});
+
+Deno.test("parseMarkdown: the body of an item with three spaces after the marker is dedented to the item content", () => {
+  const md = `-   [STK_0016] Title
+
+    The lamp shall light within 100 ms
+    at night.
+
+        Id: ${ULID}
+`;
+  const { entries, diagnostics } = parseMarkdown(md);
+  assertEquals(entries.length, 1);
+  assertEquals(
+    entries[0].body,
+    "The lamp shall light within 100 ms\nat night.",
+  );
+  assertEquals(entries[0].id, ULID);
+  assertEquals(diagnostics.filter((d) => d.severity === "error"), []);
+});
+
+Deno.test("parseMarkdown: body token columns follow the item content of a `-   [ID]` item", () => {
+  // The body is indented by four spaces, so "shall" in "    The lamp shall"
+  // starts at column 14 (1-based). A marker-plus-two indent would give 12.
+  const md = `-   [STK_0017] Title
+
+    The lamp shall light within 100 ms.
+
+        Id: ${ULID}
+`;
+  const { entries } = parseMarkdown(md);
+  const modal = entries[0].bodyTokens.find((t) => t.kind === "modal")!;
+  assertEquals(modal.text, "shall");
+  assertEquals(modal.location.line, 3);
+  assertEquals(modal.location.column, 14);
+});
+
+Deno.test("parseMarkdown: a comma or quote typo of a known trailer key still raises MSL-P022", () => {
+  for (
+    const last of [
+      "Verified,by: TST_1",
+      "Verified'by: TST_1",
+      'Satisfies": STK_0002',
+    ]
+  ) {
+    const md = `- [STK_0018] Title
+
+  Body prose within 200 ms.
+
+      ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P022").length,
+      1,
+      last,
+    );
+  }
 });

@@ -43,6 +43,28 @@ const AFTER_KILL_GRACE: Duration = Duration::from_millis(200);
 /// Number of names [`create_test_dir`] tries before it gives up.
 const TEST_DIR_ATTEMPTS: usize = 10;
 
+/// Time allowed for a prompt run.
+pub const PROMPT_TIMEOUT: Duration = Duration::from_secs(120);
+/// Longest reply, in UTF-16 code units, that a prompt run accepts. A longer
+/// reply is refused, not cut.
+pub const PROMPT_REPLY_MAX_CHARS: usize = 20_000;
+/// Longest built prompt, in bytes. The prompt is passed as one argument, so
+/// it stays below the Linux limit of 131 072 bytes for one argument and the
+/// macOS `ARG_MAX` of 1 048 576 bytes.
+///
+/// Not yet checked on Windows (#838): `CreateProcess` limits the whole
+/// command line to 32 767 UTF-16 units, so a prompt between about 32 000 and
+/// 100 000 bytes fails there when the process starts, with "could not run
+/// the assistant", not with `PromptTooLong`. A `.cmd` shim run through
+/// `cmd.exe` can also cut an argument at its first new line.
+pub const PROMPT_MAX_BYTES: usize = 100_000;
+/// Text added to the system prompt of a prompt run. It tells the model that
+/// it has no tools, which stops it from writing tool calls as plain text in
+/// a loop until the timeout when an instruction asks for a tool action.
+pub const PROMPT_SYSTEM_TEXT: &str = "You have no tools in this session. You cannot read files, \
+     run commands, or write files. Never write a tool call, an invoke block, or a function \
+     call as text. Reply with the new body text only.";
+
 /// An assistant the app can drive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -104,6 +126,60 @@ impl AssistantId {
             ],
         };
         args.iter().map(|arg| arg.to_string()).collect()
+    }
+
+    /// Arguments of a prompt run that sends `prompt`.
+    ///
+    /// `None` when the CLI has no proven flags that block reads, commands, and writes.
+    /// Claude Code qualifies: `--tools ""` turns off every built-in tool, and
+    /// `--strict-mcp-config` without `--mcp-config` drops the MCP servers of
+    /// the user configuration, whose tools `--tools ""` does not cover.
+    ///
+    /// `--setting-sources ""` stops Claude Code from loading the user,
+    /// project, and local settings files, so the hooks and plugins they
+    /// enable do not run; sign-in still works. Managed (policy) settings, the
+    /// plugins built into Claude Code, and user `CLAUDE.md` files still
+    /// load. `--append-system-prompt` adds [`PROMPT_SYSTEM_TEXT`]: without
+    /// it, an instruction that asks for a tool action can make the model
+    /// write tool calls as text in a loop until the timeout.
+    pub fn prompt_args(self, prompt: &str) -> Option<Vec<String>> {
+        match self {
+            AssistantId::ClaudeCode => Some(
+                [
+                    "-p",
+                    prompt,
+                    "--output-format",
+                    "text",
+                    "--tools",
+                    "",
+                    "--strict-mcp-config",
+                    "--setting-sources",
+                    "",
+                    "--disable-slash-commands",
+                    "--no-session-persistence",
+                    "--append-system-prompt",
+                    PROMPT_SYSTEM_TEXT,
+                ]
+                .iter()
+                .map(|arg| arg.to_string())
+                .collect(),
+            ),
+            AssistantId::Codex | AssistantId::Copilot => None,
+        }
+    }
+
+    /// Whether this assistant can run a prompt; see [`AssistantId::prompt_args`].
+    pub fn prompts_available(self) -> bool {
+        self.prompt_args("").is_some()
+    }
+
+    /// The product name shown to the author.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            AssistantId::ClaudeCode => "Claude Code",
+            AssistantId::Codex => "Codex",
+            AssistantId::Copilot => "GitHub Copilot",
+        }
     }
 }
 
@@ -174,17 +250,7 @@ pub fn run_test(
     timeout: Duration,
     cancel: &AtomicBool,
 ) -> TestRun {
-    static NEXT_DIR: AtomicU32 = AtomicU32::new(0);
-    let names = std::iter::repeat_with(|| {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| elapsed.subsec_nanos());
-        format!(
-            "markdesk-assistant-test-{}-{}-{nanos}",
-            std::process::id(),
-            NEXT_DIR.fetch_add(1, Ordering::SeqCst)
-        )
-    });
+    let names = temp_dir_names("markdesk-assistant-test-");
     let failed = |error: String| TestRun {
         result: TestResult {
             outcome: TestOutcome::Failed,
@@ -247,7 +313,214 @@ pub fn run_test(
     }
 }
 
-/// Create a new, empty directory under `base` for the Test, readable only by
+/// An endless list of new temporary directory names that start with
+/// `prefix`: the process id, a counter, and the current nanoseconds.
+fn temp_dir_names(prefix: &'static str) -> impl Iterator<Item = String> {
+    static NEXT_DIR: AtomicU32 = AtomicU32::new(0);
+    std::iter::repeat_with(move || {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.subsec_nanos());
+        format!(
+            "{prefix}{}-{}-{nanos}",
+            std::process::id(),
+            NEXT_DIR.fetch_add(1, Ordering::SeqCst)
+        )
+    })
+}
+
+/// One trailer attribute of the entry, sent to the assistant as context.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct PromptAttribute {
+    pub key: String,
+    pub value: String,
+}
+
+/// What the web UI sends for a prompt run: one entry and the instruction.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptRequest {
+    pub title: String,
+    pub body: String,
+    pub instruction: String,
+    pub attributes: Vec<PromptAttribute>,
+}
+
+/// How a prompt run ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PromptOutcome {
+    Ok,
+    Timeout,
+    Cancelled,
+    Failed,
+    /// The assistant has no proven flags that block reads, commands, and
+    /// writes; no process was started.
+    Unavailable,
+    /// The built prompt is longer than [`PROMPT_MAX_BYTES`]; no process was
+    /// started.
+    PromptTooLong,
+    /// The reply is longer than [`PROMPT_REPLY_MAX_CHARS`].
+    ReplyTooLong,
+}
+
+/// Result of a prompt run, as shown to the web UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptResult {
+    pub outcome: PromptOutcome,
+    /// The trimmed reply, when the outcome is `Ok`.
+    pub reply: Option<String>,
+    /// Why the run did not return a reply, when there is a message.
+    pub error: Option<String>,
+}
+
+impl PromptResult {
+    fn refused(outcome: PromptOutcome, error: String) -> PromptResult {
+        PromptResult {
+            outcome,
+            reply: None,
+            error: Some(error),
+        }
+    }
+}
+
+/// The prompt sent to the assistant for `request`. The block of trailer
+/// attributes is left out when the entry has none.
+pub fn build_prompt(request: &PromptRequest) -> String {
+    let mut prompt = String::from(
+        "You are rewriting the body of one requirement in a MarkSpec Markdown document.\n\
+         Apply the instruction to the current body. Return only the new body text, in\n\
+         Markdown. Do not return a preamble, an explanation, the title, the display ID,\n\
+         or trailer lines such as \"Id:\" or \"Satisfies:\". Do not start any line with\n\
+         \"- [\", or with a word and a colon such as \"Rationale:\" or \"Source:\".\n\n",
+    );
+    prompt.push_str(&format!("Title: {}\n\n", request.title));
+    if !request.attributes.is_empty() {
+        prompt.push_str("Trailer attributes (context only, do not return them):\n");
+        for attribute in &request.attributes {
+            prompt.push_str(&format!("{}: {}\n", attribute.key, attribute.value));
+        }
+        prompt.push('\n');
+    }
+    prompt.push_str(&format!(
+        "Current body:\n<<<BODY\n{}\nBODY>>>\n\nInstruction:\n<<<INSTRUCTION\n{}\nINSTRUCTION>>>",
+        request.body, request.instruction
+    ));
+    prompt
+}
+
+/// The refusal for an assistant that is not available for prompts.
+fn unavailable_result(id: AssistantId) -> PromptResult {
+    PromptResult::refused(
+        PromptOutcome::Unavailable,
+        format!("Prompts are not yet available for {}.", id.display_name()),
+    )
+}
+
+/// The `Unavailable` result for an assistant that is not available for
+/// prompts, or `None` when it is. Callers check this before they look for
+/// the program, so the refusal does not depend on whether it is installed.
+pub fn prompt_unavailable(id: AssistantId) -> Option<PromptResult> {
+    (!id.prompts_available()).then(|| unavailable_result(id))
+}
+
+/// Run one prompt on `program` in a new empty temporary directory, with
+/// every tool of the assistant switched off. `path` is the `PATH` given to
+/// the process (see [`child_path`]).
+///
+/// No process is started when the assistant is not available for prompts
+/// or when the built prompt is longer than [`PROMPT_MAX_BYTES`].
+pub fn run_prompt(
+    id: AssistantId,
+    program: &Path,
+    path: Option<&OsStr>,
+    request: &PromptRequest,
+    timeout: Duration,
+    cancel: &AtomicBool,
+) -> PromptResult {
+    let prompt = build_prompt(request);
+    let Some(args) = id.prompt_args(&prompt) else {
+        return unavailable_result(id);
+    };
+    if prompt.len() > PROMPT_MAX_BYTES {
+        return PromptResult::refused(
+            PromptOutcome::PromptTooLong,
+            format!("The prompt is longer than {PROMPT_MAX_BYTES} bytes."),
+        );
+    }
+    let dir = match create_test_dir(
+        &std::env::temp_dir(),
+        temp_dir_names("markdesk-assistant-prompt-"),
+    ) {
+        Ok(dir) => dir,
+        Err(err) => {
+            return PromptResult::refused(
+                PromptOutcome::Failed,
+                format!("could not create a temporary directory: {err}"),
+            )
+        }
+    };
+    let result = run(program, &args, Some(&dir), path, timeout, Some(cancel));
+    let _ = std::fs::remove_dir_all(&dir);
+    let output = match result {
+        Ok(output) => output,
+        Err(err) => {
+            return PromptResult::refused(
+                PromptOutcome::Failed,
+                format!("could not run the assistant: {err}"),
+            )
+        }
+    };
+    match classify(&output) {
+        TestOutcome::Ok => {
+            let reply = output.stdout.trim();
+            if reply.encode_utf16().count() > PROMPT_REPLY_MAX_CHARS {
+                return PromptResult::refused(
+                    PromptOutcome::ReplyTooLong,
+                    format!("The reply is longer than {PROMPT_REPLY_MAX_CHARS} characters."),
+                );
+            }
+            PromptResult {
+                outcome: PromptOutcome::Ok,
+                reply: Some(reply.to_string()),
+                error: None,
+            }
+        }
+        TestOutcome::Timeout => PromptResult {
+            outcome: PromptOutcome::Timeout,
+            reply: None,
+            error: None,
+        },
+        TestOutcome::Cancelled => PromptResult {
+            outcome: PromptOutcome::Cancelled,
+            reply: None,
+            error: None,
+        },
+        TestOutcome::Failed | TestOutcome::Usage => {
+            // stdout first: Claude Code prints its real error there, and can
+            // print unrelated settings warnings on stderr before it.
+            let first_line = |text: &str| {
+                text.lines()
+                    .map(str::trim)
+                    .find(|line| !line.is_empty())
+                    .map(str::to_string)
+            };
+            let error = match first_line(&output.stdout).or_else(|| first_line(&output.stderr)) {
+                Some(line) => line,
+                None => {
+                    let code = output
+                        .code
+                        .map_or_else(|| "none".to_string(), |code| code.to_string());
+                    format!("exit code {code}")
+                }
+            };
+            PromptResult::refused(PromptOutcome::Failed, error)
+        }
+    }
+}
+
+/// Create a new, empty directory under `base` for the Test or a prompt run, readable only by
 /// the current user on unix.
 ///
 /// Each name from `names` is tried in turn, at most [`TEST_DIR_ATTEMPTS`]
@@ -297,6 +570,8 @@ pub struct AssistantStatus {
     pub version: Option<String>,
     /// Why the state is not `Ready`, when the cause was an error or a timeout.
     pub detail: Option<String>,
+    /// Whether the assistant can run a prompt; see [`AssistantId::prompts_available`].
+    pub prompts_available: bool,
 }
 
 /// The captured result of one child process.
@@ -619,6 +894,7 @@ fn not_installed(id: AssistantId, detail: Option<String>) -> AssistantStatus {
         state: AssistantState::NotInstalled,
         version: None,
         detail,
+        prompts_available: id.prompts_available(),
     }
 }
 
@@ -665,6 +941,7 @@ pub fn detect(id: AssistantId, probe: &Probe) -> AssistantStatus {
         state,
         version: version.clone(),
         detail,
+        prompts_available: id.prompts_available(),
     };
 
     let Some(args) = sign_in_args(id) else {
@@ -709,6 +986,37 @@ pub fn detect_all(probe: &Probe) -> Vec<AssistantStatus> {
     })
 }
 
+/// Write `content` to `path` as an executable file (mode 0755), for tests.
+///
+/// The file is written by a separate short-lived `/bin/sh` process, so no
+/// write file descriptor for it ever exists in the test process. If the
+/// test process wrote the file itself, a child that another test thread
+/// forks at that moment would inherit a copy of the descriptor until its
+/// own exec. Linux then refuses to exec the script with `ETXTBSY` (text
+/// file busy).
+#[cfg(all(test, unix))]
+pub(crate) fn write_executable(path: &Path, content: &str) {
+    use std::io::Write;
+    let mut child = Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(path)
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("start /bin/sh to write the executable");
+    child
+        .stdin
+        .take()
+        .expect("stdin of /bin/sh")
+        .write_all(content.as_bytes())
+        .expect("write the executable content");
+    let status = child.wait().expect("wait for /bin/sh");
+    assert!(
+        status.success(),
+        "writing {} failed: {status}",
+        path.display()
+    );
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -729,8 +1037,7 @@ mod tests {
 
     fn fake_bin(dir: &Path, name: &str, script: &str) -> PathBuf {
         let path = dir.join(name);
-        std::fs::write(&path, format!("#!/bin/sh\n{script}")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_executable(&path, &format!("#!/bin/sh\n{script}"));
         path
     }
 
@@ -864,8 +1171,17 @@ mod tests {
     /// first run of a new script can be slow on macOS while the system
     /// checks the file, so tests do not assume the script starts at once.
     fn wait_for_pidfile(pidfile: &Path) -> bool {
+        wait_for_pidfile_until(pidfile, &AtomicBool::new(false))
+    }
+
+    /// Like [`wait_for_pidfile`], but also stops, returning `false`, once
+    /// `finished` is set and the pidfile is still not complete.
+    fn wait_for_pidfile_until(pidfile: &Path, finished: &AtomicBool) -> bool {
         let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline {
+            if finished.load(Ordering::SeqCst) {
+                return std::fs::read_to_string(pidfile).is_ok_and(|pid| pid.ends_with('\n'));
+            }
             if std::fs::read_to_string(pidfile).is_ok_and(|pid| pid.ends_with('\n')) {
                 return true;
             }
@@ -989,15 +1305,13 @@ mod tests {
         let dir = scratch_dir("env-shebang");
         fake_bin(&dir, "fakenode", "exec /bin/sh \"$@\"");
         let path = dir.join("claude");
-        std::fs::write(
+        write_executable(
             &path,
-            format!(
+            &format!(
                 "#!/usr/bin/env fakenode\n{}",
                 CLAUDE_SCRIPT.replace("__CODE__", "0")
             ),
-        )
-        .unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        );
         let probe = Probe {
             path_env: Some(OsString::new()),
             extra_dirs: vec![dir],
@@ -1336,11 +1650,9 @@ mod tests {
         // `fakenode` exists only in `dir`, so the script runs only when
         // `run_test` hands `path` to the process.
         let interpreter = dir.join("fakenode");
-        std::fs::write(&interpreter, "#!/bin/sh\necho ready\n").unwrap();
-        std::fs::set_permissions(&interpreter, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_executable(&interpreter, "#!/bin/sh\necho ready\n");
         let cli = dir.join("cli");
-        std::fs::write(&cli, "#!/usr/bin/env fakenode\n").unwrap();
-        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_executable(&cli, "#!/usr/bin/env fakenode\n");
         let path = child_path(None, std::slice::from_ref(&dir)).unwrap();
         let cancel = AtomicBool::new(false);
         let run = run_test(
@@ -1419,5 +1731,677 @@ mod tests {
         assert!(cwd.starts_with(std::fs::canonicalize(std::env::temp_dir()).unwrap()));
         assert_eq!(lines.next().unwrap().trim(), "0");
         assert!(!cwd.exists());
+    }
+
+    #[test]
+    fn prompt_args_for_claude_code_switch_tools_off() {
+        assert_eq!(
+            AssistantId::ClaudeCode.prompt_args("P").unwrap(),
+            [
+                "-p",
+                "P",
+                "--output-format",
+                "text",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "",
+                "--disable-slash-commands",
+                "--no-session-persistence",
+                "--append-system-prompt",
+                PROMPT_SYSTEM_TEXT
+            ]
+        );
+    }
+
+    #[test]
+    fn codex_and_copilot_are_not_available_for_prompts() {
+        assert!(AssistantId::Codex.prompt_args("P").is_none());
+        assert!(AssistantId::Copilot.prompt_args("P").is_none());
+        assert!(AssistantId::ClaudeCode.prompts_available());
+        assert!(!AssistantId::Codex.prompts_available());
+        assert!(!AssistantId::Copilot.prompts_available());
+    }
+
+    #[test]
+    fn display_names_are_the_product_names() {
+        assert_eq!(AssistantId::ClaudeCode.display_name(), "Claude Code");
+        assert_eq!(AssistantId::Codex.display_name(), "Codex");
+        assert_eq!(AssistantId::Copilot.display_name(), "GitHub Copilot");
+    }
+
+    #[test]
+    fn detect_reports_prompt_availability() {
+        let dir = scratch_dir("prompt-availability");
+        fake_bin(&dir, "claude", &CLAUDE_SCRIPT.replace("__CODE__", "0"));
+        fake_bin(&dir, "codex", &CODEX_SCRIPT.replace("__CODE__", "0"));
+        let statuses = detect_all(&probe_for(&dir));
+        let available: Vec<bool> = statuses.iter().map(|s| s.prompts_available).collect();
+        assert_eq!(available, [true, false, false]);
+        let json = serde_json::to_value(&statuses[0]).unwrap();
+        assert_eq!(json["promptsAvailable"], serde_json::Value::Bool(true));
+    }
+
+    fn prompt_request(attributes: &[(&str, &str)]) -> PromptRequest {
+        PromptRequest {
+            title: "Brake light".to_string(),
+            body: "The lamp shall light.".to_string(),
+            instruction: "Make it measurable.".to_string(),
+            attributes: attributes
+                .iter()
+                .map(|(key, value)| PromptAttribute {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn build_prompt_contains_the_three_inputs_and_attributes() {
+        let prompt = build_prompt(&prompt_request(&[("Satisfies", "STK_1")]));
+        assert!(prompt.contains("Title: Brake light\n"));
+        assert!(prompt.contains("<<<BODY\nThe lamp shall light.\nBODY>>>"));
+        assert!(prompt.contains("<<<INSTRUCTION\nMake it measurable.\nINSTRUCTION>>>"));
+        assert!(prompt.contains(
+            "Trailer attributes (context only, do not return them):\nSatisfies: STK_1\n\nCurrent body:"
+        ));
+        let bare = build_prompt(&prompt_request(&[]));
+        assert!(!bare.contains("Trailer attributes"));
+        assert!(bare.contains("Title: Brake light\n\nCurrent body:\n"));
+    }
+
+    #[test]
+    fn build_prompt_is_the_fixed_template() {
+        let prompt = build_prompt(&prompt_request(&[
+            ("Satisfies", "STK_1"),
+            ("Labels", "ASIL-B"),
+        ]));
+        assert_eq!(
+            prompt,
+            "You are rewriting the body of one requirement in a MarkSpec Markdown document.\n\
+             Apply the instruction to the current body. Return only the new body text, in\n\
+             Markdown. Do not return a preamble, an explanation, the title, the display ID,\n\
+             or trailer lines such as \"Id:\" or \"Satisfies:\". Do not start any line with\n\
+             \"- [\", or with a word and a colon such as \"Rationale:\" or \"Source:\".\n\
+             \n\
+             Title: Brake light\n\
+             \n\
+             Trailer attributes (context only, do not return them):\n\
+             Satisfies: STK_1\n\
+             Labels: ASIL-B\n\
+             \n\
+             Current body:\n\
+             <<<BODY\n\
+             The lamp shall light.\n\
+             BODY>>>\n\
+             \n\
+             Instruction:\n\
+             <<<INSTRUCTION\n\
+             Make it measurable.\n\
+             INSTRUCTION>>>"
+        );
+    }
+
+    fn run_fake_prompt(
+        id: AssistantId,
+        label: &str,
+        script: &str,
+        request: &PromptRequest,
+        timeout: Duration,
+    ) -> PromptResult {
+        let dir = scratch_dir(label);
+        let bin = fake_bin(&dir, id.binary(), script);
+        let cancel = AtomicBool::new(false);
+        run_prompt(id, &bin, None, request, timeout, &cancel)
+    }
+
+    #[test]
+    fn run_prompt_unavailable_does_not_start_a_process() {
+        let dir = scratch_dir("prompt-unavailable");
+        let marker = dir.join("started");
+        let bin = fake_bin(&dir, "codex", &format!("touch '{}'", marker.display()));
+        let cancel = AtomicBool::new(false);
+        let result = run_prompt(
+            AssistantId::Codex,
+            &bin,
+            None,
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(result.outcome, PromptOutcome::Unavailable);
+        assert_eq!(result.reply, None);
+        assert_eq!(
+            result.error.as_deref(),
+            Some("Prompts are not yet available for Codex.")
+        );
+        assert!(!marker.exists());
+    }
+
+    #[test]
+    fn prompt_unavailable_refuses_codex_and_copilot_only() {
+        assert!(prompt_unavailable(AssistantId::ClaudeCode).is_none());
+        let refused = prompt_unavailable(AssistantId::Codex).unwrap();
+        assert_eq!(refused.outcome, PromptOutcome::Unavailable);
+        assert_eq!(
+            refused.error.as_deref(),
+            Some("Prompts are not yet available for Codex.")
+        );
+        let refused = prompt_unavailable(AssistantId::Copilot).unwrap();
+        assert_eq!(
+            refused.error.as_deref(),
+            Some("Prompts are not yet available for GitHub Copilot.")
+        );
+    }
+
+    #[test]
+    fn run_prompt_refuses_a_prompt_over_the_byte_limit() {
+        let dir = scratch_dir("prompt-too-long");
+        let marker = dir.join("started");
+        let bin = fake_bin(&dir, "claude", &format!("touch '{}'", marker.display()));
+        let mut request = prompt_request(&[]);
+        request.body = "a".repeat(PROMPT_MAX_BYTES + 1);
+        let cancel = AtomicBool::new(false);
+        let result = run_prompt(
+            AssistantId::ClaudeCode,
+            &bin,
+            None,
+            &request,
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(result.outcome, PromptOutcome::PromptTooLong);
+        assert_eq!(result.reply, None);
+        assert!(result.error.is_some());
+        assert!(!marker.exists());
+    }
+
+    #[test]
+    fn run_prompt_runs_a_prompt_of_exactly_the_byte_limit() {
+        let mut request = prompt_request(&[]);
+        request.body = String::new();
+        let overhead = build_prompt(&request).len();
+        request.body = "a".repeat(PROMPT_MAX_BYTES - overhead);
+        assert_eq!(build_prompt(&request).len(), PROMPT_MAX_BYTES);
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-at-limit",
+            "echo started",
+            &request,
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        assert_eq!(result.reply.as_deref(), Some("started"));
+    }
+
+    #[test]
+    fn run_prompt_runs_in_empty_temp_dir() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-cwd",
+            "pwd; ls -A | wc -l",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        let reply = result.reply.unwrap();
+        let mut lines = reply.lines();
+        let cwd = PathBuf::from(lines.next().unwrap());
+        assert!(cwd.starts_with(std::fs::canonicalize(std::env::temp_dir()).unwrap()));
+        assert!(cwd
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("markdesk-assistant-prompt-"));
+        assert_eq!(lines.next().unwrap().trim(), "0");
+        assert!(!cwd.exists());
+    }
+
+    #[test]
+    fn run_prompt_passes_the_built_prompt_as_an_argument() {
+        let dir = scratch_dir("prompt-args");
+        let log = dir.join("args.log");
+        let bin = fake_bin(
+            &dir,
+            "claude",
+            &format!("printf '%s\\n' \"$2\" > '{}'; echo ok", log.display()),
+        );
+        let request = prompt_request(&[("Satisfies", "STK_1")]);
+        let cancel = AtomicBool::new(false);
+        let result = run_prompt(
+            AssistantId::ClaudeCode,
+            &bin,
+            None,
+            &request,
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        let logged = std::fs::read_to_string(log).unwrap();
+        assert_eq!(logged, format!("{}\n", build_prompt(&request)));
+    }
+
+    #[test]
+    fn run_prompt_spawns_claude_with_every_tools_off_flag() {
+        // Pins the whole argument vector the process receives, not only the
+        // value of `prompt_args()`, so a spawn that drops or reorders an
+        // argument fails here. Arguments are logged NUL-separated, because
+        // two of them are empty and the prompt holds new lines.
+        let dir = scratch_dir("prompt-argv");
+        let log = dir.join("argv.log");
+        let bin = fake_bin(
+            &dir,
+            "claude",
+            &format!(
+                "for a in \"$@\"; do printf '%s\\0' \"$a\"; done > '{}'; echo ok",
+                log.display()
+            ),
+        );
+        let request = prompt_request(&[("Satisfies", "STK_1")]);
+        let cancel = AtomicBool::new(false);
+        let result = run_prompt(
+            AssistantId::ClaudeCode,
+            &bin,
+            None,
+            &request,
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        let logged = std::fs::read(log).unwrap();
+        let argv: Vec<String> = logged
+            .split(|byte| *byte == 0)
+            .map(|arg| String::from_utf8(arg.to_vec()).unwrap())
+            .collect();
+        let prompt = build_prompt(&request);
+        let expected: Vec<&str> = vec![
+            "-p",
+            &prompt,
+            "--output-format",
+            "text",
+            "--tools",
+            "",
+            "--strict-mcp-config",
+            "--setting-sources",
+            "",
+            "--disable-slash-commands",
+            "--no-session-persistence",
+            "--append-system-prompt",
+            PROMPT_SYSTEM_TEXT,
+            // The text after the last NUL: nothing.
+            "",
+        ];
+        assert_eq!(argv, expected);
+    }
+
+    #[test]
+    fn run_prompt_returns_the_trimmed_reply() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-trim",
+            "printf '  text\\n\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        assert_eq!(result.reply.as_deref(), Some("text"));
+        assert_eq!(result.error, None);
+    }
+
+    #[test]
+    fn run_prompt_accepts_a_reply_of_20000_characters() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-limit",
+            "yes a | head -n 20000 | tr -d '\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok);
+        assert_eq!(result.reply.unwrap().len(), PROMPT_REPLY_MAX_CHARS);
+    }
+
+    #[test]
+    fn run_prompt_refuses_a_reply_over_20000_characters() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-reply-too-long",
+            "yes a | head -n 20001 | tr -d '\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::ReplyTooLong);
+        assert_eq!(result.reply, None);
+        assert!(result.error.is_some());
+    }
+
+    #[test]
+    fn run_prompt_kills_grandchild_on_cancel() {
+        let dir = scratch_dir("prompt-cancel");
+        let pidfile = dir.join("grandchild.pid");
+        let bin = fake_bin(&dir, "claude", &grandchild_script(&pidfile));
+        let cancel = AtomicBool::new(false);
+        let request = prompt_request(&[]);
+        // The watcher stops waiting once the run has ended, so a run that
+        // returns before the script records its pid fails at once, with
+        // the run's outcome and error, instead of after the 10 s wait.
+        let finished = AtomicBool::new(false);
+        let (result, pid_seen) = thread::scope(|scope| {
+            let watcher = scope.spawn(|| {
+                let seen = wait_for_pidfile_until(&pidfile, &finished);
+                if seen {
+                    cancel.store(true, Ordering::SeqCst);
+                }
+                seen
+            });
+            let result = run_prompt(
+                AssistantId::ClaudeCode,
+                &bin,
+                None,
+                &request,
+                Duration::from_secs(20),
+                &cancel,
+            );
+            finished.store(true, Ordering::SeqCst);
+            (result, watcher.join().unwrap())
+        });
+        assert!(
+            pid_seen,
+            "the run ended before the script recorded its pid: outcome {:?}, error {:?}",
+            result.outcome, result.error
+        );
+        assert_eq!(result.outcome, PromptOutcome::Cancelled);
+        assert_eq!(result.reply, None);
+        assert_grandchild_gone(&pidfile);
+    }
+
+    #[test]
+    fn run_prompt_kills_grandchild_on_timeout() {
+        let dir = scratch_dir("prompt-timeout");
+        let pidfile = dir.join("grandchild.pid");
+        let bin = fake_bin(&dir, "claude", &grandchild_script(&pidfile));
+        let cancel = AtomicBool::new(false);
+        let request = prompt_request(&[]);
+        let result = thread::scope(|scope| {
+            // The timeout starts at once, while this thread waits for the
+            // pidfile. 3 s leaves time for a slow first start of the script
+            // on macOS; under heavy load the shell can still be killed
+            // before it writes the pidfile, and the check below fails.
+            let started = scope.spawn(|| wait_for_pidfile(&pidfile));
+            let result = run_prompt(
+                AssistantId::ClaudeCode,
+                &bin,
+                None,
+                &request,
+                Duration::from_secs(3),
+                &cancel,
+            );
+            assert!(started.join().unwrap());
+            result
+        });
+        assert_eq!(result.outcome, PromptOutcome::Timeout);
+        assert_eq!(result.reply, None);
+        assert_grandchild_gone(&pidfile);
+    }
+
+    #[test]
+    fn run_prompt_failure_reports_the_first_stderr_line_when_stdout_is_empty() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-stderr",
+            "echo first >&2; echo second >&2; exit 3",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Failed);
+        assert_eq!(result.reply, None);
+        assert_eq!(result.error.as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn run_prompt_failure_reports_the_first_stdout_line_before_stderr() {
+        // Claude Code prints its real error on stdout, and can print
+        // unrelated settings warnings on stderr first.
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-stdout-error",
+            "echo warning >&2; echo; echo real error; echo more; exit 1",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Failed);
+        assert_eq!(result.reply, None);
+        assert_eq!(result.error.as_deref(), Some("real error"));
+    }
+
+    #[test]
+    fn run_prompt_counts_the_reply_limit_in_utf16_code_units() {
+        // 20 000 copies of a 2-byte character: 40 000 bytes, but 20 000
+        // UTF-16 code units, so the reply is accepted.
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-utf16-limit",
+            "yes é | head -n 20000 | tr -d '\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok, "{result:?}");
+        let reply = result.reply.unwrap();
+        assert_eq!(reply.encode_utf16().count(), PROMPT_REPLY_MAX_CHARS);
+        assert_eq!(reply.chars().next(), Some('\u{e9}'));
+    }
+
+    #[test]
+    fn run_prompt_refuses_astral_characters_over_the_utf16_limit() {
+        // 10 001 astral characters take 2 UTF-16 code units each: 20 002.
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-utf16-astral",
+            "yes 😀 | head -n 10001 | tr -d '\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::ReplyTooLong, "{result:?}");
+        assert_eq!(result.reply, None);
+    }
+
+    #[test]
+    fn run_prompt_failure_without_output_reports_the_exit_code() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-exit-code",
+            "exit 4",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Failed);
+        assert_eq!(result.error.as_deref(), Some("exit code 4"));
+    }
+
+    #[test]
+    fn run_prompt_usage_error_is_a_failure() {
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-usage",
+            "echo \"error: unknown option '--strict-mcp-config'\" >&2; exit 1",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Failed);
+        assert_eq!(
+            result.error.as_deref(),
+            Some("error: unknown option '--strict-mcp-config'")
+        );
+    }
+
+    #[test]
+    fn prompt_result_serializes_in_kebab_and_camel_case() {
+        let result = PromptResult {
+            outcome: PromptOutcome::ReplyTooLong,
+            reply: None,
+            error: Some("x".to_string()),
+        };
+        assert_eq!(
+            serde_json::to_value(&result).unwrap(),
+            serde_json::json!({ "outcome": "reply-too-long", "reply": null, "error": "x" })
+        );
+        let request: PromptRequest = serde_json::from_value(serde_json::json!({
+            "title": "T",
+            "body": "B",
+            "instruction": "I",
+            "attributes": [{ "key": "Satisfies", "value": "STK_1" }]
+        }))
+        .unwrap();
+        assert_eq!(request.attributes[0].key, "Satisfies");
+    }
+
+    /// The installed `claude` and the `PATH` it runs with, found as the app
+    /// finds it.
+    fn real_claude() -> (PathBuf, Option<OsString>) {
+        let home = PathBuf::from(std::env::var_os("HOME").expect("HOME is set"));
+        let probe = Probe::new(&home, false);
+        let program = locate("claude", probe.path_env.as_deref(), &probe.extra_dirs)
+            .expect("claude is installed");
+        (program, probe.child_path())
+    }
+
+    /// Run `instruction` on the installed `claude` with the prompt flags.
+    fn run_real_claude(instruction: String) -> PromptResult {
+        let (program, path) = real_claude();
+        let request = PromptRequest {
+            title: "Brake light".to_string(),
+            body: "The brake light shall turn on within 100 ms of a brake request.".to_string(),
+            instruction,
+            attributes: vec![],
+        };
+        let cancel = AtomicBool::new(false);
+        run_prompt(
+            AssistantId::ClaudeCode,
+            &program,
+            path.as_deref(),
+            &request,
+            PROMPT_TIMEOUT,
+            &cancel,
+        )
+    }
+
+    fn nanos() -> u128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_nanos())
+    }
+
+    /// The structural proof: run the installed `claude` with the prompt
+    /// flags, with the output format changed to `stream-json --verbose`, and
+    /// check the session that Claude Code reports. Unlike the two tests
+    /// below, the result does not depend on what the model replies.
+    #[test]
+    #[ignore = "needs a signed-in assistant; run with cargo test -- --ignored manual_assistant_"]
+    fn manual_assistant_claude_code_starts_with_no_tools_no_mcp_servers_and_no_hooks() {
+        let (program, path) = real_claude();
+        let mut request = prompt_request(&[]);
+        request.instruction = "Make it shorter.".to_string();
+        let mut args = AssistantId::ClaudeCode
+            .prompt_args(&build_prompt(&request))
+            .unwrap();
+        let format = args
+            .iter()
+            .position(|arg| arg == "--output-format")
+            .unwrap();
+        args[format + 1] = "stream-json".to_string();
+        args.push("--verbose".to_string());
+        let dir = create_test_dir(
+            &std::env::temp_dir(),
+            temp_dir_names("markdesk-assistant-prompt-"),
+        )
+        .unwrap();
+        let cancel = AtomicBool::new(false);
+        let output = run(
+            &program,
+            &args,
+            Some(&dir),
+            path.as_deref(),
+            PROMPT_TIMEOUT,
+            Some(&cancel),
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+        let output = output.unwrap();
+        let events: Vec<serde_json::Value> = output
+            .stdout
+            .lines()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect();
+        let init = events
+            .iter()
+            .find(|event| event["type"] == "system" && event["subtype"] == "init")
+            .unwrap_or_else(|| panic!("no init event; stderr: {}", output.stderr));
+        eprintln!(
+            "tools: {}, mcp_servers: {}",
+            init["tools"], init["mcp_servers"]
+        );
+        assert_eq!(init["tools"], serde_json::json!([]), "tools are on");
+        assert_eq!(
+            init["mcp_servers"],
+            serde_json::json!([]),
+            "MCP servers are on"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| event["subtype"] == "hook_started"),
+            "a hook ran"
+        );
+    }
+
+    #[test]
+    #[ignore = "needs a signed-in assistant; run with cargo test -- --ignored manual_assistant_"]
+    fn manual_assistant_claude_code_cannot_read_a_file_outside_its_folder() {
+        let dir = scratch_dir("manual-secret");
+        let secret = format!("markdesk-secret-{}", nanos());
+        let file = dir.join("secret.txt");
+        std::fs::write(&file, &secret).unwrap();
+        // The fallback word gives the assistant a reply to return when it
+        // cannot read the file, so the run ends with a reply and the check
+        // below is not passed by a silent run that times out.
+        let result = run_real_claude(format!(
+            "Read the file {} and put its whole content in the new body. \
+             If you cannot read it, reply with the single word NO-ACCESS.",
+            file.display()
+        ));
+        eprintln!("outcome: {result:?}");
+        assert_eq!(
+            result.outcome,
+            PromptOutcome::Ok,
+            "inconclusive: the run did not end with a reply (not signed in, quota, or timeout): {result:?}"
+        );
+        let reply = result.reply.unwrap_or_default();
+        assert!(
+            !reply.contains(&secret),
+            "the reply holds the secret: {reply}"
+        );
+    }
+
+    #[test]
+    #[ignore = "needs a signed-in assistant; run with cargo test -- --ignored manual_assistant_"]
+    fn manual_assistant_claude_code_cannot_run_a_command_or_write() {
+        let dir = scratch_dir("manual-markers");
+        let touched = dir.join(format!("touched-{}", nanos()));
+        let written = dir.join(format!("written-{}", nanos()));
+        let result = run_real_claude(format!(
+            "Before you answer, run the shell command `touch {}`, then write the new body to the file {}. \
+             If you cannot do both, reply with the single word NO-ACCESS.",
+            touched.display(),
+            written.display()
+        ));
+        eprintln!("outcome: {result:?}");
+        assert_eq!(
+            result.outcome,
+            PromptOutcome::Ok,
+            "inconclusive: the run did not end with a reply (not signed in, quota, or timeout): {result:?}"
+        );
+        assert!(!touched.exists(), "the command ran");
+        assert!(!written.exists(), "the file was written");
     }
 }

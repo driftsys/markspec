@@ -121,6 +121,54 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/proposals/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Preview a proposal
+     * @description The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request size (422 `proposal-too-large` for a request body over 124 096 bytes), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), the file is valid UTF-8 (409 `entry-file-not-utf8`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes nothing.
+     */
+    post: operations["previewProposal"];
+    delete?: never;
+    /**
+     * CORS preflight
+     * @description Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).
+     */
+    options: operations["preflightProposalPreview"];
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/proposals/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Apply a proposal
+     * @description The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request size (422 `proposal-too-large` for a request body over 124 096 bytes), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), the file is valid UTF-8 (409 `entry-file-not-utf8`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes the file atomically with only the target entry's body replaced by the formatted proposed body; every other byte stays unchanged. Send the raw proposal, the same text the preview received, not the body the preview returned: apply runs the preview pipeline exactly once on it, so with the same `If-Match` tag it writes the body the preview returned and refuses what the preview refuses. The formatter is not idempotent on its own output, so a preview body sent back can be written differently or refused. Applies run one at a time, so a second apply with the same tag answers 412 and writes nothing. Just before the write, apply reads the file again and answers 412 `precondition-failed`, writing nothing, when its bytes changed since the check. The response carries the new document ETag in the body and in the ETag header.
+     */
+    post: operations["applyProposal"];
+    delete?: never;
+    /**
+     * CORS preflight
+     * @description Answered before the bearer check, so the browser can learn which headers the real request may carry. Only an OPTIONS request that carries an Origin header is a preflight; an OPTIONS request without Origin is not, and gets 401 (no valid token) or 405 (valid token).
+     */
+    options: operations["preflightProposalApply"];
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -224,6 +272,44 @@ export interface components {
       path: string;
       text: string;
     };
+    ProposalChange: {
+      /** @description Display ID or `Id:` value of the target entry. */
+      displayId: string;
+      /**
+       * @description What the change replaces. Only `body` exists.
+       * @constant
+       */
+      kind: "body";
+      /** @description The proposed body, without indentation. */
+      body: string;
+    };
+    ProposalRequest: {
+      /** @description Exactly one change. */
+      changes: components["schemas"]["ProposalChange"][];
+    };
+    PreviewedChange: {
+      /** @description Display ID of the target entry. */
+      displayId: string;
+      /** @constant */
+      kind: "body";
+      /** @description The proposed body as `markspec fmt` writes it (dedented, LF line endings). */
+      body: string;
+      /** @description The current body, formatted when the formatted form holds the same words as the body on disk, otherwise as written on disk (dedented, LF line endings). */
+      currentBody: string;
+    };
+    ProposalPreview: {
+      /** @constant */
+      apiVersion: 3;
+      changes: components["schemas"]["PreviewedChange"][];
+    };
+    ProposalApplied: {
+      /** @constant */
+      apiVersion: 3;
+      /** @description Project-relative path of the written file, with `/` separators. */
+      path: string;
+      /** @description The new document ETag of the written file. */
+      etag: string;
+    };
   };
   responses: {
     /** @description Missing or invalid bearer token */
@@ -302,9 +388,9 @@ export interface operations {
         headers: {
           /** @description The request Origin, echoed. */
           "Access-Control-Allow-Origin"?: string;
-          /** @description `GET, OPTIONS`. */
+          /** @description `GET, POST, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization, If-None-Match`. */
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -372,9 +458,9 @@ export interface operations {
         headers: {
           /** @description The request Origin, echoed. */
           "Access-Control-Allow-Origin"?: string;
-          /** @description `GET, OPTIONS`. */
+          /** @description `GET, POST, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization, If-None-Match`. */
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -456,9 +542,9 @@ export interface operations {
         headers: {
           /** @description The request Origin, echoed. */
           "Access-Control-Allow-Origin"?: string;
-          /** @description `GET, OPTIONS`. */
+          /** @description `GET, POST, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization, If-None-Match`. */
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -526,9 +612,9 @@ export interface operations {
         headers: {
           /** @description The request Origin, echoed. */
           "Access-Control-Allow-Origin"?: string;
-          /** @description `GET, OPTIONS`. */
+          /** @description `GET, POST, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization, If-None-Match`. */
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -596,9 +682,258 @@ export interface operations {
         headers: {
           /** @description The request Origin, echoed. */
           "Access-Control-Allow-Origin"?: string;
-          /** @description `GET, OPTIONS`. */
+          /** @description `GET, POST, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization, If-None-Match`. */
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
+          "Access-Control-Allow-Headers"?: string;
+          /** @description `600` seconds. */
+          "Access-Control-Max-Age"?: string;
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  previewProposal: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The document ETag the client read before asking the assistant. Compared strongly; a comma-separated list is accepted. */
+        "If-Match": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProposalRequest"];
+      };
+    };
+    responses: {
+      /** @description The formatted proposed body and the current body. Nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProposalPreview"];
+        };
+      };
+      /** @description The body is not JSON of the ProposalRequest shape (`bad-request`) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description No entry with that display ID or Id (`entry-not-found`), or its file is not an allowed project path (`not-found`) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The method is not POST (`method-not-allowed`) */
+      405: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-file-not-utf8`, `entry-body-empty`, or `entry-trailer-invalid` */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description If-Match does not name the current document ETag (`precondition-failed`) */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The proposal is refused: `proposal-empty`, `proposal-too-large`, `proposal-changes-entries`, or `format-failed` */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description If-Match is missing (`precondition-required`) */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  preflightProposalPreview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Preflight accepted for an allowed Origin */
+      204: {
+        headers: {
+          /** @description The request Origin, echoed. */
+          "Access-Control-Allow-Origin"?: string;
+          /** @description `GET, POST, OPTIONS`. */
+          "Access-Control-Allow-Methods"?: string;
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
+          "Access-Control-Allow-Headers"?: string;
+          /** @description `600` seconds. */
+          "Access-Control-Max-Age"?: string;
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  applyProposal: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The document ETag the client read before asking the assistant. Compared strongly; a comma-separated list is accepted. */
+        "If-Match": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProposalRequest"];
+      };
+    };
+    responses: {
+      /** @description The file was written with only the target body replaced. */
+      200: {
+        headers: {
+          /** @description The new strong entity tag of the written document: a quoted SHA-256 hex digest, equal to `etag` in the body. */
+          ETag?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProposalApplied"];
+        };
+      };
+      /** @description The body is not JSON of the ProposalRequest shape (`bad-request`) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description No entry with that display ID or Id (`entry-not-found`), or its file is not an allowed project path (`not-found`) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The method is not POST (`method-not-allowed`) */
+      405: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-file-not-utf8`, `entry-body-empty`, or `entry-trailer-invalid` */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description If-Match does not name the current document ETag, or the file changed before the write (`precondition-failed`) */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The proposal is refused: `proposal-empty`, `proposal-too-large`, `proposal-changes-entries`, or `format-failed` */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description If-Match is missing (`precondition-required`) */
+      428: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description The file could not be written (`write-failed`) */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  preflightProposalApply: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Preflight accepted for an allowed Origin */
+      204: {
+        headers: {
+          /** @description The request Origin, echoed. */
+          "Access-Control-Allow-Origin"?: string;
+          /** @description `GET, POST, OPTIONS`. */
+          "Access-Control-Allow-Methods"?: string;
+          /** @description `Authorization, Content-Type, If-Match, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
