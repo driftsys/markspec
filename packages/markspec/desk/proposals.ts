@@ -15,6 +15,7 @@
  */
 
 import {
+  type Diagnostic,
   type EntryBodyRefusal,
   format,
   type ProseFormatter,
@@ -65,27 +66,96 @@ function fromEditRefusal(refusal: EntryBodyRefusal): ProposalRefusal {
 }
 
 /**
+ * Whether `diagnostics` holds an `MSL-F900` for the entry `displayId`:
+ * the formatter kept that body unchanged because it did not survive
+ * canonicalization. The message starts with `<displayId>:`, so an ID
+ * that only shares a prefix (`SYS_BRK_00011`) does not match.
+ *
+ * @internal Exported for tests. No known input makes the formatter emit
+ *   `MSL-F900`, so this helper is the only tested part of that refusal.
+ */
+export function isTargetF900(
+  diagnostics: readonly Diagnostic[],
+  displayId: string,
+): boolean {
+  return diagnostics.some((d) =>
+    d.code === "MSL-F900" && d.message.startsWith(`${displayId}:`)
+  );
+}
+
+/**
  * Format `text` with the `markspec fmt` code path. Returns `undefined`
- * when the formatter throws, or when it kept the target body unchanged
- * because the body did not survive canonicalization (`MSL-F900` whose
- * message names `displayId`). `MSL-F012` (prose pass kept a segment as
- * written) is not a failure.
+ * when the formatter throws, and the diagnostics otherwise. `MSL-F012`
+ * (prose pass kept a segment as written) is not a failure.
  */
 function formatText(
   text: string,
   file: string,
-  displayId: string,
   formatProse: ProseFormatter,
-): string | undefined {
+): { output: string; diagnostics: readonly Diagnostic[] } | undefined {
   try {
     const result = format(text, { file, formatMarkdownProse: formatProse });
-    const targetF900 = result.diagnostics.some((d) =>
-      d.code === "MSL-F900" && d.message.startsWith(`${displayId}:`)
-    );
-    return targetF900 ? undefined : result.output;
+    return { output: result.output, diagnostics: result.diagnostics };
   } catch {
     return undefined;
   }
+}
+
+/** A checked proposal: the preview plus the file text it produces. */
+interface CheckedProposal {
+  readonly preview: BodyPreview;
+  readonly text: string;
+}
+
+/**
+ * The shared preview and apply pipeline. Refuses with `format-failed`
+ * when the formatter throws on either text, or when it keeps the
+ * candidate's target body unchanged (`MSL-F900`). An `MSL-F900` on the
+ * current text is not a refusal: the formatter keeps the body as
+ * written, and that is the `currentBody` the author sees. The formatted
+ * body goes through the entry-identity check again, so a preview the
+ * author sees always splices at Accept.
+ */
+async function checkProposal(
+  text: string,
+  file: string,
+  displayId: string,
+  proposed: string,
+  formatProse: ProseFormatter,
+): Promise<ProposalOutcome<CheckedProposal>> {
+  if (proposed.length > MAX_PROPOSAL_CHARS) {
+    return refuse("proposal-too-large");
+  }
+  const current = await readEntryBody(text, file, displayId);
+  if (current === undefined) return refuse("entry-not-found");
+  if (current === "") return refuse("entry-body-empty");
+
+  const edit = await replaceEntryBody(text, file, displayId, proposed);
+  if (!edit.ok) return refuse(fromEditRefusal(edit.refusal));
+
+  const formattedCandidate = formatText(edit.text, file, formatProse);
+  const formattedCurrent = formatText(text, file, formatProse);
+  if (
+    formattedCandidate === undefined || formattedCurrent === undefined ||
+    isTargetF900(formattedCandidate.diagnostics, displayId)
+  ) {
+    return refuse("format-failed");
+  }
+  const body = await readEntryBody(formattedCandidate.output, file, displayId);
+  const currentBody = await readEntryBody(
+    formattedCurrent.output,
+    file,
+    displayId,
+  );
+  if (body === undefined || currentBody === undefined) {
+    return refuse("format-failed");
+  }
+  const spliced = await replaceEntryBody(text, file, displayId, body);
+  if (!spliced.ok) return refuse(fromEditRefusal(spliced.refusal));
+  return {
+    ok: true,
+    value: { preview: { body, currentBody }, text: spliced.text },
+  };
 }
 
 /**
@@ -105,32 +175,15 @@ export async function previewBody(
   proposed: string,
   formatProse: ProseFormatter,
 ): Promise<ProposalOutcome<BodyPreview>> {
-  if (proposed.length > MAX_PROPOSAL_CHARS) {
-    return refuse("proposal-too-large");
-  }
-  const current = await readEntryBody(text, file, displayId);
-  if (current === undefined) return refuse("entry-not-found");
-  if (current === "") return refuse("entry-body-empty");
-
-  const edit = await replaceEntryBody(text, file, displayId, proposed);
-  if (!edit.ok) return refuse(fromEditRefusal(edit.refusal));
-
-  const formattedCandidate = formatText(
-    edit.text,
+  const checked = await checkProposal(
+    text,
     file,
     displayId,
+    proposed,
     formatProse,
   );
-  const formattedCurrent = formatText(text, file, displayId, formatProse);
-  if (formattedCandidate === undefined || formattedCurrent === undefined) {
-    return refuse("format-failed");
-  }
-  const body = await readEntryBody(formattedCandidate, file, displayId);
-  const currentBody = await readEntryBody(formattedCurrent, file, displayId);
-  if (body === undefined || currentBody === undefined) {
-    return refuse("format-failed");
-  }
-  return { ok: true, value: { body, currentBody } };
+  if (!checked.ok) return checked;
+  return { ok: true, value: checked.value.preview };
 }
 
 /**
@@ -147,20 +200,13 @@ export async function applyBody(
   proposed: string,
   formatProse: ProseFormatter,
 ): Promise<ProposalOutcome<string>> {
-  const preview = await previewBody(
+  const checked = await checkProposal(
     text,
     file,
     displayId,
     proposed,
     formatProse,
   );
-  if (!preview.ok) return preview;
-  const edit = await replaceEntryBody(
-    text,
-    file,
-    displayId,
-    preview.value.body,
-  );
-  if (!edit.ok) return refuse(fromEditRefusal(edit.refusal));
-  return { ok: true, value: edit.text };
+  if (!checked.ok) return checked;
+  return { ok: true, value: checked.value.text };
 }
