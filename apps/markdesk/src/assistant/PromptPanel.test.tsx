@@ -269,6 +269,41 @@ it.each<[string, AssistantPromptResult, string]>([
   expect(box.value).toBe("keep me");
 });
 
+it("Accept sends the raw reply text, not the preview body", async () => {
+  // The reply has one surrounding fence; the preview body is the formatted
+  // text. Apply runs the preview pipeline once on the raw text, so Accept
+  // must send the same text the preview received.
+  const raw = "Raw  proposed\nbody.";
+  const { client } = mountApp({
+    assistant: {
+      runAssistantPrompt: vi.fn(async () => ({
+        outcome: "ok" as const,
+        reply: "```markdown\n" + raw + "\n```",
+        error: null,
+      })),
+    },
+    client: fakePromptClient({
+      previewProposal: vi.fn(async () => ({
+        apiVersion: 3 as const,
+        changes: [{
+          displayId: "SYS_BRK_0001",
+          kind: "body" as const,
+          body: "Raw proposed body.",
+          currentBody: BODY,
+        }],
+      })),
+    }),
+  });
+  const box = await pickReady();
+  await send(box, "rewrite");
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  const sent = [{ displayId: "SYS_BRK_0001", kind: "body", body: raw }];
+  await waitFor(() =>
+    expect(client.applyProposal).toHaveBeenCalledWith(expect.any(String), sent)
+  );
+  expect(vi.mocked(client.previewProposal).mock.calls[0][1]).toEqual(sent);
+});
+
 it("rejects with the button and with Escape, and writes nothing", async () => {
   const { client } = mountApp();
   const box = await pickReady();
@@ -319,7 +354,7 @@ it("accepts: applies with the submit ETag, then refreshes", async () => {
   fireEvent.click(accept);
   await waitFor(() =>
     expect(client.applyProposal).toHaveBeenCalledWith('"e1"', [
-      { displayId: "SYS_BRK_0001", kind: "body", body: "Formatted body." },
+      { displayId: "SYS_BRK_0001", kind: "body", body: "Proposed body." },
     ])
   );
   await waitFor(() =>

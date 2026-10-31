@@ -158,9 +158,7 @@ Deno.test("applyBody: splices the formatted body and keeps every other byte", as
   );
 });
 
-Deno.test("applyBody: writes a raw proposal that formatting changes as is", async () => {
-  // Apply writes the body it is given. The UI sends the preview body; a
-  // client that sends a raw proposal gets it unformatted when it splices.
+Deno.test("applyBody: writes the formatted body, not the raw proposal", async () => {
   const words: string[] = [];
   for (let i = 0; i < 40; i++) words.push(`word${i}`);
   const proposed = `The system shall ${words.join(" ")}.`;
@@ -172,15 +170,18 @@ Deno.test("applyBody: writes a raw proposal that formatting changes as is", asyn
     prose,
   );
   assert(preview.ok);
-  assert(preview.value.body !== proposed);
   const r = await applyBody(SYSTEM, FILE, "SYS_BRK_0001", proposed, prose);
   assert(r.ok);
-  assertEquals(await readEntryBody(r.value, FILE, "SYS_BRK_0001"), proposed);
+  const written = await readEntryBody(r.value, FILE, "SYS_BRK_0001");
+  assertEquals(written, preview.value.body);
+  const lines = preview.value.body.split("\n");
+  assert(lines.length > 1);
+  for (const line of lines) assert(line.length <= 78, line);
   const expected = await replaceEntryBody(
     SYSTEM,
     FILE,
     "SYS_BRK_0001",
-    proposed,
+    preview.value.body,
   );
   assert(expected.ok);
   assertEquals(r.value, expected.text);
@@ -241,6 +242,9 @@ Deno.test("applyBody: a preview body applies unchanged", async () => {
     await readEntryBody(applied.value, FILE, "SYS_BRK_0001"),
     preview.value.body,
   );
+  const direct = await applyBody(SYSTEM, FILE, "SYS_BRK_0001", proposed, prose);
+  assert(direct.ok);
+  assertEquals(applied.value, direct.value);
   const again = await previewBody(
     applied.value,
     FILE,
@@ -436,53 +440,14 @@ async function assertBothRefuse(
   );
 }
 
-/**
- * Assert that `previewBody` refuses "New body." with `refusal` under the
- * stand-in formatter, and that `applyBody` writes "New body." unchanged:
- * apply never writes a formatted body that differs from the supplied one.
- */
-async function assertPreviewRefusesApplyWrites(
-  formatDocument: DocumentFormatter,
-  refusal: ProposalRefusal,
-): Promise<void> {
-  assertEquals(
-    await previewBody(
-      SYSTEM,
-      FILE,
-      "SYS_BRK_0001",
-      "New body.",
-      prose,
-      formatDocument,
-    ),
-    { ok: false, refusal },
-  );
-  const applied = await applyBody(
-    SYSTEM,
-    FILE,
-    "SYS_BRK_0001",
-    "New body.",
-    prose,
-    formatDocument,
-  );
-  assert(applied.ok, JSON.stringify(applied));
-  const expected = await replaceEntryBody(
-    SYSTEM,
-    FILE,
-    "SYS_BRK_0001",
-    "New body.",
-  );
-  assert(expected.ok);
-  assertEquals(applied.value, expected.text);
-}
-
 Deno.test("previewBody and applyBody: refuse when the formatter throws", async () => {
   await assertBothRefuse(() => {
     throw new Error("boom");
   }, "format-failed");
 });
 
-Deno.test("previewBody refuses a target MSL-F900; applyBody writes the body as is", async () => {
-  await assertPreviewRefusesApplyWrites(
+Deno.test("previewBody and applyBody: refuse a target MSL-F900", async () => {
+  await assertBothRefuse(
     (text, options) => {
       const result = format(text, options);
       return {
@@ -497,8 +462,8 @@ Deno.test("previewBody refuses a target MSL-F900; applyBody writes the body as i
   );
 });
 
-Deno.test("previewBody refuses when the formatted body loses the entry; applyBody writes the body as is", async () => {
-  await assertPreviewRefusesApplyWrites(
+Deno.test("previewBody and applyBody: refuse when the formatted body loses the entry", async () => {
+  await assertBothRefuse(
     (text) => ({
       output: text.replace("- [SYS_BRK_0001]", "- "),
       diagnostics: [],
@@ -507,12 +472,11 @@ Deno.test("previewBody refuses when the formatted body loses the entry; applyBod
   );
 });
 
-Deno.test("previewBody refuses a formatted body that fails the second splice; applyBody writes the body as is", async () => {
+Deno.test("previewBody and applyBody: refuse a formatted body that fails the second splice", async () => {
   // The stand-in output puts an indented trailer-like line in the target
   // body. Read back from that output it is body, but spliced into the
-  // original text it changes the entry's trailer. Apply does not write the
-  // formatted body; it splices the supplied body, which passes.
-  await assertPreviewRefusesApplyWrites(
+  // original text it changes the entry's trailer.
+  await assertBothRefuse(
     (text) => ({
       output: text.replace(
         "  New body.\n",
@@ -694,7 +658,10 @@ Deno.test("previewBody: a tight ordered list with a nested list is refused as fo
   );
 });
 
-/** Preview `proposed`, apply the preview body, and return both bodies. */
+/**
+ * Preview the raw `proposed`, apply the same raw text, and return the
+ * preview body with the body apply wrote.
+ */
 async function previewThenApply(
   proposed: string,
 ): Promise<{ previewed: string; written: string | undefined }> {
@@ -710,7 +677,7 @@ async function previewThenApply(
     SYSTEM,
     FILE,
     "SYS_BRK_0001",
-    preview.value.body,
+    proposed,
     prose,
   );
   assert(applied.ok, JSON.stringify(applied));
@@ -720,10 +687,10 @@ async function previewThenApply(
   };
 }
 
-Deno.test("applyBody: writes the preview body when a second format moves a tab at a wrap point", async () => {
+Deno.test("applyBody: writes the preview body when a second format would drop a tab at a wrap point", async () => {
   // The formatter keeps a tab that it puts at the start of a wrapped line,
-  // and removes it when it formats that output again. Apply must write the
-  // body the author saw, tab included.
+  // and removes it when it formats that output again. Apply formats the
+  // raw proposal once, so it writes the body the author saw, tab included.
   const words: string[] = [];
   for (let i = 0; i < 30; i++) words.push(`word${i}`);
   const proposed = `${words.slice(0, 12).join(" ")} \t${
@@ -735,8 +702,8 @@ Deno.test("applyBody: writes the preview body when a second format moves a tab a
 });
 
 Deno.test("applyBody: writes the preview body of a wrapped ordered list item", async () => {
-  // A second format of the wrapped item raises MSL-F900 for the target;
-  // the preview body still splices as is, so apply writes it.
+  // A second format of the wrapped item raises MSL-F900 for the target.
+  // Apply formats the raw proposal once, so it writes the preview body.
   const words: string[] = [];
   for (let i = 0; i < 30; i++) words.push(`word${i}`);
   const { previewed, written } = await previewThenApply(

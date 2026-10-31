@@ -59,6 +59,10 @@ export type PromptPhase =
     etag: string;
     currentBody: string;
     proposedBody: string;
+    /** The assistant reply after `stripOneFence`, as sent to the preview.
+     * Accept sends this text to apply, which formats it once more with the
+     * same pipeline and writes the body the preview showed. */
+    rawBody: string;
   }
   | {
     kind: "applying";
@@ -66,6 +70,10 @@ export type PromptPhase =
     etag: string;
     currentBody: string;
     proposedBody: string;
+    /** The assistant reply after `stripOneFence`, as sent to the preview.
+     * Accept sends this text to apply, which formats it once more with the
+     * same pipeline and writes the body the preview showed. */
+    rawBody: string;
   }
   | { kind: "error"; message: string };
 
@@ -325,6 +333,7 @@ export function usePrompt(): PromptController {
         etag,
         currentBody: change.currentBody,
         proposedBody: change.body,
+        rawBody: proposed,
       });
     } catch (error) {
       if (!isCurrent()) return;
@@ -378,7 +387,7 @@ export function usePrompt(): PromptController {
     setPhase(applying);
     try {
       await client.applyProposal(shown.etag, [
-        { displayId: shown.displayId, kind: "body", body: shown.proposedBody },
+        { displayId: shown.displayId, kind: "body", body: shown.rawBody },
       ]);
     } catch (error) {
       // A lost connection does not tell whether the server wrote the file,
