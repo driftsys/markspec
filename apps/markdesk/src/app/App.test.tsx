@@ -44,11 +44,13 @@ function fakeBridge(
 function fakeClient(overrides: Partial<DeskClient> = {}): DeskClient {
   return {
     tree: vi.fn(async () => ({
-      apiVersion: 3 as const,
-      project: { name: "Brakes" },
-      roots: [],
-      nodes: [],
-      edges: [],
+      view: {
+        apiVersion: 3 as const,
+        project: { name: "Brakes" },
+        roots: [],
+        nodes: [],
+        edges: [],
+      },
     })),
     entry: vi.fn(),
     entryHtml: vi.fn(),
@@ -94,11 +96,13 @@ describe("open flow", () => {
     }]);
     const client = fakeClient({
       tree: vi.fn(async () => ({
-        apiVersion: 3 as const,
-        project: {},
-        roots: [],
-        nodes: [],
-        edges: [],
+        view: {
+          apiVersion: 3 as const,
+          project: {},
+          roots: [],
+          nodes: [],
+          edges: [],
+        },
       })),
     });
     render(<App bridge={bridge} createClient={() => client} />);
@@ -530,11 +534,13 @@ describe("open flow", () => {
     });
     const client = fakeClient({
       tree: vi.fn(async () => ({
-        apiVersion: 3 as const,
-        project: {},
-        roots: [],
-        nodes: [],
-        edges: [],
+        view: {
+          apiVersion: 3 as const,
+          project: {},
+          roots: [],
+          nodes: [],
+          edges: [],
+        },
       })),
     });
     render(<App bridge={bridge} createClient={() => client} />);

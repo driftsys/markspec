@@ -19,6 +19,7 @@ import { ProductContext } from "../app/useProduct";
 import { BridgeContext } from "../shell/BridgeContext";
 import type { ShellBridge } from "../shell/bridge";
 import { DocumentPane } from "./DocumentPane";
+import { RefreshProvider } from "../app/refresh";
 import { type History, HistoryProvider, useHistory } from "./useHistory";
 
 afterEach(cleanup);
@@ -162,8 +163,10 @@ function mount(client = fakeClient(), bridge = fakeBridge()) {
     <BridgeContext.Provider value={bridge}>
       <ProductContext.Provider value={{ root: "/p", name: "p", client }}>
         <HistoryProvider mac={false}>
-          <Probe />
-          <DocumentPane />
+          <RefreshProvider>
+            <Probe />
+            <DocumentPane />
+          </RefreshProvider>
         </HistoryProvider>
       </ProductContext.Provider>
     </BridgeContext.Provider>,

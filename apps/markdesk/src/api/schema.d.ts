@@ -13,7 +13,7 @@ export interface paths {
     };
     /**
      * The product tree
-     * @description Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. The response is a flat graph: `nodes` lists every entry once, `edges` lists one edge per (child, parent) pair, and `roots` lists the entries with no parent, then the lowest display ID of each link cycle that has no parent outside the cycle. Clients expand the graph from `roots` through the edges. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited.
+     * @description Entries read top-down through refinement (Satisfies, Derived-from) and verification (Verifies) links. The response is a flat graph: `nodes` lists every entry once, `edges` lists one edge per (child, parent) pair, and `roots` lists the entries with no parent, then the lowest display ID of each link cycle that has no parent outside the cycle. Clients expand the graph from `roots` through the edges. Edges can form a cycle (a link cycle in the project); a client that walks the edges must track the entries it has already visited. The 200 response carries a strong ETag computed from the serialized tree; adding, removing, renaming, or re-linking any entry changes it. A request whose If-None-Match names the current tag gets 304 with no body. Browser clients can read the ETag header: every response to an allowed Origin carries `Access-Control-Expose-Headers: ETag`.
      */
     get: operations["getTree"];
     put?: never;
@@ -255,7 +255,10 @@ export interface operations {
   getTree: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description The ETag of the tree the client holds. `*` and a comma-separated list are accepted; a `W/` prefix is ignored. */
+        "If-None-Match"?: string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -264,11 +267,22 @@ export interface operations {
       /** @description The product tree */
       200: {
         headers: {
+          /** @description Strong entity tag of this tree: a quoted SHA-256 hex digest. */
+          ETag?: string;
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ProductTree"];
         };
+      };
+      /** @description The tree named by If-None-Match is current. No body. */
+      304: {
+        headers: {
+          /** @description Strong entity tag of this tree: a quoted SHA-256 hex digest. */
+          ETag?: string;
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];

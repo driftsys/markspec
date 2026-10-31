@@ -28,6 +28,34 @@ describe("createDeskClient", () => {
     expect(new URL(req.url).pathname).toBe("/api/v1/tree");
   });
 
+  it("returns the tree with its ETag and sends no If-None-Match without a cached tree", async () => {
+    const f = stub(
+      new Response(JSON.stringify({ nodes: [], edges: [], roots: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json", etag: '"t1"' },
+      }),
+    );
+    const result = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .tree();
+    expect(result.etag).toBe('"t1"');
+    expect(result.view.roots).toEqual([]);
+    expect(f.mock.calls[0][0].headers.get("If-None-Match")).toBeNull();
+  });
+
+  it("revalidates a cached tree and keeps it on 304", async () => {
+    const f = stub(
+      new Response(null, { status: 304, headers: { etag: '"t1"' } }),
+    );
+    const cached = {
+      view: { nodes: [], edges: [], roots: ["A"] },
+      etag: '"t1"',
+    } as unknown as Parameters<ReturnType<typeof createDeskClient>["tree"]>[0];
+    const result = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .tree(cached);
+    expect(f.mock.calls[0][0].headers.get("If-None-Match")).toBe('"t1"');
+    expect(result).toBe(cached);
+  });
+
   it("encodes the entry id as one path segment", async () => {
     const f = stub(json({ displayId: "A/B" }));
     await createDeskClient("http://127.0.0.1:1", "t", f).entry("A/B");

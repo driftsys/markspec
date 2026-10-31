@@ -126,6 +126,25 @@ stays TypeScript. Everything lives in this repository.
 
       Id: 01M684SWWGE4T4FEFXQJGKFWP2
 
+- [SAD_DESK_0016] Entity tag on the product tree
+
+  The desk backend shall send an `ETag` header with every HTTP status 200
+  response to `GET /api/v1/tree`, with a value that changes when an entry is
+  added to, removed from, renamed in, or re-linked in the graph, and shall
+  answer a request whose `If-None-Match` header names the current `ETag` with
+  HTTP status 304 and an empty body.
+
+      Id: 01M68C4ZFKF59N2GB7N8DVPZ2Y
+
+- [SAD_DESK_0017] Navigator revalidation in the UI
+
+  The MarkDesk UI shall request the product tree, with the `ETag` of the tree it
+  holds in `If-None-Match`, when the app window receives focus and when a pane
+  calls the shared refresh signal, and shall keep the expanded rows and the
+  selection of the navigator when the response is HTTP status 304.
+
+      Id: 01M68C4ZFK8N9R31SRD2HBWZQA
+
 The per-launch nonce token is the only credential of the desk API. The `Origin`
 check limits which browser pages can call the API; it does not authenticate the
 caller. The `tauri://localhost` origin is shared by every Tauri application on
@@ -368,6 +387,22 @@ navigator, and shows the whole document an entry lives in.
   allow the `If-None-Match` request header, and responses to an allowed origin
   carry `Access-Control-Expose-Headers: ETag`. The change is additive, so
   `apiVersion` stays 3.
+- **Navigator refresh (#842).** `GET /api/v1/tree` carries a strong `ETag` too:
+  the quoted SHA-256 digest of the API version and the serialized tree
+  (SAD_DESK_0016). The tree is built from the compiled graph in a fixed order,
+  so an unchanged graph yields the same tag across mtime-refreshed compiles, and
+  a matching `If-None-Match` gets 304 with no body; the server still builds the
+  tree, which is linear in entries plus links. In the UI, one `RefreshProvider`
+  (`apps/markdesk/src/app/refresh.tsx`) under the product holds a revision
+  counter, bumped on window focus, and a `refresh()` function for a pane that
+  writes a file itself (#837). The navigator and the document pane both
+  revalidate on the revision (SAD_DESK_0017). The navigator keeps the tree it
+  holds while it checks, so the `Navigator` component is not remounted and
+  expanded rows survive; a 304 returns the same cached object and replaces
+  nothing; a changed tree replaces the model in place, and a removed entry
+  simply has no row (the document pane reports the 404 on its own read). A
+  failed check after a successful load keeps the tree shown. `apiVersion`
+  stays 3.
 
 ## Alternatives rejected
 
@@ -456,6 +491,13 @@ Windows. The server already finds changed files on each request (the
 mtime-refreshed compiled cache, and a fresh read of the document file), so a
 conditional request when the selection changes or the window receives focus
 gives the same result for a single author at the cost of one request.
+
+### Comparing the tree in the UI instead of tagging it
+
+The UI could fetch the full tree on every focus and replace its state only when
+the JSON differs. That needs no API change, but it sends the whole tree on every
+focus and gives later writes (#837) no server-side check to reuse. A tag on the
+tree costs one hash and lets an unchanged tree answer with an empty 304.
 
 ### One revision token for the whole product
 

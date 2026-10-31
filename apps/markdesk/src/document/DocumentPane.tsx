@@ -13,6 +13,7 @@ import {
   DeskError,
   type EntryView,
 } from "../api/client";
+import { useRefresh } from "../app/refresh";
 import { useOpenProduct } from "../app/useProduct";
 import { useBridge } from "../shell/BridgeContext";
 import { SourceDrawer } from "./SourceDrawer";
@@ -164,9 +165,9 @@ export function DocumentPane() {
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
   const [sourceOpen, setSourceOpen] = useState(false);
-  // Bumped when the window gets focus, so the selection is read again: the
-  // author may have edited the product's files in another application.
-  const [focusCount, setFocusCount] = useState(0);
+  // Bumped when the window gets focus and after a write by MarkDesk, so the
+  // selection is read again: the product's files may have changed.
+  const { revision } = useRefresh();
   const content = useRef<HTMLDivElement>(null);
   // Rendered documents of the current product with their ETags, by path.
   const documents = useMemo(
@@ -177,12 +178,6 @@ export function DocumentPane() {
   useEffect(() => {
     setLoaded(undefined);
   }, [client]);
-
-  useEffect(() => {
-    const onFocus = () => setFocusCount((count) => count + 1);
-    globalThis.addEventListener("focus", onFocus);
-    return () => globalThis.removeEventListener("focus", onFocus);
-  }, []);
 
   useEffect(() => {
     if (selected === undefined) return;
@@ -197,7 +192,7 @@ export function DocumentPane() {
     return () => {
       current = false;
     };
-  }, [client, documents, selected, focusCount]);
+  }, [client, documents, selected, revision]);
 
   const html = useMemo(
     () => reading && withImagePlaceholders(reading.html),
@@ -341,7 +336,7 @@ export function DocumentPane() {
           <SourceDrawer
             path={reading.sourcePath}
             line={reading.entry.location.line}
-            revision={focusCount}
+            revision={revision}
           />
         )}
       </div>

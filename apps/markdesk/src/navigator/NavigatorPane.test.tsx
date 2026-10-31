@@ -1,8 +1,15 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type DeskClient, DeskError, type ProductTree } from "../api/client";
+import {
+  type CachedTree,
+  type DeskClient,
+  DeskError,
+  type ProductTree,
+} from "../api/client";
+import { RefreshProvider } from "../app/refresh";
 import { ProductContext } from "../app/useProduct";
+import { HistoryProvider } from "../document/useHistory";
 import { Navigator, NavigatorPane } from "./Navigator";
 import { buildNavigatorModel } from "./model";
 
@@ -14,14 +21,30 @@ const tree = (
   roots: string[],
 ) => ({ apiVersion: 3, project: {}, roots, nodes, edges }) as ProductTree;
 
+const cachedTree = (t: ProductTree, etag = '"t"'): CachedTree => ({
+  view: t,
+  etag,
+});
+
 function pane(tree: () => Promise<ProductTree>) {
+  return mount(async () => cachedTree(await tree()));
+}
+
+/** Mount the pane over a client whose `tree` is the given function. */
+function mount(tree: (cached?: CachedTree) => Promise<CachedTree>) {
   const client = { tree } as unknown as DeskClient;
   return render(
     <ProductContext.Provider value={{ root: "/p", name: "p", client }}>
-      <NavigatorPane />
+      <HistoryProvider mac={false}>
+        <RefreshProvider>
+          <NavigatorPane />
+        </RefreshProvider>
+      </HistoryProvider>
     </ProductContext.Provider>,
   );
 }
+
+const focusWindow = () => globalThis.dispatchEvent(new Event("focus"));
 
 describe("NavigatorPane", () => {
   it("renders rows on success", async () => {
@@ -46,6 +69,75 @@ describe("NavigatorPane", () => {
     });
     expect(await screen.findByText("MarkDesk could not load this product."))
       .toBeTruthy();
+  });
+});
+
+describe("NavigatorPane refresh", () => {
+  const parent = { displayId: "P", title: "p" };
+  const child = { displayId: "R1", title: "r" };
+  const edge = { from: "R1", to: "P", relation: "satisfies" };
+
+  it("shows an entry added on disk when the window gets focus", async () => {
+    const trees = [
+      cachedTree(tree([parent], [], ["P"]), '"1"'),
+      cachedTree(tree([parent, child], [edge], ["P"]), '"2"'),
+    ];
+    const client = vi.fn(async (_cached?: CachedTree) => trees.shift()!);
+    mount(client);
+    expect(await screen.findByText("P")).toBeTruthy();
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    expect(client.mock.calls[1][0]?.etag).toBe('"1"');
+    fireEvent.click(screen.getByText("P"));
+    expect(await screen.findByText("R1")).toBeTruthy();
+  });
+
+  it("drops a removed entry, even when it is selected", async () => {
+    const trees = [
+      cachedTree(tree([parent, child], [edge], ["P"]), '"1"'),
+      cachedTree(tree([parent], [], ["P"]), '"2"'),
+    ];
+    const client = vi.fn(async () => trees.shift()!);
+    mount(client);
+    fireEvent.click(await screen.findByText("P"));
+    fireEvent.click(await screen.findByText("R1"));
+    expect(screen.getByText("R1").closest("[role=treeitem]")!
+      .getAttribute("aria-selected")).toBe("true");
+    focusWindow();
+    await waitFor(() => expect(screen.queryByText("R1")).toBeNull());
+    expect(screen.getByText("P")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps expanded rows and the selection when the tree is unchanged", async () => {
+    const first = cachedTree(tree([parent, child], [edge], ["P"]), '"1"');
+    const client = vi.fn(async (cached?: CachedTree) =>
+      cached?.etag === '"1"' ? cached : first
+    );
+    mount(client);
+    fireEvent.click(await screen.findByText("P"));
+    fireEvent.click(await screen.findByText("R1"));
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    expect(client.mock.calls[1][0]).toBe(first);
+    expect(screen.getByText("R1")).toBeTruthy();
+    expect(screen.getByText("R1").closest("[role=treeitem]")!
+      .getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("keeps the shown tree when a refresh fails", async () => {
+    let calls = 0;
+    const client = vi.fn(async () => {
+      if (calls++ === 0) return cachedTree(tree([parent], [], ["P"]));
+      throw new DeskError(500, "internal", "boom");
+    });
+    mount(client);
+    expect(await screen.findByText("P")).toBeTruthy();
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.getByText("P")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

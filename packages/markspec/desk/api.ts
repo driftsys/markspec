@@ -26,7 +26,11 @@
  * current tag gets 304 with no body, and the document is not rendered. The
  * client keeps the render it has and sends its tag on each later request, so
  * an edit on disk shows on the next request, while an unchanged document
- * costs one file read and no render.
+ * costs one file read and no render. A `/tree` 200 carries a strong `ETag`
+ * too ({@linkcode treeEtag}, a digest of the serialized tree): a matching
+ * `If-None-Match` gets 304 with no body, so the UI can revalidate the
+ * navigator on window focus and after a write without receiving the tree
+ * again while the graph is unchanged (#842).
  *
  * Every request must carry a loopback `Host` header (DNS-rebinding guard),
  * and every request except an allowed-origin CORS preflight must carry
@@ -59,6 +63,7 @@ import {
   type Entry,
   formatEntryOrigin,
   makeDisplayId,
+  sha256String,
 } from "../core/mod.ts";
 import {
   buildDocumentView,
@@ -486,10 +491,20 @@ export function createDeskHandler(
 
     if (url.pathname === "/api/v1/tree") {
       const compiled = await source.getCompiled();
-      return jsonResponse(
-        200,
+      const body = JSON.stringify(
         buildProductTree(compiled, source.profile, source.projectName),
       );
+      const etag = await treeEtag(DESK_API_VERSION, body);
+      if (matchesEtag(request.headers.get("if-none-match"), etag)) {
+        // The client's tree is current: send no body.
+        return new Response(null, {
+          status: 304,
+          headers: { etag, "cache-control": "no-store" },
+        });
+      }
+      const response = jsonTextResponse(200, body);
+      response.headers.set("etag", etag);
+      return response;
     }
 
     const entryMatch = ENTRY_PATH_RE.exec(url.pathname);
@@ -601,8 +616,28 @@ function hasBearer(request: Request, token: string): boolean {
   return diff === 0;
 }
 
+/**
+ * Strong entity tag of a `/tree` response: the quoted SHA-256 hex digest of
+ * the API version and the serialized tree. The tree is built from the
+ * compiled graph in a fixed order, so an unchanged graph yields the same tag
+ * across compiles, and any added, removed, renamed, or re-linked entry
+ * changes it.
+ */
+export async function treeEtag(
+  apiVersion: number,
+  body: string,
+): Promise<string> {
+  const digest = await sha256String(`${apiVersion}:${body}`);
+  return `"${digest.slice(digest.indexOf(":") + 1)}"`;
+}
+
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return jsonTextResponse(status, JSON.stringify(body));
+}
+
+/** A JSON response from an already serialized body. */
+function jsonTextResponse(status: number, body: string): Response {
+  return new Response(body, {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",

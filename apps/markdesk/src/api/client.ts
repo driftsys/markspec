@@ -20,6 +20,16 @@ export interface CachedDocument {
   readonly etag?: string;
 }
 
+/**
+ * A product tree with the entity tag the server sent for it. The client sends
+ * `etag` back as `If-None-Match`, so the server answers 304 while the tree is
+ * current.
+ */
+export interface CachedTree {
+  readonly view: ProductTree;
+  readonly etag?: string;
+}
+
 /** The desk API version this client was generated against. */
 export const EXPECTED_API_VERSION = 3;
 
@@ -38,7 +48,11 @@ export class DeskError extends Error {
 
 /** Typed access to the `markspec desk --serve` API. */
 export interface DeskClient {
-  tree(): Promise<ProductTree>;
+  /**
+   * The product tree. With `cached`, the request carries its ETag, and on
+   * 304 the same `cached` object is returned.
+   */
+  tree(cached?: CachedTree): Promise<CachedTree>;
   entry(id: string): Promise<EntryView>;
   entryHtml(id: string): Promise<EntryHtmlView>;
   /**
@@ -102,8 +116,47 @@ export function createDeskClient(
     return outcome.data;
   }
 
+  /**
+   * Run a conditional request: send the cached tag as `If-None-Match`, return
+   * `cached` itself on 304, else the new body with its tag.
+   */
+  async function revalidate<T>(
+    call: (header: { "If-None-Match": string } | undefined) => Promise<
+      Outcome<T>
+    >,
+    cached: { readonly view: T; readonly etag?: string } | undefined,
+  ): Promise<{ view: T; etag?: string }> {
+    let outcome: Outcome<T>;
+    try {
+      outcome = await call(
+        cached?.etag === undefined
+          ? undefined
+          : { "If-None-Match": cached.etag },
+      );
+    } catch (cause) {
+      throw networkError(cause);
+    }
+    if (cached !== undefined && outcome.response.status === 304) {
+      return cached;
+    }
+    // A 304 without a cached view has nothing to return: the server sends
+    // one only to a request that carried If-None-Match, so it is reported as
+    // an error below.
+    if (!outcome.response.ok || outcome.data === undefined) {
+      throw errorFrom(outcome);
+    }
+    return {
+      view: outcome.data,
+      etag: outcome.response.headers.get("ETag") ?? undefined,
+    };
+  }
+
   return {
-    tree: () => run(() => client.GET("/api/v1/tree")),
+    tree: (cached) =>
+      revalidate(
+        (header) => client.GET("/api/v1/tree", { params: { header } }),
+        cached,
+      ),
     entry: (id) =>
       run(() =>
         client.GET("/api/v1/entries/{id}", { params: { path: { id } } })
@@ -112,34 +165,14 @@ export function createDeskClient(
       run(() =>
         client.GET("/api/v1/entries/{id}/html", { params: { path: { id } } })
       ),
-    document: async (path, cached) => {
-      let outcome: Outcome<DocumentView>;
-      try {
-        outcome = await client.GET("/api/v1/documents", {
-          params: {
-            query: { path },
-            header: cached?.etag === undefined
-              ? undefined
-              : { "If-None-Match": cached.etag },
-          },
-        });
-      } catch (cause) {
-        throw networkError(cause);
-      }
-      if (cached !== undefined && outcome.response.status === 304) {
-        return cached;
-      }
-      // A 304 without a cached render has no view to return: the server
-      // sends one only to a request that carried If-None-Match, so it is
-      // reported as an error below.
-      if (!outcome.response.ok || outcome.data === undefined) {
-        throw errorFrom(outcome);
-      }
-      return {
-        view: outcome.data,
-        etag: outcome.response.headers.get("ETag") ?? undefined,
-      };
-    },
+    document: (path, cached) =>
+      revalidate(
+        (header) =>
+          client.GET("/api/v1/documents", {
+            params: { query: { path }, header },
+          }),
+        cached,
+      ),
     file: (path) =>
       run(() => client.GET("/api/v1/files", { params: { query: { path } } })),
   };

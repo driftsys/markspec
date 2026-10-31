@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { DeskError, type ProductTree } from "../api/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { type CachedTree, DeskError } from "../api/client";
+import { useRefresh } from "../app/refresh";
 import { useOpenProduct } from "../app/useProduct";
 import { useSelection } from "../app/selection";
 import { buildNavigatorModel, type NavigatorModel } from "./model";
@@ -98,28 +99,46 @@ function Row(
   );
 }
 
-/** Loads the open product's tree and shows it in the navigator. */
+/**
+ * Loads the open product's tree and shows it in the navigator.
+ *
+ * The tree is checked with the server on every refresh (window focus, or a
+ * write by MarkDesk): the request carries the ETag of the tree held, and on
+ * 304 the held tree stays as it is, so expanded rows and the selection are
+ * untouched. A changed tree replaces the model in place; the `Navigator`
+ * is not remounted, so rows that still exist keep their expansion. A failed
+ * check after a successful load keeps the tree shown.
+ */
 export function NavigatorPane() {
   const { client } = useOpenProduct();
   const { selected, select } = useSelection();
-  const [tree, setTree] = useState<ProductTree>();
+  const { revision } = useRefresh();
+  const [tree, setTree] = useState<CachedTree>();
   const [failed, setFailed] = useState(false);
+  // The tree the next check sends its ETag for. A ref, so a refresh does
+  // not depend on the state and the check effect runs once per revision.
+  const held = useRef<CachedTree>(undefined);
   useEffect(() => {
-    let current = true;
+    held.current = undefined;
     setTree(undefined);
     setFailed(false);
-    client.tree().then((loaded) => {
-      if (current) setTree(loaded);
+  }, [client]);
+  useEffect(() => {
+    let current = true;
+    client.tree(held.current).then((loaded) => {
+      if (!current || loaded === held.current) return;
+      held.current = loaded;
+      setTree(loaded);
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (error instanceof DeskError && error.code === "network") return;
-      if (current) setFailed(true);
+      if (current && held.current === undefined) setFailed(true);
     });
     return () => {
       current = false;
     };
-  }, [client]);
-  const model = useMemo(() => tree && buildNavigatorModel(tree), [tree]);
+  }, [client, revision]);
+  const model = useMemo(() => tree && buildNavigatorModel(tree.view), [tree]);
   if (failed) return <p role="alert">MarkDesk could not load this product.</p>;
   if (!model) return <p>…</p>;
   return <Navigator model={model} selected={selected} onSelect={select} />;

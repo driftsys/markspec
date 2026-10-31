@@ -198,7 +198,7 @@ export function useProduct(
       let name = basename(opened.root);
       let treeRead = false;
       try {
-        name = (await raw.tree()).project.name ?? name;
+        name = (await raw.tree()).view.project.name ?? name;
         treeRead = true;
       } catch {
         // Keep the folder name, and do not store it over a known name.
