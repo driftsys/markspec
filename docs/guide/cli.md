@@ -25,8 +25,13 @@ stderr).
 ### project.yaml
 
 Every MarkSpec project requires a `project.yaml` in the project root. MarkSpec
-discovers it by walking up from the current directory. `project.yaml` follows
-the org project-manifest contract — the closed schema published at
+discovers it by walking up from the current directory. `check`, `fmt`, and
+`lint` also accept a `.markspec.yaml` as the project root when no `project.yaml`
+is found, and they resolve the project of each file argument from that file's
+directory; see
+[Which project a file belongs to](#which-project-a-file-belongs-to).
+`project.yaml` follows the org project-manifest contract — the closed schema
+published at
 [`https://driftsys.github.io/schemas/project/v1.json`](https://driftsys.github.io/schemas/project/v1.json)
 — shared with other DriftSys tooling, not a MarkSpec-only format.
 
@@ -272,10 +277,10 @@ markspec fmt --check [...files]
 `fmt` discovers every `.md` file under the project root (gitignore +
 `.markspec.yaml` `exclude:` honored) and prints a one-line scope header to
 stderr (`formatting N file(s) under <root>`), suppressed by `-q`. Bare
-invocation requires a discoverable `project.yaml`; outside a project it errors
-rather than silently scanning the cwd. `fmt`'s scope is markdown-only — the
-formatter never rewrites source files, unlike `check`/`lint` which also cover
-source doc comments.
+invocation requires a project root above the current directory (a `project.yaml`
+or a `.markspec.yaml`); outside a project it errors rather than silently
+scanning the cwd. `fmt`'s scope is markdown-only — the formatter never rewrites
+source files, unlike `check`/`lint` which also cover source doc comments.
 
 **Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
 formats the entire Markdown document — headings, lists, tables, and prose —
@@ -304,9 +309,10 @@ dash bullet lists, and the file's own line-ending convention preserved.
 stamps `Id:` as usual. To get an `Id:`, omit the line; don't leave it blank.
 
 Explicit arguments scope exactly to what's named; a directory argument expands
-recursively with `.gitignore` (and the built-in hidden-directory skip) applied —
-`.markspec.yaml` `exclude:` patterns are honored only for bare whole-project
-invocation, not for explicitly-named directories:
+to the files a bare invocation of its project finds below that directory, so
+`.gitignore`, the built-in hidden-directory skip, and the `.markspec.yaml`
+`exclude:` patterns all apply (see
+[Which project a file belongs to](#which-project-a-file-belongs-to)):
 
 ```sh
 # a subtree
@@ -316,10 +322,10 @@ markspec fmt docs/
 markspec fmt docs/*.md
 ```
 
-**Project-aware trace canonicalisation (requires `project.yaml`):**
+**Project-aware trace canonicalisation (requires a project root):**
 
-When `markspec fmt` runs inside a project, it also canonicalises and heals trace
-reference values:
+When a file that `markspec fmt` formats belongs to a project, it also
+canonicalises and heals trace reference values:
 
 - **Canonicalise** — any ULID written directly in a trace attribute
   (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.) is rewritten to the
@@ -333,9 +339,9 @@ reference values:
   [Upstream entries resolve in the graph](#upstream-entries-resolve-in-the-graph)
   above).
 
-Neither action is performed when no `project.yaml` is discoverable (file-local
-invocation). `fmt` reads the edge ledger but never writes `markspec.lock`; the
-ledger is owned by `markspec lock`.
+Neither action is performed for a file that has no `project.yaml` or
+`.markspec.yaml` above it. `fmt` reads the edge ledger but never writes
+`markspec.lock`; the ledger is owned by `markspec lock`.
 
 #### check
 
@@ -366,9 +372,9 @@ markspec check [...files]
 discovers every relevant file (markdown + source doc comments) under the project
 root (gitignore + `.markspec.yaml` `exclude:` honored) and prints a one-line
 scope header to stderr (`checking N file(s) under <root>`), suppressed by `-q`
-and in `--format json` mode. Bare invocation requires a discoverable
-`project.yaml`; outside a project it errors rather than silently scanning the
-cwd.
+and in `--format json` mode. Bare invocation requires a project root above the
+current directory (a `project.yaml` or a `.markspec.yaml`); outside a project it
+errors rather than silently scanning the cwd.
 
 **The composite gate is project-wide only.** Bare `markspec check` runs every
 gate below over the whole corpus in one pass, merging findings into a single
@@ -392,6 +398,51 @@ formatted form) to be meaningful, so they don't fire when you pass explicit file
 arguments. This is the fast, editor/per-file-hook path; the canonical agent
 write loop is `insert → fmt → check` per file, then a project-wide `check`
 before commit/CI catches everything else.
+
+##### Which project a file belongs to
+
+`check`, `fmt`, and `lint` resolve the project of a file the same way as the LSP
+server and the MCP server, so the same file is processed with the same project,
+profile, and `markspec.lock` on every surface.
+
+- **Project root order.** From a directory, walk up to the nearest
+  `project.yaml`, else to the nearest `.markspec.yaml`.
+- **Configs that an enclosing project hides.** When that config file lies in a
+  folder that an enclosing project hides — a folder listed in the enclosing
+  project's `.markspec.yaml` `exclude:`, a gitignored folder, or a hidden folder
+  (name starting with `.`) — it is not a project root, as in the LSP. The file
+  then belongs to the enclosing project.
+- **Explicit arguments.** The project of each file is resolved from the file's
+  own directory, not from the current directory. Running
+  `markspec check docs/req.md` from the project root, from `docs/`, or from
+  outside the project with an absolute path gives the same result. A directory
+  argument expands to the files a bare invocation of its project would find
+  below that directory (so `.markspec.yaml` `exclude:` applies, and
+  `markspec check .` at a project root checks the same files as a bare
+  `markspec check`).
+- **Several projects in one invocation.** Files are grouped by project. Each
+  group is processed with its own profile, its own `.markspec.yaml` tool config,
+  and its own `markspec.lock`: `fmt` reads it for reference healing, `lint`
+  reads it to load locked upstream entries, and a bare `check` reads it for the
+  project-wide gates. Validation of a group sees only that group's files, so a
+  display ID declared once in each of two projects is not a duplicate. The
+  output of all groups is printed together, as one stream (one `--format json`
+  document; `lint` reports one score over all groups), and the exit code is the
+  worst across the groups. Diagnostics are reported group by group, in the order
+  the first file of each project appeared in the arguments.
+- **Files with no project.** Files with neither config file above them form one
+  group that is processed without a profile. For example, `lint <file>` on a
+  file outside any project lints it without a profile, instead of exiting with
+  `no project.yaml found`.
+- **Bare invocation.** The project root is resolved from the current directory.
+  A project that has a `.markspec.yaml` and no `project.yaml` is a valid root.
+  When neither file is found, the command exits 1 with
+  `error: no project root found` and a hint that a `project.yaml` or
+  `.markspec.yaml` marks a project root. Projects nested below the root (found
+  as the LSP finds them) are processed as their own groups, each with its own
+  profile, `exclude:` list, and project-wide gates. The scope header then names
+  the number of projects: `checking N file(s) under <root> (K projects)`. With
+  one project, the header is unchanged: `checking N file(s) under <root>`.
 
 **Exit codes:** `0` clean, `1` any error, `2` warnings only (no errors).
 `--strict` promotes every warning (including advisory prose findings) to an
@@ -1325,14 +1376,16 @@ The server validates each document against the project that owns it:
 - **Primary project.** From the editor's workspace root, the server walks up to
   the nearest `project.yaml`. If there is none, it walks up to the nearest
   `.markspec.yaml`. If there is neither, the workspace root itself is the
-  primary project and the bundled default profile applies. This is the order the
-  MCP server uses, so `project.yaml`, `markspec.lock`, and the upstream cache
-  are read from the same folder in both surfaces. A workspace opened on a
-  subfolder such as `docs/` therefore still loads the profile declared above it.
-  The CLI does not use this order yet: it walks up from the current directory,
-  not from the file, and finds only `project.yaml`. In a project that has a
-  `.markspec.yaml` and no `project.yaml`, the CLI loads no profile and can
-  report diagnostics, such as MSL-R010, that the editor does not.
+  primary project and the bundled default profile applies. The MCP server and
+  the CLI use the same order, so `project.yaml`, `markspec.lock`, and the
+  upstream cache are read from the same folder in every surface. A workspace
+  opened on a subfolder such as `docs/` therefore still loads the profile
+  declared above it. In the CLI, `check`, `fmt`, and `lint` resolve the project
+  of each file argument from the file's own directory, and a bare invocation
+  resolves it from the current directory (see
+  [Which project a file belongs to](#which-project-a-file-belongs-to)). The CLI,
+  the LSP server, and the MCP server therefore load the same profile for the
+  same file.
 - **Nested projects.** Every directory below the primary project that a document
   walk-up would resolve to — a directory with a `project.yaml`, or a directory
   with a `.markspec.yaml` and no `project.yaml` between it and the primary

@@ -164,9 +164,13 @@ Unchanged from ADR-008 §3 and ADR-010 §1:
 - `markspec profile add <spec>` vendors a resolved profile into `profiles/<id>/`
   and pins the version in `.markspec.yaml` (ADR-008 §2 "Vendoring"). Vendored
   profiles are committed.
-- Discovery walks up from the working directory to find `.markspec.yaml`
-  alongside `project.yaml` (core-data-model is silent on discovery; this matches
-  the shipped `core/config` + `core/profile` loader behaviour and is unchanged).
+- Discovery finds `.markspec.yaml` alongside `project.yaml`. `markspec compile`
+  and the other project commands walk up from the working directory.
+  `markspec check`, `fmt`, and `lint` walk up from the directory of each file
+  argument, or from the working directory when invoked bare, to the nearest
+  `project.yaml`, else the nearest `.markspec.yaml` (#845). Core-data-model is
+  silent on discovery; this matches the shipped `core/config` + `core/profile`
+  loader behaviour.
 
 **Core-only mode** (no profile, `default-profile: false` and empty `profiles:`)
 remains valid (ADR-009 §10): the 15-type core taxonomy and core hygiene

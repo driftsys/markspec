@@ -1,9 +1,7 @@
 /**
  * @module core/discovery/projects
  *
- * Project-root discovery shared by the LSP and the MCP server. The CLI
- * does not use it yet: it finds only `project.yaml`, walking up from the
- * current directory (#845).
+ * Project-root discovery shared by the CLI, the LSP and the MCP server.
  *
  * A "project root" is a directory that holds a `project.yaml` or a
  * `.markspec.yaml`. {@linkcode discoverProjectRoots} finds the primary
@@ -50,9 +48,12 @@ export function nearestRoot(
 
 /**
  * Walk up from `startDir` to the nearest `project.yaml`, else the nearest
- * `.markspec.yaml`. Returns `undefined` when neither exists. The LSP and
- * the MCP server use this order. The CLI does not yet: it finds only
- * `project.yaml`, walking up from the current directory (#845).
+ * `.markspec.yaml`. Returns `undefined` when neither exists.
+ *
+ * The LSP server and the MCP server use this order to find the root
+ * above their workspace. The CLI (`check`, `fmt`, `lint`) uses
+ * {@linkcode createProjectRootResolver}, which starts from this nearest
+ * config root but skips a config that an enclosing project hides (#845).
  */
 export async function resolveConfigRoot(
   startDir: string,
@@ -176,4 +177,91 @@ export async function discoverProjectRoots(
   );
   const roots = configRoot !== undefined ? [primaryRoot, ...nested] : nested;
   return { primaryRoot, roots: roots.sort() };
+}
+
+/** Answers which project root owns a folder; see
+ * {@linkcode createProjectRootResolver}. */
+export interface ProjectRootResolver {
+  /**
+   * The project root that owns files in `dir`, or `undefined` when no
+   * `project.yaml` or `.markspec.yaml` is at or above `dir`.
+   */
+  ownerOf(dir: string): Promise<string | undefined>;
+  /**
+   * The nested project roots below `root`
+   * ({@linkcode findNestedProjectRoots} with the `.markspec.yaml`
+   * `exclude:` list of `root`). Cached per root.
+   */
+  nestedRoots(root: string): Promise<string[]>;
+}
+
+/**
+ * Create a resolver that gives, for any folder, the project root the LSP
+ * would give a document in that folder when the editor workspace is the
+ * outermost project root above it (#845).
+ *
+ * The nearest config root {@linkcode resolveConfigRoot} finds is not
+ * always the owner: when an enclosing project hides that config (an
+ * `exclude:` entry, a `.gitignore` entry, a hidden folder), the LSP and
+ * the MCP server never treat it as a root, and its files belong to the
+ * enclosing project. So the resolver walks up from the nearest config
+ * root to the outermost enclosing one, finds the nested roots below that
+ * outermost root the way the LSP does, and returns the deepest of them
+ * that contains `dir`.
+ *
+ * The walk up stops before a filesystem root and before
+ * `options.homeDir`: {@linkcode discoverProjectRoots} never scans down
+ * from those folders, so a stray config there must not claim every
+ * project below it. Results are cached per folder.
+ */
+export function createProjectRootResolver(
+  io: DiscoveryIO,
+  options: ProjectDiscoveryOptions = {},
+): ProjectRootResolver {
+  const owners = new Map<string, Promise<string | undefined>>();
+  const nested = new Map<string, Promise<string[]>>();
+
+  function nestedRoots(root: string): Promise<string[]> {
+    let found = nested.get(root);
+    if (found === undefined) {
+      found = loadToolConfig(root, io.readFile).then(({ config }) =>
+        findNestedProjectRoots(root, io, config.exclude)
+      );
+      nested.set(root, found);
+    }
+    return found;
+  }
+
+  async function resolveOwner(dir: string): Promise<string | undefined> {
+    const nearest = await resolveConfigRoot(dir, io.readFile);
+    if (nearest === undefined) return undefined;
+    let outermost = nearest;
+    while (true) {
+      const parent = dirname(outermost);
+      if (parent === outermost) break;
+      const above = await resolveConfigRoot(parent, io.readFile);
+      if (
+        above === undefined || dirname(above) === above ||
+        above === options.homeDir
+      ) {
+        break;
+      }
+      outermost = above;
+    }
+    if (outermost === nearest) return nearest;
+    const roots = [outermost, ...await nestedRoots(outermost)];
+    return nearestRoot(dir, roots) ?? outermost;
+  }
+
+  return {
+    ownerOf(dir: string): Promise<string | undefined> {
+      let owner = owners.get(dir);
+      if (owner === undefined) {
+        owner = resolveOwner(dir);
+        owners.set(dir, owner);
+      }
+      return owner;
+    },
+    nestedRoots,
+  };
 }

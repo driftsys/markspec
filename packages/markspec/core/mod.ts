@@ -474,13 +474,17 @@ export type {
   GitignoreRule,
 } from "./discovery/mod.ts";
 export {
+  createProjectRootResolver,
   discoverProjectRoots,
   findNestedProjectRoots,
   isWithin,
   nearestRoot,
   resolveConfigRoot,
 } from "./discovery/projects.ts";
-export type { ProjectDiscoveryOptions } from "./discovery/projects.ts";
+export type {
+  ProjectDiscoveryOptions,
+  ProjectRootResolver,
+} from "./discovery/projects.ts";
 
 // ── Project-entry collection (discover + parse → Entry[]) ────────────────
 export { collectProjectEntries } from "./collect/mod.ts";

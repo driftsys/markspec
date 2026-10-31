@@ -90,6 +90,8 @@ A shared `resolveScope(args, opts)` helper in `cli/helpers.ts` gives `check`,
   `core/discovery`'s `.gitignore` and hidden-directory skip, but **not**
   `project.yaml` `exclude:` — `exclude:` governs only the whole- project default
   scope, not explicitly-named directories. Scope is exactly what was named.
+  (Changed for directory arguments by the
+  [#845 amendment](#amendment-2026-10-31-845) below.)
 - A one-line scope header on **stderr** (`checking N file(s) under <root>`),
   suppressed by `-q` and in `--format json` mode.
 - `lint`'s previously-required `<paths...>` became optional `[...paths]`; the
@@ -210,6 +212,9 @@ affecting every command (and `project.yaml`'s required
 `name`/`version`/`exclude` fields mean such commands would fail later anyway),
 not scoped to this work.
 
+> Changed by the [Amendment (2026-10-31, #845)](#amendment-2026-10-31-845) at
+> the end of this record.
+
 ## Consequences
 
 - `markspec check`, `markspec lint`, and `markspec fmt` invoked bare now operate
@@ -311,3 +316,35 @@ not scoped to this work.
   gates), `cli/commands/fmt.ts`, `cli/commands/lint.ts`, `cli/commands/lock.ts`
   (`collectEntries`), `lsp/project_context.ts` and `lsp/project_registry.ts`
   (per-project discovery), `lsp/context.ts` (`SOURCE_EXTENSIONS` import).
+
+## Amendment (2026-10-31, #845)
+
+This amendment changes the known limitation and its #666 resolution above. The
+decision text above is kept as it was written.
+
+- Bare invocation of `check`, `lint`, and `fmt` resolves the project root from
+  the current directory with core `createProjectRootResolver`: the nearest
+  `project.yaml`, else the nearest `.markspec.yaml`, except that a config hidden
+  by an enclosing project is not a root (see below). A `.markspec.yaml`-only
+  project is therefore a valid root for the whole-project run. When neither file
+  is found, the error says that a `project.yaml` or `.markspec.yaml` marks a
+  project root.
+- Explicit file arguments resolve their project per file, from each file's own
+  directory, with the same resolver. Files are grouped by project root, and each
+  group is processed with its own profile and tool config.
+- A config file in a folder that an enclosing project hides (its
+  `.markspec.yaml` `exclude:`, a `.gitignore` entry, or a hidden folder) is not
+  a project root, as in the LSP; the enclosing project owns the files there
+  (core `createProjectRootResolver`).
+- A bare invocation processes each project nested below the root as its own
+  group, with its own profile, `exclude:` list, and project-wide gates. The
+  lockfile drift gate of a root still compares against every file the walk of
+  that root finds, including the files of nested projects, because that is the
+  set `markspec lock` pins.
+- A directory argument expands to the files the bare walk of its project finds
+  below that directory, so `exclude:` applies to it.
+- For any folder, this resolver gives the root the LSP server and the MCP server
+  give when their workspace is the outermost project root above that folder. The
+  other commands (`compile`, `lock`, `sync`, `show`, `export`, and so on) are
+  unchanged: they still walk up from the current directory to the nearest
+  `project.yaml`.
