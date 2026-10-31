@@ -30,7 +30,12 @@ import {
   replaceEntryBody,
 } from "../core/mod.ts";
 
-/** Largest accepted proposed body, in characters. */
+/**
+ * Largest accepted proposed body, in UTF-16 code units, as JavaScript
+ * `String.length` counts them. A character outside the Basic Multilingual
+ * Plane (for example an emoji) counts as two. Any other layer that enforces
+ * the same limit counts the same unit (Rust: `encode_utf16().count()`).
+ */
 export const MAX_PROPOSAL_CHARS = 20_000;
 
 /** Why a proposal was refused. */
@@ -79,7 +84,7 @@ function fromEditRefusal(refusal: EntryBodyRefusal): ProposalRefusal {
  * that only shares a prefix (`SYS_BRK_00011`) does not match.
  *
  * @internal Exported for tests. No known input makes the formatter emit
- *   `MSL-F900`, so this helper is the only tested part of that refusal.
+ *   `MSL-F900`; tests reach that refusal through a stand-in formatter.
  */
 export function isTargetF900(
   diagnostics: readonly Diagnostic[],
@@ -132,6 +137,20 @@ async function hasUnparsedTrailer(
 }
 
 /**
+ * The whole-document formatter the pipeline runs: {@linkcode format}, or a
+ * stand-in a test passes to reach the defensive refusals.
+ *
+ * @internal Exported for tests.
+ */
+export type DocumentFormatter = (
+  text: string,
+  options: {
+    readonly file: string;
+    readonly formatMarkdownProse: ProseFormatter;
+  },
+) => { readonly output: string; readonly diagnostics: readonly Diagnostic[] };
+
+/**
  * Format `text` with the `markspec fmt` code path. Returns `undefined`
  * when the formatter throws, and the diagnostics otherwise. `MSL-F012`
  * (prose pass kept a segment as written) is not a failure.
@@ -140,13 +159,22 @@ function formatText(
   text: string,
   file: string,
   formatProse: ProseFormatter,
+  formatDocument: DocumentFormatter,
 ): { output: string; diagnostics: readonly Diagnostic[] } | undefined {
   try {
-    const result = format(text, { file, formatMarkdownProse: formatProse });
+    const result = formatDocument(text, {
+      file,
+      formatMarkdownProse: formatProse,
+    });
     return { output: result.output, diagnostics: result.diagnostics };
   } catch {
     return undefined;
   }
+}
+
+/** The words of `body`, split on whitespace, joined by one space. */
+function words(body: string): string {
+  return body.split(/\s+/).filter((w) => w !== "").join(" ");
 }
 
 /** A checked proposal: the formatted bodies plus the file text it produces. */
@@ -172,9 +200,16 @@ interface CheckedProposal {
  * preview shows `currentBody`; apply does not need it), so an apply runs
  * the whole-document formatter once.
  *
- * The `format-failed` branches are defensive: `format` catches a prose
- * formatter that throws (MSL-F012), and no known input makes it emit
- * `MSL-F900`. Only {@linkcode isTargetF900} has a test of its own.
+ * `currentBody` is the target body read from the formatted current text
+ * only when it holds the same words as the raw body, which is the body
+ * apply replaces. Otherwise (the formatter moved lines out of the body,
+ * as it can do with a lazy continuation line) `currentBody` is the raw
+ * body, so the author sees every line that Accept removes.
+ *
+ * The `format-failed` branches and the final identity check are
+ * defensive: `format` catches a prose formatter that throws (MSL-F012),
+ * no known input makes it emit `MSL-F900`, and no known formatter output
+ * fails the second splice. Tests reach them through `formatDocument`.
  */
 async function checkProposal(
   text: string,
@@ -183,6 +218,7 @@ async function checkProposal(
   proposed: string,
   formatProse: ProseFormatter,
   withCurrent: boolean,
+  formatDocument: DocumentFormatter,
 ): Promise<ProposalOutcome<CheckedProposal>> {
   if (proposed.length > MAX_PROPOSAL_CHARS) {
     return refuse("proposal-too-large");
@@ -197,7 +233,12 @@ async function checkProposal(
   const edit = await replaceEntryBody(text, file, displayId, proposed);
   if (!edit.ok) return refuse(fromEditRefusal(edit.refusal));
 
-  const formattedCandidate = formatText(edit.text, file, formatProse);
+  const formattedCandidate = formatText(
+    edit.text,
+    file,
+    formatProse,
+    formatDocument,
+  );
   if (
     formattedCandidate === undefined ||
     isTargetF900(formattedCandidate.diagnostics, displayId)
@@ -209,10 +250,22 @@ async function checkProposal(
 
   let currentBody: string | undefined;
   if (withCurrent) {
-    const formattedCurrent = formatText(text, file, formatProse);
+    const formattedCurrent = formatText(
+      text,
+      file,
+      formatProse,
+      formatDocument,
+    );
     if (formattedCurrent === undefined) return refuse("format-failed");
-    currentBody = await readEntryBody(formattedCurrent.output, file, displayId);
-    if (currentBody === undefined) return refuse("format-failed");
+    const formattedBody = await readEntryBody(
+      formattedCurrent.output,
+      file,
+      displayId,
+    );
+    if (formattedBody === undefined) return refuse("format-failed");
+    currentBody = words(formattedBody) === words(current)
+      ? formattedBody
+      : current;
   }
 
   const spliced = await replaceEntryBody(text, file, displayId, body);
@@ -229,6 +282,7 @@ async function checkProposal(
  * @param displayId - Display ID of the target entry.
  * @param proposed - Proposed body, as the assistant returned it.
  * @param formatProse - The Markdown prose formatter (`loadMarkdownFormatter()`).
+ * @param formatDocument - Test seam (internal); defaults to {@linkcode format}.
  */
 export async function previewBody(
   text: string,
@@ -236,6 +290,7 @@ export async function previewBody(
   displayId: string,
   proposed: string,
   formatProse: ProseFormatter,
+  formatDocument: DocumentFormatter = format,
 ): Promise<ProposalOutcome<BodyPreview>> {
   const checked = await checkProposal(
     text,
@@ -244,6 +299,7 @@ export async function previewBody(
     proposed,
     formatProse,
     true,
+    formatDocument,
   );
   if (!checked.ok) return checked;
   const { body, currentBody } = checked.value;
@@ -257,7 +313,8 @@ export async function previewBody(
  * of {@linkcode previewBody} (it skips only formatting the current body,
  * which the preview shows and a write does not need), so a body from a
  * preview splices unchanged (formatting is idempotent). Writes nothing;
- * the caller writes the returned text.
+ * the caller writes the returned text. `formatDocument` is the same test
+ * seam as in {@linkcode previewBody}.
  */
 export async function applyBody(
   text: string,
@@ -265,6 +322,7 @@ export async function applyBody(
   displayId: string,
   proposed: string,
   formatProse: ProseFormatter,
+  formatDocument: DocumentFormatter = format,
 ): Promise<ProposalOutcome<string>> {
   const checked = await checkProposal(
     text,
@@ -273,6 +331,7 @@ export async function applyBody(
     proposed,
     formatProse,
     false,
+    formatDocument,
   );
   if (!checked.ok) return checked;
   return { ok: true, value: checked.value.text };

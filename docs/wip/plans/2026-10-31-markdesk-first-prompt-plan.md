@@ -154,7 +154,8 @@ Stated once here; tasks use them without restating the reason.
     added part. Presentation: "Current" block with removed words in `<del>`,
     "Proposed" block with added words in `<ins>`, `white-space: pre-wrap`.
 20. **Fence removal and empty check in the UI;** the 20 000-character limit in
-    the shell (reply) and again in the server (request body).
+    the shell (reply) and again in the server (request body). Both count UTF-16
+    code units (JavaScript `String.length`, Rust `encode_utf16().count()`).
 21. **Submit reads the ETag first, then the entry:** `client.document(path)`
     then `client.entry(id)`. A change between the two leaves the tag stale, so
     preview answers 412; no edit is lost.
@@ -389,7 +390,9 @@ module not found.
       Before the splice, an `MSL-P020`/`P021`/`P022` naming the target in
       `parseFile(text)` → `proposal-changes-entries` (a malformed trailer line
       makes the parser read the `Id:` and trailer lines as body, so a splice
-      would delete them). Apply does not format the current text.
+      would delete them). Apply does not format the current text. The preview
+      uses the formatted current body only when it holds the same words as the
+      raw body; otherwise it shows the raw body, which is what apply replaces.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

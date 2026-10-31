@@ -10,6 +10,7 @@ import {
 } from "../core/mod.ts";
 import {
   applyBody,
+  type DocumentFormatter,
   isTargetF900,
   MAX_PROPOSAL_CHARS,
   previewBody,
@@ -354,13 +355,125 @@ for (
   });
 }
 
-Deno.test("previewBody: a bad trailer on another entry does not refuse", async () => {
+Deno.test("previewBody and applyBody: a bad trailer on another entry does not refuse", async () => {
   const text = SYSTEM.replace(
     "      Verifies: SYS_BRK_0001",
     "      Verifies: SYS_BRK_0001\n      Labels:",
   );
   assert(text !== SYSTEM);
+  assert(
+    (await previewBody(text, FILE, "SYS_BRK_0001", "New body.", prose)).ok,
+  );
   const r = await applyBody(text, FILE, "SYS_BRK_0001", "New body.", prose);
   assert(r.ok);
   assert(r.value.includes("      Verifies: SYS_BRK_0001\n      Labels:"));
+});
+
+Deno.test("previewBody: shows every current line apply replaces", async () => {
+  // A lazy continuation line: the parser reads `lazy.` as body, but the
+  // whole-document formatter moves it out of the entry. The preview must
+  // still show it, because apply replaces it.
+  const text = "- [SYS_BRK_0001] Brake\n\n  Old body\nlazy.\n\n" +
+    "      Id: 01JBRK00000000000000000003\n      Satisfies: STK_BRK_0001\n";
+  assertEquals(
+    await readEntryBody(text, FILE, "SYS_BRK_0001"),
+    "Old body\nlazy.",
+  );
+  const preview = await previewBody(text, FILE, "SYS_BRK_0001", "New.", prose);
+  assert(preview.ok);
+  assertEquals(preview.value.currentBody, "Old body\nlazy.");
+  const applied = await applyBody(text, FILE, "SYS_BRK_0001", "New.", prose);
+  assert(applied.ok);
+  assert(!applied.value.includes("lazy."));
+});
+
+Deno.test("previewBody: the limit counts UTF-16 code units", async () => {
+  // U+1F600 is one character but two UTF-16 code units.
+  const emoji = "\u{1F600}";
+  const over = emoji.repeat(MAX_PROPOSAL_CHARS / 2 + 1);
+  assertEquals(
+    await previewBody(SYSTEM, FILE, "SYS_BRK_0001", over, prose),
+    { ok: false, refusal: "proposal-too-large" },
+  );
+  const at = emoji.repeat(MAX_PROPOSAL_CHARS / 2);
+  assertEquals(at.length, MAX_PROPOSAL_CHARS);
+  assert((await previewBody(SYSTEM, FILE, "SYS_BRK_0001", at, prose)).ok);
+});
+
+/** Assert that previewBody and applyBody both refuse with `refusal`. */
+async function assertBothRefuse(
+  formatDocument: DocumentFormatter,
+  refusal: ProposalRefusal,
+): Promise<void> {
+  const expected = { ok: false, refusal } as const;
+  assertEquals(
+    await previewBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      "New body.",
+      prose,
+      formatDocument,
+    ),
+    expected,
+  );
+  assertEquals(
+    await applyBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      "New body.",
+      prose,
+      formatDocument,
+    ),
+    expected,
+  );
+}
+
+Deno.test("previewBody and applyBody: refuse when the formatter throws", async () => {
+  await assertBothRefuse(() => {
+    throw new Error("boom");
+  }, "format-failed");
+});
+
+Deno.test("previewBody and applyBody: refuse a target MSL-F900", async () => {
+  await assertBothRefuse(
+    (text, options) => {
+      const result = format(text, options);
+      return {
+        output: result.output,
+        diagnostics: [
+          ...result.diagnostics,
+          diag("MSL-F900", "SYS_BRK_0001: body kept as written"),
+        ],
+      };
+    },
+    "format-failed",
+  );
+});
+
+Deno.test("previewBody and applyBody: refuse when the formatted body loses the entry", async () => {
+  await assertBothRefuse(
+    (text) => ({
+      output: text.replace("- [SYS_BRK_0001]", "- "),
+      diagnostics: [],
+    }),
+    "format-failed",
+  );
+});
+
+Deno.test("previewBody and applyBody: refuse a formatted body that fails the second splice", async () => {
+  // The stand-in output puts an indented trailer-like line in the target
+  // body. Read back from that output it is body, but spliced into the
+  // original text it changes the entry's trailer.
+  await assertBothRefuse(
+    (text) => ({
+      output: text.replace(
+        "  New body.\n",
+        "  New body.\n\n      Satisfies: STK_BRK_0002\n",
+      ),
+      diagnostics: [],
+    }),
+    "proposal-changes-entries",
+  );
 });
