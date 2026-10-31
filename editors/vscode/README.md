@@ -77,7 +77,8 @@ themed admonitions for light, dark, and high-contrast color themes.
 GitHub Copilot and other MCP-aware assistants can query your requirements and
 traceability graph directly instead of grepping Markdown. An optional inline
 completion provider feeds workspace entry context to the model for
-requirement-aware suggestions.
+requirement-aware suggestions. The server covers every MarkSpec project under
+the first workspace folder.
 
 ## Requirements
 

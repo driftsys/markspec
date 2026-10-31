@@ -44,6 +44,7 @@ import {
   format,
   formatEntryOrigin,
   isLineFenced,
+  isWithin,
   loadMarkdownFormatter,
   makeDisplayId,
   targetsForRelation,
@@ -51,7 +52,7 @@ import {
 } from "../core/mod.ts";
 import { parseUxRef } from "../core/uxil/mod.ts";
 import { ProjectContext, type ProjectContextHost } from "./project_context.ts";
-import { isWithin, ProjectRegistry } from "./project_registry.ts";
+import { ProjectRegistry } from "./project_registry.ts";
 import { buildCodeLenses } from "./code_lens.ts";
 import { buildDocumentLinks } from "./document_links.ts";
 import {

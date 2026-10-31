@@ -212,7 +212,10 @@ to see fresh data — this guarantees the cache picks up disk changes.
 Do NOT call between back-to-back reads — the cache is already coherent
 within a session. Unnecessary calls slow down subsequent tool calls.
 
-Returns a one-line confirmation with entry and link counts.
+Also picks up projects added or removed since startup. Returns a one-line
+confirmation with entry and link counts, one per project.
+
+Optional 'project' limits the answer to one project label from project_list.
 ```
 
 #### 5.5 `profile_describe` — [packages/markspec/mcp/tools/profile_describe.ts](../../packages/markspec/mcp/tools/profile_describe.ts)

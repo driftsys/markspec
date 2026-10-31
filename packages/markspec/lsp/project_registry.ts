@@ -9,10 +9,12 @@
  *
  * - the primary root, found by walking UP from the editor's workspace
  *   root to the nearest `project.yaml`, else the nearest
- *   `.markspec.yaml`, else the workspace root itself (#694). This is the
- *   order the CLI and the MCP server use, so `markspec.lock`, the
- *   upstream cache and `project.yaml` are read from the same folder in
- *   every surface;
+ *   `.markspec.yaml`, else the workspace root itself (#694). The MCP
+ *   server uses the same order (core `resolveConfigRoot`). The CLI uses
+ *   core `createProjectRootResolver`, which gives the same root for a
+ *   folder as this registry gives with the workspace opened at the
+ *   outermost project root (#845). So `markspec.lock`, the upstream cache
+ *   and `project.yaml` are read from the same folder in all three;
  * - every directory BELOW the primary root that a document walk-up would
  *   resolve to (gitignore-aware discovery of `project.yaml` and
  *   `.markspec.yaml`), so a workspace that is a parent folder of several
@@ -35,13 +37,17 @@
  * a document is never routed against a half-built root set.
  */
 
-import { basename, dirname, isAbsolute, relative, SEPARATOR } from "@std/path";
+import { basename, dirname } from "@std/path";
 import {
-  discoverFiles,
-  discoverMarkspecRoot,
-  discoverProjectRoot,
   type DiscoveryDirEntry,
+  findNestedProjectRoots,
+  isWithin,
+  nearestRoot,
+  resolveConfigRoot,
 } from "../core/mod.ts";
+// The LSP tests and callers historically import these from here.
+export { isWithin, nearestRoot, resolveConfigRoot };
+
 import type { ProjectContext } from "./project_context.ts";
 import { createSerialRunner } from "./util.ts";
 import { isLockfileOnlyChange } from "./watched_files.ts";
@@ -58,44 +64,6 @@ const MARKSPEC_YAML = ".markspec.yaml";
 /** LSP `FileChangeType` values. */
 const FILE_CREATED = 1;
 const FILE_DELETED = 3;
-
-/** `true` when `path` is `root` itself or lies below it. */
-export function isWithin(root: string, path: string): boolean {
-  const rel = relative(root, path);
-  // A child directory may itself start with `..` (e.g. `..cache`), so
-  // compare whole path segments, not a string prefix.
-  return rel === "" ||
-    (rel !== ".." && !rel.startsWith(`..${SEPARATOR}`) && !isAbsolute(rel));
-}
-
-/**
- * Return the deepest root in `roots` that is `dir` itself or an ancestor
- * of `dir`, or `undefined` when none is.
- */
-export function nearestRoot(
-  dir: string,
-  roots: Iterable<string>,
-): string | undefined {
-  let best: string | undefined;
-  for (const root of roots) {
-    if (!isWithin(root, dir)) continue;
-    if (best === undefined || root.length > best.length) best = root;
-  }
-  return best;
-}
-
-/**
- * Walk up from `startDir` to the nearest `project.yaml`, else the nearest
- * `.markspec.yaml`. Returns `undefined` when neither exists. Same order as
- * the CLI's `discoverProjectRoot` fallback and `mcp/project.ts`.
- */
-export async function resolveConfigRoot(
-  startDir: string,
-  readFile: (path: string) => Promise<string | undefined>,
-): Promise<string | undefined> {
-  return await discoverProjectRoot(startDir, readFile) ??
-    await discoverMarkspecRoot(startDir, readFile);
-}
 
 /** I/O and callbacks the registry needs from the server. */
 export interface ProjectRegistryHost {
@@ -569,27 +537,18 @@ export class ProjectRegistry {
    * `.markspec.yaml` is resolved with {@linkcode resolveConfigRoot} from
    * its own directory, so a `.markspec.yaml` below a `project.yaml` is not
    * a root of its own — the same answer the CLI gives for a file there.
+   * A found root is also dropped when the `exclude:` list of another found
+   * root between `ctx.root` and it covers it (patterns relative to that
+   * intermediate project); see {@linkcode findNestedProjectRoots}.
    */
   private async findNestedRoots(ctx: ProjectContext): Promise<string[]> {
-    const io = {
-      readDir: (p: string) => this.host.readDir(p),
-      readFile: this.host.readFile,
-    };
-    const out = new Set<string>();
-    for await (
-      const path of discoverFiles(ctx.root, io, {
-        extensions: new Set([".yaml"]),
-        exclude: ctx.toolConfig.exclude,
-      })
-    ) {
-      if (!CONFIG_BASENAMES.has(basename(path))) continue;
-      const dir = dirname(path);
-      if (dir === ctx.root) continue;
-      const root = await resolveConfigRoot(dir, this.host.readFile);
-      if (root !== undefined && root !== ctx.root && isWithin(ctx.root, root)) {
-        out.add(root);
-      }
-    }
-    return [...out];
+    return await findNestedProjectRoots(
+      ctx.root,
+      {
+        readDir: (p: string) => this.host.readDir(p),
+        readFile: this.host.readFile,
+      },
+      ctx.toolConfig.exclude,
+    );
   }
 }

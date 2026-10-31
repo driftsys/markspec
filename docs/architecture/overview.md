@@ -226,7 +226,8 @@ external sync, and agent integration — are their own line of decisions.
 - **MCP agent integration** ([ADR-023](./adr-023-mcp-trigger-language.md),
   [ADR-028](./adr-028-mcp-project-discovery.md)) — the MCP server's agent-facing
   trigger language and soft project-detection gate, plus how `markspec mcp`
-  resolves its project root from an ordered candidate list.
+  resolves its start folder from an ordered candidate list and serves every
+  project it finds at or below that folder.
 - **MarkDesk** ([ADR-035](./adr-035-markdesk.md)) — the desktop authoring app
   for non-engineer authors: a React UI in a thin Tauri shell over a
   `markspec desk --serve` loopback API that reuses the core unchanged, with

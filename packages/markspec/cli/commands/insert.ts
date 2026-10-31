@@ -35,7 +35,7 @@ export const insertCmd = new Command()
       }
       // Delivered corpus/docs files are read-only (ADR-030) — never append to
       // a profile package's file (#700).
-      assertNotDeliveredTarget([filePath], chain);
+      assertNotDeliveredTarget([filePath], [chain]);
       const pattern = resolveTypePattern(typeName, chain, "insert");
       const displayId = nextDisplayId(pattern, result.entries.values());
 

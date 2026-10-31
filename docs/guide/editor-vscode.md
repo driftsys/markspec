@@ -143,6 +143,9 @@ No extra configuration is required — the extension reads `markspec.server.path
 and registers the MCP server automatically. In VS Code with Copilot or Claude
 extension enabled, the server appears as **MarkSpec** in the agent tool list.
 
+The server starts in the first workspace folder and covers every MarkSpec
+project under it. Other folders of a multi-folder workspace are not covered.
+
 ## Neovim / other LSP clients
 
 Any editor that supports LSP can use `markspec lsp`. Example Neovim (lazy.nvim)

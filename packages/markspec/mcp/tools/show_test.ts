@@ -112,3 +112,31 @@ Deno.test("renderShow: upstream entry surfaces the 'from upstream' origin", () =
     "**Origin**: from upstream product@v2.1.0 (read-only)",
   );
 });
+
+// --- Multi-project fan-out ---
+
+import { createWorkspace } from "../workspace.ts";
+import { dispatchTool } from "./mod.ts";
+import { entryDoc, memoryEnv, twoProjectFiles } from "./testing.ts";
+
+Deno.test("entry_show across two projects returns both under headings", async () => {
+  const ws = await createWorkspace(memoryEnv(twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0001", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG"),
+  )));
+  const text = await dispatchTool("entry_show", { id: "STK_0001" }, ws);
+  const a = text.indexOf("## Project: a");
+  const alpha = text.indexOf("Alpha");
+  const b = text.indexOf("## Project: b");
+  const beta = text.indexOf("Beta");
+  assertEquals(a >= 0 && b >= 0 && alpha >= 0 && beta >= 0, true);
+  assertEquals(a < alpha && alpha < b && b < beta, true);
+  const onlyB = await dispatchTool(
+    "entry_show",
+    { id: "STK_0001", project: "b" },
+    ws,
+  );
+  assertEquals(onlyB.includes("## Project:"), false);
+  assertEquals(onlyB.includes("Alpha"), false);
+  assertStringIncludes(onlyB, "Beta");
+});

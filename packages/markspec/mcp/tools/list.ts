@@ -10,6 +10,7 @@
  * summary, so agents stop grep'ing Markdown or running `markspec compile`.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { Entry } from "../../core/mod.ts";
 import { renderEntriesIndex } from "../resources/entries.ts";
 
@@ -112,6 +113,7 @@ export const ENTRY_LIST_INPUT_SCHEMA = {
     type: { type: "string" },
     label: { type: "string" },
     page: { type: "integer", minimum: 1 },
+    project: PROJECT_ARG_SCHEMA,
   },
   additionalProperties: false,
 } as const;
@@ -120,7 +122,7 @@ export const ENTRY_LIST_INPUT_SCHEMA = {
 export const ENTRY_LIST_DESCRIPTOR = {
   name: "entry_list",
   description:
-    `TRIGGER when: user asks "what's in this spec", "list all requirements", "give me an overview", "how many X are there", or wants to browse entries. Defaults to a summary (per-type counts); pass mode=full for the listing (paginated, 50/page), optionally filtered by type or label. PREFER over: grep across Markdown files or 'markspec compile' — this lists the compiled graph.\n\nFor one entry's detail use entry_show; for the graph around an entry use entry_neighborhood.`,
+    `TRIGGER when: user asks "what's in this spec", "list all requirements", "give me an overview", "how many X are there", or wants to browse entries. Defaults to a summary (per-type counts); pass mode=full for the listing (paginated, 50/page), optionally filtered by type or label. PREFER over: grep across Markdown files or 'markspec compile' — this lists the compiled graph.\n\nFor one entry's detail use entry_show; for the graph around an entry use entry_neighborhood.\n\nOptional 'project' limits the answer to one project label from project_list.`,
   inputSchema: ENTRY_LIST_INPUT_SCHEMA,
   annotations: {
     title: "List / overview of entries",
