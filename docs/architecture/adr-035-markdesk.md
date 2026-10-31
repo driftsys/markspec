@@ -297,9 +297,9 @@ navigator, and shows the whole document an entry lives in.
   reads `GET /api/v1/tree` again when the window receives focus, the same
   trigger the document pane uses, so an entry added, removed, or renamed in
   another application shows when the author returns to MarkDesk. The shown tree
-  stays on screen while it loads and the navigator is not rebuilt, so expanded
-  nodes and the selection do not change. A failed refresh keeps the shown tree.
-  A selected entry that is no longer in the product shows "`<ID>` is not in this
+  stays on screen while it loads and the navigator stays mounted, so expanded
+  nodes and the selection are kept. A failed refresh keeps the shown tree. A
+  selected entry that is no longer in the product shows "`<ID>` is not in this
   product." in the document pane instead of an error. The tree has no `ETag`:
   the server builds the whole tree to answer it, so a 304 would save only the
   transfer over loopback.

@@ -109,18 +109,24 @@ describe("NavigatorPane refresh on window focus", () => {
     expect(screen.getByText("A")).toBeTruthy();
   });
 
-  it("keeps expanded nodes when focus finds the same tree", async () => {
+  it("keeps expanded nodes and the selection when focus finds a new entry", async () => {
+    const nodes = [{ displayId: "P", title: "p" }, {
+      displayId: "R1",
+      title: "r",
+    }];
+    const edges = [{ from: "R1", to: "P", relation: "satisfies" }];
+    let added = false;
     const load = vi.fn(async () =>
-      tree(
-        [{ displayId: "P", title: "p" }, { displayId: "R1", title: "r" }],
-        [{ from: "R1", to: "P", relation: "satisfies" }],
-        ["P"],
-      )
+      added
+        ? tree([...nodes, { displayId: "Q", title: "q" }], edges, ["P", "Q"])
+        : tree(nodes, edges, ["P"])
     );
     pane(load);
     fireEvent.click(await screen.findByText("P"));
     fireEvent.click(screen.getByText("R1"));
+    added = true;
     await focus();
+    await screen.findByText("Q");
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     await new Promise((r) => setTimeout(r, 10));
     const item = (id: string) =>
@@ -150,6 +156,37 @@ describe("NavigatorPane refresh on window focus", () => {
     await act(async () => slow.resolve(one("STALE")));
     expect(screen.queryByText("STALE")).toBeNull();
     expect(screen.getByText("NEWEST")).toBeTruthy();
+  });
+
+  it("clears a load failure of the previous product when another opens", async () => {
+    const { reopen } = pane(async () => {
+      throw new DeskError(500, "internal", "boom");
+    });
+    await screen.findByRole("alert");
+    reopen(() => new Promise<ProductTree>(() => {}));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("ignores a late failure of the previous product", async () => {
+    let fail!: (error: unknown) => void;
+    const { reopen } = pane(() =>
+      new Promise<ProductTree>((_, reject) => {
+        fail = reject;
+      })
+    );
+    let show!: (loaded: ProductTree) => void;
+    reopen(() =>
+      new Promise<ProductTree>((resolve) => {
+        show = resolve;
+      })
+    );
+    // The new product is still loading when the old load fails.
+    await act(async () => fail(new DeskError(500, "internal", "boom")));
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () =>
+      show(tree([{ displayId: "NEW", title: "n" }], [], ["NEW"]))
+    );
+    expect(screen.getByText("NEW")).toBeTruthy();
   });
 
   it("drops the previous product's tree when another product opens", async () => {

@@ -255,9 +255,9 @@ describe("DocumentPane", () => {
   it("says an unknown entry is not in the product, without an error", async () => {
     const { select } = mount();
     select("MISSING");
-    expect(
-      await screen.findByText("MISSING is not in this product."),
-    ).toBeTruthy();
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "MISSING is not in this product.",
+    );
     expect(screen.queryByRole("alert")).toBeNull();
   });
 

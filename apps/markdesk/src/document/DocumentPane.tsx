@@ -164,8 +164,8 @@ export function DocumentPane() {
   >();
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
-  // The selected entry is not in the product: it was removed on disk, and
-  // the history or a cross-reference in an older render still names it.
+  // The server has no entry with the selected ID, for example one removed on
+  // disk that the history or an older render still names.
   const missing = loaded?.id === selected && loaded?.missing === true;
   const [sourceOpen, setSourceOpen] = useState(false);
   // Bumped when the window gets focus, so the selection is read again.
