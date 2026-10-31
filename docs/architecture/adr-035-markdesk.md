@@ -170,7 +170,7 @@ stays TypeScript. Everything lives in this repository.
 
   The desk backend shall answer a valid `POST /api/v1/proposals/preview` with
   HTTP status 200 whose body carries the target entry's formatted proposed body
-  next to its formatted current body.
+  next to its current body.
 
       Id: 01M69JMGZB8KSG1ESRH67CCFN1
 
@@ -205,8 +205,8 @@ stays TypeScript. Everything lives in this repository.
 
 - [SAD_DESK_0026] Splice-only write
 
-  The desk backend shall keep every byte of an applied file outside the target
-  entry's body lines equal to the byte at the same place before the apply.
+  The desk backend shall make an applied file equal to the original file with
+  only the target entry's body lines replaced.
 
       Id: 01M69JMGZB7ZT2XM3P1JEBV6F6
 
@@ -532,32 +532,36 @@ built: the first prompt" below).
   the column, for example "This file changed since the proposal. Ask again."
   (instruction kept) for a 412. A failed assistant run reports the first
   non-empty line of its stdout, else of its stderr, else `exit code <n>`. The
-  prompt box is disabled, with a one-line reason, for an entry with an origin,
-  an entry in a source file, an entry with an empty body, and an assistant
-  without prompts. The proposal wire format is a list of changes
+  prompt box is disabled, with a one-line reason, in several cases, among them
+  an entry with an origin, an entry in a source file, an entry with an empty
+  body, an assistant that is not installed, needs sign-in or has no prompts, and
+  while a Test runs. The proposal wire format is a list of changes
   `{ displayId, kind: "body", body }`; this story accepts exactly one change of
   kind `body`. The change is additive, so `apiVersion` stays 3.
 - **Write path.** Preview and apply run the same pipeline
-  (`packages/markspec/desk/proposals.ts`): the precondition (428
-  `precondition-required` when `If-Match` is missing, 412 `precondition-failed`
-  when it does not name the current tag with the strong comparison), the
-  refusals (404 `entry-not-found`; 409 `entry-read-only`, `entry-not-markdown`,
-  `entry-body-empty`, `entry-trailer-invalid`; 422 `proposal-empty`,
-  `proposal-too-large` above 20 000 characters before or after formatting,
-  `proposal-changes-entries`, `format-failed`), then the `markspec fmt`
-  formatter on a candidate text, then a splice of only the formatted target body
-  into the current file text with `replaceEntryBody`
+  (`packages/markspec/desk/proposals.ts`), with the checks in this order: 428
+  `precondition-required` when `If-Match` is missing; 400 for a request body of
+  the wrong shape; 404 `entry-not-found` and 409 `entry-read-only` or
+  `entry-not-markdown` for the target entry; 412 `precondition-failed` when
+  `If-Match` does not name the current tag with the strong comparison; then the
+  pipeline refusals (409 `entry-body-empty`, `entry-trailer-invalid`; 422
+  `proposal-empty`, `proposal-too-large` above 20 000 characters before or after
+  formatting, `proposal-changes-entries`, `format-failed`). After the checks
+  come the `markspec fmt` formatter on a candidate text, then a splice of only
+  the formatted target body into the current file text with `replaceEntryBody`
   (`core/formatter/entry_body.ts`). The splice keeps every other byte: other
   entries, prose, front matter, line endings, and a UTF-8 BOM (SAD_DESK_0026). A
   reparse must give the same entries with the same IDs, and the same title and
   trailer for the target, or the change is refused. An `MSL-F900` on the target
   or a prose formatter that fails to load refuses with `format-failed`;
-  `MSL-F012` is not shown. Apply writes through `DeskSource.writeFile`, which
-  the server backs with `writeTextFileAtomic` (`desk/write.ts`): a new temporary
-  file in the same folder, given the original file's mode, then renamed over the
-  original (SAD_DESK_0027). Applies are serialized in the handler, so a second
-  Accept on the same tag answers 412 and writes nothing. The response carries
-  the new document `ETag`. A write failure answers 500 `write-failed`.
+  `MSL-F012` is not shown. The preview shows the formatted current body, or the
+  current body as written when formatting would lose or move its words. Apply
+  writes through `DeskSource.writeFile`, which the server backs with
+  `writeTextFileAtomic` (`desk/write.ts`): a new temporary file in the same
+  folder, given the original file's mode, then renamed over the original
+  (SAD_DESK_0027). Applies are serialized in the handler, so a second Accept on
+  the same tag answers 412 and writes nothing. The response carries the new
+  document `ETag`. A write failure answers 500 `write-failed`.
 - **Prompt run.** The shell builds the prompt from a fixed template with the
   entry's title, current body, trailer attributes (read-only context), and the
   instruction, and passes it as an argument; a prompt over 100 000 bytes is
@@ -671,12 +675,12 @@ protection, because the browser enforces the response headers itself.
 
 Watching the product folder in the server (`Deno.watchFs`) and pushing a change
 event to the UI over server-sent events would refresh a document while the
-window stays in the background. It needs a push channel that the read-only API
-does not have, and file watchers behave differently on macOS, Linux, and
-Windows. The server already finds changed files on each request (the
-mtime-refreshed compiled cache, and a fresh read of the document file), so a
-conditional request when the selection changes or the window receives focus
-gives the same result for a single author at the cost of one request.
+window stays in the background. It needs a push channel that the desk API does
+not have, and file watchers behave differently on macOS, Linux, and Windows. The
+server already finds changed files on each request (the mtime-refreshed compiled
+cache, and a fresh read of the document file), so a conditional request when the
+selection changes or the window receives focus gives the same result for a
+single author at the cost of one request.
 
 ### Comparing the tree in the UI instead of tagging it
 
@@ -723,6 +727,38 @@ offers a guided installation, and never installs silently.
 
 The published site is built by mdBook (ADR-033), which does not render entry
 blocks, so it cannot be the parity target for the Spec view.
+
+### Whole-document proposals
+
+A proposal that rewrites the whole document is more flexible, but a long diff
+turns Accept into a review task, and authors start to accept without reading.
+
+### A new entry under the selected one as the first prompt feature
+
+Adding a new entry is common, but it needs ID minting and placement rules. It
+comes as a later prompt feature on the same flow.
+
+### The Tauri shell writes the file
+
+A second writer would need its own path checks in Rust, and a write followed by
+a separate `markspec fmt` run would leave an unformatted file on disk when
+formatting fails.
+
+### The assistant CLI writes the file
+
+This breaks the rule that agents only propose, and text inside product files
+could steer the agent into other writes.
+
+### Writing the formatter's whole output
+
+Writing the whole formatted document would reformat text outside the proposal in
+files that were not already formatted.
+
+### A content hash of the file as the precondition
+
+A content hash instead of the document `ETag` would give fewer refusals after
+unrelated changes, but it adds a second tag format. The existing tag is good
+enough for one author.
 
 ## Consequences
 

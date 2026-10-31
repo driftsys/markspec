@@ -59,7 +59,7 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 # Also start the real sidecar with Deno:
-cargo test --manifest-path src-tauri/Cargo.toml -- --ignored
+cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --skip manual_assistant_
 ```
 
 ### Manual smoke test

@@ -50,6 +50,26 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "writeTextFileAtomic: renames a new file over the original",
+  ignore: Deno.build.os === "windows",
+  fn: async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const path = join(dir, "doc.md");
+      await Deno.writeTextFile(path, "old\n");
+      const before = (await Deno.stat(path)).ino;
+      await writeTextFileAtomic(path, "new\n");
+      const after = (await Deno.stat(path)).ino;
+      // A rename gives the path a new inode; an in-place write keeps it.
+      assert(before !== null && after !== null);
+      assert(before !== after, "the file was written in place");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+});
+
 Deno.test("writeTextFileAtomic: keeps a UTF-8 BOM", async () => {
   const dir = await Deno.makeTempDir();
   try {
