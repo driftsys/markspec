@@ -121,12 +121,7 @@ export function NavigatorPane() {
     client.tree().then((loaded) => {
       if (!current) return;
       setFailed(false);
-      // Keep the current object when nothing changed, so no row re-renders.
-      setTree((shown) =>
-        shown && JSON.stringify(shown) === JSON.stringify(loaded)
-          ? shown
-          : loaded
-      );
+      setTree(loaded);
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (error instanceof DeskError && error.code === "network") return;

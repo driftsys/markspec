@@ -9,6 +9,7 @@ import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type DeskClient, DeskError, type ProductTree } from "../api/client";
 import { ProductContext } from "../app/useProduct";
+import { HistoryProvider } from "../document/useHistory";
 import { Navigator, NavigatorPane } from "./Navigator";
 import { buildNavigatorModel } from "./model";
 
@@ -22,11 +23,28 @@ const tree = (
 
 function pane(tree: () => Promise<ProductTree>) {
   const client = { tree } as unknown as DeskClient;
-  return render(
-    <ProductContext.Provider value={{ root: "/p", name: "p", client }}>
-      <NavigatorPane />
-    </ProductContext.Provider>,
+  const view = (current: DeskClient) => (
+    <ProductContext.Provider
+      value={{ root: "/p", name: "p", client: current }}
+    >
+      <HistoryProvider mac={false}>
+        <NavigatorPane />
+      </HistoryProvider>
+    </ProductContext.Provider>
   );
+  const result = render(view(client));
+  // Open another product in the same pane.
+  const reopen = (other: () => Promise<ProductTree>) =>
+    result.rerender(view({ tree: other } as unknown as DeskClient));
+  return { ...result, reopen };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((ok) => {
+    resolve = ok;
+  });
+  return { promise, resolve };
 }
 
 describe("NavigatorPane", () => {
@@ -101,23 +119,64 @@ describe("NavigatorPane refresh on window focus", () => {
     );
     pane(load);
     fireEvent.click(await screen.findByText("P"));
-    expect(screen.getByText("R1")).toBeTruthy();
+    fireEvent.click(screen.getByText("R1"));
     await focus();
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("R1")).toBeTruthy();
-    const item = screen.getByText("P").closest("[role=treeitem]")!;
-    expect(item.getAttribute("aria-expanded")).toBe("true");
+    await new Promise((r) => setTimeout(r, 10));
+    const item = (id: string) =>
+      screen.getByText(id).closest("[role=treeitem]")!;
+    expect(item("P").getAttribute("aria-expanded")).toBe("true");
+    expect(item("R1").getAttribute("aria-selected")).toBe("true");
+    expect(item("P").getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("ignores an older load that resolves after a newer one", async () => {
+    const one = (id: string) =>
+      tree([{ displayId: id, title: `title of ${id}` }], [], [id]);
+    const slow = deferred<ProductTree>();
+    const answers = [
+      Promise.resolve(one("FIRST")),
+      slow.promise,
+      Promise.resolve(one("NEWEST")),
+    ];
+    const load = vi.fn(() => answers.shift()!);
+    pane(load);
+    await screen.findByText("FIRST");
+    await focus();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await focus();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    await screen.findByText("NEWEST");
+    await act(async () => slow.resolve(one("STALE")));
+    expect(screen.queryByText("STALE")).toBeNull();
+    expect(screen.getByText("NEWEST")).toBeTruthy();
+  });
+
+  it("drops the previous product's tree when another product opens", async () => {
+    const { reopen } = pane(async () =>
+      tree([{ displayId: "OLD", title: "o" }], [], ["OLD"])
+    );
+    await screen.findByText("OLD");
+    const pending = deferred<ProductTree>();
+    reopen(() => pending.promise);
+    await waitFor(() => expect(screen.queryByText("OLD")).toBeNull());
+    await act(async () =>
+      pending.resolve(tree([{ displayId: "NEW", title: "n" }], [], ["NEW"]))
+    );
+    expect(screen.getByText("NEW")).toBeTruthy();
   });
 
   it("keeps the shown tree when a refresh fails", async () => {
     let fail = false;
-    pane(async () => {
+    const load = vi.fn(async () => {
       if (fail) throw new DeskError(500, "internal", "boom");
       return tree([{ displayId: "A", title: "a" }], [], ["A"]);
     });
+    pane(load);
     await screen.findByText("A");
     fail = true;
     await focus();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     await new Promise((r) => setTimeout(r, 10));
     expect(screen.getByText("A")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();

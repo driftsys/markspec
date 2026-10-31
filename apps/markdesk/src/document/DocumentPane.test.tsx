@@ -281,6 +281,21 @@ describe("DocumentPane", () => {
       await screen.findByText(`${ID} is not in this product.`),
     ).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Brakes")).toBeNull();
+    expect(document.querySelector(".document-sheet")).toBeNull();
+  });
+
+  it("keeps the error alert for a 404 that is not entry-not-found", async () => {
+    const { select } = mount(fakeClient({
+      entry: vi.fn(async () => {
+        throw new DeskError(404, "not-found", "no route");
+      }),
+    }));
+    select(ID);
+    expect(
+      await screen.findByText("MarkDesk could not show this requirement."),
+    ).toBeTruthy();
+    expect(screen.queryByText(`${ID} is not in this product.`)).toBeNull();
   });
 
   it("uses the rendered entry for a source-file entry", async () => {

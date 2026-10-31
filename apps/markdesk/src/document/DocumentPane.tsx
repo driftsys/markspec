@@ -164,8 +164,8 @@ export function DocumentPane() {
   >();
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
-  // The selected entry is not in the product: removed on disk, or a
-  // cross-reference to an entry that does not exist.
+  // The selected entry is not in the product: it was removed on disk, and
+  // the history or a cross-reference in an older render still names it.
   const missing = loaded?.id === selected && loaded?.missing === true;
   const [sourceOpen, setSourceOpen] = useState(false);
   // Bumped when the window gets focus, so the selection is read again.
@@ -312,7 +312,7 @@ export function DocumentPane() {
         </p>
       )}
       {missing && (
-        <p className="document-empty">
+        <p role="status" className="document-empty">
           {`${selected} is not in this product.`}
         </p>
       )}
