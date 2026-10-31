@@ -11,6 +11,12 @@
  * new file text: the original text with only the target body replaced by
  * the formatted proposal. Every other byte of the file stays unchanged.
  *
+ * Known limit: a proposal that holds a link reference definition
+ * (`[s]: https://...`) or a footnote definition (`[^1]: ...`) is refused
+ * with `proposal-changes-entries`. The body-equality check in
+ * `replaceEntryBody` compares text, and the parser does not keep those
+ * definitions in the entry body, so the bodies differ.
+ *
  * Web APIs only: no `Deno.*`, Node-compatible.
  */
 
@@ -100,6 +106,19 @@ const TRAILER_PARSE_CODES: ReadonlySet<string> = new Set([
  * the identity check cannot see it, because the entry has no `id` and no
  * attributes before or after the edit. The parser names the entry at the
  * start of each of these diagnostics (`<displayId>: ...`).
+ *
+ * The check is broader than that case. `MSL-P020` also fires when the
+ * trailer parsed but a body paragraph starts with a recognized trailer
+ * key (for example `References: ISO 26262 part 6.` followed by more
+ * prose), so such an entry is refused too, although a splice would be
+ * safe. The file already fails `markspec check` there (P020 is an
+ * error), so the author must fix it first.
+ *
+ * The check relies on parser diagnostics. An entry with no `Id:` whose
+ * trailer-looking lines use only unrecognized keys, and that the parser
+ * reads as body without a diagnostic, is edited as the parser sees it:
+ * those lines are part of the current body, appear in `currentBody`, and
+ * a proposal that omits them removes them.
  */
 async function hasUnparsedTrailer(
   text: string,

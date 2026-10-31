@@ -13,6 +13,7 @@ import {
   isTargetF900,
   MAX_PROPOSAL_CHARS,
   previewBody,
+  type ProposalRefusal,
 } from "./proposals.ts";
 
 const FIXTURE_ROOT = fromFileUrl(
@@ -83,10 +84,10 @@ Deno.test("previewBody: refuses a body over 20 000 characters", async () => {
 });
 
 Deno.test("previewBody: accepts a body of exactly 20 000 characters", async () => {
-  const atLimit = "a ".repeat(MAX_PROPOSAL_CHARS / 2);
+  const atLimit = "word ".repeat(MAX_PROPOSAL_CHARS / 5 - 1) + "ends.";
   assertEquals(atLimit.length, MAX_PROPOSAL_CHARS);
   const r = await previewBody(SYSTEM, FILE, "SYS_BRK_0001", atLimit, prose);
-  assert(r.ok || r.refusal !== "proposal-too-large");
+  assert(r.ok);
   assertEquals(
     await previewBody(SYSTEM, FILE, "SYS_BRK_0001", `${atLimit}a`, prose),
     { ok: false, refusal: "proposal-too-large" },
@@ -186,10 +187,25 @@ Deno.test("applyBody: writes the formatted body, not the raw proposal", async ()
 });
 
 Deno.test("applyBody: refuses what previewBody refuses", async () => {
-  assertEquals(
-    await applyBody(SYSTEM, FILE, "SYS_BRK_0001", "", prose),
-    { ok: false, refusal: "proposal-empty" },
-  );
+  const noBody =
+    `${SYSTEM}\n- [SYS_BRK_0003] No body yet\n\n      Satisfies: STK_BRK_0001\n`;
+  const cases: Array<[string, string, string, ProposalRefusal]> = [
+    [SYSTEM, "SYS_BRK_0001", "", "proposal-empty"],
+    [SYSTEM, "SYS_BRK_0001", "a ".repeat(10_001), "proposal-too-large"],
+    [SYSTEM, "SYS_BRK_9999", "New body.", "entry-not-found"],
+    [noBody, "SYS_BRK_0003", "New body.", "entry-body-empty"],
+    [
+      SYSTEM,
+      "SYS_BRK_0001",
+      "Text.\n\n- [SYS_BRK_0099] Sneaky\n\n      Id: 01JBRK00000000000000000099",
+      "proposal-changes-entries",
+    ],
+  ];
+  for (const [text, id, proposed, refusal] of cases) {
+    const expected = { ok: false, refusal } as const;
+    assertEquals(await previewBody(text, FILE, id, proposed, prose), expected);
+    assertEquals(await applyBody(text, FILE, id, proposed, prose), expected);
+  }
 });
 
 Deno.test("applyBody: a preview body applies unchanged", async () => {
