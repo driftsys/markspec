@@ -7,7 +7,12 @@
 
 import { Command } from "@cliffy/command";
 import type { Diagnostic } from "../../core/mod.ts";
-import { compileProject, resolveScope } from "../helpers.ts";
+import {
+  compileProject,
+  printProjectHeader,
+  resolveScope,
+  scopeRuns,
+} from "../helpers.ts";
 
 /** The score of one project, as returned by `runLint`. */
 type LintScore = Awaited<
@@ -67,17 +72,9 @@ export const lintCmd = new Command()
       options: { format?: string; strict?: boolean; quiet?: boolean },
       ...paths: string[]
     ) => {
-      // The headers are printed per project below, not by `resolveScope`.
-      const scope = await resolveScope(paths, {
-        verb: "linting",
-        quiet: true,
-      });
+      const scope = await resolveScope(paths);
       const quiet = options.quiet === true || options.format === "json";
-      // Explicit arguments: one run over those files. Bare invocation: one
-      // run per project, the root project first (ADR-028 section 7).
-      const runs = scope.projectWide
-        ? scope.projects.map((p) => ({ root: p.root, files: p.files }))
-        : [{ root: undefined, files: scope.files }];
+      const runs = scopeRuns(scope);
       const { runLint } = await import("../../core/mod.ts");
 
       const allDiagnostics: Diagnostic[] = [];
@@ -85,13 +82,10 @@ export const lintCmd = new Command()
       let hasErrors = false;
       let hasWarnings = false;
       for (const run of runs) {
-        if (scope.projectWide && !quiet) {
-          console.error(
-            `linting ${run.files.length} file(s) under ${run.root}`,
-          );
-        }
-        const { result, chain } = await compileProject(run.files, {
-          projectRoot: run.root,
+        printProjectHeader("linting", run, scope, quiet);
+        const { result, chain } = await compileProject([...run.files], {
+          // Explicit arguments keep the working-directory lookup.
+          projectRoot: scope.projectWide ? run.root : undefined,
         });
         // `result.entries` is the merged project + delivered-corpus set. Pass
         // it whole with the active profile: `runLint` keeps corpus entries in

@@ -22,9 +22,11 @@ import {
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
   loadProjectCorpus,
+  printProjectHeader,
   readFile,
   renderDiagnosticLocation,
   resolveScope,
+  scopeRuns,
 } from "../helpers.ts";
 import { defaultReadFile } from "./lock.ts";
 
@@ -324,26 +326,14 @@ export const checkCmd = new Command()
       ...fileArgs: string[]
     ) => {
       const quiet = options.quiet === true || options.format === "json";
-      // The headers are printed per project below, not by `resolveScope`.
-      const scope = await resolveScope(fileArgs, {
-        verb: "checking",
-        quiet: true,
-      });
-      // Explicit arguments: one file-local run. Bare invocation: one run per
-      // project, the root project first (ADR-028 section 7).
-      const runs = scope.projectWide
-        ? scope.projects.map((p) => ({ root: p.root, files: p.files }))
-        : [{ root: scope.projectRoot, files: scope.files }];
+      const scope = await resolveScope(fileArgs);
+      const runs = scopeRuns(scope);
 
       const jsonDiagnostics: Diagnostic[] = [];
       let hasErrors = false;
       let hasWarnings = false;
       for (const run of runs) {
-        if (scope.projectWide && !quiet) {
-          console.error(
-            `checking ${run.files.length} file(s) under ${run.root}`,
-          );
-        }
+        printProjectHeader("checking", run, scope, quiet);
         const { diagnostics, corpusIndex } = await checkProject(
           run.root,
           run.files,

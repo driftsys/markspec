@@ -11,8 +11,10 @@ import {
   assertNotDeliveredTarget,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
+  printProjectHeader,
   readFile,
   resolveScope,
+  scopeRuns,
 } from "../helpers.ts";
 
 /** Counts and failure state of one formatted project. */
@@ -192,28 +194,17 @@ export const fmtCmd = new Command()
     ) => {
       const { MARKDOWN_EXTENSIONS } = await import("../../core/mod.ts");
       const verb = options.check ? "checking format of" : "formatting";
-      // The headers are printed per project below, not by `resolveScope`.
       const scope = await resolveScope(fileArgs, {
-        verb,
         extensions: MARKDOWN_EXTENSIONS,
-        quiet: true,
       });
-      // Explicit arguments: one run over those files. Bare invocation: one
-      // run per project, the root project first (ADR-028 section 7).
-      const runs = scope.projectWide
-        ? scope.projects.map((p) => ({ root: p.root, files: p.files }))
-        : [{ root: scope.projectRoot, files: scope.files }];
+      const runs = scopeRuns(scope);
 
       const formatMarkdownProse = await loadMarkdownFormatterOrExit();
 
       let totalFormatted = 0;
       let hasErrors = false;
       for (const run of runs) {
-        if (scope.projectWide && options.quiet !== true) {
-          console.error(
-            `${verb} ${run.files.length} file(s) under ${run.root}`,
-          );
-        }
+        printProjectHeader(verb, run, scope, options.quiet === true);
         const result = await formatProject(
           run.root,
           run.files,

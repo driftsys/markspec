@@ -438,6 +438,40 @@ export interface ProjectScope {
   readonly files: string[];
 }
 
+/** One run of a file-consuming verb: a project root (or `undefined` for
+ * file-local work outside any project) and the files to process. */
+export interface ScopeRun {
+  readonly root: string | undefined;
+  readonly files: readonly string[];
+}
+
+/**
+ * The runs a verb performs for `scope`: bare invocation gives one run per
+ * project, the root project first (ADR-028 section 7); explicit arguments
+ * give a single file-local run.
+ */
+export function scopeRuns(scope: ResolvedScope): ScopeRun[] {
+  return scope.projectWide
+    ? scope.projects.map((p) => ({ root: p.root, files: p.files }))
+    : [{ root: scope.projectRoot, files: scope.files }];
+}
+
+/**
+ * Print the scope header of one run to stderr, e.g.
+ * `checking 3 file(s) under /path`. Only bare invocations print it, and
+ * `quiet` (-q, --format json) suppresses it.
+ */
+export function printProjectHeader(
+  verb: string,
+  run: ScopeRun,
+  scope: ResolvedScope,
+  quiet: boolean,
+): void {
+  if (scope.projectWide && !quiet) {
+    console.error(`${verb} ${run.files.length} file(s) under ${run.root}`);
+  }
+}
+
 /**
  * Shared scope resolution for `check` / `lint` / `fmt`:
  *
@@ -447,6 +481,9 @@ export interface ProjectScope {
  *   - explicit args → files verbatim; directories expand recursively
  *     through the discovery filter. Exact scope, no surprises.
  *
+ * Prints nothing; commands print the per-project header with
+ * {@linkcode printProjectHeader}.
+ *
  * Exits 1 (with a hint) when no args are given and no project root is
  * found, when project.yaml is malformed, or when an explicit path does
  * not exist.
@@ -454,13 +491,9 @@ export interface ProjectScope {
 export async function resolveScope(
   args: string[],
   opts: {
-    /** Header verb, e.g. "checking" / "formatting" / "linting". */
-    verb: string;
     /** Extension filter; defaults to RELEVANT_EXTENSIONS. */
     extensions?: ReadonlySet<string>;
-    /** Suppress the scope header (set for -q and --format json). */
-    quiet?: boolean;
-  },
+  } = {},
 ): Promise<ResolvedScope> {
   const {
     discoverFiles,
@@ -522,11 +555,6 @@ export async function resolveScope(
         exclude: await excludeOf(nestedRoot),
       });
       projects.push({ root: nestedRoot, files: nestedFiles.files });
-    }
-    if (!opts.quiet) {
-      console.error(
-        `${opts.verb} ${owned.files.length} file(s) under ${projectRoot}`,
-      );
     }
     return { files: owned.files, projectRoot, projectWide: true, projects };
   }
