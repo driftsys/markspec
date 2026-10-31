@@ -1308,6 +1308,41 @@ TypeScript, TSX, JavaScript, C#), completions only activate near entry markers
 or trace keywords. The server won't interfere with your language's native LSP
 (rust-analyzer, kotlin-lsp, etc.).
 
+### Project resolution
+
+The server validates each document against the project that owns it, the same
+way `markspec check` walks up from a file:
+
+- **Primary project.** From the editor's workspace root, the server walks up to
+  the nearest `.markspec.yaml`. If there is none, it walks up to the nearest
+  `project.yaml`. If there is neither, the workspace root itself is the primary
+  project and the bundled default profile applies. A workspace opened on a
+  subfolder such as `docs/` therefore still loads the profile declared above it.
+- **Nested projects.** Every directory below the primary project that holds a
+  `.markspec.yaml` is a separate project with its own profile, index, and
+  `markspec.lock`. The search honors `.gitignore` and the primary project's
+  `exclude:` list. A workspace opened on a parent folder of several projects
+  validates each project against its own profile.
+- **Ownership.** A file belongs to its nearest project. A parent project does
+  not index the files of a nested project, so a display ID that is declared once
+  in each of two projects is not reported as a duplicate. Completion, hover,
+  go-to-definition, references, and rename stay inside the project that owns the
+  document. Workspace symbol search covers every project.
+- **Files outside the workspace.** A document that lies outside every known
+  project walks up to its own `.markspec.yaml` (else `project.yaml`); that
+  project is loaded and indexed when the document opens. With no config above
+  it, the document joins the primary project.
+- **Changes.** Editing a `.markspec.yaml`, `project.yaml`, or `markspec.lock`
+  reloads only the project that owns that file. Creating or deleting a
+  `.markspec.yaml` re-discovers all projects.
+- **Primary root above the workspace folder.** Editors watch files only inside
+  the workspace folder by default. When the primary project root lies above it,
+  the server asks the editor to also watch that root's `.markspec.yaml`,
+  `project.yaml`, and `markspec.lock` with an LSP 3.17 relative watch pattern.
+  An editor that does not support relative watch patterns does not report
+  changes to those three files; restart the language server after you edit them.
+  The server logs a warning once in that case.
+
 ### VS Code
 
 Install the **MarkSpec** extension from the `editors/vscode/` directory in this

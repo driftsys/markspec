@@ -75,6 +75,10 @@ markspec/
 │       │   │                          workspace symbols, rename, folding,
 │       │   │                          document highlights, code actions.
 │       │   ├── workspace.ts         ← in-memory entry index, incremental updates
+│       │   ├── project_context.ts   ← per-project state: config, profile, lock,
+│       │   │                          index, corpora, diagnostics, reloads
+│       │   ├── project_registry.ts  ← one context per config root; routes each
+│       │   │                          document to its nearest project
 │       │   ├── diagnostics.ts       ← core Diagnostic → LSP Diagnostic bridge
 │       │   ├── completions.ts       ← block scaffold + ID reference + Type:
 │       │   │                          value completion triggers
@@ -143,13 +147,14 @@ markspec/
 alone:**
 
 @packages/markspec/lsp/server.ts @packages/markspec/lsp/workspace.ts
-@packages/markspec/lsp/completions.ts @packages/markspec/lsp/hover.ts
-@packages/markspec/lsp/definition.ts @packages/markspec/lsp/references.ts
-@packages/markspec/lsp/rename.ts @packages/markspec/lsp/symbols.ts
-@packages/markspec/lsp/folding.ts @packages/markspec/lsp/highlights.ts
-@packages/markspec/lsp/code_actions.ts @packages/markspec/lsp/context.ts
-@packages/markspec/lsp/diagnostics.ts @packages/markspec/lsp/util.ts
-@packages/markspec/main.ts
+@packages/markspec/lsp/project_context.ts
+@packages/markspec/lsp/project_registry.ts @packages/markspec/lsp/completions.ts
+@packages/markspec/lsp/hover.ts @packages/markspec/lsp/definition.ts
+@packages/markspec/lsp/references.ts @packages/markspec/lsp/rename.ts
+@packages/markspec/lsp/symbols.ts @packages/markspec/lsp/folding.ts
+@packages/markspec/lsp/highlights.ts @packages/markspec/lsp/code_actions.ts
+@packages/markspec/lsp/context.ts @packages/markspec/lsp/diagnostics.ts
+@packages/markspec/lsp/util.ts @packages/markspec/main.ts
 
 ## Key rules
 

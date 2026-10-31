@@ -58,6 +58,19 @@ export interface MarkspecProfileResponse {
 }
 
 /**
+ * Payload of the `markspec/profileChanged` notification: the same fields as
+ * {@linkcode MarkspecProfileResponse}, plus the project it describes. A
+ * workspace can hold several projects (#840), so a client needs `root` to
+ * tell which project's profile changed.
+ */
+export interface MarkspecProfileChangedParams extends MarkspecProfileResponse {
+  /** `file://` URI of the project's config root (the directory that holds
+   * its `.markspec.yaml`, else its `project.yaml`, else the workspace
+   * root). */
+  readonly root: string;
+}
+
+/**
  * Empty response shape — returned when no profile is loaded (file-local
  * mode). Exported so both the helper's empty-shape branch and the server's
  * cache initializer reference one literal, avoiding drift.

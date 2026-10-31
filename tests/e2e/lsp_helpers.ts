@@ -68,6 +68,8 @@ export class LspTestClient {
     reject: (reason: unknown) => void;
   }>();
   private notifications: JsonRpcMessage[] = [];
+  /** See the `answerServerRequests` option of {@linkcode initialize}. */
+  private answerServerRequests = false;
 
   /** The temporary directory where fixture files were written. */
   readonly workDir: string;
@@ -204,18 +206,86 @@ export class LspTestClient {
 
   /** Perform the initialize → initialized handshake. */
   async initialize(
-    options: { processId?: number | null } = {},
+    options: {
+      processId?: number | null;
+      /** Workspace root relative to {@linkcode workDir} (e.g. `"proj/docs"`).
+       * Defaults to `workDir` itself. */
+      rootSubdir?: string;
+      /** Client capabilities sent with `initialize`. Defaults to `{}`. */
+      capabilities?: unknown;
+      /** Answer every server-to-client request (e.g.
+       * `client/registerCapability`) with a `null` result. Off by default:
+       * existing tests rely on such requests staying unanswered. */
+      answerServerRequests?: boolean;
+    } = {},
   ): Promise<unknown> {
-    const rootUri = toFileUrl(this.workDir).href;
+    this.answerServerRequests = options.answerServerRequests === true;
+    const rootDir = options.rootSubdir === undefined
+      ? this.workDir
+      : join(this.workDir, ...options.rootSubdir.split("/"));
+    const rootUri = toFileUrl(rootDir).href;
     const result = await this.request("initialize", {
       processId: options.processId === undefined ? Deno.pid : options.processId,
       rootUri,
-      capabilities: {},
+      capabilities: options.capabilities ?? {},
     });
     await this.notify("initialized", {});
     // Give the server a moment to start indexing
     await new Promise((r) => setTimeout(r, 200));
     return result;
+  }
+
+  /**
+   * Return the diagnostics of the most recent `textDocument/publishDiagnostics`
+   * notification received for `uri`, or `undefined` when none arrived.
+   * Unlike {@linkcode waitForNotification}, this does not consume the
+   * notifications, so it can be called for several URIs in turn.
+   */
+  latestDiagnosticsFor(
+    uri: string,
+  ): Array<{ code?: string; message: string }> | undefined {
+    let latest: Array<{ code?: string; message: string }> | undefined;
+    for (const n of this.notifications) {
+      if (n.method !== "textDocument/publishDiagnostics") continue;
+      const params = n.params as {
+        uri: string;
+        diagnostics: Array<{ code?: string; message: string }>;
+      };
+      if (params.uri === uri) latest = params.diagnostics;
+    }
+    return latest;
+  }
+
+  /** The `params` of every server-to-client request or notification with
+   * the given method received so far, without consuming them. */
+  receivedParams(method: string): unknown[] {
+    return this.notifications.filter((n) => n.method === method).map((n) =>
+      n.params
+    );
+  }
+
+  /** Number of `textDocument/publishDiagnostics` notifications received so
+   * far for `uri`. */
+  publishCountFor(uri: string): number {
+    return this.notifications.filter((n) =>
+      n.method === "textDocument/publishDiagnostics" &&
+      (n.params as { uri: string }).uri === uri
+    ).length;
+  }
+
+  /** Poll `predicate` every 50ms until it returns `true`; throws after
+   * `timeoutMs`. */
+  async waitUntil(
+    predicate: () => boolean,
+    description: string,
+    timeoutMs = 5000,
+  ): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (predicate()) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error(`Timeout waiting for: ${description}`);
   }
 
   /** Perform shutdown → exit, then kill the process. */
@@ -310,8 +380,14 @@ export class LspTestClient {
         }
       }
     } else if (message.method) {
-      // Server-initiated notification
+      // Server-initiated notification, or a server-to-client request
+      // (it carries an id). Both are recorded.
       this.notifications.push(message);
+      if (message.id !== undefined && this.answerServerRequests) {
+        this.writer.write(
+          encode({ jsonrpc: "2.0", id: message.id, result: null }),
+        ).catch(() => {});
+      }
     }
   }
 }

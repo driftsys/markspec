@@ -82,15 +82,17 @@ All settings live under the `markspec.` prefix in VS Code settings.
 
 ## Logs
 
-In a MarkSpec project the language server writes a per-project event log to
-`<workspace>/.markspec/lsp.log` (rotated at 1 MB, three files kept). The first
+In a MarkSpec project the language server writes an event log to
+`<project>/.markspec/lsp.log`, where `<project>` is the directory of the first
+`.markspec.yaml` the server finds (at or above the workspace root, else the
+first one below it). The log rotates at 1 MB and keeps three files. The first
 time it opens that file it drops a self-ignoring `.markspec/.gitignore` (`*`)
 alongside it, so the log never shows up in `git status` — you do not need to add
 anything to your repository's `.gitignore`. A workspace with no `.markspec.yaml`
-gets no `.markspec/` directory at all. Override the location with the
-`markspec.trace.logPath` setting (or the `MARKSPEC_LSP_LOG` environment
-variable); an explicit path writes the log regardless of project membership. Set
-`MARKSPEC_LSP_LOG_OFF=1` to disable logging entirely.
+at, above, or below its root gets no `.markspec/` directory at all. Override the
+location with the `markspec.trace.logPath` setting (or the `MARKSPEC_LSP_LOG`
+environment variable); an explicit path writes the log regardless of project
+membership. Set `MARKSPEC_LSP_LOG_OFF=1` to disable logging entirely.
 
 ## Schema validation
 
