@@ -72,3 +72,15 @@ Deno.test("discoverProjectRoots: no downward scan from homeDir", async () => {
   const result = await discoverProjectRoots(dir, realIO(), { homeDir: dir });
   assertEquals(result.roots, []);
 });
+
+Deno.test("discoverProjectRoots: a nested project's exclude applies to its subtree", async () => {
+  const dir = await real(
+    await makeTree({
+      "a/project.yaml": PROJECT,
+      "a/.markspec.yaml": 'exclude: ["fixtures/"]\n',
+      "a/fixtures/x/project.yaml": PROJECT,
+    }),
+  );
+  const result = await discoverProjectRoots(dir, realIO());
+  assertEquals(result.roots, [join(dir, "a")]);
+});

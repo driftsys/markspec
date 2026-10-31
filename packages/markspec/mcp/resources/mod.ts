@@ -82,7 +82,8 @@ export interface ResourceDescriptor {
  * Build the resources/list payload across every project of the workspace.
  * Each URI appears once; when several projects provide the same URI, the
  * descriptor comes from the first one in label order. With one project the
- * list is that project's list.
+ * list is that project's list. With several, a project whose compile fails
+ * contributes no entry URIs; with one, the compile error propagates.
  */
 export async function listResourceDescriptors(
   workspace: McpWorkspace,
@@ -140,7 +141,15 @@ export async function listResourceDescriptors(
   // Entry URIs — each distinct display ID once, sorted.
   const titles = new Map<string, string>();
   for (const { project } of projects) {
-    const result = await project.getCompiled();
+    let result;
+    try {
+      result = await project.getCompiled();
+    } catch (err) {
+      // With several projects, one that cannot compile lists no entries
+      // and the others still do. A lone project fails as before.
+      if (projects.length === 1) throw err;
+      continue;
+    }
     for (const [id, entry] of result.entries) {
       if (!titles.has(id)) titles.set(id, entry.title);
     }

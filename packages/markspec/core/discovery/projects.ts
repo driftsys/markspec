@@ -13,6 +13,7 @@ import { basename, dirname, isAbsolute, relative, SEPARATOR } from "@std/path";
 import { discoverProjectRoot } from "../config/mod.ts";
 import { discoverMarkspecRoot, loadToolConfig } from "../config/markspec.ts";
 import { discoverFiles, type DiscoveryIO } from "./mod.ts";
+import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 /** The file names whose directory can be a project root. */
 const CONFIG_BASENAMES: ReadonlySet<string> = new Set([
@@ -64,7 +65,10 @@ export async function resolveConfigRoot(
  * `exclude`). Each discovered `project.yaml` or `.markspec.yaml` is
  * resolved with {@linkcode resolveConfigRoot} from its own directory, so a
  * `.markspec.yaml` below a `project.yaml` is not a root of its own — the
- * same answer the CLI gives for a file there. The result is sorted.
+ * same answer the CLI gives for a file there. A found root is dropped when
+ * the `.markspec.yaml` `exclude:` list of another found root above it
+ * covers it: each project's exclude list applies to its own subtree, with
+ * patterns relative to that project. The result is sorted.
  */
 export async function findNestedProjectRoots(
   root: string,
@@ -86,7 +90,41 @@ export async function findNestedProjectRoots(
       out.add(found);
     }
   }
-  return [...out].sort();
+  const nested = [...out];
+  const excludeRules = new Map<string, readonly GitignoreRule[]>();
+  const kept: string[] = [];
+  for (const candidate of nested) {
+    let covered = false;
+    for (const ancestor of nested) {
+      if (ancestor === candidate || !isWithin(ancestor, candidate)) continue;
+      let rules = excludeRules.get(ancestor);
+      if (rules === undefined) {
+        const { config } = await loadToolConfig(ancestor, io.readFile);
+        rules = parseGitignore(config.exclude.join("\n"), "");
+        excludeRules.set(ancestor, rules);
+      }
+      if (isExcludedDir(relative(ancestor, candidate), rules)) {
+        covered = true;
+        break;
+      }
+    }
+    if (!covered) kept.push(candidate);
+  }
+  return kept.sort();
+}
+
+/** `true` when the directory at `rel` (relative, host separators), or any
+ * directory above it, matches `rules` — the same pruning the walk does. */
+function isExcludedDir(
+  rel: string,
+  rules: readonly GitignoreRule[],
+): boolean {
+  if (rules.length === 0) return false;
+  const segments = rel.split(SEPARATOR);
+  for (let i = 1; i <= segments.length; i++) {
+    if (isIgnored(segments.slice(0, i).join("/"), true, rules)) return true;
+  }
+  return false;
 }
 
 /** Options for {@linkcode discoverProjectRoots}. */
@@ -103,7 +141,8 @@ export interface ProjectDiscoveryOptions {
  * `startDir` (see {@linkcode resolveConfigRoot}), or `startDir` itself
  * when there is none. `roots` holds the primary root (only when it has a
  * config) plus every nested root below it, sorted. The nested scan honours
- * the primary project's `.markspec.yaml` `exclude:` list. When the primary
+ * the primary project's `.markspec.yaml` `exclude:` list, and each nested
+ * project's own list for the folders below it. When the primary
  * root has no config and is a filesystem root or `options.homeDir`, no
  * downward scan runs and `roots` is empty.
  */

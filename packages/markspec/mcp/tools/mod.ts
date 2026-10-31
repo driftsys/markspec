@@ -262,6 +262,8 @@ const HANDLERS: Record<string, ToolHandler> = {
  * Dispatch a tool call by name. Soft-gates per ADR-023 §6 — when no
  * MarkSpec project was found, every tool returns the canonical soft-gate
  * message as normal content (not isError) so the agent's SKIP rule fires.
+ * `markspec_refresh` re-runs discovery before that check, so it can find a
+ * project created after the server started.
  *
  * Throws on unknown tool names so callers (the MCP request handler) can
  * map that to an isError response.
@@ -276,8 +278,12 @@ export async function dispatchTool(
   if (!handler) {
     throw new Error(`unknown tool: ${name}`);
   }
-  // Soft gate — every known tool short-circuits.
-  if (workspace.softGateMessage !== undefined) {
+  // Soft gate — every known tool short-circuits, except markspec_refresh:
+  // it re-runs discovery first and returns the soft-gate text itself when
+  // there is still no project.
+  if (
+    workspace.softGateMessage !== undefined && name !== "markspec_refresh"
+  ) {
     return workspace.softGateMessage;
   }
   return await handler(args ?? {}, workspace);

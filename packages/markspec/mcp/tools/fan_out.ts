@@ -16,7 +16,9 @@ import type { McpWorkspace, WorkspaceProject } from "../workspace.ts";
  *   `undefined`.
  * - Several → each non-empty text under a `## Project: <label>` heading,
  *   sections separated by a blank line; `emptyText` when every text is
- *   empty.
+ *   empty. When `render` throws for one project, that project's section
+ *   holds `Error: <message>` and the other projects still answer. With one
+ *   selected project the error propagates to the caller.
  */
 export async function perProject(
   workspace: McpWorkspace,
@@ -29,7 +31,12 @@ export async function perProject(
   if (selected.length === 1) return (await render(selected[0])) ?? emptyText;
   const sections: string[] = [];
   for (const wp of selected) {
-    const text = await render(wp);
+    let text: string | undefined;
+    try {
+      text = await render(wp);
+    } catch (err) {
+      text = `Error: ${err instanceof Error ? err.message : String(err)}\n`;
+    }
     if (text === undefined) continue;
     const body = text.endsWith("\n") ? text : `${text}\n`;
     sections.push(`## Project: ${wp.label}\n\n${body}`);

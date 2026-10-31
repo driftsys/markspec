@@ -4,10 +4,16 @@
  * Unit tests for the per-project fan-out helper.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
-import { createWorkspace } from "../workspace.ts";
+import {
+  createWorkspace,
+  type McpWorkspace,
+  type WorkspaceProject,
+} from "../workspace.ts";
 import { perProject } from "./fan_out.ts";
+import { dispatchTool } from "./mod.ts";
+import { listResourceDescriptors } from "../resources/mod.ts";
 import {
   entryDoc,
   MEMORY_PARENT,
@@ -109,4 +115,61 @@ Deno.test("perProject: project label narrows to one project", async () => {
     "Nothing.\n",
   );
   assertEquals(text, "Text b.\n");
+});
+
+/** Two real projects `a` and `b`, where project `b`'s `getCompiled()`
+ * rejects. */
+async function twoProjectsOneBroken(): Promise<McpWorkspace> {
+  const ws = await twoProjects();
+  const list: WorkspaceProject[] = ws.projects().map((wp) =>
+    wp.label === "b"
+      ? {
+        label: wp.label,
+        project: Object.create(wp.project, {
+          getCompiled: {
+            value: () => Promise.reject(new Error("disk read failed")),
+          },
+        }),
+      }
+      : wp
+  );
+  return {
+    startRoot: ws.startRoot,
+    projects: () => list,
+    softGateMessage: undefined,
+    select(label?: string) {
+      if (label === undefined) return list;
+      const match = list.filter((p) => p.label === label);
+      return match.length > 0 ? match : `Unknown project "${label}".`;
+    },
+    ownerOf: () => undefined,
+    canonicalPath: (path) => Promise.resolve(path),
+    rediscover: () => Promise.resolve(),
+    subscribeInvalidation: () => () => {},
+  };
+}
+
+Deno.test("dispatchTool: a failing project gets an error section, the others still answer", async () => {
+  const ws = await twoProjectsOneBroken();
+  const text = await dispatchTool("entry_search", { query: "Alpha" }, ws);
+  assertStringIncludes(text, "## Project: a\n\n");
+  assertStringIncludes(text, "STK_0001");
+  assertStringIncludes(text, "## Project: b\n\nError: ");
+  assertStringIncludes(text, "disk read failed");
+});
+
+Deno.test("dispatchTool: with one selected project the error propagates", async () => {
+  const ws = await twoProjectsOneBroken();
+  await assertRejects(
+    () => dispatchTool("entry_search", { query: "Alpha", project: "b" }, ws),
+    Error,
+    "disk read failed",
+  );
+});
+
+Deno.test("listResourceDescriptors: a failing project is skipped", async () => {
+  const ws = await twoProjectsOneBroken();
+  const uris = (await listResourceDescriptors(ws)).map((d) => d.uri);
+  assertEquals(uris.includes("markspec://entry/STK_0001"), true);
+  assertEquals(uris.includes("markspec://entry/STK_0002"), false);
 });

@@ -91,8 +91,10 @@ The server finds every MarkSpec project at or below the folder it starts in. A
 project is a folder that holds a `project.yaml` or a `.markspec.yaml`. A nested
 project is a separate project: its entries are not merged into the enclosing
 project's graph, and it uses its own profile. The search follows `.gitignore`
-and the `exclude:` list of the enclosing `.markspec.yaml`, and it never starts
-at a filesystem root or at your home folder.
+and the `exclude:` list of each enclosing project's `.markspec.yaml`: a
+project's `exclude:` patterns are relative to that project and apply to the
+folders below it. The server does not scan down from a filesystem root or from
+your home folder when that folder has no config of its own.
 
 With several projects:
 

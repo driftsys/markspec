@@ -6,8 +6,16 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { dispatchTool } from "./mod.ts";
-import type { Project } from "../project.ts";
-import { workspaceOf } from "./testing.ts";
+import { join } from "@std/path";
+import type { Project, ProjectEnv } from "../project.ts";
+import { createWorkspace } from "../workspace.ts";
+import {
+  entryDoc,
+  MEMORY_PARENT,
+  memoryEnv,
+  PROJECT_YAML,
+  workspaceOf,
+} from "./testing.ts";
 
 function mockProject(detected: boolean): Project {
   return {
@@ -165,4 +173,33 @@ Deno.test("dispatchTool: entry_neighborhood routes", async () => {
     workspaceOf(emptyDetectedProject()),
   );
   assertStringIncludes(result, "No entry with display ID X_0001");
+});
+
+Deno.test("dispatchTool: markspec_refresh finds a project added after an empty start", async () => {
+  const files: Record<string, string> = {
+    [join(MEMORY_PARENT, "notes.md")]: "# Notes\n",
+  };
+  // Each call reads the current `files`, so files added later are seen.
+  const env: ProjectEnv = {
+    cwd: () => MEMORY_PARENT,
+    rootOverrides: () => [],
+    readFile: (path) => memoryEnv(files).readFile(path),
+    readDir: (path) => memoryEnv(files).readDir(path),
+    homeDir: () => undefined,
+    realPath: (path) => Promise.resolve(path),
+    stat: (path) => memoryEnv(files).stat(path),
+    walk: (root) => memoryEnv(files).walk(root),
+  };
+  const ws = await createWorkspace(env);
+  assertEquals(ws.projects().length, 0);
+  files[join(MEMORY_PARENT, "a", "project.yaml")] = PROJECT_YAML;
+  files[join(MEMORY_PARENT, "a", "req.md")] = entryDoc(
+    "STK_0001",
+    "Alpha",
+    "01HGW2Q8MNP3RSTVWXYZABCDEF",
+  );
+  const refreshed = await dispatchTool("markspec_refresh", {}, ws);
+  assertEquals(refreshed.includes("No MarkSpec project found"), false);
+  const list = await dispatchTool("project_list", {}, ws);
+  assertStringIncludes(list, join(MEMORY_PARENT, "a"));
 });

@@ -245,3 +245,15 @@ Deno.test("listResourceDescriptors: returns empty list when gated", async () => 
   const list = await listResourceDescriptors(workspaceOf(project));
   assertEquals(list, []);
 });
+
+Deno.test("listResourceDescriptors: a lone project's compile error propagates", async () => {
+  const project: Project = {
+    ...mkProject([E1]),
+    getCompiled: () => Promise.reject(new Error("compile failed")),
+  };
+  await assertRejects(
+    () => listResourceDescriptors(workspaceOf(project)),
+    Error,
+    "compile failed",
+  );
+});

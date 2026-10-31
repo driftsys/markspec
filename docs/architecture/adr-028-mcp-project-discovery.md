@@ -117,10 +117,12 @@ Tracked as follow-up #644.
 
 After the start folder is resolved (sections 1 and 2), the server also searches
 below it for further MarkSpec projects. It uses the same gitignore-aware file
-walk as `markspec check`, honours the `exclude:` list of the enclosing
-`.markspec.yaml`, and finds every `project.yaml` and `.markspec.yaml`. Each
-config file resolves to a root the same way a document there would, so a
-`.markspec.yaml` below a `project.yaml` does not start a project of its own.
+walk as `markspec check`, honours the `exclude:` list of each enclosing
+project's `.markspec.yaml` (patterns are relative to the project that declares
+them and apply to the folders below it), and finds every `project.yaml` and
+`.markspec.yaml`. Each config file resolves to a root the same way a document
+there would, so a `.markspec.yaml` below a `project.yaml` does not start a
+project of its own.
 
 - A nested project is a separate project. Its entries are not merged into the
   enclosing project's graph, and it is compiled and validated against its own
@@ -129,8 +131,8 @@ config file resolves to a root the same way a document there would, so a
   result `## Project: <label>`, where the label is the project root relative to
   the start folder. Every tool accepts an optional `project` argument that
   limits the answer to one label. The `project_list` tool lists the labels.
-- The search never starts at a filesystem root or at `$HOME`. A start folder
-  with no config of its own that equals one of them yields no projects.
+- There is no downward scan from a filesystem root or from `$HOME` when that
+  folder has no config of its own; such a start folder yields no projects.
 - With exactly one project, startup and output are unchanged. With several, each
   project compiles on first use.
 - `markspec_refresh` runs discovery again, so projects added or removed after
