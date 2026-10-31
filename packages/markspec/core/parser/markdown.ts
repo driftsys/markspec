@@ -620,8 +620,8 @@ function extractEntry(
   // (entry_line + 2), not (entry_line + 1).
   //
   // columnOffset: body text has been stripped of the list-item content
-  // indent (itemContentIndent: 2 for `- [ID]`, 4 for `-   [ID]` or
-  // `1.  [ID]`), so each token column is bumped by that width. For a source
+  // indent (itemContentIndent: 2 for `- [ID]`, 4 for `-   [ID]`), so each
+  // token column is bumped by that width. For a source
   // doc comment, wrapAsListItem writes `- ` and a 2-space indent on every
   // non-title line, so the width is 2 there.
   const bodyIndent = itemContentIndent(item);
@@ -668,8 +668,9 @@ function extractEntry(
  * Width of the continuation indent of a list item: the 0-based column where
  * its title paragraph starts. That is the marker column plus the marker
  * width plus the spaces after the marker, so `- [ID]` gives 2 and
- * `-   [ID]` or `1.  [ID]` gives 4. Falls back to the marker column plus 2
- * when the title has no position.
+ * `-   [ID]` gives 4 (ordered lists never hold entries; see
+ * `parseMarkdown`). Falls back to the marker column plus 2 when the title
+ * has no position.
  */
 function itemContentIndent(item: ListItem): number {
   const title = item.children[0]?.position?.start.column;

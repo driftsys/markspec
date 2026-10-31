@@ -2277,3 +2277,109 @@ Deno.test("desk api: an oversized request without If-Match is 428", async () => 
   const res = await h(post(PREVIEW, paddedRequest("New body.", 200_000)));
   await assertError(res, 428, "precondition-required");
 });
+
+Deno.test("desk api: a declared Content-Length of exactly the cap is read; one more is 422", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const atCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_096), {
+      "if-match": etag,
+      "content-length": "124096",
+    }),
+  );
+  assertEquals(atCap.status, 200);
+  await atCap.body?.cancel();
+  const overCap = await h(
+    post(PREVIEW, paddedRequest("New body.", 124_097), {
+      "if-match": etag,
+      "content-length": "124097",
+    }),
+  );
+  await assertError(overCap, 422, "proposal-too-large");
+});
+
+Deno.test("desk api: apply through a symbolic link reads and writes the real path", async () => {
+  // The link path serves other text. Apply must check the bytes of the
+  // real path again before the write, and write the real path.
+  const inside = join(FIXTURE_ROOT, "docs", "real", "system.md");
+  const linkText = (await Deno.readTextFile(SYSTEM_PATH)).replace(
+    "within 200 ms",
+    "within 999 ms",
+  );
+  const { h, state } = await writableHandler({
+    realSystemPath: inside,
+    linkText,
+  });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  assertEquals(state.writes.map((w) => w.path), [inside]);
+});
+
+/**
+ * A request body stream of `chunks` chunks of `chunkBytes` spaces that
+ * records each pull and whether it was cancelled. With a high-water mark
+ * of 0 it is pulled only when the reader asks for a chunk.
+ */
+function recordingStream(chunks: number, chunkBytes: number) {
+  const record = { pulls: 0, cancelled: false };
+  let sent = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      record.pulls++;
+      if (sent === chunks) {
+        controller.close();
+        return;
+      }
+      sent++;
+      controller.enqueue(new TextEncoder().encode(" ".repeat(chunkBytes)));
+    },
+    cancel() {
+      record.cancelled = true;
+    },
+  }, { highWaterMark: 0 });
+  return { stream, record };
+}
+
+/** A proposal POST whose body is `body`, with extra headers. */
+function streamPost(
+  body: ReadableStream<Uint8Array>,
+  headers: Record<string, string>,
+): Request {
+  return new Request(`${BASE}${PREVIEW}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      "content-type": "application/json",
+      ...headers,
+    },
+    body,
+  });
+}
+
+Deno.test("desk api: reading a request body stops at the chunk that crosses the cap", async () => {
+  // Three chunks of 50 000 bytes: the third crosses 124 096 bytes. The
+  // handler must cancel the stream then, and never pull a fourth chunk.
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const { stream, record } = recordingStream(10, 50_000);
+  const res = await h(streamPost(stream, { "if-match": etag }));
+  await assertError(res, 422, "proposal-too-large");
+  assertEquals(record.pulls, 3);
+  assert(record.cancelled);
+});
+
+Deno.test("desk api: a declared Content-Length over the cap cancels the body unread", async () => {
+  const { h } = await writableHandler();
+  const etag = await systemEtag(h);
+  const { stream, record } = recordingStream(10, 50_000);
+  const res = await h(
+    streamPost(stream, { "if-match": etag, "content-length": "999999" }),
+  );
+  await assertError(res, 422, "proposal-too-large");
+  assertEquals(record.pulls, 0);
+  assert(record.cancelled);
+});

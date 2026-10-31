@@ -480,3 +480,34 @@ Deno.test("readEntryBody and replaceEntryBody: an ordered item or five spaces af
     );
   }
 });
+
+Deno.test("readEntryBody and replaceEntryBody: other bullets and four spaces after the marker", async () => {
+  // `*` and `+` are bullets too; four spaces after the marker put the
+  // content at the marker column plus 5.
+  for (
+    const [marker, indent] of [["*   ", 4], ["+   ", 4], ["-    ", 5]] as const
+  ) {
+    const pad = " ".repeat(indent);
+    const text = `# Doc
+
+${marker}[REQ_0001] First
+
+${pad}Body one line A.
+${pad}line B.
+
+${pad}    Id: 01JBRK00000000000000000001
+`;
+    assertEquals(
+      await readEntryBody(text, FILE, "REQ_0001"),
+      "Body one line A.\nline B.",
+      marker,
+    );
+    const r = await replaceEntryBody(text, FILE, "REQ_0001", "New body.");
+    assert(r.ok, `${marker}: ${JSON.stringify(r)}`);
+    assertEquals(
+      r.text,
+      text.replace(`${pad}Body one line A.\n${pad}line B.`, `${pad}New body.`),
+      marker,
+    );
+  }
+});

@@ -1095,7 +1095,13 @@ Deno.test("parseMarkdown: body token columns follow the item content of a `-   [
 });
 
 Deno.test("parseMarkdown: a comma or quote typo of a known trailer key still raises MSL-P022", () => {
-  for (const last of ["Verified,by: TST_1", 'Satisfies": STK_0002']) {
+  for (
+    const last of [
+      "Verified,by: TST_1",
+      "Verified'by: TST_1",
+      'Satisfies": STK_0002',
+    ]
+  ) {
     const md = `- [STK_0018] Title
 
   Body prose within 200 ms.
