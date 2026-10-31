@@ -5,7 +5,13 @@
  * (nothing written).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { DeskError, type EntryView, type ProposalChange } from "../api/client";
 import { useRefresh } from "../app/refresh";
 import { useSelection } from "../app/selection";
@@ -120,8 +126,9 @@ function proposalMessage(error: unknown, fallback: string): string {
 /**
  * The prompt flow for the selected entry and the selected assistant.
  *
- * Each submit takes a run number. A change of selection, or an unmount,
- * moves the number on, so the late result of an earlier run is ignored.
+ * Each submit takes a run number. Cancel, a change of selection, or an
+ * unmount moves the number on, so the late result of an earlier run is
+ * ignored.
  * Every error keeps the instruction, so the author can send it again.
  */
 export function usePrompt(): PromptController {
@@ -140,7 +147,9 @@ export function usePrompt(): PromptController {
   const [phase, setPhase] = useState<PromptPhase>({ kind: "idle" });
   const run = useRef(0);
   const phaseRef = useRef<PromptPhase>(phase);
-  phaseRef.current = phase;
+  useLayoutEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   // Load the selected entry. A new selection shows "loading"; a refresh of
   // the same selection keeps the entry shown until the new one arrives.
@@ -168,9 +177,12 @@ export function usePrompt(): PromptController {
   }, [client, selected, revision]);
 
   // A proposal belongs to one entry: a selection change, or leaving the
-  // column, cancels a running prompt and discards a shown proposal.
+  // column, cancels a running prompt and discards a shown proposal. A
+  // write in progress is kept: the box stays busy until it ends, and a
+  // failed write is still reported.
   useEffect(() => {
     return () => {
+      if (phaseRef.current.kind === "applying") return;
       run.current++;
       if (phaseRef.current.kind === "running") {
         bridge.cancelAssistantPrompt().catch(() => {});
@@ -179,6 +191,8 @@ export function usePrompt(): PromptController {
     };
   }, [bridge, selected]);
 
+  // The column mounts the panel only when an assistant is selected; this
+  // branch guards a direct mount without one.
   const disabledReason = assistantId === null
     ? "Set up an assistant first"
     : promptDisabledReason({
@@ -270,17 +284,29 @@ export function usePrompt(): PromptController {
         proposedBody: change.body,
       });
     } catch (error) {
-      if (isCurrent()) {
-        setPhase({
-          kind: "error",
-          message: proposalMessage(error, PROMPT_MESSAGES.couldNotFormat),
-        });
+      if (!isCurrent()) return;
+      // A lost connection is reported by the app's banner; a column
+      // sentence about formatting would name the wrong cause.
+      if (error instanceof DeskError && error.status === 0) {
+        setPhase({ kind: "idle" });
+        return;
       }
+      setPhase({
+        kind: "error",
+        message: proposalMessage(error, PROMPT_MESSAGES.couldNotFormat),
+      });
     }
   }, [assistantId, bridge, client, disabledReason, entry, instruction, name]);
 
   const cancel = useCallback(async () => {
     if (phaseRef.current.kind !== "running") return;
+    // Stop the run on the UI side first. The shell loses a cancel that
+    // arrives before its run has started, so a submit still reading the
+    // entry must not start the run, and a late result must be ignored.
+    run.current++;
+    const idle: PromptPhase = { kind: "idle" };
+    phaseRef.current = idle;
+    setPhase(idle);
     try {
       await bridge.cancelAssistantPrompt();
     } catch {
@@ -301,6 +327,8 @@ export function usePrompt(): PromptController {
         { displayId: shown.displayId, kind: "body", body: shown.proposedBody },
       ]);
     } catch (error) {
+      // Reported even after a selection change: a failed write must not
+      // pass without a message.
       if (run.current === mine) {
         setPhase({
           kind: "error",

@@ -252,8 +252,15 @@ it("rejects with the button and with Escape, and writes nothing", async () => {
 });
 
 it("accepts: applies with the submit ETag, then refreshes", async () => {
+  // The document ETag changes after the first read, so an apply that read
+  // the document again would send '"e2"' instead of the submit ETag.
+  let documentReads = 0;
   const { client } = mountApp({
     client: fakePromptClient({
+      document: vi.fn(async (path: string) => ({
+        view: { apiVersion: 3 as const, path, html: "", entries: [] },
+        etag: documentReads++ === 0 ? '"e1"' : '"e2"',
+      })),
       previewProposal: vi.fn(async () => ({
         apiVersion: 3 as const,
         changes: [{
@@ -267,20 +274,107 @@ it("accepts: applies with the submit ETag, then refreshes", async () => {
   });
   const box = await pickReady();
   await send(box, "rewrite");
-  const entryCalls = vi.mocked(client.entry).mock.calls.length;
-  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  // Decision 21: the document (ETag) is read before the submit-time entry.
+  const entryMock = vi.mocked(client.entry).mock;
+  const documentOrder = vi.mocked(client.document).mock.invocationCallOrder[0];
+  const freshEntryOrder = entryMock.invocationCallOrder.find((order) =>
+    order > documentOrder
+  );
+  expect(freshEntryOrder).toBeDefined();
+  // Counted after the proposal is shown, so only a refresh raises it.
+  const entryCalls = entryMock.calls.length;
+  fireEvent.click(accept);
   await waitFor(() =>
     expect(client.applyProposal).toHaveBeenCalledWith('"e1"', [
       { displayId: "SYS_BRK_0001", kind: "body", body: "Formatted body." },
     ])
   );
   await waitFor(() =>
-    expect(vi.mocked(client.entry).mock.calls.length).toBeGreaterThan(
-      entryCalls,
-    )
+    expect(entryMock.calls.length).toBeGreaterThan(entryCalls)
   );
   await waitFor(() => expect(box.value).toBe(""));
   expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+  // Focus goes back to the enabled prompt box.
+  await waitFor(() => expect(document.activeElement).toBe(box));
+});
+
+it("moves focus to Accept, so Escape from the focused element rejects", async () => {
+  const { client } = mountApp();
+  const box = await pickReady();
+  box.focus();
+  await send(box, "rewrite");
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  await waitFor(() => expect(document.activeElement).toBe(accept));
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+  expect(client.applyProposal).not.toHaveBeenCalled();
+  await waitFor(() => expect(document.activeElement).toBe(box));
+});
+
+it("moves focus to Cancel while the assistant runs", async () => {
+  const run = deferred<AssistantPromptResult>();
+  mountApp({
+    assistant: { runAssistantPrompt: vi.fn(() => run.promise) },
+  });
+  const box = await pickReady();
+  box.focus();
+  await send(box, "rewrite");
+  const cancel = await screen.findByRole("button", { name: "Cancel" });
+  await waitFor(() => expect(document.activeElement).toBe(cancel));
+});
+
+it("cancels before the shell run starts: the run never starts", async () => {
+  const read = deferred<void>();
+  const runAssistantPrompt = vi.fn(async () => ({
+    outcome: "ok" as const,
+    reply: "Late body.",
+    error: null,
+  }));
+  const { client } = mountApp({
+    client: fakePromptClient({
+      document: vi.fn(async (path: string) => {
+        await read.promise;
+        return {
+          view: { apiVersion: 3 as const, path, html: "", entries: [] },
+          etag: '"e1"',
+        };
+      }),
+    }),
+    assistant: { runAssistantPrompt },
+  });
+  const box = await pickReady();
+  await send(box, "keep me");
+  await screen.findByText("Waiting for Claude Code…");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() =>
+    expect(screen.queryByText("Waiting for Claude Code…")).toBeNull()
+  );
+  await act(async () => {
+    read.resolve();
+  });
+  expect(runAssistantPrompt).not.toHaveBeenCalled();
+  expect(client.previewProposal).not.toHaveBeenCalled();
+  expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
+  expect(box.value).toBe("keep me");
+});
+
+it("reports a failed apply that ends after the selection changed", async () => {
+  const apply = deferred<{ apiVersion: 3; path: string; etag: string }>();
+  mountApp({
+    client: fakePromptClient({ applyProposal: vi.fn(() => apply.promise) }),
+  });
+  await send(await pickReady(), "rewrite");
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  fireEvent.click(screen.getByRole("button", { name: "Pick second" }));
+  // The write is still pending: the box stays busy.
+  expect((await promptBox()).disabled).toBe(true);
+  await act(async () => {
+    apply.reject(new DeskError(500, "write-failed", "m"));
+  });
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    PROMPT_MESSAGES.writeFailed,
+  );
 });
 
 it("disables Accept while applying", async () => {
@@ -425,6 +519,13 @@ it("reports a lost connection from a proposal call", async () => {
       }),
     }),
   });
-  await send(await pickReady(), "rewrite");
+  const box = await pickReady();
+  await send(box, "rewrite");
   expect(await screen.findByText(MESSAGES.lostConnection)).toBeTruthy();
+  // The banner names the cause; the column shows no wrong sentence.
+  await waitFor(() =>
+    expect(screen.queryByText("Waiting for Claude Code…")).toBeNull()
+  );
+  expect(screen.queryByText(PROMPT_MESSAGES.couldNotFormat)).toBeNull();
+  expect(box.value).toBe("rewrite");
 });

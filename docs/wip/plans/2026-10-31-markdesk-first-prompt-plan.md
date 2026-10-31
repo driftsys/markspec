@@ -219,6 +219,34 @@ orchestrator confirms or reverts them before Task 7.
    `exit code <n>`. Claude Code prints its real error on stdout. Task 7's error
    copy and the Task 8 records describe this order.
 
+## Task 7 review amendments (2026-10-31)
+
+Recorded by the Task 7 review fixer. They describe the as-built UI flow; Task 8
+carries them into the records.
+
+1. **Interface additions.** `PromptController.assistantName` (the display name
+   in "Waiting for <name>…"), `PROMPT_MESSAGES.readFailed` ("MarkDesk could not
+   read this entry.", shown when the submit-time document or entry read fails)
+   and `PROMPT_MESSAGES.trailerInvalid` (orchestrator decision 1). The hook's
+   "Set up an assistant first" reason is never shown through the column, which
+   mounts the panel only when an assistant is selected; it guards a direct
+   mount.
+2. **Cancel stops the run in the UI.** Cancel moves the run counter on, sets
+   `idle` and keeps the instruction, then asks the shell to cancel. A submit
+   still reading the document or the entry does not start the shell run, and a
+   late result (shell reply or preview) is ignored. This covers the shell's
+   known gap: a cancel that arrives before the run takes the guard.
+3. **Focus.** Focus moves to Cancel while the assistant runs and to Accept when
+   the proposal appears, so Escape reaches the panel after the disabled box
+   loses focus. When the flow ends (reject, accept, cancel, error), focus
+   returns to the box, unless the author moved focus outside the panel.
+4. **A write in progress survives a selection change.** The box stays busy until
+   the apply ends, and a failed apply is still reported.
+5. **Lost connection during preview.** A `DeskError` with status 0 from the
+   preview sets `idle` without a column sentence; the app's lost-connection
+   banner reports it. An apply that fails with status 0 still shows
+   `writeFailed`, because the write may or may not have happened.
+
 ## Review Focus
 
 Inputs the spec implies but does not name; each has a test in its owning task.
