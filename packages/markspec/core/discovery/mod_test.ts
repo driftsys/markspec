@@ -160,3 +160,63 @@ Deno.test("discovery: explicitly naming a build dir walks its contents", async (
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("discovery: inherits ancestor .gitignore rules up to the .git directory", async () => {
+  const dir = await makeTree({
+    ".git/HEAD": "ref: refs/heads/main\n",
+    ".gitignore": "gen/\n/top.md\n",
+    "mid/.gitignore": "*.draft.md\n",
+    "mid/sub/a.md": "",
+    "mid/sub/b.draft.md": "",
+    "mid/sub/gen/x.md": "",
+    // `/top.md` is anchored to the repository root, not to `mid/sub`.
+    "mid/sub/top.md": "",
+  });
+  try {
+    assertEquals(await collect(join(dir, "mid", "sub")), ["a.md", "top.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: a .git file (worktree) also marks the work-tree root", async () => {
+  const dir = await makeTree({
+    ".git": "gitdir: /elsewhere/.git/worktrees/wt\n",
+    ".gitignore": "gen/\n",
+    "sub/a.md": "",
+    "sub/gen/x.md": "",
+  });
+  try {
+    assertEquals(await collect(join(dir, "sub")), ["a.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: inherits no ancestor .gitignore without a .git above", async () => {
+  const dir = await makeTree({
+    ".gitignore": "gen/\n",
+    "sub/a.md": "",
+    "sub/gen/x.md": "",
+  });
+  try {
+    assertEquals(await collect(join(dir, "sub")), ["a.md", "gen/x.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: a walk root that holds .git inherits nothing from above", async () => {
+  const dir = await makeTree({
+    ".git/HEAD": "ref: refs/heads/main\n",
+    ".gitignore": "gen/\n",
+    "sub/.git/HEAD": "ref: refs/heads/main\n",
+    "sub/a.md": "",
+    "sub/gen/x.md": "",
+  });
+  try {
+    assertEquals(await collect(join(dir, "sub")), ["a.md", "gen/x.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
