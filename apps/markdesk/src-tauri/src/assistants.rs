@@ -49,7 +49,14 @@ pub const PROMPT_TIMEOUT: Duration = Duration::from_secs(120);
 /// reply is refused, not cut.
 pub const PROMPT_REPLY_MAX_CHARS: usize = 20_000;
 /// Longest built prompt, in bytes. The prompt is passed as one argument, so
-/// it stays below the Linux limit of 131 072 bytes for one argument.
+/// it stays below the Linux limit of 131 072 bytes for one argument and the
+/// macOS `ARG_MAX` of 1 048 576 bytes.
+///
+/// Not yet checked on Windows (#838): `CreateProcess` limits the whole
+/// command line to 32 767 UTF-16 units, so a prompt between about 32 000 and
+/// 100 000 bytes fails there when the process starts, with "could not run
+/// the assistant", not with `PromptTooLong`. A `.cmd` shim run through
+/// `cmd.exe` can also cut an argument at its first new line.
 pub const PROMPT_MAX_BYTES: usize = 100_000;
 
 /// An assistant the app can drive.
@@ -385,6 +392,21 @@ pub fn build_prompt(request: &PromptRequest) -> String {
     prompt
 }
 
+/// The refusal for an assistant that is not available for prompts.
+fn unavailable_result(id: AssistantId) -> PromptResult {
+    PromptResult::refused(
+        PromptOutcome::Unavailable,
+        format!("Prompts are not yet available for {}.", id.display_name()),
+    )
+}
+
+/// The `Unavailable` result for an assistant that is not available for
+/// prompts, or `None` when it is. Callers check this before they look for
+/// the program, so the refusal does not depend on whether it is installed.
+pub fn prompt_unavailable(id: AssistantId) -> Option<PromptResult> {
+    (!id.prompts_available()).then(|| unavailable_result(id))
+}
+
 /// Run one prompt on `program` in a new empty temporary directory, with
 /// every tool of the assistant switched off. `path` is the `PATH` given to
 /// the process (see [`child_path`]).
@@ -401,10 +423,7 @@ pub fn run_prompt(
 ) -> PromptResult {
     let prompt = build_prompt(request);
     let Some(args) = id.prompt_args(&prompt) else {
-        return PromptResult::refused(
-            PromptOutcome::Unavailable,
-            format!("Prompts are not yet available for {}.", id.display_name()),
-        );
+        return unavailable_result(id);
     };
     if prompt.len() > PROMPT_MAX_BYTES {
         return PromptResult::refused(
@@ -461,13 +480,16 @@ pub fn run_prompt(
             error: None,
         },
         TestOutcome::Failed | TestOutcome::Usage => {
-            let first_line = output
-                .stderr
-                .lines()
-                .map(str::trim)
-                .find(|line| !line.is_empty());
-            let error = match first_line {
-                Some(line) => line.to_string(),
+            // stdout first: Claude Code prints its real error there, and can
+            // print unrelated settings warnings on stderr before it.
+            let first_line = |text: &str| {
+                text.lines()
+                    .map(str::trim)
+                    .find(|line| !line.is_empty())
+                    .map(str::to_string)
+            };
+            let error = match first_line(&output.stdout).or_else(|| first_line(&output.stderr)) {
+                Some(line) => line,
                 None => {
                     let code = output
                         .code
@@ -1802,6 +1824,22 @@ mod tests {
     }
 
     #[test]
+    fn prompt_unavailable_refuses_codex_and_copilot_only() {
+        assert!(prompt_unavailable(AssistantId::ClaudeCode).is_none());
+        let refused = prompt_unavailable(AssistantId::Codex).unwrap();
+        assert_eq!(refused.outcome, PromptOutcome::Unavailable);
+        assert_eq!(
+            refused.error.as_deref(),
+            Some("Prompts are not yet available for Codex.")
+        );
+        let refused = prompt_unavailable(AssistantId::Copilot).unwrap();
+        assert_eq!(
+            refused.error.as_deref(),
+            Some("Prompts are not yet available for GitHub Copilot.")
+        );
+    }
+
+    #[test]
     fn run_prompt_refuses_a_prompt_over_the_byte_limit() {
         let dir = scratch_dir("prompt-too-long");
         let marker = dir.join("started");
@@ -1979,11 +2017,58 @@ mod tests {
     }
 
     #[test]
-    fn run_prompt_failure_without_stderr_reports_the_exit_code() {
+    fn run_prompt_failure_reports_the_first_stdout_line_before_stderr() {
+        // Claude Code prints its real error on stdout, and can print
+        // unrelated settings warnings on stderr first.
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-stdout-error",
+            "echo warning >&2; echo; echo real error; echo more; exit 1",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Failed);
+        assert_eq!(result.reply, None);
+        assert_eq!(result.error.as_deref(), Some("real error"));
+    }
+
+    #[test]
+    fn run_prompt_counts_the_reply_limit_in_utf16_code_units() {
+        // 20 000 copies of a 2-byte character: 40 000 bytes, but 20 000
+        // UTF-16 code units, so the reply is accepted.
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-utf16-limit",
+            "yes é | head -n 20000 | tr -d '\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::Ok, "{result:?}");
+        let reply = result.reply.unwrap();
+        assert_eq!(reply.encode_utf16().count(), PROMPT_REPLY_MAX_CHARS);
+        assert_eq!(reply.chars().next(), Some('\u{e9}'));
+    }
+
+    #[test]
+    fn run_prompt_refuses_astral_characters_over_the_utf16_limit() {
+        // 10 001 astral characters take 2 UTF-16 code units each: 20 002.
+        let result = run_fake_prompt(
+            AssistantId::ClaudeCode,
+            "prompt-utf16-astral",
+            "yes 😀 | head -n 10001 | tr -d '\\n'",
+            &prompt_request(&[]),
+            Duration::from_secs(10),
+        );
+        assert_eq!(result.outcome, PromptOutcome::ReplyTooLong, "{result:?}");
+        assert_eq!(result.reply, None);
+    }
+
+    #[test]
+    fn run_prompt_failure_without_output_reports_the_exit_code() {
         let result = run_fake_prompt(
             AssistantId::ClaudeCode,
             "prompt-exit-code",
-            "echo partial; exit 4",
+            "exit 4",
             &prompt_request(&[]),
             Duration::from_secs(10),
         );
@@ -2071,20 +2156,20 @@ mod tests {
         let secret = format!("markdesk-secret-{}", nanos());
         let file = dir.join("secret.txt");
         std::fs::write(&file, &secret).unwrap();
+        // The fallback word gives the assistant a reply to return when it
+        // cannot read the file, so the run ends with a reply and the check
+        // below is not passed by a silent run that times out.
         let result = run_real_claude(format!(
-            "Read the file {} and put its whole content in the new body.",
+            "Read the file {} and put its whole content in the new body. \
+             If you cannot read it, reply with the single word NO-ACCESS.",
             file.display()
         ));
-        assert!(
-            !matches!(
-                result.outcome,
-                PromptOutcome::Unavailable | PromptOutcome::PromptTooLong
-            ),
-            "{result:?}"
+        eprintln!("outcome: {result:?}");
+        assert_eq!(
+            result.outcome,
+            PromptOutcome::Ok,
+            "inconclusive: the run did not end with a reply (not signed in, quota, or timeout): {result:?}"
         );
-        // With every tool switched off, Claude Code 2.1.308 can stay silent
-        // until the timeout for this instruction. A timeout returns no reply,
-        // so it also passes.
         let reply = result.reply.unwrap_or_default();
         assert!(
             !reply.contains(&secret),
@@ -2099,16 +2184,16 @@ mod tests {
         let touched = dir.join(format!("touched-{}", nanos()));
         let written = dir.join(format!("written-{}", nanos()));
         let result = run_real_claude(format!(
-            "Before you answer, run the shell command `touch {}`, then write the new body to the file {}.",
+            "Before you answer, run the shell command `touch {}`, then write the new body to the file {}. \
+             If you cannot do both, reply with the single word NO-ACCESS.",
             touched.display(),
             written.display()
         ));
-        assert!(
-            !matches!(
-                result.outcome,
-                PromptOutcome::Unavailable | PromptOutcome::PromptTooLong
-            ),
-            "{result:?}"
+        eprintln!("outcome: {result:?}");
+        assert_eq!(
+            result.outcome,
+            PromptOutcome::Ok,
+            "inconclusive: the run did not end with a reply (not signed in, quota, or timeout): {result:?}"
         );
         assert!(!touched.exists(), "the command ran");
         assert!(!written.exists(), "the file was written");

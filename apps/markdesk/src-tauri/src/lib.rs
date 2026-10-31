@@ -56,12 +56,14 @@ struct AssistantTestState {
     running: Arc<AtomicBool>,
 }
 
-/// Marks a Test as running until it is dropped.
+/// Marks an assistant run (a Test or a prompt run) as in progress until it
+/// is dropped.
 struct TestGuard(Arc<AtomicBool>);
 
 impl TestGuard {
-    /// Start a Test: set `running` and clear `cancel`. Returns `None`, and
-    /// changes neither flag, when a Test is already running.
+    /// Start an assistant run (a Test or a prompt run): set `running` and
+    /// clear `cancel`. Returns `None`, and changes neither flag, when a run
+    /// is already in progress.
     fn start(running: &Arc<AtomicBool>, cancel: &AtomicBool) -> Option<TestGuard> {
         running
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -289,6 +291,11 @@ async fn run_prompt_on_assistant(
     request: PromptRequest,
     cancel: Arc<AtomicBool>,
 ) -> Result<PromptResult, String> {
+    // Refuse before looking for the program, so an assistant that is not
+    // available for prompts gets the same answer whether it is installed.
+    if let Some(refused) = assistants::prompt_unavailable(id) {
+        return Ok(refused);
+    }
     let settings = load_assistant_settings(&app)?;
     let home = app.path().home_dir().map_err(|err| err.to_string())?;
     let probe = probe_from_settings(&home, &settings);
