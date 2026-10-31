@@ -2,3 +2,8 @@
 # platform must use a stable line ending. Pin to LF so a Windows
 # checkout doesn't surprise the snapshot tests.
 docs/product/ast-fidelity-matrix.md text eol=lf
+
+# The desk proposal tests edit these fixture texts with LF-only string
+# replacements and compare the written bytes, so pin them to LF as well.
+# The CRLF behaviour is tested by converting an LF copy in the test.
+tests/fixtures/desk-project/** text eol=lf

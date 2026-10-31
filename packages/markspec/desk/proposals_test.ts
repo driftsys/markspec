@@ -712,3 +712,33 @@ Deno.test("applyBody: writes the preview body of a wrapped ordered list item", a
   assert(previewed.includes("\n"), previewed);
   assertEquals(written, previewed);
 });
+
+Deno.test("previewBody and applyBody: a CRLF file keeps CRLF line endings", async () => {
+  // Built from an LF copy of the fixture, so the result does not depend on
+  // how Git checked the fixture out.
+  const lf = SYSTEM.replace(/\r\n/g, "\n");
+  const crlf = lf.replaceAll("\n", "\r\n");
+  const proposed = "New body.\n\nSecond paragraph.";
+  const preview = await previewBody(
+    crlf,
+    FILE,
+    "SYS_BRK_0001",
+    proposed,
+    prose,
+  );
+  assert(preview.ok, JSON.stringify(preview));
+  assertEquals(preview.value.body, proposed);
+  assertEquals(
+    preview.value.currentBody,
+    "The braking system shall apply full braking torque within 200 ms of a\nconfirmed obstacle.",
+  );
+  const applied = await applyBody(crlf, FILE, "SYS_BRK_0001", proposed, prose);
+  assert(applied.ok, JSON.stringify(applied));
+  assertEquals(
+    applied.value,
+    lf.replace(
+      "  The braking system shall apply full braking torque within 200 ms of a\n  confirmed obstacle.",
+      "  New body.\n\n  Second paragraph.",
+    ).replaceAll("\n", "\r\n"),
+  );
+});

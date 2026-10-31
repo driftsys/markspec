@@ -1796,7 +1796,9 @@ Deno.test("desk api: apply keeps unformatted neighbours byte for byte", async ()
 
 Deno.test("desk api: apply keeps CRLF line endings", async () => {
   const { h, state } = await writableHandler();
-  state.text = state.text.replaceAll("\n", "\r\n");
+  // Normalize first, so the test does not depend on how Git checked the
+  // fixture out.
+  state.text = state.text.replace(/\r\n/g, "\n").replaceAll("\n", "\r\n");
   const etag = await systemEtag(h);
   const res = await h(
     post(APPLY, bodyChange("SYS_BRK_0001", "New body.\n\nSecond paragraph."), {
