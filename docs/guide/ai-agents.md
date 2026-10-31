@@ -75,6 +75,7 @@ following tools:
 | `validate`           | Run validation and return structured diagnostics                |
 | `markspec_refresh`   | Re-index the workspace after file changes                       |
 | `profile_describe`   | Describe the active profile's types, attributes, and relations  |
+| `project_list`       | List the discovered MarkSpec projects and their labels          |
 
 Upstream entries (imported from locked `dependencies:` / `references:`) are
 visible to `entry_show`, `entry_list`, and `entry_context` through the shared
@@ -83,6 +84,43 @@ compile cache — no separate tool. `entry_show` marks them with a
 location as `(in upstream <name>)` because the file lives in another repository;
 `entry_context` tags each upstream node in the chain with a lighter
 `— from <name>@<version>` suffix.
+
+### Several projects in one folder
+
+The server finds every MarkSpec project at or below the folder it starts in. A
+project is a folder that holds a `project.yaml` or a `.markspec.yaml`. A nested
+project is a separate project: its entries are not merged into the enclosing
+project's graph, and it uses its own profile. The search follows `.gitignore`
+and the `exclude:` list of the enclosing `.markspec.yaml`, and it never starts
+at a filesystem root or at your home folder.
+
+With several projects:
+
+- Every tool and resource answers for all projects. Each result sits under a
+  `## Project: <label>` heading. The label is the project folder relative to the
+  start folder (`.` for the start folder itself).
+- Every tool accepts an optional `project` argument with a label, which limits
+  the answer to that project. An unknown label returns an error that lists the
+  known labels.
+- `project_list` lists each project with its label, absolute root, active
+  profile, and entry count once compiled.
+- `validate` resolves its `files` paths against the start folder and checks each
+  file in the project that owns it.
+- Each project compiles on first use. With exactly one project, startup and
+  output are the same as before.
+- `markspec_refresh` runs discovery again, so projects added or removed after
+  startup are picked up.
+- Reading a `markspec://entry/{id}` URI returns every project that holds that
+  ID, under project headings.
+
+To keep a nested folder that has its own config (for example a test fixture)
+part of the enclosing project instead, list it under `exclude:` in the enclosing
+`.markspec.yaml`:
+
+```yaml
+exclude:
+  - "tests/fixtures/"
+```
 
 ### Claude Desktop
 

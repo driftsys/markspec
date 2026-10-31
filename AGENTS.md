@@ -32,6 +32,8 @@ markspec/
 │       │   │                          SourceLocation, ProjectConfig
 │       │   ├── config/              ← project.yaml discovery + loading
 │       │   │   └── mod.ts
+│       │   ├── discovery/           ← gitignore-aware file walk; projects.ts
+│       │   │   └── projects.ts        finds every project root under a folder
 │       │   ├── profile/             ← profile manifest load, merge, resolver
 │       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
@@ -484,7 +486,8 @@ docs/
   from an ordered candidate list (`--root` > `MARKSPEC_PROJECT_ROOT` >
   `CLAUDE_PROJECT_DIR` > `cwd`), resolved once at startup; MCP roots
   deliberately dropped (unimplemented on Claude Code); soft gate names the
-  searched dirs
+  searched dirs; downward discovery (§7) answers every project under the start
+  folder, labelled and selectable with a `project` argument
 - `adr-029-whole-document-markdown-formatting.md` — `markspec fmt` formats the
   entire Markdown document by default via an embedded, exact-pinned
   dprint-markdown WASM plugin; fixed zero-config style (80-column soft limit,

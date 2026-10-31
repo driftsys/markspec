@@ -13,3 +13,4 @@ exclude:
   - "CHANGELOG.md"
   - "docs/product/ast-fidelity-matrix.md"
   - "docs/templates/"
+  - "tests/fixtures/"

@@ -113,13 +113,32 @@ No install adapter passes `--root` in this ADR. Claude Code does not expand
 `CLAUDE_PROJECT_DIR` already covers that client without any adapter change.
 Tracked as follow-up #644.
 
-### 7. No downward search for a monorepo subdirectory
+### 7. Downward discovery: every project under the start folder is answered
 
-When the opened root is a monorepo parent containing a project in a
-subdirectory, discovery does not search downward for it — only upward from each
-candidate. The explicit `--root` / `MARKSPEC_PROJECT_ROOT` override is the
-escape hatch. A downward search would be ambiguous when the parent holds
-multiple projects. Tracked as follow-up #645.
+After the start folder is resolved (sections 1 and 2), the server also searches
+below it for further MarkSpec projects. It uses the same gitignore-aware file
+walk as `markspec check`, honours the `exclude:` list of the enclosing
+`.markspec.yaml`, and finds every `project.yaml` and `.markspec.yaml`. Each
+config file resolves to a root the same way a document there would, so a
+`.markspec.yaml` below a `project.yaml` does not start a project of its own.
+
+- A nested project is a separate project. Its entries are not merged into the
+  enclosing project's graph, and it is compiled and validated against its own
+  profile.
+- Every tool and resource answers for all discovered projects and labels each
+  result `## Project: <label>`, where the label is the project root relative to
+  the start folder. Every tool accepts an optional `project` argument that
+  limits the answer to one label. The `project_list` tool lists the labels.
+- The search never starts at a filesystem root or at `$HOME`. A start folder
+  with no config of its own that equals one of them yields no projects.
+- With exactly one project, startup and output are unchanged. With several, each
+  project compiles on first use.
+- `markspec_refresh` runs discovery again, so projects added or removed after
+  startup are picked up.
+- A repository that keeps a folder with its own config as a fixture lists that
+  folder in `exclude:` to keep it part of the enclosing project.
+
+This supersedes the earlier decision to skip downward search (follow-up #645).
 
 ## Consequences
 
@@ -151,9 +170,9 @@ multiple projects. Tracked as follow-up #645.
   Claude Code does not interpolate config variables in `.mcp.json`, so wiring a
   literal token into an adapter-written config would silently produce a broken
   override.
-- **Bounded downward search for a project in a monorepo subdirectory.** Deferred
-  (#645): ambiguous when the opened root contains more than one project; the
-  explicit override already covers this case.
+- **Bounded downward search that picks one project.** Rejected: ambiguous when
+  the opened root contains more than one project. Section 7 answers all of them
+  instead (#645).
 
 ## References
 
