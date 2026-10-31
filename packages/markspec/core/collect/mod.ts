@@ -29,9 +29,9 @@ export interface CollectOptions {
  * caller depends on. Files that belong to a project nested below `root`
  * are skipped, because that project pins its own entries. Each owned file is
  * parsed, and the result is the flattened entry list. Unreadable files are
- * skipped. Parse diagnostics are not surfaced here: this collector exists to give the lockfile pinner and its
- * checkers one definition of the file set; callers that need diagnostics
- * re-parse.
+ * skipped. Parse diagnostics are not surfaced here: this collector exists
+ * to give the lockfile pinner and its checkers one definition of the file
+ * set; callers that need diagnostics re-parse.
  *
  * @param io Injected filesystem surface (keeps `core/` Node-compatible; CLI
  *   entry points pass a Deno-backed implementation).

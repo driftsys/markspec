@@ -145,11 +145,14 @@ project of its own.
   profile.
 - The CLI follows the same rule since #856 (amended 2026-10-31). Bare
   `markspec check`, `lint`, and `fmt` check each nested project separately, with
-  its own profile and graph, so MCP `validate` and `check` report the same
-  result for the same tree. A display ID declared once in each of two nested
+  its own profile and graph. Bare `check` therefore applies the same ownership
+  rule as MCP `validate`: a display ID declared once in each of two nested
   projects is not a duplicate, and a `Satisfies:` that points from one nested
-  project into another is unresolved in both. Explicit file arguments keep the
-  single-graph behavior.
+  project into another is unresolved in both. The two can still report different
+  results for the same tree. The MCP compile does not apply the `exclude:` list
+  to the files of a project, but bare `check` does. Bare `check` also runs gates
+  that MCP `validate` does not run: Markdown format drift, lockfile drift, and
+  prose lint. Explicit file arguments to the CLI keep the single-graph behavior.
 - Every tool and resource answers for all discovered projects and labels each
   result `## Project: <label>`, where the label is the project root relative to
   the primary root (the config root found by walking up from the start folder,

@@ -79,6 +79,9 @@ export const readFile: ReadFile = async (path: string) => {
 /**
  * Load project config or exit with an error.
  * Used by commands that require project context.
+ *
+ * @param startDir Directory to start the upward search for `project.yaml`
+ *   from; defaults to the current working directory.
  */
 export async function requireProjectConfig(startDir: string = Deno.cwd()) {
   const { loadConfig } = await import("../core/mod.ts");
@@ -476,8 +479,7 @@ export function printProjectHeader(
  * Shared scope resolution for `check` / `lint` / `fmt`:
  *
  *   - no args  → whole project via gitignore-aware discovery (requires a
- *     discoverable project root; honors project.yaml `exclude:`), with a
- *     one-line scope header on stderr;
+ *     discoverable project root; honors project.yaml `exclude:`);
  *   - explicit args → files verbatim; directories expand recursively
  *     through the discovery filter. Exact scope, no surprises.
  *
@@ -532,7 +534,10 @@ export async function resolveScope(
       );
       if (toolConfigErrors.length > 0) {
         for (const d of toolConfigErrors) {
-          console.error(`error: ${d.message}`);
+          const loc = d.location
+            ? `${d.location.file}:${d.location.line} `
+            : "";
+          console.error(`error: ${loc}${d.message}`);
         }
         Deno.exit(1);
       }

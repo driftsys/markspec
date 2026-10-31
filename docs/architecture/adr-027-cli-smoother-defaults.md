@@ -50,7 +50,13 @@ Skip precedence, in order:
    hidden _files_ like `.hidden.md` are still yielded.
 2. **`.gitignore` files** (root + nested; standard semantics: `!` negation, `/`
    anchoring, trailing-`/` dir-only patterns, `**` cross-directory globs,
-   last-match-wins).
+   last-match-wins). Amended for #856 (2026-10-31): the walk also applies the
+   `.gitignore` files of the directories above the walk root, up to the git
+   work-tree root (the nearest directory that holds `.git`, as a directory or a
+   file). Each rule stays anchored to the directory of its own `.gitignore`.
+   Without a `.git` at or above the walk root, no ancestor `.gitignore` applies.
+   A nested project walked from its own root therefore skips the same files that
+   the walk from the enclosing project root skips.
 3. **`exclude:` globs from `project.yaml`** — a new
    `ProjectConfig.exclude:
    readonly string[]` field (gitignore syntax,

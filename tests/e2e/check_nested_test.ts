@@ -168,3 +168,134 @@ Deno.test("check nested: lock then check reports no MSL-L212", async () => {
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+/** An unstamped requirement inside the gitignored `sub/gen/` folder. `fmt`
+ * would stamp an `Id:` into it; `check` would report it. */
+const GEN_REQ = `# Generated
+
+- [REQ-0009] Generated requirement
+
+  The system shall log within 50 ms.
+
+      Type: requirement
+`;
+
+/** Root and nested project, a root `.gitignore` that ignores `gen/`, and a
+ * `.git` directory that makes the root the git work-tree root. */
+const GITIGNORED_GEN = {
+  ".git/HEAD": "ref: refs/heads/main\n",
+  ".gitignore": "gen/\n",
+  ...BASE_FILES,
+  "docs/req.md": CLEAN_REQ,
+  ...SUB_BASE,
+  "sub/docs/req.md": SUB_REQ,
+  "sub/gen/x.md": GEN_REQ,
+};
+
+Deno.test("check nested: root .gitignore applies inside sub (bare check)", async () => {
+  const r = await check(GITIGNORED_GEN);
+  assertEquals(r.stderr.includes("gen/x.md"), false, r.stderr);
+  assertEquals(r.stderr.includes("REQ-0009"), false, r.stderr);
+  assertEquals(r.code, 0, r.stderr);
+});
+
+Deno.test("check nested: root .gitignore applies inside sub (bare fmt --check)", async () => {
+  const r = await check(GITIGNORED_GEN, ["fmt", "--check"]);
+  assertEquals(r.stdout.includes("gen/x.md"), false, r.stdout);
+  assertEquals(r.stderr.includes("gen/x.md"), false, r.stderr);
+  assertEquals(r.code, 0, r.stderr);
+});
+
+Deno.test("check nested: lock run from sub pins the file set bare check uses", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      ...GITIGNORED_GEN,
+      // An edge in the gitignored folder: if `lock` and `check` disagree on
+      // whether `sub/gen/` belongs to `sub`, the pinned edges differ.
+      "sub/gen/x.md": `# Generated
+
+- [SREQ-0009] Generated derived requirement
+
+  The system shall forward logs within 50 ms.
+
+      Id: 01SREQ00000000000000000009
+      Type: system-requirement
+      Satisfies: REQ-0001
+`,
+    },
+    cwd: "sub",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const lock = await Deno.readTextFile(`${run.dir}/sub/markspec.lock`);
+    assertEquals(lock.includes("01SREQ00000000000000000009"), false, lock);
+    const r = await markspecInDir(run.dir, ["check"]);
+    assertEquals(r.stderr.includes("MSL-L212"), false, r.stderr);
+    assertEquals(r.code, 0, r.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+/** A system requirement in `sub` with no `Satisfies:` edge yet. */
+const SUB_SREQ = `# System Requirements
+
+- [SREQ-0001] Derived response time
+
+  The system shall forward responses within 100 ms.
+
+      Id: 01SREQ00000000000000000001
+      Type: system-requirement
+`;
+
+/** Lock `sub` from inside it, then return the persisted run. */
+async function lockSub() {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      ...BASE_FILES,
+      "docs/req.md": CLEAN_REQ,
+      ...SUB_BASE,
+      "sub/docs/req.md": SUB_REQ,
+      "sub/docs/sreq.md": SUB_SREQ,
+    },
+    cwd: "sub",
+  });
+  assertEquals(run.code, 0, run.stderr);
+  return run;
+}
+
+Deno.test("check nested: a fresh markspec.lock in sub is clean", async () => {
+  const run = await lockSub();
+  try {
+    const r = await markspecInDir(run.dir, ["check"]);
+    assertEquals(r.stderr.includes("MSL-L212"), false, r.stderr);
+    assertEquals(r.code, 0, r.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("check nested: a stale markspec.lock in sub reports MSL-L212 in sub", async () => {
+  const run = await lockSub();
+  try {
+    const sreqPath = `${run.dir}/sub/docs/sreq.md`;
+    const content = await Deno.readTextFile(sreqPath);
+    await Deno.writeTextFile(
+      sreqPath,
+      content.replace(
+        "Type: system-requirement\n",
+        "Type: system-requirement\n      Satisfies: REQ-0001\n",
+      ),
+    );
+    const r = await markspecInDir(run.dir, ["check", "--format", "json"]);
+    assertEquals(r.code, 1, r.stderr);
+    const diags = JSON.parse(r.stdout) as Array<
+      { code: string; location?: { file: string } }
+    >;
+    const l212 = diags.filter((d) => d.code === "MSL-L212");
+    assertEquals(l212.length, 1, r.stdout);
+    assertStringIncludes(l212[0].location?.file ?? "", "/sub/markspec.lock");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

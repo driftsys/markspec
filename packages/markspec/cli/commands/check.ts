@@ -187,7 +187,7 @@ async function checkProject(
     allEntries,
     chain?.effective ?? null,
     captionConventions,
-    { projectWide: projectWide, declaredUpstreamIds },
+    { projectWide, declaredUpstreamIds },
   );
 
   // Corpus-aware post-pass (ADR-030): a project entry re-declaring a

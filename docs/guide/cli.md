@@ -172,6 +172,14 @@ starting with `.`) and the common build-output / dependency directories
 `exclude:`. The build-output skip is overridable — re-include one with a negated
 entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
 
+**Ancestor `.gitignore` files.** Discovery also applies the `.gitignore` files
+of the directories above the project root, up to the git work-tree root (the
+nearest directory that holds `.git`). This matches git, and it means a nested
+project skips the same files as the enclosing project: a `gen/` entry in the
+repository's root `.gitignore` also skips `sub/gen/` when `sub/` is a nested
+project. Outside a git work tree, only the `.gitignore` files at or below the
+project root apply.
+
 **`caption-conventions:` example** — require every `Table` caption above its
 block and every `Figure` caption below:
 
