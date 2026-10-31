@@ -12,7 +12,11 @@
 import { basename, dirname, isAbsolute, relative, SEPARATOR } from "@std/path";
 import { discoverProjectRoot } from "../config/mod.ts";
 import { discoverMarkspecRoot, loadToolConfig } from "../config/markspec.ts";
-import { discoverFiles, type DiscoveryIO } from "./mod.ts";
+import {
+  discoverFiles,
+  type DiscoverOptions,
+  type DiscoveryIO,
+} from "./mod.ts";
 import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 /** The file names whose directory can be a project root. */
@@ -111,6 +115,41 @@ export async function findNestedProjectRoots(
     if (!covered) kept.push(candidate);
   }
   return kept.sort();
+}
+
+/** Result of {@linkcode discoverOwnedFiles}. */
+export interface OwnedFiles {
+  /** Absolute paths of the files that belong to the walked root itself, in
+   * walk order. Files of nested projects are not included. */
+  readonly files: string[];
+  /** Roots of the projects nested strictly below the walked root, sorted
+   * (see {@linkcode findNestedProjectRoots}). */
+  readonly nestedRoots: string[];
+}
+
+/**
+ * Walk `root` and return only the files that belong to `root` itself: a
+ * file belongs to its nearest project root among `root` and the nested
+ * roots found below it. Files under a nested project are left out, so each
+ * file is owned by exactly one project (ADR-028 section 7).
+ *
+ * `options` (`extensions`, `exclude`) apply to the file walk. The nested
+ * roots are found with the same `exclude` list. A caller that processes a
+ * nested project calls this function again with that project's root and its
+ * own `exclude:` list.
+ */
+export async function discoverOwnedFiles(
+  root: string,
+  io: DiscoveryIO,
+  options: DiscoverOptions = {},
+): Promise<OwnedFiles> {
+  const nestedRoots = await findNestedProjectRoots(root, io, options.exclude);
+  const roots = [root, ...nestedRoots];
+  const files: string[] = [];
+  for await (const file of discoverFiles(root, io, options)) {
+    if (nearestRoot(dirname(file), roots) === root) files.push(file);
+  }
+  return { files, nestedRoots };
 }
 
 /** `true` when the directory at `rel` (relative, host separators), or any

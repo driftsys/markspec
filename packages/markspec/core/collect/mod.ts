@@ -12,7 +12,8 @@
  */
 
 import type { Entry } from "../model/mod.ts";
-import { discoverFiles, type DiscoveryIO } from "../discovery/mod.ts";
+import type { DiscoveryIO } from "../discovery/mod.ts";
+import { discoverOwnedFiles } from "../discovery/projects.ts";
 import { parseFile } from "../parser/mod.ts";
 
 /** Options for {@linkcode collectProjectEntries}. */
@@ -23,11 +24,12 @@ export interface CollectOptions {
 }
 
 /**
- * Walk `root` via {@linkcode discoverFiles} — relying on its default
- * extension set (`RELEVANT_EXTENSIONS`), the parity point every caller
- * depends on — and parse each discovered file, returning the flattened
- * entry list. Unreadable files are skipped. Parse diagnostics are not
- * surfaced here: this collector exists to give the lockfile pinner and its
+ * Walk `root` via {@linkcode discoverOwnedFiles} — relying on the
+ * default extension set (`RELEVANT_EXTENSIONS`), the parity point every
+ * caller depends on. Files that belong to a project nested below `root`
+ * are skipped, because that project pins its own entries. Each owned file is
+ * parsed, and the result is the flattened entry list. Unreadable files are
+ * skipped. Parse diagnostics are not surfaced here: this collector exists to give the lockfile pinner and its
  * checkers one definition of the file set; callers that need diagnostics
  * re-parse.
  *
@@ -40,7 +42,10 @@ export async function collectProjectEntries(
   opts: CollectOptions = {},
 ): Promise<Entry[]> {
   const out: Entry[] = [];
-  for await (const file of discoverFiles(root, io, { exclude: opts.exclude })) {
+  const { files } = await discoverOwnedFiles(root, io, {
+    exclude: opts.exclude,
+  });
+  for (const file of files) {
     const content = await io.readFile(file);
     if (content === undefined) continue;
     const result = await parseFile(content, { file });
