@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   type CachedDocument,
+  type CachedTree,
   createDeskClient,
   type DeskClient,
   DeskError,
@@ -101,7 +102,7 @@ export function watchConnection(
     }
   };
   return {
-    tree: watch(() => client.tree()),
+    tree: watch((cached?: CachedTree) => client.tree(cached)),
     entry: watch((id: string) => client.entry(id)),
     entryHtml: watch((id: string) => client.entryHtml(id)),
     document: watch((path: string, cached?: CachedDocument) =>
@@ -198,7 +199,7 @@ export function useProduct(
       let name = basename(opened.root);
       let treeRead = false;
       try {
-        name = (await raw.tree()).project.name ?? name;
+        name = (await raw.tree()).view.project.name ?? name;
         treeRead = true;
       } catch {
         // Keep the folder name, and do not store it over a known name.

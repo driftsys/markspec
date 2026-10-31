@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { DeskError, type ProductTree } from "../api/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { type CachedTree, DeskError } from "../api/client";
+import { useRefresh } from "../app/refresh";
 import { useOpenProduct } from "../app/useProduct";
 import { useSelection } from "../app/selection";
-import { useWindowFocusCount } from "../app/useWindowFocusCount";
 import { buildNavigatorModel, type NavigatorModel } from "./model";
 
 /** Props of the presentational navigator tree. */
@@ -100,42 +100,58 @@ function Row(
 }
 
 /**
- * Loads the open product's tree and shows it in the navigator. The tree is
- * read again when the window gets focus; the shown tree stays mounted while
- * it loads, so expanded nodes and the selection are kept.
+ * Loads the open product's tree and shows it in the navigator.
+ *
+ * The tree is checked with the server on every refresh (window focus): the
+ * request carries the ETag of the tree held, and on 304 the held tree stays
+ * as it is, so expanded rows and the selection are untouched. A changed tree
+ * replaces the model in place; the `Navigator` is not remounted, so rows
+ * that still exist keep their expansion. A failed check after a successful
+ * load keeps the tree shown, and a successful check clears an earlier load
+ * failure.
  */
 export function NavigatorPane() {
   const { client } = useOpenProduct();
   const { selected, select } = useSelection();
-  const focusCount = useWindowFocusCount();
-  const [tree, setTree] = useState<ProductTree>();
+  const { revision } = useRefresh();
+  const [tree, setTree] = useState<CachedTree>();
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setTree(undefined);
-    setFailed(false);
-  }, [client]);
-
+  // The tree the next check sends its ETag for, with the client it came
+  // from. A ref, so the check effect runs once per revision; a tree of
+  // another product's client is never sent.
+  const held = useRef<{ client: typeof client; tree: CachedTree }>(undefined);
   useEffect(() => {
     let current = true;
-    client.tree().then((loaded) => {
+    const previous = held.current?.client === client
+      ? held.current.tree
+      : undefined;
+    if (previous === undefined) {
+      setTree(undefined);
+      setFailed(false);
+    }
+    client.tree(previous).then((loaded) => {
       if (!current) return;
       setFailed(false);
+      if (loaded === previous) return;
+      held.current = { client, tree: loaded };
       setTree(loaded);
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (error instanceof DeskError && error.code === "network") return;
-      if (current) setFailed(true);
+      if (!current) return;
+      if (previous === undefined) {
+        setFailed(true);
+      } else {
+        // Keep the shown tree; leave a trace for diagnosis.
+        console.warn("MarkDesk could not refresh the product tree", error);
+      }
     });
     return () => {
       current = false;
     };
-  }, [client, focusCount]);
-  const model = useMemo(() => tree && buildNavigatorModel(tree), [tree]);
-  // A failed refresh keeps the tree that is already shown.
-  if (failed && !model) {
-    return <p role="alert">MarkDesk could not load this product.</p>;
-  }
+  }, [client, revision]);
+  const model = useMemo(() => tree && buildNavigatorModel(tree.view), [tree]);
+  if (failed) return <p role="alert">MarkDesk could not load this product.</p>;
   if (!model) return <p>…</p>;
   return <Navigator model={model} selected={selected} onSelect={select} />;
 }

@@ -126,6 +126,44 @@ stays TypeScript. Everything lives in this repository.
 
       Id: 01M684SWWGE4T4FEFXQJGKFWP2
 
+- [SAD_DESK_0016] Entity tag on the product tree
+
+  The desk backend shall send an `ETag` header with every HTTP status 200
+  response to `GET /api/v1/tree`, with a value that changes when an entry is
+  added to the graph, removed from the graph, given a new title, type, or
+  origin, or given a new Satisfies, Derived-from, or Verifies link.
+
+      Id: 01M68C4ZFKF59N2GB7N8DVPZ2Y
+
+- [SAD_DESK_0017] Navigator revalidation in the UI
+
+  The MarkDesk UI shall request the product tree, with the `ETag` of the tree it
+  holds in `If-None-Match`, when the app window receives focus.
+
+      Id: 01M68C4ZFK8N9R31SRD2HBWZQA
+
+- [SAD_DESK_0018] Conditional product tree requests
+
+  The desk backend shall answer a `GET /api/v1/tree` request whose
+  `If-None-Match` header names the current `ETag` of the tree with HTTP status
+  304 and an empty body.
+
+      Id: 01M68DXSB8YRCM72C3JRPM0ZR7
+
+- [SAD_DESK_0019] Navigator state across an unchanged tree
+
+  The MarkDesk navigator shall keep its expanded rows and its selection when a
+  product tree request answers HTTP status 304.
+
+      Id: 01M68DXSB8JCA37BRW532HC1K5
+
+- [SAD_DESK_0020] Removed selected entry
+
+  The MarkDesk document pane shall show a status message, not an error alert,
+  when the selected entry is not in the product.
+
+      Id: 01M68DXSB7RH4QVE2KSA33NTAE
+
 The per-launch nonce token is the only credential of the desk API. The `Origin`
 check limits which browser pages can call the API; it does not authenticate the
 caller. The `tauri://localhost` origin is shared by every Tauri application on
@@ -294,15 +332,14 @@ navigator, and shows the whole document an entry lives in.
   Refining children (`satisfies`, `derived-from`) come first, then verifying
   children (`verifies`) after a separator, each group in natural display-ID
   order. Every selection is a history step with Back and Forward. The navigator
-  reads `GET /api/v1/tree` again when the window receives focus, the same
+  checks `GET /api/v1/tree` again when the window receives focus, the same
   trigger the document pane uses, so an entry added, removed, or renamed in
   another application shows when the author returns to MarkDesk. The shown tree
   stays on screen while it loads and the navigator stays mounted, so expanded
   nodes and the selection are kept. A failed refresh keeps the shown tree. A
   selected entry that is no longer in the product shows "`<ID>` is not in this
-  product." in the document pane instead of an error. The tree has no `ETag`:
-  the server builds the whole tree to answer it, so a 304 would save only the
-  transfer over loopback.
+  product." in the document pane instead of an error. The check carries the
+  tree's `ETag`; see "Navigator refresh (#842)" below.
 - **Source drawer.** It shows the exact file text in Plex Mono with line
   numbers. In dark mode it follows the sheet paper colour, in line with
   SAD_DESK_0008.
@@ -377,6 +414,29 @@ navigator, and shows the whole document an entry lives in.
   allow the `If-None-Match` request header, and responses to an allowed origin
   carry `Access-Control-Expose-Headers: ETag`. The change is additive, so
   `apiVersion` stays 3.
+- **Navigator refresh (#842).** `GET /api/v1/tree` carries a strong `ETag` too:
+  the quoted SHA-256 digest of the serialized tree, which embeds `apiVersion`
+  (SAD_DESK_0016). Each tree node holds the display ID, title, type, core kind,
+  and origin of an entry, and the edges hold the Satisfies, Derived-from, and
+  Verifies links only, so a change to any other attribute keeps the tag. The
+  tree is built from the compiled graph in a fixed order, so an unchanged graph
+  yields the same tag across mtime-refreshed compiles. The server builds the
+  tree and its tag once per compiled graph, and a matching `If-None-Match` gets
+  304 with no body (SAD_DESK_0018). In the UI, one `RefreshProvider`
+  (`apps/markdesk/src/app/refresh.tsx`) under the product holds a revision
+  counter, bumped on window focus (SAD_DESK_0017). The navigator and the
+  document pane both revalidate on the revision. The provider also exposes
+  `refresh()`; nothing calls it yet, and the write path of #837 is meant to call
+  it after a write. The navigator keeps the tree it holds while it checks, so
+  the `Navigator` component is not remounted and expanded rows survive. A 304
+  returns the same cached object and replaces nothing (SAD_DESK_0019). A changed
+  tree replaces the model in place, and a removed entry has no row. When the
+  selected entry is gone, the document pane shows a status line that names it,
+  and the selection stays in the history (SAD_DESK_0020). A failed check after a
+  successful load keeps the tree shown and logs a warning; a successful check
+  clears an earlier load failure. The held tree is tied to the client of the
+  open product, so a tree from another product is never sent. `apiVersion`
+  stays 3.
 
 ## Alternatives rejected
 
@@ -465,6 +525,13 @@ Windows. The server already finds changed files on each request (the
 mtime-refreshed compiled cache, and a fresh read of the document file), so a
 conditional request when the selection changes or the window receives focus
 gives the same result for a single author at the cost of one request.
+
+### Comparing the tree in the UI instead of tagging it
+
+The UI could fetch the full tree on every focus and replace its state only when
+the JSON differs. That needs no API change, but it sends the whole tree on every
+focus and gives later writes (#837) no server-side check to reuse. A tag on the
+tree costs one hash and lets an unchanged tree answer with an empty 304.
 
 ### One revision token for the whole product
 

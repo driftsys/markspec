@@ -13,8 +13,8 @@ import {
   DeskError,
   type EntryView,
 } from "../api/client";
+import { useRefresh } from "../app/refresh";
 import { useOpenProduct } from "../app/useProduct";
-import { useWindowFocusCount } from "../app/useWindowFocusCount";
 import { useBridge } from "../shell/BridgeContext";
 import { SourceDrawer } from "./SourceDrawer";
 import { useHistory } from "./useHistory";
@@ -160,16 +160,17 @@ export function DocumentPane() {
   // What was loaded, tagged with the display ID it was loaded for, so a
   // result never shows for another selection.
   const [loaded, setLoaded] = useState<
-    { id: string; reading?: Reading; failed?: boolean; missing?: boolean }
+    { id: string; reading?: Reading; failed?: boolean; gone?: boolean }
   >();
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
-  // The server has no entry with the selected ID, for example one removed on
-  // disk that the history or an older render still names.
-  const missing = loaded?.id === selected && loaded?.missing === true;
+  // The entry is not in the product, for example after it was removed on
+  // disk. This is a state of the files, not a failure, so it is no alert.
+  const gone = loaded?.id === selected && loaded?.gone === true;
   const [sourceOpen, setSourceOpen] = useState(false);
-  // Bumped when the window gets focus, so the selection is read again.
-  const focusCount = useWindowFocusCount();
+  // Bumped when the window gets focus, so the selection is read again: the
+  // product's files may have changed in another application.
+  const { revision } = useRefresh();
   const content = useRef<HTMLDivElement>(null);
   // Rendered documents of the current product with their ETags, by path.
   const documents = useMemo(
@@ -191,7 +192,7 @@ export function DocumentPane() {
       if (isNetworkFailure(error)) return;
       if (!current) return;
       if (error instanceof DeskError && error.code === "entry-not-found") {
-        setLoaded({ id: selected, missing: true });
+        setLoaded({ id: selected, gone: true });
       } else {
         setLoaded({ id: selected, failed: true });
       }
@@ -199,7 +200,7 @@ export function DocumentPane() {
     return () => {
       current = false;
     };
-  }, [client, documents, selected, focusCount]);
+  }, [client, documents, selected, revision]);
 
   const html = useMemo(
     () => reading && withImagePlaceholders(reading.html),
@@ -311,7 +312,7 @@ export function DocumentPane() {
           MarkDesk could not show this requirement.
         </p>
       )}
-      {missing && (
+      {gone && (
         <p role="status" className="document-empty">
           {`${selected} is not in this product.`}
         </p>
@@ -348,7 +349,7 @@ export function DocumentPane() {
           <SourceDrawer
             path={reading.sourcePath}
             line={reading.entry.location.line}
-            revision={focusCount}
+            revision={revision}
           />
         )}
       </div>

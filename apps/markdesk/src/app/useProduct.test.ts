@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { type CachedDocument, type DeskClient, DeskError } from "../api/client";
+import {
+  type CachedDocument,
+  type CachedTree,
+  type DeskClient,
+  DeskError,
+} from "../api/client";
 import { watchConnection } from "./useProduct";
 
 const cached: CachedDocument = {
@@ -19,6 +24,17 @@ function client(overrides: Partial<DeskClient>): DeskClient {
 }
 
 describe("watchConnection", () => {
+  it("passes the cached tree through to the client", async () => {
+    const held = {
+      view: { apiVersion: 3, project: {}, roots: [], nodes: [], edges: [] },
+      etag: '"t1"',
+    } as CachedTree;
+    const tree = vi.fn(async (given?: CachedTree) => given!);
+    const watched = watchConnection(client({ tree }), () => {});
+    expect(await watched.tree(held)).toBe(held);
+    expect(tree).toHaveBeenCalledWith(held);
+  });
+
   it("passes the cached render through to the client", async () => {
     const document = vi.fn(async (_path: string, given?: CachedDocument) =>
       given!

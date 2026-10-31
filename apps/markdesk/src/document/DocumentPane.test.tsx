@@ -19,6 +19,7 @@ import { ProductContext } from "../app/useProduct";
 import { BridgeContext } from "../shell/BridgeContext";
 import type { ShellBridge } from "../shell/bridge";
 import { DocumentPane } from "./DocumentPane";
+import { RefreshProvider } from "../app/refresh";
 import { type History, HistoryProvider, useHistory } from "./useHistory";
 
 afterEach(cleanup);
@@ -162,8 +163,10 @@ function mount(client = fakeClient(), bridge = fakeBridge()) {
     <BridgeContext.Provider value={bridge}>
       <ProductContext.Provider value={{ root: "/p", name: "p", client }}>
         <HistoryProvider mac={false}>
-          <Probe />
-          <DocumentPane />
+          <RefreshProvider>
+            <Probe />
+            <DocumentPane />
+          </RefreshProvider>
         </HistoryProvider>
       </ProductContext.Provider>
     </BridgeContext.Provider>,
@@ -250,52 +253,6 @@ describe("DocumentPane", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(scrollIntoView).not.toHaveBeenCalled();
     expect(document.querySelector(".document-content")).toBe(content);
-  });
-
-  it("says an unknown entry is not in the product, without an error", async () => {
-    const { select } = mount();
-    select("MISSING");
-    expect((await screen.findByRole("status")).textContent).toBe(
-      "MISSING is not in this product.",
-    );
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("says a removed entry is gone, without an error, after focus", async () => {
-    let removed = false;
-    const base = fakeClient();
-    const client = fakeClient({
-      entry: vi.fn(async (id: string) => {
-        if (removed) throw new DeskError(404, "entry-not-found", "missing");
-        return base.entry(id);
-      }),
-    });
-    const { select } = mount(client);
-    select(ID);
-    await screen.findByText("Brakes");
-    removed = true;
-    await act(async () => {
-      globalThis.dispatchEvent(new Event("focus"));
-    });
-    expect(
-      await screen.findByText(`${ID} is not in this product.`),
-    ).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.queryByText("Brakes")).toBeNull();
-    expect(document.querySelector(".document-sheet")).toBeNull();
-  });
-
-  it("keeps the error alert for a 404 that is not entry-not-found", async () => {
-    const { select } = mount(fakeClient({
-      entry: vi.fn(async () => {
-        throw new DeskError(404, "not-found", "no route");
-      }),
-    }));
-    select(ID);
-    expect(
-      await screen.findByText("MarkDesk could not show this requirement."),
-    ).toBeTruthy();
-    expect(screen.queryByText(`${ID} is not in this product.`)).toBeNull();
   });
 
   it("uses the rendered entry for a source-file entry", async () => {
@@ -572,11 +529,7 @@ describe("DocumentPane", () => {
     const base = fakeClient();
     const client = fakeClient({
       entry: vi.fn((id: string) =>
-        id === "SLOW"
-          ? loading.promise
-          : id === "BROKEN"
-          ? Promise.reject(new DeskError(500, "internal", "boom"))
-          : base.entry(id)
+        id === "SLOW" ? loading.promise : base.entry(id)
       ),
     });
     const { select } = mount(client);
@@ -588,10 +541,9 @@ describe("DocumentPane", () => {
     await waitFor(() => expect(screen.queryByText("Brakes")).toBeNull());
     expect(screen.queryByText("line three")).toBeNull();
     expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
-    select("BROKEN");
-    expect(
-      await screen.findByText("MarkDesk could not show this requirement."),
-    ).toBeTruthy();
+    select("MISSING");
+    expect(await screen.findByText("MISSING is not in this product."))
+      .toBeTruthy();
     expect(screen.queryByText("Brakes")).toBeNull();
     expect(document.querySelector(".document-content")).toBeNull();
   });
@@ -636,5 +588,44 @@ describe("DocumentPane", () => {
     expect(
       await screen.findByText("MarkDesk could not show this requirement."),
     ).toBeTruthy();
+  });
+
+  it("keeps the error alert for a 404 that is not entry-not-found", async () => {
+    const { select } = mount(fakeClient({
+      entry: vi.fn(async () => {
+        throw new DeskError(404, "not-found", "no route");
+      }),
+    }));
+    select(ID);
+    expect(
+      await screen.findByText("MarkDesk could not show this requirement."),
+    ).toBeTruthy();
+    expect(screen.queryByText(`${ID} is not in this product.`)).toBeNull();
+  });
+
+  it("shows no error when the selected entry is removed on disk", async () => {
+    let removed = false;
+    const base = fakeClient();
+    const client = fakeClient({
+      entry: vi.fn(async (id: string) => {
+        if (removed && id === ID) {
+          throw new DeskError(404, "entry-not-found", "missing");
+        }
+        return base.entry(id);
+      }),
+    });
+    const { select, history } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    removed = true;
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText(`${ID} is not in this product.`))
+      .toBeTruthy();
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Brakes")).toBeNull();
+    expect(history().current).toBe(ID);
   });
 });

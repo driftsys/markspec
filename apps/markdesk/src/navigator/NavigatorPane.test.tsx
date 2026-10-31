@@ -7,7 +7,13 @@ import {
 } from "@testing-library/react";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type DeskClient, DeskError, type ProductTree } from "../api/client";
+import {
+  type CachedTree,
+  type DeskClient,
+  DeskError,
+  type ProductTree,
+} from "../api/client";
+import { RefreshProvider } from "../app/refresh";
 import { ProductContext } from "../app/useProduct";
 import { HistoryProvider } from "../document/useHistory";
 import { Navigator, NavigatorPane } from "./Navigator";
@@ -21,31 +27,30 @@ const tree = (
   roots: string[],
 ) => ({ apiVersion: 3, project: {}, roots, nodes, edges }) as ProductTree;
 
+const cachedTree = (t: ProductTree, etag = '"t"'): CachedTree => ({
+  view: t,
+  etag,
+});
+
 function pane(tree: () => Promise<ProductTree>) {
-  const client = { tree } as unknown as DeskClient;
-  const view = (current: DeskClient) => (
-    <ProductContext.Provider
-      value={{ root: "/p", name: "p", client: current }}
-    >
-      <HistoryProvider mac={false}>
-        <NavigatorPane />
-      </HistoryProvider>
-    </ProductContext.Provider>
-  );
-  const result = render(view(client));
-  // Open another product in the same pane.
-  const reopen = (other: () => Promise<ProductTree>) =>
-    result.rerender(view({ tree: other } as unknown as DeskClient));
-  return { ...result, reopen };
+  return mount(async () => cachedTree(await tree()));
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((ok) => {
-    resolve = ok;
-  });
-  return { promise, resolve };
+/** Mount the pane over a client whose `tree` is the given function. */
+function mount(tree: (cached?: CachedTree) => Promise<CachedTree>) {
+  const client = { tree } as unknown as DeskClient;
+  return render(
+    <ProductContext.Provider value={{ root: "/p", name: "p", client }}>
+      <HistoryProvider mac={false}>
+        <RefreshProvider>
+          <NavigatorPane />
+        </RefreshProvider>
+      </HistoryProvider>
+    </ProductContext.Provider>,
+  );
 }
+
+const focusWindow = () => globalThis.dispatchEvent(new Event("focus"));
 
 describe("NavigatorPane", () => {
   it("renders rows on success", async () => {
@@ -73,150 +78,225 @@ describe("NavigatorPane", () => {
   });
 });
 
-describe("NavigatorPane refresh on window focus", () => {
-  const focus = () =>
-    act(() => {
-      globalThis.dispatchEvent(new Event("focus"));
-    });
+describe("NavigatorPane refresh", () => {
+  const parent = { displayId: "P", title: "p" };
+  const child = { displayId: "R1", title: "r" };
+  const edge = { from: "R1", to: "P", relation: "satisfies" };
 
-  it("shows an entry added on disk after the window gets focus", async () => {
+  it("shows an entry added on disk when the window gets focus", async () => {
     const trees = [
-      tree([{ displayId: "A", title: "a" }], [], ["A"]),
-      tree(
-        [{ displayId: "A", title: "a" }, { displayId: "B", title: "b" }],
-        [],
-        ["A", "B"],
-      ),
+      cachedTree(tree([parent], [], ["P"]), '"1"'),
+      cachedTree(tree([parent, child], [edge], ["P"]), '"2"'),
     ];
-    const load = vi.fn(async () => trees.shift() ?? trees[0]);
-    pane(load);
-    await screen.findByText("A");
-    expect(screen.queryByText("B")).toBeNull();
-    await focus();
-    expect(await screen.findByText("B")).toBeTruthy();
+    const client = vi.fn(async (_cached?: CachedTree) => trees.shift()!);
+    mount(client);
+    expect(await screen.findByText("P")).toBeTruthy();
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    expect(client.mock.calls[1][0]?.etag).toBe('"1"');
+    fireEvent.click(screen.getByText("P"));
+    expect(await screen.findByText("R1")).toBeTruthy();
   });
 
-  it("drops an entry removed on disk after the window gets focus", async () => {
-    let shown = [{ displayId: "A", title: "a" }, {
-      displayId: "B",
-      title: "b",
-    }];
-    pane(async () => tree(shown, [], shown.map((n) => n.displayId)));
-    await screen.findByText("B");
-    shown = [{ displayId: "A", title: "a" }];
-    await focus();
-    await waitFor(() => expect(screen.queryByText("B")).toBeNull());
-    expect(screen.getByText("A")).toBeTruthy();
-  });
-
-  it("keeps expanded nodes and the selection when focus finds a new entry", async () => {
-    const nodes = [{ displayId: "P", title: "p" }, {
-      displayId: "R1",
-      title: "r",
-    }];
-    const edges = [{ from: "R1", to: "P", relation: "satisfies" }];
-    let added = false;
-    const load = vi.fn(async () =>
-      added
-        ? tree([...nodes, { displayId: "Q", title: "q" }], edges, ["P", "Q"])
-        : tree(nodes, edges, ["P"])
-    );
-    pane(load);
+  it("drops a removed entry, even when it is selected", async () => {
+    const trees = [
+      cachedTree(tree([parent, child], [edge], ["P"]), '"1"'),
+      cachedTree(tree([parent], [], ["P"]), '"2"'),
+    ];
+    const client = vi.fn(async () => trees.shift()!);
+    mount(client);
     fireEvent.click(await screen.findByText("P"));
-    fireEvent.click(screen.getByText("R1"));
-    added = true;
-    await focus();
-    await screen.findByText("Q");
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    await new Promise((r) => setTimeout(r, 10));
-    const item = (id: string) =>
-      screen.getByText(id).closest("[role=treeitem]")!;
-    expect(item("P").getAttribute("aria-expanded")).toBe("true");
-    expect(item("R1").getAttribute("aria-selected")).toBe("true");
-    expect(item("P").getAttribute("aria-selected")).toBe("false");
+    fireEvent.click(await screen.findByText("R1"));
+    expect(screen.getByText("R1").closest("[role=treeitem]")!
+      .getAttribute("aria-selected")).toBe("true");
+    focusWindow();
+    await waitFor(() => expect(screen.queryByText("R1")).toBeNull());
+    expect(screen.getByText("P")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("ignores an older load that resolves after a newer one", async () => {
-    const one = (id: string) =>
-      tree([{ displayId: id, title: `title of ${id}` }], [], [id]);
-    const slow = deferred<ProductTree>();
+  it("keeps expanded rows and the selection when the tree is unchanged", async () => {
+    const first = cachedTree(tree([parent, child], [edge], ["P"]), '"1"');
+    const client = vi.fn(async (cached?: CachedTree) =>
+      cached?.etag === '"1"' ? cached : first
+    );
+    mount(client);
+    fireEvent.click(await screen.findByText("P"));
+    fireEvent.click(await screen.findByText("R1"));
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    expect(client.mock.calls[1][0]).toBe(first);
+    expect(screen.getByText("R1")).toBeTruthy();
+    expect(screen.getByText("R1").closest("[role=treeitem]")!
+      .getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("keeps the shown tree when a refresh fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let calls = 0;
+    const client = vi.fn(async () => {
+      if (calls++ === 0) return cachedTree(tree([parent], [], ["P"]));
+      throw new DeskError(500, "internal", "boom");
+    });
+    mount(client);
+    expect(await screen.findByText("P")).toBeTruthy();
+    focusWindow();
+    // The failed check is reported once it has settled.
+    await waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("P")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    warn.mockRestore();
+  });
+
+  it("clears a load failure when a later refresh succeeds", async () => {
+    let calls = 0;
+    const client = vi.fn(async () => {
+      if (calls++ === 0) throw new DeskError(500, "internal", "boom");
+      return cachedTree(tree([parent], [], ["P"]));
+    });
+    mount(client);
+    expect(await screen.findByText("MarkDesk could not load this product."))
+      .toBeTruthy();
+    focusWindow();
+    expect(await screen.findByText("P")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  type TreeCall = (cached?: CachedTree) => Promise<CachedTree>;
+  const view = (tree: TreeCall) => (
+    <ProductContext.Provider
+      value={{
+        root: "/p",
+        name: "p",
+        client: { tree } as unknown as DeskClient,
+      }}
+    >
+      <HistoryProvider mac={false}>
+        <RefreshProvider>
+          <NavigatorPane />
+        </RefreshProvider>
+      </HistoryProvider>
+    </ProductContext.Provider>
+  );
+  const deferredTree = () => {
+    let resolve!: (t: CachedTree) => void;
+    const promise = new Promise<CachedTree>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+
+  it("never sends the tree of another product's client", async () => {
+    const one = vi.fn(async (_cached?: CachedTree) =>
+      cachedTree(tree([parent], [], ["P"]), '"1"')
+    );
+    const two = vi.fn(async (_cached?: CachedTree) =>
+      cachedTree(tree([child], [], ["R1"]), '"2"')
+    );
+    const { rerender } = render(view(one));
+    expect(await screen.findByText("P")).toBeTruthy();
+    rerender(view(two));
+    expect(await screen.findByText("R1")).toBeTruthy();
+    expect(two).toHaveBeenCalledTimes(1);
+    expect(two.mock.calls[0][0]).toBeUndefined();
+  });
+
+  it("clears the old tree and its failure when the client changes", async () => {
+    const pending = deferredTree();
+    const failing = vi.fn(async (_cached?: CachedTree): Promise<CachedTree> => {
+      throw new DeskError(500, "internal", "boom");
+    });
+    const { rerender } = render(view(failing));
+    expect(await screen.findByText("MarkDesk could not load this product."))
+      .toBeTruthy();
+    rerender(view(() => pending.promise));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByText("…")).toBeTruthy();
+    await act(async () => {
+      pending.resolve(cachedTree(tree([parent], [], ["P"])));
+    });
+    expect(await screen.findByText("P")).toBeTruthy();
+    const later = deferredTree();
+    rerender(view(() => later.promise));
+    await waitFor(() => expect(screen.queryByText("P")).toBeNull());
+    expect(screen.getByText("…")).toBeTruthy();
+  });
+
+  it("ignores a late tree from the previous client", async () => {
+    const late = deferredTree();
+    const { rerender } = render(view(() => late.promise));
+    rerender(view(async () => cachedTree(tree([child], [], ["R1"]))));
+    expect(await screen.findByText("R1")).toBeTruthy();
+    await act(async () => {
+      late.resolve(cachedTree(tree([parent], [], ["P"])));
+    });
+    expect(screen.queryByText("P")).toBeNull();
+    expect(screen.getByText("R1")).toBeTruthy();
+  });
+
+  it("ignores an older check that resolves after a newer one", async () => {
+    const one = (id: string, etag: string) =>
+      cachedTree(
+        tree([{ displayId: id, title: `title of ${id}` }], [], [id]),
+        etag,
+      );
+    const slow = deferredTree();
     const answers = [
-      Promise.resolve(one("FIRST")),
+      Promise.resolve(one("FIRST", '"1"')),
       slow.promise,
-      Promise.resolve(one("NEWEST")),
+      Promise.resolve(one("NEWEST", '"3"')),
     ];
-    const load = vi.fn(() => answers.shift()!);
-    pane(load);
+    const client = vi.fn((_cached?: CachedTree) => answers.shift()!);
+    mount(client);
     await screen.findByText("FIRST");
-    await focus();
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    await focus();
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    focusWindow();
+    await waitFor(() => expect(client).toHaveBeenCalledTimes(3));
     await screen.findByText("NEWEST");
-    await act(async () => slow.resolve(one("STALE")));
+    await act(async () => slow.resolve(one("STALE", '"2"')));
     expect(screen.queryByText("STALE")).toBeNull();
     expect(screen.getByText("NEWEST")).toBeTruthy();
   });
 
-  it("clears a load failure of the previous product when another opens", async () => {
-    const { reopen } = pane(async () => {
-      throw new DeskError(500, "internal", "boom");
-    });
-    await screen.findByRole("alert");
-    reopen(() => new Promise<ProductTree>(() => {}));
-    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-  });
-
-  it("ignores a late failure of the previous product", async () => {
+  it("ignores a late failure from the previous client", async () => {
     let fail!: (error: unknown) => void;
-    const { reopen } = pane(() =>
-      new Promise<ProductTree>((_, reject) => {
-        fail = reject;
-      })
+    const { rerender } = render(
+      view(() =>
+        new Promise<CachedTree>((_, reject) => {
+          fail = reject;
+        })
+      ),
     );
-    let show!: (loaded: ProductTree) => void;
-    reopen(() =>
-      new Promise<ProductTree>((resolve) => {
-        show = resolve;
-      })
-    );
+    const pending = deferredTree();
+    rerender(view(() => pending.promise));
     // The new product is still loading when the old load fails.
     await act(async () => fail(new DeskError(500, "internal", "boom")));
     expect(screen.queryByRole("alert")).toBeNull();
-    await act(async () =>
-      show(tree([{ displayId: "NEW", title: "n" }], [], ["NEW"]))
-    );
-    expect(screen.getByText("NEW")).toBeTruthy();
-  });
-
-  it("drops the previous product's tree when another product opens", async () => {
-    const { reopen } = pane(async () =>
-      tree([{ displayId: "OLD", title: "o" }], [], ["OLD"])
-    );
-    await screen.findByText("OLD");
-    const pending = deferred<ProductTree>();
-    reopen(() => pending.promise);
-    await waitFor(() => expect(screen.queryByText("OLD")).toBeNull());
-    await act(async () =>
-      pending.resolve(tree([{ displayId: "NEW", title: "n" }], [], ["NEW"]))
-    );
-    expect(screen.getByText("NEW")).toBeTruthy();
-  });
-
-  it("keeps the shown tree when a refresh fails", async () => {
-    let fail = false;
-    const load = vi.fn(async () => {
-      if (fail) throw new DeskError(500, "internal", "boom");
-      return tree([{ displayId: "A", title: "a" }], [], ["A"]);
+    await act(async () => {
+      pending.resolve(cachedTree(tree([child], [], ["R1"])));
     });
-    pane(load);
-    await screen.findByText("A");
-    fail = true;
-    await focus();
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    await new Promise((r) => setTimeout(r, 10));
-    expect(screen.getByText("A")).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("R1")).toBeTruthy();
+  });
+
+  it("keeps rows expanded when the tree changes around them", async () => {
+    const other = { displayId: "R2", title: "r2" };
+    const trees = [
+      cachedTree(tree([parent, child], [edge], ["P"]), '"1"'),
+      cachedTree(
+        tree([parent, child, other], [edge, {
+          from: "R2",
+          to: "P",
+          relation: "satisfies",
+        }], ["P"]),
+        '"2"',
+      ),
+    ];
+    const client = vi.fn(async (_cached?: CachedTree) => trees.shift()!);
+    mount(client);
+    fireEvent.click(await screen.findByText("P"));
+    expect(screen.getByText("R1")).toBeTruthy();
+    focusWindow();
+    expect(await screen.findByText("R2")).toBeTruthy();
+    expect(screen.getByText("R1")).toBeTruthy();
   });
 });
 

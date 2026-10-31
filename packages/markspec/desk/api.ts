@@ -26,7 +26,12 @@
  * current tag gets 304 with no body, and the document is not rendered. The
  * client keeps the render it has and sends its tag on each later request, so
  * an edit on disk shows on the next request, while an unchanged document
- * costs one file read and no render.
+ * costs one file read and no render. A `/tree` 200 carries a strong `ETag`
+ * too, the digest of the serialized tree, which embeds the API version: a
+ * matching `If-None-Match` gets 304 with no body, so the UI can revalidate
+ * the navigator on window focus without receiving the tree again while the
+ * graph is unchanged (#842). The tree and its tag are built once per
+ * compiled graph.
  *
  * Every request must carry a loopback `Host` header (DNS-rebinding guard),
  * and every request except an allowed-origin CORS preflight must carry
@@ -65,6 +70,7 @@ import {
   buildEntryHtmlView,
   documentEtag,
   projectEntriesOf,
+  quotedDigest,
   type SourceText,
   toApiPath,
 } from "./render.ts";
@@ -379,6 +385,29 @@ export function createDeskHandler(
     ...TAURI_ORIGINS,
     ...(options.allowedOrigins ?? []),
   ]);
+
+  // The serialized tree and its tag, built once per compiled graph. The
+  // profile and project name are fixed for the server session, so the graph
+  // object alone decides the tree.
+  const trees = new WeakMap<
+    CompileResult,
+    Promise<{ body: string; etag: string }>
+  >();
+  function treeOf(
+    compiled: CompileResult,
+  ): Promise<{ body: string; etag: string }> {
+    let tree = trees.get(compiled);
+    if (tree === undefined) {
+      const body = JSON.stringify(
+        buildProductTree(compiled, source.profile, source.projectName),
+      );
+      // The body embeds `apiVersion`, so the tag changes with the version.
+      tree = quotedDigest(body).then((etag) => ({ body, etag }));
+      trees.set(compiled, tree);
+    }
+    return tree;
+  }
+
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     const host = (request.headers.get("host") ?? url.host).replace(
@@ -455,10 +484,7 @@ export function createDeskHandler(
     );
     if (matchesEtag(request.headers.get("if-none-match"), etag)) {
       // The client's cached render is current: skip rendering.
-      return new Response(null, {
-        status: 304,
-        headers: { etag, "cache-control": "no-store" },
-      });
+      return notModified(etag);
     }
     const response = jsonResponse(
       200,
@@ -485,11 +511,14 @@ export function createDeskHandler(
     }
 
     if (url.pathname === "/api/v1/tree") {
-      const compiled = await source.getCompiled();
-      return jsonResponse(
-        200,
-        buildProductTree(compiled, source.profile, source.projectName),
-      );
+      const { body, etag } = await treeOf(await source.getCompiled());
+      if (matchesEtag(request.headers.get("if-none-match"), etag)) {
+        // The client's tree is current: send no body.
+        return notModified(etag);
+      }
+      const response = jsonTextResponse(200, body);
+      response.headers.set("etag", etag);
+      return response;
     }
 
     const entryMatch = ENTRY_PATH_RE.exec(url.pathname);
@@ -601,8 +630,21 @@ function hasBearer(request: Request, token: string): boolean {
   return diff === 0;
 }
 
+/** A 304 response that names the current `etag`. */
+function notModified(etag: string): Response {
+  return new Response(null, {
+    status: 304,
+    headers: { etag, "cache-control": "no-store" },
+  });
+}
+
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return jsonTextResponse(status, JSON.stringify(body));
+}
+
+/** A JSON response from an already serialized body. */
+function jsonTextResponse(status: number, body: string): Response {
+  return new Response(body, {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",

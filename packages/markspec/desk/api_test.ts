@@ -1410,3 +1410,142 @@ Deno.test("desk api: ETag fields cannot run into each other", async () => {
     await documentEtag(3, compiled, "ab", [], "c"),
   );
 });
+
+// ---------------------------------------------------------------------------
+// /tree revalidation (#842)
+// ---------------------------------------------------------------------------
+
+Deno.test("desk api: tree carries a strong ETag", async () => {
+  const res = await (await handler())(get("/api/v1/tree"));
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  const etag = res.headers.get("etag");
+  assertExists(etag);
+  assertMatch(etag, /^"[0-9a-f]{64}"$/);
+});
+
+Deno.test("desk api: tree answers a matching If-None-Match with 304", async () => {
+  const h = await handler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  for (const header of [etag, `"other", ${etag}`, `W/${etag}`, "*"]) {
+    const res = await h(
+      get("/api/v1/tree", { headers: { "if-none-match": header } }),
+    );
+    assertEquals(res.status, 304, header);
+    assertEquals(await res.text(), "");
+    assertEquals(res.headers.get("etag"), etag);
+    assertEquals(res.headers.get("cache-control"), "no-store");
+  }
+});
+
+Deno.test("desk api: tree ETag changes when an entry is removed", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  const before = await first.json() as ProductTree;
+  const etag = first.headers.get("etag")!;
+  const entries = new Map(state.compiled.entries);
+  entries.delete(makeDisplayId("SYS_BRK_0001"));
+  state.compiled = { ...state.compiled, entries };
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 200);
+  const after = await second.json() as ProductTree;
+  assertNotEquals(second.headers.get("etag"), etag);
+  assert(before.nodes.some((n) => n.displayId === "SYS_BRK_0001"));
+  assert(!after.nodes.some((n) => n.displayId === "SYS_BRK_0001"));
+});
+
+Deno.test("desk api: tree ETag changes when an entry title changes", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  state.compiled = withTitle(state.compiled, "SYS_BRK_0001", "Renamed");
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 200);
+  const after = await second.json() as ProductTree;
+  assertNotEquals(second.headers.get("etag"), etag);
+  assertEquals(
+    after.nodes.find((n) => n.displayId === "SYS_BRK_0001")?.title,
+    "Renamed",
+  );
+});
+
+Deno.test("desk api: tree ETag changes when a tree link is removed", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  const before = await first.json() as ProductTree;
+  const etag = first.headers.get("etag")!;
+  const [removed] = before.edges;
+  assertExists(removed);
+  state.compiled = {
+    ...state.compiled,
+    links: state.compiled.links.filter((l) =>
+      !(l.from === removed.from && l.to === removed.to)
+    ),
+  };
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 200);
+  const after = await second.json() as ProductTree;
+  assertNotEquals(second.headers.get("etag"), etag);
+  assert(
+    !after.edges.some((e) => e.from === removed.from && e.to === removed.to),
+  );
+});
+
+Deno.test("desk api: tree ETag keeps the tag when an attribute outside the tree changes", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  const entries = new Map(state.compiled.entries);
+  const id = makeDisplayId("SYS_BRK_0001");
+  const entry = entries.get(id)!;
+  entries.set(
+    id,
+    {
+      ...entry,
+      rawAttributes: [...entry.rawAttributes, { key: "Labels", value: "new" }],
+    } as typeof entry,
+  );
+  state.compiled = { ...state.compiled, entries };
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 304);
+  await second.body?.cancel();
+});
+
+Deno.test("desk api: tree is built once per compiled graph", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const reads = state.profileReads;
+  assert(reads > 0, "the first request builds the tree");
+  const second = await h(get("/api/v1/tree"));
+  assertEquals(second.status, 200);
+  await second.body?.cancel();
+  assertEquals(state.profileReads, reads, "the tree is not built again");
+});
+
+Deno.test("desk api: tree ETag keeps the tag for an unchanged graph", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  // A new graph object with the same content, as an mtime-refreshed compile
+  // of unchanged files produces.
+  state.compiled = { ...state.compiled };
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 304);
+  await second.body?.cancel();
+});

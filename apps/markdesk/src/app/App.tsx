@@ -8,6 +8,7 @@ import { BridgeContext } from "../shell/BridgeContext";
 import type { ShellBridge } from "../shell/bridge";
 import { SettingsView } from "../settings/SettingsView";
 import { ProductMenu } from "./ProductMenu";
+import { RefreshProvider } from "./refresh";
 import { SelectionProvider } from "./selection";
 import { ErrorDetails, StartScreen } from "./StartScreen";
 import { MESSAGES, ProductContext, useProduct } from "./useProduct";
@@ -127,30 +128,32 @@ export function App(props: {
     <BridgeContext.Provider value={props.bridge}>
       <ProductContext.Provider value={product}>
         <SelectionProvider key={product.root}>
-          <AssistantProvider key={product.root}>
-            {view === "settings"
-              ? (
-                <div className="workspace">
-                  <header className="workspace-header">{header}</header>
-                  {banner}
-                  <SettingsView
-                    onBack={() => setView("product")}
-                    focus={settingsFocus}
+          <RefreshProvider key={product.root}>
+            <AssistantProvider key={product.root}>
+              {view === "settings"
+                ? (
+                  <div className="workspace">
+                    <header className="workspace-header">{header}</header>
+                    {banner}
+                    <SettingsView
+                      onBack={() => setView("product")}
+                      focus={settingsFocus}
+                    />
+                  </div>
+                )
+                : (
+                  <Workspace
+                    header={header}
+                    banner={banner}
+                    navigator={props.slots?.navigator ?? <NavigatorPane />}
+                    document={props.slots?.document ?? <DocumentPane />}
+                    assistant={props.slots?.assistant ?? (
+                      <AssistantColumn onOpenSettings={openSettings} />
+                    )}
                   />
-                </div>
-              )
-              : (
-                <Workspace
-                  header={header}
-                  banner={banner}
-                  navigator={props.slots?.navigator ?? <NavigatorPane />}
-                  document={props.slots?.document ?? <DocumentPane />}
-                  assistant={props.slots?.assistant ?? (
-                    <AssistantColumn onOpenSettings={openSettings} />
-                  )}
-                />
-              )}
-          </AssistantProvider>
+                )}
+            </AssistantProvider>
+          </RefreshProvider>
         </SelectionProvider>
       </ProductContext.Provider>
     </BridgeContext.Provider>

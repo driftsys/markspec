@@ -7,7 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type DeskClient, DeskError } from "../api/client";
+import { type CachedTree, type DeskClient, DeskError } from "../api/client";
 import type {
   OpenedProduct,
   RecentProduct,
@@ -44,11 +44,13 @@ function fakeBridge(
 function fakeClient(overrides: Partial<DeskClient> = {}): DeskClient {
   return {
     tree: vi.fn(async () => ({
-      apiVersion: 3 as const,
-      project: { name: "Brakes" },
-      roots: [],
-      nodes: [],
-      edges: [],
+      view: {
+        apiVersion: 3 as const,
+        project: { name: "Brakes" },
+        roots: [],
+        nodes: [],
+        edges: [],
+      },
     })),
     entry: vi.fn(),
     entryHtml: vi.fn(),
@@ -57,6 +59,38 @@ function fakeClient(overrides: Partial<DeskClient> = {}): DeskClient {
     ...overrides,
   } as DeskClient;
 }
+
+describe("refresh", () => {
+  it("revalidates the navigator tree with its ETag when the window gets focus", async () => {
+    const bridge = fakeBridge([{
+      root: "/p/brakes",
+      name: null,
+      exists: true,
+    }]);
+    const held = {
+      view: {
+        apiVersion: 3 as const,
+        project: { name: "Brakes" },
+        roots: [],
+        nodes: [],
+        edges: [],
+      },
+      etag: '"t1"',
+    };
+    const tree = vi.fn(async (_cached?: CachedTree) => held);
+    render(
+      <App bridge={bridge} createClient={() => fakeClient({ tree })} />,
+    );
+    expect(await screen.findByText("This product has no requirements yet."))
+      .toBeTruthy();
+    const before = tree.mock.calls.length;
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(tree.mock.calls.length).toBe(before + 1));
+    expect(tree).toHaveBeenLastCalledWith(held);
+  });
+});
 
 describe("open flow", () => {
   it("shows the start screen when there are no recents", async () => {
@@ -94,11 +128,13 @@ describe("open flow", () => {
     }]);
     const client = fakeClient({
       tree: vi.fn(async () => ({
-        apiVersion: 3 as const,
-        project: {},
-        roots: [],
-        nodes: [],
-        edges: [],
+        view: {
+          apiVersion: 3 as const,
+          project: {},
+          roots: [],
+          nodes: [],
+          edges: [],
+        },
       })),
     });
     render(<App bridge={bridge} createClient={() => client} />);
@@ -530,11 +566,13 @@ describe("open flow", () => {
     });
     const client = fakeClient({
       tree: vi.fn(async () => ({
-        apiVersion: 3 as const,
-        project: {},
-        roots: [],
-        nodes: [],
-        edges: [],
+        view: {
+          apiVersion: 3 as const,
+          project: {},
+          roots: [],
+          nodes: [],
+          edges: [],
+        },
       })),
     });
     render(<App bridge={bridge} createClient={() => client} />);
