@@ -123,13 +123,11 @@ With several projects:
 - Reading a `markspec://entry/{id}` URI returns every project that holds that
   ID, under project headings.
 
-Nested projects are separate graphs in the MCP server, but bare `markspec check`
-still checks the enclosing folder tree as one graph, nested projects included.
-This split is intended. As a result, MCP `validate` can differ from
-`markspec check` for nested projects: a display ID declared once in each of two
-nested projects is a duplicate for `check` but not for `validate`, and a
-`Satisfies:` that points from one nested project into another resolves for
-`check` but not for `validate`.
+The CLI (`markspec check`, `lint`, and `fmt`), the MCP server, and the LSP all
+treat a nested project that has its own `project.yaml` as a separate project
+with its own profile and graph. MCP `validate` and bare `markspec check` report
+the same result for the same tree. The only remaining difference is that
+explicit file arguments to the CLI use a single graph.
 
 To stop the MCP server from treating a nested folder that has its own config
 (for example a test fixture) as a separate project, list it under `exclude:` in
