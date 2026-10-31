@@ -2,6 +2,7 @@ import {
   type JSX,
   type KeyboardEvent,
   useEffect,
+  useId,
   useMemo,
   useRef,
 } from "react";
@@ -50,13 +51,28 @@ function ProposalView(props: { currentBody: string; proposedBody: string }) {
  *
  * Focus follows the flow: the box is disabled while busy, and a browser
  * moves focus off a disabled control, so focus moves to Cancel while the
- * assistant runs and to Accept when the proposal appears. Escape then
- * reaches the panel. When the flow ends, focus returns to the box, unless
- * the author has moved it outside the panel.
+ * assistant runs and to the proposal (not to Accept) when it appears.
+ * Escape then reaches the panel, and Tab reaches Accept. Focus never lands
+ * on Accept by itself, so a stray Space or Enter writes nothing. When the
+ * flow ends, focus returns to the box, unless the author has moved it
+ * outside the panel.
+ *
+ * `onApplyingChange` is told when a write starts and ends, so the column
+ * can keep the panel mounted until the write reports its result.
  */
-export function PromptPanel(): JSX.Element {
+export function PromptPanel(
+  props: { onApplyingChange?(applying: boolean): void } = {},
+): JSX.Element {
   const prompt = usePrompt();
   const { phase, disabledReason } = prompt;
+  const applying = phase.kind === "applying";
+  const { onApplyingChange } = props;
+  useEffect(() => {
+    if (!applying) return;
+    onApplyingChange?.(true);
+    return () => onApplyingChange?.(false);
+  }, [applying, onApplyingChange]);
+  const reasonId = useId();
   const busy = phase.kind === "running" || phase.kind === "proposal" ||
     phase.kind === "applying";
   const boxDisabled = disabledReason !== undefined || busy;
@@ -64,7 +80,7 @@ export function PromptPanel(): JSX.Element {
   const panelRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const acceptRef = useRef<HTMLButtonElement>(null);
+  const proposalRef = useRef<HTMLDivElement>(null);
   const previousKind = useRef(phase.kind);
   useEffect(() => {
     const before = previousKind.current;
@@ -75,7 +91,7 @@ export function PromptPanel(): JSX.Element {
       (panelRef.current?.contains(active) ?? false);
     if (!focusInPanel) return;
     if (phase.kind === "running") cancelRef.current?.focus();
-    else if (phase.kind === "proposal") acceptRef.current?.focus();
+    else if (phase.kind === "proposal") proposalRef.current?.focus();
     else if (phase.kind === "idle" || phase.kind === "error") {
       boxRef.current?.focus();
     }
@@ -83,7 +99,11 @@ export function PromptPanel(): JSX.Element {
 
   const onBoxKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) return;
-    if (event.nativeEvent.isComposing) return;
+    // WebKit reports the Enter that ends a composition with keyCode 229
+    // and isComposing false.
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+      return;
+    }
     event.preventDefault();
     void prompt.submit();
   };
@@ -100,6 +120,7 @@ export function PromptPanel(): JSX.Element {
       <textarea
         ref={boxRef}
         aria-label="Prompt"
+        aria-describedby={disabledReason === undefined ? undefined : reasonId}
         disabled={boxDisabled}
         placeholder={disabledReason ??
           "Ask the assistant to change this entry's body"}
@@ -109,7 +130,7 @@ export function PromptPanel(): JSX.Element {
         onKeyDown={onBoxKeyDown}
       />
       {disabledReason !== undefined && (
-        <p className="prompt-reason">{disabledReason}</p>
+        <p className="prompt-reason" id={reasonId}>{disabledReason}</p>
       )}
       {!busy && (
         <button
@@ -134,7 +155,7 @@ export function PromptPanel(): JSX.Element {
         </div>
       )}
       {(phase.kind === "proposal" || phase.kind === "applying") && (
-        <>
+        <div className="prompt-proposal" ref={proposalRef} tabIndex={-1}>
           <ProposalView
             currentBody={phase.currentBody}
             proposedBody={phase.proposedBody}
@@ -142,9 +163,9 @@ export function PromptPanel(): JSX.Element {
           <div className="prompt-actions">
             <button
               type="button"
-              ref={acceptRef}
               disabled={phase.kind === "applying"}
-              onClick={() => void prompt.accept()}
+              onClick={() =>
+                void prompt.accept()}
             >
               Accept
             </button>
@@ -157,7 +178,7 @@ export function PromptPanel(): JSX.Element {
               Reject
             </button>
           </div>
-        </>
+        </div>
       )}
       {phase.kind === "error" && (
         <p role="alert" className="prompt-error">{phase.message}</p>

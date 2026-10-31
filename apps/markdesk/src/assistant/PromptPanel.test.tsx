@@ -227,6 +227,11 @@ it.each<[string, AssistantPromptResult, string]>([
     { outcome: "reply-too-long", reply: null, error: null },
     PROMPT_MESSAGES.replyTooLong,
   ],
+  [
+    "unavailable",
+    { outcome: "unavailable", reply: null, error: null },
+    "Prompts are not yet available for Claude Code.",
+  ],
 ])("shows the %s error", async (_, result, message) => {
   mountApp({
     assistant: { runAssistantPrompt: vi.fn(async () => result) },
@@ -299,13 +304,16 @@ it("accepts: applies with the submit ETag, then refreshes", async () => {
   await waitFor(() => expect(document.activeElement).toBe(box));
 });
 
-it("moves focus to Accept, so Escape from the focused element rejects", async () => {
+it("moves focus to the proposal, so Escape from the focused element rejects", async () => {
   const { client } = mountApp();
   const box = await pickReady();
   box.focus();
   await send(box, "rewrite");
   const accept = await screen.findByRole("button", { name: "Accept" });
-  await waitFor(() => expect(document.activeElement).toBe(accept));
+  const proposal = document.querySelector(".prompt-proposal");
+  await waitFor(() => expect(document.activeElement).toBe(proposal));
+  // Focus never lands on the write button by itself.
+  expect(document.activeElement).not.toBe(accept);
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(screen.queryByRole("heading", { name: "Proposed" })).toBeNull();
   expect(client.applyProposal).not.toHaveBeenCalled();
@@ -448,6 +456,11 @@ it.each<[string, DeskError, string]>([
     PROMPT_MESSAGES.trailerInvalid,
   ],
   [
+    "entry-body-empty",
+    new DeskError(409, "entry-body-empty", "m"),
+    "This entry has no body yet.",
+  ],
+  [
     "another preview error",
     new DeskError(422, "proposal-too-large", "m"),
     PROMPT_MESSAGES.couldNotFormat,
@@ -528,4 +541,122 @@ it("reports a lost connection from a proposal call", async () => {
   );
   expect(screen.queryByText(PROMPT_MESSAGES.couldNotFormat)).toBeNull();
   expect(box.value).toBe("rewrite");
+});
+
+it("never puts focus on Accept when focus left the panel during the run", async () => {
+  const run = deferred<AssistantPromptResult>();
+  mountApp({
+    assistant: { runAssistantPrompt: vi.fn(() => run.promise) },
+  });
+  const box = await pickReady();
+  box.focus();
+  await send(box, "rewrite");
+  const cancel = await screen.findByRole("button", { name: "Cancel" });
+  await waitFor(() => expect(document.activeElement).toBe(cancel));
+  // The author clicks a non-focusable area: focus goes to the body.
+  cancel.blur();
+  expect(document.activeElement).toBe(document.body);
+  await act(async () => {
+    run.resolve({ outcome: "ok", reply: "Proposed body.", error: null });
+  });
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  expect(document.activeElement).not.toBe(accept);
+});
+
+it("ignores a second Accept in the same tick", async () => {
+  const apply = deferred<{ apiVersion: 3; path: string; etag: string }>();
+  const { client } = mountApp({
+    client: fakePromptClient({ applyProposal: vi.fn(() => apply.promise) }),
+  });
+  await send(await pickReady(), "rewrite");
+  const accept = await screen.findByRole("button", { name: "Accept" });
+  act(() => {
+    fireEvent.click(accept);
+    fireEvent.click(accept);
+  });
+  expect(client.applyProposal).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    apply.resolve({ apiVersion: 3, path: "docs/system.md", etag: '"e2"' });
+  });
+});
+
+it.each<[string, Record<string, unknown>]>([
+  ["isComposing", { isComposing: true }],
+  ["keyCode 229", { keyCode: 229 }],
+])("does not submit the Enter that ends an IME composition (%s)", async (
+  _,
+  init,
+) => {
+  const { bridge } = mountApp();
+  const box = await pickReady();
+  fireEvent.change(box, { target: { value: "partial" } });
+  const notPrevented = fireEvent.keyDown(box, { key: "Enter", ...init });
+  expect(notPrevented).toBe(true);
+  expect(screen.queryByText("Waiting for Claude Code…")).toBeNull();
+  await act(async () => {});
+  expect(bridge.runAssistantPrompt).not.toHaveBeenCalled();
+});
+
+it("checks the entry read at submit against the disabled reasons", async () => {
+  let entryReads = 0;
+  const { bridge } = mountApp({
+    client: fakePromptClient({
+      entry: vi.fn(async (id: string) =>
+        entryFixture(id, entryReads++ === 0 ? {} : { body: "" })
+      ),
+    }),
+  });
+  const box = await pickReady();
+  await send(box, "rewrite");
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "This entry has no body yet.",
+  );
+  expect(bridge.runAssistantPrompt).not.toHaveBeenCalled();
+  expect(box.value).toBe("rewrite");
+});
+
+it("shows no read-failed sentence for a lost connection at submit", async () => {
+  mountApp({
+    client: fakePromptClient({
+      document: vi.fn(async () => {
+        throw new DeskError(0, "network", "down");
+      }),
+    }),
+  });
+  const box = await pickReady();
+  await send(box, "rewrite");
+  expect(await screen.findByText(MESSAGES.lostConnection)).toBeTruthy();
+  await waitFor(() =>
+    expect(screen.queryByText("Waiting for Claude Code…")).toBeNull()
+  );
+  expect(screen.queryByText(PROMPT_MESSAGES.readFailed)).toBeNull();
+  expect(box.value).toBe("rewrite");
+});
+
+it("links the disabled reason to the prompt box", async () => {
+  mountApp();
+  const box = await promptBox();
+  const reason = await screen.findByText("Select an entry to send a prompt.");
+  expect(reason.id).not.toBe("");
+  expect(box.getAttribute("aria-describedby")).toBe(reason.id);
+});
+
+it("disables the column's Settings button while a write is applying", async () => {
+  const apply = deferred<{ apiVersion: 3; path: string; etag: string }>();
+  mountApp({
+    client: fakePromptClient({ applyProposal: vi.fn(() => apply.promise) }),
+  });
+  await send(await pickReady(), "rewrite");
+  const settings = screen.getByRole("button", { name: "Settings" });
+  expect((settings as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  await waitFor(() =>
+    expect((settings as HTMLButtonElement).disabled).toBe(true)
+  );
+  await act(async () => {
+    apply.resolve({ apiVersion: 3, path: "docs/system.md", etag: '"e2"' });
+  });
+  await waitFor(() =>
+    expect((settings as HTMLButtonElement).disabled).toBe(false)
+  );
 });

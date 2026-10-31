@@ -235,14 +235,34 @@ carries them into the records.
    `idle` and keeps the instruction, then asks the shell to cancel. A submit
    still reading the document or the entry does not start the shell run, and a
    late result (shell reply or preview) is ignored. This covers the shell's
-   known gap: a cancel that arrives before the run takes the guard.
-3. **Focus.** Focus moves to Cancel while the assistant runs and to Accept when
-   the proposal appears, so Escape reaches the panel after the disabled box
-   loses focus. When the flow ends (reject, accept, cancel, error), focus
-   returns to the box, unless the author moved focus outside the panel.
+   known gap only in part: the UI ignores the late result, but a cancel that
+   arrives after `runAssistantPrompt` was invoked and before the shell run takes
+   its guard is lost, so that process keeps running for up to 120 seconds. In
+   that window, and while a cancelled process is still being stopped, a new Send
+   or Test gets "An assistant run is already in progress." (known gap, not fixed
+   in this slice).
+3. **Focus.** Focus moves to Cancel while the assistant runs and to the proposal
+   container (`tabIndex={-1}`) when the proposal appears, so Escape reaches the
+   panel after the disabled box loses focus, and Tab reaches Accept next. Focus
+   never moves to Accept by itself: a Space or Enter pressed while focus is on
+   the page body must not write the file. When the flow ends (reject, accept,
+   cancel, error), focus returns to the box, unless the author moved focus
+   outside the panel.
 4. **A write in progress survives a selection change.** The box stays busy until
-   the apply ends, and a failed apply is still reported.
-5. **Lost connection during preview.** A `DeskError` with status 0 from the
+   the apply ends, and a failed apply is still reported. The column's Settings
+   button is disabled while a write is applying, because leaving the column
+   unmounts the panel. The product menu's Settings item and opening another
+   product still unmount the panel during a write; the write completes, but a
+   failure is then not reported (known gap).
+5. **Submit-time checks.** The entry read at submit is checked again with
+   `promptDisabledReason`; a reason stops the run and is shown as the error. A
+   preview refused with `entry-body-empty` or `entry-not-markdown` shows the
+   matching reason sentence. A `DeskError` with status 0 from the submit-time
+   reads sets `idle`, the same as in the preview (amendment 5).
+6. **Input details.** The Enter that ends an IME composition (`isComposing`, or
+   `keyCode` 229 in WebKit) does not submit. The disabled reason is linked to
+   the box with `aria-describedby`.
+7. **Lost connection during preview.** A `DeskError` with status 0 from the
    preview sets `idle` without a column sentence; the app's lost-connection
    banner reports it. An apply that fails with status 0 still shows
    `writeFailed`, because the write may or may not have happened.

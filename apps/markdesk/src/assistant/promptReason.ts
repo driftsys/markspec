@@ -6,6 +6,12 @@
 import type { EntryView } from "../api/client";
 import type { AssistantState } from "../shell/bridge";
 
+/** Reasons about the entry itself, also used for a refused preview. */
+export const ENTRY_REASONS = {
+  sourceFile: "Entries in source files cannot be edited here yet.",
+  bodyEmpty: "This entry has no body yet.",
+} as const;
+
 /** What the prompt box depends on. */
 export interface PromptContext {
   /** Display name of the selected assistant, for example "Claude Code". */
@@ -46,8 +52,8 @@ export function promptDisabledReason(
     return `This entry is read-only. It comes from ${entry.origin}.`;
   }
   if (!entry.location.file.endsWith(".md")) {
-    return "Entries in source files cannot be edited here yet.";
+    return ENTRY_REASONS.sourceFile;
   }
-  if (entry.body.trim() === "") return "This entry has no body yet.";
+  if (entry.body.trim() === "") return ENTRY_REASONS.bodyEmpty;
   return undefined;
 }

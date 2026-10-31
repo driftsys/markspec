@@ -20,7 +20,11 @@ import { useBridge } from "../shell/BridgeContext";
 import type { AssistantPromptResult } from "../shell/bridge";
 import { useAssistants } from "./AssistantProvider";
 import { assistantName } from "./catalog";
-import { promptDisabledReason } from "./promptReason";
+import {
+  ENTRY_REASONS,
+  type PromptContext,
+  promptDisabledReason,
+} from "./promptReason";
 import { stripOneFence } from "./reply";
 
 /** Exact sentences the prompt flow shows, one per failure. */
@@ -120,6 +124,9 @@ function proposalMessage(error: unknown, fallback: string): string {
   if (error.code === "entry-trailer-invalid") {
     return PROMPT_MESSAGES.trailerInvalid;
   }
+  // The entry changed while the assistant ran.
+  if (error.code === "entry-body-empty") return ENTRY_REASONS.bodyEmpty;
+  if (error.code === "entry-not-markdown") return ENTRY_REASONS.sourceFile;
   return fallback;
 }
 
@@ -177,9 +184,11 @@ export function usePrompt(): PromptController {
   }, [client, selected, revision]);
 
   // A proposal belongs to one entry: a selection change, or leaving the
-  // column, cancels a running prompt and discards a shown proposal. A
-  // write in progress is kept: the box stays busy until it ends, and a
-  // failed write is still reported.
+  // column, cancels a running prompt and discards a shown proposal. On a
+  // selection change, a write in progress is kept: the box stays busy until
+  // it ends, and a failed write is still reported. An unmount during the
+  // write drops that report; the column disables its Settings button while
+  // a write is applying to avoid it.
   useEffect(() => {
     return () => {
       if (phaseRef.current.kind === "applying") return;
@@ -193,16 +202,16 @@ export function usePrompt(): PromptController {
 
   // The column mounts the panel only when an assistant is selected; this
   // branch guards a direct mount without one.
-  const disabledReason = assistantId === null
-    ? "Set up an assistant first"
-    : promptDisabledReason({
+  const reasonFor = (value: PromptContext["entry"]) =>
+    assistantId === null ? "Set up an assistant first" : promptDisabledReason({
       assistantName: name,
       state: status?.state,
       promptsAvailable: status?.promptsAvailable ?? false,
       testRunning: test.running,
       selected,
-      entry,
+      entry: value,
     });
+  const disabledReason = reasonFor(entry);
 
   const submit = useCallback(async () => {
     const current = phaseRef.current.kind;
@@ -221,15 +230,26 @@ export function usePrompt(): PromptController {
     try {
       etag = (await client.document(entry.location.file)).etag;
       fresh = await client.entry(entry.displayId);
-    } catch {
-      if (isCurrent()) {
-        setPhase({ kind: "error", message: PROMPT_MESSAGES.readFailed });
+    } catch (error) {
+      if (!isCurrent()) return;
+      // A lost connection is reported by the app's banner, as in the preview.
+      if (error instanceof DeskError && error.status === 0) {
+        setPhase({ kind: "idle" });
+        return;
       }
+      setPhase({ kind: "error", message: PROMPT_MESSAGES.readFailed });
       return;
     }
     if (!isCurrent()) return;
     if (etag === undefined) {
       setPhase({ kind: "error", message: PROMPT_MESSAGES.readFailed });
+      return;
+    }
+    // The entry may have changed since it was loaded: check it again, so a
+    // refused preview later does not name the wrong cause.
+    const freshReason = reasonFor(fresh);
+    if (freshReason !== undefined) {
+      setPhase({ kind: "error", message: freshReason });
       return;
     }
 
@@ -296,7 +316,18 @@ export function usePrompt(): PromptController {
         message: proposalMessage(error, PROMPT_MESSAGES.couldNotFormat),
       });
     }
-  }, [assistantId, bridge, client, disabledReason, entry, instruction, name]);
+  }, [
+    assistantId,
+    bridge,
+    client,
+    disabledReason,
+    entry,
+    instruction,
+    name,
+    selected,
+    status,
+    test.running,
+  ]);
 
   const cancel = useCallback(async () => {
     if (phaseRef.current.kind !== "running") return;
