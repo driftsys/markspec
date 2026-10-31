@@ -18,7 +18,11 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Project } from "../project.ts";
-import type { McpWorkspace } from "../workspace.ts";
+import {
+  type McpWorkspace,
+  resolveWorkspace,
+  type WorkspaceSource,
+} from "../workspace.ts";
 import { perProject } from "../tools/fan_out.ts";
 import {
   deliveredUri,
@@ -317,22 +321,24 @@ export async function readResource(
 
 /**
  * Attach resources/list and resources/read handlers to a Server. When
- * `workspace` is a promise (discovery still running), each request waits
- * for it.
+ * `workspace` is a loader, each request waits for its current discovery
+ * attempt, or starts a new one after a failure.
  */
 export function registerResources(
   server: Server,
-  workspace: McpWorkspace | Promise<McpWorkspace>,
+  workspace: WorkspaceSource,
 ): void {
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: await listResourceDescriptors(await workspace),
+    resources: await listResourceDescriptors(
+      await resolveWorkspace(workspace),
+    ),
   }));
 
   server.setRequestHandler(
     ReadResourceRequestSchema,
     async (req: ReadResourceRequest) => {
       const uri = req.params.uri;
-      const result = await readResource(uri, await workspace);
+      const result = await readResource(uri, await resolveWorkspace(workspace));
       return {
         contents: [
           {

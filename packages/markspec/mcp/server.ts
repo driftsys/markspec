@@ -15,7 +15,11 @@ import process from "node:process";
 import { CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { defaultEnv, type ProjectEnv } from "./project.ts";
-import { createWorkspace, type McpWorkspace } from "./workspace.ts";
+import {
+  createWorkspace,
+  createWorkspaceLoader,
+  type McpWorkspace,
+} from "./workspace.ts";
 import { registerResources } from "./resources/mod.ts";
 import { registerTools } from "./tools/mod.ts";
 import { ENTRIES_URI, entryUri, PROFILE_URI } from "./uri.ts";
@@ -124,9 +128,11 @@ export interface StartServerOptions {
  * Registers resources + tools, connects the transport, and only then starts
  * project discovery, so the `initialize` handshake never waits for it. Every
  * tool and resource handler waits for discovery to finish before it answers.
- * When discovery ends, the cache-invalidation signal is hooked to MCP
- * `resources/updated` and `resources/list_changed` notifications. Resolves
- * once the transport is connected.
+ * When discovery fails, the handlers waiting for it report the error, and
+ * the next tool or resource request starts discovery again. When discovery
+ * succeeds, the cache-invalidation signal is hooked to MCP
+ * `resources/updated` and `resources/list_changed` notifications, once.
+ * Resolves once the transport is connected.
  */
 export async function startServer(
   options: StartServerOptions = {},
@@ -151,31 +157,26 @@ export async function startServer(
   );
 
   const env = options.env ?? defaultEnv(options.rootFlags ?? []);
-  let resolveWorkspace: (workspace: McpWorkspace) => void = () => {};
-  let rejectWorkspace: (err: unknown) => void = () => {};
-  const workspaceReady = new Promise<McpWorkspace>((resolve, reject) => {
-    resolveWorkspace = resolve;
-    rejectWorkspace = reject;
-  });
-  // A failed discovery is reported by each handler that waits for it; this
-  // keeps it from also being an unhandled rejection.
-  workspaceReady.catch(() => {});
+  // A failed discovery attempt is reported by each handler that waits for
+  // it, and the next request starts a new attempt.
+  const workspace = createWorkspaceLoader(
+    () =>
+      createWorkspace(env).catch((err) => {
+        console.error(`MarkSpec project discovery failed: ${err}`);
+        throw err;
+      }),
+    (ready) => subscribeNotifications(server, ready),
+  );
 
-  registerResources(server, workspaceReady);
-  registerTools(server, workspaceReady);
+  registerResources(server, workspace);
+  registerTools(server, workspace);
 
   const transport = options.transport ?? new StdioServerTransport();
   await server.connect(transport);
 
   // Discovery runs after the connection is up: it can scan a large folder
   // tree, and the client must not wait for it to finish the handshake.
-  createWorkspace(env).then((workspace) => {
-    subscribeNotifications(server, workspace);
-    resolveWorkspace(workspace);
-  }, (err) => {
-    console.error(`MarkSpec project discovery failed: ${err}`);
-    rejectWorkspace(err);
-  });
+  void workspace();
 
   if (options.transport === undefined) {
     // Keep the process alive until stdin closes.
@@ -193,18 +194,21 @@ export async function startServer(
 function subscribeNotifications(server: Server, workspace: McpWorkspace): void {
   // The SDK's typed helpers wrap the protocol
   // `notifications/resources/list_changed` and `.../updated` messages.
+  // Resource notifications are advisory, so a failed send is swallowed: a
+  // send after the transport closed rejects with "Not connected", and an
+  // unhandled rejection would end the process.
+  const ignore = () => {};
   workspace.subscribeInvalidation(() => {
-    void server.sendResourceListChanged();
-    void server.sendResourceUpdated({ uri: PROFILE_URI });
-    void server.sendResourceUpdated({ uri: ENTRIES_URI });
+    server.sendResourceListChanged().catch(ignore);
+    server.sendResourceUpdated({ uri: PROFILE_URI }).catch(ignore);
+    server.sendResourceUpdated({ uri: ENTRIES_URI }).catch(ignore);
   });
 
-  // Per-entry resource updates on every recompile — best effort. Failures
-  // are swallowed because resource notifications are advisory; the client
+  // Per-entry resource updates on every recompile — best effort; the client
   // will re-fetch on its own.
   workspace.subscribeInvalidation(async () => {
     for (const id of await compiledEntryIds(workspace)) {
-      void server.sendResourceUpdated({ uri: entryUri(id) });
+      server.sendResourceUpdated({ uri: entryUri(id) }).catch(ignore);
     }
   });
 }
