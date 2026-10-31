@@ -227,6 +227,20 @@ just clean                      # remove build artifacts
 
 **`just verify` does not exist.** Use `just build` before opening a PR.
 
+**MarkDesk is outside `just`.** `apps/markdesk/` is not a Deno workspace member,
+so `just check` and `just build` do not build or test it. They still run
+`dprint check` on its Markdown, JSON, and TOML files, except
+`package-lock.json`. When a change touches `apps/markdesk/` or
+`schemas/desk-api.json`, also run:
+
+```bash
+npm --prefix apps/markdesk ci                                  # first time
+npm --prefix apps/markdesk test                                # UI tests
+npm --prefix apps/markdesk run typecheck                       # UI type-check
+bash scripts/check_desk_client.sh                              # generated client is current
+cargo test --manifest-path apps/markdesk/src-tauri/Cargo.toml  # Tauri shell tests
+```
+
 **Two separate format tools:** `deno fmt` handles TypeScript only; `dprint fmt`
 handles Markdown, JSON, YAML, TOML. CI runs them as separate jobs — both must
 pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
@@ -363,6 +377,10 @@ profile (ASPICE, ISO 26262) would declare additional types
 - **Fonts:** IBM Plex family (Serif for body, Sans for headings, Mono for IDs
   and code)
 - **Formatting:** dprint (non-configurable)
+- **Desktop app (MarkDesk, `apps/markdesk/`):** React UI built with Vite, tested
+  with Vitest, in a Tauri v2 shell (Rust). The typed API client is generated
+  from `schemas/desk-api.json` with openapi-typescript and called with
+  openapi-fetch. Node 22 or newer. See ADR-035.
 
 ## Docs layout
 
