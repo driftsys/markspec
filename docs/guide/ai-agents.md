@@ -97,7 +97,7 @@ folders below it. The server never scans down from a filesystem root or from
 your home folder, even when that folder has a config of its own; that folder's
 own project is still served. Discovery runs after the server has connected to
 the client, so startup does not wait for it; the first tool call or resource
-request waits until it is done.
+request waits until it is done. Listing the tools does not wait.
 
 With several projects:
 

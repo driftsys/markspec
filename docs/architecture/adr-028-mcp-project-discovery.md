@@ -194,9 +194,9 @@ This supersedes the earlier decision to skip downward search (follow-up #645).
   via `--root` or `MARKSPEC_PROJECT_ROOT`, which always outrank `cwd`.
 - The soft-gate message is more diagnosable: it names every directory that was
   searched instead of staying silent about what was tried.
-- `Project` remains a plain, set-once, synchronously-constructed value — no new
-  async re-resolution path, no new mutable state for tools/resources to reason
-  about.
+- `Project` remains a plain, set-once value — no async re-resolution path inside
+  it. The only mutable state is the project set held by `McpWorkspace` (§7),
+  which `markspec_refresh` replaces through `rediscover()`.
 - A `.markspec.yaml`-only candidate (`markspecDetected = true`, no
   `project.yaml` anywhere upward) resolves `projectRoot` to the directory
   containing `.markspec.yaml` (#647, fixed). Compile-backed tools work fully for
