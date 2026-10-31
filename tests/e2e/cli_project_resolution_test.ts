@@ -139,7 +139,7 @@ Deno.test("check <files>: files from two projects use their own profiles (#845)"
   }
   const r010 = diagnostics.filter((d) => d.code === "MSL-R010");
   assertEquals(r010.length, 1, `expected one MSL-R010: ${stdout}`);
-  assertEquals(r010[0].location?.file, join("a", "cross.md"));
+  assertEquals(r010[0].location?.file, "a/cross.md");
   // MSL-R010 is a warning: a warning-only run exits 2.
   assertEquals(code, 2, stderr);
 });
@@ -461,8 +461,8 @@ Deno.test("lint <files>: files from two projects give one report (#845)", async 
     score: { rollup: { bandCounts: Record<string, number> } };
   };
   const files = new Set(report.diagnostics.map((d) => d.location?.file));
-  assertEquals(files.has(join("a", "req.md")), true, stdout);
-  assertEquals(files.has(join("b", "req.md")), true, stdout);
+  assertEquals(files.has("a/req.md"), true, stdout);
+  assertEquals(files.has("b/req.md"), true, stdout);
   const scored = Object.values(report.score.rollup.bandCounts)
     .reduce((sum, n) => sum + n, 0);
   assertEquals(scored, 2, stdout);
@@ -484,8 +484,8 @@ Deno.test("check <files>: groups are reported in the order their first file was 
   const files = (JSON.parse(stdout) as Array<{ location?: { file: string } }>)
     .map((d) => d.location?.file)
     .filter((f) => f !== undefined);
-  assertEquals(files[0], join("b", "req.md"), stdout);
-  assertEquals(files.includes(join("a", "req.md")), true, stdout);
+  assertEquals(files[0], "b/req.md", stdout);
+  assertEquals(files.includes("a/req.md"), true, stdout);
 });
 
 /** A figure caption placed below its image. */
@@ -517,7 +517,7 @@ Deno.test("check <files>: each project uses its own .markspec.yaml caption conve
   const c072 = (JSON.parse(stdout) as Array<
     { code: string; location?: { file: string } }
   >).filter((d) => d.code === "MSL-C072");
-  assertEquals(c072.map((d) => d.location?.file), [join("a", "req.md")]);
+  assertEquals(c072.map((d) => d.location?.file), ["a/req.md"]);
 });
 
 for (const verb of ["check", "lint"]) {
