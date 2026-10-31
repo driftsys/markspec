@@ -93,6 +93,13 @@ export async function startDeskServer(
           return undefined;
         }
       },
+      readFileBytes: async (path) => {
+        try {
+          return await Deno.readFile(path);
+        } catch {
+          return undefined;
+        }
+      },
       realPath: async (path) => {
         try {
           return await Deno.realPath(path);

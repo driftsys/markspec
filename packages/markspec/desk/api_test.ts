@@ -51,6 +51,21 @@ async function realPath(path: string): Promise<string | undefined> {
   }
 }
 
+/** A `readFileBytes` that encodes what the text reader `read` returns. */
+function bytesOf(
+  read: DeskSource["readFile"],
+): DeskSource["readFileBytes"] {
+  return async (path) => {
+    const text = await read(path);
+    return text === undefined ? undefined : new TextEncoder().encode(text);
+  };
+}
+
+/** `readFileBytes` for handlers whose tests never send a proposal. */
+function refuseRead(path: string): Promise<Uint8Array | undefined> {
+  return Promise.reject(new Error(`unexpected byte read of ${path}`));
+}
+
 /** `writeFile` for handlers whose tests never write: fails the write. */
 function refuseWrite(path: string): Promise<void> {
   return Promise.reject(new Error(`unexpected write to ${path}`));
@@ -79,6 +94,7 @@ async function handler(allowedOrigins?: readonly string[]) {
     profile,
     getCompiled: () => Promise.resolve(compiled),
     readFile,
+    readFileBytes: bytesOf(readFile),
     realPath,
     writeFile: refuseWrite,
   };
@@ -920,6 +936,7 @@ async function handlerFor(
       profile,
       getCompiled: () => Promise.resolve(compiled),
       readFile: readFileFn,
+      readFileBytes: bytesOf(readFileFn),
       realPath: (p) => Promise.resolve(p),
       writeFile: refuseWrite,
     },
@@ -981,6 +998,8 @@ async function editableHandler() {
     // Reads of `source.profile`. On `/documents`, only the render reads it.
     profileReads: 0,
   };
+  const readState: DeskSource["readFile"] = (p) =>
+    p === systemPath ? Promise.resolve(state.text) : readFile(p);
   const h = createDeskHandler({
     token: TOKEN,
     allowedOrigins: ["http://localhost:5173"],
@@ -991,8 +1010,8 @@ async function editableHandler() {
         return profile;
       },
       getCompiled: () => Promise.resolve(state.compiled),
-      readFile: (p) =>
-        p === systemPath ? Promise.resolve(state.text) : readFile(p),
+      readFile: readState,
+      readFileBytes: bytesOf(readState),
       realPath,
       writeFile: refuseWrite,
     },
@@ -1303,6 +1322,7 @@ Deno.test("desk api: files and documents read the resolved real path", async () 
         read.push(p);
         return Promise.resolve("# Resolved\n");
       },
+      readFileBytes: refuseRead,
       realPath: (p) =>
         Promise.resolve(
           p === join(FIXTURE_ROOT, "docs", "system.md") ? resolved : p,
@@ -1351,6 +1371,7 @@ Deno.test("desk api: a symlink that leaves the project root is 404", async () =>
         profile,
         getCompiled: () => Promise.resolve(graph),
         readFile,
+        readFileBytes: bytesOf(readFile),
         realPath,
         writeFile: refuseWrite,
       },
@@ -1396,6 +1417,7 @@ Deno.test("desk api: entry location uses forward slashes for Windows paths", asy
       profile,
       getCompiled: () => Promise.resolve({ ...compiled, entries }),
       readFile,
+      readFileBytes: bytesOf(readFile),
       realPath,
       writeFile: refuseWrite,
     },
@@ -1582,6 +1604,18 @@ interface WritableOptions {
   readonly compiled?: CompileResult;
   readonly loadProseFormatter?: () => Promise<ProseFormatter>;
   readonly failWrite?: boolean;
+  /**
+   * When set, `docs/system.md` holds these bytes: the byte reader returns
+   * them, and the text reader returns their lossy UTF-8 decoding, as
+   * `Deno.readTextFile` does.
+   */
+  readonly bytes?: Uint8Array;
+  /**
+   * When set, the second byte read of `docs/system.md` first sets the file
+   * text to this value, as a save from another application between the
+   * check and the write would.
+   */
+  readonly textOnSecondByteRead?: string;
 }
 
 /**
@@ -1595,6 +1629,8 @@ async function writableHandler(options: WritableOptions = {}) {
     text: await Deno.readTextFile(SYSTEM_PATH),
     compiled: options.compiled ?? fixed.compiled,
     writes: [] as { path: string; text: string }[],
+    bytes: options.bytes,
+    byteReads: 0,
   };
   const h = createDeskHandler({
     token: TOKEN,
@@ -1604,8 +1640,28 @@ async function writableHandler(options: WritableOptions = {}) {
       projectRoot: FIXTURE_ROOT,
       profile: fixed.profile,
       getCompiled: () => Promise.resolve(state.compiled),
-      readFile: (p) =>
-        p === SYSTEM_PATH ? Promise.resolve(state.text) : readFile(p),
+      readFile: (p) => {
+        if (p !== SYSTEM_PATH) return readFile(p);
+        return Promise.resolve(
+          state.bytes === undefined
+            ? state.text
+            : new TextDecoder("utf-8", { ignoreBOM: true }).decode(
+              state.bytes,
+            ),
+        );
+      },
+      readFileBytes: (p) => {
+        if (p !== SYSTEM_PATH) return bytesOf(readFile)(p);
+        state.byteReads++;
+        if (
+          state.byteReads === 2 && options.textOnSecondByteRead !== undefined
+        ) {
+          state.text = options.textOnSecondByteRead;
+        }
+        return Promise.resolve(
+          state.bytes ?? new TextEncoder().encode(state.text),
+        );
+      },
       realPath,
       writeFile: (path, text) => {
         if (options.failWrite) return Promise.reject(new Error("disk full"));
@@ -1991,4 +2047,42 @@ Deno.test("desk api: proposal routes require the token and a loopback Host", asy
     await assertError(evilHost, 403, "forbidden-host");
   }
   assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: preview and apply refuse a file that is not valid UTF-8", async () => {
+  // A Latin-1 byte in prose far from the target entry. A lossy read would
+  // turn it into U+FFFD, and the write would change that byte.
+  const text = await Deno.readTextFile(SYSTEM_PATH);
+  const encoded = new TextEncoder().encode(text);
+  const bytes = new Uint8Array([
+    ...encoded,
+    ...new TextEncoder().encode("Caf"),
+    0xe9,
+    0x0a,
+  ]);
+  const { h, state } = await writableHandler({ bytes });
+  const etag = await systemEtag(h);
+  for (const route of [PREVIEW, APPLY]) {
+    const res = await h(
+      post(route, bodyChange("SYS_BRK_0001", "New body."), {
+        "if-match": etag,
+      }),
+    );
+    await assertError(res, 409, "entry-file-not-utf8");
+  }
+  assertEquals(state.writes.length, 0);
+});
+
+Deno.test("desk api: apply refuses when the file changes between the check and the write", async () => {
+  const original = await Deno.readTextFile(SYSTEM_PATH);
+  const edited = original.replace("confirmed obstacle.", "confirmed object.");
+  assertNotEquals(edited, original);
+  const { h, state } = await writableHandler({ textOnSecondByteRead: edited });
+  const etag = await systemEtag(h);
+  const res = await h(
+    post(APPLY, bodyChange("SYS_BRK_0001", "New body."), { "if-match": etag }),
+  );
+  await assertError(res, 412, "precondition-failed");
+  assertEquals(state.writes.length, 0);
+  assertEquals(state.text, edited);
 });

@@ -533,3 +533,53 @@ Deno.test("previewBody: refuses a proposal at the limit that formatting lengthen
     { ok: false, refusal: "proposal-too-large" },
   );
 });
+
+Deno.test("previewBody and applyBody: accept a last paragraph with Markdown before a colon", async () => {
+  // Inline Markdown before a colon on the last body line once raised a
+  // false MSL-P022 and refused the proposal.
+  const long = "The lamp shall light within 100 ms of the brake pedal " +
+    "being pressed, so that drivers behind see it early; see " +
+    "[the guide](http://example.com/guide)";
+  for (
+    const proposed of [
+      "The lamp shall light within 100 ms.\n\n**Rationale:** drivers behind need early warning.",
+      "The lamp shall light within 100 ms.\n\n**Rationale**: drivers behind need early warning.",
+      long,
+    ]
+  ) {
+    const preview = await previewBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(preview.ok, proposed);
+    const applied = await applyBody(
+      SYSTEM,
+      FILE,
+      "SYS_BRK_0001",
+      proposed,
+      prose,
+    );
+    assert(applied.ok, proposed);
+  }
+});
+
+Deno.test("previewBody: a loose list with a continuation paragraph is refused as format-failed", async () => {
+  // A real input for which the formatter emits MSL-F900 for the target
+  // (an SP3 residual): the body is not AST-equivalent after formatting.
+  const proposed = "1. one\n\n   para\n2. two";
+  const formatted = format(
+    SYSTEM.replace(
+      "  The braking system shall apply full braking torque within 200 ms of a\n  confirmed obstacle.",
+      "  1. one\n\n     para\n  2. two",
+    ),
+    { file: FILE, formatMarkdownProse: prose },
+  );
+  assert(isTargetF900(formatted.diagnostics, "SYS_BRK_0001"));
+  assertEquals(
+    await previewBody(SYSTEM, FILE, "SYS_BRK_0001", proposed, prose),
+    { ok: false, refusal: "format-failed" },
+  );
+});

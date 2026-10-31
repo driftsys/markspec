@@ -95,8 +95,9 @@ function fromEditRefusal(refusal: EntryBodyRefusal): ProposalRefusal {
  * canonicalization. The message starts with `<displayId>:`, so an ID
  * that only shares a prefix (`SYS_BRK_00011`) does not match.
  *
- * @internal Exported for tests. No known input makes the formatter emit
- *   `MSL-F900`; tests reach that refusal through a stand-in formatter.
+ * @internal Exported for tests. A loose ordered list with a continuation
+ *   paragraph (an SP3 residual) is one real input that makes the formatter
+ *   emit `MSL-F900` for a body.
  */
 export function isTargetF900(
   diagnostics: readonly Diagnostic[],
@@ -188,10 +189,12 @@ interface CheckedProposal {
  *
  * The length limit applies to the raw proposal and to the formatted body.
  *
- * The `format-failed` branches and the final identity check are
- * defensive: `format` catches a prose formatter that throws (MSL-F012),
- * no known input makes it emit `MSL-F900`, and no known formatter output
- * fails the second splice. Tests reach them through `formatDocument`.
+ * `format` catches a prose formatter that throws (MSL-F012), so that
+ * `format-failed` branch is defensive. A target `MSL-F900` is real: a
+ * loose ordered list with a continuation paragraph (an SP3 residual)
+ * causes it. The final identity check is defensive: no known formatter
+ * output fails the second splice. Tests reach the defensive branches
+ * through `formatDocument`.
  */
 async function checkProposal(
   text: string,

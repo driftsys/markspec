@@ -552,6 +552,13 @@ button[aria-pressed="true"] {
   color: var(--md-status-ok-fg);
   background: var(--md-status-ok-bg);
 }
+/* A changed run of only spaces or line breaks: a visible marker, not text. */
+.proposal-body .whitespace::before {
+  content: "¶";
+}
+.proposal-note {
+  margin: var(--md-space-2) 0;
+}
 .prompt-actions {
   display: flex;
   gap: var(--md-space-2);

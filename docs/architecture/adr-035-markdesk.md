@@ -101,7 +101,7 @@ stays TypeScript. Everything lives in this repository.
   `/documents`. The backend shall answer HTTP status 400 with code `bad-request`
   for a request without `path`. The backend shall answer HTTP status 405 with
   code `method-not-allowed` for a request to these endpoints with a method other
-  than `GET` or `OPTIONS`.
+  than `GET`, except an `OPTIONS` preflight from an allowed origin.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
 
@@ -565,26 +565,37 @@ built: the first prompt" below).
   `precondition-required` when `If-Match` is missing; 400 for a request body of
   the wrong shape; 404 `entry-not-found` and 409 `entry-read-only` or
   `entry-not-markdown` for the target entry; 404 `not-found` when the file is
-  not a readable project file inside the root; 412 `precondition-failed` when
-  `If-Match` does not name the current tag with the strong comparison; 422
-  `format-failed` when the prose formatter cannot load; then the pipeline
-  refusals (409 `entry-body-empty`, `entry-trailer-invalid`; 422
-  `proposal-empty`, `proposal-too-large` above 20 000 characters before or after
-  formatting, `proposal-changes-entries`, `format-failed`). After the checks
-  come the `markspec fmt` formatter on a candidate text, then a splice of only
-  the formatted target body into the current file text with `replaceEntryBody`
-  (`core/formatter/entry_body.ts`). The splice keeps every other byte: other
-  entries, prose, front matter, line endings, and a UTF-8 BOM (SAD_DESK_0026). A
-  reparse must give the same entries with the same IDs, and the same title and
-  trailer for the target, or the change is refused. An `MSL-F900` on the target
-  refuses with `format-failed`; `MSL-F012` is not shown. The preview shows the
-  formatted current body, or the current body as written when formatting would
-  lose or move its words. Apply writes through `DeskSource.writeFile`, which the
-  server backs with `writeTextFileAtomic` (`desk/write.ts`): a new temporary
-  file in the same folder, given the original file's mode, then renamed over the
-  original (SAD_DESK_0027). Applies are serialized in the handler, so a second
-  Accept on the same tag answers 412 and writes nothing. The response carries
-  the new document `ETag`. A write failure answers 500 `write-failed`.
+  not a readable project file inside the root; 409 `entry-file-not-utf8` when
+  the file's bytes are not valid UTF-8 (a lossy read would change those bytes on
+  write); 412 `precondition-failed` when `If-Match` does not name the current
+  tag with the strong comparison; 422 `format-failed` when the prose formatter
+  cannot load; then the pipeline refusals (409 `entry-body-empty`,
+  `entry-trailer-invalid`; 422 `proposal-empty`, `proposal-too-large` above 20
+  000 characters before or after formatting, `proposal-changes-entries`,
+  `format-failed`). After the checks come the `markspec fmt` formatter on a
+  candidate text, then a splice of only the formatted target body into the
+  current file text with `replaceEntryBody` (`core/formatter/entry_body.ts`).
+  The splice keeps every other byte: other entries, prose, front matter, line
+  endings, and a UTF-8 BOM (SAD_DESK_0026). A reparse must give the same entries
+  with the same IDs, and the same title and trailer for the target, or the
+  change is refused. An `MSL-F900` on the target refuses with `format-failed`;
+  `MSL-F012` is not shown. A known limit: a loose ordered list with a
+  continuation paragraph is an SP3 residual of the formatter, so a proposal of
+  that shape gets `MSL-F900` and is refused with `format-failed`. The preview
+  shows the formatted current body, or the current body as written when
+  formatting would lose or move its words. Apply writes through
+  `DeskSource.writeFile`, which the server backs with `writeTextFileAtomic`
+  (`desk/write.ts`): a new temporary file in the same folder, given the original
+  file's mode, then renamed over the original (SAD_DESK_0027). Applies are
+  serialized in the handler, so a second Accept on the same tag answers 412 and
+  writes nothing. Just before the write, apply reads the file again and answers
+  412 when its bytes changed, so a save from another application during the
+  pipeline (about one second on a 400-entry file) is not overwritten; a save in
+  the short time between that read and the rename is still possible. A process
+  killed between the create of the temporary file and the rename leaves a hidden
+  `.<name>.markdesk-<hex>.tmp` file in the product folder; nothing removes it.
+  The response carries the new document `ETag`. A write failure answers 500
+  `write-failed`.
 - **Prompt run.** The shell builds the prompt from a fixed template with the
   entry's title, current body, trailer attributes (read-only context), and the
   instruction, and passes it as an argument; a prompt over 100 000 bytes is

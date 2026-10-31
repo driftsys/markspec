@@ -42,6 +42,9 @@ export const PROMPT_MESSAGES = {
   readFailed: "MarkDesk could not read this entry.",
   fileChanged: "This file changed since the proposal. Ask again.",
   writeFailed: "MarkDesk could not write this file.",
+  proposalTooLong: "The proposal is longer than 20 000 characters.",
+  readOnly: "This entry is read-only.",
+  notUtf8: "This file is not valid UTF-8. MarkDesk cannot write it.",
 } as const;
 
 /** What the prompt flow shows. `etag` is the document ETag read at submit. */
@@ -117,6 +120,17 @@ function outcomeMessage(result: AssistantPromptResult, name: string): string {
 function proposalMessage(error: unknown, fallback: string): string {
   if (!(error instanceof DeskError)) return fallback;
   if (error.status === 412) return PROMPT_MESSAGES.fileChanged;
+  // The entry and its file existed at submit: a missing one now means the
+  // file changed (the entry was renamed or removed, or the file moved).
+  if (error.code === "entry-not-found" || error.code === "not-found") {
+    return PROMPT_MESSAGES.fileChanged;
+  }
+  if (error.code === "proposal-too-large") {
+    return PROMPT_MESSAGES.proposalTooLong;
+  }
+  if (error.code === "proposal-empty") return PROMPT_MESSAGES.noProposal;
+  if (error.code === "entry-read-only") return PROMPT_MESSAGES.readOnly;
+  if (error.code === "entry-file-not-utf8") return PROMPT_MESSAGES.notUtf8;
   if (error.code === "format-failed") return PROMPT_MESSAGES.couldNotFormat;
   if (error.code === "proposal-changes-entries") {
     return PROMPT_MESSAGES.changesEntries;
@@ -157,6 +171,12 @@ export function usePrompt(): PromptController {
   useLayoutEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+  // The client of the open product now. A reopen after a lost connection
+  // replaces it while a prompt runs; the preview must go to the new one.
+  const clientRef = useRef(client);
+  useLayoutEffect(() => {
+    clientRef.current = client;
+  }, [client]);
 
   // Load the selected entry. A new selection shows "loading"; a refresh of
   // the same selection keeps the entry shown until the new one arrives.
@@ -289,7 +309,7 @@ export function usePrompt(): PromptController {
       { displayId: fresh.displayId, kind: "body", body: proposed },
     ];
     try {
-      const preview = await client.previewProposal(etag, changes);
+      const preview = await clientRef.current.previewProposal(etag, changes);
       if (!isCurrent()) return;
       const change = preview.changes[0];
       if (change === undefined) {

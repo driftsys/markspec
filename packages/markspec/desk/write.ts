@@ -20,9 +20,12 @@ const UTF8_BOM = [0xef, 0xbb, 0xbf] as const;
  * sees either the old content or the new content, never a partial file.
  *
  * When the original file starts with a UTF-8 BOM and `text` does not, the
- * BOM is written first: a text read drops the BOM, and the write keeps it.
+ * BOM is written first. The server's text read keeps a BOM as U+FEFF, so
+ * the BOM is added only when `text` does not already start with one.
  *
- * On failure the temporary file is removed and the error is rethrown.
+ * On failure the temporary file is removed and the error is rethrown. A
+ * process that is killed between the create and the rename leaves the
+ * temporary file behind.
  */
 export async function writeTextFileAtomic(
   path: string,
@@ -36,17 +39,20 @@ export async function writeTextFileAtomic(
 
   const temp = temporaryPathFor(path);
 
-  await Deno.writeFile(temp, bytes, { createNew: true });
   try {
+    await Deno.writeFile(temp, bytes, { createNew: true });
     if (mode !== undefined && Deno.build.os !== "windows") {
       // Set after creation: the create mode is reduced by the umask.
       await Deno.chmod(temp, mode);
     }
     await Deno.rename(temp, path);
   } catch (err) {
-    try {
-      await Deno.remove(temp);
-    } catch { /* the temporary file may already be gone */ }
+    // `createNew` refused a file that already exists: it is not ours.
+    if (!(err instanceof Deno.errors.AlreadyExists)) {
+      try {
+        await Deno.remove(temp);
+      } catch { /* the temporary file may not exist */ }
+    }
     throw err;
   }
 }

@@ -202,6 +202,12 @@ export interface DeskSource {
   /** Read a file by absolute path; `undefined` when it cannot be read. */
   readFile(absolutePath: string): Promise<string | undefined>;
   /**
+   * Read a file's bytes by absolute path; `undefined` when it cannot be
+   * read. Proposals use it, so a file that is not valid UTF-8 is refused
+   * instead of being decoded with replacement characters and written back.
+   */
+  readFileBytes(absolutePath: string): Promise<Uint8Array | undefined>;
+  /**
    * Resolve an absolute path to its canonical, symlink-free form;
    * `undefined` when the path does not exist or cannot be resolved.
    */
@@ -613,9 +619,11 @@ export function createDeskHandler(
    * `/proposals/preview` and `/proposals/apply`. Checks, in order: the
    * `If-Match` header is present (428), the request shape (400), the entry
    * exists (404), it has no `origin` (409), it is in a `.md` file (409), the
-   * file is an allowed project path (404), `If-Match` names the current
-   * document ETag (412), then the proposal pipeline. Apply writes the new
-   * text to the checked real path and answers the new ETag.
+   * file is an allowed project path (404), the file is valid UTF-8 (409),
+   * `If-Match` names the current document ETag (412), then the proposal
+   * pipeline. Apply reads the file again, answers 412 when its bytes
+   * changed, else writes the new text to the checked real path and answers
+   * the new ETag.
    */
   async function serveProposal(
     request: Request,
@@ -679,8 +687,16 @@ export function createDeskHandler(
       return notFound();
     }
     // Read and write the checked real path, as `servePath` reads it.
-    const text = await source.readFile(realTarget);
-    if (text === undefined) return notFound();
+    const bytes = await source.readFileBytes(realTarget);
+    if (bytes === undefined) return notFound();
+    const text = decodeUtf8Strict(bytes);
+    if (text === undefined) {
+      return errorResponse(
+        409,
+        "entry-file-not-utf8",
+        `'${path}' is not valid UTF-8`,
+      );
+    }
     const etag = await documentEtag(
       DESK_API_VERSION,
       compiled,
@@ -731,6 +747,17 @@ export function createDeskHandler(
       formatProse,
     );
     if (!outcome.ok) return refusalResponse(outcome.refusal);
+    // The pipeline takes about a second on a large file. Read the file
+    // again just before the write, so an edit saved by another application
+    // in that time is not overwritten.
+    const onDisk = await source.readFileBytes(realTarget);
+    if (onDisk === undefined || !sameBytes(onDisk, bytes)) {
+      return errorResponse(
+        412,
+        "precondition-failed",
+        "The file changed since the given ETag",
+      );
+    }
     try {
       await source.writeFile(realTarget, outcome.value);
     } catch {
@@ -891,6 +918,25 @@ function matchesEtag(header: string | null, etag: string): boolean {
  */
 function namesEtagStrongly(header: string, etag: string): boolean {
   return header.split(",").some((tag) => tag.trim() === etag);
+}
+
+/**
+ * `bytes` decoded as strict UTF-8; `undefined` when they are not valid
+ * UTF-8. A leading BOM is kept as U+FEFF, as `Deno.readTextFile` keeps it,
+ * so the text and its ETag agree with what `/documents` reads.
+ */
+function decodeUtf8Strict(bytes: Uint8Array): string | undefined {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true })
+      .decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether two byte arrays hold the same bytes. */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((byte, i) => byte === b[i]);
 }
 
 /** The request body as text; `undefined` when it cannot be read. */

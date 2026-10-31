@@ -130,6 +130,33 @@ it("submits with Enter and shows the proposal with a word diff", async () => {
   expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
 });
 
+it("says so when a proposal changes only line breaks or spacing", async () => {
+  mountApp({
+    client: fakePromptClient({
+      previewProposal: vi.fn(async () => ({
+        apiVersion: 3 as const,
+        changes: [{
+          displayId: "SYS_BRK_0001",
+          kind: "body" as const,
+          body: "The system shall brake\n\nwithin 200 ms.",
+          currentBody: BODY,
+        }],
+      })),
+    }),
+  });
+  await send(await pickReady(), "split it");
+  await screen.findByRole("heading", { name: "Proposed" });
+  expect(screen.getByText("Only line breaks or spacing change.")).toBeTruthy();
+  expect(document.querySelector("ins.whitespace")).not.toBeNull();
+});
+
+it("shows no spacing note when words change", async () => {
+  mountApp();
+  await send(await pickReady(), "rewrite");
+  await screen.findByRole("heading", { name: "Proposed" });
+  expect(screen.queryByText("Only line breaks or spacing change.")).toBeNull();
+});
+
 it("submits with the Send button", async () => {
   const { bridge } = mountApp();
   const box = await pickReady();
@@ -461,8 +488,38 @@ it.each<[string, DeskError, string]>([
     "This entry has no body yet.",
   ],
   [
-    "another preview error",
+    "proposal-too-large",
     new DeskError(422, "proposal-too-large", "m"),
+    PROMPT_MESSAGES.proposalTooLong,
+  ],
+  [
+    "proposal-empty",
+    new DeskError(422, "proposal-empty", "m"),
+    PROMPT_MESSAGES.noProposal,
+  ],
+  [
+    "entry-not-found",
+    new DeskError(404, "entry-not-found", "m"),
+    PROMPT_MESSAGES.fileChanged,
+  ],
+  [
+    "not-found",
+    new DeskError(404, "not-found", "m"),
+    PROMPT_MESSAGES.fileChanged,
+  ],
+  [
+    "entry-read-only",
+    new DeskError(409, "entry-read-only", "m"),
+    PROMPT_MESSAGES.readOnly,
+  ],
+  [
+    "entry-file-not-utf8",
+    new DeskError(409, "entry-file-not-utf8", "m"),
+    PROMPT_MESSAGES.notUtf8,
+  ],
+  [
+    "another preview error",
+    new DeskError(400, "bad-request", "m"),
     PROMPT_MESSAGES.couldNotFormat,
   ],
 ])("maps a %s preview to its message", async (_, error, message) => {
@@ -475,6 +532,32 @@ it.each<[string, DeskError, string]>([
   });
   await send(await pickReady(), "rewrite");
   expect((await screen.findByRole("alert")).textContent).toBe(message);
+});
+
+it.each<[string, DeskError, string]>([
+  [
+    "entry-not-found",
+    new DeskError(404, "entry-not-found", "m"),
+    PROMPT_MESSAGES.fileChanged,
+  ],
+  [
+    "not-found",
+    new DeskError(404, "not-found", "m"),
+    PROMPT_MESSAGES.fileChanged,
+  ],
+])("says the file changed on a %s apply", async (_, error, message) => {
+  mountApp({
+    client: fakePromptClient({
+      applyProposal: vi.fn(async () => {
+        throw error;
+      }),
+    }),
+  });
+  const box = await pickReady();
+  await send(box, "rewrite");
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  expect((await screen.findByRole("alert")).textContent).toBe(message);
+  expect(box.value).toBe("rewrite");
 });
 
 it("shows write-failed for another apply error", async () => {

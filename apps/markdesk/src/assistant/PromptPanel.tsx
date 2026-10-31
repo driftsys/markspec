@@ -9,6 +9,11 @@ import {
 import { usePrompt } from "./usePrompt";
 import { diffWords } from "./wordDiff";
 
+/** Whether `text` holds only whitespace. */
+function isWhitespace(text: string): boolean {
+  return text.trim() === "";
+}
+
 /** The current and the proposed body, with the changed words marked. */
 function ProposalView(props: { currentBody: string; proposedBody: string }) {
   // The diff can reach a million cells; compute it once per proposal, not
@@ -17,15 +22,25 @@ function ProposalView(props: { currentBody: string; proposedBody: string }) {
     () => diffWords(props.currentBody, props.proposedBody),
     [props.currentBody, props.proposedBody],
   );
+  // A changed run of only spaces or line breaks has no visible strike-through
+  // or underline, so it gets a tinted background, and a note when it is the
+  // only kind of change.
+  const changed = parts.filter((part) => part.kind !== "same");
+  const spacingOnly = changed.length > 0 &&
+    changed.every((part) => isWhitespace(part.text));
+  const mark = (text: string) => isWhitespace(text) ? "whitespace" : undefined;
   return (
     <div className="proposal">
+      {spacingOnly && (
+        <p className="proposal-note">Only line breaks or spacing change.</p>
+      )}
       <h4>Current</h4>
       <p className="proposal-body">
         {parts.map((part, index) =>
           part.kind === "same"
             ? <span key={index}>{part.text}</span>
             : part.kind === "removed"
-            ? <del key={index}>{part.text}</del>
+            ? <del key={index} className={mark(part.text)}>{part.text}</del>
             : null
         )}
       </p>
@@ -35,7 +50,7 @@ function ProposalView(props: { currentBody: string; proposedBody: string }) {
           part.kind === "same"
             ? <span key={index}>{part.text}</span>
             : part.kind === "added"
-            ? <ins key={index}>{part.text}</ins>
+            ? <ins key={index} className={mark(part.text)}>{part.text}</ins>
             : null
         )}
       </p>

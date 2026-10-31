@@ -91,7 +91,7 @@ Deno.test("writeTextFileAtomic: keeps a UTF-8 BOM", async () => {
       path,
       new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode("old\n")]),
     );
-    // A text read strips the BOM, so callers pass text without it.
+    // A caller may pass text without the BOM; the write adds it back.
     await writeTextFileAtomic(path, "new\n");
     const bytes = await Deno.readFile(path);
     assertEquals([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf]);

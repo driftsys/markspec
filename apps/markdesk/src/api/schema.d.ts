@@ -132,7 +132,7 @@ export interface paths {
     put?: never;
     /**
      * Preview a proposal
-     * @description The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes nothing.
+     * @description The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), the file is valid UTF-8 (409 `entry-file-not-utf8`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes nothing.
      */
     post: operations["previewProposal"];
     delete?: never;
@@ -156,7 +156,7 @@ export interface paths {
     put?: never;
     /**
      * Apply a proposal
-     * @description The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes the file atomically with only the target entry's body replaced by the formatted proposed body; every other byte stays unchanged. Applies run one at a time, so a second apply with the same tag answers 412 and writes nothing. The response carries the new document ETag in the body and in the ETag header.
+     * @description The request carries exactly one change of kind `body` for a project entry (no origin) in a Markdown file. `If-Match` must name the current `/documents` ETag of the entry's file; the comparison is strong (RFC 9110 §13.1.1), so a `W/` tag and `*` never match. The proposed body passes the `markspec fmt` formatter. Checks run in this order: If-Match present (428), request shape (400), entry exists (404 `entry-not-found`), entry has no origin (409 `entry-read-only`), entry is in a `.md` file (409 `entry-not-markdown`), the file is an allowed project path (404 `not-found`), the file is valid UTF-8 (409 `entry-file-not-utf8`), If-Match names the current tag (412 `precondition-failed`), then the proposal itself: 409 `entry-body-empty` or `entry-trailer-invalid`, 422 `proposal-empty`, `proposal-too-large` (body over 20 000 UTF-16 code units, before or after formatting), `proposal-changes-entries`, or `format-failed`. Writes the file atomically with only the target entry's body replaced by the formatted proposed body; every other byte stays unchanged. Applies run one at a time, so a second apply with the same tag answers 412 and writes nothing. Just before the write, apply reads the file again and answers 412 `precondition-failed`, writing nothing, when its bytes changed since the check. The response carries the new document ETag in the body and in the ETag header.
      */
     post: operations["applyProposal"];
     delete?: never;
@@ -749,7 +749,7 @@ export interface operations {
           "application/json": components["schemas"]["Error"];
         };
       };
-      /** @description The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-body-empty`, or `entry-trailer-invalid` */
+      /** @description The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-file-not-utf8`, `entry-body-empty`, or `entry-trailer-invalid` */
       409: {
         headers: {
           [name: string]: unknown;
@@ -870,7 +870,7 @@ export interface operations {
           "application/json": components["schemas"]["Error"];
         };
       };
-      /** @description The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-body-empty`, or `entry-trailer-invalid` */
+      /** @description The entry cannot take a proposal: `entry-read-only`, `entry-not-markdown`, `entry-file-not-utf8`, `entry-body-empty`, or `entry-trailer-invalid` */
       409: {
         headers: {
           [name: string]: unknown;
@@ -879,7 +879,7 @@ export interface operations {
           "application/json": components["schemas"]["Error"];
         };
       };
-      /** @description If-Match does not name the current document ETag (`precondition-failed`) */
+      /** @description If-Match does not name the current document ETag, or the file changed before the write (`precondition-failed`) */
       412: {
         headers: {
           [name: string]: unknown;
