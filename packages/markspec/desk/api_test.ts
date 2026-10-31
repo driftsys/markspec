@@ -25,6 +25,7 @@ import {
   TAURI_ORIGINS,
   toApiPath,
 } from "./api.ts";
+import { documentEtag } from "./render.ts";
 
 const FIXTURE_ROOT = fromFileUrl(
   new URL("../../../tests/fixtures/desk-project", import.meta.url),
@@ -966,7 +967,7 @@ async function editableHandler() {
   const state = {
     text: await Deno.readTextFile(systemPath),
     compiled,
-    // Reads of `source.profile`: only rendering a document reads it.
+    // Reads of `source.profile`. On `/documents`, only the render reads it.
     profileReads: 0,
   };
   const h = createDeskHandler({
@@ -1400,4 +1401,12 @@ Deno.test("desk api: tree and entry carry origin for upstream entries", async ()
   assertEquals(node.origin, "up@1.0.0");
   const entry = await (await h(get("/api/v1/entries/HAZ_BRK_0001"))).json();
   assertEquals(entry.origin, "up@1.0.0");
+});
+
+Deno.test("desk api: ETag fields cannot run into each other", async () => {
+  const { compiled } = await fixture;
+  assertNotEquals(
+    await documentEtag(3, compiled, "a", [], "bc"),
+    await documentEtag(3, compiled, "ab", [], "c"),
+  );
 });

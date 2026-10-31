@@ -5,11 +5,12 @@ import { useOpenProduct } from "../app/useProduct";
 /**
  * Read-only source text of a project file, with line numbers, scrolled to
  * `line` (1-based). Light paper with Plex Mono, never a dark editor theme.
- * The text is fetched again when `revision` changes: the caller passes the
- * rendered HTML, which changes when the file is edited on disk.
+ * The text is fetched again when `revision` changes: the caller bumps it each
+ * time the window receives focus, because a file can only change on disk
+ * while the author works in another application.
  */
 export function SourceDrawer(
-  { path, line, revision }: { path: string; line: number; revision: string },
+  { path, line, revision }: { path: string; line: number; revision: number },
 ) {
   const { client } = useOpenProduct();
   const [text, setText] = useState<string>();

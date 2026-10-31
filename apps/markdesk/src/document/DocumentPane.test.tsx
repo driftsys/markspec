@@ -417,6 +417,29 @@ describe("DocumentPane", () => {
     expect(await screen.findByText("new text")).toBeTruthy();
   });
 
+  it("reloads the open source drawer on focus when the render is unchanged", async () => {
+    let source = "old text";
+    const client = fakeClient({
+      file: vi.fn(async (path: string) => ({
+        apiVersion: 3 as const,
+        path,
+        text: source,
+      })),
+    });
+    const { select } = mount(client);
+    // A source-file entry: its single-entry HTML does not change when lines
+    // are inserted above it.
+    select("SRC");
+    await screen.findByText("html of SRC");
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(await screen.findByText("old text")).toBeTruthy();
+    source = "new text";
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText("new text")).toBeTruthy();
+  });
+
   it("shows no pane error for a network failure", async () => {
     const client = fakeClient({
       entry: vi.fn(async () => {

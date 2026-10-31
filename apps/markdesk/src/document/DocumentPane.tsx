@@ -341,7 +341,7 @@ export function DocumentPane() {
           <SourceDrawer
             path={reading.sourcePath}
             line={reading.entry.location.line}
-            revision={reading.html}
+            revision={focusCount}
           />
         )}
       </div>
