@@ -265,3 +265,94 @@ Deno.test("replaceEntryBody: a file with lone CR line endings keeps them", async
   assert(r.ok);
   assertEquals(r.text, cr.replace("  Body two.", "  Z.\r  Y."));
 });
+
+// The lazy line is indented by one space. The parser keeps that space in
+// its body, but dedenting by the body indent removes it, so the span does
+// not match the parser body exactly.
+const NOT_EXACT = `# Doc
+
+- [REQ_0001] First
+
+  Line one.
+ lazy two.
+
+      Id: 01JBRK00000000000000000001
+`;
+
+Deno.test("readEntryBody: returns the parser body when the span is not exact", async () => {
+  assertEquals(
+    await readEntryBody(NOT_EXACT, FILE, "REQ_0001"),
+    "Line one.\n lazy two.",
+  );
+});
+
+Deno.test("replaceEntryBody: refuses a body it cannot locate exactly", async () => {
+  assertEquals(await replaceEntryBody(NOT_EXACT, FILE, "REQ_0001", "New."), {
+    ok: false,
+    refusal: "entries-changed",
+  });
+});
+
+Deno.test("replaceEntryBody: refuses a proposal whose unclosed fence swallows the trailer", async () => {
+  const doc = DOC.replace(
+    "      Id: 01JBRK00000000000000000001\n",
+    "      Id: 01JBRK00000000000000000001\n      Satisfies: REQ_0002\n",
+  );
+  assertEquals(await replaceEntryBody(doc, FILE, "REQ_0001", "Text.\n\n```"), {
+    ok: false,
+    refusal: "entries-changed",
+  });
+});
+
+Deno.test("replaceEntryBody: keeps a file with no final newline without one", async () => {
+  assertEquals(
+    await replaceEntryBody(
+      "- [REQ_0001] T\n\n  Body.",
+      FILE,
+      "REQ_0001",
+      "A.\nB.",
+    ),
+    { ok: true, text: "- [REQ_0001] T\n\n  A.\n  B." },
+  );
+  assertEquals(
+    await replaceEntryBody(
+      "- [REQ_0001] T\r\n\r\n  Body.",
+      FILE,
+      "REQ_0001",
+      "A.\nB.",
+    ),
+    { ok: true, text: "- [REQ_0001] T\r\n\r\n  A.\r\n  B." },
+  );
+});
+
+Deno.test("replaceEntryBody: keeps a UTF-8 BOM", async () => {
+  const r = await replaceEntryBody("﻿" + DOC, FILE, "REQ_0001", "New.");
+  assert(r.ok);
+  assertEquals(
+    r.text,
+    ("﻿" + DOC).replace("  Body one line A.\n  line B.", "  New."),
+  );
+});
+
+Deno.test("replaceEntryBody: accepts a proposal that starts with an indented code block", async () => {
+  const r = await replaceEntryBody(DOC, FILE, "REQ_0001", "    code\n\nPara.");
+  assert(r.ok);
+  assertEquals(
+    r.text,
+    DOC.replace("  Body one line A.\n  line B.", "      code\n\n  Para."),
+  );
+});
+
+Deno.test("readEntryBody: keeps the indent of a body that starts with a code block", async () => {
+  const doc = DOC.replace(
+    "  Body one line A.\n  line B.",
+    "      code line\n\n  Para.",
+  );
+  assertEquals(
+    await readEntryBody(doc, FILE, "REQ_0001"),
+    "    code line\n\nPara.",
+  );
+  const r = await replaceEntryBody(doc, FILE, "REQ_0001", "New.");
+  assert(r.ok);
+  assertEquals(r.text, DOC.replace("  Body one line A.\n  line B.", "  New."));
+});

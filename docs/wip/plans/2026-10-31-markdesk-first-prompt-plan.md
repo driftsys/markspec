@@ -104,19 +104,21 @@ Stated once here; tasks use them without restating the reason.
    after the title line, so a soft-wrapped title is skipped) and the blank lines
    after it. The range has as many lines as the parser's `entry.body`, so a lazy
    continuation line (less indented than the body) is included. The dedented
-   range must equal `entry.body` line for line (trailing whitespace ignored);
-   otherwise `replaceEntryBody` refuses with `entries-changed` and
-   `readEntryBody` returns `entry.body`. Indent is `(location.column - 1) + 2`,
-   as in the formatter.
+   range, trimmed as a whole as the parser trims its body (so a body that starts
+   with an indented code block matches), must equal `entry.body` line for line
+   (trailing whitespace ignored); otherwise `replaceEntryBody` refuses with
+   `entries-changed` and `readEntryBody` returns `entry.body`. Indent is
+   `(location.column - 1) + 2`, as in the formatter.
 9. **Line endings:** lines are split on `\r\n`, a lone `\r`, or `\n` (the
    parser's rule, so line numbers agree) and keep their own ending; inserted
    body lines take the ending of the title line. Mixed files keep every other
    line's ending. In the proposal, `\r\n` and a lone `\r` become `\n`.
 10. **Identity check:** same entry count; per index, same `displayId` and `id`;
     for the target, also same `title` and same `rawAttributes` (key and value),
-    and the target's body equals the proposal. The edit is also refused when the
-    reparse raises more structural parse diagnostics of some code (for example
-    MSL-P020) than the original text.
+    and the target's body equals the proposal (both trimmed as a whole). The
+    edit is also refused when the reparse raises more parse diagnostics of some
+    code (any code `parseFile` returns, for example MSL-P020) than the original
+    text.
 11. **`MSL-F900` on the target:** detected as a diagnostic with code `MSL-F900`
     whose message starts with `` `${displayId}:` `` (the formatter's message
     format). `MSL-F012` is ignored. A prose formatter that fails to load →

@@ -86,9 +86,10 @@ function trimmedLines(text: string): string[] {
  * The body starts after the title paragraph and the blank lines that
  * follow it. Its length is the line count of the parser's `entry.body`,
  * so a lazy continuation line (a body line indented less than the body
- * indent) is part of the span. `exact` is false when the dedented span
- * does not match `entry.body` line for line (trailing whitespace
- * ignored); the span is then not reliable and must not be edited.
+ * indent) is part of the span. `exact` is false when the dedented span,
+ * trimmed as a whole like the parser's body, does not match `entry.body`
+ * line for line (trailing whitespace ignored); the span is then not
+ * reliable and must not be edited.
  */
 function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
   const indent = (entry.location.column - 1) + 2;
@@ -102,7 +103,10 @@ function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
   const expected = trimmedLines(entry.body);
   const end = Math.min(start + expected.length, lines.length);
   const actual = spanText(lines, { start, end, indent, exact: true });
-  const exact = actual.join("\n") === expected.join("\n");
+  // The parser trims its body as a whole, which drops the leading
+  // whitespace of the first line (an indented code block); trim the span
+  // the same way before comparing.
+  const exact = actual.join("\n").trim() === expected.join("\n");
   return { start, end, indent, exact };
 }
 
@@ -219,7 +223,7 @@ export async function replaceEntryBody(
     !sameEntries(before.entries, after.entries, entry, after.entry) ||
     addsParseDiagnostic(before.diagnosticCodes, after.diagnosticCodes) ||
     trimmedLines(after.entry?.body ?? "").join("\n") !==
-      proposal.map((l) => l.trimEnd()).join("\n")
+      proposal.map((l) => l.trimEnd()).join("\n").trim()
   ) {
     return { ok: false, refusal: "entries-changed" };
   }
@@ -229,9 +233,12 @@ export async function replaceEntryBody(
 /**
  * Identity check: same entry count; per index, same display ID and Id;
  * for the target, also the same title and the same trailer attributes.
- * No known body edit changes an Id or the target's trailer without also
- * raising a parse diagnostic, so those comparisons are a second safety
- * check behind {@linkcode addsParseDiagnostic}.
+ * An unclosed fence or HTML block in the proposal (for example a final
+ * line of three backticks) can swallow the target's trailer without any
+ * parse diagnostic; this comparison and the body-equality check in
+ * {@linkcode replaceEntryBody} are what refuse such an edit. No known
+ * input is refused by this comparison alone (the body-equality check also
+ * refuses every case found so far), so it is kept as an untested backstop.
  */
 function sameEntries(
   before: readonly Entry[],
@@ -262,6 +269,11 @@ function sameEntries(
  * see. An entry-shaped item directly after a paragraph line, with no
  * blank line between them, raises no diagnostic; the parser keeps it as
  * body text and adds no entry, so the edit is accepted.
+ *
+ * Known limit: the parser raises at most one MSL-P020 per entry, so when
+ * the target body already has a trailer-like line, a proposal that adds
+ * more such lines raises no new MSL-P020 and is accepted. The lines stay
+ * body text; no trailer or entry changes.
  */
 function addsParseDiagnostic(
   before: readonly string[],
