@@ -10,6 +10,7 @@
  * summary, so agents stop grep'ing Markdown or running `markspec compile`.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { Entry } from "../../core/mod.ts";
 import { renderEntriesIndex } from "../resources/entries.ts";
 
@@ -112,6 +113,7 @@ export const ENTRY_LIST_INPUT_SCHEMA = {
     type: { type: "string" },
     label: { type: "string" },
     page: { type: "integer", minimum: 1 },
+    project: PROJECT_ARG_SCHEMA,
   },
   additionalProperties: false,
 } as const;

@@ -7,6 +7,7 @@
  * Bounded by `depth` and a node cap so output stays within context budget.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { CompileResult } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import { entryUri } from "../uri.ts";
@@ -86,6 +87,7 @@ export const ENTRY_NEIGHBORHOOD_INPUT_SCHEMA = {
   properties: {
     id: { type: "string", minLength: 1 },
     depth: { type: "integer", minimum: 0, maximum: 50 },
+    project: PROJECT_ARG_SCHEMA,
   },
   required: ["id"],
   additionalProperties: false,

@@ -7,6 +7,7 @@
  * project root).
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import { isAbsolute, join } from "@std/path";
 import type { Diagnostic } from "../../core/mod.ts";
 import { relativeToRoot } from "../path.ts";
@@ -98,6 +99,7 @@ export const VALIDATE_INPUT_SCHEMA = {
       type: "array",
       items: { type: "string" },
     },
+    project: PROJECT_ARG_SCHEMA,
   },
   additionalProperties: false,
 } as const;

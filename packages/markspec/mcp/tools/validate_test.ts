@@ -18,6 +18,7 @@ import type { LoadedProfile } from "../../core/model/mod.ts";
 import type { Project } from "../project.ts";
 import { filterDiagnostics, renderDiagnosticsReport } from "./validate.ts";
 import { registerTools } from "./mod.ts";
+import { workspaceOf } from "./testing.ts";
 
 const ERR: Diagnostic = {
   code: "MSL-R004",
@@ -209,7 +210,7 @@ async function invokeValidate(project: Project): Promise<string> {
       if (schema === CallToolRequestSchema) callHandler = handler;
     },
   } as unknown as Server;
-  registerTools(serverStub, project);
+  registerTools(serverStub, workspaceOf(project));
   if (!callHandler) throw new Error("tools/call handler not registered");
   const res = await callHandler({
     params: { name: "validate", arguments: {} },
@@ -289,4 +290,28 @@ Deno.test("VALIDATE_DESCRIPTOR.description: keys on canonical soft-gate phrase",
     VALIDATE_DESCRIPTOR.description,
     "No MarkSpec project found",
   );
+});
+
+// --- Multi-project routing of the files argument ---
+
+import { createWorkspace } from "../workspace.ts";
+import { dispatchTool } from "./mod.ts";
+import { entryDoc, memoryEnv, twoProjectFiles } from "./testing.ts";
+
+Deno.test("validate files arg routes to the owning project", async () => {
+  // Project b declares STK_0002 twice, so only b has diagnostics.
+  const ws = await createWorkspace(memoryEnv(twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG") + "\n" +
+      entryDoc("STK_0002", "Gamma", "01HGW2Q8MNP3RSTVWXYZABCDEH"),
+  )));
+  const text = await dispatchTool("validate", { files: ["b/req.md"] }, ws);
+  assertStringIncludes(text, "## Project: b");
+  assertStringIncludes(text, "MSL-R006");
+  assertEquals(text.includes("## Project: a"), false);
+  const forA = await dispatchTool("validate", { files: ["a/req.md"] }, ws);
+  assertStringIncludes(forA, "## Project: a");
+  assertStringIncludes(forA, "✓ All 1 entries pass validation");
+  assertEquals(forA.includes("## Project: b"), false);
+  assertEquals(forA.includes("MSL-R006"), false);
 });

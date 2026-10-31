@@ -7,6 +7,8 @@
  * the mtime check.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
+
 /** Render a refresh confirmation. */
 export function renderRefresh(entries: number, links: number): string {
   return `Refreshed. ${entries} entries, ${links} links.\n`;
@@ -15,7 +17,9 @@ export function renderRefresh(entries: number, links: number): string {
 /** Tool input schema. */
 export const REFRESH_INPUT_SCHEMA = {
   type: "object",
-  properties: {},
+  properties: {
+    project: PROJECT_ARG_SCHEMA,
+  },
   additionalProperties: false,
 } as const;
 

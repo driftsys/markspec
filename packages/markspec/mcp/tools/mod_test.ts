@@ -7,6 +7,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { dispatchTool } from "./mod.ts";
 import type { Project } from "../project.ts";
+import { workspaceOf } from "./testing.ts";
 
 function mockProject(detected: boolean): Project {
   return {
@@ -57,7 +58,11 @@ function emptyDetectedProject(): Project {
 
 Deno.test("dispatchTool: returns soft-gate message when markspecDetected=false", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_search", { query: "x" }, project);
+  const result = await dispatchTool(
+    "entry_search",
+    { query: "x" },
+    workspaceOf(project),
+  );
   assertEquals(result, "No MarkSpec project found (mock)");
 });
 
@@ -66,20 +71,24 @@ Deno.test("dispatchTool: gates every tool name (entry_context)", async () => {
   const result = await dispatchTool(
     "entry_context",
     { id: "STK_0001" },
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates validate", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("validate", {}, project);
+  const result = await dispatchTool("validate", {}, workspaceOf(project));
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates markspec_refresh", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("markspec_refresh", {}, project);
+  const result = await dispatchTool(
+    "markspec_refresh",
+    {},
+    workspaceOf(project),
+  );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
@@ -88,20 +97,24 @@ Deno.test("dispatchTool: gates profile_describe", async () => {
   const result = await dispatchTool(
     "profile_describe",
     { name: "Stk" },
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates entry_show", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_show", { id: "X_0001" }, project);
+  const result = await dispatchTool(
+    "entry_show",
+    { id: "X_0001" },
+    workspaceOf(project),
+  );
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
 Deno.test("dispatchTool: gates entry_list", async () => {
   const project = mockProject(false);
-  const result = await dispatchTool("entry_list", {}, project);
+  const result = await dispatchTool("entry_list", {}, workspaceOf(project));
   assertStringIncludes(result, "No MarkSpec project found");
 });
 
@@ -110,7 +123,7 @@ Deno.test("dispatchTool: gates entry_neighborhood", async () => {
   const result = await dispatchTool(
     "entry_neighborhood",
     { id: "X_0001" },
-    project,
+    workspaceOf(project),
   );
   assertStringIncludes(result, "No MarkSpec project found");
 });
@@ -119,7 +132,7 @@ Deno.test("dispatchTool: unknown tool returns error message regardless of gate",
   const project = mockProject(false);
   let caught: Error | null = null;
   try {
-    await dispatchTool("nonexistent", {}, project);
+    await dispatchTool("nonexistent", {}, workspaceOf(project));
   } catch (err) {
     caught = err as Error;
   }
@@ -128,12 +141,20 @@ Deno.test("dispatchTool: unknown tool returns error message regardless of gate",
 
 Deno.test("dispatchTool: entry_show routes", async () => {
   const project = emptyDetectedProject();
-  const result = await dispatchTool("entry_show", { id: "X_0001" }, project);
+  const result = await dispatchTool(
+    "entry_show",
+    { id: "X_0001" },
+    workspaceOf(project),
+  );
   assertStringIncludes(result, "No entry with display ID X_0001");
 });
 
 Deno.test("dispatchTool: entry_list routes (summary default)", async () => {
-  const result = await dispatchTool("entry_list", {}, emptyDetectedProject());
+  const result = await dispatchTool(
+    "entry_list",
+    {},
+    workspaceOf(emptyDetectedProject()),
+  );
   assertStringIncludes(result, "Specification overview");
 });
 
@@ -141,7 +162,7 @@ Deno.test("dispatchTool: entry_neighborhood routes", async () => {
   const result = await dispatchTool(
     "entry_neighborhood",
     { id: "X_0001" },
-    emptyDetectedProject(),
+    workspaceOf(emptyDetectedProject()),
   );
   assertStringIncludes(result, "No entry with display ID X_0001");
 });

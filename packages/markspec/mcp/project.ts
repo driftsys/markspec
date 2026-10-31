@@ -261,6 +261,12 @@ export interface Project {
   getCompiled(): Promise<CompileResult>;
   /** Force a recompile and return the fresh result. */
   forceRefresh(): Promise<CompileResult>;
+  /**
+   * The entry count of the last successful compile, or `undefined` when the
+   * project has not compiled yet. Never starts a compile. Optional so test
+   * stubs may omit it; an absent method reads as "not compiled yet".
+   */
+  compiledEntryCount?(): number | undefined;
   /** Subscribe to recompile events. Returns an unsubscribe function. */
   subscribeInvalidation(handler: InvalidationHandler): () => void;
   /** Read a delivered document's raw text from the profile cache. */
@@ -731,6 +737,9 @@ function buildProject(
       }
       cached = null;
       return await ensureCompile();
+    },
+    compiledEntryCount(): number | undefined {
+      return cached?.entries.size;
     },
     subscribeInvalidation(handler: InvalidationHandler): () => void {
       handlers.add(handler);

@@ -6,6 +6,7 @@
  * as a tool, because tool-using agents reliably reach for tools over resources.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { CompileResult } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import { renderEntry } from "../resources/entry.ts";
@@ -39,6 +40,7 @@ export const ENTRY_SHOW_INPUT_SCHEMA = {
   type: "object",
   properties: {
     id: { type: "string", minLength: 1 },
+    project: PROJECT_ARG_SCHEMA,
   },
   required: ["id"],
   additionalProperties: false,

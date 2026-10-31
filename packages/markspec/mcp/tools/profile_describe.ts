@@ -4,6 +4,7 @@
  * `profile_describe` tool — look up a profile element by kind + name
  * with fuzzy fallback and disambiguation output.
  */
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type {
   ProfileElementKind,
   ProfileIntrospection,
@@ -38,6 +39,7 @@ export const PROFILE_DESCRIBE_DESCRIPTOR = {
         description:
           "Element name or partial name (fuzzy match if no exact hit).",
       },
+      project: PROJECT_ARG_SCHEMA,
     },
     required: ["name"],
   },
@@ -103,5 +105,10 @@ export function dispatchProfileDescribe(
   }
 
   // Step 5: no match.
+  return noProfileMatchText(name);
+}
+
+/** The `profile_describe` answer when no element matches `name`. */
+export function noProfileMatchText(name: string): string {
   return `no profile element found for '${name}'\n`;
 }

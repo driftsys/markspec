@@ -229,6 +229,7 @@ Deno.test("mcp: tools/list returns all eight tools", async () => {
       "entry_show",
       "markspec_refresh",
       "profile_describe",
+      "project_list",
       "validate",
     ]);
   } finally {

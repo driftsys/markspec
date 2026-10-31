@@ -5,6 +5,7 @@
  * entry and renders the chain as a nested Markdown list.
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { CompileResult } from "../../core/mod.ts";
 import { entryUri } from "../uri.ts";
 import { walkLinks, type WalkNode } from "./walk.ts";
@@ -62,6 +63,7 @@ export const ENTRY_CONTEXT_INPUT_SCHEMA = {
   properties: {
     id: { type: "string", minLength: 1 },
     depth: { type: "integer", minimum: 0, maximum: 50 },
+    project: PROJECT_ARG_SCHEMA,
   },
   required: ["id"],
   additionalProperties: false,

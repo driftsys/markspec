@@ -47,6 +47,10 @@ export interface McpWorkspace {
   /** The project whose root is the deepest ancestor of the canonical
    * absolute path `absPath`, or `undefined` when no project holds it. */
   ownerOf(absPath: string): WorkspaceProject | undefined;
+  /** Resolve symlinks in the absolute path `absPath`, as discovery does for
+   * project roots; returns it unchanged when that fails (for example a
+   * missing file). Use it before {@linkcode McpWorkspace.ownerOf}. */
+  canonicalPath(absPath: string): Promise<string>;
   /** Re-run discovery. Projects whose root is still present are reused. */
   rediscover(): Promise<void>;
   /**
@@ -207,6 +211,7 @@ export async function createWorkspace(env: ProjectEnv): Promise<McpWorkspace> {
       const owner = opened.get(root)?.project;
       return projectList.find((p) => p.project === owner);
     },
+    canonicalPath: (absPath: string) => canonical(env, absPath),
     rediscover(): Promise<void> {
       const run = rediscoverChain.then(async () => {
         if (await apply(await discover(env))) notify();

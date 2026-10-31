@@ -14,6 +14,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import process from "node:process";
 import { CORE_SCHEMA_VERSION, VERSION } from "../core/mod.ts";
 import { createProject, defaultEnv } from "./project.ts";
+import { createWorkspace } from "./workspace.ts";
 import { registerResources } from "./resources/mod.ts";
 import { registerTools } from "./tools/mod.ts";
 import { ENTRIES_URI, entryUri, PROFILE_URI } from "./uri.ts";
@@ -111,10 +112,18 @@ export async function startServer(
     },
   );
 
-  const project = await createProject(defaultEnv(options.rootFlags ?? []));
+  const env = defaultEnv(options.rootFlags ?? []);
+  const workspace = await createWorkspace(env);
+  // Resources still serve one project until they move to the workspace: the
+  // primary project (label "."), else the first one, else the soft-gated
+  // project that reports "no project found".
+  const projects = workspace.projects();
+  const project =
+    (projects.find((p) => p.label === ".") ?? projects[0])?.project ??
+      await createProject(env);
 
   registerResources(server, project);
-  registerTools(server, project);
+  registerTools(server, workspace);
 
   // Fire resource list / profile / entries-index change notifications on
   // every cache invalidation. The SDK's typed helpers wrap the protocol

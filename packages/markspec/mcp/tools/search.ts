@@ -14,6 +14,7 @@
  *   +2  all query-tokens appear in title (any order)
  */
 
+import { PROJECT_ARG_SCHEMA } from "./fan_out.ts";
 import type { Entry } from "../../core/mod.ts";
 import { entryUri } from "../uri.ts";
 
@@ -110,6 +111,7 @@ export const ENTRY_SEARCH_INPUT_SCHEMA = {
   properties: {
     query: { type: "string", minLength: 1 },
     limit: { type: "integer", minimum: 1, maximum: 100 },
+    project: PROJECT_ARG_SCHEMA,
   },
   required: ["query"],
   additionalProperties: false,
