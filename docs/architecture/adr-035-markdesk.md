@@ -99,8 +99,9 @@ stays TypeScript. Everything lives in this repository.
   the project-relative path of a Markdown or source file holding at least one
   entry without an `origin`, and shall require a `.md` extension for
   `/documents`. The backend shall answer HTTP status 400 with code `bad-request`
-  for a request without `path`. The backend shall serve these read endpoints
-  with `GET` only.
+  for a request without `path`. The backend shall answer HTTP status 405 with
+  code `method-not-allowed` for a request to these endpoints with a method other
+  than `GET` or `OPTIONS`.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
 
@@ -538,13 +539,36 @@ built: the first prompt" below).
   while a Test runs. The proposal wire format is a list of changes
   `{ displayId, kind: "body", body }`; this story accepts exactly one change of
   kind `body`. The change is additive, so `apiVersion` stays 3.
+- **UI details.** A proposal belongs to one entry: selecting another entry
+  cancels the run or discards the proposal, and nothing is written. A write in
+  progress is the exception: it survives a selection change, the box stays busy
+  until the apply ends, and a failed apply is still reported. The column's
+  Settings button is disabled while a write is applying, because leaving the
+  column unmounts the panel. Focus moves to Cancel while the assistant runs and
+  to the proposal container when the proposal appears, so Tab reaches Accept
+  next. Focus never moves to Accept by itself, so a Space or Enter pressed on
+  the page body cannot write the file (the UI side of SAD_DESK_0030). When the
+  flow ends, focus returns to the box, unless the author moved focus outside the
+  panel. The Enter that ends an IME composition does not submit. When the
+  submit-time read of the document or the entry fails, the column says "MarkDesk
+  could not read this entry."; a refusal with `entry-trailer-invalid` says "This
+  entry's trailer has a problem. Run markspec check and fix it first." A lost
+  connection (a `DeskError` with status 0) during the submit-time reads or the
+  preview returns the column to idle without a sentence, and the app's
+  lost-connection banner reports it. An apply that fails with status 0 still
+  shows the write-failed sentence, because the write may or may not have
+  happened. A known gap: the product menu's Settings item and opening another
+  product still unmount the panel during a write; the write completes, but a
+  failure is then not reported.
 - **Write path.** Preview and apply run the same pipeline
   (`packages/markspec/desk/proposals.ts`), with the checks in this order: 428
   `precondition-required` when `If-Match` is missing; 400 for a request body of
   the wrong shape; 404 `entry-not-found` and 409 `entry-read-only` or
-  `entry-not-markdown` for the target entry; 412 `precondition-failed` when
-  `If-Match` does not name the current tag with the strong comparison; then the
-  pipeline refusals (409 `entry-body-empty`, `entry-trailer-invalid`; 422
+  `entry-not-markdown` for the target entry; 404 `not-found` when the file is
+  not a readable project file inside the root; 412 `precondition-failed` when
+  `If-Match` does not name the current tag with the strong comparison; 422
+  `format-failed` when the prose formatter cannot load; then the pipeline
+  refusals (409 `entry-body-empty`, `entry-trailer-invalid`; 422
   `proposal-empty`, `proposal-too-large` above 20 000 characters before or after
   formatting, `proposal-changes-entries`, `format-failed`). After the checks
   come the `markspec fmt` formatter on a candidate text, then a splice of only
@@ -553,15 +577,14 @@ built: the first prompt" below).
   entries, prose, front matter, line endings, and a UTF-8 BOM (SAD_DESK_0026). A
   reparse must give the same entries with the same IDs, and the same title and
   trailer for the target, or the change is refused. An `MSL-F900` on the target
-  or a prose formatter that fails to load refuses with `format-failed`;
-  `MSL-F012` is not shown. The preview shows the formatted current body, or the
-  current body as written when formatting would lose or move its words. Apply
-  writes through `DeskSource.writeFile`, which the server backs with
-  `writeTextFileAtomic` (`desk/write.ts`): a new temporary file in the same
-  folder, given the original file's mode, then renamed over the original
-  (SAD_DESK_0027). Applies are serialized in the handler, so a second Accept on
-  the same tag answers 412 and writes nothing. The response carries the new
-  document `ETag`. A write failure answers 500 `write-failed`.
+  refuses with `format-failed`; `MSL-F012` is not shown. The preview shows the
+  formatted current body, or the current body as written when formatting would
+  lose or move its words. Apply writes through `DeskSource.writeFile`, which the
+  server backs with `writeTextFileAtomic` (`desk/write.ts`): a new temporary
+  file in the same folder, given the original file's mode, then renamed over the
+  original (SAD_DESK_0027). Applies are serialized in the handler, so a second
+  Accept on the same tag answers 412 and writes nothing. The response carries
+  the new document `ETag`. A write failure answers 500 `write-failed`.
 - **Prompt run.** The shell builds the prompt from a fixed template with the
   entry's title, current body, trailer attributes (read-only context), and the
   instruction, and passes it as an argument; a prompt over 100 000 bytes is
@@ -772,9 +795,11 @@ enough for one author.
   each new endpoint must keep that posture.
 - The repository gains a Node/npm toolchain (Vite, React) and a Rust toolchain
   (Tauri) alongside Deno, each confined to `apps/markdesk/`.
-- The MCP project service becomes shared infrastructure for two servers. Before
-  the desk grows writes or a WebSocket, it should move out of `mcp/` into a
-  module both import.
+- The MCP project service becomes shared infrastructure for two servers. It
+  should move out of `mcp/` into a module both import. The first prompt (#837)
+  added desk writes through `desk/write.ts` while the desk server still imports
+  `mcp/project.ts`; the move is deferred to a follow-up and is due before the
+  desk grows a WebSocket.
 - The bundled binary is the full `markspec` CLI, so the desktop install is
   larger than a purpose-built backend would be.
 

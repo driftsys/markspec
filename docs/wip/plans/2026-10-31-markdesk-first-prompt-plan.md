@@ -267,6 +267,19 @@ carries them into the records.
    banner reports it. An apply that fails with status 0 still shows
    `writeFailed`, because the write may or may not have happened.
 
+## Task 8 review amendments (2026-10-31)
+
+Recorded by the Task 8 review fixer.
+
+1. **SAD_DESK_0021 wording.** The entry says "next to its current body", not
+   "next to its formatted current body" as in Task 8 Step 1. This follows
+   orchestrator decision 5: the preview falls back to the current body as
+   written when formatting would lose or move its words, so the response does
+   not always carry a formatted current body.
+2. **MCP project service move.** The desk now writes through `desk/write.ts`
+   while `desk/server.ts` still imports `mcp/project.ts`. ADR-035 Consequences
+   records that the move out of `mcp/` is deferred to a follow-up.
+
 ## Review Focus
 
 Inputs the spec implies but does not name; each has a test in its owning task.

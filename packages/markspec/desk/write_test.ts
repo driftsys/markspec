@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { join } from "@std/path";
-import { writeTextFileAtomic } from "./write.ts";
+import { dirname, join } from "@std/path";
+import { temporaryPathFor, writeTextFileAtomic } from "./write.ts";
 
 /** Names of the entries of `dir`, sorted. */
 async function namesIn(dir: string): Promise<string[]> {
@@ -68,6 +68,19 @@ Deno.test({
       await Deno.remove(dir, { recursive: true });
     }
   },
+});
+
+Deno.test("temporaryPathFor: names a hidden file in the same folder", () => {
+  const path = join("/p", "docs", "doc.md");
+  const temp = temporaryPathFor(path);
+  assertEquals(dirname(temp), dirname(path));
+  assert(
+    /^\.doc\.md\.markdesk-[0-9a-f]{8}\.tmp$/.test(
+      temp.slice(dirname(path).length + 1),
+    ),
+    temp,
+  );
+  assert(temporaryPathFor(path) !== temp, "two calls gave the same name");
 });
 
 Deno.test("writeTextFileAtomic: keeps a UTF-8 BOM", async () => {

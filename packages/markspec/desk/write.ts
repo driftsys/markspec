@@ -34,10 +34,7 @@ export async function writeTextFileAtomic(
     ? new Uint8Array([...UTF8_BOM, ...encoded])
     : encoded;
 
-  const suffix = [...crypto.getRandomValues(new Uint8Array(4))]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  const temp = join(dirname(path), `.${basename(path)}.markdesk-${suffix}.tmp`);
+  const temp = temporaryPathFor(path);
 
   await Deno.writeFile(temp, bytes, { createNew: true });
   try {
@@ -52,6 +49,20 @@ export async function writeTextFileAtomic(
     } catch { /* the temporary file may already be gone */ }
     throw err;
   }
+}
+
+/**
+ * A new temporary path for a write to `path`:
+ * `.<name>.markdesk-<8 hex>.tmp` in the same folder as `path`, so the
+ * rename that ends {@linkcode writeTextFileAtomic} stays inside one folder.
+ *
+ * @internal Exported for the unit tests.
+ */
+export function temporaryPathFor(path: string): string {
+  const suffix = [...crypto.getRandomValues(new Uint8Array(4))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return join(dirname(path), `.${basename(path)}.markdesk-${suffix}.tmp`);
 }
 
 /** Permission bits of `path`; `undefined` when it cannot be read. */
