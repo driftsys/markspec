@@ -61,7 +61,9 @@ Every signal above is known synchronously when the process starts. `Project`
 stays **set-once**: no getters, no mutation, no async re-resolution after
 `createProject` returns. This avoids restructuring `Project`'s five
 tool/resource-facing fields (`projectRoot`, `markspecDetected`, `config`,
-`profileChain`, `profile`) around a mutable or lazily-resolved root.
+`profileChain`, `profile`) around a mutable or lazily-resolved root. The set of
+projects is the only mutable part: section 7 introduces an `McpWorkspace` that
+holds one `Project` per discovered root and swaps the set on `markspec_refresh`.
 
 ### 3. MCP `roots` is not used
 
@@ -85,6 +87,7 @@ Searched from: <dir1>, <dir2>, … (walked upward for .markspec.yaml / project.y
 Point the server at your project with `markspec mcp --root <path>` or the
 MARKSPEC_PROJECT_ROOT environment variable. This server has no work to do here —
 stop calling MarkSpec tools.
+Also searched below each directory for nested MarkSpec projects.
 ```
 
 Both dispatch sites (`mcp/tools/mod.ts`, `mcp/resources/mod.ts`) return
@@ -119,7 +122,8 @@ After the start folder is resolved (sections 1 and 2), the server also searches
 below it for further MarkSpec projects. It uses the same gitignore-aware file
 walk as `markspec check`, honours the `exclude:` list of each enclosing
 project's `.markspec.yaml` (patterns are relative to the project that declares
-them and apply to the folders below it), and finds every `project.yaml` and
+them and apply to the folders below it; a nested root covered by the `exclude:`
+of any ancestor root is dropped), and finds every `project.yaml` and
 `.markspec.yaml`. Each config file resolves to a root the same way a document
 there would, so a `.markspec.yaml` below a `project.yaml` does not start a
 project of its own.
@@ -129,14 +133,20 @@ project of its own.
   profile.
 - Every tool and resource answers for all discovered projects and labels each
   result `## Project: <label>`, where the label is the project root relative to
-  the start folder. Every tool accepts an optional `project` argument that
-  limits the answer to one label. The `project_list` tool lists the labels.
+  the primary root (the config root found by walking up from the start folder,
+  or the start folder itself when none is above it; `.` for the primary
+  project). Every tool accepts an optional `project` argument that limits the
+  answer to one label. The `project_list` tool lists the labels.
+- When several projects are selected and one fails, its section reads
+  `Error: <message>` and the others still answer. With one selected project the
+  error propagates unchanged, so single-project output stays byte-identical.
 - There is no downward scan from a filesystem root or from `$HOME` when that
   folder has no config of its own; such a start folder yields no projects.
 - With exactly one project, startup and output are unchanged. With several, each
   project compiles on first use.
 - `markspec_refresh` runs discovery again, so projects added or removed after
-  startup are picked up.
+  startup are picked up. It is exempt from the soft gate: it re-runs discovery
+  first and returns the soft-gate text only when no project is found.
 - A repository that keeps a folder with its own config as a fixture lists that
   folder in `exclude:` to keep it part of the enclosing project.
 
