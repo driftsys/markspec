@@ -203,6 +203,12 @@ project (ADR-028 §7). `lock` and `check` therefore walk the same file set for
 each project, so the parity holds per project, and each nested project has its
 own `markspec.lock`.
 
+Each project applies only its own `.markspec.yaml` `exclude:` list. The root's
+list decides which nested roots are found (a nested root it covers stays with
+the parent), but it is not applied inside a nested project. Ancestor
+`.gitignore` rules do not apply to the walk root directory itself, and a walk
+root inside a gitignored directory is not pruned.
+
 ### Known limitation
 
 Bare invocation (`check`/`lint`/`fmt` with no file arguments) discovers the
