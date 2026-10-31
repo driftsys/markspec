@@ -7,9 +7,27 @@ import { mountWithAssistants } from "./testMount";
 afterEach(cleanup);
 
 const STATUSES: AssistantStatus[] = [
-  { id: "claude-code", state: "ready", version: null, detail: null },
-  { id: "codex", state: "not-installed", version: null, detail: null },
-  { id: "copilot", state: "not-installed", version: null, detail: null },
+  {
+    id: "claude-code",
+    state: "ready",
+    version: null,
+    detail: null,
+    promptsAvailable: true,
+  },
+  {
+    id: "codex",
+    state: "not-installed",
+    version: null,
+    detail: null,
+    promptsAvailable: false,
+  },
+  {
+    id: "copilot",
+    state: "not-installed",
+    version: null,
+    detail: null,
+    promptsAvailable: false,
+  },
 ];
 
 function mount(
@@ -55,7 +73,13 @@ it("shows the selected assistant when it is ready", async () => {
 
 it("shows the state when the selected assistant needs sign-in", async () => {
   mount({ selected: "claude-code" }, [
-    { id: "claude-code", state: "needs-sign-in", version: null, detail: null },
+    {
+      id: "claude-code",
+      state: "needs-sign-in",
+      version: null,
+      detail: null,
+      promptsAvailable: true,
+    },
     ...STATUSES.slice(1),
   ]);
   expect(await screen.findByText("Claude Code needs sign-in")).toBeTruthy();

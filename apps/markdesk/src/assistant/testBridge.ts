@@ -7,13 +7,16 @@ export type AssistantBridge = Pick<
   | "detectAssistants"
   | "testAssistant"
   | "cancelAssistantTest"
+  | "runAssistantPrompt"
+  | "cancelAssistantPrompt"
   | "getAssistantSettings"
   | "setAssistantSettings"
 >;
 
 /**
  * Test double for the assistant bridge methods. Defaults: nothing detected,
- * no choice stored, and every Test succeeds.
+ * no choice stored, every Test succeeds, and every prompt run returns
+ * "Proposed body.".
  */
 export function fakeAssistantBridge(
   overrides: Partial<AssistantBridge> = {},
@@ -26,6 +29,12 @@ export function fakeAssistantBridge(
       error: null,
     })),
     cancelAssistantTest: vi.fn(async () => {}),
+    runAssistantPrompt: vi.fn(async () => ({
+      outcome: "ok" as const,
+      reply: "Proposed body.",
+      error: null,
+    })),
+    cancelAssistantPrompt: vi.fn(async () => {}),
     getAssistantSettings: vi.fn(async () => ({
       selected: null,
       cardDismissed: false,
