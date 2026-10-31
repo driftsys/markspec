@@ -19,6 +19,8 @@ function client(overrides: Partial<DeskClient>): DeskClient {
     entryHtml: vi.fn(),
     document: vi.fn(),
     file: vi.fn(),
+    previewProposal: vi.fn(),
+    applyProposal: vi.fn(),
     ...overrides,
   } as DeskClient;
 }
@@ -55,6 +57,28 @@ describe("watchConnection", () => {
       onLost,
     );
     await expect(watched.document("d.md")).rejects.toThrow("down");
+    expect(onLost).toHaveBeenCalledOnce();
+  });
+
+  it("passes proposal calls through and reports a lost connection", async () => {
+    const changes = [{ displayId: "A_1", kind: "body" as const, body: "x" }];
+    const preview = { apiVersion: 3 as const, changes: [] };
+    const previewProposal = vi.fn(async () => preview);
+    const applyProposal = vi.fn(async () => {
+      throw new DeskError(0, "network", "down");
+    });
+    const onLost = vi.fn();
+    const watched = watchConnection(
+      client({ previewProposal, applyProposal }),
+      onLost,
+    );
+    expect(await watched.previewProposal('"e1"', changes)).toBe(preview);
+    expect(previewProposal).toHaveBeenCalledWith('"e1"', changes);
+    expect(onLost).not.toHaveBeenCalled();
+    await expect(watched.applyProposal('"e1"', changes)).rejects.toThrow(
+      "down",
+    );
+    expect(applyProposal).toHaveBeenCalledWith('"e1"', changes);
     expect(onLost).toHaveBeenCalledOnce();
   });
 });
