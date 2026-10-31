@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type CachedDocument,
   type DeskClient,
   DeskError,
   type DocumentView,
@@ -81,6 +82,31 @@ function documentView(path: string): DocumentView {
   };
 }
 
+/**
+ * A fake `/documents` endpoint that answers like the server: a new render
+ * with its ETag, or the caller's own cached render while it is current.
+ * `edit` changes the document as an edit on disk would.
+ */
+function documentServer() {
+  let html = DOC_HTML;
+  let etag = '"v1"';
+  let version = 1;
+  const document = vi.fn(
+    async (path: string, cached?: CachedDocument): Promise<CachedDocument> => {
+      if (cached?.etag === etag) return cached;
+      return { view: { ...documentView(path), html }, etag };
+    },
+  );
+  const edit = (next: string) => {
+    html = next;
+    etag = `"v${++version}"`;
+  };
+  return { document, edit };
+}
+
+/** Wrap a plain document view as an uncached `/documents` answer. */
+const fresh = (view: DocumentView): CachedDocument => ({ view });
+
 function fakeClient(overrides: Partial<DeskClient> = {}): DeskClient {
   const entries: Record<string, EntryView> = {
     [ID]: entryView(ID, "docs/brakes.md"),
@@ -104,7 +130,7 @@ function fakeClient(overrides: Partial<DeskClient> = {}): DeskClient {
         `<div class="req-block" data-display-id="${id}">html of ${id}</div>`,
       origin: entries[id]?.origin,
     })),
-    document: vi.fn(async (path: string) => documentView(path)),
+    document: documentServer().document,
     file: vi.fn(async (path: string) => ({
       apiVersion: 3 as const,
       path,
@@ -158,7 +184,7 @@ describe("DocumentPane", () => {
     const { client, select } = mount();
     select(ID);
     expect(await screen.findByText("Brakes")).toBeTruthy();
-    expect(client.document).toHaveBeenCalledWith("docs/brakes.md");
+    expect(client.document).toHaveBeenCalledWith("docs/brakes.md", undefined);
     const highlighted = document.querySelectorAll(".is-selected");
     expect(highlighted.length).toBe(1);
     expect(highlighted[0].id).toBe(`entry-${ID}`);
@@ -174,7 +200,56 @@ describe("DocumentPane", () => {
       expect(document.querySelector(".is-selected")?.id).toBe("entry-B")
     );
     expect(document.querySelectorAll(".is-selected").length).toBe(1);
-    expect(client.document).toHaveBeenCalledTimes(1);
+    // The second selection revalidates the cached render with its ETag.
+    expect(client.document).toHaveBeenCalledTimes(2);
+    expect(client.document).toHaveBeenLastCalledWith(
+      "docs/brakes.md",
+      expect.objectContaining({ etag: '"v1"' }),
+    );
+  });
+
+  it("shows the new render when the window gets focus after an edit on disk", async () => {
+    const server = documentServer();
+    const { select } = mount(fakeClient({ document: server.document }));
+    select(ID);
+    await screen.findByText("Brakes");
+    server.edit(
+      `<h1>Brakes edited</h1><div class="req-block" id="entry-${ID}" data-display-id="${ID}">x</div>`,
+    );
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText("Brakes edited")).toBeTruthy();
+    expect(document.querySelector(".is-selected")?.id).toBe(`entry-${ID}`);
+  });
+
+  it("shows the new render on the next selection after an edit on disk", async () => {
+    const server = documentServer();
+    const { select } = mount(fakeClient({ document: server.document }));
+    select(ID);
+    await screen.findByText("Brakes");
+    server.edit(
+      `<h1>Brakes edited</h1><div class="req-block" id="entry-B" data-display-id="B">x</div>`,
+    );
+    select("B");
+    expect(await screen.findByText("Brakes edited")).toBeTruthy();
+  });
+
+  it("keeps the shown render and its scroll position when focus finds no change", async () => {
+    const server = documentServer();
+    const { select } = mount(fakeClient({ document: server.document }));
+    select(ID);
+    await screen.findByText("Brakes");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    const content = document.querySelector(".document-content");
+    scrollIntoView.mockClear();
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(server.document).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(document.querySelector(".document-content")).toBe(content);
   });
 
   it("uses the rendered entry for a source-file entry", async () => {
@@ -316,6 +391,55 @@ describe("DocumentPane", () => {
     expect(rows[2].classList.contains("is-target")).toBe(true);
   });
 
+  it("reloads the open source drawer when focus finds an edited document", async () => {
+    const server = documentServer();
+    let source = "old text";
+    const client = fakeClient({
+      document: server.document,
+      file: vi.fn(async (path: string) => ({
+        apiVersion: 3 as const,
+        path,
+        text: source,
+      })),
+    });
+    const { select } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(await screen.findByText("old text")).toBeTruthy();
+    source = "new text";
+    server.edit(
+      `<h1>Brakes edited</h1><div class="req-block" id="entry-${ID}" data-display-id="${ID}">x</div>`,
+    );
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText("new text")).toBeTruthy();
+  });
+
+  it("reloads the open source drawer on focus when the render is unchanged", async () => {
+    let source = "old text";
+    const client = fakeClient({
+      file: vi.fn(async (path: string) => ({
+        apiVersion: 3 as const,
+        path,
+        text: source,
+      })),
+    });
+    const { select } = mount(client);
+    // A source-file entry: its single-entry HTML does not change when lines
+    // are inserted above it.
+    select("SRC");
+    await screen.findByText("html of SRC");
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(await screen.findByText("old text")).toBeTruthy();
+    source = "new text";
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText("new text")).toBeTruthy();
+  });
+
   it("shows no pane error for a network failure", async () => {
     const client = fakeClient({
       entry: vi.fn(async () => {
@@ -427,7 +551,7 @@ describe("DocumentPane", () => {
     const client = fakeClient({
       document: vi.fn(async (path: string) => {
         if (++calls === 1) throw new DeskError(500, "internal", "boom");
-        return documentView(path);
+        return fresh(documentView(path));
       }),
     });
     const { select } = mount(client);

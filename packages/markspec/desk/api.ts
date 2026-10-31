@@ -21,6 +21,13 @@
  * and its real path (symlinks resolved) must lie inside the real project
  * root. Any other path is 404 `not-found`.
  *
+ * Revalidation: a `/documents` 200 carries a strong `ETag`
+ * ({@linkcode documentEtag}). A request whose `If-None-Match` names the
+ * current tag gets 304 with no body, and the document is not rendered. The
+ * client keeps the render it has and sends its tag on each later request, so
+ * an edit on disk shows on the next request, while an unchanged document
+ * costs one file read and no render.
+ *
  * Every request must carry a loopback `Host` header (DNS-rebinding guard),
  * and every request except an allowed-origin CORS preflight must carry
  * `Authorization: Bearer <token>`. Errors are `{ error: { code, message } }`.
@@ -30,9 +37,11 @@
  * origin — {@linkcode TAURI_ORIGINS} plus `allowedOrigins` — or it gets 403
  * `forbidden-origin`. An `OPTIONS` preflight from an allowed origin gets 204
  * before the bearer check, because browsers send no `Authorization` header on
- * a preflight. Each response produced after the Origin check for an allowed origin
- * (200, 400, 401, 404, 405) carries `Access-Control-Allow-Origin` and
- * `Vary: Origin`, so the UI can read error bodies too. The 403 responses
+ * a preflight; it allows the `Authorization` and `If-None-Match` request
+ * headers. Each response produced after the Origin check for an allowed origin
+ * (200, 304, 400, 401, 404, 405) carries `Access-Control-Allow-Origin`,
+ * `Access-Control-Expose-Headers: ETag`, and `Vary: Origin`, so the UI can
+ * read error bodies and the entity tag too. The 403 responses
  * (`forbidden-host`, `forbidden-origin`) carry no CORS headers.
  *
  * The `Origin` check is not an authentication boundary. The per-launch nonce
@@ -54,6 +63,7 @@ import {
 import {
   buildDocumentView,
   buildEntryHtmlView,
+  documentEtag,
   projectEntriesOf,
   type SourceText,
   toApiPath,
@@ -390,7 +400,7 @@ export function createDeskHandler(
         headers: {
           ...corsHeaders(origin),
           "access-control-allow-methods": "GET, OPTIONS",
-          "access-control-allow-headers": "Authorization",
+          "access-control-allow-headers": "Authorization, If-None-Match",
           "access-control-max-age": "600",
           "cache-control": "no-store",
         },
@@ -404,7 +414,7 @@ export function createDeskHandler(
   };
 
   /** `/documents` and `/files`: allowlisted project paths only. */
-  async function servePath(url: URL): Promise<Response> {
+  async function servePath(request: Request, url: URL): Promise<Response> {
     const path = url.searchParams.get("path");
     if (!path) {
       return errorResponse(400, "bad-request", "Missing 'path' parameter");
@@ -436,7 +446,21 @@ export function createDeskHandler(
       const body: SourceText = { apiVersion: DESK_API_VERSION, path, text };
       return jsonResponse(200, body);
     }
-    return jsonResponse(
+    const etag = await documentEtag(
+      DESK_API_VERSION,
+      compiled,
+      path,
+      entries,
+      text,
+    );
+    if (matchesEtag(request.headers.get("if-none-match"), etag)) {
+      // The client's cached render is current: skip rendering.
+      return new Response(null, {
+        status: 304,
+        headers: { etag, "cache-control": "no-store" },
+      });
+    }
+    const response = jsonResponse(
       200,
       buildDocumentView(
         DESK_API_VERSION,
@@ -447,6 +471,8 @@ export function createDeskHandler(
         text,
       ),
     );
+    response.headers.set("etag", etag);
+    return response;
   }
 
   /** Bearer check, method check, and routing — the policy after Origin. */
@@ -488,7 +514,7 @@ export function createDeskHandler(
     if (
       url.pathname === "/api/v1/documents" || url.pathname === "/api/v1/files"
     ) {
-      return await servePath(url);
+      return await servePath(request, url);
     }
 
     const htmlMatch = ENTRY_HTML_PATH_RE.exec(url.pathname);
@@ -541,7 +567,25 @@ function isInside(root: string, target: string): boolean {
 
 /** Headers that let a browser on `origin` read the response. */
 function corsHeaders(origin: string): Record<string, string> {
-  return { "access-control-allow-origin": origin, vary: "Origin" };
+  return {
+    "access-control-allow-origin": origin,
+    // Without this a browser hides `ETag` from the page's script.
+    "access-control-expose-headers": "ETag",
+    vary: "Origin",
+  };
+}
+
+/**
+ * Whether an `If-None-Match` header value names `etag` (RFC 9110 §13.1.2):
+ * `*`, or a comma-separated list of tags compared with the weak comparison,
+ * so a `W/` prefix is ignored.
+ */
+function matchesEtag(header: string | null, etag: string): boolean {
+  if (header === null) return false;
+  if (header.trim() === "*") return true;
+  return header.split(",").some((tag) =>
+    tag.trim().replace(/^W\//, "") === etag
+  );
 }
 
 /** Constant-time bearer-token comparison. */

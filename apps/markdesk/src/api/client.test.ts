@@ -55,6 +55,58 @@ describe("createDeskClient", () => {
     expect(url.search).not.toContain(" ");
   });
 
+  it("returns the document with its ETag and sends no If-None-Match without a cached render", async () => {
+    const f = stub(
+      new Response(JSON.stringify({ path: "d.md", html: "<p>new</p>" }), {
+        status: 200,
+        headers: { "content-type": "application/json", etag: '"e1"' },
+      }),
+    );
+    const result = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .document("d.md");
+    expect(result.etag).toBe('"e1"');
+    expect(result.view.html).toBe("<p>new</p>");
+    expect(f.mock.calls[0][0].headers.get("If-None-Match")).toBeNull();
+  });
+
+  it("revalidates a cached render and keeps it on 304", async () => {
+    const f = stub(
+      new Response(null, { status: 304, headers: { etag: '"e1"' } }),
+    );
+    const cached = {
+      view: { path: "d.md", html: "<p>old</p>" },
+      etag: '"e1"',
+    } as Parameters<ReturnType<typeof createDeskClient>["document"]>[1];
+    const result = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .document("d.md", cached);
+    expect(f.mock.calls[0][0].headers.get("If-None-Match")).toBe('"e1"');
+    expect(result).toBe(cached);
+  });
+
+  it("rejects a 304 when it holds no cached render", async () => {
+    const f = stub(new Response(null, { status: 304 }));
+    await expect(
+      createDeskClient("http://127.0.0.1:1", "t", f).document("d.md"),
+    ).rejects.toBeInstanceOf(DeskError);
+  });
+
+  it("replaces a cached render when the server sends a new one", async () => {
+    const f = stub(
+      new Response(JSON.stringify({ path: "d.md", html: "<p>new</p>" }), {
+        status: 200,
+        headers: { "content-type": "application/json", etag: '"e2"' },
+      }),
+    );
+    const cached = {
+      view: { path: "d.md", html: "<p>old</p>" },
+      etag: '"e1"',
+    } as Parameters<ReturnType<typeof createDeskClient>["document"]>[1];
+    const result = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .document("d.md", cached);
+    expect(result.etag).toBe('"e2"');
+    expect(result.view.html).toBe("<p>new</p>");
+  });
+
   it("requests a source file by path query", async () => {
     const f = stub(json({}));
     await createDeskClient("http://127.0.0.1:1", "t", f).file("src/x.rs");

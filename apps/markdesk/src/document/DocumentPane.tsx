@@ -8,9 +8,9 @@ import {
   useState,
 } from "react";
 import {
+  type CachedDocument,
   type DeskClient,
   DeskError,
-  type DocumentView,
   type EntryView,
 } from "../api/client";
 import { useOpenProduct } from "../app/useProduct";
@@ -38,10 +38,14 @@ function isNetworkFailure(error: unknown): boolean {
 /**
  * Load what to show for `id`: the entry, then its rendered document when it
  * lives in a Markdown file, or the entry rendered alone otherwise.
+ *
+ * A cached document is never reused unchecked: the request carries its ETag,
+ * and the server answers 304 while the file and the graph's display IDs are
+ * unchanged, so an edit on disk shows on the next read.
  */
 async function read(
   client: DeskClient,
-  documents: Map<string, Promise<DocumentView>>,
+  documents: Map<string, Promise<CachedDocument>>,
   id: string,
 ): Promise<Reading> {
   const entry = await client.entry(id);
@@ -56,15 +60,16 @@ async function read(
   }
   const path = entry.location.file;
   if (path.endsWith(".md")) {
-    let loading = documents.get(path);
-    if (loading === undefined) {
-      loading = client.document(path);
-      documents.set(path, loading);
-      // Do not keep a failed load, so a later selection tries again.
-      loading.catch(() => documents.delete(path));
-    }
+    const previous = documents.get(path);
+    const cached = previous && await previous.catch(() => undefined);
+    const loading = client.document(path, cached);
+    documents.set(path, loading);
+    // Do not keep a failed load, so a later read tries again.
+    loading.catch(() => {
+      if (documents.get(path) === loading) documents.delete(path);
+    });
     try {
-      const view = await loading;
+      const { view } = await loading;
       return {
         entry,
         html: view.html,
@@ -159,16 +164,25 @@ export function DocumentPane() {
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
   const [sourceOpen, setSourceOpen] = useState(false);
+  // Bumped when the window gets focus, so the selection is read again: the
+  // author may have edited the product's files in another application.
+  const [focusCount, setFocusCount] = useState(0);
   const content = useRef<HTMLDivElement>(null);
-  // Rendered documents of the current product, by path.
+  // Rendered documents of the current product with their ETags, by path.
   const documents = useMemo(
-    () => new Map<string, Promise<DocumentView>>(),
+    () => new Map<string, Promise<CachedDocument>>(),
     [client],
   );
 
   useEffect(() => {
     setLoaded(undefined);
   }, [client]);
+
+  useEffect(() => {
+    const onFocus = () => setFocusCount((count) => count + 1);
+    globalThis.addEventListener("focus", onFocus);
+    return () => globalThis.removeEventListener("focus", onFocus);
+  }, []);
 
   useEffect(() => {
     if (selected === undefined) return;
@@ -183,12 +197,13 @@ export function DocumentPane() {
     return () => {
       current = false;
     };
-  }, [client, documents, selected]);
+  }, [client, documents, selected, focusCount]);
 
   const html = useMemo(
     () => reading && withImagePlaceholders(reading.html),
     [reading?.html],
   );
+  const wholeDocument = reading?.wholeDocument === true;
 
   useLayoutEffect(() => {
     const container = content.current;
@@ -196,12 +211,14 @@ export function DocumentPane() {
     for (const old of container.querySelectorAll(".is-selected")) {
       old.classList.remove("is-selected");
     }
-    if (!reading?.wholeDocument || selected === undefined) return;
+    if (!wholeDocument || selected === undefined) return;
     const block = findEntryBlock(container, selected);
     if (!block) return;
     block.classList.add("is-selected");
     block.scrollIntoView?.({ block: "start" });
-  }, [html, reading, selected]);
+    // Keyed on the HTML string, not on the reading: a read that finds the
+    // render unchanged must not move the author's scroll position.
+  }, [html, wholeDocument, selected]);
 
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as Element;
@@ -324,6 +341,7 @@ export function DocumentPane() {
           <SourceDrawer
             path={reading.sourcePath}
             line={reading.entry.location.line}
+            revision={focusCount}
           />
         )}
       </div>
