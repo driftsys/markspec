@@ -83,8 +83,9 @@ stays TypeScript. Everything lives in this repository.
   The desk backend shall answer an `OPTIONS` request from an allowed origin with
   HTTP status 204 before the backend checks the bearer token. The response shall
   carry these headers with these values: `Access-Control-Allow-Origin` with the
-  request `Origin`, `Access-Control-Allow-Methods` with `GET, OPTIONS`,
-  `Access-Control-Allow-Headers` with `Authorization, If-None-Match`,
+  request `Origin`, `Access-Control-Allow-Methods` with `GET, POST, OPTIONS`,
+  `Access-Control-Allow-Headers` with
+  `Authorization, Content-Type, If-Match, If-None-Match`,
   `Access-Control-Max-Age` with `600`, and `Vary` with `Origin`.
 
       Id: 01M55JNXSH4RRPH8Z1SQ6M1V54
@@ -98,7 +99,8 @@ stays TypeScript. Everything lives in this repository.
   the project-relative path of a Markdown or source file holding at least one
   entry without an `origin`, and shall require a `.md` extension for
   `/documents`. The backend shall answer HTTP status 400 with code `bad-request`
-  for a request without `path`.
+  for a request without `path`. The backend shall serve these read endpoints
+  with `GET` only.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
 
@@ -163,6 +165,57 @@ stays TypeScript. Everything lives in this repository.
   when the selected entry is not in the product.
 
       Id: 01M68DXSB7RH4QVE2KSA33NTAE
+
+- [SAD_DESK_0021] Proposal preview response
+
+  The desk backend shall answer a valid `POST /api/v1/proposals/preview` with
+  HTTP status 200 whose body carries the target entry's formatted proposed body
+  next to its formatted current body.
+
+      Id: 01M69JMGZB8KSG1ESRH67CCFN1
+
+- [SAD_DESK_0022] Preview without write
+
+  The desk backend shall leave every product file unmodified while it answers
+  `POST /api/v1/proposals/preview`.
+
+      Id: 01M69JMGZBBFGQE706GG84J5W5
+
+- [SAD_DESK_0023] Proposal apply
+
+  The desk backend shall answer a valid `POST /api/v1/proposals/apply` with HTTP
+  status 200 carrying the document `ETag` of the written file.
+
+      Id: 01M69JMGZBHC4G74QHNRVGG64H
+
+- [SAD_DESK_0024] Missing precondition
+
+  The desk backend shall answer HTTP status 428 with code
+  `precondition-required` for a proposal request without `If-Match`.
+
+      Id: 01M69JMGZBTZS4ZSMSXHVGFN99
+
+- [SAD_DESK_0025] Stale precondition
+
+  The desk backend shall answer HTTP status 412 with code `precondition-failed`
+  for a proposal request whose `If-Match` does not name the current document
+  `ETag`.
+
+      Id: 01M69JMGZB7XP24KGG448W1H7B
+
+- [SAD_DESK_0026] Splice-only write
+
+  The desk backend shall keep every byte of an applied file outside the target
+  entry's body lines equal to the byte at the same place before the apply.
+
+      Id: 01M69JMGZB7ZT2XM3P1JEBV6F6
+
+- [SAD_DESK_0027] Atomic write
+
+  The desk backend shall write an applied file through a temporary file in the
+  same folder that the backend renames over the original file.
+
+      Id: 01M69JMGZBHXXKFDN7QKHD2KKN
 
 The per-launch nonce token is the only credential of the desk API. The `Origin`
 check limits which browser pages can call the API; it does not authenticate the
@@ -234,6 +287,28 @@ nonce check therefore stays mandatory and must never be relaxed because the
 
       Id: 01M4JXA5WP5KAYFWTZARAGH031
 
+- [SAD_DESK_0028] Prompt run without tools
+
+  The MarkDesk shell shall start a prompt run only for an assistant whose
+  arguments switch off every tool that reads a file, runs a command, or writes a
+  file.
+
+      Id: 01M69JMGZBAD95VDHYJTN321CT
+
+- [SAD_DESK_0029] Prompt run timeout
+
+  The MarkDesk shell shall kill the process group of a prompt run that runs
+  longer than 120 s.
+
+      Id: 01M69JMGZB4V44SJT9VXQ2Q7D8
+
+- [SAD_DESK_0030] Accept before apply
+
+  The MarkDesk UI shall call the apply endpoint only after the author activates
+  Accept on the shown proposal.
+
+      Id: 01M69JMGZB558VX8AKS3TH4S12
+
 - [SAD_DESK_0008] Two token layers and three typographic registers
 
   Styling shall use two token layers generated from `theme/tokens.yaml`:
@@ -283,14 +358,16 @@ is `schemas/desk-api.json`.
 
 ### As built: the shell and the read path
 
-The first MarkDesk app (DESK-1 local variant and DESK-6) is read-only. It opens
-a product from a folder on the computer, shows the traceability graph in the
-navigator, and shows the whole document an entry lives in.
+The first MarkDesk app (DESK-1 local variant and DESK-6) opens a product from a
+folder on the computer, shows the traceability graph in the navigator, and shows
+the whole document an entry lives in. MarkDesk writes a product file only
+through the desk apply endpoint, after the author accepts a proposal (see "As
+built: the first prompt" below).
 
 - **Opening.** The shell shows a native folder picker and keeps up to 10 recent
   products (folder path and name) in `recents.json` in the OS app-data
-  directory. MarkDesk writes nothing into the product folder. At launch it
-  reopens the most recent product; a start screen appears only when there is
+  directory. Opening a product writes nothing into the product folder. At launch
+  it reopens the most recent product; a start screen appears only when there is
   none. A product menu lists recent products and "Open folder…". Choosing a
   subfolder opens the enclosing product, and the recent list stores the `root`
   from the handshake. A folder that is not a product is reported in one plain
@@ -357,7 +434,8 @@ navigator, and shows the whole document an entry lives in.
   "is not installed"), a disabled prompt box, and a "Settings" button. Settings
   holds the assistant choice, the Test, and the install guide. MarkDesk shows
   install and sign-in commands but never runs them and never opens a terminal.
-  Prompt features and the propose and accept flow arrive with #837.
+  The prompt box and the propose and accept flow are described in "As built: the
+  first prompt" below.
 - **Assistant detection and Test.** The shell finds each assistant on PATH and
   in the standard install directories. A signed-out check is available for
   Claude Code and Codex (`codex login status` exits 1 when signed out and 0 when
@@ -411,9 +489,10 @@ navigator, and shows the whole document an entry lives in.
   focus; an edit made in another application shows when the author returns to
   MarkDesk. The scroll position moves only when the rendered HTML or the
   selection changes, so a 304 leaves the view as it is. Preflight responses
-  allow the `If-None-Match` request header, and responses to an allowed origin
-  carry `Access-Control-Expose-Headers: ETag`. The change is additive, so
-  `apiVersion` stays 3.
+  allow the `If-None-Match` request header (and, since #837, `Content-Type` and
+  `If-Match`; see SAD_DESK_0011), and responses to an allowed origin carry
+  `Access-Control-Expose-Headers: ETag`. The change is additive, so `apiVersion`
+  stays 3.
 - **Navigator refresh (#842).** `GET /api/v1/tree` carries a strong `ETag` too:
   the quoted SHA-256 digest of the serialized tree, which embeds `apiVersion`
   (SAD_DESK_0016). Each tree node holds the display ID, title, type, core kind,
@@ -426,17 +505,90 @@ navigator, and shows the whole document an entry lives in.
   (`apps/markdesk/src/app/refresh.tsx`) under the product holds a revision
   counter, bumped on window focus (SAD_DESK_0017). The navigator and the
   document pane both revalidate on the revision. The provider also exposes
-  `refresh()`; nothing calls it yet, and the write path of #837 is meant to call
-  it after a write. The navigator keeps the tree it holds while it checks, so
-  the `Navigator` component is not remounted and expanded rows survive. A 304
-  returns the same cached object and replaces nothing (SAD_DESK_0019). A changed
-  tree replaces the model in place, and a removed entry has no row. When the
-  selected entry is gone, the document pane shows a status line that names it,
-  and the selection stays in the history (SAD_DESK_0020). A failed check after a
-  successful load keeps the tree shown and logs a warning; a successful check
-  clears an earlier load failure. The held tree is tied to the client of the
-  open product, so a tree from another product is never sent. `apiVersion`
-  stays 3.
+  `refresh()`, which the prompt flow calls after an accepted write (#837). The
+  navigator keeps the tree it holds while it checks, so the `Navigator`
+  component is not remounted and expanded rows survive. A 304 returns the same
+  cached object and replaces nothing (SAD_DESK_0019). A changed tree replaces
+  the model in place, and a removed entry has no row. When the selected entry is
+  gone, the document pane shows a status line that names it, and the selection
+  stays in the history (SAD_DESK_0020). A failed check after a successful load
+  keeps the tree shown and logs a warning; a successful check clears an earlier
+  load failure. The held tree is tied to the client of the open product, so a
+  tree from another product is never sent. `apiVersion` stays 3.
+
+### As built: the first prompt
+
+- **Flow (#837).** The author selects one entry and types an instruction in the
+  prompt box of the assistant column; Enter or Send submits, Shift+Enter inserts
+  a new line. At submit the UI reads the document `ETag` first, then the entry.
+  The shell runs the prompt, and the column shows "Waiting for <assistant>…"
+  with a Cancel button. The UI removes one surrounding code fence from the reply
+  and sends the body to `POST /api/v1/proposals/preview` with the submit-time
+  tag in `If-Match`. The column then shows a word-level diff: a "Current" block
+  with removed words struck through and a "Proposed" block with added words
+  marked. Accept sends the same change to `POST /api/v1/proposals/apply` with
+  the same tag and then calls `refresh()`; Reject or Escape discards the
+  proposal and writes nothing (SAD_DESK_0030). Each failure is one sentence in
+  the column, for example "This file changed since the proposal. Ask again."
+  (instruction kept) for a 412. A failed assistant run reports the first
+  non-empty line of its stdout, else of its stderr, else `exit code <n>`. The
+  prompt box is disabled, with a one-line reason, for an entry with an origin,
+  an entry in a source file, an entry with an empty body, and an assistant
+  without prompts. The proposal wire format is a list of changes
+  `{ displayId, kind: "body", body }`; this story accepts exactly one change of
+  kind `body`. The change is additive, so `apiVersion` stays 3.
+- **Write path.** Preview and apply run the same pipeline
+  (`packages/markspec/desk/proposals.ts`): the precondition (428
+  `precondition-required` when `If-Match` is missing, 412 `precondition-failed`
+  when it does not name the current tag with the strong comparison), the
+  refusals (404 `entry-not-found`; 409 `entry-read-only`, `entry-not-markdown`,
+  `entry-body-empty`, `entry-trailer-invalid`; 422 `proposal-empty`,
+  `proposal-too-large` above 20 000 characters before or after formatting,
+  `proposal-changes-entries`, `format-failed`), then the `markspec fmt`
+  formatter on a candidate text, then a splice of only the formatted target body
+  into the current file text with `replaceEntryBody`
+  (`core/formatter/entry_body.ts`). The splice keeps every other byte: other
+  entries, prose, front matter, line endings, and a UTF-8 BOM (SAD_DESK_0026). A
+  reparse must give the same entries with the same IDs, and the same title and
+  trailer for the target, or the change is refused. An `MSL-F900` on the target
+  or a prose formatter that fails to load refuses with `format-failed`;
+  `MSL-F012` is not shown. Apply writes through `DeskSource.writeFile`, which
+  the server backs with `writeTextFileAtomic` (`desk/write.ts`): a new temporary
+  file in the same folder, given the original file's mode, then renamed over the
+  original (SAD_DESK_0027). Applies are serialized in the handler, so a second
+  Accept on the same tag answers 412 and writes nothing. The response carries
+  the new document `ETag`. A write failure answers 500 `write-failed`.
+- **Prompt run.** The shell builds the prompt from a fixed template with the
+  entry's title, current body, trailer attributes (read-only context), and the
+  instruction, and passes it as an argument; a prompt over 100 000 bytes is
+  refused before any process starts. The run reuses the Test machinery: a fresh
+  empty temporary folder with mode 0700, never the product folder; its own
+  process group; a 120 s timeout and a cancel that kill the whole group
+  (SAD_DESK_0029). A reply over 20 000 characters is refused. A prompt run and a
+  Test share one guard and never overlap; the second one gets "An assistant run
+  is already in progress." Only Claude Code runs prompts (SAD_DESK_0028), with
+  `-p <prompt> --output-format text --tools "" --strict-mcp-config
+  --setting-sources "" --disable-slash-commands --no-session-persistence
+  --append-system-prompt <text>`.
+  `--tools ""` removes the built-in tools, `--strict-mcp-config` without
+  `--mcp-config` drops user MCP servers, `--setting-sources ""` stops user,
+  project, and local settings, so user hooks and plugins do not run, and the
+  appended system text tells the model it has no tools, which stops it from
+  writing tool calls as text until the timeout. Ignored manual tests
+  (`manual_assistant_*`) prove this on a signed-in Claude Code: the init event
+  reports no tools, no MCP servers, and no hook, and a prompt cannot read a file
+  outside its folder, run a command, or write a file. CI skips them. Codex and
+  Copilot stay disabled with "Prompts are not yet available for <assistant>.":
+  `codex exec --help` lists no option that blocks file reads
+  (`--sandbox read-only` still allows reads), and the Copilot
+  `--available-tools` option could not be proven by the manual test. A known
+  gap: a cancel that arrives before the shell run takes its guard is lost, so
+  that process can run for up to 120 s; the UI ignores its late result.
+- **Deviation from SAD_DESK_0007.** No `markspec mcp` server is attached to the
+  assistant in this story. The entry text is in the prompt, and an assistant
+  with no tools can neither read nor write, so an MCP server would add nothing.
+  Attaching it belongs to the first feature that needs more context than the
+  prompt carries.
 
 ## Alternatives rejected
 
