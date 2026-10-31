@@ -407,3 +407,54 @@ Deno.test("replaceEntryBody: refuses a display ID that two entries in the file s
   const r = await replaceEntryBody(doc, FILE, "REQ_0001", "New body.");
   assertEquals(r, { ok: false, refusal: "entries-changed" });
 });
+
+Deno.test("readEntryBody and replaceEntryBody: a list marker followed by three spaces", async () => {
+  // `-   [REQ_0001]` puts the item content at column 5, so the body indent
+  // is four spaces, not the marker column plus two. CommonMark allows this
+  // layout, and an author can write it by hand.
+  const wide = `# Doc
+
+-   [REQ_0001] First
+
+    Body one line A.
+    line B.
+
+        Id: 01JBRK00000000000000000001
+
+-   [REQ_0002] Second
+
+    Body two.
+
+        Id: 01JBRK00000000000000000002
+`;
+  assertEquals(
+    await readEntryBody(wide, FILE, "REQ_0001"),
+    "Body one line A.\nline B.",
+  );
+  assertEquals(await readEntryBody(wide, FILE, "REQ_0002"), "Body two.");
+  const r = await replaceEntryBody(wide, FILE, "REQ_0001", "New body.");
+  assert(r.ok, JSON.stringify(r));
+  assertEquals(
+    r.text,
+    wide.replace("    Body one line A.\n    line B.", "    New body."),
+  );
+  const r2 = await replaceEntryBody(wide, FILE, "REQ_0002", "New two.");
+  assert(r2.ok, JSON.stringify(r2));
+  assertEquals(r2.text, wide.replace("    Body two.", "    New two."));
+});
+
+Deno.test("replaceEntryBody: refuses an entry whose trailer has a punctuation typo of a known key", async () => {
+  // The parser reads the trailer block as body when a line is malformed,
+  // so a splice would delete `Satisfies.: …` and the `Id:` line.
+  for (const typo of ["Satisfies.: STK_0002", "Verified.by: TST_1"]) {
+    const text = DOC.replace(
+      "      Id: 01JBRK00000000000000000001",
+      `      ${typo}\n      Id: 01JBRK00000000000000000001`,
+    );
+    assertEquals(
+      await replaceEntryBody(text, FILE, "REQ_0001", "New body."),
+      { ok: false, refusal: "trailer-invalid" },
+      typo,
+    );
+  }
+});

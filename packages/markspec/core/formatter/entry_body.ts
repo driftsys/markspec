@@ -15,8 +15,9 @@
  * line after the title line, so a soft-wrapped title is skipped) and the
  * blank lines after it. It has as many lines as the parser's
  * `entry.body`, so lazy continuation lines are included, and it must
- * match that body line for line. The body indent is the list marker
- * column plus two, as in the formatter. Lines are split on `\r\n`, a
+ * match that body line for line. The body indent is the content column of
+ * the list item: the marker column, plus the marker width, plus the spaces
+ * after the marker. Lines are split on `\r\n`, a
  * lone `\r`, or `\n`, as in the parser.
  *
  * Pure: no I/O, Node-compatible.
@@ -93,8 +94,11 @@ function trimmedLines(text: string): string[] {
  * reliable and must not be edited.
  */
 function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
-  const indent = (entry.location.column - 1) + 2;
   const titleIdx = entry.location.line - 1;
+  const indent = contentColumn(
+    lines[titleIdx] ?? "",
+    entry.location.column - 1,
+  );
   const isBlank = (i: number) => lines[i].trim() === "";
   let start = titleIdx + 1;
   // Skip the rest of the title paragraph (a soft-wrapped title).
@@ -109,6 +113,23 @@ function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
   // the same way before comparing.
   const exact = actual.join("\n").trim() === expected.join("\n");
   return { start, end, indent, exact };
+}
+
+/**
+ * 0-based content column of the list item whose marker starts at `marker`
+ * on `line`: the marker width plus the spaces after it (CommonMark list
+ * item rule). One to four spaces count in full; five or more mean the
+ * content starts one space after the marker. So `- [ID]` gives the marker
+ * column plus 2, and `-   [ID]` or `1.  [ID]` gives the marker column plus
+ * 4. When the line does not start a list item at `marker`, the marker
+ * column plus 2 is used, as in the formatter.
+ */
+function contentColumn(line: string, marker: number): number {
+  const m = /^(?:[-*+]|\d{1,9}[.)])( +)/.exec(line.slice(marker));
+  if (!m) return marker + 2;
+  const markerWidth = m[0].length - m[1].length;
+  const spaces = m[1].length <= 4 ? m[1].length : 1;
+  return marker + markerWidth + spaces;
 }
 
 /** Dedented span lines, trailing whitespace removed. */
@@ -275,9 +296,10 @@ export async function replaceEntryBody(
  * An unclosed fence or HTML block in the proposal (for example a final
  * line of three backticks) can swallow the target's trailer without any
  * parse diagnostic; this comparison and the body-equality check in
- * {@linkcode replaceEntryBody} are what refuse such an edit. No known
- * input is refused by this comparison alone (the body-equality check also
- * refuses every case found so far), so it is kept as an untested backstop.
+ * {@linkcode replaceEntryBody} are what refuse such an edit. Every known
+ * input of that kind is refused by both checks, so each one alone refuses
+ * it: the tests pin the pair, not either check by itself. Each check is a
+ * backstop for the other.
  */
 function sameEntries(
   before: readonly Entry[],
