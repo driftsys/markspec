@@ -49,7 +49,9 @@ export function projectArgOf(
   // deno-lint-ignore no-explicit-any
   args: any,
 ): string | undefined {
-  return args?.project !== undefined ? String(args.project) : undefined;
+  return args?.project !== undefined && args.project !== null
+    ? String(args.project)
+    : undefined;
 }
 
 /** JSON Schema of the optional `project` argument every tool accepts. */

@@ -307,7 +307,7 @@ export function defaultEnv(flagRoots: readonly string[] = []): ProjectEnv {
       }
     },
     readDir: (path: string) => Deno.readDir(path),
-    homeDir: () => envGet("HOME"),
+    homeDir: () => envGet("HOME") ?? envGet("USERPROFILE"),
     realPath: (path: string) => Deno.realPath(path),
     stat: async (path: string) => {
       const stat = await Deno.stat(path);

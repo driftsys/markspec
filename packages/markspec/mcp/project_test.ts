@@ -679,6 +679,21 @@ Deno.test("defaultEnv: rootOverrides reads flags then env vars in order", () => 
   }
 });
 
+Deno.test("defaultEnv: homeDir falls back to USERPROFILE when HOME is unset", () => {
+  const prevHome = Deno.env.get("HOME");
+  const prevProfile = Deno.env.get("USERPROFILE");
+  try {
+    Deno.env.delete("HOME");
+    Deno.env.set("USERPROFILE", "/profile/user");
+    assertEquals(defaultEnv().homeDir(), "/profile/user");
+  } finally {
+    if (prevHome === undefined) Deno.env.delete("HOME");
+    else Deno.env.set("HOME", prevHome);
+    if (prevProfile === undefined) Deno.env.delete("USERPROFILE");
+    else Deno.env.set("USERPROFILE", prevProfile);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Locked upstream corpus injection (federated upstream, slice 4, Task 9)
 // ---------------------------------------------------------------------------

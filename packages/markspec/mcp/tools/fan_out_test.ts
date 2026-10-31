@@ -11,7 +11,7 @@ import {
   type McpWorkspace,
   type WorkspaceProject,
 } from "../workspace.ts";
-import { perProject } from "./fan_out.ts";
+import { perProject, projectArgOf } from "./fan_out.ts";
 import { dispatchTool } from "./mod.ts";
 import { listResourceDescriptors } from "../resources/mod.ts";
 import {
@@ -172,4 +172,10 @@ Deno.test("listResourceDescriptors: a failing project is skipped", async () => {
   const uris = (await listResourceDescriptors(ws)).map((d) => d.uri);
   assertEquals(uris.includes("markspec://entry/STK_0001"), true);
   assertEquals(uris.includes("markspec://entry/STK_0002"), false);
+});
+
+Deno.test("projectArgOf: a null project argument means all projects", () => {
+  assertEquals(projectArgOf({ project: null }), undefined);
+  assertEquals(projectArgOf({}), undefined);
+  assertEquals(projectArgOf({ project: "a" }), "a");
 });

@@ -100,7 +100,9 @@ With several projects:
 
 - Every tool and resource answers for all projects. Each result sits under a
   `## Project: <label>` heading. The label is the project folder relative to the
-  start folder (`.` for the start folder itself).
+  start folder (`.` for the start folder itself). When one project fails, its
+  section reads `Error: <message>` under its `## Project: <label>` heading, and
+  the other projects still answer.
 - Every tool accepts an optional `project` argument with a label, which limits
   the answer to that project. An unknown label returns an error that lists the
   known labels.
