@@ -342,3 +342,23 @@ Deno.test("validate files arg outside a single project keeps the pre-workspace o
     );
   }
 });
+
+Deno.test("validate files arg checks only the named file of the routed project", async () => {
+  // Project b has two files, each with its own duplicate display ID.
+  const files = twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG") + "\n" +
+      entryDoc("STK_0002", "Gamma", "01HGW2Q8MNP3RSTVWXYZABCDEH"),
+  );
+  files[join(MEMORY_PARENT, "b", "other.md")] =
+    entryDoc("STK_0003", "Delta", "01HGW2Q8MNP3RSTVWXYZABCDEJ") + "\n" +
+    entryDoc("STK_0003", "Epsilon", "01HGW2Q8MNP3RSTVWXYZABCDEK");
+  const ws = await createWorkspace(memoryEnv(files));
+  const all = await dispatchTool("validate", { project: "b" }, ws);
+  assertStringIncludes(all, "STK_0002");
+  assertStringIncludes(all, "STK_0003");
+  const text = await dispatchTool("validate", { files: ["b/req.md"] }, ws);
+  assertStringIncludes(text, "## Project: b");
+  assertStringIncludes(text, "STK_0002");
+  assertEquals(text.includes("STK_0003"), false, text);
+});

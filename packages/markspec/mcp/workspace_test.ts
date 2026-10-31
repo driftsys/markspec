@@ -34,6 +34,7 @@ interface EnvOptions {
   readonly cwd?: string;
   readonly rootOverrides?: string[];
   readonly realPath?: (path: string) => string;
+  readonly homeDir?: string;
 }
 
 /**
@@ -63,7 +64,7 @@ function makeEnv(
         yield { name, isFile, isDirectory: !isFile };
       }
     },
-    homeDir: () => undefined,
+    homeDir: () => options.homeDir,
     realPath: (path) => Promise.resolve(options.realPath?.(path) ?? path),
     stat: (path) => {
       if (!store.has(path)) return Promise.reject(new Error(`ENOENT ${path}`));
@@ -311,4 +312,44 @@ Deno.test("createWorkspace: a lone project starts compiling at once", async () =
       makeDisplayId("STK_TEST_0001"),
     ),
   );
+});
+
+Deno.test("createWorkspace: no downward scan from the home folder", async () => {
+  // The home folder holds its own project and one below it: only the home
+  // project is served.
+  const { env } = makeEnv({
+    [join(PARENT, "project.yaml")]: PROJECT_YAML,
+    [join(PARENT, "req.md")]: DOC_A,
+    [join(B, "project.yaml")]: PROJECT_YAML,
+    [join(B, "req.md")]: DOC_B,
+  }, { homeDir: PARENT });
+  const ws = await createWorkspace(env);
+  assertEquals(labels(ws), ["."]);
+});
+
+Deno.test("createWorkspace: the home folder is compared after realPath", async () => {
+  const LINK = resolve("/home-link");
+  const { env } = makeEnv(twoProjects(), {
+    homeDir: LINK,
+    realPath: (p) => p === LINK ? PARENT : p,
+  });
+  const ws = await createWorkspace(env);
+  assertEquals(labels(ws), []);
+});
+
+Deno.test("createWorkspace: a candidate folder listed twice is scanned once", async () => {
+  const { env } = makeEnv({}, { rootOverrides: [PARENT] });
+  const listed: string[] = [];
+  const countingEnv: ProjectEnv = {
+    ...env,
+    readDir: (dir) => {
+      listed.push(dir);
+      return env.readDir(dir);
+    },
+  };
+  const ws = await createWorkspace(countingEnv);
+  assertEquals(listed.filter((d) => d === PARENT).length, 1);
+  assertExists(ws.softGateMessage);
+  // The searched folder is named once in the soft-gate text.
+  assertEquals(ws.softGateMessage.split(PARENT).length - 1, 1);
 });

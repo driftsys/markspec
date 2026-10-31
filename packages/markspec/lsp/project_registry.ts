@@ -535,6 +535,9 @@ export class ProjectRegistry {
    * `.markspec.yaml` is resolved with {@linkcode resolveConfigRoot} from
    * its own directory, so a `.markspec.yaml` below a `project.yaml` is not
    * a root of its own — the same answer the CLI gives for a file there.
+   * A found root is also dropped when the `exclude:` list of another found
+   * root between `ctx.root` and it covers it (patterns relative to that
+   * intermediate project); see {@linkcode findNestedProjectRoots}.
    */
   private async findNestedRoots(ctx: ProjectContext): Promise<string[]> {
     return await findNestedProjectRoots(

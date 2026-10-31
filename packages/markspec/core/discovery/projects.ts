@@ -129,8 +129,8 @@ function isExcludedDir(
 
 /** Options for {@linkcode discoverProjectRoots}. */
 export interface ProjectDiscoveryOptions {
-  /** The user's home folder. A start folder with no config that equals
-   * this folder is not scanned downward. */
+  /** The user's home folder. When the primary root equals this folder, no
+   * downward scan runs from it. */
   readonly homeDir?: string;
 }
 
@@ -142,9 +142,12 @@ export interface ProjectDiscoveryOptions {
  * when there is none. `roots` holds the primary root (only when it has a
  * config) plus every nested root below it, sorted. The nested scan honours
  * the primary project's `.markspec.yaml` `exclude:` list, and each nested
- * project's own list for the folders below it. When the primary
- * root has no config and is a filesystem root or `options.homeDir`, no
- * downward scan runs and `roots` is empty.
+ * project's own list for the folders below it.
+ *
+ * When the primary root is a filesystem root or `options.homeDir`, no
+ * downward scan runs, even when that folder holds a config: `roots` then
+ * holds only the primary root when it has a config, and is empty
+ * otherwise.
  */
 export async function discoverProjectRoots(
   startDir: string,
@@ -153,11 +156,12 @@ export async function discoverProjectRoots(
 ): Promise<{ primaryRoot: string; roots: string[] }> {
   const configRoot = await resolveConfigRoot(startDir, io.readFile);
   const primaryRoot = configRoot ?? startDir;
-  if (configRoot === undefined) {
-    const isFilesystemRoot = dirname(primaryRoot) === primaryRoot;
-    if (isFilesystemRoot || primaryRoot === options.homeDir) {
-      return { primaryRoot, roots: [] };
-    }
+  const isFilesystemRoot = dirname(primaryRoot) === primaryRoot;
+  if (isFilesystemRoot || primaryRoot === options.homeDir) {
+    return {
+      primaryRoot,
+      roots: configRoot !== undefined ? [primaryRoot] : [],
+    };
   }
   const { config } = configRoot !== undefined
     ? await loadToolConfig(primaryRoot, io.readFile)

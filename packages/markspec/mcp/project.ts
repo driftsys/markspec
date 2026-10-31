@@ -46,15 +46,23 @@ export const SOFT_GATE_MESSAGE =
  * Compose the soft-gate message that names every directory searched. Starts
  * with the same load-bearing phrase as {@linkcode SOFT_GATE_MESSAGE} (ADR-023)
  * and points the operator at the `--root` / `MARKSPEC_PROJECT_ROOT` remedies.
+ * Set `options.searchedBelow` only when the caller also searched below each
+ * directory for nested projects (the MCP workspace does; `createProject`
+ * does not); it adds a line that says so.
  */
-export function buildSoftGateMessage(searchedDirs: readonly string[]): string {
+export function buildSoftGateMessage(
+  searchedDirs: readonly string[],
+  options: { readonly searchedBelow?: boolean } = {},
+): string {
   const dirs = searchedDirs.join(", ");
-  return "No MarkSpec project found in this workspace.\n" +
+  const message = "No MarkSpec project found in this workspace.\n" +
     `Searched from: ${dirs} (walked upward for .markspec.yaml / project.yaml).\n` +
     "Point the server at your project with `markspec mcp --root <path>` or the " +
     "MARKSPEC_PROJECT_ROOT environment variable. This server has no work to do " +
-    "here — stop calling MarkSpec tools.\n" +
-    "Also searched below each directory for nested MarkSpec projects.";
+    "here — stop calling MarkSpec tools.";
+  return options.searchedBelow
+    ? `${message}\nAlso searched below each directory for nested MarkSpec projects.`
+    : message;
 }
 
 /**

@@ -514,6 +514,9 @@ Deno.test("createProject: no candidate resolves → gated + message names dirs",
   assertStringIncludes(proj.softGateMessage, OTHER);
   assertStringIncludes(proj.softGateMessage, PROJ); // cwd is always a candidate
   assertStringIncludes(proj.softGateMessage, "--root");
+  // createProject searches upward only, so the message does not claim a
+  // downward search.
+  assertEquals(proj.softGateMessage.includes("Also searched below"), false);
 });
 
 // ---------------------------------------------------------------------------

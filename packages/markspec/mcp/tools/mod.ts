@@ -229,6 +229,10 @@ const HANDLERS: Record<string, ToolHandler> = {
   markspec_refresh: async (args: any, workspace) => {
     // Pick up projects added or removed since the last discovery first.
     await workspace.rediscover();
+    // Still no project: the soft-gate text, whatever `project` names.
+    if (workspace.softGateMessage !== undefined) {
+      return workspace.softGateMessage;
+    }
     return perProject(
       workspace,
       projectArgOf(args),
@@ -236,7 +240,7 @@ const HANDLERS: Record<string, ToolHandler> = {
         const result = await project.forceRefresh();
         return renderRefresh(result.entries.size, result.links.length);
       },
-      workspace.softGateMessage ?? "",
+      "",
     );
   },
 
@@ -289,8 +293,15 @@ export async function dispatchTool(
   return await handler(args ?? {}, workspace);
 }
 
-/** Attach `tools/list` and `tools/call` handlers to a Server instance. */
-export function registerTools(server: Server, workspace: McpWorkspace): void {
+/**
+ * Attach `tools/list` and `tools/call` handlers to a Server instance. When
+ * `workspace` is a promise (discovery still running), each tool call waits
+ * for it; `tools/list` does not.
+ */
+export function registerTools(
+  server: Server,
+  workspace: McpWorkspace | Promise<McpWorkspace>,
+): void {
   server.setRequestHandler(ListToolsRequestSchema, () =>
     Promise.resolve({
       tools: TOOL_DESCRIPTORS,
@@ -303,7 +314,7 @@ export function registerTools(server: Server, workspace: McpWorkspace): void {
         const text = await dispatchTool(
           req.params.name,
           req.params.arguments,
-          workspace,
+          await workspace,
         );
         return { content: [{ type: "text", text }] };
       } catch (err) {

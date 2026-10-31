@@ -93,38 +93,58 @@ project is a separate project: its entries are not merged into the enclosing
 project's graph, and it uses its own profile. The search follows `.gitignore`
 and the `exclude:` list of each enclosing project's `.markspec.yaml`: a
 project's `exclude:` patterns are relative to that project and apply to the
-folders below it. The server does not scan down from a filesystem root or from
-your home folder when that folder has no config of its own.
+folders below it. The server never scans down from a filesystem root or from
+your home folder, even when that folder has a config of its own; that folder's
+own project is still served. Discovery runs after the server has connected to
+the client, so startup does not wait for it; the first tool call or resource
+request waits until it is done.
 
 With several projects:
 
 - Every tool and resource answers for all projects. Each result sits under a
   `## Project: <label>` heading. The label is the project folder relative to the
-  start folder (`.` for the start folder itself). When one project fails, its
-  section reads `Error: <message>` under its `## Project: <label>` heading, and
-  the other projects still answer.
-- Every tool accepts an optional `project` argument with a label, which limits
-  the answer to that project. An unknown label returns an error that lists the
-  known labels.
+  primary root: the nearest folder with a `project.yaml` (else a
+  `.markspec.yaml`) found by walking up from the start folder, or the start
+  folder itself when there is none. The primary root itself has the label `.`.
+  When one project fails, its section reads `Error: <message>` under its
+  `## Project: <label>` heading, and the other projects still answer.
+- Every tool except `project_list` accepts an optional `project` argument with a
+  label, which limits the answer to that project. An unknown label returns an
+  error that lists the known labels.
 - `project_list` lists each project with its label, absolute root, active
   profile, and entry count once compiled.
-- `validate` resolves its `files` paths against the start folder and checks each
-  file in the project that owns it.
-- Each project compiles on first use. With exactly one project, startup and
-  output are the same as before.
+- `validate` resolves relative `files` paths against the primary root and checks
+  each file in the project that owns it.
+- Each project compiles on first use, and the projects a request selects compile
+  at the same time. With exactly one project, the output is the same as before
+  and the project starts compiling as soon as discovery ends.
 - `markspec_refresh` runs discovery again, so projects added or removed after
   startup are picked up.
 - Reading a `markspec://entry/{id}` URI returns every project that holds that
   ID, under project headings.
 
-To keep a nested folder that has its own config (for example a test fixture)
-part of the enclosing project instead, list it under `exclude:` in the enclosing
-`.markspec.yaml`:
+Nested projects are separate graphs in the MCP server, but bare `markspec check`
+still checks the enclosing folder tree as one graph, nested projects included.
+This split is intended. As a result, MCP `validate` can differ from
+`markspec check` for nested projects: a display ID declared once in each of two
+nested projects is a duplicate for `check` but not for `validate`, and a
+`Satisfies:` that points from one nested project into another resolves for
+`check` but not for `validate`.
+
+To stop the MCP server from treating a nested folder that has its own config
+(for example a test fixture) as a separate project, list it under `exclude:` in
+the enclosing `.markspec.yaml`:
 
 ```yaml
 exclude:
   - "tests/fixtures/"
 ```
+
+The MCP compile of the enclosing project then still includes the entries in that
+folder, because the MCP compile does not apply `exclude:`. `exclude:` also
+removes the folder from the scope of `markspec check`, `markspec lint`,
+`markspec fmt`, and the LSP: they do not check, lint, format, or index its files
+at all.
 
 ### Claude Desktop
 

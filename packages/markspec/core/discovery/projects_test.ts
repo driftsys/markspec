@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
-import { join } from "@std/path";
+import { join, resolve, SEPARATOR } from "@std/path";
+import type { DiscoveryIO } from "./mod.ts";
 import { discoverProjectRoots } from "./projects.ts";
 import { makeTree, realIO } from "./test_helpers.ts";
 
@@ -83,4 +84,68 @@ Deno.test("discoverProjectRoots: a nested project's exclude applies to its subtr
   );
   const result = await discoverProjectRoots(dir, realIO());
   assertEquals(result.roots, [join(dir, "a")]);
+});
+
+/** A `DiscoveryIO` over an in-memory map of absolute paths to contents.
+ * Folders are implied by the file paths. */
+function memoryIO(files: Record<string, string>): DiscoveryIO {
+  const store = new Map(Object.entries(files));
+  return {
+    readFile: (path) => Promise.resolve(store.get(path)),
+    readDir: async function* (dir) {
+      const prefix = dir.endsWith(SEPARATOR) ? dir : dir + SEPARATOR;
+      const seen = new Set<string>();
+      for (const path of store.keys()) {
+        if (!path.startsWith(prefix)) continue;
+        const rest = path.slice(prefix.length);
+        const name = rest.split(/[\\/]/)[0];
+        if (seen.has(name)) continue;
+        seen.add(name);
+        const isFile = rest === name;
+        yield { name, isFile, isDirectory: !isFile };
+      }
+    },
+  };
+}
+
+const FS_ROOT = resolve("/");
+
+Deno.test("discoverProjectRoots: no downward scan from a filesystem root without config", async () => {
+  const io = memoryIO({ [join(FS_ROOT, "a", "project.yaml")]: PROJECT });
+  const result = await discoverProjectRoots(FS_ROOT, io);
+  assertEquals(result.primaryRoot, FS_ROOT);
+  assertEquals(result.roots, []);
+});
+
+Deno.test("discoverProjectRoots: a filesystem root with its own config is served, not scanned", async () => {
+  const io = memoryIO({
+    [join(FS_ROOT, "project.yaml")]: PROJECT,
+    [join(FS_ROOT, "a", "project.yaml")]: PROJECT,
+  });
+  const result = await discoverProjectRoots(FS_ROOT, io);
+  assertEquals(result.roots, [FS_ROOT]);
+});
+
+Deno.test("discoverProjectRoots: homeDir with its own config is served, not scanned", async () => {
+  const dir = await real(
+    await makeTree({ "project.yaml": PROJECT, "a/project.yaml": PROJECT }),
+  );
+  const result = await discoverProjectRoots(dir, realIO(), { homeDir: dir });
+  assertEquals(result.primaryRoot, dir);
+  assertEquals(result.roots, [dir]);
+});
+
+Deno.test("discoverProjectRoots: a start folder below homeDir walks up to it and does not scan it", async () => {
+  const dir = await real(
+    await makeTree({
+      ".markspec.yaml": "exclude: []\n",
+      "docs/x.md": "",
+      "b/project.yaml": PROJECT,
+    }),
+  );
+  const result = await discoverProjectRoots(join(dir, "docs"), realIO(), {
+    homeDir: dir,
+  });
+  assertEquals(result.primaryRoot, dir);
+  assertEquals(result.roots, [dir]);
 });

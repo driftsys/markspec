@@ -82,8 +82,10 @@ export interface ResourceDescriptor {
  * Build the resources/list payload across every project of the workspace.
  * Each URI appears once; when several projects provide the same URI, the
  * descriptor comes from the first one in label order. With one project the
- * list is that project's list. With several, a project whose compile fails
- * contributes no entry URIs; with one, the compile error propagates.
+ * list is that project's list. The projects compile at the same time; the
+ * entry URIs are sorted, so the order does not depend on which compile ends
+ * first. With several, a project whose compile fails contributes no entry
+ * URIs; with one, the compile error propagates.
  */
 export async function listResourceDescriptors(
   workspace: McpWorkspace,
@@ -139,18 +141,19 @@ export async function listResourceDescriptors(
     mimeType: "text/markdown",
   });
   // Entry URIs — each distinct display ID once, sorted.
+  // Compile every project at the same time. With several projects, one
+  // that cannot compile lists no entries and the others still do. A lone
+  // project fails as before.
+  const results = await Promise.allSettled(
+    projects.map(({ project }) => project.getCompiled()),
+  );
+  if (projects.length === 1 && results[0].status === "rejected") {
+    throw results[0].reason;
+  }
   const titles = new Map<string, string>();
-  for (const { project } of projects) {
-    let result;
-    try {
-      result = await project.getCompiled();
-    } catch (err) {
-      // With several projects, one that cannot compile lists no entries
-      // and the others still do. A lone project fails as before.
-      if (projects.length === 1) throw err;
-      continue;
-    }
-    for (const [id, entry] of result.entries) {
+  for (const settled of results) {
+    if (settled.status === "rejected") continue;
+    for (const [id, entry] of settled.value.entries) {
       if (!titles.has(id)) titles.set(id, entry.title);
     }
   }
@@ -172,10 +175,15 @@ export interface ReadResourceResult {
   readonly text: string;
 }
 
-/** `true` when `project`'s active profile chain includes `profileId`. */
-function chainIncludes(project: Project, profileId: string): boolean {
-  return (project.profileChain?.tiers ?? []).some((t) => t.id === profileId) ||
-    project.delivers.some((d) => d.profileId === profileId);
+/** `true` when `project` delivers the document at `path` from `profileId`. */
+function deliversDocument(
+  project: Project,
+  profileId: string,
+  path: string,
+): boolean {
+  return project.delivers.some((d) =>
+    d.profileId === profileId && d.path === path
+  );
 }
 
 /**
@@ -185,8 +193,9 @@ function chainIncludes(project: Project, profileId: string): boolean {
  * Profile, profile-element, entries-index and entry URIs read every project
  * that provides them: one project gives its text unchanged, several give
  * one `## Project: <label>` section each. A delivered document is read from
- * the first project, in label order, whose profile chain includes the
- * delivering profile.
+ * the first project, in label order, whose delivered documents include that
+ * profile ID and path; a project that uses the same profile but does not
+ * deliver the path (for example another profile version) is skipped.
  */
 export async function readResource(
   uri: string,
@@ -289,7 +298,7 @@ export async function readResource(
   if (isDeliveredUri(uri)) {
     const parsed = parseDeliveredUri(uri)!;
     const holder = workspace.projects().find(({ project }) =>
-      chainIncludes(project, parsed.profileId)
+      deliversDocument(project, parsed.profileId, parsed.path)
     );
     const text = await holder?.project.readDeliveredDocument(
       parsed.profileId,
@@ -306,20 +315,24 @@ export async function readResource(
   throw new Error(`unknown resource URI: ${uri}`);
 }
 
-/** Attach resources/list and resources/read handlers to a Server. */
+/**
+ * Attach resources/list and resources/read handlers to a Server. When
+ * `workspace` is a promise (discovery still running), each request waits
+ * for it.
+ */
 export function registerResources(
   server: Server,
-  workspace: McpWorkspace,
+  workspace: McpWorkspace | Promise<McpWorkspace>,
 ): void {
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: await listResourceDescriptors(workspace),
+    resources: await listResourceDescriptors(await workspace),
   }));
 
   server.setRequestHandler(
     ReadResourceRequestSchema,
     async (req: ReadResourceRequest) => {
       const uri = req.params.uri;
-      const result = await readResource(uri, workspace);
+      const result = await readResource(uri, await workspace);
       return {
         contents: [
           {

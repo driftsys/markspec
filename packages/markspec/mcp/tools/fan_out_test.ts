@@ -179,3 +179,60 @@ Deno.test("projectArgOf: a null project argument means all projects", () => {
   assertEquals(projectArgOf({}), undefined);
   assertEquals(projectArgOf({ project: "a" }), "a");
 });
+
+/** Wrap every project's `getCompiled` so it waits `delayMs(label)` and
+ * records how many calls run at the same time. */
+function trackConcurrency(
+  ws: McpWorkspace,
+  delayMs: (label: string) => number,
+): { peak(): number } {
+  let inFlight = 0;
+  let peak = 0;
+  for (const { label, project } of ws.projects()) {
+    const original = project.getCompiled.bind(project);
+    (project as { getCompiled: typeof project.getCompiled }).getCompiled =
+      async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        try {
+          await new Promise((r) => setTimeout(r, delayMs(label)));
+          return await original();
+        } finally {
+          inFlight--;
+        }
+      };
+  }
+  return { peak: () => peak };
+}
+
+Deno.test("perProject: renders the selected projects at the same time, in label order", async () => {
+  const ws = await twoProjects();
+  // Project a is the slower one, so a serial or completion-ordered fan-out
+  // would show in the result.
+  const tracker = trackConcurrency(ws, (label) => (label === "a" ? 20 : 1));
+  const text = await perProject(
+    ws,
+    undefined,
+    async ({ label, project }) => {
+      await project.getCompiled();
+      return `${label}\n`;
+    },
+    "",
+  );
+  assertEquals(tracker.peak(), 2);
+  assertEquals(text, "## Project: a\n\na\n\n## Project: b\n\nb\n");
+});
+
+Deno.test("listResourceDescriptors: compiles the projects at the same time", async () => {
+  const ws = await twoProjects();
+  const tracker = trackConcurrency(ws, (label) => (label === "a" ? 20 : 1));
+  const list = await listResourceDescriptors(ws);
+  assertEquals(tracker.peak(), 2);
+  const entryUris = list.map((d) => d.uri).filter((u) =>
+    u.startsWith("markspec://entry/")
+  );
+  assertEquals(entryUris, [
+    "markspec://entry/STK_0001",
+    "markspec://entry/STK_0002",
+  ]);
+});

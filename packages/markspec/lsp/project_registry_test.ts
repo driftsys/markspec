@@ -326,6 +326,29 @@ Deno.test("ProjectRegistry: exclude: in .markspec.yaml hides nested roots and th
   assertEquals(fx.registry.primary?.index.getFilePaths(), [abs("docs/req.md")]);
 });
 
+Deno.test("ProjectRegistry: a nested project's exclude: hides the roots below it", async () => {
+  // The primary excludes nothing; nested project a excludes its own
+  // fixtures/ folder, so a/fixtures/x is not a root of its own.
+  const fx = new Fixture({
+    ".markspec.yaml": "profiles: []\n",
+    "a/.markspec.yaml": "profiles: []\nexclude:\n  - fixtures/\n",
+    "a/req.md": entry("REQ_0001", "A"),
+    "a/fixtures/x/.markspec.yaml": "profiles: []\n",
+    "a/fixtures/x/req.md": entry("REQ_0002", "B"),
+  });
+  await fx.start("");
+  assertEquals(
+    fx.registry.all().map((c) => c.root).sort(),
+    [abs(""), abs("a")].sort(),
+  );
+  assertEquals(fx.rootOf("a/fixtures/x/req.md"), abs("a"));
+  // Project a honours its own exclude: list, so the fixture is not indexed.
+  assertEquals(
+    fx.registry.contextFor(abs("a/req.md"))?.index.getFilePaths(),
+    [abs("a/req.md")],
+  );
+});
+
 Deno.test("ProjectRegistry: workspace below .markspec.yaml walks up (#694)", async () => {
   const fx = new Fixture({
     "proj/.markspec.yaml": "profiles:\n  - ./profiles/pa\n",

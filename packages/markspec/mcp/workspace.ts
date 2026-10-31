@@ -86,10 +86,11 @@ async function canonical(env: ProjectEnv, path: string): Promise<string> {
  * Try the ADR-028 candidates in order (`--root`, `MARKSPEC_PROJECT_ROOT`,
  * `CLAUDE_PROJECT_DIR`, cwd). The first candidate whose discovery finds at
  * least one root wins. When none does, `roots` is empty and `startRoot` is
- * the primary root of the last candidate (the cwd).
+ * the primary root of the last candidate (the cwd). A candidate that
+ * repeats an earlier one, as given or after symlink resolution, is skipped.
  */
 async function discover(env: ProjectEnv): Promise<Discovery> {
-  const candidates = [...env.rootOverrides(), env.cwd()];
+  const candidates = [...new Set([...env.rootOverrides(), env.cwd()])];
   const home = env.homeDir();
   // discoverProjectRoots compares homeDir as a raw string, so both sides
   // must be canonical paths.
@@ -99,8 +100,11 @@ async function discover(env: ProjectEnv): Promise<Discovery> {
     readFile: env.readFile,
   };
   let startRoot = "";
+  const scanned = new Set<string>();
   for (const candidate of candidates) {
     const startDir = await canonical(env, candidate);
+    if (scanned.has(startDir)) continue;
+    scanned.add(startDir);
     const found = await discoverProjectRoots(startDir, io, { homeDir });
     startRoot = found.primaryRoot;
     if (found.roots.length > 0) {
@@ -192,7 +196,7 @@ export async function createWorkspace(env: ProjectEnv): Promise<McpWorkspace> {
     projects: () => projectList,
     get softGateMessage(): string | undefined {
       return projectList.length === 0
-        ? buildSoftGateMessage(discovery.candidates)
+        ? buildSoftGateMessage(discovery.candidates, { searchedBelow: true })
         : undefined;
     },
     select(label?: string): readonly WorkspaceProject[] | string {

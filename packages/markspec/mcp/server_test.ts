@@ -9,9 +9,16 @@
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { DeliveredDocument, ProfileChain } from "../core/mod.ts";
-import type { Project } from "./project.ts";
+import { SEPARATOR } from "@std/path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { Project, ProjectEnv } from "./project.ts";
 import { listResourceDescriptors, readResource } from "./resources/mod.ts";
-import { SERVER_INSTRUCTIONS } from "./server.ts";
+import {
+  compiledEntryIds,
+  SERVER_INSTRUCTIONS,
+  startServer,
+} from "./server.ts";
 import { entryDoc, memoryEnv, twoProjectFiles } from "./tools/testing.ts";
 import { deliveredUri, entryUri } from "./uri.ts";
 import { createWorkspace, type McpWorkspace } from "./workspace.ts";
@@ -161,4 +168,125 @@ Deno.test("resources: delivered doc read from first project in label order", asy
     },
   ]);
   assertEquals((await readResource(uri, second)).text, "from b");
+});
+
+Deno.test("resources: delivered doc skips a project that shares the profile but not the path", async () => {
+  const doc: DeliveredDocument = {
+    profileId: "platform-arch",
+    profileVersion: "2.0.0",
+    path: "reference/new.md",
+    absPath: "/cache/platform-arch/reference/new.md",
+    corpus: false,
+  };
+  const olderDoc: DeliveredDocument = {
+    ...doc,
+    profileVersion: "1.0.0",
+    path: "reference/old.md",
+    absPath: "/cache/platform-arch/reference/old.md",
+  };
+  const uri = deliveredUri("platform-arch", "reference/new.md");
+  // Project a pins an older version of the profile that does not deliver
+  // the path; project b delivers it.
+  const ws = stubWorkspace([
+    {
+      label: "a",
+      project: deliveringProject("/work/a", ["platform-arch"], olderDoc, "a"),
+    },
+    {
+      label: "b",
+      project: deliveringProject("/work/b", ["platform-arch"], doc, "from b"),
+    },
+  ]);
+  assertEquals((await readResource(uri, ws)).text, "from b");
+});
+
+// ---------------------------------------------------------------------------
+// Startup and notifications
+// ---------------------------------------------------------------------------
+
+/** Resolve to `"pending"` when `p` has not settled within `ms`. Clears its
+ * timer, so a test never ends with a timer still pending. */
+async function settledWithin(p: Promise<unknown>, ms: number): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<string>((r) => {
+    timer = setTimeout(() => r("pending"), ms);
+  });
+  try {
+    return await Promise.race([
+      p.then(() => "settled", () => "settled"),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+Deno.test("startServer: initialize completes while discovery is still running", async () => {
+  const base = memoryEnv(twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG"),
+  ));
+  // Every directory listing waits for `release`, so discovery cannot end
+  // before the test allows it.
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => release = r);
+  const env: ProjectEnv = {
+    ...base,
+    readDir: async function* (dir) {
+      await gate;
+      yield* base.readDir(dir);
+    },
+  };
+  const [clientTransport, serverTransport] = InMemoryTransport
+    .createLinkedPair();
+  const client = new Client({ name: "test", version: "0.0.0" });
+  try {
+    assertEquals(
+      await settledWithin(
+        startServer({ env, transport: serverTransport }),
+        1000,
+      ),
+      "settled",
+    );
+    assertEquals(
+      await settledWithin(client.connect(clientTransport), 1000),
+      "settled",
+    );
+    // A tool call waits for discovery.
+    const call = client.callTool({ name: "project_list", arguments: {} });
+    assertEquals(await settledWithin(call, 20), "pending");
+    release();
+    const result = await call as { content: { text: string }[] };
+    assertStringIncludes(result.content[0].text, "a");
+    assertStringIncludes(result.content[0].text, "b");
+  } finally {
+    release();
+    await client.close();
+  }
+});
+
+Deno.test("compiledEntryIds: reads only the projects that already compiled", async () => {
+  const base = memoryEnv(twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG"),
+  ));
+  const mdReads: string[] = [];
+  const env: ProjectEnv = {
+    ...base,
+    readFile: (path) => {
+      if (path.endsWith(".md")) mdReads.push(path);
+      return base.readFile(path);
+    },
+  };
+  const workspace = await createWorkspace(env);
+  assertEquals(workspace.projects().map((p) => p.label), ["a", "b"]);
+  await workspace.projects()[0].project.getCompiled();
+  mdReads.length = 0;
+  const ids = await compiledEntryIds(workspace);
+  assertEquals([...ids], ["STK_0001"]);
+  // Project b was never used, so the notification path did not compile it.
+  assertEquals(
+    mdReads.filter((p) => p.includes(`${SEPARATOR}b${SEPARATOR}`)),
+    [],
+  );
 });

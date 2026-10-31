@@ -1153,8 +1153,9 @@ markspec mcp --root /path/to/your/markspec-project
 - `project_list` — list each discovered project with its label, root, profile,
   and entry count.
 
-With several projects, every tool accepts an optional `project` argument (a
-label from `project_list`) that limits the answer to that project.
+With several projects, every tool except `project_list` accepts an optional
+`project` argument (a label from `project_list`) that limits the answer to that
+project.
 
 ##### Claude Desktop config
 
@@ -1334,9 +1335,11 @@ way `markspec check` walks up from a file:
   walk-up would resolve to — a directory with a `project.yaml`, or a directory
   with a `.markspec.yaml` and no `project.yaml` between it and the primary
   project — is a separate project with its own profile, index, and
-  `markspec.lock`. The search honors `.gitignore` and the primary project's
-  `exclude:` list. A workspace opened on a parent folder of several projects
-  validates each project against its own profile.
+  `markspec.lock`. The search honors `.gitignore`, the primary project's
+  `exclude:` list, and the `exclude:` list of each nested project for the
+  folders below it: a directory covered by the `exclude:` list of a nested
+  project above it is not a project of its own. A workspace opened on a parent
+  folder of several projects validates each project against its own profile.
 - **Ownership.** A file belongs to its nearest project. A parent project does
   not index the files of a nested project, so a display ID that is declared once
   in each of two projects is not reported as a duplicate. Completion, hover,

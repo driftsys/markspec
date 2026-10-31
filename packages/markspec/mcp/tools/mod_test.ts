@@ -14,6 +14,7 @@ import {
   MEMORY_PARENT,
   memoryEnv,
   PROJECT_YAML,
+  twoProjectFiles,
   workspaceOf,
 } from "./testing.ts";
 
@@ -202,4 +203,79 @@ Deno.test("dispatchTool: markspec_refresh finds a project added after an empty s
   assertEquals(refreshed.includes("No MarkSpec project found"), false);
   const list = await dispatchTool("project_list", {}, ws);
   assertStringIncludes(list, join(MEMORY_PARENT, "a"));
+});
+
+// ---------------------------------------------------------------------------
+// Several projects: a project whose answer is empty gets no section
+// ---------------------------------------------------------------------------
+
+/** Two projects: `a` holds STK_0001 "Alpha" and a local profile that
+ * declares the `widget-spec` type; `b` holds STK_0002 "Beta" and uses the
+ * default profile. */
+function twoProjectWorkspace() {
+  const files = twoProjectFiles(
+    entryDoc("STK_0001", "Alpha", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+    entryDoc("STK_0002", "Beta", "01HGW2Q8MNP3RSTVWXYZABCDEG"),
+  );
+  files[join(MEMORY_PARENT, "a", ".markspec.yaml")] =
+    "profiles:\n  - ./profile\n";
+  files[join(MEMORY_PARENT, "a", "profile", "markspec.yaml")] =
+    `id: widget-profile
+version: 1.0.0
+markspec-schema: "1"
+profile:
+  types:
+    widget-spec:
+      extends: Requirement
+      description: A widget specification
+`;
+  return createWorkspace(memoryEnv(files));
+}
+
+/** Assert `text` has a section for project a and none for project b. */
+function onlyProjectA(text: string): void {
+  assertStringIncludes(text, "## Project: a");
+  assertEquals(text.includes("## Project: b"), false, text);
+}
+
+Deno.test("dispatchTool: entry_search drops a project with no hits", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(await dispatchTool("entry_search", { query: "Alpha" }, ws));
+});
+
+Deno.test("dispatchTool: entry_show drops a project without the entry", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(await dispatchTool("entry_show", { id: "STK_0001" }, ws));
+});
+
+Deno.test("dispatchTool: entry_context drops a project without the entry", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(await dispatchTool("entry_context", { id: "STK_0001" }, ws));
+});
+
+Deno.test("dispatchTool: entry_neighborhood drops a project without the entry", async () => {
+  const ws = await twoProjectWorkspace();
+  onlyProjectA(
+    await dispatchTool("entry_neighborhood", { id: "STK_0001" }, ws),
+  );
+});
+
+Deno.test("dispatchTool: profile_describe drops a project whose profile has no match", async () => {
+  const ws = await twoProjectWorkspace();
+  const text = await dispatchTool(
+    "profile_describe",
+    { kind: "type", name: "widget-spec" },
+    ws,
+  );
+  onlyProjectA(text);
+  assertStringIncludes(text, "A widget specification");
+});
+
+Deno.test("dispatchTool: markspec_refresh with a project argument and no project returns the soft gate", async () => {
+  const ws = await createWorkspace(memoryEnv({
+    [join(MEMORY_PARENT, "notes.md")]: "# Notes\n",
+  }));
+  const text = await dispatchTool("markspec_refresh", { project: "x" }, ws);
+  assertStringIncludes(text, "No MarkSpec project found");
+  assertEquals(text.includes("Unknown project"), false);
 });
