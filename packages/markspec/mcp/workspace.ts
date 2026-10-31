@@ -3,8 +3,10 @@
  *
  * The set of MarkSpec projects the MCP server answers for. Discovers every
  * project root at and below the start folder (`discoverProjectRoots`) and
- * holds one {@linkcode Project} per root. Each project compiles lazily and
- * skips the files of the projects nested below it.
+ * holds one {@linkcode Project} per root. Each project skips the files of
+ * the projects nested below it. When discovery finds exactly one project it
+ * compiles in the background at once, as before; with several projects,
+ * each one compiles only on its first use, so startup runs discovery only.
  *
  * All I/O goes through the injected {@linkcode ProjectEnv}.
  */
@@ -112,9 +114,9 @@ function labelOf(startRoot: string, root: string): string {
 
 /**
  * Discover every project below the start folder and open one
- * {@linkcode Project} per root. Opening a project never compiles it
- * synchronously; a project whose config is malformed still appears and
- * reports its problem when used.
+ * {@linkcode Project} per root. Only a lone project starts compiling at
+ * once; with several, each compiles on first use. A project whose config is
+ * malformed still appears and reports its problem when used.
  */
 export async function createWorkspace(env: ProjectEnv): Promise<McpWorkspace> {
   const handlers = new Set<() => void>();
@@ -141,12 +143,16 @@ export async function createWorkspace(env: ProjectEnv): Promise<McpWorkspace> {
     const previousLabels = projectList.map((p) => p.label).join("\n");
     const previousRoots = [...opened.keys()].join("\n");
     currentRoots = next.roots;
+    // One project: compile at once, as the single-project server always
+    // did. Several: compile each one on first use.
+    const eager = next.roots.length === 1;
     const kept = new Map<string, OpenedProject>();
     for (const root of next.roots) {
       let entry = opened.get(root);
       if (entry === undefined) {
         const project = await openProject(root, env, {
           ownsFile: (path) => nearestRoot(dirname(path), currentRoots) === root,
+          eager,
         });
         const unsubscribe = project.subscribeInvalidation(() => notify());
         entry = { project, unsubscribe };

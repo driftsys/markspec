@@ -375,6 +375,12 @@ export interface OpenProjectOptions {
    * is owned.
    */
   readonly ownsFile?: (path: string) => boolean;
+  /**
+   * Start compiling in the background as soon as the project opens.
+   * Defaults to `true`. With `false`, the first {@linkcode Project.getCompiled}
+   * or {@linkcode Project.forceRefresh} call compiles.
+   */
+  readonly eager?: boolean;
 }
 
 /**
@@ -389,7 +395,15 @@ export async function openProject(
   options: OpenProjectOptions = {},
 ): Promise<Project> {
   const setup = await loadProjectSetup(env, root);
-  return buildProject(env, root, true, "", options.ownsFile, setup);
+  return buildProject(
+    env,
+    root,
+    true,
+    "",
+    options.ownsFile,
+    setup,
+    options.eager ?? true,
+  );
 }
 
 /** Config and profile chain loaded for a project root. */
@@ -432,6 +446,7 @@ function buildProject(
   softGateMessage: string,
   ownsFile: ((path: string) => boolean) | undefined,
   { config, profileChain }: ProjectSetup,
+  eager = true,
 ): Project {
   // Cache state.
   let inFlight: Promise<CompileResult> | null = null;
@@ -618,6 +633,9 @@ function buildProject(
     if (currentLockMtime !== lockfileMtime) return true;
     // 1) Any tracked file that is stale (mtime fast path → SHA256 truth gate)?
     for (const t of tracked) {
+      // A tracked file now owned by another project (one found below this
+      // root after the last compile) must leave this project's graph.
+      if (ownsFile && !ownsFile(t.path)) return true;
       try {
         const { mtime } = await env.stat(t.path);
         const stale = await checkFileStaleness(
@@ -645,7 +663,7 @@ function buildProject(
   }
 
   // Kick off background compile so first tool call doesn't pay the cost.
-  if (projectRoot) {
+  if (projectRoot && eager) {
     const promise = ensureCompile();
     // Prevent unhandled-rejection warnings if no caller awaits this promise
     // immediately. The error still surfaces naturally on the first

@@ -251,14 +251,15 @@ Deno.test("rediscover: a project added below an existing one takes its files", a
   await ws.rediscover();
   assertEquals(labels(ws), [".", "sub"]);
   assertStrictEquals(ws.projects()[0].project, parent);
-  const after = await parent.forceRefresh();
+  // Through getCompiled: the moved files must make the cached graph stale.
+  const after = await parent.getCompiled();
   assertEquals(after.entries.get(makeDisplayId("STK_TEST_0002")), undefined);
 });
 
 Deno.test("subscribeInvalidation: fires when a project recompiles", async () => {
   const { env } = makeEnv(twoProjects());
   const ws = await createWorkspace(env);
-  // Let the background compiles settle so only the refresh below counts.
+  // Compile each project once so only the refresh below counts.
   for (const p of ws.projects()) await p.project.getCompiled();
   let fired = 0;
   const unsubscribe = ws.subscribeInvalidation(() => fired++);
@@ -267,4 +268,47 @@ Deno.test("subscribeInvalidation: fires when a project recompiles", async () => 
   unsubscribe();
   await ws.projects()[0].project.forceRefresh();
   assertEquals(fired, 1);
+});
+
+Deno.test("createWorkspace: with several projects, none compiles until used", async () => {
+  const { env } = makeEnv(twoProjects());
+  const mdReads: string[] = [];
+  const countingEnv: ProjectEnv = {
+    ...env,
+    readFile: (path) => {
+      if (path.endsWith(".md")) mdReads.push(path);
+      return env.readFile(path);
+    },
+  };
+  const ws = await createWorkspace(countingEnv);
+  // Give any background compile the chance to run.
+  await new Promise((r) => setTimeout(r, 0));
+  assertEquals(mdReads, []);
+
+  await ws.projects()[1].project.getCompiled();
+  assertEquals(mdReads.length > 0, true);
+  assertEquals(mdReads.every((p) => p.startsWith(B + SEPARATOR)), true);
+});
+
+Deno.test("createWorkspace: a lone project starts compiling at once", async () => {
+  const { env } = makeEnv({
+    [join(A, "project.yaml")]: PROJECT_YAML,
+    [join(A, "req.md")]: DOC_A,
+  }, { cwd: A });
+  const mdReads: string[] = [];
+  const countingEnv: ProjectEnv = {
+    ...env,
+    readFile: (path) => {
+      if (path.endsWith(".md")) mdReads.push(path);
+      return env.readFile(path);
+    },
+  };
+  const ws = await createWorkspace(countingEnv);
+  await new Promise((r) => setTimeout(r, 0));
+  assertEquals(mdReads.length > 0, true);
+  assertExists(
+    (await ws.projects()[0].project.getCompiled()).entries.get(
+      makeDisplayId("STK_TEST_0001"),
+    ),
+  );
 });
