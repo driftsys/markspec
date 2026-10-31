@@ -421,6 +421,17 @@ export interface ResolvedScope {
   /** True when no args were given — the whole-project case. Drives
    * project-wide-only gates (MSL-L006, lockfile drift). */
   readonly projectWide: boolean;
+  /** Bare mode: one entry per project, the root project first, then each
+   * nested project (ADR-028 section 7) sorted by root. Each file appears in
+   * exactly one entry. Empty for explicit arguments. `files` above holds
+   * the root project's files only. */
+  readonly projects: readonly ProjectScope[];
+}
+
+/** One project of a bare invocation and the files it owns. */
+export interface ProjectScope {
+  readonly root: string;
+  readonly files: string[];
 }
 
 /**
@@ -449,6 +460,7 @@ export async function resolveScope(
 ): Promise<ResolvedScope> {
   const {
     discoverFiles,
+    discoverOwnedFiles,
     discoverProjectRoot,
     loadToolConfig,
     RELEVANT_EXTENSIONS,
@@ -476,29 +488,43 @@ export async function resolveScope(
     // A malformed .markspec.yaml IS surfaced — silently falling back to
     // "no excludes" would widen file discovery in a way the author never
     // intended, matching the prior ConfigError-is-fatal posture.
-    const toolConfigResult = await loadToolConfig(projectRoot, readFile);
-    const toolConfigErrors = toolConfigResult.diagnostics.filter(
-      (d) => d.severity === "error",
-    );
-    if (toolConfigErrors.length > 0) {
-      for (const d of toolConfigErrors) {
-        console.error(`error: ${d.message}`);
+    const excludeOf = async (root: string): Promise<readonly string[]> => {
+      const toolConfigResult = await loadToolConfig(root, readFile);
+      const toolConfigErrors = toolConfigResult.diagnostics.filter(
+        (d) => d.severity === "error",
+      );
+      if (toolConfigErrors.length > 0) {
+        for (const d of toolConfigErrors) {
+          console.error(`error: ${d.message}`);
+        }
+        Deno.exit(1);
       }
-      Deno.exit(1);
-    }
-    const exclude = toolConfigResult.config.exclude;
-    const files: string[] = [];
-    for await (
-      const f of discoverFiles(projectRoot, io, { extensions, exclude })
-    ) {
-      files.push(f);
+      return toolConfigResult.config.exclude;
+    };
+    // The root project owns the files not owned by a nested project. Each
+    // nested project is walked with its own exclude list; its own nested
+    // roots are already in `nestedRoots` (all depths), so they are not
+    // searched a second time.
+    const owned = await discoverOwnedFiles(projectRoot, io, {
+      extensions,
+      exclude: await excludeOf(projectRoot),
+    });
+    const projects: ProjectScope[] = [
+      { root: projectRoot, files: owned.files },
+    ];
+    for (const nestedRoot of owned.nestedRoots) {
+      const nestedFiles = await discoverOwnedFiles(nestedRoot, io, {
+        extensions,
+        exclude: await excludeOf(nestedRoot),
+      });
+      projects.push({ root: nestedRoot, files: nestedFiles.files });
     }
     if (!opts.quiet) {
       console.error(
-        `${opts.verb} ${files.length} file(s) under ${projectRoot}`,
+        `${opts.verb} ${owned.files.length} file(s) under ${projectRoot}`,
       );
     }
-    return { files, projectRoot, projectWide: true };
+    return { files: owned.files, projectRoot, projectWide: true, projects };
   }
 
   const files: string[] = [];
@@ -518,5 +544,5 @@ export async function resolveScope(
       files.push(arg);
     }
   }
-  return { files, projectRoot, projectWide: false };
+  return { files, projectRoot, projectWide: false, projects: [] };
 }
