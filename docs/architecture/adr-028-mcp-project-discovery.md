@@ -143,13 +143,13 @@ project of its own.
 - A nested project is a separate project. Its entries are not merged into the
   enclosing project's graph, and it is compiled and validated against its own
   profile.
-- This split is intended, and it differs from the CLI: bare `markspec check`
-  still checks the enclosing tree as one graph, nested projects included. MCP
-  `validate` can therefore disagree with `check` for nested projects. A display
-  ID declared once in each of two nested projects is a duplicate for `check`
-  (MSL-R006 / MSL-I008) but not for MCP `validate`, and a `Satisfies:` that
-  points from one nested project into another resolves for `check` but is
-  unresolved for MCP `validate`.
+- The CLI follows the same rule since #856 (amended 2026-10-31). Bare
+  `markspec check`, `lint`, and `fmt` check each nested project separately, with
+  its own profile and graph, so MCP `validate` and `check` report the same
+  result for the same tree. A display ID declared once in each of two nested
+  projects is not a duplicate, and a `Satisfies:` that points from one nested
+  project into another is unresolved in both. Explicit file arguments keep the
+  single-graph behavior.
 - Every tool and resource answers for all discovered projects and labels each
   result `## Project: <label>`, where the label is the project root relative to
   the primary root (the config root found by walking up from the start folder,

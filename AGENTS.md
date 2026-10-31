@@ -617,8 +617,10 @@ error[E001]: broken reference
   exactly those paths (directories expand through gitignore-aware discovery).
   Invoked bare, they operate on every relevant file under the project root
   (gitignore + project.yaml `exclude:` honored) and announce the scope on
-  stderr. Bare invocation outside a project is an error, never a silent cwd
-  scan. Artifact-producing commands (`compile`, `export`) still require explicit
+  stderr. A folder below the root with its own `project.yaml` is a separate
+  project, checked with its own profile and graph; one header per project. Bare
+  invocation outside a project is an error, never a silent cwd scan.
+  Artifact-producing commands (`compile`, `export`) still require explicit
   paths/globs.
 - **Write-back safety.** Any command that modifies a file (`fmt`, `insert`) is
   lossless — only the targeted entry block changes, surrounding content

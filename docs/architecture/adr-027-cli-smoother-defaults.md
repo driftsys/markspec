@@ -189,6 +189,14 @@ exit 1; project policy forbids persistently demoting a real error). The `doctor`
 code is non-`MSL` (like `toolchain-below-floor`), deliberately outside the
 governed diagnostic catalogue and the ADR-012 migration.
 
+**Amendment (2026-10-31, #856): nested projects.** Bare `check`, `lint`, `fmt`,
+and the shared collector apply the same ownership rule: a file belongs to its
+nearest project root, found with `discoverOwnedFiles` in
+`core/discovery/projects.ts`. A folder with its own `project.yaml` is a separate
+project (ADR-028 §7). `lock` and `check` therefore walk the same file set for
+each project, so the parity holds per project, and each nested project has its
+own `markspec.lock`.
+
 ### Known limitation
 
 Bare invocation (`check`/`lint`/`fmt` with no file arguments) discovers the

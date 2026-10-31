@@ -277,6 +277,15 @@ rather than silently scanning the cwd. `fmt`'s scope is markdown-only — the
 formatter never rewrites source files, unlike `check`/`lint` which also cover
 source doc comments.
 
+**Nested projects.** A folder below the project root that has its own
+`project.yaml` is a separate project (ADR-028 §7). A file belongs to its nearest
+project root. Bare `fmt` formats the root project first, then each nested
+project in sorted order, and each uses its own profile and reference index, with
+one summary line per project. The exit code is the worst over all projects. Each
+project applies only its own `.markspec.yaml` `exclude:` list; the root's list
+decides which nested roots are found but is not applied inside a nested project.
+Explicit file arguments keep their exact scope and are formatted as one graph.
+
 **Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
 formats the entire Markdown document — headings, lists, tables, and prose —
 through an embedded dprint-markdown plugin, with one fixed, zero-config style:
@@ -369,6 +378,17 @@ scope header to stderr (`checking N file(s) under <root>`), suppressed by `-q`
 and in `--format json` mode. Bare invocation requires a discoverable
 `project.yaml`; outside a project it errors rather than silently scanning the
 cwd.
+
+**Nested projects.** A folder below the project root that has its own
+`project.yaml` is a separate project (ADR-028 §7). A file belongs to its nearest
+project root. Bare `check` checks the root project first, then each nested
+project in sorted order, and each is checked with its own profile, graph,
+`markspec.lock`, and gates, with one scope header per project. `--format json`
+stays one flat array of diagnostics, and `--strict` applies to every project.
+The exit code is the worst over all projects. Each project applies only its own
+`.markspec.yaml` `exclude:` list; the root's list decides which nested roots are
+found but is not applied inside a nested project. Explicit file arguments keep
+their exact scope and are checked as one graph.
 
 **The composite gate is project-wide only.** Bare `markspec check` runs every
 gate below over the whole corpus in one pass, merging findings into a single
@@ -695,6 +715,18 @@ markspec lint [...paths]
 `.markspec.yaml` `exclude:`) as `check`/`fmt`, with a scope header on stderr
 suppressed by `-q` / `--format json`.
 
+**Nested projects.** A folder below the project root that has its own
+`project.yaml` is a separate project (ADR-028 §7). A file belongs to its nearest
+project root. Bare `lint` lints the root project first, then each nested project
+in sorted order, and each uses its own profile and corpus, with one score
+summary per project. `--format json` stays one `{diagnostics, score}` object
+with the diagnostics concatenated. The score combines all projects: `bandCounts`
+are summed and `mean` is weighted by the number of scored entries. The exit code
+is the worst over all projects. Each project applies only its own
+`.markspec.yaml` `exclude:` list; the root's list decides which nested roots are
+found but is not applied inside a nested project. Explicit file arguments keep
+their exact scope and are linted as one graph.
+
 A project-wide `markspec check` already runs these same prose rules as an
 advisory (warning-level) gate — `lint` is useful on its own as a focused,
 review-time surface with its own score roll-up and band summary, and for running
@@ -743,6 +775,10 @@ records sync mappings discovered under `.markspec/sync/`.
 ```sh
 markspec lock
 ```
+
+`lock` pins only the files of its own project. A nested project (a folder below
+with its own `project.yaml`) has its own `markspec.lock`; run `markspec lock` in
+it. `compile --frozen` and `doctor` follow the same rule.
 
 | Flag       | Type   | Default | Description                                                                 |
 | ---------- | ------ | ------- | --------------------------------------------------------------------------- |
