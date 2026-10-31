@@ -485,22 +485,19 @@ function extractEntry(
       // A colon inside prose ("modes are: fast") or a Markdown table row
       // ("| Fast | latency: 200ms |") is body content, not a malformed
       // trailer — stop scanning at it (#648). A pipe always means a table
-      // cell. Internal whitespace usually means prose, EXCEPT a space-for-
-      // hyphen typo of a real trailer key (`Verified by` for `Verified-by`):
-      // that is a malformed trailer the author intended and must still fire
-      // MSL-P022 rather than silently dropping the trace link (#697). Detect
-      // it by normalising spaces to hyphens and checking the recognised
-      // trailer-key vocabulary.
+      // cell; the checks below handle Markdown punctuation, internal
+      // whitespace, and the other punctuation.
       if (key.includes("|")) break;
       // Markdown punctuation before the colon (`**Rationale:**`,
       // `[link](http://…)`, `` `mode:fast` ``, `<mailto:…>`) means inline
       // Markdown in prose. A trailer key never holds it, so stop here too.
       if (/[*[\]()<>`]/.test(key)) break;
       // A typo of a recognized trailer key (`Verified by`, `Verified.by`,
-      // `Satisfies.`) must still fire MSL-P022 below, so the trace link is
-      // not silently dropped (#697). Detect it by turning whitespace and
-      // the punctuation `.`, `/`, `,`, `'`, `"` into hyphens, trimming
-      // hyphens at both ends, and checking the recognized key vocabulary.
+      // `Verified,by`, `Satisfies"`) must still fire MSL-P022 below, so the
+      // trace link is not silently dropped (#697). Detect it by turning
+      // whitespace and the punctuation `.`, `/`, `,`, `'`, `"` into
+      // hyphens, trimming hyphens at both ends, and checking the recognized
+      // key vocabulary.
       const typoOfKnownKey = RECOGNIZED_TRAILER_KEYS.has(
         key.replace(/[\s./,'"]+/g, "-").replace(/^-+|-+$/g, ""),
       );
@@ -622,10 +619,11 @@ function extractEntry(
   // loose lists have a blank line between title and body, so the body is at
   // (entry_line + 2), not (entry_line + 1).
   //
-  // columnOffset: body text has been stripped of the list-item indent (e.g.,
-  // "  " for column-1 items), so each token column must be bumped by that
-  // indent width. The + 2 accounts for the "  " continuation indent
-  // prepended by wrapAsListItem to every non-title line.
+  // columnOffset: body text has been stripped of the list-item content
+  // indent (itemContentIndent: 2 for `- [ID]`, 4 for `-   [ID]` or
+  // `1.  [ID]`), so each token column is bumped by that width. For a source
+  // doc comment, wrapAsListItem writes `- ` and a 2-space indent on every
+  // non-title line, so the width is 2 there.
   const bodyIndent = itemContentIndent(item);
   const bodyStartLine = item.children[1]?.position?.start.line ?? (line + 1);
   const bodyTokens = extractBodyTokens(

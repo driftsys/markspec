@@ -458,3 +458,25 @@ Deno.test("replaceEntryBody: refuses an entry whose trailer has a punctuation ty
     );
   }
 });
+
+Deno.test("readEntryBody and replaceEntryBody: an ordered item or five spaces after the marker is no entry", async () => {
+  // Ordered lists never hold entries, and five or more spaces after the
+  // marker make the title an indented code block. So the body indent is
+  // only ever computed for a bullet followed by one to four spaces.
+  for (
+    const title of ["1.  [REQ_0001] First", "-     [REQ_0001] First"]
+  ) {
+    const text = `${title}
+
+      Body one.
+
+          Id: 01JBRK00000000000000000001
+`;
+    assertEquals(await readEntryBody(text, FILE, "REQ_0001"), undefined);
+    assertEquals(
+      await replaceEntryBody(text, FILE, "REQ_0001", "New body."),
+      { ok: false, refusal: "entry-not-found" },
+      title,
+    );
+  }
+});

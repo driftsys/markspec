@@ -1077,3 +1077,37 @@ Deno.test("parseMarkdown: the body of an item with three spaces after the marker
   assertEquals(entries[0].id, ULID);
   assertEquals(diagnostics.filter((d) => d.severity === "error"), []);
 });
+
+Deno.test("parseMarkdown: body token columns follow the item content of a `-   [ID]` item", () => {
+  // The body is indented by four spaces, so "shall" in "    The lamp shall"
+  // starts at column 14 (1-based). A marker-plus-two indent would give 12.
+  const md = `-   [STK_0017] Title
+
+    The lamp shall light within 100 ms.
+
+        Id: ${ULID}
+`;
+  const { entries } = parseMarkdown(md);
+  const modal = entries[0].bodyTokens.find((t) => t.kind === "modal")!;
+  assertEquals(modal.text, "shall");
+  assertEquals(modal.location.line, 3);
+  assertEquals(modal.location.column, 14);
+});
+
+Deno.test("parseMarkdown: a comma or quote typo of a known trailer key still raises MSL-P022", () => {
+  for (const last of ["Verified,by: TST_1", 'Satisfies": STK_0002']) {
+    const md = `- [STK_0018] Title
+
+  Body prose within 200 ms.
+
+      ${last}
+      Id: ${ULID}
+`;
+    const { diagnostics } = parseMarkdown(md);
+    assertEquals(
+      diagnostics.filter((d) => d.code === "MSL-P022").length,
+      1,
+      last,
+    );
+  }
+});

@@ -117,19 +117,17 @@ function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
 
 /**
  * 0-based content column of the list item whose marker starts at `marker`
- * on `line`: the marker width plus the spaces after it (CommonMark list
- * item rule). One to four spaces count in full; five or more mean the
- * content starts one space after the marker. So `- [ID]` gives the marker
- * column plus 2, and `-   [ID]` or `1.  [ID]` gives the marker column plus
- * 4. When the line does not start a list item at `marker`, the marker
- * column plus 2 is used, as in the formatter.
+ * on `line`: the marker column, plus 1 for the bullet, plus the spaces
+ * after it. So `- [ID]` gives the marker column plus 2 and `-   [ID]` gives
+ * the marker column plus 4. Only a bullet followed by one to four spaces
+ * can start an entry: ordered lists never hold entries, and five or more
+ * spaces make the title an indented code block. When the line does not
+ * start with a bullet and a space at `marker`, the marker column plus 2 is
+ * used, as in the formatter.
  */
 function contentColumn(line: string, marker: number): number {
-  const m = /^(?:[-*+]|\d{1,9}[.)])( +)/.exec(line.slice(marker));
-  if (!m) return marker + 2;
-  const markerWidth = m[0].length - m[1].length;
-  const spaces = m[1].length <= 4 ? m[1].length : 1;
-  return marker + markerWidth + spaces;
+  const m = /^[-*+]( +)/.exec(line.slice(marker));
+  return m ? marker + 1 + m[1].length : marker + 2;
 }
 
 /** Dedented span lines, trailing whitespace removed. */
@@ -296,10 +294,14 @@ export async function replaceEntryBody(
  * An unclosed fence or HTML block in the proposal (for example a final
  * line of three backticks) can swallow the target's trailer without any
  * parse diagnostic; this comparison and the body-equality check in
- * {@linkcode replaceEntryBody} are what refuse such an edit. Every known
- * input of that kind is refused by both checks, so each one alone refuses
- * it: the tests pin the pair, not either check by itself. Each check is a
- * backstop for the other.
+ * {@linkcode replaceEntryBody} are what refuse such an edit. No input is
+ * known that only one of the two refuses: the splice changes only body
+ * lines, so another entry, or the target's title or trailer, can change
+ * only through a block in the proposal that also changes the target body.
+ * (A link reference definition named like a later display ID does not
+ * remove that entry: the parser reads definitions only at the top level.)
+ * So the tests pin the pair, not either check by itself, and each check is
+ * a backstop for the other.
  */
 function sameEntries(
   before: readonly Entry[],
