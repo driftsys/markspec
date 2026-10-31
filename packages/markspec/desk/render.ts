@@ -102,6 +102,47 @@ export function buildDocumentView(
   };
 }
 
+/**
+ * The strong entity tag of the `DocumentView` that {@linkcode buildDocumentView}
+ * builds from the same arguments: a quoted SHA-256 hex digest of every input
+ * that can change the view.
+ *
+ * The render reads only the document text, the profile, and the set of known
+ * display IDs. The profile is fixed for a server session. Of the known IDs,
+ * only those whose text occurs in the document can become links, so an edit
+ * elsewhere in the product changes the tag only when it adds or removes an
+ * entry that the document mentions. The `entries` list also comes from the
+ * graph, so its display IDs are part of the hash.
+ */
+export async function documentEtag(
+  apiVersion: number,
+  compiled: CompileResult,
+  path: string,
+  entries: readonly Entry[],
+  text: string,
+): Promise<string> {
+  const mentioned = [...knownDisplayIds(compiled)]
+    .filter((id) => text.includes(id))
+    .sort();
+  // NUL never occurs in a path, a display ID, or Markdown text that the
+  // renderer accepts, so the joined fields cannot run into each other.
+  const input = [
+    String(apiVersion),
+    path,
+    entries.map((e) => e.displayId).join("\n"),
+    mentioned.join("\n"),
+    text,
+  ].join("\0");
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(input),
+  );
+  const hex = [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `"${hex}"`;
+}
+
 /** Build the `EntryHtmlView` of one entry. */
 export function buildEntryHtmlView(
   apiVersion: number,

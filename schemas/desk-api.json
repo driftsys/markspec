@@ -44,7 +44,7 @@
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization`.",
+                "description": "`Authorization, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -109,7 +109,7 @@
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization`.",
+                "description": "`Authorization, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -205,7 +205,7 @@
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization`.",
+                "description": "`Authorization, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -226,7 +226,7 @@
       "get": {
         "operationId": "getDocument",
         "summary": "One rendered document",
-        "description": "Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans.",
+        "description": "Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans. The 200 response carries a strong ETag computed from every input of the render: the document text, the path, the entries of the file, and the display IDs in the graph that occur in the text. A request whose If-None-Match names the current tag gets 304 with no body, and the server does not render the document. Browser clients can read the ETag header: every response to an allowed Origin carries `Access-Control-Expose-Headers: ETag`.",
         "parameters": [
           {
             "name": "path",
@@ -237,15 +237,45 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "description": "The ETag of the render the client holds. `*` and a comma-separated list are accepted; a `W/` prefix is ignored.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "The rendered document",
+            "headers": {
+              "ETag": {
+                "description": "Strong entity tag of this render: a quoted SHA-256 hex digest.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9a-f]{64}\"$"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The render named by If-None-Match is current. No body.",
+            "headers": {
+              "ETag": {
+                "description": "Strong entity tag of this render: a quoted SHA-256 hex digest.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9a-f]{64}\"$"
                 }
               }
             }
@@ -302,7 +332,7 @@
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization`.",
+                "description": "`Authorization, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }
@@ -399,7 +429,7 @@
                 }
               },
               "Access-Control-Allow-Headers": {
-                "description": "`Authorization`.",
+                "description": "`Authorization, If-None-Match`.",
                 "schema": {
                   "type": "string"
                 }

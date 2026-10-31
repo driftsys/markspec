@@ -82,10 +82,10 @@ stays TypeScript. Everything lives in this repository.
 
   The desk backend shall answer an `OPTIONS` request from an allowed origin with
   HTTP status 204 before the backend checks the bearer token. The response shall
-  carry `Access-Control-Allow-Origin` set to the request `Origin`,
-  `Access-Control-Allow-Methods: GET, OPTIONS`,
-  `Access-Control-Allow-Headers: Authorization`, `Access-Control-Max-Age: 600`,
-  and `Vary: Origin`.
+  carry these headers with these values: `Access-Control-Allow-Origin` with the
+  request `Origin`, `Access-Control-Allow-Methods` with `GET, OPTIONS`,
+  `Access-Control-Allow-Headers` with `Authorization, If-None-Match`,
+  `Access-Control-Max-Age` with `600`, and `Vary` with `Origin`.
 
       Id: 01M55JNXSH4RRPH8Z1SQ6M1V54
 
@@ -101,6 +101,31 @@ stays TypeScript. Everything lives in this repository.
   for a request without `path`.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
+
+- [SAD_DESK_0013] Entity tag on rendered documents
+
+  The desk backend shall send an `ETag` header with every HTTP status 200
+  response to `GET /api/v1/documents`, with a value that changes when the
+  document text changes or when an entry whose display ID occurs in that text is
+  added to or removed from the graph.
+
+      Id: 01M684SWWG8YV437XGYAX63E0Q
+
+- [SAD_DESK_0014] Conditional document requests
+
+  The desk backend shall answer a `GET /api/v1/documents` request whose
+  `If-None-Match` header names the current `ETag` of that document with HTTP
+  status 304 and an empty body.
+
+      Id: 01M684SWWGS4G5H2AFGZXZR43C
+
+- [SAD_DESK_0015] Document revalidation in the UI
+
+  The MarkDesk UI shall request the document of the selected entry, with the
+  `ETag` of its cached render in `If-None-Match`, when the selection changes and
+  when the app window receives focus.
+
+      Id: 01M684SWWGE4T4FEFXQJGKFWP2
 
 The per-launch nonce token is the only credential of the desk API. The `Origin`
 check limits which browser pages can call the API; it does not authenticate the
@@ -325,9 +350,21 @@ navigator, and shows the whole document an entry lives in.
   when its stdin closes. Tests drive the UI against a mocked client; there is no
   end-to-end test of the real window, only a manual smoke test in
   `apps/markdesk/README.md`.
-- **Known limitation.** The UI caches each rendered document for the session of
-  an opened product. A document does not refresh after its file is edited
-  outside MarkDesk until the product is opened again.
+- **Document revalidation.** The UI keeps each rendered document with its `ETag`
+  for the session of an opened product, and never reuses one without asking the
+  server (SAD_DESK_0013 to SAD_DESK_0015). The tag is a quoted SHA-256 digest of
+  every input of the render: the API version, the path, the display IDs of the
+  file's entries, the known display IDs that occur in the text, and the text.
+  Titles from other files are not inputs, because the renderer does not read
+  them, and the profile is fixed for a server session. The server reads the file
+  on each request, so a 304 costs one file read and no render. The UI reads the
+  selection again when the selection changes and when the window receives focus;
+  an edit made in another application shows when the author returns to MarkDesk.
+  The scroll position moves only when the rendered HTML or the selection
+  changes, so a 304 leaves the view as it is. Preflight responses allow the
+  `If-None-Match` request header, and responses to an allowed origin carry
+  `Access-Control-Expose-Headers: ETag`. The change is additive, so `apiVersion`
+  stays 3.
 
 ## Alternatives rejected
 
@@ -405,6 +442,24 @@ with `*` would remove the Origin check as an additional protection layer next to
 the Host guard and the nonce. Validating `Access-Control-Request-Method` and
 `Access-Control-Request-Headers` on preflight adds code without adding
 protection, because the browser enforces the response headers itself.
+
+### A file watcher that pushes changes to the UI
+
+Watching the product folder in the server (`Deno.watchFs`) and pushing a change
+event to the UI over server-sent events would refresh a document while the
+window stays in the background. It needs a push channel that the read-only API
+does not have, and file watchers behave differently on macOS, Linux, and
+Windows. The server already finds changed files on each request (the
+mtime-refreshed compiled cache, and a fresh read of the document file), so a
+conditional request when the selection changes or the window receives focus
+gives the same result for a single author at the cost of one request.
+
+### One revision token for the whole product
+
+A single revision for the product, returned with each response, is simpler than
+a tag per document, but any edit anywhere would discard every cached render. A
+tag computed from the inputs of one render keeps the cache for documents the
+edit cannot change.
 
 ### Forge sign-in and clone as the first step
 

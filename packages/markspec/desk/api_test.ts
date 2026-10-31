@@ -2,6 +2,7 @@ import {
   assert,
   assertEquals,
   assertExists,
+  assertMatch,
   assertNotEquals,
   assertStringIncludes,
 } from "@std/assert";
@@ -692,7 +693,7 @@ Deno.test("desk api: preflight from a Tauri origin is 204 with CORS headers", as
   assertEquals(res.headers.get("access-control-allow-methods"), "GET, OPTIONS");
   assertEquals(
     res.headers.get("access-control-allow-headers"),
-    "Authorization",
+    "Authorization, If-None-Match",
   );
   assertEquals(res.headers.get("access-control-max-age"), "600");
   assertEquals(res.headers.get("vary"), "Origin");
@@ -953,6 +954,140 @@ Deno.test("desk api: documents renders cross-references for known targets", asyn
     body.html,
     '<span class="cross-ref" data-display-id="STK_BRK_0001">STK_BRK_0001</span>',
   );
+});
+
+/**
+ * A handler over the fixture whose `docs/system.md` text and compiled graph
+ * the test can change between requests, as an edit on disk would.
+ */
+async function editableHandler() {
+  const { compiled, profile } = await fixture;
+  const systemPath = join(FIXTURE_ROOT, "docs", "system.md");
+  const state = {
+    text: await Deno.readTextFile(systemPath),
+    compiled,
+  };
+  const h = createDeskHandler({
+    token: TOKEN,
+    allowedOrigins: ["http://localhost:5173"],
+    source: {
+      projectRoot: FIXTURE_ROOT,
+      profile,
+      getCompiled: () => Promise.resolve(state.compiled),
+      readFile: (p) =>
+        p === systemPath ? Promise.resolve(state.text) : readFile(p),
+      realPath,
+    },
+  });
+  return { h, state };
+}
+
+/** The graph without the entry `displayId`. */
+function withoutEntry(
+  compiled: CompileResult,
+  displayId: string,
+): CompileResult {
+  const entries = new Map(compiled.entries);
+  entries.delete(makeDisplayId(displayId));
+  return { ...compiled, entries };
+}
+
+const SYSTEM_DOC = "/api/v1/documents?path=docs/system.md";
+
+Deno.test("desk api: documents carries a strong ETag", async () => {
+  const { h } = await editableHandler();
+  const res = await h(get(SYSTEM_DOC));
+  assertEquals(res.status, 200);
+  await res.body?.cancel();
+  const etag = res.headers.get("etag");
+  assertExists(etag);
+  assertMatch(etag, /^"[0-9a-f]{64}"$/);
+});
+
+Deno.test("desk api: documents answers a matching If-None-Match with 304", async () => {
+  const { h } = await editableHandler();
+  const first = await h(get(SYSTEM_DOC));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  const second = await h(
+    get(SYSTEM_DOC, { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 304);
+  assertEquals(await second.text(), "");
+  assertEquals(second.headers.get("etag"), etag);
+  assertEquals(second.headers.get("cache-control"), "no-store");
+});
+
+Deno.test("desk api: documents matches any listed or weak ETag in If-None-Match", async () => {
+  const { h } = await editableHandler();
+  const first = await h(get(SYSTEM_DOC));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  for (const header of [`"other", ${etag}`, `W/${etag}`, "*"]) {
+    const res = await h(
+      get(SYSTEM_DOC, { headers: { "if-none-match": header } }),
+    );
+    assertEquals(res.status, 304, header);
+    await res.body?.cancel();
+  }
+});
+
+Deno.test("desk api: documents returns the new render after the file is edited", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get(SYSTEM_DOC));
+  const before = await first.json();
+  const etag = first.headers.get("etag")!;
+  assert(!before.html.includes("Edited on disk"));
+  state.text = `${state.text}\nEdited on disk.\n`;
+  const second = await h(
+    get(SYSTEM_DOC, { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 200);
+  assertNotEquals(second.headers.get("etag"), etag);
+  assertStringIncludes((await second.json()).html, "Edited on disk");
+});
+
+Deno.test("desk api: the ETag follows the known display IDs the document mentions", async () => {
+  const { h, state } = await editableHandler();
+  const etagOf = async () => {
+    const res = await h(get(SYSTEM_DOC));
+    await res.body?.cancel();
+    return res.headers.get("etag")!;
+  };
+  const original = await etagOf();
+  const full = state.compiled;
+  // SRS_BRK_0001 is not mentioned in system.md: its render cannot change.
+  state.compiled = withoutEntry(full, "SRS_BRK_0001");
+  assertEquals(await etagOf(), original);
+  // STK_BRK_0001 is a cross-reference in system.md: it stops being a link.
+  state.compiled = withoutEntry(full, "STK_BRK_0001");
+  assertNotEquals(await etagOf(), original);
+});
+
+Deno.test("desk api: preflight allows If-None-Match and responses expose ETag", async () => {
+  const { h } = await editableHandler();
+  const origin = "http://localhost:5173";
+  const preflight = await h(
+    new Request(`${BASE}${SYSTEM_DOC}`, {
+      method: "OPTIONS",
+      headers: { origin },
+    }),
+  );
+  assertEquals(preflight.status, 204);
+  assertEquals(
+    preflight.headers.get("access-control-allow-headers"),
+    "Authorization, If-None-Match",
+  );
+  const first = await h(get(SYSTEM_DOC, { headers: { origin } }));
+  await first.body?.cancel();
+  assertEquals(first.headers.get("access-control-expose-headers"), "ETag");
+  const etag = first.headers.get("etag")!;
+  const second = await h(
+    get(SYSTEM_DOC, { headers: { origin, "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 304);
+  assertEquals(second.headers.get("access-control-allow-origin"), origin);
+  assertEquals(second.headers.get("access-control-expose-headers"), "ETag");
 });
 
 Deno.test("desk api: documents rejects missing path with 400", async () => {

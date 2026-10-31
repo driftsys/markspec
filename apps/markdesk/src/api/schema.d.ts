@@ -58,7 +58,7 @@ export interface paths {
     };
     /**
      * One rendered document
-     * @description Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans.
+     * @description Renders a project Markdown file that holds at least one project entry to an HTML fragment. Display IDs of entries in the graph become cross-reference spans. The 200 response carries a strong ETag computed from every input of the render: the document text, the path, the entries of the file, and the display IDs in the graph that occur in the text. A request whose If-None-Match names the current tag gets 304 with no body, and the server does not render the document. Browser clients can read the ETag header: every response to an allowed Origin carries `Access-Control-Expose-Headers: ETag`.
      */
     get: operations["getDocument"];
     put?: never;
@@ -290,7 +290,7 @@ export interface operations {
           "Access-Control-Allow-Origin"?: string;
           /** @description `GET, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization`. */
+          /** @description `Authorization, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -360,7 +360,7 @@ export interface operations {
           "Access-Control-Allow-Origin"?: string;
           /** @description `GET, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization`. */
+          /** @description `Authorization, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -377,7 +377,10 @@ export interface operations {
         /** @description Project-relative path with `/` separators. */
         path: string;
       };
-      header?: never;
+      header?: {
+        /** @description The ETag of the render the client holds. `*` and a comma-separated list are accepted; a `W/` prefix is ignored. */
+        "If-None-Match"?: string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -386,11 +389,22 @@ export interface operations {
       /** @description The rendered document */
       200: {
         headers: {
+          /** @description Strong entity tag of this render: a quoted SHA-256 hex digest. */
+          ETag?: string;
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["DocumentView"];
         };
+      };
+      /** @description The render named by If-None-Match is current. No body. */
+      304: {
+        headers: {
+          /** @description Strong entity tag of this render: a quoted SHA-256 hex digest. */
+          ETag?: string;
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description `path` is missing */
       400: {
@@ -430,7 +444,7 @@ export interface operations {
           "Access-Control-Allow-Origin"?: string;
           /** @description `GET, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization`. */
+          /** @description `Authorization, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -500,7 +514,7 @@ export interface operations {
           "Access-Control-Allow-Origin"?: string;
           /** @description `GET, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization`. */
+          /** @description `Authorization, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
@@ -570,7 +584,7 @@ export interface operations {
           "Access-Control-Allow-Origin"?: string;
           /** @description `GET, OPTIONS`. */
           "Access-Control-Allow-Methods"?: string;
-          /** @description `Authorization`. */
+          /** @description `Authorization, If-None-Match`. */
           "Access-Control-Allow-Headers"?: string;
           /** @description `600` seconds. */
           "Access-Control-Max-Age"?: string;
