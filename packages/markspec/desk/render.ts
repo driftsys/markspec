@@ -132,6 +132,14 @@ export async function documentEtag(
     await knownIdsDigest(compiled),
     text,
   ].map((field) => `${field.length}:${field}`).join("");
+  return await quotedDigest(input);
+}
+
+/**
+ * Strong entity tag of `input`: its quoted SHA-256 hex digest. Shared by the
+ * document and tree tags so both keep one format.
+ */
+export async function quotedDigest(input: string): Promise<string> {
   // `sha256String` returns `sha256:<hex>`; the tag is the quoted hex alone.
   const digest = await sha256String(input);
   return `"${digest.slice(digest.indexOf(":") + 1)}"`;

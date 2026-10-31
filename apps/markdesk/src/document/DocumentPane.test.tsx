@@ -542,9 +542,8 @@ describe("DocumentPane", () => {
     expect(screen.queryByText("line three")).toBeNull();
     expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
     select("MISSING");
-    expect(
-      await screen.findByText("MarkDesk could not show this requirement."),
-    ).toBeTruthy();
+    expect(await screen.findByText("MISSING is not in this product."))
+      .toBeTruthy();
     expect(screen.queryByText("Brakes")).toBeNull();
     expect(document.querySelector(".document-content")).toBeNull();
   });
@@ -580,10 +579,39 @@ describe("DocumentPane", () => {
   });
 
   it("shows a message for a server error", async () => {
-    const { select } = mount();
-    select("MISSING");
+    const { select } = mount(fakeClient({
+      entry: vi.fn(async () => {
+        throw new DeskError(500, "internal", "boom");
+      }),
+    }));
+    select(ID);
     expect(
       await screen.findByText("MarkDesk could not show this requirement."),
     ).toBeTruthy();
+  });
+
+  it("shows no error when the selected entry is removed on disk", async () => {
+    let removed = false;
+    const base = fakeClient();
+    const client = fakeClient({
+      entry: vi.fn(async (id: string) => {
+        if (removed && id === ID) {
+          throw new DeskError(404, "entry-not-found", "missing");
+        }
+        return base.entry(id);
+      }),
+    });
+    const { select, history } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    removed = true;
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText(`${ID} is not in this product.`))
+      .toBeTruthy();
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(history().current).toBe(ID);
   });
 });

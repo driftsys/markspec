@@ -12,7 +12,10 @@ import {
 export interface Refresh {
   /** Bumped on each refresh. Panes read their data again when it changes. */
   revision: number;
-  /** Ask every pane to check its data with the server. */
+  /**
+   * Ask every pane to check its data with the server. Window focus calls it
+   * today; a future write path (#837) is meant to call it after a write.
+   */
   refresh(): void;
 }
 
@@ -24,9 +27,8 @@ const RefreshContext = createContext<Refresh>({
 /**
  * Holds one refresh counter for the panes below it. The counter is bumped
  * when the window receives focus, because the author may have edited the
- * product's files in another application, and by {@linkcode Refresh.refresh}
- * after a write made by MarkDesk itself. The navigator and the document pane
- * both revalidate on it, so the two panes never disagree for long.
+ * product's files in another application. The navigator and the document
+ * pane both revalidate on it, so they show the same state of the files.
  */
 export function RefreshProvider(props: { children: ReactNode }) {
   const [revision, setRevision] = useState(0);

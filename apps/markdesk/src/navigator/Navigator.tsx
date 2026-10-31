@@ -102,12 +102,13 @@ function Row(
 /**
  * Loads the open product's tree and shows it in the navigator.
  *
- * The tree is checked with the server on every refresh (window focus, or a
- * write by MarkDesk): the request carries the ETag of the tree held, and on
- * 304 the held tree stays as it is, so expanded rows and the selection are
- * untouched. A changed tree replaces the model in place; the `Navigator`
- * is not remounted, so rows that still exist keep their expansion. A failed
- * check after a successful load keeps the tree shown.
+ * The tree is checked with the server on every refresh (window focus): the
+ * request carries the ETag of the tree held, and on 304 the held tree stays
+ * as it is, so expanded rows and the selection are untouched. A changed tree
+ * replaces the model in place; the `Navigator` is not remounted, so rows
+ * that still exist keep their expansion. A failed check after a successful
+ * load keeps the tree shown, and a successful check clears an earlier load
+ * failure.
  */
 export function NavigatorPane() {
   const { client } = useOpenProduct();
@@ -115,24 +116,35 @@ export function NavigatorPane() {
   const { revision } = useRefresh();
   const [tree, setTree] = useState<CachedTree>();
   const [failed, setFailed] = useState(false);
-  // The tree the next check sends its ETag for. A ref, so a refresh does
-  // not depend on the state and the check effect runs once per revision.
-  const held = useRef<CachedTree>(undefined);
-  useEffect(() => {
-    held.current = undefined;
-    setTree(undefined);
-    setFailed(false);
-  }, [client]);
+  // The tree the next check sends its ETag for, with the client it came
+  // from. A ref, so the check effect runs once per revision; a tree of
+  // another product's client is never sent.
+  const held = useRef<{ client: typeof client; tree: CachedTree }>(undefined);
   useEffect(() => {
     let current = true;
-    client.tree(held.current).then((loaded) => {
-      if (!current || loaded === held.current) return;
-      held.current = loaded;
+    const previous = held.current?.client === client
+      ? held.current.tree
+      : undefined;
+    if (previous === undefined) {
+      setTree(undefined);
+      setFailed(false);
+    }
+    client.tree(previous).then((loaded) => {
+      if (!current) return;
+      setFailed(false);
+      if (loaded === previous) return;
+      held.current = { client, tree: loaded };
       setTree(loaded);
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (error instanceof DeskError && error.code === "network") return;
-      if (current && held.current === undefined) setFailed(true);
+      if (!current) return;
+      if (previous === undefined) {
+        setFailed(true);
+      } else {
+        // Keep the shown tree; leave a trace for diagnosis.
+        console.warn("MarkDesk could not refresh the product tree", error);
+      }
     });
     return () => {
       current = false;

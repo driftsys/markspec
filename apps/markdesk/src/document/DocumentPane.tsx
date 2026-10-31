@@ -160,13 +160,16 @@ export function DocumentPane() {
   // What was loaded, tagged with the display ID it was loaded for, so a
   // result never shows for another selection.
   const [loaded, setLoaded] = useState<
-    { id: string; reading?: Reading; failed?: boolean }
+    { id: string; reading?: Reading; failed?: boolean; gone?: boolean }
   >();
   const reading = loaded?.id === selected ? loaded?.reading : undefined;
   const failed = loaded?.id === selected && loaded?.failed === true;
+  // The entry is not in the product, for example after it was removed on
+  // disk. This is a state of the files, not a failure, so it is no alert.
+  const gone = loaded?.id === selected && loaded?.gone === true;
   const [sourceOpen, setSourceOpen] = useState(false);
-  // Bumped when the window gets focus and after a write by MarkDesk, so the
-  // selection is read again: the product's files may have changed.
+  // Bumped when the window gets focus, so the selection is read again: the
+  // product's files may have changed in another application.
   const { revision } = useRefresh();
   const content = useRef<HTMLDivElement>(null);
   // Rendered documents of the current product with their ETags, by path.
@@ -187,7 +190,12 @@ export function DocumentPane() {
     }, (error: unknown) => {
       // Network failures are handled by the connection watcher.
       if (isNetworkFailure(error)) return;
-      if (current) setLoaded({ id: selected, failed: true });
+      if (!current) return;
+      if (error instanceof DeskError && error.code === "entry-not-found") {
+        setLoaded({ id: selected, gone: true });
+      } else {
+        setLoaded({ id: selected, failed: true });
+      }
     });
     return () => {
       current = false;
@@ -302,6 +310,11 @@ export function DocumentPane() {
       {failed && (
         <p role="alert" className="document-error">
           MarkDesk could not show this requirement.
+        </p>
+      )}
+      {gone && (
+        <p role="status" className="document-empty">
+          {`${selected} is not in this product.`}
         </p>
       )}
       <div className="document-body">

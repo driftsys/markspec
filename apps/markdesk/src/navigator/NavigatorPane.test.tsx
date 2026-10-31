@@ -126,6 +126,7 @@ describe("NavigatorPane refresh", () => {
   });
 
   it("keeps the shown tree when a refresh fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     let calls = 0;
     const client = vi.fn(async () => {
       if (calls++ === 0) return cachedTree(tree([parent], [], ["P"]));
@@ -134,10 +135,54 @@ describe("NavigatorPane refresh", () => {
     mount(client);
     expect(await screen.findByText("P")).toBeTruthy();
     focusWindow();
-    await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
-    await new Promise((r) => setTimeout(r, 10));
+    // The failed check is reported once it has settled.
+    await waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
     expect(screen.getByText("P")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+    warn.mockRestore();
+  });
+
+  it("clears a load failure when a later refresh succeeds", async () => {
+    let calls = 0;
+    const client = vi.fn(async () => {
+      if (calls++ === 0) throw new DeskError(500, "internal", "boom");
+      return cachedTree(tree([parent], [], ["P"]));
+    });
+    mount(client);
+    expect(await screen.findByText("MarkDesk could not load this product."))
+      .toBeTruthy();
+    focusWindow();
+    expect(await screen.findByText("P")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("never sends the tree of another product's client", async () => {
+    const first = cachedTree(tree([parent], [], ["P"]), '"1"');
+    const one = vi.fn(async (_cached?: CachedTree) => first);
+    const two = vi.fn(async (_cached?: CachedTree) =>
+      cachedTree(tree([child], [], ["R1"]), '"2"')
+    );
+    const view = (tree: typeof one) => (
+      <ProductContext.Provider
+        value={{
+          root: "/p",
+          name: "p",
+          client: { tree } as unknown as DeskClient,
+        }}
+      >
+        <HistoryProvider mac={false}>
+          <RefreshProvider>
+            <NavigatorPane />
+          </RefreshProvider>
+        </HistoryProvider>
+      </ProductContext.Provider>
+    );
+    const { rerender } = render(view(one));
+    expect(await screen.findByText("P")).toBeTruthy();
+    rerender(view(two));
+    expect(await screen.findByText("R1")).toBeTruthy();
+    expect(two).toHaveBeenCalledTimes(1);
+    expect(two.mock.calls[0][0]).toBeUndefined();
   });
 });
 

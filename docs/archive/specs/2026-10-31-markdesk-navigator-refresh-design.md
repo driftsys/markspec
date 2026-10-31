@@ -47,4 +47,6 @@ edit outside MarkDesk the two panes disagree until the product is opened again.
   ETag and 304 on `/tree`.
 - ADR-035 "As built" describes the refresh.
 
-Satisfies: SAD_DESK_0013 to SAD_DESK_0015 (same pattern, extended to the tree).
+Related records: ADR-035 entries SAD_DESK_0013, SAD_DESK_0014 and SAD_DESK_0015
+(the document ETag pattern this extends), and SAD_DESK_0016 to SAD_DESK_0020
+(written for this feature).

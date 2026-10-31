@@ -1458,6 +1458,48 @@ Deno.test("desk api: tree ETag changes when an entry is removed", async () => {
   assert(!after.nodes.some((n) => n.displayId === "SYS_BRK_0001"));
 });
 
+Deno.test("desk api: tree ETag changes when an entry title changes", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  await first.body?.cancel();
+  const etag = first.headers.get("etag")!;
+  state.compiled = withTitle(state.compiled, "SYS_BRK_0001", "Renamed");
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 200);
+  const after = await second.json() as ProductTree;
+  assertNotEquals(second.headers.get("etag"), etag);
+  assertEquals(
+    after.nodes.find((n) => n.displayId === "SYS_BRK_0001")?.title,
+    "Renamed",
+  );
+});
+
+Deno.test("desk api: tree ETag changes when a tree link is removed", async () => {
+  const { h, state } = await editableHandler();
+  const first = await h(get("/api/v1/tree"));
+  const before = await first.json() as ProductTree;
+  const etag = first.headers.get("etag")!;
+  const [removed] = before.edges;
+  assertExists(removed);
+  state.compiled = {
+    ...state.compiled,
+    links: state.compiled.links.filter((l) =>
+      !(l.from === removed.from && l.to === removed.to)
+    ),
+  };
+  const second = await h(
+    get("/api/v1/tree", { headers: { "if-none-match": etag } }),
+  );
+  assertEquals(second.status, 200);
+  const after = await second.json() as ProductTree;
+  assertNotEquals(second.headers.get("etag"), etag);
+  assert(
+    !after.edges.some((e) => e.from === removed.from && e.to === removed.to),
+  );
+});
+
 Deno.test("desk api: tree ETag keeps the tag for an unchanged graph", async () => {
   const { h, state } = await editableHandler();
   const first = await h(get("/api/v1/tree"));

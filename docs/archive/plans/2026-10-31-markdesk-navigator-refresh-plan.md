@@ -1,7 +1,7 @@
 # Plan: MarkDesk navigator refresh (#842)
 
-Spec: `docs/wip/specs/2026-10-31-markdesk-navigator-refresh-design.md`. Executed
-inline, test first per step.
+Spec: `docs/archive/specs/2026-10-31-markdesk-navigator-refresh-design.md`.
+Executed inline, test first per step.
 
 1. **Server** (`packages/markspec/desk/api.ts`, `api_test.ts`): tests for an
    ETag on `/tree`, 304 on a matching `If-None-Match`, a new tag after an entry

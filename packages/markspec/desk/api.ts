@@ -27,10 +27,11 @@
  * client keeps the render it has and sends its tag on each later request, so
  * an edit on disk shows on the next request, while an unchanged document
  * costs one file read and no render. A `/tree` 200 carries a strong `ETag`
- * too ({@linkcode treeEtag}, a digest of the serialized tree): a matching
- * `If-None-Match` gets 304 with no body, so the UI can revalidate the
- * navigator on window focus and after a write without receiving the tree
- * again while the graph is unchanged (#842).
+ * too, the digest of the serialized tree, which embeds the API version: a
+ * matching `If-None-Match` gets 304 with no body, so the UI can revalidate
+ * the navigator on window focus without receiving the tree again while the
+ * graph is unchanged (#842). The tree and its tag are built once per
+ * compiled graph.
  *
  * Every request must carry a loopback `Host` header (DNS-rebinding guard),
  * and every request except an allowed-origin CORS preflight must carry
@@ -63,13 +64,13 @@ import {
   type Entry,
   formatEntryOrigin,
   makeDisplayId,
-  sha256String,
 } from "../core/mod.ts";
 import {
   buildDocumentView,
   buildEntryHtmlView,
   documentEtag,
   projectEntriesOf,
+  quotedDigest,
   type SourceText,
   toApiPath,
 } from "./render.ts";
@@ -384,6 +385,29 @@ export function createDeskHandler(
     ...TAURI_ORIGINS,
     ...(options.allowedOrigins ?? []),
   ]);
+
+  // The serialized tree and its tag, built once per compiled graph. The
+  // profile and project name are fixed for the server session, so the graph
+  // object alone decides the tree.
+  const trees = new WeakMap<
+    CompileResult,
+    Promise<{ body: string; etag: string }>
+  >();
+  function treeOf(
+    compiled: CompileResult,
+  ): Promise<{ body: string; etag: string }> {
+    let tree = trees.get(compiled);
+    if (tree === undefined) {
+      const body = JSON.stringify(
+        buildProductTree(compiled, source.profile, source.projectName),
+      );
+      // The body embeds `apiVersion`, so the tag changes with the version.
+      tree = quotedDigest(body).then((etag) => ({ body, etag }));
+      trees.set(compiled, tree);
+    }
+    return tree;
+  }
+
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     const host = (request.headers.get("host") ?? url.host).replace(
@@ -460,10 +484,7 @@ export function createDeskHandler(
     );
     if (matchesEtag(request.headers.get("if-none-match"), etag)) {
       // The client's cached render is current: skip rendering.
-      return new Response(null, {
-        status: 304,
-        headers: { etag, "cache-control": "no-store" },
-      });
+      return notModified(etag);
     }
     const response = jsonResponse(
       200,
@@ -490,17 +511,10 @@ export function createDeskHandler(
     }
 
     if (url.pathname === "/api/v1/tree") {
-      const compiled = await source.getCompiled();
-      const body = JSON.stringify(
-        buildProductTree(compiled, source.profile, source.projectName),
-      );
-      const etag = await treeEtag(DESK_API_VERSION, body);
+      const { body, etag } = await treeOf(await source.getCompiled());
       if (matchesEtag(request.headers.get("if-none-match"), etag)) {
         // The client's tree is current: send no body.
-        return new Response(null, {
-          status: 304,
-          headers: { etag, "cache-control": "no-store" },
-        });
+        return notModified(etag);
       }
       const response = jsonTextResponse(200, body);
       response.headers.set("etag", etag);
@@ -616,19 +630,12 @@ function hasBearer(request: Request, token: string): boolean {
   return diff === 0;
 }
 
-/**
- * Strong entity tag of a `/tree` response: the quoted SHA-256 hex digest of
- * the API version and the serialized tree. The tree is built from the
- * compiled graph in a fixed order, so an unchanged graph yields the same tag
- * across compiles, and any added, removed, renamed, or re-linked entry
- * changes it.
- */
-export async function treeEtag(
-  apiVersion: number,
-  body: string,
-): Promise<string> {
-  const digest = await sha256String(`${apiVersion}:${body}`);
-  return `"${digest.slice(digest.indexOf(":") + 1)}"`;
+/** A 304 response that names the current `etag`. */
+function notModified(etag: string): Response {
+  return new Response(null, {
+    status: 304,
+    headers: { etag, "cache-control": "no-store" },
+  });
 }
 
 function jsonResponse(status: number, body: unknown): Response {
