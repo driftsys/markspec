@@ -165,6 +165,14 @@ fn swt_brk_0001_debounce_filters_noise() {
 **Mustache variables** — `{{project.name}}` substitution from `project.yaml`,
 resolved at build time.
 
+## MarkDesk
+
+MarkDesk is a desktop authoring app for MarkSpec products. It lives in
+[`apps/markdesk`](apps/markdesk/README.md): a React and Vite UI in a Tauri v2
+shell. The app starts `markspec desk --serve` as a sidecar and reads the product
+through that local API. MarkDesk is in development and is not yet released. The
+design is recorded in [ADR-035](docs/architecture/adr-035-markdesk.md).
+
 ## Install
 
 See [`docs/guide/installation.md`](docs/guide/installation.md) for the VS Code

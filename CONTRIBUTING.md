@@ -121,6 +121,48 @@ To work on the _extension itself_ (not the LSP server):
 To debug LSP crashes, set `markspec.trace.debugLog` to a writable file path in
 your workspace settings. Lifecycle events and uncaught errors land there.
 
+## MarkDesk development
+
+MarkDesk (`apps/markdesk/`) is a React and Vite UI in a Tauri v2 shell. It is
+not a Deno workspace member, so `just check` and `just build` do not build or
+test it. A path-filtered CI workflow (`.github/workflows/markdesk.yaml`) runs
+the checks below.
+
+Prerequisites:
+
+- Node 22 or newer, with npm.
+- Rust stable, with `rustfmt` and `clippy`, for the Tauri shell.
+- The Tauri v2 system dependencies for your platform. See
+  [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+- Deno, to run or compile the `markspec` sidecar.
+
+UI commands, run in `apps/markdesk/`:
+
+```bash
+npm ci                 # install the pinned dependencies
+npm test               # Vitest suite
+npm run typecheck      # tsc --noEmit
+npm run gen:client     # regenerate src/api/schema.d.ts from schemas/desk-api.json
+npm run tauri dev      # start the desktop shell against the Vite dev server
+```
+
+After an edit to `schemas/desk-api.json`, run `npm run gen:client` and commit
+the regenerated `src/api/schema.d.ts`. `scripts/check_desk_client.sh` fails CI
+when the generated client is stale.
+
+Shell commands, run from the repository root:
+
+```bash
+cargo fmt --manifest-path apps/markdesk/src-tauri/Cargo.toml --check
+cargo clippy --manifest-path apps/markdesk/src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path apps/markdesk/src-tauri/Cargo.toml
+```
+
+`tauri-build` requires the sidecar binary to exist, even for `cargo test`. Run
+`npm run build:sidecar` in `apps/markdesk/`, or create the empty placeholder
+that [`apps/markdesk/README.md`](apps/markdesk/README.md) describes. That README
+also has the manual smoke test of the real window.
+
 <!-- ref links -->
 
 [cc]: https://www.conventionalcommits.org/
