@@ -12,7 +12,9 @@
  */
 
 import type { Entry } from "../model/mod.ts";
+import { dirname } from "@std/path";
 import { discoverFiles, type DiscoveryIO } from "../discovery/mod.ts";
+import { nearestRoot } from "../discovery/projects.ts";
 import { parseFile } from "../parser/mod.ts";
 
 /** Options for {@linkcode collectProjectEntries}. */
@@ -20,6 +22,15 @@ export interface CollectOptions {
   /** Gitignore-syntax patterns (e.g. `project.yaml` `exclude:`), anchored at
    * `root`. Applied after `.gitignore` rules. Defaults to none. */
   readonly exclude?: readonly string[];
+  /** An enclosing project root whose `.gitignore` files, from it down to
+   * `root`, also apply (`discoverFiles` option of the same name). Pass the
+   * outermost project root above a nested project, so the nested project
+   * pins the files a bare `check` from any folder walks. */
+  readonly inheritGitignoreFrom?: string;
+  /** Roots of the projects nested below `root`. Their files belong to those
+   * projects and are skipped: each `markspec.lock` pins only the entries
+   * of its own project. Defaults to none. */
+  readonly nestedRoots?: readonly string[];
 }
 
 /**
@@ -40,7 +51,14 @@ export async function collectProjectEntries(
   opts: CollectOptions = {},
 ): Promise<Entry[]> {
   const out: Entry[] = [];
-  for await (const file of discoverFiles(root, io, { exclude: opts.exclude })) {
+  const roots = [root, ...opts.nestedRoots ?? []];
+  for await (
+    const file of discoverFiles(root, io, {
+      exclude: opts.exclude,
+      inheritGitignoreFrom: opts.inheritGitignoreFrom,
+    })
+  ) {
+    if (nearestRoot(dirname(file), roots) !== root) continue;
     const content = await io.readFile(file);
     if (content === undefined) continue;
     const result = await parseFile(content, { file });

@@ -193,6 +193,14 @@ export interface ProjectRootResolver {
    * `exclude:` list of `root`). Cached per root.
    */
   nestedRoots(root: string): Promise<string[]>;
+  /**
+   * The outermost project root at or above `dir`: the root from which the
+   * LSP would index `dir` when its workspace is the outermost project. A
+   * nested project's walk inherits the `.gitignore` files from this root
+   * down (`discoverFiles` option `inheritGitignoreFrom`). `undefined` when
+   * no `project.yaml` or `.markspec.yaml` is at or above `dir`.
+   */
+  outermostOf(dir: string): Promise<string | undefined>;
 }
 
 /**
@@ -219,6 +227,7 @@ export function createProjectRootResolver(
   options: ProjectDiscoveryOptions = {},
 ): ProjectRootResolver {
   const owners = new Map<string, Promise<string | undefined>>();
+  const outermosts = new Map<string, Promise<string | undefined>>();
   const nested = new Map<string, Promise<string[]>>();
 
   function nestedRoots(root: string): Promise<string[]> {
@@ -232,7 +241,16 @@ export function createProjectRootResolver(
     return found;
   }
 
-  async function resolveOwner(dir: string): Promise<string | undefined> {
+  function outermostOf(dir: string): Promise<string | undefined> {
+    let found = outermosts.get(dir);
+    if (found === undefined) {
+      found = resolveOutermost(dir);
+      outermosts.set(dir, found);
+    }
+    return found;
+  }
+
+  async function resolveOutermost(dir: string): Promise<string | undefined> {
     const nearest = await resolveConfigRoot(dir, io.readFile);
     if (nearest === undefined) return undefined;
     let outermost = nearest;
@@ -248,6 +266,13 @@ export function createProjectRootResolver(
       }
       outermost = above;
     }
+    return outermost;
+  }
+
+  async function resolveOwner(dir: string): Promise<string | undefined> {
+    const nearest = await resolveConfigRoot(dir, io.readFile);
+    if (nearest === undefined) return undefined;
+    const outermost = await outermostOf(dir) ?? nearest;
     if (outermost === nearest) return nearest;
     const roots = [outermost, ...await nestedRoots(outermost)];
     return nearestRoot(dir, roots) ?? outermost;
@@ -263,5 +288,6 @@ export function createProjectRootResolver(
       return owner;
     },
     nestedRoots,
+    outermostOf,
   };
 }

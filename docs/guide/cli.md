@@ -446,9 +446,10 @@ profile, and `markspec.lock` on every surface.
   `error: no project root found` and a hint that a `project.yaml` or
   `.markspec.yaml` marks a project root. Projects nested below the root (found
   as the LSP finds them) are processed as their own groups, each with its own
-  profile, `exclude:` list, and project-wide gates. The scope header then names
-  the number of projects: `checking N file(s) under <root> (K projects)`. With
-  one project, the header is unchanged: `checking N file(s) under <root>`.
+  profile, `exclude:` list, `markspec.lock`, and project-wide gates. The scope
+  header then names the number of projects:
+  `checking N file(s) under <root> (K projects)`. With one project, the header
+  is unchanged: `checking N file(s) under <root>`.
 
 **Exit codes:** `0` clean, `1` any error, `2` warnings only (no errors).
 `--strict` promotes every warning (including advisory prose findings) to an
@@ -815,6 +816,20 @@ markspec lock --check              # CI gate: fail if lockfile is stale
 markspec lock --update             # force re-resolve every reference
 markspec lock --update=refhub      # force re-resolve one reference by id
 ```
+
+**Which project.** `lock` and `sync` find the project root from the current
+directory the same way a bare `check` does: the nearest `project.yaml`, else the
+nearest `.markspec.yaml`, unless an enclosing project hides that config. Run
+from any folder of a project, `markspec lock` writes the lockfile at the project
+root. A project with a `.markspec.yaml` and no `project.yaml` is locked with the
+default settings (no `dependencies:` or `references:`).
+
+**What the lockfile pins.** A `markspec.lock` pins the trace edges of its own
+project only. The files of a project nested below it are pinned by that
+project's own lockfile. The files are the ones a bare `check` of the project
+walks: its `exclude:` list applies, and so do the `.gitignore` files from the
+outermost project root down. `check` (`MSL-L212`), `compile --frozen` and
+`doctor` compare against the same files, from any folder.
 
 **`references:` resolution — three flows.** Only `markspec lock` touches the
 network; `check`, `compile`, the LSP, and the MCP server resolve entirely

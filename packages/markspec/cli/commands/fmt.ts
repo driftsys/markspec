@@ -13,6 +13,7 @@ import {
   denoDiscoveryIO,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
+  projectCollectOptions,
   readFile,
   resolveScope,
 } from "../helpers.ts";
@@ -89,23 +90,17 @@ export const fmtCmd = new Command()
           const {
             buildRefIndex,
             collectProjectEntries,
-            loadToolConfig,
             parseLockfile,
           } = await import("../../core/mod.ts");
           const { join } = await import("@std/path");
-          // Honor .markspec.yaml `exclude:` so the canonicalisation corpus
-          // matches the one `check` (MSL-L006) and `lock` use — an entry in
-          // an excluded path (e.g. `skills/`) must not resolve trace
-          // references.
-          const toolConfigResult = await loadToolConfig(
-            group.projectRoot,
-            readFile,
-          );
-          const exclude = toolConfigResult.config.exclude;
+          // The canonicalisation corpus is the project's own file set, the
+          // one `check` (MSL-L006) and `lock` use: an entry in an excluded
+          // path (e.g. `skills/`) or in a nested project must not resolve
+          // trace references.
           const projectEntries = await collectProjectEntries(
             group.projectRoot,
             denoDiscoveryIO(),
-            { exclude },
+            await projectCollectOptions(group.projectRoot),
           );
           refIndex = buildRefIndex(projectEntries);
           const lockRaw = await readFile(
