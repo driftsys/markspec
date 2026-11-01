@@ -555,8 +555,16 @@ async function walkProjects(
   for (const projectRoot of roots) {
     const exclude = await loadExcludeOrExit(projectRoot);
     const treeFiles: string[] = [];
+    // A nested project's walk also applies the `.gitignore` files between
+    // the outermost root and its own root (not the enclosing `exclude:`
+    // lists), so it skips the files those `.gitignore` files ignore.
+    const inheritGitignoreFrom = projectRoot === root ? undefined : root;
     for await (
-      const f of discoverFiles(projectRoot, io, { extensions, exclude })
+      const f of discoverFiles(projectRoot, io, {
+        extensions,
+        exclude,
+        inheritGitignoreFrom,
+      })
     ) {
       treeFiles.push(f);
     }

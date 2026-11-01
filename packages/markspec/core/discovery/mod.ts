@@ -7,14 +7,16 @@
  * root, honoring (in precedence order):
  *
  *   1. built-in skips — hidden directories (name starts with `.`)
- *   2. `.gitignore` files (root + nested, standard semantics)
+ *   2. `.gitignore` files (root + nested, standard semantics), plus, when
+ *      the caller names an enclosing folder, the `.gitignore` files of the
+ *      folders from that folder down to the root's parent
  *   3. caller-supplied `exclude` patterns (gitignore syntax, root-anchored)
  *
  * I/O is injected via {@linkcode DiscoveryIO} so the module stays
  * Node-compatible; entry points supply the Deno implementation.
  */
 
-import { extname, join } from "@std/path";
+import { extname, join, relative, resolve, SEPARATOR } from "@std/path";
 import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 export { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
@@ -76,6 +78,16 @@ export interface DiscoverOptions {
   /** Extra gitignore-syntax patterns, anchored at `root` (e.g. from
    * project.yaml `exclude:`). Applied after `.gitignore` rules. */
   readonly exclude?: readonly string[];
+  /**
+   * An enclosing folder of `root`, such as the root of the project that a
+   * nested project lies in. The `.gitignore` files of the folders from it
+   * down to the parent of `root` also apply, each anchored to its own
+   * folder, so the walk of a nested project skips the files that those
+   * `.gitignore` files ignore. Only `.gitignore` files are inherited, not
+   * the enclosing folder's `exclude` patterns. No `.gitignore` above this
+   * folder is read. Ignored when it is not a strict ancestor of `root`.
+   */
+  readonly inheritGitignoreFrom?: string;
 }
 
 /**
@@ -117,22 +129,61 @@ export async function* discoverFiles(
   options: DiscoverOptions = {},
 ): AsyncGenerator<string> {
   const extensions = options.extensions ?? RELEVANT_EXTENSIONS;
+  const inherited = options.inheritGitignoreFrom === undefined
+    ? { rules: [], prefix: "" }
+    : await inheritedGitignoreRules(options.inheritGitignoreFrom, root, io);
+  // With inherited rules, every rule is matched against paths relative to
+  // the enclosing folder, so `prefix` is the path from it down to `root`.
+  const prefix = inherited.prefix;
   const excludeRules = parseGitignore(
     (options.exclude ?? []).join("\n"),
-    "",
+    prefix,
   );
-  // Built-in build-output skips are the lowest-precedence layer: `.gitignore`
-  // (appended per-directory in `walk`) and `exclude:` both come after, so a
-  // `!target/` negation in either overrides them.
+  // Built-in build-output skips are the lowest-precedence layer: inherited
+  // `.gitignore` rules, `exclude:`, and the walk's own `.gitignore` files
+  // (appended per-directory in `walk`) all come after, so a `!target/`
+  // negation in any of them overrides them.
   yield* walk(
     root,
-    "",
-    [...BUILTIN_SKIP_RULES, ...excludeRules],
+    prefix,
+    [...BUILTIN_SKIP_RULES, ...inherited.rules, ...excludeRules],
     io,
     extensions,
   );
 }
 
+/**
+ * Collect the `.gitignore` rules of the folders from `from` down to the
+ * parent of `root`, outermost first, each anchored to its own folder.
+ * Returns them with the POSIX path from `from` down to `root`. Returns no
+ * rules and an empty path when `from` is not a strict ancestor of `root`.
+ */
+async function inheritedGitignoreRules(
+  from: string,
+  root: string,
+  io: DiscoveryIO,
+): Promise<{ rules: GitignoreRule[]; prefix: string }> {
+  const rel = relative(resolve(from), resolve(root));
+  if (rel === "" || rel === ".." || rel.startsWith(`..${SEPARATOR}`)) {
+    return { rules: [], prefix: "" };
+  }
+  const segments = rel.split(SEPARATOR);
+  const rules: GitignoreRule[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const raw = await io.readFile(
+      join(from, ...segments.slice(0, i), ".gitignore"),
+    );
+    if (raw === undefined || raw.length === 0) continue;
+    rules.push(...parseGitignore(raw, segments.slice(0, i).join("/")));
+  }
+  return { rules, prefix: segments.join("/") };
+}
+
+/**
+ * Walk `absDir`. `relDir` is the POSIX path of `absDir` relative to the
+ * folder the rules are anchored at (the enclosing folder when rules are
+ * inherited, else the walk root); `""` for that folder itself.
+ */
 async function* walk(
   absDir: string,
   relDir: string,

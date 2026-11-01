@@ -348,3 +348,19 @@ decision text above is kept as it was written.
   other commands (`compile`, `lock`, `sync`, `show`, `export`, and so on) are
   unchanged: they still walk up from the current directory to the nearest
   `project.yaml`.
+
+## Amendment (2026-11-01, `.gitignore` files of the enclosing project)
+
+Since the 2026-10-31 amendment, a bare invocation walks each nested project from
+its own root. That walk did not apply the `.gitignore` files of the folders
+above the nested root, so a bare `fmt` formatted files inside a nested project
+that the enclosing project's `.gitignore` ignores.
+
+- The walk of a nested project also applies the `.gitignore` files of the
+  folders from the outermost project root down to the parent of the nested root,
+  each anchored to its own folder (`discoverFiles` option
+  `inheritGitignoreFrom`). It therefore skips the files that those `.gitignore`
+  files ignore. The `exclude:` lists of enclosing projects are not inherited;
+  each project applies only its own. This works with or without git.
+- No `.gitignore` file above the outermost project root is read. Walks of a
+  single root, the LSP, the MCP server, and `markspec lock` are unchanged.
