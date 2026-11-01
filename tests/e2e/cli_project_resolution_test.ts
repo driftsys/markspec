@@ -556,3 +556,28 @@ Deno.test("check: bare invocation with a nested project matches the markspec.loc
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+Deno.test("fmt: bare invocation skips files the repository .gitignore ignores inside a nested project", async () => {
+  const generated =
+    "# Gen\n\n- [STK_0009] Generated\n\n  The system shall do X.\n";
+  const run = await markspecPersist(["fmt"], {
+    files: {
+      ".git/HEAD": "ref: refs/heads/main\n",
+      ".gitignore": "gen/\n",
+      "project.yaml": "name: root\nversion: 0.1.0\n",
+      "sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "sub/gen/out.md": generated,
+      "sub/ok.md": entryUsing("STK_0001", "Labels: a"),
+    },
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertEquals(
+      await Deno.readTextFile(join(run.dir, "sub", "gen", "out.md")),
+      generated,
+    );
+    assertStringIncludes(run.stderr, "formatting 1 file(s)");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

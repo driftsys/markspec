@@ -348,3 +348,20 @@ decision text above is kept as it was written.
   other commands (`compile`, `lock`, `sync`, `show`, `export`, and so on) are
   unchanged: they still walk up from the current directory to the nearest
   `project.yaml`.
+
+## Amendment (2026-11-01, ancestor `.gitignore` files)
+
+The walk of a nested project starts at that project's root, so without this
+amendment the `.gitignore` files of the folders above it did not apply, and a
+bare `fmt` at a repository root formatted gitignored files inside a nested
+project.
+
+- `discoverFiles` also applies the `.gitignore` files of the folders above the
+  walk root, up to the nearest folder that holds `.git` (a directory or a
+  worktree `.git` file), as git does. Each rule stays anchored to the folder of
+  its own `.gitignore`. When no folder at or above the walk root holds `.git`,
+  no ancestor rules apply.
+- When the ancestor rules ignore the walk root itself, or a folder that contains
+  it, none of them apply: a root inside an ignored folder is walked as before.
+- The LSP and the MCP server use the same function, so the same files are
+  skipped there.
