@@ -78,6 +78,7 @@ export const fmtCmd = new Command()
       let totalUnchanged = 0;
 
       let hasErrors = false;
+      const resolver = await cliProjectRootResolver();
 
       for (const group of scope.groups) {
         // Project-aware reference canonicalisation/healing (issue #593,
@@ -100,7 +101,7 @@ export const fmtCmd = new Command()
           const projectEntries = await collectProjectEntries(
             group.projectRoot,
             denoDiscoveryIO(),
-            await projectCollectOptions(group.projectRoot),
+            await projectCollectOptions(group.projectRoot, resolver),
           );
           refIndex = buildRefIndex(projectEntries);
           const lockRaw = await readFile(

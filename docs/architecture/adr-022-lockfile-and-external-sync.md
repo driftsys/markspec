@@ -169,7 +169,9 @@ registry-only model this ADR originally described is still complete.
 The `generated-cache.edges-hash` covers the entries of one project: the files
 below the project root, minus the files of projects nested below it, which have
 their own `markspec.lock`. `markspec lock` finds the project root the way a bare
-`markspec check` does (ADR-027, 2026-11-01 amendment), so a lockfile written
-from a subfolder lands at the project root. An existing lockfile that pinned the
-edges of nested projects reports `MSL-L212` once, until `markspec lock` is run
-again.
+`markspec check` does (ADR-027, 2026-11-01 amendment), so `markspec lock` run
+from a subfolder writes the lockfile at the project root. The `External-id:`
+bindings recorded in a lockfile are those of the same entries, so a nested
+project needs its own sync mappings under its own `.markspec/sync/`. An existing
+lockfile that pinned the edges of nested projects reports `MSL-L212` once, until
+`markspec lock` is run again.

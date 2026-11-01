@@ -1,8 +1,9 @@
 /**
  * @module core/collect
  *
- * Project-entry collection: discover every MarkSpec-relevant file under a
- * root and parse it into a flat `Entry[]`. The single source of truth for
+ * Project-entry collection: discover the MarkSpec-relevant files of one
+ * project (a root, minus the projects nested below it) and parse them into
+ * a flat `Entry[]`. The single source of truth for
  * "the set of entries whose trace edges the lockfile pins" — shared by
  * `markspec lock` (the pinner) and its checkers (`compile`, `fmt`, `doctor`)
  * so they cannot disagree on which files count. Previously each of those
@@ -36,11 +37,13 @@ export interface CollectOptions {
 /**
  * Walk `root` via {@linkcode discoverFiles} — relying on its default
  * extension set (`RELEVANT_EXTENSIONS`), the parity point every caller
- * depends on — and parse each discovered file, returning the flattened
- * entry list. Unreadable files are skipped. Parse diagnostics are not
- * surfaced here: this collector exists to give the lockfile pinner and its
- * checkers one definition of the file set; callers that need diagnostics
- * re-parse.
+ * depends on — and parse each discovered file of the project at `root`,
+ * returning the flattened entry list. Files below `opts.nestedRoots` are
+ * skipped, and `opts.inheritGitignoreFrom` adds the `.gitignore` files of
+ * an enclosing project. Unreadable files are skipped. Parse diagnostics are
+ * not surfaced here: this collector exists to give the lockfile pinner and
+ * its checkers one definition of the file set; callers that need
+ * diagnostics re-parse.
  *
  * @param io Injected filesystem surface (keeps `core/` Node-compatible; CLI
  *   entry points pass a Deno-backed implementation).

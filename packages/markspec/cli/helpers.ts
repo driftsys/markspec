@@ -126,7 +126,7 @@ export async function requireProjectConfig() {
  * default config. A malformed `project.yaml` prints an error and exits 1,
  * as in {@linkcode requireProjectConfig}.
  */
-async function loadProjectConfigAt(
+export async function loadProjectConfigAt(
   projectRoot: string | null,
 ): Promise<{ config: ProjectConfig; projectRoot: string | undefined }> {
   const { DEFAULT_PROJECT_CONFIG, loadConfig } = await import(
@@ -473,9 +473,10 @@ export interface ScopeGroup {
    * them. */
   readonly projectRoot: string | undefined;
   /** Files to operate on (absolute for discovered, verbatim for explicit).
-   * In a bare invocation, this is also the file set `markspec lock` pins
-   * for this root ({@linkcode projectCollectOptions}), so the lockfile
-   * drift gate (MSL-L212) compares against it. */
+   * In a bare `check`, this is also the file set `markspec lock` pins for
+   * this root ({@linkcode projectCollectOptions}), so the lockfile drift
+   * gate (MSL-L212) compares against it. (A bare `fmt` walks Markdown
+   * files only.) */
   readonly files: string[];
 }
 
@@ -537,17 +538,41 @@ export async function cliProjectRootResolver(): Promise<ProjectRootResolver> {
  * `.markspec.yaml` is at or above the current folder, prints an error and
  * exits 1. Used by `lock` and `sync`.
  */
-export async function requireCwdProjectRoot(): Promise<string> {
-  const resolver = await cliProjectRootResolver();
-  const root = await resolver.ownerOf(Deno.cwd());
+export async function requireCwdProjectRoot(
+  resolver?: ProjectRootResolver,
+): Promise<string> {
+  const projectResolver = resolver ?? await cliProjectRootResolver();
+  const root = await projectResolver.ownerOf(Deno.cwd());
   if (root === undefined) {
-    console.error("error: no project root found");
-    console.error(`  searched from ${Deno.cwd()} to filesystem root`);
-    console.error("  a project.yaml or .markspec.yaml marks a project root");
-    console.error("  run 'markspec init' to create one");
-    Deno.exit(1);
+    exitNoProjectRoot("run 'markspec init' to create one");
   }
   return root;
+}
+
+/** Print the "no project root found" error with a last `hint` line, and
+ * exit 1. */
+function exitNoProjectRoot(hint: string): never {
+  console.error("error: no project root found");
+  console.error(`  searched from ${Deno.cwd()} to filesystem root`);
+  console.error("  a project.yaml or .markspec.yaml marks a project root");
+  console.error(`  ${hint}`);
+  Deno.exit(1);
+}
+
+/**
+ * The project roots nested below `root`, as the resolver sees them from
+ * the outermost project root above `root`: a config that the outermost
+ * project or an intermediate one hides is not a root. Computing them from
+ * `root` alone would apply only `root`'s own `exclude:` list.
+ */
+async function nestedRootsBelow(
+  root: string,
+  resolver: ProjectRootResolver,
+): Promise<string[]> {
+  const { isWithin } = await import("../core/mod.ts");
+  const outermost = await resolver.outermostOf(root) ?? root;
+  const all = [outermost, ...await resolver.nestedRoots(outermost)];
+  return all.filter((r) => r !== root && isWithin(root, r));
 }
 
 /**
@@ -563,16 +588,14 @@ export async function projectCollectOptions(
   root: string,
   resolver?: ProjectRootResolver,
 ): Promise<CollectOptions> {
-  const { loadToolConfig } = await import("../core/mod.ts");
   const projectResolver = resolver ?? await cliProjectRootResolver();
-  const { config } = await loadToolConfig(root, readFile);
   const outermost = await projectResolver.outermostOf(root);
   return {
-    exclude: config.exclude,
+    exclude: await loadExcludeOrExit(root),
     inheritGitignoreFrom: outermost !== undefined && outermost !== root
       ? outermost
       : undefined,
-    nestedRoots: await projectResolver.nestedRoots(root),
+    nestedRoots: await nestedRootsBelow(root, projectResolver),
   };
 }
 
@@ -591,7 +614,7 @@ async function walkProjects(
 ): Promise<ScopeGroup[]> {
   const { discoverFiles, nearestRoot } = await import("../core/mod.ts");
   const io = denoDiscoveryIO();
-  const roots = [root, ...await resolver.nestedRoots(root)];
+  const roots = [root, ...await nestedRootsBelow(root, resolver)];
   // Inherit from the outermost project, not from `root`: a bare invocation
   // inside a nested project then walks it as one from the parent does.
   const outermost = await resolver.outermostOf(root) ?? root;
@@ -669,15 +692,9 @@ export async function resolveScope(
   if (args.length === 0) {
     const projectRoot = await resolver.ownerOf(Deno.cwd());
     if (projectRoot === undefined) {
-      console.error("error: no project root found");
-      console.error(`  searched from ${Deno.cwd()} to filesystem root`);
-      console.error(
-        "  a project.yaml or .markspec.yaml marks a project root",
+      exitNoProjectRoot(
+        "run 'markspec init' to create one, or pass explicit files",
       );
-      console.error(
-        "  run 'markspec init' to create one, or pass explicit files",
-      );
-      Deno.exit(1);
     }
     const groups = await walkProjects(projectRoot, resolver, extensions);
     if (!opts.quiet) {

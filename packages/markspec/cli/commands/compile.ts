@@ -52,14 +52,15 @@ export const compileCmd = new Command()
           checkDrift,
           collectProjectEntries,
           deriveUpstreamId,
-          discoverProjectRoot,
           loadConfig,
           loadProfileForCommand,
           parseLockfile,
           resolveUpstreams,
         } = await import("../../core/mod.ts");
         const { join } = await import("@std/path");
-        const { denoDiscoveryIO } = await import("../helpers.ts");
+        const { denoDiscoveryIO, requireCwdProjectRoot } = await import(
+          "../helpers.ts"
+        );
         const {
           defaultFetchUrl,
           defaultReadFile,
@@ -67,9 +68,8 @@ export const compileCmd = new Command()
           readFileOrUndefined,
         } = await import("./lock.ts");
 
-        const root =
-          (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ??
-            Deno.cwd();
+        // The root `markspec lock` writes the lockfile at (#860).
+        const root = await requireCwdProjectRoot();
         const lockPath = join(root, "markspec.lock");
         const tomlRaw = await readFileOrUndefined(lockPath);
         if (tomlRaw === undefined) {

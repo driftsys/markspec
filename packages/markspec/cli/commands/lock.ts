@@ -16,13 +16,11 @@ import {
   checkDrift,
   collectProjectEntries,
   compileAcquiredTree,
-  DEFAULT_PROJECT_CONFIG,
   defaultAppendFile,
   deriveUpstreamId,
   type Diagnostic,
   ensureCacheGitignored,
   type GitIO,
-  loadConfig,
   loadProfileForCommand,
   type Lockfile,
   LOCKFILE_SCHEMA_VERSION,
@@ -41,7 +39,9 @@ import {
   VERSION,
 } from "../../core/mod.ts";
 import {
+  cliProjectRootResolver,
   denoDiscoveryIO,
+  loadProjectConfigAt,
   projectCollectOptions,
   requireCwdProjectRoot,
 } from "../helpers.ts";
@@ -222,15 +222,12 @@ async function runLock(options: LockOptions): Promise<void> {
 
   // The same root a bare `check` uses (#860): the nearest `project.yaml`,
   // else the nearest `.markspec.yaml`, unless an enclosing project hides it.
-  const projectRoot = await requireCwdProjectRoot();
+  const resolver = await cliProjectRootResolver();
+  const projectRoot = await requireCwdProjectRoot(resolver);
 
   // A `.markspec.yaml`-only project has no `project.yaml`: lock it with the
-  // default config (no dependencies or references). `loadConfig` walks up,
-  // so ignore a `project.yaml` it finds above the root.
-  const configResult = await loadConfig(projectRoot, readFileOrUndefined);
-  const config = configResult?.projectRoot === projectRoot
-    ? configResult.config
-    : DEFAULT_PROJECT_CONFIG;
+  // default config (no dependencies or references).
+  const { config } = await loadProjectConfigAt(projectRoot);
 
   const profileResult = await loadProfileForCommand(
     projectRoot,
@@ -242,7 +239,7 @@ async function runLock(options: LockOptions): Promise<void> {
   const entries = await collectProjectEntries(
     projectRoot,
     denoDiscoveryIO(),
-    await projectCollectOptions(projectRoot),
+    await projectCollectOptions(projectRoot, resolver),
   );
   const mappings = await loadAllMappings(projectRoot);
 

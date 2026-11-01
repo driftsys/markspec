@@ -252,7 +252,11 @@ export function createProjectRootResolver(
 
   async function resolveOutermost(dir: string): Promise<string | undefined> {
     const nearest = await resolveConfigRoot(dir, io.readFile);
-    if (nearest === undefined) return undefined;
+    return nearest === undefined ? undefined : await outermostFrom(nearest);
+  }
+
+  /** Walk up from the config root `nearest` to the outermost one. */
+  async function outermostFrom(nearest: string): Promise<string> {
     let outermost = nearest;
     while (true) {
       const parent = dirname(outermost);
@@ -272,7 +276,7 @@ export function createProjectRootResolver(
   async function resolveOwner(dir: string): Promise<string | undefined> {
     const nearest = await resolveConfigRoot(dir, io.readFile);
     if (nearest === undefined) return undefined;
-    const outermost = await outermostOf(dir) ?? nearest;
+    const outermost = await outermostFrom(nearest);
     if (outermost === nearest) return nearest;
     const roots = [outermost, ...await nestedRoots(outermost)];
     return nearestRoot(dir, roots) ?? outermost;
