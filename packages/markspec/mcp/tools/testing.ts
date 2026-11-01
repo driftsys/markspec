@@ -3,8 +3,8 @@
  *
  * Test helpers for the MCP tool tests: an in-memory {@linkcode ProjectEnv}
  * for building real workspaces, and stub workspaces over stub
- * {@linkcode Project}s. Shared by every MCP test. Not used by production
- * code.
+ * {@linkcode Project}s. Shared by the MCP tests that need an in-memory
+ * environment or workspace. Not used by production code.
  */
 
 import { join, resolve, SEPARATOR } from "@std/path";
