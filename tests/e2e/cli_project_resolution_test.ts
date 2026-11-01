@@ -565,16 +565,22 @@ Deno.test("fmt: bare invocation skips files the enclosing project's .gitignore i
       // No `.git`: the enclosing project's `.gitignore` applies without git.
       ".gitignore": "gen/\n",
       "project.yaml": "name: root\nversion: 0.1.0\n",
-      "sub/project.yaml": "name: nested\nversion: 0.1.0\n",
-      "sub/gen/out.md": generated,
-      "sub/ok.md": entryUsing("STK_0001", "Labels: a"),
+      // Two levels down, with no project in between: the rules come from
+      // the outermost root, not from the nested root's parent folder.
+      "a/b/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "a/b/gen/out.md": generated,
+      "a/b/ok.md": entryUsing("STK_0001", "Labels: a"),
     },
   });
   try {
     assertEquals(run.code, 0, run.stderr);
     assertEquals(
-      await Deno.readTextFile(join(run.dir, "sub", "gen", "out.md")),
+      await Deno.readTextFile(join(run.dir, "a", "b", "gen", "out.md")),
       generated,
+    );
+    assertStringIncludes(
+      await Deno.readTextFile(join(run.dir, "a", "b", "ok.md")),
+      "Id: ",
     );
     assertStringIncludes(run.stderr, "formatting 1 file(s)");
   } finally {

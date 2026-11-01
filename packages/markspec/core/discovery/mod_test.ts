@@ -186,6 +186,9 @@ Deno.test("discovery: inheritGitignoreFrom applies each enclosing .gitignore anc
 
 Deno.test("discovery: without inheritGitignoreFrom no enclosing .gitignore applies", async () => {
   const dir = await makeTree({
+    // A repository root above the walk root: git would apply its
+    // `.gitignore`; discovery does not, unless asked.
+    ".git/HEAD": "ref: refs/heads/main\n",
     ".gitignore": "gen/\n",
     "sub/a.md": "",
     "sub/gen/x.md": "",
@@ -293,6 +296,24 @@ Deno.test("discovery: inheritGitignoreFrom that is not an ancestor is ignored", 
       await collect(join(dir, "sub"), {
         inheritGitignoreFrom: join(dir, "other"),
       }),
+      ["a.md"],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: inheritGitignoreFrom below the walk root is ignored", async () => {
+  const dir = await makeTree({
+    "a.md": "",
+    "sub/.gitignore": "*.md\n",
+    "sub/b.md": "",
+  });
+  try {
+    // `sub/.gitignore` still applies to `sub/` through the walk itself,
+    // but is not inherited for the root's own files.
+    assertEquals(
+      await collect(dir, { inheritGitignoreFrom: join(dir, "sub") }),
       ["a.md"],
     );
   } finally {

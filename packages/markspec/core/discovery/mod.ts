@@ -82,9 +82,10 @@ export interface DiscoverOptions {
    * An enclosing folder of `root`, such as the root of the project that a
    * nested project lies in. The `.gitignore` files of the folders from it
    * down to the parent of `root` also apply, each anchored to its own
-   * folder, so the walk of a nested project skips the files that the walk
-   * from the enclosing folder skips. No `.gitignore` above this folder is
-   * read. Ignored when it is not an ancestor of `root`.
+   * folder, so the walk of a nested project skips the files that those
+   * `.gitignore` files ignore. Only `.gitignore` files are inherited, not
+   * the enclosing folder's `exclude` patterns. No `.gitignore` above this
+   * folder is read. Ignored when it is not a strict ancestor of `root`.
    */
   readonly inheritGitignoreFrom?: string;
 }

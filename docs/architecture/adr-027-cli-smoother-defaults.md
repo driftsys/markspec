@@ -359,7 +359,8 @@ that the enclosing project's `.gitignore` ignores.
 - The walk of a nested project also applies the `.gitignore` files of the
   folders from the outermost project root down to the parent of the nested root,
   each anchored to its own folder (`discoverFiles` option
-  `inheritGitignoreFrom`). It therefore skips the files that the walk of the
-  enclosing project skips. This works with or without git.
+  `inheritGitignoreFrom`). It therefore skips the files that those `.gitignore`
+  files ignore. The `exclude:` lists of enclosing projects are not inherited;
+  each project applies only its own. This works with or without git.
 - No `.gitignore` file above the outermost project root is read. Walks of a
   single root, the LSP, the MCP server, and `markspec lock` are unchanged.
