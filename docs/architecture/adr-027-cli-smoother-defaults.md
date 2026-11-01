@@ -364,3 +364,30 @@ that the enclosing project's `.gitignore` ignores.
   each project applies only its own. This works with or without git.
 - No `.gitignore` file above the outermost project root is read. Walks of a
   single root, the LSP, the MCP server, and `markspec lock` are unchanged.
+
+## Amendment (2026-11-01, #860: `lock` and `sync`)
+
+This amendment changes the 2026-10-31 amendment above (which root `lock` and
+`sync` use, and which files a root's drift gate covers) and the 2026-11-01
+`.gitignore` amendment (`markspec lock` no longer walks without the enclosing
+`.gitignore` files).
+
+- `markspec lock` and `markspec sync` resolve the project root from the current
+  directory with core `createProjectRootResolver`, like a bare `check`. A
+  `.markspec.yaml`-only project is locked with the default project config.
+  Outside any project, both exit 1 with "no project root found" (`sync` used to
+  print an empty result).
+- A `markspec.lock` pins only the files of its own project. Files of a project
+  nested below it are skipped (they belong to that project's lockfile), and the
+  walk applies the `.gitignore` files from the outermost project root down. The
+  lockfile drift gate (`MSL-L212`) of a bare `check`, `compile --frozen`,
+  `doctor`, and the `fmt` reference index use the same file set (CLI helper
+  `projectCollectOptions`, core `collectProjectEntries`), whatever the current
+  directory. The earlier rule that a root's drift gate also covers the files of
+  nested projects no longer holds. The nested roots of a project are the ones
+  the resolver sees from the outermost project root, and a bare invocation
+  inherits the `.gitignore` files from that outermost root even when it runs
+  inside a nested project.
+- `compile --frozen` and `doctor` read `markspec.lock` at the root `lock` writes
+  it. Otherwise `compile`, `show`, `export`, and the other commands still walk
+  up from the current directory to the nearest `project.yaml`.

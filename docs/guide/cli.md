@@ -177,11 +177,12 @@ starting with `.`) and the common build-output / dependency directories
 `exclude:`. The build-output skip is overridable — re-include one with a negated
 entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
 
-**Nested projects and `.gitignore`.** When a bare invocation walks a project
-nested below the root, it also applies the `.gitignore` files of the folders
-between the root and the nested project. A nested project therefore skips the
-files that the enclosing project's `.gitignore` ignores. No `.gitignore` above
-the root is read.
+**Nested projects and `.gitignore`.** The walk of a nested project also applies
+the `.gitignore` files of the folders between the outermost project root and the
+nested project, whether the command runs from the outermost project or from
+inside the nested one. A nested project therefore skips the files that an
+enclosing project's `.gitignore` ignores. No `.gitignore` above the outermost
+project root is read. `markspec lock` walks a nested project the same way.
 
 **`caption-conventions:` example** — require every `Table` caption above its
 block and every `Figure` caption below:
@@ -445,10 +446,11 @@ profile, and `markspec.lock` on every surface.
   When neither file is found, the command exits 1 with
   `error: no project root found` and a hint that a `project.yaml` or
   `.markspec.yaml` marks a project root. Projects nested below the root (found
-  as the LSP finds them) are processed as their own groups, each with its own
-  profile, `exclude:` list, and project-wide gates. The scope header then names
-  the number of projects: `checking N file(s) under <root> (K projects)`. With
-  one project, the header is unchanged: `checking N file(s) under <root>`.
+  as the LSP finds them from the outermost project root) are processed as their
+  own groups, each with its own profile, `exclude:` list, `markspec.lock`, and
+  project-wide gates. The scope header then names the number of projects:
+  `checking N file(s) under <root> (K projects)`. With one project, the header
+  is unchanged: `checking N file(s) under <root>`.
 
 **Exit codes:** `0` clean, `1` any error, `2` warnings only (no errors).
 `--strict` promotes every warning (including advisory prose findings) to an
@@ -816,6 +818,25 @@ markspec lock --update             # force re-resolve every reference
 markspec lock --update=refhub      # force re-resolve one reference by id
 ```
 
+**Which project.** `lock` and `sync` find the project root from the current
+directory the same way a bare `check` does: the nearest `project.yaml`, else the
+nearest `.markspec.yaml`, unless an enclosing project hides that config. Run
+from any folder of a project, `markspec lock` writes the lockfile at the project
+root. A project with a `.markspec.yaml` and no `project.yaml` is locked with the
+default settings (no `dependencies:` or `references:`). Outside any project,
+`lock` and `sync` exit `1` with `no project root found`.
+
+**What the lockfile pins.** A `markspec.lock` pins the trace edges of its own
+project only. The files of a project nested below it are pinned by that
+project's own lockfile. The files are the ones a bare `check` of the project
+walks: its `exclude:` list applies, and so do the `.gitignore` files from the
+outermost project root down. `check` (`MSL-L212`), `compile --frozen` and
+`doctor` read the lockfile at the same root and compare against the same files,
+from any folder of the project. (`compile` and `doctor` still need a
+`project.yaml` above the current folder.) The `External-id:` bindings of a
+nested project's entries are recorded in that project's lockfile too, so its
+sync mappings belong under its own `.markspec/sync/`.
+
 **`references:` resolution — three flows.** Only `markspec lock` touches the
 network; `check`, `compile`, the LSP, and the MCP server resolve entirely
 offline from the pinned cache under `.markspec/cache/upstreams/<id>/`.
@@ -880,8 +901,9 @@ blocks on it in CI.
 #### sync
 
 Read-only commands surfacing bound-entry state from `markspec.lock` and the
-per-system NDJSON sync log under `.markspec/sync/<system>/log.ndjson`. `push` /
-`pull` / `resolve` / `init` are connector-side and ship in per-tool ADRs.
+per-system NDJSON sync log under `.markspec/sync/<system>/log.ndjson`, at the
+project root `markspec lock` uses (see [lock](#lock)). `push` / `pull` /
+`resolve` / `init` are connector-side and ship in per-tool ADRs.
 
 ```sh
 markspec sync status [system]

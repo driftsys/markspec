@@ -16,6 +16,7 @@ import {
   VERSION,
 } from "../core/mod.ts";
 import type {
+  CollectOptions,
   CompileResult,
   DeliveredDocument,
   Diagnostic,
@@ -125,7 +126,7 @@ export async function requireProjectConfig() {
  * default config. A malformed `project.yaml` prints an error and exits 1,
  * as in {@linkcode requireProjectConfig}.
  */
-async function loadProjectConfigAt(
+export async function loadProjectConfigAt(
   projectRoot: string | null,
 ): Promise<{ config: ProjectConfig; projectRoot: string | undefined }> {
   const { DEFAULT_PROJECT_CONFIG, loadConfig } = await import(
@@ -471,16 +472,12 @@ export interface ScopeGroup {
    * {@linkcode resolveScope}), or `undefined` when no config file is above
    * them. */
   readonly projectRoot: string | undefined;
-  /** Files to operate on (absolute for discovered, verbatim for explicit). */
+  /** Files to operate on (absolute for discovered, verbatim for explicit).
+   * In a bare `check`, this is also the file set `markspec lock` pins for
+   * this root ({@linkcode projectCollectOptions}), so the lockfile drift
+   * gate (MSL-L212) compares against it. (A bare `fmt` walks Markdown
+   * files only.) */
   readonly files: string[];
-  /**
-   * Bare invocation only: every file the walk of this project root finds
-   * with its own `exclude:` list, including the files of projects nested
-   * below it. This is the file set `markspec lock` pins for this root, so
-   * the lockfile drift gate (MSL-L212) compares against it, not against
-   * `files`.
-   */
-  readonly treeFiles?: readonly string[];
 }
 
 /** Resolved invocation scope for a file-consuming verb. */
@@ -536,29 +533,103 @@ export async function cliProjectRootResolver(): Promise<ProjectRootResolver> {
 }
 
 /**
- * Walk `root` and every project nested below it the way the LSP indexes a
+ * The project root of the current folder, resolved like a bare `check`
+ * ({@linkcode cliProjectRootResolver}). When no `project.yaml` or
+ * `.markspec.yaml` is at or above the current folder, prints an error and
+ * exits 1. Used by `lock`, `sync` and `compile --frozen`.
+ */
+export async function requireCwdProjectRoot(
+  resolver?: ProjectRootResolver,
+): Promise<string> {
+  const projectResolver = resolver ?? await cliProjectRootResolver();
+  const root = await projectResolver.ownerOf(Deno.cwd());
+  if (root === undefined) {
+    exitNoProjectRoot("run 'markspec init' to create one");
+  }
+  return root;
+}
+
+/** Print the "no project root found" error with a last `hint` line, and
+ * exit 1. */
+function exitNoProjectRoot(hint: string): never {
+  console.error("error: no project root found");
+  console.error(`  searched from ${Deno.cwd()} to filesystem root`);
+  console.error("  a project.yaml or .markspec.yaml marks a project root");
+  console.error(`  ${hint}`);
+  Deno.exit(1);
+}
+
+/**
+ * The project roots nested below `root`, as the resolver sees them from
+ * the outermost project root above `root`: a config that the outermost
+ * project or an intermediate one hides is not a root. Computing them from
+ * `root` alone would apply only `root`'s own `exclude:` list.
+ */
+async function nestedRootsBelow(
+  root: string,
+  resolver: ProjectRootResolver,
+): Promise<string[]> {
+  const { isWithin } = await import("../core/mod.ts");
+  const outermost = await resolver.outermostOf(root) ?? root;
+  const all = [outermost, ...await resolver.nestedRoots(outermost)];
+  return all.filter((r) => r !== root && isWithin(root, r));
+}
+
+/**
+ * The walk options that define the files of the project at `root`: its own
+ * `.markspec.yaml` `exclude:` list, the `.gitignore` files from the
+ * outermost project root above it down to `root` (when `root` is nested),
+ * and the roots of the projects nested below it, whose files are skipped.
+ * `markspec lock` pins the entries of exactly these files, and its
+ * checkers (`check` MSL-L212, `compile --frozen`, `doctor`, the `fmt`
+ * reference index) use the same set, whatever the current folder.
+ */
+export async function projectCollectOptions(
+  root: string,
+  resolver?: ProjectRootResolver,
+): Promise<CollectOptions> {
+  const projectResolver = resolver ?? await cliProjectRootResolver();
+  const outermost = await projectResolver.outermostOf(root);
+  return {
+    exclude: await loadExcludeOrExit(root),
+    inheritGitignoreFrom: outermost !== undefined && outermost !== root
+      ? outermost
+      : undefined,
+    nestedRoots: await nestedRootsBelow(root, projectResolver),
+  };
+}
+
+/**
+ * Walk `root` and every project nested below it (the nested roots the
+ * resolver sees from the outermost project root above `root`) the way the
+ * LSP indexes a
  * workspace opened at `root`: each project root is walked with its own
- * `.markspec.yaml` `exclude:` list, and a file belongs to the nearest
- * project root above it. Returns one group per project root, `root` first,
- * then the nested roots sorted by path; each group carries the unfiltered
- * walk of its root as `treeFiles`.
+ * `.markspec.yaml` `exclude:` list and the `.gitignore` files of the
+ * outermost project above it, and a file belongs to the nearest project
+ * root above it. Returns one group per project root, `root` first, then the
+ * nested roots sorted by path.
  */
 async function walkProjects(
   root: string,
   resolver: ProjectRootResolver,
   extensions: ReadonlySet<string>,
-): Promise<Required<ScopeGroup>[]> {
+): Promise<ScopeGroup[]> {
   const { discoverFiles, nearestRoot } = await import("../core/mod.ts");
   const io = denoDiscoveryIO();
-  const roots = [root, ...await resolver.nestedRoots(root)];
-  const groups: Required<ScopeGroup>[] = [];
+  const roots = [root, ...await nestedRootsBelow(root, resolver)];
+  // Inherit from the outermost project, not from `root`: a bare invocation
+  // inside a nested project then walks it as one from the parent does.
+  const outermost = await resolver.outermostOf(root) ?? root;
+  const groups: ScopeGroup[] = [];
   for (const projectRoot of roots) {
     const exclude = await loadExcludeOrExit(projectRoot);
-    const treeFiles: string[] = [];
+    const files: string[] = [];
     // A nested project's walk also applies the `.gitignore` files between
     // the outermost root and its own root (not the enclosing `exclude:`
     // lists), so it skips the files those `.gitignore` files ignore.
-    const inheritGitignoreFrom = projectRoot === root ? undefined : root;
+    const inheritGitignoreFrom = projectRoot === outermost
+      ? undefined
+      : outermost;
     for await (
       const f of discoverFiles(projectRoot, io, {
         extensions,
@@ -566,12 +637,9 @@ async function walkProjects(
         inheritGitignoreFrom,
       })
     ) {
-      treeFiles.push(f);
+      if (nearestRoot(dirname(f), roots) === projectRoot) files.push(f);
     }
-    const files = treeFiles.filter((f) =>
-      nearestRoot(dirname(f), roots) === projectRoot
-    );
-    groups.push({ projectRoot, files, treeFiles });
+    groups.push({ projectRoot, files });
   }
   return groups;
 }
@@ -585,8 +653,9 @@ async function walkProjects(
  *   - no args  → whole project via gitignore-aware discovery, with a
  *     one-line scope header on stderr. The project root is the owner of the
  *     current directory, found the same way as for explicit arguments
- *     ({@linkcode createProjectRootResolver}). Projects nested below it (found as the LSP finds them:
- *     configs in hidden, gitignored or excluded folders do not count) form
+ *     ({@linkcode createProjectRootResolver}). Projects nested below it (found as the LSP finds them
+ *     from the outermost project root: configs in hidden, gitignored or
+ *     excluded folders do not count) form
  *     their own groups; each project's `.markspec.yaml` `exclude:` list
  *     applies to its own walk;
  *   - explicit args → files verbatim; a directory expands to the files of
@@ -626,15 +695,9 @@ export async function resolveScope(
   if (args.length === 0) {
     const projectRoot = await resolver.ownerOf(Deno.cwd());
     if (projectRoot === undefined) {
-      console.error("error: no project root found");
-      console.error(`  searched from ${Deno.cwd()} to filesystem root`);
-      console.error(
-        "  a project.yaml or .markspec.yaml marks a project root",
+      exitNoProjectRoot(
+        "run 'markspec init' to create one, or pass explicit files",
       );
-      console.error(
-        "  run 'markspec init' to create one, or pass explicit files",
-      );
-      Deno.exit(1);
     }
     const groups = await walkProjects(projectRoot, resolver, extensions);
     if (!opts.quiet) {

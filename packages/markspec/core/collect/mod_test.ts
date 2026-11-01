@@ -92,3 +92,36 @@ Deno.test("collectProjectEntries: relies on the default extension set (ignores .
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("collectProjectEntries: skips the files of nested projects", async () => {
+  const dir = await makeTree({
+    "a.md": REQ_A,
+    "sub/b.md": REQ_B,
+    "subway/c.md": REQ_B.replace("REQ-0002", "REQ-0003"),
+  });
+  try {
+    const entries = await collectProjectEntries(dir, realIO(), {
+      nestedRoots: [join(dir, "sub")],
+    });
+    // `subway/` shares a name prefix with `sub/` but is not below it.
+    assertEquals(ids(entries), ["REQ-0001", "REQ-0003"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("collectProjectEntries: applies the .gitignore files of an enclosing folder", async () => {
+  const dir = await makeTree({
+    ".gitignore": "gen/\n",
+    "sub/a.md": REQ_A,
+    "sub/gen/b.md": REQ_B,
+  });
+  try {
+    const entries = await collectProjectEntries(join(dir, "sub"), realIO(), {
+      inheritGitignoreFrom: dir,
+    });
+    assertEquals(ids(entries), ["REQ-0001"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

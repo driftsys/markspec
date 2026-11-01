@@ -200,9 +200,9 @@ async function checkGroup(
   // raw content and per-file directives here (for the fmt-drift `mdContents`
   // and the listing contexts), not just the flattened entries. Its bare-mode
   // file set is equivalent by construction — `resolveScope` walks
-  // `core/discovery` with the same `exclude:` and default
-  // `RELEVANT_EXTENSIONS` the collector relies on, and records that walk as
-  // `group.treeFiles` — so the MSL-L212 gate still compares against exactly
+  // `core/discovery` with the same `exclude:`, inherited `.gitignore` files,
+  // nested-project skip and default `RELEVANT_EXTENSIONS` as
+  // `projectCollectOptions` — so the MSL-L212 gate compares against exactly
   // the set `markspec lock` pinned.
   for (const filePath of files) {
     let content: string;
@@ -303,24 +303,12 @@ async function checkGroup(
       lockParse !== undefined && lockPath !== undefined &&
       cacheRoot !== undefined
     ) {
-      // `markspec lock` pins every file the walk of this root finds,
-      // including the files of projects nested below it, which are checked
-      // in their own groups. Add their entries here so the drift gate
-      // compares against the set `lock` pinned.
-      const lockEntries = [...allEntries];
-      const groupFiles = new Set(files);
-      for (const filePath of group.treeFiles ?? []) {
-        if (groupFiles.has(filePath)) continue;
-        const content = await readFile(filePath);
-        if (content === undefined) continue;
-        lockEntries.push(
-          ...(await parseFile(content, { file: filePath })).entries,
-        );
-      }
+      // `markspec lock` pins only the files of this project (nested
+      // projects have their own lockfile), which are exactly `files` here.
       lockDiagnostics = await lockfileDriftGate(
         lockParse,
         lockPath,
-        lockEntries,
+        allEntries,
         { cacheRoot, readFile: defaultReadFile },
       );
     }

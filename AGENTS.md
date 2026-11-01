@@ -312,9 +312,13 @@ config in a folder that an enclosing project hides (`exclude:`, gitignored,
 hidden) is not a root, as in the LSP (core `createProjectRootResolver`). Invoked
 bare (no args), they resolve the root from the working directory with the same
 resolver, process each nested project as its own group, and report "no project
-root found" when neither file exists. All other commands (`compile`, `show`,
-`context`, `dependents`, `report`, `next-id`, `doc build`, `book build`) require
-a `project.yaml` found by walking up from the working directory.
+root found" when neither file exists. `lock` and `sync` resolve their root from
+the working directory with the same resolver (#860); a `.markspec.yaml`-only
+project is locked with the default config, and each `markspec.lock` pins only
+its own project's files (nested projects have their own); `compile --frozen` and
+`doctor` read `markspec.lock` at that same root. All other commands (`compile`,
+`show`, `context`, `dependents`, `report`, `next-id`, `doc build`, `book build`)
+require a `project.yaml` found by walking up from the working directory.
 
 ## Entry block rendering pipeline
 

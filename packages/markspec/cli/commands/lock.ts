@@ -19,12 +19,9 @@ import {
   defaultAppendFile,
   deriveUpstreamId,
   type Diagnostic,
-  discoverProjectRoot,
   ensureCacheGitignored,
   type GitIO,
-  loadConfig,
   loadProfileForCommand,
-  loadToolConfig,
   type Lockfile,
   LOCKFILE_SCHEMA_VERSION,
   type Mapping,
@@ -41,7 +38,13 @@ import {
   validateMappings,
   VERSION,
 } from "../../core/mod.ts";
-import { denoDiscoveryIO } from "../helpers.ts";
+import {
+  cliProjectRootResolver,
+  denoDiscoveryIO,
+  loadProjectConfigAt,
+  projectCollectOptions,
+  requireCwdProjectRoot,
+} from "../helpers.ts";
 
 /**
  * Reject a git URL that git could parse as an option rather than a remote.
@@ -217,15 +220,14 @@ async function runLock(options: LockOptions): Promise<void> {
     console.error(`updating: ${target}`);
   }
 
-  const projectRoot =
-    (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ?? Deno.cwd();
+  // The same root a bare `check` uses (#860): the nearest `project.yaml`,
+  // else the nearest `.markspec.yaml`, unless an enclosing project hides it.
+  const resolver = await cliProjectRootResolver();
+  const projectRoot = await requireCwdProjectRoot(resolver);
 
-  const configResult = await loadConfig(projectRoot, readFileOrUndefined);
-  if (!configResult) {
-    console.error("error: project.yaml not found");
-    Deno.exit(1);
-  }
-  const config = configResult.config;
+  // A `.markspec.yaml`-only project has no `project.yaml`: lock it with the
+  // default config (no dependencies or references).
+  const { config } = await loadProjectConfigAt(projectRoot);
 
   const profileResult = await loadProfileForCommand(
     projectRoot,
@@ -233,13 +235,12 @@ async function runLock(options: LockOptions): Promise<void> {
   );
   const chain = profileResult.chain;
 
-  const toolConfigResult = await loadToolConfig(
+  // Only this project's files: nested projects have their own lockfile.
+  const entries = await collectProjectEntries(
     projectRoot,
-    readFileOrUndefined,
+    denoDiscoveryIO(),
+    await projectCollectOptions(projectRoot, resolver),
   );
-  const entries = await collectProjectEntries(projectRoot, denoDiscoveryIO(), {
-    exclude: toolConfigResult.config.exclude,
-  });
   const mappings = await loadAllMappings(projectRoot);
 
   const mappingDiags = validateMappings(mappings);

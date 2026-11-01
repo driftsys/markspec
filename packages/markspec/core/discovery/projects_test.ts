@@ -274,3 +274,28 @@ Deno.test("createProjectRootResolver: a config two levels below a hidden folder 
   const resolver = createProjectRootResolver(realIO());
   assertEquals(await resolver.ownerOf(join(dir, "a", "b")), dir);
 });
+
+Deno.test("createProjectRootResolver: outermostOf gives the outermost project root above a folder", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      "a/project.yaml": PROJECT,
+      "a/b/project.yaml": PROJECT,
+      "a/b/docs/x.md": "",
+    }),
+  );
+  const resolver = createProjectRootResolver(realIO());
+  assertEquals(await resolver.outermostOf(join(dir, "a", "b", "docs")), dir);
+  assertEquals(await resolver.outermostOf(dir), dir);
+  // The nested root still owns its own files.
+  assertEquals(
+    await resolver.ownerOf(join(dir, "a", "b", "docs")),
+    join(dir, "a", "b"),
+  );
+});
+
+Deno.test("createProjectRootResolver: outermostOf is undefined with no config above", async () => {
+  const dir = await real(await makeTree({ "docs/x.md": "" }));
+  const resolver = createProjectRootResolver(realIO(), { homeDir: dir });
+  assertEquals(await resolver.outermostOf(join(dir, "docs")), undefined);
+});
