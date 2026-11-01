@@ -43,9 +43,12 @@ Deno.test("workspaceOf: ownerOf ignores a sibling whose name starts with the roo
 Deno.test("stubWorkspace: ownerOf prefers the nested project over its parent", () => {
   const parent = { label: ".", project: projectAt("/work") };
   const nested = { label: "app", project: projectAt("/work/app") };
-  const workspace = stubWorkspace([parent, nested]);
-  assertEquals(workspace.ownerOf("/work/app/req.md"), nested);
-  assertEquals(workspace.ownerOf("/work/other/req.md"), parent);
+  // Both entry orders: the nearest root decides, not the list position.
+  for (const entries of [[parent, nested], [nested, parent]]) {
+    const workspace = stubWorkspace(entries);
+    assertEquals(workspace.ownerOf("/work/app/req.md"), nested);
+    assertEquals(workspace.ownerOf("/work/other/req.md"), parent);
+  }
 });
 
 Deno.test("stubWorkspace: select resolves labels", () => {
@@ -55,6 +58,8 @@ Deno.test("stubWorkspace: select resolves labels", () => {
   assertEquals(both.select(undefined), [a, b]);
   assertEquals(both.select("b"), [b]);
   assertEquals(typeof both.select("zzz"), "string");
+  // "." names a project only when there is exactly one.
+  assertEquals(typeof both.select("."), "string");
 
   const only = stubWorkspace([a]);
   assertEquals(only.select("."), [a]);
