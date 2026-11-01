@@ -25,10 +25,11 @@ import {
   MEMORY_PARENT,
   memoryEnv,
   PROJECT_YAML,
+  stubWorkspace,
   twoProjectFiles,
 } from "./tools/testing.ts";
 import { deliveredUri, entryUri, PROFILE_URI } from "./uri.ts";
-import { createWorkspace, type McpWorkspace } from "./workspace.ts";
+import { createWorkspace } from "./workspace.ts";
 
 Deno.test("SERVER_INSTRUCTIONS: contains TRIGGER block", () => {
   assertStringIncludes(SERVER_INSTRUCTIONS, "TRIGGER when");
@@ -123,23 +124,6 @@ function deliveringProject(
       Promise.resolve(
         chainIds.includes(profileId) && relPath === doc.path ? text : undefined,
       ),
-  };
-}
-
-/** A workspace over stub projects, listed in the given (label) order. */
-function stubWorkspace(
-  entries: readonly { label: string; project: Project }[],
-): McpWorkspace {
-  return {
-    startRoot: "/work",
-    projects: () => entries,
-    softGateMessage: undefined,
-    select: (label?: string) =>
-      label === undefined ? entries : entries.filter((e) => e.label === label),
-    ownerOf: () => undefined,
-    canonicalPath: (path) => Promise.resolve(path),
-    rediscover: () => Promise.resolve(),
-    subscribeInvalidation: () => () => {},
   };
 }
 

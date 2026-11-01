@@ -13,7 +13,7 @@ import {
   assertStrictEquals,
   assertStringIncludes,
 } from "@std/assert";
-import { join, resolve, SEPARATOR } from "@std/path";
+import { join, resolve } from "@std/path";
 import { makeDisplayId } from "../core/mod.ts";
 import {
   buildRootOverrides,
@@ -25,32 +25,13 @@ import {
   type ProjectEnv,
   SOFT_GATE_MESSAGE,
 } from "./project.ts";
+import { listChildren } from "./tools/testing.ts";
 
 /** Platform-native project root used by `makeEnv`'s cwd. */
 const PROJ = resolve("/proj");
 const PROJECT_YAML_PATH = join(PROJ, "project.yaml");
 const REQ_MD_PATH = join(PROJ, "req.md");
 const EXTRA_MD_PATH = join(PROJ, "extra.md");
-
-/**
- * List the direct children of `dir` implied by a set of stored file paths
- * (an in-memory `ProjectEnv.readDir`).
- */
-async function* readDirOf(
-  paths: Iterable<string>,
-  dir: string,
-): AsyncGenerator<{ name: string; isFile: boolean; isDirectory: boolean }> {
-  const prefix = dir.endsWith(SEPARATOR) ? dir : dir + SEPARATOR;
-  const seen = new Set<string>();
-  for (const path of paths) {
-    if (!path.startsWith(prefix)) continue;
-    const rest = path.slice(prefix.length);
-    const name = rest.split(SEPARATOR)[0];
-    if (seen.has(name)) continue;
-    seen.add(name);
-    yield { name, isFile: rest === name, isDirectory: rest !== name };
-  }
-}
 
 /** Build a ProjectEnv that serves a fixed file map. */
 function makeEnv(
@@ -70,7 +51,7 @@ function makeEnv(
         const f = store.get(path);
         return Promise.resolve(f?.content);
       },
-      readDir: (dir) => readDirOf(store.keys(), dir),
+      readDir: (dir) => listChildren(store.keys(), dir),
       homeDir: () => undefined,
       realPath: (path) => Promise.resolve(path),
       stat: (path) => {
@@ -579,7 +560,7 @@ function makeCorpusEnv(corpusMissing = false): ProjectEnv {
     cwd: () => PROJ,
     rootOverrides: () => [],
     readFile: (path) => Promise.resolve(files.get(path)),
-    readDir: (dir) => readDirOf(files.keys(), dir),
+    readDir: (dir) => listChildren(files.keys(), dir),
     homeDir: () => undefined,
     realPath: (path) => Promise.resolve(path),
     stat: (path) => {
@@ -795,7 +776,7 @@ function makeUpstreamEnv(withLockfile = true): {
       cwd: () => PROJ,
       rootOverrides: () => [],
       readFile: (path) => Promise.resolve(files.get(path)?.content),
-      readDir: (dir) => readDirOf(files.keys(), dir),
+      readDir: (dir) => listChildren(files.keys(), dir),
       homeDir: () => undefined,
       realPath: (path) => Promise.resolve(path),
       stat: (path) => {
