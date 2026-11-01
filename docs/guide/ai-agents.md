@@ -105,16 +105,23 @@ that `markspec_refresh` always does.
 
 With several projects:
 
-- Every tool and resource answers for all projects. Each result sits under a
-  `## Project: <label>` heading. The label is the project folder relative to the
-  primary root: the nearest folder with a `project.yaml` (else a
-  `.markspec.yaml`) found by walking up from the start folder, or the start
-  folder itself when there is none. The primary root itself has the label `.`.
-  When one project fails, its section reads `Error: <message>` under its
-  `## Project: <label>` heading, and the other projects still answer.
+- Every tool and resource answers for all projects. Except for `entry_search`
+  (see below), each result sits under a `## Project: <label>` heading. The label
+  is the project folder relative to the primary root: the nearest folder with a
+  `project.yaml` (else a `.markspec.yaml`) found by walking up from the start
+  folder, or the start folder itself when there is none. The primary root itself
+  has the label `.`. When one project fails, its section reads
+  `Error: <message>` under its `## Project: <label>` heading, and the other
+  projects still answer.
 - Every tool except `project_list` accepts an optional `project` argument with a
   label, which limits the answer to that project. An unknown label returns an
   error that lists the known labels.
+- `entry_search` answers with one list instead of one section per project. It
+  ranks the matches of all selected projects together by score and returns at
+  most `limit` matches in total. Each match names its project:
+  `(project: <label>, score N)`. A project that fails is listed after the
+  matches, under `Errors:`, as `Error in project <label>: <message>`, and uses
+  none of the limit.
 - `project_list` lists each project with its label, absolute root, active
   profile, and entry count once compiled.
 - `validate` resolves relative `files` paths against the primary root and checks
