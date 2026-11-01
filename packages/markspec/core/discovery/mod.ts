@@ -7,16 +7,16 @@
  * root, honoring (in precedence order):
  *
  *   1. built-in skips — hidden directories (name starts with `.`)
- *   2. `.gitignore` files (root + nested, standard semantics), plus the
- *      `.gitignore` files of the root's ancestor directories up to the
- *      git work-tree root (the nearest directory that holds `.git`)
+ *   2. `.gitignore` files (root + nested, standard semantics), plus, when
+ *      the caller names an enclosing folder, the `.gitignore` files of the
+ *      folders from that folder down to the root's parent
  *   3. caller-supplied `exclude` patterns (gitignore syntax, root-anchored)
  *
  * I/O is injected via {@linkcode DiscoveryIO} so the module stays
  * Node-compatible; entry points supply the Deno implementation.
  */
 
-import { dirname, extname, join, resolve } from "@std/path";
+import { extname, join, relative, resolve, SEPARATOR } from "@std/path";
 import { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
 
 export { type GitignoreRule, isIgnored, parseGitignore } from "./gitignore.ts";
@@ -78,6 +78,15 @@ export interface DiscoverOptions {
   /** Extra gitignore-syntax patterns, anchored at `root` (e.g. from
    * project.yaml `exclude:`). Applied after `.gitignore` rules. */
   readonly exclude?: readonly string[];
+  /**
+   * An enclosing folder of `root`, such as the root of the project that a
+   * nested project lies in. The `.gitignore` files of the folders from it
+   * down to the parent of `root` also apply, each anchored to its own
+   * folder, so the walk of a nested project skips the files that the walk
+   * from the enclosing folder skips. No `.gitignore` above this folder is
+   * read. Ignored when it is not an ancestor of `root`.
+   */
+  readonly inheritGitignoreFrom?: string;
 }
 
 /**
@@ -112,12 +121,6 @@ const BUILTIN_SKIP_RULES: readonly GitignoreRule[] = parseGitignore(
  * Walk `root` recursively, yielding absolute paths of relevant files.
  * Entries are yielded in sorted order per directory — deterministic
  * output across filesystems. Unreadable directories are skipped.
- *
- * Like git, the walk also applies the `.gitignore` files of the
- * directories above `root`, up to the nearest directory that holds `.git`
- * (a directory or a worktree file). Each of those rules stays anchored to
- * the directory of its own `.gitignore`. When no directory at or above
- * `root` holds `.git`, no ancestor rules apply.
  */
 export async function* discoverFiles(
   root: string,
@@ -125,85 +128,60 @@ export async function* discoverFiles(
   options: DiscoverOptions = {},
 ): AsyncGenerator<string> {
   const extensions = options.extensions ?? RELEVANT_EXTENSIONS;
-  const ancestors = await ancestorGitignoreRules(root, io);
-  // Every rule is matched against paths relative to the work-tree root
-  // when one was found above `root`, so `prefix` is the path from that
-  // root down to `root` (`""` otherwise).
-  const prefix = ancestors.prefix;
+  const inherited = options.inheritGitignoreFrom === undefined
+    ? { rules: [], prefix: "" }
+    : await inheritedGitignoreRules(options.inheritGitignoreFrom, root, io);
+  // With inherited rules, every rule is matched against paths relative to
+  // the enclosing folder, so `prefix` is the path from it down to `root`.
+  const prefix = inherited.prefix;
   const excludeRules = parseGitignore(
     (options.exclude ?? []).join("\n"),
     prefix,
   );
-  // Built-in build-output skips are the lowest-precedence layer: ancestor
+  // Built-in build-output skips are the lowest-precedence layer: inherited
   // `.gitignore` rules, `exclude:`, and the walk's own `.gitignore` files
   // (appended per-directory in `walk`) all come after, so a `!target/`
   // negation in any of them overrides them.
   yield* walk(
     root,
     prefix,
-    [...BUILTIN_SKIP_RULES, ...ancestors.rules, ...excludeRules],
+    [...BUILTIN_SKIP_RULES, ...inherited.rules, ...excludeRules],
     io,
     extensions,
   );
 }
 
 /**
- * Collect the `.gitignore` rules of the directories above `root`, up to
- * the nearest directory that holds `.git`. Returns the rules, outermost
- * first, together with the POSIX path from that directory down to `root`.
- * Returns no rules and an empty path when `root` itself holds `.git`, or
- * when no directory above it does.
+ * Collect the `.gitignore` rules of the folders from `from` down to the
+ * parent of `root`, outermost first, each anchored to its own folder.
+ * Returns them with the POSIX path from `from` down to `root`. Returns no
+ * rules and an empty path when `from` is not a strict ancestor of `root`.
  */
-async function ancestorGitignoreRules(
+async function inheritedGitignoreRules(
+  from: string,
   root: string,
   io: DiscoveryIO,
 ): Promise<{ rules: GitignoreRule[]; prefix: string }> {
-  const none = { rules: [], prefix: "" };
-  if (await holdsGit(root, io)) return none;
-  // Directory names from the work-tree root down to `root`, built while
-  // walking up; `contents` holds the `.gitignore` text of each ancestor.
-  // The walk-up starts from the absolute path: the dirname of a relative
-  // one-segment root (`docs`) is `.`, which has no name to slice off.
-  const segments: string[] = [];
-  const contents: Array<string | undefined> = [];
-  let dir = resolve(root);
-  while (true) {
-    const parent = dirname(dir);
-    if (parent === dir) return none; // reached the filesystem root
-    segments.unshift(dir.slice(parent.length).replace(/^[\\/]+/, ""));
-    contents.unshift(await io.readFile(join(parent, ".gitignore")));
-    dir = parent;
-    if (await holdsGit(dir, io)) break;
+  const rel = relative(resolve(from), resolve(root));
+  if (rel === "" || rel === ".." || rel.startsWith(`..${SEPARATOR}`)) {
+    return { rules: [], prefix: "" };
   }
+  const segments = rel.split(SEPARATOR);
   const rules: GitignoreRule[] = [];
-  for (let i = 0; i < contents.length; i++) {
-    const raw = contents[i];
+  for (let i = 0; i < segments.length; i++) {
+    const raw = await io.readFile(
+      join(from, ...segments.slice(0, i), ".gitignore"),
+    );
     if (raw === undefined || raw.length === 0) continue;
     rules.push(...parseGitignore(raw, segments.slice(0, i).join("/")));
-  }
-  // A walk root that the ancestor rules ignore (or that lies inside a
-  // directory they ignore) was named on purpose: walk it as before, with
-  // no ancestor rules, instead of pruning every file below it.
-  for (let i = 1; i <= segments.length; i++) {
-    if (isIgnored(segments.slice(0, i).join("/"), true, rules)) return none;
   }
   return { rules, prefix: segments.join("/") };
 }
 
 /**
- * `true` when `dir` holds `.git`: a worktree or submodule `.git` file, or
- * a `.git` directory (detected by its `HEAD` file, which every repository
- * has). Uses only `readFile`, so every {@linkcode DiscoveryIO} supports it.
- */
-async function holdsGit(dir: string, io: DiscoveryIO): Promise<boolean> {
-  return await io.readFile(join(dir, ".git")) !== undefined ||
-    await io.readFile(join(dir, ".git", "HEAD")) !== undefined;
-}
-
-/**
  * Walk `absDir`. `relDir` is the POSIX path of `absDir` relative to the
- * directory the rules are anchored at (the work-tree root when ancestor
- * rules apply, else the walk root); `""` for that directory itself.
+ * folder the rules are anchored at (the enclosing folder when rules are
+ * inherited, else the walk root); `""` for that folder itself.
  */
 async function* walk(
   absDir: string,

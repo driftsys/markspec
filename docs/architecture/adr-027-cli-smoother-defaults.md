@@ -349,19 +349,17 @@ decision text above is kept as it was written.
   unchanged: they still walk up from the current directory to the nearest
   `project.yaml`.
 
-## Amendment (2026-11-01, ancestor `.gitignore` files)
+## Amendment (2026-11-01, `.gitignore` files of the enclosing project)
 
-The walk of a nested project starts at that project's root, so without this
-amendment the `.gitignore` files of the folders above it did not apply, and a
-bare `fmt` at a repository root formatted gitignored files inside a nested
-project.
+Since the 2026-10-31 amendment, a bare invocation walks each nested project from
+its own root. That walk did not apply the `.gitignore` files of the folders
+above the nested root, so a bare `fmt` formatted files inside a nested project
+that the enclosing project's `.gitignore` ignores.
 
-- `discoverFiles` also applies the `.gitignore` files of the folders above the
-  walk root, up to the nearest folder that holds `.git` (a directory or a
-  worktree `.git` file), as git does. Each rule stays anchored to the folder of
-  its own `.gitignore`. When no folder at or above the walk root holds `.git`,
-  no ancestor rules apply.
-- When the ancestor rules ignore the walk root itself, or a folder that contains
-  it, none of them apply: a root inside an ignored folder is walked as before.
-- The LSP and the MCP server use the same function, so the same files are
-  skipped there.
+- The walk of a nested project also applies the `.gitignore` files of the
+  folders from the outermost project root down to the parent of the nested root,
+  each anchored to its own folder (`discoverFiles` option
+  `inheritGitignoreFrom`). It therefore skips the files that the walk of the
+  enclosing project skips. This works with or without git.
+- No `.gitignore` file above the outermost project root is read. Walks of a
+  single root, the LSP, the MCP server, and `markspec lock` are unchanged.

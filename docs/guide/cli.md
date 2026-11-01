@@ -177,11 +177,11 @@ starting with `.`) and the common build-output / dependency directories
 `exclude:`. The build-output skip is overridable — re-include one with a negated
 entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
 
-**`.gitignore` files above the project.** Discovery also applies the
-`.gitignore` files of the folders above the folder it walks, up to the root of
-the git repository, as git does. A nested project therefore skips the files that
-the repository's `.gitignore` ignores. When the folder being walked is itself
-inside an ignored folder, those rules do not apply, so it is still walked.
+**Nested projects and `.gitignore`.** When a bare invocation walks a project
+nested below the root, it also applies the `.gitignore` files of the folders
+between the root and the nested project. A nested project therefore skips the
+files that the enclosing project's `.gitignore` ignores. No `.gitignore` above
+the root is read.
 
 **`caption-conventions:` example** — require every `Table` caption above its
 block and every `Figure` caption below:

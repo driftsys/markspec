@@ -557,12 +557,12 @@ Deno.test("check: bare invocation with a nested project matches the markspec.loc
   }
 });
 
-Deno.test("fmt: bare invocation skips files the repository .gitignore ignores inside a nested project", async () => {
+Deno.test("fmt: bare invocation skips files the enclosing project's .gitignore ignores inside a nested project", async () => {
   const generated =
     "# Gen\n\n- [STK_0009] Generated\n\n  The system shall do X.\n";
   const run = await markspecPersist(["fmt"], {
     files: {
-      ".git/HEAD": "ref: refs/heads/main\n",
+      // No `.git`: the enclosing project's `.gitignore` applies without git.
       ".gitignore": "gen/\n",
       "project.yaml": "name: root\nversion: 0.1.0\n",
       "sub/project.yaml": "name: nested\nversion: 0.1.0\n",
