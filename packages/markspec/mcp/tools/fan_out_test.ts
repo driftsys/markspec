@@ -19,6 +19,7 @@ import {
   MEMORY_PARENT,
   memoryEnv,
   PROJECT_YAML,
+  stubWorkspace,
   twoProjectFiles,
 } from "./testing.ts";
 
@@ -133,20 +134,7 @@ async function twoProjectsOneBroken(): Promise<McpWorkspace> {
       }
       : wp
   );
-  return {
-    startRoot: ws.startRoot,
-    projects: () => list,
-    softGateMessage: undefined,
-    select(label?: string) {
-      if (label === undefined) return list;
-      const match = list.filter((p) => p.label === label);
-      return match.length > 0 ? match : `Unknown project "${label}".`;
-    },
-    ownerOf: () => undefined,
-    canonicalPath: (path) => Promise.resolve(path),
-    rediscover: () => Promise.resolve(),
-    subscribeInvalidation: () => () => {},
-  };
+  return stubWorkspace(list, { startRoot: ws.startRoot });
 }
 
 Deno.test("dispatchTool: a failing project gets an error section, the others still answer", async () => {

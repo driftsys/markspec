@@ -15,6 +15,7 @@ import {
 import { join, resolve, SEPARATOR } from "@std/path";
 import { makeDisplayId } from "../core/mod.ts";
 import type { ProjectEnv } from "./project.ts";
+import { memoryEnv, stubWorkspace } from "./tools/testing.ts";
 import {
   createWorkspace,
   createWorkspaceLoader,
@@ -35,53 +36,6 @@ function doc(displayId: string, ulid: string): string {
 const DOC_A = doc("STK_TEST_0001", "01HGW2Q8MNP3RSTVWXYZABCDEF");
 const DOC_B = doc("STK_TEST_0002", "01HGW2Q8MNP3RSTVWXYZABCDEG");
 
-interface EnvOptions {
-  readonly cwd?: string;
-  readonly rootOverrides?: string[];
-  readonly realPath?: (path: string) => string;
-  readonly homeDir?: string;
-}
-
-/**
- * Build a `ProjectEnv` over an in-memory file map. Directories are implied
- * by the file paths. Returns the store so tests can add or remove files.
- */
-function makeEnv(
-  files: Record<string, string>,
-  options: EnvOptions = {},
-): { env: ProjectEnv; store: Map<string, string> } {
-  const store = new Map(Object.entries(files));
-  const under = (dir: string, path: string) =>
-    path.startsWith(dir.endsWith(SEPARATOR) ? dir : dir + SEPARATOR);
-  const env: ProjectEnv = {
-    cwd: () => options.cwd ?? PARENT,
-    rootOverrides: () => options.rootOverrides ?? [],
-    readFile: (path) => Promise.resolve(store.get(path)),
-    readDir: async function* (dir) {
-      const seen = new Set<string>();
-      for (const path of store.keys()) {
-        if (!under(dir, path)) continue;
-        const rest = path.slice(dir.length).replace(/^[\\/]/, "");
-        const name = rest.split(/[\\/]/)[0];
-        if (seen.has(name)) continue;
-        seen.add(name);
-        const isFile = rest === name;
-        yield { name, isFile, isDirectory: !isFile };
-      }
-    },
-    homeDir: () => options.homeDir,
-    realPath: (path) => Promise.resolve(options.realPath?.(path) ?? path),
-    stat: (path) => {
-      if (!store.has(path)) return Promise.reject(new Error(`ENOENT ${path}`));
-      return Promise.resolve({ mtime: 1 });
-    },
-    walk: async function* (root) {
-      for (const path of store.keys()) if (under(root, path)) yield path;
-    },
-  };
-  return { env, store };
-}
-
 /** Two sibling projects `a` and `b` below `PARENT`. */
 function twoProjects(): Record<string, string> {
   return {
@@ -96,7 +50,7 @@ const labels = (ws: { projects(): readonly { label: string }[] }) =>
   ws.projects().map((p) => p.label);
 
 Deno.test("createWorkspace: parent folder with two projects", async () => {
-  const { env } = makeEnv(twoProjects());
+  const env = memoryEnv(twoProjects());
   const ws = await createWorkspace(env);
   assertEquals(ws.startRoot, PARENT);
   assertEquals(labels(ws), ["a", "b"]);
@@ -109,7 +63,7 @@ Deno.test("createWorkspace: parent folder with two projects", async () => {
 });
 
 Deno.test('createWorkspace: single project is labeled "."', async () => {
-  const { env } = makeEnv({
+  const env = memoryEnv({
     [join(A, "project.yaml")]: PROJECT_YAML,
     [join(A, "req.md")]: DOC_A,
   }, { cwd: A });
@@ -120,7 +74,7 @@ Deno.test('createWorkspace: single project is labeled "."', async () => {
 
 Deno.test("createWorkspace: a nested project's files belong only to it", async () => {
   const nested = join(A, "sub");
-  const { env } = makeEnv({
+  const env = memoryEnv({
     [join(A, "project.yaml")]: PROJECT_YAML,
     [join(A, "req.md")]: DOC_A,
     [join(nested, "project.yaml")]: PROJECT_YAML,
@@ -144,7 +98,7 @@ Deno.test("createWorkspace: a nested project's files belong only to it", async (
 
 Deno.test("createWorkspace: no project → softGateMessage set, projects() empty", async () => {
   const OTHER = resolve("/elsewhere");
-  const { env } = makeEnv({}, { rootOverrides: [OTHER] });
+  const env = memoryEnv({}, { rootOverrides: [OTHER] });
   const ws = await createWorkspace(env);
   assertEquals(ws.projects(), []);
   assertExists(ws.softGateMessage);
@@ -158,7 +112,7 @@ Deno.test("createWorkspace: no project → softGateMessage set, projects() empty
 });
 
 Deno.test("createWorkspace: one broken project does not hide the others", async () => {
-  const { env } = makeEnv({
+  const env = memoryEnv({
     ...twoProjects(),
     [join(A, "project.yaml")]: "name: [unclosed\n  : : :\n",
   });
@@ -172,7 +126,7 @@ Deno.test("createWorkspace: labels are computed after realPath", async () => {
   const LINK = resolve("/link");
   const REAL = resolve("/real");
   const toReal = (p: string) => p === LINK ? REAL : p;
-  const { env } = makeEnv({
+  const env = memoryEnv({
     [join(REAL, "a", "project.yaml")]: PROJECT_YAML,
     [join(REAL, "b", "project.yaml")]: PROJECT_YAML,
   }, { cwd: LINK, realPath: toReal });
@@ -183,7 +137,7 @@ Deno.test("createWorkspace: labels are computed after realPath", async () => {
 
 Deno.test("createWorkspace: first candidate with a project wins", async () => {
   const OTHER = resolve("/other");
-  const { env } = makeEnv({
+  const env = memoryEnv({
     ...twoProjects(),
     [join(OTHER, "project.yaml")]: PROJECT_YAML,
   }, { rootOverrides: [resolve("/empty"), OTHER] });
@@ -193,7 +147,7 @@ Deno.test("createWorkspace: first candidate with a project wins", async () => {
 });
 
 Deno.test("select: all, by label, and the single-project dot", async () => {
-  const { env } = makeEnv(twoProjects());
+  const env = memoryEnv(twoProjects());
   const ws = await createWorkspace(env);
   assertEquals(ws.select(undefined), ws.projects());
   const picked = ws.select("b");
@@ -202,20 +156,20 @@ Deno.test("select: all, by label, and the single-project dot", async () => {
   ]);
 
   const single = await createWorkspace(
-    makeEnv({ [join(A, "project.yaml")]: PROJECT_YAML }, { cwd: A }).env,
+    memoryEnv({ [join(A, "project.yaml")]: PROJECT_YAML }, { cwd: A }),
   );
   assertEquals(single.select("."), single.projects());
 
   // One project below a folder that is not itself a project.
   const below = await createWorkspace(
-    makeEnv({ [join(A, "project.yaml")]: PROJECT_YAML }).env,
+    memoryEnv({ [join(A, "project.yaml")]: PROJECT_YAML }),
   );
   assertEquals(labels(below), ["a"]);
   assertEquals(below.select("."), below.projects());
 });
 
 Deno.test("select: unknown label lists known labels", async () => {
-  const { env } = makeEnv(twoProjects());
+  const env = memoryEnv(twoProjects());
   const ws = await createWorkspace(env);
   assertEquals(
     ws.select("zzz"),
@@ -224,13 +178,14 @@ Deno.test("select: unknown label lists known labels", async () => {
 });
 
 Deno.test("rediscover: adds a new project and drops a removed one", async () => {
-  const { env, store } = makeEnv(twoProjects());
+  const env = memoryEnv(twoProjects());
   const ws = await createWorkspace(env);
   const keptB = ws.projects()[1].project;
   let fired = 0;
   ws.subscribeInvalidation(() => fired++);
 
   const C = join(PARENT, "c");
+  const { store } = env;
   store.delete(join(A, "project.yaml"));
   store.delete(join(A, "req.md"));
   store.set(join(C, "project.yaml"), PROJECT_YAML);
@@ -243,7 +198,7 @@ Deno.test("rediscover: adds a new project and drops a removed one", async () => 
 });
 
 Deno.test("rediscover: a project added below an existing one takes its files", async () => {
-  const { env, store } = makeEnv({
+  const env = memoryEnv({
     [join(A, "project.yaml")]: PROJECT_YAML,
     [join(A, "req.md")]: DOC_A,
     [join(A, "sub", "req.md")]: DOC_B,
@@ -253,7 +208,7 @@ Deno.test("rediscover: a project added below an existing one takes its files", a
   const before = await parent.getCompiled();
   assertExists(before.entries.get(makeDisplayId("STK_TEST_0002")));
 
-  store.set(join(A, "sub", "project.yaml"), PROJECT_YAML);
+  env.store.set(join(A, "sub", "project.yaml"), PROJECT_YAML);
   await ws.rediscover();
   assertEquals(labels(ws), [".", "sub"]);
   assertStrictEquals(ws.projects()[0].project, parent);
@@ -263,7 +218,7 @@ Deno.test("rediscover: a project added below an existing one takes its files", a
 });
 
 Deno.test("subscribeInvalidation: fires when a project recompiles", async () => {
-  const { env } = makeEnv(twoProjects());
+  const env = memoryEnv(twoProjects());
   const ws = await createWorkspace(env);
   // Compile each project once so only the refresh below counts.
   for (const p of ws.projects()) await p.project.getCompiled();
@@ -277,7 +232,7 @@ Deno.test("subscribeInvalidation: fires when a project recompiles", async () => 
 });
 
 Deno.test("createWorkspace: with several projects, none compiles until used", async () => {
-  const { env } = makeEnv(twoProjects());
+  const env = memoryEnv(twoProjects());
   const mdReads: string[] = [];
   const countingEnv: ProjectEnv = {
     ...env,
@@ -297,7 +252,7 @@ Deno.test("createWorkspace: with several projects, none compiles until used", as
 });
 
 Deno.test("createWorkspace: a lone project starts compiling at once", async () => {
-  const { env } = makeEnv({
+  const env = memoryEnv({
     [join(A, "project.yaml")]: PROJECT_YAML,
     [join(A, "req.md")]: DOC_A,
   }, { cwd: A });
@@ -322,7 +277,7 @@ Deno.test("createWorkspace: a lone project starts compiling at once", async () =
 Deno.test("createWorkspace: no downward scan from the home folder", async () => {
   // The home folder holds its own project and one below it: only the home
   // project is served.
-  const { env } = makeEnv({
+  const env = memoryEnv({
     [join(PARENT, "project.yaml")]: PROJECT_YAML,
     [join(PARENT, "req.md")]: DOC_A,
     [join(B, "project.yaml")]: PROJECT_YAML,
@@ -334,7 +289,7 @@ Deno.test("createWorkspace: no downward scan from the home folder", async () => 
 
 Deno.test("createWorkspace: the home folder is compared after realPath", async () => {
   const LINK = resolve("/home-link");
-  const { env } = makeEnv(twoProjects(), {
+  const env = memoryEnv(twoProjects(), {
     homeDir: LINK,
     realPath: (p) => p === LINK ? PARENT : p,
   });
@@ -343,7 +298,7 @@ Deno.test("createWorkspace: the home folder is compared after realPath", async (
 });
 
 Deno.test("createWorkspace: a candidate folder listed twice is scanned once", async () => {
-  const { env } = makeEnv({}, { rootOverrides: [PARENT] });
+  const env = memoryEnv({}, { rootOverrides: [PARENT] });
   const listed: string[] = [];
   const countingEnv: ProjectEnv = {
     ...env,
@@ -362,11 +317,6 @@ Deno.test("createWorkspace: a candidate folder listed twice is scanned once", as
 // ---------------------------------------------------------------------------
 // createWorkspaceLoader: retry after a failed discovery (#855)
 // ---------------------------------------------------------------------------
-
-/** A stand-in workspace; the loader tests compare identities only. */
-function stubWorkspace(startRoot: string): McpWorkspace {
-  return { startRoot } as unknown as McpWorkspace;
-}
 
 /** A discover function whose attempts the test settles by hand. */
 function manualDiscover(): {
@@ -394,7 +344,7 @@ Deno.test("createWorkspaceLoader: the call after a failed attempt starts a new o
 
   const retry = load();
   assertEquals(attempts.length, 2);
-  const workspace = stubWorkspace("/work");
+  const workspace = stubWorkspace([], { startRoot: "/work" });
   attempts[1].resolve(workspace);
   assertStrictEquals(await retry, workspace);
 
@@ -419,7 +369,7 @@ Deno.test("createWorkspaceLoader: calls made during one attempt share it", async
   const retryA = load();
   const retryB = load();
   assertEquals(attempts.length, 2);
-  const workspace = stubWorkspace("/work");
+  const workspace = stubWorkspace([], { startRoot: "/work" });
   attempts[1].resolve(workspace);
   assertStrictEquals(await retryA, workspace);
   assertStrictEquals(await retryB, workspace);
@@ -442,7 +392,7 @@ Deno.test("createWorkspaceLoader: a failed retry rejects its callers and the nex
 
   const next = load();
   assertEquals(attempts.length, 3);
-  const workspace = stubWorkspace("/work");
+  const workspace = stubWorkspace([], { startRoot: "/work" });
   attempts[2].resolve(workspace);
   assertStrictEquals(await next, workspace);
 });
@@ -459,7 +409,7 @@ Deno.test("createWorkspaceLoader: onReady runs once, for the attempt that succee
   await assertRejects(() => retry, Error, "retry failed");
   assertEquals(ready, []);
 
-  const workspace = stubWorkspace("/work");
+  const workspace = stubWorkspace([], { startRoot: "/work" });
   const success = load();
   attempts[2].resolve(workspace);
   await success;
@@ -477,10 +427,10 @@ Deno.test("createWorkspaceLoader: the call after onReady throws starts a new att
     if (readyCalls === 1) throw new Error("wiring failed");
   });
   const first = load();
-  attempts[0].resolve(stubWorkspace("/work"));
+  attempts[0].resolve(stubWorkspace([], { startRoot: "/work" }));
   await assertRejects(() => first, Error, "wiring failed");
 
-  const workspace = stubWorkspace("/work");
+  const workspace = stubWorkspace([], { startRoot: "/work" });
   const second = load();
   assertEquals(attempts.length, 2);
   attempts[1].resolve(workspace);
