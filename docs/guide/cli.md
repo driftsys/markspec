@@ -446,9 +446,9 @@ profile, and `markspec.lock` on every surface.
   When neither file is found, the command exits 1 with
   `error: no project root found` and a hint that a `project.yaml` or
   `.markspec.yaml` marks a project root. Projects nested below the root (found
-  as the LSP finds them) are processed as their own groups, each with its own
-  profile, `exclude:` list, `markspec.lock`, and project-wide gates. The scope
-  header then names the number of projects:
+  as the LSP finds them from the outermost project root) are processed as their
+  own groups, each with its own profile, `exclude:` list, `markspec.lock`, and
+  project-wide gates. The scope header then names the number of projects:
   `checking N file(s) under <root> (K projects)`. With one project, the header
   is unchanged: `checking N file(s) under <root>`.
 

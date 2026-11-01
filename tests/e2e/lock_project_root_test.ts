@@ -80,6 +80,22 @@ Deno.test("lock: a project.yaml in a folder the parent excludes is not a root (#
       await exists(join(run.dir, "p", "vendor", "markspec.lock")),
       false,
     );
+    // compile --frozen and doctor, run from `vendor/`, read the lockfile
+    // where lock wrote it and compare the parent's files, which leave out
+    // `vendor/` and its edge.
+    const vendor = join(run.dir, "p", "vendor");
+    const frozen = await markspecInDir(vendor, [
+      "compile",
+      "--frozen",
+      "req.md",
+    ]);
+    assertEquals(frozen.code, 0, frozen.stderr);
+    const doctor = await markspecInDir(vendor, ["doctor", "--format", "json"]);
+    const report = JSON.parse(doctor.stdout) as {
+      lockfile: { present: boolean; edgeDrift?: boolean };
+    };
+    assertEquals(report.lockfile.present, true, doctor.stdout);
+    assertEquals(report.lockfile.edgeDrift, false, doctor.stdout);
     // `vendor/` is excluded from the parent's walk, so its edge is not
     // pinned: changing it leaves the lockfile in sync.
     await Deno.writeTextFile(
@@ -91,21 +107,6 @@ Deno.test("lock: a project.yaml in a folder the parent excludes is not a root (#
       "--check",
     ]);
     assertEquals(lockCheck.code, 0, lockCheck.stderr);
-    // compile --frozen and doctor read the lockfile where lock wrote it.
-    const vendor = join(run.dir, "p", "vendor");
-    const frozen = await markspecInDir(vendor, [
-      "compile",
-      "--frozen",
-      "req.md",
-    ]);
-    assertEquals(frozen.stderr.includes("MSL-L201"), false, frozen.stderr);
-    const doctor = await markspecInDir(vendor, ["doctor", "--format", "json"]);
-    assertEquals(
-      (JSON.parse(doctor.stdout) as { lockfile: { present: boolean } })
-        .lockfile.present,
-      true,
-      doctor.stdout,
-    );
   } finally {
     await Deno.remove(run.dir, { recursive: true });
   }
@@ -284,9 +285,47 @@ for (
     try {
       assertEquals(run.code, 1, run.stderr);
       assertStringIncludes(run.stderr, "no project root found");
+      assertStringIncludes(run.stderr, "searched from");
+      assertStringIncludes(run.stderr, "run 'markspec init' to create one\n");
       assertEquals(await exists(join(run.dir, "markspec.lock")), false);
     } finally {
       await Deno.remove(run.dir, { recursive: true });
     }
   });
 }
+
+Deno.test("check: bare invocation inside a nested project leaves out the parent project (#860)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+      "p/req.md": entry("STK_0001", "A"),
+      "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "p/sub/a.md": entry("STK_0002", "B"),
+    },
+    cwd: "p/sub",
+  });
+  try {
+    const check = await markspecInDir(join(run.dir, "p", "sub"), ["check"]);
+    assertStringIncludes(check.stderr, "checking 1 file(s) under");
+    assertEquals(check.stderr.includes("projects)"), false, check.stderr);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("lock: a malformed .markspec.yaml exclude: list stops lock (#860)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "project.yaml": "name: t\nversion: 0.1.0\n",
+      ".markspec.yaml": "exclude: 5\n",
+      "req.md": entry("STK_0001", "A"),
+    },
+  });
+  try {
+    assertEquals(run.code, 1, run.stderr);
+    assertStringIncludes(run.stderr, "exclude");
+    assertEquals(await exists(join(run.dir, "markspec.lock")), false);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

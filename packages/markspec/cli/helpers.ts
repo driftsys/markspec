@@ -536,7 +536,7 @@ export async function cliProjectRootResolver(): Promise<ProjectRootResolver> {
  * The project root of the current folder, resolved like a bare `check`
  * ({@linkcode cliProjectRootResolver}). When no `project.yaml` or
  * `.markspec.yaml` is at or above the current folder, prints an error and
- * exits 1. Used by `lock` and `sync`.
+ * exits 1. Used by `lock`, `sync` and `compile --frozen`.
  */
 export async function requireCwdProjectRoot(
   resolver?: ProjectRootResolver,
@@ -600,7 +600,9 @@ export async function projectCollectOptions(
 }
 
 /**
- * Walk `root` and every project nested below it the way the LSP indexes a
+ * Walk `root` and every project nested below it (the nested roots the
+ * resolver sees from the outermost project root above `root`) the way the
+ * LSP indexes a
  * workspace opened at `root`: each project root is walked with its own
  * `.markspec.yaml` `exclude:` list and the `.gitignore` files of the
  * outermost project above it, and a file belongs to the nearest project
@@ -651,8 +653,9 @@ async function walkProjects(
  *   - no args  → whole project via gitignore-aware discovery, with a
  *     one-line scope header on stderr. The project root is the owner of the
  *     current directory, found the same way as for explicit arguments
- *     ({@linkcode createProjectRootResolver}). Projects nested below it (found as the LSP finds them:
- *     configs in hidden, gitignored or excluded folders do not count) form
+ *     ({@linkcode createProjectRootResolver}). Projects nested below it (found as the LSP finds them
+ *     from the outermost project root: configs in hidden, gitignored or
+ *     excluded folders do not count) form
  *     their own groups; each project's `.markspec.yaml` `exclude:` list
  *     applies to its own walk;
  *   - explicit args → files verbatim; a directory expands to the files of
