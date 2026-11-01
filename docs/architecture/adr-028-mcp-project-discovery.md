@@ -264,3 +264,20 @@ This supersedes the earlier decision to skip downward search (follow-up #645).
   `packages/markspec/mcp/resources/mod.ts` (dispatch through
   `workspace.softGateMessage`), `packages/markspec/mcp/project_test.ts`,
   `packages/markspec/mcp/workspace_test.ts`.
+
+## Amendment (2026-11-01, #851)
+
+This amendment changes one rule of section 7: the per-project sections and the
+label-ordered output. The decision text above is kept as it was written.
+
+- `entry_search` is the one exception. When it selects several projects, its
+  answer is not grouped under `## Project: <label>` headings. It is one list of
+  matches ranked by score across all selected projects, with at most `limit`
+  matches in total. Each match is tagged `(project: <label>, score N)`. Equal
+  scores keep project label order, then the order inside the project.
+- A project that fails during `entry_search` does not get an `Error: <message>`
+  section. It is listed after the matches under `Errors:` as
+  `Error in project <label>: <message>`, and it uses none of the `limit`.
+- With exactly one selected project, `entry_search` output is unchanged from
+  before this amendment. All other tools keep the sections and the label order
+  described above.

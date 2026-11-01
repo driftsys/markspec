@@ -366,6 +366,48 @@ Deno.test("dispatchTool: entry_search ranks hits across projects in one list", a
   assertEquals(text.includes("## Project:"), false, text);
 });
 
+/** Two projects whose tied hits have display IDs that sort opposite to the
+ * project labels: `a` holds Z_0001, `b` holds A_0001, both at score 5. */
+function reversedIdFiles(): Record<string, string> {
+  return {
+    [join(MEMORY_PARENT, "a", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "a", "req.md")]: entryDoc(
+      "Z_0001",
+      "Brake",
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    ),
+    [join(MEMORY_PARENT, "b", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "b", "req.md")]: entryDoc(
+      "A_0001",
+      "Brake",
+      "01HGW2Q8MNP3RSTVWXYZABCDEG",
+    ),
+  };
+}
+
+Deno.test("dispatchTool: entry_search ties follow project label order, not display ID order", async () => {
+  const ws = await createWorkspace(memoryEnv(reversedIdFiles()));
+  const both = await dispatchTool("entry_search", { query: "brake" }, ws);
+  assertEquals(
+    both,
+    `# Search results for "brake" (2 matches)\n\n${
+      hitLine("Z_0001", "Brake", "a", 5)
+    }\n${hitLine("A_0001", "Brake", "b", 5)}\n`,
+  );
+  // The limit cuts through the tie: project a's hit stays.
+  const one = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 1 },
+    ws,
+  );
+  assertEquals(
+    one,
+    `# Search results for "brake" (1 match)\n\n${
+      hitLine("Z_0001", "Brake", "a", 5)
+    }\n`,
+  );
+});
+
 /** The three-project workspace, with project `b` failing to compile. */
 async function threeProjectsBBroken(): Promise<McpWorkspace> {
   const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
@@ -398,6 +440,40 @@ Deno.test("dispatchTool: entry_search lists a failing project after the hits and
       hitLine("STK_0005", "Brake light", "c", 5)
     }\n${hitLine("STK_0001", "Brakes", "a", 3)}\n` +
       "\nErrors:\n\n- Error in project b: disk read failed\n",
+  );
+});
+
+Deno.test("dispatchTool: entry_search lists two failing projects after the hits and keeps the full limit", async () => {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const messages: Record<string, string> = {
+    a: "disk read failed",
+    c: "parse crashed",
+  };
+  const list: WorkspaceProject[] = ws.projects().map((wp) =>
+    wp.label in messages
+      ? {
+        label: wp.label,
+        project: Object.create(wp.project, {
+          getCompiled: {
+            value: () => Promise.reject(new Error(messages[wp.label])),
+          },
+        }),
+      }
+      : wp
+  );
+  const text = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 2 },
+    { ...ws, select: () => list },
+  );
+  // Only b answers; both of its hits fit although two projects failed.
+  assertEquals(
+    text,
+    `# Search results for "brake" (2 matches)\n\n${
+      hitLine("STK_0003", "Brake", "b", 5)
+    }\n${hitLine("STK_0004", "Brake pedal", "b", 5)}\n` +
+      "\nErrors:\n\n- Error in project a: disk read failed\n" +
+      "- Error in project c: parse crashed\n",
   );
 });
 

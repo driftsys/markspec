@@ -147,6 +147,24 @@ Deno.test("rankAcrossProjects: keeps the best hits of all projects, in total", (
   );
 });
 
+Deno.test("rankAcrossProjects: ties keep project label order, not display ID order", () => {
+  // Equal scores; the IDs sort opposite to the labels.
+  const a = scoreEntries([mk("Z_0001", "Braking")], "braking", 10);
+  const b = scoreEntries([mk("A_0001", "Braking")], "braking", 10);
+  const groups = [{ label: "a", hits: a }, { label: "b", hits: b }];
+  assertEquals(
+    rankAcrossProjects(groups, 10).map(({ label }) => label),
+    ["a", "b"],
+  );
+  // A limit that cuts through the tie keeps the first project's hit.
+  assertEquals(
+    rankAcrossProjects(groups, 1).map(({ label, hit }) =>
+      `${label}:${hit.entry.displayId}`
+    ),
+    ["a:Z_0001"],
+  );
+});
+
 Deno.test("rankAcrossProjects: orders by score, not by project", () => {
   const a = scoreEntries([mk("A_0001", "Brakings")], "braking", 10);
   const b = scoreEntries([mk("B_0001", "Braking")], "braking", 10);
@@ -169,6 +187,19 @@ Deno.test("renderProjectSearchResults: tags each hit and lists errors after the 
     `# Search results for "braking" (1 match)\n\n- [B_0001](markspec://entry/B_0001) — Braking (project: b, score ${
       b[0].score
     })\n\nErrors:\n\n- Error in project a: boom\n`,
+  );
+});
+
+Deno.test("renderProjectSearchResults: lists every failing project after the hits", () => {
+  const b = scoreEntries([mk("B_0001", "Braking")], "braking", 10);
+  const text = renderProjectSearchResults(
+    [{ label: "b", hit: b[0] }],
+    "braking",
+    [{ label: "a", message: "boom" }, { label: "c", message: "crash" }],
+  );
+  assertStringIncludes(
+    text,
+    "\nErrors:\n\n- Error in project a: boom\n- Error in project c: crash\n",
   );
 });
 
