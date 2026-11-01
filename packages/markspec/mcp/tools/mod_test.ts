@@ -8,7 +8,12 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { dispatchTool } from "./mod.ts";
 import { join } from "@std/path";
 import type { Project, ProjectEnv } from "../project.ts";
-import { createWorkspace } from "../workspace.ts";
+import {
+  createWorkspace,
+  type McpWorkspace,
+  type WorkspaceProject,
+} from "../workspace.ts";
+import { entryUri } from "../uri.ts";
 import {
   entryDoc,
   MEMORY_PARENT,
@@ -238,9 +243,12 @@ function onlyProjectA(text: string): void {
   assertEquals(text.includes("## Project: b"), false, text);
 }
 
-Deno.test("dispatchTool: entry_search drops a project with no hits", async () => {
+Deno.test("dispatchTool: entry_search lists only the projects with hits", async () => {
   const ws = await twoProjectWorkspace();
-  onlyProjectA(await dispatchTool("entry_search", { query: "Alpha" }, ws));
+  const text = await dispatchTool("entry_search", { query: "Alpha" }, ws);
+  assertStringIncludes(text, "(project: a, score");
+  assertEquals(text.includes("project: b"), false, text);
+  assertEquals(text.includes("## Project:"), false, text);
 });
 
 Deno.test("dispatchTool: entry_show drops a project without the entry", async () => {
@@ -278,4 +286,227 @@ Deno.test("dispatchTool: markspec_refresh with a project argument and no project
   const text = await dispatchTool("markspec_refresh", { project: "x" }, ws);
   assertStringIncludes(text, "No MarkSpec project found");
   assertEquals(text.includes("Unknown project"), false);
+});
+
+// ---------------------------------------------------------------------------
+// entry_search: the limit applies once across all selected projects (#851)
+// ---------------------------------------------------------------------------
+
+/** Three projects `a`, `b`, `c`. For the query "brake", the scores are:
+ * a: STK_0001 "Brakes" 3; b: STK_0003 "Brake" 5, STK_0004 "Brake pedal" 5;
+ * c: STK_0005 "Brake light" 5, STK_0006 "Brakes" 3. */
+function threeProjectFiles(): Record<string, string> {
+  const doc = (...entries: string[]) => entries.join("\n");
+  return {
+    [join(MEMORY_PARENT, "a", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "a", "req.md")]: doc(
+      entryDoc("STK_0001", "Brakes", "01HGW2Q8MNP3RSTVWXYZABCDEF"),
+      entryDoc("STK_0002", "Wiper", "01HGW2Q8MNP3RSTVWXYZABCDEG"),
+    ),
+    [join(MEMORY_PARENT, "b", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "b", "req.md")]: doc(
+      entryDoc("STK_0003", "Brake", "01HGW2Q8MNP3RSTVWXYZABCDEH"),
+      entryDoc("STK_0004", "Brake pedal", "01HGW2Q8MNP3RSTVWXYZABCDEJ"),
+    ),
+    [join(MEMORY_PARENT, "c", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "c", "req.md")]: doc(
+      entryDoc("STK_0005", "Brake light", "01HGW2Q8MNP3RSTVWXYZABCDEK"),
+      entryDoc("STK_0006", "Brakes", "01HGW2Q8MNP3RSTVWXYZABCDEM"),
+    ),
+  };
+}
+
+/** One rendered search hit line of a several-project answer. */
+function hitLine(id: string, title: string, label: string, score: number) {
+  return `- [${id}](${
+    entryUri(id)
+  }) — ${title} (project: ${label}, score ${score})`;
+}
+
+/** The number of hit lines in a search answer. */
+function hitCount(text: string): number {
+  return text.split("\n").filter((line) => line.startsWith("- [")).length;
+}
+
+Deno.test("dispatchTool: entry_search limit is the total across three projects", async () => {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const text = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 2 },
+    ws,
+  );
+  assertEquals(hitCount(text), 2, text);
+  // b's two hits tie at score 5 with c's STK_0005; label order breaks
+  // the tie.
+  assertEquals(
+    text,
+    `# Search results for "brake" (2 matches)\n\n${
+      hitLine("STK_0003", "Brake", "b", 5)
+    }\n${hitLine("STK_0004", "Brake pedal", "b", 5)}\n`,
+  );
+});
+
+Deno.test("dispatchTool: entry_search ranks hits across projects in one list", async () => {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const text = await dispatchTool("entry_search", { query: "brake" }, ws);
+  // One list in score order: a's STK_0001 (3) comes after c's STK_0005
+  // (5) although a comes first in label order. Grouped output would put
+  // a's hit first.
+  assertEquals(
+    text,
+    `# Search results for "brake" (5 matches)\n\n` +
+      [
+        hitLine("STK_0003", "Brake", "b", 5),
+        hitLine("STK_0004", "Brake pedal", "b", 5),
+        hitLine("STK_0005", "Brake light", "c", 5),
+        hitLine("STK_0001", "Brakes", "a", 3),
+        hitLine("STK_0006", "Brakes", "c", 3),
+      ].join("\n") + "\n",
+  );
+  assertEquals(text.includes("## Project:"), false, text);
+});
+
+/** Two projects whose tied hits have display IDs that sort opposite to the
+ * project labels: `a` holds Z_0001, `b` holds A_0001, both at score 5. */
+function reversedIdFiles(): Record<string, string> {
+  return {
+    [join(MEMORY_PARENT, "a", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "a", "req.md")]: entryDoc(
+      "Z_0001",
+      "Brake",
+      "01HGW2Q8MNP3RSTVWXYZABCDEF",
+    ),
+    [join(MEMORY_PARENT, "b", "project.yaml")]: PROJECT_YAML,
+    [join(MEMORY_PARENT, "b", "req.md")]: entryDoc(
+      "A_0001",
+      "Brake",
+      "01HGW2Q8MNP3RSTVWXYZABCDEG",
+    ),
+  };
+}
+
+Deno.test("dispatchTool: entry_search ties follow project label order, not display ID order", async () => {
+  const ws = await createWorkspace(memoryEnv(reversedIdFiles()));
+  const both = await dispatchTool("entry_search", { query: "brake" }, ws);
+  assertEquals(
+    both,
+    `# Search results for "brake" (2 matches)\n\n${
+      hitLine("Z_0001", "Brake", "a", 5)
+    }\n${hitLine("A_0001", "Brake", "b", 5)}\n`,
+  );
+  // The limit cuts through the tie: project a's hit stays.
+  const one = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 1 },
+    ws,
+  );
+  assertEquals(
+    one,
+    `# Search results for "brake" (1 match)\n\n${
+      hitLine("Z_0001", "Brake", "a", 5)
+    }\n`,
+  );
+});
+
+/** The three-project workspace, with project `b` failing to compile. */
+async function threeProjectsBBroken(): Promise<McpWorkspace> {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const list: WorkspaceProject[] = ws.projects().map((wp) =>
+    wp.label === "b"
+      ? {
+        label: wp.label,
+        project: Object.create(wp.project, {
+          getCompiled: {
+            value: () => Promise.reject(new Error("disk read failed")),
+          },
+        }),
+      }
+      : wp
+  );
+  return { ...ws, select: () => list };
+}
+
+Deno.test("dispatchTool: entry_search lists a failing project after the hits and uses no part of the limit", async () => {
+  const text = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 2 },
+    await threeProjectsBBroken(),
+  );
+  // c's STK_0005 (5) wins; a's STK_0001 and c's STK_0006 tie at 3 and the
+  // label order keeps a's.
+  assertEquals(
+    text,
+    `# Search results for "brake" (2 matches)\n\n${
+      hitLine("STK_0005", "Brake light", "c", 5)
+    }\n${hitLine("STK_0001", "Brakes", "a", 3)}\n` +
+      "\nErrors:\n\n- Error in project b: disk read failed\n",
+  );
+});
+
+Deno.test("dispatchTool: entry_search lists two failing projects after the hits and keeps the full limit", async () => {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const messages: Record<string, string> = {
+    a: "disk read failed",
+    c: "parse crashed",
+  };
+  const list: WorkspaceProject[] = ws.projects().map((wp) =>
+    wp.label in messages
+      ? {
+        label: wp.label,
+        project: Object.create(wp.project, {
+          getCompiled: {
+            value: () => Promise.reject(new Error(messages[wp.label])),
+          },
+        }),
+      }
+      : wp
+  );
+  const text = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 2 },
+    { ...ws, select: () => list },
+  );
+  // Only b answers; both of its hits fit although two projects failed.
+  assertEquals(
+    text,
+    `# Search results for "brake" (2 matches)\n\n${
+      hitLine("STK_0003", "Brake", "b", 5)
+    }\n${hitLine("STK_0004", "Brake pedal", "b", 5)}\n` +
+      "\nErrors:\n\n- Error in project a: disk read failed\n" +
+      "- Error in project c: parse crashed\n",
+  );
+});
+
+Deno.test("dispatchTool: entry_search with no hit and a failing project shows the error", async () => {
+  const text = await dispatchTool(
+    "entry_search",
+    { query: "zzz" },
+    await threeProjectsBBroken(),
+  );
+  assertEquals(
+    text,
+    "# Search results\n\nNo matches for `zzz`.\n" +
+      "\nErrors:\n\n- Error in project b: disk read failed\n",
+  );
+});
+
+Deno.test("dispatchTool: entry_search with one selected project is unchanged", async () => {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const text = await dispatchTool(
+    "entry_search",
+    { query: "brake", limit: 1, project: "c" },
+    ws,
+  );
+  assertEquals(
+    text,
+    `# Search results for "brake" (1 match)\n\n- [STK_0005](${
+      entryUri("STK_0005")
+    }) — Brake light (score 5)\n`,
+  );
+});
+
+Deno.test("dispatchTool: entry_search with no hit in any project keeps the empty answer", async () => {
+  const ws = await createWorkspace(memoryEnv(threeProjectFiles()));
+  const text = await dispatchTool("entry_search", { query: "zzz" }, ws);
+  assertEquals(text, "# Search results\n\nNo matches for `zzz`.\n");
 });

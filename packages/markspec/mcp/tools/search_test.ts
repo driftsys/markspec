@@ -9,6 +9,8 @@ import type { Entry } from "../../core/mod.ts";
 import { makeDisplayId } from "../../core/mod.ts";
 import {
   ENTRY_SEARCH_DESCRIPTOR,
+  rankAcrossProjects,
+  renderProjectSearchResults,
   renderSearchResults,
   scoreEntries,
 } from "./search.ts";
@@ -119,5 +121,98 @@ Deno.test("ENTRY_SEARCH_DESCRIPTOR.description: keys on canonical soft-gate phra
   assertStringIncludes(
     ENTRY_SEARCH_DESCRIPTOR.description,
     "No MarkSpec project found",
+  );
+});
+
+Deno.test("rankAcrossProjects: keeps the best hits of all projects, in total", () => {
+  const a = scoreEntries([mk("A_0001", "Brakings")], "braking", 10);
+  const b = scoreEntries(
+    [mk("B_0001", "Braking"), mk("B_0002", "Braking force")],
+    "braking",
+    10,
+  );
+  const c = scoreEntries([mk("C_0001", "Braking")], "braking", 10);
+  const ranked = rankAcrossProjects(
+    [{ label: "a", hits: a }, { label: "b", hits: b }, {
+      label: "c",
+      hits: c,
+    }],
+    3,
+  );
+  // a's hit scores lowest and loses although its project comes first;
+  // b's hits tie with c's and project order breaks the tie.
+  assertEquals(
+    ranked.map(({ label, hit }) => `${label}:${hit.entry.displayId}`),
+    ["b:B_0001", "b:B_0002", "c:C_0001"],
+  );
+});
+
+Deno.test("rankAcrossProjects: ties keep project label order, not display ID order", () => {
+  // Equal scores; the IDs sort opposite to the labels.
+  const a = scoreEntries([mk("Z_0001", "Braking")], "braking", 10);
+  const b = scoreEntries([mk("A_0001", "Braking")], "braking", 10);
+  const groups = [{ label: "a", hits: a }, { label: "b", hits: b }];
+  assertEquals(
+    rankAcrossProjects(groups, 10).map(({ label }) => label),
+    ["a", "b"],
+  );
+  // A limit that cuts through the tie keeps the first project's hit.
+  assertEquals(
+    rankAcrossProjects(groups, 1).map(({ label, hit }) =>
+      `${label}:${hit.entry.displayId}`
+    ),
+    ["a:Z_0001"],
+  );
+});
+
+Deno.test("rankAcrossProjects: orders by score, not by project", () => {
+  const a = scoreEntries([mk("A_0001", "Brakings")], "braking", 10);
+  const b = scoreEntries([mk("B_0001", "Braking")], "braking", 10);
+  const ranked = rankAcrossProjects(
+    [{ label: "a", hits: a }, { label: "b", hits: b }],
+    10,
+  );
+  assertEquals(ranked.map(({ label }) => label), ["b", "a"]);
+});
+
+Deno.test("renderProjectSearchResults: tags each hit and lists errors after the hits", () => {
+  const b = scoreEntries([mk("B_0001", "Braking")], "braking", 10);
+  const text = renderProjectSearchResults(
+    [{ label: "b", hit: b[0] }],
+    "braking",
+    [{ label: "a", message: "boom" }],
+  );
+  assertEquals(
+    text,
+    `# Search results for "braking" (1 match)\n\n- [B_0001](markspec://entry/B_0001) — Braking (project: b, score ${
+      b[0].score
+    })\n\nErrors:\n\n- Error in project a: boom\n`,
+  );
+});
+
+Deno.test("renderProjectSearchResults: lists every failing project after the hits", () => {
+  const b = scoreEntries([mk("B_0001", "Braking")], "braking", 10);
+  const text = renderProjectSearchResults(
+    [{ label: "b", hit: b[0] }],
+    "braking",
+    [{ label: "a", message: "boom" }, { label: "c", message: "crash" }],
+  );
+  assertStringIncludes(
+    text,
+    "\nErrors:\n\n- Error in project a: boom\n- Error in project c: crash\n",
+  );
+});
+
+Deno.test("renderProjectSearchResults: no hit and no error is the empty answer", () => {
+  assertEquals(
+    renderProjectSearchResults([], "x", []),
+    renderSearchResults([], "x"),
+  );
+});
+
+Deno.test("ENTRY_SEARCH_DESCRIPTOR: says the limit is the total across projects", () => {
+  assertStringIncludes(
+    ENTRY_SEARCH_DESCRIPTOR.description,
+    "'limit' is the total number of matches across all projects",
   );
 });

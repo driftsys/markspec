@@ -139,7 +139,7 @@ async function twoProjectsOneBroken(): Promise<McpWorkspace> {
 
 Deno.test("dispatchTool: a failing project gets an error section, the others still answer", async () => {
   const ws = await twoProjectsOneBroken();
-  const text = await dispatchTool("entry_search", { query: "Alpha" }, ws);
+  const text = await dispatchTool("entry_show", { id: "STK_0001" }, ws);
   assertStringIncludes(text, "## Project: a\n\n");
   assertStringIncludes(text, "STK_0001");
   assertStringIncludes(text, "## Project: b\n\nError: ");

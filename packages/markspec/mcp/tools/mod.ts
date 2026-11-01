@@ -18,12 +18,15 @@ import { isAbsolute, join } from "@std/path";
 import {
   type McpWorkspace,
   resolveWorkspace,
+  type WorkspaceProject,
   type WorkspaceSource,
 } from "../workspace.ts";
 import { perProject, projectArgOf } from "./fan_out.ts";
 import { PROJECT_LIST_DESCRIPTOR, renderProjectList } from "./project_list.ts";
 import {
   ENTRY_SEARCH_DESCRIPTOR,
+  rankAcrossProjects,
+  renderProjectSearchResults,
   renderSearchResults,
   scoreEntries,
 } from "./search.ts";
@@ -96,22 +99,39 @@ async function routeFiles(
 
 const HANDLERS: Record<string, ToolHandler> = {
   // deno-lint-ignore no-explicit-any
-  entry_search: (args: any, workspace) => {
+  entry_search: async (args: any, workspace) => {
     const query = String(args?.query ?? "");
     const limit = Math.min(100, Math.max(1, Number(args?.limit ?? 20)));
-    return perProject(
-      workspace,
-      projectArgOf(args),
-      async ({ project }) => {
-        const result = await project.getCompiled();
-        const hits = scoreEntries(
-          [...result.entries.values()],
-          query,
-          limit,
-        );
-        return hits.length === 0 ? undefined : renderSearchResults(hits, query);
-      },
-      renderSearchResults([], query),
+    const selected = workspace.select(projectArgOf(args));
+    if (typeof selected === "string") return selected;
+    const scoreProject = async ({ project }: WorkspaceProject) => {
+      const result = await project.getCompiled();
+      return scoreEntries([...result.entries.values()], query, limit);
+    };
+    if (selected.length === 1) {
+      return renderSearchResults(await scoreProject(selected[0]), query);
+    }
+    // Several projects (#851): score every project at the same time, then
+    // apply `limit` once to one list ranked across all of them. A failing
+    // project is listed after the hits and uses no part of the limit.
+    const outcomes = await Promise.all(selected.map(async (wp) => {
+      try {
+        return { label: wp.label, hits: await scoreProject(wp) };
+      } catch (err) {
+        return {
+          label: wp.label,
+          hits: [],
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }));
+    const errors = outcomes.flatMap(({ label, error }) =>
+      error === undefined ? [] : [{ label, message: error }]
+    );
+    return renderProjectSearchResults(
+      rankAcrossProjects(outcomes, limit),
+      query,
+      errors,
     );
   },
 
