@@ -28,6 +28,7 @@ import {
   parseLockfile,
   parseLsRemote,
   parseMapping,
+  type ProjectRootResolver,
   resolveProjectDependencies,
   resolveProjectReferences,
   resolveUpstreams,
@@ -241,7 +242,7 @@ async function runLock(options: LockOptions): Promise<void> {
     denoDiscoveryIO(),
     await projectCollectOptions(projectRoot, resolver),
   );
-  const mappings = await loadAllMappings(projectRoot);
+  const mappings = await loadAllMappings(projectRoot, resolver);
 
   const mappingDiags = validateMappings(mappings);
   for (const d of mappingDiags) {
@@ -463,21 +464,58 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
   }
 }
 
-async function loadAllMappings(root: string): Promise<Mapping[]> {
-  const out: Mapping[] = [];
-  const dir = join(root, ".markspec", "sync");
-  try {
-    for await (const e of Deno.readDir(dir)) {
-      if (!e.isFile || !e.name.endsWith(".yaml")) continue;
-      const path = join(dir, e.name);
-      const yaml = await Deno.readTextFile(path);
-      const r = parseMapping(yaml, path);
-      if (r.mapping) out.push(r.mapping);
-      for (const d of r.diagnostics) {
-        console.error(`${d.severity}: ${d.code}: ${d.message}`);
+/**
+ * Load the sync mappings (`.markspec/sync/*.yaml`) that apply to the project
+ * at `root`. A nested project uses the mappings of the projects that enclose
+ * it: the folders from the outermost project root down to `root` are read in
+ * that order, and a mapping found in a deeper folder replaces a mapping with
+ * the same `system` found in a higher folder. When the outermost root cannot
+ * be determined or is not `root` or an ancestor of it, only `root` is read.
+ * Parse diagnostics of each file are printed to stderr.
+ */
+async function loadAllMappings(
+  root: string,
+  resolver?: ProjectRootResolver,
+): Promise<Mapping[]> {
+  const projectResolver = resolver ?? await cliProjectRootResolver();
+  const outermost = await projectResolver.outermostOf(root);
+  // Walk up from `root` to the outermost root; read outermost first.
+  const folders = [root];
+  if (outermost !== undefined && outermost !== root) {
+    let current = root;
+    const chain: string[] = [];
+    while (true) {
+      const parent = dirname(current);
+      if (parent === current) break;
+      chain.push(parent);
+      if (parent === outermost) {
+        folders.push(...chain);
+        break;
       }
+      current = parent;
     }
-  } catch { /* no .markspec/sync/ directory */ }
+  }
+  let out: Mapping[] = [];
+  for (const folder of folders.reverse()) {
+    const dir = join(folder, ".markspec", "sync");
+    const found: Mapping[] = [];
+    try {
+      for await (const e of Deno.readDir(dir)) {
+        if (!e.isFile || !e.name.endsWith(".yaml")) continue;
+        const path = join(dir, e.name);
+        const yaml = await Deno.readTextFile(path);
+        const r = parseMapping(yaml, path);
+        if (r.mapping) found.push(r.mapping);
+        for (const d of r.diagnostics) {
+          console.error(`${d.severity}: ${d.code}: ${d.message}`);
+        }
+      }
+    } catch { /* no .markspec/sync/ directory */ }
+    // Replace only across folders: two files of one folder that declare the
+    // same system both stay, so validateMappings still reports them.
+    const systems = new Set(found.map((m) => m.system));
+    out = [...out.filter((m) => !systems.has(m.system)), ...found];
+  }
   return out;
 }
 

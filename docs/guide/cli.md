@@ -834,8 +834,10 @@ outermost project root down. `check` (`MSL-L212`), `compile --frozen` and
 `doctor` read the lockfile at the same root and compare against the same files,
 from any folder of the project. (`compile` and `doctor` still need a
 `project.yaml` above the current folder.) The `External-id:` bindings of a
-nested project's entries are recorded in that project's lockfile too, so its
-sync mappings belong under its own `.markspec/sync/`.
+nested project's entries are recorded in that project's lockfile. Its sync
+mappings come from `.markspec/sync/` in each folder from the outermost project
+root down to the project root; a mapping in a deeper folder replaces one for the
+same `system` higher up.
 
 **`references:` resolution — three flows.** Only `markspec lock` touches the
 network; `check`, `compile`, the LSP, and the MCP server resolve entirely

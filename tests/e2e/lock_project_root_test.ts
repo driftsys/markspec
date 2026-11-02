@@ -329,3 +329,81 @@ Deno.test("lock: a malformed .markspec.yaml exclude: list stops lock (#860)", as
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+/** A valid sync mapping for the `jira` system; `external` names the
+ * external field bound to the `Title` attribute. */
+function jiraMapping(external: string): string {
+  return `schema: 1
+system: jira
+direction: bidirectional
+identity:
+  external-id-scheme: jira
+attributes:
+  - markspec: Title
+    external: ${external}
+cache:
+  ttl: 15m
+`;
+}
+
+Deno.test("lock: a nested project uses the sync mappings of the enclosing project (#860)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+      "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
+      "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "p/sub/a.md": entry("STK_0002", "B", "External-id: jira:ABC-1"),
+    },
+    cwd: "p/sub",
+  });
+  try {
+    assertEquals(run.stderr.includes("MSL-S021"), false, run.stderr);
+    assertEquals(run.code, 0, run.stderr);
+    const lockPath = join(run.dir, "p", "sub", "markspec.lock");
+    assertEquals(await exists(lockPath), true);
+    assertStringIncludes(await Deno.readTextFile(lockPath), "ABC-1");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("lock: a nested project's own sync mapping replaces the enclosing one for the same system (#860)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+      "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
+      "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "p/sub/.markspec/sync/jira.yaml": jiraMapping("title"),
+      "p/sub/a.md": entry("STK_0002", "B", "External-id: jira:ABC-1"),
+    },
+    cwd: "p/sub",
+  });
+  try {
+    assertEquals(run.stderr.includes("MSL-S020"), false, run.stderr);
+    assertEquals(run.stderr.includes("MSL-S021"), false, run.stderr);
+    assertEquals(run.code, 0, run.stderr);
+    assertEquals(
+      await exists(join(run.dir, "p", "sub", "markspec.lock")),
+      true,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("lock: two mappings for one system in the same folder still conflict (#860)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "project.yaml": "name: t\nversion: 0.1.0\n",
+      ".markspec/sync/jira.yaml": jiraMapping("summary"),
+      ".markspec/sync/jira-copy.yaml": jiraMapping("summary"),
+      "req.md": entry("STK_0001", "A"),
+    },
+  });
+  try {
+    assertEquals(run.code, 1, run.stderr);
+    assertStringIncludes(run.stderr, "MSL-S020");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
