@@ -58,7 +58,8 @@ export function projectArgOf(
     : undefined;
 }
 
-/** JSON Schema of the optional `project` argument every tool accepts. */
+/** JSON Schema of the optional `project` argument every tool except
+ * `project_list` accepts. */
 export const PROJECT_ARG_SCHEMA = {
   type: "string",
   description: "Limit to one project; a label from project_list.",

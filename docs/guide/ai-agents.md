@@ -105,14 +105,15 @@ that `markspec_refresh` always does.
 
 With several projects:
 
-- Every tool and resource answers for all projects. Except for `entry_search`
-  (see below), each result sits under a `## Project: <label>` heading. The label
-  is the project folder relative to the primary root: the nearest folder with a
+- Except for `project_list`, `entry_search`, and the `markspec://delivered/...`
+  resources (see below), every tool and resource answers for all projects, with
+  each project's result under a `## Project: <label>` heading. The label is the
+  project folder relative to the primary root: the nearest folder with a
   `project.yaml` (else a `.markspec.yaml`) found by walking up from the start
   folder, or the start folder itself when there is none. The primary root itself
-  has the label `.`. When one project fails, its section reads
-  `Error: <message>` under its `## Project: <label>` heading, and the other
-  projects still answer.
+  has the label `.`. For these tools and resources, when one project fails, its
+  section reads `Error: <message>` under its `## Project: <label>` heading, and
+  the other projects still answer.
 - Every tool except `project_list` accepts an optional `project` argument with a
   label, which limits the answer to that project. An unknown label returns an
   error that lists the known labels.
@@ -126,7 +127,11 @@ With several projects:
   is the plain single-project list, without project tags or an `Errors:`
   section.
 - `project_list` lists each project with its label, absolute root, active
-  profile, and entry count once compiled.
+  profile, and entry count once compiled. It returns one plain list and has no
+  per-project sections.
+- A `markspec://delivered/...` resource returns the text of one delivered
+  document, read from the first project in label order that delivers it. The
+  text has no `## Project:` heading.
 - `validate` resolves relative `files` paths against the primary root and checks
   each file in the project that owns it.
 - Each project compiles on first use, and the projects a request selects compile
