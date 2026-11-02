@@ -41,6 +41,7 @@ import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
 import { formatProseSegments } from "./prose.ts";
+import { contentColumn } from "./entry_body.ts";
 import {
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
   type ProseFormatter,
@@ -256,7 +257,12 @@ function emitBodyViaAst(
   for (const entry of sorted) {
     if (!entry.body.trim()) continue; // empty or whitespace-only body
 
-    const indent = (entry.location.column - 1) + 2; // marker column (0-based) + 2 spaces = list-item continuation indent
+    // List-item continuation indent: the item's content column, which
+    // follows every space after the marker (#865).
+    const indent = contentColumn(
+      lines[entry.location.line - 1] ?? "",
+      entry.location.column - 1,
+    );
     const indentStr = " ".repeat(indent);
     const titleLineIdx = entry.location.line - 1; // 0-based
 
@@ -519,7 +525,10 @@ export function format(
   const genUlid = options?.generateUlid ?? defaultUlid;
 
   for (const entry of sorted) {
-    const indent = (entry.location.column - 1) + 2;
+    const indent = contentColumn(
+      lines[entry.location.line - 1] ?? "",
+      entry.location.column - 1,
+    );
     let attrs = [...entry.rawAttributes];
 
     const titleLineIdx = entry.location.line - 1;
@@ -693,7 +702,10 @@ export function format(
       : entries;
     const extents = proseEntries.map((e) => {
       const start = e.location.line - 1;
-      const entryIndent = (e.location.column - 1) + 2;
+      const entryIndent = contentColumn(
+        collapsedLines[start] ?? "",
+        e.location.column - 1,
+      );
       return { start, end: findItemEnd(collapsedLines, start, entryIndent) };
     });
     const prose = formatProseSegments(collapsedLines, extents, proseFormat);
@@ -944,7 +956,10 @@ function removeEmptyTrailerLines(
   let removedAny = false;
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
   for (const entry of sorted) {
-    const indent = (entry.location.column - 1) + 2;
+    const indent = contentColumn(
+      lines[entry.location.line - 1] ?? "",
+      entry.location.column - 1,
+    );
     const startIdx = entry.location.line - 1;
     let end = findItemEnd(lines, startIdx, indent);
     while (end > startIdx && lines[end - 1].trim() === "") end--;

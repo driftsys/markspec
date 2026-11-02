@@ -125,7 +125,7 @@ function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
  * start with a bullet and a space at `marker`, the marker column plus 2 is
  * used, as in the formatter.
  */
-function contentColumn(line: string, marker: number): number {
+export function contentColumn(line: string, marker: number): number {
   const m = /^[-*+]( +)/.exec(line.slice(marker));
   return m ? marker + 1 + m[1].length : marker + 2;
 }

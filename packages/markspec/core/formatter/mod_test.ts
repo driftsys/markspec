@@ -891,3 +891,30 @@ Deno.test("format: collapses a title wrapped across three physical lines", () =>
   assertStringIncludes(result.output, `Id: ${MOCK_ULID}`);
   assertStringIncludes(result.output, "Body prose.");
 });
+
+Deno.test("format: keeps the body and trailer inside a list item with a wide marker (#865)", () => {
+  const md = [
+    "-   [SYS_BRK_0001] Brake request",
+    "",
+    "    The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `        Id: ${MOCK_ULID}`,
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.output, md);
+  const second = format(result.output, { generateUlid: mockUlid() });
+  assertEquals(second.output, result.output);
+});
+
+Deno.test("format: stamps the Id inside a list item with a wide marker (#865)", () => {
+  const md = [
+    "-   [SYS_BRK_0001] Brake request",
+    "",
+    "    The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertStringIncludes(result.output, `\n        Id: ${MOCK_ULID}`);
+  assertStringIncludes(result.output, "\n    The system shall apply");
+});
