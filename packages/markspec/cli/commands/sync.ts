@@ -16,12 +16,12 @@ import { join } from "@std/path";
 import {
   aggregateStatusByState,
   type BoundEntryStatus,
-  discoverProjectRoot,
   parseLockfile,
   parseLogLine,
   type RemoteState,
   type SyncLogEntry,
 } from "../../core/mod.ts";
+import { requireCwdProjectRoot } from "../helpers.ts";
 
 async function readFileOrUndefined(path: string): Promise<string | undefined> {
   try {
@@ -72,8 +72,7 @@ async function runStatus(
   state: string | undefined,
   format: string | undefined,
 ): Promise<void> {
-  const root = (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ??
-    Deno.cwd();
+  const root = await requireCwdProjectRoot();
   const entries = await collectBoundStatuses(root, system);
   const filtered = state
     ? entries.filter((e) => e.remoteState === state)
@@ -113,8 +112,7 @@ async function runLog(
   since: string | undefined,
   format: string | undefined,
 ): Promise<void> {
-  const root = (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ??
-    Deno.cwd();
+  const root = await requireCwdProjectRoot();
   const systems = system ? [system] : await listSyncSystems(root);
   const all: SyncLogEntry[] = [];
   for (const sys of systems) {
@@ -150,8 +148,7 @@ async function runShow(
   displayId: string,
   format: string | undefined,
 ): Promise<void> {
-  const root = (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ??
-    Deno.cwd();
+  const root = await requireCwdProjectRoot();
   const entries = await collectBoundStatuses(root, undefined);
   const matches = entries.filter((e) => e.displayId === displayId);
   if (matches.length === 0) {

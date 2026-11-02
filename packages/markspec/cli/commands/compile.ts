@@ -9,7 +9,12 @@
 
 import { Command } from "@cliffy/command";
 import { formatEntryOrigin, VERSION } from "../../core/mod.ts";
-import { compileProject, csvQuote, requireProjectConfig } from "../helpers.ts";
+import {
+  compileProject,
+  csvQuote,
+  projectCollectOptions,
+  requireProjectConfig,
+} from "../helpers.ts";
 
 export const compileCmd = new Command()
   .description("Parse files, build traceability graph, output JSON")
@@ -47,15 +52,15 @@ export const compileCmd = new Command()
           checkDrift,
           collectProjectEntries,
           deriveUpstreamId,
-          discoverProjectRoot,
           loadConfig,
           loadProfileForCommand,
-          loadToolConfig,
           parseLockfile,
           resolveUpstreams,
         } = await import("../../core/mod.ts");
         const { join } = await import("@std/path");
-        const { denoDiscoveryIO } = await import("../helpers.ts");
+        const { denoDiscoveryIO, requireCwdProjectRoot } = await import(
+          "../helpers.ts"
+        );
         const {
           defaultFetchUrl,
           defaultReadFile,
@@ -63,9 +68,8 @@ export const compileCmd = new Command()
           readFileOrUndefined,
         } = await import("./lock.ts");
 
-        const root =
-          (await discoverProjectRoot(Deno.cwd(), readFileOrUndefined)) ??
-            Deno.cwd();
+        // The root `markspec lock` writes the lockfile at (#860).
+        const root = await requireCwdProjectRoot();
         const lockPath = join(root, "markspec.lock");
         const tomlRaw = await readFileOrUndefined(lockPath);
         if (tomlRaw === undefined) {
@@ -91,16 +95,13 @@ export const compileCmd = new Command()
           root,
           readFileOrUndefined,
         );
-        // Honor .markspec.yaml `exclude:` so `--frozen`'s edge set matches
-        // the one `markspec lock` pinned — an entry under an excluded path
-        // (e.g. `skills/`) must not spuriously drift the frozen check (#684).
-        const toolConfigResult = await loadToolConfig(
+        // The file set `markspec lock` pinned: `exclude:` (#684), inherited
+        // `.gitignore` files and no nested projects (#860).
+        const entries = await collectProjectEntries(
           root,
-          readFileOrUndefined,
+          denoDiscoveryIO(),
+          await projectCollectOptions(root),
         );
-        const entries = await collectProjectEntries(root, denoDiscoveryIO(), {
-          exclude: toolConfigResult.config.exclude,
-        });
         const mappings = await loadAllMappings(root);
 
         const resolved = await resolveUpstreams({

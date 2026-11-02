@@ -9,13 +9,14 @@ import {
   collectProjectEntries,
   detectOfflineEdgeDrift,
   isBelowFloor,
-  loadToolConfig,
   parseLockfile,
   VERSION,
 } from "../../core/mod.ts";
 import {
+  cliProjectRootResolver,
   compileProject,
   denoDiscoveryIO,
+  projectCollectOptions,
   readFile,
   requireProjectConfig,
 } from "../helpers.ts";
@@ -44,11 +45,17 @@ export const doctorCmd = new Command()
     // (#658). A missing/unreadable file means "no lockfile"; a present-but-
     // malformed one means "no floor / no drift" — lockfile validity is
     // `markspec check`/`lock`'s concern, not doctor's.
+    // The lockfile sits where `markspec lock` writes it (#860): the root a
+    // bare `check` resolves, which can differ from the nearest project.yaml
+    // (a config hidden by an enclosing project).
+    const lockRoot = await (await cliProjectRootResolver()).ownerOf(
+      Deno.cwd(),
+    ) ?? projectRoot;
     let floor: string | undefined;
     let lockfilePresent = false;
     let parsedLock: ReturnType<typeof parseLockfile>["lockfile"];
     try {
-      const lockRaw = await Deno.readTextFile(`${projectRoot}/markspec.lock`);
+      const lockRaw = await Deno.readTextFile(`${lockRoot}/markspec.lock`);
       lockfilePresent = true;
       parsedLock = parseLockfile(lockRaw).lockfile;
       floor = parsedLock?.meta.toolchain?.minVersion;
@@ -76,16 +83,15 @@ export const doctorCmd = new Command()
     let lockedEdges = 0;
     let currentEdges = 0;
     if (parsedLock) {
-      // The shared collectProjectEntries walk is exactly what `markspec lock`
-      // pinned with (same discovery + default extensions + `.markspec.yaml`
-      // `exclude:`), so the two edge sets cannot diverge. Corpus-blind,
-      // mirroring `check`'s MSL-L212 gate: the lockfile never counts
-      // delivered-corpus edges (ADR-030), so neither do we.
-      const toolConfigResult = await loadToolConfig(projectRoot, readFile);
+      // The shared collectProjectEntries walk with projectCollectOptions is
+      // exactly what `markspec lock` pinned with, so the two edge sets cannot
+      // diverge. Corpus-blind, mirroring `check`'s MSL-L212 gate: the
+      // lockfile never counts delivered-corpus edges (ADR-030), so neither
+      // do we.
       const projectEntries = await collectProjectEntries(
-        projectRoot,
+        lockRoot,
         denoDiscoveryIO(),
-        { exclude: toolConfigResult.config.exclude },
+        await projectCollectOptions(lockRoot),
       );
       const drift = await detectOfflineEdgeDrift(
         projectEntries.filter((e) => !e.origin),
