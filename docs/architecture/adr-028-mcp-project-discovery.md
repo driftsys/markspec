@@ -281,3 +281,20 @@ label-ordered output. The decision text above is kept as it was written.
 - With exactly one selected project, `entry_search` output is unchanged from
   before this amendment. All other tools keep the sections and the label order
   described above.
+
+## Amendment (2026-11-02, #870)
+
+This amendment corrects a statement in section 7. The decision text above is
+kept as it was written.
+
+- `project_list` never used per-project sections. It returns one plain list of
+  the discovered projects, each with its label, absolute root, active profile,
+  and entry count once compiled. Section 7 says that every tool labels its
+  result `## Project: <label>`; that statement does not apply to `project_list`.
+- A `markspec://delivered/<profile>/<path>` resource never used per-project
+  sections either. It returns the text of one delivered document, read from the
+  first project in label order that delivers it, with no `## Project:` heading.
+- The #851 amendment calls `entry_search` "the one exception". With the two
+  items above, the tools and resources that do not use per-project sections are
+  `project_list`, the delivered-document resources, and `entry_search` when it
+  selects several projects.
