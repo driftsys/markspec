@@ -123,7 +123,7 @@ function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
  * can start an entry: ordered lists never hold entries, and five or more
  * spaces make the title an indented code block. When the line does not
  * start with a bullet and a space at `marker`, the marker column plus 2 is
- * used, as in the formatter.
+ * used as a fallback.
  */
 export function contentColumn(line: string, marker: number): number {
   const m = /^[-*+]( +)/.exec(line.slice(marker));

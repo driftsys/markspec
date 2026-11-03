@@ -12,6 +12,7 @@ import {
   assertFalse,
   assertStringIncludes,
 } from "@std/assert";
+import { parseMarkdown } from "../parser/markdown.ts";
 import {
   format,
   isSentenceInitial,
@@ -902,9 +903,9 @@ Deno.test("format: keeps the body and trailer inside a list item with a wide mar
     "",
   ].join("\n");
   const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, false);
   assertEquals(result.output, md);
-  const second = format(result.output, { generateUlid: mockUlid() });
-  assertEquals(second.output, result.output);
+  assertWideMarkerEntry(result.output);
 });
 
 Deno.test("format: stamps the Id inside a list item with a wide marker (#865)", () => {
@@ -915,6 +916,147 @@ Deno.test("format: stamps the Id inside a list item with a wide marker (#865)", 
     "",
   ].join("\n");
   const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, true);
   assertStringIncludes(result.output, `\n        Id: ${MOCK_ULID}`);
   assertStringIncludes(result.output, "\n    The system shall apply");
+  assertWideMarkerEntry(result.output);
+});
+
+function assertWideMarkerEntry(output: string): void {
+  const parsed = parseMarkdown(output);
+  assertEquals(parsed.entries.length, 1);
+  assertEquals(parsed.entries[0].displayId, "SYS_BRK_0001");
+  assertEquals(
+    parsed.entries[0].body,
+    "The system shall apply the brakes within 200 ms of a pedal press.",
+  );
+  assertEquals(
+    parsed.entries[0].rawAttributes,
+    [{ key: "Id", value: MOCK_ULID }],
+  );
+  assertFalse(parsed.diagnostics.some((d) => d.code === "MSL-P030"));
+}
+
+Deno.test("format: keeps the body and trailer inside an indented wide-marker entry (#865)", () => {
+  const md = [
+    "  -   [SYS_BRK_0001] Brake request",
+    "",
+    "      The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `          Id: ${MOCK_ULID}`,
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, false);
+  assertEquals(result.output, md);
+  assertWideMarkerEntry(result.output);
+});
+
+Deno.test("format: removes an empty trailer from a wide-marker entry before indented prose (#865)", () => {
+  const md = [
+    "-   [SYS_BRK_0001] Brake request",
+    "",
+    "    The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `        Id: ${MOCK_ULID}`,
+    "        Satisfies:",
+    "",
+    "  Following paragraph outside the entry.",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, true);
+  assertEquals(result.output, md.replace("        Satisfies:\n", ""));
+  assert(
+    result.diagnostics.some((d) =>
+      d.code === "MSL-F001" &&
+      d.message.includes("removed empty 'Satisfies:'")
+    ),
+  );
+  assertWideMarkerEntry(result.output);
+});
+
+Deno.test("format: formats indented prose after a wide-marker entry (#865)", async () => {
+  const { loadMarkdownFormatter } = await import("./dprint.ts");
+  const proseFormat = await loadMarkdownFormatter();
+  const md = [
+    "-   [SYS_BRK_0001] Brake request",
+    "",
+    "    The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `        Id: ${MOCK_ULID}`,
+    "",
+    "  Following paragraph",
+    "  wrapped outside the entry.",
+    "",
+  ].join("\n");
+  const result = format(md, {
+    file: "t.md",
+    formatMarkdownProse: proseFormat,
+  });
+  assertEquals(result.changed, true);
+  assertEquals(
+    result.output,
+    md.replace(
+      "  Following paragraph\n  wrapped outside the entry.",
+      "Following paragraph wrapped outside the entry.",
+    ),
+  );
+  assertWideMarkerEntry(result.output);
+});
+
+Deno.test("format: collapses a wrapped title in a wide-marker entry (#865)", () => {
+  const md = [
+    "-   [SYS_BRK_0001] Brake request",
+    "    within 200 ms",
+    "",
+    "    The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `        Id: ${MOCK_ULID}`,
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, true);
+  assertEquals(
+    result.output,
+    md.replace(
+      "Brake request\n    within 200 ms",
+      "Brake request within 200 ms",
+    ),
+  );
+  assertWideMarkerEntry(result.output);
+  assertEquals(
+    parseMarkdown(result.output).entries[0].title,
+    "Brake request within 200 ms",
+  );
+});
+
+Deno.test("format: rewrites an asterisk wide marker and keeps its content column (#865)", () => {
+  const md = [
+    "*   [SYS_BRK_0001] Brake request",
+    "",
+    "    The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `        Id: ${MOCK_ULID}`,
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, true);
+  assertEquals(result.output, md.replace("*   [", "-   ["));
+  assertWideMarkerEntry(result.output);
+});
+
+Deno.test("format: keeps a wide-marker entry at content column 3 (#865)", () => {
+  const md = [
+    "-  [SYS_BRK_0001] Brake request",
+    "",
+    "   The system shall apply the brakes within 200 ms of a pedal press.",
+    "",
+    `       Id: ${MOCK_ULID}`,
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.changed, false);
+  assertEquals(result.output, md);
+  assertWideMarkerEntry(result.output);
 });

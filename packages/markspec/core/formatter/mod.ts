@@ -886,8 +886,8 @@ export function sortAttributes(
  * no trailing line-continuation characters.
  *
  * @param attributes - The attributes to render, in canonical order.
- * @param indent - Body indent for the entry (2 for list-wrapped entries,
- *   0 for entries inside source-file doc comments).
+ * @param indent - The 0-based list item content column, or 0 inside
+ *   source-file doc comments.
  */
 export function renderAttributeBlock(
   attributes: Attribute[],
@@ -902,8 +902,8 @@ export function renderAttributeBlock(
 /**
  * Find the 0-based line index where a list item's content ends.
  * Exported for the ADR-029 prose pass (entry-extent computation).
- * Scans forward from the entry start, stopping at: a sibling list item
- * (`- ` at the entry's marker column), a line with less indent, or EOF.
+ * Scans forward from the entry start until a line has less indent than
+ * the content column, a conventional sibling marker is found, or EOF.
  */
 export function findItemEnd(
   lines: readonly string[],
@@ -911,13 +911,13 @@ export function findItemEnd(
   indent: number,
 ): number {
   const indentStr = " ".repeat(indent);
-  // The marker column is indent - 2 (e.g., indent 2 → marker at column 0).
+  // Recognize sibling bullets with one space after the marker.
   const markerPrefix = " ".repeat(Math.max(0, indent - 2)) + "- ";
 
   for (let i = startIdx + 1; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === "") continue;
-    // Sibling list item at same level
+    // Sibling with a one-space marker; wider markers use the indent check.
     if (line.startsWith(markerPrefix)) return i;
     // Line with less indent than continuation
     if (!line.startsWith(indentStr)) return i;
