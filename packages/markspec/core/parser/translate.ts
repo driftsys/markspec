@@ -54,6 +54,11 @@ export function translateEntryLocations(
     return {
       ...entry,
       location: translatedEntryLoc,
+      ...(entry.endLine !== undefined
+        ? {
+          endLine: lineMap.translate(entry.endLine, 1)?.line ?? entry.endLine,
+        }
+        : {}),
       bodyAst: entry.bodyAst
         ? entry.bodyAst.map((block) =>
           translateBlock(block, lineMap, fallbackPoint, warn)

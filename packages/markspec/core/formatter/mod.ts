@@ -268,11 +268,17 @@ function emitBodyViaAst(
 
     // Locate the body segment in `lines` — between the title line and
     // the attr block start (or item end when there is no attr block).
-    const range = findAttributeBlockRange(lines, entry.location.line, indent);
+    const itemEndFloor = entry.endLine ?? 0;
+    const range = findAttributeBlockRange(
+      lines,
+      entry.location.line,
+      indent,
+      itemEndFloor,
+    );
     const bodyStart = titleLineIdx + 1;
     const bodyEnd = range
       ? range.start
-      : findItemEnd(lines, titleLineIdx, indent);
+      : findItemEnd(lines, titleLineIdx, indent, itemEndFloor);
 
     if (bodyEnd <= bodyStart) continue; // no body lines to replace
 
@@ -529,6 +535,14 @@ export function format(
       lines[entry.location.line - 1] ?? "",
       entry.location.column - 1,
     );
+    // `entry.endLine` comes from the parse of the unedited buffer. Entries
+    // are processed bottom to top, so only this entry's own edits move its
+    // end; the change in line count since here measures them.
+    const lengthAtStart = lines.length;
+    const itemEndFloor = () =>
+      entry.endLine === undefined
+        ? 0
+        : entry.endLine + (lines.length - lengthAtStart);
     let attrs = [...entry.rawAttributes];
 
     const titleLineIdx = entry.location.line - 1;
@@ -549,6 +563,7 @@ export function format(
         lines,
         entry.location.line,
         indent,
+        itemEndFloor(),
       );
       const limit = attrRange ? attrRange.start : lines.length;
       let titleEnd = titleLineIdx;
@@ -635,7 +650,12 @@ export function format(
     if (attrs.length === 0) continue;
 
     const normalized = sortAttributes(expandCsvValues(attrs));
-    const range = findAttributeBlockRange(lines, entry.location.line, indent);
+    const range = findAttributeBlockRange(
+      lines,
+      entry.location.line,
+      indent,
+      itemEndFloor(),
+    );
 
     if (range) {
       // Replace existing attribute block.
@@ -652,7 +672,12 @@ export function format(
       }
     } else {
       // No attribute block — insert one after the entry body.
-      const insertLine = findEntryBodyEnd(lines, entry, indent);
+      const insertLine = findEntryBodyEnd(
+        lines,
+        entry,
+        indent,
+        itemEndFloor(),
+      );
       const newBlock = renderAttributeBlock(normalized, indent);
       lines.splice(insertLine, 0, "", ...newBlock.split("\n"));
       changed = true;
@@ -706,7 +731,10 @@ export function format(
         collapsedLines[start] ?? "",
         e.location.column - 1,
       );
-      return { start, end: findItemEnd(collapsedLines, start, entryIndent) };
+      return {
+        start,
+        end: findItemEnd(collapsedLines, start, entryIndent, e.endLine ?? 0),
+      };
     });
     const prose = formatProseSegments(collapsedLines, extents, proseFormat);
     if (prose.changed) changed = true;
@@ -909,12 +937,17 @@ export function findItemEnd(
   lines: readonly string[],
   startIdx: number,
   indent: number,
+  itemEndFloor = 0,
 ): number {
   const indentStr = " ".repeat(indent);
   // Recognize sibling bullets with one space after the marker.
   const markerPrefix = " ".repeat(Math.max(0, indent - 2)) + "- ";
 
-  for (let i = startIdx + 1; i < lines.length; i++) {
+  // `itemEndFloor` is the 0-based index just after the item's last content
+  // line, from the parser's `Entry.endLine`. The scan starts there, because
+  // an indentation scan ends the item early at a lazy continuation line
+  // (a paragraph line indented less than the item content).
+  for (let i = Math.max(startIdx + 1, itemEndFloor); i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === "") continue;
     // Sibling with a one-space marker; wider markers use the indent check.
@@ -961,7 +994,7 @@ function removeEmptyTrailerLines(
       entry.location.column - 1,
     );
     const startIdx = entry.location.line - 1;
-    let end = findItemEnd(lines, startIdx, indent);
+    let end = findItemEnd(lines, startIdx, indent, entry.endLine ?? 0);
     while (end > startIdx && lines[end - 1].trim() === "") end--;
     let start = end;
     while (start - 1 > startIdx && lines[start - 1].trim() !== "") start--;
@@ -1007,9 +1040,10 @@ export function findAttributeBlockRange(
   lines: readonly string[],
   entryStartLine: number,
   indent: number,
+  itemEndFloor = 0,
 ): { start: number; end: number } | undefined {
   const startIdx = entryStartLine - 1;
-  const itemEnd = findItemEnd(lines, startIdx, indent);
+  const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
 
   // Walk backwards from itemEnd, skip trailing blank lines.
   let scanEnd = itemEnd;
@@ -1044,9 +1078,10 @@ function findEntryBodyEnd(
   lines: readonly string[],
   entry: Entry,
   indent: number,
+  itemEndFloor = 0,
 ): number {
   const startIdx = entry.location.line - 1;
-  const itemEnd = findItemEnd(lines, startIdx, indent);
+  const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
 
   let insertAt = itemEnd;
   while (insertAt > startIdx && lines[insertAt - 1].trim() === "") {

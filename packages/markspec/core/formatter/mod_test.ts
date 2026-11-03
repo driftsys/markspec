@@ -1060,3 +1060,59 @@ Deno.test("format: keeps a wide-marker entry at content column 3 (#865)", () => 
   assertEquals(result.output, md);
   assertWideMarkerEntry(result.output);
 });
+
+Deno.test("format: a lazy continuation line stays in the body and the trailer is not duplicated (#859)", () => {
+  const md = [
+    "- [SYS_BRK_0001] Brake request",
+    "",
+    "  The system shall apply the brakes when the pedal",
+    "lazy continuation line.",
+    "",
+    `      Id: ${MOCK_ULID}`,
+    "      Satisfies: STK_BRK_0001",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.output.split(`Id: ${MOCK_ULID}`).length - 1, 1);
+  assertEquals(result.output.split("Satisfies: STK_BRK_0001").length - 1, 1);
+  assertStringIncludes(
+    result.output,
+    "the pedal\n  lazy continuation line.\n\n      Id:",
+  );
+  const second = format(result.output, { generateUlid: mockUlid() });
+  assertEquals(second.output, result.output);
+});
+
+Deno.test("format: a lazy continuation line in an entry without a trailer gets one trailer (#859)", () => {
+  const md = [
+    "- [SYS_BRK_0001] Brake request",
+    "",
+    "  The system shall apply the brakes when the pedal",
+    "lazy continuation line.",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.output.split("Id: ").length - 1, 1);
+  assertStringIncludes(
+    result.output,
+    "the pedal\n  lazy continuation line.\n\n      Id:",
+  );
+});
+
+Deno.test("format: a wrapped title and a lazy continuation line keep one trailer (#859)", () => {
+  const md = [
+    "- [SYS_BRK_0001] Brake",
+    "  request",
+    "",
+    "  The system shall apply the brakes when the pedal",
+    "lazy continuation line.",
+    "",
+    `      Id: ${MOCK_ULID}`,
+    "      Satisfies: STK_BRK_0001",
+    "",
+  ].join("\n");
+  const result = format(md, { generateUlid: mockUlid() });
+  assertEquals(result.output.split(`Id: ${MOCK_ULID}`).length - 1, 1);
+  assertStringIncludes(result.output, "- [SYS_BRK_0001] Brake request\n");
+  assertStringIncludes(result.output, "the pedal\n  lazy continuation line.");
+});

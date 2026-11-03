@@ -183,9 +183,8 @@ interface CheckedProposal {
  * `currentBody` is the target body read from the formatted current text
  * only when it holds the same letters and digits as the raw body, which is
  * the body apply replaces (see {@linkcode words}). Otherwise (the formatter
- * moved lines out of the body, as it can do with a lazy continuation line)
- * `currentBody` is the raw body, so the author sees every line that Accept
- * removes.
+ * moved lines out of the body) `currentBody` is the raw body, so the author
+ * sees every line that Accept removes.
  *
  * The length limit applies to the raw proposal and to the formatted body.
  *
