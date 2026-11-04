@@ -41,6 +41,7 @@ import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
 import { formatProseSegments } from "./prose.ts";
+import { contentColumn } from "./entry_body.ts";
 import {
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
   type ProseFormatter,
@@ -256,7 +257,12 @@ function emitBodyViaAst(
   for (const entry of sorted) {
     if (!entry.body.trim()) continue; // empty or whitespace-only body
 
-    const indent = (entry.location.column - 1) + 2; // marker column (0-based) + 2 spaces = list-item continuation indent
+    // List-item continuation indent: the item's content column, which
+    // follows every space after the marker (#865).
+    const indent = contentColumn(
+      lines[entry.location.line - 1] ?? "",
+      entry.location.column - 1,
+    );
     const indentStr = " ".repeat(indent);
     const titleLineIdx = entry.location.line - 1; // 0-based
 
@@ -519,7 +525,10 @@ export function format(
   const genUlid = options?.generateUlid ?? defaultUlid;
 
   for (const entry of sorted) {
-    const indent = (entry.location.column - 1) + 2;
+    const indent = contentColumn(
+      lines[entry.location.line - 1] ?? "",
+      entry.location.column - 1,
+    );
     let attrs = [...entry.rawAttributes];
 
     const titleLineIdx = entry.location.line - 1;
@@ -693,7 +702,10 @@ export function format(
       : entries;
     const extents = proseEntries.map((e) => {
       const start = e.location.line - 1;
-      const entryIndent = (e.location.column - 1) + 2;
+      const entryIndent = contentColumn(
+        collapsedLines[start] ?? "",
+        e.location.column - 1,
+      );
       return { start, end: findItemEnd(collapsedLines, start, entryIndent) };
     });
     const prose = formatProseSegments(collapsedLines, extents, proseFormat);
@@ -874,8 +886,8 @@ export function sortAttributes(
  * no trailing line-continuation characters.
  *
  * @param attributes - The attributes to render, in canonical order.
- * @param indent - Body indent for the entry (2 for list-wrapped entries,
- *   0 for entries inside source-file doc comments).
+ * @param indent - The 0-based list item content column, or 0 inside
+ *   source-file doc comments.
  */
 export function renderAttributeBlock(
   attributes: Attribute[],
@@ -890,8 +902,8 @@ export function renderAttributeBlock(
 /**
  * Find the 0-based line index where a list item's content ends.
  * Exported for the ADR-029 prose pass (entry-extent computation).
- * Scans forward from the entry start, stopping at: a sibling list item
- * (`- ` at the entry's marker column), a line with less indent, or EOF.
+ * Scans forward from the entry start until a line has less indent than
+ * the content column, a conventional sibling marker is found, or EOF.
  */
 export function findItemEnd(
   lines: readonly string[],
@@ -899,13 +911,13 @@ export function findItemEnd(
   indent: number,
 ): number {
   const indentStr = " ".repeat(indent);
-  // The marker column is indent - 2 (e.g., indent 2 → marker at column 0).
+  // Recognize sibling bullets with one space after the marker.
   const markerPrefix = " ".repeat(Math.max(0, indent - 2)) + "- ";
 
   for (let i = startIdx + 1; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === "") continue;
-    // Sibling list item at same level
+    // Sibling with a one-space marker; wider markers use the indent check.
     if (line.startsWith(markerPrefix)) return i;
     // Line with less indent than continuation
     if (!line.startsWith(indentStr)) return i;
@@ -944,7 +956,10 @@ function removeEmptyTrailerLines(
   let removedAny = false;
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
   for (const entry of sorted) {
-    const indent = (entry.location.column - 1) + 2;
+    const indent = contentColumn(
+      lines[entry.location.line - 1] ?? "",
+      entry.location.column - 1,
+    );
     const startIdx = entry.location.line - 1;
     let end = findItemEnd(lines, startIdx, indent);
     while (end > startIdx && lines[end - 1].trim() === "") end--;
