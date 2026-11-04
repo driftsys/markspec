@@ -380,9 +380,9 @@ Deno.test("previewBody and applyBody: a bad trailer on another entry does not re
 });
 
 Deno.test("previewBody: shows every current line apply replaces", async () => {
-  // A lazy continuation line: the parser reads `lazy.` as body, but the
-  // whole-document formatter moves it out of the entry. The preview must
-  // still show it, because apply replaces it.
+  // A lazy continuation line: the parser reads `lazy.` as body, and the
+  // whole-document formatter keeps it in the entry (#859) and reflows it
+  // with the first line. The preview must show it, because apply replaces it.
   const text = "- [SYS_BRK_0001] Brake\n\n  Old body\nlazy.\n\n" +
     "      Id: 01JBRK00000000000000000003\n      Satisfies: STK_BRK_0001\n";
   assertEquals(
@@ -391,7 +391,7 @@ Deno.test("previewBody: shows every current line apply replaces", async () => {
   );
   const preview = await previewBody(text, FILE, "SYS_BRK_0001", "New.", prose);
   assert(preview.ok);
-  assertEquals(preview.value.currentBody, "Old body\nlazy.");
+  assertEquals(preview.value.currentBody, "Old body lazy.");
   const applied = await applyBody(text, FILE, "SYS_BRK_0001", "New.", prose);
   assert(applied.ok);
   assert(!applied.value.includes("lazy."));

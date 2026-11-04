@@ -626,6 +626,7 @@ function extractEntry(
   // non-title line, so the width is 2 there.
   const bodyIndent = itemContentIndent(item);
   const bodyStartLine = item.children[1]?.position?.start.line ?? (line + 1);
+  const endLine = item.position?.end.line;
   const bodyTokens = extractBodyTokens(
     body,
     bodyAst,
@@ -657,6 +658,7 @@ function extractEntry(
     shape,
     location: entryLocation,
     bodyStartLine,
+    ...(endLine !== undefined ? { endLine } : {}),
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
     bodyTokens,

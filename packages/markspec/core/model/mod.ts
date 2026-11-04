@@ -589,6 +589,17 @@ export interface Entry {
    * `location.line + 1` when absent.
    */
   readonly bodyStartLine?: number;
+  /**
+   * 1-based line of the last content line of the entry's list item, from
+   * the mdast item position. It includes a CommonMark lazy continuation
+   * line and the trailer, and excludes the blank lines after the item.
+   * The formatter uses it to find where the item ends, which an
+   * indentation scan cannot tell for a lazy continuation line.
+   *
+   * Optional so test fixtures and pipeline stages that do not set it can
+   * remain unchanged.
+   */
+  readonly endLine?: number;
   /** Whether this came from a Markdown file or a doc comment. */
   readonly source: EntrySource;
   /**
