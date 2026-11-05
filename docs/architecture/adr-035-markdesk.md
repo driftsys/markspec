@@ -124,10 +124,17 @@ stays TypeScript. Everything lives in this repository.
 - [SAD_DESK_0015] Document revalidation in the UI
 
   The MarkDesk UI shall request the document of the selected entry, with the
-  `ETag` of its cached render in `If-None-Match`, when the selection changes and
-  when the app window receives focus.
+  `ETag` of its cached render in `If-None-Match`, when the selection changes.
 
       Id: 01M684SWWGE4T4FEFXQJGKFWP2
+
+- [SAD_DESK_0033] Document revalidation on window focus
+
+  The MarkDesk UI shall request the document of the selected entry, with the
+  `ETag` of its cached render in `If-None-Match`, when the app window receives
+  focus.
+
+      Id: 01M6N3AJ863R79A66VWM1R8B56
 
 - [SAD_DESK_0016] Entity tag on the product tree
 
@@ -492,24 +499,24 @@ built: the first prompt" below).
   window, only a manual smoke test in `apps/markdesk/README.md`.
 - **Document revalidation.** The UI keeps each rendered document with its `ETag`
   for the session of an opened product, and never reuses one without asking the
-  server (SAD_DESK_0013 to SAD_DESK_0015). The tag is a quoted SHA-256 digest of
-  the API version, the path, the display IDs of the file's entries, a digest of
-  all known display IDs (computed once per compiled graph), and the text. All
-  known IDs are hashed, not only the IDs found in the raw text, because the
-  renderer links an ID after Markdown unescaping (`STK\_0001` renders as
-  `STK_0001`); adding or removing any entry therefore re-renders every document
-  once. Titles from other files are not inputs, because the renderer does not
-  read them. The profile is loaded once per server session, so an edit to the
-  profile shows only after the product is opened again. The server reads the
-  file on each request, so a 304 costs one file read and no render. The UI reads
-  the selection again when the selection changes and when the window receives
-  focus; an edit made in another application shows when the author returns to
-  MarkDesk. The scroll position moves only when the rendered HTML or the
-  selection changes, so a 304 leaves the view as it is. Preflight responses
-  allow the `If-None-Match` request header (and, since #837, `Content-Type` and
-  `If-Match`; see SAD_DESK_0011), and responses to an allowed origin carry
-  `Access-Control-Expose-Headers: ETag`. The change is additive, so `apiVersion`
-  stays 3.
+  server (SAD_DESK_0013 to SAD_DESK_0015 and SAD_DESK_0033). The tag is a quoted
+  SHA-256 digest of the API version, the path, the display IDs of the file's
+  entries, a digest of all known display IDs (computed once per compiled graph),
+  and the text. All known IDs are hashed, not only the IDs found in the raw
+  text, because the renderer links an ID after Markdown unescaping (`STK\_0001`
+  renders as `STK_0001`); adding or removing any entry therefore re-renders
+  every document once. Titles from other files are not inputs, because the
+  renderer does not read them. The profile is loaded once per server session, so
+  an edit to the profile shows only after the product is opened again. The
+  server reads the file on each request, so a 304 costs one file read and no
+  render. The UI reads the selection again when the selection changes and when
+  the window receives focus; an edit made in another application shows when the
+  author returns to MarkDesk. The scroll position moves only when the rendered
+  HTML or the selection changes, so a 304 leaves the view as it is. Preflight
+  responses allow the `If-None-Match` request header (and, since #837,
+  `Content-Type` and `If-Match`; see SAD_DESK_0011), and responses to an allowed
+  origin carry `Access-Control-Expose-Headers: ETag`. The change is additive, so
+  `apiVersion` stays 3.
 - **Navigator refresh (#842).** `GET /api/v1/tree` carries a strong `ETag` too:
   the quoted SHA-256 digest of the serialized tree, which embeds `apiVersion`
   (SAD_DESK_0016). Each tree node holds the display ID, title, type, core kind,

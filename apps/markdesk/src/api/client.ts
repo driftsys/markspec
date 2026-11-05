@@ -122,17 +122,23 @@ export function createDeskClient(
     fetch: fetchImpl ?? ((request) => fetch(request)),
   });
 
-  async function run<T>(call: () => Promise<Outcome<T>>): Promise<T> {
-    let outcome: Outcome<T>;
+  async function send<T>(call: () => Promise<Outcome<T>>): Promise<Outcome<T>> {
     try {
-      outcome = await call();
+      return await call();
     } catch (cause) {
       throw networkError(cause);
     }
+  }
+
+  function dataOf<T>(outcome: Outcome<T>): T {
     if (!outcome.response.ok || outcome.data === undefined) {
       throw errorFrom(outcome);
     }
     return outcome.data;
+  }
+
+  async function run<T>(call: () => Promise<Outcome<T>>): Promise<T> {
+    return dataOf(await send(call));
   }
 
   /**
@@ -145,27 +151,21 @@ export function createDeskClient(
     >,
     cached: { readonly view: T; readonly etag?: string } | undefined,
   ): Promise<{ view: T; etag?: string }> {
-    let outcome: Outcome<T>;
-    try {
-      outcome = await call(
+    const outcome = await send(() =>
+      call(
         cached?.etag === undefined
           ? undefined
           : { "If-None-Match": cached.etag },
-      );
-    } catch (cause) {
-      throw networkError(cause);
-    }
+      )
+    );
     if (cached !== undefined && outcome.response.status === 304) {
       return cached;
     }
     // A 304 without a cached view has nothing to return: the server sends
     // one only to a request that carried If-None-Match, so it is reported as
     // an error below.
-    if (!outcome.response.ok || outcome.data === undefined) {
-      throw errorFrom(outcome);
-    }
     return {
-      view: outcome.data,
+      view: dataOf(outcome),
       etag: outcome.response.headers.get("ETag") ?? undefined,
     };
   }

@@ -202,4 +202,16 @@ describe("createDeskClient", () => {
     expect(err).toBeInstanceOf(DeskError);
     expect(err).toMatchObject({ status: 0, code: "network" });
   });
+
+  it("maps a document fetch failure to a network DeskError", async () => {
+    const f = stub(new TypeError("document connection lost"));
+    const err = await createDeskClient("http://127.0.0.1:1", "t", f)
+      .document("d.md").catch((error) => error);
+    expect(err).toBeInstanceOf(DeskError);
+    expect(err).toMatchObject({
+      status: 0,
+      code: "network",
+      message: "document connection lost",
+    });
+  });
 });
