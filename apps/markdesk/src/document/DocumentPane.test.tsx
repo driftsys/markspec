@@ -564,6 +564,50 @@ describe("DocumentPane", () => {
     expect(client.document).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the newer render when an older failed document request settles last", async () => {
+    const older = deferred<CachedDocument>();
+    const firstEntry = deferred<EntryView>();
+    const secondEntry = deferred<EntryView>();
+    const path = "docs/brakes.md";
+    const newer: CachedDocument = {
+      view: { ...documentView(path), html: "<h1>Render B</h1>" },
+      etag: '"render-b"',
+    };
+    const base = fakeClient();
+    const client = fakeClient({
+      entry: vi.fn(base.entry)
+        .mockResolvedValueOnce(entryView(ID, path))
+        .mockImplementationOnce(() => firstEntry.promise)
+        .mockImplementationOnce(() => secondEntry.promise),
+      document: vi.fn<DeskClient["document"]>()
+        .mockResolvedValueOnce(fresh(documentView(path)))
+        .mockImplementationOnce(() => older.promise)
+        .mockResolvedValue(newer),
+    });
+    const { select } = mount(client);
+    select(ID);
+    await screen.findByText("Brakes");
+    act(() => globalThis.dispatchEvent(new Event("focus")));
+    select("B");
+    await waitFor(() => expect(client.entry).toHaveBeenCalledTimes(3));
+    // Both reads must capture the warm cache before either replaces it.
+    // From a cold cache, the second read waits for the first document load.
+    await act(async () => {
+      firstEntry.resolve(entryView(ID, path));
+      secondEntry.resolve(entryView("B", path));
+    });
+    await screen.findByText("Render B");
+    expect(client.document).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      older.reject(new DeskError(500, "internal", "older render failed"));
+    });
+    expect(screen.getByText("Render B")).toBeTruthy();
+    act(() => globalThis.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(client.document).toHaveBeenCalledTimes(4));
+    expect(vi.mocked(client.document).mock.calls[3]).toEqual([path, newer]);
+    expect(vi.mocked(client.document).mock.calls[3][1]).toBe(newer);
+  });
+
   it("passes a network failure of the document on without a fallback", async () => {
     const client = fakeClient({
       document: vi.fn(async () => {
