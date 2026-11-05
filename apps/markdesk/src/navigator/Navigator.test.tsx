@@ -33,6 +33,13 @@ describe("model", () => {
     ]);
   });
 
+  it("sorts navigator roots naturally", () => {
+    const model = buildNavigatorModel(
+      tree(["SRS_10", "SRS_2"], ["SRS_10", "SRS_2"], []),
+    );
+    expect(model.roots).toEqual(["SRS_2", "SRS_10"]);
+  });
+
   it("groups refining before verifying and sorts each", () => {
     const m = buildNavigatorModel(tree(
       ["P", "C10", "C2", "V1"],

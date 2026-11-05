@@ -278,3 +278,28 @@ SYS_BRK_0003
   assertEquals(html.includes("cross-ref"), false);
   assertStringIncludes(html, ">SYS_BRK_0003</a>");
 });
+
+Deno.test("renderChapterHtml: duplicate display IDs keep only the first anchor", () => {
+  const { html } = renderChapterHtml(
+    "- [X_0001] First\n\n  First body.\n\n- [X_0001] Second\n\n  Second body.\n",
+  );
+  assertEquals(html.split('id="entry-X_0001"').length - 1, 1);
+  assertEquals(html.split('data-display-id="X_0001"').length - 1, 2);
+  assertStringIncludes(
+    html,
+    'id="entry-X_0001" data-display-id="X_0001">\n  <div class="req-title">\n    <code class="req-id">X_0001</code>\n    <span class="req-name">First</span>',
+  );
+});
+
+Deno.test("renderChapterHtml: multi-value Satisfies links each known ID", () => {
+  const { html } = renderChapterHtml(
+    "- [X_0001] Child\n\n      Satisfies: A_0001, A_0002\n",
+    { knownDisplayIds: new Set(["A_0001", "A_0002"]) },
+  );
+  for (const id of ["A_0001", "A_0002"]) {
+    assertStringIncludes(
+      html,
+      `<span class="cross-ref" data-display-id="${id}">${id}</span>`,
+    );
+  }
+});

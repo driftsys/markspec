@@ -96,14 +96,42 @@ pub struct RecentProduct {
     pub exists: bool,
 }
 
+/// Map stored recents to the UI view using the current directory check.
+fn recent_products(list: Vec<Recent>, is_dir: impl Fn(&str) -> bool) -> Vec<RecentProduct> {
+    list.into_iter()
+        .map(|recent| RecentProduct {
+            exists: is_dir(&recent.root),
+            root: recent.root,
+            name: recent.name,
+        })
+        .collect()
+}
+
+/// Store changes for preserving an unreadable recents value.
+struct RecentsCorruptMove {
+    write_corrupt_key: Option<serde_json::Value>,
+}
+
+/// Preserve the first unreadable value; the caller always deletes the main key.
+fn recents_corrupt_move(
+    corrupt: Option<serde_json::Value>,
+    earlier: Option<&serde_json::Value>,
+) -> Option<RecentsCorruptMove> {
+    let value = corrupt?;
+    Some(RecentsCorruptMove {
+        write_corrupt_key: if earlier.is_none() { Some(value) } else { None },
+    })
+}
+
 fn load_recents(app: &AppHandle) -> Result<Vec<Recent>, String> {
     let store = app.store(RECENTS_STORE).map_err(|err| err.to_string())?;
     let parsed = recents::parse_stored(store.get(RECENTS_KEY));
-    if let Some(value) = parsed.corrupt {
+    let earlier = store.get(RECENTS_CORRUPT_KEY);
+    if let Some(plan) = recents_corrupt_move(parsed.corrupt, earlier.as_ref()) {
         // Keep the unreadable value instead of overwriting it with a fresh
         // list. Write errors are ignored: the list still loads as empty.
         eprintln!("markdesk: recents could not be read; kept under {RECENTS_CORRUPT_KEY}");
-        if store.get(RECENTS_CORRUPT_KEY).is_none() {
+        if let Some(value) = plan.write_corrupt_key {
             store.set(RECENTS_CORRUPT_KEY, value);
         }
         store.delete(RECENTS_KEY);
@@ -187,14 +215,9 @@ async fn open_product(app: AppHandle, path: String) -> Result<OpenedProduct, Ope
 /// The recents list, most recent first.
 #[tauri::command]
 fn list_recents(app: AppHandle) -> Result<Vec<RecentProduct>, String> {
-    Ok(load_recents(&app)?
-        .into_iter()
-        .map(|recent| RecentProduct {
-            exists: Path::new(&recent.root).is_dir(),
-            root: recent.root,
-            name: recent.name,
-        })
-        .collect())
+    Ok(recent_products(load_recents(&app)?, |root| {
+        Path::new(root).is_dir()
+    }))
 }
 
 /// Store the name of a recent product: the project name, or the folder name
@@ -467,6 +490,55 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn recent_products_marks_missing_folders() {
+        let existing = std::env::temp_dir();
+        let missing_path = existing
+            .join(format!("markdesk-missing-836-{}", std::process::id()))
+            .join("absent")
+            .to_string_lossy()
+            .into_owned();
+        let products = recent_products(
+            vec![
+                Recent {
+                    root: existing.to_string_lossy().into_owned(),
+                    name: Some("A".into()),
+                },
+                Recent {
+                    root: missing_path.clone(),
+                    name: Some("B".into()),
+                },
+            ],
+            |root| Path::new(root).is_dir(),
+        );
+        assert!(products[0].exists);
+        assert!(!products[1].exists);
+        assert_eq!(products[1].root, missing_path);
+        assert_eq!(products[1].name.as_deref(), Some("B"));
+    }
+
+    #[test]
+    fn corrupt_recents_move_preserves_the_first_unreadable_value() {
+        let first = json!({"broken":"first"});
+        let second = json!({"broken":"second"});
+        let mut stored = serde_json::Map::new();
+        stored.insert(RECENTS_KEY.into(), first.clone());
+        for value in [first.clone(), second] {
+            stored.insert(RECENTS_KEY.into(), value);
+            let parsed = recents::parse_stored(stored.get(RECENTS_KEY).cloned());
+            let plan =
+                recents_corrupt_move(parsed.corrupt, stored.get(RECENTS_CORRUPT_KEY)).unwrap();
+            if let Some(value) = plan.write_corrupt_key {
+                stored.insert(RECENTS_CORRUPT_KEY.into(), value);
+            }
+            stored.remove(RECENTS_KEY);
+            assert_eq!(stored.get(RECENTS_CORRUPT_KEY), Some(&first));
+            assert!(!stored.contains_key(RECENTS_KEY));
+        }
+        assert!(recents_corrupt_move(None, stored.get(RECENTS_CORRUPT_KEY)).is_none());
+    }
 
     #[test]
     fn recents_after_open_records_the_discovered_root_not_the_chosen_folder() {

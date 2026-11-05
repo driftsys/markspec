@@ -49,6 +49,23 @@ mod tests {
     const LINE: &str = r#"{"url":"http://127.0.0.1:53211","token":"abc123","apiVersion":3,"root":"/home/me/product"}"#;
 
     #[test]
+    fn parse_rejects_an_empty_url() {
+        assert!(
+            super::parse(r#"{"url":"","token":"t","apiVersion":3,"root":"/p"}"#)
+                .unwrap_err()
+                .contains("empty url")
+        );
+    }
+    #[test]
+    fn parse_rejects_an_empty_root() {
+        assert!(super::parse(
+            r#"{"url":"http://127.0.0.1:1","token":"t","apiVersion":3,"root":""}"#
+        )
+        .unwrap_err()
+        .contains("empty root"));
+    }
+
+    #[test]
     fn parse_accepts_the_desk_serve_handshake_line() {
         let parsed = parse(LINE).expect("valid handshake");
         assert_eq!(

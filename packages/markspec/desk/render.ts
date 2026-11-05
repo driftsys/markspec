@@ -178,7 +178,14 @@ export function buildEntryHtmlView(
   };
 }
 
-/** Every display ID in the graph, so references to them render as links. */
-function knownDisplayIds(compiled: CompileResult): ReadonlySet<string> {
-  return new Set<string>(compiled.entries.keys());
+const knownIdSets = new WeakMap<CompileResult, ReadonlySet<string>>();
+
+/** Every display ID in the graph, cached for the lifetime of that graph. */
+export function knownDisplayIds(compiled: CompileResult): ReadonlySet<string> {
+  let ids = knownIdSets.get(compiled);
+  if (!ids) {
+    ids = new Set<string>(compiled.entries.keys());
+    knownIdSets.set(compiled, ids);
+  }
+  return ids;
 }

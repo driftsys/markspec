@@ -105,6 +105,13 @@ stays TypeScript. Everything lives in this repository.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
 
+- [SAD_DESK_0034] Unique rendered chapter anchors
+
+  The rendered chapter HTML shall carry at most one element `id` per display ID;
+  the first entry in source order keeps it.
+
+      Id: 01M6N62ET9MXYAPE8BH3A2HNBK
+
 - [SAD_DESK_0013] Entity tag on rendered documents
 
   The desk backend shall send an `ETag` header with every HTTP status 200
