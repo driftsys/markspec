@@ -251,11 +251,11 @@ export interface components {
       /** @constant */
       apiVersion: 3;
       path: string;
-      /** @description Rendered HTML fragment. Entry blocks carry `id="entry-<displayId>"` and `data-display-id`. */
+      /** @description Rendered HTML fragment. Entry blocks carry `data-display-id`. The first block of each display ID carries `id="entry-<displayId>"`; later blocks with the same display ID carry no `id`. */
       html: string;
       entries: {
         displayId: string;
-        /** @description Element id of the entry block, `entry-<displayId>`. */
+        /** @description Element id of the first entry block with this display ID, `entry-<displayId>`. Duplicates share this value. */
         anchor: string;
       }[];
     };
