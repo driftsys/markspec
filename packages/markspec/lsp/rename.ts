@@ -30,14 +30,16 @@ import { displayIdAtPosition } from "./hover.ts";
  * Return the display ID at the cursor, or `undefined` inside a code fence.
  * Direct rename requests must reject fenced cursors even when the client
  * has not called `prepareRename`.
+ * The caller supplies the cursor line from the LSP document range.
  */
 export function displayIdForRename(
   text: string,
+  line: string,
   lspLine: number,
   column: number,
 ): string | undefined {
   if (isLineFenced(text, lspLine)) return undefined;
-  return displayIdAtPosition(text.split("\n")[lspLine] ?? "", column);
+  return displayIdAtPosition(line, column);
 }
 
 /** A subset of the LSP `TextEdit` interface. */

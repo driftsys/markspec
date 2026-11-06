@@ -1373,8 +1373,13 @@ connection.onRenameRequest(async (params) => {
     }
   }
 
+  const line = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
+  });
   const oldId = displayIdForRename(
     document.getText(),
+    line,
     params.position.line,
     params.position.character,
   );
