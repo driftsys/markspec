@@ -7,7 +7,47 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
+import { TextDocument } from "vscode-languageserver-textdocument";
+import {
+  displayIdForRename,
+  findIdOccurrencesInFile,
+  prepareRenameRange,
+} from "./rename.ts";
+
+Deno.test("displayIdForRename: resolves the LSP cursor line after a CR", () => {
+  const text = "# Heading\rREQ-001\nREQ-002";
+  const document = TextDocument.create("file:///reqs.md", "markdown", 1, text);
+  const line = document.getText({
+    start: { line: 1, character: 0 },
+    end: { line: 1, character: Number.MAX_SAFE_INTEGER },
+  });
+  assertEquals(line, "REQ-001");
+  assertEquals(displayIdForRename(text, line, 1, 2), "REQ-001");
+});
+
+Deno.test("displayIdForRename: rejects fenced cursors that reuse a real ID", () => {
+  for (const fence of ["```", "~~~"]) {
+    const text = [
+      "- [REQ-001] Real requirement",
+      `${fence}markdown`,
+      "- [REQ-001] Illustrative example",
+      fence,
+      "      Satisfies: REQ-001",
+    ].join("\n");
+    const lines = text.split("\n");
+
+    assertEquals(displayIdForRename(text, lines[2], 2, 5), undefined);
+    assertEquals(displayIdForRename(text, lines[1], 1, 4), undefined);
+    assertEquals(displayIdForRename(text, lines[0], 0, 5), "REQ-001");
+    assertEquals(displayIdForRename(text, lines[4], 4, 20), "REQ-001");
+  }
+});
+
+Deno.test("displayIdForRename: rejects whitespace and missing lines", () => {
+  const text = "- [REQ-001] Real requirement";
+  assertEquals(displayIdForRename(text, text, 0, 1), undefined);
+  assertEquals(displayIdForRename(text, "", 1, 5), undefined);
+});
 
 Deno.test("findIdOccurrencesInFile: finds bracketed declaration", () => {
   const text = `# Test

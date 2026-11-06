@@ -74,7 +74,11 @@ import {
   type MarkspecProfileResponse,
 } from "./profile_request.ts";
 import { findReferencingEntries } from "./references.ts";
-import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
+import {
+  displayIdForRename,
+  findIdOccurrencesInFile,
+  prepareRenameRange,
+} from "./rename.ts";
 import {
   buildSemanticTokens,
   SEMANTIC_TOKEN_LEGEND,
@@ -1373,7 +1377,12 @@ connection.onRenameRequest(async (params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
-  const oldId = displayIdAtPosition(line, params.position.character);
+  const oldId = displayIdForRename(
+    document.getText(),
+    line,
+    params.position.line,
+    params.position.character,
+  );
   if (!oldId) return null;
   const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(oldId));
   if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
