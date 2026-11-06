@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { Ajv } from "ajv";
 import { ALLOWED_MARKSPEC_YAML_KEYS, parseMarkspecYaml } from "./markspec.ts";
 
 const MARKSPEC_SCHEMA_URL = new URL(
@@ -38,4 +39,22 @@ Deno.test("markspec schema: keys match parser (minus $schema)", async () => {
     [...keys].sort(),
     [...ALLOWED_MARKSPEC_YAML_KEYS].filter((k) => k !== "$schema").sort(),
   );
+});
+
+Deno.test("markspec schema: exclude requires an array of non-empty strings", async () => {
+  const schema = await loadMarkspecSchema();
+  const validate = new Ajv().compile(schema);
+  for (
+    const { exclude, valid } of [
+      { exclude: [], valid: true },
+      { exclude: ["a", "*"], valid: true },
+      { exclude: ["skills/", "*.gen.md", "!target/"], valid: true },
+      { exclude: "skills/", valid: false },
+      { exclude: [123], valid: false },
+      { exclude: [""], valid: false },
+      { exclude: ["skills/", ""], valid: false },
+    ]
+  ) {
+    assertEquals(validate({ exclude }), valid, JSON.stringify({ exclude }));
+  }
 });

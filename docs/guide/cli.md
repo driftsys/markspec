@@ -161,6 +161,11 @@ rendering settings that used to live in `project.yaml`:
 | `exclude`             | string[]                  | `[]`    | Gitignore-syntax patterns excluded from project-wide file discovery (bare `check`/`lint`/`fmt`), anchored at the project root. Applied after `.gitignore` rules. |
 | `caption-conventions` | map<string, above\|below> | `{}`    | Per-keyword caption-position convention (`Figure`, `Table`, `Listing`, `Feature`, `Equation`, `List`) enforced by `MSL-C072`.                                    |
 
+Each `exclude:` pattern must be a non-empty string. Editor validation and
+autocomplete use the
+[`.markspec.yaml` schema](https://driftsys.github.io/markspec/schemas/markspec/v1.json).
+`project.yaml` rejects `exclude:`; configure it in `.markspec.yaml`.
+
 **`exclude:` example** — skip a directory of example entry blocks that aren't
 real requirements, plus a generated-file pattern:
 
