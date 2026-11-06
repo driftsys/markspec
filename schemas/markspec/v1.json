@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://driftsys.github.io/markspec/schemas/markspec/v1.json",
-  "title": "MarkSpec consumer binding",
-  "description": "Schema for a project's .markspec.yaml profile binding.",
+  "title": "MarkSpec tool configuration",
+  "description": "Schema for a project's .markspec.yaml profile binding and tool configuration.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -19,7 +19,7 @@
     "exclude": {
       "type": "array",
       "description": "Gitignore-syntax patterns excluded from project file discovery, anchored at the project root.",
-      "items": { "type": "string" }
+      "items": { "type": "string", "minLength": 1 }
     },
     "caption-conventions": {
       "type": "object",
