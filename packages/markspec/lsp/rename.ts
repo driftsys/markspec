@@ -20,9 +20,25 @@
  * single-line and fence-unaware by design — the server gates
  * `onPrepareRename` against a fenced cursor position separately (via
  * `isLineFenced`) using the full document text it already has.
+ * `displayIdForRename` applies the same guard to direct rename requests.
  */
 
-import { walkProseLines } from "../core/mod.ts";
+import { isLineFenced, walkProseLines } from "../core/mod.ts";
+import { displayIdAtPosition } from "./hover.ts";
+
+/**
+ * Return the display ID at the cursor, or `undefined` inside a code fence.
+ * Direct rename requests must reject fenced cursors even when the client
+ * has not called `prepareRename`.
+ */
+export function displayIdForRename(
+  text: string,
+  lspLine: number,
+  column: number,
+): string | undefined {
+  if (isLineFenced(text, lspLine)) return undefined;
+  return displayIdAtPosition(text.split("\n")[lspLine] ?? "", column);
+}
 
 /** A subset of the LSP `TextEdit` interface. */
 export interface TextEdit {

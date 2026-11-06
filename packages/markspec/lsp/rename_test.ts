@@ -7,7 +7,34 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { findIdOccurrencesInFile, prepareRenameRange } from "./rename.ts";
+import {
+  displayIdForRename,
+  findIdOccurrencesInFile,
+  prepareRenameRange,
+} from "./rename.ts";
+
+Deno.test("displayIdForRename: rejects fenced cursors that reuse a real ID", () => {
+  for (const fence of ["```", "~~~"]) {
+    const text = [
+      "- [REQ-001] Real requirement",
+      `${fence}markdown`,
+      "- [REQ-001] Illustrative example",
+      fence,
+      "      Satisfies: REQ-001",
+    ].join("\n");
+
+    assertEquals(displayIdForRename(text, 2, 5), undefined);
+    assertEquals(displayIdForRename(text, 1, 4), undefined);
+    assertEquals(displayIdForRename(text, 0, 5), "REQ-001");
+    assertEquals(displayIdForRename(text, 4, 20), "REQ-001");
+  }
+});
+
+Deno.test("displayIdForRename: rejects whitespace and missing lines", () => {
+  const text = "- [REQ-001] Real requirement";
+  assertEquals(displayIdForRename(text, 0, 1), undefined);
+  assertEquals(displayIdForRename(text, 1, 5), undefined);
+});
 
 Deno.test("findIdOccurrencesInFile: finds bracketed declaration", () => {
   const text = `# Test
