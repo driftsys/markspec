@@ -11,7 +11,7 @@
  */
 
 import type { CompileResult, EffectiveProfile, Entry } from "../core/mod.ts";
-import { formatEntryOrigin, sha256String } from "../core/mod.ts";
+import { formatEntryOrigin, isCorpusEntry, sha256String } from "../core/mod.ts";
 import { renderChapterHtml, renderEntryHtml } from "../book/mod.ts";
 
 /** `GET /api/v1/documents` response. */
@@ -58,7 +58,7 @@ export function toApiPath(projectRoot: string, file: string): string {
 
 /** Whether an entry is authored in the project (no delivered or upstream origin). */
 function isProjectEntry(entry: Entry): boolean {
-  return entry.origin === undefined;
+  return !isCorpusEntry(entry);
 }
 
 /**
@@ -172,7 +172,9 @@ export function buildEntryHtmlView(
     apiVersion,
     displayId: entry.displayId,
     html,
-    ...(entry.origin ? { origin: formatEntryOrigin(entry.origin) } : {}),
+    ...(isCorpusEntry(entry)
+      ? { origin: formatEntryOrigin(entry.origin) }
+      : {}),
   };
 }
 

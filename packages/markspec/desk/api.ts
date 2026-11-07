@@ -80,6 +80,7 @@ import {
   type EffectiveProfile,
   type Entry,
   formatEntryOrigin,
+  isCorpusEntry,
   loadMarkdownFormatter,
   makeDisplayId,
   type ProseFormatter,
@@ -339,7 +340,9 @@ export function buildProductTree(
       title: entry.title,
       type: entry.type,
       kind: coreKindOf(entry.type, profile),
-      origin: entry.origin ? formatEntryOrigin(entry.origin) : undefined,
+      origin: isCorpusEntry(entry)
+        ? formatEntryOrigin(entry.origin)
+        : undefined,
     })
   );
 
@@ -427,7 +430,7 @@ export function buildEntryView(
       line: entry.location.line,
       column: entry.location.column,
     },
-    origin: entry.origin ? formatEntryOrigin(entry.origin) : undefined,
+    origin: isCorpusEntry(entry) ? formatEntryOrigin(entry.origin) : undefined,
     links: {
       outgoing: (compiled.forward.get(entry.displayId) ?? [])
         .map((l) => linkView(l.kind, l.to))
@@ -663,7 +666,7 @@ export function createDeskHandler(
         `No entry '${change.displayId}'`,
       );
     }
-    if (entry.origin) {
+    if (isCorpusEntry(entry)) {
       return errorResponse(
         409,
         "entry-read-only",

@@ -21,6 +21,7 @@ export {
   descendantsOf,
   emittableEntries,
   formatEntryOrigin,
+  isCorpusEntry,
   isUpstreamEntry,
   KNOWN_LINK_KINDS,
   LOCK_EXTRA_INVERSE_KEYS,
@@ -245,6 +246,7 @@ export type { ProseFormatOptions, ProseFormatter } from "./formatter/dprint.ts";
 
 // Validator
 export {
+  applyCorpusPostPass,
   attributeCorpusDiagnostics,
   classifyEntriesStage,
   classifyEntry,

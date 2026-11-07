@@ -18,9 +18,8 @@ import type {
 import { makeDisplayId } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
-  attributeCorpusDiagnostics,
+  applyCorpusPostPass,
   classifyEntriesStage,
-  detectCorpusCollisions,
   suppressDeclaredAttrR010,
   validate,
 } from "../validator/mod.ts";
@@ -388,15 +387,7 @@ export async function compile(
   // bugs they cannot fix. No-op (and zero allocation beyond the spread
   // above) when no corpus was injected.
   if (options.corpusEntries && options.corpusEntries.length > 0) {
-    const collisions = detectCorpusCollisions(allEntries);
-    diagnostics = [
-      ...attributeCorpusDiagnostics(
-        diagnostics,
-        allEntries,
-        collisions.collidedTokens,
-      ),
-      ...collisions.diagnostics,
-    ];
+    diagnostics = applyCorpusPostPass(diagnostics, allEntries);
   }
 
   return {

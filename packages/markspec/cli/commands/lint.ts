@@ -28,7 +28,7 @@ export const lintCmd = new Command()
         verb: "linting",
         quiet: options.quiet === true || options.format === "json",
       });
-      const { computeScoreRollup, runLint } = await import(
+      const { computeScoreRollup, isCorpusEntry, runLint } = await import(
         "../../core/mod.ts"
       );
       // Each project group is compiled and linted with its own profile
@@ -54,7 +54,7 @@ export const lintCmd = new Command()
       if (groupResults.length > 1) {
         const all = groupResults.flatMap((g) => g.lint.diagnostics);
         const projectEntries = groupResults.flatMap((g) =>
-          g.entries.filter((e) => !e.origin)
+          g.entries.filter((e) => !isCorpusEntry(e))
         );
         lintResult = {
           diagnostics: all,

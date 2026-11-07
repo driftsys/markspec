@@ -13,7 +13,11 @@ import type {
   Link,
   LinkKind,
 } from "../../core/mod.ts";
-import { formatEntryOrigin, makeDisplayId } from "../../core/mod.ts";
+import {
+  formatEntryOrigin,
+  isCorpusEntry,
+  makeDisplayId,
+} from "../../core/mod.ts";
 
 /** One visited node — display ID, title, and hops from the start (0 = start). */
 export interface WalkNode {
@@ -67,7 +71,9 @@ export function walkLinks(
       displayId: startId,
       title: start.title,
       depth: 0,
-      ...(start.origin ? { origin: formatEntryOrigin(start.origin) } : {}),
+      ...(isCorpusEntry(start)
+        ? { origin: formatEntryOrigin(start.origin) }
+        : {}),
     });
   }
 
@@ -91,7 +97,7 @@ export function walkLinks(
           displayId: neighbour,
           title: target.title,
           depth: depth + 1,
-          ...(target.origin
+          ...(isCorpusEntry(target)
             ? { origin: formatEntryOrigin(target.origin) }
             : {}),
         });

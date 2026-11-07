@@ -19,6 +19,7 @@
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
+import { isCorpusEntry } from "../model/mod.ts";
 import { format } from "../formatter/mod.ts";
 import type { ProseFormatter } from "../formatter/dprint.ts";
 import { parseFile } from "../parser/mod.ts";
@@ -68,7 +69,7 @@ export async function fmtDriftGate(
   // consumer using a delivered corpus. Filter to `!e.origin`, mirroring
   // lockfileDriftGate — deliberately BROADER than the validators'
   // `emittableEntries` (upstream-only, #771); do not "unify" it.
-  const refIndex = buildRefIndex(entries.filter((e) => !e.origin));
+  const refIndex = buildRefIndex(entries.filter((e) => !isCorpusEntry(e)));
   for (const [filePath, content] of mdContents) {
     const formatted = format(content, {
       file: filePath,
@@ -141,7 +142,7 @@ export async function lockfileDriftGate(
   // `!e.origin` (project-owned only) — deliberately BROADER than the
   // validators' `emittableEntries` partition (upstream-only, #771): the
   // edge ledger records only edges the project authors.
-  const projectEntries = entries.filter((e) => !e.origin);
+  const projectEntries = entries.filter((e) => !isCorpusEntry(e));
   const drift = await detectOfflineEdgeDrift(
     projectEntries,
     lockParse.lockfile.generatedCache,

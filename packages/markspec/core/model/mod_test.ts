@@ -18,9 +18,40 @@ import type {
 } from "./mod.ts";
 import {
   attributeSpec,
+  isCorpusEntry,
   makeDisplayId,
   UNIVERSAL_ATTRIBUTE_KEYS,
 } from "./mod.ts";
+
+Deno.test("isCorpusEntry: project entries are local; profile and upstream entries are corpus", () => {
+  const entry: Entry = {
+    displayId: makeDisplayId("REQ_0001"),
+    title: "Test entry",
+    body: "Body.",
+    rawAttributes: [],
+    typedAttributes: new Map(),
+    shape: "Authored",
+    location: { file: "test.md", line: 1, column: 1 },
+    source: { kind: "markdown" },
+    bodyTokens: [],
+  };
+  assertEquals(isCorpusEntry(entry), false);
+  assertEquals(isCorpusEntry({ ...entry, origin: undefined }), false);
+  assertEquals(
+    isCorpusEntry({
+      ...entry,
+      origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+    }),
+    true,
+  );
+  assertEquals(
+    isCorpusEntry({
+      ...entry,
+      origin: { kind: "upstream", upstreamId: "u", version: "2.0.0" },
+    }),
+    true,
+  );
+});
 
 Deno.test("BodyToken: discriminated union exhaustiveness", () => {
   const modal: BodyToken = {

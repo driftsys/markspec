@@ -566,6 +566,7 @@ export {
 } from "./traceability.ts";
 
 export {
+  applyCorpusPostPass,
   attributeCorpusDiagnostics,
   detectCorpusCollisions,
 } from "./corpus.ts";

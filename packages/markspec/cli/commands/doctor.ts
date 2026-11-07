@@ -10,6 +10,7 @@ import {
   type Diagnostic,
   formatEdgeDriftMessage,
   isBelowFloor,
+  isCorpusEntry,
   parseLockfile,
   VERSION,
 } from "../../core/mod.ts";
@@ -103,7 +104,7 @@ export const doctorCmd = new Command()
         await projectCollectOptions(lockRoot),
       );
       const drift = await detectOfflineEdgeDrift(
-        projectEntries.filter((e) => !e.origin),
+        projectEntries.filter((e) => !isCorpusEntry(e)),
         parsedLock.generatedCache,
       );
       edgeDrift = drift.drifted;

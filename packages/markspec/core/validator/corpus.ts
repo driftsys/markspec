@@ -15,7 +15,31 @@
  */
 
 import type { Diagnostic, Entry, EntryOrigin } from "../model/mod.ts";
-import { formatEntryOrigin, sameOriginSource } from "../model/mod.ts";
+import {
+  formatEntryOrigin,
+  isCorpusEntry,
+  sameOriginSource,
+} from "../model/mod.ts";
+
+/**
+ * Attribute corpus findings and replace generic duplicate diagnostics with
+ * corpus collisions. Append collisions after attribution so MSL-R014 remains
+ * an error even when its location belongs to a read-only corpus.
+ */
+export function applyCorpusPostPass(
+  diagnostics: readonly Diagnostic[],
+  allEntries: readonly Entry[],
+): Diagnostic[] {
+  const collisions = detectCorpusCollisions(allEntries);
+  return [
+    ...attributeCorpusDiagnostics(
+      diagnostics,
+      allEntries,
+      collisions.collidedTokens,
+    ),
+    ...collisions.diagnostics,
+  ];
+}
 
 /**
  * Remedy clause for an inter-tier MSL-R014 collision — both owners
@@ -55,7 +79,7 @@ export function detectCorpusCollisions(
   const corpusByDisplayId = new Map<string, Entry>();
   const corpusById = new Map<string, Entry>();
   for (const e of allEntries) {
-    if (!e.origin) continue;
+    if (!isCorpusEntry(e)) continue;
     if (!corpusByDisplayId.has(e.displayId)) {
       corpusByDisplayId.set(e.displayId, e);
     }
@@ -67,7 +91,7 @@ export function detectCorpusCollisions(
   const diagnostics: Diagnostic[] = [];
   const collided = new Set<string>();
   for (const e of allEntries) {
-    if (!e.origin) {
+    if (!isCorpusEntry(e)) {
       const displayOwner = corpusByDisplayId.get(e.displayId);
       if (displayOwner) {
         collided.add(e.displayId);
@@ -146,7 +170,7 @@ export function attributeCorpusDiagnostics(
 ): Diagnostic[] {
   const corpusFiles = new Map<string, EntryOrigin>();
   for (const e of allEntries) {
-    if (e.origin) {
+    if (isCorpusEntry(e)) {
       corpusFiles.set(e.location.file, e.origin);
     }
   }

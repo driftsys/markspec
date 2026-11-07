@@ -8,7 +8,7 @@
  */
 
 import type { EffectiveProfile, Entry } from "../model/mod.ts";
-import { CORE_TYPE_HIERARCHY } from "../model/mod.ts";
+import { CORE_TYPE_HIERARCHY, isCorpusEntry } from "../model/mod.ts";
 import { resolvedCoreType } from "../validator/type_resolution.ts";
 import type { LintDiagnostic } from "./types.ts";
 import { runLexiconRules } from "./rules/lexicon.ts";
@@ -173,7 +173,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   // validated but is never prose-linted — do not "unify" this filter.
   const inScopeDiags = new Map<Entry, LintDiagnostic[]>();
   for (const entry of entries) {
-    if (entry.origin) continue;
+    if (isCorpusEntry(entry)) continue;
     if (!isProseScope(entry, profile)) continue;
     const diags: LintDiagnostic[] = [];
     // Step 3: lexicon rules
@@ -199,7 +199,7 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   const hygieneDiags: LintDiagnostic[] = [];
   for (const entry of entries) {
     if (entry.shape !== "Authored") continue;
-    if (entry.origin) continue;
+    if (isCorpusEntry(entry)) continue;
     hygieneDiags.push(...runSuppressionRules(entry));
   }
 
@@ -238,7 +238,10 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
   // ones). Corpus entries are excluded — counting them would skew band-counts
   // and the mean on prose a consumer cannot act on (ADR-030 §D4). A no-op when
   // no corpus is present.
-  const score = computeScoreRollup(out, entries.filter((e) => !e.origin));
+  const score = computeScoreRollup(
+    out,
+    entries.filter((e) => !isCorpusEntry(e)),
+  );
 
   return { diagnostics: out, score };
 }

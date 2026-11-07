@@ -13,11 +13,11 @@ import type {
   Entry,
 } from "../core/mod.ts";
 import {
-  attributeCorpusDiagnostics,
+  applyCorpusPostPass,
   classifyEntry,
-  detectCorpusCollisions,
   emittableEntries,
   formatEntryOrigin,
+  isCorpusEntry,
   parseFile,
   suppressDeclaredAttrR010,
   uxilDeclaringTypes,
@@ -178,7 +178,9 @@ export class WorkspaceIndex {
       result.push({
         displayId,
         title: entry.title,
-        origin: entry.origin ? formatEntryOrigin(entry.origin) : undefined,
+        origin: isCorpusEntry(entry)
+          ? formatEntryOrigin(entry.origin)
+          : undefined,
       });
     }
     return result;
@@ -292,7 +294,7 @@ export class WorkspaceIndex {
    * the corpus becomes MSL-R014 instead of the generic MSL-R005/R006/
    * I007/I008 duplicate codes, whose message would otherwise embed the
    * corpus entry's raw `.markspec/cache/…` location (#674 finding 3).
-   * `detectCorpusCollisions`/`attributeCorpusDiagnostics` no-op when no
+   * `applyCorpusPostPass` is a no-op when no
    * corpus was seeded. Diagnostics located in a corpus file (including
    * the corpus↔corpus branch of MSL-R014) are still filtered out at
    * publish time by the server's `corpusFilePaths` guard.
@@ -308,14 +310,8 @@ export class WorkspaceIndex {
       allEntries,
       profile,
     );
-    const collisions = detectCorpusCollisions(allEntries);
     return [
-      ...attributeCorpusDiagnostics(
-        suppressed,
-        allEntries,
-        collisions.collidedTokens,
-      ),
-      ...collisions.diagnostics,
+      ...applyCorpusPostPass(suppressed, allEntries),
       // uxil diagnostics family (S9 #727) — profile-gated; inert without a
       // `declares: ux-surface` designation, so non-uxil projects pay only
       // a Map scan per validateAll.

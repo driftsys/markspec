@@ -233,6 +233,52 @@ Deno.test("profile show: lists delivered documents", async () => {
   assertStringIncludes(stdout, "reference/guide.md");
 });
 
+// A legacy trailer emits a warning from the parser, outside PROFILE-DELIVERS.
+// Filtering delivered health by that prefix would hide this issue (#711).
+for (const format of ["text", "json"]) {
+  Deno.test(`doctor: delivered corpus parse warning appears in ${format} health and exits 2`, async () => {
+    const files = fixture(WITH_DELIVERS);
+    files["profile/reference/platform.md"] = `- [PLT_0001] Platform core service
+
+  The platform core service shall expose the vehicle state bus within 50 ms.
+
+  Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\\
+  Type: platform-component
+`;
+    const { code, stdout, stderr } = await markspec([
+      "doctor",
+      "--format",
+      format,
+    ], files);
+    assertEquals(code, 2, stderr);
+    if (format === "json") {
+      const health = JSON.parse(stdout);
+      assertEquals(health.delivers, {
+        documents: 2,
+        corpusEntries: 1,
+        issues: 1,
+      });
+      assertEquals(health.diagnostics.length, 1);
+      assertEquals(health.diagnostics[0].code, "MSL-DEPRECATED-ATTR-001");
+      assertEquals(health.diagnostics[0].severity, "warning");
+      assertStringIncludes(
+        health.diagnostics[0].message,
+        "delivered by platform-arch@1.2.0:",
+      );
+    } else {
+      assertEquals(stdout, "");
+      assertStringIncludes(
+        stderr,
+        "Delivered documents: 2 (1 corpus entries, 1 issue(s))",
+      );
+      assertStringIncludes(
+        stderr,
+        "warning[MSL-DEPRECATED-ATTR-001]: delivered by platform-arch@1.2.0:",
+      );
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Task 7 — origin in export + reports
 // ---------------------------------------------------------------------------
