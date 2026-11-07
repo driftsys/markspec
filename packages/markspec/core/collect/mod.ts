@@ -18,6 +18,14 @@ import { discoverFiles, type DiscoveryIO } from "../discovery/mod.ts";
 import { nearestRoot } from "../discovery/projects.ts";
 import { parseFile } from "../parser/mod.ts";
 
+/** A discovered project file could not be read. */
+export class UnreadableProjectFileError extends Error {
+  constructor(readonly file: string) {
+    super(`Cannot read discovered project file: ${file}`);
+    this.name = "UnreadableProjectFileError";
+  }
+}
+
 /** Options for {@linkcode collectProjectEntries}. */
 export interface CollectOptions {
   /** Gitignore-syntax patterns (e.g. `project.yaml` `exclude:`), anchored at
@@ -47,7 +55,7 @@ export interface CollectOptions {
  *
  * @param io Injected filesystem surface (keeps `core/` Node-compatible; CLI
  *   entry points pass a Deno-backed implementation).
- * @throws {Error} If a discovered file of this project cannot be read.
+ * @throws {UnreadableProjectFileError} If a discovered project file cannot be read.
  */
 export async function collectProjectEntries(
   root: string,
@@ -65,7 +73,7 @@ export async function collectProjectEntries(
     if (nearestRoot(dirname(file), roots) !== root) continue;
     const content = await io.readFile(file);
     if (content === undefined) {
-      throw new Error(`Cannot read discovered project file: ${file}`);
+      throw new UnreadableProjectFileError(file);
     }
     const result = await parseFile(content, { file });
     out.push(...result.entries);

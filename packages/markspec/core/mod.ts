@@ -492,7 +492,10 @@ export type {
 } from "./discovery/projects.ts";
 
 // ── Project-entry collection (discover + parse → Entry[]) ────────────────
-export { collectProjectEntries } from "./collect/mod.ts";
+export {
+  collectProjectEntries,
+  UnreadableProjectFileError,
+} from "./collect/mod.ts";
 export type { CollectOptions } from "./collect/mod.ts";
 
 // ── Compiled-snapshot deserialization (federated upstream, slice 1) ──────

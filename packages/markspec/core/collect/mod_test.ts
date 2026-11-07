@@ -9,7 +9,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { join } from "@std/path";
 import type { DiscoveryIO } from "../discovery/mod.ts";
-import { collectProjectEntries } from "./mod.ts";
+import { collectProjectEntries, UnreadableProjectFileError } from "./mod.ts";
 
 function realIO(): DiscoveryIO {
   return {
@@ -73,7 +73,7 @@ Deno.test("collectProjectEntries: rejects when a discovered file disappears befo
             return await io.readFile(path);
           },
         }),
-      Error,
+      UnreadableProjectFileError,
       unreadablePath,
     );
   } finally {
