@@ -6,7 +6,6 @@
 
 import { Command } from "@cliffy/command";
 import {
-  collectProjectEntries,
   detectOfflineEdgeDrift,
   isBelowFloor,
   parseLockfile,
@@ -14,6 +13,7 @@ import {
 } from "../../core/mod.ts";
 import {
   cliProjectRootResolver,
+  collectProjectEntriesOrExit,
   compileProject,
   denoDiscoveryIO,
   projectCollectOptions,
@@ -88,7 +88,7 @@ export const doctorCmd = new Command()
       // diverge. Corpus-blind, mirroring `check`'s MSL-L212 gate: the
       // lockfile never counts delivered-corpus edges (ADR-030), so neither
       // do we.
-      const projectEntries = await collectProjectEntries(
+      const projectEntries = await collectProjectEntriesOrExit(
         lockRoot,
         denoDiscoveryIO(),
         await projectCollectOptions(lockRoot),

@@ -10,6 +10,7 @@
 import { Command } from "@cliffy/command";
 import { formatEntryOrigin, VERSION } from "../../core/mod.ts";
 import {
+  collectProjectEntriesOrExit,
   compileProject,
   csvQuote,
   projectCollectOptions,
@@ -50,7 +51,6 @@ export const compileCmd = new Command()
       if (_options.frozen) {
         const {
           checkDrift,
-          collectProjectEntries,
           deriveUpstreamId,
           loadConfig,
           loadProfileForCommand,
@@ -97,7 +97,7 @@ export const compileCmd = new Command()
         );
         // The file set `markspec lock` pinned: `exclude:` (#684), inherited
         // `.gitignore` files and no nested projects (#860).
-        const entries = await collectProjectEntries(
+        const entries = await collectProjectEntriesOrExit(
           root,
           denoDiscoveryIO(),
           await projectCollectOptions(root),

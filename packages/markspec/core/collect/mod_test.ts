@@ -6,10 +6,10 @@
  * and its checkers (`compile`, `fmt`, `doctor`).
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { join } from "@std/path";
 import type { DiscoveryIO } from "../discovery/mod.ts";
-import { collectProjectEntries } from "./mod.ts";
+import { collectProjectEntries, UnreadableProjectFileError } from "./mod.ts";
 
 function realIO(): DiscoveryIO {
   return {
@@ -58,6 +58,38 @@ const REQ_B = `# B
 
 const ids = (es: Awaited<ReturnType<typeof collectProjectEntries>>) =>
   es.map((e) => String(e.displayId)).sort();
+
+Deno.test("collectProjectEntries: rejects when a discovered file disappears before reading", async () => {
+  const dir = await makeTree({ "a.md": REQ_A, "b.md": REQ_B });
+  try {
+    const io = realIO();
+    const unreadablePath = join(dir, "b.md");
+    await assertRejects(
+      () =>
+        collectProjectEntries(dir, {
+          ...io,
+          readFile: async (path) => {
+            if (path === unreadablePath) await Deno.remove(path);
+            return await io.readFile(path);
+          },
+        }),
+      UnreadableProjectFileError,
+      unreadablePath,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("collectProjectEntries: accepts an empty discovered file", async () => {
+  const dir = await makeTree({ "a.md": REQ_A, "empty.md": "" });
+  try {
+    const entries = await collectProjectEntries(dir, realIO());
+    assertEquals(ids(entries), ["REQ-0001"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
 
 Deno.test("collectProjectEntries: discovers + parses markdown entries across the tree", async () => {
   const dir = await makeTree({ "docs/a.md": REQ_A, "docs/sub/b.md": REQ_B });
