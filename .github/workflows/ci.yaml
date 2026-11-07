@@ -136,6 +136,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Lint install.sh (POSIX sh)
         run: shellcheck -s sh install.sh
+      - name: Test installer checksum verification
+        run: sh scripts/test_install.sh
 
   compile-smoke:
     name: Compiled binary smoke
