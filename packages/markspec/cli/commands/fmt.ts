@@ -73,7 +73,14 @@ export const fmtCmd = new Command()
         assertNotDeliveredTarget(scope.groups.flatMap((g) => g.files), chains);
       }
 
-      const formatMarkdownProse = await loadMarkdownFormatterOrExit();
+      // Load the dprint WASM plugin only when a Markdown file is in scope:
+      // source files never use it (see the per-file guard below).
+      const hasMarkdown = scope.groups.some((g) =>
+        g.files.some((f) => MARKDOWN_EXTENSIONS.has(extname(f).toLowerCase()))
+      );
+      const formatMarkdownProse = hasMarkdown
+        ? await loadMarkdownFormatterOrExit()
+        : undefined;
 
       let totalFormatted = 0;
       let totalUnchanged = 0;
