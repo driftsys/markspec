@@ -70,6 +70,24 @@ Deno.test("discovery: skips hidden directories (built-in)", async () => {
   }
 });
 
+Deno.test("discovery: negations cannot re-include hidden directories", async () => {
+  const dir = await makeTree({
+    ".gitignore": "*\n!*/\n!*.md\n",
+    ".worktrees/copy/requirements.md": "",
+    "docs/.hidden/requirements.md": "",
+    "docs/requirements.md": "",
+  });
+  try {
+    assertEquals(await collect(dir), ["docs/requirements.md"]);
+    assertEquals(
+      await collect(dir, { exclude: ["!*/", "!.worktrees/", "!.hidden/"] }),
+      ["docs/requirements.md"],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("discovery: exclude option uses gitignore syntax", async () => {
   const dir = await makeTree({
     "skills/example.md": "",
@@ -77,6 +95,107 @@ Deno.test("discovery: exclude option uses gitignore syntax", async () => {
   });
   try {
     assertEquals(await collect(dir, { exclude: ["skills/"] }), ["docs/a.md"]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: exclude overrides conflicting root and nested gitignore rules", async () => {
+  const dir = await makeTree({
+    ".gitignore": "!secrets/\n!omit.md\n",
+    "secrets/a.md": "",
+    "omit.md": "",
+    "docs/.gitignore": "!secrets/\n!omit.md\n",
+    "docs/secrets/b.md": "",
+    "docs/omit.md": "",
+    "docs/deep/.gitignore": "!secrets/\n!omit.md\n",
+    "docs/deep/secrets/c.md": "",
+    "docs/deep/omit.md": "",
+    "docs/deep/keep.md": "",
+  });
+  try {
+    assertEquals(await collect(dir, { exclude: ["secrets/", "omit.md"] }), [
+      "docs/deep/keep.md",
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: exclude negations override gitignored and built-in directories at every depth", async () => {
+  const dir = await makeTree({
+    ".gitignore": "dist/\nvendor/\n.hidden/\n",
+    "dist/.gitignore": "*.md\n",
+    "dist/keep.md": "",
+    "vendor/keep.md": "",
+    ".hidden/keep.md": "",
+    "docs/.gitignore": "build/\nvendor/\n.hidden/\n",
+    "docs/build/.gitignore": "*.md\n",
+    "docs/build/keep.md": "",
+    "docs/vendor/keep.md": "",
+    "docs/.hidden/keep.md": "",
+    "docs/deep/.gitignore": "target/\n",
+    "docs/deep/target/keep.md": "",
+    "node_modules/pkg/skip.md": "",
+    ".other/skip.md": "",
+  });
+  try {
+    assertEquals(
+      await collect(dir, {
+        exclude: [
+          "!dist/",
+          "!build/",
+          "!target/",
+          "!vendor/",
+          "!.hidden/",
+          "!keep.md",
+        ],
+      }),
+      [
+        "dist/keep.md",
+        "docs/build/keep.md",
+        "docs/deep/target/keep.md",
+        "docs/vendor/keep.md",
+        "vendor/keep.md",
+      ],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: ordered exclude rules stay root-anchored after inherited and nested gitignores", async () => {
+  const dir = await makeTree({
+    ".gitignore": "dist/\n!omit.md\n",
+    "sub/.gitignore": "dist/\n!omit.md\n",
+    "sub/dist/.gitignore": "*.md\n",
+    "sub/dist/keep.md": "",
+    "sub/dist/drop.md": "",
+    "sub/omit.md": "",
+    "sub/docs/omit.md": "",
+    "sub/docs/dist/keep.md": "",
+  });
+  try {
+    assertEquals(
+      await collect(join(dir, "sub"), {
+        inheritGitignoreFrom: dir,
+        exclude: ["!/dist/", "/dist/*.md", "!/dist/keep.md", "/omit.md"],
+      }),
+      ["dist/keep.md", "docs/omit.md"],
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discovery: file negation cannot re-include a pruned parent directory", async () => {
+  const dir = await makeTree({
+    ".gitignore": "vendor/\n",
+    "vendor/keep.md": "",
+    "target/keep.md": "",
+  });
+  try {
+    assertEquals(await collect(dir, { exclude: ["!**/keep.md"] }), []);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

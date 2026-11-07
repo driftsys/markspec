@@ -57,6 +57,51 @@ Deno.test("discoverProjectRoots: hidden, gitignored and excluded folders skipped
   assertEquals(result.roots, [dir]);
 });
 
+Deno.test("discoverProjectRoots: tool excludes override gitignores when finding nested roots", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      ".markspec.yaml": 'exclude: ["secrets/", "!dist/", "!.included/"]\n',
+      ".gitignore": "!secrets/\ndist/\n.included/\n",
+      "secrets/project.yaml": PROJECT,
+      "dist/project.yaml": PROJECT,
+      ".included/project.yaml": PROJECT,
+      "docs/.gitignore": "!secrets/\ndist/\n",
+      "docs/secrets/project.yaml": PROJECT,
+      "docs/dist/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    const result = await discoverProjectRoots(dir, realIO());
+    assertEquals(result.roots, [
+      dir,
+      join(dir, "dist"),
+      join(dir, "docs", "dist"),
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discoverProjectRoots: broad negations cannot expose hidden project roots", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      ".markspec.yaml": 'exclude: ["!*/", "!.worktrees/"]\n',
+      ".gitignore": "!*/\n",
+      ".worktrees/copy/project.yaml": PROJECT,
+      "docs/project.yaml": PROJECT,
+      "docs/.hidden/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    const result = await discoverProjectRoots(dir, realIO());
+    assertEquals(result.roots, [dir, join(dir, "docs")]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("discoverProjectRoots: start in a subfolder walks up first", async () => {
   const dir = await real(
     await makeTree({ "a/project.yaml": PROJECT, "a/docs/x.md": "" }),
