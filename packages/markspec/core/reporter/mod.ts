@@ -7,7 +7,11 @@
 
 import type { CompileResult } from "../compiler/mod.ts";
 import type { DisplayId, Entry } from "../model/mod.ts";
-import { formatEntryOrigin, isUpstreamEntry } from "../model/mod.ts";
+import {
+  formatEntryOrigin,
+  isCorpusEntry,
+  isUpstreamEntry,
+} from "../model/mod.ts";
 
 /** Supported report kinds. */
 export type ReportKind = "traceability" | "coverage";
@@ -111,7 +115,7 @@ interface TraceRow {
  * Markdown, and JSON rows all agree on the same value.
  */
 function originCell(entry: Entry): string {
-  return entry.origin ? formatEntryOrigin(entry.origin) : "project";
+  return isCorpusEntry(entry) ? formatEntryOrigin(entry.origin) : "project";
 }
 
 function buildTraceRows(

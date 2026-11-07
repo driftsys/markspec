@@ -43,6 +43,7 @@ import {
   filterEntriesByTraceTargets,
   format,
   formatEntryOrigin,
+  isCorpusEntry,
   isLineFenced,
   isWithin,
   loadMarkdownFormatter,
@@ -915,7 +916,7 @@ connection.onCompletion((params): CompletionItem[] | CompletionList => {
         ).map((e) => ({
           displayId: e.displayId,
           title: e.title,
-          origin: e.origin ? formatEntryOrigin(e.origin) : undefined,
+          origin: isCorpusEntry(e) ? formatEntryOrigin(e.origin) : undefined,
         }))
         : ctx.index.getAllDisplayIds();
       // Server-side prefix filter on the partial the user has typed
@@ -1355,7 +1356,7 @@ connection.onPrepareRename((params) => {
   const id = displayIdAtPosition(line, params.position.character);
   if (id) {
     const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(id));
-    if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
+    if (targetEntry && isCorpusEntry(targetEntry)) return null; // delivered corpus is read-only (ADR-030)
   }
   return prepareRenameRange(
     line,
@@ -1394,7 +1395,7 @@ connection.onRenameRequest(async (params) => {
   );
   if (!oldId) return null;
   const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(oldId));
-  if (targetEntry?.origin) return null; // delivered corpus is read-only (ADR-030)
+  if (targetEntry && isCorpusEntry(targetEntry)) return null; // delivered corpus is read-only (ADR-030)
   const newId = params.newName;
   if (!newId || newId === oldId) return null;
 

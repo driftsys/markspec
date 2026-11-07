@@ -245,18 +245,11 @@ async function checkGroup(
   // a corpus file are downgraded to attributed warnings — a consumer
   // build must not go red over an upstream bug it cannot fix. No-op
   // when no corpus was injected.
-  const { attributeCorpusDiagnostics, detectCorpusCollisions } = await import(
-    "../../core/mod.ts"
+  const { applyCorpusPostPass } = await import("../../core/mod.ts");
+  const pipelineDiagnostics = applyCorpusPostPass(
+    result.diagnostics,
+    allEntries,
   );
-  const collisions = detectCorpusCollisions(allEntries);
-  const pipelineDiagnostics = [
-    ...attributeCorpusDiagnostics(
-      result.diagnostics,
-      allEntries,
-      collisions.collidedTokens,
-    ),
-    ...collisions.diagnostics,
-  ];
 
   const listingDiagnostics = validateListingDocuments(listingContexts);
 

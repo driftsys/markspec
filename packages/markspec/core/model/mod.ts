@@ -445,6 +445,19 @@ export type EntryOrigin =
   };
 
 /**
+ * Whether an entry belongs to a read-only corpus: a profile-delivered
+ * document or a locked upstream snapshot. Project-authored entries have no
+ * origin. This is broader than {@linkcode isUpstreamEntry}: profile corpus
+ * entries remain structurally validated but are excluded from prose lint
+ * and project-owned gates.
+ */
+export function isCorpusEntry(
+  entry: Entry,
+): entry is Entry & { origin: EntryOrigin } {
+  return entry.origin !== undefined;
+}
+
+/**
  * Human-facing `<profileId>@<profileVersion>` (or `<upstreamId>@<version>`)
  * label for an entry's origin (ADR-030). The single formatter for the origin
  * idiom shared across the validator, reporter, CLI, LSP, and MCP surfaces.

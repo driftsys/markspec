@@ -5,7 +5,11 @@
  */
 
 import { Command } from "@cliffy/command";
-import { formatEntryOrigin, makeDisplayId } from "../../core/mod.ts";
+import {
+  formatEntryOrigin,
+  isCorpusEntry,
+  makeDisplayId,
+} from "../../core/mod.ts";
 import { compileProject, renderDiagnosticLocation } from "../helpers.ts";
 
 export const showCmd = new Command()
@@ -41,7 +45,7 @@ export const showCmd = new Command()
           console.log(`  Type: ${entry.type}`);
         }
         console.log(`  Shape: ${entry.shape}`);
-        if (entry.origin) {
+        if (isCorpusEntry(entry)) {
           console.log(`  Origin: ${formatEntryOrigin(entry.origin)}`);
         }
         for (const attr of entry.rawAttributes) {

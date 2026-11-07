@@ -12,6 +12,7 @@
 import {
   type Entry,
   formatEntryOrigin,
+  isCorpusEntry,
   isUpstreamEntry,
   type Link,
 } from "../../core/mod.ts";
@@ -32,7 +33,7 @@ export function renderEntry(
 
   if (entry.type) lines.push(`**Type**: ${entry.type}`);
   lines.push(`**Shape**: ${entry.shape}`);
-  if (entry.origin) {
+  if (isCorpusEntry(entry)) {
     const verb = isUpstreamEntry(entry) ? "from upstream" : "delivered by";
     lines.push(
       `**Origin**: ${verb} ${formatEntryOrigin(entry.origin)} (read-only)`,

@@ -7,9 +7,10 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import type { Entry } from "../model/mod.ts";
+import type { Diagnostic, Entry } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import {
+  applyCorpusPostPass,
   attributeCorpusDiagnostics,
   detectCorpusCollisions,
 } from "./corpus.ts";
@@ -41,6 +42,129 @@ function makeEntry(
 // ---------------------------------------------------------------------------
 // detectCorpusCollisions
 // ---------------------------------------------------------------------------
+
+Deno.test("applyCorpusPostPass: without corpus, diagnostics retain order and content", () => {
+  const diagnostics: readonly Diagnostic[] = Object.freeze([
+    {
+      code: "MSL-R006",
+      severity: "error",
+      message: "duplicate display ID 'REQ_0001'",
+      location: undefined,
+    },
+    {
+      code: "MSL-T024",
+      severity: "warning",
+      message: "project warning",
+      location: undefined,
+    },
+  ]);
+  assertEquals(
+    applyCorpusPostPass(diagnostics, [makeEntry({ displayId: "REQ_0001" })]),
+    diagnostics,
+  );
+});
+
+Deno.test("applyCorpusPostPass: suppresses collided duplicates, attributes corpus findings, and appends hard collisions", () => {
+  const profile = makeEntry({
+    displayId: "PLT_0001",
+    file: "/cache/p/ref.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const upstream = makeEntry({
+    displayId: "PLT_0001",
+    file: "/cache/u/ref.md",
+    origin: { kind: "upstream", upstreamId: "u", version: "2.0.0" },
+  });
+  const project = makeEntry({ displayId: "PLT_0001", file: "/repo/reqs.md" });
+  const input: readonly Diagnostic[] = Object.freeze([
+    {
+      code: "MSL-R006",
+      severity: "error",
+      message: "duplicate display ID 'PLT_0001'",
+      location: project.location,
+    },
+    {
+      code: "MSL-M060",
+      severity: "error",
+      message: "profile error",
+      location: profile.location,
+    },
+    {
+      code: "MSL-M060",
+      severity: "warning",
+      message: "upstream warning",
+      location: upstream.location,
+    },
+    {
+      code: "MSL-R006",
+      severity: "error",
+      message: "duplicate display ID 'OTHER_0001'",
+      location: project.location,
+    },
+    {
+      code: "MSL-T024",
+      severity: "info",
+      message: "global finding",
+      location: undefined,
+    },
+  ]);
+  const before = structuredClone(input);
+  const out = applyCorpusPostPass(
+    input,
+    Object.freeze([profile, upstream, project]),
+  );
+  assertEquals(out.map((d: Diagnostic) => [d.code, d.severity]), [
+    ["MSL-M060", "warning"],
+    ["MSL-M060", "warning"],
+    ["MSL-R006", "error"],
+    ["MSL-T024", "info"],
+    ["MSL-R014", "error"],
+    ["MSL-R014", "error"],
+  ]);
+  assertStringIncludes(out[0].message, "delivered by p@1.0.0:");
+  assertStringIncludes(out[1].message, "from upstream u@2.0.0:");
+  assertEquals(out[2], input[3]);
+  assertEquals(out[3], input[4]);
+  assertEquals(out[4].location, upstream.location);
+  assertEquals(out[5].location, project.location);
+  assertEquals(input, before);
+});
+
+Deno.test("applyCorpusPostPass: shared ULID with distinct display IDs replaces generic duplicates with MSL-R014", () => {
+  const sharedId = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+  const corpus = makeEntry({
+    displayId: "PLT_0001",
+    id: sharedId,
+    file: "/cache/p/ref.md",
+    origin: { kind: "profile", profileId: "p", profileVersion: "1.0.0" },
+  });
+  const project = makeEntry({
+    displayId: "REQ_0009",
+    id: sharedId,
+    file: "/repo/reqs.md",
+  });
+  const out = applyCorpusPostPass([
+    {
+      code: "MSL-R005",
+      severity: "error",
+      message: `duplicate Id '${sharedId}' (also at /cache/p/ref.md:1)`,
+      location: project.location,
+    },
+    {
+      code: "MSL-I007",
+      severity: "error",
+      message: `duplicate Id: value '${sharedId}' across the project ` +
+        "(also at /cache/p/ref.md:1) (spec section 4.2)",
+      location: project.location,
+    },
+  ], [corpus, project]);
+
+  assertEquals(out.map((d) => d.code), ["MSL-R014"]);
+  assertEquals(out[0].severity, "error");
+  assertEquals(out[0].location, project.location);
+  assertStringIncludes(out[0].message, `Id '${sharedId}'`);
+  assertStringIncludes(out[0].message, "p@1.0.0");
+});
 
 Deno.test("detectCorpusCollisions: project entry reusing corpus display ID → MSL-R014", () => {
   const corpus = makeEntry({
