@@ -7,6 +7,8 @@
 import { Command } from "@cliffy/command";
 import {
   detectOfflineEdgeDrift,
+  type Diagnostic,
+  formatEdgeDriftMessage,
   isBelowFloor,
   parseLockfile,
   VERSION,
@@ -43,8 +45,7 @@ export const doctorCmd = new Command()
     // Read markspec.lock once — its floor feeds the toolchain-skew check
     // (slice F) and its generated-cache feeds the lockfile edge-drift check
     // (#658). A missing/unreadable file means "no lockfile"; a present-but-
-    // malformed one means "no floor / no drift" — lockfile validity is
-    // `markspec check`/`lock`'s concern, not doctor's.
+    // malformed one reports parse diagnostics without a floor / drift check.
     // The lockfile sits where `markspec lock` writes it (#860): the root a
     // bare `check` resolves, which can differ from the nearest project.yaml
     // (a config hidden by an enclosing project).
@@ -53,11 +54,14 @@ export const doctorCmd = new Command()
     ) ?? projectRoot;
     let floor: string | undefined;
     let lockfilePresent = false;
+    let lockfileDiagnostics: readonly Diagnostic[] = [];
     let parsedLock: ReturnType<typeof parseLockfile>["lockfile"];
     try {
       const lockRaw = await Deno.readTextFile(`${lockRoot}/markspec.lock`);
       lockfilePresent = true;
-      parsedLock = parseLockfile(lockRaw).lockfile;
+      const lockParse = parseLockfile(lockRaw);
+      parsedLock = lockParse.lockfile;
+      lockfileDiagnostics = lockParse.diagnostics;
       floor = parsedLock?.meta.toolchain?.minVersion;
     } catch {
       // No lockfile (or unreadable) → no floor, no drift check.
@@ -66,13 +70,18 @@ export const doctorCmd = new Command()
 
     const diagnostics: Array<
       { severity: string; code: string; message: string }
-    > = belowFloor
-      ? [{
+    > = lockfileDiagnostics.map((d) => ({
+      severity: "warning",
+      code: d.code,
+      message: d.message,
+    }));
+    if (belowFloor) {
+      diagnostics.push({
         severity: "warning",
         code: "toolchain-below-floor",
         message: `CLI version ${VERSION} is below the workspace floor ${floor}`,
-      }]
-      : [];
+      });
+    }
 
     // Lockfile edge-drift (#658): surface the same offline drift `check`'s
     // MSL-L212 gate errors on, but as a non-blocking warning — the proactive
@@ -104,8 +113,7 @@ export const doctorCmd = new Command()
         diagnostics.push({
           severity: "warning",
           code: "lockfile-edge-drift",
-          message:
-            `traceability edges drifted from markspec.lock: locked ${lockedEdges} edge(s), current ${currentEdges} — run \`markspec lock\` to refresh (expected once after a MarkSpec upgrade)`,
+          message: formatEdgeDriftMessage(lockedEdges, currentEdges),
         });
       }
     }
@@ -192,7 +200,7 @@ export const doctorCmd = new Command()
         // — a present-but-malformed lockfile reports `present: true` without
         // the drift fields, mirroring the text output's `parsedLock` guard, so
         // a JSON consumer never reads `edgeDrift: false` as "in sync" when no
-        // comparison ran. Lockfile validity stays `check`/`lock`'s concern.
+        // comparison ran. Parse failures appear in `diagnostics` as warnings.
         lockfile: parsedLock
           ? { present: true, edgeDrift, lockedEdges, currentEdges }
           : { present: lockfilePresent },
@@ -229,12 +237,14 @@ export const doctorCmd = new Command()
       } else {
         console.error(`Toolchain: CLI ${VERSION} · workspace floor ${floor} ✓`);
       }
-      // Lockfile status line — only when a parseable lockfile was compared
-      // (a malformed one prints nothing; its validity is `check`'s concern).
+      for (const d of lockfileDiagnostics) {
+        console.error(`⚠ Lockfile: warning[${d.code}]: ${d.message}`);
+      }
+      // Only a parseable lockfile can report edge-drift status.
       if (parsedLock) {
         if (edgeDrift) {
           console.error(
-            `⚠ Lockfile: traceability edges drifted (locked ${lockedEdges}, current ${currentEdges}) — run \`markspec lock\``,
+            `⚠ Lockfile: ${formatEdgeDriftMessage(lockedEdges, currentEdges)}`,
           );
         } else {
           console.error("Lockfile: traceability edges in sync ✓");
@@ -265,8 +275,11 @@ export const doctorCmd = new Command()
     }
 
     // clig.dev: warnings → exit 2 so CI can gate on toolchain skew, corpus
-    // health, or lockfile drift. Hard errors (no config/profile) throw earlier
-    // and yield 1. Lockfile drift stays exit 2 here (gentle) — the hard
+    // health, lockfile parse failures, or drift. Hard errors (no config/profile)
+    // throw earlier and yield 1. Lockfile drift stays exit 2 here — the hard
     // MSL-L212 exit 1 lives in `markspec check` (#658).
-    if (belowFloor || corpusIssues.length > 0 || edgeDrift) Deno.exit(2);
+    if (
+      belowFloor || corpusIssues.length > 0 || edgeDrift ||
+      lockfileDiagnostics.length > 0
+    ) Deno.exit(2);
   });

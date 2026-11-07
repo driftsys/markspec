@@ -69,19 +69,22 @@ Deno.test("doctor: edge drift after lock warns and exits 2", async () => {
 
     const { code, stderr } = await markspecInDir(run.dir, ["doctor"]);
     assertEquals(code, 2, stderr);
-    assertStringIncludes(stderr, "drifted");
-    assertStringIncludes(stderr, "markspec lock");
+    const message =
+      "traceability edges drifted from markspec.lock: locked 1 edge(s), current 0 — run `markspec lock` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running `markspec lock` clears it.)";
+    assertStringIncludes(stderr, message);
 
     const json = await markspecInDir(run.dir, ["doctor", "--format", "json"]);
     assertEquals(json.code, 2);
     const data = JSON.parse(json.stdout);
     assertEquals(data.lockfile.present, true);
     assertEquals(data.lockfile.edgeDrift, true);
+    assertEquals(data.lockfile.lockedEdges, 1);
+    assertEquals(data.lockfile.currentEdges, 0);
     assertEquals(
-      data.diagnostics.some((d: { code: string }) =>
+      data.diagnostics.find((d: { code: string }) =>
         d.code === "lockfile-edge-drift"
       ),
-      true,
+      { severity: "warning", code: "lockfile-edge-drift", message },
       json.stdout,
     );
   } finally {
@@ -98,22 +101,71 @@ Deno.test("doctor: no lockfile → no drift check, present:false, exits 0", asyn
   assertEquals(data.lockfile.present, false);
 });
 
-Deno.test("doctor: present-but-malformed lockfile → present:true, no drift fields, exits 0", async () => {
-  const { code, stdout, stderr } = await markspec(
-    ["doctor", "--format", "json"],
-    {
-      files: {
-        ...BASE_FILES,
-        "docs/req.md": CLEAN_REQ,
-        "markspec.lock": "this is not valid toml {{{",
-      },
-    },
-  );
-  // Lockfile validity is `check`/`lock`'s concern, not doctor's — a malformed
-  // lockfile is reported present but the drift comparison is skipped, so JSON
-  // consumers never read `edgeDrift: false` as "in sync" when nothing ran.
-  assertEquals(code, 0, stderr);
-  const data = JSON.parse(stdout);
-  assertEquals(data.lockfile.present, true);
-  assertEquals("edgeDrift" in data.lockfile, false);
-});
+for (
+  const [name, raw, message] of [
+    [
+      "malformed TOML",
+      "this is not valid toml {{{",
+      "Malformed markspec.lock:",
+    ],
+    [
+      "invalid schema",
+      "schema = 1\n",
+      "Missing [meta] table or `locked-at` field",
+    ],
+  ]
+) {
+  for (const format of ["text", "json"]) {
+    Deno.test(`doctor: ${name} reports parse diagnostics in ${format}, exits 2`, async () => {
+      const { code, stdout, stderr } = await markspec(
+        ["doctor", "--format", format],
+        {
+          files: {
+            ...BASE_FILES,
+            "docs/req.md": CLEAN_REQ,
+            "markspec.lock": raw,
+          },
+        },
+      );
+      assertEquals(code, 2, stderr || stdout);
+      if (format === "json") {
+        const health = JSON.parse(stdout);
+        assertEquals(health.lockfile, { present: true });
+        const diagnostic = health.diagnostics.find((d: { code: string }) =>
+          d.code === "MSL-L001"
+        );
+        assertEquals(diagnostic?.severity, "warning");
+        assertStringIncludes(diagnostic.message, message);
+        assertEquals(stderr.includes("edges in sync"), false);
+      } else {
+        assertEquals(stdout, "");
+        assertStringIncludes(stderr, "Lockfile:");
+        assertStringIncludes(stderr, "warning[MSL-L001]");
+        assertStringIncludes(stderr, message);
+        assertEquals(stderr.includes("edges in sync"), false);
+      }
+
+      const checked = await markspec(["check", "--format", "json"], {
+        files: {
+          ...BASE_FILES,
+          "docs/req.md": CLEAN_REQ,
+          "markspec.lock": raw,
+        },
+      });
+      assertEquals(checked.code, 1, checked.stderr || checked.stdout);
+      const checkDiagnostic = JSON.parse(checked.stdout).find(
+        (d: { code: string }) => d.code === "MSL-L001",
+      );
+      assertEquals(checkDiagnostic?.severity, "error");
+      assertStringIncludes(checkDiagnostic.message, message);
+      if (format === "json") {
+        const diagnostic = JSON.parse(stdout).diagnostics.find(
+          (d: { code: string }) => d.code === "MSL-L001",
+        );
+        assertEquals(diagnostic.message, checkDiagnostic.message);
+      } else {
+        assertStringIncludes(stderr, checkDiagnostic.message);
+      }
+    });
+  }
+}

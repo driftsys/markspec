@@ -25,6 +25,7 @@ import { parseFile } from "../parser/mod.ts";
 import { buildRefIndex, canonicalizeRefs } from "../refs/mod.ts";
 import {
   detectOfflineEdgeDrift,
+  formatEdgeDriftMessage,
   type LockEdge,
   type ParseLockfileResult,
   type ReadFile as LockReadFile,
@@ -149,8 +150,7 @@ export async function lockfileDriftGate(
     ? [{
       code: "MSL-L212",
       severity: "error",
-      message:
-        `traceability edges drifted from markspec.lock: locked ${drift.lockedCount} edge(s), current ${drift.currentCount} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`,
+      message: formatEdgeDriftMessage(drift.lockedCount, drift.currentCount),
       location: { file: lockPath, line: 1, column: 1 },
     }]
     : [];

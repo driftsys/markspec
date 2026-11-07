@@ -920,9 +920,12 @@ addition to Markdown. A project that pinned its lockfile with an older MarkSpec
 and has trace links in source files will see a one-time `MSL-L212` edge-drift
 error from bare `markspec check` until you run `markspec lock` once to refresh
 the pin — the requirements didn't change, only the set of files the lockfile
-indexes did. `markspec doctor` surfaces the same drift as a non-blocking warning
-(exit 2), so you can spot and clear it with `markspec lock` before `check`
-blocks on it in CI.
+indexes did. `markspec check`, `markspec lock --check`,
+`markspec compile --frozen`, and `markspec doctor` share an edge-drift message
+that includes the locked and current edge counts, the `markspec lock` remedy,
+and this possible upgrade cause. `markspec doctor` surfaces the same drift as a
+non-blocking warning (exit 2), so you can spot and clear it with `markspec lock`
+before `check` blocks on it in CI.
 
 #### sync
 
@@ -1151,7 +1154,7 @@ proactive onramp so a stale lockfile is surfaced before a `markspec check` goes
 red on it (`check` keeps the hard `MSL-L212` error, exit 1):
 
 ```text
-⚠ Lockfile: traceability edges drifted (locked 12, current 15) — run `markspec lock`
+⚠ Lockfile: traceability edges drifted from markspec.lock: locked 12 edge(s), current 15 — run `markspec lock` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running `markspec lock` clears it.)
 ```
 
 `--format json` adds a `lockfile` block:
@@ -1170,10 +1173,14 @@ red on it (`check` keeps the hard `MSL-L212` error, exit 1):
 `present` is `false` when the project has no `markspec.lock`. The
 `edgeDrift`/`lockedEdges`/`currentEdges` fields appear only when the lockfile
 parses; a present-but-malformed lockfile reports `present: true` with the drift
-fields omitted (its validity is `check`'s / `lock`'s concern, not `doctor`'s).
-The drift warning uses the non-`MSL` `doctor` code `lockfile-edge-drift`, listed
-in the shared `diagnostics` array. See the `lock` [Upgrade note](#lock) for the
-one-time post-upgrade drift and how to clear it.
+fields omitted. A malformed lockfile is unhealthy: `doctor` reports the lockfile
+parser's diagnostic codes and messages (for example, `MSL-L001`) as **warnings**
+in text output and in the JSON `diagnostics` array, and exits **2**. It skips
+the edge comparison rather than claiming the edges are in sync. `check` reports
+the same parse failures as errors and exits **1**. The drift warning uses the
+non-`MSL` `doctor` code `lockfile-edge-drift`, listed in the shared
+`diagnostics` array. See the `lock` [Upgrade note](#lock) for the one-time
+post-upgrade drift and how to clear it.
 
 ### Maintenance
 

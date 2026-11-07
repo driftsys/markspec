@@ -212,6 +212,10 @@ Deno.test("lockfileDriftGate: a stale edge hash fails with MSL-L212 at the lockf
   assertEquals(diags.length, 1);
   assertEquals(diags[0].code, "MSL-L212");
   assertEquals(diags[0].location?.file, lockPath);
+  assertEquals(
+    diags[0].message,
+    "traceability edges drifted from markspec.lock: locked 0 edge(s), current 1 — run `markspec lock` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running `markspec lock` clears it.)",
+  );
 });
 
 Deno.test("lockfileDriftGate: no `cache` option means no upstream-cache check runs (backward compatible)", async () => {

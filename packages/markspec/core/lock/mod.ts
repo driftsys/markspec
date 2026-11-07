@@ -38,7 +38,10 @@ export { sha256Bytes, sha256String } from "./hash.ts";
 export { canonicalEdgeJson, hashCanonicalEdges } from "./canonical_edges.ts";
 export type { EdgeQuad } from "./canonical_edges.ts";
 
-export { detectOfflineEdgeDrift } from "./edge_drift.ts";
+export {
+  detectOfflineEdgeDrift,
+  formatEdgeDriftMessage,
+} from "./edge_drift.ts";
 export type { OfflineEdgeDrift } from "./edge_drift.ts";
 
 export { verifyUpstreamCache } from "./cache_check.ts";
