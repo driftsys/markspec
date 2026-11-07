@@ -28,6 +28,7 @@ import type {
   UpstreamRegistry,
 } from "./model.ts";
 import type { ResolvedUpstreams } from "./resolve.ts";
+import { formatEdgeDriftMessage } from "./edge_drift.ts";
 
 /**
  * Compare locked vs resolved upstreams; return one diagnostic per drift
@@ -189,8 +190,10 @@ export function checkDrift(
     diags.push({
       code: "MSL-L212",
       severity: "error",
-      message:
-        `Canonical edge hash drifted: locked ${locked.generatedCache.edgesHash} (${locked.generatedCache.edgesCount} edges) vs current ${resolved.canonicalEdgeHash} (${resolved.canonicalEdgeCount} edges).`,
+      message: formatEdgeDriftMessage(
+        locked.generatedCache.edgesCount,
+        resolved.canonicalEdgeCount,
+      ),
       location: undefined,
     });
   }

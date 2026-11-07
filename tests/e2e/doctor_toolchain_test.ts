@@ -93,7 +93,7 @@ Deno.test("doctor: no lockfile reports no floor, JSON floor null", async () => {
   assertEquals(data.toolchain.cliVersion.length > 0, true);
 });
 
-Deno.test("doctor: present-but-malformed lockfile floor → no floor, exits 0", async () => {
+Deno.test("doctor: malformed lockfile floor reports MSL-L030, exits 2", async () => {
   const malformed = `schema = 1
 
 [meta]
@@ -110,6 +110,8 @@ edges-count = 0
   const { code, stderr } = await markspec(["doctor"], {
     files: { ...baseFiles, "markspec.lock": malformed },
   });
-  assertEquals(code, 0);
+  assertEquals(code, 2);
   assertStringIncludes(stderr, "no workspace floor declared");
+  assertStringIncludes(stderr, "warning[MSL-L030]");
+  assertStringIncludes(stderr, "garbage");
 });

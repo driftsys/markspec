@@ -119,9 +119,16 @@ Deno.test("checkDrift: canonical edge hash drift → MSL-L212", () => {
   const resolved: ResolvedUpstreams = {
     ...EMPTY_RESOLVED,
     canonicalEdgeHash: "sha256:CHANGED",
+    canonicalEdgeCount: 3,
   };
   const d = checkDrift(EMPTY_LOCKED, resolved, []);
-  assertEquals(d.some((x) => x.code === "MSL-L212"), true);
+  assertEquals(d, [{
+    code: "MSL-L212",
+    severity: "error",
+    message:
+      "traceability edges drifted from markspec.lock: locked 0 edge(s), current 3 — run `markspec lock` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running `markspec lock` clears it.)",
+    location: undefined,
+  }]);
 });
 
 // ---------------------------------------------------------------------------

@@ -347,6 +347,7 @@ export {
   detectOfflineEdgeDrift,
   extractEdgeLedger,
   extractEdgeQuads,
+  formatEdgeDriftMessage,
   hashCanonicalEdges,
   isBelowFloor,
   LOCKFILE_SCHEMA_VERSION,

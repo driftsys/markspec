@@ -23,6 +23,14 @@ export interface OfflineEdgeDrift {
   readonly currentCount: number;
 }
 
+/** Build the actionable edge-drift message shared by CLI and core checks. */
+export function formatEdgeDriftMessage(
+  lockedCount: number,
+  currentCount: number,
+): string {
+  return `traceability edges drifted from markspec.lock: locked ${lockedCount} edge(s), current ${currentCount} — run \`markspec lock\` to refresh. (After upgrading MarkSpec this can also fire once because traceability inputs now include source-file doc comments; re-running \`markspec lock\` clears it.)`;
+}
+
 /**
  * Compare the current project graph's canonical edge hash against a
  * lockfile's generated-cache. Offline by design — no upstream resolution.
