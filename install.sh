@@ -60,6 +60,17 @@ get_version() {
   printf '%s\n' "$body" | grep '"tag_name"' | head -1 | cut -d'"' -f4
 }
 
+verify_checksum() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -c "$1"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$1"
+  else
+    echo "error: SHA-256 verification requires shasum or sha256sum; install one and retry" >&2
+    return 1
+  fi
+}
+
 main() {
   local target version tarball url checksum_url
   target="$(detect_target)"
@@ -81,7 +92,7 @@ main() {
   curl -fsSL "$checksum_url" -o "$tmpdir/$tarball.sha256"
 
   echo "Verifying checksum..." >&2
-  (cd "$tmpdir" && shasum -a 256 -c "$tarball.sha256")
+  (cd "$tmpdir" && verify_checksum "$tarball.sha256")
 
   tar xzf "$tmpdir/$tarball" -C "$tmpdir"
 

@@ -91,6 +91,10 @@ The script:
 3. Verifies the SHA256 checksum.
 4. Places the binary in `~/.local/bin`.
 
+Checksum verification requires `shasum` (used with `-a 256`) or `sha256sum`. The
+script prefers `shasum` when both are available. If neither tool is available,
+or verification fails, installation stops with an error.
+
 Add `~/.local/bin` to your `PATH` if it is not already there:
 
 ```sh
