@@ -176,11 +176,30 @@ exclude:
   - "*.gen.md"
 ```
 
+**Discovery precedence.** Hidden directories are always skipped. For other
+paths, rules apply in this order at every directory level: built-in build-output
+skips, enclosing and root `.gitignore` files, nested `.gitignore` files, then
+the project's `.markspec.yaml` `exclude:` list. The last matching rule wins, so
+`exclude:` overrides even a conflicting nested `.gitignore`. Patterns use the
+project root as their base; a leading `/` anchors a pattern there, while a bare
+name such as `secrets/` matches at any depth.
+
 **Built-in skips.** File discovery always skips hidden directories (names
-starting with `.`) and the common build-output / dependency directories
-`node_modules`, `target`, `dist`, and `build`, on top of `.gitignore` and
-`exclude:`. The build-output skip is overridable — re-include one with a negated
-entry in `.gitignore` or `exclude:` (e.g. `exclude: ["!target/"]`).
+starting with `.`); negations in `.gitignore` or `exclude:` cannot re-include
+them. The common build-output / dependency directories `node_modules`, `target`,
+`dist`, and `build` are skipped by default as the lowest-precedence rules.
+Re-include one with a negated entry in `.gitignore` or `exclude:` (e.g.
+`exclude: ["!target/"]`). An `exclude:` negation wins even when `.gitignore`
+also ignores that directory. An ignored parent is pruned before its contents are
+visited: `!target/keep.md` alone cannot restore a file under an ignored
+`target/`; also add `!target/`.
+
+These rules apply to bare `check`/`lint`/`fmt`, explicit directory arguments
+within a project, LSP indexing, lockfile entry collection, and nested-project
+discovery for the CLI, LSP, and MCP. Nested-root discovery uses the outer
+project's exclusions for its initial walk; child-project exclusions can filter
+found roots, but cannot restore descendants pruned by that walk. Explicit file
+arguments are taken as-is.
 
 **Nested projects and `.gitignore`.** The walk of a nested project also applies
 the `.gitignore` files of the folders between the outermost project root and the

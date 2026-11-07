@@ -47,29 +47,32 @@ Skip precedence, in order:
 1. **Built-in** — any directory whose name starts with `.` (covers `.git`,
    `.markspec`, `.worktrees`, `.claude` without enumerating every dotdir a
    consumer's environment might create). `.gitignore` _files_ are still read;
-   hidden _files_ like `.hidden.md` are still yielded.
+   hidden _files_ like `.hidden.md` are still yielded. This directory skip is
+   unconditional: negations cannot re-include hidden directories.
 2. **`.gitignore` files** (root + nested; standard semantics: `!` negation, `/`
    anchoring, trailing-`/` dir-only patterns, `**` cross-directory globs,
    last-match-wins).
-3. **`exclude:` globs from `project.yaml`** — a new
-   `ProjectConfig.exclude:
-   readonly string[]` field (gitignore syntax,
-   root-anchored). This escape hatch is required, not speculative: this repo's
-   own `skills/` directory contains example entry blocks that are not real
-   requirements and is not gitignored — previously hardcoded in the LSP walker's
-   skip list, now `exclude: ["skills/"]` in the repo's own `project.yaml`.
+3. **`exclude:` globs from `.markspec.yaml`** — the
+   `ToolConfig.exclude: readonly string[]` field (gitignore syntax,
+   project-root-relative; moved from `project.yaml` by #709). This escape hatch
+   is required, not speculative: this repo's own `skills/` directory contains
+   example entry blocks that are not real requirements and is not gitignored —
+   previously hardcoded in the LSP walker's skip list, now
+   `exclude: ["skills/"]` in the repo's own `.markspec.yaml`.
 
 A second built-in skip covers the common build-output / dependency directories
 `node_modules`, `target`, `dist`, and `build` (`BUILTIN_SKIP_DIRS` in
 `core/discovery/mod.ts`). Unlike the hidden-dir skip it is **overridable**: it
 is applied as the _lowest_-precedence rule layer (before `.gitignore` and
 `exclude:`), so a negated `!target/` in either re-includes it under gitignore
-last-match-wins. This restores the guarantee the pre-`core/discovery` walkers
-(LSP `walkDirectory`, lockfile `collectEntries`) had via their hardcoded skip
-lists — without it, a consumer project that does not list these in `.gitignore`
-recurses into build artifacts (duplicate-ID noise, slow LSP indexing, spurious
-`MSL-L212` edge-hash entries). Added as a follow-up (#661) after the merge
-review found the unconditional skip had been dropped.
+last-match-wins. `exclude:` is applied after every `.gitignore` at every
+directory level (see the #703 amendment below). This restores the guarantee the
+pre-`core/discovery` walkers (LSP `walkDirectory`, lockfile `collectEntries`)
+had via their hardcoded skip lists — without it, a consumer project that does
+not list these in `.gitignore` recurses into build artifacts (duplicate-ID
+noise, slow LSP indexing, spurious `MSL-L212` edge-hash entries). Added as a
+follow-up (#661) after the merge review found the unconditional skip had been
+dropped.
 
 Three extension-set SSOTs live in `core/discovery/mod.ts`: `SOURCE_EXTENSIONS`
 (tree-sitter-parseable source families), `MARKDOWN_EXTENSIONS` (`.md` only — the
@@ -272,7 +275,7 @@ not scoped to this work.
 - **TTY-dependent scope semantics** — rejected: scope must be deterministic
   regardless of stdout being a TTY; only output formatting adapts (clig.dev).
 - **No `.markspecignore` file** — rejected as a non-feature: `.gitignore` +
-  `project.yaml` `exclude:` already cover the need.
+  `.markspec.yaml` `exclude:` already cover the need.
 - **Gate-selection flags on `check`** (`--only`, `--no-lint`) — rejected as a
   non-feature: use the focused verb (`lint`, `fmt --check`) instead of adding
   flag surface area to the composite gate.
@@ -310,12 +313,13 @@ not scoped to this work.
   (no upstream/network resolution, which stays in `markspec lock --check`).
 - As-built: `packages/markspec/core/discovery/gitignore.ts`,
   `packages/markspec/core/discovery/mod.ts`, `packages/markspec/core/mod.ts`
-  (re-exports), `packages/markspec/core/model/mod.ts` (`ProjectConfig.exclude`),
-  `packages/markspec/core/config/mod.ts` (`exclude:` parsing), `cli/helpers.ts`
+  (re-exports), `packages/markspec/core/config/markspec.ts`
+  (`ToolConfig.exclude` and `exclude:` parsing), `cli/helpers.ts`
   (`resolveScope`, `denoDiscoveryIO`), `cli/commands/check.ts` (composite
   gates), `cli/commands/fmt.ts`, `cli/commands/lint.ts`, `cli/commands/lock.ts`
-  (`collectEntries`), `lsp/project_context.ts` and `lsp/project_registry.ts`
-  (per-project discovery), `lsp/context.ts` (`SOURCE_EXTENSIONS` import).
+  (`collectProjectEntries` via `core/collect/`), `lsp/project_context.ts` and
+  `lsp/project_registry.ts` (per-project discovery), `lsp/context.ts`
+  (`SOURCE_EXTENSIONS` import).
 
 ## Amendment (2026-10-31, #845)
 
@@ -391,3 +395,31 @@ This amendment changes the 2026-10-31 amendment above (which root `lock` and
 - `compile --frozen` and `doctor` read `markspec.lock` at the root `lock` writes
   it. Otherwise `compile`, `show`, `export`, and the other commands still walk
   up from the current directory to the nearest `project.yaml`.
+
+## Amendment (2026-11-07, #703: discovery precedence)
+
+The precedence list above applies at every directory level. Previously the
+walker placed `exclude:` before the root and nested `.gitignore` files, so those
+files could override it. The walker now carries exclusions separately from
+inherited ignore rules and applies them last for both files and directories.
+Negations can restore non-hidden gitignored and build-output directories. Hidden
+directories remain unconditionally skipped. An ignored parent must be
+re-included before a child can be visited; discovery still prunes ignored
+directories.
+
+The original `ProjectConfig.exclude` field moved to `.markspec.yaml`
+`ToolConfig.exclude` in #709 (PR #881); `project.yaml` rejects the old key. The
+original explicit-directory limitation was already superseded by #845 and #856:
+a directory argument inside a project filters that project's bare walk,
+including its `exclude:` list. Explicit files remain verbatim, and a directory
+outside any project has no project exclusions to load.
+
+All `discoverFiles` and `findNestedProjectRoots` callers that have project tool
+configuration already pass the exclusion list: CLI scope helpers, shared
+lockfile collection, dependency acquisition, LSP indexing and project-root
+discovery (also used by MCP). Nested-root discovery first walks with the outer
+project's exclusions, then filters the found roots using child-project
+exclusions. A child's negation cannot restore a descendant pruned by that
+initial walk; this pre-existing limitation is outside #703. MCP's separate
+compile walker remains outside this contract, as recorded in the follow-ups
+above.

@@ -1,16 +1,18 @@
 /**
  * @module core/discovery
  *
- * Gitignore-aware project file discovery — the single walker every
- * MarkSpec surface uses (CLI verbs, LSP indexing, lockfile entry
- * collection). Yields absolute paths of MarkSpec-relevant files under a
- * root, honoring (in precedence order):
+ * Gitignore-aware project file discovery shared by CLI scope resolution,
+ * LSP indexing, lockfile entry collection and nested-project discovery.
+ * Yields absolute paths of MarkSpec-relevant files under a
+ * root, unconditionally skipping hidden directories and honoring (in
+ * precedence order):
  *
- *   1. built-in skips — hidden directories (name starts with `.`)
+ *   1. built-in skips — common build-output directories
  *   2. `.gitignore` files (root + nested, standard semantics), plus, when
  *      the caller names an enclosing folder, the `.gitignore` files of the
  *      folders from that folder down to the root's parent
- *   3. caller-supplied `exclude` patterns (gitignore syntax, root-anchored)
+ *   3. caller-supplied `exclude` patterns (gitignore syntax, root-anchored),
+ *      applied last at every directory level, including for negations
  *
  * I/O is injected via {@linkcode DiscoveryIO} so the module stays
  * Node-compatible; entry points supply the Deno implementation.
@@ -76,7 +78,9 @@ export interface DiscoverOptions {
   /** Extension filter; defaults to {@linkcode RELEVANT_EXTENSIONS}. */
   readonly extensions?: ReadonlySet<string>;
   /** Extra gitignore-syntax patterns, anchored at `root` (e.g. from
-   * project.yaml `exclude:`). Applied after `.gitignore` rules. */
+   * `.markspec.yaml` `exclude:`). Applied after built-in build-output skips and
+   * `.gitignore` rules at every directory level. Negations can re-include
+   * non-hidden directories; an ignored parent must also be re-included. */
   readonly exclude?: readonly string[];
   /**
    * An enclosing folder of `root`, such as the root of the project that a
@@ -100,9 +104,9 @@ export interface DiscoverOptions {
  * indexing, spurious `MSL-L212` edge-hash entries).
  *
  * Unlike the hidden-dir skip these are overridable: they are applied as the
- * LOWEST-precedence rule layer (before `.gitignore` and `exclude:`), so a
- * negated `!target/` entry in either re-includes them under gitignore
- * last-match-wins.
+ * lowest-precedence rule layer (before `.gitignore` and `exclude:`), so a
+ * negated `!target/` entry in either re-includes that directory under
+ * gitignore last-match-wins.
  */
 const BUILTIN_SKIP_DIRS: readonly string[] = [
   "node_modules",
@@ -139,14 +143,13 @@ export async function* discoverFiles(
     (options.exclude ?? []).join("\n"),
     prefix,
   );
-  // Built-in build-output skips are the lowest-precedence layer: inherited
-  // `.gitignore` rules, `exclude:`, and the walk's own `.gitignore` files
-  // (appended per-directory in `walk`) all come after, so a `!target/`
-  // negation in any of them overrides them.
+  // Carry excludes separately: they must stay after every `.gitignore`,
+  // including ones loaded deeper in the walk.
   yield* walk(
     root,
     prefix,
-    [...BUILTIN_SKIP_RULES, ...inherited.rules, ...excludeRules],
+    [...BUILTIN_SKIP_RULES, ...inherited.rules],
+    excludeRules,
     io,
     extensions,
   );
@@ -188,15 +191,17 @@ async function* walk(
   absDir: string,
   relDir: string,
   rules: readonly GitignoreRule[],
+  excludeRules: readonly GitignoreRule[],
   io: DiscoveryIO,
   extensions: ReadonlySet<string>,
 ): AsyncGenerator<string> {
-  // Nested .gitignore rules append after inherited ones — deeper rules
-  // win under last-match-wins.
+  // Deeper `.gitignore` rules win over inherited ones. Excludes stay last
+  // for this directory's decisions, but are not inherited as gitignore rules.
   const raw = await io.readFile(join(absDir, ".gitignore"));
-  const active = raw !== undefined && raw.length > 0
+  const gitignoreRules = raw !== undefined && raw.length > 0
     ? [...rules, ...parseGitignore(raw, relDir)]
     : rules;
+  const active = [...gitignoreRules, ...excludeRules];
 
   const entries: DiscoveryDirEntry[] = [];
   try {
@@ -213,7 +218,14 @@ async function* walk(
       // Git semantics: paths under an ignored directory cannot be
       // re-included, so pruning here is correct (and fast).
       if (isIgnored(rel, true, active)) continue;
-      yield* walk(join(absDir, entry.name), rel, active, io, extensions);
+      yield* walk(
+        join(absDir, entry.name),
+        rel,
+        gitignoreRules,
+        excludeRules,
+        io,
+        extensions,
+      );
     } else if (entry.isFile) {
       if (!extensions.has(extname(entry.name).toLowerCase())) continue;
       if (isIgnored(rel, false, active)) continue;

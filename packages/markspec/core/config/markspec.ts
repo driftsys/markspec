@@ -83,8 +83,10 @@ export interface MarkspecYaml {
   /**
    * Gitignore-syntax patterns excluded from project file discovery,
    * anchored at the project root (e.g. `["skills/", "*.gen.md"]`).
-   * Applied after `.gitignore` rules by `core/discovery`. Defaults to
-   * `[]` when the key is absent.
+   * Applied after built-in build-output skips and all `.gitignore` rules at
+   * every directory level by `core/discovery`. Negations can re-include
+   * non-hidden directories, provided their parents are not ignored. Hidden
+   * directories are always skipped. Defaults to `[]` when the key is absent.
    */
   readonly exclude: readonly string[];
   /**

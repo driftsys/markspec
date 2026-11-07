@@ -28,8 +28,10 @@ export class UnreadableProjectFileError extends Error {
 
 /** Options for {@linkcode collectProjectEntries}. */
 export interface CollectOptions {
-  /** Gitignore-syntax patterns (e.g. `project.yaml` `exclude:`), anchored at
-   * `root`. Applied after `.gitignore` rules. Defaults to none. */
+  /** Gitignore-syntax patterns (e.g. `.markspec.yaml` `exclude:`), anchored at
+   * `root`. Applied after built-in build-output skips and all `.gitignore`
+   * rules at every directory level. Hidden directories are always skipped.
+   * Defaults to none. */
   readonly exclude?: readonly string[];
   /** An enclosing project root whose `.gitignore` files, from it down to
    * `root`, also apply (`discoverFiles` option of the same name). Pass the
