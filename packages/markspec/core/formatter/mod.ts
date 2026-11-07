@@ -495,8 +495,8 @@ export function format(
 
   // ADR-029: the whole-document Markdown pass is Markdown-only. Gate on the
   // file extension HERE so the invariant has one home — a caller that wires
-  // formatMarkdownProse without its own guard (e.g. a future write tool, or
-  // formatSource forwarding options with a source-file label) cannot silently
+  // formatMarkdownProse without its own guard (e.g. a future write tool
+  // forwarding options with a source-file label) cannot silently
   // reflow a source file's doc comment as Markdown. The CommonMark-semantic
   // gate cannot catch that class, so it must be prevented, not detected. The
   // CLI/LSP call-site guards remain as defense-in-depth.
