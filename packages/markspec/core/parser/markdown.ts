@@ -8,6 +8,7 @@
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
 import {
+  attributeSpec,
   CORE_RELATIONS,
   IDENTITY_KEY,
   LOCK_EXTRA_INVERSE_KEYS,
@@ -31,13 +32,18 @@ import { assembleTyplTypes } from "../typl/mod.ts";
 
 /**
  * Canonical set of trailer attribute keys the core recognizes: the union of
- * every universal attribute, every core trace relation, and the extra inverse
- * lock key (`Verified-by`). MSL-P020 (misplaced trailer) fires only when a
- * body line's key is in this set; any other capitalized `Word:` lead-in
- * (`Note:`, `Example:`, `Assumption:`) is prose, not a misplaced trailer (#654).
+ * every authored universal attribute, every core trace relation, and the
+ * extra inverse lock key (`Verified-by`). Universal keys with
+ * `origin: "generated"` (`Contains`, `Caused`, ...) are left out: the compiler
+ * computes them and authors never write them (#706). MSL-P020 (misplaced
+ * trailer) fires only when a body line's key is in this set; any other
+ * capitalized `Word:` lead-in (`Note:`, `Example:`, `Assumption:`) is prose,
+ * not a misplaced trailer (#654).
  */
 const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
-  ...UNIVERSAL_ATTRIBUTE_KEYS,
+  ...UNIVERSAL_ATTRIBUTE_KEYS.filter((key) =>
+    attributeSpec(key)?.origin !== "generated"
+  ),
   ...CORE_RELATIONS.map((r) => r.attr),
   ...LOCK_EXTRA_INVERSE_KEYS,
 ]);

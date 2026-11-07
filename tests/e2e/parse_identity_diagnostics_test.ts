@@ -374,6 +374,71 @@ Deno.test("validate: a misplaced real trailer in the body still → MSL-P020 (#6
   assertStringIncludes(stderr, "MSL-P020");
 });
 
+// #706: generated-origin inverse keys (`Contains:`, `Caused:`, ...) are
+// computed by the compiler and never authored, so a body line that starts
+// with one is prose, not a misplaced trailer. `Verified-by` is also generated,
+// but it stays recognized through LOCK_EXTRA_INVERSE_KEYS, so it still fires.
+for (
+  const key of [
+    "Superseded-by",
+    "Derives",
+    "Satisfied-by",
+    "Realized-by",
+    "Tested-by",
+    "Allocated",
+    "Contains",
+    "Provided-by",
+    "Required-by",
+    "Depended-on-by",
+    "Used-by",
+    "Caused",
+    "Affected-by",
+    "Mitigates",
+    "Cited-by",
+  ]
+) {
+  Deno.test(`validate: '${key}:' prose paragraph is not a misplaced trailer (#706)`, async () => {
+    const { code, stderr } = await markspec(["check", "req.md"], {
+      files: {
+        "req.md": `# Test
+
+- [REQ-001] Generated key prose
+
+  The system shall support the modes below.
+
+  ${key}: three subassemblies and a wiring harness.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+      },
+    });
+    assertEquals(code, 0, `expected exit 0, stderr: ${stderr}`);
+    assert(
+      !stderr.includes("MSL-P020"),
+      `no MSL-P020 expected for a '${key}:' prose paragraph, stderr: ${stderr}`,
+    );
+  });
+}
+
+Deno.test("validate: a misplaced 'Verified-by:' in the body still → MSL-P020 (#706 guard)", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Test
+
+- [REQ-001] Misplaced Verified-by
+
+  The system shall support the modes below.
+
+  Verified-by: TST_0001
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 1, `expected exit 1, stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-P020");
+});
+
 // ---------------------------------------------------------------------------
 // MSL-P030: Authored entry has no body block
 // ---------------------------------------------------------------------------
