@@ -6,6 +6,8 @@
  * `TextEdit`s ready to feed into an LSP `WorkspaceEdit`.
  */
 
+import { findOccurrencesInFile } from "./highlights.ts";
+
 import { assertEquals } from "@std/assert";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import {
@@ -187,3 +189,96 @@ Deno.test("prepareRenameRange: handles bracketed declaration", () => {
   assertEquals(result?.range.start.character, 3);
   assertEquals(result?.range.end.character, 10);
 });
+
+for (const newline of ["\n", "\r\n"]) {
+  Deno.test(`findIdOccurrencesInFile: protects four-space list fence (${JSON.stringify(newline)})`, () => {
+    const text = [
+      "- [REQ-001] Real",
+      "    ```md",
+      "      Satisfies: REQ-001",
+      "    ```",
+    ].join(newline);
+    assertEquals(
+      findIdOccurrencesInFile(text, "REQ-001", "REQ-100").map((item) =>
+        item.range.start.line
+      ),
+      [0],
+    );
+    assertEquals(
+      displayIdForRename(text, "      Satisfies: REQ-001", 2, 20),
+      undefined,
+    );
+  });
+  Deno.test(`findIdOccurrencesInFile: resumes at sibling after unclosed long fence (${JSON.stringify(newline)})`, () => {
+    const text = [
+      "- Example",
+      "  ````md",
+      "  ```",
+      "      Satisfies: REQ-001",
+      "",
+      "- [REQ-001] Sibling",
+      "      Satisfies: REQ-001",
+    ].join(newline);
+    assertEquals(
+      findIdOccurrencesInFile(text, "REQ-001", "REQ-100").map((item) =>
+        item.range.start.line
+      ),
+      [5, 6],
+    );
+  });
+}
+
+for (const newline of ["\n", "\r\n"]) {
+  for (
+    const { name, lines, live } of [
+      {
+        name: "dedented closer",
+        lines: ["   ~~~text", "   REQ-001", "~~~", "- [REQ-001] Live"],
+        live: [3],
+      },
+      {
+        name: "space-indented closer",
+        lines: ["~~~text", "    ~~~", "REQ-001", "~~~", "REQ-001"],
+        live: [4],
+      },
+      {
+        name: "tab-indented closer",
+        lines: ["~~~text", "\t~~~", "REQ-001", "~~~", "REQ-001"],
+        live: [4],
+      },
+      {
+        name: "block quote",
+        lines: [" > ~~~text", " > REQ-001", " > ~~~", "REQ-001"],
+        live: [3],
+      },
+      {
+        name: "list marker",
+        lines: ["- ~~~text", "  REQ-001", "  ~~~", "- REQ-001"],
+        live: [3],
+      },
+    ]
+  ) {
+    Deno.test(`LSP fence consumers: ${name} (${JSON.stringify(newline)})`, () => {
+      const text = lines.join(newline);
+      assertEquals(
+        findIdOccurrencesInFile(text, "REQ-001", "REQ-100").map((e) =>
+          e.range.start.line
+        ),
+        live,
+      );
+      assertEquals(
+        findOccurrencesInFile(text, "REQ-001").map((e) => e.range.start.line),
+        live,
+      );
+      lines.forEach((line, i) => {
+        const column = line.indexOf("REQ-001");
+        if (column >= 0) {
+          assertEquals(
+            displayIdForRename(text, line, i, column),
+            live.includes(i) ? "REQ-001" : undefined,
+          );
+        }
+      });
+    });
+  }
+}

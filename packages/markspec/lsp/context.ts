@@ -7,7 +7,7 @@
  */
 
 import { extname } from "@std/path";
-import { SOURCE_EXTENSIONS } from "../core/mod.ts";
+import { FENCE_RE, fencedCodeLines, SOURCE_EXTENSIONS } from "../core/mod.ts";
 
 /** Entry marker pattern: `[TYPE_XXX_NNNN]` in any context. */
 const ENTRY_MARKER_RE = /\[[A-Z]{2,}_[A-Z0-9_]+\]/;
@@ -32,6 +32,30 @@ export function isMarkspecFile(filePath: string): boolean {
 export function isSourceFile(filePath: string): boolean {
   const ext = extname(filePath).toLowerCase();
   return SOURCE_EXTENSIONS.has(ext);
+}
+
+/**
+ * Return fenced lines for LSP guards and occurrence scans. Markdown uses the
+ * cached CommonMark boundaries. Source files retain the original line scanner:
+ * raw source is not Markdown, and comment indentation changes its AST shape.
+ * Every fence-prefix line toggles the scanner, including mismatched markers.
+ */
+export function fencedLinesForFile(
+  text: string,
+  filePath: string,
+): ReadonlySet<number> {
+  if (!isSourceFile(filePath)) return fencedCodeLines(text);
+  const fencedLines = new Set<number>();
+  let inFence = false;
+  text.split("\n").forEach((line, index) => {
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence;
+      fencedLines.add(index);
+    } else if (inFence) {
+      fencedLines.add(index);
+    }
+  });
+  return fencedLines;
 }
 
 /**

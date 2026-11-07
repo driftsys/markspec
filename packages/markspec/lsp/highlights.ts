@@ -18,7 +18,9 @@
  * otherwise an ID inside an illustrative fenced example gets
  * highlighted as a `Read` reference to an unrelated real entry. It
  * reuses `walkProseLines` (`core/util/fence.ts`) rather than
- * re-implementing the fence toggle. The server separately gates
+ * re-implementing fence tracking. Markdown uses cached CommonMark boundaries;
+ * the server supplies the original line-scanner boundaries for source files.
+ * The server separately gates
  * `onDocumentHighlight` against a fenced cursor position (via
  * `isLineFenced`) before calling this function.
  */
@@ -48,15 +50,18 @@ export interface DocumentHighlight {
  * a Markdown list-item bracket (`- [REQ-001]`) is classified as
  * `Write` — it's the declaration. All other matches are `Read`.
  *
- * Lines inside a fenced code block (``` or ~~~) are skipped — an
+ * Lines classified as fenced by the supplied set or CommonMark parser are skipped — an
  * illustrative example that happens to display the same ID as sample
  * text is not a real reference and must not be highlighted (#680).
  */
 export function findOccurrencesInFile(
   text: string,
   displayId: string,
+  fencedLines?: ReadonlySet<number>,
 ): DocumentHighlight[] {
-  if (displayId.length === 0) return [];
+  // Skip the fence computation, which parses the document, when the text
+  // cannot hold an occurrence.
+  if (displayId.length === 0 || !text.includes(displayId)) return [];
   const out: DocumentHighlight[] = [];
   walkProseLines(text, (line, i) => {
     let start = 0;
@@ -86,6 +91,6 @@ export function findOccurrencesInFile(
       }
       start = idx + displayId.length;
     }
-  });
+  }, fencedLines);
   return out;
 }

@@ -110,6 +110,7 @@ import {
 import { findEnclosingEntry } from "./find_entry.ts";
 import { mintReservedNumber } from "./id_reservations.ts";
 import {
+  fencedLinesForFile,
   isDocCommentContext,
   isMarkspecFile,
   isSourceFile,
@@ -1340,7 +1341,12 @@ connection.onPrepareRename((params) => {
   // (#680) — findIdOccurrencesInFile would exclude it from the rename's
   // edits anyway, so reject the rename here rather than opening an input
   // box for a token that silently won't change.
-  if (isLineFenced(document.getText(), params.position.line)) return null;
+  const text = document.getText();
+  if (
+    isLineFenced(text, params.position.line, fencedLinesForFile(text, filePath))
+  ) {
+    return null;
+  }
 
   const line = document.getText({
     start: { line: params.position.line, character: 0 },
@@ -1377,11 +1383,14 @@ connection.onRenameRequest(async (params) => {
     start: { line: params.position.line, character: 0 },
     end: { line: params.position.line, character: Number.MAX_SAFE_INTEGER },
   });
+  const documentText = document.getText();
+  const fencedLines = fencedLinesForFile(documentText, filePath);
   const oldId = displayIdForRename(
-    document.getText(),
+    documentText,
     line,
     params.position.line,
     params.position.character,
+    fencedLines,
   );
   if (!oldId) return null;
   const targetEntry = ctx.index.getEntryByDisplayId(makeDisplayId(oldId));
@@ -1408,7 +1417,12 @@ connection.onRenameRequest(async (params) => {
       text = await readFile(path);
     }
     if (text === undefined) continue;
-    const fileEdits = findIdOccurrencesInFile(text, oldId, newId);
+    const fileEdits = findIdOccurrencesInFile(
+      text,
+      oldId,
+      newId,
+      fencedLinesForFile(text, path),
+    );
     if (fileEdits.length > 0) {
       changes[uri] = fileEdits as unknown as LspTextEdit[];
     }
@@ -1583,7 +1597,11 @@ connection.onDocumentHighlight((params) => {
   // (#680) — findOccurrencesInFile would exclude it from the results
   // anyway, which would otherwise light up unrelated real occurrences
   // elsewhere while leaving the cursor's own token dark.
-  if (isLineFenced(document.getText(), params.position.line)) return null;
+  const documentText = document.getText();
+  const fencedLines = fencedLinesForFile(documentText, filePath);
+  if (isLineFenced(documentText, params.position.line, fencedLines)) {
+    return null;
+  }
 
   const line = document.getText({
     start: { line: params.position.line, character: 0 },
@@ -1592,7 +1610,7 @@ connection.onDocumentHighlight((params) => {
   const id = displayIdAtPosition(line, params.position.character);
   if (!id) return null;
   // deno-lint-ignore no-explicit-any
-  return findOccurrencesInFile(document.getText(), id) as any;
+  return findOccurrencesInFile(documentText, id, fencedLines) as any;
 });
 
 // ---------------------------------------------------------------------------

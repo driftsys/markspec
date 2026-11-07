@@ -16,7 +16,9 @@
  * otherwise renaming a real entry also rewrites the ID inside an
  * illustrative fenced example that merely reuses the same text. It
  * reuses `walkProseLines` (`core/util/fence.ts`) rather than
- * re-implementing the fence toggle. `prepareRenameRange` stays
+ * re-implementing fence tracking. Markdown uses cached CommonMark boundaries;
+ * the server supplies the original line-scanner boundaries for source files.
+ * `prepareRenameRange` stays
  * single-line and fence-unaware by design — the server gates
  * `onPrepareRename` against a fenced cursor position separately (via
  * `isLineFenced`) using the full document text it already has.
@@ -30,15 +32,17 @@ import { displayIdAtPosition } from "./hover.ts";
  * Return the display ID at the cursor, or `undefined` inside a code fence.
  * Direct rename requests must reject fenced cursors even when the client
  * has not called `prepareRename`.
- * The caller supplies the cursor line from the LSP document range.
+ * The caller supplies the cursor line from the LSP document range and may
+ * reuse the fenced-line set when also collecting edits for this text.
  */
 export function displayIdForRename(
   text: string,
   line: string,
   lspLine: number,
   column: number,
+  fencedLines?: ReadonlySet<number>,
 ): string | undefined {
-  if (isLineFenced(text, lspLine)) return undefined;
+  if (isLineFenced(text, lspLine, fencedLines)) return undefined;
   return displayIdAtPosition(line, column);
 }
 
@@ -111,7 +115,7 @@ export function prepareRenameRange(
  * characters — the editor uses the textual replacement to perform
  * the rename, so the range must be exact.
  *
- * Lines inside a fenced code block (``` or ~~~) are skipped — an
+ * Lines classified as fenced by the supplied set or CommonMark parser are skipped — an
  * illustrative example that happens to display the same ID as sample
  * text is not a real reference and must not be rewritten (#680).
  */
@@ -119,8 +123,11 @@ export function findIdOccurrencesInFile(
   text: string,
   oldId: string,
   newId: string,
+  fencedLines?: ReadonlySet<number>,
 ): TextEdit[] {
-  if (oldId.length === 0) return [];
+  // Skip the fence computation, which parses the document, when the text
+  // cannot hold an occurrence.
+  if (oldId.length === 0 || !text.includes(oldId)) return [];
   const edits: TextEdit[] = [];
   walkProseLines(text, (line, i) => {
     let start = 0;
@@ -144,6 +151,6 @@ export function findIdOccurrencesInFile(
       }
       start = idx + oldId.length;
     }
-  });
+  }, fencedLines);
   return edits;
 }

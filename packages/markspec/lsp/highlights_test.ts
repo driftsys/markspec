@@ -96,3 +96,37 @@ Deno.test("findOccurrencesInFile: kind constants are the LSP-defined integers", 
   assertEquals(DocumentHighlightKindRead, 2);
   assertEquals(DocumentHighlightKindWrite, 3);
 });
+
+for (const newline of ["\n", "\r\n"]) {
+  Deno.test(`findOccurrencesInFile: protects four-space list fence (${JSON.stringify(newline)})`, () => {
+    const text = [
+      "- [REQ-001] Real",
+      "    ```md",
+      "      Satisfies: REQ-001",
+      "    ```",
+    ].join(newline);
+    assertEquals(
+      findOccurrencesInFile(text, "REQ-001").map((item) =>
+        item.range.start.line
+      ),
+      [0],
+    );
+  });
+  Deno.test(`findOccurrencesInFile: resumes at sibling after unclosed long fence (${JSON.stringify(newline)})`, () => {
+    const text = [
+      "- Example",
+      "  ````md",
+      "  ```",
+      "      Satisfies: REQ-001",
+      "",
+      "- [REQ-001] Sibling",
+      "      Satisfies: REQ-001",
+    ].join(newline);
+    assertEquals(
+      findOccurrencesInFile(text, "REQ-001").map((item) =>
+        item.range.start.line
+      ),
+      [5, 6],
+    );
+  });
+}

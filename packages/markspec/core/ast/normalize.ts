@@ -14,11 +14,10 @@
  *   - EARS (`When`, `While`, `Where`, `Unless`) — lowercased
  *     mid-sentence, capitalisation preserved when sentence-initial.
  *
- * The shared `RFC2119_MODAL_RE`, `EARS_KEYWORD_RE`, and `isSentenceInitial`
- * helpers are imported from `core/util/modals.ts` (D11 consolidation).
- * They cannot be imported from `formatter/mod.ts` because `formatter/`
- * depends on `ast/`, making an `ast → formatter` import a dependency cycle.
- * `core/util/` is the base level that both modules can import from.
+ * The shared `normalizeProseModals` helper is imported from
+ * `core/util/modals.ts`. Importing it from `formatter/mod.ts` would create
+ * a cycle because `formatter/` already depends on `ast/`.
+ * The helper uses only the standalone remark code-region parser.
  *
  * Invariants (HARD — never weaken):
  *   - Pure: no `Deno.*`, no I/O.
@@ -34,12 +33,7 @@
  * This module is pure library code: no `Deno.*` APIs.
  */
 
-import { walkProseLines } from "../util/fence.ts";
-import {
-  EARS_KEYWORD_RE,
-  isSentenceInitial,
-  RFC2119_MODAL_RE,
-} from "../util/modals.ts";
+import { normalizeProseModals } from "../util/modals.ts";
 import type {
   BlockquoteNode,
   BodyBlock,
@@ -54,40 +48,6 @@ import type {
 } from "./nodes.ts";
 
 // ---------------------------------------------------------------------------
-// §3.4.1 string helper — uses shared RFC2119_MODAL_RE, EARS_KEYWORD_RE,
-// and isSentenceInitial from core/util/modals.ts (D11 consolidation).
-// ---------------------------------------------------------------------------
-
-/**
- * Apply the §3.4.1 modal-keyword case rule to a prose string.
- *
- * Faithful port of `normalizeModalKeywords` (`core/formatter/mod.ts`):
- * fenced-code lines are skipped (verbatim, §5.1), and lines indented by
- * four or more spaces (or a tab) are skipped (conservatively captures
- * indented code blocks / attribute trailers — not prose). On every other
- * line, RFC 2119 keywords are lowercased unconditionally and EARS
- * keywords are lowercased unless sentence-initial.
- *
- * Pure and total: never throws; a string with no modal keyword is
- * returned unchanged.
- */
-function normalizeModalsInText(text: string): string {
-  const lines = text.split("\n");
-  walkProseLines(text, (line, i) => {
-    // Indented-code / attribute-trailer lines aren't prose either.
-    if (/^( {4}|\t)/.test(line)) return;
-    let normalized = line.replace(RFC2119_MODAL_RE, (m) => m.toLowerCase());
-    normalized = normalized.replace(
-      EARS_KEYWORD_RE,
-      (m, _g1: string, offset: number) =>
-        isSentenceInitial(normalized, offset) ? m : m.toLowerCase(),
-    );
-    lines[i] = normalized;
-  });
-  return lines.join("\n");
-}
-
-// ---------------------------------------------------------------------------
 // InlineContent normalisation
 // ---------------------------------------------------------------------------
 
@@ -99,7 +59,7 @@ function normalizeModalsInText(text: string): string {
  * returned UNCHANGED (makes the no-op case allocation-free).
  */
 function normalizeInline(content: InlineContent): InlineContent {
-  const normalizedText = normalizeModalsInText(content.text);
+  const normalizedText = normalizeProseModals(content.text);
   if (normalizedText === content.text) return content;
   return { text: normalizedText };
 }

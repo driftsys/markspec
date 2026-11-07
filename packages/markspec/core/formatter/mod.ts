@@ -24,16 +24,15 @@ import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
 import { ATTR_LINE_RE } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
-import { FENCE_RE, walkProseLines } from "../util/fence.ts";
+import { fencedCodeLines } from "../util/fence.ts";
 import {
   applyLineEnding,
   detectLineEnding,
   normalizeLineEndings,
 } from "../util/line_endings.ts";
 import {
-  EARS_KEYWORD_RE,
   isSentenceInitial as _isSentenceInitial,
-  RFC2119_MODAL_RE,
+  normalizeProseModals,
 } from "../util/modals.ts";
 import { synthesizedUlid } from "./synth_ulid.ts";
 import { buildBodyAst } from "../ast/build.ts";
@@ -68,7 +67,7 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  *
  * The pass skips:
  *
- *   - Fenced code blocks (between paired ``` or ~~~ markers) — code is
+ *   - CommonMark fenced code blocks and inline-code spans — code is
  *     verbatim per round-trip invariants (spec §5.1).
  *   - Lines indented by four or more spaces (or a tab) — conservatively
  *     captures indented code blocks and attribute trailers, both of which
@@ -77,24 +76,12 @@ export function isSentenceInitial(line: string, offset: number): boolean {
  * @remarks Not called by `format()` as of SP3 Task 5 — body modal
  * normalization moved to `normalizeBodyAst` in the AST pass (spec-correct
  * verbatim-boundary handling). Retained as an exported symbol because
- * `mod_test.ts` tests it directly and `core/ast/normalize.ts` documents
- * the intentional duplication until a follow-up collapses the two. Do NOT
+ * `mod_test.ts` tests it directly. Both entry points delegate to the same
+ * AST-backed prose normalizer. Do NOT
  * delete — external callers may depend on this export.
  */
 export function normalizeModalKeywords(markdown: string): string {
-  const lines = markdown.split("\n");
-  walkProseLines(markdown, (line, i) => {
-    // Indented-code / attribute-trailer lines aren't prose either.
-    if (/^( {4}|\t)/.test(line)) return;
-    let normalized = line.replace(RFC2119_MODAL_RE, (m) => m.toLowerCase());
-    normalized = normalized.replace(
-      EARS_KEYWORD_RE,
-      (m, _g1: string, offset: number) =>
-        isSentenceInitial(normalized, offset) ? m : m.toLowerCase(),
-    );
-    lines[i] = normalized;
-  });
-  return lines.join("\n");
+  return normalizeProseModals(markdown);
 }
 
 /**
@@ -803,16 +790,10 @@ function renderFrontMatter(attrs: DocumentAttributes): string {
  */
 function collapseBlankLines(lines: readonly string[]): string[] {
   const out: string[] = [];
-  let inFence = false;
+  const fencedLines = fencedCodeLines(lines.join("\n"));
   let prevBlank = false;
-  for (const line of lines) {
-    if (FENCE_RE.test(line)) {
-      out.push(line);
-      inFence = !inFence;
-      prevBlank = false;
-      continue;
-    }
-    if (inFence) {
+  for (const [i, line] of lines.entries()) {
+    if (fencedLines.has(i)) {
       out.push(line);
       prevBlank = false;
       continue;

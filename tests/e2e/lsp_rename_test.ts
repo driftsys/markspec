@@ -76,3 +76,91 @@ Deno.test("lsp rename: a fenced cursor cannot rename a real declaration (#704)",
     await Deno.remove(client.workDir, { recursive: true });
   }
 });
+
+for (const newline of ["\n", "\r\n"]) {
+  Deno.test(`lsp source fences: indented Java doc comment (${JSON.stringify(newline)})`, async (t) => {
+    const source = [
+      "class Example {",
+      "    /**",
+      "    [REQ_001] Real requirement",
+      "    ",
+      "      ```markdown",
+      "      - [REQ_001] Illustrative example",
+      "      ```",
+      "    ",
+      "          Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "    */",
+      "    void run() {}",
+      "}",
+    ].join(newline);
+    const client = await LspTestClient.create({
+      "project.yaml": "name: source-rename-test\n",
+      "Example.java": source,
+    });
+    try {
+      await client.initialize();
+      await client.waitForNotification("markspec/indexed", 15000);
+      const uri = toFileUrl(join(client.workDir, "Example.java")).href;
+      await client.notify("textDocument/didOpen", {
+        textDocument: { uri, languageId: "java", version: 1, text: source },
+      });
+      const textDocument = { uri };
+      const symbols = await client.request("textDocument/documentSymbol", {
+        textDocument,
+      }) as Array<{ name: string }>;
+      assertEquals(symbols.map((symbol) => symbol.name), ["REQ_001"]);
+      const livePosition = { line: 2, character: 7 };
+      const examplePosition = { line: 5, character: 11 };
+      await t.step("rename emits exactly one edit", async () => {
+        assertEquals(
+          await client.request("textDocument/rename", {
+            textDocument,
+            position: livePosition,
+            newName: "REQ_100",
+          }),
+          {
+            changes: {
+              [uri]: [{
+                range: {
+                  start: { line: 2, character: 5 },
+                  end: { line: 2, character: 12 },
+                },
+                newText: "REQ_100",
+              }],
+            },
+          },
+        );
+      });
+      await t.step("highlights exclude the example", async () => {
+        assertEquals(
+          await client.request("textDocument/documentHighlight", {
+            textDocument,
+            position: livePosition,
+          }),
+          [{
+            range: {
+              start: { line: 2, character: 5 },
+              end: { line: 2, character: 12 },
+            },
+            kind: 3,
+          }],
+        );
+      });
+      for (const method of ["rename", "prepareRename", "documentHighlight"]) {
+        await t.step(`${method} rejects the example cursor`, async () => {
+          assertEquals(
+            await client.request(`textDocument/${method}`, {
+              textDocument,
+              position: examplePosition,
+              ...(method === "rename" ? { newName: "REQ_100" } : {}),
+            }),
+            null,
+          );
+        });
+      }
+    } finally {
+      await client.shutdown();
+      await Deno.remove(client.workDir, { recursive: true });
+    }
+  });
+}

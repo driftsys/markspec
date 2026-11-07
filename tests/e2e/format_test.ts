@@ -1157,3 +1157,24 @@ Deno.test("fmt: stamps a wrapped-title entry instead of silently skipping it (#6
     "The system shall compute the value within 200 ms.",
   );
 });
+
+Deno.test("format: preserves nested shorter fence blank lines (#705)", async () => {
+  const input = [
+    "- [TST_FM_0705] Example",
+    "",
+    "  ````markdown",
+    "  ```text",
+    "  alpha",
+    "",
+    "",
+    "  beta",
+    "  ```",
+    "  ````",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  const result = await runFormat({ "req.md": input });
+  assertEquals(result.code, 0, result.stderr);
+  assertStringIncludes(await result.readFile("req.md"), "alpha\n\n\n");
+});
