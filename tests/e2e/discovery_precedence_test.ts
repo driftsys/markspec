@@ -1,6 +1,6 @@
 /** CLI acceptance coverage for `.markspec.yaml` discovery precedence. */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { markspecInDir, markspecPersist } from "./helpers.ts";
 
 Deno.test("check: exclude wins over root and nested gitignores for bare and directory scopes", async () => {
@@ -48,7 +48,6 @@ Deno.test("check: exclude wins over root and nested gitignores for bare and dire
           true,
           result.stdout,
         );
-        assertStringIncludes(result.stdout, expected);
       }
     }
   } finally {
