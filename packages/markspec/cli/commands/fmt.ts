@@ -10,6 +10,7 @@ import type { LockEdge, RefIndex } from "../../core/mod.ts";
 import {
   assertNotDeliveredTarget,
   cliProjectRootResolver,
+  collectProjectEntriesOrExit,
   denoDiscoveryIO,
   loadActiveProfile,
   loadMarkdownFormatterOrExit,
@@ -90,7 +91,6 @@ export const fmtCmd = new Command()
         if (group.projectRoot !== undefined) {
           const {
             buildRefIndex,
-            collectProjectEntries,
             parseLockfile,
           } = await import("../../core/mod.ts");
           const { join } = await import("@std/path");
@@ -98,7 +98,7 @@ export const fmtCmd = new Command()
           // one `check` (MSL-L006) and `lock` use: an entry in an excluded
           // path (e.g. `skills/`) or in a nested project must not resolve
           // trace references.
-          const projectEntries = await collectProjectEntries(
+          const projectEntries = await collectProjectEntriesOrExit(
             group.projectRoot,
             denoDiscoveryIO(),
             await projectCollectOptions(group.projectRoot, resolver),

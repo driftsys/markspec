@@ -13,6 +13,7 @@ import {
   ConfigError,
   CORE_SCHEMA_VERSION,
   corpusOriginLabel,
+  UnreadableProjectFileError,
   VERSION,
 } from "../core/mod.ts";
 import type {
@@ -92,6 +93,24 @@ async function loadConfigOrExit<T>(load: () => Promise<T>): Promise<T> {
     return await load();
   } catch (err) {
     if (err instanceof ConfigError) {
+      console.error(`error: ${err.message}`);
+      Deno.exit(1);
+    }
+    throw err;
+  }
+}
+
+/** Collect project entries, or report an unreadable file and exit 1. */
+export async function collectProjectEntriesOrExit(
+  root: string,
+  io: DiscoveryIO,
+  opts: CollectOptions = {},
+): Promise<Entry[]> {
+  const { collectProjectEntries } = await import("../core/mod.ts");
+  try {
+    return await collectProjectEntries(root, io, opts);
+  } catch (err) {
+    if (err instanceof UnreadableProjectFileError) {
       console.error(`error: ${err.message}`);
       Deno.exit(1);
     }

@@ -14,7 +14,6 @@ import { Command } from "@cliffy/command";
 import { dirname, fromFileUrl, join } from "@std/path";
 import {
   checkDrift,
-  collectProjectEntries,
   compileAcquiredTree,
   defaultAppendFile,
   deriveUpstreamId,
@@ -41,6 +40,7 @@ import {
 } from "../../core/mod.ts";
 import {
   cliProjectRootResolver,
+  collectProjectEntriesOrExit,
   denoDiscoveryIO,
   loadProjectConfigAt,
   projectCollectOptions,
@@ -237,7 +237,7 @@ async function runLock(options: LockOptions): Promise<void> {
   const chain = profileResult.chain;
 
   // Only this project's files: nested projects have their own lockfile.
-  const entries = await collectProjectEntries(
+  const entries = await collectProjectEntriesOrExit(
     projectRoot,
     denoDiscoveryIO(),
     await projectCollectOptions(projectRoot, resolver),
