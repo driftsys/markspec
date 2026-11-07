@@ -51,3 +51,6 @@ docs/superpowers/
 
 # MarkSpec LSP event log (per-project, regenerated each session)
 .markspec/lsp.log*
+
+# Stray patch files
+*.diff
