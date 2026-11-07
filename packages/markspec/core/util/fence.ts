@@ -1,65 +1,72 @@
 /**
  * @module core/util/fence
  *
- * Prose-line walker that skips lines inside fenced code blocks.
- * Several validator and formatter passes (body-block exclusions,
- * caption adjacency, `$Identifier` extraction, modal-keyword
- * normalisation) all needed to walk an entry body line-by-line while
- * treating fenced code as verbatim. This helper centralises that
- * pattern so the fence-toggle semantics stay consistent.
- *
- * Fence detection follows CommonMark §4.5 — a line whose first
- * non-whitespace content is three or more backticks or tildes opens
- * (or closes) a fenced block. The language tag that may follow the
- * opening fence does not affect detection: we toggle on every fence
- * marker regardless. (Mismatched marker types — ``` opener / ~~~
- * closer — are accepted by the walker because real Markdown parsers
- * already reject those upstream.)
+ * Prose-line helpers using fenced-code boundaries from the CommonMark AST.
+ * Containers, matching delimiters and implicit container endings are handled
+ * by remark. Indented code is not fenced code: MarkSpec trailers must remain
+ * available to reference and validation passes.
  */
-
-/** Three or more backticks or tildes at the start of a line. */
-export const FENCE_RE = /^\s*(```|~~~)/;
-
-/** Callback for {@linkcode walkProseLines}. Receives one line + its 0-based index. */
-export type ProseLineCallback = (line: string, index: number) => void;
+import { parseCodeRegions } from "../parser/code_regions.ts";
 
 /**
- * Walk `body` line by line, invoking `cb` for every line that's NOT
- * inside a fenced code block. The first fence marker opens the block;
- * the next closes it. The fence-marker lines themselves are also
- * skipped (they're structural, not prose).
+ * Legacy fence-prefix candidate used by the LSP source-file scanner.
+ * Markdown fence membership uses the AST-backed helpers below.
  */
-export function walkProseLines(body: string, cb: ProseLineCallback): void {
-  const lines = body.split("\n");
-  let inFence = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    cb(line, i);
+export const FENCE_RE = /^\s*(```|~~~)/;
+
+const FENCE_CACHE_CAPACITY = 64;
+const fencedLineCache = new Map<string, ReadonlySet<number>>();
+
+/**
+ * Compute zero-based fenced-code lines, including opening and closing lines.
+ * Cache the sets for the 64 most recently queried exact document texts. Each
+ * call returns a new copy, so a caller that changes it cannot alter the cache.
+ * Callers making multiple membership queries should compute this set once and
+ * pass it to {@linkcode isLineFenced} or {@linkcode walkProseLines}.
+ */
+export function fencedCodeLines(body: string): ReadonlySet<number> {
+  const cached = fencedLineCache.get(body);
+  if (cached !== undefined) {
+    fencedLineCache.delete(body);
+    fencedLineCache.set(body, cached);
+    return new Set(cached);
   }
+  const lines = parseCodeRegions(body).fencedLines;
+  fencedLineCache.set(body, lines);
+  if (fencedLineCache.size > FENCE_CACHE_CAPACITY) {
+    fencedLineCache.delete(fencedLineCache.keys().next().value!);
+  }
+  return new Set(lines);
 }
 
 /**
- * Return whether `lineIndex` (0-based) is a line {@linkcode walkProseLines}
- * would skip — either a fence-marker line itself, or content inside a
- * fenced block. Single-line-membership counterpart to `walkProseLines`'s
- * full-body callback walk, for callers that only need a yes/no answer for
- * one position (e.g. an LSP request gating a cursor position, #680).
+ * Callback for {@linkcode walkProseLines}. Receives a line and its 0-based index.
+ * The LF delimiter is excluded; a CR from a CRLF delimiter is preserved.
  */
-export function isLineFenced(body: string, lineIndex: number): boolean {
-  const lines = body.split("\n");
-  let inFence = false;
-  for (let i = 0; i <= lineIndex && i < lines.length; i++) {
-    if (FENCE_RE.test(lines[i])) {
-      inFence = !inFence;
-      if (i === lineIndex) return true;
-      continue;
-    }
-    if (i === lineIndex) return inFence;
-  }
-  return false;
+export type ProseLineCallback = (line: string, index: number) => void;
+
+/**
+ * Walk lines outside fenced code, using the cached CommonMark line set unless
+ * a precomputed set for this exact text is supplied. Indented code is yielded.
+ */
+export function walkProseLines(
+  body: string,
+  cb: ProseLineCallback,
+  fencedLines: ReadonlySet<number> = fencedCodeLines(body),
+): void {
+  body.split("\n").forEach((line, index) => {
+    if (!fencedLines.has(index)) cb(line, index);
+  });
+}
+
+/**
+ * Return whether a zero-based document line belongs to the fenced-line set.
+ * Supply the set for this exact text when querying multiple positions.
+ */
+export function isLineFenced(
+  body: string,
+  lineIndex: number,
+  fencedLines: ReadonlySet<number> = fencedCodeLines(body),
+): boolean {
+  return fencedLines.has(lineIndex);
 }

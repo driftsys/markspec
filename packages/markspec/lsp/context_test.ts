@@ -6,6 +6,7 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  fencedLinesForFile,
   isDocCommentContext,
   isMarkspecFile,
   isSourceFile,
@@ -109,4 +110,41 @@ Deno.test("isDocCommentContext: Provides: keyword triggers doc-comment context",
 Deno.test("isDocCommentContext: Requires: keyword triggers doc-comment context", () => {
   const lines = ["/// Some prose", "/// Requires: IFC_002"];
   assertEquals(isDocCommentContext(lines, 1), true);
+});
+
+Deno.test("fencedLinesForFile: source files retain legacy toggles independently of Markdown cache", () => {
+  const lines = [
+    "    ```text",
+    "    hidden",
+    "    ~~~mixed marker closes on source path",
+    "    live",
+    "\t~~~",
+    "    hidden to EOF",
+  ];
+  for (const newline of ["\n", "\r\n"]) {
+    const text = lines.join(newline);
+    // This is indented code in Markdown, so none of its lines are fenced.
+    assertEquals([...fencedLinesForFile(text, "example.md")], []);
+    for (
+      const extension of [
+        "rs",
+        "kt",
+        "java",
+        "c",
+        "cpp",
+        "ts",
+        "tsx",
+        "js",
+        "cs",
+      ]
+    ) {
+      assertEquals(
+        [...fencedLinesForFile(text, `Example.${extension}`)],
+        [0, 1, 2, 4, 5],
+        extension,
+      );
+    }
+    // Source classification must not pollute the Markdown cache for this text.
+    assertEquals([...fencedLinesForFile(text, "example.md")], []);
+  }
 });

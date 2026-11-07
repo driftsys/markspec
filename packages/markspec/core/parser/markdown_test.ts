@@ -1117,3 +1117,48 @@ Deno.test("parseMarkdown: a comma or quote typo of a known trailer key still rai
     );
   }
 });
+
+for (const newline of ["\n", "\r\n"]) {
+  Deno.test(`parseMarkdown: nested fence cannot report misplaced trailers (#705, ${JSON.stringify(newline)})`, () => {
+    const text = [
+      "- [REQ_0705] Example",
+      "",
+      "  Prose before the example.",
+      "",
+      "  ````markdown",
+      "  ```text",
+      "      Satisfies: SYS_0001",
+      "  ```",
+      "  ````",
+      "",
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "",
+    ].join(newline);
+    const result = parseMarkdown(text, { file: "example.md" });
+    assertEquals(result.diagnostics.filter((d) => d.code === "MSL-P020"), []);
+    assertEquals(result.entries.length, 1);
+  });
+  Deno.test(`parseMarkdown: live misplaced trailer after long list fence is diagnosed (#705, ${JSON.stringify(newline)})`, () => {
+    const text = [
+      "- [REQ_0705] Example",
+      "",
+      "  - ````markdown",
+      "    ```",
+      "    example",
+      "",
+      "  - Other",
+      "",
+      "  Satisfies: SYS_0001",
+      "",
+      "  Following prose.",
+      "",
+      "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "",
+    ].join(newline);
+    const result = parseMarkdown(text, { file: "example.md" });
+    assertEquals(
+      result.diagnostics.filter((d) => d.code === "MSL-P020").length,
+      1,
+    );
+  });
+}

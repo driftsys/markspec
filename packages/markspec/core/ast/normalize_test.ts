@@ -60,3 +60,27 @@ Deno.test("normalizeBodyAst: modal inside a definition-list definition normalize
     "Term\n: The system must stop.",
   );
 });
+
+for (const newline of ["\n", "\r\n"]) {
+  Deno.test(`normalizeBodyAst: inline spans protect modal and EARS keywords (${JSON.stringify(newline)})`, () => {
+    const text = [
+      "```SHALL NOT change``` SHALL change.",
+      "Keep `When MUST` and ``SHOULD` MAY``; MUST change.",
+    ].join(newline);
+    const range = {
+      start: { line: 1, column: 1 },
+      end: { line: 2, column: 56 },
+    };
+    const ast = [{ kind: "paragraph" as const, content: { text }, range }];
+    assertEquals(normalizeBodyAst(ast), [{
+      kind: "paragraph",
+      range,
+      content: {
+        text: [
+          "```SHALL NOT change``` shall change.",
+          "Keep `When MUST` and ``SHOULD` MAY``; must change.",
+        ].join(newline),
+      },
+    }]);
+  });
+}

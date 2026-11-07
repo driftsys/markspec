@@ -217,8 +217,8 @@ Deno.test("canonicalizeRefs: a document that is only a fenced example is a no-op
 
 Deno.test("canonicalizeRefs: an indented fence after a continuation does not desync tracking", () => {
   // A `\`-continued trailer whose continuation flows straight into an
-  // INDENTED fence marker must not swallow the marker as continuation text
-  // (which would leave inFence=false and heal the trailer inside the fence).
+  // indented fence marker must not swallow the marker as continuation text
+  // and expose the illustrative trailer to rewriting.
   const content = [
     `- [SWE_0001] Title`,
     ``,
@@ -799,3 +799,168 @@ Deno.test("canonicalizeRefs: continuation-only change does not skip the followin
   // The Verified-by line after the continuation is still canonicalised.
   assertEquals(lines[7], "      Verified-by: SWE_0001");
 });
+
+// Shared fence boundaries must protect both ordinary trace lines and
+// continuations without suppressing canonicalisation after the actual closer.
+for (
+  const { name, opener, inner, closer } of [
+    {
+      name: "shorter backticks",
+      opener: "````md",
+      inner: "```",
+      closer: "````",
+    },
+    {
+      name: "shorter tildes",
+      opener: "~~~~text",
+      inner: "~~~",
+      closer: "~~~~~",
+    },
+    { name: "mismatched marker", opener: "```md", inner: "~~~", closer: "```" },
+    {
+      name: "closer with text",
+      opener: "```md",
+      inner: "```text",
+      closer: "```",
+    },
+    {
+      name: "indented shorter closer",
+      opener: "~~~~text",
+      inner: "    ~~~",
+      closer: "~~~~",
+    },
+    {
+      name: "tilde info with backticks",
+      opener: "~~~`text`",
+      inner: "```",
+      closer: "~~~",
+    },
+    {
+      name: "resolvable token in fence info",
+      opener: `~~~text ${TGT}`,
+      inner: "~~~text",
+      closer: "~~~~",
+    },
+  ]
+) {
+  for (const newline of ["\n", "\r\n"]) {
+    for (const continued of [false, true]) {
+      Deno.test(`canonicalizeRefs: protects ${name} (${JSON.stringify(newline)}, continuation=${continued})`, () => {
+        const src = entry({
+          displayId: "SWE_0001",
+          id: SRC,
+          rawAttributes: [],
+        });
+        const tgt = entry({
+          displayId: "SYS_0001",
+          id: TGT,
+          rawAttributes: [],
+        });
+        const lines = [
+          "- [SWE_0001] Source",
+          ...(continued ? ["      References: example, \\"] : []),
+          `  ${opener}`,
+          `  ${inner}`,
+          `      Satisfies: ${TGT}, \\`,
+          `        ${TGT}`,
+          `  ${closer}`,
+          `      Satisfies: ${TGT}, \\`,
+          `        ${TGT}`,
+          "",
+        ];
+        const content = lines.join(newline);
+        const expected = [...lines];
+        expected[expected.length - 3] = "      Satisfies: SYS_0001, \\";
+        expected[expected.length - 2] = "        SYS_0001";
+        const result = canonicalizeRefs(
+          content,
+          [src],
+          buildRefIndex([src, tgt]),
+          [],
+        );
+        assertEquals(result, { output: expected.join(newline), changed: true });
+      });
+    }
+  }
+}
+
+for (const opener of ["```md `example`"]) {
+  Deno.test(`canonicalizeRefs: non-fence ${JSON.stringify(opener)} does not hide trace values`, () => {
+    const tgt = entry({ displayId: "SYS_0001", id: TGT, rawAttributes: [] });
+    const content = [opener, `      Satisfies: ${TGT}`].join("\n");
+    const result = canonicalizeRefs(content, [], buildRefIndex([tgt]), []);
+    assertEquals(result, {
+      output: [opener, "      Satisfies: SYS_0001"].join("\n"),
+      changed: true,
+    });
+  });
+}
+
+// #705 review regressions: container indentation and implicit fence endings.
+for (const newline of ["\n", "\r\n"]) {
+  for (const continued of [false, true]) {
+    Deno.test(`canonicalizeRefs: preserves four-space list fence (${JSON.stringify(newline)}, continuation=${continued})`, () => {
+      const tgt = entry({ displayId: "SYS_NEW", id: TGT, rawAttributes: [] });
+      const content = [
+        "- [SWE_0001] Source",
+        "",
+        ...(continued ? ["      References: example, \\"] : []),
+        `    ~~~markdown ${TGT}`,
+        `      Satisfies: ${TGT}`,
+        "    ~~~",
+      ].join(newline);
+      assertEquals(canonicalizeRefs(content, [], buildRefIndex([tgt]), []), {
+        output: content,
+        changed: false,
+      });
+    });
+    Deno.test(`canonicalizeRefs: resumes at sibling after unclosed long fence (${JSON.stringify(newline)}, continuation=${continued})`, () => {
+      const tgt = entry({ displayId: "SYS_NEW", id: TGT, rawAttributes: [] });
+      const lines = [
+        "- [SWE_0001] Source",
+        "",
+        ...(continued ? ["      References: example, \\"] : []),
+        "  ````markdown",
+        "  ```",
+        `      Satisfies: ${TGT}, \\`,
+        `        ${TGT}`,
+        "",
+        "- [SWE_0002] Sibling",
+        `      Satisfies: ${TGT}, \\`,
+        `        ${TGT}`,
+      ];
+      const expected = [...lines];
+      expected[expected.length - 2] = "      Satisfies: SYS_NEW, \\";
+      expected[expected.length - 1] = "        SYS_NEW";
+      assertEquals(
+        canonicalizeRefs(lines.join(newline), [], buildRefIndex([tgt]), []),
+        {
+          output: expected.join(newline),
+          changed: true,
+        },
+      );
+    });
+  }
+}
+
+for (const newline of ["\n", "\r\n"]) {
+  for (const closer of ["    ~~~", "\t~~~"]) {
+    Deno.test(`canonicalizeRefs: overindented closer is content (${JSON.stringify(newline)}, ${JSON.stringify(closer)})`, () => {
+      const tgt = entry({ displayId: "SYS_NEW", id: TGT, rawAttributes: [] });
+      const lines = [
+        "~~~text",
+        closer,
+        "REQ-001",
+        `      Satisfies: ${TGT}`,
+        "~~~",
+        `      Satisfies: ${TGT}`,
+      ];
+      const expected = [...lines];
+      expected[5] = "      Satisfies: SYS_NEW";
+      assertEquals(
+        canonicalizeRefs(lines.join(newline), [], buildRefIndex([tgt]), []),
+        { output: expected.join(newline), changed: true },
+      );
+    });
+  }
+}

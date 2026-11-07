@@ -6,6 +6,8 @@
  * and idempotent output.
  */
 
+import { loadMarkdownFormatter } from "./dprint.ts";
+
 import {
   assert,
   assertEquals,
@@ -1116,3 +1118,89 @@ Deno.test("format: a wrapped title and a lazy continuation line keep one trailer
   assertStringIncludes(result.output, "- [SYS_BRK_0001] Brake request\n");
   assertStringIncludes(result.output, "the pedal\n  lazy continuation line.");
 });
+
+Deno.test("format: preserves blank lines inside a nested shorter fence (#705)", () => {
+  const code = [
+    "  ````markdown",
+    "  ```text",
+    "  alpha",
+    "",
+    "",
+    "  beta",
+    "  ```",
+    "  ````",
+  ].join("\n");
+  const input = [
+    "- [TST_FM_0705] Example",
+    "",
+    code,
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  const output = format(input, { file: "t.md" }).output;
+  assertStringIncludes(output, "alpha\n\n\n");
+  assertEquals(format(output, { file: "t.md" }).output, output);
+});
+
+for (const newline of ["\n", "\r\n"]) {
+  for (const useDprint of [false, true]) {
+    Deno.test(`format: dedented fenced content preserves blank lines (${JSON.stringify(newline)}, dprint=${useDprint})`, async () => {
+      const formatMarkdownProse = useDprint
+        ? await loadMarkdownFormatter()
+        : undefined;
+      const input = [
+        "- [TST_FM_0705] Example",
+        "",
+        "   ~~~opaque_dsl",
+        "  alpha",
+        "",
+        "",
+        "  beta",
+        "   ~~~",
+        "",
+        `      Id: ${MOCK_ULID}`,
+        "",
+      ].join(newline);
+      const output =
+        format(input, { file: "t.md", formatMarkdownProse }).output;
+      assertStringIncludes(output, ["alpha", "", "", ""].join(newline));
+      assertEquals(
+        format(output, { file: "t.md", formatMarkdownProse }).output,
+        output,
+      );
+    });
+    Deno.test(`format: leading triple-backtick inline span is verbatim (${JSON.stringify(newline)}, dprint=${useDprint})`, async () => {
+      const formatMarkdownProse = useDprint
+        ? await loadMarkdownFormatter()
+        : undefined;
+      const input = [
+        "- [TST_FM_0705] Example",
+        "",
+        "  ```SHALL NOT change```",
+        "",
+        `      Id: ${MOCK_ULID}`,
+        "",
+      ].join(newline);
+      assertStringIncludes(
+        format(input, { file: "t.md", formatMarkdownProse }).output,
+        "SHALL NOT change",
+      );
+    });
+  }
+  Deno.test(`normalizeModalKeywords: inline code and adjacent prose (${JSON.stringify(newline)})`, () => {
+    const input = [
+      "```SHALL NOT change``` SHALL change.",
+      "MUST change beside `MUST NOT change`.",
+      "``SHALL",
+      "NOT change`` MUST change.",
+    ].join(newline);
+    const expected = [
+      "```SHALL NOT change``` shall change.",
+      "must change beside `MUST NOT change`.",
+      "``SHALL",
+      "NOT change`` must change.",
+    ].join(newline);
+    assertEquals(normalizeModalKeywords(input), expected);
+  });
+}

@@ -26,6 +26,8 @@ import { extractBodyTokens } from "./body_tokens.ts";
 import { isMarkspecDirectiveComment } from "./directives.ts";
 import { processor } from "./remark.ts";
 import { buildBodyAstWithTree } from "../ast/build.ts";
+import { parseCodeRegions } from "./code_regions.ts";
+import { normalizeLineEndings } from "../util/line_endings.ts";
 import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
 import { assembleTyplTypes } from "../typl/mod.ts";
@@ -375,15 +377,12 @@ function extractEntry(
   // caption lead-ins (`Figure:`, `Table:`) are left as legitimate body content.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
-    let inFencedBlock = false;
+    const fencedLines =
+      parseCodeRegions(normalizeLineEndings(body), mdastTree).fencedLines;
     for (let i = 0; i < bodyLines.length; i++) {
+      // Reuse the LF-normalized body tree: examples cannot be misplaced trailers.
+      if (fencedLines.has(i)) continue;
       const trimmed = bodyLines[i].trim();
-      // Track fenced code blocks (``` or ~~~) to skip their contents
-      if (/^(`{3,}|~{3,})/.test(trimmed)) {
-        inFencedBlock = !inFencedBlock;
-        continue;
-      }
-      if (inFencedBlock) continue;
       if (!ATTR_LINE_RE.test(trimmed)) continue;
       // Only a RECOGNIZED trailer key signals a genuinely misplaced trailer.
       // A body paragraph starting with any other capitalized word + colon
