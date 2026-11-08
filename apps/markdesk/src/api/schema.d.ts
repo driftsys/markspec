@@ -255,7 +255,7 @@ export interface components {
       html: string;
       entries: {
         displayId: string;
-        /** @description Element id of the first entry block with this display ID, `entry-<displayId>`. The entries array contains each display ID once, using its first entry in source order. */
+        /** @description Element id of the first entry block with this display ID, `entry-<displayId>`. The entries array contains at most one item per display ID; if a duplicate in another file wins in the index, the display ID is absent from this array even though its anchor is present in this document's HTML. */
         anchor: string;
       }[];
     };

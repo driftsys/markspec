@@ -552,11 +552,13 @@ mod tests {
     }
 
     #[test]
-    fn recent_products_marks_missing_folders() {
+    fn recent_products_rejects_missing_paths_and_regular_files() {
         let existing =
             std::env::temp_dir().join(format!("markdesk-recents-836-{}", std::process::id()));
         std::fs::create_dir(&existing).unwrap();
         let missing_path = existing.join("absent").to_string_lossy().into_owned();
+        let file_path = existing.join("file");
+        std::fs::write(&file_path, "").unwrap();
         let products = recent_products(
             vec![
                 Recent {
@@ -567,12 +569,18 @@ mod tests {
                     root: missing_path.clone(),
                     name: Some("B".into()),
                 },
+                Recent {
+                    root: file_path.to_string_lossy().into_owned(),
+                    name: Some("C".into()),
+                },
             ],
             recent_root_is_dir,
         );
+        std::fs::remove_file(&file_path).unwrap();
         std::fs::remove_dir(&existing).unwrap();
         assert!(products[0].exists);
         assert!(!products[1].exists);
+        assert!(!products[2].exists);
         assert_eq!(products[1].root, missing_path);
         assert_eq!(products[1].name.as_deref(), Some("B"));
     }
