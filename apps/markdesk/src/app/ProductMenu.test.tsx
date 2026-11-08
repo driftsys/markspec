@@ -61,3 +61,23 @@ describe("ProductMenu", () => {
     expect(screen.getByText("Open folder…")).toBeTruthy();
   });
 });
+
+it("hides recent products whose folders are missing", () => {
+  render(
+    <ProductMenu
+      productName="Brakes"
+      productRoot="/p/brakes"
+      recents={[{ root: "/p/a", name: "A", exists: true }, {
+        root: "/p/b",
+        name: "B",
+        exists: false,
+      }]}
+      onPick={vi.fn()}
+      onOpenRecent={vi.fn()}
+      onSettings={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByText("Brakes"));
+  expect(screen.getByRole("menuitem", { name: "A" })).toBeTruthy();
+  expect(screen.queryByRole("menuitem", { name: "B" })).toBeNull();
+});

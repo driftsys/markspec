@@ -96,14 +96,60 @@ pub struct RecentProduct {
     pub exists: bool,
 }
 
+/// Map stored recents to the UI view using the current directory check.
+fn recent_products(list: Vec<Recent>, is_dir: impl Fn(&str) -> bool) -> Vec<RecentProduct> {
+    list.into_iter()
+        .map(|recent| RecentProduct {
+            exists: is_dir(&recent.root),
+            root: recent.root,
+            name: recent.name,
+        })
+        .collect()
+}
+
+fn recent_root_is_dir(root: &str) -> bool {
+    Path::new(root).is_dir()
+}
+
+/// Store operations used to load and record recent products.
+trait RecentsStore {
+    fn get(&self, key: &str) -> Option<serde_json::Value>;
+    fn set(&self, key: &str, value: serde_json::Value);
+    fn delete(&self, key: &str);
+    fn save(&self) -> Result<(), String>;
+}
+
+impl<R: tauri::Runtime> RecentsStore for tauri_plugin_store::Store<R> {
+    fn get(&self, key: &str) -> Option<serde_json::Value> {
+        self.get(key)
+    }
+
+    fn set(&self, key: &str, value: serde_json::Value) {
+        self.set(key, value);
+    }
+
+    fn delete(&self, key: &str) {
+        self.delete(key);
+    }
+
+    fn save(&self) -> Result<(), String> {
+        self.save().map_err(|err| err.to_string())
+    }
+}
+
 fn load_recents(app: &AppHandle) -> Result<Vec<Recent>, String> {
     let store = app.store(RECENTS_STORE).map_err(|err| err.to_string())?;
+    load_recents_from_store(store.as_ref())
+}
+
+fn load_recents_from_store(store: &impl RecentsStore) -> Result<Vec<Recent>, String> {
     let parsed = recents::parse_stored(store.get(RECENTS_KEY));
+    let earlier = store.get(RECENTS_CORRUPT_KEY);
     if let Some(value) = parsed.corrupt {
         // Keep the unreadable value instead of overwriting it with a fresh
         // list. Write errors are ignored: the list still loads as empty.
         eprintln!("markdesk: recents could not be read; kept under {RECENTS_CORRUPT_KEY}");
-        if store.get(RECENTS_CORRUPT_KEY).is_none() {
+        if earlier.is_none() {
             store.set(RECENTS_CORRUPT_KEY, value);
         }
         store.delete(RECENTS_KEY);
@@ -114,9 +160,18 @@ fn load_recents(app: &AppHandle) -> Result<Vec<Recent>, String> {
 
 fn save_recents(app: &AppHandle, list: &[Recent]) -> Result<(), String> {
     let store = app.store(RECENTS_STORE).map_err(|err| err.to_string())?;
+    save_recents_to_store(store.as_ref(), list)
+}
+
+fn save_recents_to_store(store: &impl RecentsStore, list: &[Recent]) -> Result<(), String> {
     let value = serde_json::to_value(list).map_err(|err| err.to_string())?;
     store.set(RECENTS_KEY, value);
-    store.save().map_err(|err| err.to_string())
+    store.save()
+}
+
+fn record_recent(store: &impl RecentsStore, opened: &Handshake) -> Result<(), String> {
+    let list = load_recents_from_store(store)?;
+    save_recents_to_store(store, &recents_after_open(list, opened))
 }
 
 fn load_assistant_settings(app: &AppHandle) -> Result<AssistantSettings, String> {
@@ -176,8 +231,10 @@ async fn open_product(app: AppHandle, path: String) -> Result<OpenedProduct, Ope
         details: err.to_string(),
     })??;
 
-    let recorded = load_recents(&app)
-        .and_then(|list| save_recents(&app, &recents_after_open(list, &handshake)));
+    let recorded = app
+        .store(RECENTS_STORE)
+        .map_err(|err| err.to_string())
+        .and_then(|store| record_recent(store.as_ref(), &handshake));
     if let Err(err) = recorded {
         eprintln!("MarkDesk: could not record recent product: {err}");
     }
@@ -187,14 +244,7 @@ async fn open_product(app: AppHandle, path: String) -> Result<OpenedProduct, Ope
 /// The recents list, most recent first.
 #[tauri::command]
 fn list_recents(app: AppHandle) -> Result<Vec<RecentProduct>, String> {
-    Ok(load_recents(&app)?
-        .into_iter()
-        .map(|recent| RecentProduct {
-            exists: Path::new(&recent.root).is_dir(),
-            root: recent.root,
-            name: recent.name,
-        })
-        .collect())
+    Ok(recent_products(load_recents(&app)?, recent_root_is_dir))
 }
 
 /// Store the name of a recent product: the project name, or the folder name
@@ -467,9 +517,174 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::cell::{Cell, RefCell};
+
+    #[derive(Default)]
+    struct FakeRecentsStore {
+        values: RefCell<serde_json::Map<String, serde_json::Value>>,
+        saved: RefCell<serde_json::Map<String, serde_json::Value>>,
+        save_calls: Cell<usize>,
+        fail_save: bool,
+    }
+
+    impl RecentsStore for FakeRecentsStore {
+        fn get(&self, key: &str) -> Option<serde_json::Value> {
+            self.values.borrow().get(key).cloned()
+        }
+
+        fn set(&self, key: &str, value: serde_json::Value) {
+            self.values.borrow_mut().insert(key.into(), value);
+        }
+
+        fn delete(&self, key: &str) {
+            self.values.borrow_mut().remove(key);
+        }
+
+        fn save(&self) -> Result<(), String> {
+            self.save_calls.set(self.save_calls.get() + 1);
+            if self.fail_save {
+                return Err("save failed".into());
+            }
+            *self.saved.borrow_mut() = self.values.borrow().clone();
+            Ok(())
+        }
+    }
 
     #[test]
-    fn recents_after_open_records_the_discovered_root_not_the_chosen_folder() {
+    fn recent_products_rejects_missing_paths_and_regular_files() {
+        let existing =
+            std::env::temp_dir().join(format!("markdesk-recents-836-{}", std::process::id()));
+        std::fs::create_dir(&existing).unwrap();
+        let missing_path = existing.join("absent").to_string_lossy().into_owned();
+        let file_path = existing.join("file");
+        std::fs::write(&file_path, "").unwrap();
+        let products = recent_products(
+            vec![
+                Recent {
+                    root: existing.to_string_lossy().into_owned(),
+                    name: Some("A".into()),
+                },
+                Recent {
+                    root: missing_path.clone(),
+                    name: Some("B".into()),
+                },
+                Recent {
+                    root: file_path.to_string_lossy().into_owned(),
+                    name: Some("C".into()),
+                },
+            ],
+            recent_root_is_dir,
+        );
+        std::fs::remove_file(&file_path).unwrap();
+        std::fs::remove_dir(&existing).unwrap();
+        assert!(products[0].exists);
+        assert!(!products[1].exists);
+        assert!(!products[2].exists);
+        assert_eq!(products[1].root, missing_path);
+        assert_eq!(products[1].name.as_deref(), Some("B"));
+    }
+
+    #[test]
+    fn load_recents_ignores_a_save_error_when_moving_a_corrupt_value() {
+        let store = FakeRecentsStore {
+            fail_save: true,
+            ..FakeRecentsStore::default()
+        };
+        let corrupt = json!({"broken":"recents"});
+        store.set(RECENTS_KEY, corrupt.clone());
+
+        let list = load_recents_from_store(&store).unwrap();
+
+        assert!(list.is_empty());
+        assert_eq!(store.get(RECENTS_CORRUPT_KEY), Some(corrupt));
+        assert_eq!(store.get(RECENTS_KEY), None);
+        assert_eq!(store.save_calls.get(), 1);
+        assert!(store.saved.borrow().is_empty());
+    }
+
+    #[test]
+    fn save_recents_replaces_the_stored_list_including_an_empty_list() {
+        let store = FakeRecentsStore::default();
+        store.set(RECENTS_KEY, json!([{"root":"/p/old","name":"Old"}]));
+        let replacement = vec![Recent {
+            root: "/p/new".into(),
+            name: Some("New".into()),
+        }];
+
+        save_recents_to_store(&store, &replacement).unwrap();
+
+        let expected = json!([{"root":"/p/new","name":"New"}]);
+        assert_eq!(store.saved.borrow().get(RECENTS_KEY), Some(&expected));
+
+        save_recents_to_store(&store, &[]).unwrap();
+
+        assert_eq!(store.saved.borrow().get(RECENTS_KEY), Some(&json!([])));
+        assert_eq!(store.save_calls.get(), 2);
+    }
+
+    #[test]
+    fn save_recents_returns_a_save_error() {
+        let store = FakeRecentsStore {
+            fail_save: true,
+            ..FakeRecentsStore::default()
+        };
+
+        assert_eq!(
+            save_recents_to_store(&store, &[]),
+            Err("save failed".into())
+        );
+        assert_eq!(store.save_calls.get(), 1);
+        assert!(store.saved.borrow().is_empty());
+    }
+
+    #[test]
+    fn load_recents_preserves_the_first_corrupt_value_and_saves_the_deletion() {
+        let first = json!({"broken":"first"});
+        let second = json!({"broken":"second"});
+        let store = FakeRecentsStore::default();
+        for (index, value) in [first.clone(), second].into_iter().enumerate() {
+            store.set(RECENTS_KEY, value);
+
+            let list = load_recents_from_store(&store).unwrap();
+
+            assert!(list.is_empty());
+            assert_eq!(store.get(RECENTS_CORRUPT_KEY), Some(first.clone()));
+            assert_eq!(store.get(RECENTS_KEY), None);
+            assert_eq!(store.save_calls.get(), index + 1);
+            assert_eq!(store.saved.borrow().get(RECENTS_CORRUPT_KEY), Some(&first));
+            assert!(!store.saved.borrow().contains_key(RECENTS_KEY));
+        }
+    }
+
+    #[test]
+    fn load_recents_leaves_a_readable_list_unchanged_without_saving() {
+        for earlier in [None, Some(json!({"broken":"earlier"}))] {
+            let store = FakeRecentsStore::default();
+            let value = json!([{"root":"/p/brakes","name":"Brakes"}]);
+            store.set(RECENTS_KEY, value.clone());
+            if let Some(value) = earlier.clone() {
+                store.set(RECENTS_CORRUPT_KEY, value);
+            }
+
+            let list = load_recents_from_store(&store).unwrap();
+
+            assert_eq!(
+                list,
+                vec![Recent {
+                    root: "/p/brakes".into(),
+                    name: Some("Brakes".into()),
+                }]
+            );
+            assert_eq!(store.get(RECENTS_KEY), Some(value));
+            assert_eq!(store.get(RECENTS_CORRUPT_KEY), earlier);
+            assert_eq!(store.save_calls.get(), 0);
+            assert!(store.saved.borrow().is_empty());
+        }
+    }
+
+    #[test]
+    fn record_recent_saves_the_discovered_root_first() {
         // The author chose /p/brakes/docs; the sidecar discovered /p/brakes.
         let opened = Handshake {
             url: "http://127.0.0.1:1".into(),
@@ -477,15 +692,61 @@ mod tests {
             api_version: 3,
             root: "/p/brakes".into(),
         };
-        let list = recents_after_open(
-            vec![Recent {
-                root: "/p/other".into(),
-                name: None,
-            }],
-            &opened,
+        let store = FakeRecentsStore::default();
+        store.set(RECENTS_KEY, json!([{"root":"/p/other","name":"Other"}]));
+
+        record_recent(&store, &opened).unwrap();
+
+        let expected = json!([
+            {"root":"/p/brakes","name":null},
+            {"root":"/p/other","name":"Other"}
+        ]);
+        assert_eq!(store.get(RECENTS_KEY), Some(expected.clone()));
+        assert_eq!(store.save_calls.get(), 1);
+        assert_eq!(store.saved.borrow().get(RECENTS_KEY), Some(&expected));
+    }
+
+    #[test]
+    fn record_recent_preserves_a_corrupt_value_before_saving_the_opened_root() {
+        let store = FakeRecentsStore::default();
+        let corrupt = json!({"broken":"recents"});
+        store.set(RECENTS_KEY, corrupt.clone());
+        let opened = Handshake {
+            url: "http://127.0.0.1:1".into(),
+            token: "t".into(),
+            api_version: 3,
+            root: "/p/brakes".into(),
+        };
+
+        record_recent(&store, &opened).unwrap();
+
+        assert_eq!(store.get(RECENTS_CORRUPT_KEY), Some(corrupt.clone()));
+        assert_eq!(
+            store.saved.borrow().get(RECENTS_CORRUPT_KEY),
+            Some(&corrupt)
         );
-        let roots: Vec<&str> = list.iter().map(|r| r.root.as_str()).collect();
-        assert_eq!(roots, ["/p/brakes", "/p/other"]);
+        assert_eq!(
+            store.saved.borrow().get(RECENTS_KEY),
+            Some(&json!([{"root":"/p/brakes","name":null}]))
+        );
+    }
+
+    #[test]
+    fn record_recent_returns_a_save_error() {
+        let store = FakeRecentsStore {
+            fail_save: true,
+            ..FakeRecentsStore::default()
+        };
+        let opened = Handshake {
+            url: "http://127.0.0.1:1".into(),
+            token: "t".into(),
+            api_version: 3,
+            root: "/p/brakes".into(),
+        };
+
+        assert_eq!(record_recent(&store, &opened), Err("save failed".into()));
+        assert_eq!(store.save_calls.get(), 1);
+        assert!(store.saved.borrow().is_empty());
     }
 
     #[test]

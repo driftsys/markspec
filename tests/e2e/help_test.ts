@@ -72,3 +72,13 @@ Deno.test("unknown subcommand fails with non-zero exit", async () => {
   const { code } = await markspec(["nonexistent"]);
   assertEquals(code !== 0, true);
 });
+
+Deno.test("desk --help describes explicit root discovery", async () => {
+  const { code, stdout } = await markspec(["desk", "--help"]);
+  assertEquals(code, 0);
+  assertStringIncludes(stdout, "walk upward");
+  assertStringIncludes(
+    stdout.replace(/\s+/g, " "),
+    "error if absent, without falling back to cwd",
+  );
+});

@@ -121,9 +121,11 @@ export function renderChapterHtml(
   const rewriteLink = chapterSlugs
     ? (href: string) => _resolveChapterLink(file, href, chapterSlugs)
     : undefined;
-  // Built once per chapter (not per prose fragment) — see _buildProseProcessor.
+  // Reuse the processor across fragments. Without chapter link rewriting,
+  // desk renders also reuse the processor for the same known-ID set.
   const processor = _buildProseProcessor(rewriteLink, options.knownDisplayIds);
 
+  const emittedAnchors = new Set<string>();
   const parts: string[] = [];
   let cursor = 0; // current position (0-based line index)
   let figCounter = 0;
@@ -143,8 +145,10 @@ export function renderChapterHtml(
           options.profile,
           processor,
           options.knownDisplayIds,
+          !emittedAnchors.has(region.entry!.displayId),
         ),
       );
+      emittedAnchors.add(region.entry!.displayId);
     } else if (region.kind === "alert") {
       const raw = lines.slice(region.start, region.end);
       parts.push(_alertToHtml(region.alertType!, raw, processor));
@@ -376,21 +380,24 @@ interface _ProseProcessor {
   processSync(markdown: string): { toString(): string };
 }
 
+/** Prose processors shared by desk renders using the same known-ID set. */
+const _proseProcessors = new WeakMap<ReadonlySet<string>, _ProseProcessor>();
+
 /**
- * Build the prose-rendering processor for one chapter. Returns the shared
- * `_htmlPipeline` singleton when no rewriter is supplied (the common case
- * — most chapters, and every chapter when the book has no `chapterSlugs`
- * map at all); otherwise builds a one-off pipeline with the link-rewrite
- * transform installed. Called once per `renderChapterHtml` invocation —
- * not once per prose fragment — since `rewriteLink` closes over the
- * chapter's own path and is invariant across every fragment in it.
+ * Reuse the plain pipeline or the processor cached for a known-ID set.
+ * Chapter link rewriters close over a path, so those processors stay local
+ * to a chapter and are never cached.
  */
 function _buildProseProcessor(
   rewriteLink: ((href: string) => string | undefined) | undefined,
   knownDisplayIds?: ReadonlySet<string>,
 ): _ProseProcessor {
   if (!rewriteLink && !knownDisplayIds) return _htmlPipeline;
-  return unified()
+  const cached = !rewriteLink && knownDisplayIds
+    ? _proseProcessors.get(knownDisplayIds)
+    : undefined;
+  if (cached) return cached;
+  const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(() => (tree: Root) => {
@@ -405,6 +412,10 @@ function _buildProseProcessor(
       if (knownDisplayIds) _linkDisplayIds(tree, knownDisplayIds);
     })
     .use(rehypeStringify);
+  if (!rewriteLink && knownDisplayIds) {
+    _proseProcessors.set(knownDisplayIds, processor);
+  }
+  return processor;
 }
 
 /** Minimal hast node shape used by the cross-reference transform. */
@@ -520,6 +531,7 @@ function _entryToHtml(
   profile: EffectiveProfile | undefined,
   processor: _ProseProcessor,
   knownDisplayIds?: ReadonlySet<string>,
+  includeAnchor = true,
 ): string {
   const blockClass = _entryClass(entry, profile);
 
@@ -556,7 +568,8 @@ function _entryToHtml(
     : "";
 
   const anchor = _escapeHtml(entry.displayId);
-  return `<div class="${blockClass}" id="entry-${anchor}" data-display-id="${anchor}">
+  const id = includeAnchor ? ` id="entry-${anchor}"` : "";
+  return `<div class="${blockClass}"${id} data-display-id="${anchor}">
   <div class="req-title">
     <code class="req-id">${_escapeHtml(entry.displayId)}</code>
     <span class="req-name">${_escapeHtml(entry.title)}</span>

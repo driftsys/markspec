@@ -105,6 +105,13 @@ stays TypeScript. Everything lives in this repository.
 
       Id: 01M5607VYZ373VZA9KAAYW1VZF
 
+- [SAD_DESK_0034] Unique rendered chapter anchors
+
+  The rendered chapter HTML shall carry at most one element `id` per display ID;
+  the first entry in source order keeps it.
+
+      Id: 01M6N62ET9MXYAPE8BH3A2HNBK
+
 - [SAD_DESK_0013] Entity tag on rendered documents
 
   The desk backend shall send an `ETag` header with every HTTP status 200
@@ -410,14 +417,15 @@ built: the first prompt" below).
   prints "No MarkSpec project found"; any other early exit is a start failure.
 - **Rendering.** The server renders documents with the book renderer
   (`renderChapterHtml`); the UI contains no Markdown renderer. The renderer
-  gives each entry block a stable anchor and wraps display IDs in a
-  cross-reference element carrying `data-display-id`: in every attribute value
-  except `Labels`, each ID token (found with an ID-token pattern, not a
-  whitespace split) that is in `knownDisplayIds`, and IDs in body prose that
-  resolve to a known entry. `knownDisplayIds` is passed only by the desk
-  endpoints; the `markspec book build` call sites are unchanged. The UI turns
-  cross-references into navigation and opens ordinary web links in the system
-  browser.
+  gives each entry block a `data-display-id` and, for the first entry of each
+  display ID in a chapter, a stable anchor (see SAD_DESK_0034), and wraps
+  display IDs in a cross-reference element carrying `data-display-id`: in every
+  attribute value except `Labels`, each ID token (found with an ID-token
+  pattern, not a whitespace split) that is in `knownDisplayIds`, and IDs in body
+  prose that resolve to a known entry. `knownDisplayIds` is passed only by the
+  desk endpoints; the `markspec book build` call sites are unchanged. The UI
+  turns cross-references into navigation and opens ordinary web links in the
+  system browser.
 - **Images.** Images with a `data:` source are kept. Every other `<img>`,
   including `http(s)` sources, is replaced by a placeholder box with its alt
   text, because the content security policy blocks remote images and an `<img>`

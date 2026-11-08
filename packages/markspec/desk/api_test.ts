@@ -27,7 +27,7 @@ import {
   toApiPath,
 } from "./api.ts";
 import { MAX_PROPOSAL_CHARS } from "./proposals.ts";
-import { documentEtag } from "./render.ts";
+import { buildEntryHtmlView, documentEtag, knownDisplayIds } from "./render.ts";
 
 const FIXTURE_ROOT = fromFileUrl(
   new URL("../../../tests/fixtures/desk-project", import.meta.url),
@@ -2384,4 +2384,54 @@ Deno.test("desk api: a declared Content-Length over the cap cancels the body unr
   await assertError(res, 422, "proposal-too-large");
   assertEquals(record.pulls, 0);
   assert(record.cancelled);
+});
+
+Deno.test("desk render: known display IDs are reused per compiled graph", async () => {
+  const compiled = await compileDocs("- [A_0001] First\n\n  Body.\n");
+  assertEquals(knownDisplayIds(compiled) === knownDisplayIds(compiled), true);
+  assertEquals(
+    knownDisplayIds(compiled) === knownDisplayIds({ ...compiled }),
+    false,
+  );
+});
+
+Deno.test("desk render: multi-value Satisfies links each known ID", async () => {
+  const compiled = await compileDocs(
+    "- [A_0001] One\n\n  One body.\n\n- [A_0002] Two\n\n  Two body.\n\n- [X_0001] Child\n\n      Satisfies: A_0001, A_0002\n",
+  );
+  const entry = compiled.entries.get(makeDisplayId("X_0001"))!;
+  const { html } = buildEntryHtmlView(3, compiled, undefined, entry);
+  for (const id of ["A_0001", "A_0002"]) {
+    assertStringIncludes(
+      html,
+      `<span class="cross-ref" data-display-id="${id}">${id}</span>`,
+    );
+  }
+});
+
+Deno.test("desk api: document entries follow source lines rather than graph order", async () => {
+  const path = join(FIXTURE_ROOT, "docs", "system.md");
+  const other = join(FIXTURE_ROOT, "docs", "software.md");
+  const markdown =
+    "- [X_0001] First\n\n  First body.\n\n- [X_0002] Second\n\n  Second body.\n";
+  const compiled = await compile([other, path], {
+    readFile: (file) =>
+      Promise.resolve(
+        file === path ? markdown : "- [Y_0001] Other\n\n  Other body.\n",
+      ),
+  });
+  // Compilation normally preserves source order. Model an index populated by
+  // incremental updates, with the later entry inserted before the earlier one.
+  const entries = new Map([...compiled.entries].reverse());
+  assertEquals([...entries.keys()], ["X_0002", "X_0001", "Y_0001"]);
+  const h = await handlerFor(
+    { ...compiled, entries },
+    () => Promise.resolve(markdown),
+  );
+  const response = await h(get("/api/v1/documents?path=docs/system.md"));
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).entries, [
+    { displayId: "X_0001", anchor: "entry-X_0001" },
+    { displayId: "X_0002", anchor: "entry-X_0002" },
+  ]);
 });

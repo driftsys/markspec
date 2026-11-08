@@ -41,7 +41,10 @@ export const deskCmd = new Command()
   .option("--port <port:integer>", "TCP port; 0 picks a free one", {
     default: 0,
   })
-  .option("--root <path:string>", "Project root (defaults to discovery)")
+  .option(
+    "--root <path:string>",
+    "Start discovery here and walk upward for project.yaml or .markspec.yaml; error if absent, without falling back to cwd (default: discover from cwd)",
+  )
   .option(
     "--allow-origin <origin:string>",
     "Extra browser origin allowed to call the API (repeatable), e.g. the Vite dev server",

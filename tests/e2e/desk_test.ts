@@ -425,3 +425,49 @@ async function editedDocumentScenario(root: string): Promise<void> {
     await child.status;
   }
 }
+
+Deno.test({
+  name: "desk --serve: handshake resolves a symlinked product root",
+  ignore: !hasNet,
+  async fn() {
+    const dir = await Deno.makeTempDir();
+    const link = join(dir, "product-link");
+    await Deno.symlink(FIXTURE_ROOT, link);
+    const child = new Deno.Command("deno", {
+      args: [
+        "run",
+        "-A",
+        CLI_ENTRY,
+        "desk",
+        "--serve",
+        "--root",
+        link,
+        "--port",
+        "0",
+        "--exit-on-stdin-eof",
+      ],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "inherit",
+    }).spawn();
+    const reader = child.stdout.pipeThrough(new TextDecoderStream())
+      .getReader();
+    try {
+      let buffered = "";
+      while (!buffered.includes("\n")) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffered += chunk.value;
+      }
+      assertEquals(
+        JSON.parse(buffered.split("\n")[0]).root,
+        await Deno.realPath(FIXTURE_ROOT),
+      );
+    } finally {
+      await reader.cancel();
+      await child.stdin.close();
+      await child.status;
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+});
