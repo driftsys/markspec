@@ -255,7 +255,7 @@ export interface components {
       html: string;
       entries: {
         displayId: string;
-        /** @description Element id of the first entry block with this display ID, `entry-<displayId>`. Duplicates share this value. */
+        /** @description Element id of the first entry block with this display ID, `entry-<displayId>`. The entries array contains each display ID once, using its first entry in source order. */
         anchor: string;
       }[];
     };

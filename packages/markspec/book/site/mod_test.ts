@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { assertSnapshot } from "@std/testing/snapshot";
+import { spy } from "@std/testing/mock";
 import { parse } from "../../core/mod.ts";
 import { renderChapterHtml, renderEntryHtml } from "./mod.ts";
 
@@ -281,14 +282,71 @@ SYS_BRK_0003
 
 Deno.test("renderChapterHtml: duplicate display IDs keep only the first anchor", () => {
   const { html } = renderChapterHtml(
-    "- [X_0001] First\n\n  First body.\n\n- [X_0001] Second\n\n  Second body.\n",
+    "- [X_0001] First\n\n  First body.\n\n- [X_0001] Second\n\n  Second body.\n\n- [X_0002] Third\n\n  Third body.\n",
   );
   assertEquals(html.split('id="entry-X_0001"').length - 1, 1);
   assertEquals(html.split('data-display-id="X_0001"').length - 1, 2);
+  assertEquals(html.split('id="entry-X_0002"').length - 1, 1);
   assertStringIncludes(
     html,
     'id="entry-X_0001" data-display-id="X_0001">\n  <div class="req-title">\n    <code class="req-id">X_0001</code>\n    <span class="req-name">First</span>',
   );
+});
+
+Deno.test("renderChapterHtml: chapter link processors are never cached", () => {
+  const knownDisplayIds = new Set(["X_0001"]);
+  const chapterSlugs = new Map([
+    ["one/target.md", "one-target"],
+    ["two/target.md", "two-target"],
+  ]);
+  const cacheWrites = spy(WeakMap.prototype, "set");
+  try {
+    for (const folder of ["one", "two"]) {
+      const { html } = renderChapterHtml("See [Target](target.md).", {
+        file: `${folder}/index.md`,
+        chapterSlugs,
+        knownDisplayIds,
+      });
+      assertStringIncludes(html, `href="${folder}-target.html"`);
+    }
+    assertEquals(
+      cacheWrites.calls.filter((call) => call.args[0] === knownDisplayIds)
+        .length,
+      0,
+    );
+  } finally {
+    cacheWrites.restore();
+  }
+});
+
+Deno.test("renderEntryHtml: reuses the chapter prose processor for the same known-ID set", () => {
+  const knownDisplayIds = new Set(["X_0001"]);
+  // Observe the cached processor without exporting it from the renderer.
+  const cacheWrites = spy(WeakMap.prototype, "set");
+  try {
+    renderChapterHtml("See X_0001.", { knownDisplayIds });
+    const writes = cacheWrites.calls.filter((call) =>
+      call.args[0] === knownDisplayIds
+    );
+    assertEquals(writes.length, 1);
+    const processor = writes[0].args[1] as {
+      processSync(markdown: string): { toString(): string };
+    };
+    const process = spy(processor, "processSync");
+    try {
+      const [entry] = parse("- [X_0002] Child\n\n  See X_0001.\n");
+      const html = renderEntryHtml(entry, { knownDisplayIds });
+      assertStringIncludes(
+        html,
+        '<span class="cross-ref" data-display-id="X_0001">X_0001</span>',
+      );
+      assertEquals(process.calls.length, 1);
+    } finally {
+      process.restore();
+    }
+  } finally {
+    cacheWrites.restore();
+  }
 });
 
 Deno.test("renderChapterHtml: multi-value Satisfies links each known ID", () => {

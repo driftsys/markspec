@@ -77,5 +77,8 @@ Deno.test("desk --help describes explicit root discovery", async () => {
   const { code, stdout } = await markspec(["desk", "--help"]);
   assertEquals(code, 0);
   assertStringIncludes(stdout, "walk upward");
-  assertStringIncludes(stdout, "error");
+  assertStringIncludes(
+    stdout.replace(/\s+/g, " "),
+    "error if absent, without falling back to cwd",
+  );
 });

@@ -121,7 +121,8 @@ export function renderChapterHtml(
   const rewriteLink = chapterSlugs
     ? (href: string) => _resolveChapterLink(file, href, chapterSlugs)
     : undefined;
-  // Built once per chapter (not per prose fragment) — see _buildProseProcessor.
+  // Reuse the processor across fragments. Without chapter link rewriting,
+  // desk renders also reuse the processor for the same known-ID set.
   const processor = _buildProseProcessor(rewriteLink, options.knownDisplayIds);
 
   const emittedAnchors = new Set<string>();
