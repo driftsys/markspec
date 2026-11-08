@@ -1,5 +1,281 @@
 # Changelog
 
+## [0.12.0] (2026-11-08)
+
+### Refactoring
+
+- **core:** share the corpus-entry predicate and corpus post-pass ([#893])
+  ([02e3cd7]), closes 711.
+- **core:** remove the unused source-file formatter ([#891]) ([d322709]), closes
+  878.
+
+### Bug Fixes
+
+- **repo:** verify the install checksum with sha256sum when shasum is missing
+  ([#892]) ([9ff5c77]), closes 713.
+- **core:** report lockfile edge drift and a malformed lockfile the same way
+  everywhere ([#890]) ([f9363de]), closes 707., 708.
+- **cli:** load the Markdown formatter in fmt only when a Markdown file is in
+  scope ([#888]) ([0f893ab]), closes 712.
+- **core:** take fenced code regions from the CommonMark parser ([#887])
+  ([4a44d85]), closes 705.
+- **core:** apply exclude: after every .gitignore in project discovery ([#886])
+  ([464919d]), closes 703.
+- **core:** treat generated-origin keys as prose in the misplaced-trailer check
+  ([#884]) ([c07fc81]), closes 706.
+- **core:** report an unreadable project file instead of skipping it ([#883])
+  ([f53b7b1]), closes 702.
+
+The shared collector silently left out a file it
+  could not read, so
+lock, compile --frozen, fmt and doctor could work from an
+  incomplete
+file set. It now throws an error that names the file.
+- **lsp:** reject a rename request from inside a fenced code block ([#882])
+  ([6964225]), closes 704.
+
+onPrepareRename rejected a cursor in a fence, but
+  onRenameRequest did
+not, so a client that skips prepareRename could rename
+  real IDs from an
+illustrative example. Both paths now apply the same guard
+  through the
+pure helper displayIdForRename.
+- **core:** align the .markspec.yaml schema with the exclude loader ([#881])
+  ([d91f5fe]), closes 709.
+- **repo:** cover desk revalidation gaps ([#879]) ([28a4fd2])
+- **core:** keep a lazy continuation line and the trailer of an entry together
+  ([#877]) ([dbd2f18]), closes 859.
+- **core:** keep the entry body and trailer inside a list item with a wide
+  marker ([#876]) ([06d9937]), closes 865., refs 865.
+- **cli:** lock and sync find the project root like check ([#871]) ([ac4f781]),
+  closes 860.
+- **mcp:** apply the entry_search limit across all projects ([#869])
+  ([3bb7d36]), closes 851.
+- **cli:** apply the enclosing project's .gitignore when walking nested projects
+  ([#867]) ([4f3219c])
+- **cli:** resolve the project of each file like the LSP and MCP server ([#864])
+  ([289f841])
+- **mcp:** retry project discovery after a startup failure ([#858]) ([9677ae7]),
+  closes 855.
+- **cli:** refresh the desk navigator tree when files change on disk ([#846])
+  ([b4f8758])
+- **lsp:** resolve the project from each document, not only the workspace root
+  ([#844]) ([f4c3d06]), closes 840. Closes #694.
+
+The LSP server held one copy
+  of project state, loaded once from the
+editor's workspace root. A workspace
+  opened on a parent folder of
+several projects loaded no profile, so every
+  profile-declared attribute
+was reported as MSL-R010 (#840). A workspace opened
+  below the folder
+that holds .markspec.yaml, with no project.yaml, never walked
+  up and
+also loaded no profile (#694).
+
+Per-project state now lives in
+  ProjectContext (lsp/project_context.ts):
+config, tool config, profile,
+  lockfile, index, delivered and upstream
+corpus bookkeeping, cached
+  diagnostics, and the watched-file reload
+logic. The corpus seeding order and
+  its comments are unchanged.
+
+ProjectRegistry (lsp/project_registry.ts) holds
+  one context per config
+root. The primary root is the nearest .markspec.yaml at
+  or above the
+workspace root, else the nearest project.yaml, else the
+  workspace
+root. Every .markspec.yaml below the primary root (gitignore-aware)
+  is
+a nested project. A file belongs only to its nearest project, so a
+parent
+  project does not index a nested project's files. A document
+outside every
+  known project walks up to its own config when it opens.
+
+Every per-document
+  handler and the document sync events route through
+the registry. Workspace
+  symbol search covers all projects. A change to
+.markspec.yaml, project.yaml or
+  markspec.lock reloads only the owning
+project; creating or deleting a
+  .markspec.yaml re-discovers all
+projects. markspec/indexed reports totals;
+  markspec/version uses the
+primary project's lockfile; markspec/profile answers
+  for the optional
+uri parameter; markspec/profileChanged carries the project
+  root URI in
+a new root field.
+
+When the primary root lies above the workspace
+  folder, the server also
+registers an LSP 3.17 RelativePattern watcher for that
+  root's config
+files, because the plain glob watchers only cover the workspace
+  folder.
+Re-registrations of that watcher run one at a time, so a rebuild
+  during
+the startup registration cannot leave a second registration behind.
+A
+  context that a rebuild discarded never sends diagnostics or
+notifications
+  again.
+- **repo:** refresh the MarkDesk navigator tree when the window gets focus
+  ([#849]) ([a968fee]), closes 842.
+- **cli:** revalidate rendered desk documents after edits on disk ([#841])
+  ([adc187a]), closes 833.
+
+The MarkDesk document pane cached each rendered
+  document for the whole
+product session, so an edit made outside MarkDesk did
+  not show until the
+product was opened again.
+
+GET /api/v1/documents now sends
+  a strong ETag: a SHA-256 digest of every
+input of the render (API version,
+  path, the file's entry IDs, the known
+display IDs that occur in the text, and
+  the text). A request whose
+If-None-Match names the current tag gets 304 with
+  no body, and the server
+skips the render. The CORS preflight allows
+  If-None-Match, and responses
+expose ETag. The change is additive, so
+  apiVersion stays 3.
+
+The UI keeps each render with its ETag and revalidates it
+  when the
+selection changes and when the window receives focus. A 304 keeps
+  the
+shown view and its scroll position.
+- **cli:** return the desk product tree as nodes and edges ([#829]) ([ee5c91e]),
+  closes 823., refs 823., 823.
+- **cli:** answer CORS preflight and enforce an Origin allowlist in the desk API
+  ([#828]) ([375ecf5]), closes 824., refs 824., 824.
+- **core:** locate MSL-P021/P022 on the offending trailer line ([2f2ba5a])
+- **repo:** quote the SessionStart hook path ([dac7d6c])
+- **core:** repair empty trailer placeholders in fmt; drop them from templates
+  ([#818]) ([e698de8])
+- **core:** ignore inline code spans in MSL-B043 raw-HTML check ([bc5001d])
+- **core:** resolve profile type before per-type attribute checks ([d61d2db])
+- **docs:** render the home icon as inline SVG, not a font-icon class
+  ([c380f0b])
+- **docs:** stop scoping the home-icon script to mdBook's menu-bar id
+  ([6ccaef1])
+
+### Documentation
+
+- **mcp:** say which MCP tools do not answer per project ([#872]) ([d82e7fa]),
+  closes 870.
+- **docs:** stop claiming the CLI resolves projects like the LSP ([#862])
+  ([87f61d6])
+- **docs:** document MarkDesk in README, CONTRIBUTING and AGENTS ([#848])
+  ([729c5bf])
+- **docs:** remove remaining ADR hyperlinks from public docs, pin CI's mdBook
+  ([6d094d1])
+- **docs:** remove broken guide<->extensions cross-book links ([e540dc4])
+- **docs:** split typl/uxil reference into a new Extensions book, add home nav
+  ([655d2da])
+
+### Features
+
+- **repo:** propose and accept one entry body from the MarkDesk assistant
+  ([#863]) ([44711c6])
+- **mcp:** serve every project found below the start folder ([#854]) ([3a0c162])
+- **repo:** add MarkDesk assistant setup ([#839]) ([a9c8951]), refs 831., 831.
+- **repo:** add MarkDesk shell with open and read paths ([#830]) ([ae39707]),
+  closes 825.
+- **cli:** bootstrap MarkDesk with ADR-035, app tokens, and desk API spike
+  ([7ab8391])
+- **lsp:** add quick fix removing empty-valued trailer for MSL-P021 ([9a80842])
+
+[0.12.0]: https://github.com/driftsys/markspec/compare/v0.11.0...v0.12.0
+[02e3cd7]: https://github.com/driftsys/markspec/commit/02e3cd7
+[#893]: https://github.com/driftsys/markspec/issues/893
+[d322709]: https://github.com/driftsys/markspec/commit/d322709
+[#891]: https://github.com/driftsys/markspec/issues/891
+[9ff5c77]: https://github.com/driftsys/markspec/commit/9ff5c77
+[#892]: https://github.com/driftsys/markspec/issues/892
+[f9363de]: https://github.com/driftsys/markspec/commit/f9363de
+[#890]: https://github.com/driftsys/markspec/issues/890
+[0f893ab]: https://github.com/driftsys/markspec/commit/0f893ab
+[#888]: https://github.com/driftsys/markspec/issues/888
+[4a44d85]: https://github.com/driftsys/markspec/commit/4a44d85
+[#887]: https://github.com/driftsys/markspec/issues/887
+[464919d]: https://github.com/driftsys/markspec/commit/464919d
+[#886]: https://github.com/driftsys/markspec/issues/886
+[c07fc81]: https://github.com/driftsys/markspec/commit/c07fc81
+[#884]: https://github.com/driftsys/markspec/issues/884
+[f53b7b1]: https://github.com/driftsys/markspec/commit/f53b7b1
+[#883]: https://github.com/driftsys/markspec/issues/883
+[6964225]: https://github.com/driftsys/markspec/commit/6964225
+[#882]: https://github.com/driftsys/markspec/issues/882
+[d91f5fe]: https://github.com/driftsys/markspec/commit/d91f5fe
+[#881]: https://github.com/driftsys/markspec/issues/881
+[28a4fd2]: https://github.com/driftsys/markspec/commit/28a4fd2
+[#879]: https://github.com/driftsys/markspec/issues/879
+[dbd2f18]: https://github.com/driftsys/markspec/commit/dbd2f18
+[#877]: https://github.com/driftsys/markspec/issues/877
+[06d9937]: https://github.com/driftsys/markspec/commit/06d9937
+[#876]: https://github.com/driftsys/markspec/issues/876
+[ac4f781]: https://github.com/driftsys/markspec/commit/ac4f781
+[#871]: https://github.com/driftsys/markspec/issues/871
+[3bb7d36]: https://github.com/driftsys/markspec/commit/3bb7d36
+[#869]: https://github.com/driftsys/markspec/issues/869
+[4f3219c]: https://github.com/driftsys/markspec/commit/4f3219c
+[#867]: https://github.com/driftsys/markspec/issues/867
+[289f841]: https://github.com/driftsys/markspec/commit/289f841
+[#864]: https://github.com/driftsys/markspec/issues/864
+[9677ae7]: https://github.com/driftsys/markspec/commit/9677ae7
+[#858]: https://github.com/driftsys/markspec/issues/858
+[b4f8758]: https://github.com/driftsys/markspec/commit/b4f8758
+[#846]: https://github.com/driftsys/markspec/issues/846
+[f4c3d06]: https://github.com/driftsys/markspec/commit/f4c3d06
+[#844]: https://github.com/driftsys/markspec/issues/844
+[a968fee]: https://github.com/driftsys/markspec/commit/a968fee
+[#849]: https://github.com/driftsys/markspec/issues/849
+[adc187a]: https://github.com/driftsys/markspec/commit/adc187a
+[#841]: https://github.com/driftsys/markspec/issues/841
+[ee5c91e]: https://github.com/driftsys/markspec/commit/ee5c91e
+[#829]: https://github.com/driftsys/markspec/issues/829
+[375ecf5]: https://github.com/driftsys/markspec/commit/375ecf5
+[#828]: https://github.com/driftsys/markspec/issues/828
+[2f2ba5a]: https://github.com/driftsys/markspec/commit/2f2ba5a
+[dac7d6c]: https://github.com/driftsys/markspec/commit/dac7d6c
+[e698de8]: https://github.com/driftsys/markspec/commit/e698de8
+[#818]: https://github.com/driftsys/markspec/issues/818
+[bc5001d]: https://github.com/driftsys/markspec/commit/bc5001d
+[d61d2db]: https://github.com/driftsys/markspec/commit/d61d2db
+[c380f0b]: https://github.com/driftsys/markspec/commit/c380f0b
+[6ccaef1]: https://github.com/driftsys/markspec/commit/6ccaef1
+[d82e7fa]: https://github.com/driftsys/markspec/commit/d82e7fa
+[#872]: https://github.com/driftsys/markspec/issues/872
+[87f61d6]: https://github.com/driftsys/markspec/commit/87f61d6
+[#862]: https://github.com/driftsys/markspec/issues/862
+[729c5bf]: https://github.com/driftsys/markspec/commit/729c5bf
+[#848]: https://github.com/driftsys/markspec/issues/848
+[6d094d1]: https://github.com/driftsys/markspec/commit/6d094d1
+[e540dc4]: https://github.com/driftsys/markspec/commit/e540dc4
+[655d2da]: https://github.com/driftsys/markspec/commit/655d2da
+[44711c6]: https://github.com/driftsys/markspec/commit/44711c6
+[#863]: https://github.com/driftsys/markspec/issues/863
+[3a0c162]: https://github.com/driftsys/markspec/commit/3a0c162
+[#854]: https://github.com/driftsys/markspec/issues/854
+[a9c8951]: https://github.com/driftsys/markspec/commit/a9c8951
+[#839]: https://github.com/driftsys/markspec/issues/839
+[ae39707]: https://github.com/driftsys/markspec/commit/ae39707
+[#830]: https://github.com/driftsys/markspec/issues/830
+[7ab8391]: https://github.com/driftsys/markspec/commit/7ab8391
+[9a80842]: https://github.com/driftsys/markspec/commit/9a80842
+
 ## [0.11.0] (2026-07-06)
 
 ### Bug Fixes
