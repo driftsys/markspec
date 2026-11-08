@@ -423,12 +423,16 @@ computation):
 | Prose lint (`MSL-Q*`)              | **advisory warning**                         | The same rules `markspec lint` runs (modal verbs, EARS, passive voice, INCOSE lexicon, …).                                                                                                                                                                                           |
 
 **`markspec check <file>` (file-local) runs structural validation only.** The
-format-drift, lockfile, and prose-lint gates, and the `MSL-L006` trace-existence
-warning, are project-wide-only — they need the full corpus (or the whole file's
-formatted form) to be meaningful, so they don't fire when you pass explicit file
-arguments. This is the fast, editor/per-file-hook path; the canonical agent
-write loop is `insert → fmt → check` per file, then a project-wide `check`
-before commit/CI catches everything else.
+format-drift, lockfile, and prose-lint gates, the `MSL-L006` trace-existence
+warning, and cross-entry TYPL-009/010/011 and UXIL-016/017/018 diagnostics are
+project-wide-only — they need the full corpus (or the whole file's formatted
+form) to be meaningful, so they don't fire when you pass explicit file
+arguments. The DSL validation codes are suppressed even when their cause is
+entirely inside the subset. Parser diagnostics remain active, including TYPL-010
+for a relative declaration without a namespace base. This is the fast,
+editor/per-file-hook path; the canonical agent write loop is
+`insert → fmt → check` per file, then a project-wide `check` before commit/CI
+catches everything else.
 
 ##### Which project a file belongs to
 

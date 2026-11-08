@@ -1067,6 +1067,58 @@ Deno.test("runPipeline: upstream entry violating every emit stage stays silent b
   );
 });
 
+for (const profile of [null, makeProfile({})]) {
+  Deno.test(`pipeline: file-local scope suppresses TYPL-009/010/011 with ${profile ? "a profile" : "no profile"}`, () => {
+    const entries = entriesOf({
+      "a.md": `- [REQ_0001] First declaration
+
+  The system shall provide \`$brake.pedal : signal float\`.
+
+      Id: 01HZZZ0000000000000000001A
+`,
+      "b.md": `- [REQ_0002] Duplicate declaration
+
+  The system shall provide \`$brake.pedal : signal float\`.
+
+      Id: 01HZZZ0000000000000000001B
+`,
+      "c.md": `- [REQ_0003] Citations
+
+  The system shall read \`$.pedal\` and \`$brake.missing\`.
+
+      Id: 01HZZZ0000000000000000002A
+`,
+    });
+    for (const opts of [{}, { projectWide: true }]) {
+      const whole = runPipeline(entries, profile, {}, opts);
+      assertEquals(
+        whole.diagnostics.filter((d) => d.code.startsWith("TYPL-")).map((d) =>
+          d.code
+        ),
+        ["TYPL-009", "TYPL-010", "TYPL-011"],
+      );
+      assertEquals(whole.valid, false);
+    }
+    const subset = runPipeline(entries, profile, {}, { projectWide: false });
+    assertEquals(subset.diagnostics, []);
+    assertEquals(subset.valid, true);
+  });
+}
+
+Deno.test("pipeline: file-local scope keeps entry-local TYPL-005", () => {
+  const entries = entriesOf({
+    "a.md": `- [REQ_0001] Undefined typedef
+
+  The system shall provide \`$pedal : signal MissingType\`.
+
+      Id: 01HZZZ0000000000000000001A
+`,
+  });
+  const result = runPipeline(entries, null, {}, { projectWide: false });
+  assertEquals(result.diagnostics.map((d) => d.code), ["TYPL-005"]);
+  assertEquals(result.valid, false);
+});
+
 Deno.test("pipeline: uxil family fires for a designated profile (#727)", () => {
   const profile = makeProfile({
     "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },

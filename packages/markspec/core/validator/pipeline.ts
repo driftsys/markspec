@@ -40,11 +40,15 @@ import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { validateUxilFamily } from "./uxil_family.ts";
 
-/** Cross-entry uxil codes suppressed under file-local scope (#727): a
+/** Cross-entry DSL codes suppressed under file-local scope: a
  * subset registry cannot distinguish a dangling reference from an
  * unchecked file — the same false-positive class the MSL-L006 filter
- * guards. Entry-local UXIL codes are unaffected. */
-const FILE_LOCAL_SUPPRESSED_UXIL: ReadonlySet<string> = new Set([
+ * guards. Suppress these even when the cause is inside the subset,
+ * matching uxil's scope policy. Parser diagnostics are unaffected. */
+const FILE_LOCAL_SUPPRESSED_DSL: ReadonlySet<string> = new Set([
+  "TYPL-009",
+  "TYPL-010",
+  "TYPL-011",
   "UXIL-016",
   "UXIL-017",
   "UXIL-018",
@@ -62,12 +66,13 @@ export interface PipelineResult {
 /** Options for {@linkcode runPipeline}. */
 export interface PipelineOptions {
   /**
-   * When `false`, suppress MSL-L006 ("link target does not resolve") from
-   * Stage 4 output. Use this when the validator is running against a subset
+   * When `false`, suppress cross-entry TYPL-009/010/011 and UXIL-016/017/018,
+   * plus MSL-L006 ("link target does not resolve") from Stage 4 output.
+   * Use this when the validator is running against a subset
    * of the project's files (e.g. `markspec check <file>`): file-local scope
    * cannot distinguish a typo from a valid cross-file target. MSL-L006 is
    * only meaningful when the full entry set is available (LSP, `compile`).
-   * Defaults to `true` (full-project scope — emit MSL-L006 normally).
+   * Defaults to `true` (full-project scope — emit these codes normally).
    */
   readonly projectWide?: boolean;
 
@@ -98,7 +103,7 @@ export interface PipelineOptions {
  *   and non-empty, MSL-C072 is checked for each entry. Defaults to no
  *   conventions (rule inactive).
  * @param opts - Pipeline options. Pass `{ projectWide: false }` when
- *   validating a file-local subset so MSL-L006 is suppressed.
+ *   validating a file-local subset to suppress cross-entry diagnostics.
  */
 export function runPipeline(
   entries: readonly Entry[],
@@ -250,19 +255,15 @@ export function runPipeline(
   // FULL classified list on purpose: the family derives its own #771
   // partition and its own declaring/citing split — registry scope is the
   // module's contract, not this orchestrator's (mirrors validateTypl).
-  // File-local scope (projectWide: false) suppresses the cross-entry codes
-  // (UXIL-016/017/018) — a subset registry cannot distinguish a dangling
-  // reference from an unchecked file, the same false-positive class the
-  // MSL-L006 suppression guards (#727 review).
   const uxilDiagnostics = validateUxilFamily(finalEntries, profile);
-  diagnostics.push(
-    ...(projectWide ? uxilDiagnostics : uxilDiagnostics.filter(
-      (d) => !FILE_LOCAL_SUPPRESSED_UXIL.has(d.code),
-    )),
-  );
+  diagnostics.push(...uxilDiagnostics);
 
-  const valid = !diagnostics.some((d) => d.severity === "error");
-  return { entries: finalEntries, diagnostics, valid };
+  // Apply the same scope policy to Stage 1's typl and Stage 5's uxil.
+  const scopedDiagnostics = projectWide ? diagnostics : diagnostics.filter(
+    (d) => !FILE_LOCAL_SUPPRESSED_DSL.has(d.code),
+  );
+  const valid = !scopedDiagnostics.some((d) => d.severity === "error");
+  return { entries: finalEntries, diagnostics: scopedDiagnostics, valid };
 }
 
 /**

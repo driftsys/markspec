@@ -6,6 +6,8 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { markspec } from "./helpers.ts";
 
+const PROJECT_YAML = "name: typl-e2e\nversion: 0.1.0\n";
+
 const DECLARING_ENTRY = `- [REQ_0001] Brake signals contract
 
   The brake namespace (\`$powertrain.brake : namespace\`) declares:
@@ -32,7 +34,8 @@ Deno.test("published: duplicate declaration across files is TYPL-009", async () 
 
       Id: 01HZZZ0000000000000000001B
 `;
-  const { code, stderr } = await markspec(["check", "a.md", "b.md"], {
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
     "a.md": DECLARING_ENTRY,
     "b.md": dup,
   });
@@ -61,11 +64,55 @@ Deno.test("published: citation of undeclared symbol is TYPL-011", async () => {
 
       Id: 01HZZZ0000000000000000002B
 `;
-  const { code, stderr } = await markspec(["check", "a.md", "b.md"], {
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
     "a.md": DECLARING_ENTRY,
     "b.md": citing,
   });
   assertEquals(code, 1);
+  assertStringIncludes(stderr, "TYPL-011");
+});
+
+Deno.test("published: checking only the citing file succeeds when the declaration is unchecked", async () => {
+  const { code, stderr } = await markspec(["check", "citing.md"], {
+    "project.yaml": PROJECT_YAML,
+    "declaring.md": DECLARING_ENTRY,
+    "citing.md": `- [REQ_0003] Pedal latency
+
+  The system shall sample \`$powertrain.brake.pedal_position\` within 5 ms.
+
+      Id: 01HZZZ0000000000000000002A
+`,
+  });
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("TYPL-011"), false, stderr);
+});
+
+Deno.test("published: file-local check suppresses a dangling citation", async () => {
+  const { code, stderr } = await markspec(["check", "citing.md"], {
+    "project.yaml": PROJECT_YAML,
+    "citing.md": `- [REQ_0004] Ghost citation
+
+  The system shall read \`$powertrain.brake.rotor_temp\` each cycle.
+
+      Id: 01HZZZ0000000000000000002B
+`,
+  });
+  assertEquals(code, 0, stderr);
+  assertEquals(stderr.includes("TYPL-011"), false, stderr);
+});
+
+Deno.test("published: compile still reports a dangling citation", async () => {
+  const { code, stderr } = await markspec(["compile", "citing.md"], {
+    "project.yaml": PROJECT_YAML,
+    "citing.md": `- [REQ_0004] Ghost citation
+
+  The system shall read \`$powertrain.brake.rotor_temp\` each cycle.
+
+      Id: 01HZZZ0000000000000000002B
+`,
+  });
+  assertEquals(code, 0, stderr);
   assertStringIncludes(stderr, "TYPL-011");
 });
 
