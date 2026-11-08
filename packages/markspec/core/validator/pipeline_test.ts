@@ -1105,6 +1105,62 @@ for (const profile of [null, makeProfile({})]) {
   });
 }
 
+for (
+  const { code, markdown } of [
+    {
+      code: "UXIL-016",
+      markdown: `- [UXI_0001] Child with no parent declaration
+
+  Declares \`ux:media.home.child : screen\`.
+
+      Id: 01HZZZ0000000000000000001A
+`,
+    },
+    {
+      code: "UXIL-017",
+      markdown: `- [UXI_0001] Controls panel
+
+  Declares \`ux:media.controls : panel\`.
+
+      Id: 01HZZZ0000000000000000001A
+
+- [UXI_0002] Home screen
+
+  \`ux:media.home : screen\` offers:
+
+  - \`/go : navigate -> media.controls\`.
+
+      Id: 01HZZZ0000000000000000001B
+`,
+    },
+    {
+      code: "UXIL-018",
+      markdown: `- [REQ_0001] Unknown surface citation
+
+  The system shall open \`ux:media.ghost/play!activate\`.
+
+      Id: 01HZZZ0000000000000000001A
+`,
+    },
+  ]
+) {
+  Deno.test(`pipeline: file-local scope suppresses ${code}`, () => {
+    const profile = makeProfile({
+      "ux-contract": { pattern: "UXI_{n:4d}", declares: "ux-surface" },
+      "requirement": { pattern: "REQ_{n:4d}" },
+    });
+    const entries = entriesOf({ "a.md": markdown });
+    for (const opts of [{}, { projectWide: true }]) {
+      const whole = runPipeline(entries, profile, {}, opts);
+      assertEquals(whole.diagnostics.map((d) => d.code), [code]);
+      assertEquals(whole.valid, false);
+    }
+    const subset = runPipeline(entries, profile, {}, { projectWide: false });
+    assertEquals(subset.diagnostics, []);
+    assertEquals(subset.valid, true);
+  });
+}
+
 Deno.test("pipeline: file-local scope keeps entry-local TYPL-005", () => {
   const entries = entriesOf({
     "a.md": `- [REQ_0001] Undefined typedef

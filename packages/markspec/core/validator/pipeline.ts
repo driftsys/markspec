@@ -66,8 +66,9 @@ export interface PipelineResult {
 /** Options for {@linkcode runPipeline}. */
 export interface PipelineOptions {
   /**
-   * When `false`, suppress cross-entry TYPL-009/010/011 and UXIL-016/017/018,
-   * plus MSL-L006 ("link target does not resolve") from Stage 4 output.
+   * When `false`, suppress cross-entry TYPL-009/010/011 from Stage 1,
+   * UXIL-016/017/018 from Stage 5, and MSL-L006 ("link target does not
+   * resolve") from Stage 4.
    * Use this when the validator is running against a subset
    * of the project's files (e.g. `markspec check <file>`): file-local scope
    * cannot distinguish a typo from a valid cross-file target. MSL-L006 is

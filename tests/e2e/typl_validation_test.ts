@@ -52,7 +52,7 @@ Deno.test(
   "validate: cross-entry kind mismatch no longer errors (TYPL-002 retired)",
   async () => {
     const { code, stderr } = await markspec(
-      ["check", "req.md"],
+      ["check"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": DIFF_KIND_MD },
       },
@@ -100,7 +100,7 @@ Deno.test(
   "validate: cross-entry shape mismatch no longer errors (TYPL-003 retired)",
   async () => {
     const { code, stderr } = await markspec(
-      ["check", "req.md"],
+      ["check"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": DIFF_SHAPE_MD },
       },
@@ -365,7 +365,7 @@ Deno.test(
   "validate: identical cross-entry declarations do not trigger TYPL-002/003",
   async () => {
     const { code, stderr } = await markspec(
-      ["check", "req.md"],
+      ["check"],
       {
         files: { "project.yaml": PROJECT_YAML, "req.md": SAME_DECL_MD },
       },

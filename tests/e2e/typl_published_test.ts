@@ -21,7 +21,8 @@ const DECLARING_ENTRY = `- [REQ_0001] Brake signals contract
 `;
 
 Deno.test("published: declared-once + relative-under-base is clean", async () => {
-  const { code, stderr } = await markspec(["check", "a.md"], {
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
     "a.md": DECLARING_ENTRY,
   });
   assertEquals(code, 0, stderr);
@@ -50,7 +51,8 @@ Deno.test("published: absolute citation from another entry is clean", async () =
 
       Id: 01HZZZ0000000000000000002A
 `;
-  const { code, stderr } = await markspec(["check", "a.md", "b.md"], {
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
     "a.md": DECLARING_ENTRY,
     "b.md": citing,
   });
@@ -102,17 +104,21 @@ Deno.test("published: file-local check suppresses a dangling citation", async ()
   assertEquals(stderr.includes("TYPL-011"), false, stderr);
 });
 
-Deno.test("published: compile still reports a dangling citation", async () => {
+Deno.test("published: compile still reports TYPL-009/010/011", async () => {
   const { code, stderr } = await markspec(["compile", "citing.md"], {
     "project.yaml": PROJECT_YAML,
-    "citing.md": `- [REQ_0004] Ghost citation
+    "citing.md": `${DECLARING_ENTRY}
+- [REQ_0004] Duplicate declaration and unresolved citations
 
-  The system shall read \`$powertrain.brake.rotor_temp\` each cycle.
+  Declares \`$powertrain.brake.pedal_position : signal float[0..100]\` again.
+  The system shall read \`$powertrain.brake.rotor_temp\` and \`$.pedal_position\`.
 
       Id: 01HZZZ0000000000000000002B
 `,
   });
   assertEquals(code, 0, stderr);
+  assertStringIncludes(stderr, "TYPL-009");
+  assertStringIncludes(stderr, "TYPL-010");
   assertStringIncludes(stderr, "TYPL-011");
 });
 
@@ -174,7 +180,8 @@ Deno.test("compat: entry-local same-name different-shape no longer errors", asyn
 
       Id: 01HZZZ0000000000000000006B
 `;
-  const { code, stderr } = await markspec(["check", "a.md", "b.md"], {
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
     "a.md": a,
     "b.md": b,
   });
@@ -186,12 +193,16 @@ Deno.test("compat: entry-local same-name different-shape no longer errors", asyn
 Deno.test("compat: free-prose $foo.bar stays opaque", async () => {
   const prose = `- [REQ_0010] Prose mention
 
-  The shell variable $HOME.backup is not a typl symbol; neither is
-  $foo.bar outside a code span.
+  The system shall preserve these shell variable names outside code spans:
+
+  $HOME.backup
+
+  $foo.bar
 
       Id: 01HZZZ0000000000000000007A
 `;
-  const { code, stderr } = await markspec(["check", "a.md"], {
+  const { code, stderr } = await markspec(["check"], {
+    "project.yaml": PROJECT_YAML,
     "a.md": prose,
   });
   assertEquals(code, 0, stderr);
