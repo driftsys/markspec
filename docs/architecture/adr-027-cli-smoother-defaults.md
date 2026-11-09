@@ -423,3 +423,8 @@ exclusions. A child's negation cannot restore a descendant pruned by that
 initial walk; this pre-existing limitation is outside #703. MCP's separate
 compile walker remains outside this contract, as recorded in the follow-ups
 above.
+
+**Later change (#885):** Each discovered project is now scanned with its own
+`exclude:` list, so a child's negation can restore non-hidden descendants pruned
+by the initial walk. See
+[ADR-028 section 7](adr-028-mcp-project-discovery.md#7-downward-discovery-every-project-under-the-start-folder-is-answered).

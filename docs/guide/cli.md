@@ -216,9 +216,11 @@ visited: `!target/keep.md` alone cannot restore a file under an ignored
 These rules apply to bare `check`/`lint`/`fmt`, explicit directory arguments
 within a project, LSP indexing, lockfile entry collection, and nested-project
 discovery for the CLI, LSP, and MCP. Nested-root discovery uses the outer
-project's exclusions for its initial walk; child-project exclusions can filter
-found roots, but cannot restore descendants pruned by that walk. Explicit file
-arguments are taken as-is.
+project's exclusions for its initial walk, then scans each discovered project
+with its own `exclude:` list and inherited `.gitignore` rules. A child's
+negations can restore non-hidden descendants pruned by the initial walk, but
+hidden folders are never re-included. An enclosing project's exclusions still
+apply to its entire subtree. Explicit file arguments are taken as-is.
 
 **Nested projects and `.gitignore`.** The walk of a nested project also applies
 the `.gitignore` files of the folders between the outermost project root and the

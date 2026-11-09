@@ -27,8 +27,10 @@
  * A document outside every known root, with no config above it, falls
  * back to the primary context.
  *
- * A config file that sits in a gitignored, excluded or hidden directory
- * below a known root is not discovered; documents there belong to the
+ * A config file in a gitignored directory below a known root can be
+ * discovered when a nested project's `exclude:` negation re-includes that
+ * directory. Hidden directories and directories covered by an enclosing
+ * project's exclusions are not discovered; documents there belong to the
  * enclosing known root.
  *
  * Every mutation of the root set — startup, on-demand creation, rebuild,

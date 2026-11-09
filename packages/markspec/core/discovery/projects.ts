@@ -70,9 +70,9 @@ export async function resolveConfigRoot(
  * resolved with {@linkcode resolveConfigRoot} from its own directory, so a
  * `.markspec.yaml` below a `project.yaml` is not a root of its own — the
  * same answer the CLI gives for a file there. Each found root is scanned
- * again with its own exclude list, so its negations can re-include folders
- * that the enclosing project's walk skipped. A found root is dropped when
- * the `.markspec.yaml` `exclude:` list of another found root above it
+ * again with its own exclude list, so its negations can re-include non-hidden
+ * folders that the enclosing project's walk skipped. A found root is dropped
+ * when the `.markspec.yaml` `exclude:` list of another found root above it
  * covers it: each project's exclude list applies to its own subtree, with
  * patterns relative to that project. The result is sorted.
  */

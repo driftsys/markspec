@@ -206,6 +206,63 @@ for (const excluded of ["a/", "a/dist/"]) {
   });
 }
 
+Deno.test("discoverProjectRoots: a re-scan inherits the start root's gitignore", async () => {
+  const dir = await real(
+    await makeTree({
+      ".gitignore": "generated/\n",
+      "a/project.yaml": PROJECT,
+      "a/generated/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      join(dir, "a"),
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discoverProjectRoots: a second-generation re-scan applies its own negation", async () => {
+  const dir = await real(
+    await makeTree({
+      "a/.gitignore": "generated/\n",
+      "a/.markspec.yaml": 'exclude: ["!generated/"]\n',
+      "a/generated/.gitignore": "out/\n",
+      "a/generated/.markspec.yaml": 'exclude: ["!out/"]\n',
+      "a/generated/out/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      join(dir, "a"),
+      join(dir, "a", "generated"),
+      join(dir, "a", "generated", "out"),
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discoverProjectRoots: a re-scan cannot find projects below an excluded parent", async () => {
+  const dir = await real(
+    await makeTree({
+      ".markspec.yaml": 'exclude: ["a/generated/"]\n',
+      "a/.markspec.yaml": 'exclude: ["!generated/"]\n',
+      "a/generated/project.yaml": PROJECT,
+      "a/generated/sub/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      dir,
+      join(dir, "a"),
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("discoverProjectRoots: a child's negation applies below an intermediate project", async () => {
   const dir = await real(
     await makeTree({
