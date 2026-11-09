@@ -14,16 +14,11 @@
  * implement `connection.onHover`.
  */
 
-import type { Entry } from "../core/model/mod.ts";
-
-/**
- * Display-ID token grammar matching what the parser accepts inside
- * `[...]` brackets and on the right-hand side of trace attributes.
- * MarkSpec display IDs are letters / digits / hyphen / underscore /
- * dot / slash, at least 3 chars (so `at`, `if` etc. don't accidentally
- * match prose) and must start with an alphanumeric.
- */
-const DISPLAY_ID_TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,}$/;
+import {
+  DISPLAY_ID_CHAR_RE,
+  DISPLAY_ID_TOKEN_RE,
+  type Entry,
+} from "../core/mod.ts";
 
 /**
  * Return the display-ID token at the given column on `line`, or
@@ -38,11 +33,10 @@ export function displayIdAtPosition(
   if (/\s/.test(line[column])) return undefined;
   // Scan left and right for the token boundaries — anything in the
   // grammar's character set continues the token.
-  const CHAR_RE = /[A-Za-z0-9._/-]/;
   let start = column;
-  while (start > 0 && CHAR_RE.test(line[start - 1])) start--;
+  while (start > 0 && DISPLAY_ID_CHAR_RE.test(line[start - 1])) start--;
   let end = column;
-  while (end < line.length && CHAR_RE.test(line[end])) end++;
+  while (end < line.length && DISPLAY_ID_CHAR_RE.test(line[end])) end++;
   const token = line.slice(start, end);
   return DISPLAY_ID_TOKEN_RE.test(token) ? token : undefined;
 }

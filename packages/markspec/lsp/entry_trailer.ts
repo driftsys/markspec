@@ -15,7 +15,11 @@
  * source line, suitable for direct use as LSP positions.
  */
 
-import type { Entry } from "../core/model/mod.ts";
+import {
+  DISPLAY_ID_CHAR_RE,
+  DISPLAY_ID_TOKEN_RE,
+  type Entry,
+} from "../core/mod.ts";
 
 /** A single attribute line in an entry's trailer block. */
 export interface TrailerLine {
@@ -49,16 +53,11 @@ const TRAILER_LINE_RE = /^(\s{4,})([A-Z][A-Za-z-]*)\s*:\s*(.*)$/;
 const FENCE_DELIM_RE = /^\s*(`{3,}|~{3,})/;
 
 /**
- * Display-ID token pattern. Mirrors the grammar in `hover.ts` /
- * `rename.ts`: letters, digits, `._/-`, ≥3 chars, alphanumeric start.
- * `\b` cannot be used because `.` and `/` are not word characters, so
- * boundaries are enforced by explicit `ID_CHAR_RE` checks at the match
- * edges (same approach as `rename.ts`).
+ * Scan for shared LSP tokens without anchors so a value can contain several
+ * IDs. Explicit DISPLAY_ID_CHAR_RE checks reject partial token matches;
+ * word boundaries would treat dots and slashes as separators.
  */
-const DISPLAY_ID_RE = /[A-Za-z0-9][A-Za-z0-9._/-]{2,}/g;
-
-/** Display-ID character set — letters, digits, dot, slash, hyphen, underscore. */
-const ID_CHAR_RE = /[A-Za-z0-9._/-]/;
+const DISPLAY_ID_RE = new RegExp(DISPLAY_ID_TOKEN_RE.source.slice(1, -1), "g");
 
 /**
  * Walk the trailer of `entry` in `lines` and return per-line info.
@@ -119,8 +118,8 @@ export function scanEntryTrailer(
       const before = match.index === 0 ? "" : valueText[match.index - 1];
       const afterIdx = match.index + match[0].length;
       const after = afterIdx >= valueText.length ? "" : valueText[afterIdx];
-      const boundedLeft = before === "" || !ID_CHAR_RE.test(before);
-      const boundedRight = after === "" || !ID_CHAR_RE.test(after);
+      const boundedLeft = before === "" || !DISPLAY_ID_CHAR_RE.test(before);
+      const boundedRight = after === "" || !DISPLAY_ID_CHAR_RE.test(after);
       if (!boundedLeft || !boundedRight) continue;
       idRanges.push({
         start: valueStart + match.index,

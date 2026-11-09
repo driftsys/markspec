@@ -18,7 +18,12 @@ import rehypeStringify from "rehype-stringify";
 import { dirname, join, normalize } from "@std/path/posix";
 import type { Blockquote, Definition, Link, Root, Text } from "mdast";
 import type { Caption, EffectiveProfile, Entry } from "../../core/mod.ts";
-import { detectCaptions, parse, resolveEntryColor } from "../../core/mod.ts";
+import {
+  detectCaptions,
+  DISPLAY_ID_CHAR_RE,
+  parse,
+  resolveEntryColor,
+} from "../../core/mod.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -50,9 +55,12 @@ export interface RenderChapterOptions {
    */
   readonly chapterSlugs?: ReadonlyMap<string, string>;
   /**
-   * Display IDs that exist in the project. When supplied, every whole-token
-   * occurrence of one of these IDs in prose, entry bodies, and entry
-   * attribute values becomes
+   * Display IDs that exist in the project. In prose, entry bodies, and entry
+   * attribute values except Labels, tokens resolve by exact known ID first,
+   * then by splitting on slashes if every segment is nonempty and a known ID.
+   * If neither resolves, remove one trailing period and repeat, leaving the
+   * removed period outside the cross-reference markup.
+   * Each resolved ID becomes
    * `<span class="cross-ref" data-display-id="X">X</span>`. Text inside
    * `code`, `pre`, and `a` elements in prose is left untouched. When
    * omitted, no cross-reference markup is produced.
@@ -429,12 +437,40 @@ interface _HastNode {
 
 const _CROSS_REF_SKIP_TAGS = new Set(["code", "pre", "a"]);
 
-/** Matches a run of display-ID characters, as the LSP token grammar does. */
-const _ID_TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]|[A-Za-z0-9]/g;
+/** Scan complete character runs so an invalid prefix cannot become a link. */
+const _ID_TOKEN_RE = new RegExp(`${DISPLAY_ID_CHAR_RE.source}+`, "g");
+
+/** Try exact IDs and slash segments before removing each trailing period. */
+function* _knownIdMatches(
+  text: string,
+  known: ReadonlySet<string>,
+): Generator<{ id: string; index: number }> {
+  for (const match of text.matchAll(_ID_TOKEN_RE)) {
+    let id = match[0];
+    while (id.length > 0) {
+      if (known.has(id)) {
+        yield { id, index: match.index };
+        break;
+      }
+      const parts = id.split("/");
+      if (parts.every((part) => part.length > 0 && known.has(part))) {
+        let index = match.index;
+        for (const part of parts) {
+          yield { id: part, index };
+          index += part.length + 1;
+        }
+        break;
+      }
+      if (!id.endsWith(".")) break;
+      id = id.slice(0, -1);
+    }
+  }
+}
 
 /**
- * Replace whole-token occurrences of known display IDs in text nodes with
- * cross-reference `span` elements. Skips `code`, `pre`, and `a` subtrees.
+ * Resolve complete ID-character runs in text nodes to cross-reference spans:
+ * try the whole run, then nonempty known slash segments, then remove one
+ * trailing period and repeat. Skips `code`, `pre`, and `a` subtrees.
  */
 function _linkDisplayIds(
   node: _HastNode,
@@ -462,18 +498,17 @@ function _splitTextNode(
 ): _HastNode[] {
   const out: _HastNode[] = [];
   let last = 0;
-  for (const m of text.matchAll(_ID_TOKEN_RE)) {
-    if (!known.has(m[0])) continue;
-    if (m.index > last) {
-      out.push({ type: "text", value: text.slice(last, m.index) });
+  for (const { id, index } of _knownIdMatches(text, known)) {
+    if (index > last) {
+      out.push({ type: "text", value: text.slice(last, index) });
     }
     out.push({
       type: "element",
       tagName: "span",
-      properties: { className: "cross-ref", "data-display-id": m[0] },
-      children: [{ type: "text", value: m[0] }],
+      properties: { className: "cross-ref", "data-display-id": id },
+      children: [{ type: "text", value: id }],
     });
-    last = m.index + m[0].length;
+    last = index + id.length;
   }
   if (last === 0) return [{ type: "text", value: text }];
   if (last < text.length) {
@@ -483,8 +518,8 @@ function _splitTextNode(
 }
 
 /**
- * HTML-escape an attribute value, wrapping whole-token occurrences of
- * known display IDs in cross-reference spans.
+ * HTML-escape an attribute value and wrap IDs resolved by _knownIdMatches
+ * in cross-reference spans, using the same resolution order as prose.
  */
 function _valueToHtml(
   value: string,
@@ -493,12 +528,12 @@ function _valueToHtml(
   if (!known) return _escapeHtml(value);
   let out = "";
   let last = 0;
-  for (const m of value.matchAll(_ID_TOKEN_RE)) {
-    if (!known.has(m[0])) continue;
-    out += _escapeHtml(value.slice(last, m.index));
-    const id = _escapeHtml(m[0]);
-    out += `<span class="cross-ref" data-display-id="${id}">${id}</span>`;
-    last = m.index + m[0].length;
+  for (const { id, index } of _knownIdMatches(value, known)) {
+    out += _escapeHtml(value.slice(last, index));
+    const escapedId = _escapeHtml(id);
+    out +=
+      `<span class="cross-ref" data-display-id="${escapedId}">${escapedId}</span>`;
+    last = index + id.length;
   }
   return out + _escapeHtml(value.slice(last));
 }

@@ -91,6 +91,36 @@ Deno.test("buildSemanticTokens: title line emits class + enum tokens", () => {
   assertEquals(titleTokens[1].length, "Brake response time".length);
 });
 
+Deno.test("buildSemanticTokens: reference title keeps its ID and title tokens", () => {
+  const entry: Entry = {
+    ...makeEntry(),
+    displayId: makeDisplayId("ISO-26262-6"),
+    title: "Title",
+    shape: "Reference",
+  };
+  const tokens = buildSemanticTokens(
+    [entry],
+    makeProfile([]),
+    ["- [@ISO-26262-6] Title"],
+  );
+  assertEquals(tokens, [
+    {
+      line: 0,
+      startChar: 3,
+      length: 12,
+      tokenType: "enum",
+      tokenModifiers: ["declaration"],
+    },
+    {
+      line: 0,
+      startChar: 17,
+      length: 5,
+      tokenType: "class",
+      tokenModifiers: ["declaration"],
+    },
+  ]);
+});
+
 Deno.test("buildSemanticTokens: trailer Id emits property + enumMember (uniform with trace attrs)", () => {
   const text = [
     "- [REQ-001] Brake response time",

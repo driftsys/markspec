@@ -68,7 +68,35 @@ Deno.test("displayIdAtPosition: rejects short / non-ID-like tokens", () => {
   assertEquals(displayIdAtPosition(line, 13), undefined);
 });
 
+Deno.test("displayIdAtPosition: accepts a three-character ID", () => {
+  assertEquals(displayIdAtPosition("[ABC]", 2), "ABC");
+});
+
+Deno.test("displayIdAtPosition: colon separates an ID from following text", () => {
+  assertEquals(displayIdAtPosition("SYS_A: x", 2), "SYS_A");
+});
+
+Deno.test("displayIdAtPosition: rejects a token with a leading underscore", () => {
+  assertEquals(displayIdAtPosition("_SYS_A", 3), undefined);
+});
+
 // --- formatHoverContent ---
+
+Deno.test("displayIdAtPosition: slash belongs to an ID as in the parser grammar", () => {
+  const line = "SYS_A/SYS_B";
+  assertEquals(displayIdAtPosition(line, 2), "SYS_A/SYS_B");
+  assertEquals(displayIdAtPosition(line, 5), "SYS_A/SYS_B");
+  assertEquals(displayIdAtPosition(line, 8), "SYS_A/SYS_B");
+});
+
+Deno.test("displayIdAtPosition: allows internal and trailing dots, underscores and hyphens", () => {
+  for (const id of ["REQ_", "REQ-", "REQ.", "REQ/", "REQ.part-_"]) {
+    assertEquals(displayIdAtPosition(`[${id}]`, 2), id);
+  }
+  for (const id of ["_REQ", "-REQ", ".REQ", "/REQ"]) {
+    assertEquals(displayIdAtPosition(`[${id}]`, 2), undefined);
+  }
+});
 
 Deno.test("formatHoverContent: returns title + type + Id when type is set", () => {
   const entry = makeEntry({

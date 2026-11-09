@@ -25,10 +25,7 @@
  * `isLineFenced`) before calling this function.
  */
 
-import { walkProseLines } from "../core/mod.ts";
-
-/** Display-ID character set — letters, digits, dot, slash, hyphen, underscore. */
-const ID_CHAR_RE = /[A-Za-z0-9._/-]/;
+import { DISPLAY_ID_CHAR_RE, walkProseLines } from "../core/mod.ts";
 
 /** LSP `DocumentHighlightKind` numeric constants (spec §). */
 export const DocumentHighlightKindText = 1;
@@ -72,8 +69,8 @@ export function findOccurrencesInFile(
       const after = idx + displayId.length >= line.length
         ? ""
         : line[idx + displayId.length];
-      const boundedLeft = before === "" || !ID_CHAR_RE.test(before);
-      const boundedRight = after === "" || !ID_CHAR_RE.test(after);
+      const boundedLeft = before === "" || !DISPLAY_ID_CHAR_RE.test(before);
+      const boundedRight = after === "" || !DISPLAY_ID_CHAR_RE.test(after);
       if (boundedLeft && boundedRight) {
         // Declaration heuristic: the character immediately before the
         // token is `[`. Holds for both `- [REQ-001]` title lines and
