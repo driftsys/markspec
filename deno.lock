@@ -1430,7 +1430,6 @@
       "jsr:@std/toml@1",
       "jsr:@std/ulid@1",
       "jsr:@std/yaml@1",
-      "npm:ajv-formats@3.0.1",
       "npm:ajv@8"
     ],
     "members": {
@@ -1443,6 +1442,7 @@
           "npm:@modelcontextprotocol/sdk@1",
           "npm:@myriaddreamin/typst-ts-node-compiler@0.6",
           "npm:@types/mdast@4",
+          "npm:ajv-formats@3.0.1",
           "npm:jsonc-parser@3",
           "npm:rehype-stringify@10",
           "npm:remark-gfm@4",

@@ -1,9 +1,9 @@
 # Profiles and extensions
 
 A **profile** is a `markspec.yaml` manifest that extends the core type taxonomy
-with domain-specific vocabulary. Profiles are composable and chainable — a
-project selects a list of profiles that are merged into an **effective profile**
-that governs validation and tooling.
+with domain-specific vocabulary. A project selects one profile; its `extends:`
+chain is merged into an **effective profile** that governs validation and
+tooling.
 
 ## What a profile declares
 

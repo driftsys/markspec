@@ -70,6 +70,7 @@ Deno.test("markspec schema and loader: profile specifier parity", async (t) => {
       ["./", true],
       ["../profiles/demo.yaml", true],
       ["git+https://example.com/demo.git#v1", true],
+      ["git+https://example.com/demo#v1", false],
       ["git+http://example.com/demo.git/sub/path#main", true],
       ["git+file:///tmp/demo.git#main", true],
       ["npm:demo@1.0.0", true],
@@ -77,6 +78,7 @@ Deno.test("markspec schema and loader: profile specifier parity", async (t) => {
       ["", false],
       ["demo", false],
       ["/profiles/demo.yaml", false],
+      [".hidden/profile", false],
       ["git+invalid", false],
       ["git+https://example.com/demo.git", false],
       ["git+https://example.com/demo.git#", false],
@@ -94,11 +96,6 @@ Deno.test("markspec schema and loader: profile specifier parity", async (t) => {
       const result = parseMarkspecYaml(JSON.stringify(input), ".markspec.yaml");
       assertEquals(validate(input), valid, "schema acceptance");
       assertEquals(result.config !== null, valid, "loader acceptance");
-      assertEquals(
-        validate(input),
-        result.config !== null,
-        "schema/loader parity",
-      );
     });
   }
 });
@@ -122,11 +119,6 @@ Deno.test("markspec schema and loader: empty tool config parity", async (t) => {
       assertEquals(validate(parseYaml(yaml)), true, "schema acceptance");
       assertEquals(result.config?.exclude, []);
       assertEquals(result.config?.captionConventions, {});
-      assertEquals(
-        validate(parseYaml(yaml)),
-        result.config !== null,
-        "schema/loader parity",
-      );
     });
   }
 });
@@ -154,11 +146,6 @@ Deno.test("markspec schema and loader: tool config value parity", async (t) => {
       const result = parseMarkspecYaml(JSON.stringify(input), ".markspec.yaml");
       assertEquals(validate(input), valid, "schema acceptance");
       assertEquals(result.config !== null, valid, "loader acceptance");
-      assertEquals(
-        validate(input),
-        result.config !== null,
-        "schema/loader parity",
-      );
     });
   }
 });
@@ -187,12 +174,16 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         [null, false],
         [[ref, { version: "main", name: "demo", url: ref.url }], false],
         [[ref, { ...ref, version: "v1" }], true],
+        [[ref, { ...ref, url: "https://example.com/other" }], true],
+        [[ref, { ...ref, name: "other" }], true],
         [[{ ...ref, version: "" }], true],
         [[{ ...ref, url: "not-a-url" }], false],
         [[{ ...ref, url: "https://example.com/bad path" }], false],
         [[{ ...ref, url: "https://example.com/%zz" }], false],
         [[{ ...ref, url: "https://user@example.com:443/%zz" }], false],
         [[{ ...ref, url: "git@host/path:repo" }], false],
+        [[{ ...ref, url: "git@example.com:bad path/demo.git" }], false],
+        [[{ ...ref, url: "C:\\repo" }], false],
         [[{ ...ref, url: "urn:example:demo" }], true],
         [[{ ...ref, url: "file:///tmp/demo" }], true],
         [[{ ...ref, url: "ssh://git@example.com/demo.git" }], true],
@@ -200,6 +191,12 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         [[{ ...ref, version: 1 }], false],
         [[{ ...ref, name: null }], false],
         [[{ ...ref, name: 1 }], false],
+        ...(field === "references"
+          ? [
+            [[{ url: "../demo" }], false],
+            [[{ url: "git@github.com:acme/demo.git" }], false],
+          ] as const
+          : []),
         ["invalid", false],
         [[null], false],
         [[{}], false],
@@ -220,9 +217,22 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         }
         assertEquals(validate(input), valid, "schema acceptance");
         assertEquals(accepted, valid, "loader acceptance");
-        assertEquals(validate(input), accepted, "schema/loader parity");
       });
     }
+  }
+});
+
+Deno.test("projectRef: empty version is preserved", () => {
+  for (const field of ["dependencies", "references"] as const) {
+    const config = parseProjectConfig(
+      JSON.stringify({
+        name: "demo",
+        version: "1.0.0",
+        [field]: [{ url: "https://example.com/demo", version: "" }],
+      }),
+      "project.yaml",
+    );
+    assertEquals(config[field][0].version, "");
   }
 });
 
@@ -263,7 +273,6 @@ Deno.test("project schema and loader: version type parity", async (t) => {
       }
       assertEquals(validate(input), valid, "schema acceptance");
       assertEquals(accepted, valid, "loader acceptance");
-      assertEquals(validate(input), accepted, "schema/loader parity");
     });
   }
 });
@@ -278,7 +287,7 @@ Deno.test("project schema and loader: documented behavior exceptions", async (t)
     ),
   );
   const validate = new Ajv().addFormat("uri", fullFormats.uri).compile(schema);
-  // These differences are required by mod_test.ts and docs/guide/cli.md.
+  // These differences preserve loader behavior documented in docs/guide/cli.md.
   // Keep them explicit so the parity tests cannot hide a new disagreement.
   const exceptions: {
     description: string;

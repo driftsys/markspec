@@ -1336,18 +1336,14 @@ Shared across all documents. Every property always resolves. The `project.yaml`
 schema is the closed org project schema, defined at
 `https://driftsys.github.io/schemas/project/v1.json`.
 
-The optional `dependencies:` and `references:` fields must be non-empty lists of
-distinct project-reference objects when present. Omit a field when it has no
-entries; `[]`, `null`, and an empty YAML key are invalid. Duplicate detection
-compares object values independently of key order.
-
 MarkSpec retains tested exceptions to the org schema: it rejects an empty
 project `version: ""`, converts numeric project versions to strings with a
 warning, requires projectRef names to match `[A-Za-z0-9][A-Za-z0-9._-]*` for
-cache-directory safety, and accepts local paths and scp-style Git URLs in
-`dependencies:`. Other project version types are rejected with `ConfigError`. An
-empty projectRef version string is accepted. Other projectRef URLs must satisfy
-the schema's URI format.
+cache-directory safety, and accepts local paths with `./`, `../`, or `/`
+prefixes and scp-style Git URLs in `dependencies:`. Windows drive paths such as
+`C:\repo` are not accepted. Other project version types are rejected with
+`ConfigError`. An empty projectRef version string means auto, as when absent.
+Other projectRef URLs must satisfy the schema's URI format.
 
 In `.markspec.yaml`, `exclude:` and `caption-conventions:` accept `null` or an
 empty YAML key as the default empty list or mapping. Profile specifiers must be
@@ -1361,6 +1357,11 @@ the form `npm:[@scope/]name@<range>`.
 | **repository** | `project.yaml` → `repository` | `git remote get-url origin` |
 | **version**    | `project.yaml` → `version`    | `git describe`              |
 | **license**    | `project.yaml` → `license`    | `proprietary`               |
+
+The optional `dependencies:` and `references:` fields must be non-empty lists of
+distinct project-reference objects when present. Omit a field when it has no
+entries; `[]`, `null`, and an empty YAML key are invalid. Duplicate detection
+compares object values independently of key order.
 
 **license:** defaults to `proprietary` — absence of a declared license means all
 rights reserved. Use [SPDX identifiers] when specifying a license.
