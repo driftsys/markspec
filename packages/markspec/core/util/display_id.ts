@@ -6,8 +6,10 @@
  * against the known IDs: exact match first, then split on slashes only if
  * every segment is nonempty and a known ID. If neither resolves, remove one
  * trailing period and repeat, leaving the removed period outside the link.
- * Exact known IDs link at any length. These recognition rules do not
- * constrain the parser's entry IDs.
+ * A token with a trailing hyphen, such as SYS_A-, does not link SYS_A.
+ * With only A/B and C known, A/B/C links nothing: slash segments are not
+ * recursively grouped. A known short ID links wherever it stands alone.
+ * These recognition rules do not constrain the parser's entry IDs.
  */
 export const DISPLAY_ID_CHAR_RE = /[A-Za-z0-9._/-]/;
 

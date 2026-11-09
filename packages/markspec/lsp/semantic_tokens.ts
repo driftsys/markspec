@@ -22,11 +22,12 @@
  * catalog is non-empty AND the label is not in it.
  */
 
-import type {
-  BodyTokenKind,
-  EffectiveProfile,
-  Entry,
-} from "../core/model/mod.ts";
+import {
+  type BodyTokenKind,
+  DISPLAY_ID_TOKEN_RE,
+  type EffectiveProfile,
+  type Entry,
+} from "../core/mod.ts";
 import { scanEntryTrailer } from "./entry_trailer.ts";
 
 /** LSP semantic-token legend exported by the server's capabilities. */
@@ -66,18 +67,14 @@ export interface SemanticToken {
 
 /**
  * Title line pattern: `- [DISPLAY_ID] Title text`.
- *
- * The ID class mirrors the project's canonical display-ID grammar used
- * by `entry_trailer.ts` (`DISPLAY_ID_RE`) and `hover.ts`
- * (`DISPLAY_ID_TOKEN_RE`): a leading alphanumeric followed by at least
- * two more characters from the set `[A-Za-z0-9._/-]`. The `{2,}`
- * quantifier (not `+`) enforces the ≥3-char total length that those
- * modules also require, so semantic-tokens highlighting covers every
- * ID the parser, hover, rename, and references already accept (e.g.
- * `my-entry`, `my.entry`, `ns/entry`).
+ * Uses the shared LSP token grammar without its anchors inside the title
+ * wrapper. The optional `@` marks a reference entry and is outside the ID.
  */
-const TITLE_LINE_RE =
-  /^(\s*-\s+\[)(@?[A-Za-z0-9][A-Za-z0-9._/-]{2,})(\]\s*)(.*)$/;
+const TITLE_LINE_RE = new RegExp(
+  String.raw`^(\s*-\s+\[)(@?${
+    DISPLAY_ID_TOKEN_RE.source.slice(1, -1)
+  })(\]\s*)(.*)$`,
+);
 
 /**
  * Map each {@linkcode BodyTokenKind} to its LSP semantic-token type.

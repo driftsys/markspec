@@ -421,9 +421,10 @@ built: the first prompt" below).
   display ID in a chapter, a stable anchor (see SAD_DESK_0034), and wraps
   display IDs in a cross-reference element carrying `data-display-id`. In body
   prose and every attribute value except `Labels`, the renderer scans whole
-  ID-character tokens and resolves exact known IDs first, then removes trailing
-  unmatched periods. Otherwise it splits a slash-joined token only if every
-  segment is nonempty and a known ID. Exact known IDs link at any length.
+  ID-character tokens. For each token it first tries an exact known ID, then
+  splits on slashes only if every segment is nonempty and a known ID. If neither
+  resolves, it removes one trailing period and repeats those steps. Removed
+  periods stay outside the links. Exact known IDs link at any length.
   `knownDisplayIds` is passed only by the desk endpoints; the
   `markspec book build` call sites are unchanged. The UI turns cross-references
   into navigation and opens ordinary web links in the system browser.

@@ -68,6 +68,18 @@ Deno.test("displayIdAtPosition: rejects short / non-ID-like tokens", () => {
   assertEquals(displayIdAtPosition(line, 13), undefined);
 });
 
+Deno.test("displayIdAtPosition: accepts a three-character ID", () => {
+  assertEquals(displayIdAtPosition("[ABC]", 2), "ABC");
+});
+
+Deno.test("displayIdAtPosition: colon separates an ID from following text", () => {
+  assertEquals(displayIdAtPosition("SYS_A: x", 2), "SYS_A");
+});
+
+Deno.test("displayIdAtPosition: rejects a token with a leading underscore", () => {
+  assertEquals(displayIdAtPosition("_SYS_A", 3), undefined);
+});
+
 // --- formatHoverContent ---
 
 Deno.test("displayIdAtPosition: slash belongs to an ID as in the parser grammar", () => {

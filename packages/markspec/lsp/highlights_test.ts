@@ -41,6 +41,17 @@ Deno.test("findOccurrencesInFile: trailing ID characters belong to the highlight
   }
 });
 
+for (const separator of [".", "_"]) {
+  for (const side of ["left", "right"]) {
+    Deno.test(`findOccurrencesInFile: ${separator} on the ${side} prevents a partial ID highlight`, () => {
+      const text = side === "left"
+        ? `See ${separator}REQ-001`
+        : `See REQ-001${separator}`;
+      assertEquals(findOccurrencesInFile(text, "REQ-001"), []);
+    });
+  }
+}
+
 Deno.test("findOccurrencesInFile: bracketed declaration is a Write kind", () => {
   const text = `- [REQ-001] My req\n\n  Body.\n`;
   const highlights = findOccurrencesInFile(text, "REQ-001");

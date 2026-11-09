@@ -468,8 +468,9 @@ function* _knownIdMatches(
 }
 
 /**
- * Replace whole-token occurrences of known display IDs in text nodes with
- * cross-reference `span` elements. Skips `code`, `pre`, and `a` subtrees.
+ * Resolve complete ID-character runs in text nodes to cross-reference spans:
+ * try the whole run, then nonempty known slash segments, then remove one
+ * trailing period and repeat. Skips `code`, `pre`, and `a` subtrees.
  */
 function _linkDisplayIds(
   node: _HastNode,
@@ -517,8 +518,8 @@ function _splitTextNode(
 }
 
 /**
- * HTML-escape an attribute value, wrapping whole-token occurrences of
- * known display IDs in cross-reference spans.
+ * HTML-escape an attribute value and wrap IDs resolved by _knownIdMatches
+ * in cross-reference spans, using the same resolution order as prose.
  */
 function _valueToHtml(
   value: string,

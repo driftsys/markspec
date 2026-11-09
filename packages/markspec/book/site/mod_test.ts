@@ -181,6 +181,7 @@ Deno.test("renderChapterHtml: known ID is matched as a whole token only", () => 
 
 for (
   const token of [
+    "docs/SYS_A",
     "docs/SYS_A/notes.md",
     "/tmp/SYS_A",
     "s3://bucket/SYS_A",
@@ -197,6 +198,23 @@ for (
     assertEquals(html, `<p>See ${token}.</p>`);
   });
 }
+
+Deno.test("renderChapterHtml: rejects empty slash segments even when the empty ID is known", () => {
+  const { html } = renderChapterHtml("See SYS_A//SYS_A.", {
+    knownDisplayIds: new Set(["", "SYS_A"]),
+  });
+  assertEquals(html, "<p>See SYS_A//SYS_A.</p>");
+});
+
+Deno.test("renderChapterHtml: repeats period removal until a known ID resolves", () => {
+  const { html } = renderChapterHtml("See SYS_A...", {
+    knownDisplayIds: new Set(["SYS_A"]),
+  });
+  assertEquals(
+    html,
+    '<p>See <span class="cross-ref" data-display-id="SYS_A">SYS_A</span>...</p>',
+  );
+});
 
 for (const id of ["A", "AB"]) {
   Deno.test(`renderChapterHtml: links the short known ID ${id}`, () => {
