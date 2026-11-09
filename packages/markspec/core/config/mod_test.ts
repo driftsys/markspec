@@ -130,6 +130,17 @@ Deno.test("parseProjectConfig: empty-string version throws ConfigError", () => {
   assertStringIncludes(versionErr!.message, "version is required");
 });
 
+Deno.test("parseProjectConfig: invalid version values use ConfigError", () => {
+  for (const value of ['""', "null", "true", "[]", "{}", "{toString: null}"]) {
+    const err = assertThrows(
+      () =>
+        parseProjectConfig(`name: test\nversion: ${value}\n`, "project.yaml"),
+      ConfigError,
+    );
+    assertEquals(err.fieldErrors.some((e) => e.field === "version"), true);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // name pattern (Task 8)
 // ---------------------------------------------------------------------------

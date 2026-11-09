@@ -64,8 +64,8 @@ references: # citation sources (published sites)
 | -------------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `name`         | string       | yes      | Project name. Must match `^[a-z][a-z0-9.-]*$` (lowercase, digits, `.`, `-`). Reverse-DNS convention recommended. |
 | `version`      | string       | yes      | Project version. Quote in YAML to avoid number coercion.                                                         |
-| `dependencies` | projectRef[] | no       | Defaults to `[]`. Projects this project uses (git repositories). See the projectRef shape below.                 |
-| `references`   | projectRef[] | no       | Defaults to `[]`. Registries and external sources this project cites (published sites). See below.               |
+| `dependencies` | projectRef[] | no       | Non-empty list of distinct project references when present. Projects this project uses (git repositories).       |
+| `references`   | projectRef[] | no       | Non-empty list of distinct project references when present. Registries and external sources this project cites.  |
 
 `name` and `version` are required — a `project.yaml` missing either is rejected
 before any MarkSpec command runs. The schema is **closed**: an unrecognized key
@@ -75,6 +75,11 @@ but never acts on (`description`, `license`, `keywords`, `labels`, `authors`,
 MarkSpec configuration — notably, `labels:` here is inert project metadata and
 does not constrain which `Labels:` values entries may carry.
 
+MarkSpec retains two tested exceptions to the org schema's version rule:
+`version: ""` is rejected with `ConfigError`, and numeric versions are converted
+to strings with a warning. Other non-string values are rejected with
+`ConfigError`.
+
 **markspec-specific tool config lives in `.markspec.yaml`, not `project.yaml`.**
 `exclude:` and `caption-conventions:` moved there — see below.
 
@@ -82,11 +87,22 @@ does not constrain which `Labels:` values entries may carry.
 
 `dependencies:` and `references:` are both lists of the same shape:
 
+Omit either key when there are no entries. An empty list, `null`, an empty YAML
+key, or duplicate objects in the same list is an error. Object key order does
+not affect duplicate detection.
+
 | Key       | Type   | Required | Description                                                                                                                                       |
 | --------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `url`     | string | yes      | Git repository URL (`dependencies:`) or published-site base URL (`references:`; `file://` accepted).                                              |
 | `version` | string | no       | Version intent: an exact tag freezes a baseline, a branch name tracks its head, absent means auto (latest release tag, else default-branch head). |
 | `name`    | string | no       | Upstream id — cache-directory name, lockfile row id, origin badge. Must match `[A-Za-z0-9][A-Za-z0-9._-]*`. Derived from the URL when absent.     |
+
+An explicitly empty projectRef `version: ""` is accepted, as in the org schema.
+A projectRef `name:` must remain a safe cache-directory name even though the org
+schema accepts any string. URLs must satisfy the org schema's URI format. For
+`dependencies:`, local paths (`./`, `../`, or `/` prefixes) and scp-style Git
+URLs such as `git@github.com:acme/demo.git` remain supported exceptions required
+by the existing tests and guide.
 
 - **`dependencies:`** — other projects this project builds on (git
   repositories). `markspec lock` resolves the declared `version:` intent against
@@ -165,6 +181,9 @@ Each `exclude:` pattern must be a non-empty string. Editor validation and
 autocomplete use the
 [`.markspec.yaml` schema](https://driftsys.github.io/markspec/schemas/markspec/v1.json).
 `project.yaml` rejects `exclude:`; configure it in `.markspec.yaml`.
+
+For `exclude:` and `caption-conventions:`, `null` or an empty YAML key uses the
+default empty list or mapping.
 
 **`exclude:` example** — skip a directory of example entry blocks that aren't
 real requirements, plus a generated-file pattern:

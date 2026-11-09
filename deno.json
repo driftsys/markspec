@@ -30,6 +30,7 @@
     "@std/ulid": "jsr:@std/ulid@^1",
     "@std/toml": "jsr:@std/toml@^1",
     "ajv": "npm:ajv@^8",
+    "ajv-formats": "npm:ajv-formats@3.0.1",
     "@std/yaml": "jsr:@std/yaml@^1",
     "@std/path": "jsr:@std/path@^1"
   },

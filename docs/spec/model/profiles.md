@@ -86,13 +86,13 @@ project's `.markspec.yaml` activates profiles:
 ```yaml
 # .markspec.yaml  (at project root)
 profiles:
-  - "@markspec/profile-default"
-  - "@acme/compliance"
   - "./profiles/myorg"
 ```
 
-Profiles are resolved in order; later entries in the list take precedence over
-earlier ones for conflicting declarations.
+The project selects one profile; its `extends:` chain provides inherited
+declarations. Profile specifiers use local paths starting with `./` or `../`,
+Git URLs with a ref, or npm package names with a version range (for example,
+`npm:@acme/compliance@^1`). Bare package names are invalid.
 
 ## Effective profile
 

@@ -1,6 +1,10 @@
 import { assertEquals } from "@std/assert";
 import { Ajv } from "ajv";
+import { fullFormats } from "ajv-formats/dist/formats.js";
 import { ALLOWED_MARKSPEC_YAML_KEYS, parseMarkspecYaml } from "./markspec.ts";
+import { parse as parseYaml } from "@std/yaml";
+import { ConfigError } from "../model/mod.ts";
+import { parseProjectConfig } from "./mod.ts";
 
 const MARKSPEC_SCHEMA_URL = new URL(
   "../../../../schemas/markspec/v1.json",
@@ -56,5 +60,303 @@ Deno.test("markspec schema: exclude requires an array of non-empty strings", asy
     ]
   ) {
     assertEquals(validate({ exclude }), valid, JSON.stringify({ exclude }));
+  }
+});
+
+Deno.test("markspec schema and loader: profile specifier parity", async (t) => {
+  const validate = new Ajv().compile(await loadMarkspecSchema());
+  for (
+    const [specifier, valid] of [
+      ["./", true],
+      ["../profiles/demo.yaml", true],
+      ["git+https://example.com/demo.git#v1", true],
+      ["git+http://example.com/demo.git/sub/path#main", true],
+      ["git+file:///tmp/demo.git#main", true],
+      ["npm:demo@1.0.0", true],
+      ["npm:@acme/demo@^1", true],
+      ["", false],
+      ["demo", false],
+      ["/profiles/demo.yaml", false],
+      ["git+invalid", false],
+      ["git+https://example.com/demo.git", false],
+      ["git+https://example.com/demo.git#", false],
+      ["git+ssh://example.com/demo.git#v1", false],
+      ["npm:demo", false],
+      ["npm:demo@", false],
+      ["npm:@Acme/demo@1", false],
+      ["npm:demo_name@1", false],
+      [123, false],
+      [null, false],
+    ] as const
+  ) {
+    await t.step(JSON.stringify(specifier), () => {
+      const input = { profiles: [specifier] };
+      const result = parseMarkspecYaml(JSON.stringify(input), ".markspec.yaml");
+      assertEquals(validate(input), valid, "schema acceptance");
+      assertEquals(result.config !== null, valid, "loader acceptance");
+      assertEquals(
+        validate(input),
+        result.config !== null,
+        "schema/loader parity",
+      );
+    });
+  }
+});
+
+Deno.test("markspec schema and loader: empty tool config parity", async (t) => {
+  const validate = new Ajv().compile(await loadMarkspecSchema());
+  for (
+    const yaml of [
+      "{}",
+      "exclude:",
+      "exclude: null",
+      "exclude: []",
+      "caption-conventions:",
+      "caption-conventions: null",
+      "caption-conventions: {}",
+      "exclude:\ncaption-conventions:",
+    ]
+  ) {
+    await t.step(yaml, () => {
+      const result = parseMarkspecYaml(yaml, ".markspec.yaml");
+      assertEquals(validate(parseYaml(yaml)), true, "schema acceptance");
+      assertEquals(result.config?.exclude, []);
+      assertEquals(result.config?.captionConventions, {});
+      assertEquals(
+        validate(parseYaml(yaml)),
+        result.config !== null,
+        "schema/loader parity",
+      );
+    });
+  }
+});
+
+Deno.test("markspec schema and loader: tool config value parity", async (t) => {
+  const validate = new Ajv().compile(await loadMarkspecSchema());
+  for (
+    const [input, valid] of [
+      [{ profiles: [] }, true],
+      [{ profiles: null }, false],
+      [{ profiles: "./demo" }, false],
+      [{ exclude: ["docs/", "!docs/keep.md"] }, true],
+      [{ exclude: "docs/" }, false],
+      [{ exclude: [""] }, false],
+      [{ exclude: [123] }, false],
+      [{ "caption-conventions": { Figure: "above", Table: "below" } }, true],
+      [{ "caption-conventions": [] }, false],
+      [{ "caption-conventions": "above" }, false],
+      [{ "caption-conventions": { Figure: null } }, false],
+      [{ "caption-conventions": { Figure: "before" } }, false],
+      [{ "caption-conventions": { Unknown: "above" } }, false],
+    ] as const
+  ) {
+    await t.step(JSON.stringify(input), () => {
+      const result = parseMarkspecYaml(JSON.stringify(input), ".markspec.yaml");
+      assertEquals(validate(input), valid, "schema acceptance");
+      assertEquals(result.config !== null, valid, "loader acceptance");
+      assertEquals(
+        validate(input),
+        result.config !== null,
+        "schema/loader parity",
+      );
+    });
+  }
+});
+
+Deno.test("project schema and loader: reference list parity", async (t) => {
+  const schema = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../../../../tests/fixtures/config/project-schema-fields.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const validate = new Ajv().addFormat("uri", fullFormats.uri).compile(schema);
+  const ref = {
+    url: "https://example.com/demo",
+    name: "demo",
+    version: "main",
+  };
+  for (const field of ["dependencies", "references"]) {
+    for (
+      const [value, valid] of [
+        [undefined, true],
+        [[ref], true],
+        [[], false],
+        [null, false],
+        [[ref, { version: "main", name: "demo", url: ref.url }], false],
+        [[ref, { ...ref, version: "v1" }], true],
+        [[{ ...ref, version: "" }], true],
+        [[{ ...ref, url: "not-a-url" }], false],
+        [[{ ...ref, url: "https://example.com/bad path" }], false],
+        [[{ ...ref, url: "https://example.com/%zz" }], false],
+        [[{ ...ref, url: "https://user@example.com:443/%zz" }], false],
+        [[{ ...ref, url: "git@host/path:repo" }], false],
+        [[{ ...ref, url: "urn:example:demo" }], true],
+        [[{ ...ref, url: "file:///tmp/demo" }], true],
+        [[{ ...ref, url: "ssh://git@example.com/demo.git" }], true],
+        [[{ ...ref, version: null }], false],
+        [[{ ...ref, version: 1 }], false],
+        [[{ ...ref, name: null }], false],
+        [[{ ...ref, name: 1 }], false],
+        ["invalid", false],
+        [[null], false],
+        [[{}], false],
+      ] as const
+    ) {
+      await t.step(`${field}: ${JSON.stringify(value)}`, () => {
+        const input = { name: "demo", version: "1.0.0", [field]: value };
+        let accepted = true;
+        try {
+          parseProjectConfig(JSON.stringify(input), "project.yaml");
+        } catch (error) {
+          if (!(error instanceof ConfigError)) throw error;
+          accepted = false;
+          assertEquals(
+            error.fieldErrors.some((e) => e.field.startsWith(field)),
+            true,
+          );
+        }
+        assertEquals(validate(input), valid, "schema acceptance");
+        assertEquals(accepted, valid, "loader acceptance");
+        assertEquals(validate(input), accepted, "schema/loader parity");
+      });
+    }
+  }
+});
+
+Deno.test("project schema and loader: version type parity", async (t) => {
+  const schema = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../../../../tests/fixtures/config/project-schema-fields.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const validate = new Ajv().addFormat("uri", fullFormats.uri).compile(schema);
+  for (
+    const [version, valid] of [
+      ["1.0.0", true],
+      ["main", true],
+      [undefined, false],
+      [null, false],
+      [true, false],
+      [[], false],
+      [{}, false],
+      [{ toString: null }, false],
+    ] as const
+  ) {
+    await t.step(JSON.stringify(version) ?? "absent", () => {
+      const input: Record<string, unknown> = { name: "demo", version };
+      let accepted = true;
+      try {
+        parseProjectConfig(JSON.stringify(input), "project.yaml");
+      } catch (error) {
+        if (!(error instanceof ConfigError)) throw error;
+        accepted = false;
+        assertEquals(
+          error.fieldErrors.some((e) => e.field === "version"),
+          true,
+        );
+      }
+      assertEquals(validate(input), valid, "schema acceptance");
+      assertEquals(accepted, valid, "loader acceptance");
+      assertEquals(validate(input), accepted, "schema/loader parity");
+    });
+  }
+});
+
+Deno.test("project schema and loader: documented behavior exceptions", async (t) => {
+  const schema = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../../../../tests/fixtures/config/project-schema-fields.json",
+        import.meta.url,
+      ),
+    ),
+  );
+  const validate = new Ajv().addFormat("uri", fullFormats.uri).compile(schema);
+  // These differences are required by mod_test.ts and docs/guide/cli.md.
+  // Keep them explicit so the parity tests cannot hide a new disagreement.
+  const exceptions: {
+    description: string;
+    input: Record<string, unknown>;
+    schemaAccepted: boolean;
+    loaderAccepted: boolean;
+  }[] = [
+    {
+      description: "empty project version remains invalid",
+      input: { name: "demo", version: "" },
+      schemaAccepted: true,
+      loaderAccepted: false,
+    },
+    {
+      description: "numeric project version retains coercion and a warning",
+      input: { name: "demo", version: 1 },
+      schemaAccepted: false,
+      loaderAccepted: true,
+    },
+  ];
+  for (const field of ["dependencies", "references"]) {
+    exceptions.push({
+      description: `${field}: unsafe cache directory name remains invalid`,
+      input: {
+        name: "demo",
+        version: "1.0.0",
+        [field]: [{ url: "https://example.com/demo", name: "../bad" }],
+      },
+      schemaAccepted: true,
+      loaderAccepted: false,
+    });
+  }
+  for (
+    const url of [
+      "../demo",
+      "./demo",
+      "/tmp/demo",
+      "git@github.com:acme/demo.git",
+    ]
+  ) {
+    exceptions.push({
+      description: `dependencies: Git location ${url} remains valid`,
+      input: { name: "demo", version: "1.0.0", dependencies: [{ url }] },
+      schemaAccepted: false,
+      loaderAccepted: true,
+    });
+  }
+  for (const exception of exceptions) {
+    await t.step(exception.description, () => {
+      let accepted = true;
+      const warnings: string[] = [];
+      const originalError = console.error;
+      console.error = (message: string) => warnings.push(message);
+      try {
+        const config = parseProjectConfig(
+          JSON.stringify(exception.input),
+          "project.yaml",
+        );
+        if (typeof exception.input.version === "number") {
+          assertEquals(config.version, "1");
+          assertEquals(warnings.length, 1);
+        }
+      } catch (error) {
+        if (!(error instanceof ConfigError)) throw error;
+        accepted = false;
+      } finally {
+        console.error = originalError;
+      }
+      assertEquals(
+        validate(exception.input),
+        exception.schemaAccepted,
+        "schema acceptance",
+      );
+      assertEquals(
+        accepted,
+        exception.loaderAccepted,
+        "documented loader exception",
+      );
+    });
   }
 });

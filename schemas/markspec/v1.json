@@ -10,20 +10,27 @@
     "profiles": {
       "type": "array",
       "description": "Profile specifiers the project activates, in order.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string",
+        "anyOf": [
+          { "pattern": "^(?:\\./|\\.\\./)" },
+          { "pattern": "^git\\+((?:https?|file):\\/\\/[^#]+?\\.git)(\\/[^#]+)?#(.+)$" },
+          { "pattern": "^npm:(?:@[a-z0-9-]+\\/)?[a-z0-9-]+@(.+)$" }
+        ]
+      }
     },
     "default-profile": {
       "type": "boolean",
       "description": "Set false to opt out of the bundled default profile."
     },
     "exclude": {
-      "type": "array",
-      "description": "Gitignore-syntax patterns excluded from project file discovery, anchored at the project root.",
+      "type": ["array", "null"],
+      "description": "Gitignore-syntax patterns excluded from project file discovery, anchored at the project root. Null or an empty YAML key uses the default empty list.",
       "items": { "type": "string", "minLength": 1 }
     },
     "caption-conventions": {
-      "type": "object",
-      "description": "Per-keyword caption placement: where the caption sits relative to its block.",
+      "type": ["object", "null"],
+      "description": "Per-keyword caption placement: where the caption sits relative to its block. Null or an empty YAML key uses the default empty mapping.",
       "propertyNames": {
         "enum": ["Figure", "Table", "Listing", "Feature", "Equation", "List"]
       },
