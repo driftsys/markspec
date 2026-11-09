@@ -1,9 +1,9 @@
 # Profiles and extensions
 
 A **profile** is a `markspec.yaml` manifest that extends the core type taxonomy
-with domain-specific vocabulary. Profiles are composable and chainable — a
-project selects a list of profiles that are merged into an **effective profile**
-that governs validation and tooling.
+with domain-specific vocabulary. A project selects one profile; its `extends:`
+chain is merged into an **effective profile** that governs validation and
+tooling.
 
 ## What a profile declares
 
@@ -86,13 +86,13 @@ project's `.markspec.yaml` activates profiles:
 ```yaml
 # .markspec.yaml  (at project root)
 profiles:
-  - "@markspec/profile-default"
-  - "@acme/compliance"
   - "./profiles/myorg"
 ```
 
-Profiles are resolved in order; later entries in the list take precedence over
-earlier ones for conflicting declarations.
+The project selects one profile; its `extends:` chain provides inherited
+declarations. Profile specifiers use local paths starting with `./` or `../`,
+Git URLs with a ref, or npm package names with a version range (for example,
+`npm:@acme/compliance@^1`). Bare package names are invalid.
 
 ## Effective profile
 

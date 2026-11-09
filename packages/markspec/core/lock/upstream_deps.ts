@@ -244,7 +244,7 @@ export async function resolveProjectDependencies(
     }
 
     // FIRST-LOCK or UPDATE.
-    const intent = ref.version ?? "auto";
+    const intent = ref.version || "auto";
     const outcome = await firstLockOrUpdate(
       ref,
       id,

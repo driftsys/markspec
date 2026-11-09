@@ -94,6 +94,23 @@ Deno.test("first-lock: resolves auto → tag, writes row + cache", async () => {
   assertEquals(fs.has("/cache/dep/compiled.json"), true);
 });
 
+Deno.test("first-lock: empty version resolves as auto", async () => {
+  const { io, acquired } = makeIO();
+  const r = await resolveProjectDependencies({
+    dependencies: [{ url: "https://example.test/dep.git", version: "" }],
+    existing: [],
+    cacheRoot: "/cache",
+    update: false,
+    io,
+    lockedAt: "2026-07-04T00:00:00Z",
+  });
+  assertEquals(r.diagnostics, []);
+  assertEquals(r.dependencies.length, 1);
+  assertEquals(r.dependencies[0].intent, "auto");
+  assertEquals(r.dependencies[0].resolved, "tag:v2.0.0");
+  assertEquals(acquired, ["cccccccccccccccccccccccccccccccccccccccc"]);
+});
+
 Deno.test("keep: intact cache → no git, row preserved", async () => {
   const { io, fs, compiledBytes } = makeIO();
   const snapshot = await sha256Bytes(compiledBytes);

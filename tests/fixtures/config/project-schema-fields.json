@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "Copy of the name, version, dependencies, references and projectRef validation rules from driftsys/schemas project/v1.json (https://driftsys.github.io/schemas/project/v1.json). Only the fields used by the offline parity tests are included.",
+  "type": "object",
+  "required": ["name", "version"],
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },
+    "version": {
+      "type": "string",
+      "description": "The org schema allows an empty string and rejects numbers. MarkSpec retains its tested empty-string rejection and numeric coercion."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/projectRef" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/projectRef" },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "projectRef": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "MarkSpec also accepts local paths and scp-style Git URLs in dependencies, as required by its existing tests and guide."
+        },
+        "version": { "type": "string" },
+        "name": {
+          "type": "string",
+          "description": "The org schema accepts any string. MarkSpec retains its tested safe cache-directory name constraint."
+        }
+      }
+    }
+  }
+}

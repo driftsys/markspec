@@ -7,6 +7,7 @@
 
 import { parse as parseYaml } from "@std/yaml";
 import { dirname, join, resolve } from "@std/path";
+import { fullFormats } from "ajv-formats/dist/formats.js";
 import {
   ConfigError,
   type ConfigFieldError,
@@ -184,14 +185,24 @@ export function parseProjectConfig(
   if (
     obj.version !== undefined && obj.version !== null && obj.version !== ""
   ) {
-    if (typeof obj.version === "number") {
+    if (typeof obj.version === "string") {
+      version = obj.version;
+    } else if (typeof obj.version === "number") {
+      // Existing tests and the guide require numeric-version coercion.
+      // This remains an exception to the org schema's string-only rule.
       console.error(
         `warning: ${filePath}: version is a number (${obj.version}), ` +
           `coerced to "${String(obj.version)}". ` +
           `Quote it in YAML: version: "${obj.version}"`,
       );
+      version = String(obj.version);
+    } else {
+      errors.push({
+        field: "version",
+        message: `expected string, got ${typeof obj.version}`,
+        line: findLineNumber(yaml, "version"),
+      });
     }
-    version = String(obj.version);
   } else {
     errors.push({
       field: "version",
@@ -252,6 +263,9 @@ const PROJECT_REF_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 const PROJECT_REF_KEYS = new Set(["url", "version", "name"]);
 
+// ajv-formats provides the RFC 3986 URI validator used by schema validation.
+const isUri = fullFormats.uri as (value: string) => boolean;
+
 /**
  * Parse a `dependencies:` or `references:` list of projectRef objects
  * (`{ url (required), version?, name? }`). Pushes field errors onto
@@ -265,7 +279,7 @@ function parseProjectRefList(
   yaml: string,
   errors: ConfigFieldError[],
 ): ProjectRef[] {
-  if (value === undefined || value === null) return [];
+  if (value === undefined) return [];
   if (!Array.isArray(value)) {
     errors.push({
       field,
@@ -274,6 +288,13 @@ function parseProjectRefList(
       line: findLineNumber(yaml, field),
     });
     return [];
+  }
+  if (value.length === 0) {
+    errors.push({
+      field,
+      message: "must contain at least one projectRef when present",
+      line: findLineNumber(yaml, field),
+    });
   }
   const out: ProjectRef[] = [];
   value.forEach((item, i) => {
@@ -305,12 +326,26 @@ function parseProjectRefList(
       });
       return;
     }
+    // Local paths and scp-style Git URLs are required by existing tests and
+    // documentation, although the org schema's URI format rejects them.
+    const isGitLocation = field === "dependencies" && (
+      url.startsWith("./") || url.startsWith("../") || url.startsWith("/") ||
+      /^[A-Za-z]:\\/.test(url) ||
+      /^[^@/:\s]+@[^/:\s]+:[^\s]+$/.test(url)
+    );
+    if (!isUri(url) && !isGitLocation) {
+      errors.push({
+        field: `${field}[${i}].url`,
+        message: "must be a URI",
+        line: findLineNumber(yaml, field),
+      });
+    }
     const ref: { url: string; version?: string; name?: string } = { url };
     if (record.version !== undefined) {
-      if (typeof record.version !== "string" || record.version.length === 0) {
+      if (typeof record.version !== "string") {
         errors.push({
           field: `${field}[${i}].version`,
-          message: "must be a non-empty string when present",
+          message: "must be a string when present",
           line: findLineNumber(yaml, field),
         });
       } else {
@@ -331,6 +366,18 @@ function parseProjectRefList(
       } else {
         ref.name = record.name;
       }
+    }
+    if (
+      out.some((previous) =>
+        previous.url === ref.url && previous.version === ref.version &&
+        previous.name === ref.name
+      )
+    ) {
+      errors.push({
+        field: `${field}[${i}]`,
+        message: "duplicate projectRef; list items must be unique",
+        line: findLineNumber(yaml, field),
+      });
     }
     out.push(ref);
   });

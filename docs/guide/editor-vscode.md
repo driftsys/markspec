@@ -113,7 +113,7 @@ automatically. To add it by hand:
 ```yaml
 $schema: https://driftsys.github.io/markspec/schemas/markspec/v1.json
 profiles:
-  - io.example.base@1.0.0
+  - npm:@example/base@1.0.0
 ```
 
 Or map by filename in VS Code `settings.json`:

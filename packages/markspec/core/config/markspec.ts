@@ -86,12 +86,12 @@ export interface MarkspecYaml {
    * Applied after built-in build-output skips and all `.gitignore` rules at
    * every directory level by `core/discovery`. Negations can re-include
    * non-hidden directories, provided their parents are not ignored. Hidden
-   * directories are always skipped. Defaults to `[]` when the key is absent.
+   * directories are always skipped. Defaults to `[]` when the key is absent or null.
    */
   readonly exclude: readonly string[];
   /**
    * Per-keyword caption-position conventions (spec §4.7 MSL-C072).
-   * Defaults to `{}` when the key is absent.
+   * Defaults to `{}` when the key is absent or null.
    */
   readonly captionConventions: CaptionConventions;
 }
