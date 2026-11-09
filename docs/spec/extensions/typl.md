@@ -350,6 +350,14 @@ fine — that is every entry without published symbols.
 
 ## Diagnostic catalogue
 
+Cross-entry validation codes TYPL-009, TYPL-010 (citations), and TYPL-011 are
+reported by bare `markspec check`, `compile`, and the LSP. An explicit-file
+`check <subset>` suppresses these codes, even when their cause is entirely
+inside the subset, matching uxil's scope policy. A subset registry cannot
+distinguish an undeclared symbol from a declaration in an unchecked file. Parser
+diagnostics remain active, including TYPL-010 for a relative declaration without
+a namespace base.
+
 | Code     | Severity | Description                                                                                 |
 | -------- | -------- | ------------------------------------------------------------------------------------------- |
 | TYPL-001 | error    | Duplicate `$Name` binding within the same entry — first occurrence wins.                    |

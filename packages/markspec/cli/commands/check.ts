@@ -226,12 +226,12 @@ async function checkGroup(
     });
   }
 
-  // projectWide reflects the resolved scope: a bare invocation walks the
-  // whole project, so MSL-L006 ("link target does not resolve") is
-  // meaningful and fires. Explicit file args stay file-local — that
-  // subset cannot distinguish a typo from a valid cross-file target, so
-  // MSL-L006 is suppressed. Full existence checks are always available
-  // via `markspec compile` or the LSP (which index all files).
+  // projectWide reflects the resolved scope: a bare invocation checks the
+  // whole project, including MSL-L006 ("link target does not resolve"),
+  // TYPL-009/010/011 and UXIL-016/017/018. Explicit file arguments suppress
+  // these cross-entry codes because a subset cannot distinguish an invalid
+  // reference from a valid target in an unchecked file. Full checks remain
+  // available via `markspec compile` or the LSP (which index all files).
   const result = runPipeline(
     allEntries,
     chain?.effective ?? null,

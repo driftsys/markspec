@@ -237,7 +237,8 @@ path:
 Three rules to keep in mind:
 
 - **Declared once.** Re-declaring a published symbol anywhere in the project is
-  an error (TYPL-009).
+  an error (TYPL-009), reported by bare `markspec check`, `compile`, and the
+  LSP.
 - **Citations are absolute.** The relative `$.` form only works inside the
   declaring entry; another entry must spell out the full dotted path.
 - **A published name is never bare.** Publication needs a namespace — `$speed`
@@ -347,6 +348,12 @@ consistency rule for plain names. Corpus-wide agreement is now enforced only for
 published (dotted) symbols — see TYPL-009 below.
 
 ### TYPL-009 — duplicate published declaration
+
+TYPL-009, TYPL-010 for citations, and TYPL-011 are suppressed by an
+explicit-file `markspec check <subset>`, even when their cause is inside the
+subset. Use bare `markspec check`, `compile`, or the LSP for these checks.
+Parser diagnostics remain active, including TYPL-010 for a relative declaration
+without a namespace base.
 
 ```
 TYPL-009: $powertrain.brake.pedal_position is already declared in icd/brake.md:12 (published symbols are declared exactly once).
