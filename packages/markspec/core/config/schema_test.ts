@@ -190,7 +190,6 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         [[{ ...ref, url: "https://user@example.com:443/%zz" }], false],
         [[{ ...ref, url: "git@host/path:repo" }], false],
         [[{ ...ref, url: "git@example.com:bad path/demo.git" }], false],
-        [[{ ...ref, url: "C:\\repo" }], false],
         [[{ ...ref, url: "C:/repo" }], true],
         [[{ ...ref, url: "urn:example:demo" }], true],
         [[{ ...ref, url: "file:///tmp/demo" }], true],
@@ -202,6 +201,7 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         ...(field === "references"
           ? [
             [[{ url: "../demo" }], false],
+            [[{ url: "C:\\repo" }], false],
             [[{ url: "git@github.com:acme/demo.git" }], false],
           ] as const
           : []),
@@ -316,6 +316,16 @@ Deno.test("project schema and loader: documented behavior exceptions", async (t)
       loaderAccepted: true,
     },
   ];
+  exceptions.push({
+    description: "dependencies: a Windows drive path remains a local path",
+    input: {
+      name: "demo",
+      version: "1.0.0",
+      dependencies: [{ url: "C:\\repo" }],
+    },
+    schemaAccepted: false,
+    loaderAccepted: true,
+  });
   for (const field of ["dependencies", "references"]) {
     exceptions.push({
       description: `${field}: unsafe cache directory name remains invalid`,

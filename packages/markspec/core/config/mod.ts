@@ -330,6 +330,7 @@ function parseProjectRefList(
     // documentation, although the org schema's URI format rejects them.
     const isGitLocation = field === "dependencies" && (
       url.startsWith("./") || url.startsWith("../") || url.startsWith("/") ||
+      /^[A-Za-z]:\\/.test(url) ||
       /^[^@/:\s]+@[^/:\s]+:[^\s]+$/.test(url)
     );
     if (!isUri(url) && !isGitLocation) {

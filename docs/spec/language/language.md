@@ -1339,12 +1339,11 @@ schema is the closed org project schema, defined at
 MarkSpec retains tested exceptions to the org schema: it rejects an empty
 project `version: ""`, converts numeric project versions to strings with a
 warning, requires projectRef names to match `[A-Za-z0-9][A-Za-z0-9._-]*` for
-cache-directory safety, and accepts local paths with `./`, `../`, or `/`
-prefixes and scp-style Git URLs in `dependencies:`. A Windows path with
-backslashes such as `C:\repo` is rejected. `C:/repo` is accepted only because it
-is a valid URI with the scheme `c`. Other project version types are rejected
-with `ConfigError`. An empty projectRef version string means auto, as when
-absent. Other projectRef URLs must satisfy the schema's URI format.
+cache-directory safety, and accepts local paths with `./`, `../`, `/`, or
+Windows drive `C:\` prefixes and scp-style Git URLs in `dependencies:`. Other
+project version types are rejected with `ConfigError`. An empty projectRef
+version string means auto, as when absent. Other projectRef URLs must satisfy
+the schema's URI format.
 
 In `.markspec.yaml`, `exclude:` and `caption-conventions:` accept `null` or an
 empty YAML key as the default empty list or mapping. Profile specifiers must be

@@ -100,10 +100,9 @@ not affect duplicate detection.
 An explicitly empty projectRef `version: ""` means auto, as when absent. A
 projectRef `name:` must remain a safe cache-directory name even though the org
 schema accepts any string. URLs must satisfy the org schema's URI format. For
-`dependencies:`, local paths (`./`, `../`, or `/` prefixes) and scp-style Git
-URLs such as `git@github.com:acme/demo.git` are supported exceptions. A Windows
-path with backslashes such as `C:\repo` is rejected. `C:/repo` is accepted only
-because it is a valid URI with the scheme `c`.
+`dependencies:`, local paths (`./`, `../`, `/`, or Windows drive `C:\` prefixes)
+and scp-style Git URLs such as `git@github.com:acme/demo.git` are supported
+exceptions.
 
 - **`dependencies:`** — other projects this project builds on (git
   repositories). `markspec lock` resolves the declared `version:` intent against
