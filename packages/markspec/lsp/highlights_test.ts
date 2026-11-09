@@ -15,6 +15,32 @@ import {
   findOccurrencesInFile,
 } from "./highlights.ts";
 
+Deno.test("findOccurrencesInFile: slash belongs to the whole ID", () => {
+  const line = "SYS_A/SYS_B";
+  assertEquals(findOccurrencesInFile(line, line), [{
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 11 },
+    },
+    kind: DocumentHighlightKindRead,
+  }]);
+  for (const id of ["SYS_A", "SYS_B"]) {
+    assertEquals(findOccurrencesInFile(line, id), []);
+  }
+});
+
+Deno.test("findOccurrencesInFile: trailing ID characters belong to the highlight", () => {
+  for (const id of ["REQ_", "REQ-", "REQ.", "REQ/", "REQ.part-_"]) {
+    assertEquals(findOccurrencesInFile(`[${id}]`, id), [{
+      range: {
+        start: { line: 0, character: 1 },
+        end: { line: 0, character: id.length + 1 },
+      },
+      kind: DocumentHighlightKindWrite,
+    }]);
+  }
+});
+
 Deno.test("findOccurrencesInFile: bracketed declaration is a Write kind", () => {
   const text = `- [REQ-001] My req\n\n  Body.\n`;
   const highlights = findOccurrencesInFile(text, "REQ-001");

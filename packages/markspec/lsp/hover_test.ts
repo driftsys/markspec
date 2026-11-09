@@ -70,6 +70,22 @@ Deno.test("displayIdAtPosition: rejects short / non-ID-like tokens", () => {
 
 // --- formatHoverContent ---
 
+Deno.test("displayIdAtPosition: slash belongs to an ID as in the parser grammar", () => {
+  const line = "SYS_A/SYS_B";
+  assertEquals(displayIdAtPosition(line, 2), "SYS_A/SYS_B");
+  assertEquals(displayIdAtPosition(line, 5), "SYS_A/SYS_B");
+  assertEquals(displayIdAtPosition(line, 8), "SYS_A/SYS_B");
+});
+
+Deno.test("displayIdAtPosition: allows internal and trailing dots, underscores and hyphens", () => {
+  for (const id of ["REQ_", "REQ-", "REQ.", "REQ/", "REQ.part-_"]) {
+    assertEquals(displayIdAtPosition(`[${id}]`, 2), id);
+  }
+  for (const id of ["_REQ", "-REQ", ".REQ", "/REQ"]) {
+    assertEquals(displayIdAtPosition(`[${id}]`, 2), undefined);
+  }
+});
+
 Deno.test("formatHoverContent: returns title + type + Id when type is set", () => {
   const entry = makeEntry({
     displayId: "REQ-001",

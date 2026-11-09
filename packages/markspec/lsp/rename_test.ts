@@ -16,6 +16,42 @@ import {
   prepareRenameRange,
 } from "./rename.ts";
 
+Deno.test("rename: slash belongs to the whole ID and its cursor range", () => {
+  const line = "SYS_A/SYS_B";
+  const range = {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 11 },
+  };
+  assertEquals(prepareRenameRange(line, 5, 0), {
+    range,
+    placeholder: "SYS_A/SYS_B",
+  });
+  assertEquals(findIdOccurrencesInFile(line, line, "NEW_ID"), [{
+    range,
+    newText: "NEW_ID",
+  }]);
+  for (const id of ["SYS_A", "SYS_B"]) {
+    assertEquals(findIdOccurrencesInFile(line, id, "NEW_ID"), []);
+  }
+});
+
+Deno.test("rename: trailing ID characters belong to the range", () => {
+  for (const id of ["REQ_", "REQ-", "REQ.", "REQ/", "REQ.part-_"]) {
+    const range = {
+      start: { line: 0, character: 1 },
+      end: { line: 0, character: id.length + 1 },
+    };
+    assertEquals(prepareRenameRange(`[${id}]`, 2, 0), {
+      range,
+      placeholder: id,
+    });
+    assertEquals(findIdOccurrencesInFile(`[${id}]`, id, "NEW_ID"), [{
+      range,
+      newText: "NEW_ID",
+    }]);
+  }
+});
+
 Deno.test("displayIdForRename: resolves the LSP cursor line after a CR", () => {
   const text = "# Heading\rREQ-001\nREQ-002";
   const document = TextDocument.create("file:///reqs.md", "markdown", 1, text);

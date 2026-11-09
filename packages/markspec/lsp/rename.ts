@@ -7,8 +7,8 @@
  *
  * Whole-token matching means `REQ-001` does not match `REQ-0010` or
  * `REQ-001-extra` — both ends of the token must be at a non-ID
- * character. The ID character set matches the parser's display-ID
- * grammar: letters, digits, `._/-`.
+ * character. The ID character set uses the shared core token grammar:
+ * letters, digits, `._/-`.
  *
  * `findIdOccurrencesInFile` scans raw file text rather than parsed
  * entries, so it must skip fenced code regions itself (#680, same
@@ -25,7 +25,12 @@
  * `displayIdForRename` applies the same guard to direct rename requests.
  */
 
-import { isLineFenced, walkProseLines } from "../core/mod.ts";
+import {
+  DISPLAY_ID_CHAR_RE,
+  DISPLAY_ID_TOKEN_RE,
+  isLineFenced,
+  walkProseLines,
+} from "../core/mod.ts";
 import { displayIdAtPosition } from "./hover.ts";
 
 /**
@@ -54,12 +59,6 @@ export interface TextEdit {
   };
   readonly newText: string;
 }
-
-/** Display-ID character set — letters, digits, dot, slash, hyphen, underscore. */
-const ID_CHAR_RE = /[A-Za-z0-9._/-]/;
-
-/** Whole-token display-ID grammar — must look like an identifier (≥3 chars, starts with alphanumeric). */
-const DISPLAY_ID_TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,}$/;
 
 /** Result of {@linkcode prepareRenameRange}. */
 export interface PrepareRenameResult {
@@ -92,9 +91,9 @@ export function prepareRenameRange(
   if (column < 0 || column >= line.length) return null;
   if (/\s/.test(line[column])) return null;
   let start = column;
-  while (start > 0 && ID_CHAR_RE.test(line[start - 1])) start--;
+  while (start > 0 && DISPLAY_ID_CHAR_RE.test(line[start - 1])) start--;
   let end = column;
-  while (end < line.length && ID_CHAR_RE.test(line[end])) end++;
+  while (end < line.length && DISPLAY_ID_CHAR_RE.test(line[end])) end++;
   const token = line.slice(start, end);
   if (!DISPLAY_ID_TOKEN_RE.test(token)) return null;
   return {
@@ -138,8 +137,8 @@ export function findIdOccurrencesInFile(
       const after = idx + oldId.length >= line.length
         ? ""
         : line[idx + oldId.length];
-      const boundedLeft = before === "" || !ID_CHAR_RE.test(before);
-      const boundedRight = after === "" || !ID_CHAR_RE.test(after);
+      const boundedLeft = before === "" || !DISPLAY_ID_CHAR_RE.test(before);
+      const boundedRight = after === "" || !DISPLAY_ID_CHAR_RE.test(after);
       if (boundedLeft && boundedRight) {
         edits.push({
           range: {

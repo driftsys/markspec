@@ -179,6 +179,142 @@ Deno.test("renderChapterHtml: known ID is matched as a whole token only", () => 
   assertEquals(html.includes("cross-ref"), false);
 });
 
+for (
+  const token of [
+    "docs/SYS_A/notes.md",
+    "/tmp/SYS_A",
+    "s3://bucket/SYS_A",
+    "SYS_A/SYS_B",
+    "/SYS_A",
+    "SYS_A/",
+    "SYS_A//SYS_A",
+  ]
+) {
+  Deno.test(`renderChapterHtml: leaves ${token} unlinked when only SYS_A is known`, () => {
+    const { html } = renderChapterHtml(`See ${token}.`, {
+      knownDisplayIds: new Set(["SYS_A"]),
+    });
+    assertEquals(html, `<p>See ${token}.</p>`);
+  });
+}
+
+for (const id of ["A", "AB"]) {
+  Deno.test(`renderChapterHtml: links the short known ID ${id}`, () => {
+    const { html } = renderChapterHtml(`See (${id}), then ${id}.`, {
+      knownDisplayIds: new Set([id]),
+    });
+    const span = `<span class="cross-ref" data-display-id="${id}">${id}</span>`;
+    assertEquals(html, `<p>See (${span}), then ${span}.</p>`);
+  });
+}
+
+Deno.test("renderChapterHtml: slash-separated known IDs each become a cross-ref", () => {
+  const { html } = renderChapterHtml("See SYS_A/SYS_B.", {
+    knownDisplayIds: new Set(["SYS_A", "SYS_B"]),
+  });
+  assertEquals(
+    html,
+    '<p>See <span class="cross-ref" data-display-id="SYS_A">SYS_A</span>/<span class="cross-ref" data-display-id="SYS_B">SYS_B</span>.</p>',
+  );
+});
+
+for (const shorterIdKnown of [false, true]) {
+  Deno.test(`renderChapterHtml: preserves a period in a known slash segment when REQ is ${shorterIdKnown ? "known" : "unknown"}`, () => {
+    const knownDisplayIds = new Set(["SYS_A", "REQ."]);
+    if (shorterIdKnown) knownDisplayIds.add("REQ");
+    const { html } = renderChapterHtml("See SYS_A/REQ.", {
+      knownDisplayIds,
+    });
+    assertEquals(
+      html,
+      '<p>See <span class="cross-ref" data-display-id="SYS_A">SYS_A</span>/<span class="cross-ref" data-display-id="REQ.">REQ.</span></p>',
+    );
+  });
+}
+
+Deno.test("renderChapterHtml: an exact known slash ID with an empty segment takes precedence", () => {
+  const { html } = renderChapterHtml("See SYS_A//SYS_B.", {
+    knownDisplayIds: new Set(["SYS_A", "SYS_B", "SYS_A//SYS_B"]),
+  });
+  assertEquals(
+    html,
+    '<p>See <span class="cross-ref" data-display-id="SYS_A//SYS_B">SYS_A//SYS_B</span>.</p>',
+  );
+});
+
+Deno.test("renderChapterHtml: an exact known slash ID takes precedence over its parts", () => {
+  const { html } = renderChapterHtml("See SYS_A/SYS_B.", {
+    knownDisplayIds: new Set(["SYS_A", "SYS_B", "SYS_A/SYS_B"]),
+  });
+  assertEquals(
+    html,
+    '<p>See <span class="cross-ref" data-display-id="SYS_A/SYS_B">SYS_A/SYS_B</span>.</p>',
+  );
+});
+
+for (const id of ["REQ_", "REQ-", "REQ.", "REQ/", "REQ.part-_"]) {
+  Deno.test(`renderChapterHtml: links known ${id} including its trailing ID characters`, () => {
+    const literalId = id.replaceAll("_", "\\_");
+    const { html } = renderChapterHtml(
+      `See (${literalId}), then ${literalId}.`,
+      {
+        knownDisplayIds: new Set([id]),
+      },
+    );
+    const span = `<span class="cross-ref" data-display-id="${id}">${id}</span>`;
+    assertEquals(html, `<p>See (${span}), then ${span}.</p>`);
+  });
+}
+
+Deno.test("renderChapterHtml: an exact known dotted ID takes precedence over a shorter ID", () => {
+  const { html } = renderChapterHtml("See (REQ.).", {
+    knownDisplayIds: new Set(["REQ", "REQ."]),
+  });
+  assertEquals(
+    html,
+    '<p>See (<span class="cross-ref" data-display-id="REQ.">REQ.</span>).</p>',
+  );
+});
+
+Deno.test("renderChapterHtml: does not link fragments of unknown tokens", () => {
+  const { html } = renderChapterHtml(
+    "SYS_A.extra SYS_A_ SYS_A- _SYS_A -SYS_A .SYS_A (SYS_A), SYS_A!",
+    { knownDisplayIds: new Set(["SYS_A"]) },
+  );
+  const span = '<span class="cross-ref" data-display-id="SYS_A">SYS_A</span>';
+  assertEquals(
+    html,
+    `<p>SYS_A.extra SYS_A_ SYS_A- _SYS_A -SYS_A .SYS_A (${span}), ${span}!</p>`,
+  );
+});
+
+Deno.test("renderChapterHtml: leaves slash-separated and trailing IDs inside code unlinked", () => {
+  const { html } = renderChapterHtml(
+    "`SYS_A/SYS_B REQ_ REQ- REQ.`\n\n```text\nSYS_A/SYS_B REQ_ REQ- REQ.\n```",
+    { knownDisplayIds: new Set(["SYS_A", "SYS_B", "REQ_", "REQ-", "REQ."]) },
+  );
+  assertEquals(html.includes("cross-ref"), false);
+  assertStringIncludes(html, "<code>SYS_A/SYS_B REQ_ REQ- REQ.</code>");
+  assertStringIncludes(
+    html,
+    '<pre><code class="language-text">SYS_A/SYS_B REQ_ REQ- REQ.\n</code></pre>',
+  );
+});
+
+Deno.test("renderChapterHtml: attribute values use the same ID boundaries as prose", () => {
+  const { html } = renderChapterHtml(
+    "- [REQ_001] Title\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n      Rationale: SYS_A/SYS_B REQ_ REQ- REQ..",
+    { knownDisplayIds: new Set(["SYS_A", "SYS_B", "REQ_", "REQ-", "REQ."]) },
+  );
+  const spans = ["SYS_A", "SYS_B", "REQ_", "REQ-", "REQ."].map((id) =>
+    `<span class="cross-ref" data-display-id="${id}">${id}</span>`
+  );
+  assertStringIncludes(
+    html,
+    `<code>${spans[0]}/${spans.slice(1).join(" ")}.</code>`,
+  );
+});
+
 Deno.test("renderChapterHtml: without knownDisplayIds only anchors are added", async (t) => {
   const { html } = renderChapterHtml(ANCHOR_FIXTURE, { file: "a.md" });
   await assertSnapshot(t, html);

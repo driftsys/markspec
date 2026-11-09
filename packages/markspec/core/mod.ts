@@ -10,6 +10,8 @@
 
 export const VERSION = "0.12.0";
 
+export { DISPLAY_ID_CHAR_RE, DISPLAY_ID_TOKEN_RE } from "./util/display_id.ts";
+
 // Model types
 export {
   ConfigError,

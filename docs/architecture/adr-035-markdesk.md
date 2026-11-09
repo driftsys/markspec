@@ -419,13 +419,14 @@ built: the first prompt" below).
   (`renderChapterHtml`); the UI contains no Markdown renderer. The renderer
   gives each entry block a `data-display-id` and, for the first entry of each
   display ID in a chapter, a stable anchor (see SAD_DESK_0034), and wraps
-  display IDs in a cross-reference element carrying `data-display-id`: in every
-  attribute value except `Labels`, each ID token (found with an ID-token
-  pattern, not a whitespace split) that is in `knownDisplayIds`, and IDs in body
-  prose that resolve to a known entry. `knownDisplayIds` is passed only by the
-  desk endpoints; the `markspec book build` call sites are unchanged. The UI
-  turns cross-references into navigation and opens ordinary web links in the
-  system browser.
+  display IDs in a cross-reference element carrying `data-display-id`. In body
+  prose and every attribute value except `Labels`, the renderer scans whole
+  ID-character tokens and resolves exact known IDs first, then removes trailing
+  unmatched periods. Otherwise it splits a slash-joined token only if every
+  segment is nonempty and a known ID. Exact known IDs link at any length.
+  `knownDisplayIds` is passed only by the desk endpoints; the
+  `markspec book build` call sites are unchanged. The UI turns cross-references
+  into navigation and opens ordinary web links in the system browser.
 - **Images.** Images with a `data:` source are kept. Every other `<img>`,
   including `http(s)` sources, is replaced by a placeholder box with its alt
   text, because the content security policy blocks remote images and an `<img>`
