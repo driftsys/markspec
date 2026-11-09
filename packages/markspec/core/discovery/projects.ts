@@ -72,9 +72,9 @@ export async function resolveConfigRoot(
  * same answer the CLI gives for a file there. Each found root is scanned
  * again with its own exclude list, so its negations can re-include non-hidden
  * folders that the enclosing project's walk skipped. A found root is dropped
- * when the `.markspec.yaml` `exclude:` list of another found root above it
- * covers it: each project's exclude list applies to its own subtree, with
- * patterns relative to that project. The result is sorted.
+ * when the start root's exclude list or the `.markspec.yaml` `exclude:` list
+ * of another found root above it covers it: each project's exclude list applies
+ * to its own subtree, with patterns relative to that project. The result is sorted.
  */
 export async function findNestedProjectRoots(
   root: string,

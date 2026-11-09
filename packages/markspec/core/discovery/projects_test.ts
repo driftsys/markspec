@@ -223,6 +223,80 @@ Deno.test("discoverProjectRoots: a re-scan inherits the start root's gitignore",
   }
 });
 
+Deno.test("discoverProjectRoots: a middle ancestor's exclusion applies despite the nearest project's negation", async () => {
+  const dir = await real(
+    await makeTree({
+      "a/.markspec.yaml": 'exclude: ["b/c/"]\n',
+      "a/b/.markspec.yaml": 'exclude: ["!c/"]\n',
+      "a/b/c/.markspec.yaml": "exclude: []\n",
+    }),
+  );
+  try {
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      join(dir, "a"),
+      join(dir, "a", "b"),
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discoverProjectRoots: a project's negation does not affect a sibling project's gitignore", async () => {
+  const dir = await real(
+    await makeTree({
+      "a/.markspec.yaml": 'exclude: ["!generated/"]\n',
+      "b/.markspec.yaml": "exclude: []\n",
+      "b/.gitignore": "generated/\n",
+      "b/generated/.markspec.yaml": "exclude: []\n",
+    }),
+  );
+  try {
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      join(dir, "a"),
+      join(dir, "b"),
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("discoverProjectRoots: exclusions above the start folder do not apply because discovery does not read them", async () => {
+  const dir = await real(
+    await makeTree({
+      ".gitignore": "generated/\n",
+      "a/project.yaml": PROJECT,
+      "a/.markspec.yaml": 'exclude: ["!generated/"]\n',
+      "a/generated/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    const child = join(dir, "a");
+    const included = join(child, "generated");
+    const io = realIO();
+    const readPaths = new Set<string>();
+    const trackedIO: DiscoveryIO = {
+      ...io,
+      readFile(path) {
+        readPaths.add(path);
+        return io.readFile(path);
+      },
+    };
+    assertEquals((await discoverProjectRoots(dir, trackedIO)).roots, [
+      child,
+      included,
+    ]);
+    assertEquals(readPaths.has(join(dir, ".gitignore")), true);
+    readPaths.clear();
+    assertEquals((await discoverProjectRoots(child, trackedIO)).roots, [
+      child,
+      included,
+    ]);
+    assertEquals(readPaths.has(join(dir, ".gitignore")), false);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("discoverProjectRoots: a second-generation re-scan applies its own negation", async () => {
   const dir = await real(
     await makeTree({
