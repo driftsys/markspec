@@ -135,6 +135,108 @@ Deno.test("discoverProjectRoots: a nested project's exclude applies to its subtr
   assertEquals(result.roots, [join(dir, "a")]);
 });
 
+for (const belowChild of ["dist", "docs/dist"]) {
+  Deno.test(`discoverProjectRoots: a child's negation re-includes ${belowChild} from either start folder`, async () => {
+    const dir = await real(
+      await makeTree({
+        "project.yaml": PROJECT,
+        "a/project.yaml": PROJECT,
+        "a/.gitignore": "dist/\n",
+        "a/.markspec.yaml": 'exclude: ["!dist/"]\n',
+        [`a/${belowChild}/project.yaml`]: PROJECT,
+      }),
+    );
+    try {
+      const child = join(dir, "a");
+      const included = join(child, ...belowChild.split("/"));
+      const fromChild = await discoverProjectRoots(child, realIO());
+      assertEquals(fromChild.roots, [child, included]);
+      const fromOuter = await discoverProjectRoots(dir, realIO());
+      assertEquals(fromOuter.roots, [dir, child, included]);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+}
+
+Deno.test("discoverProjectRoots: a child without a negation keeps dist hidden from either start folder", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      "a/project.yaml": PROJECT,
+      "a/.gitignore": "dist/\n",
+      "a/.markspec.yaml": "exclude: []\n",
+      "a/dist/project.yaml": PROJECT,
+      "a/docs/dist/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    const child = join(dir, "a");
+    assertEquals((await discoverProjectRoots(child, realIO())).roots, [child]);
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      dir,
+      child,
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+for (const excluded of ["a/", "a/dist/"]) {
+  Deno.test(`discoverProjectRoots: an outer ${excluded} exclusion still applies when a child negates dist`, async () => {
+    const dir = await real(
+      await makeTree({
+        "project.yaml": PROJECT,
+        ".markspec.yaml": `exclude: ["${excluded}"]\n`,
+        "a/project.yaml": PROJECT,
+        "a/.gitignore": "dist/\n",
+        "a/.markspec.yaml": 'exclude: ["!dist/"]\n',
+        "a/dist/project.yaml": PROJECT,
+      }),
+    );
+    try {
+      const result = await discoverProjectRoots(dir, realIO());
+      assertEquals(
+        result.roots,
+        excluded === "a/" ? [dir] : [dir, join(dir, "a")],
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+}
+
+Deno.test("discoverProjectRoots: a child's negation applies below an intermediate project", async () => {
+  const dir = await real(
+    await makeTree({
+      "project.yaml": PROJECT,
+      "a/project.yaml": PROJECT,
+      "a/.gitignore": "dist/\n",
+      "a/.markspec.yaml": 'exclude: ["!dist/"]\n',
+      "a/docs/project.yaml": PROJECT,
+      "a/docs/dist/project.yaml": PROJECT,
+    }),
+  );
+  try {
+    const child = join(dir, "a");
+    const intermediate = join(child, "docs");
+    const included = join(intermediate, "dist");
+    assertEquals((await discoverProjectRoots(child, realIO())).roots, [
+      child,
+      intermediate,
+      included,
+    ]);
+    assertEquals((await discoverProjectRoots(dir, realIO())).roots, [
+      dir,
+      child,
+      intermediate,
+      included,
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 /** A `DiscoveryIO` over an in-memory map of absolute paths to contents.
  * Folders are implied by the file paths. */
 function memoryIO(files: Record<string, string>): DiscoveryIO {

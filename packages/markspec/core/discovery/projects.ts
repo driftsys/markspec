@@ -69,7 +69,9 @@ export async function resolveConfigRoot(
  * `exclude`). Each discovered `project.yaml` or `.markspec.yaml` is
  * resolved with {@linkcode resolveConfigRoot} from its own directory, so a
  * `.markspec.yaml` below a `project.yaml` is not a root of its own — the
- * same answer the CLI gives for a file there. A found root is dropped when
+ * same answer the CLI gives for a file there. Each found root is scanned
+ * again with its own exclude list, so its negations can re-include folders
+ * that the enclosing project's walk skipped. A found root is dropped when
  * the `.markspec.yaml` `exclude:` list of another found root above it
  * covers it: each project's exclude list applies to its own subtree, with
  * patterns relative to that project. The result is sorted.
@@ -80,26 +82,36 @@ export async function findNestedProjectRoots(
   exclude?: readonly string[],
 ): Promise<string[]> {
   const out = new Set<string>();
-  for await (
-    const path of discoverFiles(root, io, {
-      extensions: new Set([".yaml"]),
-      exclude,
-    })
-  ) {
-    if (!CONFIG_BASENAMES.has(basename(path))) continue;
-    const dir = dirname(path);
-    if (dir === root) continue;
-    const found = await resolveConfigRoot(dir, io.readFile);
-    if (found !== undefined && found !== root && isWithin(root, found)) {
-      out.add(found);
+  const scans = [{ root, exclude }];
+  for (const scan of scans) {
+    for await (
+      const path of discoverFiles(scan.root, io, {
+        extensions: new Set([".yaml"]),
+        exclude: scan.exclude,
+        inheritGitignoreFrom: root,
+      })
+    ) {
+      if (!CONFIG_BASENAMES.has(basename(path))) continue;
+      const dir = dirname(path);
+      if (dir === scan.root) continue;
+      const found = await resolveConfigRoot(dir, io.readFile);
+      if (
+        found !== undefined && found !== root && isWithin(root, found) &&
+        !out.has(found)
+      ) {
+        out.add(found);
+        const { config } = await loadToolConfig(found, io.readFile);
+        scans.push({ root: found, exclude: config.exclude });
+      }
     }
   }
   const nested = [...out];
   const excludeRules = new Map<string, readonly GitignoreRule[]>();
+  excludeRules.set(root, parseGitignore((exclude ?? []).join("\n"), ""));
   const kept: string[] = [];
   for (const candidate of nested) {
     let covered = false;
-    for (const ancestor of nested) {
+    for (const ancestor of [root, ...nested]) {
       if (ancestor === candidate || !isWithin(ancestor, candidate)) continue;
       let rules = excludeRules.get(ancestor);
       if (rules === undefined) {
