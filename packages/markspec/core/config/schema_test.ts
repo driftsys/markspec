@@ -45,7 +45,7 @@ Deno.test("markspec schema: keys match parser (minus $schema)", async () => {
   );
 });
 
-Deno.test("markspec schema: exclude requires an array of non-empty strings", async () => {
+Deno.test("markspec schema: exclude accepts null or an array of non-empty strings", async () => {
   const schema = await loadMarkspecSchema();
   const validate = new Ajv().compile(schema);
   for (
@@ -176,6 +176,13 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         [[ref, { ...ref, version: "v1" }], true],
         [[ref, { ...ref, url: "https://example.com/other" }], true],
         [[ref, { ...ref, name: "other" }], true],
+        [[{ url: ref.url }, { url: ref.url }], false],
+        [[{ url: ref.url, name: "a" }, { url: ref.url, name: "a" }], false],
+        [
+          [{ url: ref.url, version: "a" }, { url: ref.url, version: "a" }],
+          false,
+        ],
+        [[ref, { url: "https://example.com/other" }, ref], false],
         [[{ ...ref, version: "" }], true],
         [[{ ...ref, url: "not-a-url" }], false],
         [[{ ...ref, url: "https://example.com/bad path" }], false],
@@ -184,6 +191,7 @@ Deno.test("project schema and loader: reference list parity", async (t) => {
         [[{ ...ref, url: "git@host/path:repo" }], false],
         [[{ ...ref, url: "git@example.com:bad path/demo.git" }], false],
         [[{ ...ref, url: "C:\\repo" }], false],
+        [[{ ...ref, url: "C:/repo" }], true],
         [[{ ...ref, url: "urn:example:demo" }], true],
         [[{ ...ref, url: "file:///tmp/demo" }], true],
         [[{ ...ref, url: "ssh://git@example.com/demo.git" }], true],

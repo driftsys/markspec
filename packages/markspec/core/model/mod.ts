@@ -722,7 +722,7 @@ export type CaptionConventions = Readonly<
  * `driftsys/schemas` `project/v1.json` `$defs/projectRef`). Used by the
  * `dependencies:` (git repositories) and `references:` (published sites)
  * lists. `version` carries intent: an exact tag is a frozen baseline, a
- * branch name tracks its head, absent means auto (latest semver release
+ * branch name tracks its head, absent or empty means auto (latest semver release
  * tag, else default-branch head). `name` is the upstream id used for the
  * cache directory, lockfile rows, and origin badges; derived from the URL
  * when absent.

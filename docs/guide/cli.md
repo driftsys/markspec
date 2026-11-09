@@ -87,11 +87,11 @@ to strings with a warning. Other non-string values are rejected with
 
 `dependencies:` and `references:` are both lists of the same shape:
 
-| Key       | Type   | Required | Description                                                                                                                                       |
-| --------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`     | string | yes      | Git repository URL (`dependencies:`) or published-site base URL (`references:`; `file://` accepted).                                              |
-| `version` | string | no       | Version intent: an exact tag freezes a baseline, a branch name tracks its head, absent means auto (latest release tag, else default-branch head). |
-| `name`    | string | no       | Upstream id — cache-directory name, lockfile row id, origin badge. Must match `[A-Za-z0-9][A-Za-z0-9._-]*`. Derived from the URL when absent.     |
+| Key       | Type   | Required | Description                                                                                                                                                |
+| --------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`     | string | yes      | Git repository URL (`dependencies:`) or published-site base URL (`references:`; `file://` accepted).                                                       |
+| `version` | string | no       | Version intent: an exact tag freezes a baseline, a branch name tracks its head, absent or empty means auto (latest release tag, else default-branch head). |
+| `name`    | string | no       | Upstream id — cache-directory name, lockfile row id, origin badge. Must match `[A-Za-z0-9][A-Za-z0-9._-]*`. Derived from the URL when absent.              |
 
 Omit either key when there are no entries. An empty list, `null`, an empty YAML
 key, or duplicate objects in the same list is an error. Object key order does
@@ -101,8 +101,9 @@ An explicitly empty projectRef `version: ""` means auto, as when absent. A
 projectRef `name:` must remain a safe cache-directory name even though the org
 schema accepts any string. URLs must satisfy the org schema's URI format. For
 `dependencies:`, local paths (`./`, `../`, or `/` prefixes) and scp-style Git
-URLs such as `git@github.com:acme/demo.git` are supported exceptions. Windows
-drive paths such as `C:\repo` are not accepted.
+URLs such as `git@github.com:acme/demo.git` are supported exceptions. A Windows
+path with backslashes such as `C:\repo` is rejected. `C:/repo` is accepted only
+because it is a valid URI with the scheme `c`.
 
 - **`dependencies:`** — other projects this project builds on (git
   repositories). `markspec lock` resolves the declared `version:` intent against
