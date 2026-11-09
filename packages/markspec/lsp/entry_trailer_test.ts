@@ -63,6 +63,18 @@ Deno.test("scanEntryTrailer: extracts display IDs inside Satisfies value", () =>
   assertEquals(result[0].idRanges[1].length, 7);
 });
 
+Deno.test("scanEntryTrailer: does not report an ID inside an underscore-leading token", () => {
+  const lines = [
+    "- [REQ-001] Title",
+    "",
+    "      Satisfies: _ABC",
+  ];
+  const result = scanEntryTrailer(makeEntry("REQ-001", 1), lines, 3);
+  assertEquals(result.length, 1);
+  assertEquals(result[0].key, "Satisfies");
+  assertEquals(result[0].idRanges, []);
+});
+
 Deno.test("scanEntryTrailer: handles multiple spaces after colon", () => {
   const text = [
     "- [REQ-001] Title",

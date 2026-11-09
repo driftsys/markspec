@@ -226,6 +226,23 @@ for (const id of ["A", "AB"]) {
   });
 }
 
+Deno.test("renderChapterHtml: three known slash segments each become a cross-ref", () => {
+  const { html } = renderChapterHtml("See A/B/C.", {
+    knownDisplayIds: new Set(["A", "B", "C"]),
+  });
+  assertEquals(
+    html,
+    '<p>See <span class="cross-ref" data-display-id="A">A</span>/<span class="cross-ref" data-display-id="B">B</span>/<span class="cross-ref" data-display-id="C">C</span>.</p>',
+  );
+});
+
+Deno.test("renderChapterHtml: slash segments are not recursively grouped", () => {
+  const { html } = renderChapterHtml("See A/B/C.", {
+    knownDisplayIds: new Set(["A/B", "C"]),
+  });
+  assertEquals(html, "<p>See A/B/C.</p>");
+});
+
 Deno.test("renderChapterHtml: slash-separated known IDs each become a cross-ref", () => {
   const { html } = renderChapterHtml("See SYS_A/SYS_B.", {
     knownDisplayIds: new Set(["SYS_A", "SYS_B"]),

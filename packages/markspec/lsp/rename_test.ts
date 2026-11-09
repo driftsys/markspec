@@ -52,7 +52,11 @@ Deno.test("rename: trailing ID characters belong to the range", () => {
   }
 });
 
-for (const separator of [".", "_"]) {
+Deno.test("prepareRenameRange: rejects an underscore-leading token", () => {
+  assertEquals(prepareRenameRange("[_REQ]", 2, 0), null);
+});
+
+for (const separator of [".", "_", "-"]) {
   for (const side of ["left", "right"]) {
     Deno.test(`rename: ${separator} on the ${side} prevents a partial ID replacement`, () => {
       const text = side === "left"

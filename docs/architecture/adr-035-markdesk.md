@@ -423,9 +423,11 @@ built: the first prompt" below).
   prose and every attribute value except `Labels`, the renderer scans whole
   ID-character tokens. For each token it first tries an exact known ID, then
   splits on slashes only if every segment is nonempty and a known ID. If neither
-  resolves, it removes one trailing period and repeats those steps. Removed
-  periods stay outside the links. Exact known IDs link at any length.
-  `knownDisplayIds` is passed only by the desk endpoints; the
+  resolves, it removes trailing periods one at a time and retries after each
+  removal until a match is found or no trailing period remains. Removed periods
+  stay outside the links. The LSP reads the whole token under the cursor and
+  requires at least three characters, while the renderer links exact known IDs
+  at any length. `knownDisplayIds` is passed only by the desk endpoints; the
   `markspec book build` call sites are unchanged. The UI turns cross-references
   into navigation and opens ordinary web links in the system browser.
 - **Images.** Images with a `data:` source are kept. Every other `<img>`,

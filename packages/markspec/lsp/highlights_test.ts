@@ -41,7 +41,7 @@ Deno.test("findOccurrencesInFile: trailing ID characters belong to the highlight
   }
 });
 
-for (const separator of [".", "_"]) {
+for (const separator of [".", "_", "-"]) {
   for (const side of ["left", "right"]) {
     Deno.test(`findOccurrencesInFile: ${separator} on the ${side} prevents a partial ID highlight`, () => {
       const text = side === "left"
