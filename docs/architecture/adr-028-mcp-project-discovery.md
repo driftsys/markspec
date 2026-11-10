@@ -157,7 +157,13 @@ them and apply to the folders below it; a nested root covered by the `exclude:`
 of any ancestor root is dropped), and finds every `project.yaml` and
 `.markspec.yaml`. Each config file resolves to a root the same way a document
 there would, so a `.markspec.yaml` below a `project.yaml` does not start a
-project of its own.
+project of its own. Each discovered project is also scanned with its own
+`exclude:` list, so its negations can re-include non-hidden folders skipped by
+the enclosing project's walk, at any depth below it. An enclosing project's
+exclusion that hides the nested project itself still hides its entire subtree.
+The result is independent of the start folder for rules belonging to the found
+projects. Rules of a project above the start folder apply only when discovery
+starts at or above that project; discovery does not read them from below it.
 
 - A nested project is a separate project. Its entries are not merged into the
   enclosing project's graph, and it is compiled and validated against its own
