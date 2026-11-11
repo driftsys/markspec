@@ -538,6 +538,10 @@ for (
           const result = await markspecInDir(root, args);
           assertEquals(result.code, 1, result.stderr);
           assertStringIncludes(result.stderr, "error: MSL-S001");
+          assertStringIncludes(
+            result.stderr,
+            `${join(syncDir, "jira.yaml")}: `,
+          );
           assertEquals(result.stdout, "");
           assertEquals(await exists(lockPath), existing);
           if (existing) {
@@ -954,6 +958,10 @@ Deno.test("compile --frozen: malformed inherited mapping prints diagnostics and 
       "req.md",
     ]);
     assertStringIncludes(result.stderr, "error: MSL-S001");
+    assertStringIncludes(
+      result.stderr,
+      `${join(run.dir, "p/group/.markspec/sync/jira.yaml")}: `,
+    );
     assertEquals(result.code, 0, result.stderr);
     assertStringIncludes(result.stdout, "1 entries");
   } finally {

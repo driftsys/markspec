@@ -530,7 +530,7 @@ async function loadAllMappings(
       }
       for (const diagnostic of result.diagnostics) {
         console.error(
-          `${diagnostic.severity}: ${diagnostic.code}: ${diagnostic.message}`,
+          `${diagnostic.severity}: ${diagnostic.code}: ${path}: ${diagnostic.message}`,
         );
       }
     }
