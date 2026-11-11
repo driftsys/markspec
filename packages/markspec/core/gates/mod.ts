@@ -89,6 +89,7 @@ export async function fmtDriftGate(
       parsed.entries,
       refIndex,
       ledger,
+      formatted.preservedRanges,
     );
     if (refResult.changed) {
       diagnostics.push({

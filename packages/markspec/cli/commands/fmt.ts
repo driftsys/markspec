@@ -158,6 +158,7 @@ export const fmtCmd = new Command()
               parsed.entries,
               refIndex,
               ledger,
+              result.preservedRanges,
             );
             if (refResult.changed) {
               output = refResult.output;
@@ -169,7 +170,7 @@ export const fmtCmd = new Command()
             const loc = d.location
               ? `${d.location.file}:${d.location.line}`
               : "";
-            console.error(`${d.severity}: ${loc} ${d.message}`);
+            console.error(`${d.severity}: ${loc} ${d.code}: ${d.message}`);
           }
 
           if (changed) {

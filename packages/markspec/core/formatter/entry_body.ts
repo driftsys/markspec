@@ -117,17 +117,20 @@ function bodySpan(lines: readonly string[], entry: Entry): BodySpan {
 
 /**
  * 0-based content column of the list item whose marker starts at `marker`
- * on `line`: the marker column, plus 1 for the bullet, plus the spaces
- * after it. So `- [ID]` gives the marker column plus 2 and `-   [ID]` gives
- * the marker column plus 4. Only a bullet followed by one to four spaces
- * can start an entry: ordered lists never hold entries, and five or more
- * spaces make the title an indented code block. When the line does not
- * start with a bullet and a space at `marker`, the marker column plus 2 is
- * used as a fallback.
+ * on `line`: the marker column, plus 1 for the bullet, plus the whitespace
+ * after it. Tabs advance to the next four-column CommonMark tab stop.
+ * So `- [ID]` gives 2, `-   [ID]` gives 4, and `-\t[ID]` gives 4 at
+ * column zero. Ordered lists never hold entries. When there is no bullet
+ * followed by whitespace at `marker`, use the marker column plus 2.
  */
 export function contentColumn(line: string, marker: number): number {
-  const m = /^[-*+]( +)/.exec(line.slice(marker));
-  return m ? marker + 1 + m[1].length : marker + 2;
+  const m = /^[-*+]([ \t]+)/.exec(line.slice(marker));
+  if (!m) return marker + 2;
+  let column = marker + 1;
+  for (const character of m[1]) {
+    column += character === "\t" ? 4 - column % 4 : 1;
+  }
+  return column;
 }
 
 /** Dedented span lines, trailing whitespace removed. */

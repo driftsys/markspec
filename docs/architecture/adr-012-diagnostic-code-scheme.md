@@ -232,13 +232,16 @@ the same corpus; a file-local `markspec check <file>` never emits them.
 `MSL-F012` ([ADR-029](./adr-029-whole-document-markdown-formatting.md)) is
 emitted directly by `fmt` itself (and format-on-save) when the whole-document
 Markdown pass falls back on an entry, so — unlike `MSL-F010` / `MSL-F011` — it
-also fires for a file-local `markspec fmt <file>`.
+also fires for a file-local `markspec fmt <file>`. `MSL-F013` is emitted
+directly by `fmt` when a tab-separated entry marker cannot be normalized without
+changing CommonMark structure.
 
-| Code     | Severity | Concern                                                                                                                                           |
-| -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MSL-F010 | error    | Formatter drift — on-disk form differs from `markspec fmt` output (whitespace, attribute order, casing, …)                                        |
-| MSL-F011 | error    | Reference-canonicalization drift — a trace value is a ULID or stale display ID `markspec fmt` would rewrite to its canonical display ID (ADR-026) |
-| MSL-F012 | info     | Markdown-pass fallback — the whole-document formatter's output was rejected by the CommonMark-semantic gate; the original text was kept           |
+| Code     | Severity | Concern                                                                                                                                                      |
+| -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| MSL-F010 | error    | Formatter drift — on-disk form differs from `markspec fmt` output (whitespace, attribute order, casing, …)                                                   |
+| MSL-F011 | error    | Reference-canonicalization drift — a trace value is a ULID or stale display ID `markspec fmt` would rewrite to its canonical display ID (ADR-026)            |
+| MSL-F012 | info     | Markdown-pass fallback — the whole-document formatter's output was rejected by the CommonMark-semantic gate; the original text was kept                      |
+| MSL-F013 | warning  | Tab-separated entry marker cannot be normalized without changing CommonMark structure; kept the entry unchanged. No `Id:` is stamped into the refused entry. |
 
 Published in the language spec at
 [`docs/spec/language/language.md` §8.9](../spec/language/language.md).

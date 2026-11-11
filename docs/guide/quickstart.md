@@ -100,8 +100,8 @@ markspec fmt requirements.md
 ```
 
 ```text
-info: requirements.md:3 assigned Id: 01KPVVC9J2B1ZA64QZEMHF02PW to STK_PRJ_0001
-info: requirements.md:9 assigned Id: 01KPVVC9J2B1ZA64QZEMHF02PX to SRS_PRJ_0001
+info: requirements.md:3 MSL-F001: assigned Id: 01KPVVC9J2B1ZA64QZEMHF02PW to STK_PRJ_0001
+info: requirements.md:9 MSL-F001: assigned Id: 01KPVVC9J2B1ZA64QZEMHF02PX to SRS_PRJ_0001
 2 file(s) formatted, 0 unchanged (2 total)
 ```
 

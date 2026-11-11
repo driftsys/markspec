@@ -360,6 +360,19 @@ dash bullet lists, and the file's own line-ending convention preserved.
 (reported as `MSL-F001` info) so the rest of the block stays trailers, then
 stamps `Id:` as usual. To get an `Id:`, omit the line; don't leave it blank.
 
+**Tabs after entry list markers.** `fmt` rewrites the marker and its following
+whitespace to a dash followed by one space only when the whole document keeps
+the same CommonMark structure, including list nesting, body and trailer
+containment, and existing entry identities. If normalization would change that
+structure, `fmt` emits `MSL-F013` (warning), preserves the entry byte-for-byte,
+and does not stamp an `Id:` into it. Other entries, including the parent's own
+body prose and trailer, are formatted as usual. A child's attributes are not
+copied into its parent. The surrounding list layout and following indented
+blocks are preserved where needed so that repeated formatting gives the same
+result. This includes paragraphs that CommonMark places outside the refused list
+item, and later indented trailers associated with that entry. Trace reference
+canonicalisation also preserves those trailers.
+
 Explicit arguments scope exactly to what's named; a directory argument expands
 to the files a bare invocation of its project finds below that directory, so
 `.gitignore`, the built-in hidden-directory skip, and the `.markspec.yaml`
@@ -381,10 +394,10 @@ canonicalises and heals trace reference values:
 
 - **Canonicalise** — any ULID written directly in a trace attribute
   (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.) is rewritten to the
-  target entry's current display ID.
+  target entry's current display ID, except inside a refused entry.
 - **Heal** — if a target's display ID was renamed, the edge ledger in
   `markspec.lock` records the stable `target-ulid`; `fmt` uses it to rewrite the
-  stale display ID to the target's new name.
+  stale display ID to the target's new name, except inside a refused entry.
 - **Unresolved references are left as-is** — `markspec check` reports them via
   `MSL-L006`, or `MSL-T014` when the project declares `dependencies:`/
   `references:` (see

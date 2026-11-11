@@ -1515,6 +1515,17 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
   normalized.
 - **Entry titles** — a title soft-wrapped across multiple physical lines is
   collapsed to a single line (§1).
+- **Tabs after entry list markers** — normalized to a dash followed by one space
+  only when the complete document retains the same CommonMark structure under
+  the ADR-029 semantic equivalence comparator. List hierarchy, body and trailer
+  containment, and existing entry identities must be preserved. Otherwise the
+  entry stays byte-for-byte unchanged, no `Id:` is stamped, and `fmt` emits
+  `MSL-F013` (warning). Other entries, including a parent's own body prose and
+  trailer, are formatted as usual; child attributes are not copied to the
+  parent. The surrounding list layout and following indented blocks, including
+  paragraphs outside the list item, are preserved where needed to keep refusal
+  stable on repeated runs. Later indented trailers associated with the refused
+  entry are also preserved, including their trace reference values.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.
@@ -1647,8 +1658,8 @@ Existence and cardinality rules for the targets of trace-relation links.
 ### 8.9 Formatting (MSL-F)
 
 Drift between a file's on-disk form and what `markspec fmt` would write, plus
-one advisory `fmt` raises about itself. `MSL-F010` and `MSL-F011` fire only in
-the project-wide composite `markspec check` gate (ADR-027) and mirror
+diagnostics for rewrites that `fmt` refuses. `MSL-F010` and `MSL-F011` fire only
+in the project-wide composite `markspec check` gate (ADR-027) and mirror
 `markspec fmt` / `markspec fmt --check` exactly, from the same `.gitignore`- and
 `exclude:`-aware corpus. They are Markdown-only — `markspec fmt` never rewrites
 source files.
@@ -1658,16 +1669,18 @@ source files.
 | `MSL-F010` | error    | Formatter drift: the file's whitespace / attribute form differs from `markspec fmt` output (indentation, backslashes, attribute order, modal-verb casing, …).                                                                                        |
 | `MSL-F011` | error    | Reference-canonicalization drift: a trace-relation value is a ULID or stale display ID that `markspec fmt` would rewrite to its current canonical display ID (ADR-026). Kept distinct from `MSL-F010` so the author knows which `fmt` concern fired. |
 | `MSL-F012` | info     | Markdown-pass fallback: the whole-document formatter's output was rejected by the CommonMark-semantic gate; the original text was kept (ADR-029).                                                                                                    |
+| `MSL-F013` | warning  | Tab-separated entry marker cannot be normalized without changing CommonMark structure; kept the entry unchanged. No `Id:` is stamped into the refused entry.                                                                                         |
 
 `MSL-F010` and `MSL-F011` are project-wide-only — a file-local
 `markspec check
 <file>` does not fire them (the canonical agent path runs `fmt`
 before `check`). `MSL-F012` is emitted directly by `fmt` (and format-on-save)
 when the whole-document Markdown pass (ADR-029) falls back on a single entry, so
-it fires file-locally too — it is not gated on the composite `check` corpus. The
-`MSL-F` prefix is a bounded early adoption of the nextgen "format reports"
-family (ADR-012), the same pattern as `MSL-B044` / `MSL-C072`; see ADR-012's
-ADR-027 amendment.
+it fires file-locally too — it is not gated on the composite `check` corpus.
+`MSL-F013` is also emitted directly by `fmt`, including file-local formatting,
+when tab-marker normalization is refused. The `MSL-F` prefix is a bounded early
+adoption of the nextgen "format reports" family (ADR-012), the same pattern as
+`MSL-B044` / `MSL-C072`; see ADR-012's ADR-027 amendment.
 
 ### 8.10 Lockfile and external sync (MSL-L, MSL-S)
 

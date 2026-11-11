@@ -2,8 +2,9 @@
  * @module formatter/md_equiv
  *
  * CommonMark-semantic Markdown equivalence — the gate for the ADR-029
- * dprint pass. Two fragments are equivalent when they parse to the
- * same mdast structure after eliding source `position`s and collapsing
+ * dprint pass and entry tab-marker normalization. Two fragments are equivalent
+ * when they parse to the same mdast structure after eliding source `position`s
+ * and collapsing
  * ASCII whitespace runs inside `text` node values. Only ASCII
  * whitespace is collapsed — NBSP (U+00A0) and Unicode spaces are
  * content, not wrap artifacts, and must not compare equal to a plain
@@ -15,9 +16,9 @@
  * and definition `url`s stay byte-exact.
  *
  * DELIBERATELY weaker than ADR-015's `astEquivalent` (byte-verbatim on
- * inline markup). Used ONLY to accept/reject dprint output; the
- * ADR-015 relation still guards §5.2 body emission (MSL-F900) and must
- * not be modified.
+ * inline markup). Used to accept/reject dprint output and tab-marker rewrites.
+ * The ADR-015 relation still guards §5.2 body emission (MSL-F900) and must not
+ * be modified.
  */
 
 import { unified } from "unified";

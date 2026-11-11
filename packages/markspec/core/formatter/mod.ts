@@ -21,7 +21,7 @@ import {
   IDENTITY_KEY,
 } from "../model/mod.ts";
 import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
-import { ATTR_LINE_RE } from "../parser/attributes.ts";
+import { ATTR_LINE_RE, parseAttributes } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { fencedCodeLines } from "../util/fence.ts";
@@ -39,8 +39,13 @@ import { buildBodyAst } from "../ast/build.ts";
 import { render as renderBodyAst } from "../ast/render.ts";
 import { normalizeBodyAst } from "../ast/normalize.ts";
 import { astEquivalent } from "../ast/equivalence.ts";
-import { formatProseSegments } from "./prose.ts";
+import { type EntryExtent, formatProseSegments } from "./prose.ts";
 import { contentColumn } from "./entry_body.ts";
+import {
+  entryListItems,
+  protectedTabRanges,
+  tabMarkers,
+} from "./tab_markers.ts";
 import {
   MARKSPEC_MARKDOWN_GLOBAL_CONFIG,
   type ProseFormatter,
@@ -242,10 +247,72 @@ function emitBodyViaAst(
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
 
   for (const entry of sorted) {
+    const protectedRanges = protectedTabRanges(lines);
+    const start = entry.location.line - 1;
+    if (
+      protectedRanges.some((range) => start >= range.start && start < range.end)
+    ) continue;
+    const children = protectedRanges.filter((range, index) =>
+      range.start > start && range.start < (entry.endLine ?? start) &&
+      !protectedRanges.some((outer, other) =>
+        other !== index &&
+        outer.start < range.start && outer.end >= range.end
+      )
+    );
+    if (children.length > 0) {
+      // Format the parent's prose with each refused child represented by a
+      // verbatim block, then restore the original child lines.
+      const end = entry.endLine!;
+      const fragment = lines.slice(start, end);
+      const indent = contentColumn(lines[start], entry.location.column - 1);
+      const replacements: { token: string; original: string[] }[] = [];
+      for (const child of children.toReversed()) {
+        const childEnd = Math.min(child.end, end);
+        let token = "<!-- markspec-preserved-child -->";
+        while (
+          lines.some((line) => line.includes(token)) ||
+          replacements.some((r) => r.token === token)
+        ) token = token.replace(" -->", "- -->");
+        replacements.push({
+          token,
+          original: lines.slice(child.start, childEnd),
+        });
+        fragment.splice(
+          child.start - start,
+          childEnd - child.start,
+          " ".repeat(indent) + token,
+          "",
+        );
+      }
+      const nestedDiagnostics: Diagnostic[] = [];
+      emitBodyViaAst(fragment, file, nestedDiagnostics, undefined, proseFormat);
+      for (const { token, original } of replacements) {
+        const at = fragment.findIndex((line) => line.trim() === token);
+        if (at < 0) throw new Error("Preserved child placeholder was lost");
+        let after = at + 1;
+        while (after < fragment.length && fragment[after].trim() === "") {
+          after++;
+        }
+        fragment.splice(at, after - at, ...original);
+      }
+      diagnostics.push(
+        ...nestedDiagnostics.map((d) => ({
+          ...d,
+          location: d.location
+            ? { ...d.location, line: d.location.line + start }
+            : undefined,
+        })),
+      );
+      if (fragment.join("\n") !== lines.slice(start, end).join("\n")) {
+        lines.splice(start, end - start, ...fragment);
+        bodyChanged = true;
+      }
+      continue;
+    }
     if (!entry.body.trim()) continue; // empty or whitespace-only body
 
     // List-item continuation indent: the item's content column, which
-    // follows every space after the marker (#865).
+    // counts every space and tab after the marker (#865).
     const indent = contentColumn(
       lines[entry.location.line - 1] ?? "",
       entry.location.column - 1,
@@ -423,6 +490,8 @@ export interface FormatResult {
   readonly diagnostics: readonly Diagnostic[];
   /** Whether any changes were made. */
   readonly changed: boolean;
+  /** Output line spans (0-based, end exclusive) kept unchanged after refusal. */
+  readonly preservedRanges?: readonly EntryExtent[];
 }
 
 /**
@@ -451,6 +520,118 @@ function stampDisciplineFrozen(value: string, today: string): string {
 }
 
 /**
+ * Normalize tab markers before any pass can stamp or splice their entries.
+ * Compare whole documents so a neighbouring list cannot become a child.
+ */
+function normalizeTabMarkers(
+  markdown: string,
+  options: FormatOptions | undefined,
+  diagnostics: Diagnostic[],
+): string {
+  const lines = markdown.split("\n");
+  const original = [...lines];
+  const markers = tabMarkers(lines).sort((a, b) => b.start - a.start);
+  if (markers.length === 0) return markdown;
+  const accepted = new Set<number>();
+  const refused = new Set<number>();
+  for (const marker of markers) {
+    const before = lines.join("\n");
+    const candidate = [...lines];
+    const title = lines[marker.start];
+    const indent = contentColumn(title, marker.column);
+    const delta = indent - (marker.column + 2);
+    candidate[marker.start] = title.slice(0, marker.column) + "- " +
+      title.slice(marker.column + 1 + marker.whitespace.length);
+    for (let i = marker.start + 1; i < marker.end; i++) {
+      if (candidate[i].startsWith(" ".repeat(indent))) {
+        candidate[i] = candidate[i].slice(delta);
+      }
+    }
+    const after = candidate.join("\n");
+    const beforeEntries = parseMarkdown(before).entries;
+    const afterEntries = parseMarkdown(after).entries;
+    const identitiesKept = beforeEntries.length === afterEntries.length &&
+      beforeEntries.every((entry, i) =>
+        entry.displayId === afterEntries[i].displayId &&
+        entry.id === afterEntries[i].id
+      );
+    const containsRefused = [...refused].some((start) =>
+      start > marker.start && start < marker.end
+    );
+    if (
+      containsRefused || !markdownSemanticallyEquivalent(before, after) ||
+      !identitiesKept
+    ) {
+      // Refusing an enclosing entry must also undo admitted changes to its
+      // descendants. No identities have been stamped at this point.
+      lines.splice(
+        marker.start,
+        marker.end - marker.start,
+        ...original.slice(marker.start, marker.end),
+      );
+      for (const start of accepted) {
+        if (start >= marker.start && start < marker.end) accepted.delete(start);
+      }
+      refused.add(marker.start);
+      diagnostics.push({
+        code: "MSL-F013",
+        severity: "warning",
+        message: "Tab-separated entry marker cannot be normalized without " +
+          "changing CommonMark structure; kept the entry unchanged",
+        location: {
+          file: options?.file ?? "<unknown>",
+          line: marker.start + 1,
+          column: marker.column + 1,
+        },
+      });
+      continue;
+    }
+    lines.splice(0, lines.length, ...candidate);
+    accepted.add(marker.start);
+  }
+  const indexedStarts = new Set(
+    parseMarkdown(lines.join("\n")).entries.map((entry) =>
+      entry.location.line - 1
+    ),
+  );
+  for (const start of [...accepted].sort((a, b) => b - a)) {
+    // Re-read extents after each nested splice. Admission itself never
+    // changes line counts, so earlier title positions remain valid.
+    const marker = entryListItems(lines).find((item) => item.start === start)!;
+    // Nested entries are outside the parser's top-level entry index. Format
+    // their normalized item separately, then restore the enclosing indent.
+    if (
+      marker.container.start !== marker.start &&
+      !indexedStarts.has(marker.container.start)
+    ) {
+      const prefix = " ".repeat(marker.column);
+      const fragment = lines.slice(marker.start, marker.end)
+        .map((line) =>
+          line.startsWith(prefix) ? line.slice(prefix.length) : line
+        )
+        .join("\n");
+      const nested = formatEntries(fragment, options);
+      const replacement = nested.output.split("\n")
+        .map((line) => line === "" ? "" : prefix + line);
+      lines.splice(marker.start, marker.end - marker.start, ...replacement);
+      diagnostics.push(...nested.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        ...(diagnostic.location
+          ? {
+            location: {
+              ...diagnostic.location,
+              line: diagnostic.location.line + marker.start,
+              column: diagnostic.location.column + marker.column,
+            },
+          }
+          : {}),
+      })));
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
  * Format a Markdown string — normalize attribute blocks,
  * fix indentation, enforce canonical ordering.
  *
@@ -459,6 +640,30 @@ function stampDisciplineFrozen(value: string, today: string): string {
  * @returns Format result with output text and diagnostics
  */
 export function format(
+  markdown: string,
+  options?: FormatOptions,
+): FormatResult {
+  const diagnostics: Diagnostic[] = [];
+  const ending = detectLineEnding(markdown);
+  const prepared = normalizeTabMarkers(
+    normalizeLineEndings(markdown),
+    options,
+    diagnostics,
+  );
+  const result = formatEntries(prepared, options);
+  const output = applyLineEnding(result.output, ending);
+  return {
+    output,
+    diagnostics: [...diagnostics, ...result.diagnostics],
+    changed: output !== markdown,
+    preservedRanges: protectedTabRanges(
+      normalizeLineEndings(output).split("\n"),
+    ),
+  };
+}
+
+/** Run the entry and prose passes after tab-marker admission. */
+function formatEntries(
   markdown: string,
   options?: FormatOptions,
 ): FormatResult {
@@ -517,7 +722,14 @@ export function format(
 
   const genUlid = options?.generateUlid ?? defaultUlid;
 
+  const protectedRanges = protectedTabRanges(lines);
   for (const entry of sorted) {
+    if (
+      protectedRanges.some((range) =>
+        entry.location.line - 1 >= range.start &&
+        entry.location.line - 1 < range.end
+      )
+    ) continue;
     const indent = contentColumn(
       lines[entry.location.line - 1] ?? "",
       entry.location.column - 1,
@@ -530,7 +742,22 @@ export function format(
       entry.endLine === undefined
         ? 0
         : entry.endLine + (lines.length - lengthAtStart);
-    let attrs = [...entry.rawAttributes];
+    const existingTrailer = protectedRanges.length > 0
+      ? findAttributeBlockRange(
+        lines,
+        entry.location.line,
+        indent,
+        itemEndFloor(),
+        protectedRanges,
+      )
+      : undefined;
+    let attrs = protectedRanges.length > 0
+      ? existingTrailer
+        ? parseAttributes(
+          lines.slice(existingTrailer.start, existingTrailer.end),
+        )
+        : []
+      : [...entry.rawAttributes];
 
     const titleLineIdx = entry.location.line - 1;
 
@@ -642,6 +869,7 @@ export function format(
       entry.location.line,
       indent,
       itemEndFloor(),
+      protectedRanges,
     );
 
     if (range) {
@@ -723,7 +951,28 @@ export function format(
         end: findItemEnd(collapsedLines, start, entryIndent, e.endLine ?? 0),
       };
     });
-    const prose = formatProseSegments(collapsedLines, extents, proseFormat);
+    if (tabMarkers(collapsedLines).length > 0) {
+      // Title-only entry items are outside the entry index. Keep their list
+      // context too: isolated prose formatting can move adjacent entries.
+      const indexedStarts = new Set(
+        proseEntries.map((entry) => entry.location.line - 1),
+      );
+      extents.push(
+        ...entryListItems(collapsedLines)
+          .filter((item) => !indexedStarts.has(item.start))
+          .map((item) => item.listContext),
+      );
+      extents.push(...protectedTabRanges(collapsedLines, true));
+    }
+    extents.sort((a, b) => a.start - b.start);
+    const merged: typeof extents = [];
+    for (const extent of extents) {
+      const previous = merged.at(-1);
+      if (previous && extent.start <= previous.end) {
+        previous.end = Math.max(previous.end, extent.end);
+      } else merged.push({ ...extent });
+    }
+    const prose = formatProseSegments(collapsedLines, merged, proseFormat);
     if (prose.changed) changed = true;
     for (const fallback of prose.fallbacks) {
       const cause = fallback.reason === "error"
@@ -791,9 +1040,13 @@ function renderFrontMatter(attrs: DocumentAttributes): string {
 function collapseBlankLines(lines: readonly string[]): string[] {
   const out: string[] = [];
   const fencedLines = fencedCodeLines(lines.join("\n"));
+  const protectedRanges = protectedTabRanges(lines, true);
   let prevBlank = false;
   for (const [i, line] of lines.entries()) {
-    if (fencedLines.has(i)) {
+    if (
+      fencedLines.has(i) ||
+      protectedRanges.some((range) => i >= range.start && i < range.end)
+    ) {
       out.push(line);
       prevBlank = false;
       continue;
@@ -973,7 +1226,14 @@ function removeEmptyTrailerLines(
   const lines = body.split("\n");
   let removedAny = false;
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
+  const protectedRanges = protectedTabRanges(lines);
   for (const entry of sorted) {
+    if (
+      protectedRanges.some((range) =>
+        entry.location.line - 1 >= range.start &&
+        entry.location.line - 1 < range.end
+      )
+    ) continue;
     const indent = contentColumn(
       lines[entry.location.line - 1] ?? "",
       entry.location.column - 1,
@@ -982,10 +1242,20 @@ function removeEmptyTrailerLines(
     let end = findItemEnd(lines, startIdx, indent, entry.endLine ?? 0);
     while (end > startIdx && lines[end - 1].trim() === "") end--;
     let start = end;
-    while (start - 1 > startIdx && lines[start - 1].trim() !== "") start--;
+    while (
+      start - 1 > startIdx && lines[start - 1].trim() !== "" &&
+      !protectedRanges.some((range) =>
+        start - 1 >= range.start && start - 1 < range.end
+      )
+    ) start--;
     if (start >= end || start - 1 <= startIdx) continue;
     const trailerIndent = " ".repeat(indent + 4);
     const block = lines.slice(start, end);
+    if (
+      protectedRanges.some((range) =>
+        range.start > startIdx && start < range.end && end > range.start
+      )
+    ) continue;
     const isTrailerBlock = block.every((l) =>
       l.startsWith(trailerIndent) && TRAILER_SHAPED_RE.test(l.trim())
     );
@@ -1026,6 +1296,7 @@ export function findAttributeBlockRange(
   entryStartLine: number,
   indent: number,
   itemEndFloor = 0,
+  preservedRanges: readonly EntryExtent[] = [],
 ): { start: number; end: number } | undefined {
   const startIdx = entryStartLine - 1;
   const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
@@ -1041,6 +1312,9 @@ export function findAttributeBlockRange(
   // Walk backwards collecting attribute lines.
   let attrStart = scanEnd;
   for (let i = scanEnd - 1; i > startIdx; i--) {
+    if (preservedRanges.some((range) => i >= range.start && i < range.end)) {
+      break;
+    }
     const trimmed = lines[i].trim();
     if (trimmed === "") break;
     if (ATTR_LINE_RE.test(trimmed)) {
