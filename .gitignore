@@ -31,9 +31,6 @@ Thumbs.db
 .idea/
 *.sublime-workspace
 
-# dprint
-.dprint/
-
 # Claude Code local state (per-developer worktrees and settings). The shared
 # settings.json and hooks/ are committed so cloud sessions pick them up.
 .claude/*

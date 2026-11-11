@@ -10,18 +10,18 @@ check: lint test
 test:
     deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi --allow-net
 
-# Lint (Deno + dprint)
+# Lint (Deno + prim format check)
 lint:
     deno lint
-    dprint check
+    prim fmt --check .
 
 # Check then compile the CLI binary
 build: check compile
 
-# Format (Deno for TypeScript, dprint for Markdown/JSON/YAML/TOML)
+# Format (Deno for TypeScript, prim for Markdown/JSON/YAML/TOML)
 fmt:
     deno fmt
-    dprint fmt
+    prim fmt .
 
 # Regenerate theme files from spec tokens
 tokens:
@@ -86,4 +86,4 @@ fetch-grammars:
 
 # Remove build artifacts
 clean:
-    rm -rf node_modules .dprint _site npm markspec
+    rm -rf node_modules _site npm markspec

@@ -61,18 +61,16 @@ per concept. Be respectful — assume competence and goodwill.
 Coding standards and style are enforced through linters and formatters.
 Configurations follow community best practices.
 
-| Lang       | Style                           | Format               | Lint           |
-| ---------- | ------------------------------- | -------------------- | -------------- |
-| Markdown   | [CommonMark Specification]      | [dprint]             | [markdownlint] |
-| Shell      | [Google Shell style guide]      | [shfmt]              | [shellcheck]   |
-| C          | [Google C++ style guide]        | [clang-format]       | [clang-tidy]   |
-| C++        | [Google C++ style guide]        | [clang-format]       | [clang-tidy]   |
-| Java       | [Google Java Style Guide]       | [google-java-format] | [errorprone]   |
-| Rust       | [Rust Style Guide]              | [rustfmt]            | [clippy]       |
-| Kotlin     | [Kotlin Coding Convention]      | [ktfmt]              | [detekt]       |
-| TypeScript | [Google TypeScript style guide] | [dprint]             | [biome]        |
-
-<!-- markdownlint-disable MD028 -->
+| Lang       | Style                           | Format               | Lint         |
+| ---------- | ------------------------------- | -------------------- | ------------ |
+| Markdown   | [CommonMark Specification]      | [prim]               | [prim]       |
+| Shell      | [Google Shell style guide]      | [shfmt]              | [shellcheck] |
+| C          | [Google C++ style guide]        | [clang-format]       | [clang-tidy] |
+| C++        | [Google C++ style guide]        | [clang-format]       | [clang-tidy] |
+| Java       | [Google Java Style Guide]       | [google-java-format] | [errorprone] |
+| Rust       | [Rust Style Guide]              | [rustfmt]            | [clippy]     |
+| Kotlin     | [Kotlin Coding Convention]      | [ktfmt]              | [detekt]     |
+| TypeScript | [Google TypeScript style guide] | [deno fmt]           | [biome]      |
 
 > For security-hardened code, follow [SEI CERT C].
 
@@ -82,8 +80,6 @@ Configurations follow community best practices.
 > For Android targets, also follow the [Android Open Source Code Style], the
 > [Android Kotlin style guide], the [Android Kotlin common patterns], and the
 > [Android Kotlin interop guide].
-
-<!-- markdownlint-enable MD028 -->
 
 ## Documentation style
 
@@ -167,8 +163,8 @@ also has the manual smoke test of the real window.
 
 [cc]: https://www.conventionalcommits.org/
 [CommonMark Specification]: https://commonmark.org/
-[dprint]: https://dprint.dev/
-[markdownlint]: https://github.com/DavidAnson/markdownlint
+[prim]: https://github.com/driftsys/prim
+[deno fmt]: https://docs.deno.com/runtime/reference/cli/fmt/
 [Google Shell style guide]: https://google.github.io/styleguide/shellguide.html
 [shfmt]: https://github.com/mvdan/sh
 [shellcheck]: https://github.com/koalaman/shellcheck
