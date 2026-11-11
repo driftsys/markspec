@@ -625,6 +625,12 @@ markspec compile <paths...>
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
+With `--frozen`, compilation checks lockfile drift first. It reads sync mappings
+from the same folder walk as [`lock`](#lock), including folders without a
+project config. Mapping file and directory read errors (`MSL-S001`) and parse
+diagnostics are printed to stderr, and compilation continues to the drift check.
+Missing sync directories are ignored.
+
 **Examples:**
 
 ```sh
@@ -898,8 +904,17 @@ from any folder of the project. (`compile` and `doctor` still need a
 `project.yaml` above the current folder.) The `External-id:` bindings of a
 nested project's entries are recorded in that project's lockfile. Its sync
 mappings come from `.markspec/sync/` in each folder from the outermost project
-root down to the project root; a mapping in a deeper folder replaces one for the
-same `system` higher up.
+root down to the project root, including folders without a project config. A
+valid mapping in a deeper folder replaces one for the same `system` higher up.
+If any mapping file in this walk cannot be read, has an error-severity parse
+diagnostic or returns no mapping, `lock` and `lock --check` print its
+diagnostics to stderr and exit `1` before writing any files. This applies even
+if a deeper mapping would replace the invalid file. Mapping validation also runs
+before profile acquisition, so these failures do not populate `.markspec/cache/`
+or change `.gitignore`. A mapping validation error also exits `1` before any
+writes. Missing sync directories are ignored; any other error reading a sync
+directory produces `MSL-S001` and also exits `1` before any writes. An invalid
+child mapping does not fall back to the parent's mapping.
 
 **`references:` resolution — three flows.** Only `markspec lock` touches the
 network; `check`, `compile`, the LSP, and the MCP server resolve entirely
@@ -929,8 +944,12 @@ Following the clig.dev convention (`2` for warnings only), it exits `2` — whil
 still writing `markspec.lock` (warn-and-write) — when any upstream could not be
 cleanly locked (`MSL-L213`/`MSL-L214`/`MSL-L216`), so a bare `markspec lock` in
 CI surfaces a dropped or stale pin. A hard error (e.g. an invalid `project.yaml`
-or sync mapping) exits `1`. `markspec lock --check` is unaffected: it stays a
-read-only drift gate that exits `1` on drift.
+or sync mapping) exits `1`. `markspec lock --check` still exits `1` on drift.
+Both lock commands also exit `1` on a malformed or unreadable mapping file, or
+an unreadable sync directory (except a missing directory), in any folder of the
+mapping walk, even when a deeper valid mapping overrides it and the lockfile has
+not changed. Mapping reading, parsing and validation run before profile
+acquisition and drift checking, and these failures write nothing.
 
 **`dependencies:` are acquired and compiled during `lock`.** For each declared
 `dependencies:` entry, `markspec lock` resolves the declared version intent
@@ -985,7 +1004,12 @@ markspec sync show   <displayId>
 | `--state`  | string | —       | Filter to one `remote_state` (`ok`, `behind`, `ahead`, `conflict`, `unreachable`, `deleted-upstream`, `unbound`). |
 | `--format` | string | `text`  | Output format: `json`, `text`.                                                                                    |
 
-**`sync log`** — tail the per-system sync log (NDJSON):
+**`sync log`** — tail the per-system sync log (NDJSON). Without a system
+argument, it lists each system once from the `.yaml` mapping filenames in the
+same folder walk as `lock`, including inherited mappings and folders without a
+project config. It reads logs only from
+`<project-root>/.markspec/sync/<system>/log.ndjson`; logs in enclosing folders
+are not read.
 
 | Flag       | Type   | Default | Description                                              |
 | ---------- | ------ | ------- | -------------------------------------------------------- |

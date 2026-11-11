@@ -45,6 +45,7 @@ import {
   loadProjectConfigAt,
   projectCollectOptions,
   requireCwdProjectRoot,
+  syncMappingFolders,
 } from "../helpers.ts";
 
 /**
@@ -230,6 +231,18 @@ async function runLock(options: LockOptions): Promise<void> {
   // default config (no dependencies or references).
   const { config } = await loadProjectConfigAt(projectRoot);
 
+  // Reject invalid mappings before profile acquisition can populate its cache
+  // or append the cache exclusion to .gitignore, including under --check.
+  const { mappings, invalid } = await loadAllMappings(projectRoot, resolver);
+  if (invalid) Deno.exit(1);
+  const mappingDiags = validateMappings(mappings);
+  for (const d of mappingDiags) {
+    console.error(`${d.severity}: ${d.code}: ${d.message}`);
+  }
+  if (mappingDiags.some((d) => d.severity === "error")) {
+    Deno.exit(1);
+  }
+
   const profileResult = await loadProfileForCommand(
     projectRoot,
     readFileOrUndefined,
@@ -242,16 +255,6 @@ async function runLock(options: LockOptions): Promise<void> {
     denoDiscoveryIO(),
     await projectCollectOptions(projectRoot, resolver),
   );
-  const mappings = await loadAllMappings(projectRoot, resolver);
-
-  const mappingDiags = validateMappings(mappings);
-  for (const d of mappingDiags) {
-    console.error(`${d.severity}: ${d.code}: ${d.message}`);
-  }
-  if (mappingDiags.some((d) => d.severity === "error")) {
-    Deno.exit(1);
-  }
-
   // Parse the existing lockfile up front — missing or malformed becomes
   // an empty registry row set. `--check` (below) still errors on a
   // missing/malformed lockfile (CI gate); the write path below treats
@@ -464,6 +467,15 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
   }
 }
 
+/** `true` when `path` exists and is not a directory. */
+async function isNonDirectory(path: string): Promise<boolean> {
+  try {
+    return !(await Deno.stat(path)).isDirectory;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Load the sync mappings (`.markspec/sync/*.yaml`) that apply to the project
  * at `root`. A nested project uses the mappings of the projects that enclose
@@ -471,52 +483,78 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
  * that order, and a mapping found in a deeper folder replaces a mapping with
  * the same `system` found in a higher folder. When the outermost root cannot
  * be determined or is not `root` or an ancestor of it, only `root` is read.
- * Parse diagnostics of each file are printed to stderr.
+ * Missing sync directories are ignored. Other directory read errors (including
+ * a `.markspec` that is a file) and file read errors are printed as MSL-S001
+ * diagnostics naming the path. File parse diagnostics are printed to stderr
+ * with the mapping file's path. Any read or parse failure marks the
+ * result invalid, even if a deeper mapping replaces the file. `lock` and
+ * `lock --check` stop before any writes; `compile --frozen` continues to its
+ * drift check with the successfully loaded mappings.
  */
 async function loadAllMappings(
   root: string,
   resolver?: ProjectRootResolver,
-): Promise<Mapping[]> {
-  const projectResolver = resolver ?? await cliProjectRootResolver();
-  const outermost = await projectResolver.outermostOf(root);
-  // Walk up from `root` to the outermost root; read outermost first.
-  const folders = [root];
-  if (outermost !== undefined && outermost !== root) {
-    let current = root;
-    const chain: string[] = [];
-    while (true) {
-      const parent = dirname(current);
-      if (parent === current) break;
-      chain.push(parent);
-      if (parent === outermost) {
-        folders.push(...chain);
-        break;
-      }
-      current = parent;
-    }
-  }
+): Promise<{ mappings: Mapping[]; invalid: boolean }> {
+  const folders = await syncMappingFolders(root, resolver);
+  let invalid = false;
   let out: Mapping[] = [];
-  for (const folder of folders.reverse()) {
+  for (const folder of folders) {
     const dir = join(folder, ".markspec", "sync");
     const found: Mapping[] = [];
+    let files: Deno.DirEntry[];
     try {
-      for await (const e of Deno.readDir(dir)) {
-        if (!e.isFile || !e.name.endsWith(".yaml")) continue;
-        const path = join(dir, e.name);
-        const yaml = await Deno.readTextFile(path);
-        const r = parseMapping(yaml, path);
-        if (r.mapping) found.push(r.mapping);
-        for (const d of r.diagnostics) {
-          console.error(`${d.severity}: ${d.code}: ${d.message}`);
-        }
+      files = await Array.fromAsync(Deno.readDir(dir));
+    } catch (error) {
+      // Windows reports NotFound, not NotADirectory, when `.markspec` is a
+      // file; only a missing `.markspec` folder may be skipped.
+      if (
+        error instanceof Deno.errors.NotFound &&
+        !(await isNonDirectory(join(folder, ".markspec")))
+      ) continue;
+      console.error(
+        `error: MSL-S001: Cannot read sync mappings at ${dir}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      invalid = true;
+      continue;
+    }
+    for (const file of files) {
+      if (!file.isFile || !file.name.endsWith(".yaml")) continue;
+      const path = join(dir, file.name);
+      let yaml: string;
+      try {
+        yaml = await Deno.readTextFile(path);
+      } catch (error) {
+        console.error(
+          `error: MSL-S001: Cannot read mapping.yaml at ${path}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        invalid = true;
+        continue;
       }
-    } catch { /* no .markspec/sync/ directory */ }
+      const result = parseMapping(yaml, path);
+      if (
+        !result.mapping ||
+        result.diagnostics.some((d) => d.severity === "error")
+      ) {
+        invalid = true;
+      } else {
+        found.push(result.mapping);
+      }
+      for (const diagnostic of result.diagnostics) {
+        console.error(
+          `${diagnostic.severity}: ${diagnostic.code}: ${path}: ${diagnostic.message}`,
+        );
+      }
+    }
     // Replace only across folders: two files of one folder that declare the
     // same system both stay, so validateMappings still reports them.
     const systems = new Set(found.map((m) => m.system));
     out = [...out.filter((m) => !systems.has(m.system)), ...found];
   }
-  return out;
+  return { mappings: out, invalid };
 }
 
 /**
