@@ -541,6 +541,9 @@ docs/
   thin Tauri shell, `markspec desk --serve` loopback API inside the one binary,
   `schemas/desk-api.json` contract, core stays TypeScript, GitLab-first `Forge`
   interface, agents propose / author accepts, `--md-*` chrome tokens, one repo
+- `adr-036-mcp-propose-only-writes.md` — MCP write tools only propose: they
+  return a formatted preview and never write a file; a person accepts it;
+  `insert` stdin body (#40) first; amends ADR-023's read-only SKIP clause
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading
