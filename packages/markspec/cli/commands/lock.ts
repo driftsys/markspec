@@ -467,6 +467,15 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
   }
 }
 
+/** `true` when `path` exists and is not a directory. */
+async function isNonDirectory(path: string): Promise<boolean> {
+  try {
+    return !(await Deno.stat(path)).isDirectory;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Load the sync mappings (`.markspec/sync/*.yaml`) that apply to the project
  * at `root`. A nested project uses the mappings of the projects that enclose
@@ -474,9 +483,10 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
  * that order, and a mapping found in a deeper folder replaces a mapping with
  * the same `system` found in a higher folder. When the outermost root cannot
  * be determined or is not `root` or an ancestor of it, only `root` is read.
- * Missing sync directories are ignored. Other directory read errors and file
- * read errors are printed as MSL-S001 diagnostics naming the path. File parse
- * diagnostics are also printed to stderr. Any read or parse failure marks the
+ * Missing sync directories are ignored. Other directory read errors (including
+ * a `.markspec` that is a file) and file read errors are printed as MSL-S001
+ * diagnostics naming the path. File parse diagnostics are printed to stderr
+ * with the mapping file's path. Any read or parse failure marks the
  * result invalid, even if a deeper mapping replaces the file. `lock` and
  * `lock --check` stop before any writes; `compile --frozen` continues to its
  * drift check with the successfully loaded mappings.
@@ -495,7 +505,12 @@ async function loadAllMappings(
     try {
       files = await Array.fromAsync(Deno.readDir(dir));
     } catch (error) {
-      if (error instanceof Deno.errors.NotFound) continue;
+      // Windows reports NotFound, not NotADirectory, when `.markspec` is a
+      // file; only a missing `.markspec` folder may be skipped.
+      if (
+        error instanceof Deno.errors.NotFound &&
+        !(await isNonDirectory(join(folder, ".markspec")))
+      ) continue;
       console.error(
         `error: MSL-S001: Cannot read sync mappings at ${dir}: ${
           error instanceof Error ? error.message : String(error)
