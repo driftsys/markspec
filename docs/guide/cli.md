@@ -360,6 +360,16 @@ dash bullet lists, and the file's own line-ending convention preserved.
 (reported as `MSL-F001` info) so the rest of the block stays trailers, then
 stamps `Id:` as usual. To get an `Id:`, omit the line; don't leave it blank.
 
+**Tabs after entry list markers.** `fmt` rewrites the marker and its following
+whitespace to a dash followed by one space only when the whole document keeps
+the same CommonMark structure, including list nesting, body and trailer
+containment, and existing entry identities. If normalization would change that
+structure, `fmt` emits `MSL-F013` (warning), preserves the entry byte-for-byte,
+and does not stamp an `Id:` into it. Other entries are formatted as usual. The
+surrounding list layout and following indented blocks are preserved where needed
+so that repeated formatting gives the same result. This includes paragraphs that
+CommonMark places outside the refused list item.
+
 Explicit arguments scope exactly to what's named; a directory argument expands
 to the files a bare invocation of its project finds below that directory, so
 `.gitignore`, the built-in hidden-directory skip, and the `.markspec.yaml`

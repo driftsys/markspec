@@ -1178,3 +1178,179 @@ Deno.test("format: preserves nested shorter fence blank lines (#705)", async () 
   assertEquals(result.code, 0, result.stderr);
   assertStringIncludes(await result.readFile("req.md"), "alpha\n\n\n");
 });
+
+Deno.test("format: tab marker output passes check and a second fmt", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const run = await markspecPersist(["fmt", "req.md"], {
+    "req.md":
+      "-\t[REQ-001] Title\n\n    The system SHALL work.\n\n        Labels: DRAFT\n",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const output = await Deno.readTextFile(join(run.dir, "req.md"));
+    assertMatch(output, /\n {6}Id: [0-9A-HJKMNP-TV-Z]{26}\n/);
+    assertEquals(
+      output.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, "<ID>"),
+      "- [REQ-001] Title\n\n  The system shall work.\n\n      Id: <ID>\n      Labels: DRAFT\n",
+    );
+    const check = await markspecInDir(run.dir, ["check", "req.md"]);
+    assertEquals(check.code, 0, check.stderr);
+    const again = await markspecInDir(run.dir, ["fmt", "req.md"]);
+    assertEquals(again.code, 0, again.stderr);
+    assertEquals(await Deno.readTextFile(join(run.dir, "req.md")), output);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("format: adjacent tab markers retain separate bodies and Ids", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const run = await markspecPersist(["fmt", "req.md"], {
+    "req.md": "-\t[REQ-001] First\n\n    First body.\n\n" +
+      "-\t[REQ-002] Second\n\n    Second body.\n",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const output = await Deno.readTextFile(join(run.dir, "req.md"));
+    const ids = [...output.matchAll(/Id: ([0-9A-HJKMNP-TV-Z]{26})/g)];
+    assertEquals(new Set(ids.map((match) => match[1])).size, 2);
+    assertEquals(
+      output.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, "<ID>"),
+      "- [REQ-001] First\n\n  First body.\n\n      Id: <ID>\n\n" +
+        "- [REQ-002] Second\n\n  Second body.\n\n      Id: <ID>\n",
+    );
+    const check = await markspecInDir(run.dir, ["check", "req.md"]);
+    assertEquals(check.code, 0, check.stderr);
+    const again = await markspecInDir(run.dir, ["fmt", "req.md"]);
+    assertEquals(again.code, 0, again.stderr);
+    assertEquals(await Deno.readTextFile(join(run.dir, "req.md")), output);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("format: nested tab marker keeps its list hierarchy and Id", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const run = await markspecPersist(["fmt", "req.md"], {
+    "req.md": "- Parent\n\n  -\t[REQ-001] Nested\n\n    Body.\n\n" +
+      "        Labels: DRAFT\n\n- Sibling\n",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const output = await Deno.readTextFile(join(run.dir, "req.md"));
+    assertMatch(output, /\n {8}Id: [0-9A-HJKMNP-TV-Z]{26}\n/);
+    assertEquals(
+      output.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, "<ID>"),
+      "- Parent\n\n  - [REQ-001] Nested\n\n    Body.\n\n        Id: <ID>\n" +
+        "        Labels: DRAFT\n\n- Sibling\n",
+    );
+    const again = await markspecInDir(run.dir, ["fmt", "req.md"]);
+    assertEquals(again.code, 0, again.stderr);
+    assertEquals(await Deno.readTextFile(join(run.dir, "req.md")), output);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("format: refused tab marker stays unchanged while other entries format", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const refused = "*\t[REQ-001] Unsafe\n\n    Body SHALL stay.\n\n\n";
+  const run = await markspecPersist(["fmt", "req.md"], {
+    "req.md": refused +
+      "  - child\n\n- [REQ-002] Safe\n\n  Body SHALL change.\n",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertStringIncludes(run.stderr, "warning:");
+    assertStringIncludes(run.stderr, "MSL-F013");
+    const output = await Deno.readTextFile(join(run.dir, "req.md"));
+    assertEquals(output.slice(0, refused.length), refused);
+    assertMatch(output, /\n {6}Id: [0-9A-HJKMNP-TV-Z]{26}\n/);
+    assertEquals(
+      output.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, "<ID>"),
+      refused +
+        "  - child\n\n- [REQ-002] Safe\n\n  Body shall change.\n\n      Id: <ID>\n",
+    );
+    const again = await markspecInDir(run.dir, ["fmt", "req.md"]);
+    assertEquals(again.code, 0, again.stderr);
+    assertStringIncludes(again.stderr, "MSL-F013");
+    assertEquals(await Deno.readTextFile(join(run.dir, "req.md")), output);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("format: refused tab marker retains trace values in a project", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const targetId = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+  const refused =
+    `-\t[REQ-001] Unsafe\n\n    Body.\n\n        Satisfies: ${targetId}\n`;
+  const input = refused + "\n  - child\n\n- [REQ-002] Safe\n\n  Body.\n\n" +
+    `      Satisfies: ${targetId}\n`;
+  const run = await markspecPersist(["fmt", "req.md"], {
+    "project.yaml": "project:\n  name: test\n",
+    "req.md": input,
+    "target.md":
+      `- [REQ-003] Target\n\n  Target body.\n\n      Id: ${targetId}\n`,
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const output = await Deno.readTextFile(join(run.dir, "req.md"));
+    assertEquals(output.slice(0, refused.length), refused);
+    assertStringIncludes(output, "      Satisfies: REQ-003\n");
+    const again = await markspecInDir(run.dir, ["fmt", "req.md"]);
+    assertEquals(again.code, 0, again.stderr);
+    assertEquals(await Deno.readTextFile(join(run.dir, "req.md")), output);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+for (
+  const { name, input, refusals } of [
+    {
+      name: "paragraph outside the entry",
+      input: "# T\n\n-\t[REQ-001] Title one\n\n  The system shall do X.\n",
+      refusals: 1,
+    },
+    {
+      name: "adjacent refused entries",
+      input: "# T\n\n-\t[REQ-001] Title one\n\n  The system shall do X.\n\n" +
+        "-\t[REQ-002] Title two\n\n  The system shall do Y.\n",
+      refusals: 2,
+    },
+    {
+      name: "nested list outside the entry",
+      input:
+        "-\t[REQ-001] Title one\n\n  - child\n\n  The system shall do X.\n",
+      refusals: 1,
+    },
+    {
+      name: "refused entry inside a nested list",
+      input:
+        "- Parent\n\n    -\t[REQ-001] Title one\n\n      The system shall do X.\n",
+      refusals: 1,
+    },
+  ]
+) {
+  Deno.test(`format: tab refusal stays unchanged twice with ${name}`, async () => {
+    const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+    const first = await markspecPersist(["fmt", "a.md"], {
+      "project.yaml": 'name: demo\nversion: "1.0.0"\n',
+      "a.md": input,
+    });
+    try {
+      const firstBytes = await Deno.readFile(join(first.dir, "a.md"));
+      const second = await markspecInDir(first.dir, ["fmt", "a.md"]);
+      const secondBytes = await Deno.readFile(join(first.dir, "a.md"));
+      for (const run of [first, second]) {
+        assertEquals(run.code, 0, run.stderr);
+        assertEquals((run.stderr.match(/MSL-F013/g) ?? []).length, refusals);
+      }
+      assertEquals(firstBytes, new TextEncoder().encode(input));
+      assertEquals(secondBytes, firstBytes);
+    } finally {
+      await Deno.remove(first.dir, { recursive: true });
+    }
+  });
+}

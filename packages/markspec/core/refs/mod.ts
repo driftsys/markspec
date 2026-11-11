@@ -74,13 +74,16 @@ const VALUE_TOKEN_RE = /[^\s,]+/g;
  * Rewrite trace-attribute values in `content` per the canonicalise/heal rules.
  * `entries` MUST be the parse of `content` (used to map each trailer line to its
  * source entry's stable ULID). Returns the rewritten text and whether anything
- * changed. Lossless: only resolvable value tokens are replaced.
+ * changed. Lossless: only resolvable value tokens are replaced. Optional
+ * `preservedRanges` exclude 0-based, end-exclusive line spans from rewriting.
  */
 export function canonicalizeRefs(
   content: string,
   entries: readonly Entry[],
   index: RefIndex,
   ledger: readonly LockEdge[],
+  preservedRanges: readonly { readonly start: number; readonly end: number }[] =
+    [],
 ): { output: string; changed: boolean } {
   const ledgerByKey = new Map<string, string>();
   for (const e of ledger) {
@@ -115,7 +118,10 @@ export function canonicalizeRefs(
   let changed = false;
   // Share CommonMark fence boundaries with other prose passes. Compute them
   // once so both the main loop and continuation loop remain linear (#705).
-  const fencedLines = fencedCodeLines(content);
+  const fencedLines = new Set(fencedCodeLines(content));
+  for (const range of preservedRanges) {
+    for (let i = range.start; i < range.end; i++) fencedLines.add(i);
+  }
   for (let i = 0; i < lines.length; i++) {
     if (fencedLines.has(i)) continue;
     // Strip a trailing CR before matching so CRLF files are handled (the
