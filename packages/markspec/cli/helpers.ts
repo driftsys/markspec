@@ -595,6 +595,30 @@ async function nestedRootsBelow(
 }
 
 /**
+ * List folders from the outermost enclosing project root down to `root`,
+ * including folders without a project config. If the outermost root is
+ * unknown or is not an ancestor, return only `root`.
+ */
+export async function syncMappingFolders(
+  root: string,
+  resolver?: ProjectRootResolver,
+): Promise<string[]> {
+  const projectResolver = resolver ?? await cliProjectRootResolver();
+  const outermost = await projectResolver.outermostOf(root);
+  const folders = [root];
+  if (outermost === root) return folders;
+  let current = root;
+  while (outermost !== undefined) {
+    const parent = dirname(current);
+    if (parent === current) break;
+    folders.push(parent);
+    if (parent === outermost) return folders.reverse();
+    current = parent;
+  }
+  return [root];
+}
+
+/**
  * The walk options that define the files of the project at `root`: its own
  * `.markspec.yaml` `exclude:` list, the `.gitignore` files from the
  * outermost project root above it down to `root` (when `root` is nested),

@@ -13,6 +13,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import { markspecInDir, markspecPersist } from "./helpers.ts";
+import { setupGitFixture } from "./helpers_git.ts";
 
 /** One entry block. The ULIDs follow the fixed fixtures of the other e2e
  * tests; `trailer` is an optional extra trailer line. */
@@ -35,6 +36,26 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Snapshot every directory and file, including hidden paths and file bytes. */
+async function snapshotTree(
+  root: string,
+): Promise<Record<string, Uint8Array | null>> {
+  const tree: Record<string, Uint8Array | null> = {};
+  async function visit(relative: string): Promise<void> {
+    for await (const item of Deno.readDir(join(root, relative))) {
+      const path = join(relative, item.name);
+      if (item.isDirectory) {
+        tree[path] = null;
+        await visit(path);
+      } else {
+        tree[path] = await Deno.readFile(join(root, path));
+      }
+    }
+  }
+  await visit("");
+  return tree;
 }
 
 Deno.test("lock: from a subfolder of a .markspec.yaml-only project writes the lockfile at the project root (#860)", async () => {
@@ -346,6 +367,82 @@ cache:
 `;
 }
 
+for (const failure of ["parse", "validation"]) {
+  Deno.test(`lock: ${failure} error leaves the whole project unchanged with a cold Git profile (#873)`, async () => {
+    const fixtureDir = await Deno.makeTempDir();
+    try {
+      const fixture = await setupGitFixture({
+        workspaceDir: fixtureDir,
+        name: "profile",
+        files: {
+          "markspec.yaml":
+            'id: "@test/lock-profile"\nversion: 1.0.0\nprofile:\n  types: {}\n',
+        },
+        tag: "v1.0.0",
+      });
+      const run = await markspecPersist(["--version"], {
+        "project.yaml": "name: t\nversion: 0.1.0\n",
+        ".markspec.yaml":
+          `profiles:\n  - "git+${fixture.url}#${fixture.tag}"\n`,
+        ".gitignore": "build/\n",
+        ".markspec/sync/jira.yaml": jiraMapping("summary"),
+        ".markspec/sync/doors.yaml": failure === "parse"
+          ? "schema: [\n"
+          : jiraMapping("summary").replaceAll("jira", "doors"),
+        "req.md": "# Requirements\n",
+      });
+      try {
+        assertEquals(run.code, 0, run.stderr);
+        const cache = join(run.dir, ".markspec/cache");
+        assertEquals(await exists(cache), false);
+        const before = await snapshotTree(run.dir);
+        const permissions = ["--allow-run=git", "--allow-env"];
+        for (const args of [["lock"], ["lock", "--check"]]) {
+          const result = await markspecInDir(run.dir, args, permissions);
+          assertEquals(result.code, 1, result.stderr);
+          assertStringIncludes(
+            result.stderr,
+            failure === "parse" ? "MSL-S001" : "MSL-S020",
+          );
+          assertEquals(result.stdout, "");
+          const after = await snapshotTree(run.dir);
+          assertEquals(
+            Object.keys(after).sort(),
+            Object.keys(before).sort(),
+            args.join(" "),
+          );
+          for (const path of Object.keys(before)) {
+            assertEquals(
+              after[path],
+              before[path],
+              `${args.join(" ")}: ${path}`,
+            );
+          }
+        }
+        // Control: the same cold profile can be acquired offline and writes
+        // both its cache and the existing .gitignore once the mapping is valid.
+        await Deno.remove(join(run.dir, ".markspec/sync/doors.yaml"));
+        const valid = await markspecInDir(run.dir, ["lock"], permissions);
+        assertEquals(valid.code, 0, valid.stderr);
+        assertEquals(await exists(cache), true);
+        assertStringIncludes(
+          await Deno.readTextFile(join(run.dir, ".gitignore")),
+          ".markspec/cache/",
+        );
+        const cached = await snapshotTree(cache);
+        assertEquals(
+          Object.keys(cached).some((path) => path.endsWith("markspec.yaml")),
+          true,
+        );
+      } finally {
+        await Deno.remove(run.dir, { recursive: true });
+      }
+    } finally {
+      await Deno.remove(fixtureDir, { recursive: true });
+    }
+  });
+}
+
 Deno.test("lock: a nested project uses the sync mappings of the enclosing project (#860)", async () => {
   const run = await markspecPersist(["lock"], {
     files: {
@@ -407,3 +504,244 @@ Deno.test("lock: two mappings for one system in the same folder still conflict (
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+for (const folder of ["p", "p/middle", "p/middle/deep"]) {
+  for (const existing of [false, true]) {
+    Deno.test(`lock: malformed mapping at ${folder} ${existing ? "preserves the existing" : "does not write a"} nested lockfile (#873)`, async () => {
+      const run = await markspecPersist(["lock"], {
+        files: {
+          "p/project.yaml": "name: top\nversion: 0.1.0\n",
+          "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
+          "p/middle/project.yaml": "name: middle\nversion: 0.1.0\n",
+          "p/middle/deep/project.yaml": "name: deep\nversion: 0.1.0\n",
+          "p/middle/deep/.markspec/sync/jira.yaml": jiraMapping("title"),
+          "p/middle/deep/a.md": entry(
+            "STK_0001",
+            "A",
+            "External-id: jira:ABC-1",
+          ),
+        },
+        cwd: "p/middle/deep",
+      });
+      try {
+        assertEquals(run.code, 0, run.stderr);
+        const root = join(run.dir, "p", "middle", "deep");
+        const lockPath = join(root, "markspec.lock");
+        const original = await Deno.readTextFile(lockPath);
+        if (!existing) await Deno.remove(lockPath);
+        const syncDir = join(run.dir, folder, ".markspec", "sync");
+        await Deno.mkdir(syncDir, { recursive: true });
+        await Deno.writeTextFile(join(syncDir, "jira.yaml"), "schema: [\n");
+        for (const args of [["lock"], ["lock", "--check"]]) {
+          const result = await markspecInDir(root, args);
+          assertEquals(result.code, 1, result.stderr);
+          assertStringIncludes(result.stderr, "error: MSL-S001");
+          assertEquals(result.stdout, "");
+          assertEquals(await exists(lockPath), existing);
+          if (existing) {
+            assertEquals(await Deno.readTextFile(lockPath), original);
+          }
+        }
+      } finally {
+        await Deno.remove(run.dir, { recursive: true });
+      }
+    });
+  }
+}
+
+Deno.test("lock: three project levels inherit from the top and the deepest mapping wins (#873)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "p/project.yaml": "name: top\nversion: 0.1.0\n",
+      "p/.markspec/sync/jira.yaml": jiraMapping("summary").replace(
+        "bidirectional",
+        "outbound",
+      ),
+      "p/middle/project.yaml": "name: middle\nversion: 0.1.0\n",
+      "p/middle/a.md": entry("STK_0001", "A", "External-id: jira:MIDDLE-1"),
+      "p/middle/deep/project.yaml": "name: deep\nversion: 0.1.0\n",
+      "p/middle/deep/.markspec/sync/jira.yaml": jiraMapping("title").replace(
+        "bidirectional",
+        "inbound",
+      ),
+      "p/middle/deep/a.md": entry("STK_0002", "B", "External-id: jira:DEEP-1"),
+    },
+    cwd: "p/middle",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const middleLock = await Deno.readTextFile(
+      join(run.dir, "p/middle/markspec.lock"),
+    );
+    assertStringIncludes(middleLock, 'direction   = "outbound"');
+    assertStringIncludes(middleLock, "MIDDLE-1");
+    assertEquals(middleLock.includes("DEEP-1"), false);
+    const deep = await markspecInDir(join(run.dir, "p/middle/deep"), ["lock"]);
+    assertEquals(deep.code, 0, deep.stderr);
+    const deepLock = await Deno.readTextFile(
+      join(run.dir, "p/middle/deep/markspec.lock"),
+    );
+    assertStringIncludes(deepLock, 'direction   = "inbound"');
+    assertStringIncludes(deepLock, "DEEP-1");
+    assertEquals(deepLock.includes("MIDDLE-1"), false);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("lock: reads a mapping in a non-project intermediate folder (#873)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "p/project.yaml": "name: top\nversion: 0.1.0\n",
+      "p/.markspec/sync/jira.yaml": jiraMapping("summary").replace(
+        "bidirectional",
+        "outbound",
+      ),
+      "p/group/.markspec/sync/jira.yaml": jiraMapping("title").replace(
+        "bidirectional",
+        "inbound",
+      ),
+      "p/group/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "p/group/sub/a.md": entry("STK_0001", "A", "External-id: jira:ABC-1"),
+    },
+    cwd: "p/group/sub",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    const lock = await Deno.readTextFile(
+      join(run.dir, "p/group/sub/markspec.lock"),
+    );
+    assertStringIncludes(lock, 'direction   = "inbound"');
+    assertStringIncludes(lock, "ABC-1");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+for (const folder of ["p", "p/group"]) {
+  Deno.test(`sync log: nested project lists inherited systems from ${folder} and reads only its own log (#873)`, async () => {
+    const logEntry = {
+      ts: "2026-11-01T10:00:00Z",
+      op: "push",
+      entryId: "01HGW2Q8MNP3RSTVWXYZABCDEA",
+      displayId: "STK_0001",
+      externalId: "JIRA-1",
+      direction: "outbound",
+      attrsChanged: ["title"],
+      remoteStateBefore: "ahead",
+      remoteStateAfter: "ok",
+      actor: "test",
+    };
+    const line = JSON.stringify(logEntry) + "\n";
+    const run = await markspecPersist(["sync", "log", "--format", "json"], {
+      files: {
+        "p/project.yaml": "name: top\nversion: 0.1.0\n",
+        [`${folder}/.markspec/sync/jira.yaml`]: jiraMapping("summary"),
+        [`${folder}/.markspec/sync/jira/log.ndjson`]: line.replace(
+          "JIRA-1",
+          "PARENT-1",
+        ),
+        "p/group/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+        "p/group/sub/.markspec/sync/jira/log.ndjson": line,
+      },
+      cwd: "p/group/sub",
+    });
+    try {
+      assertEquals(run.code, 0, run.stderr);
+      assertEquals(JSON.parse(run.stdout).entries, [logEntry]);
+      // A local override names the same system and must not duplicate its log.
+      const localSync = join(run.dir, "p/group/sub/.markspec/sync");
+      await Deno.writeTextFile(
+        join(localSync, "jira.yaml"),
+        jiraMapping("title"),
+      );
+      const overridden = await markspecInDir(join(run.dir, "p/group/sub"), [
+        "sync",
+        "log",
+        "--format",
+        "json",
+      ]);
+      assertEquals(overridden.code, 0, overridden.stderr);
+      assertEquals(JSON.parse(overridden.stdout).entries, [logEntry]);
+      await Deno.remove(join(localSync, "jira/log.ndjson"));
+      const missing = await markspecInDir(join(run.dir, "p/group/sub"), [
+        "sync",
+        "log",
+        "--format",
+        "json",
+      ]);
+      assertEquals(missing.code, 0, missing.stderr);
+      assertEquals(JSON.parse(missing.stdout).entries, []);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  });
+}
+
+Deno.test("sync log: lists the union of parent doors and child jira systems (#873)", async () => {
+  const logEntry = {
+    ts: "2026-11-01T10:00:00Z",
+    op: "push",
+    entryId: "01HGW2Q8MNP3RSTVWXYZABCDEA",
+    displayId: "STK_0001",
+    externalId: "JIRA-1",
+    direction: "outbound",
+    attrsChanged: ["title"],
+    remoteStateBefore: "ahead",
+    remoteStateAfter: "ok",
+    actor: "test",
+  };
+  const doorsEntry = {
+    ...logEntry,
+    ts: "2026-11-01T09:00:00Z",
+    externalId: "DOORS-1",
+  };
+  const run = await markspecPersist(["sync", "log", "--format", "json"], {
+    files: {
+      "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+      "p/.markspec/sync/doors.yaml": jiraMapping("summary").replaceAll(
+        "jira",
+        "doors",
+      ),
+      "p/sub/project.yaml": "name: child\nversion: 0.1.0\n",
+      "p/sub/.markspec/sync/jira.yaml": jiraMapping("summary"),
+      "p/sub/.markspec/sync/doors/log.ndjson": JSON.stringify(doorsEntry) +
+        "\n",
+      "p/sub/.markspec/sync/jira/log.ndjson": JSON.stringify(logEntry) + "\n",
+    },
+    cwd: "p/sub",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertEquals(JSON.parse(run.stdout).entries, [doorsEntry, logEntry]);
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+for (const [kind, yaml] of [["empty", ""], ["null", "null\n"]]) {
+  Deno.test(`lock: ${kind} nested mapping fails without falling back to the parent (#873)`, async () => {
+    const run = await markspecPersist(["lock"], {
+      files: {
+        "p/project.yaml": "name: top\nversion: 0.1.0\n",
+        "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
+        "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+        "p/sub/.markspec/sync/jira.yaml": yaml,
+        "p/sub/a.md": entry("STK_0001", "A", "External-id: jira:ABC-1"),
+      },
+      cwd: "p/sub",
+    });
+    try {
+      assertEquals(run.code, 1, run.stderr);
+      assertStringIncludes(run.stderr, "error: MSL-S001");
+      const root = join(run.dir, "p/sub");
+      assertEquals(await exists(join(root, "markspec.lock")), false);
+      const check = await markspecInDir(root, ["lock", "--check"]);
+      assertEquals(check.code, 1, check.stderr);
+      assertStringIncludes(check.stderr, "error: MSL-S001");
+      assertEquals(await exists(join(root, "markspec.lock")), false);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  });
+}

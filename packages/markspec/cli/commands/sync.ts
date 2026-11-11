@@ -21,7 +21,7 @@ import {
   type RemoteState,
   type SyncLogEntry,
 } from "../../core/mod.ts";
-import { requireCwdProjectRoot } from "../helpers.ts";
+import { requireCwdProjectRoot, syncMappingFolders } from "../helpers.ts";
 
 async function readFileOrUndefined(path: string): Promise<string | undefined> {
   try {
@@ -208,16 +208,18 @@ async function collectBoundStatuses(
   return out;
 }
 
-/** Enumerate sync systems by scanning `.markspec/sync/*.yaml` mapping files. */
+/** Enumerate unique sync systems from mapping filenames in every inherited folder. */
 async function listSyncSystems(root: string): Promise<string[]> {
-  const out: string[] = [];
-  const dir = join(root, ".markspec", "sync");
-  try {
-    for await (const e of Deno.readDir(dir)) {
-      if (e.isFile && e.name.endsWith(".yaml")) {
-        out.push(e.name.replace(/\.yaml$/, ""));
+  const systems = new Set<string>();
+  for (const folder of await syncMappingFolders(root)) {
+    const dir = join(folder, ".markspec", "sync");
+    try {
+      for await (const e of Deno.readDir(dir)) {
+        if (e.isFile && e.name.endsWith(".yaml")) {
+          systems.add(e.name.replace(/\.yaml$/, ""));
+        }
       }
-    }
-  } catch { /* no sync dir */ }
-  return out;
+    } catch { /* no sync dir */ }
+  }
+  return [...systems];
 }

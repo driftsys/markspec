@@ -5,11 +5,12 @@
  * and MSL-S020 (multi-system local-write conflict on the same attribute).
  *
  * Both tests exercise the `markspec lock` CLI surface only — no imports from
- * source modules. Interaction is exclusively through the `markspec()` helper.
+ * source modules. Interaction is exclusively through the CLI test helpers.
  */
 
-import { assertStringIncludes } from "@std/assert";
-import { markspec } from "./helpers.ts";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import { join } from "@std/path";
+import { markspec, markspecPersist } from "./helpers.ts";
 
 const VALID_JIRA = `
 schema: 1
@@ -25,18 +26,26 @@ cache:
 `;
 
 Deno.test(
-  "sync mapping: newest-wins conflict policy → MSL-S003 in stderr",
+  "sync mapping: newest-wins conflict policy → MSL-S003 + exit 1",
   async () => {
     // The mapping parser rejects `newest-wins` (removed pre-1.0) with
-    // MSL-S003. The broken mapping is skipped; lock logs the diagnostic
-    // to stderr and continues with the remaining (empty) mapping set.
+    // MSL-S003. The invalid mapping stops lock before it writes a lockfile.
     const broken = VALID_JIRA + "\nconflict:\n  default: newest-wins\n";
-    const { stderr } = await markspec(["lock"], {
+    const run = await markspecPersist(["lock"], {
       "project.yaml": "name: t\nversion: '0.0.0'\n",
       ".markspec/sync/jira.yaml": broken,
       "reqs.md": "x\n",
     });
-    assertStringIncludes(stderr, "MSL-S003");
+    try {
+      assertStringIncludes(run.stderr, "MSL-S003");
+      assertEquals(run.code, 1, run.stderr);
+      await assertRejects(
+        () => Deno.stat(join(run.dir, "markspec.lock")),
+        Deno.errors.NotFound,
+      );
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
   },
 );
 

@@ -45,6 +45,7 @@ import {
   loadProjectConfigAt,
   projectCollectOptions,
   requireCwdProjectRoot,
+  syncMappingFolders,
 } from "../helpers.ts";
 
 /**
@@ -230,6 +231,17 @@ async function runLock(options: LockOptions): Promise<void> {
   // default config (no dependencies or references).
   const { config } = await loadProjectConfigAt(projectRoot);
 
+  // Reject invalid mappings before profile acquisition can populate its cache
+  // or append the cache exclusion to .gitignore, including under --check.
+  const mappings = await loadAllMappings(projectRoot, resolver);
+  const mappingDiags = validateMappings(mappings);
+  for (const d of mappingDiags) {
+    console.error(`${d.severity}: ${d.code}: ${d.message}`);
+  }
+  if (mappingDiags.some((d) => d.severity === "error")) {
+    Deno.exit(1);
+  }
+
   const profileResult = await loadProfileForCommand(
     projectRoot,
     readFileOrUndefined,
@@ -242,16 +254,6 @@ async function runLock(options: LockOptions): Promise<void> {
     denoDiscoveryIO(),
     await projectCollectOptions(projectRoot, resolver),
   );
-  const mappings = await loadAllMappings(projectRoot, resolver);
-
-  const mappingDiags = validateMappings(mappings);
-  for (const d of mappingDiags) {
-    console.error(`${d.severity}: ${d.code}: ${d.message}`);
-  }
-  if (mappingDiags.some((d) => d.severity === "error")) {
-    Deno.exit(1);
-  }
-
   // Parse the existing lockfile up front — missing or malformed becomes
   // an empty registry row set. `--check` (below) still errors on a
   // missing/malformed lockfile (CI gate); the write path below treats
@@ -471,32 +473,17 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
  * that order, and a mapping found in a deeper folder replaces a mapping with
  * the same `system` found in a higher folder. When the outermost root cannot
  * be determined or is not `root` or an ancestor of it, only `root` is read.
- * Parse diagnostics of each file are printed to stderr.
+ * Parse diagnostics of each file are printed to stderr. Any parse error or
+ * missing mapping exits 1 before the caller can write a lockfile.
  */
 async function loadAllMappings(
   root: string,
   resolver?: ProjectRootResolver,
 ): Promise<Mapping[]> {
-  const projectResolver = resolver ?? await cliProjectRootResolver();
-  const outermost = await projectResolver.outermostOf(root);
-  // Walk up from `root` to the outermost root; read outermost first.
-  const folders = [root];
-  if (outermost !== undefined && outermost !== root) {
-    let current = root;
-    const chain: string[] = [];
-    while (true) {
-      const parent = dirname(current);
-      if (parent === current) break;
-      chain.push(parent);
-      if (parent === outermost) {
-        folders.push(...chain);
-        break;
-      }
-      current = parent;
-    }
-  }
+  const folders = await syncMappingFolders(root, resolver);
+  let invalid = false;
   let out: Mapping[] = [];
-  for (const folder of folders.reverse()) {
+  for (const folder of folders) {
     const dir = join(folder, ".markspec", "sync");
     const found: Mapping[] = [];
     try {
@@ -504,8 +491,23 @@ async function loadAllMappings(
         if (!e.isFile || !e.name.endsWith(".yaml")) continue;
         const path = join(dir, e.name);
         const yaml = await Deno.readTextFile(path);
-        const r = parseMapping(yaml, path);
-        if (r.mapping) found.push(r.mapping);
+        let r: ReturnType<typeof parseMapping>;
+        try {
+          r = parseMapping(yaml, path);
+        } catch (error) {
+          console.error(
+            `error: MSL-S001: Malformed mapping.yaml at ${path}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          invalid = true;
+          continue;
+        }
+        if (!r.mapping || r.diagnostics.some((d) => d.severity === "error")) {
+          invalid = true;
+        } else {
+          found.push(r.mapping);
+        }
         for (const d of r.diagnostics) {
           console.error(`${d.severity}: ${d.code}: ${d.message}`);
         }
@@ -516,6 +518,7 @@ async function loadAllMappings(
     const systems = new Set(found.map((m) => m.system));
     out = [...out.filter((m) => !systems.has(m.system)), ...found];
   }
+  if (invalid) Deno.exit(1);
   return out;
 }
 

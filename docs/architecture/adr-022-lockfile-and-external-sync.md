@@ -175,6 +175,24 @@ bindings recorded in a lockfile are those of the same entries. The sync mappings
 `markspec lock` uses come from `.markspec/sync/` in each folder from the
 outermost project root down to the project root, so a nested project can rely on
 the mappings of the project that encloses it; a mapping in a deeper folder
-replaces one for the same `system` higher up. An existing lockfile that pinned
-the edges of nested projects reports `MSL-L212` once, until `markspec lock` is
-run again.
+replaces one for the same `system` higher up. The walk includes folders without
+a project config. An existing lockfile that pinned the edges of nested projects
+reports `MSL-L212` once, until `markspec lock` is run again.
+
+## Addendum (2026-11-11): sync mapping inheritance failures and logs (#873)
+
+Every mapping file in the walk must parse successfully, including files that a
+deeper mapping would replace. If any file produces an error-severity parse
+diagnostic or returns no mapping, `markspec lock` and `markspec lock --check`
+print the diagnostics to stderr and exit 1 before writing any files. Mapping
+validation errors also exit 1 before any writes. Parsing and validation run
+before profile acquisition, so these failures do not populate `.markspec/cache/`
+or change `.gitignore`. An invalid child mapping does not fall back to the
+parent's mapping. Warnings remain non-fatal.
+
+Without a system argument, `markspec sync log` discovers systems from `.yaml`
+mapping filenames in the same folder walk and lists each system once. This
+includes inherited mappings and mappings in folders without a project config.
+Logs remain local to the current project:
+`<project-root>/.markspec/sync/<system>/log.ndjson`. Logs from enclosing folders
+are not read.

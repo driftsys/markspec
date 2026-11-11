@@ -396,6 +396,19 @@ This amendment changes the 2026-10-31 amendment above (which root `lock` and
   the resolver sees from the outermost project root, and a bare invocation
   inherits the `.gitignore` files from that outermost root even when it runs
   inside a nested project.
+- Sync mappings come from `.markspec/sync/*.yaml` in every folder from the
+  outermost project root down to the current project root, including folders
+  without a project config. A valid deeper mapping replaces one for the same
+  `system` higher up. Any error-severity parse diagnostic or missing parsed
+  mapping in this walk makes `lock` and `lock --check` print the diagnostics to
+  stderr and exit 1 before writing any files, even if a deeper mapping would
+  replace the invalid file. Mapping validation errors also exit 1 before any
+  writes. Parsing and validation run before profile acquisition, so these
+  failures do not populate `.markspec/cache/` or change `.gitignore`. An invalid
+  child mapping does not fall back to its parent's mapping. Warnings remain
+  non-fatal. Without a system argument, `sync log` lists each system once from
+  mapping filenames in this same walk; it reads logs only from the current
+  project's `.markspec/sync/<system>/log.ndjson` (#873).
 - `compile --frozen` and `doctor` read `markspec.lock` at the root `lock` writes
   it. Otherwise `compile`, `show`, `export`, and the other commands still walk
   up from the current directory to the nearest `project.yaml`.
