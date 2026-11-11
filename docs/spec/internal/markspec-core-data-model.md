@@ -768,7 +768,7 @@ the colon-on-next-line variant is canonical for multi-paragraph definitions).
 
 #### 3.4.5 Lists, tables, code, math, notes, blockquotes
 
-These follow `dprint` formatting for the surrounding Markdown (AGENTS.md “Code
+These follow `prim` formatting for the surrounding Markdown (AGENTS.md “Code
 style”). `markspec fmt` does **not** override CommonMark formatting for these
 blocks — it delegates. The exception is the inline-marker normalization in
 §3.4.1 / §3.4.2 which runs inside Paragraph / List / Table-cell / Note /

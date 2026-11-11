@@ -6,9 +6,9 @@ license: MIT
 items:
   rules: []
   skills:
-  - markspec-profile-bundle-authoring
+    - markspec-profile-bundle-authoring
   agents:
-  - markspec-scaffold-profile-bundle
+    - markspec-scaffold-profile-bundle
 requires:
   - { name: "markspec-core" }
 metadata:

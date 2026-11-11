@@ -5,17 +5,17 @@ description: |
 license: MIT
 items:
   rules:
-  - markspec-core-rules
+    - markspec-core-rules
   skills:
-  - markspec-entry-authoring
-  - markspec-write-loop
-  - markspec-diagnostics
-  - markspec-requirement-style
-  - markspec-ears
-  - markspec-gherkin
-  - markspec-prose-review
+    - markspec-entry-authoring
+    - markspec-write-loop
+    - markspec-diagnostics
+    - markspec-requirement-style
+    - markspec-ears
+    - markspec-gherkin
+    - markspec-prose-review
   agents:
-  - markspec-traceability-review
+    - markspec-traceability-review
 metadata:
   version: 0.3.0
   author: driftsys

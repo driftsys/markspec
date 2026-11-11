@@ -217,8 +217,8 @@ deno check packages/markspec/main.ts packages/markspec/core/mod.ts \
   packages/markspec/desk/server.ts                                 # type-check
 deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi  # run all tests
 deno lint                                                           # lint
-deno fmt && dprint fmt                                              # format (TS + MD/JSON/YAML)
-deno fmt --check && dprint check                                    # format check (CI)
+deno fmt && prim fmt .                                              # format (TS + MD/JSON/YAML/TOML)
+deno fmt --check && prim fmt --check .                              # format check (CI)
 ```
 
 Or via `just` (preferred):
@@ -226,9 +226,9 @@ Or via `just` (preferred):
 ```bash
 just check                      # lint + test + type-check (all three)
 just test                       # test only
-just lint                       # deno lint + dprint check
+just lint                       # deno lint + prim format check
 just build                      # check (lint+test+typecheck) + compile binary → dist/markspec
-just fmt                        # deno fmt (TS) + dprint fmt (MD/JSON/YAML/TOML)
+just fmt                        # deno fmt (TS) + prim fmt (MD/JSON/YAML/TOML)
 just tokens                     # regenerate Typst + CSS from theme/tokens.yaml
 just compile                    # compile CLI binary → dist/markspec
 just clean                      # remove build artifacts
@@ -238,9 +238,9 @@ just clean                      # remove build artifacts
 
 **MarkDesk is outside `just`.** `apps/markdesk/` is not a Deno workspace member,
 so `just check` and `just build` do not build or test it. They still run
-`dprint check` on its Markdown, JSON, and TOML files, except
-`package-lock.json`. When a change touches `apps/markdesk/` or
-`schemas/desk-api.json`, also run:
+`prim fmt --check` on its Markdown, JSON, and TOML files, except
+`package-lock.json`. `deno fmt` still formats its TypeScript. When a change
+touches `apps/markdesk/` or `schemas/desk-api.json`, also run:
 
 ```bash
 npm --prefix apps/markdesk ci                                  # first time
@@ -250,9 +250,10 @@ bash scripts/check_desk_client.sh                              # generated clien
 cargo test --manifest-path apps/markdesk/src-tauri/Cargo.toml  # Tauri shell tests
 ```
 
-**Two separate format tools:** `deno fmt` handles TypeScript only; `dprint fmt`
+**Two separate format tools:** `deno fmt` handles TypeScript only; `prim fmt`
 handles Markdown, JSON, YAML, TOML. CI runs them as separate jobs — both must
-pass. `CHANGELOG.md` and `docs/examples/` are excluded from dprint.
+pass. `.primignore` excludes `CHANGELOG.md` and `docs/examples/`. `prim lint .`
+runs its always-on Markdown rules (links, images, anchors); strict mode is off.
 
 **Design tokens CI gate:** Editing `theme/tokens.yaml` requires running
 `just tokens` and committing the generated files
@@ -355,9 +356,9 @@ Run `just tokens` after editing `tokens.yaml` to regenerate:
 - `packages/markspec-typst/themes/light.typ` and `dark.typ`
 - `theme/markspec.css`
 
-**`docs/examples/` is excluded from both `deno fmt` and `dprint`.** Example
-files contain attribute value lines that exceed 80 chars and must not be
-line-wrapped by formatters.
+**`docs/examples/` is excluded from both `deno fmt` and `prim`
+(`.primignore`).** Example files contain attribute value lines that exceed 80
+chars and must not be line-wrapped by formatters.
 
 The `render/styles/mod.ts` module (`styleRequirementBlocks`) is an earlier
 Markdown-level transformer — it produces styled Markdown rather than Typst calls
@@ -395,7 +396,7 @@ profile (ASPICE, ISO 26262) would declare additional types
 - **IDs:** ULID for universal uniqueness, display IDs for human readability
 - **Fonts:** IBM Plex family (Serif for body, Sans for headings, Mono for IDs
   and code)
-- **Formatting:** dprint (non-configurable)
+- **Formatting:** prim (Markdown/JSON/YAML/TOML), `deno fmt` (TypeScript)
 - **Desktop app (MarkDesk, `apps/markdesk/`):** React UI built with Vite, tested
   with Vitest, in a Tauri v2 shell (Rust). The typed API client is generated
   from `schemas/desk-api.json` with openapi-typescript and called with
@@ -987,9 +988,10 @@ severity/effort/priority, and review flow.
 
 - **Zero warnings.** No warnings from `deno check`, `deno lint`, or `deno test`.
   Fix warnings as they appear.
-- **Code style:** `deno fmt` for TypeScript, `dprint fmt` for
+- **Code style:** `deno fmt` for TypeScript, `prim fmt` for
   Markdown/JSON/YAML/TOML. Always run `just fmt` before committing. Both
-  `deno fmt --check` and `dprint check` are separate CI gates — both must pass.
+  `deno fmt --check` and `prim fmt --check .` are separate CI gates — both must
+  pass.
 - **Naming.** Names must reveal intent. Avoid `temp`, `data`, `flag`, `info`.
   Use `camelCase` for variables and functions, `PascalCase` for types and
   interfaces.
@@ -1008,8 +1010,9 @@ severity/effort/priority, and review flow.
 
 Run `./bootstrap` after `git clone` or `git worktree add`.
 
-`./bootstrap` installs `git-std` and fetches tree-sitter grammars only — it does
-not install [`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
+`./bootstrap` installs `git-std` and the pinned `prim` formatter and fetches
+tree-sitter grammars — it does not install
+[`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
 `just book`/`just book-dev` for local docs preview, install `mdbook` separately
 (e.g. `cargo install mdbook --version <pinned>`, or a platform package manager
 such as `brew install mdbook`). CI installs a **pinned** version via

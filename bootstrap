@@ -125,6 +125,10 @@ else
   printf 'run "deno task fetch-grammars" after installing deno\n' >&2
 fi
 
+# Install the pinned prim formatter (Markdown, JSON, YAML, TOML). Last, so a
+# failed download cannot skip the grammar fetch above.
+"$(dirname "$0")/scripts/install_prim.sh"
+
 # mdbook (like Typst) is a local-preview dependency this script does not
 # install — see AGENTS.md's "Post-clone setup" for install pointers.
 printf '\nnote: this script does not install mdbook or Typst\n'

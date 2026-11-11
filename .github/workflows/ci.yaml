@@ -22,12 +22,14 @@ jobs:
           deno-version: v2.x
       - run: deno fmt --check
 
-  dprint:
-    name: Dprint
+  prim:
+    name: Prim
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: dprint/check@v2.5
+      - run: scripts/install_prim.sh
+      - run: ~/.local/bin/prim fmt --check .
+      - run: ~/.local/bin/prim lint .
 
   lint:
     name: Lint
@@ -38,7 +40,6 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno lint
-      - uses: DavidAnson/markdownlint-cli2-action@v24
 
   check:
     name: Type check

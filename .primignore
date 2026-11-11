@@ -1,0 +1,13 @@
+# Paths prim must not format: the former dprint excludes plus vendored
+# license text.
+CHANGELOG.md
+docs/examples/
+docs/product/ast-fidelity-matrix.md
+apps/markdesk/package-lock.json
+node_modules
+dist
+build
+target
+_site
+npm
+OFL.txt

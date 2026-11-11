@@ -388,7 +388,7 @@ const CLASS_ORDER: readonly FidelityClass[] = [
  * Make a string safe to drop into a single GFM table cell wrapped in an
  * inline-code span: no newlines (delta is already single-line), pipes
  * escaped, backticks neutralised. Wrapping in backticks also exempts the
- * content from markdownlint `no-bare-urls` / `no-inline-html`.
+ * content from the Markdown lint rules for bare URLs and inline HTML.
  * Backslashes are escaped first (correct-by-construction).
  */
 function cell(value: string): string {
@@ -406,9 +406,9 @@ function cell(value: string): string {
 }
 
 /**
- * Render the deterministic, markdownlint-clean catalogue. The owning file
- * `docs/product/ast-fidelity-matrix.md` is dprint-excluded (see
- * `dprint.json`), so this exact byte sequence is the committed artifact and
+ * Render the deterministic catalogue. The owning file
+ * `docs/product/ast-fidelity-matrix.md` is prim-excluded (see
+ * `.primignore`), so this exact byte sequence is the committed artifact and
  * the staleness gate compares against it verbatim.
  */
 export function renderCatalogue(matrix: Matrix): string {
