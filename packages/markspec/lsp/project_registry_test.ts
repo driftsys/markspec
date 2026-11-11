@@ -430,20 +430,33 @@ Deno.test("ProjectRegistry: on-demand discovery finds projects below an ignored 
   const fx = new Fixture({
     "ws/.markspec.yaml": "profiles: []\n",
     "other/.markspec.yaml": "profiles: []\n",
-    "other/.gitignore": "sub/\n",
+    "other/.gitignore": "sub/\ngen/\n",
     "other/sub/.markspec.yaml": "profiles: []\n",
     "other/sub/req.md": entry("REQ_0001", "A"),
     "other/sub/inner/.markspec.yaml": "profiles: []\n",
     "other/sub/inner/req.md": entry("REQ_0002", "B"),
+    "other/sub/inner/gen/req.md": entry("REQ_0003", "C"),
+    "other/sub/inner/gen/deep/.markspec.yaml": "profiles: []\n",
   });
   await fx.start("ws");
   await fx.registry.ensureContextFor(abs("other/sub/req.md"));
 
   assertEquals(
     fx.registry.all().map((c) => c.root).sort(),
-    [abs("ws"), abs("other/sub"), abs("other/sub/inner")].sort(),
+    [
+      abs("ws"),
+      abs("other/sub"),
+      abs("other/sub/inner"),
+      abs("other/sub/inner/gen/deep"),
+    ].sort(),
   );
-  assertEquals(fx.rootOf("other/sub/inner/req.md"), abs("other/sub/inner"));
+  // The walks below an ignored anchor use the same rule as root discovery:
+  // the enclosing `sub/` pattern does not hide the anchor's own files.
+  assertEquals(
+    fx.registry.contextFor(abs("other/sub/inner/req.md"))?.index
+      .getFilePaths(),
+    [abs("other/sub/inner/gen/req.md"), abs("other/sub/inner/req.md")],
+  );
 });
 
 Deno.test("ProjectRegistry: on-demand contexts inherit gitignore from their outermost project (#874)", async () => {

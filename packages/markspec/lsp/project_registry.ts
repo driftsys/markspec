@@ -490,13 +490,16 @@ export class ProjectRegistry {
       readDir: (p: string) => this.host.readDir(p),
       readFile: this.host.readFile,
     }, { homeDir: this.host.homeDir?.() });
-    // Nested discovery and walks inherit from the outermost project,
-    // even when the workspace was opened at an inner project.
-    const outermost = await resolver.outermostOf(anchor.root) ?? anchor.root;
+    // Nested discovery and the walks of nested contexts inherit from the
+    // outermost project, even when the workspace was opened at an inner
+    // project. The primary context's own walk does not inherit (below).
+    let outermost = await resolver.outermostOf(anchor.root) ?? anchor.root;
     let nestedRoots = await resolver.nestedRoots(outermost);
-    // An ignored anchor can still be opened on demand. Discover its
-    // nested projects even when the outermost walk cannot reach it.
+    // An anchor that the outermost project's .gitignore hides can still be
+    // opened on demand. Treat it as its own outermost project, so root
+    // discovery and the file walks below it use the same ignore rules.
     if (anchor.root !== outermost && !nestedRoots.includes(anchor.root)) {
+      outermost = anchor.root;
       nestedRoots = await resolver.nestedRoots(anchor.root);
     }
     const knownBefore = new Set(this.contexts.keys());
