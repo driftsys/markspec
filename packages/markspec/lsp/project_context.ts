@@ -376,13 +376,15 @@ export class ProjectContext {
    * and no file is indexed by two contexts. `openText` returns the editor
    * buffer for a file that is open; that text is parsed instead of the
    * file on disk, so an unsaved edit is never replaced by stale disk
-   * content.
+   * content. `inheritGitignoreFrom` applies the enclosing project's
+   * `.gitignore` files to a nested context's walk.
    *
    * @returns The number of project files parsed.
    */
   async indexProject(
     owns: (path: string) => boolean,
     openText: (path: string) => string | undefined = () => undefined,
+    inheritGitignoreFrom?: string,
   ): Promise<number> {
     // Seed the delivered corpus (ADR-030), then the locked upstream
     // corpus (federated-upstream slice 4), before the project walk so
@@ -401,6 +403,7 @@ export class ProjectContext {
     for await (
       const path of discoverFiles(this.root, io, {
         exclude: this.toolConfig.exclude,
+        inheritGitignoreFrom,
       })
     ) {
       if (owns(path)) files.push(path);
