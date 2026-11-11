@@ -10,10 +10,11 @@ check: lint test
 test:
     deno test --allow-read --allow-write --allow-run --allow-env --allow-ffi --allow-net
 
-# Lint (Deno + prim format check)
+# Lint (Deno + prim format check + prim Markdown lint)
 lint:
     deno lint
     prim fmt --check .
+    prim lint .
 
 # Check then compile the CLI binary
 build: check compile

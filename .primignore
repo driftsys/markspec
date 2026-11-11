@@ -1,4 +1,5 @@
-# Paths prim must not format (mirrors the former dprint excludes).
+# Paths prim must not format: the former dprint excludes plus vendored
+# license text.
 CHANGELOG.md
 docs/examples/
 docs/product/ast-fidelity-matrix.md

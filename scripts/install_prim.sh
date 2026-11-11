@@ -47,3 +47,7 @@ mkdir -p "$INSTALL_DIR"
 mv "$tmp_dir/prim" "$INSTALL_DIR/prim"
 chmod +x "$INSTALL_DIR/prim"
 printf 'installed prim %s to %s/prim\n' "$PRIM_VERSION" "$INSTALL_DIR"
+if [ "$(command -v prim || true)" != "$INSTALL_DIR/prim" ]; then
+  printf 'warning: %s/prim is not the first prim on PATH; put %s first\n' \
+    "$INSTALL_DIR" "$INSTALL_DIR" >&2
+fi

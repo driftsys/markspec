@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - run: scripts/install_prim.sh
       - run: ~/.local/bin/prim fmt --check .
+      - run: ~/.local/bin/prim lint .
 
   lint:
     name: Lint

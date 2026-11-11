@@ -187,13 +187,13 @@ Deno.test("runMatrix: covers the whole corpus, deterministic order, counts sum",
 
 import { renderCatalogue } from "./ast_fidelity.ts";
 
-Deno.test("renderCatalogue: deterministic + markdownlint-safe shape", async () => {
+Deno.test("renderCatalogue: deterministic + well-formed shape", async () => {
   const m = await runMatrix();
   const a = renderCatalogue(m);
   const b = renderCatalogue(m);
   assertEquals(a, b); // pure + deterministic
 
-  // Single leading H1 (markdownlint first-line-heading / single-title).
+  // Single leading H1 (first-line heading, single title).
   assert(a.startsWith("# AST Fidelity Matrix\n"));
   assertEquals(a.match(/^# /gm)?.length, 1);
   // Generated-file banner so humans do not hand-edit it.
@@ -209,7 +209,7 @@ Deno.test("renderCatalogue: deterministic + markdownlint-safe shape", async () =
   for (const row of m.rows) {
     assert(a.includes(`| ${row.name} |`), `missing row ${row.name}`);
   }
-  // Trailing newline, single (file is dprint-excluded; keep it tidy).
+  // Trailing newline, single (file is prim-excluded; keep it tidy).
   assert(a.endsWith("\n"));
   assertFalse(a.endsWith("\n\n"));
   // No raw pipe leaks from delta: every data row has exactly 5 cells → 6

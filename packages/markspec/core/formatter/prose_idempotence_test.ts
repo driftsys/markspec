@@ -36,8 +36,8 @@ Deno.test("ADR-029: format is idempotent over the fixture corpus", async () => {
 
 /**
  * Genuinely non-canonical documents, held in-memory: every committed
- * fixture under tests/fixtures/ must already be dprint-canonical (the
- * repo's own dprint gate formats that directory), so an on-disk fixture
+ * fixture under tests/fixtures/ must already be canonical (the
+ * repo's own prim gate formats that directory), so an on-disk fixture
  * can never carry ragged input. These exercise the reflow-then-stabilize
  * property the corpus test cannot.
  */

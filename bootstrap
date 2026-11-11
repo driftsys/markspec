@@ -116,9 +116,6 @@ ensure_git_std() {
 ensure_git_std
 git std bootstrap
 
-# Install the pinned prim formatter (Markdown, JSON, YAML, TOML).
-"$(dirname "$0")/scripts/install_prim.sh"
-
 # Fetch tree-sitter WASM grammars if Deno is available.
 if command -v deno >/dev/null 2>&1; then
   printf '\nFetching tree-sitter WASM grammars...\n'
@@ -127,6 +124,10 @@ else
   printf '\nwarning: deno not found — skipping grammar fetch\n' >&2
   printf 'run "deno task fetch-grammars" after installing deno\n' >&2
 fi
+
+# Install the pinned prim formatter (Markdown, JSON, YAML, TOML). Last, so a
+# failed download cannot skip the grammar fetch above.
+"$(dirname "$0")/scripts/install_prim.sh"
 
 # mdbook (like Typst) is a local-preview dependency this script does not
 # install — see AGENTS.md's "Post-clone setup" for install pointers.

@@ -252,8 +252,8 @@ cargo test --manifest-path apps/markdesk/src-tauri/Cargo.toml  # Tauri shell tes
 
 **Two separate format tools:** `deno fmt` handles TypeScript only; `prim fmt`
 handles Markdown, JSON, YAML, TOML. CI runs them as separate jobs — both must
-pass. `.primignore` excludes `CHANGELOG.md` and `docs/examples/`. prim runs
-without strict Markdown lint, so there is no separate Markdown linter.
+pass. `.primignore` excludes `CHANGELOG.md` and `docs/examples/`. `prim lint .`
+runs its always-on Markdown rules (links, images, anchors); strict mode is off.
 
 **Design tokens CI gate:** Editing `theme/tokens.yaml` requires running
 `just tokens` and committing the generated files
@@ -1010,8 +1010,9 @@ severity/effort/priority, and review flow.
 
 Run `./bootstrap` after `git clone` or `git worktree add`.
 
-`./bootstrap` installs `git-std` and fetches tree-sitter grammars only — it does
-not install [`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
+`./bootstrap` installs `git-std` and the pinned `prim` formatter and fetches
+tree-sitter grammars — it does not install
+[`mdbook`](https://rust-lang.github.io/mdBook/) (or Typst). To run
 `just book`/`just book-dev` for local docs preview, install `mdbook` separately
 (e.g. `cargo install mdbook --version <pinned>`, or a platform package manager
 such as `brew install mdbook`). CI installs a **pinned** version via
