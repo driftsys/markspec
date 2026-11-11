@@ -1354,3 +1354,49 @@ for (
     }
   });
 }
+
+Deno.test("format: refused ULID references produce no check reference drift", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const targetId = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+  const run = await markspecPersist(["fmt"], {
+    "project.yaml": "name: test\nversion: 0.1.0\n",
+    "req.md":
+      `-\t[REQ-001] Unsafe\n\n    Body.\n\n        Satisfies: ${targetId}\n\n  - child\n`,
+    "target.md": `- [REQ-003] Target\n\n      Id: ${targetId}\n`,
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    assertStringIncludes(run.stderr, "MSL-F013");
+    const check = await markspecInDir(run.dir, ["check", "--format", "json"]);
+    const diagnostics = JSON.parse(check.stdout) as { code: string }[];
+    assertEquals(
+      diagnostics.some((d) => d.code === "MSL-F011"),
+      false,
+      check.stdout,
+    );
+    assertStringIncludes(
+      await Deno.readTextFile(join(run.dir, "req.md")),
+      `Satisfies: ${targetId}`,
+    );
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});
+
+Deno.test("format: refusal retains differently indented neighbouring context twice", async () => {
+  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+  const input = " -   Plain 973\n- \t[REQ-976] T976\n\n  Labels: X\n";
+  const first = await markspecPersist(["fmt", "req.md"], { "req.md": input });
+  try {
+    const output = await Deno.readTextFile(join(first.dir, "req.md"));
+    const second = await markspecInDir(first.dir, ["fmt", "req.md"]);
+    for (const run of [first, second]) {
+      assertEquals(run.code, 0, run.stderr);
+      assertEquals((run.stderr.match(/MSL-F013/g) ?? []).length, 1);
+    }
+    assertEquals(output, input);
+    assertEquals(await Deno.readTextFile(join(first.dir, "req.md")), output);
+  } finally {
+    await Deno.remove(first.dir, { recursive: true });
+  }
+});

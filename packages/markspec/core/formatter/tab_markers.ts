@@ -79,7 +79,15 @@ export function entryListItems(lines: readonly string[]): EntryListItem[] {
           // content column shrinks. Formatting them in isolation can remove
           // that indentation and admit a refused rewrite on the next run.
           // Keep complete blocks, including unindented lazy continuations.
-          const contentColumn = (child.position?.start.column ?? 1) + 2;
+          const contentColumn = Math.min(
+            ...node.children.slice(first, last + 1).flatMap((sibling) =>
+              sibling.type === "list"
+                ? sibling.children.map((item) =>
+                  (item.position?.start.column ?? 1) + 1
+                )
+                : []
+            ),
+          );
           while (
             (node.children[last + 1]?.position?.start.column ?? 0) >=
               contentColumn
@@ -114,7 +122,7 @@ export function protectedTabRanges(
     // A prose rewrite of a neighbouring item can make a refused marker
     // eligible on the next run. Keep the containing list and the following
     // indented blocks stable, even when CommonMark puts them outside it.
-    const range = preserveListContext ? marker.listContext : marker.container;
+    const range = preserveListContext ? marker.listContext : marker;
     let end = range.end;
     while (end < lines.length && lines[end].trim() === "") end++;
     return { start: range.start, end };

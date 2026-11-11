@@ -250,14 +250,14 @@ function emitBodyViaAst(
   for (const entry of sorted) {
     if (
       protectedRanges.some((range) =>
-        entry.location.line - 1 >= range.start &&
-        entry.location.line - 1 < range.end
+        entry.location.line - 1 < range.end &&
+        (entry.endLine ?? entry.location.line) > range.start
       )
     ) continue;
     if (!entry.body.trim()) continue; // empty or whitespace-only body
 
     // List-item continuation indent: the item's content column, which
-    // follows every space after the marker (#865).
+    // counts every space and tab after the marker (#865).
     const indent = contentColumn(
       lines[entry.location.line - 1] ?? "",
       entry.location.column - 1,
@@ -794,12 +794,20 @@ function formatEntries(
     if (attrs.length === 0) continue;
 
     const normalized = sortAttributes(expandCsvValues(attrs));
-    const range = findAttributeBlockRange(
+    const trailerRange = findAttributeBlockRange(
       lines,
       entry.location.line,
       indent,
       itemEndFloor(),
     );
+
+    // A nested refused entry's trailer belongs to the child, not this entry.
+    const range = trailerRange && !protectedRanges.some((protectedRange) =>
+        trailerRange.start < protectedRange.end &&
+        trailerRange.end > protectedRange.start
+      )
+      ? trailerRange
+      : undefined;
 
     if (range) {
       // Replace existing attribute block.
@@ -880,6 +888,16 @@ function formatEntries(
         end: findItemEnd(collapsedLines, start, entryIndent, e.endLine ?? 0),
       };
     });
+    // Title-only entry items are outside the entry index. Keep their list
+    // context too: isolated prose formatting can move adjacent entries.
+    const indexedStarts = new Set(
+      proseEntries.map((entry) => entry.location.line - 1),
+    );
+    extents.push(
+      ...entryListItems(collapsedLines)
+        .filter((item) => !indexedStarts.has(item.start))
+        .map((item) => item.listContext),
+    );
     extents.push(...protectedTabRanges(collapsedLines, true));
     extents.sort((a, b) => a.start - b.start);
     const merged: typeof extents = [];
@@ -1163,6 +1181,11 @@ function removeEmptyTrailerLines(
     if (start >= end || start - 1 <= startIdx) continue;
     const trailerIndent = " ".repeat(indent + 4);
     const block = lines.slice(start, end);
+    if (
+      protectedRanges.some((range) =>
+        range.start > startIdx && start < range.end && end > range.start
+      )
+    ) continue;
     const isTrailerBlock = block.every((l) =>
       l.startsWith(trailerIndent) && TRAILER_SHAPED_RE.test(l.trim())
     );
