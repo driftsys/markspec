@@ -28,10 +28,12 @@ use on the command line.
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
-Nested projects inherit `.gitignore` rules from the primary project root when
-the language server discovers their roots and indexes their files. Projects
-opened outside the workspace inherit these rules from their outermost enclosing
-project. Directly opening a file in an ignored folder that contains its own
+### Nested projects
+
+Nested projects inherit `.gitignore` rules from the outermost enclosing project
+when the language server discovers their roots and indexes their files, even
+when the workspace is opened at an inner project. Directly opening a file in an
+ignored folder outside every known project root that contains its own
 `.markspec.yaml` can create a separate project context there, unlike CLI
 resolution. The primary project's walk starts at its own root; each project
 applies its own `.markspec.yaml` `exclude:` list.

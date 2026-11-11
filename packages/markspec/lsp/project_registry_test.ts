@@ -360,7 +360,7 @@ Deno.test("ProjectRegistry: the primary walk does not inherit gitignore above it
   );
 });
 
-Deno.test("ProjectRegistry: an enclosing gitignore hides roots below a nested context (#874)", async () => {
+Deno.test("ProjectRegistry: an enclosing gitignore hides roots below a nested context", async () => {
   const fx = new Fixture({
     ".markspec.yaml": "profiles: []\n",
     ".gitignore": "generated/\n",
@@ -378,6 +378,72 @@ Deno.test("ProjectRegistry: an enclosing gitignore hides roots below a nested co
     [abs(""), abs("sub"), abs("sub/visible")].sort(),
   );
   assertEquals(fx.rootOf("sub/generated/deep/req.md"), abs("sub"));
+});
+
+Deno.test("ProjectRegistry: nested contexts below an inner workspace inherit the outermost gitignore (#874)", async () => {
+  const fx = new Fixture({
+    "repo/.markspec.yaml": "profiles: []\n",
+    "repo/.gitignore": "generated/\n",
+    "repo/sub/.markspec.yaml": "profiles: []\n",
+    "repo/sub/generated/req.md": entry("REQ_0001", "A"),
+    "repo/sub/inner/.markspec.yaml": "profiles: []\n",
+    "repo/sub/inner/req.md": entry("REQ_0002", "B"),
+    "repo/sub/inner/generated/req.md": entry("REQ_0003", "C"),
+    "repo/sub/inner/generated/deep/.markspec.yaml": "profiles: []\n",
+    "repo/sub/inner/generated/deep/req.md": entry("REQ_0004", "D"),
+  });
+  await fx.start("repo/sub");
+
+  assertEquals(
+    fx.registry.all().map((c) => c.root).sort(),
+    [abs("repo/sub"), abs("repo/sub/inner")].sort(),
+  );
+  assertEquals(fx.registry.primary?.index.getFilePaths(), [
+    abs("repo/sub/generated/req.md"),
+  ]);
+  assertEquals(
+    fx.registry.contextFor(abs("repo/sub/inner/req.md"))?.index.getFilePaths(),
+    [abs("repo/sub/inner/req.md")],
+  );
+});
+
+Deno.test("ProjectRegistry: on-demand discovery does not create or index sibling projects (#874)", async () => {
+  const fx = new Fixture({
+    "ws/.markspec.yaml": "profiles: []\n",
+    "other/.markspec.yaml": "profiles: []\n",
+    "other/sub/.markspec.yaml": "profiles: []\n",
+    "other/sub/req.md": entry("REQ_0001", "A"),
+    "other/sib/.markspec.yaml": "profiles: []\n",
+    "other/sib/req.md": entry("REQ_0002", "B"),
+  });
+  await fx.start("ws");
+  await fx.registry.ensureContextFor(abs("other/sub/req.md"));
+
+  assertEquals(fx.created.sort(), [abs("ws"), abs("other/sub")].sort());
+  assertEquals(
+    fx.registry.all().flatMap((c) => c.index.getFilePaths()),
+    [abs("other/sub/req.md")],
+  );
+});
+
+Deno.test("ProjectRegistry: on-demand discovery finds projects below an ignored anchor (#874)", async () => {
+  const fx = new Fixture({
+    "ws/.markspec.yaml": "profiles: []\n",
+    "other/.markspec.yaml": "profiles: []\n",
+    "other/.gitignore": "sub/\n",
+    "other/sub/.markspec.yaml": "profiles: []\n",
+    "other/sub/req.md": entry("REQ_0001", "A"),
+    "other/sub/inner/.markspec.yaml": "profiles: []\n",
+    "other/sub/inner/req.md": entry("REQ_0002", "B"),
+  });
+  await fx.start("ws");
+  await fx.registry.ensureContextFor(abs("other/sub/req.md"));
+
+  assertEquals(
+    fx.registry.all().map((c) => c.root).sort(),
+    [abs("ws"), abs("other/sub"), abs("other/sub/inner")].sort(),
+  );
+  assertEquals(fx.rootOf("other/sub/inner/req.md"), abs("other/sub/inner"));
 });
 
 Deno.test("ProjectRegistry: on-demand contexts inherit gitignore from their outermost project (#874)", async () => {

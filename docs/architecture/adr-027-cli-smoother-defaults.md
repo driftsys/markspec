@@ -367,7 +367,9 @@ that the enclosing project's `.gitignore` ignores.
   files ignore. The `exclude:` lists of enclosing projects are not inherited;
   each project applies only its own. This works with or without git.
 - No `.gitignore` file above the outermost project root is read. Walks of a
-  single root, the LSP, the MCP server, and `markspec lock` are unchanged.
+  single root, the LSP, the MCP server, and `markspec lock` are unchanged. Since
+  #874, the LSP also applies the outermost project's `.gitignore` files to
+  nested project walks.
 
 ## Amendment (2026-11-01, #860: `lock` and `sync`)
 
