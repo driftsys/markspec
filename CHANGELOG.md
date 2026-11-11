@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.12.1] (2026-11-11)
+
+### Bug Fixes
+
+- **cli:** fail lock on a malformed inherited sync mapping ([#908])
+  ([c988ec1]), closes [#873]
+- **lsp:** apply the enclosing project's .gitignore to nested projects ([#905])
+  ([ee310e1]), closes [#874]
+- **core:** normalize a tab after an entry list marker only when safe ([#903])
+  ([5c10fd5]), closes [#875]
+- **core:** apply a nested project's exclude negations in discovery ([#902])
+  ([4cf1d8f]), closes [#885]
+- **core:** align config schemas and loaders ([#900]) ([dc9d95d]), refs [#880]
+- **book:** share one display-ID grammar with the LSP ([#896]) ([bba6f79]),
+  closes [#832]
+- **core:** suppress cross-entry typl codes on file-local check ([#895])
+  ([654c20d]), closes [#807]
+- **repo:** close MarkDesk test gaps ([#894]) ([c00db7d]), refs [#836]
+
+### Stricter checks
+
+- `project.yaml` loading now rejects every value that the org schema rejects
+  ([#900]). A file that loaded in 0.12.0 can now fail to load.
+- `markspec lock` now fails when an inherited sync mapping is malformed
+  ([#908]).
+- `markspec fmt` no longer rewrites a tab after an entry list marker when the
+  rewrite changes the parsed document. It leaves the entry unchanged and
+  reports the new diagnostic MSL-F013; `markspec check` reports the same entry
+  as drift ([#903]).
+
+[0.12.1]: https://github.com/driftsys/markspec/compare/v0.12.0...v0.12.1
+[c988ec1]: https://github.com/driftsys/markspec/commit/c988ec1
+[#908]: https://github.com/driftsys/markspec/issues/908
+[#873]: https://github.com/driftsys/markspec/issues/873
+[#874]: https://github.com/driftsys/markspec/issues/874
+[ee310e1]: https://github.com/driftsys/markspec/commit/ee310e1
+[#905]: https://github.com/driftsys/markspec/issues/905
+[5c10fd5]: https://github.com/driftsys/markspec/commit/5c10fd5
+[#903]: https://github.com/driftsys/markspec/issues/903
+[#875]: https://github.com/driftsys/markspec/issues/875
+[4cf1d8f]: https://github.com/driftsys/markspec/commit/4cf1d8f
+[#902]: https://github.com/driftsys/markspec/issues/902
+[#885]: https://github.com/driftsys/markspec/issues/885
+[dc9d95d]: https://github.com/driftsys/markspec/commit/dc9d95d
+[#900]: https://github.com/driftsys/markspec/issues/900
+[#880]: https://github.com/driftsys/markspec/issues/880
+[bba6f79]: https://github.com/driftsys/markspec/commit/bba6f79
+[#896]: https://github.com/driftsys/markspec/issues/896
+[#832]: https://github.com/driftsys/markspec/issues/832
+[654c20d]: https://github.com/driftsys/markspec/commit/654c20d
+[#895]: https://github.com/driftsys/markspec/issues/895
+[#807]: https://github.com/driftsys/markspec/issues/807
+[c00db7d]: https://github.com/driftsys/markspec/commit/c00db7d
+[#894]: https://github.com/driftsys/markspec/issues/894
+[#836]: https://github.com/driftsys/markspec/issues/836
+
 ## [0.12.0] (2026-11-08)
 
 ### Refactoring
