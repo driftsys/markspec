@@ -102,3 +102,57 @@ for (const yaml of ["", "# No mapping\n", "null\n", "~\n"]) {
     assertEquals(result.diagnostics[0].location?.file, "jira.yaml");
   });
 }
+
+for (
+  const [field, value] of [
+    ["schema", "{toString: null}"],
+    ["direction", "{toString: null}"],
+    ["identity", "5"],
+    ["identity", "[jira]"],
+    ["identity", "null"],
+    ["conflict", "5"],
+    ["conflict", "[manual]"],
+    ["conflict", "null"],
+    ["conflict", "{default: {toString: null}}"],
+    ["cache", "5"],
+    ["cache", "[15m]"],
+    ["cache", "null"],
+    ["cache", "{ttl: 5}"],
+    ["cache", "{ttl: null}"],
+    ["cache", "{ttl: [15m]}"],
+    ["attributes", "5"],
+    ["attributes", "{}"],
+    ["attributes", "null"],
+    ["attributes", "[null]"],
+    ["attributes", "[5]"],
+    ["attributes", "[[Title, summary]]"],
+    ["attributes", "[{markspec: Title, external: summary, locked: 5}]"],
+    ["attributes", "[{markspec: Title, external: summary, direction: []}]"],
+    [
+      "attributes",
+      "[{markspec: {toString: null}, external: summary, locked: true, direction: outbound}]",
+    ],
+  ]
+) {
+  Deno.test(`parseMapping: invalid structure ${field}: ${value} returns MSL-S001`, () => {
+    const yaml = VALID_JIRA.replace(
+      new RegExp(`^${field}:.*(?:\\n[ \\t]+.*)*`, "m"),
+      `${field}: ${value}`,
+    );
+    const result = parseMapping(yaml, "jira.yaml");
+    assertEquals(result.mapping, undefined);
+    assertEquals(result.diagnostics.length, 1);
+    assertEquals(result.diagnostics[0].code, "MSL-S001");
+    assertEquals(result.diagnostics[0].severity, "error");
+    assertEquals(result.diagnostics[0].location?.file, "jira.yaml");
+  });
+}
+
+for (const yaml of ["5", "jira", "[]", "[null]", "true"]) {
+  Deno.test(`parseMapping: non-object YAML ${yaml} returns MSL-S001`, () => {
+    const result = parseMapping(yaml, "jira.yaml");
+    assertEquals(result.mapping, undefined);
+    assertEquals(result.diagnostics[0].code, "MSL-S001");
+    assertEquals(result.diagnostics[0].severity, "error");
+  });
+}

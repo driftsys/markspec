@@ -474,8 +474,12 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
  * that order, and a mapping found in a deeper folder replaces a mapping with
  * the same `system` found in a higher folder. When the outermost root cannot
  * be determined or is not `root` or an ancestor of it, only `root` is read.
- * Read and parse diagnostics of each file are printed to stderr. The caller
- * decides whether invalid mappings stop the command.
+ * Missing sync directories are ignored. Other directory read errors and file
+ * read errors are printed as MSL-S001 diagnostics naming the path. File parse
+ * diagnostics are also printed to stderr. Any read or parse failure marks the
+ * result invalid, even if a deeper mapping replaces the file. `lock` and
+ * `lock --check` stop before any writes; `compile --frozen` continues to its
+ * drift check with the successfully loaded mappings.
  */
 async function loadAllMappings(
   root: string,
@@ -492,7 +496,13 @@ async function loadAllMappings(
       files = await Array.fromAsync(Deno.readDir(dir));
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) continue;
-      throw error;
+      console.error(
+        `error: MSL-S001: Cannot read sync mappings at ${dir}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      invalid = true;
+      continue;
     }
     for (const file of files) {
       if (!file.isFile || !file.name.endsWith(".yaml")) continue;

@@ -186,9 +186,17 @@ including files that a deeper mapping would replace. If any file cannot be read,
 produces an error-severity parse diagnostic or returns no mapping,
 `markspec lock` and `markspec lock --check` print the diagnostics to stderr and
 exit 1 before writing any files. Mapping validation errors also exit 1 before
-any writes. Parsing and validation run before profile acquisition, so these
-failures do not populate `.markspec/cache/` or change `.gitignore`. An invalid
-child mapping does not fall back to the parent's mapping.
+any writes. Reading, parsing and validation run before profile acquisition, so
+these failures do not populate `.markspec/cache/` or change `.gitignore`. An
+invalid child mapping does not fall back to the parent's mapping. Missing sync
+directories are ignored; any other error reading a sync directory produces an
+`MSL-S001` error diagnostic naming the path and also stops both lock commands
+before any writes. Invalid YAML field shapes produce `MSL-S001` without
+throwing.
+
+`compile --frozen` prints mapping file and directory read diagnostics and parse
+diagnostics, then continues to its drift check with successfully loaded
+mappings.
 
 Without a system argument, `markspec sync log` discovers systems from `.yaml`
 mapping filenames in the same folder walk and lists each system once. This

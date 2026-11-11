@@ -7,7 +7,7 @@
  * cache TTL.
  *
  * Diagnostic family is `MSL-S###`:
- *   - MSL-S001 — malformed YAML / unsupported schema
+ *   - MSL-S001 — malformed YAML / invalid structure / unsupported schema
  *   - MSL-S002 — locked + outbound contradiction
  *   - MSL-S003 — unknown conflict policy (newest-wins removed pre-1.0)
  *   - MSL-S004 — system ≠ identity.external-id-scheme
@@ -61,16 +61,17 @@ const ALLOWED_POLICIES: ReadonlySet<string> = new Set([
 
 /**
  * Parse and validate one mapping.yaml. Returns the model when valid, or
- * an MSL-S### diagnostic when not. Single-shot — stops at the first
- * integrity failure to keep the repair signal clear.
+ * an MSL-S### diagnostic when not. Never throws on invalid YAML or invalid
+ * field shapes. Single-shot — stops at the first integrity failure to keep
+ * the repair signal clear.
  */
 export function parseMapping(
   yaml: string,
   sourcePath: string,
 ): ParseMappingResult {
-  let raw: Record<string, unknown> | null | undefined;
+  let raw: unknown;
   try {
-    raw = parseYaml(yaml) as typeof raw;
+    raw = parseYaml(yaml);
   } catch (e) {
     return fail(
       "MSL-S001",
@@ -87,7 +88,14 @@ export function parseMapping(
     );
   }
 
+  if (!isRecord(raw)) {
+    return fail("MSL-S001", "Mapping YAML must be an object", sourcePath);
+  }
+
   const schema = raw.schema;
+  if (typeof schema !== "number") {
+    return fail("MSL-S001", "Missing or non-number `schema` field", sourcePath);
+  }
   if (schema !== SUPPORTED_SCHEMA) {
     return fail(
       "MSL-S001",
@@ -106,6 +114,13 @@ export function parseMapping(
   }
 
   const direction = raw.direction;
+  if (typeof direction !== "string") {
+    return fail(
+      "MSL-S001",
+      "Missing or non-string `direction` field",
+      sourcePath,
+    );
+  }
   if (
     direction !== "outbound" && direction !== "inbound" &&
     direction !== "bidirectional"
@@ -117,8 +132,15 @@ export function parseMapping(
     );
   }
 
-  const identity = raw.identity as Record<string, unknown> | undefined;
-  const scheme = identity?.["external-id-scheme"];
+  const identity = raw.identity;
+  if (!isRecord(identity)) {
+    return fail(
+      "MSL-S001",
+      "Missing or non-object `identity` field",
+      sourcePath,
+    );
+  }
+  const scheme = identity["external-id-scheme"];
   if (typeof scheme !== "string") {
     return fail(
       "MSL-S001",
@@ -135,8 +157,14 @@ export function parseMapping(
     );
   }
 
-  const conflict = raw.conflict as Record<string, unknown> | undefined;
-  const policy = conflict?.default as string | undefined;
+  const conflict = raw.conflict;
+  if (conflict !== undefined && !isRecord(conflict)) {
+    return fail("MSL-S001", "Non-object `conflict` field", sourcePath);
+  }
+  const policy = conflict?.default;
+  if (policy !== undefined && typeof policy !== "string") {
+    return fail("MSL-S001", "Non-string conflict.default", sourcePath);
+  }
   if (policy !== undefined && !ALLOWED_POLICIES.has(policy)) {
     return fail(
       "MSL-S003",
@@ -145,8 +173,14 @@ export function parseMapping(
     );
   }
 
-  const cacheRaw = raw.cache as Record<string, unknown> | undefined;
-  const ttlStr = (cacheRaw?.ttl as string | undefined) ?? "15m";
+  const cacheRaw = raw.cache;
+  if (cacheRaw !== undefined && !isRecord(cacheRaw)) {
+    return fail("MSL-S001", "Non-object `cache` field", sourcePath);
+  }
+  const ttlStr = cacheRaw?.ttl === undefined ? "15m" : cacheRaw.ttl;
+  if (typeof ttlStr !== "string") {
+    return fail("MSL-S001", "Non-string cache.ttl", sourcePath);
+  }
   const ttlMs = parseDurationMs(ttlStr);
   if (ttlMs === null) {
     return fail(
@@ -156,10 +190,32 @@ export function parseMapping(
     );
   }
 
-  const attrsRaw =
-    (raw.attributes as readonly Record<string, unknown>[] | undefined) ?? [];
+  const attrsRaw = raw.attributes === undefined ? [] : raw.attributes;
+  if (!Array.isArray(attrsRaw)) {
+    return fail("MSL-S001", "Non-array `attributes` field", sourcePath);
+  }
   const attributes: AttributeMapping[] = [];
   for (const a of attrsRaw) {
+    if (
+      !isRecord(a) || typeof a.markspec !== "string" ||
+      typeof a.external !== "string"
+    ) {
+      return fail(
+        "MSL-S001",
+        "Each attribute mapping requires an object with string 'markspec' and 'external' fields",
+        sourcePath,
+      );
+    }
+    if (
+      (a.direction !== undefined && typeof a.direction !== "string") ||
+      (a.locked !== undefined && typeof a.locked !== "boolean")
+    ) {
+      return fail(
+        "MSL-S001",
+        "Attribute mapping requires a string 'direction' and boolean 'locked' when present",
+        sourcePath,
+      );
+    }
     const attrDir: Direction =
       (a.direction === "outbound" || a.direction === "inbound" ||
           a.direction === "bidirectional")
@@ -170,13 +226,6 @@ export function parseMapping(
       return fail(
         "MSL-S002",
         `Attribute '${a.markspec}': locked: true contradicts direction: outbound`,
-        sourcePath,
-      );
-    }
-    if (typeof a.markspec !== "string" || typeof a.external !== "string") {
-      return fail(
-        "MSL-S001",
-        "Each attribute mapping requires string 'markspec' and 'external' fields",
         sourcePath,
       );
     }
@@ -199,6 +248,13 @@ export function parseMapping(
     sourcePath,
   };
   return { mapping, diagnostics: [] };
+}
+
+/** Whether a YAML value is a plain mapping rather than a scalar or sequence. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 /**

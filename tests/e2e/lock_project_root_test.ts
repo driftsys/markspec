@@ -754,48 +754,182 @@ const runsAsRoot = Deno.build.os !== "windows" &&
         .stdout,
     ).trim() === "0";
 
-Deno.test({
-  name:
-    "lock: an unreadable child mapping fails without writes or parent fallback (#873)",
-  ignore: Deno.build.os === "windows" || runsAsRoot,
-  async fn() {
-    const run = await markspecPersist(["lock"], {
-      files: {
-        "p/project.yaml": "name: parent\nversion: 0.1.0\n",
-        "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
-        "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
-        "p/sub/.markspec/sync/jira.yaml": jiraMapping("title"),
-        "p/sub/req.md": entry("STK_0001", "A", "External-id: jira:ABC-1"),
-      },
-      cwd: "p/sub",
-    });
-    const path = join(run.dir, "p/sub/.markspec/sync/jira.yaml");
-    try {
-      assertEquals(run.code, 0, run.stderr);
-      const root = join(run.dir, "p/sub");
-      for (const existing of [true, false]) {
-        if (!existing) await Deno.remove(join(root, "markspec.lock"));
-        const before = await snapshotTree(run.dir);
-        for (const args of [["lock"], ["lock", "--check"]]) {
-          await Deno.chmod(path, 0o000);
+for (const folder of ["p", "p/group", "p/group/sub"]) {
+  Deno.test({
+    name:
+      `lock: an unreadable mapping in ${folder} fails without writes across the inheritance walk (#873)`,
+    ignore: Deno.build.os === "windows" || runsAsRoot,
+    async fn() {
+      const run = await markspecPersist(["lock"], {
+        files: {
+          "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+          "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
+          "p/group/.markspec/sync/jira.yaml": jiraMapping("summary"),
+          "p/group/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+          "p/group/sub/.markspec/sync/jira.yaml": jiraMapping("title"),
+          "p/group/sub/req.md": entry(
+            "STK_0001",
+            "A",
+            "External-id: jira:ABC-1",
+          ),
+        },
+        cwd: "p/group/sub",
+      });
+      const path = join(run.dir, folder, ".markspec/sync/jira.yaml");
+      try {
+        assertEquals(run.code, 0, run.stderr);
+        const root = join(run.dir, "p/group/sub");
+        await Deno.chmod(path, 0o000);
+        try {
+          const frozen = await markspecInDir(root, [
+            "compile",
+            "--frozen",
+            "req.md",
+          ]);
+          assertEquals(frozen.code, 0, frozen.stderr);
+          assertStringIncludes(frozen.stderr, "error: MSL-S001");
+          assertStringIncludes(frozen.stderr, path);
+          assertStringIncludes(frozen.stdout, "1 entries");
+        } finally {
+          await Deno.chmod(path, 0o600);
+        }
+        for (const existing of [true, false]) {
+          if (!existing) await Deno.remove(join(root, "markspec.lock"));
+          const before = await snapshotTree(run.dir);
+          for (const args of [["lock"], ["lock", "--check"]]) {
+            await Deno.chmod(path, 0o000);
+            try {
+              const result = await markspecInDir(root, args);
+              assertEquals(result.code, 1, result.stderr);
+              assertStringIncludes(result.stderr, "error: MSL-S001");
+              assertStringIncludes(result.stderr, path);
+              assertEquals(result.stdout, "");
+            } finally {
+              await Deno.chmod(path, 0o600);
+            }
+            assertEquals(await snapshotTree(run.dir), before);
+          }
+        }
+      } finally {
+        await Deno.chmod(path, 0o600);
+        await Deno.remove(run.dir, { recursive: true });
+      }
+    },
+  });
+}
+
+for (const path of [".markspec", ".markspec/sync"]) {
+  for (const kind of ["file", "unreadable directory"]) {
+    Deno.test({
+      name:
+        `lock and compile --frozen: ${kind} at ${path} reports MSL-S001 (#873)`,
+      ignore: kind === "unreadable directory" &&
+        (Deno.build.os === "windows" || runsAsRoot),
+      async fn() {
+        const run = await markspecPersist(["lock"], {
+          "project.yaml": "name: project\nversion: 0.1.0\n",
+          ".markspec/sync/placeholder.txt": "",
+          "req.md": entry("STK_0001", "A"),
+        });
+        const blockedPath = join(run.dir, path);
+        const syncPath = join(run.dir, ".markspec/sync");
+        try {
+          assertEquals(run.code, 0, run.stderr);
+          if (kind === "file") {
+            await Deno.remove(blockedPath, { recursive: true });
+            await Deno.writeTextFile(blockedPath, "not a directory\n");
+          }
+          const before = await snapshotTree(run.dir);
+          if (kind === "unreadable directory") {
+            await Deno.chmod(blockedPath, 0o000);
+          }
           try {
-            const result = await markspecInDir(root, args);
-            assertEquals(result.code, 1, result.stderr);
-            assertStringIncludes(result.stderr, "error: MSL-S001");
-            assertStringIncludes(result.stderr, path);
-            assertEquals(result.stdout, "");
+            const frozen = await markspecInDir(run.dir, [
+              "compile",
+              "--frozen",
+              "req.md",
+            ]);
+            assertEquals(frozen.code, 0, frozen.stderr);
+            assertStringIncludes(frozen.stderr, "error: MSL-S001");
+            assertStringIncludes(frozen.stderr, syncPath);
+            assertStringIncludes(frozen.stdout, "1 entries");
           } finally {
-            await Deno.chmod(path, 0o600);
+            if (kind === "unreadable directory") {
+              await Deno.chmod(blockedPath, 0o700);
+            }
           }
           assertEquals(await snapshotTree(run.dir), before);
+          for (const existing of [true, false]) {
+            if (!existing) await Deno.remove(join(run.dir, "markspec.lock"));
+            const lockBefore = await snapshotTree(run.dir);
+            for (const args of [["lock"], ["lock", "--check"]]) {
+              if (kind === "unreadable directory") {
+                await Deno.chmod(blockedPath, 0o000);
+              }
+              try {
+                const result = await markspecInDir(run.dir, args);
+                assertEquals(result.code, 1, result.stderr);
+                assertStringIncludes(result.stderr, "error: MSL-S001");
+                assertStringIncludes(result.stderr, syncPath);
+                assertEquals(result.stdout, "");
+              } finally {
+                if (kind === "unreadable directory") {
+                  await Deno.chmod(blockedPath, 0o700);
+                }
+              }
+              assertEquals(await snapshotTree(run.dir), lockBefore);
+            }
+          }
+        } finally {
+          if (kind === "unreadable directory") {
+            await Deno.chmod(blockedPath, 0o700);
+          }
+          await Deno.remove(run.dir, { recursive: true });
+        }
+      },
+    });
+  }
+}
+
+for (const yaml of ["attributes: 5", "attributes: [null]", "cache: {ttl: 5}"]) {
+  Deno.test(`lock and compile --frozen: invalid mapping structure ${yaml} reports MSL-S001 (#873)`, async () => {
+    const run = await markspecPersist(["lock"], {
+      "project.yaml": "name: project\nversion: 0.1.0\n",
+      ".markspec/sync/jira.yaml": jiraMapping("summary"),
+      "req.md": entry("STK_0001", "A"),
+    });
+    try {
+      assertEquals(run.code, 0, run.stderr);
+      await Deno.writeTextFile(
+        join(run.dir, ".markspec/sync/jira.yaml"),
+        `schema: 1\nsystem: jira\ndirection: bidirectional\nidentity: {external-id-scheme: jira}\n${yaml}\n`,
+      );
+      const before = await snapshotTree(run.dir);
+      const frozen = await markspecInDir(run.dir, [
+        "compile",
+        "--frozen",
+        "req.md",
+      ]);
+      assertEquals(frozen.code, 0, frozen.stderr);
+      assertStringIncludes(frozen.stderr, "error: MSL-S001");
+      assertStringIncludes(frozen.stdout, "1 entries");
+      assertEquals(await snapshotTree(run.dir), before);
+      for (const existing of [true, false]) {
+        if (!existing) await Deno.remove(join(run.dir, "markspec.lock"));
+        const lockBefore = await snapshotTree(run.dir);
+        for (const args of [["lock"], ["lock", "--check"]]) {
+          const result = await markspecInDir(run.dir, args);
+          assertEquals(result.code, 1, result.stderr);
+          assertStringIncludes(result.stderr, "error: MSL-S001");
+          assertEquals(result.stdout, "");
+          assertEquals(await snapshotTree(run.dir), lockBefore);
         }
       }
     } finally {
-      await Deno.chmod(path, 0o600);
       await Deno.remove(run.dir, { recursive: true });
     }
-  },
-});
+  });
+}
 
 Deno.test("compile --frozen: malformed inherited mapping prints diagnostics and continues (#873)", async () => {
   const run = await markspecPersist(["lock"], {

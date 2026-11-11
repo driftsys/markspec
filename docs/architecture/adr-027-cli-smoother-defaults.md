@@ -448,10 +448,15 @@ and exit 1 before writing any files, even if a deeper mapping would replace the
 invalid file. Mapping validation errors also exit 1 before any writes. Reading,
 parsing and validation run before profile acquisition, so these failures do not
 populate `.markspec/cache/` or change `.gitignore`. An invalid child mapping
-does not fall back to its parent's mapping.
+does not fall back to its parent's mapping. Missing sync directories are
+ignored. Other directory read errors and mapping file read errors produce
+`MSL-S001` diagnostics naming the path; invalid YAML field shapes also produce
+`MSL-S001` without throwing. Both lock commands also stop before any writes on
+these directory read errors.
 
 `compile --frozen` reads mappings from the same folder walk. It prints mapping
-read and parse diagnostics and continues to its drift check.
+file and directory read diagnostics and parse diagnostics, then continues to its
+drift check with successfully loaded mappings.
 
 Without a system argument, `sync log` lists each system once from mapping
 filenames in this same walk. It reads logs only from the current project's
