@@ -1520,9 +1520,12 @@ Summary rules (MSL-S\*) activate only on `summary` documents.
   the ADR-029 semantic equivalence comparator. List hierarchy, body and trailer
   containment, and existing entry identities must be preserved. Otherwise the
   entry stays byte-for-byte unchanged, no `Id:` is stamped, and `fmt` emits
-  `MSL-F013` (warning). Other entries are formatted as usual. The surrounding
-  list layout and following indented blocks, including paragraphs outside the
-  list item, are preserved where needed to keep refusal stable on repeated runs.
+  `MSL-F013` (warning). Other entries, including a parent's own body prose and
+  trailer, are formatted as usual; child attributes are not copied to the
+  parent. The surrounding list layout and following indented blocks, including
+  paragraphs outside the list item, are preserved where needed to keep refusal
+  stable on repeated runs. Later indented trailers associated with the refused
+  entry are also preserved, including their trace reference values.
 - **Reference definitions** — moved to end of file, sorted alphabetically within
   groups.
 - **Alerts** — markers uppercased, spacing normalized.

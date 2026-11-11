@@ -1355,33 +1355,43 @@ for (
   });
 }
 
-Deno.test("format: refused ULID references produce no check reference drift", async () => {
-  const { markspecInDir, markspecPersist } = await import("./helpers.ts");
-  const targetId = "01HGW2Q8MNP3RSTVWXYZABCDEF";
-  const run = await markspecPersist(["fmt"], {
-    "project.yaml": "name: test\nversion: 0.1.0\n",
-    "req.md":
-      `-\t[REQ-001] Unsafe\n\n    Body.\n\n        Satisfies: ${targetId}\n\n  - child\n`,
-    "target.md": `- [REQ-003] Target\n\n      Id: ${targetId}\n`,
+for (
+  const { name, body, childIndent } of [
+    { name: "inside the list item", body: "    Body.", childIndent: "  " },
+    { name: "outside the list item", body: "  Body.", childIndent: "    " },
+  ]
+) {
+  Deno.test(`format: refused ULID references ${name} produce no check drift`, async () => {
+    const { markspecInDir, markspecPersist } = await import("./helpers.ts");
+    const targetId = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+    const input =
+      `-\t[REQ-001] Unsafe\n\n${body}\n\n        Satisfies: ${targetId}\n\n${childIndent}- child\n`;
+    const run = await markspecPersist(["fmt"], {
+      "project.yaml": "name: test\nversion: 0.1.0\n",
+      "req.md": input,
+      "target.md": `- [REQ-003] Target\n\n      Id: ${targetId}\n`,
+    });
+    try {
+      assertEquals(run.code, 0, run.stderr);
+      assertStringIncludes(run.stderr, "MSL-F013");
+      const check = await markspecInDir(run.dir, ["check", "--format", "json"]);
+      const diagnostics = JSON.parse(check.stdout) as { code: string }[];
+      assertEquals(
+        diagnostics.some((d) => d.code === "MSL-F010"),
+        false,
+        check.stdout,
+      );
+      assertEquals(
+        diagnostics.some((d) => d.code === "MSL-F011"),
+        false,
+        check.stdout,
+      );
+      assertEquals(await Deno.readTextFile(join(run.dir, "req.md")), input);
+    } finally {
+      await Deno.remove(run.dir, { recursive: true });
+    }
   });
-  try {
-    assertEquals(run.code, 0, run.stderr);
-    assertStringIncludes(run.stderr, "MSL-F013");
-    const check = await markspecInDir(run.dir, ["check", "--format", "json"]);
-    const diagnostics = JSON.parse(check.stdout) as { code: string }[];
-    assertEquals(
-      diagnostics.some((d) => d.code === "MSL-F011"),
-      false,
-      check.stdout,
-    );
-    assertStringIncludes(
-      await Deno.readTextFile(join(run.dir, "req.md")),
-      `Satisfies: ${targetId}`,
-    );
-  } finally {
-    await Deno.remove(run.dir, { recursive: true });
-  }
-});
+}
 
 Deno.test("format: refusal retains differently indented neighbouring context twice", async () => {
   const { markspecInDir, markspecPersist } = await import("./helpers.ts");

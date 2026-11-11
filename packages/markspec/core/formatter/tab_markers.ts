@@ -6,6 +6,7 @@ import type { ListItem, Root, RootContent } from "mdast";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import { contentColumn } from "./entry_body.ts";
 import type { EntryExtent } from "./prose.ts";
 
 const parser = unified().use(remarkParse).use(remarkGfm);
@@ -118,13 +119,47 @@ export function protectedTabRanges(
   lines: readonly string[],
   preserveListContext = false,
 ): EntryExtent[] {
-  return tabMarkers(lines).map((marker) => {
+  const markers = tabMarkers(lines);
+  const items = markers.length > 0 ? entryListItems(lines) : [];
+  const ranges = markers.map((marker) => {
     // A prose rewrite of a neighbouring item can make a refused marker
     // eligible on the next run. Keep the containing list and the following
     // indented blocks stable, even when CommonMark puts them outside it.
     const range = preserveListContext ? marker.listContext : marker;
+    let start = range.start;
+    if (!preserveListContext && marker.column > 0) {
+      for (let i = start - 1; i >= marker.container.start; i--) {
+        if (lines[i].trim() === "") continue;
+        if (!lines[i].startsWith(" ".repeat(marker.column))) break;
+        if (/^[-*+][ \t]/.test(lines[i].slice(marker.column))) start = i;
+        else if (!lines[i].startsWith(" ".repeat(marker.column + 2))) break;
+      }
+    }
     let end = range.end;
+    const nextEntry = items.find((item) => item.start > marker.start)?.start ??
+      lines.length;
+    const trailerIndent = " ".repeat(
+      contentColumn(lines[marker.start], marker.column) + 4,
+    );
+    for (let i = end; i < nextEntry; i++) {
+      if (lines[i].trim() === "") continue;
+      if (!lines[i].startsWith(" ".repeat(marker.column + 2))) break;
+      // A less-indented trailer belongs to an enclosing space-marker entry.
+      if (
+        /^[A-Z][A-Za-z-]*:(?:\s|$)/.test(lines[i].trim()) &&
+        !lines[i].startsWith(trailerIndent)
+      ) break;
+      end = i + 1;
+    }
     while (end < lines.length && lines[end].trim() === "") end++;
-    return { start: range.start, end };
+    return { start, end };
   });
+  const merged: { start: number; end: number }[] = [];
+  for (const range of ranges.sort((a, b) => a.start - b.start)) {
+    const previous = merged.at(-1);
+    if (previous && range.start <= previous.end) {
+      previous.end = Math.max(previous.end, range.end);
+    } else merged.push({ ...range });
+  }
+  return merged;
 }

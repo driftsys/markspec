@@ -21,7 +21,7 @@ import {
   IDENTITY_KEY,
 } from "../model/mod.ts";
 import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
-import { ATTR_LINE_RE } from "../parser/attributes.ts";
+import { ATTR_LINE_RE, parseAttributes } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { fencedCodeLines } from "../util/fence.ts";
@@ -246,14 +246,69 @@ function emitBodyViaAst(
   // Process bottom-to-top so splices don't shift earlier entry positions.
   const sorted = [...entries].sort((a, b) => b.location.line - a.location.line);
 
-  const protectedRanges = protectedTabRanges(lines);
   for (const entry of sorted) {
+    const protectedRanges = protectedTabRanges(lines);
+    const start = entry.location.line - 1;
     if (
-      protectedRanges.some((range) =>
-        entry.location.line - 1 < range.end &&
-        (entry.endLine ?? entry.location.line) > range.start
-      )
+      protectedRanges.some((range) => start >= range.start && start < range.end)
     ) continue;
+    const children = protectedRanges.filter((range, index) =>
+      range.start > start && range.start < (entry.endLine ?? start) &&
+      !protectedRanges.some((outer, other) =>
+        other !== index &&
+        outer.start < range.start && outer.end >= range.end
+      )
+    );
+    if (children.length > 0) {
+      // Format the parent's prose with each refused child represented by a
+      // verbatim block, then restore the original child lines.
+      const end = entry.endLine!;
+      const fragment = lines.slice(start, end);
+      const indent = contentColumn(lines[start], entry.location.column - 1);
+      const replacements: { token: string; original: string[] }[] = [];
+      for (const child of children.toReversed()) {
+        const childEnd = Math.min(child.end, end);
+        let token = "<!-- markspec-preserved-child -->";
+        while (
+          lines.some((line) => line.includes(token)) ||
+          replacements.some((r) => r.token === token)
+        ) token = token.replace(" -->", "- -->");
+        replacements.push({
+          token,
+          original: lines.slice(child.start, childEnd),
+        });
+        fragment.splice(
+          child.start - start,
+          childEnd - child.start,
+          " ".repeat(indent) + token,
+          "",
+        );
+      }
+      const nestedDiagnostics: Diagnostic[] = [];
+      emitBodyViaAst(fragment, file, nestedDiagnostics, undefined, proseFormat);
+      for (const { token, original } of replacements) {
+        const at = fragment.findIndex((line) => line.trim() === token);
+        if (at < 0) throw new Error("Preserved child placeholder was lost");
+        let after = at + 1;
+        while (after < fragment.length && fragment[after].trim() === "") {
+          after++;
+        }
+        fragment.splice(at, after - at, ...original);
+      }
+      diagnostics.push(
+        ...nestedDiagnostics.map((d) => ({
+          ...d,
+          location: d.location
+            ? { ...d.location, line: d.location.line + start }
+            : undefined,
+        })),
+      );
+      if (fragment.join("\n") !== lines.slice(start, end).join("\n")) {
+        lines.splice(start, end - start, ...fragment);
+        bodyChanged = true;
+      }
+      continue;
+    }
     if (!entry.body.trim()) continue; // empty or whitespace-only body
 
     // List-item continuation indent: the item's content column, which
@@ -687,7 +742,22 @@ function formatEntries(
       entry.endLine === undefined
         ? 0
         : entry.endLine + (lines.length - lengthAtStart);
-    let attrs = [...entry.rawAttributes];
+    const existingTrailer = protectedRanges.length > 0
+      ? findAttributeBlockRange(
+        lines,
+        entry.location.line,
+        indent,
+        itemEndFloor(),
+        protectedRanges,
+      )
+      : undefined;
+    let attrs = protectedRanges.length > 0
+      ? existingTrailer
+        ? parseAttributes(
+          lines.slice(existingTrailer.start, existingTrailer.end),
+        )
+        : []
+      : [...entry.rawAttributes];
 
     const titleLineIdx = entry.location.line - 1;
 
@@ -794,20 +864,13 @@ function formatEntries(
     if (attrs.length === 0) continue;
 
     const normalized = sortAttributes(expandCsvValues(attrs));
-    const trailerRange = findAttributeBlockRange(
+    const range = findAttributeBlockRange(
       lines,
       entry.location.line,
       indent,
       itemEndFloor(),
+      protectedRanges,
     );
-
-    // A nested refused entry's trailer belongs to the child, not this entry.
-    const range = trailerRange && !protectedRanges.some((protectedRange) =>
-        trailerRange.start < protectedRange.end &&
-        trailerRange.end > protectedRange.start
-      )
-      ? trailerRange
-      : undefined;
 
     if (range) {
       // Replace existing attribute block.
@@ -888,17 +951,19 @@ function formatEntries(
         end: findItemEnd(collapsedLines, start, entryIndent, e.endLine ?? 0),
       };
     });
-    // Title-only entry items are outside the entry index. Keep their list
-    // context too: isolated prose formatting can move adjacent entries.
-    const indexedStarts = new Set(
-      proseEntries.map((entry) => entry.location.line - 1),
-    );
-    extents.push(
-      ...entryListItems(collapsedLines)
-        .filter((item) => !indexedStarts.has(item.start))
-        .map((item) => item.listContext),
-    );
-    extents.push(...protectedTabRanges(collapsedLines, true));
+    if (tabMarkers(collapsedLines).length > 0) {
+      // Title-only entry items are outside the entry index. Keep their list
+      // context too: isolated prose formatting can move adjacent entries.
+      const indexedStarts = new Set(
+        proseEntries.map((entry) => entry.location.line - 1),
+      );
+      extents.push(
+        ...entryListItems(collapsedLines)
+          .filter((item) => !indexedStarts.has(item.start))
+          .map((item) => item.listContext),
+      );
+      extents.push(...protectedTabRanges(collapsedLines, true));
+    }
     extents.sort((a, b) => a.start - b.start);
     const merged: typeof extents = [];
     for (const extent of extents) {
@@ -1177,7 +1242,12 @@ function removeEmptyTrailerLines(
     let end = findItemEnd(lines, startIdx, indent, entry.endLine ?? 0);
     while (end > startIdx && lines[end - 1].trim() === "") end--;
     let start = end;
-    while (start - 1 > startIdx && lines[start - 1].trim() !== "") start--;
+    while (
+      start - 1 > startIdx && lines[start - 1].trim() !== "" &&
+      !protectedRanges.some((range) =>
+        start - 1 >= range.start && start - 1 < range.end
+      )
+    ) start--;
     if (start >= end || start - 1 <= startIdx) continue;
     const trailerIndent = " ".repeat(indent + 4);
     const block = lines.slice(start, end);
@@ -1226,6 +1296,7 @@ export function findAttributeBlockRange(
   entryStartLine: number,
   indent: number,
   itemEndFloor = 0,
+  preservedRanges: readonly EntryExtent[] = [],
 ): { start: number; end: number } | undefined {
   const startIdx = entryStartLine - 1;
   const itemEnd = findItemEnd(lines, startIdx, indent, itemEndFloor);
@@ -1241,6 +1312,9 @@ export function findAttributeBlockRange(
   // Walk backwards collecting attribute lines.
   let attrStart = scanEnd;
   for (let i = scanEnd - 1; i > startIdx; i--) {
+    if (preservedRanges.some((range) => i >= range.start && i < range.end)) {
+      break;
+    }
     const trimmed = lines[i].trim();
     if (trimmed === "") break;
     if (ATTR_LINE_RE.test(trimmed)) {
