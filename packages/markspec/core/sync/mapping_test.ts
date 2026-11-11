@@ -91,3 +91,14 @@ Deno.test("validateMappings: outbound + bidirectional is allowed (one local writ
   const diags = validateMappings([a, b]);
   assertEquals(diags.filter((d) => d.code === "MSL-S020").length, 0);
 });
+
+for (const yaml of ["", "# No mapping\n", "null\n", "~\n"]) {
+  Deno.test(`parseMapping: empty or null YAML ${JSON.stringify(yaml)} returns MSL-S001`, () => {
+    const result = parseMapping(yaml, "jira.yaml");
+    assertEquals(result.mapping, undefined);
+    assertEquals(result.diagnostics.length, 1);
+    assertEquals(result.diagnostics[0].code, "MSL-S001");
+    assertEquals(result.diagnostics[0].severity, "error");
+    assertEquals(result.diagnostics[0].location?.file, "jira.yaml");
+  });
+}

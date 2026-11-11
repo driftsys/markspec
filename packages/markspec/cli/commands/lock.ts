@@ -233,7 +233,8 @@ async function runLock(options: LockOptions): Promise<void> {
 
   // Reject invalid mappings before profile acquisition can populate its cache
   // or append the cache exclusion to .gitignore, including under --check.
-  const mappings = await loadAllMappings(projectRoot, resolver);
+  const { mappings, invalid } = await loadAllMappings(projectRoot, resolver);
+  if (invalid) Deno.exit(1);
   const mappingDiags = validateMappings(mappings);
   for (const d of mappingDiags) {
     console.error(`${d.severity}: ${d.code}: ${d.message}`);
@@ -473,53 +474,62 @@ async function readFileOrUndefined(path: string): Promise<string | undefined> {
  * that order, and a mapping found in a deeper folder replaces a mapping with
  * the same `system` found in a higher folder. When the outermost root cannot
  * be determined or is not `root` or an ancestor of it, only `root` is read.
- * Parse diagnostics of each file are printed to stderr. Any parse error or
- * missing mapping exits 1 before the caller can write a lockfile.
+ * Read and parse diagnostics of each file are printed to stderr. The caller
+ * decides whether invalid mappings stop the command.
  */
 async function loadAllMappings(
   root: string,
   resolver?: ProjectRootResolver,
-): Promise<Mapping[]> {
+): Promise<{ mappings: Mapping[]; invalid: boolean }> {
   const folders = await syncMappingFolders(root, resolver);
   let invalid = false;
   let out: Mapping[] = [];
   for (const folder of folders) {
     const dir = join(folder, ".markspec", "sync");
     const found: Mapping[] = [];
+    let files: Deno.DirEntry[];
     try {
-      for await (const e of Deno.readDir(dir)) {
-        if (!e.isFile || !e.name.endsWith(".yaml")) continue;
-        const path = join(dir, e.name);
-        const yaml = await Deno.readTextFile(path);
-        let r: ReturnType<typeof parseMapping>;
-        try {
-          r = parseMapping(yaml, path);
-        } catch (error) {
-          console.error(
-            `error: MSL-S001: Malformed mapping.yaml at ${path}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          invalid = true;
-          continue;
-        }
-        if (!r.mapping || r.diagnostics.some((d) => d.severity === "error")) {
-          invalid = true;
-        } else {
-          found.push(r.mapping);
-        }
-        for (const d of r.diagnostics) {
-          console.error(`${d.severity}: ${d.code}: ${d.message}`);
-        }
+      files = await Array.fromAsync(Deno.readDir(dir));
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) continue;
+      throw error;
+    }
+    for (const file of files) {
+      if (!file.isFile || !file.name.endsWith(".yaml")) continue;
+      const path = join(dir, file.name);
+      let yaml: string;
+      try {
+        yaml = await Deno.readTextFile(path);
+      } catch (error) {
+        console.error(
+          `error: MSL-S001: Cannot read mapping.yaml at ${path}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        invalid = true;
+        continue;
       }
-    } catch { /* no .markspec/sync/ directory */ }
+      const result = parseMapping(yaml, path);
+      if (
+        !result.mapping ||
+        result.diagnostics.some((d) => d.severity === "error")
+      ) {
+        invalid = true;
+      } else {
+        found.push(result.mapping);
+      }
+      for (const diagnostic of result.diagnostics) {
+        console.error(
+          `${diagnostic.severity}: ${diagnostic.code}: ${diagnostic.message}`,
+        );
+      }
+    }
     // Replace only across folders: two files of one folder that declare the
     // same system both stay, so validateMappings still reports them.
     const systems = new Set(found.map((m) => m.system));
     out = [...out.filter((m) => !systems.has(m.system)), ...found];
   }
-  if (invalid) Deno.exit(1);
-  return out;
+  return { mappings: out, invalid };
 }
 
 /**

@@ -505,27 +505,29 @@ Deno.test("lock: two mappings for one system in the same folder still conflict (
   }
 });
 
-for (const folder of ["p", "p/middle", "p/middle/deep"]) {
+for (
+  const folder of ["p", "p/group", "p/group/middle", "p/group/middle/deep"]
+) {
   for (const existing of [false, true]) {
     Deno.test(`lock: malformed mapping at ${folder} ${existing ? "preserves the existing" : "does not write a"} nested lockfile (#873)`, async () => {
       const run = await markspecPersist(["lock"], {
         files: {
           "p/project.yaml": "name: top\nversion: 0.1.0\n",
           "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
-          "p/middle/project.yaml": "name: middle\nversion: 0.1.0\n",
-          "p/middle/deep/project.yaml": "name: deep\nversion: 0.1.0\n",
-          "p/middle/deep/.markspec/sync/jira.yaml": jiraMapping("title"),
-          "p/middle/deep/a.md": entry(
+          "p/group/middle/project.yaml": "name: middle\nversion: 0.1.0\n",
+          "p/group/middle/deep/project.yaml": "name: deep\nversion: 0.1.0\n",
+          "p/group/middle/deep/.markspec/sync/jira.yaml": jiraMapping("title"),
+          "p/group/middle/deep/a.md": entry(
             "STK_0001",
             "A",
             "External-id: jira:ABC-1",
           ),
         },
-        cwd: "p/middle/deep",
+        cwd: "p/group/middle/deep",
       });
       try {
         assertEquals(run.code, 0, run.stderr);
-        const root = join(run.dir, "p", "middle", "deep");
+        const root = join(run.dir, "p/group/middle/deep");
         const lockPath = join(root, "markspec.lock");
         const original = await Deno.readTextFile(lockPath);
         if (!existing) await Deno.remove(lockPath);
@@ -745,3 +747,82 @@ for (const [kind, yaml] of [["empty", ""], ["null", "null\n"]]) {
     }
   });
 }
+
+const runsAsRoot = Deno.build.os !== "windows" &&
+  new TextDecoder().decode(
+      new Deno.Command("id", { args: ["-u"], stdout: "piped" }).outputSync()
+        .stdout,
+    ).trim() === "0";
+
+Deno.test({
+  name:
+    "lock: an unreadable child mapping fails without writes or parent fallback (#873)",
+  ignore: Deno.build.os === "windows" || runsAsRoot,
+  async fn() {
+    const run = await markspecPersist(["lock"], {
+      files: {
+        "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+        "p/.markspec/sync/jira.yaml": jiraMapping("summary"),
+        "p/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+        "p/sub/.markspec/sync/jira.yaml": jiraMapping("title"),
+        "p/sub/req.md": entry("STK_0001", "A", "External-id: jira:ABC-1"),
+      },
+      cwd: "p/sub",
+    });
+    const path = join(run.dir, "p/sub/.markspec/sync/jira.yaml");
+    try {
+      assertEquals(run.code, 0, run.stderr);
+      const root = join(run.dir, "p/sub");
+      for (const existing of [true, false]) {
+        if (!existing) await Deno.remove(join(root, "markspec.lock"));
+        const before = await snapshotTree(run.dir);
+        for (const args of [["lock"], ["lock", "--check"]]) {
+          await Deno.chmod(path, 0o000);
+          try {
+            const result = await markspecInDir(root, args);
+            assertEquals(result.code, 1, result.stderr);
+            assertStringIncludes(result.stderr, "error: MSL-S001");
+            assertStringIncludes(result.stderr, path);
+            assertEquals(result.stdout, "");
+          } finally {
+            await Deno.chmod(path, 0o600);
+          }
+          assertEquals(await snapshotTree(run.dir), before);
+        }
+      }
+    } finally {
+      await Deno.chmod(path, 0o600);
+      await Deno.remove(run.dir, { recursive: true });
+    }
+  },
+});
+
+Deno.test("compile --frozen: malformed inherited mapping prints diagnostics and continues (#873)", async () => {
+  const run = await markspecPersist(["lock"], {
+    files: {
+      "p/project.yaml": "name: parent\nversion: 0.1.0\n",
+      "p/group/.markspec/sync/jira.yaml": jiraMapping("summary"),
+      "p/group/sub/project.yaml": "name: nested\nversion: 0.1.0\n",
+      "p/group/sub/.markspec/sync/jira.yaml": jiraMapping("title"),
+      "p/group/sub/req.md": entry("STK_0001", "A", "External-id: jira:ABC-1"),
+    },
+    cwd: "p/group/sub",
+  });
+  try {
+    assertEquals(run.code, 0, run.stderr);
+    await Deno.writeTextFile(
+      join(run.dir, "p/group/.markspec/sync/jira.yaml"),
+      "schema: [\n",
+    );
+    const result = await markspecInDir(join(run.dir, "p/group/sub"), [
+      "compile",
+      "--frozen",
+      "req.md",
+    ]);
+    assertStringIncludes(result.stderr, "error: MSL-S001");
+    assertEquals(result.code, 0, result.stderr);
+    assertStringIncludes(result.stdout, "1 entries");
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

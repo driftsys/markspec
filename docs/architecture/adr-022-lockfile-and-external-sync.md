@@ -181,14 +181,14 @@ reports `MSL-L212` once, until `markspec lock` is run again.
 
 ## Addendum (2026-11-11): sync mapping inheritance failures and logs (#873)
 
-Every mapping file in the walk must parse successfully, including files that a
-deeper mapping would replace. If any file produces an error-severity parse
-diagnostic or returns no mapping, `markspec lock` and `markspec lock --check`
-print the diagnostics to stderr and exit 1 before writing any files. Mapping
-validation errors also exit 1 before any writes. Parsing and validation run
-before profile acquisition, so these failures do not populate `.markspec/cache/`
-or change `.gitignore`. An invalid child mapping does not fall back to the
-parent's mapping. Warnings remain non-fatal.
+Every mapping file in the walk must be readable and parse successfully,
+including files that a deeper mapping would replace. If any file cannot be read,
+produces an error-severity parse diagnostic or returns no mapping,
+`markspec lock` and `markspec lock --check` print the diagnostics to stderr and
+exit 1 before writing any files. Mapping validation errors also exit 1 before
+any writes. Parsing and validation run before profile acquisition, so these
+failures do not populate `.markspec/cache/` or change `.gitignore`. An invalid
+child mapping does not fall back to the parent's mapping.
 
 Without a system argument, `markspec sync log` discovers systems from `.yaml`
 mapping filenames in the same folder walk and lists each system once. This

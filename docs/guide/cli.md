@@ -625,6 +625,11 @@ markspec compile <paths...>
 | ---------- | ------ | ------- | ----------------------------- |
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
+With `--frozen`, compilation checks lockfile drift first. It reads sync mappings
+from the same folder walk as [`lock`](#lock), including folders without a
+project config. Mapping read and parse diagnostics are printed to stderr, and
+compilation continues to the drift check.
+
 **Examples:**
 
 ```sh
@@ -900,14 +905,13 @@ nested project's entries are recorded in that project's lockfile. Its sync
 mappings come from `.markspec/sync/` in each folder from the outermost project
 root down to the project root, including folders without a project config. A
 valid mapping in a deeper folder replaces one for the same `system` higher up.
-If any mapping file in this walk has an error-severity parse diagnostic or
-returns no mapping, `lock` and `lock --check` print its diagnostics to stderr
-and exit `1` before writing any files. This applies even if a deeper mapping
-would replace the invalid file. Mapping validation also runs before profile
-acquisition, so these failures do not populate `.markspec/cache/` or change
-`.gitignore`. A mapping validation error also exits `1` before any writes. An
-invalid child mapping does not fall back to the parent's mapping. Warnings
-remain non-fatal.
+If any mapping file in this walk cannot be read, has an error-severity parse
+diagnostic or returns no mapping, `lock` and `lock --check` print its
+diagnostics to stderr and exit `1` before writing any files. This applies even
+if a deeper mapping would replace the invalid file. Mapping validation also runs
+before profile acquisition, so these failures do not populate `.markspec/cache/`
+or change `.gitignore`. A mapping validation error also exits `1` before any
+writes. An invalid child mapping does not fall back to the parent's mapping.
 
 **`references:` resolution — three flows.** Only `markspec lock` touches the
 network; `check`, `compile`, the LSP, and the MCP server resolve entirely

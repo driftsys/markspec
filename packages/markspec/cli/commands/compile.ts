@@ -102,7 +102,7 @@ export const compileCmd = new Command()
           denoDiscoveryIO(),
           await projectCollectOptions(root),
         );
-        const mappings = await loadAllMappings(root);
+        const { mappings } = await loadAllMappings(root);
 
         const resolved = await resolveUpstreams({
           entries,

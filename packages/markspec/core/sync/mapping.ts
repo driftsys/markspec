@@ -68,13 +68,21 @@ export function parseMapping(
   yaml: string,
   sourcePath: string,
 ): ParseMappingResult {
-  let raw: Record<string, unknown>;
+  let raw: Record<string, unknown> | null | undefined;
   try {
-    raw = parseYaml(yaml) as Record<string, unknown>;
+    raw = parseYaml(yaml) as typeof raw;
   } catch (e) {
     return fail(
       "MSL-S001",
       `Malformed mapping.yaml: ${(e as Error).message}`,
+      sourcePath,
+    );
+  }
+
+  if (raw === null || raw === undefined) {
+    return fail(
+      "MSL-S001",
+      "Mapping YAML is empty or null",
       sourcePath,
     );
   }
