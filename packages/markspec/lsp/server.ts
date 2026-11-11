@@ -244,6 +244,13 @@ const contextHost: ProjectContextHost = {
 const projects = new ProjectRegistry({
   readFile,
   readDir: (p) => Deno.readDir(p),
+  homeDir: () => {
+    try {
+      return Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+    } catch {
+      return undefined;
+    }
+  },
   // Indexing parses the live editor buffer, when one is open, instead of
   // the file on disk.
   openText: (path) => documents.get(pathToUri(path))?.getText(),

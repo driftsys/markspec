@@ -41,8 +41,8 @@
 
 import { basename, dirname } from "@std/path";
 import {
+  createProjectRootResolver,
   type DiscoveryDirEntry,
-  findNestedProjectRoots,
   isWithin,
   nearestRoot,
   resolveConfigRoot,
@@ -73,6 +73,8 @@ export interface ProjectRegistryHost {
   readFile(path: string): Promise<string | undefined>;
   /** List a directory (nested root discovery). */
   readDir(path: string): AsyncIterable<DiscoveryDirEntry>;
+  /** The user's home folder, which limits enclosing project discovery. */
+  homeDir?(): string | undefined;
   /** The text of the editor buffer open at `path`, or `undefined` when
    * the file is not open. Indexing parses this instead of the file on
    * disk, so an unsaved edit is never overwritten by stale disk content. */
@@ -484,8 +486,25 @@ export class ProjectRegistry {
    */
   private async addTree(anchor: ProjectContext): Promise<void> {
     if (this.shuttingDown) return;
+    const resolver = createProjectRootResolver({
+      readDir: (p: string) => this.host.readDir(p),
+      readFile: this.host.readFile,
+    }, { homeDir: this.host.homeDir?.() });
+    // Nested discovery and the walks of nested contexts inherit from the
+    // outermost project, even when the workspace was opened at an inner
+    // project. The primary context's own walk does not inherit (below).
+    let outermost = await resolver.outermostOf(anchor.root) ?? anchor.root;
+    let nestedRoots = await resolver.nestedRoots(outermost);
+    // An anchor that the outermost project's .gitignore hides can still be
+    // opened on demand. Treat it as its own outermost project, so root
+    // discovery and the file walks below it use the same ignore rules.
+    if (anchor.root !== outermost && !nestedRoots.includes(anchor.root)) {
+      outermost = anchor.root;
+      nestedRoots = await resolver.nestedRoots(anchor.root);
+    }
     const knownBefore = new Set(this.contexts.keys());
-    for (const nested of await this.findNestedRoots(anchor)) {
+    for (const nested of nestedRoots) {
+      if (nested === anchor.root || !isWithin(anchor.root, nested)) continue;
       if (this.contexts.has(nested)) continue;
       // A nested root that already lies under another known project is
       // that project's business, not this tree's.
@@ -514,6 +533,9 @@ export class ProjectRegistry {
       await ctx.indexProject(
         (path) => this.ownerRoot(path) === ctx.root,
         this.host.openText,
+        ctx.root === this.primaryRoot || ctx.root === outermost
+          ? undefined
+          : outermost,
       );
       ctx.publishAllDiagnostics();
     }
@@ -530,27 +552,5 @@ export class ProjectRegistry {
       republish.add(owner);
     }
     for (const owner of republish) owner.publishAllDiagnostics();
-  }
-
-  /**
-   * Directories strictly below `ctx.root` that a document walk-up would
-   * resolve to, found with the gitignore-aware project walk (honouring
-   * the context's `exclude:` list). Each discovered `project.yaml` or
-   * `.markspec.yaml` is resolved with {@linkcode resolveConfigRoot} from
-   * its own directory, so a `.markspec.yaml` below a `project.yaml` is not
-   * a root of its own — the same answer the CLI gives for a file there.
-   * A found root is also dropped when the `exclude:` list of another found
-   * root between `ctx.root` and it covers it (patterns relative to that
-   * intermediate project); see {@linkcode findNestedProjectRoots}.
-   */
-  private async findNestedRoots(ctx: ProjectContext): Promise<string[]> {
-    return await findNestedProjectRoots(
-      ctx.root,
-      {
-        readDir: (p: string) => this.host.readDir(p),
-        readFile: this.host.readFile,
-      },
-      ctx.toolConfig.exclude,
-    );
   }
 }

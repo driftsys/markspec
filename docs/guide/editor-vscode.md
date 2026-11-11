@@ -28,6 +28,17 @@ use on the command line.
 | Semantic tokens          | Display IDs, ULIDs, modal verbs, EARS triggers, and typl tokens are syntax-highlighted |
 | Quick fixes              | One-click fixes for MSL-M060 (uppercase modal), MSL-A030 (generated attr), and more    |
 
+### Nested projects
+
+Nested projects inherit `.gitignore` rules from the outermost enclosing project
+when the language server discovers their roots and indexes their files, even
+when the workspace is opened at an inner project. Directly opening a file in an
+ignored folder outside every known project root that contains its own
+`.markspec.yaml` can create a separate project context there, unlike CLI
+resolution. That project and the projects below it do not inherit the ignore
+rules of the project that hides it. The primary project's walk starts at its own
+root; each project applies its own `.markspec.yaml` `exclude:` list.
+
 ### Upstream entries (federated projects)
 
 When a project locks upstream repositories (`dependencies:` / `references:` in
