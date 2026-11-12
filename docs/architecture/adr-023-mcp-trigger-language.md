@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-05-27)\
 Supersedes: none\
+Amended by: [ADR-036](adr-036-mcp-propose-only-writes.md) (MCP write tools that
+only propose; takes effect when #63 ships)\
 Related: none — first ADR scoping the MCP layer's agent-facing surface.
 
 ## Context
