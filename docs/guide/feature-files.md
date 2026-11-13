@@ -176,7 +176,8 @@ diagnostics, hover or completion for them. The MCP server tracks them, so
 The scratch project of this example has a profile with three types, a
 stakeholder requirement `STK_BRK_0001` in `docs/stk.md`, the file
 `features/brake.feature` above, and a Cucumber file `features/legacy.feature`
-with no header. Paths in the output are relative to the project root.
+with no header. The `<root>/` prefix, which is the absolute project root, was
+removed from the paths in the output.
 
 Before `fmt`, `check` reports the missing Ids:
 
@@ -249,12 +250,14 @@ The link from the test to the requirement keeps the locator:
 | `MSL-P030` | error    | An entry has no header prose, no node description and no content (no owned scenario, or a scenario with no step).         |
 | `MSL-F010` | error    | A `.feature` header has no `# Id:` line (project-wide `check` only).                                                      |
 
-A header above a `Background`, and a file that does not parse, give these
-messages:
+A header above a `Background`, a header separated from its node by a blank line,
+and a file that does not parse give these messages (the `<root>/` prefix is
+removed from the paths, as above):
 
 ```text
+warning[MSL-B069]: features/odd.feature:3 [TST_BRK_0020]: a # [ID] header stands above a background, which cannot be an entry; move it above a Feature, Rule or Scenario
+warning[MSL-B069]: features/odd.feature:11 [TST_BRK_0021]: a # [ID] header is not directly above a Feature, Rule or Scenario, so it is not an entry; remove the blank line or other text between the header and the node
 warning[MSL-B062]: features/broken.feature:2 Gherkin file does not parse: expected: #EOF, #Language, #TagLine, #FeatureLine, #Comment, #Empty, got 'Feature Broken'
-warning[MSL-B069]: features/odd.feature:3 [TST_BRK_0020]: a # [ID] header is not directly above a Feature, Rule or Scenario, so it is not an entry; remove the blank line or other text between the header and the node
 ```
 
 The block-role checks (`MSL-B063` to `MSL-B068`) read the `Feature` body node of
