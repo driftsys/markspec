@@ -43,11 +43,26 @@ Deno.test("astEquivalent: feature AST is a function of source, ranges ignored", 
 Deno.test("astEquivalent: feature node with and without the derived AST is equivalent", async () => {
   const { loadGherkin } = await import("../gherkin/load.ts");
   const { buildBodyAst } = await import("./build.ts");
-  const block = "```gherkin\nScenario: x\n  Given a\n```";
-  const without = buildBodyAst(block);
   await loadGherkin();
-  const withAst = buildBodyAst(block);
-  assert(astEquivalent(without, withAst));
+  const withAst = buildBodyAst("```gherkin\nScenario: x\n  Given a\n```");
+  const [node] = withAst as (BodyBlock & { feature?: unknown })[];
+  assert(node.kind === "feature" && node.feature !== undefined);
+  // The same node as the build gives it while the parser is not loaded.
+  const { feature: _feature, ...without } = node;
+  assert(astEquivalent([without as BodyBlock], withAst));
   const other = buildBodyAst("```gherkin\nScenario: y\n  Given a\n```");
   assertFalse(astEquivalent(withAst, other));
+});
+
+Deno.test("astEquivalent: feature node with and without parseError is equivalent", async () => {
+  const { loadGherkin } = await import("../gherkin/load.ts");
+  const { buildBodyAst } = await import("./build.ts");
+  await loadGherkin();
+  const broken = buildBodyAst(
+    "```gherkin\nScenario: x\n  Given a\nBogus line\n```",
+  );
+  const [node] = broken as (BodyBlock & { parseError?: unknown })[];
+  assert(node.kind === "feature" && node.parseError !== undefined);
+  const { parseError: _parseError, ...without } = node;
+  assert(astEquivalent([without as BodyBlock], broken));
 });

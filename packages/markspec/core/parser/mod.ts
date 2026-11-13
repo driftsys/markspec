@@ -116,14 +116,22 @@ function isReferencesDocument(file: string): boolean {
 }
 
 /**
- * A fenced code block whose info string starts with `gherkin` or `feature`.
- * The fence has three or more backticks or tildes. The line may start with a
- * blockquote marker or a doc-comment prefix (`>`, `///`, `//!`, ` *`, `#`).
+ * A fenced code block whose info string starts with the word `gherkin` or
+ * `feature`, followed by whitespace or the end of the line (so
+ * `gherkin-json` does not match). The fence has three or more backticks or
+ * tildes. Before the fence, the line may hold spaces, tabs, blockquote
+ * markers and doc-comment prefixes (`>`, `///`, `//!`, ` *`, `#`), and list
+ * markers (`-`, `*`, `+`, `1.`, `1)`) followed by a space or tab. The
+ * prefix holds no newline, so the match never spans lines, and each
+ * prefix character matches only one alternative, so the scan stays linear.
  *
  * @internal Exported for tests.
  */
 export const GHERKIN_FENCE_RE =
-  /^[\s/*#!>]*(`{3,}|~{3,})\s*(gherkin|feature)\b/m;
+  /^(?:[ \t/*#!>]|[-+][ \t]|\d{1,9}[.)][ \t])*(`{3,}|~{3,})[ \t]*(gherkin|feature)(?=[ \t]|$)/m;
+
+/** Loads the Gherkin parser; replaced in tests. */
+type GherkinLoader = () => Promise<unknown>;
 
 /**
  * Parse a file and return entries, annotation links, and (for Markdown
@@ -135,13 +143,26 @@ export const GHERKIN_FENCE_RE =
  */
 export async function parseFile(
   content: string,
-  options: { readonly file: string },
+  options: {
+    readonly file: string;
+    /** @internal Replaces the Gherkin parser loader in tests. */
+    readonly gherkinLoader?: GherkinLoader;
+  },
 ): Promise<ParseFileResult> {
   const ext = extname(options.file);
   const normalised = normalizeLineEndings(content);
   // Load the Gherkin parser before the synchronous parse, and only when the
-  // text holds a gherkin or feature fence (the load is cached).
-  if (GHERKIN_FENCE_RE.test(normalised)) await loadGherkin();
+  // text holds a gherkin or feature fence (the load is cached). A failed
+  // load is not fatal: parsing continues without the Gherkin AST, and the
+  // criteria come from the line scanner. The loader does not cache the
+  // failure, so a later file tries again.
+  if (GHERKIN_FENCE_RE.test(normalised)) {
+    try {
+      await (options.gherkinLoader ?? loadGherkin)();
+    } catch {
+      // Continue without the parser (ADR-038 Decision 4).
+    }
+  }
 
   if (isSupportedExtension(ext)) {
     const language = await loadGrammar(ext);

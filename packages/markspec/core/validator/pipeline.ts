@@ -253,7 +253,7 @@ export function runPipeline(
     }
   }
 
-  // Stage 1.8 — Gherkin blocks that do not parse (MSL-B062, epic #915).
+  // Stage 4.4 — Gherkin blocks that do not parse (MSL-B062, epic #915).
   diagnostics.push(...checkFeatureParse(entries));
 
   // Stage 4.5 — scenario locators and scenario names (epic #915). Runs

@@ -8,6 +8,7 @@ import { assertEquals } from "@std/assert";
 import { loadGherkin } from "../gherkin/load.ts";
 import { parseFile } from "../parser/mod.ts";
 import { checkFeatureParse } from "./feature_parse.ts";
+import { applyCorpusPostPass } from "./corpus.ts";
 
 const BROKEN = `Scenario: Broken
     Given a
@@ -103,4 +104,66 @@ Deno.test("checkFeatureParse: Rust doc comment → file line, column 1", async (
     true,
   );
   assertEquals(diags[0].location!.column, 1);
+});
+
+Deno.test("checkFeatureParse: a block with two errors → one warning at the first", async () => {
+  const twoErrors = `Scenario: Broken
+    Given a
+  First bad line
+    Then b
+  Second bad line`;
+  const text = doc([twoErrors]);
+  const { entries } = await parseFile(text, { file: "/r.md" });
+  const diags = checkFeatureParse(entries);
+  assertEquals(diags.length, 1);
+  const line = text.split("\n")[diags[0].location!.line - 1];
+  assertEquals(line.includes("First bad line"), true, line);
+});
+
+Deno.test("checkFeatureParse: a broken block nested in a list item is reported", async () => {
+  const text = [
+    "- [REQ_BRK_0010] Braking",
+    "",
+    "  The controller shall brake.",
+    "",
+    "  - Criteria:",
+    "",
+    "    ```gherkin",
+    "    Scenario: Stop",
+    "      Given a",
+    "    Whatever is this",
+    "    ```",
+    "",
+    "      Id: 01REQ00000000000000000010A",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "/r.md" });
+  const diags = checkFeatureParse(entries);
+  assertEquals(diags.length, 1);
+  const line = text.split("\n")[diags[0].location!.line - 1];
+  assertEquals(line.includes("Whatever"), true, line);
+});
+
+Deno.test("checkFeatureParse: message ends with the parser reason", async () => {
+  const { entries } = await parseFile(doc([BROKEN]), { file: "/r.md" });
+  const [d] = checkFeatureParse(entries);
+  assertEquals(d.message.includes("scenario names"), false, d.message);
+});
+
+Deno.test("checkFeatureParse: check keeps a delivered-corpus warning with an origin prefix", async () => {
+  const { entries } = await parseFile(doc([BROKEN]), {
+    file: "/cache/p/r.md",
+  });
+  const corpus = entries.map((e) => ({
+    ...e,
+    origin: {
+      kind: "profile" as const,
+      profileId: "p",
+      profileVersion: "1.0.0",
+    },
+  }));
+  const out = applyCorpusPostPass(checkFeatureParse(corpus), corpus);
+  assertEquals(out.length, 1);
+  assertEquals(out[0].code, "MSL-B062");
+  assertEquals(out[0].message.startsWith("delivered by p@1.0.0: "), true);
 });
