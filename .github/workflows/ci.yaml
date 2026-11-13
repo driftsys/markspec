@@ -229,10 +229,11 @@ jobs:
           # own binary and refuses names that do not start with "markspec".
           copydir="$(mktemp -d)"
           cp dist/markspec "$copydir/markspec"
-          # Retry network failures up to 3 attempts (waits of 5 s and 15 s).
+          # Retry any failure up to 3 attempts (waits of 5 s and 15 s); each
+          # attempt is limited to 180 s so a stalled download reaches a retry.
           # A permission error is the regression this step guards: fail at once.
           for wait in 5 15 0; do
-            out="$("$copydir/markspec" self-upgrade --version v0.12.0 2>&1)"
+            out="$(timeout 180 "$copydir/markspec" self-upgrade --version v0.12.0 2>&1)"
             rc=$?
             echo "$out"
             if echo "$out" | grep -q "Requires net access"; then exit 1; fi
