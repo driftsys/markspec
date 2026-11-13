@@ -877,10 +877,16 @@ function formatEntries(
       const newBlock = renderAttributeBlock(normalized, indent);
       const oldBlock = lines.slice(range.start, range.end).join("\n");
 
-      if (newBlock !== oldBlock) {
+      // A block directly under body prose (no blank line) is not a code
+      // block in CommonMark; the canonical layout separates it (#916).
+      const needsBlank = range.start - 1 > titleLineIdx &&
+        lines[range.start - 1].trim() !== "" &&
+        !/^\s/.test(lines[range.start].slice(indent));
+      if (newBlock !== oldBlock || needsBlank) {
         lines.splice(
           range.start,
           range.end - range.start,
+          ...(needsBlank ? [""] : []),
           ...newBlock.split("\n"),
         );
         changed = true;

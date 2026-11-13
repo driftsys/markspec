@@ -47,3 +47,48 @@ Deno.test("fmt: trailing Key: value prose stays in the body (#916)", async () =>
     await Deno.remove(run.dir, { recursive: true });
   }
 });
+
+const ID_RUN_DOC = `# Doc
+
+- [REQ_0001] Debounce
+
+  The driver shall debounce the input within 5 ms.
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+  Satisfies: SYS_0001
+`;
+
+Deno.test("check warns and fmt keeps the Id of an Id run under prose (#916)", async () => {
+  const files = {
+    "project.yaml": "name: p916\nversion: 0.1.0\n",
+    "doc.md": ID_RUN_DOC,
+  };
+  const checked = await markspecPersist(["check", "doc.md"], { files });
+  try {
+    assertStringIncludes(checked.stderr + checked.stdout, "MSL-P020");
+  } finally {
+    await Deno.remove(checked.dir, { recursive: true });
+  }
+
+  const run = await markspecPersist(["fmt", "doc.md"], { files });
+  try {
+    assertEquals(run.code, 0, `stderr: ${run.stderr}`);
+    const out = await Deno.readTextFile(`${run.dir}/doc.md`);
+    assertStringIncludes(
+      out,
+      "  The driver shall debounce the input within 5 ms.\n\n" +
+        "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n" +
+        "      Satisfies: SYS_0001\n",
+    );
+    assertEquals(out.match(/Id: /g)?.length, 1);
+    const again = await markspecPersist(["fmt", "doc.md"], {
+      files: { "project.yaml": files["project.yaml"], "doc.md": out },
+    });
+    try {
+      assertEquals(await Deno.readTextFile(`${again.dir}/doc.md`), out);
+    } finally {
+      await Deno.remove(again.dir, { recursive: true });
+    }
+  } finally {
+    await Deno.remove(run.dir, { recursive: true });
+  }
+});

@@ -134,9 +134,52 @@ const INDENTED_RE = /^(?: {4}|\t)/;
  *   whitespace (a continuation), and it holds an `Id:` line or uses only
  *   recognized core trailer keys (#916, rule of #914).
  *
+ * - The Id run under prose: a trailing unindented run with no blank line
+ *   before it, where every line is `Key: Value` or a continuation and the
+ *   run holds an `Id:` line. The `Id:` line proves the author meant a
+ *   trailer, and treating it as prose would make `markspec fmt` stamp a new
+ *   Id. {@linkcode isTrailerUnderProse} reports this shape.
+ *
  * Any other trailing `Key: value` line is body prose.
  */
 export function findTrailerStart(lines: readonly string[]): number {
+  return locateTrailer(lines).start;
+}
+
+/**
+ * `true` when the trailer of `lines` is an Id run directly under prose
+ * (no blank line before it, no indentation). The parser reports it as
+ * MSL-P020; `markspec fmt` moves it to the canonical layout.
+ */
+export function isTrailerUnderProse(lines: readonly string[]): boolean {
+  return locateTrailer(lines).underProse;
+}
+
+/** Find the Id run directly under prose that ends at `end`, if any. */
+function findIdRunUnderProse(
+  lines: readonly string[],
+  end: number,
+): number | undefined {
+  let start = end;
+  while (start > 0) {
+    const line = lines[start - 1];
+    if (line.trim() === "") break;
+    if (/^\s/.test(line) || /^[A-Z][A-Za-z-]*: .+\\?$/.test(line)) start--;
+    else break;
+  }
+  // A continuation line before the first `Key: Value` line belongs to prose.
+  while (start < end && /^\s/.test(lines[start])) start++;
+  if (start >= end || start === 0 || lines[start - 1].trim() === "") {
+    return undefined;
+  }
+  const hasId = lines.slice(start, end).some((l) => /^Id: /.test(l));
+  return hasId ? start : undefined;
+}
+
+function locateTrailer(
+  lines: readonly string[],
+): { start: number; underProse: boolean } {
+  const none = { start: lines.length, underProse: false };
   // Walk backwards over the trailing contiguous `Key: Value` run.
   let runStart = lines.length;
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -151,14 +194,14 @@ export function findTrailerStart(lines: readonly string[]): number {
 
   let end = lines.length;
   while (end > 0 && lines[end - 1].trim() === "") end--;
-  if (end === 0) return lines.length;
+  if (end === 0) return none;
 
   // Indented block: accepted as before.
   if (
     runStart < end &&
     lines.slice(runStart, end).every((l) => INDENTED_RE.test(l))
   ) {
-    return runStart;
+    return { start: runStart, underProse: false };
   }
 
   // Unindented block: apply the final-paragraph rule.
@@ -168,16 +211,28 @@ export function findTrailerStart(lines: readonly string[]): number {
   const keys: string[] = [];
   for (const line of paragraph) {
     if (/^\s/.test(line)) {
-      if (keys.length === 0) return lines.length;
+      if (keys.length === 0) return underProseResult(lines, end);
       continue; // continuation line
     }
     const key = /^([A-Z][A-Za-z-]*): .+\\?$/.exec(line)?.[1];
-    if (key === undefined) return lines.length;
+    if (key === undefined) return underProseResult(lines, end);
     keys.push(key);
   }
   const accepted = keys.includes("Id") ||
     keys.every((k) => RECOGNIZED_TRAILER_KEYS.has(k));
-  return accepted ? paraStart : lines.length;
+  return accepted
+    ? { start: paraStart, underProse: false }
+    : underProseResult(lines, end);
+}
+
+function underProseResult(
+  lines: readonly string[],
+  end: number,
+): { start: number; underProse: boolean } {
+  const start = findIdRunUnderProse(lines, end);
+  return start === undefined
+    ? { start: lines.length, underProse: false }
+    : { start, underProse: true };
 }
 
 /**

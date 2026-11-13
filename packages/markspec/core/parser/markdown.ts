@@ -11,6 +11,7 @@ import { IDENTITY_KEY, makeDisplayId, shapeFromIdValue } from "../model/mod.ts";
 import {
   ATTR_LINE_RE,
   collateAttributes,
+  isTrailerUnderProse,
   parseAttributes,
   RECOGNIZED_TRAILER_KEYS,
   splitBodyAndAttributes,
@@ -376,6 +377,20 @@ function extractEntry(
       });
       break; // One diagnostic per entry is sufficient
     }
+  }
+
+  // MSL-P020 (warning): the trailer is an unindented `Id:` run directly
+  // under prose. It is still read as the trailer, so the entry keeps its
+  // identity, but it is not in the canonical layout (#916).
+  if (isTrailerUnderProse(bodyContent.split("\n"))) {
+    diagnostics.push({
+      code: "MSL-P020",
+      severity: "warning",
+      message: `${displayId}: trailers block is not separated from the ` +
+        `body by a blank line and is not indented; run 'markspec fmt' to ` +
+        `move it to the canonical layout (spec section 4.1)`,
+      location: { file, line: entryLine, column: 1 },
+    });
   }
 
   // MSL-P021 / MSL-P022: validate trailer lines for syntax correctness.

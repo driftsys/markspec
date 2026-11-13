@@ -837,7 +837,7 @@ invariants).
 | `MSL-P002` | error    | Title line missing title text after `]`.                                                                                                                                |
 | `MSL-P003` | error    | Display-ID brackets unterminated (missing `]` before newline).                                                                                                          |
 | `MSL-P010` | error    | Title is empty after trimming.                                                                                                                                          |
-| `MSL-P020` | error    | Trailers block is not the final indented code block of the entry.                                                                                                       |
+| `MSL-P020` | error    | Trailers block is not the final indented code block of the entry. A warning when an unindented `Id:` run sits directly under prose: it is still the trailer.            |
 | `MSL-P021` | error    | Trailer line does not match `Key: Value` syntax.                                                                                                                        |
 | `MSL-P022` | error    | Trailer key contains characters outside `[A-Za-z][A-Za-z0-9-]*`.                                                                                                        |
 | `MSL-P030` | error    | Body contains no body block (entry has a title and trailers but no body). For Authored shape: error. For Reference shape: allowed (ADR-002 §Part 3 “Body is optional”). |

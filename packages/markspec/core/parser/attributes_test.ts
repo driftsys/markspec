@@ -126,8 +126,27 @@ Deno.test("splitBodyAndAttributes: key line directly after prose stays body (#91
   assertEquals(attrs, []);
 });
 
-Deno.test("splitBodyAndAttributes: Id line directly after prose stays body (#916)", () => {
-  const content = "Body text.\nId: SRS_01HGW2Q8MNP3";
+Deno.test("splitBodyAndAttributes: Id run directly under prose is the trailer (#916)", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Body text.\nId: 01HGW2Q8MNP3RSTVWXYZABCDE",
+  );
+  assertEquals(body, "Body text.");
+  assertEquals(attrs, ["Id: 01HGW2Q8MNP3RSTVWXYZABCDE"]);
+});
+
+Deno.test("splitBodyAndAttributes: Id and Satisfies run under prose is the trailer (#916)", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Body text.\nId: 01HGW2Q8MNP3RSTVWXYZABCDE\nSatisfies: SYS_0001",
+  );
+  assertEquals(body, "Body text.");
+  assertEquals(attrs, [
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+    "Satisfies: SYS_0001",
+  ]);
+});
+
+Deno.test("splitBodyAndAttributes: Status-only run under prose stays body (#916)", () => {
+  const content = "Body text.\nStatus: draft";
   const [body, attrs] = splitBodyAndAttributes(content);
   assertEquals(body, content);
   assertEquals(attrs, []);
