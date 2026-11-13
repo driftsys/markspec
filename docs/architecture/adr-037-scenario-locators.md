@@ -158,9 +158,30 @@ small scenario index and leave room for it.
 - `Entry.criteria` and `Link.locatorResolved` are additive, so JSON consumers
   that ignore unknown keys keep working.
 - Scenarios in non-English feature blocks yield no criteria until the AST slice,
-  so a locator to them raises `MSL-L007`.
+  so a locator to them raises `MSL-L007`. (Superseded by the amendment below.)
 - A project that adopts locators, or that already wrote `X [§4.3]` values, gets
   a new edges hash on its next `markspec lock`.
+
+## Amendment 2026-11-14 — criteria come from the Gherkin AST
+
+The Gherkin AST slice (epic #915) changed the source of criteria. The shape of
+`Entry.criteria` and the rules for addressable scenarios are unchanged.
+
+- When a feature block has a normalized AST (`FeatureNode.feature`), its
+  scenarios give the criteria, in any language that Gherkin supports. A scenario
+  in a block with `# language: fr` now gives a criterion, so a locator to it
+  resolves.
+- The line scanner described in Decision 4 is now the fallback. It runs for a
+  block that does not parse (`FeatureNode.parseError`, reported as `MSL-B062`),
+  and for a block built while the Gherkin parser is not loaded. It still reads
+  English keywords only.
+- `parseFile` loads the parser before it parses a text that holds a `gherkin` or
+  `feature` fence, so every entry from the CLI, the validator and the LSP has
+  either an AST or a `parseError`. Code that builds entries with the synchronous
+  `parse()` uses the scanner.
+
+The consequence above that says non-English scenarios yield no criteria no
+longer holds for a block that parses.
 
 ## Trace
 

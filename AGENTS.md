@@ -34,6 +34,7 @@ markspec/
 │       │   │   └── mod.ts
 │       │   ├── discovery/           ← gitignore-aware file walk; projects.ts
 │       │   │   └── projects.ts        finds every project root under a folder
+│       │   ├── gherkin/             ← lazy @cucumber/gherkin load, block → FeatureAst
 │       │   ├── profile/             ← profile manifest load, merge, resolver
 │       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
@@ -179,6 +180,12 @@ alone:**
 **Single binary, lazy loading.** `main.ts` dispatches subcommands. Each
 subcommand dynamically imports only the modules it needs. `markspec check` never
 loads Typst WASM. `markspec book build` never loads ReqIF.
+
+**The Gherkin parser loads lazily.** `core/gherkin/load.ts` imports
+`@cucumber/gherkin` dynamically. `parseFile` loads it only when the text holds a
+fenced `gherkin` or `feature` block, so a run over files without such a block
+never loads it. The synchronous `parse()` does not load it; an entry built that
+way has no Gherkin AST, Gherkin body tokens, or `MSL-B062`.
 
 **One compile target — one binary:**
 

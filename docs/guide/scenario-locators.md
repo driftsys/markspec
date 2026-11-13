@@ -11,7 +11,14 @@ scenario name in square brackets after the requirement ID. This is a locator.
 Put each scenario in a fenced block of the language `feature` (or `gherkin`) in
 the body of a Requirement or Contract entry. Each scenario line starts with
 `Scenario:` (`Scenario Outline:`, `Scenario Template:` and `Example:` also
-work). Keywords are English only.
+work). MarkSpec reads each block with a Gherkin parser, so the keywords can be
+in any language that Gherkin supports. Start the block with a language line, for
+example `# language: fr`, and write `Scénario: Freinage à 20 m`.
+
+If a block does not parse, `markspec check` reports `MSL-B062` for it. The
+scenarios of that block are then read by a simple line scanner that knows only
+the English keywords, so a block in another language gives no scenarios until
+you fix the syntax.
 
 ## Address a scenario
 

@@ -153,3 +153,11 @@ explicit.
 - The broader `MSL-P/I/M/F` scheme migration — still ADR-012's deferred phase.
 - Title-line and trailer-block §3.2 / §3.3 rewrites — separate deterministic
   rules outside the body-AST scope.
+
+## Amendment 2026-11-14 — derived fields of feature nodes
+
+`astEquivalent` does not compare the `feature` and `parseError` fields of a
+`FeatureNode`. Both are pure functions of `source`, which is still compared, and
+they exist only while the Gherkin parser is loaded. Comparing them would make
+equivalence depend on whether the parser was loaded when each tree was built.
+The `range` field stays ignored, as before. See ADR-016 for the Gherkin AST.

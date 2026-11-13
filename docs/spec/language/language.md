@@ -1798,6 +1798,23 @@ The `MSL-K` prefix is a bounded early adoption of a nextgen "book build" family,
 recorded on the same footing as the `MSL-F` formatting family (§8.9) and the
 `MSL-L` / `MSL-S` families (§8.10) (ADR-012's book-build amendment).
 
+### 8.12 Body (MSL-B)
+
+Diagnostics for the content of an entry body. This table lists the codes about
+feature blocks (fenced `gherkin` or `feature` blocks). The other body codes
+(`MSL-B040` to `MSL-B044`) are listed in the core data model specification.
+
+A feature block is read with a Gherkin parser, so its keywords can be in any
+language that Gherkin supports (`# language: fr`). A block that has no
+`Feature:` line is read as if it had one, and the added line is not counted in
+any position.
+
+| ID         | Severity | Rule                                                                                                                                                                                                                               |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry. Reported on the second and later occurrences, at column 1 of the scenario line. A locator cannot address that name.              |
+| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. Reported at column 1 of the scenario line. A locator cannot address it.                                                                        |
+| `MSL-B062` | warning  | A feature block of an entry of any type does not parse as Gherkin. Reported at the file line of the first parser error, at column 1. The scenario names of that block are read by a line scanner that knows English keywords only. |
+
 ---
 
 ## Part 9 — Configuration

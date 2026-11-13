@@ -315,3 +315,31 @@ no-compat-shim policy from Decision 4 / 5.
 
 Each story ships as one PR with implementation + tests + docs together, on its
 own worktree, per the standing `AGENTS.md` workflow rules.
+
+## Amendment 2026-11-14 — Gherkin tokens come from the Gherkin AST
+
+The Gherkin AST slice (epic #915) replaced the Gherkin regexes. This amendment
+changes the points of this ADR that describe how `gherkin-section` and
+`gherkin-step` tokens are found. Where an earlier section says that regular
+expressions or a scanner produce them, this section applies.
+
+- `GHERKIN_SECTION_RE` and `GHERKIN_STEP_RE` no longer exist in
+  `core/parser/body_tokens.ts`. The `gherkin-section` and `gherkin-step` tokens
+  are built from the normalized `FeatureAst` of each feature block
+  (`FeatureNode.feature`): one section token per structural keyword and one step
+  token per step.
+- The token text is the keyword as authored. A block with `# language: fr` gives
+  `Scénario` and `Soit`. A step that starts with `*` gives a `gherkin-step`
+  token with the text `*`.
+- A keyword in step text, a description or a doc string is not a keyword in the
+  AST, so it gives no token.
+- A background step gives one token at its own position, also when the block has
+  no scenario.
+- The tokens exist only when the Gherkin parser was loaded before the entry was
+  built. `parseFile` loads it when the text holds a `gherkin` or `feature`
+  fence. The synchronous `parse()` does not load it, so a feature node built
+  that way has no `feature` and gives no Gherkin tokens.
+- A block with a parse error (`FeatureNode.parseError`, reported as `MSL-B062`)
+  gives no Gherkin tokens.
+- Modal, EARS, entity-ref and inline-code tokens never depend on the parser.
+  Their suppression inside feature fences is unchanged.

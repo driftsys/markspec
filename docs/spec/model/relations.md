@@ -251,7 +251,9 @@ A locator in `criterion` mode resolves when the target is a Requirement or
 Contract entry and one of its scenarios has that normalized name. Scenarios come
 from the top-level fenced `feature` (or `gherkin`) blocks of the target body; a
 fence nested in a list item or a block quote is not indexed. A scenario name is
-addressable when it is not empty and occurs once in the entry.
+addressable when it is not empty and occurs once in the entry. Scenario keywords
+can be in any language that Gherkin supports. A block that does not parse
+(`MSL-B062`) is read by a line scanner that knows English keywords only.
 
 - A locator that names no addressable scenario raises `MSL-L007`.
 - A locator on a target that does not resolve raises `MSL-L006` only.
