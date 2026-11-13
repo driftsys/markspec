@@ -8,8 +8,8 @@
 
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import type { FeatureNode } from "../ast/nodes.ts";
-import { loadedGherkin } from "../gherkin/load.ts";
-import { parseFile } from "./mod.ts";
+import { loadedGherkin, loadGherkin } from "../gherkin/load.ts";
+import { GHERKIN_FENCE_RE, parseFile } from "./mod.ts";
 
 const featureOf = (
   entry: { readonly bodyAst?: readonly unknown[] },
@@ -91,7 +91,24 @@ fn brake() {}
   assertEquals(featureOf(entries[0]).feature?.scenarios.length, 1);
 });
 
-Deno.test("parseFile: loader state stays set after a load", () => {
-  assert(loadedGherkin() !== undefined);
-  assertFalse(loadedGherkin() === undefined);
+Deno.test("parseFile: loader state stays set after a load", async () => {
+  const api = await loadGherkin();
+  assertEquals(loadedGherkin(), api);
+});
+
+Deno.test("GHERKIN_FENCE_RE: matches the fence shapes that gate the load", () => {
+  const matching = [
+    "```gherkin",
+    "~~~gherkin",
+    "````gherkin",
+    "~~~~feature",
+    "> ```gherkin",
+    "  > ~~~feature",
+    "/// ```gherkin",
+    " * ```feature",
+    "- [REQ-001] t\n\n  ```gherkin\n  Scenario: a",
+  ];
+  for (const text of matching) assert(GHERKIN_FENCE_RE.test(text), text);
+  const other = ["```ts", "``gherkin", "```gherkinish", "text gherkin"];
+  for (const text of other) assertFalse(GHERKIN_FENCE_RE.test(text), text);
 });

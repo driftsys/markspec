@@ -659,3 +659,33 @@ Deno.test("WorkspaceIndex: validateAll reports an unresolved scenario locator on
   assertEquals(l007.length, 1);
   assertEquals(l007[0].location?.line, 18);
 });
+
+Deno.test("WorkspaceIndex: a gherkin fence typed into a document fills the feature", async () => {
+  const index = new WorkspaceIndex();
+  const head = `- [REQ-001] Brake
+
+  The system shall brake.
+`;
+  const tail = `
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  await index.parseAndUpdateFile("/tmp/edit.md", head + tail);
+  const featureNodes = () =>
+    (index.getEntriesForFile("/tmp/edit.md")[0].bodyAst ?? []).filter((b) =>
+      b.kind === "feature"
+    ) as unknown as { feature?: { scenarios: unknown[] } }[];
+  assertEquals(featureNodes().length, 0);
+
+  await index.parseAndUpdateFile(
+    "/tmp/edit.md",
+    `${head}
+  \`\`\`gherkin
+  Scenario: Stop
+    Given a car
+  \`\`\`
+${tail}`,
+  );
+  const nodes = featureNodes();
+  assertEquals(nodes.length, 1);
+  assertEquals(nodes[0].feature?.scenarios.length, 1);
+});

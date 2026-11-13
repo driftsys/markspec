@@ -117,9 +117,13 @@ function isReferencesDocument(file: string): boolean {
 
 /**
  * A fenced code block whose info string starts with `gherkin` or `feature`.
- * The line may start with a doc-comment prefix (`///`, `//!`, ` *`, `#`).
+ * The fence has three or more backticks or tildes. The line may start with a
+ * blockquote marker or a doc-comment prefix (`>`, `///`, `//!`, ` *`, `#`).
+ *
+ * @internal Exported for tests.
  */
-const GHERKIN_FENCE_RE = /^[\s/*#!]*(```|~~~)\s*(gherkin|feature)\b/m;
+export const GHERKIN_FENCE_RE =
+  /^[\s/*#!>]*(`{3,}|~{3,})\s*(gherkin|feature)\b/m;
 
 /**
  * Parse a file and return entries, annotation links, and (for Markdown
