@@ -1,11 +1,13 @@
 import { assert, assertEquals } from "@std/assert";
 import { loadGherkin } from "./load.ts";
+import type { ScenarioAst } from "./types.ts";
 import { parseFeature } from "./parse.ts";
 import {
   type ScenarioProcedure,
   scenarioProcedure,
   type StepRole,
   stepRoles,
+  unplacedStepLabels,
 } from "./procedure.ts";
 
 const api = await loadGherkin();
@@ -265,7 +267,7 @@ Deno.test("scenarioProcedure: each scenario gets only its own Rule background", 
       "    Scenario: SB\n      When act b\n      Then check b\n",
   );
   assert(result.ok, result.ok ? "" : result.message);
-  const [sa, sb] = result.feature.scenarios.map(scenarioProcedure);
+  const [sa, sb] = result.feature.scenarios.map((s) => scenarioProcedure(s));
   assertEquals(texts(sa.preconditions), ["feature setup", "rule A setup"]);
   assertEquals(texts(sb.preconditions), ["feature setup", "rule B setup"]);
 });
@@ -338,4 +340,256 @@ Deno.test("scenarioProcedure: a precondition after an outcome-only step opens a 
   assertEquals(p.steps[0].setup, []);
   assertEquals(texts(p.steps[1].setup), ["b"]);
   assertEquals(texts(p.steps[1].actions), ["c"]);
+});
+
+function procedureWithComments(source: string): ScenarioProcedure {
+  const result = parseFeature(api, source);
+  assert(result.ok, result.ok ? "" : result.message);
+  return scenarioProcedure(
+    result.feature.scenarios[0],
+    result.feature.comments,
+  );
+}
+
+Deno.test("scenarioProcedure: labels the steps of the radar example", () => {
+  const view = procedureWithComments(
+    [
+      "Scenario: Radar calibration",
+      "  Given the radar is mounted on the bench",
+      "  # Step 1",
+      "  * place the target at 10 m",
+      "  Then the measured range is 10 m",
+      "  # Step 2",
+      "  * move the target to 50 m",
+      "  Then the measured range is 50 m",
+      "",
+    ].join("\n"),
+  );
+  assertEquals(view.steps.map((s) => s.label), ["Step 1", "Step 2"]);
+  assertEquals(view.steps.map((s) => s.n), [1, 2]);
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("scenarioProcedure: label before a leading Given is unplaced", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # Step 0\n  Given a\n  When b\n  Then c\n",
+  );
+  assertEquals(view.unplacedLabels, [{ line: 2, text: "# Step 0" }]);
+  assertEquals(view.steps[0].label, undefined);
+});
+
+Deno.test("scenarioProcedure: label before a non-first step is unplaced", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  When a\n  # Step 1\n  And b\n  Then c\n",
+  );
+  assertEquals(view.unplacedLabels, [{ line: 3, text: "# Step 1" }]);
+  assertEquals("label" in view.steps[0], false);
+});
+
+Deno.test("scenarioProcedure: plain comments are ignored", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # note\n  When a\n  Then b\n",
+  );
+  assertEquals(view.unplacedLabels, []);
+  assertEquals("label" in view.steps[0], false);
+});
+
+Deno.test("scenarioProcedure: label text inside a doc string is not a label", () => {
+  const view = procedureWithComments(
+    'Scenario: S\n  When a\n    """\n    # Step 9\n    """\n  Then b\n',
+  );
+  assertEquals(view.unplacedLabels, []);
+  assertEquals("label" in view.steps[0], false);
+});
+
+Deno.test("scenarioProcedure: without comments, labels are absent", () => {
+  const result = parseFeature(
+    api,
+    "Scenario: S\n  # Step 1\n  When a\n  Then b\n",
+  );
+  assert(result.ok, result.ok ? "" : result.message);
+  const view = scenarioProcedure(result.feature.scenarios[0]);
+  assertEquals("label" in view.steps[0], false);
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("scenarioProcedure: only comments inside the scenario count", () => {
+  const result = parseFeature(
+    api,
+    "Scenario: A\n  When a\n  Then b\n# Step 1\nScenario: B\n  # Step 1\n  When c\n  Then d\n",
+  );
+  assert(result.ok, result.ok ? "" : result.message);
+  const a = scenarioProcedure(
+    result.feature.scenarios[0],
+    result.feature.comments,
+  );
+  assertEquals(a.unplacedLabels, []);
+  assertEquals("label" in a.steps[0], false);
+  const b = scenarioProcedure(
+    result.feature.scenarios[1],
+    result.feature.comments,
+  );
+  assertEquals(b.steps[0].label, "Step 1");
+});
+
+Deno.test("scenarioProcedure: the first of two labels wins, the second is unplaced", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # Step 1\n  # Step 2\n  When a\n  Then b\n",
+  );
+  assertEquals(view.steps[0].label, "Step 1");
+  assertEquals(view.unplacedLabels, [{ line: 3, text: "# Step 2" }]);
+});
+
+function unplaced(source: string): string[] {
+  const result = parseFeature(api, source);
+  assert(result.ok, result.ok ? "" : result.message);
+  return unplacedStepLabels(result.feature).map((c) => `${c.line}:${c.text}`);
+}
+
+Deno.test("scenarioProcedure: usable as an Array.map callback", () => {
+  const result = parseFeature(api, "Scenario: S\n  When a\n  Then b\n");
+  assert(result.ok, result.ok ? "" : result.message);
+  // `map` passes the index as the second argument; the cast mimics an
+  // untyped caller.
+  const asMapCallback = scenarioProcedure as unknown as (
+    scenario: ScenarioAst,
+    index: number,
+  ) => ScenarioProcedure;
+  const [view] = result.feature.scenarios.map(asMapCallback);
+  assertEquals(view.steps.length, 1);
+});
+
+Deno.test("unplacedStepLabels: label after the last step", () => {
+  assertEquals(
+    unplaced(
+      "Scenario: A\n  When a\n  Then b\n  # Step 9\nScenario: B\n  When c\n  Then d\n",
+    ),
+    ["4:# Step 9"],
+  );
+});
+
+Deno.test("unplacedStepLabels: label between scenarios", () => {
+  assertEquals(
+    unplaced(
+      "Scenario: A\n  When a\n  Then b\n\n# Step 9\n\nScenario: B\n  When c\n  Then d\n",
+    ),
+    ["5:# Step 9"],
+  );
+});
+
+Deno.test("unplacedStepLabels: label in a Background", () => {
+  assertEquals(
+    unplaced(
+      "Feature: F\n  Background:\n    # Step 1\n    Given a\n  Scenario: S\n    When b\n    Then c\n",
+    ),
+    ["3:# Step 1"],
+  );
+});
+
+Deno.test("unplacedStepLabels: label in a Rule header", () => {
+  assertEquals(
+    unplaced(
+      "Feature: F\n  Rule: R\n    # Step 1\n    Scenario: S\n      When b\n      Then c\n",
+    ),
+    ["3:# Step 1"],
+  );
+});
+
+Deno.test("unplacedStepLabels: label before Examples", () => {
+  assertEquals(
+    unplaced(
+      "Scenario Outline: S\n  When <a>\n  Then b\n  # Step 1\n  Examples:\n    | a |\n    | 1 |\n",
+    ),
+    ["4:# Step 1"],
+  );
+});
+
+Deno.test("unplacedStepLabels: placed labels are not reported", () => {
+  assertEquals(
+    unplaced("Scenario: S\n  # Step 1\n  When a\n  Then b\n"),
+    [],
+  );
+});
+
+Deno.test("unplacedStepLabels: a label in a scenario is reported once", () => {
+  assertEquals(
+    unplaced("Scenario: S\n  # Step 0\n  Given a\n  When b\n  Then c\n"),
+    ["2:# Step 0"],
+  );
+});
+
+Deno.test("scenarioProcedure: label spelling", () => {
+  const label = (comment: string) =>
+    procedureWithComments(`Scenario: S\n  ${comment}\n  When a\n  Then b\n`)
+      .steps[0].label;
+  assertEquals(label("#Step 1"), "Step 1");
+  assertEquals(label("# step 1"), undefined);
+  assertEquals(label("# Step"), "Step");
+  assertEquals(label("# Steps 1"), undefined);
+});
+
+Deno.test("scenarioProcedure: a description line between label and step leaves the label unplaced", () => {
+  for (
+    const source of [
+      "Scenario: S\n  # Step 1\n  A description.\n  When a\n  Then b\n",
+      "Scenario Outline: S\n  # Step 1\n  A description.\n  When <a>\n  Then b\n  Examples:\n    | a |\n    | 1 |\n",
+    ]
+  ) {
+    const view = procedureWithComments(source);
+    assertEquals(view.unplacedLabels, [{ line: 2, text: "# Step 1" }]);
+    assertEquals("label" in view.steps[0], false);
+  }
+});
+
+Deno.test("scenarioProcedure: a label after the description, with comments and blank lines before the step, attaches", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  A description.\n  # Step 1\n\n  # note\n  When a\n  Then b\n",
+  );
+  assertEquals(view.steps[0].label, "Step 1");
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("scenarioProcedure: a label above a precondition that opens a later step attaches", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  When a\n  Then b\n  # Step 2\n  Given c\n  When d\n  Then e\n",
+  );
+  assertEquals(view.steps.map((s) => s.label), [undefined, "Step 2"]);
+  assertEquals(view.unplacedLabels, []);
+});
+
+Deno.test("unplacedStepLabels: a language header and plain comments are not labels", () => {
+  assertEquals(
+    unplaced(
+      "# language: en\n# note\nScenario: S\n  When a\n  Then b\n# note\n",
+    ),
+    [],
+  );
+});
+
+Deno.test("scenarioProcedure: label spelling boundary", () => {
+  const view = (comment: string) =>
+    procedureWithComments(`Scenario: S\n  When a\n  Then b\n  ${comment}\n`);
+  for (
+    const comment of ["# Step-by-step", "# Step: 1", "# Step.1", "# Stepé"]
+  ) {
+    assertEquals(view(comment).unplacedLabels, []);
+    assertEquals(
+      unplaced(`Scenario: S\n  When a\n  Then b\n  ${comment}\n`),
+      [],
+    );
+  }
+  assertEquals(unplaced("Scenario: S\n  When a\n  Then b\n  # Step\n"), [
+    "4:# Step",
+  ]);
+  assertEquals(unplaced("Scenario: S\n  When a\n  Then b\n  # Step 2\n"), [
+    "4:# Step 2",
+  ]);
+});
+
+Deno.test("scenarioProcedure: a label above a leading Then labels that step", () => {
+  const view = procedureWithComments(
+    "Scenario: S\n  # Step 1\n  Then a\n  When b\n  Then c\n",
+  );
+  assertEquals(view.steps[0].label, "Step 1");
+  assertEquals(view.unplacedLabels, []);
 });

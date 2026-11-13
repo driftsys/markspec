@@ -7,7 +7,8 @@
  * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}),
  * Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}),
  * then the Gherkin checks: Stage 4.4 (MSL-B062), Stage 4.5 (scenario
- * locators) and Stage 4.6 (procedure steps, MSL-B063).
+ * locators), Stage 4.6 (procedure steps, MSL-B063) and Stage 4.7 (block
+ * roles, MSL-B064 to MSL-B068).
  */
 
 import type {
@@ -42,6 +43,7 @@ import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { validateUxilFamily } from "./uxil_family.ts";
 import { validateLocators } from "./locators.ts";
+import { checkBlockRoles } from "./block_role.ts";
 import { checkProcedureSteps } from "./procedure.ts";
 import { checkFeatureParse } from "./feature_parse.ts";
 
@@ -269,6 +271,10 @@ export function runPipeline(
   // Stage 4.6 — Gherkin procedure steps with no expected result (MSL-B063).
   // Only Test entries are checked; unclassified entries are classified first.
   diagnostics.push(...checkProcedureSteps(finalEntries, profile));
+
+  // Stage 4.7 — Gherkin block roles (MSL-B064 warning, MSL-B065..B068 info).
+  // Unclassified entries are classified first, as in Stage 4.6.
+  diagnostics.push(...checkBlockRoles(finalEntries, profile));
 
   // Stage 5 — uxil diagnostics family (S9 #727). Inert unless some profile
   // tier designates a declaring type (`declares: ux-surface`). Receives the

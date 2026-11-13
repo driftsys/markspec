@@ -6,7 +6,12 @@
  * normalized AST; nothing is stored on the AST.
  */
 
-import type { ScenarioAst, StepAst } from "./types.ts";
+import type {
+  FeatureAst,
+  GherkinComment,
+  ScenarioAst,
+  StepAst,
+} from "./types.ts";
 
 /** What a step does in a procedure. */
 export type StepRole = "precondition" | "action" | "outcome";
@@ -56,6 +61,12 @@ export interface ProcedureStepRef {
 export interface ProcedureStep {
   /** 1-based position in the scenario. */
   readonly n: number;
+  /**
+   * The `# Step` label above the step's first line, without the `#`
+   * (for example `Step 1`). Absent when the step has no label. It never
+   * changes `n`.
+   */
+  readonly label?: string;
   /** Preconditions that follow the first non-precondition step. */
   readonly setup: readonly ProcedureStepRef[];
   readonly actions: readonly ProcedureStepRef[];
@@ -67,7 +78,23 @@ export interface ScenarioProcedure {
   /** Background steps, then the leading precondition steps of the scenario. */
   readonly preconditions: readonly ProcedureStepRef[];
   readonly steps: readonly ProcedureStep[];
+  /**
+   * `# Step` labels inside the scenario's range that do not label a step: one
+   * before a leading precondition or a step that does not open a procedure
+   * step, one with a description line between it and the step, one with no
+   * step after it (including one before `Examples:`), or a
+   * second label above the same step. Labels outside every scenario are
+   * reported by {@linkcode unplacedStepLabels}.
+   */
+  readonly unplacedLabels: readonly GherkinComment[];
 }
+
+/**
+ * A step label comment: `#`, optional spaces, the fixed word `Step`, then
+ * whitespace or the end of the line. `# Step`, `# Step 2` and `#Step 2` are
+ * labels; `# Step-by-step`, `# Step: 1` and `# Steps 1` are not.
+ */
+const STEP_LABEL_RE = /^#\s*Step(?:\s|$)/;
 
 /**
  * Derive the procedure view of a scenario.
@@ -76,8 +103,17 @@ export interface ScenarioProcedure {
  * precondition steps. The remaining steps are paired in order: an action after
  * an expected result, or a precondition after an action or expected result,
  * opens a new step. Examples of an outline are not expanded.
+ *
+ * `comments` are the block's comments. A `# Step` comment inside the
+ * scenario's range labels the procedure step that starts at the next step
+ * line; any other label is returned in `unplacedLabels`.
  */
-export function scenarioProcedure(scenario: ScenarioAst): ScenarioProcedure {
+export function scenarioProcedure(
+  scenario: ScenarioAst,
+  comments: readonly GherkinComment[] = [],
+): ScenarioProcedure {
+  // Guards a call through `Array.prototype.map`, which passes the index.
+  if (!Array.isArray(comments)) comments = [];
   const preconditions: ProcedureStepRef[] = scenario.background.map((step) => ({
     step,
     role: "precondition",
@@ -98,9 +134,14 @@ export function scenarioProcedure(scenario: ScenarioAst): ScenarioProcedure {
   let setup: ProcedureStepRef[] = [];
   let actions: ProcedureStepRef[] = [];
   let expected: ProcedureStepRef[] = [];
-  const close = () => {
+  let startIndex = first;
+  // Scenario step index that opens each procedure step.
+  const startIndexes: number[] = [];
+  const close = (next: number) => {
     if (setup.length + actions.length + expected.length === 0) return;
     steps.push({ n: steps.length + 1, setup, actions, expected });
+    startIndexes.push(startIndex);
+    startIndex = next;
     setup = [];
     actions = [];
     expected = [];
@@ -112,15 +153,68 @@ export function scenarioProcedure(scenario: ScenarioAst): ScenarioProcedure {
       origin: "scenario",
     };
     if (ref.role === "precondition") {
-      if (actions.length > 0 || expected.length > 0) close();
+      if (actions.length > 0 || expected.length > 0) close(i);
       setup.push(ref);
     } else if (ref.role === "action") {
-      if (expected.length > 0) close();
+      if (expected.length > 0) close(i);
       actions.push(ref);
     } else {
       expected.push(ref);
     }
   }
-  close();
-  return { preconditions, steps };
+  close(roles.length);
+
+  const labels = new Map<number, string>();
+  const unplacedLabels: GherkinComment[] = [];
+  for (const comment of comments) {
+    if (!STEP_LABEL_RE.test(comment.text)) continue;
+    if (
+      comment.line < scenario.range.start.line ||
+      comment.line > scenario.range.end.line
+    ) continue;
+    const next = scenario.steps.findIndex((s) =>
+      s.range.start.line > comment.line
+    );
+    // Only comments and blank lines may lie between a label and its step: a
+    // description line after the label makes the label unplaced.
+    const afterDescription = comment.line > (scenario.descriptionEndLine ?? 0);
+    const target = next < 0 || !afterDescription
+      ? -1
+      : startIndexes.indexOf(next);
+    if (target < 0 || labels.has(target)) unplacedLabels.push(comment);
+    else labels.set(target, comment.text.slice(1).trim());
+  }
+  return {
+    preconditions,
+    steps: steps.map((step, i) =>
+      labels.has(i) ? { ...step, label: labels.get(i)! } : step
+    ),
+    unplacedLabels,
+  };
+}
+
+/**
+ * Every `# Step` label of a feature block that labels no step, each once, in
+ * document order. A label inside a scenario's range is unplaced when
+ * {@linkcode scenarioProcedure} leaves it unplaced; a label outside every
+ * scenario (in a Background, a Rule header, after a scenario's last step, or
+ * between scenarios) is always unplaced.
+ */
+export function unplacedStepLabels(feature: FeatureAst): GherkinComment[] {
+  const perScenario = feature.scenarios.map((scenario) => ({
+    scenario,
+    unplaced: new Set(
+      scenarioProcedure(scenario, feature.comments).unplacedLabels,
+    ),
+  }));
+  const out: GherkinComment[] = [];
+  for (const comment of feature.comments) {
+    if (!STEP_LABEL_RE.test(comment.text)) continue;
+    const owner = perScenario.find(({ scenario }) =>
+      comment.line >= scenario.range.start.line &&
+      comment.line <= scenario.range.end.line
+    );
+    if (!owner || owner.unplaced.has(comment)) out.push(comment);
+  }
+  return out;
 }

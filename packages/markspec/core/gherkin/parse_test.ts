@@ -295,3 +295,76 @@ Deno.test("parseFeature: an empty doc string ends at its closing delimiter", () 
   );
   assertEquals(f.scenarios[0].steps[0].range.end, { line: 4, column: 8 });
 });
+
+Deno.test("parseFeature: keeps comments with block lines", () => {
+  const f = feature("Scenario: S\n  # Step 1\n  * do\n  Then ok");
+  assertEquals(f.synthetic, true);
+  assertEquals(f.comments, [{ line: 2, text: "# Step 1" }]);
+});
+
+Deno.test("parseFeature: comment line numbers with an explicit Feature line", () => {
+  const f = feature("Feature: F\n# c\nScenario: S\n  Then ok");
+  assertEquals(f.synthetic, false);
+  assertEquals(f.comments, [{ line: 2, text: "# c" }]);
+});
+
+Deno.test("parseFeature: the language comment is kept", () => {
+  const f = feature("# language: fr\nScénario: S\n  Alors ok");
+  assertEquals(f.comments[0], { line: 1, text: "# language: fr" });
+});
+
+Deno.test("parseFeature: comment after a synthetic Feature line after a language line", () => {
+  const f = feature("# language: en\nScenario: S\n  # c\n  Then ok");
+  assertEquals(f.comments, [
+    { line: 1, text: "# language: en" },
+    { line: 3, text: "# c" },
+  ]);
+});
+
+Deno.test("parseFeature: a hash line in a doc string is not a comment", () => {
+  const f = feature(
+    'Scenario: S\n  Given a\n    """\n    # not a comment\n    """\n  # real\n  Then ok',
+  );
+  assertEquals(f.comments, [{ line: 6, text: "# real" }]);
+});
+
+Deno.test("parseFeature: no comments gives an empty list", () => {
+  assertEquals(feature("Scenario: S\n  Then ok").comments, []);
+});
+
+Deno.test("parseFeature: the language comment keeps its line with an explicit Feature", () => {
+  const f = feature(
+    "# language: fr\nFonctionnalité: F\n  Scénario: S\n    Soit a\n",
+  );
+  assertEquals(f.comments, [{ line: 1, text: "# language: fr" }]);
+});
+
+Deno.test("parseFeature: the language comment keeps its line when it is not the first", () => {
+  const f = feature("\n# note\n# language: fr\nScénario: S\n  Soit a\n");
+  assertEquals(f.comments.map((c) => c.line), [2, 3]);
+  assertEquals(f.comments[1].text, "# language: fr");
+});
+
+Deno.test("parseFeature: records the last description line of a scenario", () => {
+  const f = feature(
+    "Scenario: S\n  First line.\n  # note\n  Second line.\n\n  When a\n  Then b\n",
+  );
+  assertEquals(f.scenarios[0].descriptionEndLine, 4);
+  const none = feature("Scenario: S\n  # note\n  When a\n  Then b\n");
+  assertEquals("descriptionEndLine" in none.scenarios[0], false);
+});
+
+Deno.test("parseFeature: a stepless scenario's description stops at the next scenario", () => {
+  const f = feature(
+    "Scenario: A\n  Some desc.\nScenario: B\n  When c\n  Then d\n",
+  );
+  assertEquals(f.scenarios[0].descriptionEndLine, 2);
+  assertEquals("descriptionEndLine" in f.scenarios[1], false);
+});
+
+Deno.test("parseFeature: a stepless outline's description stops before a tag line", () => {
+  const f = feature(
+    "Scenario Outline: A\n  Some desc.\n  @t\n  Examples:\n    | a |\n    | 1 |\n",
+  );
+  assertEquals(f.scenarios[0].descriptionEndLine, 2);
+});

@@ -85,7 +85,11 @@ export type {
 // SourceRange is body-relative (no `file`); use SourceLocation for file-absolute positions.
 export { loadGherkin } from "./gherkin/load.ts";
 export { featureFileLine } from "./gherkin/position.ts";
-export { scenarioProcedure, stepRoles } from "./gherkin/procedure.ts";
+export {
+  scenarioProcedure,
+  stepRoles,
+  unplacedStepLabels,
+} from "./gherkin/procedure.ts";
 export type {
   ProcedureStep,
   ProcedureStepRef,
@@ -95,6 +99,7 @@ export type {
 export type {
   ExamplesAst,
   FeatureAst,
+  GherkinComment,
   ScenarioAst,
   SectionAst,
   StepAst,
@@ -361,6 +366,8 @@ export {
 export { validateLocators } from "./validator/locators.ts";
 export { checkFeatureParse } from "./validator/feature_parse.ts";
 export { checkProcedureSteps } from "./validator/procedure.ts";
+export { checkBlockRoles } from "./validator/block_role.ts";
+export { type BlockRole, blockRole } from "./gherkin/role.ts";
 export * as uxil from "./uxil/mod.ts";
 
 // ── Lockfile (ADR-022) ───────────────────────────────────────────────────

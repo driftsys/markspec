@@ -16,6 +16,7 @@ import type { GherkinApi } from "./load.ts";
 import type {
   ExamplesAst,
   FeatureParse,
+  GherkinComment,
   ScenarioAst,
   SectionAst,
   StepAst,
@@ -38,6 +39,8 @@ interface Wrap {
   readonly language: string;
   /** 1-based line of the synthetic line, or 0 when none was added. */
   readonly syntheticLine: number;
+  /** 1-based line of the `# language:` comment, or 0 when none. */
+  readonly languageLine: number;
 }
 
 function wrapSource(api: GherkinApi, source: string): Wrap {
@@ -45,6 +48,7 @@ function wrapSource(api: GherkinApi, source: string): Wrap {
   // The language comment may follow blank or comment lines, as in the parser.
   let start = 0;
   let language = "en";
+  let languageLine = 0;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (trimmed !== "" && !trimmed.startsWith("#")) break;
@@ -52,6 +56,7 @@ function wrapSource(api: GherkinApi, source: string): Wrap {
     if (match) {
       language = match[1];
       start = i + 1;
+      languageLine = i + 1;
       break;
     }
   }
@@ -62,7 +67,7 @@ function wrapSource(api: GherkinApi, source: string): Wrap {
       trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("@")
     ) continue;
     if (featureWords.some((word) => trimmed.startsWith(`${word}:`))) {
-      return { text: source, language, syntheticLine: 0 };
+      return { text: source, language, syntheticLine: 0, languageLine };
     }
     break;
   }
@@ -72,6 +77,7 @@ function wrapSource(api: GherkinApi, source: string): Wrap {
     text: wrapped.join("\n"),
     language,
     syntheticLine: start + 1,
+    languageLine,
   };
 }
 
@@ -220,12 +226,48 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
         b.line > a.line || (b.line === a.line && b.column > a.column) ? b : a
       )
       : { line: start, column: column + s.keyword.length + 1 };
+    // Last description line: the last text line of the scenario's own head,
+    // ignoring blank and comment lines.
+    let descriptionEndLine: number | undefined;
+    if (s.description.trim() !== "") {
+      // The description ends before the first step, the next tag line or the
+      // next structural keyword, whichever comes first.
+      let bound = steps[0]?.range.start.line ?? sourceLines.length + 1;
+      const dialect = api.dialects[wrap.language];
+      const words = dialect
+        ? [
+          ...dialect.feature,
+          ...dialect.background,
+          ...dialect.rule,
+          ...dialect.scenario,
+          ...dialect.scenarioOutline,
+          ...dialect.examples,
+        ]
+        : ["Feature", "Background", "Rule", "Scenario", "Examples"];
+      for (let line = start + 1; line < bound; line++) {
+        const text = (sourceLines[line - 1] ?? "").trim();
+        if (
+          text.startsWith("@") || words.some((w) => text.startsWith(`${w}:`))
+        ) {
+          bound = line;
+          break;
+        }
+      }
+      for (let line = bound - 1; line > start; line--) {
+        const text = (sourceLines[line - 1] ?? "").trim();
+        if (text !== "" && !text.startsWith("#")) {
+          descriptionEndLine = line;
+          break;
+        }
+      }
+    }
     scenarios.push({
       name: s.name.trim(),
       keyword: s.keyword,
       tags: s.tags.map((t) => t.name),
       ...(ruleName !== undefined ? { ruleName } : {}),
       description: s.description,
+      ...(descriptionEndLine !== undefined ? { descriptionEndLine } : {}),
       isOutline: s.examples.length > 0 ||
         isOutlineKeyword(api, wrap.language, s.keyword),
       background,
@@ -269,6 +311,22 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
     }
   }
 
+  // The parser consumes a `# language:` header and does not list it as a
+  // comment, so it is added back at its own line.
+  const comments: GherkinComment[] = document.comments.map((c) => ({
+    line: shift(c.location.line),
+    text: c.text.trim(),
+  }));
+  if (
+    wrap.languageLine > 0 && !comments.some((c) => c.line === wrap.languageLine)
+  ) {
+    comments.push({
+      line: wrap.languageLine,
+      text: (sourceLines[wrap.languageLine - 1] ?? "").trim(),
+    });
+    comments.sort((a, b) => a.line - b.line);
+  }
+
   return {
     ok: true,
     feature: {
@@ -281,6 +339,7 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
       scenarios,
       backgrounds,
       sections,
+      comments,
     },
   };
 }

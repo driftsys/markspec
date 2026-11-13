@@ -53,6 +53,11 @@ export interface ScenarioAst {
   readonly tags: readonly string[];
   readonly ruleName?: string;
   readonly description: string;
+  /**
+   * 1-based block line of the last description text line. Absent when the
+   * scenario has no description.
+   */
+  readonly descriptionEndLine?: number;
   readonly isOutline: boolean;
   /** Feature background steps, then Rule background steps, in order. */
   readonly background: readonly StepAst[];
@@ -65,6 +70,17 @@ export interface ScenarioAst {
 export interface SectionAst {
   readonly keyword: string;
   readonly range: GherkinRange;
+}
+
+/**
+ * One comment line of a Gherkin block. Comments inside a doc string are part
+ * of its content and are not reported.
+ */
+export interface GherkinComment {
+  /** 1-based block line; the synthetic `Feature:` line is not counted. */
+  readonly line: number;
+  /** The comment line trimmed, including the leading `#`. */
+  readonly text: string;
 }
 
 /** The normalized document of one Gherkin block. */
@@ -85,6 +101,8 @@ export interface FeatureAst {
   readonly backgrounds: readonly StepAst[];
   /** Every structural keyword in document order, without the synthetic line. */
   readonly sections: readonly SectionAst[];
+  /** Every comment line in document order, including `# language:`. */
+  readonly comments: readonly GherkinComment[];
 }
 
 /** Result of {@linkcode parseFeature}. */
