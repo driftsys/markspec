@@ -371,8 +371,8 @@ trailer.
   line of the block when any trailer line is indented less than 4 columns past
   the list-item content. `MSL-P023` is not reported when a trailer line ends
   with the legacy trailing `\` (that shape has its own diagnostic). In a source
-  doc comment the git-style trailer is a valid alternative to the indented block
-  and raises no diagnostic.
+  doc comment the git-style trailer is a valid alternative to the indented
+  block; the parser reports no parse diagnostic (`MSL-P0xx`) for source files.
 - **Run under prose.** A run of `Key: Value` lines directly under body prose,
   with no blank line, when any line of the run is an `Id:` line, indented or
   not. The `Id:` line shows that the run is a trailer, so the entry keeps its
@@ -401,7 +401,9 @@ line, so the line is not read as part of a value. `check` reports it as
 `MSL-P021` (error), and `markspec fmt` leaves the whole trailer unchanged: it
 drops no line and stamps no replacement `Id:`. This is intended: a trailer with
 a continuation line is still the trailer, so its `Id:` is never lost. Multi-line
-attribute values are not part of the trailer rule.
+attribute values are not part of the trailer rule. The `MSL-P023` quick fix also
+leaves such a trailer unchanged, so the author fixes `MSL-P021` by hand; the
+`MSL-P023` message then says so instead of suggesting `markspec fmt`.
 
 Any other trailing `Key: value` line is body prose: for example `Status: draft`
 directly under a prose line, or a final paragraph of `Rationale:` and `Note:`

@@ -477,17 +477,25 @@ function extractEntry(
     const trailerIndex = findTrailerStart(contentLines);
     const indent = itemContentIndent(item);
     let notIndented = false;
+    let hasContinuation = false;
     for (let i = trailerIndex; i < contentLines.length; i++) {
       const rawLine = markdownLines[trailerLineLocation(i).line - 1] ?? "";
       if (rawLine.trim() === "") continue;
       if (leadingColumns(rawLine) - indent < 4) notIndented = true;
+      if (!ATTR_LINE_RE.test(rawLine.trim())) hasContinuation = true;
     }
     if (notIndented) {
+      // fmt and the quick fix leave a trailer with a continuation line
+      // (MSL-P021) unchanged, so the hint to run fmt applies only without
+      // one.
+      const hint = hasContinuation
+        ? "fix the MSL-P021 continuation line by hand, then indent the trailer"
+        : "run `markspec fmt` to indent the trailer";
       diagnostics.push({
         code: "MSL-P023",
         severity: "warning",
-        message: `${displayId}: trailer block is not indented; run ` +
-          "`markspec fmt` to indent it (spec section 1.3)",
+        message: `${displayId}: a trailer line is not indented; ${hint} ` +
+          "(spec section 1.3)",
         location: trailerLineLocation(trailerIndex),
       });
     }

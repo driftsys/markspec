@@ -26,7 +26,7 @@
  *     `Satisfies:`). Action: remove the empty trailer line(s) in that
  *     trailer block, matching what `markspec fmt` drops. Other P021
  *     shapes get no fix.
- *   - **MSL-P023** — git-style trailer block that is not indented. Action:
+ *   - **MSL-P023** — trailer with a line that is not indented (git style). Action:
  *     re-indent exactly the trailer lines (found by the formatter's shared
  *     trailer detection) to the list-item indent plus 4 columns, the same
  *     layout `markspec fmt` writes.
@@ -233,17 +233,26 @@ function buildP023Fix(
   const lines = documentText.split("\n");
   const target = diag.range.start.line;
   let entryLine: number | undefined;
+  let itemEndFloor = 0;
   for (const entry of parse(documentText)) {
     if (entry.location.line - 1 <= target) {
       if (entryLine === undefined || entry.location.line > entryLine) {
         entryLine = entry.location.line;
+        // The same floor `markspec fmt` passes, so a lazy-continuation or
+        // tab-led trailer gets the same block as fmt finds.
+        itemEndFloor = entry.endLine ?? 0;
       }
     }
   }
   if (entryLine === undefined) return undefined;
   const indent = lines[entryLine - 1].indexOf("[");
   if (indent < 0) return undefined;
-  const range = findAttributeBlockRange(lines, entryLine, indent);
+  const range = findAttributeBlockRange(
+    lines,
+    entryLine,
+    indent,
+    itemEndFloor,
+  );
   if (!range || target < range.start || target >= range.end) return undefined;
   // A continuation line cannot be re-indented without changing its
   // meaning, and fmt leaves such a trailer as it is (MSL-P021).

@@ -6,7 +6,7 @@
  * value format per the language spec Part 2.4.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { parseMarkdown } from "./markdown.ts";
 import { buildBlockLineMap, type LineMap } from "./line_map.ts";
 import { wrapAsListItem } from "./source.ts";
@@ -1215,6 +1215,15 @@ Deno.test("parseMarkdown: a tab-led git-style trailer warns MSL-P023", () => {
   assertEquals(p023At(md), [[5, 2]]);
 });
 
+Deno.test("parseMarkdown: canonical tab-indented trailers raise no MSL-P023", () => {
+  for (const lead of ["\t  ", "\t\t"]) {
+    const md =
+      `- [REQ-001] Title\n\n  Body text.\n\n${lead}Id: ${ULID}\n${lead}Satisfies: REQ-002\n`;
+    assertEquals(parseMarkdown(md).entries[0].id, ULID, JSON.stringify(lead));
+    assertEquals(p023At(md), [], JSON.stringify(lead));
+  }
+});
+
 Deno.test("parseMarkdown: MSL-P023 measures from a wide list marker's content", () => {
   const md = `-   [REQ-001] Title
 
@@ -1329,4 +1338,15 @@ Deno.test("parseMarkdown: MSL-P020 and MSL-P023 never fire for the same block", 
       .filter((c) => c === "MSL-P020" || c === "MSL-P023");
     assertEquals(codes, expected, name);
   }
+});
+
+Deno.test("parseMarkdown: MSL-P023 hint depends on a continuation line", () => {
+  const plain =
+    `- [REQ-001] Title\n\n  Body text.\n\n  Id: ${ULID}\n  Satisfies: REQ-002\n`;
+  const cont =
+    `- [REQ-001] Title\n\n  Body text.\n\n  Id: ${ULID}\n  Satisfies: REQ-002,\n    REQ-003\n`;
+  const message = (md: string) =>
+    parseMarkdown(md).diagnostics.find((d) => d.code === "MSL-P023")?.message;
+  assertStringIncludes(message(plain) ?? "", "run `markspec fmt`");
+  assertStringIncludes(message(cont) ?? "", "MSL-P021");
 });

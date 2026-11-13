@@ -634,7 +634,7 @@ Deno.test("buildCodeActions: MSL-P021 fix lines up after YAML front matter", asy
 });
 
 // ---------------------------------------------------------------------------
-// MSL-P023 — git-style trailer block is not indented (#914)
+// MSL-P023 — a trailer line is not indented, git style (#914)
 // ---------------------------------------------------------------------------
 
 const P023_ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
@@ -711,6 +711,34 @@ const P023_FIX_CASES: Record<string, string> = {
   Id: ${P023_ULID_A}
       Satisfies: REQ-002
 `,
+  "tab-led trailer": `- [REQ-001] My requirement
+
+  Body.
+
+\tId: ${P023_ULID_A}
+\tSatisfies: REQ-002
+`,
+  "trailer after a lazy-continuation body": `- [REQ-001] My requirement
+
+  Body starts here
+and continues lazily.
+
+  Id: ${P023_ULID_A}
+  Satisfies: REQ-002
+`,
+  "git-style entry after a canonical entry": `- [REQ-000] Zero
+
+  Body zero.
+
+      Id: ${P023_ULID_B}
+
+- [REQ-001] One
+
+  Body.
+
+  Id: ${P023_ULID_A}
+  Satisfies: REQ-002
+`,
   "wide list marker": `-   [REQ-001] My requirement
 
     Body.
@@ -723,15 +751,28 @@ const P023_FIX_CASES: Record<string, string> = {
 for (const [name, doc] of Object.entries(P023_FIX_CASES)) {
   Deno.test(`buildCodeActions: MSL-P023 fix matches fmt — ${name}`, async () => {
     const fixed = await applyP023Fix(doc);
-    assertEquals(fixed, format(doc, { file: "x.md" }).output);
+    const formatted = format(doc, { file: "x.md" }).output;
+    if (name === "trailer after a lazy-continuation body") {
+      // fmt also reflows the lazy body line, which the quick fix leaves
+      // alone: the trailer lines match, and fmt gives the same result
+      // from the fixed text.
+      assertEquals(fixed.split("\n").slice(5), formatted.split("\n").slice(5));
+      assertEquals(format(fixed, { file: "x.md" }).output, formatted);
+    } else {
+      assertEquals(fixed, formatted);
+    }
     const before = (await parseFile(doc, { file: "x.md" })).entries;
     const after = (await parseFile(fixed, { file: "x.md" })).entries;
     assertEquals(
       after.map((e) => [e.displayId, e.id]),
       before.map((e) => [e.displayId, e.id]),
     );
-    assertEquals(after[0].id, P023_ULID_A);
-    if (after.length > 1) assertEquals(after[1].id, P023_ULID_B);
+    assertEquals(
+      after.map((e) => e.rawAttributes.map((x) => [x.key, x.value])),
+      before.map((e) => e.rawAttributes.map((x) => [x.key, x.value])),
+    );
+    const ids = after.map((e) => e.id);
+    assertEquals(ids.includes(P023_ULID_A), true);
   });
 }
 
@@ -740,4 +781,47 @@ Deno.test("buildCodeActions: MSL-P023 without document text → no action", () =
     diag({ code: "MSL-P023", message: "x", line: 4, character: 2 }),
   ]);
   assertEquals(actions.length, 0);
+});
+
+/** MSL-P023 quick-fix actions for `doc`, from its own diagnostics. */
+async function p023Actions(doc: string) {
+  const { diagnostics } = await parseFile(doc, { file: "x.md" });
+  const p023 = diagnostics.filter((d) => d.code === "MSL-P023").map(
+    toLspDiagnostic,
+  );
+  return { p023, actions: buildCodeActions("file:///x.md", p023, doc) };
+}
+
+Deno.test("buildCodeActions: MSL-P023 skips trailer lines already canonical", async () => {
+  const { actions } = await p023Actions(P023_FIX_CASES["mixed-indent trailer"]);
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.map((e) => e.range.start.line), [4]);
+});
+
+Deno.test("buildCodeActions: MSL-P023 offers no fix for a trailer with a continuation line", async () => {
+  const doc = `- [REQ-001] My requirement
+
+  Body.
+
+  Id: ${P023_ULID_A}
+  Satisfies: REQ-002,
+    REQ-003
+`;
+  const { p023, actions } = await p023Actions(doc);
+  assertEquals(p023.length, 1);
+  assertEquals(actions, []);
+  assertEquals(format(doc, { file: "x.md" }).output, doc);
+});
+
+Deno.test("buildCodeActions: MSL-P023 outside the trailer range → no action", async () => {
+  const doc = P023_FIX_CASES["trailer at end of file"];
+  const { p023 } = await p023Actions(doc);
+  const moved = [{
+    ...p023[0],
+    range: {
+      start: { line: 2, character: 2 },
+      end: { line: 2, character: 2 },
+    },
+  }];
+  assertEquals(buildCodeActions("file:///x.md", moved, doc), []);
 });

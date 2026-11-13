@@ -1612,7 +1612,8 @@ Deno.test("parseSource: fixture — in-code-csharp.cs", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Git-style trailer (#914): same entry as the indented form, no diagnostic
+// Git-style trailer (#914): same entry as the indented form. parseFile
+// reports no parse diagnostics for source files (core/parser/mod.ts).
 // ---------------------------------------------------------------------------
 
 Deno.test("parseSource: git-style trailer in a Rust doc comment equals the indented form", async () => {
