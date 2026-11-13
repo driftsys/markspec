@@ -106,7 +106,7 @@ Emitted for body-text content violations.
 | MSL-B064 | Criteria scenario has no outcome      | Add a `Then` step to the scenario                                                               |
 | MSL-B065 | Expected result with no action        | Add a `When` step before the `Then` step                                                        |
 | MSL-B066 | Scenario starts with And or But       | Start the scenario with `Given`, `When` or `Then`                                               |
-| MSL-B067 | Step label labels no step             | Place the `# Step` comment directly above the first action of a step, or remove it              |
+| MSL-B067 | Step label labels no step             | Place the `# Step` comment above the first line of a procedure step, or remove it               |
 | MSL-B068 | Gherkin block is an illustration      | Info only: use a Requirement, Contract or Test entry to give the block a meaning                |
 
 ### C0xx — Caption

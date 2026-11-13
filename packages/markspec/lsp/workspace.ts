@@ -307,7 +307,7 @@ export class WorkspaceIndex {
    * profile designates a declaring type (`declares: ux-surface`) — and
    * the scenario-locator diagnostics (MSL-L007/L008/L009, MSL-B060/B061),
    * the Gherkin parse error (MSL-B062), and the procedure-step warning
-   * (MSL-B063).
+   * (MSL-B063), and the block-role diagnostics (MSL-B064 to MSL-B068).
    */
   validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();

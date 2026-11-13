@@ -7,7 +7,8 @@
  * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}),
  * Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}),
  * then the Gherkin checks: Stage 4.4 (MSL-B062), Stage 4.5 (scenario
- * locators) and Stage 4.6 (procedure steps, MSL-B063).
+ * locators), Stage 4.6 (procedure steps, MSL-B063) and Stage 4.7 (block
+ * roles, MSL-B064 to MSL-B068).
  */
 
 import type {

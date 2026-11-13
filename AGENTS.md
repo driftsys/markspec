@@ -193,7 +193,7 @@ fenced `gherkin` or `feature` block, so a run over files without such a block
 never loads it. The synchronous `parse()` never loads it, but it uses the parser
 when an earlier call (`loadGherkin()` or `parseFile`) has loaded it in the same
 process; otherwise an entry built with `parse()` has no Gherkin AST, no Gherkin
-body tokens, and no `MSL-B062` or `MSL-B063`.
+body tokens, and none of `MSL-B062`, `MSL-B063` or `MSL-B064` to `MSL-B068`.
 
 **One compile target — one binary:**
 

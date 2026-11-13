@@ -69,8 +69,9 @@ The locator has these properties:
 - A `Verifies:` value without a locator verifies every scenario of the
   requirement. A value without a closed locator is read as it was before
   locators existed.
-- Only scenarios in top-level `feature` blocks are indexed. A block nested in a
-  list item or a block quote yields no scenarios.
+- Only scenarios in top-level `feature` blocks are indexed for locators. A block
+  nested in a list item or a block quote yields no scenarios for them. The role
+  checks below and `MSL-B062` do check nested blocks.
 - A locator never changes the link: the link goes to the requirement whether the
   locator resolves or not.
 
@@ -94,12 +95,13 @@ keywords of the scenario:
   that follows an action or an outcome also opens a new step.
 
 `markspec check` reports `MSL-B063` only for a numbered step that has actions
-and no outcome. A step with no actions, or with no actions and no outcome, is
-not reported. The warning is placed at the line of the last action of the step.
-The check applies to entries whose type is, or extends, `Test`, so the project
-needs a profile that types the entry. A `Type: Test` trailer in a project with
-no profile is not checked, which is also true of locators. A block that does not
-parse is skipped, because `MSL-B062` reports it.
+and no outcome. A step with no actions is not reported by `MSL-B063`; if it has
+an expected result, `MSL-B065` reports it (see below). The warning is placed at
+the line of the last action of the step. The check applies to entries whose type
+is, or extends, `Test`, so the project needs a profile that types the entry. A
+`Type: Test` trailer in a project with no profile is not checked, which is also
+true of locators. A block that does not parse is skipped, because `MSL-B062`
+reports it.
 
 In this entry the second step has an action and no `Then` step:
 
@@ -141,6 +143,9 @@ role from the type each time it checks; it stores nothing on the entry.
 The check needs a profile that types the entry, as for locators and procedure
 steps. Upstream entries and blocks that do not parse are skipped.
 
+Each check applies to a feature block at any depth: a top-level block or a block
+in a list item.
+
 - `MSL-B064` (warning) applies to a criteria block. It reports a scenario that
   has no `Then` step, or no step at all. A scenario with `Given` and `Then` and
   no action is valid. `Scenario Outline` Examples are not considered.
@@ -163,11 +168,15 @@ block.
 
 In a procedure block, a comment of the form `# Step <text>` names a step of the
 procedure, for example `# Step 1` or `# Step Brake`. The word `Step` is fixed
-for every Gherkin language. Write the comment on its own line, directly above
-the first line of the step: the first action, or the first precondition that
-follows an action or an expected result. The label does not change the number of
-the step. A label that does not match this position is reported by `MSL-B067`:
-one above a leading precondition, one with no step after it, one before
+for every Gherkin language. Write the comment on its own line, above the first
+line of the step: the first action, the first precondition that follows an
+action or an expected result, or a leading `Then`. Only comments and blank lines
+may lie between the label and that line; a description line makes the label
+unplaced. A bare `# Step` with no text is also a label. The label does not
+change the number of the step. A label that does not match this position is
+reported by `MSL-B067`: one above a leading precondition, one above a step that
+does not open a procedure step (for example an `And` or `But`), one with a
+description line between it and the step, one with no step after it, one before
 `Examples:`, one outside every scenario, or a second label above the same step.
 
 This example has one entry for each role. `markspec fmt` added the missing `Id:`
@@ -231,10 +240,10 @@ lines. The formatter also writes the fence language as `gherkin`:
 
 ```text
 warning[MSL-B064]: braking.md:8 REQ_BRK_0010: scenario "Stop" has no outcome (no Then step); a criterion must state what has to hold; add a Then step
-info[MSL-B067]: braking.md:26 TST_BRK_0010: "# Step 2" labels no procedure step; place it directly above the first action of a step
+info[MSL-B067]: braking.md:26 TST_BRK_0010: "# Step 2" labels no procedure step; place it on the first line of a procedure step
 info[MSL-B066]: braking.md:30 TST_BRK_0010: scenario "Release first" starts with "And"; the step is read as an action; start with Given, When or Then
 info[MSL-B065]: braking.md:35 TST_BRK_0010: step 1 of scenario "Check only" has an expected result and no action; add a When step before the Then step
-info[MSL-B067]: braking.md:36 TST_BRK_0010: "# Step 3" labels no procedure step; place it directly above the first action of a step
+info[MSL-B067]: braking.md:36 TST_BRK_0010: "# Step 3" labels no procedure step; place it on the first line of a procedure step
 info[MSL-B068]: braking.md:46 CMP_BRK_0010: Gherkin block in a component entry is an illustration; only Requirement, Contract and Test entries give it a meaning
 ```
 
