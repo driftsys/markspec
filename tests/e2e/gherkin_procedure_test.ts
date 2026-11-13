@@ -6,6 +6,7 @@
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertSnapshot } from "@std/testing/snapshot";
 import { markspec } from "./helpers.ts";
 
 // Entry types come from a profile: without one, `entry.type` stays unset and
@@ -55,17 +56,44 @@ Deno.test("check: MSL-B063 warns on a trailing action in a Test entry", async ()
 });
 
 Deno.test("check: no MSL-B063 when every step has an expected result", async () => {
-  const { stderr } = await markspec(["check", "proc.md"], {
+  const { code, stderr } = await markspec(["check", "proc.md"], {
     files: projectFiles(testEntry("Then the pedal is free")),
   });
+  assertEquals(code, 0, stderr);
   assertEquals(stderr.includes("MSL-B063"), false, stderr);
 });
 
 Deno.test("check --format json: MSL-B063 is reported as a warning", async () => {
-  const { stdout, stderr } = await markspec(
+  const { code, stdout, stderr } = await markspec(
     ["check", "--format", "json", "proc.md"],
     { files: projectFiles(testEntry("When the driver releases the pedal")) },
   );
-  const text = stdout.trim() === "" ? stderr : stdout;
-  assertStringIncludes(text, "MSL-B063");
+  assertEquals(code, 2, stderr);
+  const diagnostics = JSON.parse(stdout) as {
+    code: string;
+    severity: string;
+  }[];
+  const b063 = diagnostics.filter((d) => d.code === "MSL-B063");
+  assertEquals(b063.length, 1);
+  assertEquals(b063[0].severity, "warning");
+});
+
+// Regression guard: a project without a feature fence must give the same
+// output as before the procedure view existed. The snapshot was generated
+// with the CLI of origin/main.
+Deno.test("check --format json: unchanged output without a feature fence", async (t) => {
+  const plain = `# Procedures
+
+- [TST_BRK_0010] Braking procedure
+
+  The procedure verifies braking.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const { code, stdout, stderr } = await markspec(
+    ["check", "--format", "json", "proc.md"],
+    { files: projectFiles(plain) },
+  );
+  assertEquals(code, 0, stderr);
+  await assertSnapshot(t, stdout);
 });
