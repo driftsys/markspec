@@ -12,6 +12,8 @@ import {
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
+import { findIdOccurrencesInFile } from "./rename.ts";
+import { findOccurrencesInFile } from "./highlights.ts";
 
 // --- File-level guard ---
 
@@ -165,15 +167,35 @@ Deno.test("isSourceFile: rejects .feature files", () => {
   assertEquals(isSourceFile("a/b.feature"), false);
 });
 
-Deno.test("fencedLinesForFile: .feature doc string is not a fence", () => {
+Deno.test("fencedLinesForFile: .feature excludes every non-comment line", () => {
   const text = [
     "# [TST_0001] Login",
     "Feature: x",
     "  Scenario: y",
-    "    Given a doc",
+    "    Given TST_0001 step",
     '      """',
     "      TST_0001",
     '      """',
   ].join("\n");
-  assertEquals(fencedLinesForFile(text, "x.feature").size, 0);
+  assertEquals(
+    [...fencedLinesForFile(text, "x.feature")].sort(),
+    [1, 2, 3, 4, 5, 6],
+  );
+});
+
+Deno.test("rename and highlight scans see only the .feature header ID", () => {
+  const text = [
+    "# [TST_0001] Login",
+    "Feature: x",
+    "    Given TST_0001 step",
+    '      """',
+    "      TST_0001",
+    '      """',
+  ].join("\n");
+  const fenced = fencedLinesForFile(text, "x.feature");
+  assertEquals(
+    findIdOccurrencesInFile(text, "TST_0001", "TST_0002", fenced).length,
+    1,
+  );
+  assertEquals(findOccurrencesInFile(text, "TST_0001", fenced).length, 1);
 });

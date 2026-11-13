@@ -59,9 +59,15 @@ export function fencedLinesForFile(
   text: string,
   filePath: string,
 ): ReadonlySet<number> {
-  // Gherkin doc strings are not Markdown fences, and IDs inside them are
-  // not references.
-  if (isFeatureFile(filePath)) return new Set();
+  // Only `#` comment lines are MarkSpec in a .feature file (D5): every other
+  // line (steps, doc strings, tables) is excluded from ID scans.
+  if (isFeatureFile(filePath)) {
+    const excluded = new Set<number>();
+    text.split("\n").forEach((line, index) => {
+      if (!line.trimStart().startsWith("#")) excluded.add(index);
+    });
+    return excluded;
+  }
   if (!isSourceFile(filePath)) return fencedCodeLines(text);
   const fencedLines = new Set<number>();
   let inFence = false;

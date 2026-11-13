@@ -113,6 +113,7 @@ import { mintReservedNumber } from "./id_reservations.ts";
 import {
   fencedLinesForFile,
   isDocCommentContext,
+  isFeatureFile,
   isMarkspecFile,
   isSourceFile,
 } from "./context.ts";
@@ -1506,6 +1507,9 @@ connection.onDocumentFormatting(async (params) => {
   if (!isMarkspecFile(filePath)) return [];
   // Delivered corpus files are read-only (ADR-030) — never format them.
   if (ctx.isCorpusFile(filePath)) return [];
+
+  // Gherkin files are not Markdown; Task 6 replaces this with Id stamping.
+  if (isFeatureFile(filePath)) return [];
 
   // Source files are read-only for formatting (ADR-029: Markdown files
   // only) — doc-comment layout belongs to the host language's formatter.
