@@ -87,6 +87,29 @@ synchronous.
 - Later slices (procedure view, role diagnostics, `.feature` entries, LSP) build
   on `FeatureAst` and are not part of this decision.
 
+## Amendment 2026-11-14 — procedure view
+
+The procedure-view slice (epic #915) builds on `FeatureAst`. Decisions 1 to 6
+above are unchanged.
+
+1. **Pure view.** The procedure view is an on-demand function over `FeatureAst`
+   (`stepRoles` and `scenarioProcedure` in `core/gherkin/procedure.ts`). It
+   stores no new field on the AST or on `Entry`.
+2. **Roles.** `Given` is a precondition, `When` and `*` are actions, `Then` is
+   an outcome. `And` and `But` take the role of the previous step; a first `And`
+   or `But` is an action.
+3. **Diagnostic.** `MSL-B063` (warning, body family) reports a numbered step
+   that has actions and no outcome. It is a check diagnostic, not a prose lint.
+4. **Scope.** The check applies to entries whose type is or extends core `Test`,
+   in a feature block at any depth, as for `MSL-B062`. A block with a
+   `parseError`, and an upstream entry, is skipped. The entry must be typed, so
+   a profile that types it is required; a `Type: Test` trailer with no profile
+   is not checked.
+5. **Position.** The warning is reported at the file line of the last action of
+   the step, in column 1.
+6. **Where it runs.** The check runs in `markspec check` and in the LSP
+   cross-file validation.
+
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
@@ -96,5 +119,6 @@ Specified in:
 [core data model](../spec/internal/markspec-core-data-model.md).\
 Documented in: [Scenario locators](../guide/scenario-locators.md).\
 Code: `packages/markspec/core/gherkin/`,
+`packages/markspec/core/validator/procedure.ts`,
 `packages/markspec/core/validator/feature_parse.ts`,
 `packages/markspec/core/criteria/scenarios.ts`.
