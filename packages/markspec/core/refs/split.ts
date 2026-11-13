@@ -4,7 +4,11 @@
  * Bracket-aware splitting of trace attribute values. A value is
  * `target [ 1*WSP "[" locator "]" ]`. A locator can contain commas, so a
  * plain split on commas is wrong for it. The escapes `\]` and `\\` are
- * valid inside a locator only.
+ * valid inside a locator only; any other backslash sequence (such as `\x`)
+ * is kept as written. A locator must follow whitespace after the target:
+ * the splitter treats any `[` as the start of a locator, but
+ * {@linkcode parseTraceValue} finds a locator only after whitespace, so
+ * `A[x]` has no locator.
  */
 
 /** A parsed trace value. */
@@ -60,11 +64,27 @@ export function splitTraceValues(value: string): string[] {
 /** `target 1*WSP "[" locator "]"` with escapes inside the locator. */
 const LOCATOR_VALUE_RE = /^(\S+)\s+\[((?:\\[\s\S]|[^\]\\])+)\]$/;
 
+/** `true` when a `[` opens a locator that no unescaped `]` closes. */
+function hasUnterminatedLocator(value: string): boolean {
+  let inLocator = false;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (inLocator) {
+      if (ch === "\\") i++;
+      else if (ch === "]") inLocator = false;
+    } else if (ch === "[") {
+      inLocator = true;
+    }
+  }
+  return inLocator;
+}
+
 /**
  * Parse one value from {@linkcode splitTraceValues} into target and
  * optional locator. Without a bracket locator, the target is the first
- * whitespace-separated token (legacy free-text suffix), except that a
- * value with an unterminated `[` is kept whole as the target.
+ * whitespace-separated token (legacy free-text suffix), so text after a
+ * closed locator or a second locator is ignored. A value with an
+ * unterminated `[` is kept whole as the target.
  */
 export function parseTraceValue(raw: string): ParsedTraceValue {
   const value = raw.trim();
@@ -77,6 +97,8 @@ export function parseTraceValue(raw: string): ParsedTraceValue {
       locatorRaw,
     };
   }
-  if (/\s\[/.test(value)) return { target: value };
+  if (/\s\[/.test(value) && hasUnterminatedLocator(value)) {
+    return { target: value };
+  }
   return { target: value.split(/\s+/)[0] };
 }
