@@ -5,7 +5,9 @@
  * Stage 2 (type classification — {@linkcode classifyEntriesStage}),
  * Stage 2.5 (list-value normalization — {@linkcode normalizeListValues}),
  * Stage 3 (typed attribute validation — {@linkcode validateAttributesForEntry}),
- * and Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}).
+ * Stage 4 (traceability rules — {@linkcode validateTraceabilityForEntry}),
+ * then the Gherkin checks: Stage 4.4 (MSL-B062), Stage 4.5 (scenario
+ * locators) and Stage 4.6 (procedure steps, MSL-B063).
  */
 
 import type {

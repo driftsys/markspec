@@ -304,7 +304,9 @@ export class WorkspaceIndex {
    *
    * Also runs the uxil diagnostics family (S9 #727) — inert unless the
    * profile designates a declaring type (`declares: ux-surface`) — and
-   * the scenario-locator diagnostics (MSL-L007/L008/L009, MSL-B060/B061).
+   * the scenario-locator diagnostics (MSL-L007/L008/L009, MSL-B060/B061),
+   * the Gherkin parse error (MSL-B062), and the procedure-step warning
+   * (MSL-B063).
    */
   validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();
@@ -325,17 +327,9 @@ export class WorkspaceIndex {
       ...validateLocators(allEntries, profile),
       // Gherkin blocks that do not parse (MSL-B062).
       ...checkFeatureParse(allEntries),
-      // Procedure steps with no expected result (MSL-B063). The index holds
-      // unclassified entries and the check needs the type, so classify first.
-      ...checkProcedureSteps(
-        profile
-          ? allEntries.map((e) => ({
-            ...e,
-            type: e.type ?? classifyEntry(e, profile).type,
-          }))
-          : allEntries,
-        profile,
-      ),
+      // Procedure steps with no expected result (MSL-B063). The check
+      // classifies unclassified entries itself.
+      ...checkProcedureSteps(allEntries, profile),
     ];
   }
 

@@ -161,7 +161,10 @@ function scenarioNameDiagnostics(entry: Entry): Diagnostic[] {
 }
 
 /** `entry` with its type classified against `profile` when unset. */
-function withType(entry: Entry, profile: EffectiveProfile | null): Entry {
+export function withType(
+  entry: Entry,
+  profile: EffectiveProfile | null,
+): Entry {
   if (entry.type !== undefined || profile === null) return entry;
   const type = classifyEntry(entry, profile).type;
   return type === undefined ? entry : { ...entry, type };

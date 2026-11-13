@@ -23,6 +23,7 @@ import { isTestEntry } from "../criteria/scenarios.ts";
 import { scenarioProcedure } from "../gherkin/procedure.ts";
 import { featureFileLine } from "../gherkin/position.ts";
 import { featureNodes } from "./feature_parse.ts";
+import { withType } from "./locators.ts";
 
 /** Report one MSL-B063 warning per procedure step with no expected result. */
 export function checkProcedureSteps(
@@ -30,7 +31,9 @@ export function checkProcedureSteps(
   profile: EffectiveProfile | null,
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  for (const entry of emittableEntries(entries)) {
+  for (const candidate of emittableEntries(entries)) {
+    // Classify an unclassified entry, as `validateLocators` does.
+    const entry = withType(candidate, profile);
     if (!isTestEntry(entry, profile)) continue;
     for (const node of featureNodes(entry.bodyAst ?? [])) {
       if (node.parseError !== undefined || node.feature === undefined) continue;
