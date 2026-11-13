@@ -168,3 +168,86 @@ Deno.test("scenarioProcedure: a leading Then gives expected only, then an action
   assertEquals(texts(p.steps[0].expected), ["a"]);
   assertEquals(texts(p.steps[1].actions), ["b"]);
 });
+
+Deno.test("scenarioProcedure: Then, And, When opens a new step at the When", () => {
+  const p = procedure("Scenario: S\n  Then a\n  And b\n  When c\n");
+  assertEquals(p.steps.length, 2);
+  assertEquals(texts(p.steps[0].expected), ["a", "b"]);
+  assertEquals(p.steps[0].actions, []);
+  assertEquals(texts(p.steps[1].actions), ["c"]);
+});
+
+Deno.test("scenarioProcedure: star, Then, But, When gives two steps", () => {
+  const p = procedure("Scenario: S\n  * a\n  Then b\n  But c\n  When d\n");
+  assertEquals(p.preconditions, []);
+  assertEquals(p.steps.length, 2);
+  assertEquals(texts(p.steps[0].actions), ["a"]);
+  assertEquals(texts(p.steps[0].expected), ["b", "c"]);
+  assertEquals(texts(p.steps[1].actions), ["d"]);
+  assertEquals(p.steps[1].expected, []);
+});
+
+Deno.test("scenarioProcedure: feature and rule backgrounds come first with origin background", () => {
+  const p = procedure(
+    "Feature: F\n" +
+      "  Background:\n    Given feature setup\n" +
+      "  Rule: R\n" +
+      "    Background:\n      Given rule setup\n" +
+      "    Scenario: S\n      Given own setup\n      When act\n      Then check\n",
+  );
+  assertEquals(texts(p.preconditions), [
+    "feature setup",
+    "rule setup",
+    "own setup",
+  ]);
+  assertEquals(p.preconditions.map((r) => r.origin), [
+    "background",
+    "background",
+    "scenario",
+  ]);
+  assertEquals(p.steps.length, 1);
+});
+
+Deno.test("scenarioProcedure: a Background When is still a precondition", () => {
+  const p = procedure(
+    "Feature: F\n  Background:\n    When the system starts\n" +
+      "  Scenario: S\n    When act\n    Then check\n",
+  );
+  assertEquals(texts(p.preconditions), ["the system starts"]);
+  assertEquals(p.preconditions[0].role, "precondition");
+  assertEquals(p.preconditions[0].origin, "background");
+  assertEquals(texts(p.steps[0].actions), ["act"]);
+});
+
+Deno.test("scenarioProcedure: an outline is one procedure with placeholders kept", () => {
+  const p = procedure(
+    "Scenario Outline: O\n  Given <a>\n  When move to <d> m\n  Then range is <d> m\n" +
+      "  Examples:\n    | a | d |\n    | x | 1 |\n    | y | 2 |\n",
+  );
+  assertEquals(texts(p.preconditions), ["<a>"]);
+  assertEquals(p.steps.length, 1);
+  assertEquals(texts(p.steps[0].actions), ["move to <d> m"]);
+  assertEquals(texts(p.steps[0].expected), ["range is <d> m"]);
+});
+
+Deno.test("scenarioProcedure: a synthetic block gives the same procedure", () => {
+  const body = "  Given a\n  When b\n  Then c\n";
+  const bare = parseFeature(api, "Scenario: S\n" + body);
+  const full = parseFeature(api, "Feature: F\n\n  Scenario: S\n" + body);
+  assert(bare.ok && full.ok);
+  assert(bare.feature.synthetic && !full.feature.synthetic);
+  // Ranges differ with the line layout; compare the shape of the view.
+  const shape = (p: ScenarioProcedure) => ({
+    pre: p.preconditions.map((r) => [r.role, r.origin, r.step.text]),
+    steps: p.steps.map((s) => [
+      s.n,
+      texts(s.setup),
+      texts(s.actions),
+      texts(s.expected),
+    ]),
+  });
+  assertEquals(
+    shape(scenarioProcedure(bare.feature.scenarios[0])),
+    shape(scenarioProcedure(full.feature.scenarios[0])),
+  );
+});

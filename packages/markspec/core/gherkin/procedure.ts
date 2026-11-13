@@ -56,7 +56,7 @@ export interface ProcedureStepRef {
 export interface ProcedureStep {
   /** 1-based position in the scenario. */
   readonly n: number;
-  /** `Given` steps that follow the first action. */
+  /** Preconditions that follow the first non-precondition step. */
   readonly setup: readonly ProcedureStepRef[];
   readonly actions: readonly ProcedureStepRef[];
   readonly expected: readonly ProcedureStepRef[];
