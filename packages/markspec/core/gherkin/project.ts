@@ -30,18 +30,21 @@ export interface LineSpan {
  *   that can be 0 or less.
  * - `backgrounds` holds the Background steps that apply to the kept
  *   scenarios, each once, in document order.
- * - `sections` and `comments` keep only the ones inside the span, minus
- *   those inside a scenario of the span that the entry does not own (a
- *   nested scenario with its own header).
+ * - `sections` and `comments` keep only the ones inside the span and
+ *   outside every `exclude` span (the header and span of a nested node
+ *   that is its own entry).
  *
  * @param ast - The normalized AST of the whole file; ranges are file lines.
  * @param scenarioIndexes - Indexes into `ast.scenarios` of the owned ones.
  * @param span - The file lines of the owning node.
+ * @param exclude - File line spans inside `span` that belong to other
+ *   entries.
  */
 export function projectFeature(
   ast: FeatureAst,
   scenarioIndexes: readonly number[],
   span: LineSpan,
+  exclude: readonly LineSpan[] = [],
 ): FeatureAst {
   const offset = span.startLine - 1;
   const range = (r: GherkinRange): GherkinRange => ({
@@ -53,7 +56,6 @@ export function projectFeature(
     ...e,
     range: range(e.range),
   });
-  const owned = new Set(scenarioIndexes);
   const scenario = (s: ScenarioAst): ScenarioAst => ({
     ...s,
     ...(s.descriptionEndLine !== undefined
@@ -66,16 +68,9 @@ export function projectFeature(
   });
   const kept = scenarioIndexes.map((i) => ast.scenarios[i]);
 
-  // File lines of scenarios in the span that this entry does not own.
-  const foreign = ast.scenarios.filter((s, i) =>
-    !owned.has(i) && s.range.start.line >= span.startLine &&
-    s.range.start.line <= span.endLine
-  );
   const visible = (line: number) =>
     line >= span.startLine && line <= span.endLine &&
-    !foreign.some((s) =>
-      line >= s.range.start.line && line <= s.range.end.line
-    );
+    !exclude.some((x) => line >= x.startLine && line <= x.endLine);
 
   const background = new Set(kept.flatMap((s) => s.background));
   return {

@@ -14,7 +14,7 @@ import type {
   Tag,
 } from "@cucumber/messages";
 import type { Diagnostic, Entry } from "../model/mod.ts";
-import type { FeatureNode } from "../ast/nodes.ts";
+import type { BodyBlock, FeatureNode } from "../ast/nodes.ts";
 import type { GherkinApi } from "../gherkin/load.ts";
 import { parseFeature } from "../gherkin/parse.ts";
 import { projectFeature } from "../gherkin/project.ts";
@@ -244,6 +244,8 @@ type FeatureChild = NonNullable<GherkinDocument["feature"]>["children"][number];
 interface HeadedNode {
   readonly kind: EntryNodeKind;
   readonly header: FeatureHeader;
+  /** File line of the node keyword. */
+  readonly keywordLine: number;
   readonly startLine: number;
   readonly endLine: number;
   readonly description: string;
@@ -335,6 +337,22 @@ export function parseFeatureFile(
     }
     return line;
   };
+  // File lines of every header comment block.
+  const headerLines = new Set<number>();
+  for (const h of headers.values()) {
+    for (let l = h.startLine; l <= h.endLine; l++) headerLines.add(l);
+  }
+  // Last line of a node span: its last content line, then the comment
+  // lines that follow it directly (a `# Step` label after the last step),
+  // but not a header comment and not past `bound`.
+  const spanEnd = (bound: number, floor: number): number => {
+    let line = lastContent(bound, floor);
+    while (
+      line < bound && (lines[line] ?? "").trim().startsWith("#") &&
+      !headerLines.has(line + 1)
+    ) line++;
+    return line;
+  };
   const firstLine = (
     node: { location: { line: number }; tags?: readonly Tag[] },
   ) =>
@@ -348,11 +366,12 @@ export function parseFeatureFile(
   };
 
   const nodes: HeadedNode[] = [];
-  const featureEnd = lastContent(lines.length, feature.location.line);
+  const featureEnd = spanEnd(lines.length, feature.location.line);
   const featureHeader = headed(feature.location.line, "feature");
   const featureNode: HeadedNode | undefined = featureHeader && {
     kind: "feature",
     header: featureHeader,
+    keywordLine: feature.location.line,
     startLine: firstLine(feature),
     endLine: featureEnd,
     description: feature.description,
@@ -379,8 +398,9 @@ export function parseFeatureFile(
           nodes.push({
             kind: "scenario",
             header,
+            keywordLine: scenario.location.line,
             startLine: firstLine(scenario),
-            endLine: lastContent(nextStart - 1, scenario.location.line),
+            endLine: spanEnd(nextStart - 1, scenario.location.line),
             description: scenario.description,
             scenarios: [index],
           });
@@ -388,11 +408,12 @@ export function parseFeatureFile(
         index++;
       } else if (child.rule) {
         const rule = child.rule;
-        const end = lastContent(nextStart - 1, rule.location.line);
+        const end = spanEnd(nextStart - 1, rule.location.line);
         const header = headed(rule.location.line, "rule");
         const ruleNode: HeadedNode | undefined = header && {
           kind: "rule",
           header,
+          keywordLine: rule.location.line,
           startLine: firstLine(rule),
           endLine: end,
           description: rule.description,
@@ -406,27 +427,55 @@ export function parseFeatureFile(
   walk(feature.children, featureEnd, featureNode);
 
   nodes.sort((a, b) => a.header.startLine - b.header.startLine);
+  const owned = parsed.feature.scenarios;
   for (const node of nodes) {
     const result = headerEntry(node.header, file);
     diagnostics.push(...result.diagnostics);
     const base = result.entry;
     if (!base) continue;
-    const description = normalizeDescription(node.description);
-    const body = [base.body, description].filter((p) => p !== "").join("\n\n");
-    if (body === "" && base.shape !== "Reference") {
+    const bodyStart = base.bodyStartLine ?? (base.location.line + 1);
+    const description = descriptionBody(
+      node,
+      lines,
+      file,
+      bodyStart,
+    );
+    const body = [base.body, description.text].filter((p) => p !== "")
+      .join("\n\n");
+    const ownsContent = node.kind === "scenario"
+      ? node.scenarios.some((i) => owned[i].steps.length > 0)
+      : node.scenarios.length > 0;
+    if (body === "" && !ownsContent && base.shape !== "Reference") {
       diagnostics.push({
         code: "MSL-P030",
         severity: "error",
         message: `${base.displayId}: Authored entry has no body block -- ` +
-          "a .feature header needs prose, or the node a description",
+          "a .feature header needs prose, a node description, or steps",
         location: { file, line: base.location.line, column: 1 },
       });
     }
-    const bodyStart = base.bodyStartLine ?? (base.location.line + 1);
+    // Nested nodes that are their own entries: their header and span are
+    // left out of this entry's projection and source.
+    const exclude = nodes
+      .filter((other) =>
+        other !== node && other.header.startLine > node.startLine &&
+        other.header.startLine <= node.endLine
+      )
+      .map((other) => ({
+        startLine: other.header.startLine,
+        endLine: other.endLine,
+      }));
+    const sourceLines = lines.slice(node.startLine - 1, node.endLine)
+      .map((text, i) => {
+        const line = node.startLine + i;
+        return exclude.some((x) => line >= x.startLine && line <= x.endLine)
+          ? ""
+          : text;
+      });
     const block: FeatureNode = {
       kind: "feature",
-      source: lines.slice(node.startLine - 1, node.endLine).join("\n"),
-      feature: projectFeature(parsed.feature, node.scenarios, node),
+      source: sourceLines.join("\n"),
+      feature: projectFeature(parsed.feature, node.scenarios, node, exclude),
       range: {
         start: { line: node.startLine - bodyStart, column: 1 },
         end: { line: node.endLine - bodyStart + 1, column: 1 },
@@ -435,16 +484,82 @@ export function parseFeatureFile(
     entries.push({
       ...base,
       body,
-      bodyAst: [...(base.bodyAst ?? []), block],
+      bodyAst: [...(base.bodyAst ?? []), ...description.blocks, block],
+      bodyTokens: [...base.bodyTokens, ...description.tokens],
       source: { kind: "feature-file", node: node.kind },
     });
   }
   return { entries, diagnostics: sortByLine(diagnostics) };
 }
 
-/** Trim each description line and drop leading and trailing blank lines. */
-function normalizeDescription(description: string): string {
-  return description.split("\n").map((l) => l.trim()).join("\n").trim();
+/**
+ * Parse the Gherkin description of `node` as Markdown body content. The
+ * description lines are found in the file after the node keyword line, so
+ * body tokens carry file positions. Body-AST ranges are made relative to
+ * `bodyStart`, the body start line of the entry they join.
+ */
+function descriptionBody(
+  node: HeadedNode,
+  lines: readonly string[],
+  file: string,
+  bodyStart: number,
+): { text: string; blocks: BodyBlock[]; tokens: Entry["bodyTokens"] } {
+  const text = node.description.split("\n").map((l) => l.trim()).join("\n")
+    .trim();
+  if (text === "") return { text, blocks: [], tokens: [] };
+  const count = text.split("\n").length;
+  const first = text.split("\n")[0];
+  let start = node.keywordLine + 1;
+  while (start <= lines.length && lines[start - 1].trim() !== first) start++;
+  const raw = lines.slice(start - 1, start - 1 + count);
+  // A comment line inside the description is not description text.
+  const cleaned = raw.map((l) => l.trim().startsWith("#") ? "" : l);
+  const prefixWidths = cleaned.map((l) => l.length - l.trimStart().length);
+  // Two synthetic lines (a title and a blank line) precede the body.
+  const lineMap = buildBlockLineMap({
+    startLine: start - 2,
+    startColumn: 1,
+    prefixWidths: [0, 0, ...prefixWidths],
+  });
+  const parsed = parseMarkdown(
+    wrapAsListItem([
+      "[DESCRIPTION] D",
+      "",
+      ...cleaned.map((l) => l.trimStart()),
+    ]),
+    { file, lineMap, allowTitleOnly: true },
+  );
+  const entry = parsed.entries[0];
+  if (!entry) return { text, blocks: [], tokens: [] };
+  const shift = (entry.bodyStartLine ?? start) - bodyStart;
+  return {
+    text,
+    blocks: (entry.bodyAst ?? []).map((b) => shiftRanges(b, shift)),
+    tokens: entry.bodyTokens,
+  };
+}
+
+/** Copy `value` with the line of every `range` start and end moved by
+ * `delta`. */
+function shiftRanges<T>(value: T, delta: number): T {
+  if (delta === 0 || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((v) => shiftRanges(v, delta)) as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(value)) {
+    if (key === "range" && v && typeof v === "object" && "start" in v) {
+      const r = v as {
+        start: { line: number; column: number };
+        end: { line: number; column: number };
+      };
+      out[key] = {
+        start: { ...r.start, line: r.start.line + delta },
+        end: { ...r.end, line: r.end.line + delta },
+      };
+    } else out[key] = shiftRanges(v, delta);
+  }
+  return out as T;
 }
 
 function sortByLine(diagnostics: Diagnostic[]): Diagnostic[] {

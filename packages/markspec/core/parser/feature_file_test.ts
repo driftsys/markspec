@@ -367,12 +367,9 @@ const typed = (entry: Entry, type: string): Entry => ({ ...entry, type });
 
 Deno.test("parseFeatureFile: §5.6 gives REQ_BRK_0011 and TST_BRK_0013", () => {
   const { entries, diagnostics } = parseFF(WORKED);
-  // TST_BRK_0013 has a trailer and no prose, and its scenario has no
-  // description, so it has no body.
-  assertEquals(
-    diagnostics.map((d) => [d.code, d.location?.line]),
-    [["MSL-P030", 22]],
-  );
+  // TST_BRK_0013 has no prose and no description, but its scenario has
+  // steps, so MSL-P030 does not fire.
+  assertEquals(diagnostics, []);
   assertEquals(entries.map((e) => [e.displayId, e.location.line]), [
     ["REQ_BRK_0011", 2],
     ["TST_BRK_0013", 22],
@@ -399,8 +396,13 @@ Deno.test("parseFeatureFile: FeatureNode source is the owning node span", () => 
   const req = byId(parseFF(WORKED).entries, "REQ_BRK_0011");
   const node = featureNode(req);
   const lines = WORKED.split("\n");
-  // Feature line (9) to the last line of its last scenario (31).
-  assertEquals(node.source, lines.slice(8, 31).join("\n"));
+  // Feature line (9) to the last line of its last scenario (31). The
+  // nested headed scenario (lines 22 to 31) is blanked, so the source keeps
+  // its line count.
+  assertEquals(
+    node.source,
+    [...lines.slice(8, 21), ...Array(10).fill("")].join("\n"),
+  );
   assertEquals(featureFileLine(req, node, 1), 9);
   const tst = byId(parseFF(WORKED).entries, "TST_BRK_0013");
   const tnode = featureNode(tst);
@@ -539,12 +541,11 @@ Deno.test("parseFeatureFile: description alone gives the body", () => {
   assertEquals(diagnostics, []);
 });
 
-Deno.test("parseFeatureFile: MSL-P030 when no header body and no description", () => {
+Deno.test("parseFeatureFile: MSL-P030 when no prose, no description and no steps", () => {
   const text = [
     "Feature: F",
     "  # [TST_A_0001] Title only",
     "  Scenario: S",
-    "    Then a",
   ].join("\n");
   const { entries, diagnostics } = parseFF(text);
   assertEquals(entries.length, 1);
@@ -738,4 +739,185 @@ Deno.test("Case B: an entry with an illustration role gives MSL-B068 at its span
     checkBlockRoles([entry], null).map((d) => [d.code, d.location?.line]),
     [["MSL-B068", 5]],
   );
+});
+
+Deno.test("parseFeatureFile: no MSL-P030 for a title-only scenario with steps", () => {
+  const text = [
+    "Feature: F",
+    "  # [TST_A_0001] Title only",
+    "  Scenario: S",
+    "    Then a",
+  ].join("\n");
+  assertEquals(parseFF(text).diagnostics, []);
+});
+
+Deno.test("parseFeatureFile: MSL-P030 for a title-only Feature with no scenarios", () => {
+  const text = [
+    "# [REQ_A_0001] T",
+    "Feature: F",
+    "  Background:",
+    "    Given a",
+  ]
+    .join("\n");
+  assertEquals(
+    parseFF(text).diagnostics.map((d) => [d.code, d.location?.line]),
+    [["MSL-P030", 1]],
+  );
+});
+
+import { validateModalKeywords } from "../validator/modal_keywords.ts";
+
+Deno.test("parseFeatureFile: description goes into bodyAst and bodyTokens at file positions", () => {
+  const text = [
+    "# [REQ_A_0001] T", // 1
+    "Feature: F", // 2
+    "  The system shall stop.", // 3
+    "", // 4
+    "  Scenario: S", // 5
+    "    Then a", // 6
+  ].join("\n");
+  const { entries, diagnostics } = parseFF(text);
+  assertEquals(diagnostics, []);
+  const req = typed(entries[0], "Requirement");
+  assertEquals(
+    req.bodyTokens.map((t) => [t.kind, t.location.line, t.location.column]),
+    [["modal", 3, 14]],
+  );
+  assertEquals(req.bodyAst!.map((b) => b.kind), ["paragraph", "feature"]);
+  assertEquals(
+    validateModalKeywords(req).filter((d) => d.code === "MSL-M061"),
+    [],
+  );
+  // The FeatureNode still maps to file lines.
+  const node = featureNode(req);
+  assertEquals(featureFileLine(req, node, 1), 2);
+  assertEquals(buildCriteria(req)[0].location.line, 5);
+});
+
+Deno.test("parseFeatureFile: description after header prose keeps both in bodyAst", () => {
+  const text = [
+    "# [REQ_A_0001] T", // 1
+    "#", // 2
+    "# Header prose.", // 3
+    "Feature: F", // 4
+    "  The system shall stop.", // 5
+    "  Scenario: S", // 6
+    "    Then a", // 7
+  ].join("\n");
+  const [entry] = parseFF(text).entries;
+  assertEquals(entry.bodyAst!.map((b) => b.kind), [
+    "paragraph",
+    "paragraph",
+    "feature",
+  ]);
+  assertEquals(
+    entry.bodyTokens.map((t) => [t.location.line, t.location.column]),
+    [[5, 14]],
+  );
+  assertEquals(featureFileLine(entry, featureNode(entry), 1), 4);
+});
+
+Deno.test("parseFeatureFile: a # Step label after the last step reaches MSL-B067", () => {
+  const text = [
+    "Feature: F", // 1
+    "  # [TST_A_0001] T", // 2
+    "  #", // 3
+    "  # Prose.", // 4
+    "  Scenario: S", // 5
+    "    When a", // 6
+    "    Then b", // 7
+    "    # Step 9", // 8
+    "  # [TST_A_0002] U", // 9
+    "  #", // 10
+    "  # Prose.", // 11
+    "  Scenario: T", // 12
+    "    When c", // 13
+    "    Then d", // 14
+  ].join("\n");
+  const [first, second] = parseFF(text).entries;
+  assertEquals(featureNode(first).source.split("\n").at(-1), "    # Step 9");
+  assertEquals(
+    checkBlockRoles([typed(first, "Test")], null).map((d) => [
+      d.code,
+      d.location?.line,
+    ]),
+    [["MSL-B067", 8]],
+  );
+  // The next header is not part of the first span.
+  assert(!featureNode(first).source.includes("TST_A_0002"));
+  assertEquals(checkBlockRoles([typed(second, "Test")], null), []);
+});
+
+const NESTED = [
+  "# [REQ_A_0001] Feature entry", // 1
+  "#", // 2
+  "# Prose.", // 3
+  "Feature: F", // 4
+  "  Scenario: Top", // 5
+  "    Then a", // 6
+  "  # [REQ_A_0002] Rule entry", // 7
+  "  #", // 8
+  "  # Prose.", // 9
+  "  Rule: R", // 10
+  "    Background:", // 11
+  "      Given r", // 12
+  "    Scenario: Inner", // 13
+  "      Then b", // 14
+  "    # [TST_A_0003] Inner test", // 15
+  "    #", // 16
+  "    # Prose.", // 17
+  "    Scenario: Headed inner", // 18
+  "      When c", // 19
+  "      Then d", // 20
+].join("\n");
+
+Deno.test("parseFeatureFile: nested headed nodes are not in the parent projection", () => {
+  const { entries } = parseFF(NESTED);
+  const [feat, rule, tst] = entries.map((e) => featureNode(e));
+  const names = (n: FeatureNode) => n.feature!.scenarios.map((s) => s.name);
+  assertEquals(names(feat), ["Top"]);
+  assertEquals(names(rule), ["Inner"]);
+  assertEquals(names(tst), ["Headed inner"]);
+  const keywords = (n: FeatureNode) =>
+    n.feature!.sections.map((s) => s.keyword);
+  assertEquals(keywords(feat), ["Feature", "Scenario"]);
+  assertEquals(keywords(rule), ["Rule", "Background", "Scenario"]);
+  assertEquals(keywords(tst), ["Scenario"]);
+  const texts = (n: FeatureNode) => n.feature!.comments.map((c) => c.text);
+  assertEquals(texts(feat), []);
+  assertEquals(texts(rule), []);
+  assert(!feat.source.includes("[REQ_A_0002]"));
+  assert(!feat.source.includes("Headed inner"));
+  assert(!rule.source.includes("[TST_A_0003]"));
+  // Source lines stay aligned with rebased ranges.
+  const lineOf = (n: FeatureNode, l: number) => n.source.split("\n")[l - 1];
+  assertEquals(
+    lineOf(feat, feat.feature!.scenarios[0].range.start.line).trim(),
+    "Scenario: Top",
+  );
+  assertEquals(
+    lineOf(rule, rule.feature!.scenarios[0].range.start.line).trim(),
+    "Scenario: Inner",
+  );
+});
+
+Deno.test("parseFeatureFile: a Background-only headed Feature", () => {
+  const text = [
+    "# [REQ_A_0001] T",
+    "#",
+    "# Prose.",
+    "Feature: F",
+    "  Background:",
+    "    Given a",
+  ].join("\n");
+  const { entries, diagnostics } = parseFF(text);
+  assertEquals(diagnostics, []);
+  const node = featureNode(entries[0]);
+  assertEquals(node.feature!.scenarios, []);
+  assertEquals(node.feature!.sections.map((s) => s.keyword), [
+    "Feature",
+    "Background",
+  ]);
+  assertEquals(buildCriteria(entries[0]), []);
+  assertEquals(node.source, "Feature: F\n  Background:\n    Given a");
 });
