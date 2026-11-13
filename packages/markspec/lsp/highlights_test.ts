@@ -167,3 +167,13 @@ for (const newline of ["\n", "\r\n"]) {
     );
   });
 }
+
+Deno.test("findOccurrencesInFile: a bracketed ID on a # comment line is a Write highlight", () => {
+  const text = "# [TST_0001] Login\n# Verified-by: TST_0001";
+  assertEquals(
+    findOccurrencesInFile(text, "TST_0001").map((
+      h,
+    ) => [h.range.start.line, h.kind]),
+    [[0, DocumentHighlightKindWrite], [1, DocumentHighlightKindRead]],
+  );
+});

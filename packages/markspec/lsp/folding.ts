@@ -24,6 +24,21 @@ export interface FoldingRange {
 }
 
 /**
+ * 1-based last line of the Gherkin node a `.feature` entry owns, or
+ * `undefined` for any other entry (or when the entry carries no feature
+ * node). A Feature entry then folds over its Scenarios, which the generic
+ * "to the next entry" range would cut at the first nested header. The node
+ * range is relative to the entry's body start line.
+ */
+function ownedNodeEndLine(entry: Entry): number | undefined {
+  if (entry.source.kind !== "feature-file") return undefined;
+  const node = entry.bodyAst?.find((b) => b.kind === "feature");
+  if (!node) return undefined;
+  const bodyStart = entry.bodyStartLine ?? entry.location.line + 1;
+  return bodyStart + node.range.end.line - 1;
+}
+
+/**
  * Convert a file's entries to FoldingRanges. `totalLines` is the
  * 1-based count of lines in the document (used to bound the last
  * entry's fold range).
@@ -42,7 +57,7 @@ export function entriesToFoldingRanges(
     const nextStart = i + 1 < sorted.length
       ? sorted[i + 1].location.line
       : totalLines + 1;
-    const end = nextStart - 1;
+    const end = ownedNodeEndLine(sorted[i]) ?? nextStart - 1;
     // LSP uses 0-based lines; convert and skip single-line regions.
     if (end <= start) continue;
     ranges.push({

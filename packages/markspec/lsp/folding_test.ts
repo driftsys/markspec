@@ -10,6 +10,7 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
 import { makeDisplayId } from "../core/model/mod.ts";
+import { parseFile } from "../core/mod.ts";
 import { entriesToFoldingRanges } from "./folding.ts";
 
 function makeEntry(displayId: string, line: number): Entry {
@@ -74,4 +75,37 @@ Deno.test("entriesToFoldingRanges: kind defaults to 'region'", () => {
   const entries = [makeEntry("REQ-001", 1)];
   const ranges = entriesToFoldingRanges(entries, 10);
   assertEquals(ranges[0].kind, "region");
+});
+
+const FEATURE_TEXT = [
+  "# [REQ_0001] Login",
+  "Feature: Login",
+  "",
+  "  # [TST_0001] Valid login",
+  "  Scenario: Valid",
+  "    Given a user",
+  "    Then ok",
+  "",
+  "  # [TST_0002] Bad login",
+  "  Scenario: Bad",
+  "    Given a user",
+  "    Then no",
+  "",
+].join("\n");
+
+Deno.test("entriesToFoldingRanges: a .feature entry folds over its owned node, past nested headers", async () => {
+  const { entries } = await parseFile(FEATURE_TEXT, { file: "/t.feature" });
+  assertEquals(entries.map((e) => e.displayId), [
+    "REQ_0001",
+    "TST_0001",
+    "TST_0002",
+  ]);
+  const ranges = entriesToFoldingRanges(entries, 13);
+  // Feature: header line 1 to its last content line 12 (1-based) — not
+  // "to the next entry" at line 4. Scenarios fold to their own last step.
+  assertEquals(ranges.map((r) => [r.startLine, r.endLine]), [
+    [0, 11],
+    [3, 6],
+    [8, 11],
+  ]);
 });

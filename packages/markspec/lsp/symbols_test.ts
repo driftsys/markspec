@@ -8,6 +8,7 @@
 import { assertEquals } from "@std/assert";
 import type { Entry } from "../core/model/mod.ts";
 import { makeDisplayId } from "../core/model/mod.ts";
+import { parseFile } from "../core/mod.ts";
 import {
   entriesToDocumentSymbols,
   entriesToWorkspaceSymbols,
@@ -163,4 +164,23 @@ Deno.test("entriesToWorkspaceSymbols: upstream entry is omitted (no throw), proj
   ];
   const symbols = entriesToWorkspaceSymbols(entries, "req");
   assertEquals(symbols.map((s) => s.name), ["STK_002"]);
+});
+
+Deno.test("entriesToDocumentSymbols: a .feature file lists the Feature and nested Scenario headers", async () => {
+  const text = [
+    "# [REQ_0001] Login",
+    "Feature: Login",
+    "",
+    "  # [TST_0001] Valid login",
+    "  Scenario: Valid",
+    "    Given a user",
+    "    Then ok",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "/t.feature" });
+  const symbols = entriesToDocumentSymbols(entries);
+  assertEquals(symbols.map((s) => [s.name, s.range.start.line]), [
+    ["REQ_0001", 0],
+    ["TST_0001", 3],
+  ]);
 });
