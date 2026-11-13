@@ -143,20 +143,20 @@ For an in-source entry (Rust `///`, Kotlin `/**`, etc.), `source` is the
 }
 ```
 
-| Field               | Type                          | Notes                                                                                                                |
-| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `displayId`         | string                        | Human-readable ID, e.g. `SRS_BRK_0107`                                                                               |
-| `id`                | string \| null                | ULID or URI; `null` if no `Id:` trailer                                                                              |
-| `shape`             | `"Authored"` \| `"Reference"` | Determined by `Id:` format                                                                                           |
-| `type`              | string \| null                | Resolved type name; `null` if unresolved                                                                             |
-| `title`             | string                        | Entry title text                                                                                                     |
-| `body`              | string                        | Entry body text (trimmed)                                                                                            |
-| `bodyTokens`        | `BodyToken[]`                 | Flat token stream — modal verbs, EARS triggers, Gherkin keywords, `$Identifier` entity refs, inline code. ADR-016.   |
-| `derivedDiscipline` | string[] \| undefined         | Disciplines reached by walking `Allocated-to` edges. ADR-017.                                                        |
-| `source`            | `EntrySource`                 | Tagged union: `{kind:"markdown"}` or `{kind:"doc-comment", language, function, rule}`. Pre-0.6.0 was a plain string. |
-| `rawAttributes`     | `{key, value}[]`              | All trailer attributes in source order                                                                               |
-| `location`          | `{file, line, column}`        | Source file path, 1-based line and column                                                                            |
-| `properties`        | object                        | Observed facts (see Properties namespaces)                                                                           |
+| Field               | Type                          | Notes                                                                                                                                                                                           |
+| ------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `displayId`         | string                        | Human-readable ID, e.g. `SRS_BRK_0107`                                                                                                                                                          |
+| `id`                | string \| null                | ULID or URI; `null` if no `Id:` trailer                                                                                                                                                         |
+| `shape`             | `"Authored"` \| `"Reference"` | Determined by `Id:` format                                                                                                                                                                      |
+| `type`              | string \| null                | Resolved type name; `null` if unresolved                                                                                                                                                        |
+| `title`             | string                        | Entry title text                                                                                                                                                                                |
+| `body`              | string                        | Entry body text (trimmed)                                                                                                                                                                       |
+| `bodyTokens`        | `BodyToken[]`                 | Flat token stream — modal verbs, EARS triggers, Gherkin keywords, `$Identifier` entity refs, inline code. ADR-016.                                                                              |
+| `derivedDiscipline` | string[] \| undefined         | Disciplines reached by walking `Allocated-to` edges. ADR-017.                                                                                                                                   |
+| `source`            | `EntrySource`                 | Tagged union: `{kind:"markdown"}`, `{kind:"doc-comment", language, function, rule}` or `{kind:"feature-file", node}` (`node` is `feature`, `rule` or `scenario`). Pre-0.6.0 was a plain string. |
+| `rawAttributes`     | `{key, value}[]`              | All trailer attributes in source order                                                                                                                                                          |
+| `location`          | `{file, line, column}`        | Source file path, 1-based line and column                                                                                                                                                       |
+| `properties`        | object                        | Observed facts (see Properties namespaces)                                                                                                                                                      |
 
 ## Properties namespaces
 
