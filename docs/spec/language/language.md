@@ -360,13 +360,27 @@ of the entry.
 in two shapes. `markspec fmt` rewrites both to the canonical indented block
 after a blank line, and keeps the `Id:` value.
 
-- The final paragraph of the entry, after a blank line, when every line is
-  `Key: Value` and the paragraph holds an `Id:` line or uses only core trailer
-  keys (Part 2 §2.1 universal attributes and the core trace relations).
-- A run of `Key: Value` lines directly under body prose, with no blank line,
-  when any line of the run is an `Id:` line, indented or not. The `Id:` line
-  shows that the run is a trailer, so the entry keeps its identity. `check`
-  reports it as `MSL-P020` (warning).
+- **Git-style trailer.** The final paragraph of the entry, after a blank line,
+  when every line is `Key: Value` and the paragraph holds an `Id:` line or uses
+  only core trailer keys (Part 2 §2.1 universal attributes and the core trace
+  relations). This is the shape that `git interpret-trailers` reads. The parser
+  has no profile, so a key that only a profile declares qualifies only through
+  the `Id:` line. In Markdown, `check` reports it as `MSL-P023` (warning) at the
+  first line of the block. In a source doc comment it is a valid alternative to
+  the indented block and raises no diagnostic.
+- **Run under prose.** A run of `Key: Value` lines directly under body prose,
+  with no blank line, when any line of the run is an `Id:` line, indented or
+  not. The `Id:` line shows that the run is a trailer, so the entry keeps its
+  identity. `check` reports it as `MSL-P020` (warning), and not as `MSL-P023`.
+
+```markdown
+- [SRS_BRK_0001] Sensor debouncing
+
+  Sensor driver shall debounce raw inputs.
+
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDE
+  Satisfies: SYS_BRK_0042
+```
 
 **Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
 paragraph-with-trailing-`\` shape) is accepted in the indented block and in both

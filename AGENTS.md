@@ -101,7 +101,8 @@ markspec/
 │       │   │                          (MSL-M060 lowercase, MSL-A030 remove,
 │       │   │                          MSL-T020 suggest, MSL-A013 dedup,
 │       │   │                          MSL-A011 multi-line, MSL-A012 remove,
-│       │   │                          MSL-P021 empty `Key:` remove)
+│       │   │                          MSL-P021 empty `Key:` remove,
+│       │   │                          MSL-P023 indent git-style trailer)
 │       │   ├── context.ts           ← doc comment context guard (source files)
 │       │   └── util.ts              ← URI↔path conversion, debounce
 │       ├── mcp/

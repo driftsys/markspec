@@ -11,7 +11,7 @@ Deno.test("validate in nested dir finds files", async () => {
 
   Body.
 
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
 `,
     },
   });

@@ -42,6 +42,15 @@ const SHAPES: Record<string, string> = {
     `  Body.\n\n      Id: ${ULID}\n      Satisfies: A,\n        B`,
   "indented Id under prose, then an unindented key":
     `  Body.\n      Id: ${ULID}\n  Status: draft`,
+  // Git-style trailers (#914): a final unindented paragraph of `Key: Value`.
+  "git-style Id trailer":
+    `  Body.\n\n  Id: ${ULID}\n  Satisfies: SYS_0001\n  Labels: L`,
+  "git-style trailer as the only content":
+    `  Id: ${ULID}\n  Satisfies: SYS_0001`,
+  "git-style trailer after a fenced block":
+    `  Body.\n\n  \`\`\`text\n  Note: x\n  \`\`\`\n\n  Id: ${ULID}\n  Satisfies: SYS_0001`,
+  "git-style trailer after two body paragraphs":
+    `  Body one.\n\n  Body two.\n\n  Satisfies: SYS_0001\n  Id: ${ULID}`,
   "core key under prose": "  Body.\n  Satisfies: SYS_0001",
   "prose, unknown key, indented Id":
     `  Body.\n  Status: draft\n      Id: ${ULID}`,
@@ -137,4 +146,13 @@ Deno.test("fmt: an indented trailer under prose gets a blank line above it", () 
   }).output;
   assertEquals(output.includes("  Body.\n\n      Id: "), true, output);
   assertEquals(output.includes("      Satisfies: SYS_0001\n"), true, output);
+});
+
+Deno.test("fmt: a git-style trailer is indented in place with its Id", () => {
+  const output = format(doc(SHAPES["git-style Id trailer"]), { file: "a.md" })
+    .output;
+  assertEquals(
+    output,
+    `- [REQ_0001] Title\n\n  Body.\n\n      Id: ${ULID}\n      Satisfies: SYS_0001\n      Labels: L\n`,
+  );
 });

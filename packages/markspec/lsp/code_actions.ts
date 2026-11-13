@@ -26,6 +26,9 @@
  *     `Satisfies:`). Action: remove the empty trailer line(s) in that
  *     trailer block, matching what `markspec fmt` drops. Other P021
  *     shapes get no fix.
+ *   - **MSL-P023** — git-style trailer block that is not indented. Action:
+ *     add 4 columns of indentation to every line of the trailer block, which
+ *     is what `markspec fmt` does.
  *   - **MSL-L010** — lockfile reference entry has no `Reference-url:`.
  *     Action: insert a placeholder `Reference-url:` trailer line.
  *   - **MSL-S002** — sync attribute mapping has `locked: true` but
@@ -130,6 +133,9 @@ export function buildCodeActions(
     } else if (diag.code === "MSL-P021" && documentText !== undefined) {
       const action = buildP021Fix(uri, diag, documentText);
       if (action) out.push(action);
+    } else if (diag.code === "MSL-P023" && documentText !== undefined) {
+      const action = buildP023Fix(uri, diag, documentText);
+      if (action) out.push(action);
     } else if (diag.code === "MSL-L010" && documentText !== undefined) {
       const action = buildL010Fix(uri, diag, documentText);
       if (action) out.push(action);
@@ -210,6 +216,30 @@ function buildP021Fix(
       : `Remove empty '${attrKey}' line`,
     edits,
   );
+}
+
+function buildP023Fix(
+  uri: string,
+  diag: LspDiagnosticLike,
+  documentText: string,
+): CodeAction | undefined {
+  // The diagnostic points at the first line of the git-style trailer; the
+  // block runs to the next blank line. Each line gets 4 more columns, which
+  // turns the list-item indent into the canonical trailer indent.
+  const lines = documentText.split("\n");
+  const edits: TextEdit[] = [];
+  for (let i = diag.range.start.line; i < lines.length; i++) {
+    if (lines[i].trim() === "") break;
+    edits.push({
+      range: {
+        start: { line: i, character: 0 },
+        end: { line: i, character: 0 },
+      },
+      newText: "    ",
+    });
+  }
+  if (edits.length === 0) return undefined;
+  return quickFix(uri, diag, "Indent trailer block", edits);
 }
 
 function buildA011Fix(

@@ -142,7 +142,7 @@ function leadingColumns(line: string): number {
 }
 
 /** `true` when `line` is indented by 4 or more columns (code-block indent). */
-function isIndented(line: string): boolean {
+export function isIndented(line: string): boolean {
   return leadingColumns(line) >= 4;
 }
 

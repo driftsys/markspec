@@ -36,6 +36,7 @@ interpreted.
 | -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | MSL-P010 | Malformed entry header                     | Verify `- [TYPE_NNNN] Title` format: hyphen, space, brackets, space-separated display ID |
 | MSL-P020 | Display ID does not match expected pattern | Check the profile's declared type pattern; prefix and digit width must match exactly     |
+| MSL-P023 | Trailer block is not indented (git-style)  | Run `markspec fmt` to indent it to the canonical 6-space form                            |
 
 ### I0xx — Identity
 

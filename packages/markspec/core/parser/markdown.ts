@@ -17,6 +17,8 @@ import {
 import {
   ATTR_LINE_RE,
   collateAttributes,
+  findTrailerStart,
+  isIndented,
   isTrailerUnderProse,
   parseAttributes,
   RECOGNIZED_TRAILER_KEYS,
@@ -458,6 +460,36 @@ function extractEntry(
     const firstNonBlank = (markdownLines[line - 1] ?? "").search(/\S/);
     return { file, line, column: firstNonBlank >= 0 ? firstNonBlank + 1 : 1 };
   };
+  // MSL-P023: a git-style trailer (no 4-column indent) is accepted but not
+  // canonical in Markdown. The warning points at the trailer's first line.
+  // `markspec fmt` rewrites it to the indented form. The legacy
+  // trailing-backslash form has its own deprecation warning, so it is skipped.
+  // A run directly under prose is reported as MSL-P020 above, so exactly one
+  // of the two warnings fires for a block.
+  const contentLines = bodyContent.split("\n");
+  if (
+    attrLines.length > 0 &&
+    !attrLines.some((line) => line.trimEnd().endsWith("\\")) &&
+    !isTrailerUnderProse(contentLines)
+  ) {
+    const trailerIndex = findTrailerStart(contentLines);
+    const location = trailerLineLocation(trailerIndex);
+    const rawLine = markdownLines[location.line - 1] ?? "";
+    const indent = itemContentIndent(item);
+    const relative = rawLine.startsWith(" ".repeat(indent))
+      ? rawLine.slice(indent)
+      : rawLine;
+    if (!isIndented(relative)) {
+      diagnostics.push({
+        code: "MSL-P023",
+        severity: "warning",
+        message: `${displayId}: trailer block is not indented; run ` +
+          "`markspec fmt` to indent it (spec section 1.3)",
+        location,
+      });
+    }
+  }
+
   // `attrLines` is the contiguous, blank-free tail of `bodyContent`.
   const attrContentStart = bodyContent.split("\n").length - attrLines.length;
 

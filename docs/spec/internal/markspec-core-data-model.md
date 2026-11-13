@@ -840,6 +840,7 @@ invariants).
 | `MSL-P020` | error    | Trailers block is not the final indented code block of the entry. A warning when an `Id:` run sits directly under prose (still the trailer), or a trace-relation key line is body prose. |
 | `MSL-P021` | error    | Trailer line does not match `Key: Value` syntax.                                                                                                                                         |
 | `MSL-P022` | error    | Trailer key contains characters outside `[A-Za-z][A-Za-z0-9-]*`.                                                                                                                         |
+| `MSL-P023` | warning  | Trailer is a final paragraph of `Key: Value` lines that is not indented (git-style). `fmt` indents it.                                                                                   |
 | `MSL-P030` | error    | Body contains no body block (entry has a title and trailers but no body). For Authored shape: error. For Reference shape: allowed (ADR-002 §Part 3 “Body is optional”).                  |
 
 ### 4.2 Identity & shape (I)

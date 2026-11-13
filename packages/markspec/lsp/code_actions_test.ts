@@ -632,3 +632,44 @@ Deno.test("buildCodeActions: MSL-P021 fix lines up after YAML front matter", asy
   // DOC_WITH_EMPTY_SATISFIES's `Satisfies:` (line 7) shifted by 4 lines.
   assertEquals(edit.range.start, { line: 11, character: 0 });
 });
+
+// ---------------------------------------------------------------------------
+// MSL-P023 — git-style trailer block is not indented (#914)
+// ---------------------------------------------------------------------------
+
+Deno.test("buildCodeActions: MSL-P023 → indent every trailer line by 4 columns", async () => {
+  const doc = `- [REQ-001] My requirement
+
+  Body.
+
+  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+  Satisfies: REQ-002
+`;
+  const { diagnostics } = await parseFile(doc, { file: "x.md" });
+  const p023 = diagnostics.filter((d) => d.code === "MSL-P023").map(
+    toLspDiagnostic,
+  );
+  assertEquals(p023.length, 1);
+  const actions = buildCodeActions("file:///x.md", p023, doc);
+  assertEquals(actions.length, 1);
+  assertEquals(actions[0].title, "Indent trailer block");
+  assertEquals(actions[0].kind, "quickfix");
+  const edits = actions[0].edit!.changes!["file:///x.md"];
+  assertEquals(edits.map((e) => e.range.start.line), [4, 5]);
+  // Apply the zero-width inserts and check the canonical 6-space form.
+  const lines = doc.split("\n");
+  for (const e of edits) {
+    lines[e.range.start.line] = e.newText + lines[e.range.start.line];
+  }
+  assertEquals(
+    lines.slice(4, 6),
+    ["      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF", "      Satisfies: REQ-002"],
+  );
+});
+
+Deno.test("buildCodeActions: MSL-P023 without document text → no action", () => {
+  const actions = buildCodeActions("file:///x.md", [
+    diag({ code: "MSL-P023", message: "x", line: 4, character: 2 }),
+  ]);
+  assertEquals(actions.length, 0);
+});
