@@ -149,3 +149,50 @@ Deno.test({
     assertEquals(first.total, 2);
   },
 });
+
+// A block in another spoken language gives criteria through the Gherkin AST,
+// in compile, check and report.
+const FRENCH_FILES = {
+  ...FILES,
+  "docs/braking.md": ENTRIES_MD.replace(
+    /```feature[\s\S]*?```/,
+    [
+      "```feature",
+      "# language: fr",
+      "Fonctionnalité: freinage",
+      "  Scénario: Brake at 20 m",
+      "    Soit un obstacle à 20 m",
+      "    Alors le freinage démarre",
+      "```",
+    ].map((line) => `  ${line}`).join("\n").trimStart(),
+  ),
+};
+
+Deno.test({
+  name: "locator coverage: a French block resolves a locator end to end",
+  fn: async () => {
+    const compiled = await markspec(
+      ["compile", "docs/braking.md", "--format", "json"],
+      FRENCH_FILES,
+    );
+    assertEquals(compiled.code, 0);
+    const entry = JSON.parse(compiled.stdout).entries["REQ_BRK_0010"];
+    assertEquals(entry.criteria.map((c: { name: string }) => c.name), [
+      "Brake at 20 m",
+    ]);
+    const check = await markspec(["check", "docs/braking.md"], FRENCH_FILES);
+    // Only the TST_BRK_0013 locator ("Brake at 30 m") is unresolved.
+    const l007 = check.stderr.split("\n").filter((l) => l.includes("MSL-L007"));
+    assertEquals(l007.length, 1);
+    assertStringIncludes(l007[0], "TST_BRK_0013");
+    const report = await markspec(
+      ["report", "coverage", "docs/braking.md", "--format", "json"],
+      FRENCH_FILES,
+    );
+    // deno-lint-ignore no-explicit-any
+    const row = (JSON.parse(report.stdout).criteria.entries as any[]).find(
+      (e) => e.displayId === "REQ_BRK_0010",
+    );
+    assertEquals([row.verified, row.total], [1, 1]);
+  },
+});

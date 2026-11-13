@@ -1,4 +1,7 @@
 import { assertEquals } from "@std/assert";
+import type { BodyBlock } from "../ast/nodes.ts";
+import { loadGherkin } from "../gherkin/load.ts";
+import type { Entry } from "../model/mod.ts";
 import { parse, parseFile } from "../parser/mod.ts";
 import { buildCriteria, scanScenarioNames } from "./scenarios.ts";
 
@@ -270,4 +273,274 @@ Deno.test("buildCriteria: a /** */ doc comment with * prefixes uses file lines",
   const { entries } = await parseFile(src, { file: "lib.rs" });
   const criteria = buildCriteria(entries[0]);
   assertEquals(criteria.map((c) => [c.name, c.location.line]), [["Stop", 9]]);
+});
+
+// ---------------------------------------------------------------------------
+// AST path versus scanner path (epic #915, Gherkin AST slice)
+// ---------------------------------------------------------------------------
+
+/** The entry with every feature node rewritten by `rewrite`. */
+function withFeatureNodes(
+  entry: Entry,
+  rewrite: (block: BodyBlock) => BodyBlock,
+): Entry {
+  return {
+    ...entry,
+    bodyAst: (entry.bodyAst ?? []).map((b) =>
+      b.kind === "feature" ? rewrite(b) : b
+    ),
+  };
+}
+
+/** The entry as it is when the parser was not loaded at parse time. */
+function withoutAst(entry: Entry): Entry {
+  return withFeatureNodes(entry, (b) => {
+    const { feature: _f, parseError: _e, ...rest } = b as BodyBlock & {
+      feature?: unknown;
+      parseError?: unknown;
+    };
+    return rest as BodyBlock;
+  });
+}
+
+/** The entry as it is when every block failed to parse. */
+function withParseError(entry: Entry): Entry {
+  return withFeatureNodes(entry, (b) => {
+    const { feature: _f, ...rest } = b as BodyBlock & { feature?: unknown };
+    return {
+      ...rest,
+      parseError: { line: 1, column: 1, message: "forced" },
+    } as BodyBlock;
+  });
+}
+
+function fixture(lines: string[]): string {
+  return [
+    "- [REQ_A_0001] T",
+    "",
+    ...lines.map((l) => `  ${l}`),
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+}
+
+const ENGLISH_FIXTURES: Record<string, string> = {
+  "two scenarios": fixture([
+    "```gherkin",
+    "Feature: braking",
+    "  Scenario: Brake at 20 m",
+    "    Given a target",
+    "  Scenario: Brake at 30 m",
+    "```",
+  ]),
+  "no feature line": fixture([
+    "```gherkin",
+    "@tag",
+    "Scenario: Stop",
+    "  Given x",
+    "```",
+  ]),
+  "comments before first scenario": fixture([
+    "```gherkin",
+    "# a comment",
+    "@smoke",
+    "Scenario: Stop",
+    "```",
+  ]),
+  "duplicate names after normalization": fixture([
+    "```gherkin",
+    "Scenario: Brake  at 20 m",
+    "Scenario: Brake at 20 m",
+    "Scenario: Other",
+    "```",
+  ]),
+  "empty name": fixture(["```gherkin", "Scenario:", "```"]),
+  "outline, template and example": fixture([
+    "```gherkin",
+    "Feature: f",
+    "  Scenario Outline: a",
+    "    Given <x>",
+    "    Examples:",
+    "      | x |",
+    "      | 1 |",
+    "  Scenario Template: b",
+    "    Given <x>",
+    "    Examples:",
+    "      | x |",
+    "      | 1 |",
+    "  Example: c",
+    "```",
+  ]),
+  "background and rule": fixture([
+    "```gherkin",
+    "Feature: f",
+    "  Background:",
+    "    Given b",
+    "  Rule: r",
+    "    Scenario: inside rule",
+    "      Given x",
+    "```",
+  ]),
+  "doc string hides a scenario line": fixture([
+    "```gherkin",
+    "Scenario: real",
+    "  Given a text:",
+    '    """',
+    "    Scenario: fake",
+    '    """',
+    "Scenario: after",
+    "```",
+  ]),
+  "two blocks one scope": fixture([
+    "```gherkin",
+    "Scenario: same",
+    "```",
+    "",
+    "```feature",
+    "Scenario: same",
+    "```",
+  ]),
+  "tilde fence": fixture(["~~~gherkin", "Scenario: tilde", "~~~"]),
+  "non-feature fence": fixture(["```text", "Scenario: not one", "```"]),
+  "nested fence": [
+    "- [REQ_A_0001] T",
+    "",
+    "  - item",
+    "",
+    "    ```gherkin",
+    "    Scenario: nested",
+    "    ```",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n"),
+  "Scenarios: and Examples: lines": fixture([
+    "```gherkin",
+    "Feature: f",
+    "  Scenario Outline: y",
+    "    Given <a>",
+    "    Examples:",
+    "      | a |",
+    "      | 1 |",
+    "```",
+  ]),
+};
+
+for (const [label, md] of Object.entries(ENGLISH_FIXTURES)) {
+  Deno.test(`buildCriteria: AST, scanner and not-loaded paths agree: ${label}`, async () => {
+    await loadGherkin();
+    const entry = entryOf(md);
+    const features = (entry.bodyAst ?? []).filter((b) => b.kind === "feature");
+    for (const f of features) {
+      // Guard against a vacuous test: the AST path must really run.
+      assertEquals(
+        "feature" in f && f.feature !== undefined,
+        true,
+        "fixture block must carry the AST",
+      );
+    }
+    const viaAst = buildCriteria(entry);
+    assertEquals(buildCriteria(withParseError(entry)), viaAst);
+    assertEquals(buildCriteria(withoutAst(entry)), viaAst);
+  });
+}
+
+Deno.test("buildCriteria: a French block gives its scenarios from the AST", async () => {
+  await loadGherkin();
+  const md = fixture([
+    "```gherkin",
+    "# language: fr",
+    "Fonctionnalité: freinage",
+    "  Scénario: Arrêt",
+    "    Soit une cible",
+    "```",
+  ]);
+  const criteria = buildCriteria(entryOf(md));
+  assertEquals(criteria.map((c) => [c.name, c.addressable, c.location.line]), [
+    ["Arrêt", true, 6],
+  ]);
+  // Not loaded: the English scanner finds nothing (the parse gate makes this
+  // case unreachable for entries from parseFile).
+  assertEquals(buildCriteria(withoutAst(entryOf(md))), []);
+});
+
+Deno.test("buildCriteria: Scenario text in a doc string or comment is no criterion", async () => {
+  await loadGherkin();
+  const md = fixture([
+    "```gherkin",
+    "Feature: f",
+    "  The feature text mentions scenarios in prose.",
+    "  # Scenario: commented out",
+    "",
+    "  Scenario: real",
+    "    Given a text:",
+    '      """',
+    "      Scenario: fake",
+    '      """',
+    "```",
+  ]);
+  assertEquals(buildCriteria(entryOf(md)).map((c) => c.name), ["real"]);
+});
+
+Deno.test("buildCriteria: a block that does not parse keeps scanner criteria", async () => {
+  await loadGherkin();
+  const md = fixture([
+    "```gherkin",
+    "Feature: f",
+    "  Scenario: kept",
+    "  Given before any step keyword is misplaced",
+    "  Bogus line here",
+    "```",
+  ]);
+  const entry = entryOf(md);
+  const node = (entry.bodyAst ?? []).find((b) => b.kind === "feature");
+  assertEquals(
+    node !== undefined && "parseError" in node && node.parseError !== undefined,
+    true,
+    "fixture must fail to parse",
+  );
+  assertEquals(buildCriteria(entry).map((c) => [c.name, c.location.line]), [
+    ["kept", 5],
+  ]);
+});
+
+Deno.test("buildCriteria: one block per state in one entry uses its own source", async () => {
+  await loadGherkin();
+  const md = fixture([
+    "```gherkin",
+    "Scenario: good",
+    "```",
+    "",
+    "```gherkin",
+    "Scenario: broken",
+    "  Bogus line here",
+    "```",
+  ]);
+  assertEquals(buildCriteria(entryOf(md)).map((c) => c.name), [
+    "good",
+    "broken",
+  ]);
+});
+
+Deno.test("buildCriteria: outline and rule scenarios give one criterion each", async () => {
+  await loadGherkin();
+  const md = fixture([
+    "```gherkin",
+    "Feature: f",
+    "  Rule: the rule",
+    "    Scenario Outline: out",
+    "      Given <x>",
+    "      Examples:",
+    "        | x |",
+    "        | 1 |",
+    "        | 2 |",
+    "    Scenario: plain",
+    "      Given y",
+    "```",
+  ]);
+  assertEquals(buildCriteria(entryOf(md)).map((c) => c.name), [
+    "out",
+    "plain",
+  ]);
 });
