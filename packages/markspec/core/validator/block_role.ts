@@ -18,6 +18,21 @@
  *
  * The warning is reported at the file line of the `Scenario` keyword, in
  * column 1.
+ *
+ * Four information diagnostics (severity `info`) complete the checks:
+ *
+ * - `MSL-B065`: in a procedure block (an entry that is, or extends, a Test),
+ *   a step has an expected result and no action. Reported at the line of the
+ *   first expected-result step.
+ * - `MSL-B066`: a scenario starts with `And` or `But`, which is read as an
+ *   action. Reported at the line of that step. It applies to every role
+ *   except an illustration.
+ * - `MSL-B067`: in a procedure block, a `# Step` label comment labels no
+ *   step. Reported at the line of the comment.
+ * - `MSL-B068`: a feature block in a typed entry whose type has no role (an
+ *   illustration). Reported at the first line of the block.
+ *
+ * The diagnostics of one entry are sorted by file line.
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";

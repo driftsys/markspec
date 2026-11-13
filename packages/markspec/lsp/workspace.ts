@@ -14,6 +14,7 @@ import type {
 } from "../core/mod.ts";
 import {
   applyCorpusPostPass,
+  checkBlockRoles,
   checkFeatureParse,
   checkProcedureSteps,
   classifyEntry,
@@ -330,6 +331,9 @@ export class WorkspaceIndex {
       // Procedure steps with no expected result (MSL-B063). The check
       // classifies unclassified entries itself.
       ...checkProcedureSteps(allEntries, profile),
+      // Gherkin block roles (MSL-B064..B068). The check classifies
+      // unclassified entries itself.
+      ...checkBlockRoles(allEntries, profile),
     ];
   }
 

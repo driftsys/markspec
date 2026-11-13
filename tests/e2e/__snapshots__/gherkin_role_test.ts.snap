@@ -1,0 +1,93 @@
+export const snapshot = {};
+
+snapshot[`check --format json: unchanged output without a feature fence 1`] = `
+"[]
+"
+`;
+
+snapshot[`compile --format json: unchanged output without a feature fence 1`] = `
+'{
+  "entries": {
+    "REQ_BRK_0010": {
+      "displayId": "REQ_BRK_0010",
+      "title": "Braking criterion",
+      "body": "The system shall stop the vehicle.",
+      "bodyAst": [
+        {
+          "kind": "paragraph",
+          "content": {
+            "text": "The system shall stop the vehicle."
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 35
+            }
+          }
+        }
+      ],
+      "rawAttributes": [
+        {
+          "key": "Id",
+          "value": "01HGW2Q8MNP3RSTVWXYZABCDEF"
+        }
+      ],
+      "typedAttributes": {
+        "Id": [
+          "01HGW2Q8MNP3RSTVWXYZABCDEF"
+        ]
+      },
+      "id": "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "type": "requirement",
+      "shape": "Authored",
+      "location": {
+        "file": "req.md",
+        "line": 3,
+        "column": 1
+      },
+      "bodyStartLine": 5,
+      "endLine": 7,
+      "source": {
+        "kind": "markdown"
+      },
+      "properties": {
+        "file": {
+          "path": "req.md",
+          "line": 3,
+          "column": 1,
+          "mtime": "<mtime>"
+        },
+        "source": {
+          "type": "markdown"
+        }
+      },
+      "bodyTokens": [
+        {
+          "kind": "modal",
+          "text": "shall",
+          "case": "lower",
+          "location": {
+            "file": "req.md",
+            "line": 5,
+            "column": 14
+          }
+        }
+      ],
+      "derivedDiscipline": "system"
+    }
+  },
+  "links": [],
+  "forward": {},
+  "reverse": {},
+  "diagnostics": [],
+  "typeRegistry": {
+    "bindings": {},
+    "typedefs": {}
+  }
+}
+'
+`;

@@ -829,3 +829,38 @@ console.log(JSON.stringify(hits.map((d) => d.location?.line)));
 `);
   assertEquals(result, [8]);
 });
+
+Deno.test("WorkspaceIndex: validateAll reports MSL-B064 for an entry typed only by its display-ID prefix", async () => {
+  const base = testProfile();
+  const testType = base.types.get("test")!;
+  const profile: EffectiveProfile = {
+    ...base,
+    types: new Map([["req", {
+      ...testType,
+      value: {
+        ...testType.value,
+        name: "req",
+        extends: "Requirement",
+        displayIdPattern: { value: "REQ_X_{n:04d}", origin: "p" },
+      },
+    }]]),
+  };
+  const md = `- [REQ_X_0001] Braking criterion
+
+  The criterion states braking.
+
+  \`\`\`feature
+  Scenario: Stop
+    When the driver brakes
+  \`\`\`
+
+      Id: 01REQ00000000000000000010A
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  assertEquals(parsed.entries.every((e) => e.type === undefined), true);
+  const b064 = index.validateAll(profile).filter((d) => d.code === "MSL-B064");
+  assertEquals(b064.length, 1);
+  assertEquals(b064[0].location?.line, 6);
+});

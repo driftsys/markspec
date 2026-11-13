@@ -15,6 +15,7 @@ import type {
 } from "../model/mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
+import { parseFile } from "../parser/mod.ts";
 
 /** Parse each `file → markdown` pair and flatten into one Entry[] (#727). */
 function entriesOf(files: Record<string, string>): Entry[] {
@@ -1275,5 +1276,35 @@ Deno.test("runPipeline: per-type attrs (MSL-T024) see the profile-classified typ
   assertEquals(
     coreOnly.diagnostics.filter((d) => d.code === "MSL-T024").length,
     1,
+  );
+});
+
+Deno.test("runPipeline: reports MSL-B064 for a Requirement criterion with no Then", async () => {
+  const md = `- [REQ_X_0001] Braking criterion
+
+  The criterion states braking.
+
+  \`\`\`feature
+  Scenario: Stop
+    Given a moving vehicle
+    When the driver brakes
+  \`\`\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const profile = makeProfile({ req: { pattern: "REQ_X_{n:04d}" } });
+  const { entries } = await parseFile(md, { file: "t.md" });
+  // Unclassified input: the pipeline classifies by display-ID prefix.
+  assertEquals(entries.every((e) => e.type === undefined), true);
+  const result = runPipeline(entries, profile);
+  const b064 = result.diagnostics.filter((d) => d.code === "MSL-B064");
+  assertEquals(b064.map((d) => d.location?.line), [6]);
+  // Classified input gives the same result.
+  const again = runPipeline(result.entries, profile);
+  assertEquals(
+    again.diagnostics.filter((d) => d.code === "MSL-B064").map((d) =>
+      d.location?.line
+    ),
+    [6],
   );
 });
