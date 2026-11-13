@@ -169,3 +169,74 @@ Deno.test("parseFeature: an error after a language line keeps source lines", () 
   assert(!result.ok);
   assertEquals(result.line, 4);
 });
+
+Deno.test("parseFeature: finds the language line after blank lines", () => {
+  const f = feature("\n# language: fr\nScénario: S\n  Soit a\n");
+  assertEquals(f.synthetic, true);
+  assertEquals(f.language, "fr");
+  assertEquals(f.scenarios.length, 1);
+  assertEquals(f.scenarios[0].range.start.line, 3);
+  assertEquals(kinds(f), ["given"]);
+});
+
+Deno.test("parseFeature: finds the language line after a comment", () => {
+  const f = feature("# note\n# language: de\nSzenario: S\n  Angenommen a\n");
+  assertEquals(f.language, "de");
+  assertEquals(f.scenarios[0].range.start.line, 3);
+  assertEquals(kinds(f), ["given"]);
+});
+
+Deno.test("parseFeature: an empty or blank block gives no scenarios", () => {
+  for (const source of ["", "  \n\n"]) {
+    const f = feature(source);
+    assertEquals(f.synthetic, true);
+    assertEquals(f.scenarios, []);
+    assertEquals(f.sections, []);
+  }
+});
+
+Deno.test("parseFeature: an outline keyword with no Examples is an outline", () => {
+  const f = feature("Scenario Outline: O\n  Given <x>\n");
+  assertEquals(f.scenarios[0].isOutline, true);
+  assertEquals(f.scenarios[0].examples, []);
+});
+
+Deno.test("parseFeature: a tag line before a real Feature is not wrapped", () => {
+  const f = feature("@top\nFeature: F\n  Scenario: S\n    Given a\n");
+  assertEquals(f.synthetic, false);
+  assertEquals(f.tags, ["@top"]);
+  assertEquals(f.name, "F");
+  assertEquals(f.scenarios[0].range.start.line, 3);
+});
+
+Deno.test("parseFeature: range ends are exclusive columns", () => {
+  const f = feature(
+    [
+      "Scenario: S",
+      "  Given a",
+      "  And a doc  ",
+      '    """',
+      "    x",
+      '    """',
+      "  And a table",
+      "    | a | b |",
+      "    | 1 | 2 |",
+      "",
+    ].join("\n"),
+  );
+  const [plain, doc, table] = f.scenarios[0].steps;
+  // "  Given a": text ends at column 9, so the exclusive end is 10.
+  assertEquals(plain.range, {
+    start: { line: 2, column: 3 },
+    end: { line: 2, column: 10 },
+  });
+  // The doc string range ends after the closing delimiter.
+  assertEquals(doc.range.end, { line: 6, column: 8 });
+  // The table range ends after the closing pipe of the last row.
+  assertEquals(table.range.end, { line: 9, column: 14 });
+  // A section range covers the keyword and its colon.
+  assertEquals(f.sections[0].range, {
+    start: { line: 1, column: 1 },
+    end: { line: 1, column: 10 },
+  });
+});

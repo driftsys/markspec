@@ -4,7 +4,10 @@
  * Normalized AST of one Gherkin block. It is built from the parser's
  * `GherkinDocument` by {@linkcode parseFeature}. Ranges are relative to the
  * authored block text: line 1 is the first line of the source, and a
- * synthetic `Feature:` line is not counted.
+ * synthetic `Feature:` line is not counted. Lines and columns are 1-based.
+ * The end column is exclusive (one past the last character). A step with a
+ * doc string or data table ends after its last line; a scenario ends after
+ * its last step or Examples row; a section covers its keyword and colon.
  */
 
 import type { SourceRange } from "../ast/nodes.ts";

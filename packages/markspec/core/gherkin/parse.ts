@@ -11,7 +11,6 @@ import type {
   GherkinDocument,
   Scenario,
   Step,
-  TableRow,
 } from "@cucumber/messages";
 import type { GherkinApi } from "./load.ts";
 import type {
@@ -43,12 +42,20 @@ interface Wrap {
 
 function wrapSource(api: GherkinApi, source: string): Wrap {
   const lines = source.split("\n");
-  const first = lines[0]?.replace(/\r$/, "") ?? "";
-  const languageMatch = LANGUAGE_RE.exec(first);
-  const language = languageMatch?.[1] ?? "en";
-  const dialect = api.dialects[language];
-  const featureWords = dialect?.feature ?? ["Feature"];
-  const start = languageMatch ? 1 : 0;
+  // The language comment may follow blank or comment lines, as in the parser.
+  let start = 0;
+  let language = "en";
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed !== "" && !trimmed.startsWith("#")) break;
+    const match = LANGUAGE_RE.exec(lines[i].replace(/\r$/, ""));
+    if (match) {
+      language = match[1];
+      start = i + 1;
+      break;
+    }
+  }
+  const featureWords = api.dialects[language]?.feature ?? ["Feature"];
   for (let i = start; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (
@@ -98,6 +105,10 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
     };
   }
 
+  const sourceLines = source.split("\n");
+  // Exclusive end column of a source line, after trailing whitespace.
+  const lineEnd = (line: number): number =>
+    (sourceLines[line - 1] ?? "").trimEnd().length + 1;
   const sections: SectionAst[] = [];
   const synthetic = wrap.syntheticLine > 0;
   const section = (keyword: string, at: Loc) => {
@@ -124,14 +135,13 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
         ? 0
         : s.docString.content.split("\n").length;
       endLine = shift(s.docString.location.line) + contentLines + 1;
-      endColumn = (s.docString.location.column ?? 1) +
-        s.docString.delimiter.length;
+      endColumn = lineEnd(endLine);
     }
     if (s.dataTable) {
       const last = s.dataTable.rows[s.dataTable.rows.length - 1];
       if (last) {
         endLine = shift(last.location.line);
-        endColumn = lastCellEnd(last);
+        endColumn = lineEnd(endLine);
       }
     }
     return {
@@ -174,7 +184,10 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
       range: {
         start: { line: start, column: e.location.column ?? 1 },
         end: lastRow
-          ? { line: shift(lastRow.location.line), column: lastCellEnd(lastRow) }
+          ? {
+            line: shift(lastRow.location.line),
+            column: lineEnd(shift(lastRow.location.line)),
+          }
           : {
             line: start,
             column: (e.location.column ?? 1) + e.keyword.length + 1,
@@ -266,17 +279,15 @@ interface Loc {
   readonly column?: number;
 }
 
-function lastCellEnd(row: TableRow): number {
-  const last = row.cells[row.cells.length - 1];
-  return last ? (last.location.column ?? 1) + last.value.length : 1;
-}
-
 function normalizeStep(
   api: GherkinApi,
   language: string,
   s: Step,
 ): StepKeyword {
   const type = s.keywordType ?? "Unknown";
+  // The parser reports And and But alike as Conjunction. A dialect may use
+  // one word for both; such a word counts as `but` only when it is in the
+  // `but` table, so a shared word is normalized as `but`.
   if (type !== "Conjunction") return KEYWORD_BY_TYPE[type] ?? "step";
   const but = api.dialects[language]?.but ?? ["But "];
   return but.some((word) => word.trim() === s.keyword.trim()) ? "but" : "and";
