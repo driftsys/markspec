@@ -1676,21 +1676,21 @@ Existence and cardinality rules for the targets of trace-relation links.
 | `MSL-L008` | warning  | A locator on a trace relation that does not accept one. Only `References:`, `Derived-from:`, `Satisfies:` and `Verifies:` accept a locator.                      |
 | `MSL-L009` | warning  | A trace value has a `[` after whitespace that no `]` closes. The value has no locator, and commas after the `[` do not separate values.                          |
 
-A trace value can carry a locator after its target:
-`Verifies: REQ_BRK_0010
-[Brake at 20 m]`. The locator does not change the link
-target: the link goes to `REQ_BRK_0010` whether the locator resolves or not, and
-`MSL-L006` checks the target only. A locator on a target that does not resolve
-raises `MSL-L006` and never `MSL-L007`. A locator on a target that carries no
-scenarios (an entry that is not a Requirement or Contract, or a Reference entry)
-is free text and raises no `MSL-L007`. `MSL-L008` keeps the link to the target
-and ignores the locator.
+A trace value can carry a locator after its target, as in the value
+`REQ_BRK_0010 [Brake at 20 m]` of a `Verifies:` attribute (see
+[Locators](../model/relations.md#locators)). The locator does not change the
+link target: the link goes to `REQ_BRK_0010` whether the locator resolves or
+not, and `MSL-L006` checks the target only. A locator on a target that does not
+resolve raises `MSL-L006` and never `MSL-L007`. A locator on a target that
+carries no scenarios (an entry that is not a Requirement or Contract, or a
+Reference entry) is free text and raises no `MSL-L007`. `MSL-L008` keeps the
+link to the target and ignores the locator. A locator that names a scenario name
+used more than once in the target is not addressable and raises `MSL-L007`.
 
 A `Satisfies:`, `Verifies:`, `Derived-from:` or `References:` value without a
 locator links to its first whitespace-separated token. Text after that token is
 not part of the target: `Satisfies: SYS_BRK_0042 (braking)` links to
-`SYS_BRK_0042`. Before locators existed, the whole value was the target, so the
-link did not resolve.
+`SYS_BRK_0042`.
 
 ### 8.5 References (MSL-M)
 

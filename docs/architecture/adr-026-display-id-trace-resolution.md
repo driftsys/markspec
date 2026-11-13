@@ -104,9 +104,18 @@ authored-target = "SYS_BRK_0042"
 ```
 
 `lock --check` round-trips the ledger deterministically (edges sorted by
-`(sourceUlid, relation, authoredTarget)`). The existing `edges-hash` /
-`edges-count` integrity metadata is unchanged — the ledger is identity
-provenance, not a graph-drift signal.
+`(sourceUlid, relation, authoredTarget, locator, targetUlid)`). The existing
+`edges-hash` / `edges-count` integrity metadata keeps its meaning — the ledger
+is identity provenance, not a graph-drift signal.
+
+**Amendment (scenario locators, epic #915).** `LockEdge` gains an optional
+`locator` field, written as a `locator` key on `[[edge]]` only when the authored
+value has a bracket locator (`Satisfies: STK_1 [AC one]`). It is the normalized
+locator text. A missing locator sorts as the empty string. The edges hash covers
+the locator, so it changes only for a project that uses locators; a project
+without them keeps its hash. A value with free text before or after the locator
+produces unresolved fragment rows, as a plain value with free text did before.
+See the [lockfile specification](../spec/internal/markspec-lockfile.md) §3.1.
 
 ### D5 — All source write-back lives in `fmt`
 
@@ -205,7 +214,8 @@ should map `MSL-L006` to the eventual per-relation T-family codes.
 The `[[edge]]` ledger is additive and does not change the lockfile's integrity
 semantics. Specifically:
 
-- `generated-cache.edges-hash` and `edges-count` are **unchanged**.
+- `generated-cache.edges-hash` and `edges-count` keep their meaning. The hash
+  changes only for a project whose trace values carry locators.
 - `checkDrift` (MSL-L212, display-ID hash) is **unchanged**.
 - Old lockfiles without `[[edge]]` tables parse without error (`edges: []`
   default in the parser).

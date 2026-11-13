@@ -110,6 +110,7 @@ source-ulid = "01J…SRC" # stable ULID of the edge's source entry
 relation = "Satisfies"
 target-ulid = "01J…TGT" # stable ULID of the resolved target; omitted when unresolved
 authored-target = "SYS_BRK_0042" # the display ID (or ULID) as authored at lock time
+locator = "Brake at 20 m" # normalized scenario locator; written only when the value has one
 
 [generated-cache] # §3 — generated inverse-edge cache
 edges-hash = "sha256:…" # digest of edges.ndjson (compile-output §4.6) at lock time
@@ -150,6 +151,27 @@ question ("what stable identity did this edge point at last time"). An
 unresolved target omits `target-ulid` and is also surfaced by `MSL-L006` at
 `markspec check`. `markspec lock` writes the ledger; `markspec fmt` reads it and
 is the only command that edits source.
+
+An edge row carries an optional `locator` key: the normalized locator of the
+authored value (`Satisfies: STK_1 [AC one]` records `authored-target = "STK_1"`
+and `locator = "AC one"`). The key is written only when the value has a locator,
+and the parser reads a row without it. Rows are sorted by
+`(sourceUlid,
+relation, authoredTarget, locator, targetUlid)`, and a missing
+locator sorts as the empty string. The edge hash (`generated-cache.edges-hash`)
+covers the locator, so it changes only for a project that uses locators. A
+project without locators keeps its previous hash.
+
+The ledger covers the core relations that record an edge (every core relation
+except `Verifies`, `Mitigated-by` and `Affects`) and the hand-written
+`Verified-by` attribute. A `Verifies:` value is not a ledger edge, so its
+locator is not recorded here.
+
+A value with a closed locator yields one row with that locator. A value with
+free text before the locator (`ISO-1 §4.3 [loc]`) or after it has no valid
+target form: the ledger splits the text on whitespace and records each fragment
+as an authored target without a `target-ulid`, as it does for any plain value
+with free text.
 
 ## 4. Update mechanics
 
