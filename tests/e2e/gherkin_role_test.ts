@@ -81,10 +81,20 @@ Deno.test("check --format json: unchanged output without a feature fence", async
   await assertSnapshot(t, stdout);
 });
 
+// A second entry that satisfies the first, so the snapshot pins link output.
+const LINKED = `${PLAIN}
+- [REQ_BRK_0020] Braking distance
+
+  The system shall stop the vehicle within 40 m.
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+      Satisfies: REQ_BRK_0010
+`;
+
 Deno.test("compile --format json: unchanged output without a feature fence", async (t) => {
   const { code, stdout, stderr } = await markspec(
     ["compile", "--format", "json", "req.md"],
-    { files: projectFiles(PLAIN) },
+    { files: projectFiles(LINKED) },
   );
   assertEquals(code, 0, stderr);
   // Normalise temp-dir paths and file modification times.

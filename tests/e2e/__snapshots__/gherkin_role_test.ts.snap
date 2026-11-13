@@ -78,11 +78,126 @@ snapshot[`compile --format json: unchanged output without a feature fence 1`] = 
         }
       ],
       "derivedDiscipline": "system"
+    },
+    "REQ_BRK_0020": {
+      "displayId": "REQ_BRK_0020",
+      "title": "Braking distance",
+      "body": "The system shall stop the vehicle within 40 m.",
+      "bodyAst": [
+        {
+          "kind": "paragraph",
+          "content": {
+            "text": "The system shall stop the vehicle within 40 m."
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 47
+            }
+          }
+        }
+      ],
+      "rawAttributes": [
+        {
+          "key": "Id",
+          "value": "01HGW2Q8MNP3RSTVWXYZABCDEG"
+        },
+        {
+          "key": "Satisfies",
+          "value": "REQ_BRK_0010"
+        }
+      ],
+      "typedAttributes": {
+        "Id": [
+          "01HGW2Q8MNP3RSTVWXYZABCDEG"
+        ],
+        "Satisfies": [
+          "REQ_BRK_0010"
+        ]
+      },
+      "id": "01HGW2Q8MNP3RSTVWXYZABCDEG",
+      "type": "requirement",
+      "shape": "Authored",
+      "location": {
+        "file": "req.md",
+        "line": 9,
+        "column": 1
+      },
+      "bodyStartLine": 11,
+      "endLine": 14,
+      "source": {
+        "kind": "markdown"
+      },
+      "properties": {
+        "file": {
+          "path": "req.md",
+          "line": 9,
+          "column": 1,
+          "mtime": "<mtime>"
+        },
+        "source": {
+          "type": "markdown"
+        }
+      },
+      "bodyTokens": [
+        {
+          "kind": "modal",
+          "text": "shall",
+          "case": "lower",
+          "location": {
+            "file": "req.md",
+            "line": 11,
+            "column": 14
+          }
+        }
+      ],
+      "derivedDiscipline": "system"
     }
   },
-  "links": [],
-  "forward": {},
-  "reverse": {},
+  "links": [
+    {
+      "from": "REQ_BRK_0020",
+      "to": "REQ_BRK_0010",
+      "kind": "satisfies",
+      "location": {
+        "file": "req.md",
+        "line": 9,
+        "column": 1
+      }
+    }
+  ],
+  "forward": {
+    "REQ_BRK_0020": [
+      {
+        "from": "REQ_BRK_0020",
+        "to": "REQ_BRK_0010",
+        "kind": "satisfies",
+        "location": {
+          "file": "req.md",
+          "line": 9,
+          "column": 1
+        }
+      }
+    ]
+  },
+  "reverse": {
+    "REQ_BRK_0010": [
+      {
+        "from": "REQ_BRK_0020",
+        "to": "REQ_BRK_0010",
+        "kind": "satisfies",
+        "location": {
+          "file": "req.md",
+          "line": 9,
+          "column": 1
+        }
+      }
+    ]
+  },
   "diagnostics": [],
   "typeRegistry": {
     "bindings": {},
