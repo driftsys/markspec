@@ -11,10 +11,12 @@ Related: [ADR-012](adr-012-diagnostic-code-scheme.md),
 
 Fenced `gherkin` and `feature` blocks were read by regular expressions (body
 tokens) and by a line scanner (criteria). Both knew English keywords only, and
-neither understood doc strings, tags or `# language:` lines. The epic needs a
-real Gherkin AST as the base for later slices (procedure view, roles, `.feature`
-entries). The parser must not slow down projects that have no Gherkin, and
-`parse()` must stay synchronous.
+neither understood tags or `# language:` lines. The body-token regular
+expressions also matched keywords inside doc strings; the scanner already
+skipped doc strings (ADR-037 Decision 4). The epic needs a real Gherkin AST as
+the base for later slices (procedure view, roles, `.feature` entries). The
+parser must not slow down projects that have no Gherkin, and `parse()` must stay
+synchronous.
 
 ## Options considered
 
@@ -44,10 +46,15 @@ entries). The parser must not slow down projects that have no Gherkin, and
    `@dprint/*`. A later chore moves the pins.
 2. **Lazy loading.** `parseFile` awaits the cached `loadGherkin()` before the
    synchronous parse, only when the text holds a `gherkin` or `feature` fence.
-   The synchronous `parse()` fills the AST only when the parser is already
-   loaded. `loadGherkin` is exported from `core/mod.ts` so a caller of `parse()`
-   can preload. A project with no such fence never loads the parser, and its
-   output is unchanged.
+   The fence may follow spaces, blockquote markers, doc-comment prefixes and
+   list markers (`-`, `*`, `+`, `1.`, `1)`) on its own line, and the info word
+   must end at whitespace or the end of the line, so `gherkin-json` does not
+   load the parser. When the import fails, `parseFile` continues without the AST
+   (Decision 4 applies) and the failure is not cached, so a later file tries
+   again. The synchronous `parse()` fills the AST only when the parser is
+   already loaded. `loadGherkin` is exported from `core/mod.ts` so a caller of
+   `parse()` can preload. A project with no such fence never loads the parser,
+   and its output is unchanged.
 3. **Parse gate.** When the parser is loaded, each `FeatureNode` has exactly one
    of `feature` (the normalized `FeatureAst`) and `parseError`. When it is not
    loaded, it has neither. `FeatureNode.source` always holds the authored text.
@@ -58,19 +65,25 @@ entries). The parser must not slow down projects that have no Gherkin, and
    while the parser is not loaded, criteria come from the line scanner of
    ADR-037, which reads English keywords only.
 5. **Diagnostic.** `MSL-B062` (warning, body family) reports a block that does
-   not parse, on any entry type, at the file line of the first parser error.
+   not parse, on any entry type, at the file line of the first parser error. It
+   checks a feature block anywhere in the entry body, also one nested in a list
+   item. Criteria are still read from top-level blocks only (ADR-037), so a
+   nested block gets the warning but gives no criteria.
 6. **Consumers.** Body tokens (ADR-016 amendment) and `Entry.criteria` (ADR-037
-   amendment) read the AST. Positions in the AST are file-relative, including
-   through the `LineMap` of source doc comments. A block with no `Feature:` line
-   is read with a synthetic line placed after the `# language:` line, and that
-   line is not counted in any position.
+   amendment) read the AST. Ranges in the AST are relative to the block: line 1
+   is the first line of `FeatureNode.source`. `featureFileLine` maps a block
+   line to a file line, including through the `LineMap` of source doc comments,
+   and the body-token builder emits file positions. A block with no `Feature:`
+   line is read with a synthetic line placed after the `# language:` line, and
+   that line is not counted in any position.
 
 ## Consequences
 
 - Feature blocks in any language that Gherkin supports give criteria and body
   tokens.
 - A project with Gherkin loads the parser once per process. Code that builds
-  entries with the synchronous `parse()` without preloading gets the scanner.
+  entries with the synchronous `parse()` gets the AST only when the parser is
+  already loaded in the process; otherwise it gets the scanner.
 - Later slices (procedure view, role diagnostics, `.feature` entries, LSP) build
   on `FeatureAst` and are not part of this decision.
 

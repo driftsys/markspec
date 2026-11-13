@@ -160,4 +160,5 @@ explicit.
 `FeatureNode`. Both are pure functions of `source`, which is still compared, and
 they exist only while the Gherkin parser is loaded. Comparing them would make
 equivalence depend on whether the parser was loaded when each tree was built.
-The `range` field stays ignored, as before. See ADR-016 for the Gherkin AST.
+The `range` field stays ignored, as before. See
+[ADR-038](adr-038-gherkin-ast.md) for the Gherkin AST.

@@ -15,9 +15,9 @@
  *
  * `parseFile` loads the parser before it parses a text with a gherkin fence,
  * so every entry that reaches the compiler, the validator and the reporter
- * carries the AST or a `parseError`. The scanner for the not-loaded case only
- * keeps English results equal in code that builds entries with the
- * synchronous `parse()`.
+ * carries the AST or a `parseError`, unless the parser import failed. The
+ * scanner for the not-loaded case covers that failure and code that builds
+ * entries with the synchronous `parse()` before any load.
  */
 
 import type { BodyBlock, FeatureNode } from "../ast/nodes.ts";

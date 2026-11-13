@@ -101,8 +101,10 @@ relation remains the formatter's correctness gate and is not affected.
    trim to `$$`, plus their interiors), and outside inline math (`$$ … $$` on a
    single line). Inside `` ```feature `` / `` ```gherkin `` fences,
    modal/EARS/entity-ref/inline-code scans are suppressed and the
-   gherkin-section/gherkin-step scans run instead — "When the user clicks"
-   inside a Given step is a `gherkin-step`, not an `ears-trigger`.
+   gherkin-section/gherkin-step scans run instead — in "Given the screen shows a
+   list", `Given` is a `gherkin-step`, and "When" in "Given When the user
+   clicks" is no `ears-trigger`. (Amended by ADR-038: Gherkin tokens now come
+   from the Gherkin AST, so a keyword inside step text gives no token.)
 
    This rule unifies behaviour that today diverges per consumer
    (`entity_refs.ts` excludes verbatim regions via the AST; the LSP scanner does
@@ -337,8 +339,9 @@ expressions or a scanner produce them, this section applies.
   no scenario.
 - The tokens exist only when the Gherkin parser was loaded before the entry was
   built. `parseFile` loads it when the text holds a `gherkin` or `feature`
-  fence. The synchronous `parse()` does not load it, so a feature node built
-  that way has no `feature` and gives no Gherkin tokens.
+  fence. The synchronous `parse()` never loads it, but uses it when it is
+  already loaded in the process; otherwise a feature node built with `parse()`
+  has no `feature` and gives no Gherkin tokens.
 - A block with a parse error (`FeatureNode.parseError`, reported as `MSL-B062`)
   gives no Gherkin tokens.
 - Modal, EARS, entity-ref and inline-code tokens never depend on the parser.

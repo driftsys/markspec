@@ -184,8 +184,10 @@ loads Typst WASM. `markspec book build` never loads ReqIF.
 **The Gherkin parser loads lazily.** `core/gherkin/load.ts` imports
 `@cucumber/gherkin` dynamically. `parseFile` loads it only when the text holds a
 fenced `gherkin` or `feature` block, so a run over files without such a block
-never loads it. The synchronous `parse()` does not load it; an entry built that
-way has no Gherkin AST, Gherkin body tokens, or `MSL-B062`.
+never loads it. The synchronous `parse()` never loads it, but it uses the parser
+when an earlier call (`loadGherkin()` or `parseFile`) has loaded it in the same
+process; otherwise an entry built with `parse()` has no Gherkin AST, no Gherkin
+body tokens, and no `MSL-B062`.
 
 **One compile target — one binary:**
 

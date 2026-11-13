@@ -21,8 +21,9 @@
  * `emittableEntries` skips them.
  *
  * Only a block that the Gherkin parser rejected carries `parseError`. When
- * the parser was not loaded (the synchronous `parse()` path), no block has
- * one and nothing is reported.
+ * the parser was not loaded when the entry was built (a failed import, or
+ * the synchronous `parse()` before any load), no block has one and nothing
+ * is reported.
  */
 
 import type { Diagnostic, Entry } from "../model/mod.ts";

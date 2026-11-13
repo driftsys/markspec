@@ -1812,11 +1812,11 @@ any position.
 Free text between a scenario line and its first step is the description of the
 scenario, not an error.
 
-| ID         | Severity | Rule                                                                                                                                                                                                                               |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry. Reported on the second and later occurrences, at column 1 of the scenario line. A locator cannot address that name.              |
-| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. Reported at column 1 of the scenario line. A locator cannot address it.                                                                        |
-| `MSL-B062` | warning  | A feature block of an entry of any type does not parse as Gherkin. Reported at the file line of the first parser error, at column 1. The scenario names of that block are read by a line scanner that knows English keywords only. |
+| ID         | Severity | Rule                                                                                                                                                                                                                                                                            |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry. Reported on the second and later occurrences, at column 1 of the scenario line. A locator cannot address that name.                                                           |
+| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. Reported at column 1 of the scenario line. A locator cannot address it.                                                                                                                     |
+| `MSL-B062` | warning  | A feature block of an entry of any type, also one nested in a list item, does not parse as Gherkin. Reported at the file line of the first parser error, at column 1. The scenario names of a top-level block are then read by a line scanner that knows English keywords only. |
 
 ---
 
