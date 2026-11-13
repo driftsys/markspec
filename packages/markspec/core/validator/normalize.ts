@@ -34,7 +34,7 @@ export function normalizeListValues(
   for (const [name, values] of entry.typedAttributes) {
     const decl = scope.attributes.get(name);
     if (decl !== undefined && LIST_TYPES.has(decl.type)) {
-      const split = splitListValues(values);
+      const split = splitListValues(values, decl.type === "id-list");
       if (!arraysEqual(split, values)) {
         rewritten.set(name, split);
         anyChange = true;
@@ -48,11 +48,17 @@ export function normalizeListValues(
   return { ...entry, typedAttributes: rewritten };
 }
 
-function splitListValues(values: readonly string[]): readonly string[] {
+function splitListValues(
+  values: readonly string[],
+  isTraceList: boolean,
+): readonly string[] {
   const out: string[] = [];
   for (const v of values) {
-    // Commas inside a bracket locator (`A [x, y]`) do not split.
-    const parts = splitTraceValues(v);
+    // In a trace list, commas inside a bracket locator (`A [x, y]`) do not
+    // split. Other lists (tag-list) split on every comma.
+    const parts = isTraceList
+      ? splitTraceValues(v)
+      : v.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
     if (parts.length === 0) continue;
     out.push(...parts);
   }

@@ -105,8 +105,9 @@ function serializeTypeRegistry(
 /**
  * Convert an {@linkcode Entry} to a JSON-safe {@linkcode SerializedEntry} by
  * replacing `typedAttributes` (a `ReadonlyMap`) with a plain
- * `Record<string, readonly string[]>`, and stripping `properties.sync`
- * (privacy rule — never publish connector state).
+ * `Record<string, readonly string[]>`, stripping `properties.sync`
+ * (privacy rule — never publish connector state), and dropping
+ * `attributeLines` (a parser aid for diagnostic locations).
  */
 export function serializeEntry(entry: Entry): SerializedEntry {
   // Replace the ReadonlyMap with a plain Record when populated; omit when empty
@@ -128,7 +129,9 @@ export function serializeEntry(entry: Entry): SerializedEntry {
   // from a delivered corpus, matching the serialized-field-presence
   // contract. Object rest destructuring drops the named key regardless
   // of its value, unlike `...entry` alone.
-  const { origin, ...rest } = entry;
+  // `attributeLines` is a parser aid for diagnostic locations, not part
+  // of the compiled schema.
+  const { origin, attributeLines: _attributeLines, ...rest } = entry;
 
   return {
     ...rest,

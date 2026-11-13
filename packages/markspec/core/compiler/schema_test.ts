@@ -324,3 +324,18 @@ Deno.test("serializeCompileResult propagates derivedDiscipline to JSON entries",
     );
   }
 });
+
+Deno.test("serializeEntry: drops attributeLines", () => {
+  const entry: Entry = { ...makeEntry("REQ_1"), attributeLines: [5, 6] };
+  const json = JSON.parse(JSON.stringify(serializeEntry(entry)));
+  assertEquals("attributeLines" in json, false);
+});
+
+Deno.test("compile: compiled JSON has no attributeLines", async () => {
+  const md = "- [REQ_1] T\n\n  Body.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n";
+  const result = await compile(["/a.md"], {
+    readFile: () => Promise.resolve(md),
+  });
+  const json = JSON.stringify(serializeCompileResult(result));
+  assertEquals(json.includes("attributeLines"), false);
+});

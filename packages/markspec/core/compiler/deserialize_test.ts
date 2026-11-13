@@ -28,7 +28,9 @@ Deno.test("deserializeEntry: JSON wire round-trip preserves the entry", async ()
   const { entries } = await parseFile(FIXTURE, { file: "/proj/sample.md" });
   for (const entry of entries) {
     const wire = JSON.parse(JSON.stringify(serializeEntry(entry)));
-    assertEquals(deserializeEntry(wire), entry);
+    // `attributeLines` is a parser aid that the compiled schema omits.
+    const { attributeLines: _lines, ...published } = entry;
+    assertEquals(deserializeEntry(wire), published);
   }
 });
 

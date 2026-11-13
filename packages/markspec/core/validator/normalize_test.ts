@@ -242,3 +242,23 @@ Deno.test("normalizeListValues: type-scope declarations are considered", () => {
   const out = normalizeListValues(classified, p);
   assertEquals(out.typedAttributes.get("Verifies"), ["REQ-0001", "REQ-0002"]);
 });
+
+Deno.test("normalizeListValues: tag-list splits on a comma inside brackets", () => {
+  const p = profile({ universalAttrs: [tagListAttr] });
+  const e = entry({ shape: "Authored", attrs: { Labels: ["a [b, c]"] } });
+  const out = normalizeListValues(e, p);
+  assertEquals(out.typedAttributes.get("Labels"), ["a [b", "c]"]);
+});
+
+Deno.test("normalizeListValues: id-list keeps a comma inside a locator", () => {
+  const p = profile({ universalAttrs: [idListAttr] });
+  const e = entry({
+    shape: "Authored",
+    attrs: { Verifies: ["REQ-0001 [x, y], REQ-0002"] },
+  });
+  const out = normalizeListValues(e, p);
+  assertEquals(out.typedAttributes.get("Verifies"), [
+    "REQ-0001 [x, y]",
+    "REQ-0002",
+  ]);
+});
