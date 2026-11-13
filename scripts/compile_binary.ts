@@ -130,8 +130,12 @@ async function runDenoCompile(mirrors: readonly Mirror[]): Promise<number> {
       "--allow-run",
       "--allow-env",
       "--allow-ffi",
-      // `markspec desk --serve` listens on loopback only.
-      "--allow-net=127.0.0.1",
+      // Network access cannot be limited to a fixed host list:
+      // `markspec self-upgrade` needs the GitHub API and the release download
+      // hosts, `markspec lock` fetches the upstream snapshot URLs declared in
+      // the user's project.yaml (hosts unknown at compile time), and
+      // `markspec desk --serve` listens on loopback.
+      "--allow-net",
       ...(target ? ["--target", target] : []),
       "--include",
       "grammars/",
