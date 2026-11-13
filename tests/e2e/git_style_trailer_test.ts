@@ -69,7 +69,7 @@ Deno.test("check: project gate reports a git-style trailer as MSL-F010 drift", a
     files: { ...PROJECT, "docs/req.md": GIT_STYLE },
   });
   assertStringIncludes(stderr, "MSL-F010");
-  assertStringIncludes(stderr, "markspec fmt");
+  assertStringIncludes(stderr, "file is not formatted");
 });
 
 Deno.test("fmt then check: the rewritten project is clean of MSL-P023 and MSL-F010", async () => {
@@ -96,8 +96,6 @@ Deno.test("check: non-core keys without Id stay body text, no trailer warning", 
 
   Note: keep this
   Status: draft
-
-      Id: ${ULID}
 `,
   });
   assertEquals(stderr.includes("MSL-P023"), false, stderr);

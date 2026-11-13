@@ -27,8 +27,9 @@
  *     trailer block, matching what `markspec fmt` drops. Other P021
  *     shapes get no fix.
  *   - **MSL-P023** — git-style trailer block that is not indented. Action:
- *     add 4 columns of indentation to every line of the trailer block, which
- *     is what `markspec fmt` does.
+ *     re-indent exactly the trailer lines (found by the formatter's shared
+ *     trailer detection) to the list-item indent plus 4 columns, the same
+ *     layout `markspec fmt` writes.
  *   - **MSL-L010** — lockfile reference entry has no `Reference-url:`.
  *     Action: insert a placeholder `Reference-url:` trailer line.
  *   - **MSL-S002** — sync attribute mapping has `locked: true` but
@@ -40,6 +41,7 @@
  */
 
 import { CORE_ABSTRACT_TYPES, CORE_CONCRETE_TYPES } from "../core/model/mod.ts";
+import { findAttributeBlockRange, parse } from "../core/mod.ts";
 
 /** A subset of the LSP `Diagnostic` interface — just what the
  * code-action walker needs. */
@@ -223,19 +225,42 @@ function buildP023Fix(
   diag: LspDiagnosticLike,
   documentText: string,
 ): CodeAction | undefined {
-  // The diagnostic points at the first line of the git-style trailer; the
-  // block runs to the next blank line. Each line gets 4 more columns, which
-  // turns the list-item indent into the canonical trailer indent.
+  // The diagnostic points at the first trailer line. Find the entry that
+  // holds it, then let the formatter's trailer detection (shared with the
+  // parser) bound the block, so a following list item or heading is never
+  // touched. Each trailer line gets the list-item indent plus 4 columns,
+  // the canonical layout `markspec fmt` writes.
   const lines = documentText.split("\n");
+  const target = diag.range.start.line;
+  let entryLine: number | undefined;
+  for (const entry of parse(documentText)) {
+    if (entry.location.line - 1 <= target) {
+      if (entryLine === undefined || entry.location.line > entryLine) {
+        entryLine = entry.location.line;
+      }
+    }
+  }
+  if (entryLine === undefined) return undefined;
+  const indent = lines[entryLine - 1].indexOf("[");
+  if (indent < 0) return undefined;
+  const range = findAttributeBlockRange(lines, entryLine, indent);
+  if (!range || target < range.start || target >= range.end) return undefined;
+  // A continuation line cannot be re-indented without changing its
+  // meaning, and fmt leaves such a trailer as it is (MSL-P021).
+  for (let i = range.start; i < range.end; i++) {
+    if (!/^[A-Z][A-Za-z-]*:/.test(lines[i].trimStart())) return undefined;
+  }
+  const prefix = " ".repeat(indent + 4);
   const edits: TextEdit[] = [];
-  for (let i = diag.range.start.line; i < lines.length; i++) {
-    if (lines[i].trim() === "") break;
+  for (let i = range.start; i < range.end; i++) {
+    const lead = lines[i].length - lines[i].trimStart().length;
+    if (lines[i].slice(0, lead) === prefix) continue;
     edits.push({
       range: {
         start: { line: i, character: 0 },
-        end: { line: i, character: 0 },
+        end: { line: i, character: lead },
       },
-      newText: "    ",
+      newText: prefix,
     });
   }
   if (edits.length === 0) return undefined;

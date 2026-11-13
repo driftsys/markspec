@@ -357,21 +357,29 @@ block with no attribute meaning. Authors must place attributes at the very end
 of the entry.
 
 **Unindented trailers.** The parser also accepts a trailer that is not indented,
-in two shapes. `markspec fmt` rewrites both to the canonical indented block
-after a blank line, and keeps the `Id:` value.
+in two shapes. In a Markdown file, `markspec fmt` rewrites both to the canonical
+indented block after a blank line, and keeps the `Id:` value. `markspec fmt`
+does not rewrite source files, so a source doc comment keeps its git-style
+trailer.
 
 - **Git-style trailer.** The final paragraph of the entry, after a blank line,
   when every line is `Key: Value` and the paragraph holds an `Id:` line or uses
   only core trailer keys (Part 2 §2.1 universal attributes and the core trace
   relations). This is the shape that `git interpret-trailers` reads. The parser
   has no profile, so a key that only a profile declares qualifies only through
-  the `Id:` line. In Markdown, `check` reports it as `MSL-P023` (warning) at the
-  first line of the block. In a source doc comment it is a valid alternative to
-  the indented block and raises no diagnostic.
+  the `Id:` line. In Markdown, `check` reports `MSL-P023` (warning) at the first
+  line of the block when any trailer line is indented less than 4 columns past
+  the list-item content. `MSL-P023` is not reported when a trailer line ends
+  with the legacy trailing `\` (that shape has its own diagnostic). In a source
+  doc comment the git-style trailer is a valid alternative to the indented block
+  and raises no diagnostic.
 - **Run under prose.** A run of `Key: Value` lines directly under body prose,
   with no blank line, when any line of the run is an `Id:` line, indented or
   not. The `Id:` line shows that the run is a trailer, so the entry keeps its
   identity. `check` reports it as `MSL-P020` (warning), and not as `MSL-P023`.
+
+A git-style trailer in Markdown. This is not the canonical layout: `check`
+reports `MSL-P023`, and `markspec fmt` indents the two trailer lines.
 
 ```markdown
 - [SRS_BRK_0001] Sensor debouncing
@@ -391,7 +399,9 @@ unindented shapes, and emits a deprecation diagnostic
 ends with `\` or `,` stays in the trailer, but each attribute takes exactly one
 line, so the line is not read as part of a value. `check` reports it as
 `MSL-P021` (error), and `markspec fmt` leaves the whole trailer unchanged: it
-drops no line and stamps no `Id:`.
+drops no line and stamps no replacement `Id:`. This is intended: a trailer with
+a continuation line is still the trailer, so its `Id:` is never lost. Multi-line
+attribute values are not part of the trailer rule.
 
 Any other trailing `Key: value` line is body prose: for example `Status: draft`
 directly under a prose line, or a final paragraph of `Rationale:` and `Note:`

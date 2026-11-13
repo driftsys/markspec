@@ -1197,6 +1197,47 @@ Deno.test("parseMarkdown: git-style trailer warns MSL-P023 at its first line", (
   assertEquals(found.length, 1);
   assertEquals(found[0].severity, "warning");
   assertEquals(found[0].location?.line, 5);
+  assertEquals(found[0].location?.column, 3);
+});
+
+/** MSL-P023 diagnostics of `md`, as `[line, column]` pairs. */
+function p023At(md: string): Array<[number?, number?]> {
+  return parseMarkdown(md, { file: "a.md" }).diagnostics
+    .filter((d) => d.code === "MSL-P023")
+    .map((d) => [d.location?.line, d.location?.column]);
+}
+
+Deno.test("parseMarkdown: a tab-led git-style trailer warns MSL-P023", () => {
+  const md =
+    `- [REQ-001] Title\n\n  Body text.\n\n\tId: ${ULID}\n\tSatisfies: REQ-002\n`;
+  const entry = parseMarkdown(md).entries[0];
+  assertEquals(entry.id, ULID);
+  assertEquals(p023At(md), [[5, 2]]);
+});
+
+Deno.test("parseMarkdown: MSL-P023 measures from a wide list marker's content", () => {
+  const md = `-   [REQ-001] Title
+
+    Body text.
+
+    Id: ${ULID}
+    Satisfies: REQ-002
+`;
+  assertEquals(p023At(md), [[5, 5]]);
+  const indented = md.replace(/\n {4}(Id|Satisfies)/g, "\n        $1");
+  assertEquals(p023At(indented), []);
+});
+
+Deno.test("parseMarkdown: a trailer with a later unindented line warns MSL-P023", () => {
+  const md = `- [REQ-001] Title
+
+  Body text.
+
+      Id: ${ULID}
+  Satisfies: REQ-002
+`;
+  assertEquals(parseMarkdown(md).entries[0].id, ULID);
+  assertEquals(p023At(md), [[5, 7]]);
 });
 
 Deno.test("parseMarkdown: indented trailer raises no MSL-P023", () => {
@@ -1224,6 +1265,7 @@ Deno.test("parseMarkdown: non-core keys without Id stay body, no MSL-P023", () =
 `;
   const { entries: [entry], diagnostics } = parseMarkdown(md);
   assertEquals(entry.rawAttributes.length, 0);
+  assertEquals(entry.body, "Body text.\n\nNote: keep this\nStatus: draft");
   assertEquals(diagnostics.filter((d) => d.code === "MSL-P023").length, 0);
 });
 

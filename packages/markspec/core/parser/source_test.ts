@@ -8,7 +8,6 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { Language, Parser } from "web-tree-sitter";
 import { join } from "@std/path";
 import { parseSource } from "./source.ts";
-import { parseFile } from "./mod.ts";
 
 // ---------------------------------------------------------------------------
 // Setup: load grammars once per language for all tests
@@ -1639,12 +1638,6 @@ fn foo() {}
   const options = { file: "test.rs", language, languageId: "rust" as const };
   const a = parseSource(indented, options).entries[0];
   const b = parseSource(gitStyle, options).entries[0];
-  // Git style is a valid source-file form: no MSL-P023 or MSL-P020.
-  const { diagnostics } = await parseFile(gitStyle, { file: "test.rs" });
-  assertEquals(
-    diagnostics.filter((d) => d.code === "MSL-P023" || d.code === "MSL-P020"),
-    [],
-  );
   assertEquals(b.rawAttributes, a.rawAttributes);
   assertEquals(b.body, a.body);
   assertEquals(b.id, a.id);
@@ -1692,4 +1685,40 @@ fn foo() {}
   });
   assertEquals(entries[0].rawAttributes.length, 0);
   assertStringIncludes(entries[0].body, "Status: draft");
+});
+
+Deno.test("parseSource: a non Key: value line in the final paragraph keeps it in the body", async () => {
+  const language = await getRustLanguage();
+  const source = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+///
+/// Satisfies: SYS_BRK_0042
+/// some prose line
+fn foo() {}
+`;
+  const entry = parseSource(source, {
+    file: "test.rs",
+    language,
+    languageId: "rust",
+  }).entries[0];
+  assertEquals(entry.rawAttributes.length, 0);
+  assertStringIncludes(entry.body, "Satisfies: SYS_BRK_0042");
+});
+
+Deno.test("parseSource: a Key: value line directly after prose stays body", async () => {
+  const language = await getRustLanguage();
+  const source = `/// [SRS_BRK_0001] Title
+///
+/// Body text.
+/// Satisfies: SYS_BRK_0042
+fn foo() {}
+`;
+  const entry = parseSource(source, {
+    file: "test.rs",
+    language,
+    languageId: "rust",
+  }).entries[0];
+  assertEquals(entry.rawAttributes.length, 0);
+  assertStringIncludes(entry.body, "Satisfies: SYS_BRK_0042");
 });

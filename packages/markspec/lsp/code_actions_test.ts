@@ -7,7 +7,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { parseFile } from "../core/mod.ts";
+import { format, parseFile } from "../core/mod.ts";
 import { buildCodeActions, type LspDiagnosticLike } from "./code_actions.ts";
 import { toLspDiagnostic } from "./diagnostics.ts";
 
@@ -637,14 +637,11 @@ Deno.test("buildCodeActions: MSL-P021 fix lines up after YAML front matter", asy
 // MSL-P023 — git-style trailer block is not indented (#914)
 // ---------------------------------------------------------------------------
 
-Deno.test("buildCodeActions: MSL-P023 → indent every trailer line by 4 columns", async () => {
-  const doc = `- [REQ-001] My requirement
+const P023_ULID_A = "01HGW2Q8MNP3RSTVWXYZABCDEF";
+const P023_ULID_B = "01HGW2Q8MNP3RSTVWXYZABCDEG";
 
-  Body.
-
-  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
-  Satisfies: REQ-002
-`;
+/** Apply the MSL-P023 quick fix to `doc` and return the edited text. */
+async function applyP023Fix(doc: string): Promise<string> {
   const { diagnostics } = await parseFile(doc, { file: "x.md" });
   const p023 = diagnostics.filter((d) => d.code === "MSL-P023").map(
     toLspDiagnostic,
@@ -653,19 +650,90 @@ Deno.test("buildCodeActions: MSL-P023 → indent every trailer line by 4 columns
   const actions = buildCodeActions("file:///x.md", p023, doc);
   assertEquals(actions.length, 1);
   assertEquals(actions[0].title, "Indent trailer block");
-  assertEquals(actions[0].kind, "quickfix");
-  const edits = actions[0].edit!.changes!["file:///x.md"];
-  assertEquals(edits.map((e) => e.range.start.line), [4, 5]);
-  // Apply the zero-width inserts and check the canonical 6-space form.
+  const edits = [...actions[0].edit!.changes!["file:///x.md"]].sort((a, b) =>
+    b.range.start.line - a.range.start.line
+  );
   const lines = doc.split("\n");
   for (const e of edits) {
-    lines[e.range.start.line] = e.newText + lines[e.range.start.line];
+    assertEquals(e.range.start.line, e.range.end.line);
+    const line = lines[e.range.start.line];
+    lines[e.range.start.line] = line.slice(0, e.range.start.character) +
+      e.newText + line.slice(e.range.end.character);
   }
-  assertEquals(
-    lines.slice(4, 6),
-    ["      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF", "      Satisfies: REQ-002"],
-  );
-});
+  return lines.join("\n");
+}
+
+const P023_FIX_CASES: Record<string, string> = {
+  "trailer at end of file": `- [REQ-001] My requirement
+
+  Body.
+
+  Id: ${P023_ULID_A}
+  Satisfies: REQ-002
+`,
+  "trailer followed directly by the next list item": `- [REQ-001] One
+
+  Body.
+
+  Id: ${P023_ULID_A}
+  Satisfies: REQ-002
+- [REQ-002] Two
+
+  Body two.
+
+      Id: ${P023_ULID_B}
+`,
+  "trailer followed directly by a heading": `- [REQ-001] One
+
+  Body.
+
+  Id: ${P023_ULID_A}
+  Satisfies: REQ-002
+# Next
+
+- [REQ-002] Two
+
+  Body two.
+
+      Id: ${P023_ULID_B}
+`,
+  "three-space trailer": `- [REQ-001] My requirement
+
+  Body.
+
+     Id: ${P023_ULID_A}
+     Satisfies: REQ-002
+`,
+  "mixed-indent trailer": `- [REQ-001] My requirement
+
+  Body.
+
+  Id: ${P023_ULID_A}
+      Satisfies: REQ-002
+`,
+  "wide list marker": `-   [REQ-001] My requirement
+
+    Body.
+
+    Id: ${P023_ULID_A}
+    Satisfies: REQ-002
+`,
+};
+
+for (const [name, doc] of Object.entries(P023_FIX_CASES)) {
+  Deno.test(`buildCodeActions: MSL-P023 fix matches fmt — ${name}`, async () => {
+    const fixed = await applyP023Fix(doc);
+    assertEquals(fixed, format(doc, { file: "x.md" }).output);
+    const before = (await parseFile(doc, { file: "x.md" })).entries;
+    const after = (await parseFile(fixed, { file: "x.md" })).entries;
+    assertEquals(
+      after.map((e) => [e.displayId, e.id]),
+      before.map((e) => [e.displayId, e.id]),
+    );
+    assertEquals(after[0].id, P023_ULID_A);
+    if (after.length > 1) assertEquals(after[1].id, P023_ULID_B);
+  });
+}
 
 Deno.test("buildCodeActions: MSL-P023 without document text → no action", () => {
   const actions = buildCodeActions("file:///x.md", [

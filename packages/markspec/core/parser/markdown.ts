@@ -18,8 +18,8 @@ import {
   ATTR_LINE_RE,
   collateAttributes,
   findTrailerStart,
-  isIndented,
   isTrailerUnderProse,
+  leadingColumns,
   parseAttributes,
   RECOGNIZED_TRAILER_KEYS,
   splitBodyAndAttributes,
@@ -460,12 +460,14 @@ function extractEntry(
     const firstNonBlank = (markdownLines[line - 1] ?? "").search(/\S/);
     return { file, line, column: firstNonBlank >= 0 ? firstNonBlank + 1 : 1 };
   };
-  // MSL-P023: a git-style trailer (no 4-column indent) is accepted but not
-  // canonical in Markdown. The warning points at the trailer's first line.
-  // `markspec fmt` rewrites it to the indented form. The legacy
-  // trailing-backslash form has its own deprecation warning, so it is skipped.
-  // A run directly under prose is reported as MSL-P020 above, so exactly one
-  // of the two warnings fires for a block.
+  // MSL-P023: a trailer with a line indented less than 4 columns past the
+  // list-item content (git style) is accepted but not canonical in
+  // Markdown. Every trailer line is checked, tab-aware, so a block whose
+  // later lines are not indented is reported too: `markspec fmt` rewrites
+  // it. The warning points at the trailer's first line. The legacy
+  // trailing-backslash form has its own deprecation warning, so it is
+  // skipped. A run directly under prose is reported as MSL-P020 above, so
+  // at most one of the two warnings fires for a block.
   const contentLines = bodyContent.split("\n");
   if (
     attrLines.length > 0 &&
@@ -473,19 +475,20 @@ function extractEntry(
     !isTrailerUnderProse(contentLines)
   ) {
     const trailerIndex = findTrailerStart(contentLines);
-    const location = trailerLineLocation(trailerIndex);
-    const rawLine = markdownLines[location.line - 1] ?? "";
     const indent = itemContentIndent(item);
-    const relative = rawLine.startsWith(" ".repeat(indent))
-      ? rawLine.slice(indent)
-      : rawLine;
-    if (!isIndented(relative)) {
+    let notIndented = false;
+    for (let i = trailerIndex; i < contentLines.length; i++) {
+      const rawLine = markdownLines[trailerLineLocation(i).line - 1] ?? "";
+      if (rawLine.trim() === "") continue;
+      if (leadingColumns(rawLine) - indent < 4) notIndented = true;
+    }
+    if (notIndented) {
       diagnostics.push({
         code: "MSL-P023",
         severity: "warning",
         message: `${displayId}: trailer block is not indented; run ` +
           "`markspec fmt` to indent it (spec section 1.3)",
-        location,
+        location: trailerLineLocation(trailerIndex),
       });
     }
   }

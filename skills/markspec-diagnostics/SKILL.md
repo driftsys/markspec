@@ -32,11 +32,11 @@ vocabulary differs from MarkSpec core. See `markspec-entry-authoring`.
 Emitted while reading the Markdown AST. The entry block could not be
 interpreted.
 
-| Code     | Message pattern                            | Fix                                                                                      |
-| -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| MSL-P010 | Malformed entry header                     | Verify `- [TYPE_NNNN] Title` format: hyphen, space, brackets, space-separated display ID |
-| MSL-P020 | Display ID does not match expected pattern | Check the profile's declared type pattern; prefix and digit width must match exactly     |
-| MSL-P023 | Trailer block is not indented (git-style)  | Run `markspec fmt` to indent it to the canonical 6-space form                            |
+| Code     | Message pattern                                                                       | Fix                                                                                      |
+| -------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| MSL-P010 | Malformed entry header                                                                | Verify `- [TYPE_NNNN] Title` format: hyphen, space, brackets, space-separated display ID |
+| MSL-P020 | Display ID does not match expected pattern                                            | Check the profile's declared type pattern; prefix and digit width must match exactly     |
+| MSL-P023 | Trailer block is not indented (git style), Markdown only; not for legacy trailing `\` | Run `markspec fmt` to indent it to the canonical 6-space form                            |
 
 ### I0xx — Identity
 
