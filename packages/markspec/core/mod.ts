@@ -421,6 +421,7 @@ export type { RefIndex } from "./refs/mod.ts";
 export {
   normalizeLocator,
   parseTraceValue,
+  referenceTokens,
   splitTraceValues,
 } from "./refs/split.ts";
 export type { ParsedTraceValue } from "./refs/split.ts";

@@ -22,8 +22,12 @@ Deno.test("splitTraceValues: plain CSV, single value, empty parts", () => {
   assertEquals(splitTraceValues(""), []);
 });
 
-Deno.test("splitTraceValues: unterminated locator keeps the rest together", () => {
-  assertEquals(splitTraceValues("A [x, y"), ["A [x, y"]);
+Deno.test("splitTraceValues: without a closed locator, every comma splits", () => {
+  assertEquals(splitTraceValues("A [x, y"), ["A [x", "y"]);
+});
+
+Deno.test("splitTraceValues: a closed locator elsewhere enables bracket splitting", () => {
+  assertEquals(splitTraceValues("A [x, y], B [z"), ["A [x, y]", "B [z"]);
 });
 
 Deno.test("parseTraceValue: locator is normalized, raw text is kept", () => {
@@ -46,10 +50,20 @@ Deno.test("parseTraceValue: unterminated locator is the whole target", () => {
   assertEquals(parseTraceValue("REQ_1 [abc"), { target: "REQ_1 [abc" });
 });
 
-Deno.test("parseTraceValue: legacy whitespace locator keeps the first token", () => {
+Deno.test("parseTraceValue: a value without a locator is kept whole", () => {
   assertEquals(parseTraceValue("ISO-26262-6 §4.3"), {
-    target: "ISO-26262-6",
+    target: "ISO-26262-6 §4.3",
   });
+  assertEquals(parseTraceValue("SYS_1 note"), { target: "SYS_1 note" });
+});
+
+Deno.test("parseTraceValue: an empty locator is a locator", () => {
+  assertEquals(parseTraceValue("REQ_1 []"), {
+    target: "REQ_1",
+    locator: "",
+    locatorRaw: "",
+  });
+  assertEquals(parseTraceValue("REQ_1 [ ]").locator, "");
 });
 
 Deno.test("normalizeLocator: NFC, trim and whitespace collapse", () => {
@@ -57,11 +71,12 @@ Deno.test("normalizeLocator: NFC, trim and whitespace collapse", () => {
   assertEquals(normalizeLocator("é"), "é");
 });
 
-Deno.test("parseTraceValue: text after a closed locator keeps the first token", () => {
-  assertEquals(parseTraceValue("REQ_1 [a] extra").target, "REQ_1");
-  assertEquals(parseTraceValue("REQ_1 [a][b]").target, "REQ_1");
-  assertEquals(parseTraceValue("REQ_1 [x [y] z]").target, "REQ_1");
-  assertEquals(parseTraceValue("REQ_1 [a] extra").locator, undefined);
+Deno.test("parseTraceValue: text after a closed locator is no locator", () => {
+  assertEquals(parseTraceValue("REQ_1 [a] extra"), {
+    target: "REQ_1 [a] extra",
+  });
+  assertEquals(parseTraceValue("REQ_1 [a][b]").locator, undefined);
+  assertEquals(parseTraceValue("REQ_1 [x [y] z]").locator, undefined);
 });
 
 Deno.test("parseTraceValue: unterminated locator keeps the whole value", () => {
@@ -70,13 +85,14 @@ Deno.test("parseTraceValue: unterminated locator keeps the whole value", () => {
 
 Deno.test("trailing backslash in a locator never closes it", () => {
   assertEquals(splitTraceValues("A [x\\"), ["A [x\\"]);
-  assertEquals(splitTraceValues("A [x\\, B"), ["A [x\\, B"]);
+  assertEquals(splitTraceValues("A [x\\, B"), ["A [x\\", "B"]);
   assertEquals(parseTraceValue("REQ_1 [x\\]"), { target: "REQ_1 [x\\]" });
 });
 
-Deno.test("no whitespace before [ : split keeps it, parse sees no locator", () => {
-  assertEquals(splitTraceValues("A[x, y], B"), ["A[x, y]", "B"]);
-  assertEquals(parseTraceValue("A[x, y]"), { target: "A[x," });
+Deno.test("no whitespace before [ : no locator, every comma splits", () => {
+  assertEquals(splitTraceValues("A[x, y], B"), ["A[x", "y]", "B"]);
+  assertEquals(splitTraceValues("A[x], B [y, z]"), ["A[x]", "B [y, z]"]);
+  assertEquals(parseTraceValue("A[x]"), { target: "A[x]" });
 });
 
 Deno.test("parseTraceValue: unknown escape is kept as written", () => {

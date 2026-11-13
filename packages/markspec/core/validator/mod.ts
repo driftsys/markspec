@@ -284,8 +284,12 @@ function checkStructural(
       if (spec?.type !== "citation") continue;
       let depth = 0;
       let sawTopLevelComma = false;
-      for (const ch of attr.value) {
-        if (ch === "[") depth++;
+      const value = attr.value;
+      for (let i = 0; i < value.length; i++) {
+        const ch = value[i];
+        // Inside a locator, `\]` and `\\` are escapes (#915).
+        if (ch === "\\" && depth > 0) i++;
+        else if (ch === "[") depth++;
         else if (ch === "]" && depth > 0) depth--;
         else if (ch === "," && depth === 0) {
           sawTopLevelComma = true;

@@ -73,3 +73,17 @@ Deno.test("canonicalEdgeJson: a locator is part of the quad", () => {
     '[{"locator":"x","provenance":"local","relation":"Satisfies","source":"A","target":"B"}]',
   );
 });
+
+Deno.test("canonicalEdgeJson: edges differing only by locator sort by locator", () => {
+  const quad = (locator: string) => ({
+    source: "A",
+    relation: "Verifies",
+    target: "B",
+    locator,
+    provenance: "local" as const,
+  });
+  assertEquals(
+    canonicalEdgeJson([quad("y"), quad("x")]),
+    canonicalEdgeJson([quad("x"), quad("y")]),
+  );
+});

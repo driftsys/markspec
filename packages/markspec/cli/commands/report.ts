@@ -44,7 +44,7 @@ export const reportCmd = new Command()
         Deno.exit(1);
       }
 
-      const { result: compiled, config } = await compileProject(paths);
+      const { result: compiled, config, chain } = await compileProject(paths);
       const { deriveUpstreamId, report } = await import("../../core/mod.ts");
 
       // Federated upstream (slice 4): an upstream entry declared under
@@ -64,6 +64,7 @@ export const reportCmd = new Command()
         scope: options.scope,
         label: options.label,
         dependencyUpstreamIds,
+        profile: chain?.effective ?? undefined,
       });
 
       if (options.output) {

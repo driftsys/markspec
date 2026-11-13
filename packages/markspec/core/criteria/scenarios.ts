@@ -105,3 +105,18 @@ export function isCriteriaBearing(
 function isFeature(block: BodyBlock): block is FeatureNode {
   return block.kind === "feature";
 }
+
+/** `true` when `entry`'s type is, or extends, the core `Test` type — the
+ * entries whose `Verifies` links count for criterion coverage (epic #915,
+ * decision 2). Uses the profile extends chain when a profile is loaded,
+ * else the core hierarchy. */
+export function isTestEntry(
+  entry: Entry,
+  profile: EffectiveProfile | null | undefined,
+): boolean {
+  const type = entry.type;
+  if (type === undefined) return false;
+  return profile
+    ? extendsTransitively(type, "Test", profile)
+    : descendantsOf("Test").has(type);
+}

@@ -7,8 +7,7 @@
  * compiled graph, checked by `markspec check`, and counted per criterion in
  * `markspec report coverage`.
  *
- * Plan: docs/wip/2026-11-13-gherkin-scenario-locators-plan.md (Task 0).
- * Each test is ignored until the task that makes it pass lands.
+ * Design: docs/architecture/adr-037-scenario-locators.md.
  */
 
 import { assertEquals, assertStringIncludes } from "@std/assert";
@@ -73,7 +72,7 @@ const FILES = {
   "docs/braking.md": ENTRIES_MD,
 };
 
-// Enabled by Task 4 (compiler keeps locators and attaches criteria).
+// The compiler keeps locators and attaches criteria.
 Deno.test({
   name: "locator coverage: compile json keeps the locator",
   fn: async () => {
@@ -99,7 +98,7 @@ Deno.test({
   },
 });
 
-// Enabled by Task 5 (diagnostics MSL-L007).
+// `check` reports an unresolved locator (MSL-L007).
 Deno.test({
   name: "locator coverage: check warns on an unresolved locator",
   fn: async () => {
@@ -118,7 +117,7 @@ Deno.test({
   },
 });
 
-// Task 5: a locator is not part of the target for value-type and
+// A locator is not part of the target for value-type and
 // existence checks, project-wide included.
 Deno.test({
   name: "locator coverage: check does not treat a locator as part of the id",
@@ -130,7 +129,7 @@ Deno.test({
   },
 });
 
-// Enabled by Task 7 (criterion-level coverage report).
+// `report coverage` counts verification per criterion.
 Deno.test({
   name: "locator coverage: report coverage json has criteria",
   fn: async () => {

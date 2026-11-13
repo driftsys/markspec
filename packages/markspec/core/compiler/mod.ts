@@ -15,7 +15,11 @@ import type {
   Link,
   SourceLocation,
 } from "../model/mod.ts";
-import { makeDisplayId, relationLocatorMode } from "../model/mod.ts";
+import {
+  isUpstreamEntry,
+  makeDisplayId,
+  relationLocatorMode,
+} from "../model/mod.ts";
 import { buildCriteria, isCriteriaBearing } from "../criteria/scenarios.ts";
 import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
 import { parseFile } from "../parser/mod.ts";
@@ -431,12 +435,29 @@ function extractLinks(entries: readonly Entry[]): Link[] {
   return links;
 }
 
-/** Map an attribute key+value to zero or more links. Values are split on
- * commas outside a locator ({@linkcode splitTraceValues}). A value with a
- * bracket locator (`A [x]`) yields a link to `A` that keeps the normalized
- * locator, whatever the relation. Without a locator, a relation with a
- * locator mode keeps the leading token (legacy free-text suffix) and any
- * other relation keeps the whole value. */
+/**
+ * Attributes whose value is `slug + optional free-text locator` per
+ * ADR-002 §2.6 (citation type + legacy Derived-from tolerance). Without a
+ * bracket locator, the link target is the leading non-whitespace token.
+ */
+const LEADING_TOKEN_ATTRS: ReadonlySet<string> = new Set([
+  "Derived-from",
+  "References",
+]);
+
+/** The link target of one comma-separated part without a locator, as
+ * before scenario locators: the leading token for
+ * {@linkcode LEADING_TOKEN_ATTRS}, else the whole trimmed part. */
+function plainTarget(key: string, part: string): string {
+  const trimmed = part.trim();
+  return LEADING_TOKEN_ATTRS.has(key) ? trimmed.split(/\s/)[0] : trimmed;
+}
+
+/** Map an attribute key+value to zero or more links. The value is split
+ * with {@linkcode splitTraceValues}. A part with a bracket locator
+ * (`A [x]`) yields a link to `A` that keeps the normalized locator. Any
+ * other part is read as before scenario locators existed
+ * ({@linkcode plainTarget}). */
 function extractLinksFromAttribute(
   from: DisplayId,
   key: string,
@@ -445,34 +466,25 @@ function extractLinksFromAttribute(
 ): Link[] {
   const kind = ATTR_TO_LINK_KIND[key];
   if (!kind) return [];
-  const leadingTokenOnly = relationLocatorMode(key) !== undefined;
-  const links: Link[] = [];
-  for (const part of splitTraceValues(value)) {
-    const parsed = parseTraceValue(part);
-    if (parsed.locator !== undefined) {
-      links.push({
-        from,
-        to: makeDisplayId(parsed.target),
-        kind,
-        location,
-        locator: parsed.locator,
-      });
-      continue;
+  return splitTraceValues(value).map((part): Link => {
+    const { target, locator } = parseTraceValue(part);
+    if (locator !== undefined) {
+      return { from, to: makeDisplayId(target), kind, location, locator };
     }
-    const to = leadingTokenOnly ? part.split(/\s/)[0] : part;
-    links.push({ from, to: makeDisplayId(to), kind, location });
-  }
-  return links;
+    return { from, to: makeDisplayId(plainTarget(key, part)), kind, location };
+  });
 }
 
-/** Attach `criteria` to every criteria-bearing entry that has at least one
- * scenario. Entries without scenarios are left unchanged, so compiled
+/** Attach `criteria` to every criteria-bearing, non-upstream entry that
+ * has at least one scenario. Entries without scenarios are left unchanged, so compiled
  * output for projects without feature blocks does not change. */
 function attachCriteria(
   entries: Map<DisplayId, Entry>,
   profile: EffectiveProfile | undefined,
 ): void {
   for (const [id, entry] of entries) {
+    // Upstream (federated) entries are read-only references: no criteria.
+    if (isUpstreamEntry(entry)) continue;
     if (!isCriteriaBearing(entry, profile)) continue;
     const criteria = buildCriteria(entry);
     if (criteria.length > 0) entries.set(id, { ...entry, criteria });
@@ -489,13 +501,16 @@ function resolveLocators(
   entries: ReadonlyMap<DisplayId, Entry>,
   profile: EffectiveProfile | undefined,
 ): Link[] {
+  // A target may be written as a display ID or as a ULID.
+  const byUlid = new Map<string, Entry>();
+  for (const e of entries.values()) if (e.id) byUlid.set(e.id, e);
   return links.map((link) => {
     if (link.locator === undefined) return link;
     if (relationLocatorMode(LINK_KIND_TO_ATTR[link.kind]) !== "criterion") {
       return link;
     }
     const targetId = link.origin === "generated" ? link.from : link.to;
-    const target = entries.get(targetId);
+    const target = entries.get(targetId) ?? byUlid.get(targetId);
     if (!target || !isCriteriaBearing(target, profile)) return link;
     const resolved = (target.criteria ?? []).some((c) =>
       c.addressable && c.name === link.locator

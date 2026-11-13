@@ -11,9 +11,9 @@
  *   accept one (every relation without a locator mode, including
  *   profile-declared relations and a hand-written `Verified-by`). The
  *   edge to the target is kept.
- * - `MSL-L009` (warning): a trace value has a `[` that no `]` closes.
- *   The value has no locator, and commas after the `[` do not separate
- *   values.
+ * - `MSL-L009` (warning): a trace value has a `[` after whitespace that
+ *   no `]` closes. The value has no locator and is read as it was before
+ *   scenario locators existed.
  * - `MSL-B060` (warning): a scenario name occurs more than once in one
  *   entry; reported on the second and later occurrences.
  * - `MSL-B061` (info): a scenario has an empty name.
@@ -89,8 +89,7 @@ export function validateLocators(
             code: "MSL-L009",
             severity: "warning",
             message: `${entry.displayId}: '${attr.key}' value '${part}' has ` +
-              "a '[' with no closing ']'; commas after the '[' do not " +
-              "separate values. Add the closing ']'",
+              "a '[' with no closing ']'. Add the closing ']'",
             location,
           });
           continue;

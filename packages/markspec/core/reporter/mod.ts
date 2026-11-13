@@ -6,7 +6,8 @@
  */
 
 import type { CompileResult } from "../compiler/mod.ts";
-import type { DisplayId, Entry } from "../model/mod.ts";
+import type { DisplayId, EffectiveProfile, Entry } from "../model/mod.ts";
+import { isTestEntry } from "../criteria/scenarios.ts";
 import {
   formatEntryOrigin,
   isCorpusEntry,
@@ -40,6 +41,12 @@ export interface ReportOptions {
    * reference leaf.
    */
   readonly dependencyUpstreamIds?: ReadonlySet<string>;
+  /**
+   * The active profile. The criterion coverage section counts a verifier
+   * only when its type is, or extends, the core `Test` type; without a
+   * profile, only core types are resolved.
+   */
+  readonly profile?: EffectiveProfile;
 }
 
 /**
@@ -60,6 +67,7 @@ export function report(result: CompileResult, options: ReportOptions): string {
     entries,
     options.format,
     options.dependencyUpstreamIds,
+    options.profile,
   );
 }
 
@@ -267,11 +275,12 @@ function formatCoverage(
   entries: Entry[],
   format: ReportFormat,
   dependencyUpstreamIds?: ReadonlySet<string>,
+  profile?: EffectiveProfile,
 ): string {
   const stats = computeCoverage(result, entries, { dependencyUpstreamIds });
   // Absent when no reported entry has criteria, so coverage output for a
   // project without feature blocks stays unchanged.
-  const criteria = computeCriterionCoverage(result, entries);
+  const criteria = computeCriterionCoverage(result, entries, profile);
 
   if (format === "json") {
     return JSON.stringify(criteria ? { ...stats, criteria } : stats, null, 2);
@@ -352,7 +361,8 @@ interface CriterionCoverageRow {
 interface EntryCriterionCoverage {
   displayId: DisplayId;
   title: string;
-  /** `full`: every criterion verified; `none`: no criterion verified. */
+  /** `full`: every criterion verified; `partial`: some verified;
+   * `none`: no criterion verified. */
   state: "full" | "partial" | "none";
   verified: number;
   total: number;
@@ -370,18 +380,29 @@ interface CriterionCoverage {
  * Compute per-criterion verification for the reported entries that carry
  * criteria. Returns `undefined` when none does.
  *
- * Only `verifies` links count. A link without a locator verifies every
- * criterion of its target. A link with a locator verifies the named
- * criterion only when `locatorResolved` is `true`. A generated inverse
- * runs from the target to the verifier; the verifier set removes the
- * duplicate it makes of the authored link.
+ * Only `verifies` links count, and only when the verifier's type is, or
+ * extends, the core `Test` type; an entry never verifies itself. A link
+ * without a locator verifies every criterion of its target. A link with a
+ * locator verifies the named criterion only when `locatorResolved` is
+ * `true`. A generated inverse runs from the target to the verifier; the
+ * verifier set removes the duplicate it makes of the authored link.
+ * Upstream (federated) entries are not reported.
  */
 function computeCriterionCoverage(
   result: CompileResult,
   entries: Entry[],
+  profile: EffectiveProfile | undefined,
 ): CriterionCoverage | undefined {
-  const withCriteria = entries.filter((e) => (e.criteria?.length ?? 0) > 0);
+  const withCriteria = entries.filter((e) =>
+    (e.criteria?.length ?? 0) > 0 && !isUpstreamEntry(e)
+  );
   if (withCriteria.length === 0) return undefined;
+
+  // A link end may be written as a ULID; report display IDs.
+  const byUlid = new Map<string, Entry>();
+  for (const e of result.entries.values()) if (e.id) byUlid.set(e.id, e);
+  const resolve = (id: DisplayId): Entry | undefined =>
+    result.entries.get(id) ?? byUlid.get(id);
 
   // Target display ID → criterion name ("" for whole entry) → verifiers.
   const verifiers = new Map<DisplayId, Map<string, Set<DisplayId>>>();
@@ -389,8 +410,13 @@ function computeCriterionCoverage(
     if (link.kind !== "verifies") continue;
     if (link.locator !== undefined && link.locatorResolved !== true) continue;
     const generated = link.origin === "generated";
-    const target = generated ? link.from : link.to;
-    const verifier = generated ? link.to : link.from;
+    const targetEntry = resolve(generated ? link.from : link.to);
+    const verifierEntry = resolve(generated ? link.to : link.from);
+    if (!targetEntry || !verifierEntry) continue;
+    if (targetEntry.displayId === verifierEntry.displayId) continue;
+    if (!isTestEntry(verifierEntry, profile)) continue;
+    const target = targetEntry.displayId;
+    const verifier = verifierEntry.displayId;
     let byName = verifiers.get(target);
     if (!byName) {
       byName = new Map();

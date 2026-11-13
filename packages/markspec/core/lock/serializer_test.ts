@@ -394,6 +394,12 @@ Deno.test("serializeLockfile: a locator edge serializes the locator key and roun
     toml,
   );
   assertEquals(toml.indexOf("locator") > toml.lastIndexOf("[[edge]]"), true);
+  // The locator follows authored-target within its block.
+  const block = toml.slice(toml.lastIndexOf("[[edge]]"));
+  assertEquals(
+    block.indexOf("authored-target") < block.indexOf("locator"),
+    true,
+  );
   const parsed = parseLockfile(toml);
   assertEquals(parsed.lockfile?.edges, [plain, withLocator]);
 });

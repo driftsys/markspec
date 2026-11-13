@@ -565,3 +565,19 @@ Deno.test("MSL-T022: Provides authored on a SoftwareInterface is flagged", () =>
   const t022 = result.diagnostics.filter((d) => d.code === "MSL-T022");
   assertEquals(t022.length >= 1, true);
 });
+
+Deno.test("validate: an escaped ']' inside a References locator → no MSL-A011 (#915)", () => {
+  const a011 = (value: string) =>
+    validate([
+      entry({
+        displayId: "REQ-001",
+        rawAttributes: [
+          { key: "Id", value: ULID_A },
+          { key: "References", value },
+        ],
+        id: ULID_A,
+      }),
+    ]).diagnostics.filter((d) => d.code === "MSL-A011");
+  assertEquals(a011("x [a\\]b, c]"), []);
+  assertEquals(a011("x [a], y").length, 1);
+});

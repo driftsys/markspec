@@ -67,6 +67,8 @@ export function generateInverses(
   // Step 3–5: Walk entries, accumulate back-links
   // Map: targetId → Map<inverseAttrName, Set<sourceId>>
   const generated = new Map<string, Map<string, Set<string>>>();
+  /** Keys of the generated edges already emitted. */
+  const edgeKeys = new Set<string>();
 
   // Parallel list of raw generated-edge data for Link emission.
   const generatedEdges: Array<{
@@ -94,7 +96,7 @@ export function generateInverses(
         // generated link.
         const parsed = parseTraceValue(forwardValue);
         const locator = parsed.locator;
-        const targetId = locator !== undefined ? parsed.target : forwardValue;
+        const targetId = parsed.target;
         const target = byId.get(targetId);
         if (!target || target.type !== spec.inverse.category) continue;
 
@@ -108,8 +110,15 @@ export function generateInverses(
           idSet = new Set();
           targetMap.set(spec.inverse.name, idSet);
         }
-        const wasNew = !idSet.has(source.id!);
         idSet.add(source.id!);
+        // One generated edge per (target, inverse, source, locator): two
+        // locators from one source keep two edges.
+        const edgeKey =
+          `${targetId}\u0000${spec.inverse.name}\u0000${source.id}\u0000${
+            locator === undefined ? "-" : `+${locator}`
+          }`;
+        const wasNew = !edgeKeys.has(edgeKey);
+        edgeKeys.add(edgeKey);
         if (wasNew) {
           generatedEdges.push({
             targetUlid: targetId,

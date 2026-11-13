@@ -147,7 +147,8 @@
           "source-ulid": { "type": "string" },
           "relation": { "type": "string" },
           "target-ulid": { "type": "string" },
-          "authored-target": { "type": "string" }
+          "authored-target": { "type": "string" },
+          "locator": { "type": "string" }
         }
       }
     },

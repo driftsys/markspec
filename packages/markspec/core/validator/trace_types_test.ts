@@ -355,3 +355,26 @@ Deno.test("trace target types: a value with a locator checks its target (#915)",
   ]);
   assertEquals(superseded.filter((d) => d.code === "MSL-R084").length, 1);
 });
+
+Deno.test("trace target types: a Satisfies locator checks its target (#915)", () => {
+  const req = entry({
+    displayId: "REQ-001",
+    type: "Requirement",
+    rawAttributes: [
+      { key: "Id", value: ULID_A },
+      { key: "Type", value: "Requirement" },
+      { key: "Satisfies", value: "comp-1 [Some scenario]" },
+    ],
+  });
+  const comp = entry({
+    displayId: "comp-1",
+    type: "Component",
+    id: ULID_B,
+    rawAttributes: [
+      { key: "Id", value: ULID_B },
+      { key: "Type", value: "Component" },
+    ],
+  });
+  const result = run([req, comp]);
+  assertEquals(result.filter((d) => d.code === "MSL-R083").length, 1);
+});

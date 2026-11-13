@@ -704,3 +704,26 @@ Deno.test("extractEdgeLedger: a locator value records authored target and locato
     targetUlid: "01J0000000000000000000TGT1",
   }]);
 });
+
+Deno.test("extractEdgeQuads: plain parts of a mixed value split on whitespace", async () => {
+  const { extractEdgeQuads } = await import("./resolve.ts");
+  const src = makeEntry({
+    displayId: "SWE_0001",
+    id: "01J0000000000000000000SRC1",
+    rawAttributes: [
+      { key: "Satisfies", value: "STK_1 [a], STK_2 extra" },
+      { key: "Derived-from", value: "STK_3 [open, STK_4" },
+    ],
+  });
+  assertEquals(
+    extractEdgeQuads([src]).map((q) => [q.target, q.locator]),
+    [
+      ["STK_1", "a"],
+      ["STK_2", undefined],
+      ["extra", undefined],
+      ["STK_3", undefined],
+      ["[open", undefined],
+      ["STK_4", undefined],
+    ],
+  );
+});
