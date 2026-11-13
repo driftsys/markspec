@@ -36,6 +36,8 @@
     "jsr:@std/yaml@1": "1.1.0",
     "jsr:@ts-morph/bootstrap@0.27": "0.27.0",
     "jsr:@ts-morph/common@0.27": "0.27.0",
+    "npm:@cucumber/gherkin@42.0.1": "42.0.1",
+    "npm:@cucumber/messages@34.2.1": "34.2.1",
     "npm:@dprint/formatter@0.5.1": "0.5.1",
     "npm:@dprint/markdown@0.20.0": "0.20.0",
     "npm:@modelcontextprotocol/sdk@1": "1.29.0_zod@4.4.3",
@@ -200,6 +202,15 @@
     }
   },
   "npm": {
+    "@cucumber/gherkin@42.0.1": {
+      "integrity": "sha512-Kqg0ULhWqbXp/a1c04ND4sS4KTlIL831tQ0NhZLXWdEhT6LiNsZ5LFRzy/lBy7QQpcKhroKp/i3C2WdEnRBKNg==",
+      "dependencies": [
+        "@cucumber/messages"
+      ]
+    },
+    "@cucumber/messages@34.2.1": {
+      "integrity": "sha512-aj2iCAG9ZOpMVcMxcgShifv5fbR96b7SMgdWcPXXh2QbFp7OEcAnQ5MC5YfWUDSDasmw7FU5NJEsOrXdTQOU1A=="
+    },
     "@dprint/formatter@0.5.1": {
       "integrity": "sha512-cdZUrm0iv/FnnY3CKE2dEcVhNEzrC551aE2h2mTFwQCRBrqyARLDnb7D+3PlXTUVp3s34ftlnGOVCmhLT9DeKA=="
     },
@@ -1437,6 +1448,8 @@
         "dependencies": [
           "jsr:@cliffy/command@1",
           "jsr:@std/assert@1",
+          "npm:@cucumber/gherkin@42.0.1",
+          "npm:@cucumber/messages@34.2.1",
           "npm:@dprint/formatter@0.5.1",
           "npm:@dprint/markdown@0.20.0",
           "npm:@modelcontextprotocol/sdk@1",
