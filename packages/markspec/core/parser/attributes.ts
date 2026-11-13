@@ -8,6 +8,26 @@
 
 import type { Attribute, TypedAttributes } from "../model/mod.ts";
 import { attributeSpec, CSV_SPLITTABLE_TYPES } from "../model/attributes.ts";
+import { UNIVERSAL_ATTRIBUTE_KEYS } from "../model/attributes.ts";
+import { CORE_RELATIONS, LOCK_EXTRA_INVERSE_KEYS } from "../model/relations.ts";
+
+/**
+ * Canonical set of trailer attribute keys the core recognizes: the union of
+ * every authored universal attribute, every core trace relation, and the
+ * extra inverse lock key (`Verified-by`). Universal keys with
+ * `origin: "generated"` (`Contains`, `Caused`, ...) are left out: the compiler
+ * computes them and authors never write them (#706). MSL-P020 (misplaced
+ * trailer) fires only when a body line's key is in this set; any other
+ * capitalized `Word:` lead-in (`Note:`, `Example:`, `Assumption:`) is prose,
+ * not a misplaced trailer (#654).
+ */
+export const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
+  ...UNIVERSAL_ATTRIBUTE_KEYS.filter((key) =>
+    attributeSpec(key)?.origin !== "generated"
+  ),
+  ...CORE_RELATIONS.map((r) => r.attr),
+  ...LOCK_EXTRA_INVERSE_KEYS,
+]);
 
 /**
  * Pattern matching a `Key: Value` attribute line.
@@ -97,12 +117,75 @@ export function collateAttributes(
   );
 }
 
+/** A line indented by at least four spaces or a tab (code-block indent). */
+const INDENTED_RE = /^(?: {4}|\t)/;
+
+/**
+ * Find the index of the first line of the trailer block in `lines`, or
+ * `lines.length` when there is none. `lines` holds entry content with the
+ * list-item indent already removed.
+ *
+ * Two shapes are trailers:
+ *
+ * - The indented block (canonical): the trailing run of `Key: Value` lines
+ *   that are all indented by 4 or more columns.
+ * - The unindented block: the final paragraph, when it starts the content or
+ *   follows an empty line, every line is `Key: Value` or starts with
+ *   whitespace (a continuation), and it holds an `Id:` line or uses only
+ *   recognized core trailer keys (#916, rule of #914).
+ *
+ * Any other trailing `Key: value` line is body prose.
+ */
+export function findTrailerStart(lines: readonly string[]): number {
+  // Walk backwards over the trailing contiguous `Key: Value` run.
+  let runStart = lines.length;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i].trim();
+    if (trimmed === "") {
+      if (runStart < lines.length) break;
+      continue;
+    }
+    if (ATTR_LINE_RE.test(trimmed)) runStart = i;
+    else break;
+  }
+
+  let end = lines.length;
+  while (end > 0 && lines[end - 1].trim() === "") end--;
+  if (end === 0) return lines.length;
+
+  // Indented block: accepted as before.
+  if (
+    runStart < end &&
+    lines.slice(runStart, end).every((l) => INDENTED_RE.test(l))
+  ) {
+    return runStart;
+  }
+
+  // Unindented block: apply the final-paragraph rule.
+  let paraStart = end - 1;
+  while (paraStart > 0 && lines[paraStart - 1].trim() !== "") paraStart--;
+  const paragraph = lines.slice(paraStart, end);
+  const keys: string[] = [];
+  for (const line of paragraph) {
+    if (/^\s/.test(line)) {
+      if (keys.length === 0) return lines.length;
+      continue; // continuation line
+    }
+    const key = /^([A-Z][A-Za-z-]*): .+\\?$/.exec(line)?.[1];
+    if (key === undefined) return lines.length;
+    keys.push(key);
+  }
+  const accepted = keys.includes("Id") ||
+    keys.every((k) => RECOGNIZED_TRAILER_KEYS.has(k));
+  return accepted ? paraStart : lines.length;
+}
+
 /**
  * Split raw entry content into body text and attribute lines.
  *
- * Attributes are `Key: Value` lines at the **end** of the entry content,
- * forming a contiguous block. A `Key: Value` line in the middle of body
- * prose is NOT treated as an attribute — only the trailing block counts.
+ * The trailer block is located by {@linkcode findTrailerStart}. A
+ * `Key: Value` line anywhere else, including a trailing one that does not
+ * meet that rule, stays body text.
  *
  * @param content - Raw text content of an entry (after title line, indentation stripped)
  * @returns Tuple of [body, attributeLines]
@@ -111,24 +194,7 @@ export function splitBodyAndAttributes(
   content: string,
 ): [string, string[]] {
   const lines = content.split("\n");
-
-  // Walk backwards to find the contiguous trailing attribute block
-  let attrStart = lines.length;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const trimmed = lines[i].trim();
-    if (trimmed === "") {
-      // Empty line: if we haven't started collecting attributes, skip.
-      // If we have attributes below, this blank line is the boundary.
-      if (attrStart < lines.length) break;
-      continue;
-    }
-    if (ATTR_LINE_RE.test(trimmed)) {
-      attrStart = i;
-    } else {
-      // Non-attribute, non-empty line — stop scanning
-      break;
-    }
-  }
+  const attrStart = findTrailerStart(lines);
 
   const bodyLines = lines.slice(0, attrStart);
   const attrLines = lines.slice(attrStart);

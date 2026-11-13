@@ -4,7 +4,7 @@
  * Unit tests for attribute block parsing.
  */
 
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
 import { parseFile } from "./mod.ts";
 
@@ -119,13 +119,65 @@ Deno.test("parseAttributes: empty input returns empty array", () => {
 // Non-attribute lines are not parsed
 // ---------------------------------------------------------------------------
 
-Deno.test("splitBodyAndAttributes: no blank line between body and attributes", () => {
-  const content =
-    "Body text directly adjacent to attributes.\nId: SRS_01HGW2Q8MNP3";
+Deno.test("splitBodyAndAttributes: key line directly after prose stays body (#916)", () => {
+  const content = "Body text directly adjacent to a line.\nStatus: draft";
   const [body, attrs] = splitBodyAndAttributes(content);
-  assertStringIncludes(body, "Body text directly adjacent");
-  assertEquals(attrs.length, 1);
-  assertEquals(attrs[0], "Id: SRS_01HGW2Q8MNP3");
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: Id line directly after prose stays body (#916)", () => {
+  const content = "Body text.\nId: SRS_01HGW2Q8MNP3";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: final paragraph of unknown keys stays body (#916)", () => {
+  const content =
+    "Shall retry.\n\nRationale: the link drops.\nNote: see report.";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: unindented paragraph of core keys is a trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nSatisfies: SYS_0001\nLabels: ASIL-B",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Satisfies: SYS_0001", "Labels: ASIL-B"]);
+});
+
+Deno.test("splitBodyAndAttributes: unindented paragraph with Id accepts profile keys", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nId: 01HGW2Q8MNP3RSTVWXYZABCDE\nStatus: draft",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Id: 01HGW2Q8MNP3RSTVWXYZABCDE", "Status: draft"]);
+});
+
+Deno.test("splitBodyAndAttributes: a non Key: value line makes the paragraph body", () => {
+  const content = "Shall retry.\n\nSatisfies: SYS_0001\nsome prose";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: whitespace-led continuation stays in the trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nSatisfies: SYS_0001\\\n  SYS_0002",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs.length, 2);
+});
+
+Deno.test("splitBodyAndAttributes: indented trailer directly after prose is unchanged", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n    Satisfies: SYS_0001",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Satisfies: SYS_0001"]);
 });
 
 Deno.test("parseAttributes: lines without Key: Value pattern are skipped", () => {

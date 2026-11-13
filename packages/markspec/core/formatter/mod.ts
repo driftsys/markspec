@@ -21,7 +21,7 @@ import {
   IDENTITY_KEY,
 } from "../model/mod.ts";
 import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
-import { ATTR_LINE_RE, parseAttributes } from "../parser/attributes.ts";
+import { findTrailerStart, parseAttributes } from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { fencedCodeLines } from "../util/fence.ts";
@@ -1309,20 +1309,20 @@ export function findAttributeBlockRange(
 
   if (scanEnd <= startIdx) return undefined;
 
-  // Walk backwards collecting attribute lines.
-  let attrStart = scanEnd;
-  for (let i = scanEnd - 1; i > startIdx; i--) {
+  // Content lines of the entry body, below the last preserved range, with
+  // the list-item indent removed as the parser does. The shared trailer
+  // detection decides where the attribute block starts (#916).
+  let floor = startIdx + 1;
+  for (let i = startIdx + 1; i < scanEnd; i++) {
     if (preservedRanges.some((range) => i >= range.start && i < range.end)) {
-      break;
-    }
-    const trimmed = lines[i].trim();
-    if (trimmed === "") break;
-    if (ATTR_LINE_RE.test(trimmed)) {
-      attrStart = i;
-    } else {
-      break;
+      floor = i + 1;
     }
   }
+  const indentStr = " ".repeat(indent);
+  const content = lines.slice(floor, scanEnd).map((l) =>
+    l.startsWith(indentStr) ? l.slice(indent) : l
+  );
+  const attrStart = floor + findTrailerStart(content);
 
   if (attrStart >= scanEnd) return undefined;
 

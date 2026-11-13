@@ -7,19 +7,12 @@
 
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
-import {
-  attributeSpec,
-  CORE_RELATIONS,
-  IDENTITY_KEY,
-  LOCK_EXTRA_INVERSE_KEYS,
-  makeDisplayId,
-  shapeFromIdValue,
-  UNIVERSAL_ATTRIBUTE_KEYS,
-} from "../model/mod.ts";
+import { IDENTITY_KEY, makeDisplayId, shapeFromIdValue } from "../model/mod.ts";
 import {
   ATTR_LINE_RE,
   collateAttributes,
   parseAttributes,
+  RECOGNIZED_TRAILER_KEYS,
   splitBodyAndAttributes,
 } from "./attributes.ts";
 import { extractBodyTokens } from "./body_tokens.ts";
@@ -31,24 +24,6 @@ import { normalizeLineEndings } from "../util/line_endings.ts";
 import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
 import { assembleTyplTypes } from "../typl/mod.ts";
-
-/**
- * Canonical set of trailer attribute keys the core recognizes: the union of
- * every authored universal attribute, every core trace relation, and the
- * extra inverse lock key (`Verified-by`). Universal keys with
- * `origin: "generated"` (`Contains`, `Caused`, ...) are left out: the compiler
- * computes them and authors never write them (#706). MSL-P020 (misplaced
- * trailer) fires only when a body line's key is in this set; any other
- * capitalized `Word:` lead-in (`Note:`, `Example:`, `Assumption:`) is prose,
- * not a misplaced trailer (#654).
- */
-const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
-  ...UNIVERSAL_ATTRIBUTE_KEYS.filter((key) =>
-    attributeSpec(key)?.origin !== "generated"
-  ),
-  ...CORE_RELATIONS.map((r) => r.attr),
-  ...LOCK_EXTRA_INVERSE_KEYS,
-]);
 
 /** Options for {@linkcode parseMarkdown}. */
 export interface ParseMarkdownOptions {
