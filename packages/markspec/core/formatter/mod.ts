@@ -648,6 +648,11 @@ export function format(
   markdown: string,
   options?: FormatOptions,
 ): FormatResult {
+  // A `.feature` file is Gherkin, not Markdown: neither the entry formatter
+  // nor the prose pass may touch it. Its Id stamping is `formatFeatureText`.
+  if (extname(options?.file ?? "").toLowerCase() === ".feature") {
+    return { output: markdown, diagnostics: [], changed: false };
+  }
   const diagnostics: Diagnostic[] = [];
   const ending = detectLineEnding(markdown);
   const prepared = normalizeTabMarkers(

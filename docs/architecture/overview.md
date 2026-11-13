@@ -67,9 +67,9 @@ The core is deliberately small and semantics-free. It ships:
 - **Generic rule evaluator** — predicates over the graph; dormant without
   profile rules. Diagnostics follow a versioned code scheme
   ([ADR-012](./adr-012-diagnostic-code-scheme.md)).
-- **Entry-source pipeline** — adapters for Markdown and code doc comments.
-  Future: tree-sitter-based language adapters, SBOM tools
-  ([ADR-011](./adr-011-language-pack-and-dependency-ingestion.md)).
+- **Entry-source pipeline** — adapters for Markdown, code doc comments and
+  Gherkin `.feature` files. Future: tree-sitter-based language adapters, SBOM
+  tools ([ADR-011](./adr-011-language-pack-and-dependency-ingestion.md)).
 - **Typography / rendering** — PDF, book, deck output; same rendering engine
   across output formats ([ADR-004](./adr-004-book-structure.md)).
 - **Property namespace** — observed facts (path, git history, extraction

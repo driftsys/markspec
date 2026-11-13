@@ -1,0 +1,273 @@
+export const snapshot = {};
+
+snapshot[`headerless .feature: compile --format json is unchanged 1`] = `
+{
+  code: 0,
+  stdout: '{
+  "entries": {
+    "STK_BRK_0001": {
+      "displayId": "STK_BRK_0001",
+      "title": "Stop the vehicle",
+      "body": "The vehicle shall stop when the driver brakes.",
+      "bodyAst": [
+        {
+          "kind": "paragraph",
+          "content": {
+            "text": "The vehicle shall stop when the driver brakes."
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 47
+            }
+          }
+        }
+      ],
+      "rawAttributes": [
+        {
+          "key": "Id",
+          "value": "01HGW2Q8MNP3RSTVWXYZABCDEF"
+        }
+      ],
+      "typedAttributes": {
+        "Id": [
+          "01HGW2Q8MNP3RSTVWXYZABCDEF"
+        ]
+      },
+      "id": "01HGW2Q8MNP3RSTVWXYZABCDEF",
+      "shape": "Authored",
+      "location": {
+        "file": "docs/stk.md",
+        "line": 3,
+        "column": 1
+      },
+      "bodyStartLine": 5,
+      "endLine": 7,
+      "source": {
+        "kind": "markdown"
+      },
+      "properties": {
+        "file": {
+          "path": "docs/stk.md",
+          "line": 3,
+          "column": 1,
+          "mtime": "<mtime>"
+        },
+        "source": {
+          "type": "markdown"
+        }
+      },
+      "bodyTokens": [
+        {
+          "kind": "modal",
+          "text": "shall",
+          "case": "lower",
+          "location": {
+            "file": "docs/stk.md",
+            "line": 5,
+            "column": 15
+          }
+        }
+      ],
+      "derivedDiscipline": "system"
+    },
+    "SRS_BRK_0001": {
+      "displayId": "SRS_BRK_0001",
+      "title": "Brake command",
+      "body": "The controller shall send the brake command within 200 ms.",
+      "bodyAst": [
+        {
+          "kind": "paragraph",
+          "content": {
+            "text": "The controller shall send the brake command within 200 ms."
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 59
+            }
+          }
+        }
+      ],
+      "rawAttributes": [
+        {
+          "key": "Id",
+          "value": "01HGW2Q8MNP3RSTVWXYZABCDEG"
+        },
+        {
+          "key": "Satisfies",
+          "value": "STK_BRK_0001"
+        }
+      ],
+      "typedAttributes": {
+        "Id": [
+          "01HGW2Q8MNP3RSTVWXYZABCDEG"
+        ],
+        "Satisfies": [
+          "STK_BRK_0001"
+        ]
+      },
+      "id": "01HGW2Q8MNP3RSTVWXYZABCDEG",
+      "shape": "Authored",
+      "location": {
+        "file": "docs/srs.md",
+        "line": 3,
+        "column": 1
+      },
+      "bodyStartLine": 5,
+      "endLine": 8,
+      "source": {
+        "kind": "markdown"
+      },
+      "properties": {
+        "file": {
+          "path": "docs/srs.md",
+          "line": 3,
+          "column": 1,
+          "mtime": "<mtime>"
+        },
+        "source": {
+          "type": "markdown"
+        }
+      },
+      "bodyTokens": [
+        {
+          "kind": "modal",
+          "text": "shall",
+          "case": "lower",
+          "location": {
+            "file": "docs/srs.md",
+            "line": 5,
+            "column": 18
+          }
+        }
+      ],
+      "derivedDiscipline": "system"
+    }
+  },
+  "links": [
+    {
+      "from": "SRS_BRK_0001",
+      "to": "STK_BRK_0001",
+      "kind": "satisfies",
+      "location": {
+        "file": "docs/srs.md",
+        "line": 3,
+        "column": 1
+      }
+    }
+  ],
+  "forward": {
+    "SRS_BRK_0001": [
+      {
+        "from": "SRS_BRK_0001",
+        "to": "STK_BRK_0001",
+        "kind": "satisfies",
+        "location": {
+          "file": "docs/srs.md",
+          "line": 3,
+          "column": 1
+        }
+      }
+    ]
+  },
+  "reverse": {
+    "STK_BRK_0001": [
+      {
+        "from": "SRS_BRK_0001",
+        "to": "STK_BRK_0001",
+        "kind": "satisfies",
+        "location": {
+          "file": "docs/srs.md",
+          "line": 3,
+          "column": 1
+        }
+      }
+    ]
+  },
+  "diagnostics": [],
+  "typeRegistry": {
+    "bindings": {},
+    "typedefs": {}
+  }
+}
+',
+}
+`;
+
+snapshot[`compile stderr 1`] = `""`;
+
+snapshot[`headerless .feature: check --format json is unchanged 1`] = `
+{
+  code: 2,
+  stdout: \`[
+  {
+    "code": "MSL-T024",
+    "severity": "warning",
+    "message": "SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)",
+    "location": {
+      "file": "<dir>/docs/srs.md",
+      "line": 3,
+      "column": 1
+    }
+  },
+  {
+    "code": "MSL-A005",
+    "severity": "warning",
+    "message": "SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope",
+    "location": {
+      "file": "<dir>/docs/srs.md",
+      "line": 3,
+      "column": 1
+    }
+  }
+]
+\`,
+}
+`;
+
+snapshot[`check stderr 1`] = `""`;
+
+snapshot[`headerless .feature: markspec.lock is unchanged and check reports no drift 1`] = `
+'#:schema https://driftsys.github.io/markspec/schemas/lock/v1.json
+# @generated by \`markspec lock\` — do not hand-edit. Run \`markspec lock\`.
+# See https://markspec.dev/lock for the format.
+schema = 1
+
+[meta]
+markspec-schema = 1
+
+[[upstream.profile]]
+id        = "@markspec/profile-default"
+specifier = "builtin"
+resolved  = "1.0.0"
+hash      = "sha256:0"
+
+[[edge]]
+source-ulid     = "01HGW2Q8MNP3RSTVWXYZABCDEG"
+relation        = "Satisfies"
+target-ulid     = "01HGW2Q8MNP3RSTVWXYZABCDEF"
+authored-target = "STK_BRK_0001"
+
+[generated-cache]
+edges-hash = "sha256:44237f2e8df9f7614183b462fdc2a08dac1e09dd66713a256abbd4154997b065"
+edges-count = 1
+'
+`;
+
+snapshot[`check after lock 1`] = `
+{
+  code: 2,
+  stderr: "warning[MSL-T024]: <dir>/docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is type-specific but the entry's core type could not be resolved; it cannot be validated (spec §8.3)
+warning[MSL-A005]: <dir>/docs/srs.md:3 SRS_BRK_0001: attribute 'Satisfies' is not declared in the profile scope
+",
+}
+`;

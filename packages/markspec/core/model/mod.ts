@@ -257,6 +257,12 @@ export type EntrySource =
     readonly function?: string;
     /** Which extractor rule matched. */
     readonly rule: ExtractorRule;
+  }
+  | {
+    /** A `# [ID]` header comment in a `.feature` file (epic #915 Case B). */
+    readonly kind: "feature-file";
+    /** The Gherkin node the header stands above. */
+    readonly node: "feature" | "rule" | "scenario";
   };
 
 /**

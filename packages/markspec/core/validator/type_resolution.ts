@@ -14,6 +14,8 @@
  *   5. Reference-shape URI scheme inference (ADR-003 §Part 6).
  *   6. Discriminating-attribute presence (Verifies → Test,
  *      Schema-language → Contract, …).
+ *   6a. `.feature` header entries only: Feature / Rule → Requirement,
+ *      Scenario → Test.
  *
  * Step 7 (document directive) is not consulted here; step 8
  * (display-ID shape) has its own warning-emitting stage in
@@ -95,7 +97,7 @@ function sourceValue(entry: Entry): string | undefined {
 
 /** Which step of the §1.3.1 chain resolved a type. Steps 7 and 8 are
  * not reported here; step 8 has its own warning-emitting stage. */
-export type TypeResolutionStep = 1 | 2 | 3 | 4 | 5 | 6;
+export type TypeResolutionStep = 1 | 2 | 3 | 4 | 5 | 6 | "6a";
 
 /** A type together with the step of the §1.3.1 chain that resolved it. */
 export interface ResolvedTypeWithProvenance {
@@ -122,7 +124,7 @@ function profileTypeToCore(
 /**
  * Resolve an entry's effective core type and report which step of the
  * spec §1.3.1 chain matched. First match wins. Returns `undefined` when
- * no step in {1..6} resolves to a known core type — callers may then
+ * no step in {1..6a} resolves to a known core type — callers may then
  * consult late-stage step-8 inference (`inferTypeFromDisplayIdShape`)
  * or treat the entry as unclassified (fallback to `Item`).
  */
@@ -172,6 +174,16 @@ export function resolvedCoreTypeWithProvenance(
   if (fromDiscriminator && CORE_TYPE_HIERARCHY[fromDiscriminator]) {
     return { type: fromDiscriminator, step: 6 };
   }
+  // Step 6a: node kind of a `.feature` header entry (epic #915 Case B) —
+  // Feature and Rule are Requirements, Scenario is a Test. Applies only to
+  // entries built from `.feature` files; Markdown and source-file entries
+  // never reach it.
+  if (entry.source.kind === "feature-file") {
+    return {
+      type: entry.source.node === "scenario" ? "Test" : "Requirement",
+      step: "6a",
+    };
+  }
   return undefined;
 }
 
@@ -180,7 +192,7 @@ export function resolvedCoreTypeWithProvenance(
  * wrapper around {@linkcode resolvedCoreTypeWithProvenance} for callers
  * that don't need to know which step matched.
  *
- * Returns `undefined` when no step in {1..6} resolves to a known core
+ * Returns `undefined` when no step in {1..6a} resolves to a known core
  * type. The caller decides whether to skip validation, fall back to a
  * less specific check, or report on the unclassified state.
  */

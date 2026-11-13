@@ -257,6 +257,11 @@ export type {
 
 // Formatter
 export { findAttributeBlockRange, format } from "./formatter/mod.ts";
+export {
+  formatFeatureFile,
+  formatFeatureText,
+} from "./formatter/feature_file.ts";
+export type { FeatureFormatResult } from "./formatter/feature_file.ts";
 export type { FormatOptions, FormatResult } from "./formatter/mod.ts";
 export { readEntryBody, replaceEntryBody } from "./formatter/entry_body.ts";
 export type {
@@ -514,6 +519,7 @@ export {
 // ── Gitignore-aware project file discovery ───────────────────────────────
 export {
   discoverFiles,
+  FEATURE_EXTENSIONS,
   isIgnored,
   MARKDOWN_EXTENSIONS,
   parseGitignore,

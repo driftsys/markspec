@@ -19,6 +19,7 @@
  * This is an AST-only check; no external dependency.
  */
 
+import { featureFileLine } from "../gherkin/position.ts";
 import type { Diagnostic, Entry } from "../model/mod.ts";
 import type { BodyBlock } from "../ast/nodes.ts";
 
@@ -93,7 +94,11 @@ export function validateFeatureAc(entry: Entry): readonly Diagnostic[] {
   // Now check for an "Acceptance criteria" list.
   if (!hasAcceptanceCriteriaList(blocks)) return [];
 
-  const fileLine = entry.location.line + featureBlock.range.start.line;
+  // A `.feature` entry's FeatureNode range is relative to the body start, so
+  // its first line comes from `featureFileLine`.
+  const fileLine = entry.source.kind === "feature-file"
+    ? featureFileLine(entry, featureBlock, 1)
+    : entry.location.line + featureBlock.range.start.line;
 
   return [
     {

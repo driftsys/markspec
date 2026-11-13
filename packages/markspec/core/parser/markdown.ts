@@ -58,6 +58,13 @@ export interface ParseMarkdownOptions {
    * Decision 6.
    */
   readonly lineMap?: LineMap;
+  /**
+   * Keep a title-only list item as an Authored entry with an empty body,
+   * as a references document does for referenced entries. Internal: used
+   * by the `.feature` header reader, whose body can come from the Gherkin
+   * description. Default `false`: a title-only item in Markdown is dropped.
+   */
+  readonly allowTitleOnly?: boolean;
 }
 
 /**
@@ -172,6 +179,7 @@ export function parseMarkdown(
         isReferencesDoc,
         diagnostics,
         !!options?.lineMap,
+        options?.allowTitleOnly === true,
       );
       if (entry) entries.push(entry);
     }
@@ -228,6 +236,7 @@ function extractEntry(
   isReferencesDoc: boolean,
   diagnostics: Diagnostic[],
   _hasLineMap = false,
+  allowTitleOnly = false,
 ): Entry | undefined {
   // Task list items (remark-gfm sets checked to true/false) are not entries.
   if (item.checked != null) return undefined;
@@ -697,7 +706,9 @@ function extractEntry(
   // Body requirement: identified entries require a body; referenced entries
   // may omit it. If there's only one child (the title paragraph), admit
   // only referenced entries.
-  if (shape !== "Reference" && item.children.length < 2) return undefined;
+  if (shape !== "Reference" && item.children.length < 2 && !allowTitleOnly) {
+    return undefined;
+  }
 
   // Source location
   const line = item.position?.start.line ?? 1;

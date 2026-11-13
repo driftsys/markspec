@@ -6,6 +6,7 @@
 
 import { assertEquals } from "@std/assert";
 import { runPipeline } from "./pipeline.ts";
+import { resolvedCoreTypeWithProvenance } from "./type_resolution.ts";
 import type {
   EffectiveProfile,
   EffectiveTypeDef,
@@ -881,6 +882,28 @@ Deno.test("runPipeline: Stage 2.4 — upstream entry is exempt from late-stage M
   assertEquals(upstreamT021, []);
 });
 
+Deno.test("runPipeline: a .feature entry resolved by step 6a gets no MSL-T021", async () => {
+  const text = [
+    "# [ZZZ_BRK_0001] Brake feature",
+    "Feature: Brake",
+    "",
+    "  # [ZZZ_BRK_0002] Stop test",
+    "  Scenario: Stop",
+    "    Given a car",
+    "    Then it stops",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "brake.feature" });
+  assertEquals(entries.length, 2);
+  // Control: both entries resolve at step 6a, so the check is not vacuous.
+  assertEquals(
+    entries.map((e) => resolvedCoreTypeWithProvenance(e)?.step),
+    ["6a", "6a"],
+  );
+  const { diagnostics } = runPipeline(entries, null);
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-T021"), []);
+});
+
 Deno.test("runPipeline: Stage 2.5 normalization splits comma-separated id-list values before Stage 3", () => {
   const origin = "@test/p";
   const verifiesAttr = {
@@ -1331,5 +1354,29 @@ Deno.test("runPipeline: a Type trailer with no profile gives none of MSL-B064 to
       result.diagnostics.filter((d) => /^MSL-B06[4-8]$/.test(d.code)),
       [],
     );
+  }
+});
+
+Deno.test("runPipeline: an untyped .feature Scenario is a Test without a matching profile", async () => {
+  const text = [
+    "Feature: Brake",
+    "",
+    "  # [SC_BRK_0001] Stop test",
+    "  Scenario: Stop",
+    "    Given a car",
+    "    When the driver brakes",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "brake.feature" });
+  assertEquals(entries.length, 1);
+  // No profile, and a profile whose pattern does not match the ID: both
+  // classify the Scenario as a Test (step 6a), so the procedure check runs.
+  for (
+    const profile of [null, makeProfile({ req: { pattern: "REQ-{n:04d}" } })]
+  ) {
+    const { diagnostics } = runPipeline(entries, profile);
+    const codes = diagnostics.map((d) => d.code);
+    assertEquals(codes.includes("MSL-B063"), true, codes.join(","));
+    assertEquals(codes.includes("MSL-T003"), false, codes.join(","));
   }
 });

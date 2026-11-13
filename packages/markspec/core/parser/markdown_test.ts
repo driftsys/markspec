@@ -1367,3 +1367,10 @@ Deno.test("parseMarkdown: attributeLines gives the file line of each trailer val
   const [entry] = parseMarkdown(md, { file: "f.md" }).entries;
   assertEquals(entry.attributeLines, [5, 6]);
 });
+
+Deno.test("parseMarkdown: a title-only item is dropped by default", () => {
+  const { entries } = parseMarkdown("- [SRS_A_0001] Title\n", {
+    file: "a.md",
+  });
+  assertEquals(entries, []);
+});

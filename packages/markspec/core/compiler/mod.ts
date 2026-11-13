@@ -126,7 +126,9 @@ function resolveGit(
  * Project `Entry.source` onto `EntryProperties.source`. Always returns a
  * non-empty object — every entry has a known source category. Markdown
  * entries get `{ type: "markdown" }`; doc-comment entries get the full
- * code-source fan-out (adapter, language, function, rule).
+ * code-source fan-out (adapter, language, function, rule); `.feature`
+ * header entries get `{ type: "feature-file", adapter: "gherkin", rule }`
+ * where `rule` is the Gherkin node kind.
  */
 function resolveSource(
   source: Entry["source"],
@@ -143,7 +145,11 @@ function resolveSource(
       rule: source.rule,
     };
   }
-  // Exhaustiveness check — adding a third EntrySource variant becomes a
+  if (source.kind === "feature-file") {
+    // The Gherkin node the header stands above is the extractor rule.
+    return { type: "feature-file", adapter: "gherkin", rule: source.node };
+  }
+  // Exhaustiveness check — adding a fourth EntrySource variant becomes a
   // compile-time error here, forcing a deliberate decision about its
   // properties.source projection rather than silently inheriting the
   // tree-sitter branch's defaults.

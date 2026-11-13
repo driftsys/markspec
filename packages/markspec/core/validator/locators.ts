@@ -42,7 +42,7 @@ import {
   parseTraceValue,
   splitTraceValues,
 } from "../refs/split.ts";
-import { classifyEntry } from "./types.ts";
+import { classifyEntry, featureFileCoreType } from "./types.ts";
 
 /** Value types whose values reference other entries. */
 const REFERENCE_VALUE_TYPES: ReadonlySet<string> = new Set([
@@ -160,13 +160,17 @@ function scenarioNameDiagnostics(entry: Entry): Diagnostic[] {
   return diagnostics;
 }
 
-/** `entry` with its type classified against `profile` when unset. */
+/** `entry` with its type classified against `profile` when unset. Without a
+ * profile, a `.feature` header entry still gets its step-6a core type. */
 export function withType(
   entry: Entry,
   profile: EffectiveProfile | null,
 ): Entry {
-  if (entry.type !== undefined || profile === null) return entry;
-  const type = classifyEntry(entry, profile).type;
+  if (entry.type !== undefined) return entry;
+  // Without a profile only step 6a (a `.feature` header entry) can type it.
+  const type = profile === null
+    ? featureFileCoreType(entry)
+    : classifyEntry(entry, profile).type;
   return type === undefined ? entry : { ...entry, type };
 }
 

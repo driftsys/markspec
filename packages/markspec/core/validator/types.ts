@@ -89,7 +89,8 @@ export function inferTypeFromLateStageChain(
   if (entry.type !== undefined) return [];
   const resolved = resolvedCoreTypeWithProvenance(entry);
   if (!resolved) return [];
-  if (resolved.step < 5) return [];
+  // Step 6a is the silent default for `.feature` header entries.
+  if (resolved.step === "6a" || resolved.step < 5) return [];
   const source = resolved.step === 5
     ? "URI scheme"
     : "discriminating attribute";
@@ -145,6 +146,19 @@ export function validateCoreTypeAttribute(
   }];
 }
 
+/**
+ * The core type of a `.feature` header entry that no profile pattern
+ * classifies (epic #915 Case B). It is resolved through the type resolution
+ * chain without the profile, so `Source:` (step 3), the display-ID prefix
+ * (step 4) and a discriminating attribute (step 6) win over the node kind
+ * (step 6a: `Test` for a Scenario, `Requirement` for a Feature or a Rule).
+ * `undefined` for every other entry.
+ */
+export function featureFileCoreType(entry: Entry): string | undefined {
+  if (entry.source.kind !== "feature-file") return undefined;
+  return resolvedCoreTypeWithProvenance(entry)?.type;
+}
+
 /** Result of classifying a single entry. */
 export interface ClassifyResult {
   /** The assigned type name, or `undefined` if un-classified. */
@@ -159,6 +173,8 @@ export interface ClassifyResult {
  *   1. Explicit `Type:` trailer attribute (if present).
  *   2. Display-ID pattern match across types whose `shape` matches
  *      `entry.shape`.
+ *   3. For a `.feature` header entry that no pattern matched, the node
+ *      kind (step 6a, {@linkcode featureFileCoreType}).
  *
  * Emits:
  *   - `MSL-T001` when explicit `Type:` value is not in the profile's type
@@ -192,7 +208,9 @@ export function classifyEntry(
   // 2. Display-ID pattern match across same-shape types (Authored only).
   // Reference entries use URI scheme or explicit Type: for classification;
   // matching display-id-patterns against their slug-style IDs is incorrect.
-  if (entry.shape !== "Authored") return { type: undefined, diagnostics };
+  if (entry.shape !== "Authored") {
+    return { type: featureFileCoreType(entry), diagnostics };
+  }
   const matches: string[] = [];
   for (const [typeName, typeEntry] of profile.types) {
     const pattern = typeEntry.value.displayIdPattern.value;
@@ -224,7 +242,12 @@ export function classifyEntry(
     return { type: undefined, diagnostics };
   }
 
-  // 0 matches. Strict mode → MSL-T003; permissive → OK.
+  // 0 matches. A `.feature` header entry falls back to step 6a (Feature and
+  // Rule are Requirements, Scenario is a Test) and is never un-classified.
+  const fromNode = featureFileCoreType(entry);
+  if (fromNode !== undefined) return { type: fromNode, diagnostics };
+
+  // Strict mode → MSL-T003; permissive → OK.
   if (profile.types.size > 0) {
     diagnostics.push({
       code: "MSL-T003",

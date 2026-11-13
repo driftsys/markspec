@@ -254,8 +254,11 @@ The `compile` and `report` commands accept explicit paths or globs:
 
 ```sh
 markspec compile "docs/**/*.md"
-markspec compile docs/requirements.md src/main.rs
+markspec compile docs/requirements.md src/main.rs features/brake.feature
 ```
+
+A `.feature` file contributes entries only through its `# [ID]` header comments
+(see [Entries in `.feature` files](feature-files.md)).
 
 Profile configuration (`.markspec.yaml` and profile manifests) is covered in the
 [Profile guide](profiles.md).
@@ -325,14 +328,18 @@ markspec fmt --check [...files]
 | --------- | ---- | ------- | -------------------------------------------------------- |
 | `--check` | bool | false   | Report changes without writing. Exit 1 if changes needed |
 
-**Bare invocation = whole-project markdown scope.** With no file arguments,
-`fmt` discovers every `.md` file under the project root (gitignore +
-`.markspec.yaml` `exclude:` honored) and prints a one-line scope header to
-stderr (`formatting N file(s) under <root>`), suppressed by `-q`. Bare
-invocation requires a project root above the current directory (a `project.yaml`
-or a `.markspec.yaml`); outside a project it errors rather than silently
-scanning the cwd. `fmt`'s scope is markdown-only — the formatter never rewrites
-source files, unlike `check`/`lint` which also cover source doc comments.
+**Bare invocation = whole-project Markdown and `.feature` scope.** With no file
+arguments, `fmt` discovers every `.md` and `.feature` file under the project
+root (gitignore + `.markspec.yaml` `exclude:` honored) and prints a one-line
+scope header to stderr (`formatting N file(s) under <root>`), suppressed by
+`-q`. Bare invocation requires a project root above the current directory (a
+`project.yaml` or a `.markspec.yaml`); outside a project it errors rather than
+silently scanning the cwd. `fmt` never rewrites source files, unlike
+`check`/`lint` which also cover source doc comments. In a `.feature` file `fmt`
+only inserts a missing `# Id:` line into a `# [ID]` header; a file with no
+header, or one that does not parse, is left unchanged (see
+[Entries in `.feature` files](feature-files.md)). The scope line counts every
+`.feature` file, with or without a header.
 
 **Whole-document formatting (ADR-029).** Beyond entry-block mechanics, `fmt`
 formats the entire Markdown document — headings, lists, tables, and prose —
@@ -389,8 +396,9 @@ markspec fmt docs/*.md
 
 **Project-aware trace canonicalisation (requires a project root):**
 
-When a file that `markspec fmt` formats belongs to a project, it also
-canonicalises and heals trace reference values:
+When a Markdown file that `markspec fmt` formats belongs to a project, it also
+canonicalises and heals trace reference values (a `.feature` file only gets its
+missing `# Id:` lines):
 
 - **Canonicalise** — any ULID written directly in a trace attribute
   (`Satisfies:`, `Derived-from:`, `Verified-by:`, etc.) is rewritten to the
@@ -434,12 +442,13 @@ markspec check [...files]
 | `--format` | string | `text`  | Output format: `json`, `text` |
 
 **Bare invocation = whole-project gate.** With no file arguments, `check`
-discovers every relevant file (markdown + source doc comments) under the project
-root (gitignore + `.markspec.yaml` `exclude:` honored) and prints a one-line
-scope header to stderr (`checking N file(s) under <root>`), suppressed by `-q`
-and in `--format json` mode. Bare invocation requires a project root above the
-current directory (a `project.yaml` or a `.markspec.yaml`); outside a project it
-errors rather than silently scanning the cwd.
+discovers every relevant file (markdown, `.feature` files and source doc
+comments) under the project root (gitignore + `.markspec.yaml` `exclude:`
+honored) and prints a one-line scope header to stderr
+(`checking N file(s) under <root>`), suppressed by `-q` and in `--format json`
+mode. Bare invocation requires a project root above the current directory (a
+`project.yaml` or a `.markspec.yaml`); outside a project it errors rather than
+silently scanning the cwd.
 
 **The composite gate is project-wide only.** Bare `markspec check` runs every
 gate below over the whole corpus in one pass, merging findings into a single

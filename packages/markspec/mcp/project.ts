@@ -98,9 +98,11 @@ export async function detectMarkspecProject(
   }
 }
 
-/** Files MarkSpec parses: Markdown plus supported source extensions. */
+/** Files MarkSpec parses: Markdown, `.feature` files and supported source
+ * extensions. */
 const TRACKED_EXTENSIONS = new Set([
   ".md",
+  ".feature",
   ".rs",
   ".kt",
   ".kts",

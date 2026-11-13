@@ -606,6 +606,82 @@ GitLab-flavored Markdown parity); the formatter normalizes to YAML.
 
 Full document-structure specification: see Part 6 — Document Model.
 
+#### §7 Entries in `.feature` files
+
+A Gherkin `.feature` file can declare entries. An entry is a `Feature`, `Rule`
+or `Scenario` node with a **header**: a run of comment lines whose first line is
+`# [ID] Title`. See the [guide](../../guide/feature-files.md) for a full
+example.
+
+**Header syntax.** The header text is the comment lines with the `#` and the
+spaces after it removed. The first line is `[DISPLAY_ID] Title`. The following
+lines are the body prose and the trailer, parsed as for a source doc comment
+(§5), except that git-style trailers (no indent) are canonical and give no
+`MSL-P023`. A header that has only a title is an entry with an empty body.
+
+**Header ID.** The `DISPLAY_ID` of a header must match
+`[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]`: an uppercase letter, then
+uppercase letters or digits, at least one `_` or `-` separator, and a letter or
+digit at the end. This is a subset of the display-ID grammar without `/`. A
+bracketed comment whose text is not such an ID (`# [TODO] fix later`,
+`# [x] done`, `# [WIP]`) is a plain comment: it gives no entry and no
+diagnostic, and `fmt` does not change it. In the rules below, `[ID]` means a
+bracketed ID of this shape.
+
+**Header detection.**
+
+1. A header is the run of consecutive comment lines that ends directly above a
+   node keyword. Tag lines and plain comment lines (a line that does not start
+   with `[ID]`) may stand between the run and the keyword.
+2. A blank line, or any other line, between the run and the node breaks the
+   link.
+3. A comment line whose text starts with `[ID]` starts a new run, so stacked
+   headers are separate headers. Only the lowest header of a stack is directly
+   above the node; each upper header has no node, is not an entry, and gives
+   `MSL-B069`.
+4. A `# language:` line is never part of a header.
+5. A header above a `Background`, an `Examples` table or a step, or one that is
+   not directly above a node, is not an entry and gives `MSL-B069`.
+
+A file with no `# [ID]` header line gives no entries and no diagnostic. A file
+that has a header line and does not parse gives no entries and one `MSL-B062`.
+
+**Ownership.** A scenario belongs to at most one entry. A headed `Scenario` is
+its own entry. A scenario with no header belongs to the nearest enclosing headed
+`Rule`, else to the headed `Feature`; a `Rule` with no header does not stop the
+search. A scenario with no headed ancestor is in no entry. Nesting creates no
+relation: no `Part-of` is generated, and tags are not labels.
+
+**Entry body.** The body is the header prose, then the Gherkin description of
+the node, joined by a blank line. The body AST is the header prose blocks, the
+blocks of the description, and one `Feature` node (§1.3 of the data model). The
+`FeatureNode.source` is the text of the owning node, from its first tag line or
+keyword line to its last line. The text of a nested entry is blank in it. Its
+`feature` holds the owned scenarios and the `Background` steps that apply to
+them, with ranges relative to that text. The `Feature` node therefore gives
+`Entry.criteria` and the block-role checks of §8.12.
+
+**Entry source.** Each entry has `source` of kind `feature-file` with `node`
+`feature`, `rule` or `scenario`. Locations are line and column of the `.feature`
+file. The type of an entry follows the resolution chain (data model §1.3.1),
+where step 6a gives `Feature` and `Rule` the type `Requirement` and `Scenario`
+the type `Test`. When no `display-id-pattern` matches a `.feature` entry,
+profile classification resolves it through the same chain (steps 3, 4 and 6
+still win over 6a), so the entry is never un-classified (no `MSL-T003`), and it
+has a type even without a profile.
+
+**Discovery.** `check`, `lint`, `fmt` and `lock` find `.feature` files like
+other project files. `compile` does no discovery and reads the `.feature` files
+named in its paths. A `.feature` file with no header changes no output of these
+commands, except that the scope line of a bare `check` or `fmt` counts it.
+
+**Formatting.** `markspec fmt` inserts a missing `# Id: <ULID>` line into a
+header, in front of its first trailer line, and changes nothing else. A file
+that does not parse is left unchanged. `MSL-F010` reports a header without
+`Id:`.
+
+The language server does not index `.feature` files in this version.
+
 ---
 
 ## Part 2 — Entry Shapes
@@ -1740,8 +1816,9 @@ Drift between a file's on-disk form and what `markspec fmt` would write, plus
 diagnostics for rewrites that `fmt` refuses. `MSL-F010` and `MSL-F011` fire only
 in the project-wide composite `markspec check` gate (ADR-027) and mirror
 `markspec fmt` / `markspec fmt --check` exactly, from the same `.gitignore`- and
-`exclude:`-aware corpus. They are Markdown-only — `markspec fmt` never rewrites
-source files.
+`exclude:`-aware corpus. They cover Markdown files and `.feature` files;
+`markspec fmt` never rewrites source files. For a `.feature` file, `MSL-F010`
+means only that a header has no `# Id:` line.
 
 | ID         | Severity | Rule                                                                                                                                                                                                                                                 |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1812,17 +1889,18 @@ any position.
 Free text between a scenario line and its first step is the description of the
 scenario, not an error.
 
-| ID         | Severity | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry. Reported on the second and later occurrences, at column 1 of the scenario line. A locator cannot address that name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. Reported at column 1 of the scenario line. A locator cannot address it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `MSL-B062` | warning  | A feature block of an entry of any type, also one nested in a list item, does not parse as Gherkin. Reported at the file line of the first parser error, at column 1. The scenario names of a top-level block are then read by a line scanner that knows English keywords only.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `MSL-B063` | warning  | A step of the procedure of a scenario in a feature block has one or more actions and no expected result. Checked for entries whose type is or extends Test, so the check needs a profile that types the entry: a `Type: Test` trailer with no profile is not checked. Reported at the file line of the last action of the step, at column 1. A block that does not parse is skipped. The roles are `Given` precondition, `When` and `*` action, `Then` outcome, with `And` and `But` taking the role of the previous step; an action after an outcome, or a precondition after an action or outcome, opens a new numbered step (see [Procedure steps](../../guide/scenario-locators.md#procedure-steps-in-a-test-entry)). |
-| `MSL-B064` | warning  | A scenario of a criteria block has no outcome step. A criteria block is a feature block in an entry whose type is or extends Requirement or Contract, so the check needs a profile that types the entry. Nested blocks at any depth are checked. The scenario has no `Then` step (including an `And` or `But` after one), or no step at all; a scenario with `Given` and `Then` and no action is valid. `Scenario Outline` Examples are not considered. A block that does not parse is skipped. Reported at the file line of the `Scenario` keyword, at column 1 (see [Role of a Gherkin block](../../guide/scenario-locators.md#role-of-a-gherkin-block)).                                                               |
-| `MSL-B065` | info     | A step of the procedure of a scenario in a procedure block has an expected result and no action. A procedure block is a feature block in an entry whose type is or extends Test. Reported at the file line of the first expected-result step of that step, at column 1 (see [Procedure steps](../../guide/scenario-locators.md#procedure-steps-in-a-test-entry)).                                                                                                                                                                                                                                                                                                                                                         |
-| `MSL-B066` | info     | A scenario in a criteria block or a procedure block starts with `And` or `But`, which is read as an action. Reported at the file line of that step, at column 1. Not reported for an illustration.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `MSL-B067` | info     | A `# Step` comment (`#`, optional spaces, `Step`, then whitespace or the end of the line) in a procedure block labels no step: it is above a leading precondition or a step that does not open a procedure step, it has a description line between it and the next step, it has no step after it (also one before `Examples:` or outside every scenario), or it is a second label above the same step. Reported at the file line of the comment, at column 1 (see [Step labels](../../guide/scenario-locators.md#step-labels)).                                                                                                                                                                                           |
-| `MSL-B068` | info     | A feature block is in an entry that has a type but whose type is neither a Requirement, a Contract nor a Test (or an extension of one), so the block is an illustration. Reported at the first line of the block, at column 1. An entry with no type, after classification with the profile, is not reported.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ID         | Severity | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry. Reported on the second and later occurrences, at column 1 of the scenario line. A locator cannot address that name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. Reported at column 1 of the scenario line. A locator cannot address it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `MSL-B062` | warning  | A feature block of an entry of any type, also one nested in a list item, does not parse as Gherkin. Reported at the file line of the first parser error, at column 1. The scenario names of a top-level block are then read by a line scanner that knows English keywords only. For a `.feature` file, reported only when the file has a `# [ID]` header line, at the file line and column of the first parser error (or at line 1 when the Gherkin parser fails to load); the file then gives no entries (see §1.3 §7).                                                                                                                                                                                                                                                                                                                                                                                       |
+| `MSL-B063` | warning  | A step of the procedure of a scenario in a feature block has one or more actions and no expected result. Checked for entries whose type is or extends Test, so the check needs a profile that types the entry: a `Type: Test` trailer with no profile is not checked. A headed `.feature` entry is typed without a profile (step 6a, [ADR-038 Case B decision 6](../../architecture/adr-038-gherkin-ast.md#amendment-2026-11-14--case-b-feature-entries)). Reported at the file line of the last action of the step, at column 1. A block that does not parse is skipped. The roles are `Given` precondition, `When` and `*` action, `Then` outcome, with `And` and `But` taking the role of the previous step; an action after an outcome, or a precondition after an action or outcome, opens a new numbered step (see [Procedure steps](../../guide/scenario-locators.md#procedure-steps-in-a-test-entry)). |
+| `MSL-B064` | warning  | A scenario of a criteria block has no outcome step. A criteria block is a feature block in an entry whose type is or extends Requirement or Contract, so the check needs a profile that types the entry; a headed `.feature` entry is typed without a profile (step 6a, [ADR-038 Case B decision 6](../../architecture/adr-038-gherkin-ast.md#amendment-2026-11-14--case-b-feature-entries)). Nested blocks at any depth are checked. The scenario has no `Then` step (including an `And` or `But` after one), or no step at all; a scenario with `Given` and `Then` and no action is valid. `Scenario Outline` Examples are not considered. A block that does not parse is skipped. Reported at the file line of the `Scenario` keyword, at column 1 (see [Role of a Gherkin block](../../guide/scenario-locators.md#role-of-a-gherkin-block)).                                                               |
+| `MSL-B065` | info     | A step of the procedure of a scenario in a procedure block has an expected result and no action. A procedure block is a feature block in an entry whose type is or extends Test. Reported at the file line of the first expected-result step of that step, at column 1 (see [Procedure steps](../../guide/scenario-locators.md#procedure-steps-in-a-test-entry)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `MSL-B066` | info     | A scenario in a criteria block or a procedure block starts with `And` or `But`, which is read as an action. Reported at the file line of that step, at column 1. Not reported for an illustration.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `MSL-B067` | info     | A `# Step` comment (`#`, optional spaces, `Step`, then whitespace or the end of the line) in a procedure block labels no step: it is above a leading precondition or a step that does not open a procedure step, it has a description line between it and the next step, it has no step after it (also one before `Examples:` or outside every scenario), or it is a second label above the same step. Reported at the file line of the comment, at column 1 (see [Step labels](../../guide/scenario-locators.md#step-labels)).                                                                                                                                                                                                                                                                                                                                                                                |
+| `MSL-B068` | info     | A feature block is in an entry that has a type but whose type is neither a Requirement, a Contract nor a Test (or an extension of one), so the block is an illustration. Reported at the first line of the block, at column 1. An entry with no type, after classification with the profile, is not reported.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `MSL-B069` | warning  | In a `.feature` file, a `# [ID]` header comment stands above a `Background`, an `Examples` table or a step, or is not directly above any node, so it is not an entry. Reported at the first line of the header, at the column of its `#`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ---
 
