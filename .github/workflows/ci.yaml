@@ -233,7 +233,7 @@ jobs:
           rc=$?
           echo "$out"
           if echo "$out" | grep -q "Requires net access"; then exit 1; fi
-          test $rc -eq 0
+          test $rc -eq 0 || exit 1
           "$copydir/markspec" --version | grep -q "0.12.0"
       - name: Smoke test — lock fetches a snapshot over HTTP
         run: |

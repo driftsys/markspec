@@ -64,11 +64,12 @@ export const docCmd = new Command()
  * Typst runs as a native addon that reads the real filesystem, so it cannot
  * see files embedded in a `deno compile` binary. When running from such a
  * binary (`Deno.build.standalone`), the package is copied to a folder in the
- * system temp directory, and that copy is used. The system temp directory
- * keeps the Typst workspace root (the longest common directory of the
- * package and the source, see `render/mod.ts`) at least as wide as when
- * running from source, so references such as `../assets/x.svg` keep working,
- * and a read-only document folder does not fail. If the system temp
+ * system temp directory, and that copy is used. The Typst workspace root is
+ * the longest common directory of the package and the source (see
+ * `render/mod.ts`). Staging outside the document folder keeps that root above
+ * the document folder in the usual layouts, so references such as
+ * `../assets/x.svg` keep working, and a read-only document folder does not
+ * fail. If the system temp
  * directory is on another Windows drive than the source, the copy is made
  * next to the source instead, because paths on different drives share no
  * common ancestor.
