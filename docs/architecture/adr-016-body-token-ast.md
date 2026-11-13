@@ -341,7 +341,9 @@ expressions or a scanner produce them, this section applies.
   built. `parseFile` loads it when the text holds a `gherkin` or `feature`
   fence. The synchronous `parse()` never loads it, but uses it when it is
   already loaded in the process; otherwise a feature node built with `parse()`
-  has no `feature` and gives no Gherkin tokens.
+  has no `feature` and gives no Gherkin tokens. When the import fails,
+  `parseFile` continues without the parser, and the entries it builds give no
+  Gherkin tokens.
 - A block with a parse error (`FeatureNode.parseError`, reported as `MSL-B062`)
   gives no Gherkin tokens.
 - Modal, EARS, entity-ref and inline-code tokens never depend on the parser.

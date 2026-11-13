@@ -98,7 +98,8 @@ function collectVerbatimLines(blocks: readonly BodyBlock[]): Set<number> {
  * inline-code tokens never do. Gherkin tokens are read only by LSP
  * semantic tokens, which receive entries from `parseFile`; that path loads
  * the parser before it builds any entry that holds a gherkin or feature
- * fence.
+ * fence, unless the parser import failed; then no node has a `feature`
+ * and no Gherkin tokens are emitted.
  *
  * Positions are file-relative like the other tokens: the line is the
  * node's body-relative start plus the AST line, and the column adds

@@ -414,9 +414,9 @@ loaded, the node also carries exactly one of `feature` (the normalized Gherkin
 AST, with positions relative to `source`) and `parseError` (the line, column and
 message of the first parser error, reported as `MSL-B062`). Both fields are pure
 functions of `source`. When the parser is not loaded, the node has neither.
-`MSL-B062` checks a `Feature` node anywhere in the entry body, also one nested
-in a list item; `Entry.criteria` is read from top-level `Feature` nodes only.
-See [ADR-038](../../architecture/adr-038-gherkin-ast.md).
+`MSL-B062` checks a `Feature` node in a top-level block or in a list item at any
+depth; `Entry.criteria` is read from top-level `Feature` nodes only. See
+[ADR-038](../../architecture/adr-038-gherkin-ast.md).
 
 #### 2.4.1 Excluded constructs
 

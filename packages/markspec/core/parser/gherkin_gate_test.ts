@@ -126,7 +126,9 @@ Deno.test("GHERKIN_FENCE_RE: matches the fence shapes that gate the load", () =>
     "text ```gherkin",
     "-```gherkin",
     "1.```gherkin",
-    // The prefix never spans a line break.
+    // The fence and the info word are on different lines.
+    "```\ngherkin",
+    "~~~\nfeature x",
     "-\n```ts\ngherkin",
     "\n\n   \n",
   ];

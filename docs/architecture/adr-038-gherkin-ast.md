@@ -66,9 +66,9 @@ synchronous.
    ADR-037, which reads English keywords only.
 5. **Diagnostic.** `MSL-B062` (warning, body family) reports a block that does
    not parse, on any entry type, at the file line of the first parser error. It
-   checks a feature block anywhere in the entry body, also one nested in a list
-   item. Criteria are still read from top-level blocks only (ADR-037), so a
-   nested block gets the warning but gives no criteria.
+   checks a feature block in a top-level block or in a list item at any depth.
+   Criteria are still read from top-level blocks only (ADR-037), so a nested
+   block gets the warning but gives no criteria.
 6. **Consumers.** Body tokens (ADR-016 amendment) and `Entry.criteria` (ADR-037
    amendment) read the AST. Ranges in the AST are relative to the block: line 1
    is the first line of `FeatureNode.source`. `featureFileLine` maps a block

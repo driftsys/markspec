@@ -3,8 +3,8 @@
  *
  * `MSL-B062` (warning): a `gherkin` or `feature` block does not parse as
  * Gherkin (epic #915). The warning is reported at the file line of the
- * first parser error, for an entry of any type. A feature block anywhere in
- * the entry body is checked, including one nested in a list item. (Criteria
+ * first parser error, for an entry of any type. A feature block is checked
+ * in a top-level block or in a list item at any depth. (Criteria
  * are read from top-level blocks only; see `core/criteria/scenarios.ts`.)
  * For a top-level block of a Requirement or Contract entry, the criteria of
  * a block that does not parse come from the line scanner.

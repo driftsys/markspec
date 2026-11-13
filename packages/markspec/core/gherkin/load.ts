@@ -23,16 +23,30 @@ export interface GherkinApi {
 let loaded: GherkinApi | undefined;
 let pending: Promise<GherkinApi> | undefined;
 
+/** The two parser modules, as the importer returns them. */
+type ParserModules = [
+  typeof import("@cucumber/gherkin"),
+  typeof import("@cucumber/messages"),
+];
+
+/** Imports the two parser modules. */
+const importModules = (): Promise<ParserModules> =>
+  Promise.all([
+    import("@cucumber/gherkin"),
+    import("@cucumber/messages"),
+  ]);
+
 /**
  * Load the Gherkin parser. The result is cached; a failed load is not
  * cached, so a later call tries again.
+ *
+ * @param importer - Replaces the module import. Internal, for tests.
  */
-export function loadGherkin(): Promise<GherkinApi> {
+export function loadGherkin(
+  importer: () => Promise<ParserModules> = importModules,
+): Promise<GherkinApi> {
   if (loaded) return Promise.resolve(loaded);
-  pending ??= Promise.all([
-    import("@cucumber/gherkin"),
-    import("@cucumber/messages"),
-  ]).then(
+  pending ??= importer().then(
     ([
       { AstBuilder, GherkinClassicTokenMatcher, Parser, dialects },
       { IdGenerator },

@@ -4,7 +4,7 @@
  * Unit tests for the MSL-B062 Gherkin parse-error warning (epic #915).
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { loadGherkin } from "../gherkin/load.ts";
 import { parseFile } from "../parser/mod.ts";
 import { checkFeatureParse } from "./feature_parse.ts";
@@ -148,6 +148,42 @@ Deno.test("checkFeatureParse: message ends with the parser reason", async () => 
   const { entries } = await parseFile(doc([BROKEN]), { file: "/r.md" });
   const [d] = checkFeatureParse(entries);
   assertEquals(d.message.includes("scenario names"), false, d.message);
+  const node = entries[0].bodyAst?.find((b) => b.kind === "feature") as {
+    parseError?: { message: string };
+  };
+  const reason = node.parseError!.message.split("\n")[0]
+    .replace(/^\(\d+:\d+\):\s*/, "").trim();
+  assert(reason.length > 0);
+  assertEquals(
+    d.message,
+    `REQ_BRK_0010: Gherkin block does not parse: ${reason}`,
+  );
+});
+
+Deno.test("checkFeatureParse: a broken block two list levels deep is reported", async () => {
+  const text = [
+    "- [REQ_BRK_0010] Braking",
+    "",
+    "  The controller shall brake.",
+    "",
+    "  - Criteria:",
+    "",
+    "    - Stop case:",
+    "",
+    "      ```gherkin",
+    "      Scenario: Stop",
+    "        Given a",
+    "      Whatever is this",
+    "      ```",
+    "",
+    "      Id: 01REQ00000000000000000010A",
+    "",
+  ].join("\n");
+  const { entries } = await parseFile(text, { file: "/r.md" });
+  const diags = checkFeatureParse(entries);
+  assertEquals(diags.length, 1);
+  const line = text.split("\n")[diags[0].location!.line - 1];
+  assertEquals(line.includes("Whatever"), true, line);
 });
 
 Deno.test("checkFeatureParse: check keeps a delivered-corpus warning with an origin prefix", async () => {

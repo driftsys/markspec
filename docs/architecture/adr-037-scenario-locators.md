@@ -155,7 +155,8 @@ small scenario index and leave room for it.
 - Compiled JSON, `fmt` output, the lockfile and the coverage report are
   unchanged for a project with no closed bracket locators and no feature blocks
   in Requirement or Contract entries. (Since the Gherkin AST slice, ADR-038, the
-  `bodyTokens` in compiled JSON also change for a feature block in an entry of
+  `bodyTokens` and the `bodyAst` feature nodes, which now carry `feature` or
+  `parseError`, also change in compiled JSON for a feature block in an entry of
   any type.)
 - `Entry.criteria` and `Link.locatorResolved` are additive, so JSON consumers
   that ignore unknown keys keep working.
