@@ -1,0 +1,6 @@
+export const snapshot = {};
+
+snapshot[`check --format json: unchanged output without a feature fence 1`] = `
+"[]
+"
+`;

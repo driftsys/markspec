@@ -61,7 +61,7 @@ export function checkFeatureParse(entries: readonly Entry[]): Diagnostic[] {
 
 /** Every feature node in `blocks`, including those nested in list items,
  * in source order. */
-function* featureNodes(
+export function* featureNodes(
   blocks: readonly BodyBlock[],
 ): Generator<FeatureNode> {
   for (const block of blocks) {

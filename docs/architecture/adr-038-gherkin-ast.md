@@ -84,17 +84,64 @@ synchronous.
 - A project with Gherkin loads the parser once per process. Code that builds
   entries with the synchronous `parse()` gets the AST only when the parser is
   already loaded in the process; otherwise it gets the scanner.
-- Later slices (procedure view, role diagnostics, `.feature` entries, LSP) build
-  on `FeatureAst` and are not part of this decision.
+- Later slices (role diagnostics, `.feature` entries) build on `FeatureAst` and
+  are not part of this decision. The procedure view is delivered by the
+  amendment below.
+
+## Amendment 2026-11-14 — procedure view
+
+The procedure-view slice (epic #915) builds on `FeatureAst`. Decisions 1 to 6
+above are unchanged.
+
+1. **Pure view.** The procedure view is an on-demand function over `FeatureAst`
+   (`stepRoles` and `scenarioProcedure` in `core/gherkin/procedure.ts`). It
+   stores no new field on the AST or on `Entry`.
+2. **Roles.** `Given` is a precondition, `When` and `*` are actions, `Then` is
+   an outcome. `And` and `But` take the role of the previous step; a first `And`
+   or `But` is an action.
+3. **Diagnostic.** `MSL-B063` (warning, body family) reports a numbered step
+   that has actions and no outcome. It is a check diagnostic, not a prose lint.
+4. **Scope.** The check applies to entries whose type is or extends core `Test`,
+   in a feature block at any depth, as for `MSL-B062`. A block with a
+   `parseError`, and an upstream entry, is skipped. The entry must be typed, so
+   a profile that types it is required; a `Type: Test` trailer with no profile
+   is not checked.
+5. **Position.** The warning is reported at the file line of the last action of
+   the step, in column 1.
+6. **Where it runs.** The check runs in `markspec check` and in the LSP
+   cross-file validation.
+
+### Alternatives considered (procedure view)
+
+1. **Where the step rule lives.**
+   - (a) A check diagnostic, `MSL-B063`. Chosen: the rule is structural, needs
+     the entry type, and belongs with `MSL-B062` in the body family.
+   - (b) An `MSL-Q` prose lint. Rejected: prose lints analyse wording and are
+     advisory, and they do not see the entry type or the AST.
+2. **How the view is exposed.**
+   - (a) A pure function over `FeatureAst`. Chosen: no schema change and no
+     duplicated state.
+   - (b) A stored field on `FeatureAst` or `Entry`. Rejected: it would add a
+     second copy of data derived from the AST, which must then be kept in step
+     with the AST.
+3. **Which entries are checked.**
+   - (a) Entries whose type is or extends `Test`. Chosen: only a test reads as a
+     procedure with expected results.
+   - (b) All entries. Rejected: a requirement scenario may end in an action
+     without being a procedure, so the warning would be noise.
+4. **`# Step N` labels.** Deferred to the Case A slice, together with the two
+   info diagnostics. This slice only needs the role rule.
 
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
-failure), 3 (pins) and 4 (code).\
+failure), 3 (pins) and 4 (code), and decisions 1 to 5 of the procedure-view
+amendment.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
 [core data model](../spec/internal/markspec-core-data-model.md).\
 Documented in: [Scenario locators](../guide/scenario-locators.md).\
 Code: `packages/markspec/core/gherkin/`,
+`packages/markspec/core/validator/procedure.ts`,
 `packages/markspec/core/validator/feature_parse.ts`,
 `packages/markspec/core/criteria/scenarios.ts`.

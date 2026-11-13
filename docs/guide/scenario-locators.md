@@ -76,6 +76,56 @@ The locator has these properties:
 
 See [Locators](../spec/model/relations.md#locators) for the full grammar.
 
+## Procedure steps in a Test entry
+
+A Test entry can hold a scenario that reads as a manual test procedure. Each
+step of the procedure has actions and an expected result, although a step may
+have no actions or no expected result. MarkSpec derives the steps from the
+keywords of the scenario:
+
+- `Given` is a precondition, `When` is an action, and `Then` is an outcome. A
+  `*` step is always an action.
+- `And` and `But` take the role of the step before them. A first `And` or `But`
+  is an action.
+- Only the leading steps that are preconditions are preconditions of the whole
+  scenario, after any `Background` steps. A leading `Then` is not one: it is the
+  expected result of step 1.
+- An action that follows an outcome opens a new numbered step. A precondition
+  that follows an action or an outcome also opens a new step.
+
+`markspec check` reports `MSL-B063` only for a numbered step that has actions
+and no outcome. A step with no actions, or with no actions and no outcome, is
+not reported. The warning is placed at the line of the last action of the step.
+The check applies to entries whose type is, or extends, `Test`, so the project
+needs a profile that types the entry. A `Type: Test` trailer in a project with
+no profile is not checked, which is also true of locators. A block that does not
+parse is skipped, because `MSL-B062` reports it.
+
+In this entry the second step has an action and no `Then` step:
+
+````markdown
+- [TST_BRK_0010] Braking procedure
+
+  Verify that the vehicle stops and that the brake can be released.
+
+  ```feature
+  Scenario: Stop and release
+    Given a vehicle at 50 km/h
+    When the driver presses the brake pedal
+    Then the vehicle stops within 20 m
+    When the driver releases the brake pedal
+  ```
+````
+
+After `markspec fmt` adds the missing `Id:` line, `markspec check` reports:
+
+```text
+warning[MSL-B063]: docs/braking.md:10 TST_BRK_0010: step 2 of scenario "Stop and release" has no expected result (no Then step); add a Then step after the last action
+```
+
+To fix it, add a `Then` step after the last action, for example
+`Then the brake pedal returns to its rest position`.
+
 ## Diagnostics
 
 | Code       | Severity | Cause                                                                                    |
@@ -86,6 +136,7 @@ See [Locators](../spec/model/relations.md#locators) for the full grammar.
 | `MSL-B060` | warning  | A scenario name is used more than once in one entry. A locator cannot address that name. |
 | `MSL-B061` | info     | A scenario has an empty name. A locator cannot address it.                               |
 | `MSL-B062` | warning  | A Gherkin block does not parse. The warning names the line of the first error.           |
+| `MSL-B063` | warning  | A step of a procedure has actions and no expected result (Test entries).                 |
 
 If a second test in the example verifies `[Brake at 30 m]`, a scenario that does
 not exist, `markspec check` reports:
