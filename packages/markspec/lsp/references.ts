@@ -25,18 +25,13 @@
  */
 
 import type { Entry } from "../core/model/mod.ts";
-
-/**
- * Word-boundary splitter for values that may carry multiple ID
- * references separated by commas or whitespace (id-list attributes,
- * citation locators preceded by whitespace, etc.).
- */
-const TOKEN_SEPARATORS_RE = /[\s,]+/;
+import { referenceTokens } from "../core/mod.ts";
 
 /**
  * Return entries whose attribute values reference `targetDisplayId`.
  * Performs whole-token matches after splitting each value on
- * `[\s,]+`, so `REQ-001` does not match `REQ-0010` or partial
+ * `[\s,]+` (a closed scenario locator is dropped first, so an ID inside
+ * it is not a reference), so `REQ-001` does not match `REQ-0010` or partial
  * substrings.
  */
 export function findReferencingEntries(
@@ -49,7 +44,8 @@ export function findReferencingEntries(
     let matched = false;
     for (const attr of entry.rawAttributes) {
       if (attr.key === "Id") continue;
-      const tokens = attr.value.split(TOKEN_SEPARATORS_RE);
+      // An ID inside a scenario locator is not a reference (#915).
+      const tokens = referenceTokens(attr.value);
       if (tokens.includes(targetDisplayId)) {
         matched = true;
         break;

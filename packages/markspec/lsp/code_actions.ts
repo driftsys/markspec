@@ -297,7 +297,14 @@ function buildA011Fix(
     const values: string[] = [];
     let depth = 0;
     let current = "";
-    for (const ch of rawValue) {
+    for (let k = 0; k < rawValue.length; k++) {
+      const ch = rawValue[k];
+      // Inside a locator, `\]` and `\\` are escapes (#915): keep both
+      // characters and do not close the locator.
+      if (ch === "\\" && depth > 0 && k + 1 < rawValue.length) {
+        current += ch + rawValue[++k];
+        continue;
+      }
       if (ch === "[") depth++;
       else if (ch === "]" && depth > 0) depth--;
       if (ch === "," && depth === 0) {

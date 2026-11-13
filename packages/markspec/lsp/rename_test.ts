@@ -345,3 +345,24 @@ for (const newline of ["\n", "\r\n"]) {
     });
   }
 }
+
+Deno.test("findIdOccurrencesInFile: an ID inside a locator is not rewritten (#915)", () => {
+  const text = [
+    "- [REQ_1] Title",
+    "",
+    "  See REQ_1 [not a locator] in prose.",
+    "",
+    "      Verifies: REQ_1 [Check REQ_1 behaviour]",
+  ].join("\n");
+  const edits = findIdOccurrencesInFile(text, "REQ_1", "REQ_9");
+  assertEquals(
+    edits.map((e) => [e.range.start.line, e.range.start.character]),
+    [[0, 3], [2, 6], [4, 16]],
+  );
+});
+
+Deno.test("findIdOccurrencesInFile: a doc-comment trailer locator is skipped (#915)", () => {
+  const text = "///     Verifies: REQ_1 [Check REQ_1 behaviour]";
+  const edits = findIdOccurrencesInFile(text, "REQ_1", "REQ_9");
+  assertEquals(edits.map((e) => e.range.start.character), [18]);
+});
