@@ -267,7 +267,7 @@ export function runPipeline(
   diagnostics.push(...validateLocators(finalEntries, profile));
 
   // Stage 4.6 — Gherkin procedure steps with no expected result (MSL-B063).
-  // Needs the classified entries: only Test entries are checked.
+  // Only Test entries are checked; unclassified entries are classified first.
   diagnostics.push(...checkProcedureSteps(finalEntries, profile));
 
   // Stage 5 — uxil diagnostics family (S9 #727). Inert unless some profile

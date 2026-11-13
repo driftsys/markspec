@@ -13,8 +13,8 @@
  * not checked (`emittableEntries`).
  *
  * The warning is reported at the file line of the last action of the step,
- * in column 1. The entries must be classified (`entry.type` set), so the
- * caller runs this check on the pipeline's final entries.
+ * in column 1. An entry without `entry.type` is classified with the profile
+ * first, so callers may pass classified or unclassified entries.
  */
 
 import type { Diagnostic, EffectiveProfile, Entry } from "../model/mod.ts";
