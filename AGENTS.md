@@ -35,6 +35,7 @@ markspec/
 │       │   ├── discovery/           ← gitignore-aware file walk; projects.ts
 │       │   │   └── projects.ts        finds every project root under a folder
 │       │   ├── gherkin/             ← lazy @cucumber/gherkin load, block → FeatureAst
+│       │   │   └── procedure.ts       procedure view: step roles, numbered steps
 │       │   ├── profile/             ← profile manifest load, merge, resolver
 │       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
@@ -52,8 +53,9 @@ markspec/
 │       │   │   └── scenarios.ts       blocks → Entry.criteria (ADR-037)
 │       │   ├── validator/           ← file-local + cross-file checks (broken
 │       │   │   ├── mod.ts             refs, missing Ids, duplicates)
-│       │   │   └── locators.ts      ←   scenario-locator diagnostics (L007-L009,
+│       │   │   ├── locators.ts      ←   scenario-locator diagnostics (L007-L009,
 │       │   │                            B060, B061)
+│       │   │   └── procedure.ts     ←   MSL-B063 procedure steps with no result
 │       │   ├── compiler/            ← glob → parsed entries → resolved graph →
 │       │   │   └── mod.ts             compiled JSON
 │       │   └── reporter/            ← compiled JSON → output formats (json, csv,
@@ -187,7 +189,7 @@ fenced `gherkin` or `feature` block, so a run over files without such a block
 never loads it. The synchronous `parse()` never loads it, but it uses the parser
 when an earlier call (`loadGherkin()` or `parseFile`) has loaded it in the same
 process; otherwise an entry built with `parse()` has no Gherkin AST, no Gherkin
-body tokens, and no `MSL-B062`.
+body tokens, and no `MSL-B062` or `MSL-B063`.
 
 **One compile target — one binary:**
 
@@ -571,7 +573,8 @@ docs/
 - `adr-038-gherkin-ast.md` — normalized Gherkin AST on `FeatureNode` from
   exact-pinned `@cucumber/gherkin@42.0.1`; parser loaded lazily only for texts
   with a `gherkin`/`feature` fence; scanner fallback for a block that does not
-  parse; MSL-B062; amends ADR-015/016/037
+  parse; MSL-B062; procedure view (`core/gherkin/procedure.ts`) and MSL-B063;
+  amends ADR-015/016/037
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

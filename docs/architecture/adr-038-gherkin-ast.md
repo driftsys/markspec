@@ -84,8 +84,9 @@ synchronous.
 - A project with Gherkin loads the parser once per process. Code that builds
   entries with the synchronous `parse()` gets the AST only when the parser is
   already loaded in the process; otherwise it gets the scanner.
-- Later slices (procedure view, role diagnostics, `.feature` entries, LSP) build
-  on `FeatureAst` and are not part of this decision.
+- Later slices (role diagnostics, `.feature` entries) build on `FeatureAst` and
+  are not part of this decision. The procedure view is delivered by the
+  amendment below.
 
 ## Amendment 2026-11-14 — procedure view
 
@@ -121,8 +122,8 @@ above are unchanged.
    - (a) A pure function over `FeatureAst`. Chosen: no schema change and no
      duplicated state.
    - (b) A stored field on `FeatureAst` or `Entry`. Rejected: it would add a
-     second copy of data derived from the AST and would need a
-     `CORE_SCHEMA_VERSION` change.
+     second copy of data derived from the AST, which must then be kept in step
+     with the AST.
 3. **Which entries are checked.**
    - (a) Entries whose type is or extends `Test`. Chosen: only a test reads as a
      procedure with expected results.
@@ -134,7 +135,8 @@ above are unchanged.
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
-failure), 3 (pins) and 4 (code).\
+failure), 3 (pins) and 4 (code), and decisions 1 to 5 of the procedure-view
+amendment.\
 Specified in:
 [Language — Body (MSL-B)](../spec/language/language.md#812-body-msl-b),
 [core data model](../spec/internal/markspec-core-data-model.md).\
