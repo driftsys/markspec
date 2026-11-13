@@ -199,7 +199,8 @@ const IGNORED_CODES: ReadonlySet<string> = new Set([
  * source doc comment. A trailer in git style (no indent) is canonical in a
  * `.feature` header, so the Markdown-only MSL-P023 warning is dropped. An
  * empty body is not an error here: the node description can supply it.
- * A header that is only a title still gives an entry, with an empty body.
+ * A header that is only a title still gives an entry, with an empty body
+ * (`allowTitleOnly`).
  * The result has no entry when the header text does not form one.
  *
  * @param header - A header found by {@linkcode findHeaders}.
@@ -214,26 +215,11 @@ export function headerEntry(
     startColumn: header.column,
     prefixWidths: header.prefixWidths,
   });
-  const parse = (lines: readonly string[]) =>
-    parseMarkdown(wrapAsListItem([...lines]), { file, lineMap });
-  let { entries, diagnostics } = parse(header.lines);
-  let entry = entries[0];
-  if (!entry && header.lines.length === 1) {
-    // The parser admits a title-only item only as a reference. Parse with a
-    // placeholder body paragraph, then remove it again.
-    const padded = parse([...header.lines, "", "x"]);
-    diagnostics = padded.diagnostics;
-    if (padded.entries[0]) {
-      entry = {
-        ...padded.entries[0],
-        body: "",
-        bodyAst: [],
-        bodyTokens: [],
-        bodyStartLine: undefined,
-        endLine: header.endLine,
-      };
-    }
-  }
+  const { entries, diagnostics } = parseMarkdown(
+    wrapAsListItem([...header.lines]),
+    { file, lineMap, allowTitleOnly: true },
+  );
+  const entry = entries[0];
   return {
     entry,
     diagnostics: diagnostics.filter((d) => !IGNORED_CODES.has(d.code)),

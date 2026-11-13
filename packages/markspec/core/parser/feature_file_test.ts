@@ -180,6 +180,10 @@ Deno.test("headerEntry: single-line header", () => {
   const { entry, diagnostics } = entryAt(text, 3);
   assertEquals(entry!.displayId, "SRS_A_0001");
   assertEquals(entry!.title, "Stop");
+  assertEquals(entry!.body, "");
+  assertEquals(entry!.bodyTokens, []);
+  assertEquals(entry!.bodyAst, []);
+  assertEquals(entry!.endLine, 2);
   assertEquals(diagnostics, []);
 });
 
