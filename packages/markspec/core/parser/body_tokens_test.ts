@@ -293,3 +293,38 @@ Deno.test("determinism: a node without the AST drops only Gherkin tokens", () =>
     unloaded,
   );
 });
+
+Deno.test("gherkin tokens: a Background-only block emits its step tokens", () => {
+  const body = "```gherkin\nFeature: f\n  Background:\n    Given a\n" +
+    "    And b\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => `${t.text}@${t.location.line}:${t.location.column}`),
+    ["Feature@2:1", "Background@3:3", "Given@4:5", "And@5:5"],
+  );
+});
+
+Deno.test("gherkin tokens: Rule Background steps are emitted once", () => {
+  const body = "```gherkin\nFeature: f\n  Rule: r\n    Background:\n" +
+    "      Given a\n    Scenario: one\n      When b\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => t.text),
+    ["Feature", "Rule", "Background", "Given", "Scenario", "When"],
+  );
+});
+
+Deno.test("gherkin tokens: Scenario Outline and Examples sections", () => {
+  const body = "```gherkin\nFeature: f\n  Scenario Outline: o\n" +
+    "    Given <x>\n\n    Examples:\n      | x |\n      | 1 |\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => `${t.kind}:${t.text}@${t.location.line}`),
+    [
+      "gherkin-section:Feature@2",
+      "gherkin-section:Scenario Outline@3",
+      "gherkin-step:Given@4",
+      "gherkin-section:Examples@6",
+    ],
+  );
+});

@@ -70,6 +70,11 @@ export interface FeatureAst {
   readonly description: string;
   readonly tags: readonly string[];
   readonly scenarios: readonly ScenarioAst[];
+  /**
+   * The steps of every Background (Feature and Rule), each once, in document
+   * order. A scenario's `background` repeats the ones that apply to it.
+   */
+  readonly backgrounds: readonly StepAst[];
   /** Every structural keyword in document order, without the synthetic line. */
   readonly sections: readonly SectionAst[];
 }

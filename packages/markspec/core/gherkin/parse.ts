@@ -228,9 +228,12 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
     });
   };
 
+  const backgrounds: StepAst[] = [];
   const backgroundSteps = (b: Background): StepAst[] => {
     section(b.keyword, b.location);
-    return b.steps.map(step);
+    const steps = b.steps.map(step);
+    backgrounds.push(...steps);
+    return steps;
   };
 
   let featureBackground: StepAst[] = [];
@@ -269,6 +272,7 @@ export function parseFeature(api: GherkinApi, source: string): FeatureParse {
       description: parsed.description,
       tags: parsed.tags.map((t) => t.name),
       scenarios,
+      backgrounds,
       sections,
     },
   };

@@ -103,8 +103,8 @@ function collectVerbatimLines(blocks: readonly BodyBlock[]): Set<number> {
  * Positions are file-relative like the other tokens: the line is the
  * node's body-relative start plus the AST line, and the column adds
  * `columnOffset` (list-item indent or doc-comment prefix width).
- * Background steps are copied into every scenario by the AST; they are
- * emitted once, at their own position.
+ * Background steps come from `FeatureAst.backgrounds`, so each is emitted
+ * once at its own position, also when the block has no scenario.
  */
 function emitGherkin(
   blocks: readonly BodyBlock[],
@@ -129,12 +129,15 @@ function emitGherkin(
           location: at(section.range),
         });
       }
-      const seen = new Set<string>();
+      for (const step of feature.backgrounds) {
+        out.push({
+          kind: "gherkin-step",
+          text: step.keyword,
+          location: at(step.range),
+        });
+      }
       for (const scenario of feature.scenarios) {
-        for (const step of [...scenario.background, ...scenario.steps]) {
-          const key = `${step.range.start.line}:${step.range.start.column}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
+        for (const step of scenario.steps) {
           out.push({
             kind: "gherkin-step",
             text: step.keyword,
