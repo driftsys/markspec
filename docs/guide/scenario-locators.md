@@ -117,7 +117,7 @@ In this entry the second step has an action and no `Then` step:
 `markspec check` reports:
 
 ```text
-warning[MSL-B063]: docs/braking.md:12 TST_BRK_0010: step 2 of scenario "Stop and release" has no expected result (no Then step); add a Then step after the last action
+warning[MSL-B063]: docs/braking.md:10 TST_BRK_0010: step 2 of scenario "Stop and release" has no expected result (no Then step); add a Then step after the last action
 ```
 
 To fix it, add a `Then` step after the last action, for example
@@ -163,6 +163,3 @@ extends, Test); a `Satisfies:` locator does not, and an entry never verifies
 itself. The `json` format carries the same data; `csv` carries only the
 `Criteria total` and `Criteria verified` counts. See the
 [CLI reference](cli.md#report) for the counting rules.
-
-```
-```

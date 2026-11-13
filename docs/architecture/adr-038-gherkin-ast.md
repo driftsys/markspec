@@ -110,6 +110,27 @@ above are unchanged.
 6. **Where it runs.** The check runs in `markspec check` and in the LSP
    cross-file validation.
 
+### Alternatives considered (procedure view)
+
+1. **Where the step rule lives.**
+   - (a) A check diagnostic, `MSL-B063`. Chosen: the rule is structural, needs
+     the entry type, and belongs with `MSL-B062` in the body family.
+   - (b) An `MSL-Q` prose lint. Rejected: prose lints analyse wording and are
+     advisory, and they do not see the entry type or the AST.
+2. **How the view is exposed.**
+   - (a) A pure function over `FeatureAst`. Chosen: no schema change and no
+     duplicated state.
+   - (b) A stored field on `FeatureAst` or `Entry`. Rejected: it would add a
+     second copy of data derived from the AST and would need a
+     `CORE_SCHEMA_VERSION` change.
+3. **Which entries are checked.**
+   - (a) Entries whose type is or extends `Test`. Chosen: only a test reads as a
+     procedure with expected results.
+   - (b) All entries. Rejected: a requirement scenario may end in an action
+     without being a procedure, so the warning would be noise.
+4. **`# Step N` labels.** Deferred to the Case A slice, together with the two
+   info diagnostics. This slice only needs the role rule.
+
 ## Trace
 
 Satisfies: epic #915 decision 1 of the Gherkin AST slice (loading), 2 (parse
