@@ -504,6 +504,17 @@ function extractEntry(
   // `attrLines` is the contiguous, blank-free tail of `bodyContent`.
   const attrContentStart = bodyContent.split("\n").length - attrLines.length;
 
+  // File line of each parsed attribute. `parseAttributes` keeps one
+  // attribute per trailer line and skips blank and empty-valued lines.
+  const attributeLines: number[] = [];
+  for (const [attrIndex, rawLine] of attrLines.entries()) {
+    if (parseAttributes([rawLine]).length === 1) {
+      attributeLines.push(
+        trailerLineLocation(attrContentStart + attrIndex).line,
+      );
+    }
+  }
+
   // Check lines that DID end up in attrLines but might have key issues
   for (const [attrIndex, rawLine] of attrLines.entries()) {
     const trailerLocation = trailerLineLocation(attrContentStart + attrIndex);
@@ -742,6 +753,7 @@ function extractEntry(
     location: entryLocation,
     bodyStartLine,
     ...(endLine !== undefined ? { endLine } : {}),
+    ...(attributeLines.length > 0 ? { attributeLines } : {}),
     source: { kind: "markdown" },
     properties: { file: { path: file, line, column } },
     bodyTokens,

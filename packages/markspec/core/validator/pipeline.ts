@@ -39,6 +39,7 @@ import { validateCaptionConvention } from "./caption_convention.ts";
 import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { validateUxilFamily } from "./uxil_family.ts";
+import { validateLocators } from "./locators.ts";
 
 /** Cross-entry DSL codes suppressed under file-local scope: a
  * subset registry cannot distinguish a dangling reference from an
@@ -250,6 +251,13 @@ export function runPipeline(
       );
     }
   }
+
+  // Stage 4.5 — scenario locators and scenario names (epic #915). Runs
+  // on the classified entries so criteria-bearing types resolve; targets
+  // resolve against the full list, diagnostics come from the emittable
+  // entries only. An unresolved target raises MSL-L006 (Stage 4), never
+  // MSL-L007, so no file-local filter is needed here.
+  diagnostics.push(...validateLocators(finalEntries, profile));
 
   // Stage 5 — uxil diagnostics family (S9 #727). Inert unless some profile
   // tier designates a declaring type (`declares: ux-surface`). Receives the

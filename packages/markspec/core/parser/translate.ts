@@ -59,6 +59,13 @@ export function translateEntryLocations(
           endLine: lineMap.translate(entry.endLine, 1)?.line ?? entry.endLine,
         }
         : {}),
+      ...(entry.attributeLines !== undefined
+        ? {
+          attributeLines: entry.attributeLines.map((line) =>
+            lineMap.translate(line, 1)?.line ?? line
+          ),
+        }
+        : {}),
       bodyAst: entry.bodyAst
         ? entry.bodyAst.map((block) =>
           translateBlock(block, lineMap, fallbackPoint, warn)

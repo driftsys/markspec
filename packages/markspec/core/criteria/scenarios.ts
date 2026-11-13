@@ -9,7 +9,9 @@
  */
 
 import type { BodyBlock, FeatureNode } from "../ast/nodes.ts";
-import type { Criterion, Entry } from "../model/mod.ts";
+import type { Criterion, EffectiveProfile, Entry } from "../model/mod.ts";
+import { descendantsOf } from "../model/mod.ts";
+import { extendsTransitively } from "../profile/discipline_mode.ts";
 import { normalizeLocator } from "../refs/split.ts";
 
 /** Matches a scenario-like keyword line. Group 2 is the raw name. */
@@ -78,6 +80,26 @@ export function buildCriteria(entry: Entry): readonly Criterion[] {
     addressable: name !== "" && counts.get(name) === 1,
     location: { file: entry.location.file, line, column: 1 },
   }));
+}
+
+/** Core types whose descendants carry criteria. */
+const CRITERIA_BEARING_TYPES = ["Requirement", "Contract"] as const;
+
+/** `true` when `entry`'s type resolves to core Requirement or Contract —
+ * the entries that carry criteria (epic #915, decision 3). Uses the
+ * profile extends chain when a profile is loaded, else the core hierarchy.
+ * An entry without a resolved type carries no criteria. */
+export function isCriteriaBearing(
+  entry: Entry,
+  profile: EffectiveProfile | null | undefined,
+): boolean {
+  const type = entry.type;
+  if (type === undefined) return false;
+  return CRITERIA_BEARING_TYPES.some((core) =>
+    profile
+      ? extendsTransitively(type, core, profile)
+      : descendantsOf(core).has(type)
+  );
 }
 
 function isFeature(block: BodyBlock): block is FeatureNode {

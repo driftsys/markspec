@@ -102,7 +102,6 @@ Deno.test({
 // Enabled by Task 5 (diagnostics MSL-L007).
 Deno.test({
   name: "locator coverage: check warns on an unresolved locator",
-  ignore: true,
   fn: async () => {
     const { code, stderr } = await markspec(
       ["check", "docs/braking.md"],
@@ -110,7 +109,24 @@ Deno.test({
     );
     assertStringIncludes(stderr, "MSL-L007");
     assertStringIncludes(stderr, "Brake at 30 m");
+    // The resolved locator on TST_BRK_0012 raises no MSL-L007.
+    const l007 = stderr.split("\n").filter((l) => l.includes("MSL-L007"));
+    assertEquals(l007.length, 1);
+    assertEquals(l007.some((l) => l.includes("TST_BRK_0012")), false);
+    // Exit 2 = warnings only; the fixture raises no other warning.
     assertEquals(code, 2);
+  },
+});
+
+// Task 5: a locator is not part of the target for value-type and
+// existence checks, project-wide included.
+Deno.test({
+  name: "locator coverage: check does not treat a locator as part of the id",
+  fn: async () => {
+    const { stderr } = await markspec(["check"], FILES);
+    assertStringIncludes(stderr, "MSL-L007");
+    assertEquals(stderr.includes("MSL-A004"), false);
+    assertEquals(stderr.includes("MSL-L006"), false);
   },
 });
 

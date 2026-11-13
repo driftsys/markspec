@@ -15,13 +15,8 @@ import type {
   Link,
   SourceLocation,
 } from "../model/mod.ts";
-import {
-  descendantsOf,
-  makeDisplayId,
-  relationLocatorMode,
-} from "../model/mod.ts";
-import { extendsTransitively } from "../profile/discipline_mode.ts";
-import { buildCriteria } from "../criteria/scenarios.ts";
+import { makeDisplayId, relationLocatorMode } from "../model/mod.ts";
+import { buildCriteria, isCriteriaBearing } from "../criteria/scenarios.ts";
 import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
@@ -469,25 +464,6 @@ function extractLinksFromAttribute(
   }
   return links;
 }
-
-/** `true` when `entry`'s type resolves to core Requirement or Contract —
- * the entries that carry criteria (epic #915, decision 3). Uses the
- * profile extends chain when a profile is loaded, else the core hierarchy. */
-function isCriteriaBearing(
-  entry: Entry,
-  profile: EffectiveProfile | undefined,
-): boolean {
-  const type = entry.type;
-  if (type === undefined) return false;
-  return CRITERIA_BEARING_TYPES.some((core) =>
-    profile
-      ? extendsTransitively(type, core, profile)
-      : descendantsOf(core).has(type)
-  );
-}
-
-/** Core types whose descendants carry criteria. */
-const CRITERIA_BEARING_TYPES = ["Requirement", "Contract"] as const;
 
 /** Attach `criteria` to every criteria-bearing entry that has at least one
  * scenario. Entries without scenarios are left unchanged, so compiled

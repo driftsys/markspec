@@ -15,6 +15,7 @@
 
 import type { EffectiveProfile, Entry, ValueType } from "../model/mod.ts";
 import { effectiveScope } from "./attributes.ts";
+import { splitTraceValues } from "../refs/split.ts";
 
 const LIST_TYPES: ReadonlySet<ValueType> = new Set(["id-list", "tag-list"]);
 
@@ -50,7 +51,8 @@ export function normalizeListValues(
 function splitListValues(values: readonly string[]): readonly string[] {
   const out: string[] = [];
   for (const v of values) {
-    const parts = v.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    // Commas inside a bracket locator (`A [x, y]`) do not split.
+    const parts = splitTraceValues(v);
     if (parts.length === 0) continue;
     out.push(...parts);
   }

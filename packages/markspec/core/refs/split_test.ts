@@ -1,8 +1,10 @@
 import { assertEquals } from "@std/assert";
 import {
+  isUnterminatedLocator,
   normalizeLocator,
   parseTraceValue,
   splitTraceValues,
+  traceTarget,
 } from "./split.ts";
 
 Deno.test("splitTraceValues: comma inside a locator does not split", () => {
@@ -84,4 +86,18 @@ Deno.test("parseTraceValue: unknown escape is kept as written", () => {
 Deno.test("normalizeLocator: explicit NFC escapes", () => {
   assertEquals(normalizeLocator("é"), "é");
   assertEquals(normalizeLocator("é"), "é");
+});
+
+Deno.test("traceTarget: drops a closed locator only", () => {
+  assertEquals(traceTarget("REQ_1 [Brake at 20 m]"), "REQ_1");
+  assertEquals(traceTarget("  REQ_1  "), "REQ_1");
+  assertEquals(traceTarget("REQ_1 trailing text"), "REQ_1 trailing text");
+  assertEquals(traceTarget("REQ_1 [open"), "REQ_1 [open");
+});
+
+Deno.test("isUnterminatedLocator: open bracket after whitespace", () => {
+  assertEquals(isUnterminatedLocator("A [x"), true);
+  assertEquals(isUnterminatedLocator("A [x]"), false);
+  assertEquals(isUnterminatedLocator("A[x"), false);
+  assertEquals(isUnterminatedLocator("A [x\\]"), true);
 });

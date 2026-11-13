@@ -97,8 +97,28 @@ export function parseTraceValue(raw: string): ParsedTraceValue {
       locatorRaw,
     };
   }
-  if (/\s\[/.test(value) && hasUnterminatedLocator(value)) {
-    return { target: value };
-  }
+  if (isUnterminatedLocator(value)) return { target: value };
   return { target: value.split(/\s+/)[0] };
+}
+
+/**
+ * `true` when a trace value from {@linkcode splitTraceValues} has a `[`
+ * after whitespace that no unescaped `]` closes. Such a value has no
+ * locator, and commas after the `[` did not separate values.
+ */
+export function isUnterminatedLocator(raw: string): boolean {
+  const value = raw.trim();
+  return /\s\[/.test(value) && hasUnterminatedLocator(value);
+}
+
+/**
+ * The target of a trace value for existence and value-type checks: the
+ * target before a closed bracket locator, else the trimmed value as
+ * written. Unlike {@linkcode parseTraceValue}, a value without a locator
+ * is not cut to its leading token, so a malformed value is still reported
+ * as written.
+ */
+export function traceTarget(raw: string): string {
+  const parsed = parseTraceValue(raw);
+  return parsed.locator !== undefined ? parsed.target : raw.trim();
 }

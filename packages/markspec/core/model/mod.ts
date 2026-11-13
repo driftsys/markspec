@@ -639,6 +639,13 @@ export interface Entry {
    * remain unchanged.
    */
   readonly endLine?: number;
+  /**
+   * 1-based file line of each element of {@linkcode Entry.rawAttributes},
+   * in the same order. Diagnostics about one trailer value point at its
+   * line. Optional: entries built without the parser leave it unset, and
+   * readers fall back to the entry location.
+   */
+  readonly attributeLines?: readonly number[];
   /** Whether this came from a Markdown file or a doc comment. */
   readonly source: EntrySource;
   /**
