@@ -15,6 +15,8 @@
  * verbatim source text.
  */
 
+import type { FeatureAst } from "../gherkin/types.ts";
+
 /** Body-relative source span. 1-based line/column, matching the
  * codebase's {@link SourceLocation} convention. No `file`: that
  * lives on the owning {@link Entry}. */
@@ -123,12 +125,23 @@ export interface CodeNode {
   readonly range: SourceRange;
 }
 
-/** Fenced code with info-string `gherkin` or `feature`. Content is kept verbatim
- * for now; structured scenario parsing is deferred to a later PR
- * (see the canonical-body-AST plan). */
+/**
+ * Fenced code with info-string `gherkin` or `feature`. `source` is the
+ * authored text, kept verbatim. When the Gherkin parser is loaded, exactly
+ * one of `feature` (the normalized AST) and `parseError` is set; when it is
+ * not loaded, neither is set. Both are pure functions of `source`.
+ */
 export interface FeatureNode {
   readonly kind: "feature";
   readonly source: string;
+  /** Normalized AST of the block; ranges are relative to `source`. */
+  readonly feature?: FeatureAst;
+  /** First parser error; line 1 is the first line of `source`. */
+  readonly parseError?: {
+    readonly line: number;
+    readonly column: number;
+    readonly message: string;
+  };
   readonly range: SourceRange;
 }
 

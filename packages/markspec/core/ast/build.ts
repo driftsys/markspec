@@ -21,6 +21,8 @@ import type {
 } from "mdast";
 import { processor } from "../parser/remark.ts";
 import { normalizeLineEndings } from "../util/line_endings.ts";
+import { loadedGherkin } from "../gherkin/load.ts";
+import { parseFeature } from "../gherkin/parse.ts";
 import type {
   AdmonitionKind,
   BlockquoteNode,
@@ -481,11 +483,22 @@ function mapMdastNode(node: RootContent, body: string): BodyBlock {
     case "code": {
       const lang = node.lang ?? undefined; // empty string → undefined
       if (lang === "gherkin" || lang === "feature") {
-        return {
-          kind: "feature",
-          source: node.value ?? "",
-          range,
-        } satisfies FeatureNode;
+        const source = node.value ?? "";
+        const api = loadedGherkin();
+        if (!api) return { kind: "feature", source, range };
+        const parsed = parseFeature(api, source);
+        return parsed.ok
+          ? { kind: "feature", source, feature: parsed.feature, range }
+          : {
+            kind: "feature",
+            source,
+            parseError: {
+              line: parsed.line,
+              column: parsed.column,
+              message: parsed.message,
+            },
+            range,
+          } satisfies FeatureNode;
       }
       return {
         kind: "code",

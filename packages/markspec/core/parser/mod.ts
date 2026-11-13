@@ -13,6 +13,7 @@
 import { basename as pathBasename, extname } from "@std/path";
 import type { Caption, Diagnostic, Document, Entry } from "../model/mod.ts";
 import { normalizeLineEndings } from "../util/line_endings.ts";
+import { loadGherkin } from "../gherkin/load.ts";
 import { parseMarkdown } from "./markdown.ts";
 import {
   isSupportedExtension,
@@ -115,6 +116,12 @@ function isReferencesDocument(file: string): boolean {
 }
 
 /**
+ * A fenced code block whose info string starts with `gherkin` or `feature`.
+ * The line may start with a doc-comment prefix (`///`, `//!`, ` *`, `#`).
+ */
+const GHERKIN_FENCE_RE = /^[\s/*#!]*(```|~~~)\s*(gherkin|feature)\b/m;
+
+/**
  * Parse a file and return entries, annotation links, and (for Markdown
  * files) a Document with front-matter attributes.
  *
@@ -128,6 +135,9 @@ export async function parseFile(
 ): Promise<ParseFileResult> {
   const ext = extname(options.file);
   const normalised = normalizeLineEndings(content);
+  // Load the Gherkin parser before the synchronous parse, and only when the
+  // text holds a gherkin or feature fence (the load is cached).
+  if (GHERKIN_FENCE_RE.test(normalised)) await loadGherkin();
 
   if (isSupportedExtension(ext)) {
     const language = await loadGrammar(ext);

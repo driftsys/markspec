@@ -29,3 +29,25 @@ Deno.test("astEquivalent: Unknown raw differs → not equivalent", () => {
   assertFalse(astEquivalent(u("---"), u("***")));
   assert(astEquivalent(u("---"), u("---")));
 });
+
+Deno.test("astEquivalent: feature AST is a function of source, ranges ignored", async () => {
+  const { loadGherkin } = await import("../gherkin/load.ts");
+  const { buildBodyAst } = await import("./build.ts");
+  await loadGherkin();
+  const block = "```gherkin\nScenario: x\n  Given a\n```";
+  const at1 = buildBodyAst(block);
+  const at9 = buildBodyAst("\n\n\n\n\n\n\n\n" + block);
+  assert(astEquivalent(at1, at9));
+});
+
+Deno.test("astEquivalent: feature node with and without the derived AST is equivalent", async () => {
+  const { loadGherkin } = await import("../gherkin/load.ts");
+  const { buildBodyAst } = await import("./build.ts");
+  const block = "```gherkin\nScenario: x\n  Given a\n```";
+  const without = buildBodyAst(block);
+  await loadGherkin();
+  const withAst = buildBodyAst(block);
+  assert(astEquivalent(without, withAst));
+  const other = buildBodyAst("```gherkin\nScenario: y\n  Given a\n```");
+  assertFalse(astEquivalent(withAst, other));
+});
