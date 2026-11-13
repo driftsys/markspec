@@ -85,9 +85,9 @@ small scenario index and leave room for it.
    `CORE_SCHEMA_VERSION` bump. The scanner (`core/criteria/scenarios.ts`) reads
    `Scenario:`, `Scenario Outline:`, `Scenario Template:` and `Example:` lines,
    English keywords only, and ignores lines inside doc strings and non-feature
-   fences. The later Gherkin AST slice replaces the scanner body and only adds
-   fields. A scenario is addressable when its name is not empty and occurs once
-   in the entry.
+   fences. The later Gherkin AST slice reads criteria from the AST and keeps
+   this scanner as the fallback (see the amendment below). A scenario is
+   addressable when its name is not empty and occurs once in the entry.
 5. **Diagnostics** extend existing families (the current `language.md` code
    scheme stays authoritative, per ADR-012):
 
@@ -154,13 +154,38 @@ small scenario index and leave room for it.
   regexes in `core/refs` and `lsp/rename.ts` must be kept in step with it.
 - Compiled JSON, `fmt` output, the lockfile and the coverage report are
   unchanged for a project with no closed bracket locators and no feature blocks
-  in Requirement or Contract entries.
+  in Requirement or Contract entries. (Since the Gherkin AST slice, ADR-038, the
+  `bodyTokens` and the `bodyAst` feature nodes, which now carry `feature` or
+  `parseError`, also change in compiled JSON for a feature block in an entry of
+  any type.)
 - `Entry.criteria` and `Link.locatorResolved` are additive, so JSON consumers
   that ignore unknown keys keep working.
 - Scenarios in non-English feature blocks yield no criteria until the AST slice,
-  so a locator to them raises `MSL-L007`.
+  so a locator to them raises `MSL-L007`. (Superseded by the amendment below.)
 - A project that adopts locators, or that already wrote `X [§4.3]` values, gets
   a new edges hash on its next `markspec lock`.
+
+## Amendment 2026-11-14 — criteria come from the Gherkin AST
+
+The Gherkin AST slice (epic #915) changed the source of criteria. The shape of
+`Entry.criteria` and the rules for addressable scenarios are unchanged.
+
+- When a feature block has a normalized AST (`FeatureNode.feature`), its
+  scenarios give the criteria, in any language that Gherkin supports. A scenario
+  in a block with `# language: fr` now gives a criterion, so a locator to it
+  resolves.
+- The line scanner described in Decision 4 is now the fallback. It runs for a
+  block that does not parse (`FeatureNode.parseError`, reported as `MSL-B062`),
+  and for a block built while the Gherkin parser is not loaded. It still reads
+  English keywords only.
+- `parseFile` loads the parser before it parses a text that holds a `gherkin` or
+  `feature` fence, so every entry from the CLI, the validator and the LSP has
+  either an AST or a `parseError`, unless the parser import failed. Code that
+  builds entries with the synchronous `parse()` uses the AST when the parser is
+  already loaded in the process, and the scanner otherwise.
+
+The consequence above that says non-English scenarios yield no criteria no
+longer holds for a block that parses.
 
 ## Trace
 

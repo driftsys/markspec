@@ -34,6 +34,7 @@ markspec/
 │       │   │   └── mod.ts
 │       │   ├── discovery/           ← gitignore-aware file walk; projects.ts
 │       │   │   └── projects.ts        finds every project root under a folder
+│       │   ├── gherkin/             ← lazy @cucumber/gherkin load, block → FeatureAst
 │       │   ├── profile/             ← profile manifest load, merge, resolver
 │       │   │   └── mod.ts             (ADR-008; .markspec.yaml activates chain)
 │       │   ├── parser/              ← file → Entry[]. Two sub-modules:
@@ -179,6 +180,14 @@ alone:**
 **Single binary, lazy loading.** `main.ts` dispatches subcommands. Each
 subcommand dynamically imports only the modules it needs. `markspec check` never
 loads Typst WASM. `markspec book build` never loads ReqIF.
+
+**The Gherkin parser loads lazily.** `core/gherkin/load.ts` imports
+`@cucumber/gherkin` dynamically. `parseFile` loads it only when the text holds a
+fenced `gherkin` or `feature` block, so a run over files without such a block
+never loads it. The synchronous `parse()` never loads it, but it uses the parser
+when an earlier call (`loadGherkin()` or `parseFile`) has loaded it in the same
+process; otherwise an entry built with `parse()` has no Gherkin AST, no Gherkin
+body tokens, and no `MSL-B062`.
 
 **One compile target — one binary:**
 
@@ -559,6 +568,10 @@ docs/
   from fenced `gherkin`/`feature` blocks, compiled `Link.locator`,
   MSL-L007/L008/L009/B060/B061, optional `locator` on lockfile `[[edge]]`,
   criteria section in `report coverage`
+- `adr-038-gherkin-ast.md` — normalized Gherkin AST on `FeatureNode` from
+  exact-pinned `@cucumber/gherkin@42.0.1`; parser loaded lazily only for texts
+  with a `gherkin`/`feature` fence; scanner fallback for a block that does not
+  parse; MSL-B062; amends ADR-015/016/037
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

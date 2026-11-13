@@ -83,6 +83,16 @@ export type {
 
 // AST (canonical body-AST — spec docs/specs/markspec-core-data-model.md §2)
 // SourceRange is body-relative (no `file`); use SourceLocation for file-absolute positions.
+export { loadGherkin } from "./gherkin/load.ts";
+export { featureFileLine } from "./gherkin/position.ts";
+export type {
+  ExamplesAst,
+  FeatureAst,
+  ScenarioAst,
+  SectionAst,
+  StepAst,
+  StepKeyword,
+} from "./gherkin/types.ts";
 export { astEquivalent } from "./ast/equivalence.ts";
 export { normalizeBodyAst } from "./ast/normalize.ts";
 export { render } from "./ast/render.ts";
@@ -342,6 +352,7 @@ export {
   validateUxilFamily,
 } from "./validator/uxil_family.ts";
 export { validateLocators } from "./validator/locators.ts";
+export { checkFeatureParse } from "./validator/feature_parse.ts";
 export * as uxil from "./uxil/mod.ts";
 
 // ── Lockfile (ADR-022) ───────────────────────────────────────────────────

@@ -11,7 +11,16 @@ scenario name in square brackets after the requirement ID. This is a locator.
 Put each scenario in a fenced block of the language `feature` (or `gherkin`) in
 the body of a Requirement or Contract entry. Each scenario line starts with
 `Scenario:` (`Scenario Outline:`, `Scenario Template:` and `Example:` also
-work). Keywords are English only.
+work). MarkSpec reads each block with a Gherkin parser, so the keywords can be
+in any language that Gherkin supports. Start the block with a language line, for
+example `# language: fr`, and write `Scénario: Freinage à 20 m`. Free text
+between a scenario line and its first step is the description of the scenario,
+not an error.
+
+If a block does not parse, `markspec check` reports `MSL-B062` for it. The
+scenarios of that block are then read by a simple line scanner that knows only
+the English keywords, so a block in another language gives no scenarios until
+you fix the syntax.
 
 ## Address a scenario
 
@@ -76,6 +85,7 @@ See [Locators](../spec/model/relations.md#locators) for the full grammar.
 | `MSL-L009` | warning  | A value has a `[` that no `]` closes. Commas after the `[` still separate values.        |
 | `MSL-B060` | warning  | A scenario name is used more than once in one entry. A locator cannot address that name. |
 | `MSL-B061` | info     | A scenario has an empty name. A locator cannot address it.                               |
+| `MSL-B062` | warning  | A Gherkin block does not parse. The warning names the line of the first error.           |
 
 If a second test in the example verifies `[Brake at 30 m]`, a scenario that does
 not exist, `markspec check` reports:

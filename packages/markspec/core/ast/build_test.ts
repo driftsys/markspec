@@ -32,6 +32,7 @@ import type {
 // ----------------------------------------------------------------------------
 import { buildBodyAst, verbatimSlice } from "./build.ts";
 import { render } from "./render.ts";
+import { loadGherkin } from "../gherkin/load.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 
 // ============================================================================
@@ -518,4 +519,22 @@ Deno.test("build: heading preserved verbatim (# survives) and round-trips", () =
 Deno.test("build: link reference definition preserved verbatim", () => {
   const s = "See [the spec][s] for detail.\n\n[s]: docs/specs/x.md";
   assertEquals(render(buildBodyAst(s)), s);
+});
+
+Deno.test("build: feature node has no AST while the parser is not loaded", () => {
+  // Own module graph per test file: nothing here loads the parser.
+  const blocks = buildBodyAst("```gherkin\nScenario: x\n  Given a\n```");
+  const node = blocks[0] as FeatureNode;
+  assertEquals(node.kind, "feature");
+  assertEquals(node.feature, undefined);
+  assertEquals(node.parseError, undefined);
+});
+
+Deno.test("build: feature node gets its AST once the parser is loaded", async () => {
+  await loadGherkin();
+  const blocks = buildBodyAst("```gherkin\nScenario: x\n  Given a\n```");
+  const node = blocks[0] as FeatureNode;
+  assertEquals(node.feature?.scenarios.length, 1);
+  const bad = buildBodyAst("```gherkin\nScenario: x\n  Given a\n Bogus\n```");
+  assertEquals((bad[0] as FeatureNode).parseError?.line, 3);
 });

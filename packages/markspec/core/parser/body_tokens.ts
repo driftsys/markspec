@@ -5,7 +5,7 @@
  * the six BodyTokenKind variants, skipping verbatim regions (code, math,
  * inline-code spans). Inside ` ```feature ` / ` ```gherkin ` fences the
  * modal/EARS/entity-ref scanners are suppressed and the gherkin
- * section/step scanners run instead.
+ * section/step tokens come from the normalized Gherkin AST instead.
  *
  * Single source of truth for inline-construct extraction. Replaces the
  * pre-ADR-016 marker mechanism (`InlineContent.markers`) and the
@@ -17,7 +17,7 @@ import type {
   EntityRefConvention,
   SourceLocation,
 } from "../model/mod.ts";
-import type { BodyBlock } from "../ast/nodes.ts";
+import type { BodyBlock, SourceRange } from "../ast/nodes.ts";
 import { processor } from "./remark.ts";
 import type { Root, RootContent } from "mdast";
 
@@ -52,13 +52,6 @@ const EARS_RE = /\b(When|While|If|Where|Then)\b/g;
 /** `$Identifier` entity reference (spec §2.5.2). */
 const ENTITY_REF_RE = /\$([A-Za-z][A-Za-z0-9_]*)/g;
 
-/** Gherkin section headers — class-like tokens. */
-const GHERKIN_SECTION_RE =
-  /\b(Feature|Background|Rule|Scenario Outline|Scenario Template|Scenarios|Examples|Scenario)\b/g;
-
-/** Gherkin step keywords. */
-const GHERKIN_STEP_RE = /\b(Given|When|Then|And|But)\b/g;
-
 /**
  * Collect body-relative 1-based line numbers that fall inside verbatim
  * blocks: fenced code, fenced feature, math. Lines in this set are
@@ -91,9 +84,28 @@ function collectVerbatimLines(blocks: readonly BodyBlock[]): Set<number> {
 }
 
 /**
- * Walk `bodyAst` for `feature` nodes. For each, scan its source text for
- * Gherkin section + step keywords. Positions are body-relative based on
- * the node's `range.start.line`.
+ * Walk `bodyAst` for `feature` nodes and emit one token per Gherkin
+ * structural keyword and per step keyword, taken from the normalized AST
+ * (ADR-016). Token text is the keyword as authored, so a block written in
+ * another language (`# language: fr`) yields `Scénario` and `Soit`. A
+ * keyword inside step text, a description, or a doc string is not a
+ * keyword in the AST and gives no token.
+ *
+ * Determinism rule: a node emits Gherkin tokens only when it carries a
+ * `feature` AST. A node with a `parseError`, or with neither field (the
+ * parser was not loaded when the node was built), emits none. Only the
+ * Gherkin tokens depend on the parser; modal, EARS, entity-ref and
+ * inline-code tokens never do. Gherkin tokens are read only by LSP
+ * semantic tokens, which receive entries from `parseFile`; that path loads
+ * the parser before it builds any entry that holds a gherkin or feature
+ * fence, unless the parser import failed; then no node has a `feature`
+ * and no Gherkin tokens are emitted.
+ *
+ * Positions are file-relative like the other tokens: the line is the
+ * node's body-relative start plus the AST line, and the column adds
+ * `columnOffset` (list-item indent or doc-comment prefix width).
+ * Background steps come from `FeatureAst.backgrounds`, so each is emitted
+ * once at its own position, also when the block has no scenario.
  */
 function emitGherkin(
   blocks: readonly BodyBlock[],
@@ -103,36 +115,34 @@ function emitGherkin(
 ): void {
   for (const block of blocks) {
     if (block.kind === "feature") {
+      const feature = block.feature;
+      if (!feature) continue;
       const startLine = block.range.start.line;
-      const lines = block.source.split("\n");
-      for (let li = 0; li < lines.length; li++) {
-        const line = lines[li];
-        // Body-relative line; feature fence's opening ``` line is at startLine,
-        // content begins at startLine + 1.
-        const lineNo = baseLocation.line + (startLine - 1) + (li + 1);
-        let m: RegExpExecArray | null;
-        GHERKIN_SECTION_RE.lastIndex = 0;
-        while ((m = GHERKIN_SECTION_RE.exec(line)) !== null) {
-          out.push({
-            kind: "gherkin-section",
-            text: m[1],
-            location: {
-              file: baseLocation.file,
-              line: lineNo,
-              column: m.index + 1 + columnOffset,
-            },
-          });
-        }
-        GHERKIN_STEP_RE.lastIndex = 0;
-        while ((m = GHERKIN_STEP_RE.exec(line)) !== null) {
+      const at = (range: SourceRange): SourceLocation => ({
+        file: baseLocation.file,
+        line: baseLocation.line + (startLine - 1) + range.start.line,
+        column: range.start.column + columnOffset,
+      });
+      for (const section of feature.sections) {
+        out.push({
+          kind: "gherkin-section",
+          text: section.keyword,
+          location: at(section.range),
+        });
+      }
+      for (const step of feature.backgrounds) {
+        out.push({
+          kind: "gherkin-step",
+          text: step.keyword,
+          location: at(step.range),
+        });
+      }
+      for (const scenario of feature.scenarios) {
+        for (const step of scenario.steps) {
           out.push({
             kind: "gherkin-step",
-            text: m[1],
-            location: {
-              file: baseLocation.file,
-              line: lineNo,
-              column: m.index + 1 + columnOffset,
-            },
+            text: step.keyword,
+            location: at(step.range),
           });
         }
       }

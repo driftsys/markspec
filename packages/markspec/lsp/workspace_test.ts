@@ -659,3 +659,74 @@ Deno.test("WorkspaceIndex: validateAll reports an unresolved scenario locator on
   assertEquals(l007.length, 1);
   assertEquals(l007[0].location?.line, 18);
 });
+
+/**
+ * Run `body` in a new Deno process, where the Gherkin parser is not loaded
+ * yet, so the result depends on the parse gate and not on the tests that
+ * ran before. `WorkspaceIndex` is in scope; the process prints one JSON
+ * value, which is returned.
+ */
+async function inFreshProcess(body: string): Promise<unknown> {
+  const workspace = new URL("./workspace.ts", import.meta.url).href;
+  const script = `import { WorkspaceIndex } from ${JSON.stringify(workspace)};
+${body}`;
+  const out = await new Deno.Command(Deno.execPath(), {
+    args: ["eval", "--ext=ts", script],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  assertEquals(out.code, 0, new TextDecoder().decode(out.stderr));
+  return JSON.parse(new TextDecoder().decode(out.stdout));
+}
+
+Deno.test("WorkspaceIndex (fresh process): a gherkin fence typed into a document fills the feature", async () => {
+  const head = `- [REQ-001] Brake
+
+  The system shall brake.
+`;
+  const tail = `
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`;
+  const edited = `${head}
+  \`\`\`gherkin
+  Scenario: Stop
+    Given a car
+  \`\`\`
+${tail}`;
+  const result = await inFreshProcess(`
+const index = new WorkspaceIndex();
+const features = () =>
+  (index.getEntriesForFile("/tmp/edit.md")[0].bodyAst ?? [])
+    .filter((b) => b.kind === "feature");
+await index.parseAndUpdateFile("/tmp/edit.md", ${JSON.stringify(head + tail)});
+const before = features().length;
+await index.parseAndUpdateFile("/tmp/edit.md", ${JSON.stringify(edited)});
+const after = features().map((n) => n.feature?.scenarios.length ?? null);
+console.log(JSON.stringify({ before, after }));
+`);
+  assertEquals(result, { before: 0, after: [1] });
+});
+
+Deno.test("WorkspaceIndex (fresh process): validateAll reports a Gherkin block that does not parse as MSL-B062", async () => {
+  const text = [
+    "- [REQ_A_0001] Brake",
+    "",
+    "  The system shall brake.",
+    "",
+    "  ```gherkin",
+    "  Scenario: Stop",
+    "    Given a",
+    "    Whatever is this",
+    "  ```",
+    "",
+    "      Id: 01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "",
+  ].join("\n");
+  const result = await inFreshProcess(`
+const index = new WorkspaceIndex();
+await index.parseAndUpdateFile("/p/r.md", ${JSON.stringify(text)});
+const hits = index.validateAll().filter((d) => d.code === "MSL-B062");
+console.log(JSON.stringify(hits.map((d) => d.location?.line)));
+`);
+  assertEquals(result, [8]);
+});

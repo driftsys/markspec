@@ -403,11 +403,20 @@ verbatim from ADR-005 §Part 1.
 | `Table`          | GFM pipe table                                                | Per ADR-001 §GFM/GLFM shared extensions.                      |
 | `Figure`         | `![alt](path)` (image link)                                   | PlantUML/SVG paths flagged for rendering.                     |
 | `Code`           | Fenced code block, language-tagged                            | Tag determines syntax highlighting only.                      |
-| `Feature`        | Fenced code block with info-string `gherkin`                  | Body is parsed as Gherkin; AST records scenarios/steps.       |
+| `Feature`        | Fenced code block with info-string `gherkin` or `feature`     | Body is parsed as Gherkin; AST records scenarios/steps.       |
 | `Math`           | `$$ … $$` block                                               | Per ADR-001 §GFM/GLFM shared extensions.                      |
 | `DefinitionList` | `Term\n: definition` (GLFM)                                   | `Term` may use `$Identifier` (§2.5.2).                        |
 | `Note`           | `> [!NOTE]`/`[!TIP]`/`[!IMPORTANT]`/`[!WARNING]`/`[!CAUTION]` | ADR-001 §Admonitions.                                         |
 | `Blockquote`     | Plain `>` blockquote                                          | For external citation excerpts.                               |
+
+A `Feature` node keeps the authored text in `source`. When the Gherkin parser is
+loaded, the node also carries exactly one of `feature` (the normalized Gherkin
+AST, with positions relative to `source`) and `parseError` (the line, column and
+message of the first parser error, reported as `MSL-B062`). Both fields are pure
+functions of `source`. When the parser is not loaded, the node has neither.
+`MSL-B062` checks a `Feature` node in a top-level block or in a list item at any
+depth; `Entry.criteria` is read from top-level `Feature` nodes only. See
+[ADR-038](../../architecture/adr-038-gherkin-ast.md).
 
 #### 2.4.1 Excluded constructs
 
@@ -880,15 +889,16 @@ invariants).
 
 ### 4.5 Body (B)
 
-| Code       | Severity | Meaning                                                                                                                                                                             |
-| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-B040` | error    | Heading inside entry body.                                                                                                                                                          |
-| `MSL-B041` | error    | Horizontal rule inside entry body.                                                                                                                                                  |
-| `MSL-B042` | error    | Task list inside entry body.                                                                                                                                                        |
-| `MSL-B043` | error    | Raw HTML inside entry body (other than `<!-- markspec:* -->`).                                                                                                                      |
-| `MSL-B044` | warning  | Feature block (Gherkin) declared but body contains another labelled “Acceptance criteria” list — single canonical form is Feature blocks (ADR-005 §Part 1).                         |
-| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry; reported on the second and later occurrences. A locator cannot address that name. |
-| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. A locator cannot address it.                                                                    |
+| Code       | Severity | Meaning                                                                                                                                                                                                                                    |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MSL-B040` | error    | Heading inside entry body.                                                                                                                                                                                                                 |
+| `MSL-B041` | error    | Horizontal rule inside entry body.                                                                                                                                                                                                         |
+| `MSL-B042` | error    | Task list inside entry body.                                                                                                                                                                                                               |
+| `MSL-B043` | error    | Raw HTML inside entry body (other than `<!-- markspec:* -->`).                                                                                                                                                                             |
+| `MSL-B044` | warning  | Feature block (Gherkin) declared but body contains another labelled “Acceptance criteria” list — single canonical form is Feature blocks (ADR-005 §Part 1).                                                                                |
+| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry; reported on the second and later occurrences. A locator cannot address that name.                                                        |
+| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. A locator cannot address it.                                                                                                                           |
+| `MSL-B062` | warning  | A `gherkin` or `feature` block of an entry of any type does not parse as Gherkin, also when nested in a list item; reported at the file line of the first parser error. For a top-level block, the scenarios are read by the line scanner. |
 
 ### 4.6 Markers (M)
 
@@ -1047,8 +1057,10 @@ where:
   §3.4.1 modal-keyword case normalization (and any future §3.4 body rewrites) as
   an AST→AST transform. It is **never called on the validate path**.
 - `≈` = `astEquivalent` — strict `BodyBlock[]` structural deep-equality ignoring
-  every `SourceRange` field. Defined in `core/ast/equivalence.ts` and exported
-  from `core/mod.ts`.
+  every `SourceRange` field. It also skips `FeatureNode.feature` and
+  `FeatureNode.parseError`, which are pure functions of `source` (see the
+  [ADR-015 amendment](../../architecture/adr-015-ast-equivalence-formatting-contract.md#amendment-2026-11-14--derived-fields-of-feature-nodes)).
+  Defined in `core/ast/equivalence.ts` and exported from `core/mod.ts`.
 
 **What this replaces.** ADR-014 Decision-2 gated body emission on byte-identity
 (`render(build(body)) === body`). That guard is retired by ADR-015: the

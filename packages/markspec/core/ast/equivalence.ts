@@ -39,8 +39,8 @@ function deepEqualIgnoringRanges(a: unknown, b: unknown): boolean {
   if (typeof a === "object" && typeof b === "object") {
     const ao = a as Record<string, unknown>;
     const bo = b as Record<string, unknown>;
-    const ak = Object.keys(ao).filter((k) => k !== "range").sort();
-    const bk = Object.keys(bo).filter((k) => k !== "range").sort();
+    const ak = comparedKeys(ao);
+    const bk = comparedKeys(bo);
     if (ak.length !== bk.length) return false;
     for (let i = 0; i < ak.length; i++) {
       if (ak[i] !== bk[i]) return false;
@@ -51,4 +51,19 @@ function deepEqualIgnoringRanges(a: unknown, b: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Keys compared for one object: every key except `range`. A `FeatureNode`
+ * also skips `feature` and `parseError`: both are pure functions of
+ * `source`, which is compared, and they exist only while the Gherkin parser
+ * is loaded. Comparing them would make equivalence depend on load timing.
+ */
+function comparedKeys(node: Record<string, unknown>): string[] {
+  const derived = node.kind === "feature";
+  return Object.keys(node)
+    .filter((k) =>
+      k !== "range" && !(derived && (k === "feature" || k === "parseError"))
+    )
+    .sort();
 }

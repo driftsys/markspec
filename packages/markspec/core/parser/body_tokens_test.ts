@@ -9,7 +9,12 @@
 import { assertEquals } from "@std/assert";
 import { extractBodyTokens } from "./body_tokens.ts";
 import { buildBodyAst } from "../ast/build.ts";
+import { loadGherkin } from "../gherkin/load.ts";
 import type { BodyToken, SourceLocation } from "../model/mod.ts";
+
+// Gherkin tokens come from the AST, which exists only once the parser is
+// loaded (the same step `parseFile` runs before it builds entries).
+await loadGherkin();
 
 const BASE: SourceLocation = { file: "test.md", line: 1, column: 1 };
 
@@ -195,4 +200,131 @@ Deno.test("modal: multi-word forms (SHALL NOT, MUST NOT) emit single tokens", ()
     assertEquals(modals[1].text, "shall not");
     assertEquals(modals[1].case, "lower");
   }
+});
+
+// ---------------------------------------------------------------------------
+// Gherkin tokens from the AST (ADR-016, Gherkin AST slice)
+// ---------------------------------------------------------------------------
+
+const gherkinOf = (tokens: readonly BodyToken[]) =>
+  tokens.filter((t) =>
+    t.kind === "gherkin-section" || t.kind === "gherkin-step"
+  );
+
+Deno.test("gherkin tokens: a `*` step emits a gherkin-step token", () => {
+  const body = "```gherkin\nScenario: s\n  * the car moves\n```\n";
+  const steps = tokensOf(body).filter((t) => t.kind === "gherkin-step");
+  assertEquals(steps.map((t) => t.text), ["*"]);
+  assertEquals(steps[0].location.line, 3);
+  assertEquals(steps[0].location.column, 3);
+});
+
+Deno.test("gherkin tokens: a French block emits authored keywords", () => {
+  const body = "```gherkin\n# language: fr\nFonctionnalité: Frein\n" +
+    "  Scénario: Arrêt\n    Soit une voiture\n    Quand on freine\n" +
+    "    Alors elle s'arrête\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => t.text),
+    ["Fonctionnalité", "Scénario", "Soit", "Quand", "Alors"],
+  );
+});
+
+Deno.test("gherkin tokens: keywords in step text, description, doc string emit nothing", () => {
+  const body = "```gherkin\nFeature: f\n  When and Then appear here\n\n" +
+    "  Scenario: s\n    Given the text Then But Scenario: x\n" +
+    '      """\n      Scenario: y\n      Given z\n      """\n```\n';
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(tokens.map((t) => t.text), ["Feature", "Scenario", "Given"]);
+});
+
+Deno.test("gherkin tokens: a block that does not parse emits none", () => {
+  const body = "```gherkin\nScenario: s\n  Given a\n  Banana\n```\n";
+  const ast = buildBodyAst(body);
+  const node = ast.find((b) => b.kind === "feature");
+  assertEquals(node?.kind === "feature" && node.parseError !== undefined, true);
+  assertEquals(
+    gherkinOf(extractBodyTokens(body, ast, BASE)).length,
+    0,
+  );
+});
+
+Deno.test("gherkin tokens: Background steps are emitted once", () => {
+  const body = "```gherkin\nFeature: f\n  Background:\n    Given a\n\n" +
+    "  Scenario: one\n    When b\n\n  Scenario: two\n    When c\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => `${t.text}@${t.location.line}`),
+    [
+      "Feature@2",
+      "Background@3",
+      "Given@4",
+      "Scenario@6",
+      "When@7",
+      "Scenario@9",
+      "When@10",
+    ],
+  );
+});
+
+Deno.test("gherkin tokens: columns include the column offset", () => {
+  const body = "```gherkin\nScenario: s\n  Given a\n```\n";
+  const ast = buildBodyAst(body);
+  const tokens = gherkinOf(extractBodyTokens(body, ast, BASE, 4));
+  assertEquals(tokens.map((t) => t.location.column), [5, 7]);
+});
+
+Deno.test("determinism: a node without the AST drops only Gherkin tokens", () => {
+  const body = "The brake shall hold, `x`.\n\n" +
+    "```gherkin\nScenario: s\n  Given a\n```\n";
+  const loadedAst = buildBodyAst(body);
+  // The same blocks as they are built when the parser is not loaded.
+  const unloadedAst = loadedAst.map((b) =>
+    b.kind === "feature"
+      ? { kind: "feature" as const, source: b.source, range: b.range }
+      : b
+  );
+  const loaded = extractBodyTokens(body, loadedAst, BASE);
+  const unloaded = extractBodyTokens(body, unloadedAst, BASE);
+  assertEquals(gherkinOf(unloaded).length, 0);
+  assertEquals(gherkinOf(loaded).length, 2);
+  assertEquals(
+    loaded.filter((t) => !gherkinOf([t]).length),
+    unloaded,
+  );
+});
+
+Deno.test("gherkin tokens: a Background-only block emits its step tokens", () => {
+  const body = "```gherkin\nFeature: f\n  Background:\n    Given a\n" +
+    "    And b\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => `${t.text}@${t.location.line}:${t.location.column}`),
+    ["Feature@2:1", "Background@3:3", "Given@4:5", "And@5:5"],
+  );
+});
+
+Deno.test("gherkin tokens: Rule Background steps are emitted once", () => {
+  const body = "```gherkin\nFeature: f\n  Rule: r\n    Background:\n" +
+    "      Given a\n    Scenario: one\n      When b\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => t.text),
+    ["Feature", "Rule", "Background", "Given", "Scenario", "When"],
+  );
+});
+
+Deno.test("gherkin tokens: Scenario Outline and Examples sections", () => {
+  const body = "```gherkin\nFeature: f\n  Scenario Outline: o\n" +
+    "    Given <x>\n\n    Examples:\n      | x |\n      | 1 |\n```\n";
+  const tokens = gherkinOf(tokensOf(body));
+  assertEquals(
+    tokens.map((t) => `${t.kind}:${t.text}@${t.location.line}`),
+    [
+      "gherkin-section:Feature@2",
+      "gherkin-section:Scenario Outline@3",
+      "gherkin-step:Given@4",
+      "gherkin-section:Examples@6",
+    ],
+  );
 });

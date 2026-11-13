@@ -1,11 +1,23 @@
 /**
  * @module criteria/scenarios
  *
- * Minimal scenario index. Scans the fenced `gherkin` / `feature` blocks of
- * an entry body for scenario names (English keywords only) and builds the
- * `Entry.criteria` subset `{ form: "scenario", name, addressable, location }`.
- * A later slice replaces the scanner with a full Gherkin parse without
- * changing the `Criterion` shape.
+ * Scenario index. Builds the `Entry.criteria` subset
+ * `{ form: "scenario", name, addressable, location }` from the fenced
+ * `gherkin` / `feature` blocks of an entry body.
+ *
+ * Source of the scenario names, per block:
+ *
+ * - the Gherkin AST (`FeatureNode.feature`) when it is present, in any spoken
+ *   language;
+ * - otherwise the line scanner ({@linkcode scanScenarioNames}, English
+ *   keywords only), when the block did not parse (`parseError`) or when the
+ *   parser was not loaded at parse time.
+ *
+ * `parseFile` loads the parser before it parses a text with a gherkin fence,
+ * so every entry that reaches the compiler, the validator and the reporter
+ * carries the AST or a `parseError`, unless the parser import failed. The
+ * scanner for the not-loaded case covers that failure and code that builds
+ * entries with the synchronous `parse()` before any load.
  */
 
 import type { BodyBlock, FeatureNode } from "../ast/nodes.ts";
@@ -13,6 +25,7 @@ import type { Criterion, EffectiveProfile, Entry } from "../model/mod.ts";
 import { descendantsOf } from "../model/mod.ts";
 import { extendsTransitively } from "../profile/discipline_mode.ts";
 import { normalizeLocator } from "../refs/split.ts";
+import { featureFileLine } from "../gherkin/position.ts";
 
 /** Matches a scenario-like keyword line. Group 2 is the raw name. */
 const SCENARIO_RE =
@@ -55,7 +68,8 @@ export function scanScenarioNames(
  * Build the criteria of an entry from its feature blocks, in source order.
  * Only top-level fenced blocks of the body are indexed: a fence nested in a
  * list item or another container yields no criteria.
- * Names are normalized with {@linkcode normalizeLocator}. The blocks of one
+ * A block with an AST contributes the AST's scenarios; see the module comment
+ * for the fallback. Names are normalized with {@linkcode normalizeLocator}. The blocks of one
  * entry form one scope: a normalized name that occurs more than once, and an
  * empty name, are not addressable. `location.line` is the file-relative line
  * of the keyword; `location.column` is always 1.
@@ -65,8 +79,18 @@ export function buildCriteria(entry: Entry): readonly Criterion[] {
   const raw: { name: string; line: number }[] = [];
   for (const block of entry.bodyAst ?? []) {
     if (!isFeature(block)) continue;
-    // Body-relative range line 1 is `bodyStart`; the block's first source
-    // line follows the opening fence line.
+    if (block.feature !== undefined) {
+      for (const scenario of block.feature.scenarios) {
+        raw.push({
+          name: normalizeLocator(scenario.name),
+          line: featureFileLine(entry, block, scenario.range.start.line),
+        });
+      }
+      continue;
+    }
+    // Block did not parse, or the parser was not loaded: scan it. Body-
+    // relative range line 1 is `bodyStart`; the block's first source line
+    // follows the opening fence line.
     const firstSourceLine = bodyStart + block.range.start.line;
     for (const { name, line } of scanScenarioNames(block.source)) {
       raw.push({ name: normalizeLocator(name), line: firstSourceLine + line });

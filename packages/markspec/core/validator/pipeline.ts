@@ -40,6 +40,7 @@ import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { validateUxilFamily } from "./uxil_family.ts";
 import { validateLocators } from "./locators.ts";
+import { checkFeatureParse } from "./feature_parse.ts";
 
 /** Cross-entry DSL codes suppressed under file-local scope: a
  * subset registry cannot distinguish a dangling reference from an
@@ -251,6 +252,9 @@ export function runPipeline(
       );
     }
   }
+
+  // Stage 4.4 — Gherkin blocks that do not parse (MSL-B062, epic #915).
+  diagnostics.push(...checkFeatureParse(entries));
 
   // Stage 4.5 — scenario locators and scenario names (epic #915). Runs
   // on the classified entries so criteria-bearing types resolve; targets

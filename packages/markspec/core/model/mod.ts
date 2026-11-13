@@ -895,8 +895,12 @@ export type EntityRefConvention = "type" | "instance" | "constant";
 export type BodyTokenKind =
   | "modal" // shall, should, may, must, will (RFC 2119 lowercase canonical)
   | "ears-trigger" // When, While, If, Where, Then (in prose, outside feature fences)
-  | "gherkin-section" // Feature, Background, Rule, Scenario, Examples (inside feature fences)
-  | "gherkin-step" // Given, When, Then, And, But (inside feature fences)
+  // Feature, Background, Rule, Scenario, Examples, or the authored keyword
+  // in the block's language (for example `Scénario`), inside feature fences
+  | "gherkin-section"
+  // Given, When, Then, And, But, `*`, or the authored keyword in the
+  // block's language (for example `Soit`), inside feature fences
+  | "gherkin-step"
   | "entity-ref" // $Identifier (any case convention, spec §2.5.2)
   | "inline-code"; // `…` span (mdast InlineCode projection)
 
