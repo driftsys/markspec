@@ -67,6 +67,17 @@ export interface SectionAst {
   readonly range: GherkinRange;
 }
 
+/**
+ * One comment line of a Gherkin block. Comments inside a doc string are part
+ * of its content and are not reported.
+ */
+export interface GherkinComment {
+  /** 1-based block line; the synthetic `Feature:` line is not counted. */
+  readonly line: number;
+  /** The comment line trimmed, including the leading `#`. */
+  readonly text: string;
+}
+
 /** The normalized document of one Gherkin block. */
 export interface FeatureAst {
   /** Empty when the Feature line is synthetic. */
@@ -85,6 +96,8 @@ export interface FeatureAst {
   readonly backgrounds: readonly StepAst[];
   /** Every structural keyword in document order, without the synthetic line. */
   readonly sections: readonly SectionAst[];
+  /** Every comment line in document order, including `# language:`. */
+  readonly comments: readonly GherkinComment[];
 }
 
 /** Result of {@linkcode parseFeature}. */

@@ -295,3 +295,39 @@ Deno.test("parseFeature: an empty doc string ends at its closing delimiter", () 
   );
   assertEquals(f.scenarios[0].steps[0].range.end, { line: 4, column: 8 });
 });
+
+Deno.test("parseFeature: keeps comments with block lines", () => {
+  const f = feature("Scenario: S\n  # Step 1\n  * do\n  Then ok");
+  assertEquals(f.synthetic, true);
+  assertEquals(f.comments, [{ line: 2, text: "# Step 1" }]);
+});
+
+Deno.test("parseFeature: comment line numbers with an explicit Feature line", () => {
+  const f = feature("Feature: F\n# c\nScenario: S\n  Then ok");
+  assertEquals(f.synthetic, false);
+  assertEquals(f.comments, [{ line: 2, text: "# c" }]);
+});
+
+Deno.test("parseFeature: the language comment is kept", () => {
+  const f = feature("# language: fr\nScénario: S\n  Alors ok");
+  assertEquals(f.comments[0], { line: 1, text: "# language: fr" });
+});
+
+Deno.test("parseFeature: comment after a synthetic Feature line after a language line", () => {
+  const f = feature("# language: en\nScenario: S\n  # c\n  Then ok");
+  assertEquals(f.comments, [
+    { line: 1, text: "# language: en" },
+    { line: 3, text: "# c" },
+  ]);
+});
+
+Deno.test("parseFeature: a hash line in a doc string is not a comment", () => {
+  const f = feature(
+    'Scenario: S\n  Given a\n    """\n    # not a comment\n    """\n  # real\n  Then ok',
+  );
+  assertEquals(f.comments, [{ line: 6, text: "# real" }]);
+});
+
+Deno.test("parseFeature: no comments gives an empty list", () => {
+  assertEquals(feature("Scenario: S\n  Then ok").comments, []);
+});

@@ -95,6 +95,7 @@ export type {
 export type {
   ExamplesAst,
   FeatureAst,
+  GherkinComment,
   ScenarioAst,
   SectionAst,
   StepAst,
