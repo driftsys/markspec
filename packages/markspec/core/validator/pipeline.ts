@@ -40,6 +40,7 @@ import { validateDiscipline } from "./discipline.ts";
 import { buildEffectiveDisciplineRegistry } from "../profile/discipline_registry.ts";
 import { validateUxilFamily } from "./uxil_family.ts";
 import { validateLocators } from "./locators.ts";
+import { checkProcedureSteps } from "./procedure.ts";
 import { checkFeatureParse } from "./feature_parse.ts";
 
 /** Cross-entry DSL codes suppressed under file-local scope: a
@@ -262,6 +263,10 @@ export function runPipeline(
   // entries only. An unresolved target raises MSL-L006 (Stage 4), never
   // MSL-L007, so no file-local filter is needed here.
   diagnostics.push(...validateLocators(finalEntries, profile));
+
+  // Stage 4.6 — Gherkin procedure steps with no expected result (MSL-B063).
+  // Needs the classified entries: only Test entries are checked.
+  diagnostics.push(...checkProcedureSteps(finalEntries, profile));
 
   // Stage 5 — uxil diagnostics family (S9 #727). Inert unless some profile
   // tier designates a declaring type (`declares: ux-surface`). Receives the

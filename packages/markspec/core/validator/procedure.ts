@@ -43,7 +43,7 @@ export function checkProcedureSteps(
             severity: "warning",
             message: `${entry.displayId}: step ${step.n} of scenario ` +
               `"${scenario.name}" has no expected result (no Then step); ` +
-              "add a Then step after the last When step",
+              "add a Then step after the last action",
             location: {
               file: entry.location.file,
               line: featureFileLine(entry, node, last.step.range.start.line),

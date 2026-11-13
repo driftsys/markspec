@@ -10,6 +10,7 @@ import { loadGherkin } from "../gherkin/load.ts";
 import { parseFile } from "../parser/mod.ts";
 import type { Entry } from "../model/mod.ts";
 import type { EffectiveProfile } from "../model/mod.ts";
+import { checkFeatureParse } from "./feature_parse.ts";
 import { checkProcedureSteps } from "./procedure.ts";
 
 await loadGherkin();
@@ -56,7 +57,7 @@ Deno.test("checkProcedureSteps: trailing action → one warning at its line", as
   assertEquals(
     diags[0].message,
     'TST_BRK_0010: step 2 of scenario "Stop" has no expected result ' +
-      "(no Then step); add a Then step after the last When step",
+      "(no Then step); add a Then step after the last action",
   );
 });
 
@@ -143,7 +144,12 @@ Deno.test("checkProcedureSteps: block with a parse error → none", async () => 
     "Scenario: Broken\n    Given a\n  Whatever is this\n    When b",
     "Test",
   );
-  assertEquals(checkProcedureSteps(await load(text), null), []);
+  const entries = await load(text);
+  assertEquals(checkProcedureSteps(entries, null), []);
+  assertEquals(
+    checkFeatureParse(entries).some((d) => d.code === "MSL-B062"),
+    true,
+  );
 });
 
 Deno.test("checkProcedureSteps: block without feature (parser not loaded) → none", async () => {

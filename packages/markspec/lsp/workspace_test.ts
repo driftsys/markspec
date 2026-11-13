@@ -660,6 +660,65 @@ Deno.test("WorkspaceIndex: validateAll reports an unresolved scenario locator on
   assertEquals(l007[0].location?.line, 18);
 });
 
+Deno.test("WorkspaceIndex: validateAll reports MSL-B063 for an entry typed only by its display-ID prefix", async () => {
+  const typeDef = (
+    name: string,
+    parent: string,
+    pattern: string,
+  ): ProvenancedMapEntry<EffectiveTypeDef> => ({
+    value: {
+      name,
+      extends: parent,
+      displayIdPattern: { value: pattern, origin: "p" },
+      displayIdPatternEnforcement: { value: "off", origin: "p" },
+      color: { value: undefined, origin: "p" },
+      required: { value: [], origin: "p" },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin: "p" },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin: "p" },
+    },
+    origin: "p",
+  });
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["test", typeDef("test", "Test", "TST_BRK_{n:04d}")]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+  const md = `- [TST_BRK_0010] Braking procedure
+
+  Verify braking.
+
+  \`\`\`feature
+  Scenario: Stop
+    When the driver brakes
+  \`\`\`
+
+      Id: 01TST00000000000000000010A
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  assertEquals(parsed.entries.every((e) => e.type === undefined), true);
+  const b063 = index.validateAll(profile).filter((d) => d.code === "MSL-B063");
+  assertEquals(b063.length, 1);
+  assertEquals(b063[0].location?.line, 7);
+});
+
 /**
  * Run `body` in a new Deno process, where the Gherkin parser is not loaded
  * yet, so the result depends on the parse gate and not on the tests that

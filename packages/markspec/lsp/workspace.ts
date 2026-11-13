@@ -15,6 +15,7 @@ import type {
 import {
   applyCorpusPostPass,
   checkFeatureParse,
+  checkProcedureSteps,
   classifyEntry,
   emittableEntries,
   formatEntryOrigin,
@@ -324,6 +325,17 @@ export class WorkspaceIndex {
       ...validateLocators(allEntries, profile),
       // Gherkin blocks that do not parse (MSL-B062).
       ...checkFeatureParse(allEntries),
+      // Procedure steps with no expected result (MSL-B063). The index holds
+      // unclassified entries and the check needs the type, so classify first.
+      ...checkProcedureSteps(
+        profile
+          ? allEntries.map((e) => ({
+            ...e,
+            type: e.type ?? classifyEntry(e, profile).type,
+          }))
+          : allEntries,
+        profile,
+      ),
     ];
   }
 
