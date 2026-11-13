@@ -85,6 +85,13 @@ export type {
 // SourceRange is body-relative (no `file`); use SourceLocation for file-absolute positions.
 export { loadGherkin } from "./gherkin/load.ts";
 export { featureFileLine } from "./gherkin/position.ts";
+export { scenarioProcedure, stepRoles } from "./gherkin/procedure.ts";
+export type {
+  ProcedureStep,
+  ProcedureStepRef,
+  ScenarioProcedure,
+  StepRole,
+} from "./gherkin/procedure.ts";
 export type {
   ExamplesAst,
   FeatureAst,

@@ -251,3 +251,52 @@ Deno.test("scenarioProcedure: a synthetic block gives the same procedure", () =>
     shape(scenarioProcedure(full.feature.scenarios[0])),
   );
 });
+
+Deno.test("scenarioProcedure: each scenario gets only its own Rule background", () => {
+  const result = parseFeature(
+    api,
+    "Feature: F\n" +
+      "  Background:\n    Given feature setup\n" +
+      "  Rule: A\n" +
+      "    Background:\n      Given rule A setup\n" +
+      "    Scenario: SA\n      When act a\n      Then check a\n" +
+      "  Rule: B\n" +
+      "    Background:\n      Given rule B setup\n" +
+      "    Scenario: SB\n      When act b\n      Then check b\n",
+  );
+  assert(result.ok, result.ok ? "" : result.message);
+  const [sa, sb] = result.feature.scenarios.map(scenarioProcedure);
+  assertEquals(texts(sa.preconditions), ["feature setup", "rule A setup"]);
+  assertEquals(texts(sb.preconditions), ["feature setup", "rule B setup"]);
+});
+
+const PURITY_SOURCE = "Feature: F\n  Background:\n    Given setup\n" +
+  "  Scenario: S\n    Given a\n    When b\n    Then c\n    When d\n";
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
+Deno.test("scenarioProcedure: does not mutate a deeply frozen scenario", () => {
+  const result = parseFeature(api, PURITY_SOURCE);
+  assert(result.ok, result.ok ? "" : result.message);
+  const scenario = deepFreeze(result.feature.scenarios[0]);
+  const before = structuredClone(scenario);
+  scenarioProcedure(scenario);
+  assertEquals(scenario, before);
+});
+
+Deno.test("scenarioProcedure: two calls on one scenario are deep-equal", () => {
+  const result = parseFeature(api, PURITY_SOURCE);
+  assert(result.ok, result.ok ? "" : result.message);
+  const scenario = result.feature.scenarios[0];
+  assertEquals(scenarioProcedure(scenario), scenarioProcedure(scenario));
+});
+
+Deno.test("scenarioProcedure: the same source parsed twice gives equal views", () => {
+  assertEquals(procedure(PURITY_SOURCE), procedure(PURITY_SOURCE));
+});
