@@ -91,13 +91,23 @@ const withFeature = (
   ...extra,
 });
 
+/** The worked example with the When step of the Test scenario removed, so
+ * check reports an MSL-B065 info finding in the `.feature` file. */
+const THEN_ONLY_FEATURE = BRAKE_FEATURE.replace(
+  "    When the target is placed at 20 m\n",
+  "",
+);
+
 Deno.test("check: bare run finds a .feature entry", async () => {
   const { code, stderr } = await markspec(["check"], {
-    files: withFeature(),
+    files: withFeature({ "features/brake.feature": THEN_ONLY_FEATURE }),
   });
   assertEquals(code, 0, stderr);
   // docs/stk.md plus features/brake.feature.
   assertStringIncludes(stderr, "2 file(s) under");
+  // The file was checked, not only counted.
+  assertStringIncludes(stderr, "MSL-B065");
+  assertStringIncludes(stderr, "brake.feature");
 });
 
 Deno.test("check: an unresolved Satisfies in a .feature header is reported", async () => {
@@ -117,9 +127,11 @@ Deno.test("check: an unresolved Satisfies in a .feature header is reported", asy
 Deno.test("check: explicit .feature path", async () => {
   const { code, stderr } = await markspec(
     ["check", "features/brake.feature"],
-    { files: withFeature() },
+    { files: withFeature({ "features/brake.feature": THEN_ONLY_FEATURE }) },
   );
   assertEquals(code, 0, stderr);
+  assertStringIncludes(stderr, "MSL-B065");
+  assertStringIncludes(stderr, "brake.feature");
 });
 
 Deno.test("check: directory argument expands to .feature files", async () => {
@@ -176,9 +188,34 @@ Deno.test("check: Verifies locator to an unheaded scenario resolves (no MSL-L007
   assertEquals(stderr.includes("MSL-L007"), false, stderr);
 });
 
-Deno.test("check: a .feature entry gets no late-stage type inference warning", async () => {
-  const { stderr } = await markspec(["check"], { files: withFeature() });
+/** A `.feature` file whose entries no profile classifies and that carry no
+ * trace attribute, so type resolution reaches step 6a. */
+const STEP_6A_FEATURE = `# [SC_BRK_0001] Brake feature
+#
+# Id: 01HGW2Q8MNP3RSTVWXYZABCDEG
+Feature: Brake
+
+  # [SC_BRK_0002] Stop test
+  #
+  # Id: 01HGW2Q8MNP3RSTVWXYZABCDEH
+  Scenario: Stop
+    Then the vehicle stops
+`;
+
+Deno.test("check: a .feature entry resolved by step 6a gets no late-stage type inference warning", async () => {
+  const { stderr } = await markspec(["check"], {
+    files: {
+      "project.yaml": "name: brk\nversion: 0.1.0\n",
+      "features/brake.feature": STEP_6A_FEATURE,
+    },
+  });
+  // Control: no profile pattern matches, so classification falls back to
+  // step 6a and types the Scenario as a Test; the block-role check then runs
+  // on it and reports the Then step that has no action. Step 6a stays silent
+  // for MSL-T021 and the entry is never un-classified (MSL-T003).
+  assertStringIncludes(stderr, "MSL-B065");
   assertEquals(stderr.includes("MSL-T021"), false, stderr);
+  assertEquals(stderr.includes("MSL-T003"), false, stderr);
 });
 
 Deno.test("compile: entries from .feature carry source.kind feature-file", async () => {
@@ -194,7 +231,13 @@ Deno.test("compile: entries from .feature carry source.kind feature-file", async
   );
   assertEquals(code, 0, stderr);
   const compiled = JSON.parse(stdout) as {
-    entries: Record<string, { source: { kind: string; node?: string } }>;
+    entries: Record<
+      string,
+      {
+        source: { kind: string; node?: string };
+        properties?: { source?: Record<string, unknown> };
+      }
+    >;
   };
   assertEquals(Object.keys(compiled.entries).sort(), [
     "REQ_BRK_0011",
@@ -208,6 +251,11 @@ Deno.test("compile: entries from .feature carry source.kind feature-file", async
   assertEquals(compiled.entries.TST_BRK_0013.source, {
     kind: "feature-file",
     node: "scenario",
+  });
+  assertEquals(compiled.entries.TST_BRK_0013.properties?.source, {
+    type: "feature-file",
+    adapter: "gherkin",
+    rule: "scenario",
   });
 });
 
@@ -246,11 +294,18 @@ Deno.test("lock then check: adding a .feature entry drifts the edges hash until 
   }
 });
 
-Deno.test("lint: runs on .feature entries without crashing", async () => {
-  const { code, stderr } = await markspec(["lint"], { files: withFeature() });
-  assertEquals(code === 0 || code === 2, true, stderr);
-  assertEquals(stderr.includes("error:"), false, stderr);
+Deno.test("lint: reports a prose finding on a .feature entry", async () => {
+  const vague = BRAKE_FEATURE.replace(
+    "obstacle closer than 40 m.",
+    "obstacle closer than 40 m as appropriate.",
+  );
+  const { code, stderr } = await markspec(["lint"], {
+    files: withFeature({ "features/brake.feature": vague }),
+  });
+  assertEquals(code, 2, stderr);
   assertEquals(stderr.includes("TypeError"), false, stderr);
+  assertStringIncludes(stderr, "brake.feature:2:1 warning");
+  assertStringIncludes(stderr, "MSL-Q303");
 });
 
 /** The worked example without its Id lines (`fmt` has not stamped it). */

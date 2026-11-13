@@ -66,6 +66,39 @@ Deno.test("fmtDriftGate: a file missing Id: fails with MSL-F010", async () => {
   assertEquals(diags.some((d) => d.code === "MSL-F010"), true);
 });
 
+Deno.test("fmtDriftGate: a .feature header without an Id fails with MSL-F010 at line 1", async () => {
+  const unstamped = [
+    "Feature: F",
+    "",
+    "  # [SC_A_0001] Stop",
+    "  Scenario: S",
+    "    Then a",
+    "",
+  ].join("\n");
+  const stamped = unstamped.replace(
+    "  Scenario",
+    "  #\n  # Id: 01REQ000000000000000000001\n  Scenario",
+  );
+  for (const [content, expected] of [[unstamped, 1], [stamped, 0]] as const) {
+    const parsed = await parseFile(content, { file: "a.feature" });
+    const diags = await fmtDriftGate(
+      new Map([["a.feature", content]]),
+      parsed.entries,
+      [],
+      undefined,
+    );
+    assertEquals(
+      diags,
+      expected === 0 ? [] : [{
+        code: "MSL-F010",
+        severity: "error",
+        message: "file is not formatted (run `markspec fmt`)",
+        location: { file: "a.feature", line: 1, column: 1 },
+      }],
+    );
+  }
+});
+
 Deno.test("fmtDriftGate: a non-canonical ULID reference fails with MSL-F011, not F010", async () => {
   // REQ-0001 declares ULID 01REQ...001; SREQ-0001 references it *by ULID*.
   // The SREQ file is formatter-clean (no F010) but canonicalizeRefs would
