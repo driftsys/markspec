@@ -109,13 +109,25 @@ const COMPILE_ARGS = [
   "features/broken.feature",
 ];
 
-/** Replace the temporary directory, which differs between runs. */
-const norm = (text: string, dir: string): string =>
-  text.replaceAll(Deno.realPathSync(dir), "<dir>").replaceAll(dir, "<dir>")
+/**
+ * Replace the temporary directory, which differs between runs, and the
+ * Windows path forms of it: the 8.3 short name, the long name, JSON-escaped
+ * backslashes, and backslash separators after it.
+ */
+const norm = (text: string, dir: string): string => {
+  const dirs = [Deno.realPathSync(dir), dir].flatMap((d) => [
+    d.replaceAll("\\", "\\\\"),
+    d,
+  ]);
+  let out = text;
+  for (const d of dirs) out = out.replaceAll(d, "<dir>");
+  return out
+    .replace(/<dir>[^\s"',:]*/g, (m) => m.replace(/\\{1,2}/g, "/"))
     .replace(/"mtime": "[^"]*"/g, '"mtime": "<mtime>"')
     // The bare-check scope line counts discovered `.feature` files;
     // accepted wording change (decision on #915).
     .split("\n").filter((l) => !l.includes("file(s) under")).join("\n");
+};
 
 /** Remove the lines that differ between runs. */
 const stableLock = (lock: string): string =>
