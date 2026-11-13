@@ -185,7 +185,46 @@ Feature: F
     3,
   );
   assertEquals(result.output.includes(`# Id: ${ID_C}`), true);
+  // Each Id lands at the end of its own header, with its own indentation.
+  // Entries are stamped bottom-up, so the Rule gets ID_A and the Feature
+  // gets ID_B.
+  assertEquals(
+    result.output,
+    text
+      .replace("# Body.\nFeature", `# Body.\n#\n# Id: ${ID_B}\nFeature`)
+      .replace(
+        "  # Body.\n  Rule",
+        `  # Body.\n  #\n  # Id: ${ID_A}\n  Rule`,
+      ),
+  );
   assertEquals(result.changed, true);
+});
+
+Deno.test("formatFeatureFile: a header that already ends with '#' gets only the Id line", async () => {
+  const text = `# [REQ_A_0001] Title
+#
+# Body.
+#
+Feature: F
+  Scenario: S
+    Given a
+`;
+  const result = await stamp(text, ID_A);
+  assertEquals(
+    result.output,
+    text.replace("#\nFeature", `#\n# Id: ${ID_A}\nFeature`),
+  );
+});
+
+Deno.test("formatFeatureFile: a [TODO] comment above a Scenario is left untouched", async () => {
+  const text = `Feature: F
+
+  # [TODO] fix later
+  Scenario: S
+    Given a
+`;
+  const result = await stamp(text, ID_A);
+  assertEquals(result, { output: text, changed: false });
 });
 
 Deno.test("formatFeatureFile: entry with an Id leaves the file byte-identical", async () => {

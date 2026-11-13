@@ -35,7 +35,9 @@ const SRS = `# Software requirements
       Satisfies: STK_BRK_0001
 `;
 
-/** Realistic headerless Cucumber files: Background, Outline, tags, comments. */
+/** Realistic headerless Cucumber files: Background, Outline, tags, comments.
+ * Bracketed comments such as `# [TODO] fix later`, `# [x] done` and
+ * `# [WIP]` are plain comments: their text is not a display ID. */
 const LOGIN_FEATURE = `# language: en
 @auth @smoke
 Feature: Login
@@ -44,16 +46,19 @@ Feature: Login
   Background:
     Given a registered user "alice"
 
+  # [TODO] fix later
   @happy
   Scenario: Successful login
     When she logs in with the right password
     Then she sees her dashboard
 
   # Not a header: no bracketed display ID here.
+  # [x] done
   Scenario Outline: Failed login
     When she logs in with the password "<password>"
     Then she sees the error "<error>"
 
+    # [WIP]
     Examples:
       | password | error             |
       | wrong    | Invalid password  |
@@ -74,7 +79,8 @@ const CHECKOUT_FEATURE = `Feature: Checkout
       Then the pay button is disabled
 `;
 
-const BROKEN_FEATURE = `Feature: Broken
+const BROKEN_FEATURE = `# [x] done
+Feature: Broken
   Scenario Outline: never closed
     Given <a
   Examples:

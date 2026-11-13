@@ -44,7 +44,8 @@ export interface FeatureHeader {
   readonly endLine: number;
   /** 1-based column of the `#` on the first comment line. */
   readonly column: number;
-  /** Comment lines with the `#` and one following space removed. */
+  /** Comment lines without the `#`: the first line also loses every space
+   * after it, each later line at most one space. */
   readonly lines: readonly string[];
   /**
    * For each line, the number of characters from the line start up to and
@@ -54,7 +55,22 @@ export interface FeatureHeader {
 }
 
 const LANGUAGE_RE = /^\s*#\s*language\s*:/;
-const HEADER_START_RE = /^\[[^\]]+\]\s/;
+
+/**
+ * The ID of a `.feature` header: an uppercase letter, then uppercase letters
+ * or digits, then at least one `_` or `-` separator, ending in a letter or
+ * digit (for example `SC_LOGIN_0001` or `REQ-12`). It is a subset of the core
+ * display-ID grammar (`DISPLAY_ID_RE`) without `/`. A bracketed comment such
+ * as `# [TODO] fix later`, `# [x] done` or `# [WIP]` does not match, so it
+ * stays a plain Cucumber comment.
+ */
+const HEADER_ID_SOURCE = "[A-Z][A-Z0-9]*[_-][A-Za-z0-9_.-]*[A-Za-z0-9]";
+
+/** A header-start comment text: `[ID] ` after the `#`. */
+export const FEATURE_HEADER_START_RE = new RegExp(
+  `^\\[${HEADER_ID_SOURCE}\\]\\s`,
+);
+const HEADER_START_RE = FEATURE_HEADER_START_RE;
 
 /** File line of every node keyword a header may head, with its kind. */
 function nodeKinds(document: GherkinDocument): Map<number, FeatureNodeKind> {
@@ -235,7 +251,10 @@ export function headerEntry(
 type EntryNodeKind = "feature" | "rule" | "scenario";
 
 /** A header line anywhere in a file: `# [ID] ` after optional indent. */
-const HEADER_LINE_RE = /^\s*#\s*\[[^\]]+\]\s/m;
+const HEADER_LINE_RE = new RegExp(
+  `^\\s*#\\s*\\[${HEADER_ID_SOURCE}\\]\\s`,
+  "m",
+);
 
 /** `true` when the text has a `# [ID]` header line (an entry candidate). */
 export function hasFeatureHeaderLine(text: string): boolean {
@@ -271,7 +290,9 @@ interface HeadedNode {
  * header prose. Tags are not labels.
  *
  * Diagnostics: the header parse diagnostics; `MSL-P030` when an entry has
- * neither header prose nor a description; `MSL-B069` (warning) for a header
+ * neither header prose nor a description and no content (a Scenario entry
+ * whose scenario has no step, or a Feature or Rule entry that owns no
+ * scenario), at the `#` of the header line; `MSL-B069` (warning) for a header
  * above a Background, Examples or step, or above no node. When the file does
  * not parse, there are no entries and one `MSL-B062` warning at the parser
  * position, but only when the file has a header line, so a plain Cucumber
@@ -483,7 +504,11 @@ export function parseFeatureFile(
         severity: "error",
         message: `${base.displayId}: Authored entry has no body block -- ` +
           "a .feature header needs prose, a node description, or steps",
-        location: { file, line: base.location.line, column: 1 },
+        location: {
+          file,
+          line: base.location.line,
+          column: node.header.column,
+        },
       });
     }
     // Nested nodes that are their own entries: their header and span are
@@ -543,9 +568,21 @@ function descriptionBody(
   const first = text.split("\n")[0];
   let start = node.keywordLine + 1;
   while (start <= lines.length && lines[start - 1].trim() !== first) start++;
-  const raw = lines.slice(start - 1, start - 1 + count);
-  // A comment line inside the description is not description text.
-  const cleaned = raw.map((l) => l.trim().startsWith("#") ? "" : l);
+  // The parser leaves comment lines out of `node.description`, so take
+  // file lines until `count` non-comment lines are collected. A comment line
+  // inside the description is not description text: it becomes a blank line,
+  // which keeps the file line of every later description line.
+  const cleaned: string[] = [];
+  let taken = 0;
+  for (let l = start; l <= lines.length && taken < count; l++) {
+    const line = lines[l - 1];
+    if (line.trim().startsWith("#")) {
+      cleaned.push("");
+    } else {
+      cleaned.push(line);
+      taken++;
+    }
+  }
   const prefixWidths = cleaned.map((l) => l.length - l.trimStart().length);
   // Two synthetic lines (a title and a blank line) precede the body.
   const lineMap = buildBlockLineMap({

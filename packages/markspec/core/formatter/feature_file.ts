@@ -11,14 +11,13 @@
 import { ulid as defaultUlid } from "@std/ulid";
 import type { Entry } from "../model/mod.ts";
 import { parseFile } from "../parser/mod.ts";
+import { FEATURE_HEADER_START_RE as HEADER_START_RE } from "../parser/feature_file.ts";
 import {
   applyLineEnding,
   detectLineEnding,
   normalizeLineEndings,
 } from "../util/line_endings.ts";
 
-/** A header-start comment text: `[ID] ` after the `#`. */
-const HEADER_START_RE = /^\[[^\]]+\]\s/;
 const LANGUAGE_RE = /^\s*#\s*language\s*:/;
 /** Leading whitespace, `#`, and the spaces after it. */
 const COMMENT_PREFIX_RE = /^(\s*#[ \t]*)/;

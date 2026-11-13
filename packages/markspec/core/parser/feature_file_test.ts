@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { loadGherkin } from "../gherkin/load.ts";
 import { findHeaders } from "./feature_file.ts";
 
@@ -948,4 +948,236 @@ Deno.test("parseFeatureFile: garbage with a header line never throws", () => {
   const text = '# [REQ_A_0001] T\n@@@ ::: Feature F\n | | |\n"""\n';
   const result = parseFeatureFile(text, { file: "a.feature", api });
   assertEquals(result.entries, []);
+});
+
+// Header ID shape (PR #936 review) -------------------------------------------
+
+import { hasFeatureHeaderLine } from "./feature_file.ts";
+
+Deno.test("parseFeatureFile: bracketed comments that are not display IDs are plain comments", () => {
+  const text = [
+    "# [TODO] fix later",
+    "Feature: F",
+    "",
+    "  # [x] done",
+    "  Scenario: A",
+    "    Given a",
+    "",
+    "  # [WIP]",
+    "  Scenario: B",
+    "    Given b",
+    "",
+    "  # [wip_1] lower case",
+    "  Scenario: C",
+    "    Given c",
+  ].join("\n");
+  assertEquals(hasFeatureHeaderLine(text), false);
+  assertEquals(parseFF(text), { entries: [], diagnostics: [] });
+  // The same comments in a file that does not parse stay silent too.
+  assertEquals(parseFF(`${text}\n    this is not gherkin\n`), {
+    entries: [],
+    diagnostics: [],
+  });
+});
+
+Deno.test("hasFeatureHeaderLine: needs an uppercase ID with a separator", () => {
+  for (
+    const [line, expected] of [
+      ["# [TODO] fix later", false],
+      ["# [x] done", false],
+      ["# [WIP]", false],
+      ["# [ABC123] no separator", false],
+      ["# [SC_LOGIN_0001] Login", true],
+      ["  #[REQ-12] Indented", true],
+      ["# [REQ_A_] trailing separator", false],
+    ] as const
+  ) {
+    assertEquals(hasFeatureHeaderLine(`${line}\n`), expected, line);
+  }
+});
+
+Deno.test("findHeaders: a [TODO] comment inside a header does not start a new header", () => {
+  const text = [
+    "Feature: F",
+    "  # [SC_A_0001] T",
+    "  # [TODO] fix later",
+    "  Scenario: S",
+    "    Given a",
+  ].join("\n");
+  const map = headers(text);
+  assertEquals([...map.keys()], [4]);
+  assertEquals(map.get(4)!.lines, ["[SC_A_0001] T", "[TODO] fix later"]);
+});
+
+// Description with a comment line (PR #936 review) ---------------------------
+
+Deno.test("parseFeatureFile: a comment inside a description keeps the later lines at file positions", () => {
+  const text = [
+    "# [REQ_A_0001] T", // 1
+    "Feature: F", // 2
+    "  First line.", // 3
+    "  # note", // 4
+    "  The system SHALL stop.", // 5
+    "", // 6
+    "  Scenario: S", // 7
+    "    Then a", // 8
+  ].join("\n");
+  const { entries, diagnostics } = parseFF(text);
+  assertEquals(diagnostics, []);
+  const req = entries[0];
+  assertStringIncludes(req.body, "The system SHALL stop.");
+  assertEquals(
+    req.bodyTokens.map((t) => [t.kind, t.location.line, t.location.column]),
+    [["modal", 5, 14]],
+  );
+});
+
+Deno.test("parseFeatureFile: description bodyAst ranges map to the description file line", () => {
+  // File line of a body block = bodyStartLine + range.start.line - 1. Check
+  // it for a title-only header and a header with prose, with and without
+  // lines above the header.
+  for (
+    const head of [
+      ["# [REQ_A_0001] T"],
+      ["# [REQ_A_0001] T", "#", "# Header prose."],
+    ]
+  ) {
+    for (const before of [[], ["# language: en", "", ""]]) {
+      const lines = [
+        ...before,
+        ...head,
+        "Feature: F",
+        "",
+        "  Description line.",
+        "",
+        "  Scenario: S",
+        "    Then a",
+      ];
+      const entry = parseFF(lines.join("\n")).entries[0];
+      const bodyStart = entry.bodyStartLine ?? entry.location.line + 1;
+      const description = entry.bodyAst!.filter((b) => b.kind === "paragraph")
+        .at(-1) as { range: { start: { line: number } } };
+      assertEquals(
+        bodyStart + description.range.start.line - 1,
+        lines.indexOf("  Description line.") + 1,
+        lines.join("\n"),
+      );
+    }
+  }
+});
+
+// MSL-P030 (PR #936 review) --------------------------------------------------
+
+Deno.test("parseFeatureFile: no MSL-P030 for a title-only Feature or Rule that owns a scenario", () => {
+  const feature = [
+    "# [REQ_A_0001] T",
+    "Feature: F",
+    "  Scenario: S",
+  ].join("\n");
+  assertEquals(parseFF(feature).diagnostics, []);
+  const rule = [
+    "Feature: F",
+    "  # [REQ_A_0002] T",
+    "  Rule: R",
+    "    Scenario: S",
+  ].join("\n");
+  assertEquals(parseFF(rule).diagnostics, []);
+});
+
+Deno.test("parseFeatureFile: MSL-P030 column is the # column of the header", () => {
+  const text = [
+    "Feature: F",
+    "    # [TST_A_0001] Title only",
+    "    Scenario: S",
+  ].join("\n");
+  assertEquals(
+    parseFF(text).diagnostics.map((d) => [
+      d.code,
+      d.location?.line,
+      d.location?.column,
+    ]),
+    [["MSL-P030", 2, 5]],
+  );
+});
+
+Deno.test("parseFeatureFile: MSL-B062 positions on the wrapped and raw parser paths", () => {
+  const wrapped = [
+    "# [REQ_A_0001] T",
+    "Feature: F",
+    "  Scenario: S",
+    "    Given a",
+    "      this is not gherkin",
+  ].join("\n");
+  assertEquals(
+    parseFF(wrapped).diagnostics.map((d) => [
+      d.code,
+      d.location?.line,
+      d.location?.column,
+    ]),
+    [["MSL-B062", 5, 7]],
+  );
+  const raw = "# [FEAT_0001] Feat\nFeature F\n  Scenarioo\n";
+  assertEquals(
+    parseFF(raw).diagnostics.map((d) => [
+      d.code,
+      d.location?.line,
+      d.location?.column,
+    ]),
+    [["MSL-B062", 2, 1]],
+  );
+});
+
+import { validateFeatureAc } from "../validator/feature_ac.ts";
+
+Deno.test("Case B: MSL-B044 points at the Feature line of a .feature entry", () => {
+  const text = [
+    "# language: en", // 1
+    "", // 2
+    "", // 3
+    "", // 4
+    "", // 5
+    "# [REQ_A_0001] T", // 6
+    "#", // 7
+    "# Acceptance criteria:", // 8
+    "#", // 9
+    "# - it stops", // 10
+    "Feature: F", // 11
+    "  Scenario: S", // 12
+    "    Then a", // 13
+  ].join("\n");
+  const entry = parseFF(text).entries[0];
+  assertEquals(
+    validateFeatureAc(entry).map((d) => [d.code, d.location?.line]),
+    [["MSL-B044", 11]],
+  );
+});
+
+Deno.test("findHeaders: a plain comment between a tag line and the node keeps the link", () => {
+  const text = [
+    "Feature: F",
+    "  # [SC_A_0001] T",
+    "  @smoke",
+    "  # note",
+    "  Scenario: S",
+    "    Given a",
+  ].join("\n");
+  const map = headers(text);
+  assertEquals([...map.keys()], [5]);
+  assertEquals(map.get(5)!.kind, "scenario");
+});
+
+Deno.test("findHeaders: header, tag, header, node gives the upper header no node", () => {
+  const text = [
+    "Feature: F",
+    "  # [SC_A_0001] Upper",
+    "  @smoke",
+    "  # [SC_A_0002] Lower",
+    "  Scenario: S",
+    "    Given a",
+  ].join("\n");
+  const map = headers(text);
+  assertEquals(
+    [...map.entries()].map(([key, h]) => [key, h.kind, h.startLine]),
+    [[2, undefined, 2], [5, "scenario", 4]],
+  );
 });
