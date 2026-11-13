@@ -9,6 +9,7 @@
 # Authoring
 
 - [Entry blocks](authoring.md)
+- [Scenario locators](scenario-locators.md)
 - [Profiles](profiles.md)
 - [Type declarations (typl)](typl.md)
 - [Interaction surfaces (uxil)](uxil.md)

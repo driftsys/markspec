@@ -33,6 +33,7 @@ import type {
 } from "./model.ts";
 import { sha256Bytes } from "./hash.ts";
 import { type EdgeQuad, hashCanonicalEdges } from "./canonical_edges.ts";
+import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
 
 /**
  * Callback to fetch a URL. Returns the bytes on success, or an
@@ -204,8 +205,12 @@ export async function resolveReferences(
 /**
  * Project an entry list to canonical edge quads. Walks the eleven core
  * trace-link attributes (Satisfies, Derived-from, Verified-by, …) and
- * emits one quad per resolved target ID, splitting CSV values on `,`
- * or whitespace. Every quad is provenance `"local"` — externally
+ * emits one quad per resolved target ID. An attribute value with a
+ * bracket locator (`STK_1 [AC one], STK_2`) is split with the shared
+ * {@linkcode splitTraceValues}, and each locator value yields one quad
+ * with its normalized `locator`. A value without a locator is split on
+ * `,` or whitespace, as before locators existed, so the edges hash of a
+ * project without locators is unchanged. Every quad is provenance `"local"` — externally
  * sourced edges are folded in later (post-MVP).
  */
 export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
@@ -217,17 +222,43 @@ export function extractEdgeQuads(entries: readonly Entry[]): EdgeQuad[] {
   for (const entry of entries) {
     for (const a of entry.rawAttributes) {
       if (!TRACE_KEYS.includes(a.key)) continue;
-      const targets = a.value.split(/[\s,]+/).filter((t) => t.length > 0);
-      for (const target of targets) {
+      for (const { target, locator } of edgeTargets(a.value)) {
         out.push({
           source: entry.displayId,
           relation: a.key,
           target,
+          ...(locator !== undefined ? { locator } : {}),
           provenance: "local",
         });
       }
     }
   }
+  return out;
+}
+
+/**
+ * The edge targets of one trace attribute value. A part with a closed
+ * bracket locator gives one target with its locator; every other part is
+ * split on whitespace, as the lockfile did before locators existed.
+ */
+function edgeTargets(
+  value: string,
+): { target: string; locator?: string }[] {
+  const parts = splitTraceValues(value);
+  const parsed = parts.map(parseTraceValue);
+  if (parsed.every((p) => p.locator === undefined)) {
+    return value.split(/[\s,]+/).filter((t) => t.length > 0)
+      .map((target) => ({ target }));
+  }
+  const out: { target: string; locator?: string }[] = [];
+  parts.forEach((part, i) => {
+    const p = parsed[i];
+    if (p.locator !== undefined) {
+      out.push({ target: p.target, locator: p.locator });
+    } else {
+      for (const t of part.split(/\s+/)) if (t) out.push({ target: t });
+    }
+  });
   return out;
 }
 
@@ -262,6 +293,7 @@ export function extractEdgeLedger(
       sourceUlid,
       relation: quad.relation,
       authoredTarget: quad.target,
+      ...(quad.locator !== undefined ? { locator: quad.locator } : {}),
       ...(targetEntry?.id !== undefined ? { targetUlid: targetEntry.id } : {}),
     });
   }

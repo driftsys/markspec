@@ -2,7 +2,7 @@
 schema: 1
 name: markspec-diagnostics
 description: |
-  Use when `markspec check` output contains MSL- codes — covers all diagnostic families (P0xx parse, I0xx identity, M0xx modal, A0xx attribute, T0xx type, B0xx body, C0xx caption), severity levels, and common fixes.
+  Use when `markspec check` output contains MSL- codes — covers all diagnostic families (P0xx parse, I0xx identity, M0xx modal, A0xx attribute, T0xx type, L0xx link, B0xx body, C0xx caption), severity levels, and common fixes.
 ---
 
 ## Overview
@@ -80,6 +80,17 @@ Emitted for `Type:` attribute value violations.
 | MSL-T010 | Missing required `Type:` | Add a `Type: <name>` trailer; see profile for declared types                 |
 | MSL-T020 | Unknown type value       | Check the profile's declared types; the validator suggests the closest match |
 
+### L0xx — Link
+
+Emitted for trace-relation values and their locators.
+
+| Code     | Message pattern                    | Fix                                                                                      |
+| -------- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| MSL-L006 | Link target does not resolve       | Correct the display ID or ULID of the target                                             |
+| MSL-L007 | Locator matches no scenario        | Use the exact scenario name of the target, or remove the `[…]` locator                   |
+| MSL-L008 | Relation does not accept a locator | Remove the `[…]` locator; only References, Derived-from, Satisfies and Verifies take one |
+| MSL-L009 | `[` with no closing `]`            | Add the closing `]`                                                                      |
+
 ### B0xx — Body
 
 Emitted for body-text content violations.
@@ -88,6 +99,8 @@ Emitted for body-text content violations.
 | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
 | MSL-B010 | Empty body                   | Add requirement prose between the header line and the trailer block                             |
 | MSL-B044 | Body AST equivalence failure | Body contains Markdown the formatter cannot round-trip safely; simplify or escape the construct |
+| MSL-B060 | Duplicate scenario name      | Rename one scenario so every scenario name in the entry is unique                               |
+| MSL-B061 | Scenario with no name        | Add a name after `Scenario:`                                                                    |
 
 ### C0xx — Caption
 

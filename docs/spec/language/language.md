@@ -910,8 +910,10 @@ CSV is **forbidden** for the `citation` type. `References` values may carry
 free-text locators like `§9.4, Table 7` that would be ambiguous in CSV.
 
 The `id` and `id-list` types accept a 26-char ULID, a scheme-qualified URI, or a
-display ID. A display ID is resolved to its target by existence; an unresolved
-display ID is reported by `MSL-L006`, not by the value-format gate.
+display ID. Any of these may be followed by a locator in brackets
+(`REQ_BRK_0010 [Brake at 20 m]`); the value-format gate checks the target before
+the locator only. A display ID is resolved to its target by existence; an
+unresolved display ID is reported by `MSL-L006`, not by the value-format gate.
 
 Display IDs are the canonical form across the full toolchain surface.
 `markspec
@@ -1669,9 +1671,29 @@ requirements") are profile concerns, not core concerns.
 
 Existence and cardinality rules for the targets of trace-relation links.
 
-| ID         | Severity | Rule                                                                                                                            |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-L006` | warning  | Profile trace-relation target does not resolve to any entry (resolved by display ID or ULID). Scheme-qualified URIs are exempt. |
+| ID         | Severity | Rule                                                                                                                                                                  |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSL-L006` | warning  | Profile trace-relation target does not resolve to any entry (resolved by display ID or ULID). Scheme-qualified URIs are exempt.                                       |
+| `MSL-L007` | warning  | A locator on `Satisfies:` or `Verifies:` names no addressable scenario of its target. Reported only when the target resolves to a Requirement or Contract entry.      |
+| `MSL-L008` | warning  | A locator on a trace relation that does not accept one. Only `References:`, `Derived-from:`, `Satisfies:` and `Verifies:` accept a locator.                           |
+| `MSL-L009` | warning  | A trace value has a `[` after whitespace that no `]` closes. It has no locator; commas after the `[` still separate values (`A [x], B [z, C` → `A [x]`, `B [z`, `C`). |
+
+A trace value can carry a locator after its target, as in the value
+`REQ_BRK_0010 [Brake at 20 m]` of a `Verifies:` attribute (see
+[Locators](../model/relations.md#locators)). The locator does not change the
+link target: the link goes to `REQ_BRK_0010` whether the locator resolves or
+not, and `MSL-L006` checks the target only. A locator on a target that does not
+resolve raises `MSL-L006` and never `MSL-L007`. A locator on a target that
+carries no scenarios (an entry that is not a Requirement or Contract, or a
+Reference entry) is free text and raises no `MSL-L007`. `MSL-L008` keeps the
+link to the target and ignores the locator. A locator that names a scenario name
+used more than once in the target is not addressable and raises `MSL-L007`.
+
+A value without a closed locator is read as it was before locators existed. A
+`Derived-from:` or `References:` value links to its first whitespace-separated
+token. Any other trace value links to the whole value, so
+`Satisfies: SYS_BRK_0042 (braking)` links to `SYS_BRK_0042 (braking)`, which
+`MSL-L006` reports when no such entry exists.
 
 ### 8.5 References (MSL-M)
 

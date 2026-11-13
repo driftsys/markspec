@@ -531,3 +531,256 @@ Deno.test("reporter coverage json: empty input produces zero-count stats", () =>
   assertEquals(parsed.withSatisfies, 0);
   assertEquals(parsed.withoutSatisfies, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Criterion-level coverage (epic #915, scenario locators)
+// ---------------------------------------------------------------------------
+
+/** Clone an entry with scenario criteria (as the compiler attaches them). */
+function withCriteria(entry: Entry, names: string[]): Entry {
+  return {
+    ...entry,
+    criteria: names.map((name) => ({
+      form: "scenario" as const,
+      name,
+      addressable: true,
+      location: { file: "test.md", line: 1, column: 1 },
+    })),
+  };
+}
+
+/** Build a `verifies` link with optional locator fields. */
+function verifyLink(
+  from: string,
+  to: string,
+  extra: Partial<Pick<Link, "locator" | "locatorResolved" | "origin">> = {},
+): Link {
+  return { ...makeLink(from, to, "verifies"), ...extra };
+}
+
+const REQ_CRITERIA = ["Brake at 20 m", "No braking beyond 40 m"];
+
+function criteriaJson(result: CompileResult, label?: string, scope?: string) {
+  const parsed = JSON.parse(
+    report(result, { kind: "coverage", format: "json", label, scope }),
+  );
+  return parsed.criteria;
+}
+
+Deno.test("reporter criteria: a resolved locator verifies one criterion (partial)", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const tst = makeEntry("TST_0012", "Test", { type: "Test" });
+  const result = makeResult([req, tst], [
+    verifyLink("TST_0012", "REQ_0010", {
+      locator: "Brake at 20 m",
+      locatorResolved: true,
+    }),
+  ]);
+  assertEquals(criteriaJson(result), {
+    total: 2,
+    verified: 1,
+    entries: [{
+      displayId: "REQ_0010",
+      title: "Brake",
+      state: "partial",
+      verified: 1,
+      total: 2,
+      criteria: [
+        { name: "Brake at 20 m", addressable: true, verifiedBy: ["TST_0012"] },
+        { name: "No braking beyond 40 m", addressable: true, verifiedBy: [] },
+      ],
+    }],
+  });
+});
+
+Deno.test("reporter criteria: a whole-entry Verifies covers every criterion (full)", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const tst = makeEntry("TST_0012", "Test", { type: "Test" });
+  const result = makeResult([req, tst], [verifyLink("TST_0012", "REQ_0010")]);
+  const c = criteriaJson(result);
+  assertEquals(c.entries[0].state, "full");
+  assertEquals(c.verified, 2);
+});
+
+Deno.test("reporter criteria: an entry with no verifier is none", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const c = criteriaJson(makeResult([req]));
+  assertEquals(c.entries[0].state, "none");
+  assertEquals(c.entries[0].verified, 0);
+});
+
+Deno.test("reporter criteria: an unresolved locator does not count", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const tst = makeEntry("TST_0013", "Test", { type: "Test" });
+  const result = makeResult([req, tst], [
+    verifyLink("TST_0013", "REQ_0010", {
+      locator: "Brake at 30 m",
+      locatorResolved: false,
+    }),
+  ]);
+  assertEquals(criteriaJson(result).entries[0].state, "none");
+});
+
+Deno.test("reporter criteria: a locator on Satisfies never counts as verification", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const swe = makeEntry("SWE_0001", "Child");
+  const result = makeResult([req, swe], [{
+    ...makeLink("SWE_0001", "REQ_0010", "satisfies"),
+    locator: "Brake at 20 m",
+  }]);
+  assertEquals(criteriaJson(result).entries[0].state, "none");
+});
+
+Deno.test("reporter criteria: a generated inverse names the same verifier once", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const tst = makeEntry("TST_0012", "Test", { type: "Test" });
+  const result = makeResult([req, tst], [
+    verifyLink("TST_0012", "REQ_0010", {
+      locator: "Brake at 20 m",
+      locatorResolved: true,
+    }),
+    verifyLink("REQ_0010", "TST_0012", {
+      locator: "Brake at 20 m",
+      locatorResolved: true,
+      origin: "generated",
+    }),
+  ]);
+  const c = criteriaJson(result);
+  assertEquals(c.entries[0].criteria[0].verifiedBy, ["TST_0012"]);
+  assertEquals(c.entries[0].state, "partial");
+});
+
+Deno.test("reporter criteria: scope and label filters apply", () => {
+  const req = withCriteria(
+    makeEntry("REQ_BRK_0010", "Brake", { labels: "ASIL-B" }),
+    REQ_CRITERIA,
+  );
+  const other = withCriteria(makeEntry("REQ_ACC_0001", "Acc"), ["Keep gap"]);
+  const result = makeResult([req, other]);
+  assertEquals(
+    criteriaJson(result, undefined, "BRK").entries.map((e: Entry) =>
+      e.displayId
+    ),
+    ["REQ_BRK_0010"],
+  );
+  assertEquals(
+    criteriaJson(result, "ASIL-B").entries.map((e: Entry) => e.displayId),
+    ["REQ_BRK_0010"],
+  );
+  // No filtered entry carries criteria: the key is absent.
+  assertEquals(criteriaJson(result, "none"), undefined);
+});
+
+Deno.test("reporter criteria: md section lists each criterion with its verifiers", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const tst = makeEntry("TST_0012", "Test", { type: "Test" });
+  const result = makeResult([req, tst], [
+    verifyLink("TST_0012", "REQ_0010", {
+      locator: "Brake at 20 m",
+      locatorResolved: true,
+    }),
+  ]);
+  const output = report(result, { kind: "coverage", format: "md" });
+  assertStringIncludes(
+    output,
+    [
+      "## Criteria",
+      "",
+      "```text",
+      "REQ_0010  Brake  1/2 criteria verified",
+      "  ✓ Brake at 20 m           ← TST_0012",
+      "  ✗ No braking beyond 40 m  ← no verifier",
+      "```",
+    ].join("\n"),
+  );
+});
+
+Deno.test("reporter criteria: csv adds criteria totals", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const output = report(makeResult([req]), { kind: "coverage", format: "csv" });
+  assertStringIncludes(output, "Criteria total,2\nCriteria verified,0");
+});
+
+Deno.test("reporter criteria: no criteria leaves coverage output unchanged", () => {
+  const result = makeResult([makeEntry("REQ_001", "A")]);
+  const json = JSON.parse(report(result, { kind: "coverage", format: "json" }));
+  assertEquals("criteria" in json, false);
+  const md = report(result, { kind: "coverage", format: "md" });
+  assertEquals(md.includes("Criteria"), false);
+  const csv = report(result, { kind: "coverage", format: "csv" });
+  assertEquals(csv.includes("Criteria"), false);
+});
+
+Deno.test("reporter criteria: a verifier that is not a Test does not count", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const other = makeEntry("REQ_0011", "Other", { type: "Requirement" });
+  const result = makeResult([req, other], [
+    verifyLink("REQ_0011", "REQ_0010"),
+  ]);
+  assertEquals(criteriaJson(result).entries[0].state, "none");
+  assertEquals(criteriaJson(result).verified, 0);
+});
+
+Deno.test("reporter criteria: an entry never verifies itself", () => {
+  const self = withCriteria(
+    makeEntry("TST_0020", "Self", { type: "Test" }),
+    REQ_CRITERIA,
+  );
+  const result = makeResult([self], [verifyLink("TST_0020", "TST_0020")]);
+  assertEquals(criteriaJson(result).entries[0].state, "none");
+});
+
+Deno.test("reporter criteria: upstream entries are not reported or counted", () => {
+  const local = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const upstream = withUpstreamOrigin(
+    withCriteria(makeEntry("REQ_0099", "Up"), REQ_CRITERIA),
+    "org/up",
+  );
+  const c = criteriaJson(makeResult([local, upstream]));
+  assertEquals(c.entries.map((e: Entry) => e.displayId), ["REQ_0010"]);
+  assertEquals(c.total, 2);
+});
+
+Deno.test("reporter criteria: a ULID-form link end resolves to the display ID", () => {
+  const req = {
+    ...withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA),
+    id: "01HGW2Q8MNP3RSTVWXYZABCDE0" as Entry["id"],
+  };
+  const tst = makeEntry("TST_0012", "Test", { type: "Test" });
+  const result = makeResult([req, tst], [
+    verifyLink("TST_0012", "01HGW2Q8MNP3RSTVWXYZABCDE0", {
+      locator: "Brake at 20 m",
+      locatorResolved: true,
+    }),
+  ]);
+  assertEquals(criteriaJson(result).entries[0].criteria[0].verifiedBy, [
+    "TST_0012",
+  ]);
+});
+
+Deno.test("reporter criteria: a non-addressable scenario is covered only by a whole-entry Verifies", () => {
+  const base = withCriteria(makeEntry("REQ_0010", "Brake"), ["Dup", "Dup"]);
+  const req: Entry = {
+    ...base,
+    criteria: base.criteria!.map((c) => ({ ...c, addressable: false })),
+  };
+  const tst = makeEntry("TST_0012", "Test", { type: "Test" });
+  const located = makeResult([req, tst], [
+    verifyLink("TST_0012", "REQ_0010", {
+      locator: "Dup",
+      locatorResolved: true,
+    }),
+  ]);
+  assertEquals(criteriaJson(located).entries[0].state, "none");
+  const whole = makeResult([req, tst], [verifyLink("TST_0012", "REQ_0010")]);
+  assertEquals(criteriaJson(whole).entries[0].state, "full");
+});
+
+Deno.test("reporter criteria: an untyped verifier does not count", () => {
+  const req = withCriteria(makeEntry("REQ_0010", "Brake"), REQ_CRITERIA);
+  const untyped = makeEntry("TST_0050", "Untyped");
+  const result = makeResult([req, untyped], [
+    verifyLink("TST_0050", "REQ_0010"),
+  ]);
+  assertEquals(criteriaJson(result).verified, 0);
+});

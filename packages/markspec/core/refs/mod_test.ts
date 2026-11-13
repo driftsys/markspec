@@ -964,3 +964,45 @@ for (const newline of ["\n", "\r\n"]) {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// canonicalizeRefs — scenario locators (#915)
+// ---------------------------------------------------------------------------
+
+Deno.test("canonicalizeRefs: a locator is kept verbatim; only the target heals", () => {
+  const content = [
+    `- [SWE_0001] Title`,
+    ``,
+    `  Body.`,
+    ``,
+    `      Id: ${SRC}`,
+    `      Satisfies: OLD_SYS_001 [case,  OLD_SYS_001 , ${TGT} x]`,
+  ].join("\n");
+  const src = entry({
+    displayId: "SWE_0001",
+    id: SRC,
+    rawAttributes: [{ key: "Id", value: SRC }],
+  });
+  const tgt = entry({
+    displayId: "SYS_0001",
+    id: TGT,
+    rawAttributes: [{ key: "Id", value: TGT }],
+    location: { file: "x.md", line: 8, column: 1 },
+  });
+  const ledger: LockEdge[] = [{
+    sourceUlid: SRC,
+    relation: "Satisfies",
+    targetUlid: TGT,
+    authoredTarget: "OLD_SYS_001",
+  }];
+  const { output } = canonicalizeRefs(
+    content,
+    [src, tgt],
+    buildRefIndex([src, tgt]),
+    ledger,
+  );
+  assertEquals(
+    output.split("\n")[5],
+    `      Satisfies: SYS_0001 [case,  OLD_SYS_001 , ${TGT} x]`,
+  );
+});

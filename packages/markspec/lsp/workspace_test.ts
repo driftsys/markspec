@@ -589,3 +589,73 @@ Deno.test("getUxRegistry: excludes upstream entries", async () => {
   const registry = index.getUxRegistry(profile);
   assertEquals(registry?.surfaces.size, 0);
 });
+
+// --- Scenario locators (epic #915) ---
+
+Deno.test("WorkspaceIndex: validateAll reports an unresolved scenario locator on unclassified entries", async () => {
+  const typeDef = (
+    name: string,
+    parent: string,
+  ): ProvenancedMapEntry<EffectiveTypeDef> => ({
+    value: {
+      name,
+      extends: parent,
+      displayIdPattern: { value: undefined, origin: "p" },
+      displayIdPatternEnforcement: { value: "off", origin: "p" },
+      color: { value: undefined, origin: "p" },
+      required: { value: [], origin: "p" },
+      attributes: new Map(),
+      traceability: new Map(),
+      description: { value: undefined, origin: "p" },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin: "p" },
+    },
+    origin: "p",
+  });
+  const profile: EffectiveProfile = {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types: new Map([["requirement", typeDef("requirement", "Requirement")]]),
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+  const md = `- [REQ_BRK_0010] Brake
+
+  The controller shall brake.
+
+  \`\`\`feature
+  Scenario: Brake at 20 m
+    Then braking starts
+  \`\`\`
+
+      Id: 01REQ00000000000000000010A
+      Type: requirement
+
+- [TST_BRK_0012] Test
+
+  Measure.
+
+      Id: 01TST00000000000000000012A
+      Verifies: REQ_BRK_0010 [Brake at 30 m]
+`;
+  const parsed = await parseFile(md, { file: "t.md" });
+  const index = new WorkspaceIndex();
+  index.updateFile("t.md", parsed.entries);
+  // The LSP index holds unclassified entries: validateAll classifies them
+  // against the profile before resolving the locator.
+  assertEquals(parsed.entries.every((e) => e.type === undefined), true);
+  const l007 = index.validateAll(profile).filter((d) => d.code === "MSL-L007");
+  assertEquals(l007.length, 1);
+  assertEquals(l007[0].location?.line, 18);
+});

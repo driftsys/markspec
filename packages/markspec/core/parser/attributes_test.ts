@@ -590,3 +590,12 @@ Deno.test(
     );
   },
 );
+
+Deno.test("collateAttributes: id-list CSV keeps a locator with commas whole (#915)", () => {
+  const collated = collateAttributes([
+    { key: "Verified-by", value: "TST_A [x, y], TST_B" },
+    { key: "Labels", value: "a [b, c]" },
+  ]);
+  assertEquals(collated.get("Verified-by"), ["TST_A [x, y]", "TST_B"]);
+  assertEquals(collated.get("Labels"), ["a [b", "c]"]);
+});

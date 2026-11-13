@@ -285,4 +285,5 @@ line that matches what you are working on.
   [ADR-031](./adr-031-federated-upstream-resolution.md),
   [ADR-032](./adr-032-process-profile-boundary.md),
   [ADR-035](./adr-035-markdesk.md),
-  [ADR-036](./adr-036-mcp-propose-only-writes.md).
+  [ADR-036](./adr-036-mcp-propose-only-writes.md),
+  [ADR-037](./adr-037-scenario-locators.md).

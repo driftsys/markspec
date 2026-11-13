@@ -15,7 +15,13 @@ import type {
   Link,
   SourceLocation,
 } from "../model/mod.ts";
-import { makeDisplayId } from "../model/mod.ts";
+import {
+  isUpstreamEntry,
+  makeDisplayId,
+  relationLocatorMode,
+} from "../model/mod.ts";
+import { buildCriteria, isCriteriaBearing } from "../criteria/scenarios.ts";
+import { parseTraceValue, splitTraceValues } from "../refs/split.ts";
 import { parseFile } from "../parser/mod.ts";
 import {
   applyCorpusPostPass,
@@ -356,8 +362,17 @@ export async function compile(
     }
   }
 
+  // Phase 4.5: Attach criteria (scenario names of fenced feature blocks)
+  // to Requirement and Contract entries, then resolve link locators
+  // against them (epic #915).
+  attachCriteria(entries, options.profile);
+
   const authoredLinks = extractLinks([...entries.values()]);
-  const links = [...authoredLinks, ...generatedLinks];
+  const links = resolveLocators(
+    [...authoredLinks, ...generatedLinks],
+    entries,
+    options.profile,
+  );
 
   // MSL-T013: check link targets for draft/retired state.
   const linkTargetDiags = checkLinkTargets(entries, links);
@@ -422,15 +437,27 @@ function extractLinks(entries: readonly Entry[]): Link[] {
 
 /**
  * Attributes whose value is `slug + optional free-text locator` per
- * ADR-002 §2.6 (citation type + legacy Derived-from tolerance). The link
- * target is the leading non-whitespace token only.
+ * ADR-002 §2.6 (citation type + legacy Derived-from tolerance). Without a
+ * bracket locator, the link target is the leading non-whitespace token.
  */
-const LOCATOR_BEARING_ATTRS: ReadonlySet<string> = new Set([
+const LEADING_TOKEN_ATTRS: ReadonlySet<string> = new Set([
   "Derived-from",
   "References",
 ]);
 
-/** Map an attribute key+value to zero or more links. */
+/** The link target of one comma-separated part without a locator, as
+ * before scenario locators: the leading token for
+ * {@linkcode LEADING_TOKEN_ATTRS}, else the whole trimmed part. */
+function plainTarget(key: string, part: string): string {
+  const trimmed = part.trim();
+  return LEADING_TOKEN_ATTRS.has(key) ? trimmed.split(/\s/)[0] : trimmed;
+}
+
+/** Map an attribute key+value to zero or more links. The value is split
+ * with {@linkcode splitTraceValues}. A part with a bracket locator
+ * (`A [x]`) yields a link to `A` that keeps the normalized locator. Any
+ * other part is read as before scenario locators existed
+ * ({@linkcode plainTarget}). */
 function extractLinksFromAttribute(
   from: DisplayId,
   key: string,
@@ -439,25 +466,65 @@ function extractLinksFromAttribute(
 ): Link[] {
   const kind = ATTR_TO_LINK_KIND[key];
   if (!kind) return [];
-
-  if (LOCATOR_BEARING_ATTRS.has(key)) {
-    // Comma-separated targets, each "ID §section": split the list (these
-    // attributes are 0..N), then take the leading ID token of each value,
-    // dropping the optional free-text locator.
-    return value
-      .split(",")
-      .map((s) => s.trim().split(/\s/)[0])
-      .filter((s) => s.length > 0)
-      .map((to) => ({ from, to: makeDisplayId(to), kind, location }));
-  }
-
-  // Comma-separated targets for id-list attributes.
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .map((to) => ({ from, to: makeDisplayId(to), kind, location }));
+  return splitTraceValues(value).map((part): Link => {
+    const { target, locator } = parseTraceValue(part);
+    if (locator !== undefined) {
+      return { from, to: makeDisplayId(target), kind, location, locator };
+    }
+    return { from, to: makeDisplayId(plainTarget(key, part)), kind, location };
+  });
 }
+
+/** Attach `criteria` to every criteria-bearing, non-upstream entry that
+ * has at least one scenario. Entries without scenarios are left unchanged, so compiled
+ * output for projects without feature blocks does not change. */
+function attachCriteria(
+  entries: Map<DisplayId, Entry>,
+  profile: EffectiveProfile | undefined,
+): void {
+  for (const [id, entry] of entries) {
+    // Upstream (federated) entries are read-only references: no criteria.
+    if (isUpstreamEntry(entry)) continue;
+    if (!isCriteriaBearing(entry, profile)) continue;
+    const criteria = buildCriteria(entry);
+    if (criteria.length > 0) entries.set(id, { ...entry, criteria });
+  }
+}
+
+/**
+ * Set `locatorResolved` on every link whose locator is on a `"criterion"`
+ * relation and whose target resolves to a criteria-bearing entry. For a
+ * generated inverse the target of the authored relation is `link.from`.
+ */
+function resolveLocators(
+  links: readonly Link[],
+  entries: ReadonlyMap<DisplayId, Entry>,
+  profile: EffectiveProfile | undefined,
+): Link[] {
+  // A target may be written as a display ID or as a ULID.
+  const byUlid = new Map<string, Entry>();
+  for (const e of entries.values()) if (e.id) byUlid.set(e.id, e);
+  return links.map((link) => {
+    if (link.locator === undefined) return link;
+    if (relationLocatorMode(LINK_KIND_TO_ATTR[link.kind]) !== "criterion") {
+      return link;
+    }
+    const targetId = link.origin === "generated" ? link.from : link.to;
+    const target = entries.get(targetId) ?? byUlid.get(targetId);
+    if (!target || !isCriteriaBearing(target, profile)) return link;
+    const resolved = (target.criteria ?? []).some((c) =>
+      c.addressable && c.name === link.locator
+    );
+    return { ...link, locatorResolved: resolved };
+  });
+}
+
+/** Reverse of {@linkcode ATTR_TO_LINK_KIND}: each link kind has one
+ * attribute. */
+const LINK_KIND_TO_ATTR: Readonly<Record<string, string>> = Object
+  .fromEntries(
+    Object.entries(ATTR_TO_LINK_KIND).map(([attr, kind]) => [kind, attr]),
+  );
 
 /** Build an adjacency map from links using a key selector. */
 function buildAdjacency(

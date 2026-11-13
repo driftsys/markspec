@@ -18,6 +18,8 @@
  * reuses `walkProseLines` (`core/util/fence.ts`) rather than
  * re-implementing fence tracking. Markdown uses cached CommonMark boundaries;
  * the server supplies the original line-scanner boundaries for source files.
+ * An ID inside a closed scenario locator on a trailer line is not
+ * rewritten (#915), as in `core/refs` rename-heal.
  * `prepareRenameRange` stays
  * single-line and fence-unaware by design — the server gates
  * `onPrepareRename` against a fenced cursor position separately (via
@@ -129,10 +131,17 @@ export function findIdOccurrencesInFile(
   if (oldId.length === 0 || !text.includes(oldId)) return [];
   const edits: TextEdit[] = [];
   walkProseLines(text, (line, i) => {
+    const locators = locatorSpans(line);
     let start = 0;
     while (true) {
       const idx = line.indexOf(oldId, start);
       if (idx < 0) break;
+      // An ID inside a scenario locator is scenario text, not a reference;
+      // core/refs rename-heal leaves it unchanged too (#915).
+      if (locators.some(([from, to]) => idx >= from && idx < to)) {
+        start = idx + oldId.length;
+        continue;
+      }
       const before = idx === 0 ? "" : line[idx - 1];
       const after = idx + oldId.length >= line.length
         ? ""
@@ -152,4 +161,21 @@ export function findIdOccurrencesInFile(
     }
   }, fencedLines);
   return edits;
+}
+
+/** A trailer line: optional doc-comment prefix, at least 4 spaces of
+ * indent, then `Key:`. */
+const TRAILER_LINE_RE = /^(?:\s*(?:\/\/[/!]?|\*|#))?\s{4,}[A-Z][A-Za-z-]*\s*:/;
+
+/** A closed bracket locator after whitespace, with escapes (same grammar
+ * as `core/refs/split.ts`). */
+const LOCATOR_SPAN_RE = /\s\[(?:\\[\s\S]|[^\]\\])*\]/g;
+
+/** `[start, end)` column spans of the closed locators on a trailer line;
+ * empty for any other line. */
+function locatorSpans(line: string): Array<[number, number]> {
+  if (!TRAILER_LINE_RE.test(line)) return [];
+  return [...line.matchAll(LOCATOR_SPAN_RE)].map((
+    m,
+  ) => [m.index!, m.index! + m[0].length]);
 }

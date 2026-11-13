@@ -29,6 +29,7 @@ import {
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { fencedCodeLines } from "../util/fence.ts";
+import { splitTraceValues } from "../refs/split.ts";
 import {
   applyLineEnding,
   detectLineEnding,
@@ -1095,7 +1096,9 @@ function collapseBlankLines(lines: readonly string[]): string[] {
  * Expand CSV values on repeatable-type attributes into one entry per value
  * per ADR-002 §2.6. `id-list` / `tag-list` / `external-id` accept CSV input
  * but must round-trip as multi-line output; `citation` is left alone
- * because locators may contain commas.
+ * because locators may contain commas. `id-list` values split with
+ * {@linkcode splitTraceValues}, so a comma inside a scenario locator does
+ * not split.
  */
 export function expandCsvValues(attrs: Attribute[]): Attribute[] {
   const result: Attribute[] = [];
@@ -1104,10 +1107,14 @@ export function expandCsvValues(attrs: Attribute[]): Attribute[] {
     if (
       spec && CSV_SPLITTABLE_TYPES.has(spec.type) && attr.value.includes(",")
     ) {
-      const values = attr.value
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
+      // An id-list value keeps commas inside a bracket locator
+      // (`A [x, y], B`, #915); the locator text is kept as authored.
+      const values = spec.type === "id-list"
+        ? splitTraceValues(attr.value)
+        : attr.value
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
       for (const value of values) {
         result.push({ key: attr.key, value });
       }

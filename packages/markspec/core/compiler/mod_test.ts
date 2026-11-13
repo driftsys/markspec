@@ -11,9 +11,10 @@ import {
   assertEquals,
   assertExists,
 } from "@std/assert";
-import { compile } from "./mod.ts";
+import { compile, serializeCompileResult } from "./mod.ts";
 import { makeDisplayId } from "../model/mod.ts";
 import type {
+  AttrDecl,
   EffectiveProfile,
   EffectiveTypeDef,
   Entry,
@@ -1006,4 +1007,450 @@ Deno.test("compile: no declaring type in the profile → uxil family stays inert
     result.diagnostics.some((d) => d.code.startsWith("UXIL")),
     false,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Scenario locators (epic #915) — links keep locators, criteria attach
+// ---------------------------------------------------------------------------
+
+/** A profile type `name` extending core type `parent`. */
+function locatorType(
+  name: string,
+  parent: string,
+  attributes: Map<string, ProvenancedMapEntry<AttrDecl>> = new Map(),
+): ProvenancedMapEntry<EffectiveTypeDef> {
+  return {
+    value: {
+      name,
+      extends: parent,
+      displayIdPattern: { value: undefined, origin: "p" },
+      displayIdPatternEnforcement: { value: "off", origin: "p" },
+      color: { value: undefined, origin: "p" },
+      required: { value: [], origin: "p" },
+      attributes,
+      traceability: new Map(),
+      description: { value: undefined, origin: "p" },
+      attrDescriptions: new Map(),
+      relationDescriptions: new Map(),
+      discipline: { value: undefined, origin: "p" },
+    },
+    origin: "p",
+  };
+}
+
+/** Profile with `requirement` (Requirement), `test` (Test, `Verifies` with
+ * a generated `Verified-by` inverse) and `component` (Component). */
+function locatorProfile(): EffectiveProfile {
+  const verifies: AttrDecl = {
+    name: "Verifies",
+    type: "id-list",
+    required: false,
+    cardinality: { lower: 0, upper: Infinity },
+    inverse: { name: "Verified-by", category: "requirement" },
+  };
+  const types = new Map<string, ProvenancedMapEntry<EffectiveTypeDef>>([
+    ["requirement", locatorType("requirement", "Requirement")],
+    [
+      "test",
+      locatorType(
+        "test",
+        "Test",
+        new Map([["Verifies", { value: verifies, origin: "p" }]]),
+      ),
+    ],
+    ["component", locatorType("component", "Component")],
+    ["contract", locatorType("contract", "Contract")],
+  ]);
+  return {
+    attributes: new Map(),
+    labels: new Map(),
+    conventions: new Map(),
+    colors: new Map(),
+    types,
+    documents: { types: new Map(), frontMatter: new Map() },
+    delivers: [],
+    kinds: new Map(),
+    prose: {
+      lexicons: {
+        "capitalized-allow": { value: [], origin: "" },
+        "sentence-abbrev": { value: [], origin: "" },
+      },
+    },
+    disciplineMode: { value: "none", origin: "inferred" },
+  };
+}
+
+const LOCATOR_REQ = `
+- [REQ_BRK_0010] Emergency braking
+
+  The controller shall brake.
+
+  \`\`\`feature
+  Scenario: Brake at 20 m
+    When an obstacle appears at 20 m
+    Then braking starts
+  \`\`\`
+
+      Id: 01REQ00000000000000000010A
+      Type: requirement
+`;
+
+async function compileLocators(body: string) {
+  return await compile(["/r.md", "/t.md"], {
+    readFile: reader({ "/r.md": LOCATOR_REQ, "/t.md": body }),
+    profile: locatorProfile(),
+  });
+}
+
+function linkFrom(
+  result: Awaited<ReturnType<typeof compile>>,
+  from: string,
+  to: string,
+) {
+  return result.links.filter((l) => l.from === from && l.to === to);
+}
+
+Deno.test("compile: Verifies locator naming a scenario resolves", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0012] Brake at 20 m
+
+  Measure.
+
+      Id: 01TST00000000000000000012A
+      Type: test
+      Verifies: REQ_BRK_0010 [Brake at 20 m]
+`);
+  const [link] = linkFrom(result, "TST_BRK_0012", "REQ_BRK_0010");
+  assertEquals(link.locator, "Brake at 20 m");
+  assertEquals(link.locatorResolved, true);
+});
+
+Deno.test("compile: unknown scenario name keeps the edge, unresolved", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0013] Brake at 30 m
+
+  Measure.
+
+      Id: 01TST00000000000000000013A
+      Type: test
+      Verifies: REQ_BRK_0010 [Brake at 30 m]
+`);
+  const links = linkFrom(result, "TST_BRK_0013", "REQ_BRK_0010");
+  assertEquals(links.length, 1);
+  assertEquals(links[0].locator, "Brake at 30 m");
+  assertEquals(links[0].locatorResolved, false);
+});
+
+Deno.test("compile: References locator is free text without locatorResolved", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0014] Cites a standard
+
+  Measure.
+
+      Id: 01TST00000000000000000014A
+      References: REQ_BRK_0010 [Brake at 20 m]
+`);
+  // The target exists and has the named scenario: only the free locator
+  // mode of References keeps locatorResolved off the link.
+  const [link] = linkFrom(result, "TST_BRK_0014", "REQ_BRK_0010");
+  assertEquals(link.locator, "Brake at 20 m");
+  assertEquals("locatorResolved" in link, false);
+});
+
+Deno.test("compile: comma inside a locator does not split the value", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0015] Two targets
+
+  Measure.
+
+      Id: 01TST00000000000000000015A
+      Satisfies: A [x, y], B
+`);
+  const links = result.links.filter((l) => l.from === "TST_BRK_0015");
+  assertEquals(links.map((l) => l.to), ["A", "B"]);
+  assertEquals(links[0].locator, "x, y");
+  assertEquals("locator" in links[1], false);
+});
+
+Deno.test("compile: locator on a relation without a locator mode is kept", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0016] Allocated
+
+  Measure.
+
+      Id: 01TST00000000000000000016A
+      Allocated-to: REQ_BRK_0010 [Brake at 20 m]
+`);
+  const [link] = linkFrom(result, "TST_BRK_0016", "REQ_BRK_0010");
+  assertEquals(link.locator, "Brake at 20 m");
+  assertEquals("locatorResolved" in link, false);
+});
+
+Deno.test("compile: id-list value without a locator keeps the whole value", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0017] Plain
+
+  Measure.
+
+      Id: 01TST00000000000000000017A
+      Allocated-to: SWC_A, SWC_B
+`);
+  const links = result.links.filter((l) => l.from === "TST_BRK_0017");
+  assertEquals(links.map((l) => l.to), ["SWC_A", "SWC_B"]);
+  assertEquals(links.some((l) => "locator" in l), false);
+});
+
+Deno.test("compile: generated inverse copies the locator fields", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0012] Brake at 20 m
+
+  Measure.
+
+      Id: 01TST00000000000000000012A
+      Type: test
+      Verifies: 01REQ00000000000000000010A [Brake at 20 m]
+`);
+  const generated = result.links.find((l) =>
+    l.origin === "generated" && l.from === "REQ_BRK_0010"
+  );
+  assertExists(generated);
+  assertEquals(generated.to, "TST_BRK_0012");
+  assertEquals(generated.locator, "Brake at 20 m");
+  assertEquals(generated.locatorResolved, true);
+});
+
+Deno.test("compile: criteria attach to Requirement entries only", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0018] Test with a feature block
+
+  \`\`\`feature
+  Scenario: Not a criterion
+    When something
+  \`\`\`
+
+      Id: 01TST00000000000000000018A
+      Type: test
+`);
+  const req = result.entries.get(makeDisplayId("REQ_BRK_0010"));
+  assertEquals(req?.criteria?.map((c) => c.name), ["Brake at 20 m"]);
+  const tst = result.entries.get(makeDisplayId("TST_BRK_0018"));
+  assertEquals(tst?.criteria, undefined);
+});
+
+Deno.test("compile: a locator on a target that carries no criteria has no locatorResolved", async () => {
+  const result = await compileLocators(`
+- [CMP_X] Controller
+
+  The controller.
+
+      Id: 01CMP0000000000000000000XA
+      Type: component
+
+- [TST_BRK_0030] Verifies a component
+
+  Measure.
+
+      Id: 01TST00000000000000000030A
+      Type: test
+      Verifies: CMP_X [anything]
+`);
+  const [link] = linkFrom(result, "TST_BRK_0030", "CMP_X");
+  assertEquals(link.locator, "anything");
+  assertEquals("locatorResolved" in link, false);
+});
+
+Deno.test("compile: values without a locator are read as before locators", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0031] Legacy values
+
+  Measure.
+
+      Id: 01TST00000000000000000031A
+      Satisfies: SYS_1 note
+      Verifies: REQ_BRK_0010 [Missing, REQ_BRK_0011
+      References: ISO-26262-6 §4.3, ISO-2 §1
+`);
+  const links = result.links.filter((l) =>
+    l.from === "TST_BRK_0031" && l.origin !== "generated"
+  );
+  assertEquals(links.map((l) => [l.kind, l.to]), [
+    ["satisfies", "SYS_1 note"],
+    ["verifies", "REQ_BRK_0010 [Missing"],
+    ["verifies", "REQ_BRK_0011"],
+    ["references", "ISO-26262-6"],
+    ["references", "ISO-2"],
+  ]);
+  assertEquals(links.some((l) => "locator" in l), false);
+});
+
+Deno.test("compile: two locators from one test give two generated inverses", async () => {
+  const req = LOCATOR_REQ.replace(
+    "  \`\`\`\n\n      Id:",
+    "  Scenario: Brake at 30 m\n    Then braking starts\n  \`\`\`\n\n      Id:",
+  );
+  const result = await compile(["/r.md", "/t.md"], {
+    readFile: reader({
+      "/r.md": req,
+      "/t.md": `
+- [TST_BRK_0032] Two scenarios
+
+  Measure.
+
+      Id: 01TST00000000000000000032A
+      Type: test
+      Verifies: 01REQ00000000000000000010A [Brake at 20 m]
+      Verifies: 01REQ00000000000000000010A [Brake at 30 m]
+`,
+    }),
+    profile: locatorProfile(),
+  });
+  const generated = result.links.filter((l) =>
+    l.origin === "generated" && l.from === "REQ_BRK_0010"
+  );
+  assertEquals(generated.map((l) => l.locator).sort(), [
+    "Brake at 20 m",
+    "Brake at 30 m",
+  ]);
+});
+
+Deno.test("compile: a locator on a ULID-form target is resolved", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0033] By ULID
+
+  Measure.
+
+      Id: 01TST00000000000000000033A
+      Verifies: 01REQ00000000000000000010A [Brake at 20 m]
+`);
+  const [link] = result.links.filter((l) =>
+    l.from === "TST_BRK_0033" && l.origin !== "generated"
+  );
+  assertEquals(link.to, "01REQ00000000000000000010A");
+  assertEquals(link.locatorResolved, true);
+});
+
+Deno.test("compile: a Requirement without scenarios has no criteria key in JSON", async () => {
+  const result = await compile(["/r.md"], {
+    readFile: reader({
+      "/r.md": `
+- [REQ_BRK_0040] No scenarios
+
+  The controller shall brake.
+
+      Id: 01REQ00000000000000000040A
+      Type: requirement
+`,
+    }),
+    profile: locatorProfile(),
+  });
+  const json = JSON.stringify(serializeCompileResult(result));
+  assertEquals(json.includes('"criteria"'), false);
+});
+
+Deno.test("compile: criteria attach to Contract entries", async () => {
+  const contract = `
+- [ICD_BRK_0001] Brake interface
+
+  \`\`\`feature
+  Scenario: Accept a request
+    When a request arrives
+  \`\`\`
+
+      Id: 01ICD00000000000000000001A
+      Type: contract
+`;
+  const result = await compile(["/c.md"], {
+    readFile: reader({ "/c.md": contract }),
+    profile: locatorProfile(),
+  });
+  const icd = result.entries.get(makeDisplayId("ICD_BRK_0001"));
+  assertEquals(icd?.criteria?.map((c) => c.name), ["Accept a request"]);
+});
+
+Deno.test("compile: upstream entries get no criteria", async () => {
+  const [upstream] = (await parseFile(LOCATOR_REQ, { file: "/up.md" }))
+    .entries;
+  const result = await compile([], {
+    readFile: reader({}),
+    profile: locatorProfile(),
+    corpusEntries: [{
+      ...upstream,
+      type: "requirement",
+      origin: { kind: "upstream", upstreamId: "up", version: "1.0.0" },
+    }],
+  });
+  const up = result.entries.get(makeDisplayId("REQ_BRK_0010"));
+  assertExists(up);
+  assertEquals(up.criteria, undefined);
+});
+
+Deno.test("compile: a locator naming a duplicated scenario is not resolved", async () => {
+  const req = LOCATOR_REQ.replace(
+    "  \`\`\`\n\n      Id:",
+    "  Scenario: Brake at 20 m\n    Then braking starts\n  \`\`\`\n\n      Id:",
+  );
+  const result = await compile(["/r.md", "/t.md"], {
+    readFile: reader({
+      "/r.md": req,
+      "/t.md": `
+- [TST_BRK_0034] Duplicate
+
+  Measure.
+
+      Id: 01TST00000000000000000034A
+      Type: test
+      Verifies: REQ_BRK_0010 [Brake at 20 m]
+`,
+    }),
+    profile: locatorProfile(),
+  });
+  const [link] = linkFrom(result, "TST_BRK_0034", "REQ_BRK_0010");
+  assertEquals(link.locatorResolved, false);
+});
+
+Deno.test("compile: an unclosed '[' after a closed locator keeps the next link", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0035] Mixed
+
+  Measure.
+
+      Id: 01TST00000000000000000035A
+      Satisfies: A [x], B [z, C
+`);
+  const links = result.links.filter((l) => l.from === "TST_BRK_0035");
+  assertEquals(links.map((l) => l.to), ["A", "B [z", "C"]);
+});
+
+Deno.test("compile: an empty locator is kept and does not resolve", async () => {
+  for (const loc of ["[]", "[ ]"]) {
+    const result = await compileLocators(`
+- [TST_BRK_0036] Empty
+
+  Measure.
+
+      Id: 01TST00000000000000000036A
+      Type: test
+      Verifies: REQ_BRK_0010 ${loc}
+`);
+    const [link] = linkFrom(result, "TST_BRK_0036", "REQ_BRK_0010");
+    assertEquals(link.locator, "", loc);
+    assertEquals(link.locatorResolved, false, loc);
+  }
+});
+
+Deno.test("compile: a repeated Verifies to one target gives one generated link", async () => {
+  const result = await compileLocators(`
+- [TST_BRK_0037] Twice
+
+  Measure.
+
+      Id: 01TST00000000000000000037A
+      Type: test
+      Verifies: 01REQ00000000000000000010A
+      Verifies: 01REQ00000000000000000010A
+`);
+  const generated = result.links.filter((l) =>
+    l.origin === "generated" && l.from === "REQ_BRK_0010"
+  );
+  assertEquals(generated.length, 1);
 });

@@ -104,9 +104,20 @@ authored-target = "SYS_BRK_0042"
 ```
 
 `lock --check` round-trips the ledger deterministically (edges sorted by
-`(sourceUlid, relation, authoredTarget)`). The existing `edges-hash` /
-`edges-count` integrity metadata is unchanged — the ledger is identity
-provenance, not a graph-drift signal.
+`(sourceUlid, relation, authoredTarget, locator, targetUlid)`). The existing
+`edges-hash` / `edges-count` integrity metadata keeps its meaning — the ledger
+is identity provenance, not a graph-drift signal.
+
+**Amendment (scenario locators, epic #915).** `LockEdge` gains an optional
+`locator` field, written as a `locator` key on `[[edge]]` only when the authored
+value has a bracket locator (`Satisfies: STK_1 [AC one]`). It is the normalized
+locator text. A missing locator sorts as the empty string. The edges hash covers
+the locator, so it changes for a project that writes a closed bracket after a
+trace target (a scenario locator, or an existing `References: X [§4.3]`); a
+project without one keeps its hash. A value with text after the closing `]` has
+no locator and is split on whitespace as a plain value was before: the first
+token resolves as usual and the other tokens are rows without a `target-ulid`.
+See the [lockfile specification](../spec/internal/markspec-lockfile.md) §3.1.
 
 ### D5 — All source write-back lives in `fmt`
 
@@ -126,7 +137,10 @@ Dependency constraints:
   `CORE_RELATIONS`, `LOCK_EXTRA_INVERSE_KEYS`) and the `LockEdge` type from
   `core/lock`.
 - `core/refs` does **not** import `core/formatter`.
-- `core/formatter` does **not** import `core/refs`.
+- `core/formatter` does **not** import `core/refs/mod.ts` (the project-aware
+  rewrite). It imports only `core/refs/split.ts`, the trace-value splitter of
+  ADR-037, which is a pure leaf with no imports; `core/parser` imports it too.
+  The rewrite stays outside the formatter.
 - The CLI (`cli/commands/fmt.ts`) composes the two: `format(content)` first,
   then `canonicalizeRefs(formatted, entries, refIndex, ledger)`.
 
@@ -205,7 +219,8 @@ should map `MSL-L006` to the eventual per-relation T-family codes.
 The `[[edge]]` ledger is additive and does not change the lockfile's integrity
 semantics. Specifically:
 
-- `generated-cache.edges-hash` and `edges-count` are **unchanged**.
+- `generated-cache.edges-hash` and `edges-count` keep their meaning. The hash
+  changes only for a project whose trace values carry locators.
 - `checkDrift` (MSL-L212, display-ID hash) is **unchanged**.
 - Old lockfiles without `[[edge]]` tables parse without error (`edges: []`
   default in the parser).

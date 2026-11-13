@@ -44,8 +44,15 @@ markspec/
 │       │   │                            markdown parser
 │       │   ├── formatter/           ← write-back: ULID stamping, indentation
 │       │   │   └── mod.ts             normalization, trailing backslashes
+│       │   ├── refs/                ← trace-value rewrite (rename-heal);
+│       │   │   ├── mod.ts             split.ts is the shared trace-value
+│       │   │   └── split.ts           splitter and locator parser (ADR-037)
+│       │   ├── criteria/            ← scenario index of fenced feature
+│       │   │   └── scenarios.ts       blocks → Entry.criteria (ADR-037)
 │       │   ├── validator/           ← file-local + cross-file checks (broken
-│       │   │   └── mod.ts             refs, missing Ids, duplicates)
+│       │   │   ├── mod.ts             refs, missing Ids, duplicates)
+│       │   │   └── locators.ts      ←   scenario-locator diagnostics (L007-L009,
+│       │   │                            B060, B061)
 │       │   ├── compiler/            ← glob → parsed entries → resolved graph →
 │       │   │   └── mod.ts             compiled JSON
 │       │   └── reporter/            ← compiled JSON → output formats (json, csv,
@@ -547,6 +554,11 @@ docs/
   write tools will only propose (formatted preview, never write a file) and a
   person accepts; `insert` stdin body (#40) first; amends ADR-023's read-only
   guidance once #63 ships
+- `adr-037-scenario-locators.md` — scenario locators on `Satisfies` / `Verifies`
+  (`ID [Scenario name]`): core-only relation locator modes, `Entry.criteria`
+  from fenced `gherkin`/`feature` blocks, compiled `Link.locator`,
+  MSL-L007/L008/L009/B060/B061, optional `locator` on lockfile `[[edge]]`,
+  criteria section in `report coverage`
 - `overview.md` — narrative architecture tour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a reading

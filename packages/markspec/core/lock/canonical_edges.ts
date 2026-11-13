@@ -16,6 +16,8 @@ export interface EdgeQuad {
   readonly source: string;
   readonly relation: string;
   readonly target: string;
+  /** Normalized scenario locator (#915). Absent when the value has none. */
+  readonly locator?: string;
   readonly provenance: "local" | "external" | "generated";
 }
 
@@ -25,8 +27,10 @@ export interface EdgeQuad {
  * Rules:
  *   1. Object keys sorted alphabetically.
  *   2. No insignificant whitespace.
- *   3. Top-level array sorted by (source, relation, target, provenance)
- *      so input order doesn't affect output.
+ *   3. Top-level array sorted by (source, relation, target, locator,
+ *      provenance) so input order doesn't affect output.
+ *   5. `locator` is emitted only when present, so a graph without
+ *      locators serializes exactly as before locators existed.
  *   4. Strings JSON-escaped per RFC 8259.
  */
 export function canonicalEdgeJson(edges: readonly EdgeQuad[]): string {
@@ -54,13 +58,17 @@ function compareEdgeQuads(a: EdgeQuad, b: EdgeQuad): number {
   if (r !== 0) return r;
   const t = a.target.localeCompare(b.target);
   if (t !== 0) return t;
+  const l = (a.locator ?? "").localeCompare(b.locator ?? "");
+  if (l !== 0) return l;
   return a.provenance.localeCompare(b.provenance);
 }
 
 function canonicalQuad(q: EdgeQuad): string {
-  // Sorted keys: provenance, relation, source, target.
+  // Sorted keys: locator (when present), provenance, relation, source,
+  // target.
   return (
     "{" +
+    (q.locator !== undefined ? `"locator":${JSON.stringify(q.locator)},` : "") +
     `"provenance":${JSON.stringify(q.provenance)},` +
     `"relation":${JSON.stringify(q.relation)},` +
     `"source":${JSON.stringify(q.source)},` +

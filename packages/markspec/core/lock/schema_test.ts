@@ -81,6 +81,13 @@ function richLockfile(): Lockfile {
         targetUlid: "01J0000000000000000000TGT1",
         authoredTarget: "SYS_BRK_0042",
       },
+      {
+        sourceUlid: "01J0000000000000000000SRC1",
+        relation: "Verifies",
+        targetUlid: "01J0000000000000000000TGT1",
+        authoredTarget: "SYS_BRK_0042",
+        locator: "Brake at 20 m",
+      },
     ],
     generatedCache: {
       edgesHash: "sha256:edges001",

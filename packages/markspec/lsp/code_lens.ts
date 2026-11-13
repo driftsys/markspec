@@ -24,7 +24,7 @@
  */
 
 import type { DisplayId, Entry } from "../core/mod.ts";
-import { isUpstreamEntry } from "../core/mod.ts";
+import { isUpstreamEntry, referenceTokens } from "../core/mod.ts";
 import { buildIncomingCount } from "./incoming_index.ts";
 import { findReferencingEntries } from "./references.ts";
 
@@ -43,10 +43,6 @@ export interface CodeLens {
   };
   readonly command?: Command;
 }
-
-/** Whitespace + comma splitter for `Satisfies:` value lists. Matches the
- * pattern used in `lsp/references.ts:findReferencingEntries`. */
-const TOKEN_SEPARATORS_RE = /[\s,]+/;
 
 /**
  * Build the `CodeLens[]` for a document's entries.
@@ -110,9 +106,8 @@ export function buildCodeLenses(
     // ↓ Satisfies: ID — Title (one lens per value)
     for (const attr of entry.rawAttributes) {
       if (attr.key !== "Satisfies") continue;
-      const tokens = attr.value.split(TOKEN_SEPARATORS_RE).filter(
-        (t) => t.length > 0,
-      );
+      // An ID inside a scenario locator is not a reference (#915).
+      const tokens = referenceTokens(attr.value);
       for (const tok of tokens) {
         const target = byDisplayId.get(tok as DisplayId);
         if (target) {

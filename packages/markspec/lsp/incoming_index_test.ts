@@ -82,3 +82,21 @@ Deno.test("buildIncomingCount: counts across multiple targets", () => {
   assertEquals(count.get("STK_A" as DisplayId), 2);
   assertEquals(count.get("STK_B" as DisplayId), 1);
 });
+
+Deno.test("buildIncomingCount: an ID inside a locator is not counted (#915)", () => {
+  const child = fakeEntry({
+    displayId: "TST_1",
+    attrs: [{ key: "Verifies", value: "REQ_A [check REQ_B behaviour]" }],
+  });
+  const count = buildIncomingCount([child]);
+  assertEquals(count.get("REQ_A" as DisplayId), 1);
+  assertEquals(count.get("REQ_B" as DisplayId), undefined);
+});
+
+Deno.test("buildIncomingCount: a value with free text counts its first token", () => {
+  const child = fakeEntry({
+    displayId: "TST_1",
+    attrs: [{ key: "Satisfies", value: "STK_A note" }],
+  });
+  assertEquals(buildIncomingCount([child]).get("STK_A" as DisplayId), 1);
+});

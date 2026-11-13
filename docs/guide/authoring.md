@@ -22,6 +22,8 @@ This chapter will cover:
 - **In-code specs** — embedding MarkSpec entry blocks in Rust `///` and Kotlin
   `/**` doc comments; the V-model colocated test convention.
 
+For scenario-level traceability, see [Scenario locators](scenario-locators.md).
+
 Until this chapter ships, refer to [AGENTS.md](../../AGENTS.md) (§Test
 conventions — V-model) for the in-code spec pattern, and the [CLI guide](cli.md)
 for the authoring commands.

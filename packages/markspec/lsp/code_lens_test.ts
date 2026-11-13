@@ -321,3 +321,53 @@ Deno.test("buildCodeLenses: multiple entries each get their own lens set", () =>
   const bLens = lenses.find((l) => l.range.start.line === 9);
   assertEquals(bLens?.command?.title, "↓ Satisfies: STK_A — A");
 });
+
+Deno.test("buildCodeLenses: an ID inside a Satisfies locator gets no lens (#915)", () => {
+  const targetA = fakeEntry({
+    displayId: "STK_A",
+    title: "A",
+    file: "/proj/s.md",
+    line: 1,
+  });
+  const targetB = fakeEntry({
+    displayId: "STK_B",
+    title: "B",
+    file: "/proj/s.md",
+    line: 2,
+  });
+  const child = fakeEntry({
+    displayId: "SAD_001",
+    title: "Child",
+    file: "/proj/r.md",
+    line: 10,
+    satisfies: "STK_A [check STK_B behaviour]",
+  });
+  const lenses = buildCodeLenses([child], [targetA, targetB, child], idUri);
+  const satLenses = lenses.filter((l) => l.command?.title.startsWith("↓"));
+  assertEquals(satLenses.map((l) => l.command?.title), [
+    "↓ Satisfies: STK_A — A",
+  ]);
+});
+
+Deno.test("buildCodeLenses: a Satisfies value with free text gets a lens for its first token", () => {
+  const target = fakeEntry({
+    displayId: "STK_A",
+    title: "A",
+    file: "/proj/s.md",
+    line: 1,
+  });
+  const child = fakeEntry({
+    displayId: "SAD_001",
+    title: "Child",
+    file: "/proj/r.md",
+    line: 10,
+    satisfies: "STK_A note",
+  });
+  const lenses = buildCodeLenses([child], [target, child], idUri);
+  assertEquals(
+    lenses.filter((l) => l.command?.title.startsWith("↓ Satisfies: STK_A")).map(
+      (l) => l.command?.title,
+    ),
+    ["↓ Satisfies: STK_A — A"],
+  );
+});

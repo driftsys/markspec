@@ -26,6 +26,7 @@ import {
   URI_SCHEME_RE,
 } from "../model/mod.ts";
 import { HTTP_URL_RE } from "./value_types.ts";
+import { splitTraceValues } from "../refs/split.ts";
 import { validateTypl } from "../typl/mod.ts";
 
 /** Universal attribute keys the core recognizes. */
@@ -283,8 +284,12 @@ function checkStructural(
       if (spec?.type !== "citation") continue;
       let depth = 0;
       let sawTopLevelComma = false;
-      for (const ch of attr.value) {
-        if (ch === "[") depth++;
+      const value = attr.value;
+      for (let i = 0; i < value.length; i++) {
+        const ch = value[i];
+        // Inside a locator, `\]` and `\\` are escapes (#915).
+        if (ch === "\\" && depth > 0) i++;
+        else if (ch === "[") depth++;
         else if (ch === "]" && depth > 0) depth--;
         else if (ch === "," && depth === 0) {
           sawTopLevelComma = true;
@@ -316,6 +321,8 @@ function checkStructural(
       const isCitation = spec.type === "citation";
       const values = isCitation
         ? [raw.trim()].filter((s) => s.length > 0)
+        : spec.type === "id-list"
+        ? splitTraceValues(raw)
         : raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
       if (values.length === 0) {
         diagnostics.push({

@@ -15,6 +15,7 @@
 
 import type { EffectiveProfile, Entry, ValueType } from "../model/mod.ts";
 import { effectiveScope } from "./attributes.ts";
+import { splitTraceValues } from "../refs/split.ts";
 
 const LIST_TYPES: ReadonlySet<ValueType> = new Set(["id-list", "tag-list"]);
 
@@ -33,7 +34,7 @@ export function normalizeListValues(
   for (const [name, values] of entry.typedAttributes) {
     const decl = scope.attributes.get(name);
     if (decl !== undefined && LIST_TYPES.has(decl.type)) {
-      const split = splitListValues(values);
+      const split = splitListValues(values, decl.type === "id-list");
       if (!arraysEqual(split, values)) {
         rewritten.set(name, split);
         anyChange = true;
@@ -47,10 +48,17 @@ export function normalizeListValues(
   return { ...entry, typedAttributes: rewritten };
 }
 
-function splitListValues(values: readonly string[]): readonly string[] {
+function splitListValues(
+  values: readonly string[],
+  isTraceList: boolean,
+): readonly string[] {
   const out: string[] = [];
   for (const v of values) {
-    const parts = v.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    // In a trace list, commas inside a bracket locator (`A [x, y]`) do not
+    // split. Other lists (tag-list) split on every comma.
+    const parts = isTraceList
+      ? splitTraceValues(v)
+      : v.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
     if (parts.length === 0) continue;
     out.push(...parts);
   }

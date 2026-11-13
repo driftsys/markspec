@@ -115,6 +115,11 @@ export interface LockEdge {
   readonly targetUlid?: string;
   /** Verbatim authored target token (display ID or ULID) at lock time. */
   readonly authoredTarget: string;
+  /**
+   * Normalized scenario locator of the authored value (`STK_1 [AC one]` →
+   * `"AC one"`, #915). Absent when the value has no bracket locator.
+   */
+  readonly locator?: string;
 }
 
 /** Canonical-edge-graph integrity record. */

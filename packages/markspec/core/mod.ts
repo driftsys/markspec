@@ -31,6 +31,7 @@ export {
   makeUlid,
   MIXED_DISCIPLINE,
   PALETTE_HUES,
+  relationLocatorMode,
   sameOriginSource,
 } from "./model/mod.ts";
 export type {
@@ -41,6 +42,7 @@ export type {
   CaptionConventions,
   CaptionPosition,
   ConfigFieldError,
+  Criterion,
   DeliveredDocument,
   Diagnostic,
   Directive,
@@ -339,6 +341,7 @@ export {
   uxilDeclaringTypes,
   validateUxilFamily,
 } from "./validator/uxil_family.ts";
+export { validateLocators } from "./validator/locators.ts";
 export * as uxil from "./uxil/mod.ts";
 
 // ── Lockfile (ADR-022) ───────────────────────────────────────────────────
@@ -415,6 +418,15 @@ export {
   TRACE_ATTRIBUTE_KEYS,
 } from "./refs/mod.ts";
 export type { RefIndex } from "./refs/mod.ts";
+export {
+  normalizeLocator,
+  parseTraceValue,
+  referenceTokens,
+  splitTraceValues,
+} from "./refs/split.ts";
+export type { ParsedTraceValue } from "./refs/split.ts";
+
+export { buildCriteria, scanScenarioNames } from "./criteria/scenarios.ts";
 
 // ── Composite-`check` gate stages (ADR-027, #659) ─────────────────────────
 export { fmtDriftGate, lockfileDriftGate, proseLintGate } from "./gates/mod.ts";

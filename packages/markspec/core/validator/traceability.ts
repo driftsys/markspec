@@ -30,6 +30,7 @@ import {
   type TraceRule,
   URI_SCHEME_RE,
 } from "../model/mod.ts";
+import { traceTarget } from "../refs/split.ts";
 
 /**
  * Effective trace rules for an entry: type-scope rules only.
@@ -159,7 +160,9 @@ export function validateTraceabilityForEntry(
     // MSL-L004 target match + MSL-L006 existence, for each resolved value.
     // Resolve by ULID (graph) first, then by display ID (byDisplayId) — the
     // dual-resolution spine (issue #593).
-    for (const v of values!) {
+    // A bracket locator (`A [x]`) addresses part of the target; the
+    // existence check uses the target only (epic #915).
+    for (const v of values!.map(traceTarget)) {
       const target = graph.get(v) ?? byDisplayId.get(v);
       if (!target) {
         // Scheme-qualified URIs are intentionally external — never local

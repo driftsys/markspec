@@ -81,8 +81,8 @@ optionally followed by a locator in square brackets:
 References: ISO-26262-6 [§4.3] References: RFC-2119 [§3] References: serde-1-0
 ```
 
-The locator (`[§4.3]`) is free text — it is preserved verbatim in the compiled
-output but not parsed further.
+The locator (`[§4.3]`) is free text. It is kept, normalized, in the compiled
+link (`Link.locator`) but not checked. See [Locators](relations.md#locators).
 
 ### External-id
 

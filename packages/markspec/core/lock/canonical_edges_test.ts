@@ -48,3 +48,42 @@ Deno.test("hashCanonicalEdges: different edge sets produce different hashes", as
   const h2 = await hashCanonicalEdges([E1, E2]);
   if (h1 === h2) throw new Error("hash must differ for different edge sets");
 });
+
+Deno.test("canonicalEdgeJson: a quad without a locator serializes as before", () => {
+  assertEquals(
+    canonicalEdgeJson([{
+      source: "A",
+      relation: "Satisfies",
+      target: "B",
+      provenance: "local",
+    }]),
+    '[{"provenance":"local","relation":"Satisfies","source":"A","target":"B"}]',
+  );
+});
+
+Deno.test("canonicalEdgeJson: a locator is part of the quad", () => {
+  assertEquals(
+    canonicalEdgeJson([{
+      source: "A",
+      relation: "Satisfies",
+      target: "B",
+      locator: "x",
+      provenance: "local",
+    }]),
+    '[{"locator":"x","provenance":"local","relation":"Satisfies","source":"A","target":"B"}]',
+  );
+});
+
+Deno.test("canonicalEdgeJson: edges differing only by locator sort by locator", () => {
+  const quad = (locator: string) => ({
+    source: "A",
+    relation: "Verifies",
+    target: "B",
+    locator,
+    provenance: "local" as const,
+  });
+  assertEquals(
+    canonicalEdgeJson([quad("y"), quad("x")]),
+    canonicalEdgeJson([quad("x"), quad("y")]),
+  );
+});

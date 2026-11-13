@@ -6,7 +6,8 @@
  */
 
 import type { CompileResult } from "../compiler/mod.ts";
-import type { DisplayId, Entry } from "../model/mod.ts";
+import type { DisplayId, EffectiveProfile, Entry } from "../model/mod.ts";
+import { isTestEntry } from "../criteria/scenarios.ts";
 import {
   formatEntryOrigin,
   isCorpusEntry,
@@ -40,6 +41,12 @@ export interface ReportOptions {
    * reference leaf.
    */
   readonly dependencyUpstreamIds?: ReadonlySet<string>;
+  /**
+   * The active profile. The criterion coverage section counts a verifier
+   * only when its type is, or extends, the core `Test` type; without a
+   * profile, only core types are resolved.
+   */
+  readonly profile?: EffectiveProfile;
 }
 
 /**
@@ -60,6 +67,7 @@ export function report(result: CompileResult, options: ReportOptions): string {
     entries,
     options.format,
     options.dependencyUpstreamIds,
+    options.profile,
   );
 }
 
@@ -267,11 +275,15 @@ function formatCoverage(
   entries: Entry[],
   format: ReportFormat,
   dependencyUpstreamIds?: ReadonlySet<string>,
+  profile?: EffectiveProfile,
 ): string {
   const stats = computeCoverage(result, entries, { dependencyUpstreamIds });
+  // Absent when no reported entry has criteria, so coverage output for a
+  // project without feature blocks stays unchanged.
+  const criteria = computeCriterionCoverage(result, entries, profile);
 
   if (format === "json") {
-    return JSON.stringify(stats, null, 2);
+    return JSON.stringify(criteria ? { ...stats, criteria } : stats, null, 2);
   }
 
   if (format === "csv") {
@@ -284,6 +296,12 @@ function formatCoverage(
       `Orphans,${stats.gaps.orphans.length}`,
       `Unsatisfied parents,${stats.gaps.unsatisfied.length}`,
     ];
+    if (criteria) {
+      lines.push(
+        `Criteria total,${criteria.total}`,
+        `Criteria verified,${criteria.verified}`,
+      );
+    }
     return lines.join("\n");
   }
 
@@ -322,7 +340,151 @@ function formatCoverage(
     );
   }
 
+  if (criteria) lines.push(...formatCriteriaMarkdown(criteria));
+
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Criterion-level coverage
+// ---------------------------------------------------------------------------
+
+/** Verification state of one criterion. */
+interface CriterionCoverageRow {
+  name: string;
+  addressable: boolean;
+  /** Display IDs of the verifying entries, sorted. */
+  verifiedBy: DisplayId[];
+}
+
+/** Verification state of the criteria of one entry. */
+interface EntryCriterionCoverage {
+  displayId: DisplayId;
+  title: string;
+  /** `full`: every criterion verified; `partial`: some verified;
+   * `none`: no criterion verified. */
+  state: "full" | "partial" | "none";
+  verified: number;
+  total: number;
+  criteria: CriterionCoverageRow[];
+}
+
+/** The `criteria` section of the coverage report. */
+interface CriterionCoverage {
+  total: number;
+  verified: number;
+  entries: EntryCriterionCoverage[];
+}
+
+/**
+ * Compute per-criterion verification for the reported entries that carry
+ * criteria. Returns `undefined` when none does.
+ *
+ * Only `verifies` links count, and only when the verifier's type is, or
+ * extends, the core `Test` type; an entry never verifies itself. A link
+ * without a locator verifies every criterion of its target. A link with a
+ * locator verifies the named criterion only when `locatorResolved` is
+ * `true`. A generated inverse runs from the target to the verifier; the
+ * verifier set removes the duplicate it makes of the authored link.
+ * Upstream (federated) entries are not reported.
+ */
+function computeCriterionCoverage(
+  result: CompileResult,
+  entries: Entry[],
+  profile: EffectiveProfile | undefined,
+): CriterionCoverage | undefined {
+  const withCriteria = entries.filter((e) =>
+    (e.criteria?.length ?? 0) > 0 && !isUpstreamEntry(e)
+  );
+  if (withCriteria.length === 0) return undefined;
+
+  // A link end may be written as a ULID; report display IDs.
+  const byUlid = new Map<string, Entry>();
+  for (const e of result.entries.values()) if (e.id) byUlid.set(e.id, e);
+  const resolve = (id: DisplayId): Entry | undefined =>
+    result.entries.get(id) ?? byUlid.get(id);
+
+  // Target display ID → criterion name ("" for whole entry) → verifiers.
+  const verifiers = new Map<DisplayId, Map<string, Set<DisplayId>>>();
+  for (const link of result.links) {
+    if (link.kind !== "verifies") continue;
+    if (link.locator !== undefined && link.locatorResolved !== true) continue;
+    const generated = link.origin === "generated";
+    const targetEntry = resolve(generated ? link.from : link.to);
+    const verifierEntry = resolve(generated ? link.to : link.from);
+    if (!targetEntry || !verifierEntry) continue;
+    if (targetEntry.displayId === verifierEntry.displayId) continue;
+    if (!isTestEntry(verifierEntry, profile)) continue;
+    const target = targetEntry.displayId;
+    const verifier = verifierEntry.displayId;
+    let byName = verifiers.get(target);
+    if (!byName) {
+      byName = new Map();
+      verifiers.set(target, byName);
+    }
+    const key = link.locator ?? "";
+    let set = byName.get(key);
+    if (!set) {
+      set = new Set();
+      byName.set(key, set);
+    }
+    set.add(verifier);
+  }
+
+  let total = 0;
+  let verified = 0;
+  const rows = withCriteria.map((entry): EntryCriterionCoverage => {
+    const byName = verifiers.get(entry.displayId);
+    const whole = byName?.get("") ?? new Set<DisplayId>();
+    const criteria = entry.criteria!.map((c): CriterionCoverageRow => {
+      const named = c.addressable ? byName?.get(c.name) : undefined;
+      const all = new Set<DisplayId>([...whole, ...(named ?? [])]);
+      return {
+        name: c.name,
+        addressable: c.addressable,
+        verifiedBy: [...all].sort(),
+      };
+    });
+    const entryVerified = criteria.filter((c) => c.verifiedBy.length > 0)
+      .length;
+    total += criteria.length;
+    verified += entryVerified;
+    return {
+      displayId: entry.displayId,
+      title: entry.title,
+      state: entryVerified === criteria.length
+        ? "full"
+        : entryVerified === 0
+        ? "none"
+        : "partial",
+      verified: entryVerified,
+      total: criteria.length,
+      criteria,
+    };
+  });
+  return { total, verified, entries: rows };
+}
+
+/** Render the `## Criteria` Markdown section, one text block per entry. */
+function formatCriteriaMarkdown(criteria: CriterionCoverage): string[] {
+  const lines = ["## Criteria", ""];
+  for (const entry of criteria.entries) {
+    const width = Math.max(...entry.criteria.map((c) => c.name.length));
+    lines.push(
+      "```text",
+      `${entry.displayId}  ${entry.title}  ${entry.verified}/${entry.total} criteria verified`,
+      ...entry.criteria.map((c) => {
+        const mark = c.verifiedBy.length > 0 ? "\u2713" : "\u2717";
+        const by = c.verifiedBy.length > 0
+          ? c.verifiedBy.join(", ")
+          : "no verifier";
+        return `  ${mark} ${c.name.padEnd(width)}  \u2190 ${by}`;
+      }),
+      "```",
+      "",
+    );
+  }
+  return lines;
 }
 
 // ---------------------------------------------------------------------------

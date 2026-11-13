@@ -154,3 +154,31 @@ Deno.test("findReferencingEntries: an illustrative fenced example never becomes 
   const refs = findReferencingEntries(result.entries, "REQ-001");
   assertEquals(refs.map((e) => e.displayId), ["REQ-003"]);
 });
+
+Deno.test("findReferencingEntries: an ID inside a locator is not a reference (#915)", () => {
+  const entries = [
+    makeEntry("REQ_A", [["Id", "01"]], 1),
+    makeEntry("REQ_B", [["Id", "02"]], 5),
+    makeEntry("TST_1", [["Satisfies", "REQ_A [check REQ_B behaviour]"]], 10),
+    makeEntry("TST_2", [["Verifies", "REQ_A [x], REQ_B"]], 20),
+  ];
+  assertEquals(
+    findReferencingEntries(entries, "REQ_B").map((e) => e.displayId),
+    ["TST_2"],
+  );
+  assertEquals(
+    findReferencingEntries(entries, "REQ_A").map((e) => e.displayId),
+    ["TST_1", "TST_2"],
+  );
+});
+
+Deno.test("findReferencingEntries: a value with free text still references its first token", () => {
+  const entries = [
+    makeEntry("STK_A", [["Id", "01"]], 1),
+    makeEntry("TST_1", [["Satisfies", "STK_A note"]], 10),
+  ];
+  assertEquals(
+    findReferencingEntries(entries, "STK_A").map((e) => e.displayId),
+    ["TST_1"],
+  );
+});

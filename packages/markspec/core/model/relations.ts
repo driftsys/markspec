@@ -23,6 +23,10 @@ export interface RelationDef {
   readonly targetTypes?: readonly string[];
   /** true ⇒ included in lockfile canonical edge extraction. */
   readonly lockEdge?: boolean;
+  /** Present ⇒ the relation value may carry a bracketed locator after the
+   * target ID. `"free"`: the locator is free text (a section, a page).
+   * `"criterion"`: the locator names a scenario of the target entry. */
+  readonly locator?: "free" | "criterion";
 }
 
 /** The core relations. Union of what the compiler / validator / lock each need;
@@ -33,14 +37,21 @@ export const CORE_RELATIONS: readonly RelationDef[] = [
     linkKind: "satisfies",
     targetTypes: ["Specification"],
     lockEdge: true,
+    locator: "criterion",
   },
   {
     attr: "Derived-from",
     linkKind: "derived-from",
     targetTypes: ["Specification"],
     lockEdge: true,
+    locator: "free",
   },
-  { attr: "References", linkKind: "references", lockEdge: true },
+  {
+    attr: "References",
+    linkKind: "references",
+    lockEdge: true,
+    locator: "free",
+  },
   {
     attr: "Allocated-to",
     linkKind: "allocated-to",
@@ -57,6 +68,7 @@ export const CORE_RELATIONS: readonly RelationDef[] = [
     attr: "Verifies",
     linkKind: "verifies",
     targetTypes: ["Requirement", "Contract"],
+    locator: "criterion",
   },
   {
     attr: "Tests",
@@ -93,6 +105,16 @@ export const CORE_RELATIONS: readonly RelationDef[] = [
   { attr: "Mitigated-by", targetTypes: ["Specification"] },
   { attr: "Affects", targetTypes: ["Component", "Unit", "Contract"] },
 ];
+
+/** The locator mode of the relation with trailer key `attr`, or `undefined`
+ * when the relation does not accept a locator (or is not a core relation).
+ * The facet is core-only: a profile-declared relation has no locator mode
+ * in this slice, so this function returns `undefined` for it. */
+export function relationLocatorMode(
+  attr: string,
+): "free" | "criterion" | undefined {
+  return CORE_RELATIONS.find((r) => r.attr === attr)?.locator;
+}
 
 /**
  * Lock-edge keys that are NOT forward relations. The lockfile tracks the

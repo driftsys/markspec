@@ -144,6 +144,9 @@ export function serializeLockfile(lf: Lockfile): string {
       parts.push(`target-ulid     = ${tomlString(e.targetUlid)}\n`);
     }
     parts.push(`authored-target = ${tomlString(e.authoredTarget)}\n`);
+    if (e.locator !== undefined) {
+      parts.push(`locator         = ${tomlString(e.locator)}\n`);
+    }
   }
 
   parts.push("\n[generated-cache]\n");
@@ -155,7 +158,7 @@ export function serializeLockfile(lf: Lockfile): string {
 
 /**
  * Deterministic edge order: (sourceUlid, relation, authoredTarget,
- * targetUlid). The first three keys can collide when one authored target
+ * locator, targetUlid). A missing locator sorts as the empty string. The first three keys can collide when one authored target
  * resolves to two different ULIDs (e.g. duplicate display IDs across files
  * whose first-wins tiebreak flips per machine); targetUlid breaks that tie
  * so the comparator is a total order and input order never affects output.
@@ -169,6 +172,8 @@ function compareLockEdges(a: LockEdge, b: LockEdge): number {
   if (r !== 0) return r;
   const t = a.authoredTarget.localeCompare(b.authoredTarget);
   if (t !== 0) return t;
+  const l = (a.locator ?? "").localeCompare(b.locator ?? "");
+  if (l !== 0) return l;
   return (a.targetUlid ?? "").localeCompare(b.targetUlid ?? "");
 }
 

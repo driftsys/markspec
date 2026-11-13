@@ -183,20 +183,110 @@ warns (`MSL-R010`) when a relation is used between types that the profile did
 not intend. They are not hard errors because cross-type relations are sometimes
 legitimate in practice.
 
-## Reference-target locators
+## Locators
 
-When a relation targets a Reference-shape entry, the target can include a
-locator in square brackets to point to a specific section or element. The
-`References` and `Derived-from` relations accept locators:
+A trace value can carry a locator in square brackets after its target. The
+locator points at a part of the target: a section of a standard, or a scenario
+of a requirement.
 
 ```text
 References: ISO-26262-6 [§4.3]
 Derived-from: ISO-26262-8 [§9.2]
+Verifies: REQ_BRK_0010 [Brake at 20 m]
 ```
 
-Locators are free text — they are preserved verbatim in the compiled output but
-not parsed or validated further. Their meaning is determined by the consuming
-tool or reviewer.
+### Grammar
+
+A value is the target, optionally followed by whitespace and a locator:
+
+```text
+value   = target [ 1*WSP "[" locator "]" ]
+```
+
+- The `[` must follow whitespace after the target. `REQ_BRK_0010[x]` has no
+  locator.
+- Inside the brackets, `\]` stands for a literal `]` and `\\` for a literal
+  backslash. Any other backslash sequence is kept as written. The escapes are
+  valid inside a locator only.
+- A locator can contain commas. Values on one line are split on commas outside
+  brackets.
+- A locator is normalized for comparison: Unicode NFC, trimmed, and each run of
+  whitespace collapsed to one space.
+- A value with a `[` after whitespace that no `]` closes has no locator.
+  `MSL-L009` reports it. An unclosed `[` never protects commas: the commas after
+  it always separate values, also when another value on the line has a closed
+  locator. `A [x], B [z, C` gives the values `A [x]`, `B [z` and `C`, and
+  `MSL-L009` reports `B [z`. A value without a closed locator is read as before
+  locators existed.
+- An empty locator (`REQ_BRK_0010 []`) is a locator with an empty name. It names
+  no scenario, so on `Satisfies` or `Verifies` it raises `MSL-L007` when the
+  target carries scenarios.
+- When no value on the line has a closed locator, the line is split on every
+  comma, as before locators existed.
+
+### Which relations accept a locator
+
+Whether a relation accepts a locator, and in which mode, is a property of the
+core relation. Profile-declared relations have no locator mode.
+
+| Relation       | Locator mode | Meaning of the locator                         |
+| -------------- | ------------ | ---------------------------------------------- |
+| `Satisfies`    | criterion    | Names a scenario of the target entry.          |
+| `Verifies`     | criterion    | Names a scenario of the target entry.          |
+| `Derived-from` | free         | Free text (a section, a page). Not checked.    |
+| `References`   | free         | Free text (a section, a page). Not checked.    |
+| other          | none         | A locator raises `MSL-L008`. The link is kept. |
+
+A value without a closed locator is read as before locators existed: on
+`Derived-from` and `References` it links to its first whitespace-separated
+token; on every other relation, `Satisfies` and `Verifies` included, it links to
+the whole value.
+
+### Resolution
+
+A locator never changes the link target: the link goes to the entry before the
+brackets whether or not the locator resolves. `MSL-L006` checks the target only.
+
+A locator in `criterion` mode resolves when the target is a Requirement or
+Contract entry and one of its scenarios has that normalized name. Scenarios come
+from the top-level fenced `feature` (or `gherkin`) blocks of the target body; a
+fence nested in a list item or a block quote is not indexed. A scenario name is
+addressable when it is not empty and occurs once in the entry.
+
+- A locator that names no addressable scenario raises `MSL-L007`.
+- A locator on a target that does not resolve raises `MSL-L006` only.
+- The target may be written as a display ID or as a ULID.
+- An upstream (federated) entry carries no criteria. A locator on an upstream
+  target raises no `MSL-L007`, the coverage report does not list the target, and
+  on an upstream Requirement or Contract the link has `locatorResolved: false`.
+- A locator on a target that is not a Requirement or Contract entry (or is a
+  Reference entry) is free text and raises no `MSL-L007`.
+
+### Compiled output
+
+Each compiled link keeps the normalized locator in `Link.locator`. It is absent
+when the value has no locator. For a locator in `criterion` mode on a target
+that is a Requirement or Contract entry, the link also carries
+`Link.locatorResolved`: `true` when the locator names an addressable scenario,
+`false` otherwise. The field is absent in every other case.
+
+A generated inverse link (for example `Verified-by` for `Verifies`) copies the
+locator and `locatorResolved` of the authored link.
+
+```json
+{
+  "from": "TST_BRK_0012",
+  "to": "REQ_BRK_0010",
+  "kind": "verifies",
+  "locator": "Brake at 20 m",
+  "locatorResolved": true
+}
+```
+
+The lockfile records a locator on its `[[edge]]` rows; see the
+[lockfile specification](../internal/markspec-lockfile.md). The coverage report
+counts resolved `Verifies` locators per scenario; see
+[Scenario locators](../../guide/scenario-locators.md).
 
 ## Validation
 

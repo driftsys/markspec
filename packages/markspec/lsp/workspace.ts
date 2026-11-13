@@ -22,6 +22,7 @@ import {
   suppressDeclaredAttrR010,
   uxilDeclaringTypes,
   validate,
+  validateLocators,
   validateUxilFamily,
 } from "../core/mod.ts";
 import { buildTypeRegistry, type TypeRegistry } from "../core/typl/mod.ts";
@@ -300,7 +301,8 @@ export class WorkspaceIndex {
    * publish time by the server's `corpusFilePaths` guard.
    *
    * Also runs the uxil diagnostics family (S9 #727) — inert unless the
-   * profile designates a declaring type (`declares: ux-surface`).
+   * profile designates a declaring type (`declares: ux-surface`) — and
+   * the scenario-locator diagnostics (MSL-L007/L008/L009, MSL-B060/B061).
    */
   validateAll(profile: EffectiveProfile | null = null): readonly Diagnostic[] {
     const allEntries = this.getAllEntries();
@@ -316,6 +318,9 @@ export class WorkspaceIndex {
       // `declares: ux-surface` designation, so non-uxil projects pay only
       // a Map scan per validateAll.
       ...validateUxilFamily(allEntries, profile),
+      // Scenario locators and scenario names (epic #915): the same pass
+      // `check` runs in its pipeline.
+      ...validateLocators(allEntries, profile),
     ];
   }
 

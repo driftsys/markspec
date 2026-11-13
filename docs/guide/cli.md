@@ -685,6 +685,68 @@ The coverage report treats a `references:` upstream entry as a traceability leaf
 — it never appears in the orphan/unsatisfied gap lists, since a citation isn't
 something your own project is expected to cover.
 
+When a reported Requirement or Contract entry has scenarios in a fenced
+`feature` block, the coverage report adds a **criteria** section that shows
+which scenarios a test verifies. The section is absent when no reported entry
+has scenarios, so the output of a project without feature blocks does not
+change. See [Scenario locators](scenario-locators.md) for how to write the
+locators.
+
+````markdown
+## Criteria
+
+```text
+REQ_BRK_0010  Emergency braking for close obstacles  1/2 criteria verified
+  ✓ Brake at 20 m           ← TST_BRK_0012
+  ✗ No braking beyond 40 m  ← no verifier
+```
+````
+
+In `json`, the section is the top-level `criteria` key. Each entry has a `state`
+(`full`, `partial` or `none`) and one row per scenario:
+
+```json
+"criteria": {
+  "total": 2,
+  "verified": 1,
+  "entries": [
+    {
+      "displayId": "REQ_BRK_0010",
+      "title": "Emergency braking for close obstacles",
+      "state": "partial",
+      "verified": 1,
+      "total": 2,
+      "criteria": [
+        { "name": "Brake at 20 m", "addressable": true, "verifiedBy": ["TST_BRK_0012"] },
+        { "name": "No braking beyond 40 m", "addressable": true, "verifiedBy": [] }
+      ]
+    }
+  ]
+}
+```
+
+In `csv`, two rows follow the other metrics: `Criteria total` and
+`Criteria verified`.
+
+The counting rules:
+
+- Only `Verifies` links count. A `Satisfies` locator never counts as
+  verification.
+- Only a verifier whose type is, or extends, the core `Test` type counts (the
+  active profile's `extends:` chain is followed). An entry never verifies
+  itself.
+- Upstream (federated) entries get no criteria rows and do not count in the
+  totals.
+- A `Verifies` value without a locator covers every scenario of its target.
+- A `Verifies` value with a locator covers the scenario it names, when the
+  locator resolves to an addressable scenario. A locator that does not resolve
+  covers nothing.
+- A scenario with an empty name, or a name used more than once in the entry, is
+  not addressable. Only a whole-entry `Verifies` covers it.
+- A hand-written `Verified-by:` attribute is not counted. It is also an error
+  (`MSL-A030`), because `Verified-by` is computed. Write the link as `Verifies:`
+  on the test.
+
 #### export
 
 Emit the compiled traceability graph in a portable format.

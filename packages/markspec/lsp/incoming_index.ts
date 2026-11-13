@@ -10,21 +10,20 @@
  * incoming reference) and skips self-references (`STK_001` in
  * `STK_001`'s own `Satisfies:`).
  *
- * Same splitter (`[\s,]+`) and skip rules as `lsp/references.ts:findReferencingEntries`
+ * Same splitter (`referenceTokens`) and skip rules as `lsp/references.ts:findReferencingEntries`
  * so the count matches the references list shown when the corresponding
  * codeLens / hint is clicked.
  */
 
 import type { DisplayId, Entry } from "../core/mod.ts";
-
-/** Whitespace + comma splitter for attribute value lists. */
-const TOKEN_SEPARATORS_RE = /[\s,]+/;
+import { referenceTokens } from "../core/mod.ts";
 
 /**
  * Build `Map<DisplayId, number>` of incoming attribute references over
  * the entire workspace.
  *
- * Tokens come from splitting each `rawAttributes[].value` on `[\s,]+`.
+ * Tokens come from `referenceTokens`: each `rawAttributes[].value` is
+ * split on `[\s,]+` after a closed scenario locator is dropped.
  * The `Id` attribute is skipped (it declares the entry, not a reference).
  * Self-references (`e.displayId` appearing in `e`'s own attributes) are
  * skipped to match `findReferencingEntries`' semantics.
@@ -36,7 +35,8 @@ export function buildIncomingCount(
   for (const e of allEntries) {
     for (const attr of e.rawAttributes) {
       if (attr.key === "Id") continue;
-      const tokens = attr.value.split(TOKEN_SEPARATORS_RE);
+      // An ID inside a scenario locator is not a reference (#915).
+      const tokens = referenceTokens(attr.value);
       for (const tok of tokens) {
         if (tok.length === 0) continue;
         if (tok === e.displayId) continue;

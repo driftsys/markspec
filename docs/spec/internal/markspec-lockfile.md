@@ -110,6 +110,7 @@ source-ulid = "01J…SRC" # stable ULID of the edge's source entry
 relation = "Satisfies"
 target-ulid = "01J…TGT" # stable ULID of the resolved target; omitted when unresolved
 authored-target = "SYS_BRK_0042" # the display ID (or ULID) as authored at lock time
+locator = "Brake at 20 m" # normalized scenario locator; written only when the value has one
 
 [generated-cache] # §3 — generated inverse-edge cache
 edges-hash = "sha256:…" # digest of edges.ndjson (compile-output §4.6) at lock time
@@ -150,6 +151,30 @@ question ("what stable identity did this edge point at last time"). An
 unresolved target omits `target-ulid` and is also surfaced by `MSL-L006` at
 `markspec check`. `markspec lock` writes the ledger; `markspec fmt` reads it and
 is the only command that edits source.
+
+An edge row carries an optional `locator` key: the normalized locator of the
+authored value (`Satisfies: STK_1 [AC one]` records `authored-target = "STK_1"`
+and `locator = "AC one"`). The key is written only when the value has a locator,
+and the parser reads a row without it. Rows are sorted by
+`(sourceUlid,
+relation, authoredTarget, locator, targetUlid)`, and a missing
+locator sorts as the empty string. The edge hash (`generated-cache.edges-hash`)
+covers the locator, so it changes for a project that writes a closed bracket
+after a trace target: a scenario locator, or an existing `References: X [§4.3]`
+value, which was two edges and is now one edge with a locator. A project without
+such values keeps its previous hash.
+
+The ledger covers the core relations that record an edge (every core relation
+except `Verifies`, `Mitigated-by` and `Affects`) and the hand-written
+`Verified-by` attribute. A `Verifies:` value is not a ledger edge, so its
+locator is not recorded here.
+
+A value with a closed locator yields one row with that locator. A value with
+free text before the locator (`ISO-1 §4.3 [loc]`) or after it has no locator:
+the ledger splits it on whitespace, as it does for any plain value with free
+text, and records one row per token. The first token resolves as usual (so
+`STK_1 [AC one] extra` records `STK_1` with its `target-ulid`); the other tokens
+are rows without a `target-ulid`.
 
 ## 4. Update mechanics
 
@@ -227,9 +252,11 @@ availability (project choice; the lockfile is the source of truth either way).
    purl tarball) ship as separate ADRs post-MVP.
 3. **Vendor mirror default: deferred post-1.0** (see §6 above).
 4. **Edge-hash coupling: canonical edge model, not file bytes.** Sorted
-   `(source, relation, target, provenance)` quad list, RFC-8785-style canonical
-   JSON, sha256 of canonical serialization. Decouples lockfile from
-   compile-output NDJSON format.
+   `(source, relation, target, provenance)` quad list, each quad with an
+   optional `locator` (ADR-037), sorted by source, relation, target, locator
+   (missing sorts as empty) and provenance; RFC-8785-style canonical JSON,
+   sha256 of canonical serialization. Decouples lockfile from compile-output
+   NDJSON format.
 5. **Profile `extends:` chain: each tier its own row.** Every tier in the
    `extends:` chain becomes an `[[upstream.profile]]` row with an `extends`
    field referencing its parent. Verbose but auditable per-tier diffs.

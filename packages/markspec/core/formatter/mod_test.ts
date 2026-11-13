@@ -1204,3 +1204,18 @@ for (const newline of ["\n", "\r\n"]) {
     assertEquals(normalizeModalKeywords(input), expected);
   });
 }
+
+Deno.test("format: CSV split keeps a locator with commas in one value, verbatim", () => {
+  const md = `- [SAD_BRK_0001] Title
+
+  Body.
+
+      Id: ${MOCK_ULID}
+      Verified-by: TST_A [x, y], TST_B [Brake  at 20 m]
+`;
+  const result = format(md, { generateUlid: mockUlid() });
+  assertStringIncludes(
+    result.output,
+    `      Verified-by: TST_A [x, y]\n      Verified-by: TST_B [Brake  at 20 m]\n`,
+  );
+});

@@ -1350,3 +1350,16 @@ Deno.test("parseMarkdown: MSL-P023 hint depends on a continuation line", () => {
   assertStringIncludes(message(plain) ?? "", "run `markspec fmt`");
   assertStringIncludes(message(cont) ?? "", "MSL-P021");
 });
+
+Deno.test("parseMarkdown: attributeLines gives the file line of each trailer value", () => {
+  const md = [
+    "- [REQ_1] Title",
+    "",
+    "  Body.",
+    "",
+    "      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF",
+    "      Labels: a",
+  ].join("\n");
+  const [entry] = parseMarkdown(md, { file: "f.md" }).entries;
+  assertEquals(entry.attributeLines, [5, 6]);
+});
