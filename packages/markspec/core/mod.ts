@@ -415,6 +415,12 @@ export {
   TRACE_ATTRIBUTE_KEYS,
 } from "./refs/mod.ts";
 export type { RefIndex } from "./refs/mod.ts";
+export {
+  normalizeLocator,
+  parseTraceValue,
+  splitTraceValues,
+} from "./refs/split.ts";
+export type { ParsedTraceValue } from "./refs/split.ts";
 
 // ── Composite-`check` gate stages (ADR-027, #659) ─────────────────────────
 export { fmtDriftGate, lockfileDriftGate, proseLintGate } from "./gates/mod.ts";
