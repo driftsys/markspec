@@ -161,9 +161,11 @@ silent.
 Step 6a applies only to entries read from a `.feature` file (epic #915, Case B;
 language spec §1.3 §7). It follows step 6 and is silent: it gives no `MSL-T021`.
 An explicit `Type:`, a profile pattern or a display-ID prefix wins because those
-steps come first. Profile classification (`classifyEntry`) also falls back to
-step 6a for a `.feature` entry that no `display-id-pattern` matches, so such an
-entry gets no `MSL-T003`.
+steps come first. When no `display-id-pattern` matches a `.feature` entry,
+profile classification (`classifyEntry`) resolves it through this chain without
+the profile: `Source:` (step 3), the display-ID prefix (step 4) and a
+discriminating attribute (step 6) still win over step 6a, and the entry gets no
+`MSL-T003`.
 
 Steps 4 and 5 are mutually exclusive (each applies only to its own shape) and
 are jointly equivalent to ADR-004 §Part 2 step 3 (“`Id:` value structure”). Step

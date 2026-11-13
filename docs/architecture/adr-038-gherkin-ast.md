@@ -112,7 +112,8 @@ above are unchanged.
    in a feature block at any depth, as for `MSL-B062`. A block with a
    `parseError`, and an upstream entry, is skipped. The entry must be typed, so
    a profile that types it is required; a `Type: Test` trailer with no profile
-   is not checked.
+   is not checked. A headed `.feature` entry is typed without a profile (step
+   6a, Case B decision 6).
 5. **Position.** The warning is reported at the file line of the last action of
    the step, in column 1.
 6. **Where it runs.** The check runs in `markspec check` and in the LSP
@@ -164,7 +165,9 @@ the base ADR and 1 to 6 of the procedure-view amendment are unchanged.
    belongs to the label feature.
 3. **Typed entries only.** `MSL-B068` applies only to an entry that has a type
    after classification. The entry must be typed, so a profile is required, as
-   for `MSL-B063`.
+   for `MSL-B063`, except for a headed `.feature` entry, which step 6a types
+   without a profile (Case B decision 6). The same applies to `MSL-B064` to
+   `MSL-B067`.
 4. **Comments and labels.** `FeatureAst.comments` keeps every comment line.
    `scenarioProcedure(scenario, comments)` attaches a `# Step` comment (`#`,
    optional spaces, `Step`, then whitespace or the end of the line;
@@ -265,11 +268,12 @@ of #584 is superseded by this amendment.
    is additive and does not bump `CORE_SCHEMA_VERSION`.
 6. **Type step 6a.** In the type resolution chain, step 6a follows step 6:
    `feature` and `rule` give `Requirement`, `scenario` gives `Test`. It is
-   silent, so it gives no `MSL-T021`. Profile classification (`classifyEntry`)
-   applies it too: a `.feature` entry that no `display-id-pattern` matches gets
-   the step-6a type and no `MSL-T003`. Without a profile, the checks that
-   classify an entry on demand (`MSL-B063` to `MSL-B068`, locators) use the
-   step-6a type.
+   silent, so it gives no `MSL-T021`. When no `display-id-pattern` matches a
+   `.feature` entry, profile classification (`classifyEntry`) resolves it
+   through the chain without the profile, so `Source:` (step 3), the display-ID
+   prefix (step 4) and a discriminating attribute (step 6) still win over 6a,
+   and the entry gets no `MSL-T003`. Without a profile, the checks that classify
+   an entry on demand (`MSL-B063` to `MSL-B068`, locators) use the same chain.
 7. **Diagnostics.** `MSL-B069` (warning, body family) reports a header above a
    `Background`, an `Examples` table or a step, or not directly above a node, at
    the first line of the header. `MSL-P030` applies to an entry with no header

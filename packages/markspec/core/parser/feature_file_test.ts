@@ -1181,3 +1181,66 @@ Deno.test("findHeaders: header, tag, header, node gives the upper header no node
     [[2, undefined, 2], [5, "scenario", 4]],
   );
 });
+
+const TODO_ABOVE_NODE = [
+  "# [REQ_A_0001] T", // 1
+  "#", // 2
+  "# The system shall stop.", // 3
+  "Feature: F", // 4
+  "", // 5
+  "  # [TODO] fix later", // 6
+  "  Scenario: A", // 7
+  "    Then a", // 8
+  "", // 9
+  "  # [x] done", // 10
+  "  Scenario: B", // 11
+  "    Then b", // 12
+  "", // 13
+  "  # [WIP]", // 14
+  "  Rule: R", // 15
+  "    Scenario: C", // 16
+  "      Then c", // 17
+].join("\n");
+
+Deno.test("parseFeatureFile: in a headed file, bracketed non-ID comments above nodes are plain comments", () => {
+  const { entries, diagnostics } = parseFF(TODO_ABOVE_NODE);
+  assertEquals(entries.map((e) => e.displayId), ["REQ_A_0001"]);
+  assertEquals(diagnostics, []);
+  // The Feature entry owns all three unheaded scenarios.
+  assertEquals(
+    featureNode(entries[0]).feature!.scenarios.map((s) => s.name),
+    ["A", "B", "C"],
+  );
+});
+
+Deno.test("findHeaders: header, tag, [TODO] comment, node keeps the link", () => {
+  const text = [
+    "Feature: F",
+    "  # [SC_A_0001] T",
+    "  @smoke",
+    "  # [TODO] x",
+    "  Scenario: S",
+    "    Given a",
+  ].join("\n");
+  const map = headers(text);
+  assertEquals([...map.keys()], [5]);
+  assertEquals(map.get(5)!.kind, "scenario");
+});
+
+Deno.test("hasFeatureHeaderLine: a slash in the ID is not a header", () => {
+  assertEquals(hasFeatureHeaderLine("# [SC/A_1] x\n"), false);
+});
+
+Deno.test("parseFeatureFile: MSL-P030 for a title-only Rule with no scenario", () => {
+  const text = [
+    "Feature: F",
+    "  # [REQ_A_0001] T",
+    "  Rule: R",
+    "    Background:",
+    "      Given a",
+  ].join("\n");
+  assertEquals(
+    parseFF(text).diagnostics.map((d) => [d.code, d.location?.line]),
+    [["MSL-P030", 2]],
+  );
+});

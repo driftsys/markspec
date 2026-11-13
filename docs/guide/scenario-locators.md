@@ -143,7 +143,10 @@ role from the type each time it checks; it stores nothing on the entry.
 | An entry with no type after classification | none              | No role check runs for the block.         |
 
 The check needs a profile that types the entry, as for locators and procedure
-steps. Upstream entries and blocks that do not parse are skipped.
+steps. A headed `.feature` entry is typed without a profile (step 6a; see
+[Entries in `.feature` files](feature-files.md) and
+[ADR-038 Case B decision 6](../architecture/adr-038-gherkin-ast.md#amendment-2026-11-14--case-b-feature-entries)).
+Upstream entries and blocks that do not parse are skipped.
 
 Each check applies to a feature block that is top-level or nested in a list item
 at any depth.

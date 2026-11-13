@@ -147,14 +147,16 @@ export function validateCoreTypeAttribute(
 }
 
 /**
- * The core type of a `.feature` header entry from its node kind (step 6a of
- * the type resolution chain, epic #915 Case B): `Test` for a Scenario,
- * `Requirement` for a Feature or a Rule. `undefined` for every other entry.
- * Step 6a never raises MSL-T021.
+ * The core type of a `.feature` header entry that no profile pattern
+ * classifies (epic #915 Case B). It is resolved through the type resolution
+ * chain without the profile, so `Source:` (step 3), the display-ID prefix
+ * (step 4) and a discriminating attribute (step 6) win over the node kind
+ * (step 6a: `Test` for a Scenario, `Requirement` for a Feature or a Rule).
+ * `undefined` for every other entry.
  */
 export function featureFileCoreType(entry: Entry): string | undefined {
   if (entry.source.kind !== "feature-file") return undefined;
-  return entry.source.node === "scenario" ? "Test" : "Requirement";
+  return resolvedCoreTypeWithProvenance(entry)?.type;
 }
 
 /** Result of classifying a single entry. */

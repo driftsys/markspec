@@ -488,3 +488,74 @@ Deno.test("classifyEntry: a profile pattern match wins over step 6a for a .featu
   );
   assertEquals(result.type, "requirement");
 });
+
+import { withType } from "./locators.ts";
+
+/** A `.feature` Feature entry with the given ID and trailers. */
+function featureWith(
+  displayId: string,
+  attrs: Array<{ key: string; value: string }>,
+  shape: EntryShape = "Authored",
+): Entry {
+  return {
+    ...buildEntry({ displayId, shape }),
+    rawAttributes: attrs,
+    source: { kind: "feature-file", node: "feature" },
+  };
+}
+
+Deno.test("classifyEntry and withType: steps 3, 4 and 6 beat step 6a on a .feature entry", () => {
+  const nonMatching = buildProfile([
+    buildType({ name: "requirement", displayIdPattern: "REQ-{n:04d}" }),
+  ]);
+  const cases: Array<[string, Entry, string]> = [
+    // Step 3: Source: introspection.
+    [
+      "step 3",
+      featureWith("SC_A_0001", [{ key: "Source", value: "Cargo.toml" }]),
+      "SoftwareComponent",
+    ],
+    // Step 4: display-ID prefix on a Feature.
+    ["step 4", featureWith("TST_A_0001", []), "Test"],
+    // Step 6: discriminating attribute on a Feature.
+    [
+      "step 6",
+      featureWith("SC_A_0002", [{ key: "Verifies", value: "SC_A_0001" }]),
+      "Test",
+    ],
+    // Step 6a only.
+    ["step 6a", featureWith("SC_A_0003", []), "Requirement"],
+  ];
+  for (const [step, entry, expected] of cases) {
+    const classified = classifyEntry(entry, nonMatching);
+    assertEquals(classified.type, expected, `${step}, non-matching profile`);
+    assertEquals(classified.diagnostics, [], step);
+    assertEquals(
+      withType(entry, nonMatching).type,
+      expected,
+      `${step}, withType with profile`,
+    );
+    assertEquals(withType(entry, null).type, expected, `${step}, no profile`);
+  }
+});
+
+Deno.test("classifyEntry: a Reference-shape .feature entry resolves through the chain", () => {
+  const profile = buildProfile([
+    buildType({ name: "requirement", displayIdPattern: "REQ-{n:04d}" }),
+  ]);
+  assertEquals(
+    classifyEntry(featureWith("SC_A_0001", [], "Reference"), profile).type,
+    "Requirement",
+  );
+  assertEquals(
+    classifyEntry(
+      featureWith(
+        "SC_A_0002",
+        [{ key: "Verifies", value: "SC_A_0001" }],
+        "Reference",
+      ),
+      profile,
+    ).type,
+    "Test",
+  );
+});

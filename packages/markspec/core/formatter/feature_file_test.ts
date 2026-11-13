@@ -322,3 +322,26 @@ Deno.test("formatFeatureText: input the Gherkin parser rejects never throws and 
     assertEquals(result.changed, false);
   }
 });
+
+Deno.test("formatFeatureFile: bracketed non-ID comments in a headed file are left alone", async () => {
+  const text = `# [REQ_A_0001] T
+#
+# The system shall stop.
+Feature: F
+
+  # [TODO] fix later
+  Scenario: A
+    Then a
+
+  # [x] done
+  Scenario: B
+    Then b
+`;
+  const result = await stamp(text, ID_A);
+  assertEquals(
+    result.output,
+    text.replace("stop.\nFeature", `stop.\n#\n# Id: ${ID_A}\nFeature`),
+  );
+  const { entries } = await parseFile(result.output, { file: "a.feature" });
+  assertEquals(entries.map((e) => [e.displayId, e.id]), [["REQ_A_0001", ID_A]]);
+});

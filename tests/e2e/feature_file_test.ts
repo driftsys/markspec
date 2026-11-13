@@ -209,10 +209,12 @@ Deno.test("check: a .feature entry resolved by step 6a gets no late-stage type i
       "features/brake.feature": STEP_6A_FEATURE,
     },
   });
-  // Control: no profile pattern matches, so classification falls back to
-  // step 6a and types the Scenario as a Test; the block-role check then runs
-  // on it and reports the Then step that has no action. Step 6a stays silent
-  // for MSL-T021 and the entry is never un-classified (MSL-T003).
+  // The default profile has no pattern for SC_, so classification falls
+  // back to the type resolution chain and step 6a types the Scenario as a
+  // Test; MSL-B065 shows that the block-role check ran on it. This test pins
+  // that fallback and the absence of MSL-T003. It does not reach the MSL-T021
+  // guard for step 6a, because the entry is already typed; the unit test in
+  // pipeline_test.ts covers that guard.
   assertStringIncludes(stderr, "MSL-B065");
   assertEquals(stderr.includes("MSL-T021"), false, stderr);
   assertEquals(stderr.includes("MSL-T003"), false, stderr);
