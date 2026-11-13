@@ -107,8 +107,8 @@ const COMPILE_ARGS = [
 const norm = (text: string, dir: string): string =>
   text.replaceAll(Deno.realPathSync(dir), "<dir>").replaceAll(dir, "<dir>")
     .replace(/"mtime": "[^"]*"/g, '"mtime": "<mtime>"')
-    // The scope announcement counts every discovered file, so its number
-    // grows with each `.feature` file by design; it is not part of parity.
+    // The bare-check scope line counts discovered `.feature` files;
+    // accepted wording change (decision on #915).
     .split("\n").filter((l) => !l.includes("file(s) under")).join("\n");
 
 /** Remove the lines that differ between runs. */

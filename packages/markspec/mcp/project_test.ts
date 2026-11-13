@@ -912,3 +912,24 @@ Deno.test("openProject: ownsFile skips nested subtree", async () => {
   bumpMtime(join(subDir, "new.md"), subDoc, 5);
   assertStrictEquals(await proj.getCompiled(), result);
 });
+
+Deno.test("getCompiled: recompiles when a .feature file changes", async () => {
+  const featurePath = EXTRA_MD_PATH.replace(/\.md$/, ".feature");
+  const header = (title: string) =>
+    `# [STK_TEST_0002] ${title}\n# Id: 01HGW2Q8MNP3RSTVWXYZABCDEG\nFeature: F\n  Scenario: S\n    Given a\n    Then b\n`;
+  const { env, bumpMtime } = makeEnv({
+    [PROJECT_YAML_PATH]: { content: PROJECT_YAML, mtime: 1 },
+    [REQ_MD_PATH]: { content: REQ_DOC, mtime: 1 },
+    [featurePath]: { content: header("First"), mtime: 1 },
+  });
+  const proj = await createProject(env);
+  const r1 = await proj.getCompiled();
+  assertEquals(r1.entries.size, 2);
+
+  bumpMtime(featurePath, header("Second"), Date.now() + 1000);
+  const r2 = await proj.getCompiled();
+  assertEquals(
+    [...r2.entries.values()].some((e) => e.title.startsWith("Second")),
+    true,
+  );
+});

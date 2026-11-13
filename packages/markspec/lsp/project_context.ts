@@ -31,9 +31,11 @@ import {
   loadProjectUpstreams,
   loadToolConfig,
   type Lockfile,
+  MARKDOWN_EXTENSIONS,
   parseDisplayIdPattern,
   parseLockfile,
   type ProjectConfig,
+  SOURCE_EXTENSIONS,
   type ToolConfig,
   validateDisplayIdPattern,
 } from "../core/mod.ts";
@@ -65,6 +67,12 @@ import { time, timeAsync } from "./timing.ts";
  * the project fires every catalogue rule.
  */
 const DIAGNOSTICS_HISTOGRAM_TOP_N = 20;
+
+/** Extensions the LSP walk indexes: the ones `isMarkspecFile` accepts. */
+const LSP_EXTENSIONS: ReadonlySet<string> = new Set([
+  ...MARKDOWN_EXTENSIONS,
+  ...SOURCE_EXTENSIONS,
+]);
 
 /** Number of files read and parsed at the same time during indexing. */
 const INDEX_CONCURRENCY = 8;
@@ -404,6 +412,9 @@ export class ProjectContext {
       const path of discoverFiles(this.root, io, {
         exclude: this.toolConfig.exclude,
         inheritGitignoreFrom,
+        // The LSP does not handle `.feature` files yet (no document sync,
+        // fence guard or diagnostics for them), so the walk skips them.
+        extensions: LSP_EXTENSIONS,
       })
     ) {
       if (owns(path)) files.push(path);

@@ -1064,3 +1064,17 @@ Deno.test("ProjectContext: a disposed context sends no diagnostics or notificati
   ctx.clearPublishedDiagnostics();
   assertEquals(sent, [`diagnostics ${pathToUri(abs("p/req.md"))}`]);
 });
+
+Deno.test("ProjectRegistry: a headed .feature file is not indexed until the LSP supports it", async () => {
+  const fx = new Fixture({
+    ".markspec.yaml": "profiles: []\n",
+    "req.md": entry("REQ_0001", "A"),
+    "brake.feature":
+      "# [REQ_0002] Brake\n# Id: 01HGW2Q8MNP3RSTVWXYZABCDEB\nFeature: Brake\n  Scenario: Stop\n    Given a car\n    Then it stops\n",
+  });
+  await fx.start("");
+  const ctx = fx.registry.primary;
+  assertExists(ctx);
+  assertEquals(ctx.index.getFilePaths(), [abs("req.md")]);
+  assertEquals(ctx.index.getAllEntries().map((e) => e.displayId), ["REQ_0001"]);
+});

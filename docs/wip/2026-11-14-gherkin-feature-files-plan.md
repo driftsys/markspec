@@ -85,6 +85,12 @@ rule), #925 (source-file `Id:` stamping), ADR-038, ADR-037, ADR-027, ADR-016.
     one `MSL-B062` warning "Gherkin parser unavailable" for the file. (b) Throw.
     Rejected: ADR-038 Decision 4 says a failed load is not fatal.
 
+11. **Bare-check scope line.** The scope announcement of a bare `check` counts
+    discovered `.feature` files, so its number differs from `main` for a project
+    with `.feature` files. This is an accepted wording change (decision on
+    #915); the parity tests strip that line. The LSP walk skips `.feature` files
+    until the LSP slice adds support, and the MCP staleness list tracks them.
+
 ## Global Constraints
 
 - Lazy loading: the Gherkin parser is loaded only for a file with a
