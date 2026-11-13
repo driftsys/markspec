@@ -1998,3 +1998,28 @@ Deno.test("validate: MSL-C072 does not fire when no caption-conventions configur
     `MSL-C072 should not fire without project config; stderr: ${stderr}`,
   );
 });
+
+Deno.test("validate: MSL-B062 warns when a Gherkin block does not parse", async () => {
+  const { code, stderr } = await markspec(["check", "req.md"], {
+    files: {
+      "req.md": `# Requirements
+
+- [REQ-001] Emergency braking
+
+  The system shall apply emergency braking.
+
+  \`\`\`gherkin
+  Scenario: Collision avoidance
+    Given the vehicle is moving
+    Whatever is this
+    Then braking is applied
+  \`\`\`
+
+      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF
+`,
+    },
+  });
+  assertEquals(code, 2, `stderr: ${stderr}`);
+  assertStringIncludes(stderr, "MSL-B062");
+  assertStringIncludes(stderr, "req.md:10");
+});

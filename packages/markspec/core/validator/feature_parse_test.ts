@@ -1,0 +1,69 @@
+/**
+ * @module core/validator/feature_parse_test
+ *
+ * Unit tests for the MSL-B062 Gherkin parse-error warning (epic #915).
+ */
+
+import { assertEquals } from "@std/assert";
+import { loadGherkin } from "../gherkin/load.ts";
+import { parseFile } from "../parser/mod.ts";
+import { checkFeatureParse } from "./feature_parse.ts";
+
+const BROKEN = `Scenario: Broken
+    Given a
+  Whatever is this
+    Then b`;
+
+const doc = (blocks: string[], type = "Requirement"): string =>
+  `# Doc
+
+- [REQ_BRK_0010] Braking
+
+  The controller shall brake.
+
+${
+    blocks.map((b) =>
+      "  ```feature\n" + b.split("\n").map((l) => "  " + l).join("\n") +
+      "\n  ```\n"
+    ).join("\n")
+  }
+      Id: 01REQ00000000000000000010A
+      Type: ${type}
+`;
+
+await loadGherkin();
+
+Deno.test("checkFeatureParse: one broken block → one warning at the error line", async () => {
+  const text = doc([BROKEN]);
+  const { entries } = await parseFile(text, { file: "/r.md" });
+  const diags = checkFeatureParse(entries);
+  assertEquals(diags.length, 1);
+  assertEquals(diags[0].code, "MSL-B062");
+  assertEquals(diags[0].severity, "warning");
+  const lines = text.split("\n");
+  const line = diags[0].location!.line;
+  assertEquals(lines[line - 1].includes("Whatever"), true);
+  assertEquals(diags[0].message.startsWith("REQ_BRK_0010: "), true);
+});
+
+Deno.test("checkFeatureParse: two broken blocks → two warnings", async () => {
+  const { entries } = await parseFile(doc([BROKEN, BROKEN]), {
+    file: "/r.md",
+  });
+  assertEquals(checkFeatureParse(entries).length, 2);
+});
+
+Deno.test("checkFeatureParse: valid block → none", async () => {
+  const { entries } = await parseFile(
+    doc(["Scenario: Ok\n  Given a\n  Then b"]),
+    { file: "/r.md" },
+  );
+  assertEquals(checkFeatureParse(entries), []);
+});
+
+Deno.test("checkFeatureParse: runs for a Test entry", async () => {
+  const { entries } = await parseFile(doc([BROKEN], "Test"), {
+    file: "/r.md",
+  });
+  assertEquals(checkFeatureParse(entries).length, 1);
+});

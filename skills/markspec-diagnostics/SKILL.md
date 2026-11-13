@@ -101,6 +101,7 @@ Emitted for body-text content violations.
 | MSL-B044 | Body AST equivalence failure | Body contains Markdown the formatter cannot round-trip safely; simplify or escape the construct |
 | MSL-B060 | Duplicate scenario name      | Rename one scenario so every scenario name in the entry is unique                               |
 | MSL-B061 | Scenario with no name        | Add a name after `Scenario:`                                                                    |
+| MSL-B062 | Gherkin block does not parse | Fix the Gherkin syntax at the reported line                                                     |
 
 ### C0xx — Caption
 

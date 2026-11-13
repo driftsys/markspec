@@ -76,6 +76,7 @@ See [Locators](../spec/model/relations.md#locators) for the full grammar.
 | `MSL-L009` | warning  | A value has a `[` that no `]` closes. Commas after the `[` still separate values.        |
 | `MSL-B060` | warning  | A scenario name is used more than once in one entry. A locator cannot address that name. |
 | `MSL-B061` | info     | A scenario has an empty name. A locator cannot address it.                               |
+| `MSL-B062` | warning  | A Gherkin block does not parse. The warning names the line of the first error.           |
 
 If a second test in the example verifies `[Brake at 30 m]`, a scenario that does
 not exist, `markspec check` reports:

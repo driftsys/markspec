@@ -880,15 +880,16 @@ invariants).
 
 ### 4.5 Body (B)
 
-| Code       | Severity | Meaning                                                                                                                                                                             |
-| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MSL-B040` | error    | Heading inside entry body.                                                                                                                                                          |
-| `MSL-B041` | error    | Horizontal rule inside entry body.                                                                                                                                                  |
-| `MSL-B042` | error    | Task list inside entry body.                                                                                                                                                        |
-| `MSL-B043` | error    | Raw HTML inside entry body (other than `<!-- markspec:* -->`).                                                                                                                      |
-| `MSL-B044` | warning  | Feature block (Gherkin) declared but body contains another labelled “Acceptance criteria” list — single canonical form is Feature blocks (ADR-005 §Part 1).                         |
-| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry; reported on the second and later occurrences. A locator cannot address that name. |
-| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. A locator cannot address it.                                                                    |
+| Code       | Severity | Meaning                                                                                                                                                                                          |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MSL-B040` | error    | Heading inside entry body.                                                                                                                                                                       |
+| `MSL-B041` | error    | Horizontal rule inside entry body.                                                                                                                                                               |
+| `MSL-B042` | error    | Task list inside entry body.                                                                                                                                                                     |
+| `MSL-B043` | error    | Raw HTML inside entry body (other than `<!-- markspec:* -->`).                                                                                                                                   |
+| `MSL-B044` | warning  | Feature block (Gherkin) declared but body contains another labelled “Acceptance criteria” list — single canonical form is Feature blocks (ADR-005 §Part 1).                                      |
+| `MSL-B060` | warning  | A scenario name occurs more than once in the feature blocks of one Requirement or Contract entry; reported on the second and later occurrences. A locator cannot address that name.              |
+| `MSL-B061` | info     | A scenario in a feature block of a Requirement or Contract entry has an empty name. A locator cannot address it.                                                                                 |
+| `MSL-B062` | warning  | A `gherkin` or `feature` block of an entry of any type does not parse as Gherkin; reported at the file line of the first parser error. The scenarios of that block are read by the line scanner. |
 
 ### 4.6 Markers (M)
 
