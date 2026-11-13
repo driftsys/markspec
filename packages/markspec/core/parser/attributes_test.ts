@@ -4,7 +4,7 @@
  * Unit tests for attribute block parsing.
  */
 
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { parseAttributes, splitBodyAndAttributes } from "./attributes.ts";
 import { parseFile } from "./mod.ts";
 
@@ -119,13 +119,281 @@ Deno.test("parseAttributes: empty input returns empty array", () => {
 // Non-attribute lines are not parsed
 // ---------------------------------------------------------------------------
 
-Deno.test("splitBodyAndAttributes: no blank line between body and attributes", () => {
-  const content =
-    "Body text directly adjacent to attributes.\nId: SRS_01HGW2Q8MNP3";
+Deno.test("splitBodyAndAttributes: key line directly after prose stays body (#916)", () => {
+  const content = "Body text directly adjacent to a line.\nStatus: draft";
   const [body, attrs] = splitBodyAndAttributes(content);
-  assertStringIncludes(body, "Body text directly adjacent");
-  assertEquals(attrs.length, 1);
-  assertEquals(attrs[0], "Id: SRS_01HGW2Q8MNP3");
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: Id run directly under prose is the trailer (#916)", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Body text.\nId: 01HGW2Q8MNP3RSTVWXYZABCDE",
+  );
+  assertEquals(body, "Body text.");
+  assertEquals(attrs, ["Id: 01HGW2Q8MNP3RSTVWXYZABCDE"]);
+});
+
+Deno.test("splitBodyAndAttributes: Id and Satisfies run under prose is the trailer (#916)", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Body text.\nId: 01HGW2Q8MNP3RSTVWXYZABCDE\nSatisfies: SYS_0001",
+  );
+  assertEquals(body, "Body text.");
+  assertEquals(attrs, [
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+    "Satisfies: SYS_0001",
+  ]);
+});
+
+Deno.test("splitBodyAndAttributes: Status-only run under prose stays body (#916)", () => {
+  const content = "Body text.\nStatus: draft";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: final paragraph of unknown keys stays body (#916)", () => {
+  const content =
+    "Shall retry.\n\nRationale: the link drops.\nNote: see report.";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: unindented paragraph of core keys is a trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nSatisfies: SYS_0001\nLabels: ASIL-B",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Satisfies: SYS_0001", "Labels: ASIL-B"]);
+});
+
+Deno.test("splitBodyAndAttributes: unindented paragraph with Id accepts profile keys", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nId: 01HGW2Q8MNP3RSTVWXYZABCDE\nStatus: draft",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Id: 01HGW2Q8MNP3RSTVWXYZABCDE", "Status: draft"]);
+});
+
+Deno.test("splitBodyAndAttributes: a non Key: value line makes the paragraph body", () => {
+  const content = "Shall retry.\n\nSatisfies: SYS_0001\nsome prose";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: a continuation line stays in the trailer", () => {
+  // parseAttributes cannot read `SYS_0002`; the parser reports it as
+  // MSL-P021, and keeping it in the trailer keeps the trailer's attributes.
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nSatisfies: SYS_0001\\\n  SYS_0002",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Satisfies: SYS_0001\\", "SYS_0002"]);
+});
+
+Deno.test("splitBodyAndAttributes: a whitespace-led line under a plain key line is not a continuation", () => {
+  const content = "Shall retry.\n    Satisfies: SYS_0001\n    more code";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: a core-key line directly under prose stays body", () => {
+  for (const line of ["Satisfies: SYS_0001", "Labels: ASIL-B"]) {
+    const content = `Shall retry.\n${line}`;
+    const [body, attrs] = splitBodyAndAttributes(content);
+    assertEquals(body, content);
+    assertEquals(attrs, []);
+  }
+});
+
+Deno.test("splitBodyAndAttributes: an Id run under prose with an indented Id line is the trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n    Id: 01HGW2Q8MNP3RSTVWXYZABCDE\nStatus: draft",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Id: 01HGW2Q8MNP3RSTVWXYZABCDE", "Status: draft"]);
+});
+
+Deno.test("splitBodyAndAttributes: final paragraph of only unknown keys stays body (#916)", () => {
+  const content = "Shall retry.\n\nNote: see report.\nAssumption: link is up.";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: a lone Rationale paragraph is a trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nRationale: the link drops.",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Rationale: the link drops."]);
+});
+
+Deno.test("splitBodyAndAttributes: one unknown key after core keys keeps the paragraph in the body", () => {
+  const content = "Shall retry.\n\nSatisfies: SYS_0001\nNote: see report.";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: Id on a later line accepts profile keys", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n\nStatus: draft\nId: 01HGW2Q8MNP3RSTVWXYZABCDE",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Status: draft", "Id: 01HGW2Q8MNP3RSTVWXYZABCDE"]);
+});
+
+Deno.test("splitBodyAndAttributes: an unindented line below an indented run is not a trailer", () => {
+  // Pins that every trailer line of the indented run is indented: the
+  // unindented `Status:` line continues the paragraph in CommonMark.
+  const content = "Shall retry.\n    Satisfies: SYS_0001\nStatus: draft";
+  const [body, attrs] = splitBodyAndAttributes(content);
+  assertEquals(body, content);
+  assertEquals(attrs, []);
+});
+
+Deno.test("splitBodyAndAttributes: indent that mixes spaces and tabs is a code-block indent", () => {
+  // A profile key under prose is a trailer only as an indented run, so this
+  // fails when the indent is not measured in columns.
+  for (const indent of ["   \t  ", " \t\t", "  \t"]) {
+    const [body, attrs] = splitBodyAndAttributes(
+      `Shall retry.\n${indent}Status: draft`,
+    );
+    assertEquals(body, "Shall retry.", JSON.stringify(indent));
+    assertEquals(attrs, ["Status: draft"]);
+  }
+});
+
+Deno.test("splitBodyAndAttributes: an indented run below an unindented key line forms one trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Status: draft\n    Id: 01HGW2Q8MNP3RSTVWXYZABCDE\n    Satisfies: SYS_0001",
+  );
+  assertEquals(body, "");
+  assertEquals(attrs, [
+    "Status: draft",
+    "Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+    "Satisfies: SYS_0001",
+  ]);
+});
+
+Deno.test("splitBodyAndAttributes: under prose, a key run holding an indented Id is one trailer", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\nStatus: draft\n    Id: 01HGW2Q8MNP3RSTVWXYZABCDE",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Status: draft", "Id: 01HGW2Q8MNP3RSTVWXYZABCDE"]);
+});
+
+Deno.test("parseFile: body-less entry keeps an indented trailer of profile keys without Id (#916)", async () => {
+  // Pins that the first content line keeps its indent: trimmed, `Status:`
+  // would be an unindented line and the trailer would lose it.
+  const { entries } = await parseFile(
+    "- [REQ_0001] Title\n\n      Status: draft\n      Note: x\n",
+    { file: "a.md" },
+  );
+  assertEquals(entries[0].body, "");
+  assertEquals(entries[0].rawAttributes.map((a) => a.key), ["Status", "Note"]);
+});
+
+Deno.test("parseFile: body-less entry keeps an indented trailer of profile keys (#916)", async () => {
+  const { entries } = await parseFile(
+    "- [REQ_0001] Title\n\n      Status: draft\n      Id: urn:example:req-1\n",
+    { file: "a.md" },
+  );
+  assertEquals(entries[0].body, "");
+  assertEquals(entries[0].id, "urn:example:req-1");
+  assertEquals(entries[0].rawAttributes.map((a) => a.key), ["Status", "Id"]);
+});
+
+const P020_DOC = `- [REQ_0001] Debounce
+
+  The driver shall debounce the input within 5 ms.
+  Status: draft
+
+- [REQ_0002] Retry
+
+  The client shall retry a failed request 3 times.
+
+  Rationale: the link drops for up to 1 s.
+  Note: see the field report.
+
+- [REQ_0003] Labels
+
+  The client shall log every retry.
+  Labels: ASIL-B
+`;
+
+Deno.test("parseFile: #916 body prose with Key: value lines raises no MSL-P020", async () => {
+  const { diagnostics } = await parseFile(P020_DOC, { file: "a.md" });
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P020"), []);
+});
+
+Deno.test("parseFile: a Rationale paragraph before the trailer raises no MSL-P020 (#916)", async () => {
+  const { diagnostics } = await parseFile(
+    "- [REQ_0001] T\n\n  Shall retry.\n\n  Rationale: a.\n  Note: b.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n",
+    { file: "a.md" },
+  );
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P020"), []);
+});
+
+Deno.test("parseFile: a trace link read as body prose warns MSL-P020", async () => {
+  const { entries, diagnostics } = await parseFile(
+    "- [REQ_0001] T\n\n  Shall retry.\n\n  Satisfies: SYS_0001\n  Note: see report.\n",
+    { file: "a.md" },
+  );
+  assertEquals(entries[0].rawAttributes, []);
+  const p020 = diagnostics.filter((d) => d.code === "MSL-P020");
+  assertEquals(p020.map((d) => d.severity), ["warning"]);
+});
+
+Deno.test("parseFile: an Id run under prose warns MSL-P020", async () => {
+  const { entries, diagnostics } = await parseFile(
+    "- [REQ_0001] T\n\n  Shall retry.\n  Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n",
+    { file: "a.md" },
+  );
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  const p020 = diagnostics.filter((d) => d.code === "MSL-P020");
+  assertEquals(p020.map((d) => d.severity), ["warning"]);
+});
+
+Deno.test("parseFile: trace-relation lines under prose warn once per entry", async () => {
+  const { diagnostics } = await parseFile(
+    "- [REQ_0001] T\n\n  Shall retry.\n  Satisfies: SYS_0001\n  Verifies: SYS_0002\n",
+    { file: "a.md" },
+  );
+  const p020 = diagnostics.filter((d) => d.code === "MSL-P020");
+  assertEquals(p020.map((d) => d.severity), ["warning"]);
+});
+
+Deno.test("parseFile: a continuation line in the trailer is MSL-P021 and keeps the Id", async () => {
+  const { entries, diagnostics } = await parseFile(
+    "- [REQ_0001] T\n\n  Body.\n\n      Id: 01HGW2Q8MNP3RSTVWXYZABCDEF\n      Satisfies: A,\n        B\n",
+    { file: "a.md" },
+  );
+  assertEquals(entries[0].id, "01HGW2Q8MNP3RSTVWXYZABCDEF");
+  assertEquals(entries[0].body, "Body.");
+  assertEquals(diagnostics.filter((d) => d.code === "MSL-P021").length, 1);
+});
+
+Deno.test("parseFile: a trace link followed by prose is still an MSL-P020 error", async () => {
+  const { diagnostics } = await parseFile(
+    "- [REQ_0001] T\n\n  Satisfies: SYS_0001\n  more prose here.\n",
+    { file: "a.md" },
+  );
+  const p020 = diagnostics.filter((d) => d.code === "MSL-P020");
+  assertEquals(p020.map((d) => d.severity), ["error"]);
+});
+
+Deno.test("splitBodyAndAttributes: indented trailer directly after prose is unchanged", () => {
+  const [body, attrs] = splitBodyAndAttributes(
+    "Shall retry.\n    Satisfies: SYS_0001",
+  );
+  assertEquals(body, "Shall retry.");
+  assertEquals(attrs, ["Satisfies: SYS_0001"]);
 });
 
 Deno.test("parseAttributes: lines without Key: Value pattern are skipped", () => {

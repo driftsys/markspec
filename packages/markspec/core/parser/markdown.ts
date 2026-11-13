@@ -8,18 +8,18 @@
 import type { Definition, List, ListItem, Paragraph, Text } from "mdast";
 import type { Attribute, Diagnostic, Entry, EntryShape } from "../model/mod.ts";
 import {
-  attributeSpec,
   CORE_RELATIONS,
   IDENTITY_KEY,
   LOCK_EXTRA_INVERSE_KEYS,
   makeDisplayId,
   shapeFromIdValue,
-  UNIVERSAL_ATTRIBUTE_KEYS,
 } from "../model/mod.ts";
 import {
   ATTR_LINE_RE,
   collateAttributes,
+  isTrailerUnderProse,
   parseAttributes,
+  RECOGNIZED_TRAILER_KEYS,
   splitBodyAndAttributes,
 } from "./attributes.ts";
 import { extractBodyTokens } from "./body_tokens.ts";
@@ -32,20 +32,8 @@ import type { LineMap } from "./line_map.ts";
 import { translateEntryLocations } from "./translate.ts";
 import { assembleTyplTypes } from "../typl/mod.ts";
 
-/**
- * Canonical set of trailer attribute keys the core recognizes: the union of
- * every authored universal attribute, every core trace relation, and the
- * extra inverse lock key (`Verified-by`). Universal keys with
- * `origin: "generated"` (`Contains`, `Caused`, ...) are left out: the compiler
- * computes them and authors never write them (#706). MSL-P020 (misplaced
- * trailer) fires only when a body line's key is in this set; any other
- * capitalized `Word:` lead-in (`Note:`, `Example:`, `Assumption:`) is prose,
- * not a misplaced trailer (#654).
- */
-const RECOGNIZED_TRAILER_KEYS: ReadonlySet<string> = new Set([
-  ...UNIVERSAL_ATTRIBUTE_KEYS.filter((key) =>
-    attributeSpec(key)?.origin !== "generated"
-  ),
+/** Keys of the core trace relations, for the MSL-P020 warning. */
+const TRACE_RELATION_KEYS: ReadonlySet<string> = new Set([
   ...CORE_RELATIONS.map((r) => r.attr),
   ...LOCK_EXTRA_INVERSE_KEYS,
 ]);
@@ -363,44 +351,91 @@ function extractEntry(
 
   // Extract body content and attributes.
   const bodyContent = extractBodyContent(item, markdownLines);
-  const [body, attrLines] = splitBodyAndAttributes(bodyContent);
+  const [rawBody, attrLines] = splitBodyAndAttributes(bodyContent);
+  const body = rawBody.trimStart();
   const attributes = parseAttributes(attrLines);
   const { blocks: bodyAst, tree: mdastTree } = buildBodyAstWithTree(body);
 
   const entryLine = item.position?.start.line ?? 1;
 
-  // MSL-P020: trailers block is not the final indented code block.
-  // Detect `Key: Value` lines in the body that likely should be trailers
-  // but are not at the final position (body content follows them). Only lines
-  // whose key is a recognized trailer attribute count — see
-  // RECOGNIZED_TRAILER_KEYS — so ordinary prose (`Note:`, `Example:`) and
-  // caption lead-ins (`Figure:`, `Table:`) are left as legitimate body content.
+  // MSL-P020: a body line that would carry identity or a trace link.
+  // Only `Id:` and the core trace relation keys count. Other recognized
+  // keys (`Rationale:`, `Labels:`, `Type:`) and any other capitalized
+  // lead-in (`Note:`, `Example:`) start ordinary body prose: such a line
+  // keeps its text in the body, and `markspec fmt` cannot change it, so
+  // an error there could never be cleared (#654, #916).
+  //
+  // - Error: an `Id:` or trace-relation line with other content after it
+  //   (body content or the trailer block). The trailer is not at the final
+  //   position, so the identity or the link is lost. A trailing run that
+  //   holds an `Id:` line is always the trailer (findTrailerStart), so an
+  //   `Id:` line never reaches the warning case below.
+  // - Warning: a trace-relation line in the trailing run of `Key: Value`
+  //   lines of an entry with no trailer. The run was not accepted as the
+  //   trailer (no blank line above it, or a key outside the core set), so
+  //   the line is body text and does not create a trace link.
   if (body.length > 0) {
     const bodyLines = body.split("\n");
     const fencedLines =
       parseCodeRegions(normalizeLineEndings(body), mdastTree).fencedLines;
+    // Start of the trailing run of `Key: Value` lines (blank lines skipped
+    // at the end only).
+    let tailStart = bodyLines.length;
+    while (tailStart > 0 && bodyLines[tailStart - 1].trim() === "") {
+      tailStart--;
+    }
+    while (
+      tailStart > 0 && !fencedLines.has(tailStart - 1) &&
+      ATTR_LINE_RE.test(bodyLines[tailStart - 1].trim())
+    ) tailStart--;
+    let warned = false;
     for (let i = 0; i < bodyLines.length; i++) {
       // Reuse the LF-normalized body tree: examples cannot be misplaced trailers.
       if (fencedLines.has(i)) continue;
       const trimmed = bodyLines[i].trim();
       if (!ATTR_LINE_RE.test(trimmed)) continue;
-      // Only a RECOGNIZED trailer key signals a genuinely misplaced trailer.
-      // A body paragraph starting with any other capitalized word + colon
-      // (`Note:`, `Example:`, `Assumption:`) is prose, not a trailer (#654).
-      const keyMatch = trimmed.match(/^([A-Z][A-Za-z-]*):/);
-      if (!keyMatch || !RECOGNIZED_TRAILER_KEYS.has(keyMatch[1])) continue;
-      // Found a misplaced trailer-like line in the body — non-final position
-      diagnostics.push({
-        code: "MSL-P020",
-        severity: "error",
-        message:
-          `${displayId}: trailers block is not the final indented code ` +
-          `block of the entry -- content appears after trailer-like ` +
-          `lines (spec section 4.1)`,
-        location: { file, line: entryLine, column: 1 },
-      });
-      break; // One diagnostic per entry is sufficient
+      const key = trimmed.match(/^([A-Z][A-Za-z-]*):/)?.[1];
+      if (key === undefined) continue;
+      if (key !== IDENTITY_KEY && !TRACE_RELATION_KEYS.has(key)) continue;
+      if (i < tailStart || attrLines.length > 0) {
+        diagnostics.push({
+          code: "MSL-P020",
+          severity: "error",
+          message:
+            `${displayId}: trailers block is not the final indented code ` +
+            `block of the entry -- content appears after trailer-like ` +
+            `lines (spec section 4.1)`,
+          location: { file, line: entryLine, column: 1 },
+        });
+        break; // One diagnostic per entry is sufficient
+      }
+      if (!warned) {
+        warned = true;
+        diagnostics.push({
+          code: "MSL-P020",
+          severity: "warning",
+          message: `${displayId}: '${key}:' line is read as body ` +
+            `text, not as a trailer; to make it a trace link, put the ` +
+            `trailer in an indented block after a blank line ` +
+            `(spec section 4.1)`,
+          location: { file, line: entryLine, column: 1 },
+        });
+      }
     }
+  }
+
+  // MSL-P020 (warning): the trailer is an `Id:` run directly under prose,
+  // with no blank line above it. It is still read as the trailer, so the entry keeps its
+  // identity, but it is not in the canonical layout (#916).
+  if (isTrailerUnderProse(bodyContent.split("\n"))) {
+    diagnostics.push({
+      code: "MSL-P020",
+      severity: "warning",
+      message: `${displayId}: trailers block is not separated from the ` +
+        `body by a blank line; run 'markspec fmt' to ` +
+        `move it to the canonical layout (spec section 4.1)`,
+      location: { file, line: entryLine, column: 1 },
+    });
   }
 
   // MSL-P021 / MSL-P022: validate trailer lines for syntax correctness.
@@ -712,5 +747,7 @@ function extractBodyContent(item: ListItem, lines: string[]): string {
     return line;
   });
 
-  return stripped.join("\n").trim();
+  // Keep the first line's own indent: it marks an indented trailer in a
+  // body-less entry, and `markspec fmt` sees the same text (#916).
+  return stripped.join("\n").trimEnd();
 }

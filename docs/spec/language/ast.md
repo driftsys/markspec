@@ -141,10 +141,14 @@ If the trailing `code` node is an attribute block, it is removed from `body` and
 its lines are parsed into `MsAttribute` entries. Otherwise, `attributes` is
 empty and the `code` node stays in `body` (as a regular code block).
 
-**Backward compatibility.** During the transition, the parser also accepts the
-legacy form: a trailing `paragraph` whose text content is `Key: Value` lines
-joined by hard line breaks (the trailing `\` form). When the legacy shape is
-recognized, the parser emits `MSL-DEPRECATED-ATTR-001`.
+**Unindented trailers.** The parser also accepts a trailing `paragraph` whose
+lines are all `Key: Value` when the paragraph holds an `Id:` line or uses only
+core trailer keys, and a run of `Key: Value` lines at the end of the last
+paragraph, directly under prose, when any line of the run is an `Id:` line
+(`MSL-P020` warning). Any other trailing paragraph stays in `body`. A trailer
+line that ends with `\` (the legacy hard-line-break form) is accepted in the
+indented `code` node and in these shapes, and emits `MSL-DEPRECATED-ATTR-001`.
+See [language.md](language.md) Part 1 §2 for the full rule.
 
 ### Examples
 
@@ -233,10 +237,11 @@ Otherwise, the `code` node stays in `body` as a regular code block.
 The trailing position is required: if any block-level content appears after the
 candidate `code` node, it does not qualify as an attribute block.
 
-**Legacy shape.** During the transition, a trailing `paragraph` with
-`Key: Value` lines separated by hard line breaks is also recognized. This
-triggers `MSL-DEPRECATED-ATTR-001`. The legacy form will be removed in a future
-major release.
+**Unindented shapes.** A trailing `paragraph` of `Key: Value` lines is also
+recognized when it holds an `Id:` line or uses only core trailer keys. A trailer
+line with a hard line break (the legacy trailing `\` form), in this shape or in
+the `code` node, triggers `MSL-DEPRECATED-ATTR-001`. Any other trailing
+paragraph stays in `body`.
 
 ---
 

@@ -356,11 +356,42 @@ never confused with the attribute block — different syntactic shape.
 block with no attribute meaning. Authors must place attributes at the very end
 of the entry.
 
-**Backward compatibility.** During the transition, the parser also accepts the
-legacy paragraph-with-trailing-`\` shape. Running `markspec fmt` rewrites legacy
-blocks to the canonical indented form. The legacy shape emits a deprecation
-diagnostic (`MSL-DEPRECATED-ATTR-001`) and will be removed in a future major
-release.
+**Unindented trailers.** The parser also accepts a trailer that is not indented,
+in two shapes. `markspec fmt` rewrites both to the canonical indented block
+after a blank line, and keeps the `Id:` value.
+
+- The final paragraph of the entry, after a blank line, when every line is
+  `Key: Value` and the paragraph holds an `Id:` line or uses only core trailer
+  keys (Part 2 §2.1 universal attributes and the core trace relations).
+- A run of `Key: Value` lines directly under body prose, with no blank line,
+  when any line of the run is an `Id:` line, indented or not. The `Id:` line
+  shows that the run is a trailer, so the entry keeps its identity. `check`
+  reports it as `MSL-P020` (warning).
+
+**Legacy trailing `\`.** A trailer line that ends with `\` (the legacy
+paragraph-with-trailing-`\` shape) is accepted in the indented block and in both
+unindented shapes, and emits a deprecation diagnostic
+(`MSL-DEPRECATED-ATTR-001`).
+
+**Continuation lines.** A whitespace-led line directly below a trailer line that
+ends with `\` or `,` stays in the trailer, but each attribute takes exactly one
+line, so the line is not read as part of a value. `check` reports it as
+`MSL-P021` (error), and `markspec fmt` leaves the whole trailer unchanged: it
+drops no line and stamps no `Id:`.
+
+Any other trailing `Key: value` line is body prose: for example `Status: draft`
+directly under a prose line, or a final paragraph of `Rationale:` and `Note:`
+lines. Only `Id:` and core trace relation keys (`Satisfies:`, `Verifies:`, ...)
+in body prose raise `MSL-P020`, because such a line does not create a trace
+link:
+
+- error, when other body content or the trailer block follows the line;
+- warning, when the line is in the trailing `Key: Value` run of an entry that
+  has no trailer.
+
+An indented block directly under body prose, with no blank line, continues the
+paragraph in CommonMark. The parser still reads it as the trailer, as it did
+before, and `markspec fmt` inserts the blank line.
 
 #### §3 Table captions
 

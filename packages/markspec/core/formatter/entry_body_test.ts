@@ -511,3 +511,12 @@ ${pad}    Id: 01JBRK00000000000000000001
     );
   }
 });
+
+Deno.test("replaceEntryBody: refuses an entry whose Id run sits under prose (MSL-P020 warning)", async () => {
+  const text =
+    "- [REQ_0001] First\n\n  Body.\n  Id: 01JBRK00000000000000000001\n";
+  assertEquals(await replaceEntryBody(text, FILE, "REQ_0001", "New."), {
+    ok: false,
+    refusal: "trailer-invalid",
+  });
+});

@@ -21,7 +21,11 @@ import {
   IDENTITY_KEY,
 } from "../model/mod.ts";
 import { MARKDOWN_EXTENSIONS } from "../discovery/mod.ts";
-import { ATTR_LINE_RE, parseAttributes } from "../parser/attributes.ts";
+import {
+  ATTR_LINE_RE,
+  findTrailerStart,
+  parseAttributes,
+} from "../parser/attributes.ts";
 import { extractFrontMatter } from "../parser/frontmatter.ts";
 import { parseMarkdown } from "../parser/markdown.ts";
 import { fencedCodeLines } from "../util/fence.ts";
@@ -819,6 +823,24 @@ function formatEntries(
     // input reproduces the same identity. Falls back to fresh random
     // when `Source:` is missing — synthesizing without a source pointer
     // makes no sense, but the formatter never fails a stamp.
+    // A trailer holding a line the attribute parser cannot read (a
+    // continuation of a value) is left exactly as it is: rewriting it
+    // would drop that line, and stamping an Id would replace the
+    // identity the author wrote. The parser reports the line as MSL-P021.
+    const trailerRange = findAttributeBlockRange(
+      lines,
+      entry.location.line,
+      indent,
+      itemEndFloor(),
+      protectedRanges,
+    );
+    if (
+      trailerRange &&
+      lines.slice(trailerRange.start, trailerRange.end).some((l) =>
+        l.trim() !== "" && !ATTR_LINE_RE.test(l.trim())
+      )
+    ) continue;
+
     const hasIdentity = attrs.some((a) => a.key === IDENTITY_KEY);
     if (!hasIdentity && entry.shape === "Authored") {
       const origin = attrs.find((a) => a.key === "Origin")?.value.trim();
@@ -877,10 +899,20 @@ function formatEntries(
       const newBlock = renderAttributeBlock(normalized, indent);
       const oldBlock = lines.slice(range.start, range.end).join("\n");
 
-      if (newBlock !== oldBlock) {
+      // A block directly under body prose (no blank line), indented or
+      // not, is not a code block in CommonMark: it continues the
+      // paragraph. The canonical layout separates it (#916). A line above
+      // that belongs to a preserved range (a refused child entry) is left
+      // as it is.
+      const above = range.start - 1;
+      const needsBlank = above > titleLineIdx &&
+        lines[above].trim() !== "" &&
+        !protectedRanges.some((r) => above >= r.start && above < r.end);
+      if (newBlock !== oldBlock || needsBlank) {
         lines.splice(
           range.start,
           range.end - range.start,
+          ...(needsBlank ? [""] : []),
           ...newBlock.split("\n"),
         );
         changed = true;
@@ -1289,7 +1321,11 @@ function removeEmptyTrailerLines(
  * for an entry starting at the given line.
  *
  * Scans forward from the entry start to find the list item boundary,
- * then walks backwards to find the contiguous trailing attribute block.
+ * then passes the entry content below the last preserved range, with the
+ * list-item indent removed, to the parser's {@linkcode findTrailerStart}.
+ * The formatter and the parser therefore agree on which lines are the
+ * trailer, so `markspec fmt` never rewrites a line that the parser read as
+ * body, and never drops an attribute line that the parser read (#916).
  */
 export function findAttributeBlockRange(
   lines: readonly string[],
@@ -1309,20 +1345,20 @@ export function findAttributeBlockRange(
 
   if (scanEnd <= startIdx) return undefined;
 
-  // Walk backwards collecting attribute lines.
-  let attrStart = scanEnd;
-  for (let i = scanEnd - 1; i > startIdx; i--) {
+  // Content lines of the entry body, below the last preserved range, with
+  // the list-item indent removed as the parser does. The shared trailer
+  // detection decides where the attribute block starts (#916).
+  let floor = startIdx + 1;
+  for (let i = startIdx + 1; i < scanEnd; i++) {
     if (preservedRanges.some((range) => i >= range.start && i < range.end)) {
-      break;
-    }
-    const trimmed = lines[i].trim();
-    if (trimmed === "") break;
-    if (ATTR_LINE_RE.test(trimmed)) {
-      attrStart = i;
-    } else {
-      break;
+      floor = i + 1;
     }
   }
+  const indentStr = " ".repeat(indent);
+  const content = lines.slice(floor, scanEnd).map((l) =>
+    l.startsWith(indentStr) ? l.slice(indent) : l
+  );
+  const attrStart = floor + findTrailerStart(content);
 
   if (attrStart >= scanEnd) return undefined;
 
